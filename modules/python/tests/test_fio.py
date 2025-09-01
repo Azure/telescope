@@ -41,7 +41,7 @@ class TestFio(unittest.TestCase):
         mock_node = MagicMock()
         mock_node.metadata.name = "test-node-1"
         mock_k8s_client.get_nodes.return_value = [mock_node]
-        
+
         mock_pod = MagicMock()
         mock_pod.metadata.name = "fio-pod-12345"
         mock_pod.metadata.creation_timestamp = None  # This will make calculate_pod_startup_latency return None
@@ -69,13 +69,18 @@ class TestFio(unittest.TestCase):
         # Verify the yaml patch was written (once per node)
         mock_yaml_dump.assert_called_once()
 
-        # Verify subprocess.run was called once (create command only)
-        mock_run.assert_called_once()
+        # Verify subprocess.run was called twice (create and delete commands)
+        self.assertEqual(mock_run.call_count, 2)
 
         # Verify the create command
         create_call = mock_run.call_args_list[0]
         self.assertTrue("kustomize build" in create_call[0][0])
         self.assertTrue("kubectl apply" in create_call[0][0])
+
+        # Verify the delete command
+        delete_call = mock_run.call_args_list[1]
+        self.assertTrue("kustomize build" in delete_call[0][0])
+        self.assertTrue("kubectl delete" in delete_call[0][0])
 
         # Verify the result directory was created
         mock_makedirs.assert_called_once_with(result_dir, exist_ok=True)
@@ -176,7 +181,7 @@ class TestFio(unittest.TestCase):
 
         # The function should still create the job and patch file
         mock_yaml_dump.assert_called_once()
-        mock_run.assert_called_once()
+        self.assertEqual(mock_run.call_count, 1)  # only create command, delete is skipped due to no pods
 
     @patch('builtins.open', new_callable=mock_open)
     @patch('fio.fio.datetime')
