@@ -44,10 +44,12 @@ stages:
               k8s_machine_type: Standard_D16s_v3
               k8s_os_disk_type: Managed
               storage_name: os-disk
+              desired_nodes: 3
             Standard_D16ds_v6:
               k8s_machine_type: Standard_D16ds_v6
               k8s_os_disk_type: Managed
               storage_name: os-disk
+              desired_nodes: 3
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
@@ -81,10 +83,12 @@ stages:
               k8s_machine_type: Standard_D16s_v3
               k8s_os_disk_type: Ephemeral
               storage_name: os-disk
+              desired_nodes: 3
             Standard_D16ds_v6_Ephemeral:
               k8s_machine_type: Standard_D16ds_v6
               k8s_os_disk_type: Ephemeral
               storage_name: os-disk
+              desired_nodes: 3
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
@@ -115,6 +119,7 @@ stages:
             m7i.4xlarge:
               k8s_machine_type: m7i.4xlarge
               storage_name: os-disk
+              desired_nodes: 3
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
