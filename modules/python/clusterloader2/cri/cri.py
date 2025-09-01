@@ -4,7 +4,7 @@ import argparse
 import math
 
 from datetime import datetime, timezone
-from clusterloader2.utils import parse_xml_to_json, Cl2Command, get_measurement
+from clusterloader2.utils import Xml2JsonParser, Cl2Command, get_measurement
 from clients.kubernetes_client import KubernetesClient, client as k8s_client
 from utils.logger_config import get_logger, setup_logging
 from utils.common import str2bool
@@ -157,7 +157,7 @@ def collect_clusterloader2(
     if scrape_kubelets:
         verify_measurement()
 
-    details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
+    details = Xml2JsonParser(os.path.join(cl2_report_dir, "junit.xml"), indent=2).parse()
     json_data = json.loads(details)
     testsuites = json_data["testsuites"]
 

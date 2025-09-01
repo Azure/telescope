@@ -6,8 +6,8 @@ from datetime import datetime, timezone
 from clients.kubernetes_client import KubernetesClient
 from clusterloader2.base import ClusterLoader2Base
 from clusterloader2.utils import (
-    parse_xml_to_json,
-    CL2ReportProcessor,
+    Xml2JsonParser,
+    Cl2ReportProcessor,
     Cl2Command,
 )
 from utils.logger_config import get_logger, setup_logging
@@ -82,9 +82,9 @@ class JobController(ClusterLoader2Base):
 
     def collect_clusterloader2(self) -> None:
 
-        details = parse_xml_to_json(
+        details = Xml2JsonParser(
             os.path.join(self.cl2_report_dir, "junit.xml"), indent=2
-        )
+        ).parse()
         json_data = json.loads(details)
         testsuites = json_data["testsuites"]
         provider = json.loads(self.cloud_info)["cloud"]
@@ -114,7 +114,7 @@ class JobController(ClusterLoader2Base):
         }
 
         # Process CL2 report files
-        content = CL2ReportProcessor(self.cl2_report_dir, template).process()
+        content = Cl2ReportProcessor(self.cl2_report_dir, template).process()
 
         # Write results to the result file
         os.makedirs(os.path.dirname(self.result_file), exist_ok=True)

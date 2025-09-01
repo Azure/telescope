@@ -3,7 +3,7 @@ import os
 import argparse
 
 from datetime import datetime, timezone
-from clusterloader2.utils import parse_xml_to_json, Cl2Command, get_measurement
+from clusterloader2.utils import Xml2JsonParser, Cl2Command, get_measurement
 from utils.common import str2bool
 
 DEFAULT_NODES_PER_NAMESPACE = 100
@@ -122,7 +122,7 @@ def collect_clusterloader2(
     apply_fqdn_cnp,
     test_type="default_config"
 ):
-    details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
+    details = Xml2JsonParser(os.path.join(cl2_report_dir, "junit.xml"), indent=2).parse()
     json_data = json.loads(details)
     testsuites = json_data["testsuites"]
 

@@ -5,7 +5,7 @@ import re
 import subprocess
 
 from datetime import datetime, timezone
-from clusterloader2.utils import parse_xml_to_json, Cl2Command
+from clusterloader2.utils import Xml2JsonParser, Cl2Command
 from clients.kubernetes_client import KubernetesClient
 from utils.logger_config import get_logger, setup_logging
 
@@ -110,7 +110,7 @@ def collect_clusterloader2(
     result_file
 ):
     index_pattern = re.compile(r'(\d+)$')
-    raw_data = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
+    raw_data = Xml2JsonParser(os.path.join(cl2_report_dir, "junit.xml"), indent=2).parse()
 
     json_data = json.loads(raw_data)
     testsuites = json_data["testsuites"]
