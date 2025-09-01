@@ -23,13 +23,13 @@ aks_config_list = [
     extra_node_pool = [
       {
         name         = "user"
-        node_count   = 1
+        node_count   = 5
         vm_size      = "Standard_NC24ads_A100_v4"
         os_disk_type = "Ephemeral"
         node_labels  = { fio-dedicated = "true" }
         node_taints  = ["fio-dedicated=true:NoExecute", "fio-dedicated=true:NoSchedule"]
       }
     ]
-    kubernetes_version = "1.32"
+    kubernetes_version = "1.33"
   }
 ]
