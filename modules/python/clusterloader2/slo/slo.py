@@ -5,10 +5,7 @@ import json
 from utils.common import str2bool
 from clusterloader2.slo import ClusterLoader2Base
 from clients.kubernetes_client import KubernetesClient
-from clusterloader2.utils import (
-    CL2Command,
-    CL2ReportProcessor,
-)
+from clusterloader2.utils import Cl2Command, Cl2ReportProcessor
 from utils.logger_config import get_logger, setup_logging
 
 # Configure logging
@@ -159,8 +156,8 @@ class SloRunner(ClusterLoader2Base.Runner):
     def get_cl2_parameters(
         self,
         **cli_params
-    ) -> CL2Command.Params:
-        return CL2Command.Params(
+    ) -> Cl2Command.Params:
+        return Cl2Command.Params(
             **cli_params,
             overrides=True, 
             enable_prometheus=True,
@@ -211,7 +208,7 @@ class SloRunner(ClusterLoader2Base.Runner):
             "test_type": test_type,
         }
 
-        return CL2ReportProcessor(cl2_report_dir, template).process()
+        return Cl2ReportProcessor(cl2_report_dir, template).process()
 
     def calculate_config(
         self,

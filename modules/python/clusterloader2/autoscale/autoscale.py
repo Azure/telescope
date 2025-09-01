@@ -5,7 +5,7 @@ import re
 import subprocess
 
 from datetime import datetime, timezone
-from clusterloader2.utils import parse_xml_to_json, CL2Command
+from clusterloader2.utils import parse_xml_to_json, Cl2Command
 from clients.kubernetes_client import KubernetesClient
 from utils.logger_config import get_logger, setup_logging
 
@@ -87,8 +87,8 @@ def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up
     file.close()
 
 def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider):
-    CL2Command(
-        cl2_params=CL2Command.Params(
+    Cl2Command(
+        cl2_params=Cl2Command.Params(
             image=cl2_image,
             config_dir=cl2_config_dir,
             report_dir=cl2_report_dir,

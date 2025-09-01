@@ -1,6 +1,8 @@
 from xml.dom import minidom
 from enum import Enum
 
+from  .common import read_from_file
+
 class TagNames(Enum):
     TESTSUITE = "testsuite"
     TESTCASE = "testcase"
@@ -14,7 +16,7 @@ class AttributeNames(Enum):
     CLASSNAME = "classname"
     TIME = "time"
 
-class CL2TestResultParser:
+class Xml2JsonParser:
     def __init__(self, 
                  filepath: str, 
                  indent: int = 0):
@@ -25,8 +27,6 @@ class CL2TestResultParser:
     @property
     def xml_document(self) -> minidom.Document:
         if getattr(self, "_xml_doc", None) is None:
-            # Lazy import to avoid circular import when package is initialized
-            from clusterloader2.utils.common import read_from_file
             xml_content = read_from_file(self._filepath)
             self._xml_doc = minidom.parseString(xml_content)
         return self._xml_doc
@@ -67,8 +67,3 @@ class CL2TestResultParser:
             "testcases": self._process_suite(suite)
         } for suite in self.testsuites]
 
-if __name__ == "__main__":
-    parser = CL2TestResultParser(filepath="tmp.xml", indent=2)
-    result = parser.parse()
-    import json
-    print(json.dumps(result, indent=2))

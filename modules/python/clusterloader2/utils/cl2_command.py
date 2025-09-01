@@ -10,7 +10,7 @@ setup_logging()
 logger = get_logger(__name__)
 
 
-class CL2Command:
+class Cl2Command:
     @dataclass
     class Params:
         kubeconfig: str = ""

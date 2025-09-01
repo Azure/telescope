@@ -4,7 +4,7 @@ import argparse
 import math
 
 from datetime import datetime, timezone
-from clusterloader2.utils import parse_xml_to_json, CL2Command, get_measurement
+from clusterloader2.utils import parse_xml_to_json, Cl2Command, get_measurement
 from clients.kubernetes_client import KubernetesClient, client as k8s_client
 from utils.logger_config import get_logger, setup_logging
 from utils.common import str2bool
@@ -95,8 +95,8 @@ def override_config_clusterloader2(
     file.close()
 
 def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider, scrape_kubelets):
-    CL2Command(
-        cl2_params=CL2Command.Params(
+    Cl2Command(
+        cl2_params=Cl2Command.Params(
             cl2_image=cl2_image,
             cl2_config_dir=cl2_config_dir,
             cl2_report_dir=cl2_report_dir,

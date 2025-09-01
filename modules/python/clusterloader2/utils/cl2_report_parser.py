@@ -1,14 +1,15 @@
 import json
 import os
 
-from clusterloader2.utils import get_measurement, read_from_file
+from .common import read_from_file, get_measurement
+from .xml_to_json_parser import Xml2JsonParser
 from utils.logger_config import get_logger, setup_logging
 
 # Configure logging
 setup_logging()
 logger = get_logger(__name__)
 
-class CL2ReportProcessor:
+class Cl2ReportProcessor:
     def __init__(self, cl2_report_dir: str, template: dict):
         self.cl2_report_dir = cl2_report_dir
         self.template = template
@@ -54,4 +55,18 @@ class CL2ReportProcessor:
         # Process all files and flatten results
         lines = [line for path in file_paths for line in self.process_file(path)]
         return "\n".join(lines) + ("\n" if lines else "")
+
+
+def parse_test_results(cl2_report_dir: str) -> tuple[str, list[any]]:
+    junit_xml_file = os.path.join(cl2_report_dir, "junit.xml")        
+    details = Xml2JsonParser(junit_xml_file, indent=2).parse()
+    json_data = json.loads(details)
+    testsuites = json_data["testsuites"]
+
+    if testsuites:
+        status = "success" if testsuites[0]["failures"] == 0 else "failure"
+    else:
+        raise Exception(f"No testsuites found in the report! Raw data: {details}")
+    
+    return status, testsuites
 

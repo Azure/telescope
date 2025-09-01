@@ -8,7 +8,7 @@ from clusterloader2.base import ClusterLoader2Base
 from clusterloader2.utils import (
     parse_xml_to_json,
     CL2ReportProcessor,
-    CL2Command,
+    Cl2Command,
 )
 from utils.logger_config import get_logger, setup_logging
 from utils.common import str2bool
@@ -67,8 +67,8 @@ class JobController(ClusterLoader2Base):
         )
 
     def execute_clusterloader2(self):
-        CL2Command(
-            cl2_params=CL2Command.Params(
+        Cl2Command(
+            cl2_params=Cl2Command.Params(
                 kubeconfig=self.kubeconfig,
                 cl2_image=self.cl2_image,
                 cl2_config_dir= self.cl2_config_dir,

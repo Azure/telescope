@@ -7,8 +7,8 @@ from utils.logger_config import get_logger, setup_logging
 from clusterloader2.utils import (
     write_to_file,
     convert_config_to_str,
+    Cl2Command,
     parse_test_results,
-    CL2Command
 )
 
 # Configure logging
@@ -67,7 +67,7 @@ class ClusterLoader2Base(ABC):
             pass
         
         @abstractmethod
-        def get_cl2_parameters(self) -> CL2Command.Params:
+        def get_cl2_parameters(self) -> Cl2Command.Params:
             pass
         
         @abstractmethod
@@ -147,8 +147,8 @@ class ClusterLoader2Base(ABC):
                 **custom_cl2_params,
                 **args_dict
             }
-            cl2_cmd = CL2Command(
-                cl2_params=CL2Command.Params(**merged_params)
+            cl2_cmd = Cl2Command(
+                cl2_params=Cl2Command.Params(**merged_params)
             )
             cl2_cmd.execute()
         elif command == Command.COLLECT.value:

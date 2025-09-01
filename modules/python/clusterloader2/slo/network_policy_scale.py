@@ -5,10 +5,8 @@ import argparse
 from datetime import datetime, timezone
 from clusterloader2.slo import ClusterLoader2Base, Ignored
 from clusterloader2.utils import (
-    write_to_file, 
-    parse_test_results,
-    CL2ReportProcessor,
-    CL2Command
+    Cl2ReportProcessor,
+    Cl2Command
 )
 from utils.logger_config import get_logger, setup_logging
 
@@ -156,8 +154,8 @@ class NetworkPolicyScaleRunner(ClusterLoader2Base.Runner):
     def get_cl2_parameters(
         self,
         **cli_params
-    ) -> CL2Command.Params:
-        return CL2Command.Params(
+    ) -> Cl2Command.Params:
+        return Cl2Command.Params(
             **cli_params,
             overrides=True,
             enable_prometheus=True,
@@ -193,8 +191,8 @@ class NetworkPolicyScaleRunner(ClusterLoader2Base.Runner):
             "run_url": run_url,
             "test_type": test_type,
         }
-        
-        return CL2ReportProcessor(
+
+        return Cl2ReportProcessor(
             cl2_report_dir,
             template,
         ).process()

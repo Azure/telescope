@@ -9,26 +9,22 @@ from .constants import (
     SCHEDULING_THROUGHPUT_PREFIX,
 )
 
-from .cl2_reports import (
-    get_measurement,
-    parse_xml_to_json,
-    parse_test_results
-)
-
 from .common import (
     convert_config_to_str,
     write_to_file,
-    read_from_file
+    read_from_file,
+    get_measurement
 )
 
-from .Command import (
-    CL2Command,
+from .cl2_command import (
+    Cl2Command,
 )
 
-from .CL2ReportProcessor import (
-    CL2ReportProcessor
+from .cl2_report_parser import (
+    Cl2ReportProcessor,
+    parse_test_results
 )
 
-from .CL2TestResultParser import (
-    CL2TestResultParser
+from .xml_to_json_parser import (
+    Xml2JsonParser
 )
