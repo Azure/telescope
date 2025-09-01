@@ -7,7 +7,7 @@ from clusterloader2.slo import ClusterLoader2Base
 from clients.kubernetes_client import KubernetesClient
 from clusterloader2.utils import (
     CL2Command,
-    process_cl2_reports,
+    CL2ReportProcessor,
 )
 from utils.logger_config import get_logger, setup_logging
 
@@ -211,7 +211,7 @@ class SloRunner(ClusterLoader2Base.Runner):
             "test_type": test_type,
         }
 
-        return process_cl2_reports(cl2_report_dir, template)
+        return CL2ReportProcessor(cl2_report_dir, template).process()
 
     def calculate_config(
         self,

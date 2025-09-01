@@ -7,7 +7,7 @@ from clients.kubernetes_client import KubernetesClient
 from clusterloader2.base import ClusterLoader2Base
 from clusterloader2.utils import (
     parse_xml_to_json,
-    process_cl2_reports,
+    CL2ReportProcessor,
     CL2Command,
 )
 from utils.logger_config import get_logger, setup_logging
@@ -114,7 +114,7 @@ class JobController(ClusterLoader2Base):
         }
 
         # Process CL2 report files
-        content = process_cl2_reports(self.cl2_report_dir, template)
+        content = CL2ReportProcessor(self.cl2_report_dir, template).process()
 
         # Write results to the result file
         os.makedirs(os.path.dirname(self.result_file), exist_ok=True)

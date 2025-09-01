@@ -28,3 +28,13 @@ def write_to_file(
     with open(filename, "r", encoding="utf-8") as file:
         if logger:
             logger.info(f"Content of file {filename}:\n{file.read()}")
+
+
+def read_from_file(
+    filename: str,
+    encoding: str = "utf-8"
+) -> str:
+    content = ""
+    with open(filename, "r", encoding=encoding) as f:
+        content = f.read()
+    return content

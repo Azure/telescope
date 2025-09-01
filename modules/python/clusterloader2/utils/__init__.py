@@ -11,16 +11,24 @@ from .constants import (
 
 from .cl2_reports import (
     get_measurement,
-    process_cl2_reports,
     parse_xml_to_json,
     parse_test_results
 )
 
 from .common import (
     convert_config_to_str,
-    write_to_file
+    write_to_file,
+    read_from_file
 )
 
-from .CL2Command import (
+from .Command import (
     CL2Command,
+)
+
+from .CL2ReportProcessor import (
+    CL2ReportProcessor
+)
+
+from .CL2TestResultParser import (
+    CL2TestResultParser
 )

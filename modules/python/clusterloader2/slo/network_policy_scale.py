@@ -7,7 +7,7 @@ from clusterloader2.slo import ClusterLoader2Base, Ignored
 from clusterloader2.utils import (
     write_to_file, 
     parse_test_results,
-    process_cl2_reports,
+    CL2ReportProcessor,
     CL2Command
 )
 from utils.logger_config import get_logger, setup_logging
@@ -194,10 +194,10 @@ class NetworkPolicyScaleRunner(ClusterLoader2Base.Runner):
             "test_type": test_type,
         }
         
-        return process_cl2_reports(
+        return CL2ReportProcessor(
             cl2_report_dir,
             template,
-        )
+        ).process()
 
     def validate(self):
         pass

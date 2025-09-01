@@ -13,6 +13,8 @@ from .constants import (
     SCHEDULING_THROUGHPUT_PREFIX,
 )
 from utils.logger_config import get_logger, setup_logging
+from clusterloader2.utils import read_from_file
+
 
 # Configure logging
 setup_logging()
@@ -56,36 +58,45 @@ def process_cl2_reports(
     cl2_report_dir: str,
     template: dict,
 ) -> str:
-    content = ""
-    for f in os.listdir(cl2_report_dir):
-        file_path = os.path.join(cl2_report_dir, f)
-        with open(file_path, "r", encoding="utf-8") as file:
-            logger.info(f"Processing {file_path}")
-            measurement, group_name = get_measurement(file_path)
-            if not measurement:
-                continue
-            logger.info(f"Measurement: {measurement}, Group Name: {group_name}")
-            data = json.loads(file.read())
+    def make_line(measurement, group_name, result_obj):
+        result = template.copy()
+        result["group"] = group_name
+        result["measurement"] = measurement
+        result["result"] = result_obj
+        return json.dumps(result)
 
-            if "dataItems" in data:
-                items = data["dataItems"]
-                if not items:
-                    logger.info(f"No data items found in {file_path}")
-                    logger.info(f"Data:\n{data}")
-                    continue
-                for item in items:
-                    result = template.copy()
-                    result["group"] = group_name
-                    result["measurement"] = measurement
-                    result["result"] = item
-                    content += json.dumps(result) + "\n"
-            else:
-                result = template.copy()
-                result["group"] = group_name
-                result["measurement"] = measurement
-                result["result"] = data
-                content += json.dumps(result) + "\n"
-    return content
+    def process_file(path):
+        logger.info(f"Processing {path}")
+        measurement, group_name = get_measurement(path)
+        if not measurement:
+            return []
+
+        try:
+            raw = read_from_file(path)
+            data = json.loads(raw)
+        except Exception as e:
+            logger.info(f"Failed to read/parse {path}: {e}")
+            return []
+
+        # If data contains multiple items, emit one line per item
+        if isinstance(data, dict) and ("dataItems" in data):
+            items = data.get("dataItems", default=[])
+            if not items:
+                logger.info(f"No data items found in {path}")
+                logger.info(f"Data:\n{data}")
+                return []
+            return [make_line(measurement, group_name, item) for item in items]
+
+        # Single-object result
+        return [make_line(measurement, group_name, data)]
+
+    # Collect file paths (skip non-files)
+    file_paths = [os.path.join(cl2_report_dir, fname) for fname in os.listdir(cl2_report_dir)]
+    file_paths = [p for p in file_paths if os.path.isfile(p)]
+
+    # Process all files and flatten results
+    lines = [line for path in file_paths for line in process_file(path)]
+    return "\n".join(lines) + ("\n" if lines else "")
 
 
 def parse_xml_to_json(
