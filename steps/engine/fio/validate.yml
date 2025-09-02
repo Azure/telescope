@@ -19,4 +19,6 @@ steps:
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/fio/fio.py
       DESIRED_NODES: ${{ parameters.desired_nodes }}
       VALIDATION_TIMEOUT_IN_MINUTES: ${{ parameters.operation_timeout_in_minutes }}
-  - template: /steps/engine/fio/configure-${{ parameters.storage_name }}.yml
+  - template: /steps/engine/fio/configure-zfs-localpv.yml
+  - template: /steps/engine/fio/configure-acstor-v2.yml
+  - template: /steps/engine/fio/configure-local-hostpath.yml
