@@ -97,6 +97,17 @@ spec:
                   UNUSED_DEVICES+=("$device")
           done
 
+          if [ "${#UNUSED_DEVICES[@]}" -eq 1 ]; then
+                  echo "Only one unused NVMe device found: ${UNUSED_DEVICES[0]}"
+                  DEVICE="${UNUSED_DEVICES[0]}"
+                  echo "Creating ${FILESYSTEM_TYPE} filesystem on ${DEVICE}"
+                  mkfs.${FILESYSTEM_TYPE} "${DEVICE}"
+                  mkdir -p ${MOUNT_POINT}
+                  mount ${DEVICE} ${MOUNT_POINT}
+                  echo "${DEVICE}\t${MOUNT_POINT}\t${FILESYSTEM_TYPE}\tdefaults,nofail,discard\t0\t0" >> /etc/fstab
+                  exit 0
+          fi
+
           if [ "${#UNUSED_DEVICES[@]}" -lt 2 ]; then
                   echo "Error: Found fewer than 2 unused NVMe devices.  Cannot create a RAID0 array."
                   exit 1
@@ -172,4 +183,12 @@ spec:
       - key: "node.kubernetes.io/unreachable"
         operator: "Exists"
         effect: "NoExecute"
+      - key: "fio-dedicated"
+        operator: "Equal"
+        value: "true"
+        effect: "NoExecute"
+      - key: "fio-dedicated"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
       terminationGracePeriodSeconds: 30
