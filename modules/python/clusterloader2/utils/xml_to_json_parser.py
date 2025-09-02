@@ -60,12 +60,16 @@ class Xml2JsonParser:
         return [self._process_case(tc) for tc in testcases]
 
     def parse(self) -> str:
-        json_data = [ {
-            AttributeNames.NAME.value: suite.getAttribute(AttributeNames.NAME.value),
-            AttributeNames.TESTS.value: suite.getAttribute(AttributeNames.TESTS.value),
-            AttributeNames.FAILURES.value: suite.getAttribute(AttributeNames.FAILURES.value),
-            AttributeNames.ERRORS.value: suite.getAttribute(AttributeNames.ERRORS.value),
-            "testcases": self._process_suite(suite)
-        } for suite in self.testsuites]
+        result = {
+            "testsuites": [ 
+                {
+                    AttributeNames.NAME.value: suite.getAttribute(AttributeNames.NAME.value),
+                    AttributeNames.TESTS.value: suite.getAttribute(AttributeNames.TESTS.value),
+                    AttributeNames.FAILURES.value: suite.getAttribute(AttributeNames.FAILURES.value),
+                    AttributeNames.ERRORS.value: suite.getAttribute(AttributeNames.ERRORS.value),
+                    "testcases": self._process_suite(suite)
+                } for suite in self.testsuites
+            ]
+        }
 
-        return json.dumps(json_data, indent=self._indent)
+        return json.dumps(result, indent=self._indent)
