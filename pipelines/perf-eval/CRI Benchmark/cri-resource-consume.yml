@@ -22,7 +22,7 @@ stages:
             - swedencentral
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241016"
+            image: "ghcr.io/azure/clusterloader2:v20250513"
           topology: cri-resource-consume
           matrix:
             n10-p300-memory-ephemeral:
@@ -91,7 +91,7 @@ stages:
             - swedencentral
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241016"
+            image: "ghcr.io/azure/clusterloader2:v20250513"
           topology: cri-resource-consume
           matrix:
             n10-p2500-memory:
@@ -121,7 +121,7 @@ stages:
             - swedencentral
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241016"
+            image: "ghcr.io/azure/clusterloader2:v20250513"
           topology: cri-resource-consume
           matrix:
             n10-p300-memory-1-31:
@@ -165,7 +165,7 @@ stages:
             - swedencentral: "scenarios/perf-eval/cri-resource-consume/terraform-inputs/azure-ubuntu2404.tfvars"
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241016"
+            image: "ghcr.io/azure/clusterloader2:v20250513"
           topology: cri-resource-consume
           matrix:
             n10-p300-memory:
@@ -204,7 +204,7 @@ stages:
             - swedencentral
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241016"
+            image: "ghcr.io/azure/clusterloader2:v20250513"
           topology: cri-resource-consume
           matrix:
             n10-p300-memory:
@@ -246,7 +246,7 @@ stages:
             - eu-west-1
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20241016"
+            image: "ghcr.io/azure/clusterloader2:v20250513"
           topology: cri-resource-consume
           matrix:
             n10-p300-memory:
