@@ -1,5 +1,6 @@
 from xml.dom import minidom
 from enum import Enum
+import json
 
 from  .common import read_from_file
 
@@ -58,8 +59,8 @@ class Xml2JsonParser:
         testcases = testsuite.getElementsByTagName(TagNames.TESTCASE.value)
         return [self._process_case(tc) for tc in testcases]
 
-    def parse(self) -> list[dict]:
-        return [ {
+    def parse(self) -> str:
+        json_data = [ {
             AttributeNames.NAME.value: suite.getAttribute(AttributeNames.NAME.value),
             AttributeNames.TESTS.value: suite.getAttribute(AttributeNames.TESTS.value),
             AttributeNames.FAILURES.value: suite.getAttribute(AttributeNames.FAILURES.value),
@@ -67,3 +68,4 @@ class Xml2JsonParser:
             "testcases": self._process_suite(suite)
         } for suite in self.testsuites]
 
+        return json.dumps(json_data, indent=self._indent)
