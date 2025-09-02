@@ -89,9 +89,9 @@ def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up
 def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider):
     Cl2Command(
         cl2_params=Cl2Command.Params(
-            image=cl2_image,
-            config_dir=cl2_config_dir,
-            report_dir=cl2_report_dir,
+            cl2_image=cl2_image,
+            cl2_config_dir=cl2_config_dir,
+            cl2_report_dir=cl2_report_dir,
             kubeconfig=kubeconfig,
             provider=provider,
             overrides=True
