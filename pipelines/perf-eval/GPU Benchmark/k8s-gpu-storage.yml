@@ -34,9 +34,11 @@ stages:
           matrix:
             zfs-localpv:
               storage_name: zfs-localpv
+              desired_nodes: 7
             acstor-v2:
               storage_name: acstor-v2
-          max_parallel: 2
+              desired_nodes: 7
+          max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false

@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: fio
+  name: $name
 spec:
   template:
     spec:
@@ -13,4 +13,4 @@ spec:
       volumes:
         - name: zfs-mount
           persistentVolumeClaim:
-            claimName: zfs-pvc
+            claimName: $name

@@ -14,5 +14,5 @@ steps:
   - template: /steps/engine/${{ parameters.engine }}/validate.yml
     parameters:
       storage_name: $(STORAGE_NAME)
-      desired_nodes: 3
+      desired_nodes: $(DESIRED_NODES)
       operation_timeout_in_minutes: 10
