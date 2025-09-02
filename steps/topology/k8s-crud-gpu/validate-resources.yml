@@ -11,23 +11,3 @@ steps:
   parameters:
     role: gpu
     region: ${{ parameters.regions[0] }}
-
-- ${{ if eq(parameters.cloud, 'azure') }}:
-  - script: |
-      set -eo pipefail
-      $PYTHON_SCRIPT_FILE configure \
-        --efa_operator_version ${EFA_OPERATOR_VERSION:-""} \
-        --network_operator_version ${NETWORK_OPERATOR_VERSION:-""} \
-        --gpu_operator_version ${GPU_OPERATOR_VERSION:-""} \
-        --gpu_install_driver ${GPU_INSTALL_DRIVER:-"True"} \
-        --gpu_enable_nfd ${GPU_ENABLE_NFD:-"False"} \
-        --mpi_operator_version ${MPI_OPERATOR_VERSION:-""} \
-        --config_dir $CONFIG_DIR          
-    displayName: 'Install GPU Config'
-    workingDirectory: modules/python
-    env:
-      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/gpu/gpu.py
-      GPU_OPERATOR_VERSION: $(GPU_OPERATOR_VERSION)
-      GPU_ENABLE_NFD: $(GPU_ENABLE_NFD)
-      GPU_INSTALL_DRIVER: $(GPU_INSTALL_DRIVER)
-      CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/gpu/config
