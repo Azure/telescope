@@ -5,6 +5,7 @@ import os
 import re
 from datetime import datetime, timezone
 from typing import Dict, Any
+import yaml
 import requests
 from utils.logger_config import get_logger, setup_logging
 from utils.retries import execute_with_retries
@@ -226,6 +227,9 @@ def configure(
         mpi_operator_version: Version of the MPI operator
         config_dir: Directory containing custom configuration files
     """
+    # Temporary workaround until health check is integrated with crud
+    KUBERNETES_CLIENT.uninstall_gpu_device_plugin()
+
     if efa_operator_version:
         install_efa_operator(
             config_dir=config_dir,
@@ -311,6 +315,43 @@ def install_efa_operator(
     )
 
 
+def _get_gpu_node_count_and_allocatable() -> tuple[int, int]:
+    """
+    Get the number of GPU nodes and the allocatable GPU resource per node, assuming each node has the same amount of GPU allocatable.
+
+    Returns:
+        tuple[int, int]: A tuple containing the number of GPU nodes and the allocatable GPU resources per node.
+    """
+    nodes = KUBERNETES_CLIENT.get_nodes(label_selector="nvidia.com/gpu.present=true")
+    if len(nodes) == 0:
+        raise RuntimeError("No GPU nodes found in the cluster")
+    gpu_node_count = len(nodes)
+
+    gpu_allocatable = int(nodes[0].status.allocatable.get("nvidia.com/gpu", 0))
+    if gpu_allocatable <= 0:
+        raise RuntimeError("No allocatable GPU resources found on the GPU nodes")
+
+    return gpu_node_count, gpu_allocatable
+
+
+def _get_efa_allocatable() -> int:
+    """
+    Get the allocatable efa resources from the EKS nodes, assuming each node has the same amount of efa allocatable.
+
+    Returns:
+        int: The number of allocatable EFA resources.
+    """
+    nodes = KUBERNETES_CLIENT.get_nodes(label_selector="nvidia.com/gpu.present=true")
+    if len(nodes) == 0:
+        raise RuntimeError("No GPU nodes found in the cluster")
+
+    efa_allocatable = int(nodes[0].status.allocatable.get("vpc.amazonaws.com/efa", 0))
+    if efa_allocatable <= 0:
+        raise RuntimeError("No allocatable EFA resources found on the GPU nodes")
+
+    return efa_allocatable
+
+
 def execute(
     provider: str,
     config_dir: str,
@@ -326,13 +367,29 @@ def execute(
         result_dir:
         vm_size: Type of the machine (e.g., "ndv4", "ndv5")
     """
+    gpu_node_count, gpu_allocatable = _get_gpu_node_count_and_allocatable()
+    replacements = {
+        "slots_per_worker": gpu_allocatable,
+        "number_of_processes": gpu_node_count * gpu_allocatable,
+        "replicas": gpu_node_count,
+        "gpu_allocatable": gpu_allocatable,
+    }
     if provider.lower() == "azure":
         _create_topology_configmap(vm_size=vm_size)
 
+    if provider.lower() == "aws":
+        efa_allocatable = _get_efa_allocatable()
+        replacements["efa_allocatable"] = efa_allocatable
+
     nccl_file = f"{config_dir}/nccl-tests/{provider}-mpijob.yaml"
-    KUBERNETES_CLIENT.apply_manifest_from_file(nccl_file)
+    logger.info(f"Running nccl-tests with {replacements} using {nccl_file}")
+    nccl_template = KUBERNETES_CLIENT.create_template(nccl_file, replacements)
+    nccl_dict = yaml.safe_load(nccl_template)
+    KUBERNETES_CLIENT.apply_manifest_from_file(manifest_dict=nccl_dict)
     pods = execute_with_retries(
-        KUBERNETES_CLIENT.wait_for_pods_completed, label_selector="component=launcher"
+        KUBERNETES_CLIENT.wait_for_pods_completed,
+        label_selector="component=launcher",
+        pod_count=1,
     )
     pod_name = pods[0].metadata.name
     raw_logs = KUBERNETES_CLIENT.get_pod_logs(pod_name)
@@ -498,12 +555,13 @@ def _parse_nccl_test_results(log_file_path: str) -> Dict[str, Any]:
         raise
 
 
-def collect(result_dir: str, run_url: str, cloud_info: str) -> None:
+def collect(result_dir: str, run_id: str, run_url: str, cloud_info: str) -> None:
     """
     Collect and parse NCCL test results, saving them to a JSON file.
 
     Args:
         result_dir: Directory where the raw log file and results will be stored.
+        run_id: RUN_ID associated with the NCCL test run.
         run_url: URL associated with the NCCL test run.
         cloud_info: Information about the cloud environment where the test was run.
     """
@@ -515,11 +573,15 @@ def collect(result_dir: str, run_url: str, cloud_info: str) -> None:
 
         result = {
             "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "cloud_info": cloud_info,
-            "result": nccl_result,
+            "operation_info": {
+                "test_type": "rdma",
+                "result": nccl_result,
+                "cloud_info": cloud_info
+            },
+            "run_id": run_id,
             "run_url": run_url,
         }
-        with open(output_file, "w", encoding="utf-8") as f:
+        with open(output_file, "a", encoding="utf-8") as f:
             json.dump(result, f, indent=2)
 
         logger.info(f"NCCL test results saved to {output_file}")
@@ -633,6 +695,7 @@ def main():
         required=True,
         help="Path to the NCCL test result directory",
     )
+    collect_parser.add_argument("--run_id", type=str, help="Run ID")
     collect_parser.add_argument("--run_url", type=str, help="Run URL")
     collect_parser.add_argument("--cloud_info", type=str, help="Cloud information")
 
@@ -660,6 +723,7 @@ def main():
     elif args.command == "collect":
         collect(
             result_dir=args.result_dir,
+            run_id=args.run_id,
             run_url=args.run_url,
             cloud_info=args.cloud_info,
         )

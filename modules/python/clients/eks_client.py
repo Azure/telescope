@@ -10,6 +10,7 @@ and troubleshooting.
 """
 # pylint: disable=too-many-lines
 
+import base64
 import logging
 import os
 import sys
@@ -26,6 +27,7 @@ import semver
 # Local imports
 from utils.logger_config import get_logger, setup_logging
 from utils.common import get_env_vars
+from utils.retries import execute_with_retries
 from .kubernetes_client import KubernetesClient
 
 # Configure logging
@@ -98,6 +100,15 @@ class EKSClient:
         self.launch_template_id = None
         self.k8s_version = None
 
+        # Initialize Kubernetes client if provided or if kubeconfig is available
+        try:
+            self.k8s_client = KubernetesClient(config_file=kube_config_file)
+            logger.info("Kubernetes client initialized successfully")
+        except Exception as e:
+            logger.warning("Failed to initialize Kubernetes client: %s", str(e))
+            self.k8s_client = None
+        logger.info("EKS client initialized successfully")
+
         try:
             self.eks = boto3.client("eks", region_name=self.region)
             # Initialize the EC2 client for the VPC configuration
@@ -111,20 +122,12 @@ class EKSClient:
                 self.cluster_name,
             )
             self._load_subnet_ids()
-            self._load_node_role_arn()
+            self._create_node_role_arn()
+            self._create_access_entry()
 
         except Exception as e:
             logger.error("Initialization failed: %s", e)
             raise
-
-        # Initialize Kubernetes client if provided or if kubeconfig is available
-        try:
-            self.k8s_client = KubernetesClient(config_file=kube_config_file)
-            logger.info("Kubernetes client initialized successfully")
-        except Exception as e:
-            logger.warning("Failed to initialize Kubernetes client: %s", str(e))
-            self.k8s_client = None
-        logger.info("EKS client initialized successfully")
 
     def _get_cluster_name_by_run_id(self, run_id: str) -> Optional[str]:
         """
@@ -198,18 +201,156 @@ class EKSClient:
         try:
             # Try to find existing node groups to get the role
             response = self.eks.list_nodegroups(clusterName=self.cluster_name)
-            if response["nodegroups"]:
-                # Get the first node group's role as template
-                first_ng = response["nodegroups"][0]
-                ng_info = self.get_node_group(first_ng)
-                self.node_role_arn = ng_info["nodeRole"]
-                logger.info(
-                    "Found node role ARN from existing node group: %s",
-                    self.node_role_arn,
-                )
-                return
+            if not response["nodegroups"]:
+                raise Exception("No node groups found for cluster: " + self.cluster_name)
+            first_ng = response["nodegroups"][0]
+            ng_info = self.get_node_group(first_ng)
+            node_role_arn = ng_info["nodeRole"]
+            logger.info(
+                "Found node role ARN from existing node group: %s",
+                node_role_arn,
+            )
+            return node_role_arn
         except Exception as e:
-            logger.warning("Could not find existing node group role: %s", e)
+            raise Exception(f"Could not find existing node group role: {e}") from e
+
+    def _create_node_role_arn(self):
+        """
+        Create a new IAM role for EKS node groups based on an existing node group role.
+        First loads an existing role to get its properties, then creates a duplicate role
+        with the same attributes (trust policy, attached policies, etc.).
+
+        Returns:
+            str: The ARN of the created role
+
+        Raises:
+            Exception: If role creation fails or no existing role is found to duplicate
+        """
+        existing_role_arn = self._load_node_role_arn()
+        existing_role_name = existing_role_arn.split("/")[-1]
+
+        new_role_name = f"eks-node-role-{self.cluster_name}"
+        # Truncate role name if too long (AWS limit is 64 characters)
+        if len(new_role_name) > 64:
+            new_role_name = new_role_name[:64]
+
+        try:
+            logger.info("Getting details of existing role: %s", existing_role_name)
+            existing_role_response = self.iam.get_role(RoleName=existing_role_name)
+            existing_role = existing_role_response["Role"]
+            trust_policy_document = existing_role["AssumeRolePolicyDocument"]
+            tags = existing_role.get("Tags", [])
+
+            logger.info(
+                "Getting attached policies for existing role: %s", existing_role_name
+            )
+            attached_policies_response = self.iam.list_attached_role_policies(
+                RoleName=existing_role_name
+            )
+            attached_policies = attached_policies_response["AttachedPolicies"]
+
+            inline_policies_response = self.iam.list_role_policies(
+                RoleName=existing_role_name
+            )
+            inline_policies = inline_policies_response["PolicyNames"]
+
+            logger.info("Creating duplicate IAM role: %s", new_role_name)
+            logger.info("Using trust policy from existing role: %s", existing_role_name)
+
+            try:
+                # Check for role existence before creating
+                response = self.iam.get_role(RoleName=new_role_name)
+                logger.info("Role already exists: %s", response["Role"]["Arn"])
+                self.node_role_arn = response["Role"]["Arn"]
+                return
+            except self.iam.exceptions.NoSuchEntityException:
+                pass
+
+            response = self.iam.create_role(
+                RoleName=new_role_name,
+                AssumeRolePolicyDocument=json.dumps(trust_policy_document),
+                Description=f"Duplicate of {existing_role_name} for EKS node groups in cluster {self.cluster_name}",
+                Tags=tags,
+            )
+
+            self.node_role_arn = response["Role"]["Arn"]
+            logger.info("Created duplicate IAM role with ARN: %s", self.node_role_arn)
+
+            logger.info(
+                "Attaching %d managed policies from existing role",
+                len(attached_policies),
+            )
+            for policy in attached_policies:
+                policy_arn = policy["PolicyArn"]
+                logger.info(
+                    "Attaching policy %s to new role %s", policy_arn, new_role_name
+                )
+                self.iam.attach_role_policy(
+                    RoleName=new_role_name, PolicyArn=policy_arn
+                )
+
+            if inline_policies:
+                for policy_name in inline_policies:
+                    policy_response = self.iam.get_role_policy(
+                        RoleName=existing_role_name, PolicyName=policy_name
+                    )
+                    policy_document = policy_response["PolicyDocument"]
+
+                    logger.info("Copying inline policy %s to new role", policy_name)
+                    self.iam.put_role_policy(
+                        RoleName=new_role_name,
+                        PolicyName=policy_name,
+                        PolicyDocument=json.dumps(policy_document),
+                    )
+
+            logger.info(
+                "Duplicate role has %d managed policies and %d inline policies",
+                len(attached_policies),
+                len(inline_policies),
+            )
+
+        except Exception as e:
+            raise Exception(f"Failed to create duplicate IAM role for EKS node groups: {str(e)}") from e
+
+    def _create_access_entry(self):
+        """
+        Create an EKS access entry for an IAM principal.
+        This is the modern alternative to using aws-auth ConfigMap.
+            
+        Raises:
+            ClientError: If the AWS API request fails
+        """
+        try:
+            existing_role_name = self.node_role_arn.split("/")[-1]
+            execute_with_retries(
+                self.iam.get_role,
+                RoleName=existing_role_name,
+            )
+            create_params = {
+                "clusterName": self.cluster_name,
+                "principalArn": self.node_role_arn,
+                "type": "EC2"
+            }
+            try:
+                response = self.eks.describe_access_entry(
+                    clusterName=self.cluster_name,
+                    principalArn=self.node_role_arn
+                )
+                logger.info("Access entry already exists: %s", response['accessEntry']['accessEntryArn'])
+                return self._serialize_aws_response(response["accessEntry"])
+            except self.eks.exceptions.ResourceNotFoundException:
+                pass
+
+            logger.info("Creating access entry with parameters: %s", create_params)
+            response = execute_with_retries(
+                self.eks.create_access_entry,
+                **create_params
+            )
+            logger.info("Successfully created access entry: %s", response['accessEntry']['accessEntryArn'])
+            return self._serialize_aws_response(response["accessEntry"])
+        except ClientError as e:
+            logger.error("Failed to create access entry for %s: %s", self.node_role_arn, str(e))
+            raise
 
     def get_cluster_data(self, cluster_name: Optional[str] = None) -> Dict:
         """
@@ -327,9 +468,6 @@ class EKSClient:
                 logger.info("Instance types: %s", instance_type)
                 logger.info("Capacity type: %s", capacity_type)
 
-                # Initialize subnet filtering - will be updated if capacity reservation is found
-                filtered_subnets = []
-
                 # Prepare node group creation parameters
                 # instanceTypes will be added to launch template
                 create_params = {
@@ -340,7 +478,6 @@ class EKSClient:
                         "maxSize": max(max_node_count, 1),
                         "desiredSize": node_count,
                     },
-                    "subnets": filtered_subnets,
                     "capacityType": capacity_type,
                     "nodeRole": self.node_role_arn,
                     "amiType": self.get_ami_type_with_k8s_version(
@@ -351,6 +488,7 @@ class EKSClient:
                         "nodegroup-name": node_group_name,
                         "run_id": self.run_id,
                         "scenario": f"{get_env_vars('SCENARIO_TYPE')}-{get_env_vars('SCENARIO_NAME')}",
+                        "gpu": "true" if gpu_node_group else "false"
                     },
                 }
 
@@ -358,6 +496,8 @@ class EKSClient:
                 reservation_info = None
                 reservation_id = None
 
+                # Initialize subnet filtering - will be updated if capacity reservation is found
+                filtered_subnets = []
                 if capacity_type == "CAPACITY_BLOCK":
                     logger.info(
                         "Checking for capacity reservation for node group '%s'",
@@ -375,9 +515,8 @@ class EKSClient:
                         reservation_az = reservation_info["availability_zone"]
 
                         # Filter subnets to only use the subnet in the capacity reservation AZ
-                        filtered_subnets = []
                         for subnet_info in self.subnet_map:
-                            if subnet_info["AvailabilityZone"] == reservation_az and subnet_info["publicSubnet"]:
+                            if subnet_info["AvailabilityZone"] == reservation_az and not subnet_info["publicSubnet"]:
                                 filtered_subnets.append(subnet_info["SubnetId"])
 
                         logger.info(
@@ -404,9 +543,15 @@ class EKSClient:
                         )
                         sys.exit(1)  # Exit if no reservation found
 
+                else:
+                    for subnet_info in self.subnet_map:
+                        if not subnet_info["publicSubnet"]:
+                            filtered_subnets.append(subnet_info["SubnetId"])
+
                 # Update create_params with the filtered subnets
                 create_params["subnets"] = filtered_subnets
 
+                logger.info("Node group creation parameters: %s", create_params)
                 try:
                     launch_template = self._create_launch_template(
                         node_group_name=node_group_name,
@@ -957,6 +1102,39 @@ class EKSClient:
             logger.error("Failed to find capacity reservation: %s", str(e))
             return None
 
+    def _check_launch_template_exists(self, template_name: str) -> Optional[str]:
+        """
+        Check if a launch template with the given name already exists.
+
+        Args:
+            template_name: Name of the launch template to check
+
+        Returns:
+            Launch template ID if it exists, None otherwise
+        """
+        try:
+            response = self.ec2.describe_launch_templates(
+                LaunchTemplateNames=[template_name]
+            )
+            launch_templates = response.get("LaunchTemplates", [])
+            if launch_templates:
+                template_id = launch_templates[0]["LaunchTemplateId"]
+                logger.info(
+                    "Found existing launch template '%s' with ID: %s",
+                    template_name,
+                    template_id,
+                )
+                return template_id
+            return None
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "InvalidLaunchTemplateName.NotFoundException":
+                logger.debug("Launch template '%s' does not exist", template_name)
+                return None
+            logger.error(
+                "Error checking launch template existence: %s", str(e)
+            )
+            raise
+
     def _create_default_launch_template(
         self,
         name: str,
@@ -968,6 +1146,7 @@ class EKSClient:
     ) -> str:
         """
         Creates a launch template with standard configuration and all necessary tags.
+        Checks for existing launch template with the same name before creating.
 
         Args:
             name: Name of the launch template
@@ -981,6 +1160,17 @@ class EKSClient:
             The ID of the created launch template
         """
         try:
+            # Check if launch template already exists
+            existing_template_id = self._check_launch_template_exists(name)
+            if existing_template_id:
+                logger.info(
+                    "Using existing launch template '%s' with ID: %s for node group '%s'",
+                    name,
+                    existing_template_id,
+                    node_group_name,
+                )
+                self.launch_template_id = existing_template_id
+                return existing_template_id
             # Prepare launch template data
             launch_template_data = {}
             launch_template_data["InstanceType"] = instance_type
@@ -1016,21 +1206,53 @@ class EKSClient:
             if not instance_details:
                 logger.error("Instance type %s not found", instance_type)
                 raise ValueError(f"Instance type {instance_type} not found")
-            # TODO to handle multiple network cards if needed
-            # max_nic = instance_details[0].get("NetworkInfo", {}).get(
-            #     "MaximumNetworkCards", 1)
+            max_nic = instance_details[0].get("NetworkInfo", {}).get(
+                "MaximumNetworkCards", 1)
             network_interfaces = []
-            network_interfaces.append(
-                {
-                    "NetworkCardIndex": 0,
-                    "DeviceIndex": 0 ,
-                    "InterfaceType": "efa",
-                    "AssociatePublicIpAddress": True,
+            for i in range(max_nic):
+                network_interfaces.append(
+                    {
+                        "NetworkCardIndex": i,
+                        "DeviceIndex": 0 if i == 0 else 1,
+                        "InterfaceType": "efa",
+                    "AssociatePublicIpAddress": False,
                     "DeleteOnTermination": True,
-                }
-            )
+                    }
+                )
 
             launch_template_data["NetworkInterfaces"] = network_interfaces
+
+            # Get cluster information for userdata
+            cluster_info = self.get_cluster_data(self.cluster_name)
+            cluster_endpoint = cluster_info.get("endpoint", "")
+            cluster_ca = cluster_info.get("certificateAuthority", {}).get("data", "")
+            service_cidr = cluster_info.get("kubernetesNetworkConfig", {}).get("serviceIpv4Cidr", "")
+
+            # Add userdata with NodeConfig for InstanceIdNodeName feature gate
+            userdata_yaml = f"""---
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="BOUNDARY"
+
+--BOUNDARY
+Content-Type: application/node.eks.aws
+
+---
+apiVersion: node.eks.aws/v1alpha1
+kind: NodeConfig
+spec:
+  cluster:
+    name: {self.cluster_name}
+    apiServerEndpoint: {cluster_endpoint}
+    certificateAuthority: {cluster_ca}
+    cidr: {service_cidr}
+  featureGates:
+    InstanceIdNodeName: true
+
+--BOUNDARY--
+"""
+            # Encode userdata in base64 as required by AWS
+            userdata_base64 = base64.b64encode(userdata_yaml.encode('utf-8')).decode('utf-8')
+            launch_template_data["UserData"] = userdata_base64
 
             # Get additional tags for the launch template
             scenario_name = os.environ.get("SCENARIO_NAME", "unknown")

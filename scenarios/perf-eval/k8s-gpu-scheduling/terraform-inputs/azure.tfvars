@@ -14,13 +14,13 @@ aks_cli_config_list = [
     default_node_pool = {
       name       = "default"
       node_count = 2
-      vm_size    = "Standard_D8_v3"
+      vm_size    = "Standard_D8s_v3"
     }
     extra_node_pool = [
       {
         name       = "kwokpool"
         node_count = 1
-        vm_size    = "Standard_D64_v3"
+        vm_size    = "Standard_D64s_v3"
         optional_parameters = [
           {
             name  = "labels"

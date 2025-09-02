@@ -7,7 +7,7 @@ The example below installs 3 operatiors: network operator, gpu operator, and mpi
 ```bash
 pushd modules/python
 EFA_OPERATOR_VERSION="v0.5.7" # Set for AWS only
-NETWORK_OPERATOR_VERSION="v25.4.0"
+NETWORK_OPERATOR_VERSION="v25.4.0" # Set for Azure only
 GPU_OPERATOR_VERSION="v25.3.1"
 GPU_INSTALL_DRIVER=True # False for AWS
 GPU_ENABLE_NFD=False # True for AWS
@@ -46,6 +46,7 @@ CLOUD_INFO=$CLOUD
 RUN_URL="https://example.com"
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
   --result_dir $RESULT_DIR \
+  --run_id $RUN_ID \
   --run_url $RUN_URL \
   --cloud_info "$CLOUD_INFO"
 ```
