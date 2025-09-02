@@ -140,18 +140,7 @@ class SloRunner(ClusterLoader2Base.Runner):
         operation_timeout: int,
     ):
         kube_client = KubernetesClient()
-        ready_node_count = 0
-        timeout = time.time() + (operation_timeout * 60)
-        while time.time() < timeout:
-            ready_nodes = kube_client.get_ready_nodes()
-            ready_node_count = len(ready_nodes)
-            logger.info(f"Currently {ready_node_count} nodes are ready.")
-            if ready_node_count >= node_count:
-                break
-            logger.info(f"Waiting for {node_count} nodes to be ready.")
-            time.sleep(10)
-        if ready_node_count < node_count:
-            raise Exception(f"Only {ready_node_count} nodes are ready, expected {node_count} nodes!")
+        kube_client.wait_for_nodes_ready(node_count, operation_timeout)
 
     def get_cl2_parameters(
         self,
