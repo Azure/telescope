@@ -409,14 +409,17 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         node_pool_name = "gpu-pool"
         node_count = 3
 
+        # Set VM size that triggers NVIDIA verification
+        self.aks_client.vm_size = "Standard_NC40ads_H100_v5"
+
         mock_time.time.side_effect = [100, 150]  # Start and end times
 
         mock_node_pool = mock.MagicMock()
         mock_node_pool.count = 1  # Current count
-        mock_node_pool.vm_size = "Standard_NC6s_v3"  # GPU VM size
+        mock_node_pool.vm_size = "Standard_NC40ads_H100_v5"  # GPU VM size
         mock_node_pool.as_dict.return_value = {
             "count": 1,
-            "vm_size": "Standard_NC6s_v3",
+            "vm_size": "Standard_NC40ads_H100_v5",
         }
         self.mock_agent_pools.get.return_value = mock_node_pool
 
@@ -466,6 +469,9 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         node_pool_name = "gpu-pool"
         node_count = 3
 
+        # Set VM size that triggers NVIDIA verification
+        self.aks_client.vm_size = "Standard_NC40ads_H100_v5"
+
         mock_time.time.side_effect = [
             100,
             150,
@@ -475,10 +481,10 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
 
         mock_node_pool = mock.MagicMock()
         mock_node_pool.count = 1  # Current count
-        mock_node_pool.vm_size = "Standard_NC6s_v3"  # GPU VM size
+        mock_node_pool.vm_size = "Standard_NC40ads_H100_v5"  # GPU VM size
         mock_node_pool.as_dict.return_value = {
             "count": 1,
-            "vm_size": "Standard_NC6s_v3",
+            "vm_size": "Standard_NC40ads_H100_v5",
         }
         self.mock_agent_pools.get.return_value = mock_node_pool
 

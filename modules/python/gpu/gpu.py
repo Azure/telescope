@@ -375,8 +375,8 @@ def execute(
         "gpu_allocatable": gpu_allocatable,
     }
     if provider.lower() == "azure":
-        VM_SKU=AzureSKUFamily.VM_SIZE_TO_SKU_FAMILY.get(vm_size, "")
-        _create_topology_configmap(vm_size=VM_SKU)
+        vm_sku = AzureSKUFamily.VM_SIZE_TO_SKU_FAMILY.get(vm_size, "")
+        _create_topology_configmap(vm_size=vm_sku)
 
     if provider.lower() == "aws":
         efa_allocatable = _get_efa_allocatable()
