@@ -32,5 +32,5 @@ from .xml_to_json_parser import (
 from .legacy_utils import (
     run_cl2_command,
     parse_xml_to_json,
-    process_cl2_report,
+    process_cl2_reports,
 )
