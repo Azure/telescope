@@ -132,7 +132,7 @@ spec:
                   exit 1
           fi
 
-          echo "RAID array create successfully."
+          echo "RAID array created successfully."
           echo "Waiting a few seconds for the device to be ready"
           sleep 5
 
