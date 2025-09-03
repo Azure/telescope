@@ -139,7 +139,7 @@ spec:
           echo "Creating ${FILESYSTEM_TYPE} filesystem on ${RAID_DEVICE}"
           mkfs.${FILESYSTEM_TYPE} "${RAID_DEVICE}"
 
-          if [ $? -ne 0]; then
+          if [ $? -ne 0 ]; then
                   echo "Error: Failed to create filesystem"
                   mdadm --stop "$RAID_DEVICE"
                   exit 1
