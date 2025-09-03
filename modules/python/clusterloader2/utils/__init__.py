@@ -28,3 +28,8 @@ from .cl2_report_parser import (
 from .xml_to_json_parser import (
     Xml2JsonParser,
 )
+
+from .legacy_utils import (
+    run_cl2_command,
+    parse_xml_to_json,
+)

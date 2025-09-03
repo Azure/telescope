@@ -3,7 +3,7 @@ import os
 import argparse
 
 from datetime import datetime, timezone
-from clusterloader2.utils import Xml2JsonParser, get_measurement, Cl2Command
+from clusterloader2.utils import parse_xml_to_json, get_measurement,run_cl2_command
 from utils.common import str2bool
 
 def configure_clusterloader2(
@@ -73,19 +73,17 @@ def configure_clusterloader2(
 def execute_clusterloader2(
     cl2_image, cl2_config_dir, cl2_report_dir, cl2_config_file, kubeconfig, provider, scrape_containerd
 ):
-    params = Cl2Command.Params(
-        kubeconfig=kubeconfig,
-        cl2_image=cl2_image,
-        cl2_config_dir=cl2_config_dir,
-        cl2_report_dir=cl2_report_dir,
-        provider=provider,
+    run_cl2_command(
+        kubeconfig,
+        cl2_image,
+        cl2_config_dir,
+        cl2_report_dir,
+        provider,
         cl2_config_file=cl2_config_file,
         overrides=True,
         enable_prometheus=True,
-        scrape_containerd=scrape_containerd,
+        scrape_containerd=scrape_containerd
     )
-    cl2 = Cl2Command(params)
-    cl2.execute()
 
 def collect_clusterloader2(
     node_count,
@@ -97,8 +95,7 @@ def collect_clusterloader2(
     result_file,
     test_type,
 ):
-    parser = Xml2JsonParser(os.path.join(cl2_report_dir, "junit.xml"), indent=2)
-    details = parser.parse()
+    details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent=2)
     json_data = json.loads(details)
     testsuites = json_data["testsuites"]
     provider = json.loads(cloud_info)["cloud"]
