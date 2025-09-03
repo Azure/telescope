@@ -2,12 +2,14 @@ from xml.dom import minidom
 from enum import Enum
 import json
 
-from  .common import read_from_file
+from .common import read_from_file
+
 
 class TagNames(Enum):
     TESTSUITE = "testsuite"
     TESTCASE = "testcase"
     FAILURE = "failure"
+
 
 class AttributeNames(Enum):
     NAME = "name"
@@ -16,6 +18,7 @@ class AttributeNames(Enum):
     ERRORS = "errors"
     CLASSNAME = "classname"
     TIME = "time"
+
 
 class Xml2JsonParser:
     def __init__(self, 

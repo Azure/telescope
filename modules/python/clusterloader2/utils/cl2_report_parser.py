@@ -9,6 +9,7 @@ from .xml_to_json_parser import Xml2JsonParser
 setup_logging()
 logger = get_logger(__name__)
 
+
 class Cl2ReportProcessor:
     def __init__(self, cl2_report_dir: str, template: dict):
         self.cl2_report_dir = cl2_report_dir
@@ -23,7 +24,7 @@ class Cl2ReportProcessor:
 
     def _process_file(self, path: str):
         logger.info(f"Processing {path}")
-        
+
         measurement, group_name = get_measurement(path)
         if not measurement:
             return []
@@ -58,7 +59,7 @@ class Cl2ReportProcessor:
 
 
 def parse_test_results(cl2_report_dir: str) -> tuple[str, list[any]]:
-    junit_xml_file = os.path.join(cl2_report_dir, "junit.xml")        
+    junit_xml_file = os.path.join(cl2_report_dir, "junit.xml")
     details = Xml2JsonParser(junit_xml_file, indent=2).parse()
     json_data = json.loads(details)
     testsuites = json_data["testsuites"]
@@ -67,6 +68,6 @@ def parse_test_results(cl2_report_dir: str) -> tuple[str, list[any]]:
         status = "success" if testsuites[0]["failures"] == 0 else "failure"
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
-    
+
     return status, testsuites
 

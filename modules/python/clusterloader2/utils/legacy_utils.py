@@ -33,5 +33,5 @@ def parse_xml_to_json(filepath, indent=0):
 
 def process_cl2_reports(cl2_report_dir: str, template: dict):
     """Legacy wrapper for Cl2ReportProcessor.process()."""
-    return Cl2ReportProcessor(cl2_report_dir=cl2_report_dir, 
+    return Cl2ReportProcessor(cl2_report_dir=cl2_report_dir,
                               template=template).process()
