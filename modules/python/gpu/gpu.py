@@ -10,7 +10,7 @@ import requests
 from utils.logger_config import get_logger, setup_logging
 from utils.retries import execute_with_retries
 from utils.common import str2bool
-from utils.constants import UrlConstants
+from utils.constants import UrlConstants, AzureSKUFamily
 from clients.kubernetes_client import KubernetesClient, client
 
 # Configure logging
@@ -43,7 +43,7 @@ def _install_operator(
     # Add Helm repository
     logger.info(f"Adding Helm repository: {repo_name} ({repo_url})")
     subprocess.run(
-        ["helm", "repo", "add", repo_name, repo_url, "--force-update"],
+        ["helm", "repo", "add", repo_name, repo_url],
         check=True,
     )
     # Update Helm repositories
@@ -322,7 +322,7 @@ def _get_gpu_node_count_and_allocatable() -> tuple[int, int]:
     Returns:
         tuple[int, int]: A tuple containing the number of GPU nodes and the allocatable GPU resources per node.
     """
-    nodes = KUBERNETES_CLIENT.get_nodes(label_selector="nvidia.com/gpu.present=true")
+    nodes = KUBERNETES_CLIENT.get_nodes(label_selector="gpu=true")
     if len(nodes) == 0:
         raise RuntimeError("No GPU nodes found in the cluster")
     gpu_node_count = len(nodes)
@@ -375,7 +375,8 @@ def execute(
         "gpu_allocatable": gpu_allocatable,
     }
     if provider.lower() == "azure":
-        _create_topology_configmap(vm_size=vm_size)
+        VM_SKU=AzureSKUFamily.VM_SIZE_TO_SKU_FAMILY.get(vm_size, "")
+        _create_topology_configmap(vm_size=VM_SKU)
 
     if provider.lower() == "aws":
         efa_allocatable = _get_efa_allocatable()
