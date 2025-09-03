@@ -21,8 +21,8 @@ class AttributeNames(Enum):
 
 
 class Xml2JsonParser:
-    def __init__(self, 
-                 filepath: str, 
+    def __init__(self,
+                 filepath: str,
                  indent: int = 0):
         self._filepath = filepath
         self._indent = indent
@@ -35,11 +35,11 @@ class Xml2JsonParser:
             xml_content = read_from_file(self._filepath)
             self._xml_doc = minidom.parseString(xml_content)
         return self._xml_doc
-    
+
     @property
     def testsuites(self) -> minidom.NodeList[minidom.Element]:
         return self.xml_document.getElementsByTagName(TagNames.TESTSUITE.value)
-    
+
     def _process_case(self, testcase: minidom.Element) -> dict:
         case_name = testcase.getAttribute(AttributeNames.NAME.value)
         case_classname = testcase.getAttribute(AttributeNames.CLASSNAME.value)
@@ -58,7 +58,7 @@ class Xml2JsonParser:
             case_result[TagNames.FAILURE.value] = failure[0].firstChild.nodeValue
 
         return case_result
-    
+
     def _process_suite(self, testsuite: minidom.Element) -> list[dict]:
         testcases = testsuite.getElementsByTagName(TagNames.TESTCASE.value)
         return [self._process_case(tc) for tc in testcases]
