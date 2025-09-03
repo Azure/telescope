@@ -84,4 +84,3 @@ def read_from_file(
     with open(filename, "r", encoding=encoding) as f:
         content = f.read()
     return content
-

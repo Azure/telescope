@@ -70,4 +70,3 @@ def parse_test_results(cl2_report_dir: str) -> tuple[str, list[any]]:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
 
     return status, testsuites
-
