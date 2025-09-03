@@ -3,7 +3,7 @@ import os
 import argparse
 
 from datetime import datetime, timezone
-from clusterloader2.utils import parse_xml_to_json, run_cl2_command, get_measurement
+from clusterloader2.utils import Cl2Command, Xml2JsonParser, get_measurement
 from utils.common import str2bool
 
 DEFAULT_NODES_PER_NAMESPACE = 100
@@ -91,7 +91,18 @@ def configure_clusterloader2(
     file.close()
 
 def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, cl2_config_file, kubeconfig, provider):
-    run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, cl2_config_file=cl2_config_file, overrides=True, enable_prometheus=True)
+    params = Cl2Command.Params(
+        kubeconfig=kubeconfig,
+        cl2_image=cl2_image,
+        cl2_config_dir=cl2_config_dir,
+        cl2_report_dir=cl2_report_dir,
+        provider=provider,
+        cl2_config_file=cl2_config_file,
+        overrides=True,
+        enable_prometheus=True,
+    )
+    cl2 = Cl2Command(params)
+    cl2.execute()
 
 def collect_clusterloader2(
     cl2_report_dir,
@@ -111,7 +122,8 @@ def collect_clusterloader2(
     apply_fqdn_cnp,
     test_type="default_config"
 ):
-    details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
+    parser = Xml2JsonParser(os.path.join(cl2_report_dir, "junit.xml"), indent=2)
+    details = parser.parse()
     json_data = json.loads(details)
     testsuites = json_data["testsuites"]
 

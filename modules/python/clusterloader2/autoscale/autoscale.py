@@ -5,7 +5,7 @@ import re
 import subprocess
 
 from datetime import datetime, timezone
-from clusterloader2.utils import parse_xml_to_json, run_cl2_command
+from clusterloader2.utils import Xml2JsonParser, Cl2Command
 from clients.kubernetes_client import KubernetesClient
 from utils.logger_config import get_logger, setup_logging
 
@@ -87,7 +87,17 @@ def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up
     file.close()
 
 def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider):
-    run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True)
+    # Build CL2 parameters and execute via Cl2Command
+    params = Cl2Command.Params(
+        kubeconfig=kubeconfig,
+        cl2_image=cl2_image,
+        cl2_config_dir=cl2_config_dir,
+        cl2_report_dir=cl2_report_dir,
+        provider=provider,
+        overrides=True,
+    )
+    cl2 = Cl2Command(params)
+    cl2.execute()
 
 def collect_clusterloader2(
     cpu_per_node,
@@ -101,7 +111,9 @@ def collect_clusterloader2(
     result_file
 ):
     index_pattern = re.compile(r'(\d+)$')
-    raw_data = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
+    # Parse junit XML report using Xml2JsonParser
+    parser = Xml2JsonParser(os.path.join(cl2_report_dir, "junit.xml"), indent=2)
+    raw_data = parser.parse()
 
     json_data = json.loads(raw_data)
     testsuites = json_data["testsuites"]

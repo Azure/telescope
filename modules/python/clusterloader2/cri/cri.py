@@ -4,7 +4,11 @@ import argparse
 import math
 
 from datetime import datetime, timezone
-from clusterloader2.utils import parse_xml_to_json, run_cl2_command, get_measurement
+from clusterloader2.utils import (
+    get_measurement,
+    Xml2JsonParser,
+    Cl2Command,
+)
 from clients.kubernetes_client import KubernetesClient, client as k8s_client
 from utils.logger_config import get_logger, setup_logging
 from utils.common import str2bool
@@ -95,8 +99,19 @@ def override_config_clusterloader2(
     file.close()
 
 def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider, scrape_kubelets):
-    run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True, enable_prometheus=True,
-                    tear_down_prometheus=False, scrape_kubelets=scrape_kubelets)
+    params = Cl2Command.Params(
+        kubeconfig=kubeconfig,
+        cl2_image=cl2_image,
+        cl2_config_dir=cl2_config_dir,
+        cl2_report_dir=cl2_report_dir,
+        provider=provider,
+        overrides=True,
+        enable_prometheus=True,
+        tear_down_prometheus=False,
+        scrape_kubelets=scrape_kubelets,
+    )
+    cl2 = Cl2Command(params)
+    cl2.execute()
 
 def verify_measurement():
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
@@ -146,7 +161,8 @@ def collect_clusterloader2(
     if scrape_kubelets:
         verify_measurement()
 
-    details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
+    parser = Xml2JsonParser(os.path.join(cl2_report_dir, "junit.xml"), indent=2)
+    details = parser.parse()
     json_data = json.loads(details)
     testsuites = json_data["testsuites"]
 

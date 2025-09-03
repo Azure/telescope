@@ -6,9 +6,9 @@ from datetime import datetime, timezone
 from clients.kubernetes_client import KubernetesClient
 from clusterloader2.base import ClusterLoader2Base
 from clusterloader2.utils import (
-    parse_xml_to_json,
-    process_cl2_reports,
-    run_cl2_command,
+    Cl2Command,
+    Xml2JsonParser,
+    Cl2ReportProcessor,
 )
 from utils.logger_config import get_logger, setup_logging
 from utils.common import str2bool
@@ -67,22 +67,22 @@ class JobController(ClusterLoader2Base):
         )
 
     def execute_clusterloader2(self):
-        run_cl2_command(
-            self.kubeconfig,
-            self.cl2_image,
-            self.cl2_config_dir,
-            self.cl2_report_dir,
-            self.provider,
+        params = Cl2Command.Params(
+            kubeconfig=self.kubeconfig,
+            cl2_image=self.cl2_image,
+            cl2_config_dir=self.cl2_config_dir,
+            cl2_report_dir=self.cl2_report_dir,
+            provider=self.provider,
             overrides=True,
             enable_prometheus=self.prometheus_enabled,
             scrape_containerd=self.scrape_containerd,
         )
+        cl2 = Cl2Command(params)
+        cl2.execute()
 
     def collect_clusterloader2(self) -> None:
-
-        details = parse_xml_to_json(
-            os.path.join(self.cl2_report_dir, "junit.xml"), indent=2
-        )
+        parser = Xml2JsonParser(os.path.join(self.cl2_report_dir, "junit.xml"), indent=2)
+        details = parser.parse()
         json_data = json.loads(details)
         testsuites = json_data["testsuites"]
         provider = json.loads(self.cloud_info)["cloud"]
@@ -112,7 +112,8 @@ class JobController(ClusterLoader2Base):
         }
 
         # Process CL2 report files
-        content = process_cl2_reports(self.cl2_report_dir, template)
+        processor = Cl2ReportProcessor(self.cl2_report_dir, template)
+        content = processor.process()
 
         # Write results to the result file
         os.makedirs(os.path.dirname(self.result_file), exist_ok=True)
