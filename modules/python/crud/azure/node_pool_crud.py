@@ -7,12 +7,10 @@ both direct and progressive scaling operations and handles GPU-enabled node pool
 """
 
 import logging
-import os
 import time
 
 from clients.aks_client import AKSClient
 from utils.logger_config import get_logger, setup_logging
-from gpu.gpu import configure
 
 # Configure logging
 setup_logging()
