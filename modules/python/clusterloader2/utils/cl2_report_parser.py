@@ -37,7 +37,7 @@ class Cl2ReportProcessor:
 
         # If data contains multiple items, emit one line per item
         if isinstance(data, dict) and ("dataItems" in data):
-            items = data.get("dataItems", default=[])
+            items = data.get("dataItems", [])
             if not items:
                 logger.info(f"No data items found in {path}")
                 logger.info(f"Data:\n{data}")
@@ -53,7 +53,7 @@ class Cl2ReportProcessor:
         file_paths = [p for p in file_paths if os.path.isfile(p)]
 
         # Process all files and flatten results
-        lines = [line for path in file_paths for line in self.process_file(path)]
+        lines = [line for path in file_paths for line in self._process_file(path)]
         return "\n".join(lines) + ("\n" if lines else "")
 
 
