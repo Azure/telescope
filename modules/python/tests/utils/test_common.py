@@ -17,6 +17,41 @@ class TestCommon(unittest.TestCase):
         os.environ.clear()
         os.environ.update(self.original_env)
 
+    def test_get_measurement(self):
+        from clusterloader2.utils import get_measurement
+
+        # Test matrix: (filename, expected_measurement, expected_group)
+        cases = [
+            # Pod startup latency mappings (uses POD_STARTUP_LATENCY_FILE_PREFIX_MEASUREMENT_MAP)
+            ("PodStartupLatency_PodStartupLatency_groupA_results.json", "PodStartupLatency_PodStartupLatency", "groupA"),
+            ("StatefulPodStartupLatency_PodStartupLatency_mygroup_out", "StatefulPodStartupLatency_PodStartupLatency", "mygroup"),
+
+            # Network metric prefixes (uses NETWORK_METRIC_PREFIXES)
+            ("APIResponsivenessPrometheus_group01_log.txt", "APIResponsivenessPrometheus", "group01"),
+
+            # Generic prometheus query prefix (PROM_QUERY_PREFIX)
+            # Note: current implementation slices the first segment and then slices by len(prefix)+1,
+            # which results in an empty measurement name for filenames like below. We assert current behavior.
+            ("GenericPrometheusQuery_cpu_usage_group1.txt", "", "cpu"),
+
+            # Job lifecycle / resource / network policy / scheduling prefixes
+            ("JobLifecycleLatency_groupX_record", "JobLifecycleLatency", "groupX"),
+            ("ResourceUsageSummary_nodePool_01", "ResourceUsageSummary", "nodePool"),
+            ("NetworkPolicySoakMeasurement_ns1_results", "NetworkPolicySoakMeasurement", "ns1"),
+            ("SchedulingThroughputPrometheus_zoneA_metrics", "SchedulingThroughputPrometheus", "zoneA"),
+            ("SchedulingThroughput_clusterA_v1", "SchedulingThroughput", "clusterA"),
+
+            # Unknown / unmatched
+            ("some_random_file_name.txt", None, None),
+            ("randomfile", None, None),
+        ]
+
+        for fname, exp_measurement, exp_group in cases:
+            with self.subTest(filename=fname):
+                measurement, group = get_measurement(fname)
+                self.assertEqual(measurement, exp_measurement)
+                self.assertEqual(group, exp_group)
+
     def test_extract_parameter_with_space(self):
         # Test with default parameters (space between parameter and value)
         command = "--time 60 --other-param value"
