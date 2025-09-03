@@ -13,7 +13,7 @@ class DummyContainer:
         self._wait_result = wait_result or {"StatusCode": 0}
 
     def logs(self, stream=True):
-        # mimic generator when stream=True
+        _ = stream
         yield from self._logs_iter
 
     def wait(self):
@@ -26,6 +26,10 @@ class DummyDockerClient:
         self._raise_on_run = raise_on_run
 
     def run_container(self, image, command, volumes, detach=True):
+        _ = image
+        _ = command
+        _ = volumes
+        _ = detach
         if self._raise_on_run:
             raise self._raise_on_run
         return self._container
