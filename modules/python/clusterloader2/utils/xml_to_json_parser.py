@@ -24,6 +24,7 @@ class Xml2JsonParser:
         self._filepath = filepath
         self._indent = indent
         self._xml_content = None
+        self._xml_doc = None
 
     @property
     def xml_document(self) -> minidom.Document:

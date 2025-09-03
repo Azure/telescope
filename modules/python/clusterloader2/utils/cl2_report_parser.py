@@ -1,9 +1,9 @@
 import json
 import os
 
+from utils.logger_config import get_logger, setup_logging
 from .common import read_from_file, get_measurement
 from .xml_to_json_parser import Xml2JsonParser
-from utils.logger_config import get_logger, setup_logging
 
 # Configure logging
 setup_logging()

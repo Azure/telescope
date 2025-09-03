@@ -3,6 +3,7 @@ import os
 import json
 import tempfile
 from utils.common import extract_parameter, save_info_to_file, get_env_vars
+from clusterloader2.utils import get_measurement
 
 
 class TestCommon(unittest.TestCase):
@@ -18,8 +19,6 @@ class TestCommon(unittest.TestCase):
         os.environ.update(self.original_env)
 
     def test_get_measurement(self):
-        from clusterloader2.utils import get_measurement
-
         # Test matrix: (filename, expected_measurement, expected_group)
         cases = [
             # Pod startup latency mappings (uses POD_STARTUP_LATENCY_FILE_PREFIX_MEASUREMENT_MAP)

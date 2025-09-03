@@ -1,5 +1,7 @@
 import os
 
+from utils.logger_config import get_logger, setup_logging
+
 from .constants import (
     POD_STARTUP_LATENCY_FILE_PREFIX_MEASUREMENT_MAP,
     NETWORK_METRIC_PREFIXES,
@@ -10,7 +12,6 @@ from .constants import (
     SCHEDULING_THROUGHPUT_PROMETHEUS_PREFIX,
     SCHEDULING_THROUGHPUT_PREFIX,
 )
-from utils.logger_config import get_logger, setup_logging
 
 # Configure logging
 setup_logging()
@@ -69,7 +70,7 @@ def write_to_file(
 
     with open(filename, "w", encoding="utf-8") as file:
         file.write(content)
-    
+
     with open(filename, "r", encoding="utf-8") as file:
         if logger:
             logger.info(f"Content of file {filename}:\n{file.read()}")

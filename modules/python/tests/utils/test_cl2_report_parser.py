@@ -1,15 +1,15 @@
 import unittest
-import os
 from pathlib import Path
 from datetime import datetime, timezone
 
 from clusterloader2.utils import parse_test_results, Cl2ReportProcessor
 
+
 class TestCl2ReportProcessor(unittest.TestCase):
 
-    CURRENT_DIR = CURRENT_DIR = Path(__file__).resolve().parent
+    CURRENT_DIR = Path(__file__).resolve().parent
 
-    def setUp(self):        
+    def setUp(self):
         cl2_report_dir = self.CURRENT_DIR.parent / "mock_data" / "network-policy-scale" / "report"
         self.cl2_report_dir = cl2_report_dir.absolute()
         self.template = {
@@ -35,6 +35,7 @@ class TestCl2ReportProcessor(unittest.TestCase):
         status, testsuites = parse_test_results(self.cl2_report_dir)
         self.assertIn(status, ["success", "failure"])
         self.assertIsInstance(testsuites, list)
+
 
 if __name__ == "__main__":
     unittest.main()

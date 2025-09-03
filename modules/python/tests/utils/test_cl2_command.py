@@ -1,3 +1,4 @@
+# pylint: disable=protected-access
 import unittest
 from unittest import mock
 import os
@@ -11,10 +12,9 @@ class DummyContainer:
         self._logs_iter = logs_iter or []
         self._wait_result = wait_result or {"StatusCode": 0}
 
-    def logs(self, stream=False):
+    def logs(self, _stream=True):
         # mimic generator when stream=True
-        for l in self._logs_iter:
-            yield l
+        yield from self._logs_iter
 
     def wait(self):
         return self._wait_result
@@ -25,7 +25,7 @@ class DummyDockerClient:
         self._container = container
         self._raise_on_run = raise_on_run
 
-    def run_container(self, image, command, volumes, detach=True):
+    def run_container(self, _image, _command, _volumes, _detach=True):
         if self._raise_on_run:
             raise self._raise_on_run
         return self._container
