@@ -41,9 +41,8 @@ parameters:
   default: 3
 - name: credential_type
   type: string
-  default: managed_identity
+  default: service_connection
   values:
-  - managed_identity
   - service_connection
   - variable_group
 - name: ssh_key_enabled
