@@ -1,16 +1,14 @@
 import argparse
-import os
 import json
-from dataclasses import asdict
-import docker
+import os
 from abc import ABC, abstractmethod
 from enum import Enum
 from xml.dom import minidom
 
+import docker
+from clients.docker_client import DockerClient
 from utils.constants import MeasurementPrefixConstants
 from utils.logger_config import get_logger, setup_logging
-from clients.docker_client import DockerClient
-
 
 setup_logging()
 logger = get_logger(__name__)
@@ -23,7 +21,7 @@ class Command(Enum):
     COLLECT = "collect"
 
 
-def Ignored(func):
+def ignored(func):
     func.is_ignored = True
     return func
 
@@ -33,6 +31,10 @@ class ClusterLoader2Base(ABC):
     class ArgsParser(ABC):
         _parser: argparse.ArgumentParser
         _subparsers: argparse.ArgumentParser
+
+        @property
+        def subparser(self):
+            return self._subparsers
 
         def __init__(self, description: str):
             self._parser = argparse.ArgumentParser(description=description)
@@ -53,7 +55,7 @@ class ClusterLoader2Base(ABC):
         @abstractmethod
         def add_collect_args(self, parser: argparse.ArgumentParser):
             pass
-      
+
         def parse(self) -> argparse.Namespace:
             return self._parser.parse_args()
 
@@ -65,15 +67,15 @@ class ClusterLoader2Base(ABC):
         @abstractmethod
         def get_cl2_configure(self) -> dict:
             pass
-        
+
         @abstractmethod
         def validate(self):
             pass
-        
+
         @abstractmethod
         def execute(self):
             pass
-        
+
         @abstractmethod
         def collect(self) -> str:
             pass
@@ -143,23 +145,22 @@ class ClusterLoader2Base(ABC):
 
         def run_cl2_command(
             self,
-            kubeconfig, 
-            cl2_image, 
-            cl2_config_dir, 
-            cl2_report_dir, 
-            provider, 
-            cl2_config_file="config.yaml", 
-            overrides=False, 
-            enable_prometheus=False, 
-            tear_down_prometheus=True,                            
-            enable_exec_service=False, 
+            kubeconfig,
+            cl2_image,
+            cl2_config_dir,
+            cl2_report_dir,
+            provider,
+            cl2_config_file="config.yaml",
+            overrides=False,
+            enable_prometheus=False,
+            tear_down_prometheus=True,
+            enable_exec_service=False,
             scrape_kubelets=False,
-            scrape_containerd=False, 
-            scrape_ksm=False, 
+            scrape_containerd=False,
+            scrape_ksm=False,
             scrape_metrics_server=False
         ):
             docker_client = DockerClient()
-
             command = f"""--provider={provider} --v=2
         --enable-exec-service={enable_exec_service}
         --enable-prometheus-server={enable_prometheus}
@@ -272,8 +273,8 @@ class ClusterLoader2Base(ABC):
         pass
 
     def _add_subparser(self, command: str, description: str):
-        subparsers = self.args_parser._subparsers
-        
+        subparsers = self.args_parser.subparsers
+
         add_args_method = {
             Command.CONFIGURE.value: self.args_parser.add_configure_args,
             Command.VALIDATE.value: self.args_parser.add_validate_args,
@@ -329,10 +330,10 @@ class ClusterLoader2Base(ABC):
         elif command == Command.EXECUTE.value:
             self.runner.execute(**args_dict)
         elif command == Command.COLLECT.value:
-            status, results = self.parse_test_results(args_dict["cl2_report_dir"])            
+            status, results = self.parse_test_results(args_dict["cl2_report_dir"])
             result = self.runner.collect(
-                test_status=status, 
-                test_results=results, 
+                test_status=status,
+                test_results=results,
                 **args_dict
             )
             self.write_to_file(
@@ -345,7 +346,7 @@ class ClusterLoader2Base(ABC):
 
     def convert_config_to_str(self, config_dict: dict) -> str:
         return '\n'.join([
-            f"{k}" if v is None else f"{k}: {v}" for k, v in config_dict.items()
+            str(k) if v is None else f"{k}: {v}" for k, v in config_dict.items()
         ])
 
     def write_to_file(
@@ -357,17 +358,15 @@ class ClusterLoader2Base(ABC):
         if not os.path.exists(parent_dir):
             os.makedirs(parent_dir, exist_ok=True)
 
-        # os.chmod(os.path.dirname(result_file), 0o755)  # Ensure the directory is writable
-
         with open(filename, "w", encoding="utf-8") as file:
             file.write(content)
-        
+
         with open(filename, "r", encoding="utf-8") as file:
             if logger:
                 logger.info(f"Content of file {filename}:\n{file.read()}")
 
     def parse_test_results(self, cl2_report_dir: str) -> tuple[str, list[any]]:
-        junit_xml_file = os.path.join(cl2_report_dir, "junit.xml")        
+        junit_xml_file = os.path.join(cl2_report_dir, "junit.xml")
         details = self.runner.parse_xml_to_json(junit_xml_file, indent=2)
         json_data = json.loads(details)
         testsuites = json_data["testsuites"]
@@ -376,5 +375,5 @@ class ClusterLoader2Base(ABC):
             status = "success" if testsuites[0]["failures"] == 0 else "failure"
         else:
             raise Exception(f"No testsuites found in the report! Raw data: {details}")
-        
+
         return status, testsuites

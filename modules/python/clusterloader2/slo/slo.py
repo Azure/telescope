@@ -58,7 +58,7 @@ class SloArgsParser(ClusterLoader2Base.ArgsParser):
         parser.add_argument("kubeconfig", type=str, help="Path to the kubeconfig file")
         parser.add_argument("provider", type=str, help="Cloud provider name")
         parser.add_argument("scrape_containerd", type=str2bool, choices=[True, False], default=False,
-                            help="Whether to scrape containerd metrics. Must be either True or False")        
+                            help="Whether to scrape containerd metrics. Must be either True or False")
 
     def add_collect_args(self, parser):
         parser.add_argument("cpu_per_node", type=int, help="CPU per node")
@@ -74,10 +74,10 @@ class SloArgsParser(ClusterLoader2Base.ArgsParser):
         parser.add_argument("result_file", type=str, help="Path to the result file")
         parser.add_argument("test_type", type=str, nargs='?', default="default-config",
                             help="Description of test type")
-        
+
 
 class SloRunner(ClusterLoader2Base.Runner):
-
+    # pylint: disable=unused-argument
     def collect(
         self,
         cpu_per_node: int,
@@ -146,7 +146,7 @@ class SloRunner(ClusterLoader2Base.Runner):
             overrides=True,
             enable_prometheus=True
         )
-    
+
     def get_cl2_configure(
         self,
         cpu_per_node: int,
@@ -170,16 +170,16 @@ class SloRunner(ClusterLoader2Base.Runner):
         )
 
         config = {
-            f"CL2_NODES": f"{node_count}",
-            f"CL2_LOAD_TEST_THROUGHPUT": f"{throughput}",
-            f"CL2_NODES_PER_NAMESPACE": f"{nodes_per_namespace}",
-            f"CL2_NODES_PER_STEP": f"{node_per_step}",
-            f"CL2_PODS_PER_NODE": f"{pods_per_node}",
-            f"CL2_DEPLOYMENT_SIZE": f"{pods_per_node}",
-            f"CL2_LATENCY_POD_CPU": f"{cpu_request}",
-            f"CL2_REPEATS": f"{repeats}",
-            f"CL2_STEPS": f"{steps}",
-            f"CL2_OPERATION_TIMEOUT": f"{operation_timeout}",
+            "CL2_NODES": f"{node_count}",
+            "CL2_LOAD_TEST_THROUGHPUT": f"{throughput}",
+            "CL2_NODES_PER_NAMESPACE": f"{nodes_per_namespace}",
+            "CL2_NODES_PER_STEP": f"{node_per_step}",
+            "CL2_PODS_PER_NODE": f"{pods_per_node}",
+            "CL2_DEPLOYMENT_SIZE": f"{pods_per_node}",
+            "CL2_LATENCY_POD_CPU": f"{cpu_request}",
+            "CL2_REPEATS": f"{repeats}",
+            "CL2_STEPS": f"{steps}",
+            "CL2_OPERATION_TIMEOUT": f"{operation_timeout}",
             "CL2_PROMETHEUS_TOLERATE_MASTER": "true",
             "CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR": "100.0",
             "CL2_PROMETHEUS_MEMORY_SCALE_FACTOR": "100.0",
@@ -190,7 +190,7 @@ class SloRunner(ClusterLoader2Base.Runner):
 
         if scrape_containerd:
             config.update({
-                f"CL2_SCRAPE_CONTAINERD": str(scrape_containerd).lower(),
+                "CL2_SCRAPE_CONTAINERD": str(scrape_containerd).lower(),
                 "CONTAINERD_SCRAPE_INTERVAL": "5m",
             })
 
@@ -218,9 +218,9 @@ class SloRunner(ClusterLoader2Base.Runner):
 
         # Different cloud has different reserved values and number of daemonsets
         # Using the same percentage will lead to incorrect nodes number as the number of nodes grow
-        # For AWS, see: 
+        # For AWS, see:
         #   https://github.com/awslabs/amazon-eks-ami/blob/main/templates/al2/runtime/bootstrap.sh#L290
-        # For Azure, see: 
+        # For Azure, see:
         #   https://learn.microsoft.com/en-us/azure/aks/node-resource-reservations#cpu-reservations
         capacity = Cl2DefaultConfigConstants.CPU_CAPACITY[provider]
         cpu_request = (cpu_per_node * 1000 * capacity) // pods_per_node

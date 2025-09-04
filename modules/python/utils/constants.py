@@ -8,7 +8,7 @@ class CommandConstants:
     LSPCI_CMD = "lspci && lsb_release -a"
     IPERF3_VERSION_CMD = "iperf3 --version"
     IP_LINK_CMD = "ip -j -s link show"
- 
+
 
 @dataclass(frozen=True)
 class UrlConstants:
