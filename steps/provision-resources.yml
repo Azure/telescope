@@ -22,7 +22,7 @@ parameters:
   default: 3
 - name: credential_type
   type: string
-  default: managed_identity
+  default: service_connection
 
 steps:
 - template: /steps/terraform/set-working-directory.yml
