@@ -6,65 +6,29 @@ This directory contains Jupyter notebooks for local development and testing of T
 
 #### 1. Install Python Packages for Jupyter
 ```bash
-# Create a new environment
-python3 -m venv telescope-env
-source telescope-env/bin/activate
-# Install Jupyter and required packages
 pip install jupyter notebook ipykernel bash_kernel
 ```
-
-#### 3. Start Jupyter
-```bash
-# From this directory
-jupyter notebook
-```
-
-### Running the Notebooks
-
-#### For Azure Development
-```bash
-# Open in browser after starting jupyter
-# Click on: azure.ipynb
-```
-
-#### For AWS Development
-```bash
-# Open in browser after starting jupyter
-# Click on: aws.ipynb
-```
+You can install Jupyter Extension from here in the VS code: https://marketplace.visualstudio.com/items?itemName=ms-toolsai.jupyter
 
 ## Interactive Notebooks
 
 For easy local development and testing, we provide Jupyter notebooks for each cloud provider:
 
-- **[Azure Notebook:](./azure/local.ipynb)** Interactive notebook for Azure telescope testing
-- **[AWS Notebook:](./aws/local.ipynb)** Interactive notebook for AWS telescope testing
+- **[Azure Notebook:](./azure.ipynb)** Interactive notebook for Azure telescope testing
+- **[AWS Notebook:](./aws.ipynb)** Interactive notebook for AWS telescope testing
 
 ### Quick Start with Notebooks
 
 ```bash
 # From the telescope repository root
-jupyter notebook modules/terraform/azure/azure.ipynb   # For Azure
-jupyter notebook modules/terraform/aws/aws.ipynb     # For AWS
+cd local-development/provisioning
+jupyter notebook azure.ipynb   # For Azure
+jupyter notebook aws.ipynb     # For AWS
 ```
+Once you run the command go to this http://localhost:8888/tree to access the Jupyter Notebook UI
 
 The notebooks provide:
 - Prerequisites checking and cloud authentication
 - Step-by-step Terraform workflow (init, plan, apply, destroy)
 - Variable configuration and customization options
-
-## 📦 Required Python Packages
-
-The `requirements.txt` file contains:
-
-```
-jupyter>=1.0.0          # Core Jupyter package
-notebook>=6.0.0         # Jupyter Notebook interface
-ipykernel>=6.0.0        # Python kernel for Jupyter
-jupyterlab>=3.0.0       # Optional: Modern notebook interface
-```
-
-Install with:
-```bash
-pip install -r requirements.txt
 ```
