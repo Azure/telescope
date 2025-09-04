@@ -77,5 +77,8 @@ venv/
 modules/python/clusterloader2/*/results
 modules/python/clusterloader2/*/config/overrides.yaml
 
+#Jupyter
+*-checkpoint.ipynb
+
 # OSX
 .DS_Store
