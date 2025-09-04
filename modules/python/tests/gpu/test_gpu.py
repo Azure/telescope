@@ -46,7 +46,7 @@ class TestGPU(unittest.TestCase):
         self.test_operator_name = "test-operator"
         self.test_config_dir = "/tmp/test-config"
         self.test_result_dir = "/tmp/test-results"
-        self.test_vm_size = "ndv4"
+        self.test_vm_size = "Standard_ND96asr_v4"
         self.test_cloud_info = "azure"
         self.test_run_url = "https://test-url.com"
         self.test_run_id = "123456789"
@@ -430,7 +430,7 @@ class TestGPU(unittest.TestCase):
                 vm_size=self.test_vm_size,
             )
 
-            mock_topology.assert_called_once_with(vm_size=self.test_vm_size)
+            mock_topology.assert_called_once_with(vm_size='ndv4')
             mock_k8s_client.apply_manifest_from_file.assert_called_once_with(
                 manifest_dict=unittest.mock.ANY
             )
@@ -708,7 +708,7 @@ class TestGPU(unittest.TestCase):
 
         # Verify all calls used the correct label selector
         for node_call in mock_k8s_client.get_nodes.call_args_list:
-            self.assertEqual(node_call[1]["label_selector"], "nvidia.com/gpu.present=true")
+            self.assertEqual(node_call[1]["label_selector"], "gpu=true")
 
     @patch("gpu.gpu.KUBERNETES_CLIENT")
     def test_get_efa_allocatable(self, mock_k8s_client):

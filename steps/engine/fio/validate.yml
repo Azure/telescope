@@ -21,3 +21,4 @@ steps:
       VALIDATION_TIMEOUT_IN_MINUTES: ${{ parameters.operation_timeout_in_minutes }}
   - template: /steps/engine/fio/configure-zfs-localpv.yml
   - template: /steps/engine/fio/configure-acstor-v2.yml
+  - template: /steps/engine/fio/configure-local-hostpath.yml
