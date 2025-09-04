@@ -32,3 +32,11 @@ class MeasurementPrefixConstants:
     JOB_LIFECYCLE_LATENCY_PREFIX = "JobLifecycleLatency"
     SCHEDULING_THROUGHPUT_PROMETHEUS_PREFIX = "SchedulingThroughputPrometheus"
     SCHEDULING_THROUGHPUT_PREFIX = "SchedulingThroughput"
+
+
+@dataclass(frozen=True)
+class AzureSKUFamily:
+    # VM Size to SKU Family mapping
+    VM_SIZE_TO_SKU_FAMILY = {
+        "Standard_ND96asr_v4": "ndv4"
+    }
