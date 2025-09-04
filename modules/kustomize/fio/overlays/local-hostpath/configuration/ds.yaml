@@ -1,0 +1,194 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: nvme-setup-sa
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: nvme-setup-role
+rules:
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: nvme-setup-crb
+subjects:
+- kind: ServiceAccount
+  name: nvme-setup-sa
+  namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: nvme-setup-role
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: nvme-setup
+  namespace: kube-system
+spec:
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 100%
+  selector:
+    matchLabels:
+      app: nvme-setup
+  template:
+    metadata:
+      labels:
+        app: nvme-setup
+    spec:
+      serviceAccountName: nvme-setup-sa
+      nodeSelector:
+        fio-dedicated: "true"
+      initContainers:
+      - name: nvme-setup
+        image: bitnami/kubectl:1.33.2
+        command:
+        - nsenter
+        - --target
+        - "1"
+        - --mount
+        - --uts
+        - --ipc
+        - --net
+        - --pid
+        - --
+        - bash
+        - -exc
+        - |
+          set -x
+          set -e
+          set -o pipefail
+
+          RAID_DEVICE="/dev/md0"
+          FILESYSTEM_TYPE="xfs"
+          MOUNT_POINT="/mnt/nvme-raid"
+
+          ALL_NVME_DEVICES=$(ls /dev/nvme*n* 2>/dev/null)
+          UNUSED_DEVICES=()
+
+          if [ -e ${RAID_DEVICE} ]; then
+                  echo "RAID device already exists, exiting successfully"
+                  exit 0
+          fi
+
+          if ! command -v mdadm &> /dev/null; then
+                  apt-get update >/dev/null && apt-get install -y mdadm
+          fi
+
+          for device in $ALL_NVME_DEVICES; do
+                  if mdadm --examine "$device" | grep -q 'RAID superblock'; then
+                          continue
+                  fi
+
+                  if findmnt -S "$device" -n &> /dev/null; then
+                          continue
+                  fi
+                  if blkid "$device" &> /dev/null; then
+                          continue
+                  fi
+                  UNUSED_DEVICES+=("$device")
+          done
+
+          if [ "${#UNUSED_DEVICES[@]}" -eq 1 ]; then
+                  echo "Only one unused NVMe device found: ${UNUSED_DEVICES[0]}"
+                  DEVICE="${UNUSED_DEVICES[0]}"
+                  echo "Creating ${FILESYSTEM_TYPE} filesystem on ${DEVICE}"
+                  mkfs.${FILESYSTEM_TYPE} "${DEVICE}"
+                  mkdir -p ${MOUNT_POINT}
+                  mount ${DEVICE} ${MOUNT_POINT}
+                  echo "${DEVICE}\t${MOUNT_POINT}\t${FILESYSTEM_TYPE}\tdefaults,nofail,discard\t0\t0" >> /etc/fstab
+                  exit 0
+          fi
+
+          if [ "${#UNUSED_DEVICES[@]}" -lt 2 ]; then
+                  echo "Error: Found fewer than 2 unused NVMe devices.  Cannot create a RAID0 array."
+                  exit 1
+          fi
+
+          echo ""
+          echo "${#UNUSED_DEVICES[@]} devices will be combined into a RAID0 array:"
+          for device in "${UNUSED_DEVICES[@]}"; do
+                  echo "  - $device"
+          done
+          echo ""
+
+          mdadm --create "$RAID_DEVICE" \
+                  --level=0 \
+                  --raid-devices="${#UNUSED_DEVICES[@]}" \
+                  "${UNUSED_DEVICES[@]}" \
+                  --run \
+                  --force
+
+          if [ $? -ne 0 ]; then
+                  echo "Error: Failed to create RAID array."
+                  exit 1
+          fi
+
+          echo "RAID array created successfully."
+          echo "Waiting a few seconds for the device to be ready"
+          sleep 5
+
+          echo "Creating ${FILESYSTEM_TYPE} filesystem on ${RAID_DEVICE}"
+          mkfs.${FILESYSTEM_TYPE} "${RAID_DEVICE}"
+
+          if [ $? -ne 0 ]; then
+                  echo "Error: Failed to create filesystem"
+                  mdadm --stop "$RAID_DEVICE"
+                  exit 1
+          fi
+
+          mdadm --detail --scan | sudo tee -a /etc/mdadm/mdadm.conf
+          mkdir -p ${MOUNT_POINT}
+          mount ${RAID_DEVICE} ${MOUNT_POINT}
+          echo "${RAID_DEVICE}	${MOUNT_POINT}	${FILESYSTEM_TYPE}	defaults,nofail,discard	0	0" >> /etc/fstab
+
+        securityContext:
+          runAsUser: 0
+          privileged: true
+      containers:
+      - name: is-it-done
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        image: bitnami/kubectl:1.33.2
+        command:
+        - bash
+        - -exc
+        - |
+          set -x
+          set -e
+          set -o pipefail
+          echo "nvme-setup done, wait forever"
+          kubectl label node "${NODE_NAME}" "nvme-raid=ready" --overwrite
+          while true; do
+            sleep 3600
+          done
+      hostNetwork: true
+      hostPID: true
+      hostIPC: true
+      tolerations:
+      - key: "node.kubernetes.io/not-ready"
+        operator: "Exists"
+        effect: "NoExecute"
+      - key: "node.kubernetes.io/unreachable"
+        operator: "Exists"
+        effect: "NoExecute"
+      - key: "fio-dedicated"
+        operator: "Equal"
+        value: "true"
+        effect: "NoExecute"
+      - key: "fio-dedicated"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      terminationGracePeriodSeconds: 30

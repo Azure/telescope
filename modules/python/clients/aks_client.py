@@ -305,12 +305,17 @@ class AKSClient:
         ) as op:
             try:
                 # Build parameters for node pool creation
+                # Todo: Remove VM_SIZE check after we get ND H100 quota
                 parameters = {
                     "count": node_count,
                     "vm_size": vm_size,
                     "os_type": "Linux",
                     "mode": "User",
-                    "os_disk_type": "Managed"
+                    "os_disk_type": "Managed",
+                    "nodeLabels": {"gpu": "true"} if gpu_node_pool else {},
+                    "gpu_profile": {
+                        "driver": "None" if gpu_node_pool and vm_size == "Standard_ND96asr_v4" else "Install",
+                    },
                 }
 
                 logger.info(
@@ -485,7 +490,8 @@ class AKSClient:
                 pod_logs = None
                 # Verify NVIDIA drivers only for GPU node pools during scale-up operations
                 # and only when reaching the final target (not intermediate steps)
-                if gpu_node_pool and operation_type == "scale_up" and node_count > 0:
+                # TODO: Remove VM_SIZE check after we get ND H100 quota
+                if gpu_node_pool and operation_type == "scale_up" and node_count > 0 and self.vm_size == "Standard_NC40ads_H100_v5":
                     logger.info(
                         f"Verifying NVIDIA drivers for GPU node pool '{node_pool_name}' after reaching final target"
                     )
@@ -709,8 +715,8 @@ class AKSClient:
                             f"Waiting {wait_time}s before next scaling operation..."
                         )
                         time.sleep(wait_time)
-
-                    if step == target_count:
+                    # TODO: Remove VM_SIZE check after we get ND H100 quota
+                    if step == target_count and self.vm_size == "Standard_NC40ads_H100_v5":
                         # Verify NVIDIA drivers only for GPU node pools during scale-up operations
                         # and only when reaching the final target (not intermediate steps)
                         if gpu_node_pool and operation_type == "scale_up" and step > 0:
