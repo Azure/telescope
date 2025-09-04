@@ -253,4 +253,4 @@ class Slo(ClusterLoader2Base):
 
 
 if __name__ == '__main__':
-    Slo().perform
+    Slo().perform()
