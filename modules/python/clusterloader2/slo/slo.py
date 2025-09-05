@@ -40,10 +40,20 @@ class SloArgsParser(ClusterLoader2Base.ArgsParser):
         parser.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
         parser.add_argument("operation_timeout", type=str, help="Timeout before failing the scale up test")
         parser.add_argument("provider", type=str, help="Cloud provider name")
+        parser.add_argument("cilium_enabled", type=str2bool, choices=[True, False], default=False,
+                                    help="Whether cilium is enabled. Must be either True or False")
         parser.add_argument("scrape_containerd", type=str2bool, choices=[True, False], default=False,
-                            help="Whether to scrape containerd metrics. Must be either True or False")
+                                    help="Whether to scrape containerd metrics. Must be either True or False")
         parser.add_argument("service_test", type=str2bool, choices=[True, False], default=False,
-                            help="Whether service test is running. Must be either True or False")
+                                    help="Whether service test is running. Must be either True or False")
+        parser.add_argument("cnp_test", type=str2bool, choices=[True, False], nargs='?', default=False,
+                                    help="Whether cnp test is running. Must be either True or False")
+        parser.add_argument("ccnp_test", type=str2bool, choices=[True, False], nargs='?', default=False,
+                                    help="Whether ccnp test is running. Must be either True or False")
+        parser.add_argument("num_cnps", type=int, nargs='?', default=0, help="Number of cnps")
+        parser.add_argument("num_ccnps", type=int, nargs='?', default=0, help="Number of ccnps")
+        parser.add_argument("dualstack", type=str2bool, choices=[True, False], nargs='?', default=False,
+                                    help="Whether cluster is dualstack. Must be either True or False")
         parser.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
     def add_validate_args(self, parser):
@@ -58,7 +68,7 @@ class SloArgsParser(ClusterLoader2Base.ArgsParser):
         parser.add_argument("kubeconfig", type=str, help="Path to the kubeconfig file")
         parser.add_argument("provider", type=str, help="Cloud provider name")
         parser.add_argument("scrape_containerd", type=str2bool, choices=[True, False], default=False,
-                            help="Whether to scrape containerd metrics. Must be either True or False")
+                                    help="Whether to scrape containerd metrics. Must be either True or False")
 
     def add_collect_args(self, parser):
         parser.add_argument("cpu_per_node", type=int, help="CPU per node")
@@ -70,10 +80,15 @@ class SloArgsParser(ClusterLoader2Base.ArgsParser):
         parser.add_argument("run_id", type=str, help="Run ID")
         parser.add_argument("run_url", type=str, help="Run URL")
         parser.add_argument("service_test", type=str2bool, choices=[True, False], default=False,
-                            help="Whether service test is running. Must be either True or False")
+                                    help="Whether service test is running. Must be either True or False")
+        parser.add_argument("cnp_test", type=str2bool, choices=[True, False], nargs='?', default=False,
+                                    help="Whether cnp test is running. Must be either True or False")
+        parser.add_argument("ccnp_test", type=str2bool, choices=[True, False], nargs='?', default=False,
+                                    help="Whether ccnp test is running. Must be either True or False")
         parser.add_argument("result_file", type=str, help="Path to the result file")
         parser.add_argument("test_type", type=str, nargs='?', default="default-config",
-                            help="Description of test type")
+                                    help="Description of test type")
+        parser.add_argument("start_timestamp", type=str, help="Test start timestamp")
 
 
 class SloRunner(ClusterLoader2Base.Runner):
@@ -89,10 +104,9 @@ class SloRunner(ClusterLoader2Base.Runner):
         run_id: str,
         run_url: str,
         service_test: bool,
-        result_file: str,
         test_type: str,
         test_status: str,
-        test_results: dict,
+        **kwargs,
     ) -> str:
         provider = json.loads(cloud_info)["cloud"]
 
@@ -127,12 +141,26 @@ class SloRunner(ClusterLoader2Base.Runner):
 
     def execute(
         self,
+        cl2_image: str,
+        cl2_config_dir: str,
+        cl2_report_dir: str,
+        cl2_config_file: str,
+        kubeconfig: str,
+        provider: str,
+        scrape_containerd: bool,
         **kwargs
     ):
         super().execute(
-            **kwargs,
+            cl2_image=cl2_image,
+            cl2_config_dir=cl2_config_dir,
+            cl2_report_dir=cl2_report_dir,
+            cl2_config_file=cl2_config_file,
+            kubeconfig=kubeconfig,
+            provider=provider,
+            scrape_containerd=scrape_containerd,
             overrides=True,
-            enable_prometheus=True
+            enable_prometheus=True,
+            **kwargs,
         )
 
     def configure(
@@ -146,7 +174,7 @@ class SloRunner(ClusterLoader2Base.Runner):
         provider: str,
         scrape_containerd: bool,
         service_test: bool,
-        cl2_override_file: str,
+        **kwargs,
     ) -> dict:
         steps = node_count // node_per_step
         throughput, nodes_per_namespace, pods_per_node, cpu_request = self.calculate_config(
