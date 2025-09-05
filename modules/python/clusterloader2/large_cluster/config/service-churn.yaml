@@ -1,4 +1,4 @@
-name: load-config
+name: service-churn
 
 # generic config
 {{$groupName := DefaultParam .CL2_GROUP_NAME "network-load"}}
