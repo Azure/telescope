@@ -127,27 +127,15 @@ class SloRunner(ClusterLoader2Base.Runner):
 
     def execute(
         self,
-        cl2_image: str,
-        cl2_config_dir: str,
-        cl2_report_dir: str,
-        cl2_config_file: str,
-        kubeconfig: str,
-        provider: str,
-        scrape_containerd: bool,
+        **kwargs
     ):
-        self.run_cl2_command(
-            cl2_image=cl2_image,
-            cl2_config_dir=cl2_config_dir,
-            cl2_report_dir=cl2_report_dir,
-            cl2_config_file=cl2_config_file,
-            kubeconfig=kubeconfig,
-            provider=provider,
-            scrape_containerd=scrape_containerd,
+        super.execute(
+            **kwargs,
             overrides=True,
             enable_prometheus=True
         )
 
-    def get_cl2_configure(
+    def configure(
         self,
         cpu_per_node: int,
         node_count: int,

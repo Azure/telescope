@@ -33,7 +33,7 @@ class ClusterLoader2Base(ABC):
         _subparsers: argparse.ArgumentParser
 
         @property
-        def subparser(self):
+        def subparsers(self):
             return self._subparsers
 
         def __init__(self, description: str):
@@ -65,15 +65,11 @@ class ClusterLoader2Base(ABC):
 
     class Runner(ABC):
         @abstractmethod
-        def get_cl2_configure(self) -> dict:
+        def configure(self) -> dict:
             pass
 
         @abstractmethod
         def validate(self):
-            pass
-
-        @abstractmethod
-        def execute(self):
             pass
 
         @abstractmethod
@@ -143,22 +139,22 @@ class ClusterLoader2Base(ABC):
                         content += json.dumps(result) + "\n"
             return content
 
-        def run_cl2_command(
+        def execute(
             self,
-            kubeconfig,
-            cl2_image,
-            cl2_config_dir,
-            cl2_report_dir,
-            provider,
-            cl2_config_file="config.yaml",
-            overrides=False,
-            enable_prometheus=False,
-            tear_down_prometheus=True,
-            enable_exec_service=False,
-            scrape_kubelets=False,
-            scrape_containerd=False,
-            scrape_ksm=False,
-            scrape_metrics_server=False
+            kubeconfig: str,
+            cl2_image: str,
+            cl2_config_dir: str,
+            cl2_report_dir: str,
+            provider: str,
+            cl2_config_file: str="config.yaml",
+            overrides: bool=False,
+            enable_prometheus: bool=False,
+            tear_down_prometheus: bool=True,
+            enable_exec_service: bool=False,
+            scrape_kubelets: bool=False,
+            scrape_containerd: bool=False,
+            scrape_ksm: bool=False,
+            scrape_metrics_server: bool=False,
         ):
             docker_client = DockerClient()
             command = f"""--provider={provider} --v=2
@@ -320,7 +316,7 @@ class ClusterLoader2Base(ABC):
         command = args_dict.pop("command", None)
 
         if command == Command.CONFIGURE.value:
-            config_dict = self.runner.get_cl2_configure(**args_dict)
+            config_dict = self.runner.configure(**args_dict)
             self.write_to_file(
                 filename=args_dict["cl2_override_file"],
                 content=self.convert_config_to_str(config_dict)
