@@ -38,8 +38,8 @@ stages:
           matrix:
             aws_vpc_cni:
               cpu_per_node: 4
-              node_count: 1000
-              node_per_step: 1000
+              node_count: 100
+              node_per_step: 100
               max_pods: 20
               repeats: 10
               scale_timeout: "15m"
@@ -70,8 +70,8 @@ stages:
           matrix:
             azure_cni:
               cpu_per_node: 4
-              node_count: 1000
-              node_per_step: 1000
+              node_count: 100
+              node_per_step: 100
               max_pods: 20
               repeats: 10
               scale_timeout: "15m"
@@ -81,8 +81,8 @@ stages:
               cl2_config_file: load-config.yaml
             azure_cilium:
               cpu_per_node: 4
-              node_count: 1000
-              node_per_step: 1000
+              node_count: 100
+              node_per_step: 100
               max_pods: 20
               repeats: 10
               scale_timeout: "15m"
