@@ -129,7 +129,7 @@ class SloRunner(ClusterLoader2Base.Runner):
         self,
         **kwargs
     ):
-        super.execute(
+        super().execute(
             **kwargs,
             overrides=True,
             enable_prometheus=True
