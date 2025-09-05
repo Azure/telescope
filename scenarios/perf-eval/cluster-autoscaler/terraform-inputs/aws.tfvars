@@ -75,7 +75,7 @@ eks_config_list = [{
   eks_managed_node_groups = [
     {
       name           = "default"
-      ami_type       = "AL2_x86_64"
+      ami_type       = "AL2023_x86_64_STANDARD"
       instance_types = ["m5.xlarge"]
       min_size       = 5
       max_size       = 5
@@ -84,7 +84,7 @@ eks_config_list = [{
     },
     {
       name           = "userpool"
-      ami_type       = "AL2_x86_64"
+      ami_type       = "AL2023_x86_64_STANDARD"
       instance_types = ["m6i.xlarge"]
       min_size       = 1
       max_size       = 11
@@ -95,7 +95,7 @@ eks_config_list = [{
     }
   ]
   eks_addons         = []
-  kubernetes_version = "1.31"
+  kubernetes_version = "1.33"
   auto_scaler_profile = {
     scale_down_delay_after_add     = "1m"
     scale_down_delay_after_failure = "1m"
