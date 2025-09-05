@@ -20,9 +20,6 @@ parameters:
 - name: retry_attempt_count
   type: number
   default: 3
-- name: credential_type
-  type: string
-  default: service_connection
 
 steps:
 - template: /steps/terraform/set-working-directory.yml
@@ -76,13 +73,11 @@ steps:
   parameters:
     command: version
     retry_attempt_count: ${{ parameters.retry_attempt_count }}
-    credential_type: ${{ parameters.credential_type }}
 
 - template: /steps/terraform/run-command.yml
   parameters:
     command: init
     retry_attempt_count: ${{ parameters.retry_attempt_count }}
-    credential_type: ${{ parameters.credential_type }}
 
 - template: /steps/terraform/run-command.yml
   parameters:
@@ -91,4 +86,3 @@ steps:
     regions: ${{ parameters.regions }}
     cloud: ${{ parameters.cloud }}
     retry_attempt_count: ${{ parameters.retry_attempt_count }}
-    credential_type: ${{ parameters.credential_type }}

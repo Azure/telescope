@@ -13,9 +13,6 @@ parameters:
 - name: retry_attempt_count
   type: number
   default: 3
-- name: credential_type
-  type: string
-  default: 'service_connection'
 - name: skip_resource_deletion
   type: string
   default: "false"

@@ -10,9 +10,6 @@ parameters:
 - name: retry_attempt_count
   type: number
   default: 3
-- name: credential_type
-  type: string
-  default: service_connection
 
 steps:
 - template: /steps/terraform/run-command.yml
@@ -22,7 +19,6 @@ steps:
     regions: ${{ parameters.regions }}
     cloud: ${{ parameters.cloud }}
     retry_attempt_count: ${{ parameters.retry_attempt_count }}
-    credential_type: ${{ parameters.credential_type }}
     skip_resource_deletion: "${SKIP_RESOURCE_DELETION}"
 
 - script: |
