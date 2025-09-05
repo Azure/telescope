@@ -76,7 +76,7 @@ eks_config_list = [{
   eks_managed_node_groups = [
     {
       name           = "default"
-      ami_type       = "AL2_x86_64"
+      ami_type       = "AL2023_x86_64_STANDARD"
       instance_types = ["m5.xlarge"]
       min_size       = 5
       max_size       = 5
@@ -85,7 +85,7 @@ eks_config_list = [{
     },
     {
       name           = "userpool1"
-      ami_type       = "AL2_x86_64"
+      ami_type       = "AL2023_x86_64_STANDARD"
       instance_types = ["m5.large"]
       min_size       = 1
       max_size       = 251
@@ -96,7 +96,7 @@ eks_config_list = [{
     },
     {
       name           = "userpool2"
-      ami_type       = "AL2_x86_64"
+      ami_type       = "AL2023_x86_64_STANDARD"
       instance_types = ["m5.large"]
       min_size       = 0
       max_size       = 250
@@ -107,7 +107,7 @@ eks_config_list = [{
     },
     {
       name           = "userpool3"
-      ami_type       = "AL2_x86_64"
+      ami_type       = "AL2023_x86_64_STANDARD"
       instance_types = ["m5.large"]
       min_size       = 0
       max_size       = 250
@@ -118,7 +118,7 @@ eks_config_list = [{
     },
     {
       name           = "userpool4"
-      ami_type       = "AL2_x86_64"
+      ami_type       = "AL2023_x86_64_STANDARD"
       instance_types = ["m5.large"]
       min_size       = 0
       max_size       = 250
