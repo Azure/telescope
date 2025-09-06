@@ -86,4 +86,4 @@ spec:
           value: "true"
           effect: NoSchedule
   limits:
-    cpu: 2000
+    cpu: 200

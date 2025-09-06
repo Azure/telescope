@@ -17,4 +17,4 @@ steps:
     env:
       DESIRED_NODES: ${{ parameters.desired_nodes }}
       VALIDATION_TIMEOUT_IN_MINUTES: ${{ parameters.validation_timeout_in_minutes }}
-      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/slo.py
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/large_cluster/large_cluster.py

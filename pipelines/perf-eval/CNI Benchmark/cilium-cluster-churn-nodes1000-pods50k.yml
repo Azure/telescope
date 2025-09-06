@@ -38,13 +38,13 @@ stages:
           matrix:
             aws_vpc_cni:
               cpu_per_node: 4
-              node_count: 1000
-              node_per_step: 100
+              node_count: 10
+              node_per_step: 1
               max_pods: 110
               repeats: 1
               scale_timeout: "30m"
               cilium_enabled: False
-              cl2_config_file: cluster-scale-config.yaml
+              cl2_config_file: cluster-churn.yaml
               service_test: False
           max_parallel: 1
           timeout_in_minutes: 720
@@ -70,25 +70,25 @@ stages:
           matrix:
             azure_cni:
               cpu_per_node: 4
-              node_count: 1000
-              node_per_step: 100
+              node_count: 10
+              node_per_step: 1
               max_pods: 110
               repeats: 1
               scale_timeout: "30m"
               cilium_enabled: False
-              cl2_config_file: cluster-scale-config.yaml
+              cl2_config_file: cluster-churn.yaml
               service_test: False
             azure_cilium:
               cpu_per_node: 4
-              node_count: 1000
-              node_per_step: 100
+              node_count: 10
+              node_per_step: 1
               max_pods: 110
               repeats: 1
               scale_timeout: "30m"
               cilium_enabled: True
               network_policy: cilium
               network_dataplane: cilium
-              cl2_config_file: cluster-scale-config.yaml
+              cl2_config_file: cluster-churn.yaml
               service_test: False
           max_parallel: 2
           timeout_in_minutes: 720
