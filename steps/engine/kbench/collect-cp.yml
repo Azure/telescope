@@ -1,0 +1,27 @@
+parameters:
+- name: cloud
+  type: string
+  default: ''
+- name: engine_input
+  type: object
+  default: {}
+- name: region
+  type: string
+
+steps:
+- template: /steps/cloud/${{ parameters.cloud }}/collect-cloud-info.yml
+  parameters:
+    region: ${{ parameters.region }}
+- script: |
+    set -eo pipefail
+
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE \
+      $RESULTS_DIR $KBENCH_TESTNAMES "$CLOUD_INFO" $RUN_ID $RUN_URL $TEST_RESULTS_FILE
+  workingDirectory: modules/python
+  env:
+    CLOUD: ${{ parameters.cloud }}
+    RUN_URL: $(RUN_URL)
+    KBENCH_TESTNAMES: ${{ parameters.engine_input.kbench_testnames }}
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/kbench/collect_cp.py
+    RESULTS_DIR: $(Pipeline.Workspace)/s/modules/python/kbench/results
+  displayName: "Collect Results"

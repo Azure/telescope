@@ -1,12 +1,12 @@
 scenario_type  = "perf-eval"
-scenario_name  = "cri-kbench-cp-bottlerocket"
-deletion_delay = "2h"
+scenario_name  = "kbench-cri"
+deletion_delay = "3h"
 owner          = "aks"
 
 network_config_list = [
   {
     role           = "client"
-    vpc_name       = "client-vpc"
+    vpc_name       = "kbench-client-vpc"
     vpc_cidr_block = "10.0.0.0/16"
     subnet = [
       {
@@ -57,8 +57,8 @@ network_config_list = [
 
 eks_config_list = [{
   role        = "client"
-  eks_name    = "cri-resource-consume"
-  vpc_name    = "client-vpc"
+  eks_name    = "kbench-cri"
+  vpc_name    = "kbench-client-vpc"
   policy_arns = ["AmazonEKSClusterPolicy", "AmazonEKSVPCResourceController", "AmazonEKSWorkerNodePolicy", "AmazonEKS_CNI_Policy", "AmazonEC2ContainerRegistryReadOnly"]
   eks_managed_node_groups = [
     {
@@ -90,14 +90,14 @@ eks_config_list = [{
       capacity_type  = "ON_DEMAND"
       taints = [
         {
-          key    = "cri-resource-consume"
+          key    = "kbench-cri"
           value  = "true"
           effect = "NO_SCHEDULE"
         }
       ]
       labels = {
-        "cri-resource-consume" = "true",
-        "agentpool"            = "userpool0"
+        "kbench-cri" = "true",
+        "agentpool"  = "userpool0"
       }
     }
   ]
