@@ -389,12 +389,12 @@ module "cluster_autoscaler" {
 
   source = "./cluster-autoscaler"
 
-  cluster_name          = aws_eks_cluster.eks.name
-  region                = var.region
-  tags                  = var.tags
-  oidc_provider_arn     = aws_iam_openid_connect_provider.oidc_provider.arn
-  cluster_version       = var.eks_config.kubernetes_version
-  auto_scaler_profile   = var.eks_config.auto_scaler_profile
+  cluster_name        = aws_eks_cluster.eks.name
+  region              = var.region
+  tags                = var.tags
+  oidc_provider_arn   = aws_iam_openid_connect_provider.oidc_provider.arn
+  cluster_version     = var.eks_config.kubernetes_version
+  auto_scaler_profile = var.eks_config.auto_scaler_profile
 
   depends_on = [aws_eks_node_group.eks_managed_node_groups]
 }
