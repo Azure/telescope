@@ -79,6 +79,7 @@ modules/python/clusterloader2/*/config/overrides.yaml
 
 #Jupyter
 *-checkpoint.ipynb
+.ipynb_checkpoints
 
 # OSX
 .DS_Store
