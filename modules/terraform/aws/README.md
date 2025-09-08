@@ -10,6 +10,25 @@ This guide covers how to manually run Terraform for AWS. All commands should be 
 * Install [Kubectl - 1.31.0](https://kubernetes.io/docs/tasks/tools/install-kubectl-linux/)
 * Install [Helm - v3.16.1](https://helm.sh/docs/intro/install/)
 
+#### Install Python Packages for Jupyter to use Interactive Notebooks
+```bash
+pip install jupyter notebook ipykernel bash_kernel
+python -m bash_kernel.install
+```
+You can install Jupyter Extension from here in the VS code: https://marketplace.visualstudio.com/items?itemName=ms-toolsai.jupyter
+
+## Interactive Notebooks
+- **[AWS Notebook:](./aws.ipynb)** Interactive notebook for AWS telescope testing
+
+### Quick Start with Notebooks
+
+```bash
+jupyter notebook aws.ipynb
+```
+Once you run the command go to this http://localhost:8888/tree to access the Jupyter Notebook UI.
+On the top right corner, you will see a button called "
+
+
 ## Define Variables
 
 Set environment variables for a specific test scenario. In this guide, we'll use `perf-eval/apiserver-vn10pod100` scenario as the example and set the following variables:

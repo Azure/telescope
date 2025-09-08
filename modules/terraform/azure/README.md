@@ -8,6 +8,29 @@ This guide covers how to manually run Terraform for Azure. All commands should b
 * Install [Azure CLI - 2.57.0](https://learn.microsoft.com/en-us/cli/azure/install-azure-cli-linux?pivots=apt)
 * Install [jq - 1.6-2.1ubuntu3](https://stedolan.github.io/jq/download/)
 
+#### 1. Install Python Packages for Jupyter
+```bash
+pip install jupyter notebook ipykernel bash_kernel
+python -m bash_kernel.install
+```
+You can install Jupyter Extension from here in the VS code: https://marketplace.visualstudio.com/items?itemName=ms-toolsai.jupyter
+
+## Interactive Notebooks
+
+For easy local development and testing, we provide Jupyter notebooks for each cloud provider:
+- **[Azure Notebook:](./azure.ipynb)** Interactive notebook for Azure telescope testing
+
+### Quick Start with Notebooks
+
+```bash
+jupyter notebook azure.ipynb
+```
+Once you run the command go to this http://localhost:8888/tree to access the Jupyter Notebook UI
+
+The notebooks provide:
+- Prerequisites checking and cloud authentication
+- Step-by-step Terraform workflow (init, plan, apply, destroy)
+- Variable configuration and customization options
 
 ## Define Variables
 
