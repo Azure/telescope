@@ -25,7 +25,7 @@ steps:
       AZURE_MI_SUBSCRIPTION_ID: ${{ parameters.subscription }}
       REGION: ${{ parameters.region }}
 
-- ${{ if eq(parameters.credential_type, 'service_connection') }}:
+- ${{ if or(eq(parameters.credential_type, 'service_connection'), eq(parameters.credential_type, 'variable_group')) }}:
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(AZURE_SERVICE_CONNECTION)
