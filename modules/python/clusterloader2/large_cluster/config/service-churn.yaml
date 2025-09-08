@@ -1,4 +1,4 @@
-name: load-config
+name: service-churn
 
 # Config options for test type
 {{$SERVICE_TEST := DefaultParam .CL2_SERVICE_TEST true}}

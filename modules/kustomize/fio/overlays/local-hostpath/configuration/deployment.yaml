@@ -93,7 +93,7 @@ spec:
           effect: "NoSchedule"
       containers:
         - name: local-path-provisioner
-          image: rancher/local-path-provisioner:v0.0.30
+          image: telescope.azurecr.io/local-path-provisioner:v0.0.30
           imagePullPolicy: IfNotPresent
           command:
             - local-path-provisioner
