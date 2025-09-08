@@ -45,6 +45,7 @@ parameters:
   values:
   - managed_identity
   - service_connection
+  - variable_group
 - name: ssh_key_enabled
   type: boolean
   default: true
