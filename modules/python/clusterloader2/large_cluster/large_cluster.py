@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from clients.kubernetes_client import KubernetesClient
 from utils.common import str2bool
-from base import ClusterLoader2Base
+from clusterloader2.slo.base import ClusterLoader2Base
 
 
 @dataclass(frozen=True)
@@ -28,7 +28,7 @@ class Cl2DefaultConfigConstants:
     }
 
 
-class SloArgsParser(ClusterLoader2Base.ArgsParser):
+class LargeClusterArgsParser(ClusterLoader2Base.ArgsParser):
     def __init__(self):
         super().__init__(description="SLO Kubernetes Resources")
 
@@ -91,7 +91,7 @@ class SloArgsParser(ClusterLoader2Base.ArgsParser):
         parser.add_argument("start_timestamp", type=str, help="Test start timestamp")
 
 
-class SloRunner(ClusterLoader2Base.Runner):
+class LargeClusterRunner(ClusterLoader2Base.Runner):
     # pylint: disable=unused-argument
     def collect(
         self,
@@ -253,11 +253,11 @@ class SloRunner(ClusterLoader2Base.Runner):
         kube_client.wait_for_nodes_ready(node_count, operation_timeout)
 
 
-class Slo(ClusterLoader2Base):
+class LargeCluster(ClusterLoader2Base):
     def __init__(self):
         super().__init__()
-        self._args_parser = SloArgsParser()
-        self._runner = SloRunner()
+        self._args_parser = LargeClusterArgsParser()
+        self._runner = LargeClusterRunner()
 
     @property
     def args_parser(self):
@@ -269,4 +269,4 @@ class Slo(ClusterLoader2Base):
 
 
 if __name__ == '__main__':
-    Slo().perform()
+    LargeCluster().perform()
