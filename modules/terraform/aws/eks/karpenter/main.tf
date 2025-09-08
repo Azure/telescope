@@ -5,7 +5,8 @@ locals {
   # Parse the cluster version to determine AMI family
   # For k8s 1.32 and below: al2@latest with AL2 family
   # For k8s 1.33 and above: al2023@latest with AL2023 family
-  cluster_version_parts = split(".", var.cluster_version)
+  # Default to 1.33 if cluster_version is null
+  cluster_version_parts = split(".", var.cluster_version != null ? var.cluster_version : "1.33")
   cluster_major_version = tonumber(local.cluster_version_parts[0])
   cluster_minor_version = tonumber(local.cluster_version_parts[1])
 
