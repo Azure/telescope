@@ -378,6 +378,8 @@ module "karpenter" {
   region                = var.region
   tags                  = var.tags
   cluster_iam_role_name = aws_iam_role.eks_cluster_role.name
+  cluster_version       = var.eks_config.kubernetes_version
+  oidc_provider_arn     = aws_iam_openid_connect_provider.oidc_provider.arn
 
   depends_on = [aws_eks_node_group.eks_managed_node_groups]
 }
@@ -390,7 +392,7 @@ module "cluster_autoscaler" {
   cluster_name          = aws_eks_cluster.eks.name
   region                = var.region
   tags                  = var.tags
-  cluster_iam_role_name = aws_iam_role.eks_cluster_role.name
+  oidc_provider_arn     = aws_iam_openid_connect_provider.oidc_provider.arn
   cluster_version       = var.eks_config.kubernetes_version
   auto_scaler_profile   = var.eks_config.auto_scaler_profile
 

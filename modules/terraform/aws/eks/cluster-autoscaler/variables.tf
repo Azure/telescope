@@ -13,9 +13,9 @@ variable "tags" {
   description = "value of the tags"
 }
 
-variable "cluster_iam_role_name" {
+variable "oidc_provider_arn" {
   type        = string
-  description = "value of the cluster iam role name"
+  description = "ARN of the OIDC provider for IRSA"
 }
 
 variable "cluster_version" {
