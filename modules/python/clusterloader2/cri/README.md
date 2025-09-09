@@ -46,7 +46,7 @@ Run following commands to validate node count (remember to run in `root` directo
 cd modules/python
 DESIRED_NODES=14
 VALIDATION_TIMEOUT_IN_MINUTES=10
-PYTHON_SCRIPT_FILE=$(pwd)/clusterloader2/large_cluster/large_cluster.py
+PYTHON_SCRIPT_FILE=$(pwd)/clusterloader2/slo/slo.py
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE validate \
     $DESIRED_NODES $VALIDATION_TIMEOUT_IN_MINUTES
 ```
