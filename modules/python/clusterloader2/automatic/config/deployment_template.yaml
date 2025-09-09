@@ -1,0 +1,100 @@
+{{$Memory := DefaultParam .Memory "1000M"}}
+{{$CPU := DefaultParam .CPU "--millicores=100"}}
+{{$MemoryRequest := DefaultParam .MemoryRequest "1000Ki"}}
+{{$CPURequest := DefaultParam .CPURequest "100m"}}
+{{$LoadType := DefaultParam .LoadType "memory"}}
+{{$Provider := DefaultParam .Provider "aks"}}
+{{$OSType := DefaultParam .OSType "linux"}}
+{{$HostNetwork := DefaultParam .HostNetwork "true"}}
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.Name}}
+  labels:
+    group: {{.Group}}
+spec:
+  replicas: {{.Replicas}}
+  selector:
+    matchLabels:
+      name: {{.Name}}
+  template:
+    metadata:
+      labels:
+        name: {{.Name}}
+        group: {{.Group}}
+    spec:
+      hostNetwork: {{$HostNetwork}}
+      nodeSelector:
+        cri-resource-consume: "true"
+      containers:
+      {{if eq $LoadType "memory"}}
+      - name: resource-consumer-memory
+        imagePullPolicy: IfNotPresent
+        {{if eq $OSType "windows"}}
+        image: akscritelescope.azurecr.io/e2e-test-images/resource-consumer:1.13-windows-amd64-ltsc2022
+        command:
+          - testlimit.exe
+        args:
+          - -accepteula
+          - -d
+          - "{{$Memory}}"
+          - -e
+          - "0"
+          - "3600"
+          - -c
+          - "1"
+        {{else}}
+          {{if eq $Provider "aks"}}
+        image: akscritelescope.azurecr.io/e2e-test-images/resource-consumer:1.13
+          {{else}}
+        image: registry.k8s.io/e2e-test-images/resource-consumer:1.13
+          {{end}}
+        command:
+          - stress
+        args:
+          - --vm
+          - "1"
+          - --vm-bytes
+          - {{$Memory}}
+          - --vm-hang
+          - "0"
+          - --timeout
+          - "3600"
+        {{end}}
+        resources:
+          requests:
+            memory: {{$MemoryRequest}}
+      {{end}}
+      {{if eq $LoadType "cpu"}}
+      - name: resource-consumer-cpu
+        imagePullPolicy: IfNotPresent
+        {{if eq $OSType "windows"}}
+        image: akscritelescope.azurecr.io/e2e-test-images/resource-consumer:1.13-windows-amd64-ltsc2022
+        command:
+          - /consume-cpu/consume-cpu.exe
+        {{else}}
+          {{if eq $Provider "aks"}}
+        image: akscritelescope.azurecr.io/e2e-test-images/resource-consumer:1.13
+          {{else}}
+        image: registry.k8s.io/e2e-test-images/resource-consumer:1.13
+          {{end}}
+        command:
+          - /consume-cpu/consume-cpu
+        {{end}}
+        args:
+          - --duration-sec=3600
+          - {{$CPU}}
+        resources:
+          requests:
+            cpu: {{$CPURequest}}
+      {{end}}
+      tolerations:
+      - key: "cri-resource-consume"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      - key: "cri-resource-consume"
+        operator: "Equal"
+        value: "true"
+        effect: "NoExecute"

@@ -1,0 +1,33 @@
+trigger: none
+
+schedules:
+  - cron: "0 */4 * * *"
+    displayName: "Everyday at 11:00 AM"
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: cluster-automatic
+
+stages:
+  - stage: azure_eastus2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml # must keep as is
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          terraform_input_file_mapping:
+            - eastus2: "scenarios/perf-eval/cluster-automatic/terraform-inputs/azure-automatic-benchmark.tfvars"
+          topology: cluster-automatic
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+          max_parallel: 1 # required
+          credential_type: service_connection # required
+          ssh_key_enabled: false
+          timeout_in_minutes: 120
