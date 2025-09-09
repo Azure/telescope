@@ -9,45 +9,28 @@ parameters:
   type: string
 
 steps:
-- ${{ if eq(parameters.credential_type, 'managed_identity') }}:
-  - bash: |
-      set -eu
+- task: AzureCLI@2
+  inputs:
+    azureSubscription: $(AZURE_SERVICE_CONNECTION)
+    scriptType: 'bash'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      echo "##vso[task.setvariable variable=SP_CLIENT_ID;issecret=true]$servicePrincipalId"
+      echo "##vso[task.setvariable variable=SP_ID_TOKEN;issecret=true]$idToken"
+      echo "##vso[task.setvariable variable=TENANT_ID;issecret=true]$tenantId"
+    addSpnToEnvironment: true
+  displayName: 'Get login credentials'
+  condition: always()
+- bash: |
+    set -eu
 
-      echo "login to Azure in $REGION"
-      az login --identity --client-id $AZURE_MI_ID
-      az account set --subscription "${AZURE_MI_SUBSCRIPTION_ID}"
-      az config set defaults.location="$REGION"
-      az account show
-    displayName: "Azure Login"
-    condition: always()
-    env:
-      AZURE_MI_ID: $(AZURE_MI_CLIENT_ID)
-      AZURE_MI_SUBSCRIPTION_ID: ${{ parameters.subscription }}
-      REGION: ${{ parameters.region }}
-
-- ${{ if or(eq(parameters.credential_type, 'service_connection'), eq(parameters.credential_type, 'variable_group')) }}:
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(AZURE_SERVICE_CONNECTION)
-      scriptType: 'bash'
-      scriptLocation: 'inlineScript'
-      inlineScript: |
-        echo "##vso[task.setvariable variable=SP_CLIENT_ID;issecret=true]$servicePrincipalId"
-        echo "##vso[task.setvariable variable=SP_ID_TOKEN;issecret=true]$idToken"
-        echo "##vso[task.setvariable variable=TENANT_ID;issecret=true]$tenantId"
-      addSpnToEnvironment: true
-    displayName: 'Get login credentials'
-    condition: always()
-  - bash: |
-      set -eu
-
-      echo "login to Azure in $REGION"
-      az login --service-principal --tenant $(TENANT_ID) -u $(SP_CLIENT_ID) --federated-token $(SP_ID_TOKEN) --allow-no-subscriptions
-      az account set --subscription "${AZURE_SP_SUBSCRIPTION_ID}"
-      az config set defaults.location="$REGION"
-      az account show
-    displayName: "Azure Login"
-    condition: always()
-    env:
-      AZURE_SP_SUBSCRIPTION_ID: ${{ parameters.subscription }}
-      REGION: ${{ parameters.region }}
+    echo "login to Azure in $REGION"
+    az login --service-principal --tenant $(TENANT_ID) -u $(SP_CLIENT_ID) --federated-token $(SP_ID_TOKEN) --allow-no-subscriptions
+    az account set --subscription "${AZURE_SP_SUBSCRIPTION_ID}"
+    az config set defaults.location="$REGION"
+    az account show
+  displayName: "Azure Login"
+  condition: always()
+  env:
+    AZURE_SP_SUBSCRIPTION_ID: ${{ parameters.subscription }}
+    REGION: ${{ parameters.region }}
