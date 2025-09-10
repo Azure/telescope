@@ -52,7 +52,6 @@ def configure_clusterloader2(
     provider,
     scrape_containerd,
     service_test,
-    dualstack,
     override_file):
 
     steps = node_count // node_per_step
@@ -214,8 +213,6 @@ def main():
                                   help="Whether to scrape containerd metrics. Must be either True or False")
     parser_configure.add_argument("service_test", type=str2bool, choices=[True, False], default=False,
                                   help="Whether service test is running. Must be either True or False")
-    parser_configure.add_argument("dualstack", type=str2bool, choices=[True, False], nargs='?', default=False,
-                                  help="Whether cluster is dualstack. Must be either True or False")
     parser_configure.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
     # Sub-command for validate_clusterloader2
@@ -264,7 +261,6 @@ def main():
             args.provider,
             args.scrape_containerd,
             args.service_test,
-            args.dualstack,
             args.cl2_override_file,
         )
     elif args.command == "validate":
