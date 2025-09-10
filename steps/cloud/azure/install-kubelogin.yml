@@ -6,7 +6,7 @@ parameters:
 
 steps:
 # Refresh credentials
-- template: /steps/cloud/${{ parameters.cloud }}/login.yml
+- template: /steps/cloud/azure/login.yml
   parameters:
     region: ${{ parameters.region }}
     credential_type: service_connection

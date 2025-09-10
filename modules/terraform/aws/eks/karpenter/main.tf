@@ -1,6 +1,19 @@
 locals {
   karpenter_namespace = "kube-system"
   karpenter_version   = "1.0.3"
+
+  # Parse the cluster version to determine AMI family
+  # For k8s 1.32 and below: al2@latest with AL2 family
+  # For k8s 1.33 and above: al2023@latest with AL2023 family
+  # Default to 1.33 if cluster_version is null
+  cluster_version_parts = split(".", var.cluster_version != null ? var.cluster_version : "1.33")
+  cluster_major_version = tonumber(local.cluster_version_parts[0])
+  cluster_minor_version = tonumber(local.cluster_version_parts[1])
+
+  # Determine AMI alias and family based on version
+  is_k8s_133_or_above = (local.cluster_major_version == 1 && local.cluster_minor_version >= 33)
+  ami_alias           = local.is_k8s_133_or_above ? "al2023@latest" : "al2@latest"
+  ami_family          = local.is_k8s_133_or_above ? "AL2023" : "AL2"
 }
 
 data "aws_caller_identity" "current" {}
@@ -199,9 +212,34 @@ resource "aws_iam_policy" "karpenter_controller_policy" {
   })
 }
 
+# IAM role for Karpenter service account (IRSA)
+resource "aws_iam_role" "karpenter_role" {
+  name = substr("KarpenterRole-${var.cluster_name}", 0, 64)
+  tags = var.tags
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = var.oidc_provider_arn
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "${replace(data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer, "https://", "")}:sub" = "system:serviceaccount:kube-system:karpenter"
+            "${replace(data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer, "https://", "")}:aud" = "sts.amazonaws.com"
+          }
+        }
+      }
+    ]
+  })
+}
+
 resource "aws_iam_role_policy_attachment" "karpenter_controller_policy_attachments" {
   policy_arn = aws_iam_policy.karpenter_controller_policy.arn
-  role       = var.cluster_iam_role_name
+  role       = aws_iam_role.karpenter_role.name
 }
 
 resource "terraform_data" "install_karpenter" {
@@ -210,12 +248,13 @@ resource "terraform_data" "install_karpenter" {
       #!/bin/bash
       set -e
       aws eks --region ${var.region} update-kubeconfig --name "${var.cluster_name}"
-      # Install Karpenter
+      # Install Karpenter with IRSA
       helm registry logout public.ecr.aws || true
       helm upgrade --install karpenter oci://public.ecr.aws/karpenter/karpenter \
         --version "${local.karpenter_version}" \
         --namespace "${local.karpenter_namespace}" \
         --set "settings.clusterName=${var.cluster_name}" \
+        --set "serviceAccount.annotations.eks\.amazonaws\.com/role-arn=${aws_iam_role.karpenter_role.arn}" \
         --wait
       sleep 10
       envsubst  < "${path.module}/NodeClass.yml" | kubectl apply -f -
@@ -229,6 +268,8 @@ resource "terraform_data" "install_karpenter" {
       SCENARIO          = var.tags["scenario"]
       DELETION_DUE_TIME = var.tags["deletion_due_time"]
       CLUSTER_NAME      = var.cluster_name
+      AMI_ALIAS         = local.ami_alias
+      AMI_FAMILY        = local.ami_family
     }
   }
 

@@ -1,8 +1,7 @@
 parameters:
 - name: cloud
   type: string
-- name: credential_type
-  type: string
+
 steps:
 - script: |
     set -eo pipefail
@@ -23,6 +22,6 @@ steps:
     destination_file_name: $(RUN_ID).json
     subfolder: terraform-metadata/main
     container_name: system
-    credential_type: ${{ parameters.credential_type }}
+    credential_type: service_connection
     cloud: ${{ parameters.cloud }}
     upload_type: "Terraform Operation Metadata"
