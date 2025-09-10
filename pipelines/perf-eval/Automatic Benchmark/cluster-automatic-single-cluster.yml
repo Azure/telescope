@@ -20,9 +20,9 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - swedencentral
           terraform_input_file_mapping:
-            - eastus2: "scenarios/perf-eval/cluster-automatic/terraform-inputs/azure-automatic-benchmark.tfvars"
+            - swedencentral: "scenarios/perf-eval/cluster-automatic/terraform-inputs/azure-automatic-benchmark.tfvars"
           topology: cluster-automatic
           engine: clusterloader2
           engine_input:
