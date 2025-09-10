@@ -9,7 +9,7 @@ parameters:
   upload_type: "Test Results"
 
 steps:
-- ${{ if or(ne(parameters.cloud, 'azure'), eq(parameters.credential_type, 'service_connection')) }}:
+- ${{ if ne(parameters.cloud, 'azure') }}:
   - template: /steps/cloud/azure/login.yml
     parameters:
       region: eastus

@@ -41,10 +41,10 @@ parameters:
   default: 3
 - name: credential_type
   type: string
-  default: managed_identity
+  default: service_connection
   values:
-  - managed_identity
   - service_connection
+  - variable_group
 - name: ssh_key_enabled
   type: boolean
   default: true
@@ -76,7 +76,6 @@ jobs:
       terraform_arguments: ${{ parameters.terraform_arguments }}
       terraform_input_varibles: ${{ parameters.terraform_input_varibles }}
       retry_attempt_count: ${{ parameters.retry_attempt_count }}
-      credential_type: ${{ parameters.credential_type }}
   - template: /steps/validate-resources.yml
     parameters:
       cloud: ${{ parameters.cloud }}
@@ -104,4 +103,3 @@ jobs:
       regions: ${{ parameters.regions }}
       terraform_arguments: ${{ parameters.terraform_arguments }}
       retry_attempt_count: ${{ parameters.retry_attempt_count }}
-      credential_type: ${{ parameters.credential_type }}
