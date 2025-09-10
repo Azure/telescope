@@ -41,4 +41,3 @@ steps:
   - template: /steps/collect-terraform-operation-metadata.yml
     parameters:
       cloud: ${{ parameters.cloud }}
-      credential_type: ${{ parameters.credential_type }}
