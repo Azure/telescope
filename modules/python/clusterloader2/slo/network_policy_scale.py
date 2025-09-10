@@ -13,8 +13,6 @@ def configure_clusterloader2(
     workers_per_client,
     netpol_type,
     test_duration_secs,
-    cilium_enabled,
-    cilium_envoy_enabled,
     override_file,
 ):
     # Ensure the directory for override_file exists
@@ -32,18 +30,6 @@ def configure_clusterloader2(
         file.write('CL2_PROMETHEUS_NODE_SELECTOR: "prometheus: \\"true\\""\n')
         file.write("CL2_ENABLE_IN_CLUSTER_NETWORK_LATENCY: false\n")
         file.write("PROMETHEUS_SCRAPE_KUBE_PROXY: false\n")
-
-        if cilium_enabled:
-            file.write("# Cilium config\n")
-            file.write("CL2_CILIUM_ENABLED: true\n")
-            file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true\n")
-            file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true\n")
-            file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT_INTERVAL: 30s\n")
-
-        if cilium_envoy_enabled:
-            file.write("# Cilium Envoy config\n")
-            file.write("CL2_CILIUM_ENVOY_ENABLED: true\n")
-            file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_ENVOY: true\n")
 
         # test config
         # add "s" at the end of test_duration_secs
@@ -191,7 +177,7 @@ def main():
         "--netpol_type",
         type=str,
         required=True,
-        choices=["k8s", "cnp", "ccnp"],
+        choices=["k8s"],
         help="Type of network policy",
     )
     parser_configure.add_argument(
@@ -199,20 +185,6 @@ def main():
     )
     parser_configure.add_argument(
         "--provider", type=str, required=True, help="Cloud provider name"
-    )
-    parser_configure.add_argument(
-        "--cilium_enabled",
-        type=str2bool,
-        choices=[True, False],
-        default=False,
-        help="Whether cilium is enabled. Must be either True or False",
-    )
-    parser_configure.add_argument(
-        "--cilium_envoy_enabled",
-        type=str2bool,
-        choices=[True, False],
-        default=False,
-        help="Whether cilium envoy is enabled. Must be either True or False",
     )
     parser_configure.add_argument(
         "--cl2_override_file",
@@ -278,8 +250,6 @@ def main():
             args.workers_per_client,
             args.netpol_type,
             args.test_duration_secs,
-            args.cilium_enabled,
-            args.cilium_envoy_enabled,
             args.cl2_override_file,
         )
     elif args.command == "execute":

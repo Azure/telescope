@@ -21,8 +21,6 @@ name: deployment-churn
 {{$podsPerNamespace := DivideInt $totalPods $namespaces}}
 {{$deploymentsPerNamespace := DivideInt $podsPerNamespace (MultiplyInt $deploymentSize $steps)}}
 
-{{$CILIUM_METRICS_ENABLED := DefaultParam .CL2_CILIUM_METRICS_ENABLED false}}
-
 namespace:
   number: {{$namespaces}}
   prefix: slo
@@ -52,13 +50,6 @@ steps:
       params:
         action: start
         group: {{$groupName}}
-
-{{if $CILIUM_METRICS_ENABLED}}
-  - module:
-      path: /modules/cilium-measurements.yaml
-      params:
-        action: start
-{{end}}
 
   - name: Start measurements
     measurements:
@@ -132,13 +123,6 @@ steps:
           action: gather
           refreshInterval: 15s
   {{end}}
-{{end}}
-
-{{if $CILIUM_METRICS_ENABLED}}
-  - module:
-      path: /modules/cilium-measurements.yaml
-      params:
-        action: gather
 {{end}}
 
   - module:
