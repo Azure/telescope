@@ -1,8 +1,8 @@
 trigger: none
 
 schedules:
-  - cron: "0 11 * * 3"
-    displayName: "Once a week on Wednesday at 11:00 AM"
+  - cron: "0 */4 * * *"
+    displayName: "Everyday at 11:00 AM"
     branches:
       include:
         - main
@@ -21,26 +21,12 @@ stages:
           cloud: azure
           regions:
             - eastus2
+          terraform_input_file_mapping:
+            - eastus2: "scenarios/perf-eval/cluster-automatic/terraform-inputs/azure-automatic-benchmark.tfvars"
           topology: cluster-automatic
-          engine: aks-store-demo
+          engine: clusterloader2
           engine_input:
-            wait_duration_seconds: 1800
-          max_parallel: 1 # required
-          credential_type: service_connection # required
-          ssh_key_enabled: false
-          timeout_in_minutes: 120
-  - stage: aws_us_east_2
-    dependsOn: []
-    jobs:
-      - template: /jobs/competitive-test.yml # must keep as is
-        parameters:
-          cloud: aws
-          regions:
-            - us-east-2
-          topology: cluster-automatic
-          engine: aks-store-demo
-          engine_input:
-            wait_duration_seconds: 1800
+            image: "ghcr.io/azure/clusterloader2:v20250513"
           max_parallel: 1 # required
           credential_type: service_connection # required
           ssh_key_enabled: false
