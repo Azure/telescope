@@ -76,7 +76,7 @@ eks_config_list = [{
   eks_managed_node_groups = [
     {
       name           = "nap-c2n200p200-ng"
-      ami_type       = "AL2_x86_64"
+      ami_type       = "AL2023_x86_64_STANDARD"
       instance_types = ["m5.xlarge"]
       min_size       = 5
       max_size       = 5
@@ -92,5 +92,5 @@ eks_config_list = [{
     }
   ]
   eks_addons         = []
-  kubernetes_version = "1.31"
+  kubernetes_version = "1.33"
 }]
