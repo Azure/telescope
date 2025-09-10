@@ -9,11 +9,10 @@ parameters:
   upload_type: "Test Results"
 
 steps:
-- ${{ if ne(parameters.cloud, 'azure') }}:
-  - template: /steps/cloud/azure/login.yml
-    parameters:
-      region: eastus
-      credential_type: ${{ parameters.credential_type }}
+- template: /steps/cloud/azure/login.yml
+  parameters:
+    region: eastus
+    credential_type: ${{ parameters.credential_type }}
 
 - bash: |
     set -eux
