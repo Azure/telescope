@@ -29,4 +29,4 @@ steps:
     CL2_IMAGE: ${{ parameters.engine_input.image }}
     CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/automatic/config
     CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/automatic/results
-  displayName: "Run Benchmark"
+  displayName: "Run Automatic Benchmark"
