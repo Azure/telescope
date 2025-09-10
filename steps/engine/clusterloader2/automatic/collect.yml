@@ -21,6 +21,6 @@ steps:
   env:
     CLOUD: ${{ parameters.cloud }}
     RUN_URL: $(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)
-    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/autoscale.py
-    CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/results
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/automatic/automatic.py
+    CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/automatic/results
   displayName: "Collect Results"

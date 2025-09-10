@@ -25,8 +25,8 @@ steps:
     ${{ else }}:
       CLOUD: ${{ parameters.cloud }}
     REGION: ${{ parameters.region }}
-    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/autoscale.py
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/automatic/automatic.py
     CL2_IMAGE: ${{ parameters.engine_input.image }}
-    CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/config
-    CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/results
+    CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/automatic/config
+    CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/automatic/results
   displayName: "Run Benchmark"

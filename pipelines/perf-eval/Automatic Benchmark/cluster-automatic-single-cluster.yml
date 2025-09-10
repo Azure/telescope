@@ -29,14 +29,16 @@ stages:
             image: "ghcr.io/azure/clusterloader2:v20250513"
           matrix:
             automatic-acn-off:
-              node_count: 30
-              pod_count: 30
+              cpu_per_node: 2
+              node_count: 10
+              pod_count: 10
               scale_up_timeout: "150m"
               scale_down_timeout: "150m"
               node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
               warmup_deployment: false
+              vm_size: Standard_D2s_v4
               capacity_type: on-demand
           max_parallel: 1 # required
           credential_type: service_connection # required
