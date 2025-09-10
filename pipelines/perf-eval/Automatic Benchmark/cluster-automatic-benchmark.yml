@@ -27,6 +27,15 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
+          matrix:
+            automatic-acn-off:
+              node_count: 30
+              max_pods: 30
+              repeats: 1
+              operation_timeout: 3m
+              load_type: memory
+              kubernetes_version: "1.32"
+              scrape_kubelets: True
           max_parallel: 1 # required
           credential_type: service_connection # required
           ssh_key_enabled: false
