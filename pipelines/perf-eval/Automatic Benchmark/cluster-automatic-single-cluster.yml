@@ -30,12 +30,14 @@ stages:
           matrix:
             automatic-acn-off:
               node_count: 30
-              max_pods: 30
-              repeats: 1
-              operation_timeout: 3m
-              load_type: memory
-              kubernetes_version: "1.32"
-              scrape_kubelets: True
+              pod_count: 30
+              scale_up_timeout: "150m"
+              scale_down_timeout: "150m"
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 1
+              warmup_deployment: false
+              capacity_type: on-demand
           max_parallel: 1 # required
           credential_type: service_connection # required
           ssh_key_enabled: false
