@@ -40,20 +40,10 @@ class LargeClusterArgsParser(ClusterLoader2Base.ArgsParser):
         parser.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
         parser.add_argument("operation_timeout", type=str, help="Timeout before failing the scale up test")
         parser.add_argument("provider", type=str, help="Cloud provider name")
-        parser.add_argument("cilium_enabled", type=str2bool, choices=[True, False], default=False,
-                                    help="Whether cilium is enabled. Must be either True or False")
         parser.add_argument("scrape_containerd", type=str2bool, choices=[True, False], default=False,
                                     help="Whether to scrape containerd metrics. Must be either True or False")
         parser.add_argument("service_test", type=str2bool, choices=[True, False], default=False,
                                     help="Whether service test is running. Must be either True or False")
-        parser.add_argument("cnp_test", type=str2bool, choices=[True, False], nargs='?', default=False,
-                                    help="Whether cnp test is running. Must be either True or False")
-        parser.add_argument("ccnp_test", type=str2bool, choices=[True, False], nargs='?', default=False,
-                                    help="Whether ccnp test is running. Must be either True or False")
-        parser.add_argument("num_cnps", type=int, nargs='?', default=0, help="Number of cnps")
-        parser.add_argument("num_ccnps", type=int, nargs='?', default=0, help="Number of ccnps")
-        parser.add_argument("dualstack", type=str2bool, choices=[True, False], nargs='?', default=False,
-                                    help="Whether cluster is dualstack. Must be either True or False")
         parser.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
     def add_validate_args(self, parser):
@@ -81,10 +71,6 @@ class LargeClusterArgsParser(ClusterLoader2Base.ArgsParser):
         parser.add_argument("run_url", type=str, help="Run URL")
         parser.add_argument("service_test", type=str2bool, choices=[True, False], default=False,
                                     help="Whether service test is running. Must be either True or False")
-        parser.add_argument("cnp_test", type=str2bool, choices=[True, False], nargs='?', default=False,
-                                    help="Whether cnp test is running. Must be either True or False")
-        parser.add_argument("ccnp_test", type=str2bool, choices=[True, False], nargs='?', default=False,
-                                    help="Whether ccnp test is running. Must be either True or False")
         parser.add_argument("result_file", type=str, help="Path to the result file")
         parser.add_argument("test_type", type=str, nargs='?', default="default-config",
                                     help="Description of test type")
