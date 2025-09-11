@@ -13,14 +13,14 @@ variables:
   SCENARIO_NAME: cluster-automatic
 
 stages:
-  - stage: azure_eastus2
+  - stage: azure_australiaeast
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml # must keep as is
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - australiaeast
           topology: cluster-automatic
           engine: aks-store-demo
           engine_input:
@@ -29,14 +29,14 @@ stages:
           credential_type: service_connection # required
           ssh_key_enabled: false
           timeout_in_minutes: 120
-  - stage: aws_us_east_2
+  - stage: aws_euwest2
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml # must keep as is
         parameters:
           cloud: aws
           regions:
-            - us-east-2
+            - eu-west-2
           topology: cluster-automatic
           engine: aks-store-demo
           engine_input:
