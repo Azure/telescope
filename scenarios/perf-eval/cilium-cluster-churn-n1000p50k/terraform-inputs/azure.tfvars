@@ -49,17 +49,17 @@ aks_config_list = [
         node_count           = 1
         auto_scaling_enabled = false
         vm_size              = "Standard_D64_v3"
-        max_pods             = 110
+        max_pods             = 11
         node_labels          = { "prometheus" = "true" }
       },
       {
         name                 = "userpool0"
         node_count           = 0
         min_count            = 0
-        max_count            = 500
+        max_count            = 5
         auto_scaling_enabled = true
         vm_size              = "Standard_D4_v3"
-        max_pods             = 110
+        max_pods             = 11
         node_taints          = ["slo=true:NoSchedule"]
         node_labels          = { "slo" = "true" }
       },
@@ -67,10 +67,10 @@ aks_config_list = [
         name                 = "userpool1"
         node_count           = 0
         min_count            = 0
-        max_count            = 500
+        max_count            = 5
         auto_scaling_enabled = true
         vm_size              = "Standard_D4_v3"
-        max_pods             = 110
+        max_pods             = 11
         node_taints          = ["slo=true:NoSchedule"]
         node_labels          = { "slo" = "true" }
       }
