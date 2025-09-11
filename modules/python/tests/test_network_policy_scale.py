@@ -25,8 +25,6 @@ class TestConfigureNetworkPolicyScale(unittest.TestCase):
                 workers_per_client=5,
                 netpol_type="k8s",
                 test_duration_secs=10,
-                cilium_enabled=False,
-                cilium_envoy_enabled=False,
                 override_file=tmp_path,
             )
 
@@ -59,8 +57,6 @@ class TestConfigureNetworkPolicyScale(unittest.TestCase):
                 workers_per_client=4,
                 netpol_type="cnp",
                 test_duration_secs=20,
-                cilium_enabled=True,
-                cilium_envoy_enabled=True,
                 override_file=tmp_path,
             )
 
