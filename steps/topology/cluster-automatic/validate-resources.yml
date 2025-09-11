@@ -20,11 +20,11 @@ steps:
       region: ${{ parameters.regions[0] }}
 
 - ${{ if eq(parameters.engine, 'aks-store-demo') }}:
-- template: /steps/topology/cluster-automatic/aks-store-demo-python.yml
-  parameters:
-    cluster_context: automatic
-    action: deploy
-    namespace: default
+  - template: /steps/topology/cluster-automatic/aks-store-demo-python.yml
+    parameters:
+      cluster_context: automatic
+      action: deploy
+      namespace: default
 
 - ${{ if eq(parameters.engine, 'clusterloader2') }}:
   - bash: |
