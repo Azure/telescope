@@ -14,9 +14,6 @@
 {{$smallDeploymentSize := .smallDeploymentSize}}
 {{$smallDeploymentsPerNamespace := .smallDeploymentsPerNamespace}}
 
-{{$cnp_test:= .cnp_test}}
-{{$ccnp_test:= .ccnp_test}}
-
 steps:
 - name: Starting measurement for '{{$actionName}}'
   measurements:
@@ -58,13 +55,8 @@ steps:
       objectTemplatePath: deployment_template.yaml
       templateFillMap:
         Replicas: {{$smallDeploymentSize}}
-  {{if or $cnp_test $ccnp_test}}
-        cnp_test: {{$cnp_test}}
-        ccnp_test: {{$ccnp_test}}
-  {{else}}
-        SvcName: small-service
-  {{end}}
-        Group: {{.Group}}
+          SvcName: small-service
+          Group: {{.Group}}
         deploymentLabel: {{.deploymentLabel}}
 
 - name: Waiting for '{{$actionName}}' to be completed
