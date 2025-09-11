@@ -16,10 +16,10 @@ schedules:
 #   always: true
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: nap
+  SCENARIO_NAME: cluster-automatic
 
 stages:
-  - stage: azure_eastus2_5k_ondemand
+  - stage: azure_eastus2
 #    condition: |
 #        or(
 #          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 3:00 PM'),
@@ -41,10 +41,10 @@ stages:
             image: "ghcr.io/azure/clusterloader2:v20250423"
           topology: cluster-automatic
           matrix:
-            5k-on-demand:
+            automatic-acn-off:
               cpu_per_node: 2
-              node_count: 5000
-              pod_count: 5000
+              node_count: 30
+              pod_count: 30
               scale_up_timeout: "150m"
               scale_down_timeout: "150m"
               node_label_selector: "karpenter.sh/nodepool = default"
