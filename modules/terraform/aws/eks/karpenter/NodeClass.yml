@@ -3,7 +3,7 @@ kind: EC2NodeClass
 metadata:
   name: default
 spec:
-  amiFamily: AL2 # Amazon Linux 2
+  amiFamily: ${AMI_FAMILY}
   role: "${ROLE_NAME}"
   subnetSelectorTerms:
     - tags:
@@ -12,7 +12,7 @@ spec:
     - tags:
         karpenter.sh/discovery: ${CLUSTER_NAME}
   amiSelectorTerms:
-    - alias: al2@latest
+    - alias: ${AMI_ALIAS}
   tags:
     owner: "${OWNER}"
     scenario: "${SCENARIO}"

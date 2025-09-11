@@ -2,6 +2,12 @@ locals {
   autoscaler_image_tag = "v${var.cluster_version}.0"
 }
 
+# Data source to get the OIDC provider details
+data "aws_eks_cluster" "cluster" {
+  name = var.cluster_name
+}
+
+# IAM policy for cluster autoscaler
 resource "aws_iam_policy" "autoscaler_policy" {
   name = substr("AutoscalerPolicy-${var.cluster_name}", 0, 60)
   tags = var.tags
@@ -31,9 +37,35 @@ resource "aws_iam_policy" "autoscaler_policy" {
   })
 }
 
+# IAM role for cluster autoscaler service account (IRSA)
+resource "aws_iam_role" "autoscaler_role" {
+  name = substr("ClusterAutoscalerRole-${var.cluster_name}", 0, 64)
+  tags = var.tags
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Federated = var.oidc_provider_arn
+        }
+        Action = "sts:AssumeRoleWithWebIdentity"
+        Condition = {
+          StringEquals = {
+            "${replace(data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer, "https://", "")}:sub" = "system:serviceaccount:kube-system:cluster-autoscaler"
+            "${replace(data.aws_eks_cluster.cluster.identity[0].oidc[0].issuer, "https://", "")}:aud" = "sts.amazonaws.com"
+          }
+        }
+      }
+    ]
+  })
+}
+
+# Attach the policy to the IAM role
 resource "aws_iam_role_policy_attachment" "autoscaler_policy_attachments" {
   policy_arn = aws_iam_policy.autoscaler_policy.arn
-  role       = var.cluster_iam_role_name
+  role       = aws_iam_role.autoscaler_role.name
 }
 
 resource "terraform_data" "install_autoscaler" {
@@ -48,8 +80,10 @@ resource "terraform_data" "install_autoscaler" {
 
       EOT
     environment = {
+      AWS_REGION                       = var.region
       IMAGE_TAG                        = local.autoscaler_image_tag
       CLUSTER_NAME                     = var.cluster_name
+      IRSA_ROLE_ARN                    = aws_iam_role.autoscaler_role.arn
       BALANCE_SIMILAR_NODE_GROUPS      = try(var.auto_scaler_profile.balance_similar_node_groups, false)
       EXPANDER                         = try(var.auto_scaler_profile.expander, "random")
       MAX_GRACEFUL_TERMINATION_SEC     = try(var.auto_scaler_profile.max_graceful_termination_sec, "600")

@@ -7,6 +7,8 @@ metadata:
     k8s-app: cluster-autoscaler
   name: cluster-autoscaler
   namespace: kube-system
+  annotations:
+    eks.amazonaws.com/role-arn: ${IRSA_ROLE_ARN}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -51,7 +53,7 @@ rules:
     resources: ["statefulsets", "replicasets", "daemonsets"]
     verbs: ["watch", "list", "get"]
   - apiGroups: ["storage.k8s.io"]
-    resources: ["storageclasses", "csinodes", "csidrivers", "csistoragecapacities"]
+    resources: ["storageclasses", "csinodes", "csidrivers", "csistoragecapacities", "volumeattachments"]
     verbs: ["watch", "list", "get"]
   - apiGroups: ["batch", "extensions"]
     resources: ["jobs"]
@@ -148,6 +150,9 @@ spec:
       containers:
         - image: registry.k8s.io/autoscaling/cluster-autoscaler:${IMAGE_TAG}
           name: cluster-autoscaler
+          env:
+            - name: AWS_REGION
+              value: ${AWS_REGION}
           resources:
             limits:
               cpu: 700m
@@ -174,7 +179,7 @@ spec:
             - --scale-down-unready-time=${SCALE_DOWN_UNREADY}
             - --scale-down-utilization-threshold=${SCALE_DOWN_UTILIZATION_THRESHOLD}
             - --scan-interval=${SCAN_INTERVAL}
-            - --max-empty-bulk-delete=${EMPTY_BULK_DELETE_MAX}
+            - --max-scale-down-parallelism=${EMPTY_BULK_DELETE_MAX}
             - --skip-nodes-with-local-storage=${SKIP_NODES_WITH_LOCAL_STORAGE}
             - --skip-nodes-with-system-pods=${SKIP_NODES_WITH_SYSTEM_PODS}
             - --node-group-auto-discovery=asg:tag=k8s.io/cluster-autoscaler/enabled,k8s.io/cluster-autoscaler/${CLUSTER_NAME}
