@@ -55,8 +55,8 @@ steps:
       objectTemplatePath: deployment_template.yaml
       templateFillMap:
         Replicas: {{$smallDeploymentSize}}
-          SvcName: small-service
-          Group: {{.Group}}
+        SvcName: small-service
+        Group: {{.Group}}
         deploymentLabel: {{.deploymentLabel}}
 
 - name: Waiting for '{{$actionName}}' to be completed
