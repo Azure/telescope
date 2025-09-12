@@ -19,12 +19,16 @@ variables:
   SCENARIO_NAME: cluster-automatic
 
 stages:
+<<<<<<< HEAD
   - stage: azure_eastus2
 #    condition: |
 #        or(
 #          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 3:00 PM'),
 #          eq(variables['Build.Reason'], 'Manual')
 #        )
+=======
+  - stage: azure_australiaeast
+>>>>>>> origin/main
     dependsOn: []
 #    variables:
 #      - group: NAP-5K-Config
@@ -33,6 +37,7 @@ stages:
         parameters:
           cloud: azure
           regions:
+<<<<<<< HEAD
             - swedencentral
           terraform_input_file_mapping:
             - swedencentral: "scenarios/perf-eval/cluster-automatic/terraform-inputs/azure-automatic-benchmark.tfvars"
@@ -56,4 +61,35 @@ stages:
           max_parallel: 1
           timeout_in_minutes: 500
           credential_type: service_connection
+=======
+            - australiaeast
+          topology: cluster-automatic
+          engine: aks-store-demo
+          engine_input:
+            wait_duration_seconds: 1800
+          matrix:
+            automatic:
+              tag: "main"
+          max_parallel: 1 # required
+          credential_type: service_connection # required
+          ssh_key_enabled: false
+          timeout_in_minutes: 120
+  - stage: aws_euwest2
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml # must keep as is
+        parameters:
+          cloud: aws
+          regions:
+            - eu-west-2
+          topology: cluster-automatic
+          engine: aks-store-demo
+          engine_input:
+            wait_duration_seconds: 1800
+          matrix:
+            automatic:
+              tag: "main"
+          max_parallel: 1 # required
+          credential_type: service_connection # required
+>>>>>>> origin/main
           ssh_key_enabled: false

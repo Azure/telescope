@@ -56,6 +56,10 @@ def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provi
         aws_path = os.path.expanduser("~/.aws/credentials")
         volumes[aws_path] = {'bind': '/root/.aws/credentials', 'mode': 'rw'}
 
+    if provider == "aks":
+        azure_path = os.path.expanduser("~/.azure")
+        volumes[azure_path] = {'bind': '/root/.azure', 'mode': 'rw'}
+
     logger.info(
         f"Running clusterloader2 with command: {command} and volumes: {volumes}")
     try:
