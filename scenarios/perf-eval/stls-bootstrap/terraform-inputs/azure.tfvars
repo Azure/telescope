@@ -42,7 +42,7 @@ aks_cli_config_list = [
         name       = "userpool4"
         node_count = 200
         vm_size    = "Standard_D2_v3"
-      },
+      }
     ]
   }
 ]
