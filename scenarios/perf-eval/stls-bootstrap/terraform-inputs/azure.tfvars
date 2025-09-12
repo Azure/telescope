@@ -6,46 +6,45 @@ owner          = "aks"
 aks_cli_config_list = [
   {
     role                          = "client"
-    aks_name                      = "gpi-scheduling"
+    aks_name                      = "stls-bootstrap"
     sku_tier                      = "Standard"
     kubernetes_version            = "1.33"
     use_aks_preview_private_build = true
     use_custom_configurations     = true
+    aks_custom_headers = [
+      "AKSHTTPCustomFeatures=Microsoft.ContainerService/EnableSecureTLSBootstrapping"
+    ]
     default_node_pool = {
       name       = "default"
-      node_count = 2
-      vm_size    = "Standard_D8s_v3"
+      node_count = 3
+      vm_size    = "Standard_D2_v3"
     }
     extra_node_pool = [
       {
-        name       = "kwokpool"
-        node_count = 1
-        vm_size    = "Standard_D64s_v3"
-        optional_parameters = [
-          {
-            name  = "labels"
-            value = "kwok=true"
-          },
-          {
-            name  = "node-taints"
-            value = "kwok=true:NoSchedule"
-          },
-        ]
-      },
-    ]
-    optional_parameters = [
-      {
-        name  = "network-plugin"
-        value = "azure"
+        name       = "userpool0"
+        node_count = 200
+        vm_size    = "Standard_D2_v3"
       },
       {
-        name  = "network-plugin-mode"
-        value = "overlay"
+        name       = "userpool1"
+        node_count = 200
+        vm_size    = "Standard_D2_v3"
       },
       {
-        name  = "nodepool-labels"
-        value = "default=true"
-      }
+        name       = "userpool2"
+        node_count = 200
+        vm_size    = "Standard_D2_v3"
+      },
+      {
+        name       = "userpool3"
+        node_count = 200
+        vm_size    = "Standard_D2_v3"
+      },
+      {
+        name       = "userpool4"
+        node_count = 197
+        vm_size    = "Standard_D2_v3"
+      },
     ]
   }
 ]
