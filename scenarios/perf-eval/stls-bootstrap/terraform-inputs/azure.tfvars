@@ -5,12 +5,10 @@ owner          = "aks"
 
 aks_cli_config_list = [
   {
-    role                          = "client"
+    role                          = "stls-testing"
     aks_name                      = "stls-bootstrap"
     sku_tier                      = "Standard"
     kubernetes_version            = "1.33"
-    use_aks_preview_private_build = true
-    use_custom_configurations     = true
     aks_custom_headers = [
       "AKSHTTPCustomFeatures=Microsoft.ContainerService/EnableSecureTLSBootstrapping"
     ]
@@ -42,7 +40,7 @@ aks_cli_config_list = [
       },
       {
         name       = "userpool4"
-        node_count = 197
+        node_count = 200
         vm_size    = "Standard_D2_v3"
       },
     ]
