@@ -19,7 +19,7 @@ variables:
   SCENARIO_NAME: cluster-automatic
 
 stages:
-  - stage: azure_eastus2
+  - stage: azure_australiaeast
 #    condition: |
 #        or(
 #          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 3:00 PM'),
@@ -33,9 +33,9 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - australiaeast
           terraform_input_file_mapping:
-            - eastus2: "scenarios/perf-eval/cluster-automatic/terraform-inputs/azure-automatic-benchmark.tfvars"
+            - australiaeast: "scenarios/perf-eval/cluster-automatic/terraform-inputs/azure-automatic-benchmark.tfvars"
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250912"
