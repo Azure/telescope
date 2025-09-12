@@ -3,7 +3,7 @@ import argparse
 from datetime import datetime, timezone
 from dataclasses import dataclass
 
-from base import ClusterLoader2Base
+from clusterloader2.large_cluster.base import ClusterLoader2Base
 from clients.kubernetes_client import KubernetesClient
 from utils.common import str2bool
 
