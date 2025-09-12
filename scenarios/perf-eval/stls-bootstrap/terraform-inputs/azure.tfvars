@@ -5,10 +5,10 @@ owner          = "aks"
 
 aks_cli_config_list = [
   {
-    role                          = "stls-testing"
-    aks_name                      = "stls-bootstrap"
-    sku_tier                      = "Standard"
-    kubernetes_version            = "1.33"
+    role               = "stls-testing"
+    aks_name           = "stls-bootstrap"
+    sku_tier           = "Standard"
+    kubernetes_version = "1.33"
     aks_custom_headers = [
       "AKSHTTPCustomFeatures=Microsoft.ContainerService/EnableSecureTLSBootstrapping"
     ]
