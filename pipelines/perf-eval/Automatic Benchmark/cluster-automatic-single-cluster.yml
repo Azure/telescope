@@ -25,6 +25,9 @@ stages:
           engine: aks-store-demo
           engine_input:
             wait_duration_seconds: 1800
+          matrix:
+            automatic:
+              tag: "main"
           max_parallel: 1 # required
           credential_type: service_connection # required
           ssh_key_enabled: false
@@ -41,6 +44,9 @@ stages:
           engine: aks-store-demo
           engine_input:
             wait_duration_seconds: 1800
+          matrix:
+            automatic:
+              tag: "main"
           max_parallel: 1 # required
           credential_type: service_connection # required
           ssh_key_enabled: false
