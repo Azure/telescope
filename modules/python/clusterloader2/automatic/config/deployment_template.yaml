@@ -51,8 +51,10 @@ spec:
           resources:
             requests:
               cpu: {{.CPUperJob}}
+              memory: 100Mi
             limits:
               cpu: {{.CPUperJob}}
+              memory: 256Mi
           command:
             - "/bin/bash"
             - "-c"
