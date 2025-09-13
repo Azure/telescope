@@ -18,7 +18,6 @@ spec:
       {{- range $key, $value := .NodeSelector }}
         {{ (StructuralData $key ) }}: {{ $value }}
       {{- end }}
-      
       topologySpreadConstraints:
         - maxSkew: 1
           topologyKey: kubernetes.io/hostname
@@ -26,10 +25,29 @@ spec:
           labelSelector:
             matchLabels:
               app: inflate
-
       containers:
         - name: nginx
           image: mcr.microsoft.com/cbl-mariner/base/nginx:1
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+            successThreshold: 1
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 2
+            successThreshold: 1
+            failureThreshold: 3
           resources:
             requests:
               cpu: {{.CPUperJob}}
