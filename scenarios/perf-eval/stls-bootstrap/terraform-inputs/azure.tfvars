@@ -5,7 +5,7 @@ owner          = "aks"
 
 aks_cli_config_list = [
   {
-    role               = "stls-testing"
+    role               = "automatic"
     aks_name           = "stls-bootstrap"
     sku_tier           = "Standard"
     kubernetes_version = "1.33"
