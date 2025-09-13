@@ -18,6 +18,15 @@ spec:
       {{- range $key, $value := .NodeSelector }}
         {{ (StructuralData $key ) }}: {{ $value }}
       {{- end }}
+      
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: inflate
+
       containers:
         - name: nginx
           image: mcr.microsoft.com/cbl-mariner/base/nginx:1
