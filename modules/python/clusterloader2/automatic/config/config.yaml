@@ -14,6 +14,7 @@
 {{$coolDownTime := DefaultParam .CL2_COOLDOWN_TIME "120s"}}
 {{$percentilesList := StringSplit "0.50,0.70,0.90,0.99,1.00"}}
 {{$countErrorMargin := MultiplyInt .CL2_DEPLOYMENT_SIZE 0.01}}
+{{$enableDebug := DefaultParam .CL2_ENABLE_DEBUG true}}
 
 name: autoscale
 namespace:
