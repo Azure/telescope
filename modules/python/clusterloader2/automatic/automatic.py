@@ -68,7 +68,7 @@ def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up
 
     # cpu_request = calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, pod_count, warmup_deployment, cl2_config_dir)
     # hard coded temporarily 
-    cpu_request = 1500
+    cpu_request = 1000
 
     logger.info(f"Total number of nodes: {node_count}, total number of pods: {pod_count}")
     logger.info(f"CPU request for each pod: {cpu_request}m")
