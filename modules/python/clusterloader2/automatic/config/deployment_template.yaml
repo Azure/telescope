@@ -55,8 +55,8 @@ spec:
             limits:
               cpu: {{.CPUperJob}}
               memory: 256Mi
-          command:
-            - "/bin/bash"
-            - "-c"
-            - runtime="1 minute"; endtime=$(date -ud "$runtime" +%s); while [[ $(date -u +%s) -le $endtime ]]; do echo $(date); sleep 6000; done
+          #command:
+          #  - "/bin/bash"
+          #  - "-c"
+          #  - runtime="1 minute"; endtime=$(date -ud "$runtime" +%s); while [[ $(date -u +%s) -le $endtime ]]; do echo $(date); sleep 6000; done
       restartPolicy: Always
