@@ -55,10 +55,10 @@ spec:
             limits:
               cpu: {{.CPUperJob}}
               memory: 256Mi
-          command: ["nginx"]
-          args: ["-g", "daemon off;"]
-          #command:
-          #  - "/bin/bash"
-          #  - "-c"
-          #  - runtime="1 minute"; endtime=$(date -ud "$runtime" +%s); while [[ $(date -u +%s) -le $endtime ]]; do echo $(date); sleep 6000; done
+          #command: ["nginx"]
+          #args: ["-g", "daemon off;"]
+          command:
+            - "/bin/bash"
+            - "-c"
+            - runtime="500 minute"; endtime=$(date -ud "$runtime" +%s); while [[ $(date -u +%s) -le $endtime ]]; do echo $(date); sleep 6000; done
       restartPolicy: Always
