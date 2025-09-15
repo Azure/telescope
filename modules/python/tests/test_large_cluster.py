@@ -110,6 +110,7 @@ class TestLargeClusterArgsParser(unittest.TestCase):
         self.assertTrue(args.cilium_enabled)
         self.assertFalse(args.scrape_containerd)
         self.assertEqual(args.cl2_override_file, "/tmp/overrides.yaml")
+    
 
 
 if __name__ == "__main__":
