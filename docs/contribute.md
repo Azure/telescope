@@ -1,6 +1,12 @@
 # Contribute a Test Scenario
 
-## Step 1: Add Test Setup
+> **📚 For comprehensive implementation approaches and examples**, see the [Test Scenario Implementation Guide](test-scenario-implementation-guide.md) which covers 5+ different ways to create and modify test scenarios, including scaling, multi-region testing, matrix variations, and more.
+
+> **📋 Follow the [Best Practices Guide](best-practices.md)** for development standards, security guidelines, performance optimization, and maintenance practices.
+
+This guide provides the essential step-by-step workflow for contributing new test scenarios to Telescope.
+
+## Step 1: Add Test infrastructure Scenario
 
 - [scenarios](../scenarios) is the directory where we organize infrastructure setup for different tests. There are 2 type of scenarios: `perf-eval` and `issue-repro`. Most tests fall under the scenario type of `perf-eval`. 
 - Create a folder for your test under [scenarios/perf-eval](../scenarios/perf-eval). The folder name should match values of `SCENARIO_TYPE` and `SCENARIO_NAME`, which is used in the pipeline definition YAML file. The `SCENARIO_NAME` should be within 30 characters.
@@ -31,7 +37,9 @@
   - `execute-<engine>`
   - `collect-<engine>`
 
-## Step 4: Add Pipeline Definition
+## Step 5: Add Pipeline Definition
+
+> **💡 Need different implementation approaches?** Check the [Test Scenario Implementation Guide](test-scenario-implementation-guide.md) for examples of scaling existing scenarios, multi-region testing, matrix variations, and more advanced patterns.
 
 - **Template Reference**: Start with [docs/templates/pipeline.yml](templates/pipeline.yml) which shows the base pipeline structure, stage configuration, and matrix parameter usage.
 - Add the pipeline definition to [new-pipeline-test.yml](../pipelines/system/new-pipeline-test.yml) in your private branch. This step is required and must not be skipped.
