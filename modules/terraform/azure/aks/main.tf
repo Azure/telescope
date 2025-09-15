@@ -118,6 +118,9 @@ resource "azurerm_kubernetes_cluster_node_pool" "aks_node_pools" {
   min_count             = try(each.value.min_count, null)
   max_count             = try(each.value.max_count, null)
   auto_scaling_enabled  = try(each.value.auto_scaling_enabled, false)
+  priority              = try(each.value.priority, "Regular")
+  eviction_policy       = try(each.value.eviction_policy, null)
+  spot_max_price        = try(each.value.spot_max_price, null)
 }
 
 resource "azurerm_role_assignment" "aks_on_subnet" {
