@@ -17,6 +17,8 @@ stages:
             - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-linux.tfvars"
           topology: cluster-automatic # e.g. cluster-autoscaler
           engine: aks-store-demo # e.g. clusterloader2
+          engine_input:
+            wait_duration_seconds: 300  # Run for 5 minutes (300 seconds)
           matrix: # list of test parameters to customize the provisioned resources
             stls_bootstrap_linux: 
               tag: "2.0.0"
