@@ -1,6 +1,6 @@
 import os
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from pathlib import Path
 import sys
 import tempfile
@@ -85,10 +85,37 @@ class PerformTestConcrete(ClusterLoader2Base):
         return self._runner
 
 
+class _TestRunner(ClusterLoader2Base.Runner):
+    # Minimal concrete implementation to allow instantiation
+    def configure(self, **kwargs):  # pylint: disable=unused-argument
+        return {}
+    def validate(self, **kwargs):   # pylint: disable=unused-argument
+        return None
+    def collect(self, **kwargs):    # pylint: disable=unused-argument
+        return ""
+
+
 class TestClusterLoader2BaseHelpers(unittest.TestCase):
 
     def setUp(self):
         self.impl = PerformTestConcrete()
+        self.runner = _TestRunner()
+        self.args = dict(
+            kubeconfig="/tmp/kubeconfig",
+            cl2_image="cl2:test",
+            cl2_config_dir="/tmp/config",
+            cl2_report_dir="/tmp/report",
+            provider="azure",
+            cl2_config_file="config.yaml",
+            overrides=False,
+            enable_prometheus=False,
+            tear_down_prometheus=True,
+            enable_exec_service=False,
+            scrape_kubelets=False,
+            scrape_containerd=False,
+            scrape_ksm=False,
+            scrape_metrics_server=False,
+        )        
 
     def test_convert_config_to_str_basic_and_none_values(self):
         config = {
@@ -433,6 +460,115 @@ class TestClusterLoader2BaseHelpers(unittest.TestCase):
         self.assertEqual(len(suite2["testcases"]), 1)
         self.assertEqual(suite2["testcases"][0]["name"], "test_also_pass")
         self.assertIsNone(suite2["testcases"][0]["failure"])
+
+    def _mock_container(self, status_code=0, logs=None):
+        container = MagicMock()
+        container.logs.return_value = (log for log in (logs or [b"running\n"]))
+        container.wait.return_value = {"StatusCode": status_code}
+        return container
+
+    @patch("clusterloader2.large_cluster.base.logger")
+    @patch("clusterloader2.large_cluster.base.DockerClient")
+    def test_execute_basic(self, mock_dc_cls, mock_logger):
+        mock_dc = MagicMock()
+        container = self._mock_container()
+        mock_dc.run_container.return_value = container
+        mock_dc_cls.return_value = mock_dc
+
+        self.runner.execute(**self.args)
+
+        mock_dc.run_container.assert_called_once()
+        call_args = mock_dc.run_container.call_args
+        image, command, volumes = call_args.args[0], call_args.args[1], call_args.args[2]
+
+        self.assertEqual(image, "cl2:test")
+        self.assertIn("--provider=azure", command)
+        self.assertIn("--testconfig /root/perf-tests/clusterloader2/config/config.yaml", command)
+        # No overrides flag
+        self.assertNotIn("--testoverrides=", command)
+        # No containerd scrape flag
+        self.assertNotIn("--prometheus-scrape-containerd", command)
+        # Volumes
+        self.assertIn("/tmp/kubeconfig", volumes)
+        self.assertIn("/tmp/config", volumes)
+        self.assertIn("/tmp/report", volumes)
+        # Logs streamed
+        container.logs.assert_called_once()
+        mock_logger.info.assert_any_call("running")
+
+    @patch("clusterloader2.large_cluster.base.DockerClient")
+    def test_execute_with_overrides_and_containerd(self, mock_dc_cls):
+        args = self.args.copy()
+        args.update({
+            "overrides": True,
+            "enable_prometheus": True,
+            "scrape_containerd": True,
+        })
+
+        mock_dc = MagicMock()
+        container = self._mock_container()
+        mock_dc.run_container.return_value = container
+        mock_dc_cls.return_value = mock_dc
+
+        self.runner.execute(**args)
+
+        cmd = mock_dc.run_container.call_args.args[1]
+        self.assertIn("--testoverrides=/root/perf-tests/clusterloader2/config/overrides.yaml", cmd)
+        self.assertIn("--prometheus-scrape-containerd=True", cmd)
+        self.assertIn("--enable-prometheus-server=True", cmd)
+
+    @patch("clusterloader2.large_cluster.base.os.path.expanduser", return_value="/home/test/.aws/credentials")
+    @patch("clusterloader2.large_cluster.base.DockerClient")
+    def test_execute_aws_adds_credentials_volume(self, mock_dc_cls, mock_expand):
+        args = self.args.copy()
+        args["provider"] = "aws"
+
+        mock_dc = MagicMock()
+        container = self._mock_container()
+        mock_dc.run_container.return_value = container
+        mock_dc_cls.return_value = mock_dc
+
+        self.runner.execute(**args)
+
+        volumes = mock_dc.run_container.call_args.args[2]
+        self.assertIn("/home/test/.aws/credentials", volumes)
+        mock_expand.assert_called_once()
+
+    @patch("clusterloader2.large_cluster.base.logger")
+    @patch("clusterloader2.large_cluster.base.DockerClient")
+    def test_execute_non_zero_exit_logs_error(self, mock_dc_cls, mock_logger):
+        mock_dc = MagicMock()
+        container = self._mock_container(status_code=2, logs=[b"err line\n"])
+        mock_dc.run_container.return_value = container
+        mock_dc_cls.return_value = mock_dc
+
+        self.runner.execute(**self.args)
+
+        mock_logger.error.assert_any_call(
+            "clusterloader2 exited with a non-zero status code 2. Make sure to check the logs to confirm whether the error is expected!"
+        )
+
+    @patch("clusterloader2.large_cluster.base.logger")
+    @patch("clusterloader2.large_cluster.base.DockerClient")
+    def test_execute_container_error_caught(self, mock_dc_cls, mock_logger):
+        # Simulate docker.errors.ContainerError
+        class FakeContainerError(Exception):
+            def __init__(self):
+                self.exit_status = 137
+                self.stderr = b"OOMKilled"
+
+        # Inject a fake docker.errors.ContainerError into module scope
+        with patch("clusterloader2.large_cluster.base.docker") as mock_docker_mod:
+            mock_docker_mod.errors.ContainerError = FakeContainerError
+            mock_dc = MagicMock()
+            mock_dc.run_container.side_effect = FakeContainerError()
+            mock_dc_cls.return_value = mock_dc
+
+            self.runner.execute(**self.args)
+
+        mock_logger.error.assert_any_call(
+            "Container exited with a non-zero status code: 137\nOOMKilled"
+        )
 
 
 if __name__ == "__main__":
