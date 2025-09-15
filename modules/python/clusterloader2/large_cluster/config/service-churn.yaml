@@ -1,5 +1,8 @@
 name: service-churn
 
+# Config options for test type
+{{$SERVICE_TEST := DefaultParam .CL2_SERVICE_TEST true}}
+
 # Config options for test parameters
 {{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 100}}
 {{$podsPerNode := DefaultParam .CL2_PODS_PER_NODE 50}}
@@ -95,6 +98,14 @@ steps:
 
 {{range $i := Loop $repeats}}
   - module:
+      path: /modules/services.yaml
+      params:
+        actionName: "Creating"
+        namespaces: {{$namespaces}}
+        smallServicesPerNamespace: {{$smallDeploymentsPerNamespace}}
+        bigServicesPerNamespace: {{$bigDeploymentsPerNamespace}}
+
+  - module:
       path: /modules/reconcile-objects.yaml
       params:
         actionName: "create"
@@ -139,6 +150,14 @@ steps:
         smallDeploymentsPerNamespace: 0
         deploymentLabel: restart
         Group: {{$groupName}}
+
+  - module:
+      path: /modules/services.yaml
+      params:
+        actionName: "Deleting"
+        namespaces: {{$namespaces}}
+        smallServicesPerNamespace: 0
+        bigServicesPerNamespace: 0        
 {{end}}
 
 {{if $CILIUM_METRICS_ENABLED}}

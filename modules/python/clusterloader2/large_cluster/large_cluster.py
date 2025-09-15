@@ -24,7 +24,7 @@ CPU_CAPACITY = {
 }
 # TODO: Remove aks once CL2 update provider name to be azure
 
-def calculate_config(cpu_per_node, node_count, provider):
+def calculate_config(cpu_per_node, node_count, service_test, provider):
     throughput = 100
     nodes_per_namespace = min(node_count, DEFAULT_NODES_PER_NAMESPACE)
 
@@ -49,10 +49,12 @@ def configure_clusterloader2(
     provider,
     cilium_enabled,
     scrape_containerd,
-    override_file):
+    service_test,
+    override_file
+):
 
     steps = node_count // node_per_step
-    throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, provider)
+    throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, service_test, provider)
 
     with open(override_file, 'w', encoding='utf-8') as file:
         file.write(f"CL2_NODES: {node_count}\n")
@@ -75,6 +77,11 @@ def configure_clusterloader2(
         if scrape_containerd:
             file.write(f"CL2_SCRAPE_CONTAINERD: {str(scrape_containerd).lower()}\n")
             file.write("CONTAINERD_SCRAPE_INTERVAL: 5m\n")
+
+        if service_test:
+            file.write("CL2_SERVICE_TEST: true\n")
+        else:
+            file.write("CL2_SERVICE_TEST: false\n")
 
         if cilium_enabled:
             file.write("CL2_CILIUM_METRICS_ENABLED: true\n")
@@ -123,6 +130,7 @@ def collect_clusterloader2(
     cloud_info,
     run_id,
     run_url,
+    service_test,
     result_file,
 ):
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
@@ -135,7 +143,7 @@ def collect_clusterloader2(
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
 
-    _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, provider)
+    _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, service_test, provider)
     pod_count = node_count * pods_per_node
 
     # TODO: Expose optional parameter to include test details
@@ -204,6 +212,8 @@ def main():
                                   help="Whether cilium is enabled. Must be either True or False")
     parser_configure.add_argument("scrape_containerd", type=str2bool, choices=[True, False], default=False,
                                   help="Whether to scrape containerd metrics. Must be either True or False")
+    parser_configure.add_argument("service_test", type=str2bool, choices=[True, False], default=False,
+                                  help="Whether service test is running. Must be either True or False")    
     parser_configure.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
     # Sub-command for validate_clusterloader2
@@ -231,6 +241,8 @@ def main():
     parser_collect.add_argument("cloud_info", type=str, help="Cloud information")
     parser_collect.add_argument("run_id", type=str, help="Run ID")
     parser_collect.add_argument("run_url", type=str, help="Run URL")
+    parser_collect.add_argument("service_test", type=str2bool, choices=[True, False], default=False,
+                                  help="Whether service test is running. Must be either True or False")    
     parser_collect.add_argument("result_file", type=str, help="Path to the result file")
 
     args = parser.parse_args()
@@ -245,6 +257,7 @@ def main():
             args.provider,
             args.cilium_enabled,
             args.scrape_containerd,
+            args.service_test,
             args.cl2_override_file,
         )
     elif args.command == "validate":
@@ -271,6 +284,7 @@ def main():
             args.cloud_info,
             args.run_id,
             args.run_url,
+            args.service_test,
             args.result_file,
         )
 
