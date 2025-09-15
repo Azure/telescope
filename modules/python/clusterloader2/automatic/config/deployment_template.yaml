@@ -30,6 +30,26 @@ spec:
           image: mcr.microsoft.com/cbl-mariner/base/nginx:1
           ports:
             - containerPort: 80
+          readinessProbe:
+            exec:
+              command:
+              - cat
+              - /EULA-Container.txt
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            successThreshold: 1
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command:
+              - cat
+              - /EULA-Container.txt
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
           resources:
             requests:
               cpu: {{.CPUperJob}}
