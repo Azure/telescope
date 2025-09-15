@@ -215,7 +215,7 @@ def main():
     parser_configure.add_argument("scrape_containerd", type=str2bool, choices=[True, False], default=False,
                                   help="Whether to scrape containerd metrics. Must be either True or False")
     parser_configure.add_argument("service_test", type=str2bool, choices=[True, False], default=False,
-                                  help="Whether service test is running. Must be either True or False")    
+                                  help="Whether service test is running. Must be either True or False")
     parser_configure.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
     # Sub-command for validate_clusterloader2
@@ -245,7 +245,7 @@ def main():
     parser_collect.add_argument("run_id", type=str, help="Run ID")
     parser_collect.add_argument("run_url", type=str, help="Run URL")
     parser_collect.add_argument("service_test", type=str2bool, choices=[True, False], default=False,
-                                  help="Whether service test is running. Must be either True or False")    
+                                  help="Whether service test is running. Must be either True or False")
     parser_collect.add_argument("result_file", type=str, help="Path to the result file")
 
     args = parser.parse_args()
