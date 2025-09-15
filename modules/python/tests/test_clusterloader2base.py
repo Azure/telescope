@@ -380,6 +380,60 @@ class TestClusterLoader2BaseHelpers(unittest.TestCase):
             self.assertEqual(entry["group"], "env1")
             self.assertEqual(entry["result"]["value"], 123)
 
+    def test_parse_xml_to_json_parses_suites_and_failures(self):
+        xml_content = """<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="suite.one" tests="2" failures="1" errors="0">
+    <testcase name="test_pass" classname="suite.one" time="0.10"/>
+    <testcase name="test_fail" classname="suite.one" time="0.05">
+      <failure>AssertionError: expected 1 == 2</failure>
+    </testcase>
+  </testsuite>
+  <testsuite name="suite.two" tests="1" failures="0" errors="0">
+    <testcase name="test_also_pass" classname="suite.two" time="0.01"/>
+  </testsuite>
+</testsuites>
+"""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            xml_path = os.path.join(tmpdir, "junit.xml")
+            with open(xml_path, "w", encoding="utf-8") as f:
+                f.write(xml_content)
+
+            raw_json = self.impl.runner.parse_xml_to_json(xml_path, indent=0)
+            data = json.loads(raw_json)
+
+        # Top-level structure
+        self.assertIn("testsuites", data)
+        self.assertEqual(len(data["testsuites"]), 2)
+
+        suite1 = data["testsuites"][0]
+        suite2 = data["testsuites"][1]
+
+        # Suite metadata
+        self.assertEqual(suite1["name"], "suite.one")
+        self.assertEqual(suite1["tests"], 2)
+        self.assertEqual(suite1["failures"], 1)
+        self.assertEqual(suite1["errors"], 0)
+
+        self.assertEqual(suite2["name"], "suite.two")
+        self.assertEqual(suite2["tests"], 1)
+        self.assertEqual(suite2["failures"], 0)
+        self.assertEqual(suite2["errors"], 0)
+
+        # Testcases in suite1
+        self.assertEqual(len(suite1["testcases"]), 2)
+        pass_case = next(tc for tc in suite1["testcases"] if tc["name"] == "test_pass")
+        fail_case = next(tc for tc in suite1["testcases"] if tc["name"] == "test_fail")
+
+        self.assertIsNone(pass_case["failure"])
+        self.assertIn("AssertionError", fail_case["failure"])
+        self.assertIn("expected 1 == 2", fail_case["failure"])
+
+        # Testcases in suite2
+        self.assertEqual(len(suite2["testcases"]), 1)
+        self.assertEqual(suite2["testcases"][0]["name"], "test_also_pass")
+        self.assertIsNone(suite2["testcases"][0]["failure"])
+
 
 if __name__ == "__main__":
     unittest.main()
