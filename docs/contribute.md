@@ -12,15 +12,16 @@
 
 ## Step 2: Add Python folder for new testing tools
 
-- We encourage users to re-use or expand upon existing Python modules for your test if possible. All existing test engine can be found under folder [python](../modules/python/) folder.
-- If you need to add a new test engine, create a new folder under [python](../modules/python/) and implement your test logic there. You can refer to existing engines for examples.
-- If you want to use an existing test engine.
-   * Without any change, you can skip this step.
-    * With customization the existing test engine, you can go the corresponding folder under [python](../modules/python/) and modify the code as needed by expanding the parameters or logic in a way that doesn't break existing tests. Make sure to test your changes locally before using it in the pipeline.
+- **Reuse existing engines** when possible. All test engines are in [python](../modules/python/).
+- **For new engines**: Create a folder under [python](../modules/python/) and implement your logic. Refer to existing engines for examples.
+- **For existing engines**:
+  - No changes needed: Skip this step
+  - With customization: Modify the engine code while preserving existing functionality. Test locally before pipeline use.
 
 ## Step 3: Add Test Engine YAML files corresponding to your Python module
 
-- We highly encourage re-using or extending the existing Engine files for new test cases if possible. All existing test engines can be found under the folder  [engine](../steps/engine). If you need to add a new test engine, you need to implement it under the folder [engine](../steps/engine) so it can be used in the pipeline definition YAML file.
+- We highly encourage re-using or extending the existing Engine files for new test cases if possible. All existing test engines can be found under the folder  [engine](../steps/engine). If you need to add a new test engine, you need to implement it under the folder [engine](../steps/engine) so that the engine can be used in the pipeline definition YAML file.
+- All the engine YAML files should be referenced in the topology YAML files selected for the scenario under the folder [topology](../steps/topology/).
 - 
 ## Step 4: Add Test Topology
 
