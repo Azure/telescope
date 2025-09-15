@@ -81,7 +81,7 @@ class ClusterLoader2Base(ABC):
             pass
 
         def get_measurement(self, file_path):
-            file_name = os.path.basename(file_path)
+            file_name = os.path.splitext(os.path.basename(file_path))[0]
             for file_prefix, measurement in MeasurementPrefixConstants.POD_STARTUP_LATENCY_FILE_PREFIX_MEASUREMENT_MAP.items():
                 if file_name.startswith(file_prefix):
                     group_name = file_name.split("_")[2]

@@ -4,6 +4,7 @@ from unittest.mock import patch
 from pathlib import Path
 import sys
 import tempfile
+import json
 
 from clusterloader2.large_cluster.base import ClusterLoader2Base
 
@@ -259,6 +260,126 @@ class TestClusterLoader2BaseHelpers(unittest.TestCase):
                 self.impl.perform()
 
             self.assertEqual(self.impl.runner.collect_args["test_status"], "failure")
+
+    def test_get_measurement_variants(self):
+        """
+        Consolidated test covering filename → (measurement, group) mappings for
+        all supported MeasurementPrefixConstants variants.
+        """
+        cases = [
+            # Pod startup latency variants
+            ("PodStartupLatency_PodStartupLatency_GroupA_extra.json",
+             "PodStartupLatency_PodStartupLatency", "GroupA"),
+            ("StatefulPodStartupLatency_PodStartupLatency_GroupStateful_more.json",
+             "StatefulPodStartupLatency_PodStartupLatency", "GroupStateful"),
+            ("StatelessPodStartupLatency_PodStartupLatency_GroupStateless_any.json",
+             "StatelessPodStartupLatency_PodStartupLatency", "GroupStateless"),
+
+            # Network metric prefixes
+            ("APIResponsivenessPrometheus_default.json",
+             "APIResponsivenessPrometheus", "default"),
+            ("InClusterNetworkLatency_nodepool1_more.json",
+             "InClusterNetworkLatency", "nodepool1"),
+            ("NetworkProgrammingLatency_ngA_data.json",
+             "NetworkProgrammingLatency", "ngA"),
+
+            # Generic Prometheus query (group token includes extension with current logic)
+            ("GenericPrometheusQuery-SomeMetric_group1.json",
+             "SomeMetric", "group1"),
+
+            # Job lifecycle latency
+            ("JobLifecycleLatency_teamA_foo.json",
+             "JobLifecycleLatency", "teamA"),
+
+            # Resource usage summary
+            ("ResourceUsageSummary_ns1_123.json",
+             "ResourceUsageSummary", "ns1"),
+
+            # Network policy soak
+            ("NetworkPolicySoakMeasurement_envX_stuff.json",
+             "NetworkPolicySoakMeasurement", "envX"),
+
+            # Scheduling throughput (Prometheus + regular)
+            ("SchedulingThroughputPrometheus_schedGroup_more.json",
+             "SchedulingThroughputPrometheus", "schedGroup"),
+            ("SchedulingThroughput_general_more.json",
+             "SchedulingThroughput", "general"),
+
+            # Unknown prefix
+            ("CompletelyUnknownPrefix_file.json",
+             None, None),
+        ]
+
+        for filename, exp_measurement, exp_group in cases:
+            with self.subTest(filename=filename):
+                measurement, group = self.impl.runner.get_measurement(filename)
+                self.assertEqual(measurement, exp_measurement)
+                self.assertEqual(group, exp_group)
+
+    def test_process_cl2_reports_mixed_items(self):
+        with tempfile.TemporaryDirectory() as report_dir:
+            # File with dataItems (network metric style)
+            file1 = os.path.join(report_dir, "APIResponsivenessPrometheus_default.json")
+            with open(file1, "w", encoding="utf-8") as f:
+                json.dump({"dataItems": [{"a": 1}, {"b": 2}]}, f)
+
+            # File without dataItems (pod startup latency style)
+            file2 = os.path.join(
+                report_dir,
+                "PodStartupLatency_PodStartupLatency_GroupA_run.json"
+            )
+            with open(file2, "w", encoding="utf-8") as f:
+                json.dump({"latencies": [10, 20]}, f)
+
+            # Unmatched file (should be skipped)
+            file3 = os.path.join(report_dir, "Unrecognized_prefix.json")
+            with open(file3, "w", encoding="utf-8") as f:
+                json.dump({"ignored": True}, f)
+
+            template = {
+                "timestamp": "T",
+                "group": None,
+                "measurement": None,
+                "result": None,
+                "extra": "keepme"
+            }
+
+            output = self.impl.runner.process_cl2_reports(report_dir, template)
+            lines = [json.loads(l) for l in output.strip().splitlines() if l.strip()]
+            # Expect 3 lines: 2 from dataItems + 1 from latency file
+            self.assertEqual(len(lines), 3)
+
+            # Collect by measurement/group
+            combos = {(d["measurement"], d["group"]) for d in lines}
+            self.assertIn(("APIResponsivenessPrometheus", "default"), combos)
+            self.assertIn(("PodStartupLatency_PodStartupLatency", "GroupA"), combos)
+
+            # Check one of the dataItems entries
+            api_items = [d for d in lines if d["measurement"] == "APIResponsivenessPrometheus"]
+            self.assertEqual(len(api_items), 2)
+            self.assertTrue(any(d["result"].get("a") == 1 for d in api_items))
+            self.assertTrue(any(d["result"].get("b") == 2 for d in api_items))
+
+            # Check latency file result preserved
+            latency_entry = [d for d in lines if d["measurement"] == "PodStartupLatency_PodStartupLatency"][0]
+            self.assertEqual(latency_entry["result"]["latencies"], [10, 20])
+            self.assertEqual(latency_entry["extra"], "keepme")
+
+    def test_process_cl2_reports_prom_query(self):
+        with tempfile.TemporaryDirectory() as report_dir:
+            file1 = os.path.join(report_dir, "GenericPrometheusQuery-SomeMetric_env1.json")
+            with open(file1, "w", encoding="utf-8") as f:
+                json.dump({"value": 123}, f)
+
+            template = {"group": None, "measurement": None, "result": None}
+            output = self.impl.runner.process_cl2_reports(report_dir, template)
+            lines = [json.loads(l) for l in output.strip().splitlines() if l.strip()]
+            self.assertEqual(len(lines), 1)
+            entry = lines[0]
+            self.assertEqual(entry["measurement"], "SomeMetric")
+            self.assertEqual(entry["group"], "env1")
+            self.assertEqual(entry["result"]["value"], 123)
+
 
 if __name__ == "__main__":
     unittest.main()
