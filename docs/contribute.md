@@ -7,6 +7,7 @@
 - Your folder should contain 2 subfolders:
     - `terraform-inputs`: contains `.tfvars` file to specify how to set up resources
     - `terraform-test-inputs`: contains `.json` file to used in validating Terraform custom input
+- **Template Reference**: Use [docs/templates/aws.tfvars](templates/aws.tfvars) or [docs/templates/azure.tfvars](templates/azure.tfvars) as starting points for your `.tfvars` file - they include comprehensive documentation and parameter flow examples.
 - Specific details on what to put in `.tfvars` file can be found in folder [terraform](../modules/terraform) for corresponding provider.
 
 ## Step 2: Add Python folder for new testing tools
@@ -31,6 +32,7 @@
 
 ## Step 4: Add Pipeline Definition
 
+- **Template Reference**: Start with [docs/templates/pipeline.yml](templates/pipeline.yml) which shows the base pipeline structure, stage configuration, and matrix parameter usage.
 - Add the pipeline definition to [new-pipeline-test.yml](../pipelines/system/new-pipeline-test.yml) in your private branch. This step is required and must not be skipped.
 - Then verify the changes based on instructions in [verify.md](../docs/verify.md)
 - Iterate until all verification setups pass without error, finally create a separate yaml file under a subfolder under [pipelines](../pipelines/perf-eval) based on test category. Move the content of the new-pipeline-test.yml to this new file and undo all changes made to the new-pipeline-test.yml file. It is recommended to re-use existing test categories as follows:
