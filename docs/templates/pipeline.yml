@@ -10,8 +10,8 @@ schedules:
     always: true
 
 variables:
-  SCENARIO_TYPE: <scenario-type>
-  SCENARIO_NAME: <scenario-name>
+  SCENARIO_TYPE: <scenario-type> # Allowed values[perf-eval, issue-repro]
+  SCENARIO_NAME: <scenario-name> # e.g. vm-iperf, vm-crud, aks-iperf, aks-crud. Max length is 30 characters. Make sure this matches the folder name under /scenarios/<scenario-type>/<scenario-name>
 
 stages:
   - stage: <stage-name> # format: <cloud>[_<region>][_description]+ (e.g. azure_eastus2_small_Scale, aws_eastus_westus_k8s_1.33)
