@@ -9,11 +9,19 @@
     - `terraform-test-inputs`: contains `.json` file to used in validating Terraform custom input
 - Specific details on what to put in `.tfvars` file can be found in folder [terraform](../modules/terraform) for corresponding provider.
 
-## Step 2: Add Test Engine
+## Step 2: Add Python folder for new testing tools
 
-- We highly encourage re-using or extending the existing Python modules for new test cases if possible. All existing test engines can be found under the folder [python](../modules/python). If you need to add a new test engine, you need to implement it under the folder [engine](../steps/engine) so it can be used in the pipeline definition YAML file.
+- We encourage users to re-use or expand upon existing Python modules for your test if possible. All existing test engine can be found under folder [python](../modules/python/) folder.
+- If you need to add a new test engine, create a new folder under [python](../modules/python/) and implement your test logic there. You can refer to existing engines for examples.
+- If you want to use an existing test engine.
+   * Without any change, you can skip this step.
+    * With customization the existing test engine, you can go the corresponding folder under [python](../modules/python/) and modify the code as needed by expanding the parameters or logic in a way that doesn't break existing tests. Make sure to test your changes locally before using it in the pipeline.
+
+## Step 3: Add Test Engine YAML files corresponding to your Python module
+
+- We highly encourage re-using or extending the existing Engine files for new test cases if possible. All existing test engines can be found under the folder  [engine](../steps/engine). If you need to add a new test engine, you need to implement it under the folder [engine](../steps/engine) so it can be used in the pipeline definition YAML file.
 - 
-## Step 3: Add Test Topology
+## Step 4: Add Test Topology
 
 - It is also preferable to re-use the existing test topologies, but if none of the existing topology meets your need, or you want to customize the topology to be used with an existing test engine, you can create your own subfolder under [topology](../steps/topology/)
 - Each folder under `topology` requires at least 3 files:
