@@ -16,9 +16,14 @@ steps:
     set -eo pipefail
 
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
-      $CPU_PER_NODE $NODE_COUNT ${MAX_PODS:-0} \
-      $REPEATS $CL2_REPORT_DIR "$CLOUD_INFO" $RUN_ID $RUN_URL $SERVICE_TEST \
-      $TEST_RESULTS_FILE $TEST_TYPE
+      $CPU_PER_NODE \
+      $NODE_COUNT \
+      $REPEATS \
+      $CL2_REPORT_DIR \
+      "$CLOUD_INFO" \
+      $RUN_ID \
+      $RUN_URL \
+      $TEST_RESULTS_FILE
   workingDirectory: modules/python
   env:
     CLOUD: ${{ parameters.cloud }}
