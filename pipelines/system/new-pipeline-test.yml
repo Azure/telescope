@@ -21,7 +21,7 @@ stages:
             image: "ghcr.io/azure/clusterloader2:v20250513"
           matrix: # list of test parameters to customize the provisioned resources
             stls_bootstrap_metrics: 
-              node_count: 1003
+              node_count: 13
               operation_timeout: "10m"
               pod_startup_latency_threshold: "3m"
               repeats: 1

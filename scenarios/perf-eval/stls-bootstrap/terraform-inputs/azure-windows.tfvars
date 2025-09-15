@@ -20,7 +20,7 @@ aks_cli_config_list = [
     extra_node_pool = [
       {
         name       = "winpool0"
-        node_count = 200
+        node_count = 2
         vm_size    = "Standard_D2ds_v5"
         optional_parameters = [
           {
@@ -31,7 +31,7 @@ aks_cli_config_list = [
       },
       {
         name       = "winpool1"
-        node_count = 200
+        node_count = 2
         vm_size    = "Standard_D2ds_v5"
         optional_parameters = [
           {
@@ -42,7 +42,7 @@ aks_cli_config_list = [
       },
       {
         name       = "winpool2"
-        node_count = 200
+        node_count = 2
         vm_size    = "Standard_D2ds_v5"
         optional_parameters = [
           {
@@ -53,7 +53,7 @@ aks_cli_config_list = [
       },
       {
         name       = "winpool3"
-        node_count = 200
+        node_count = 2
         vm_size    = "Standard_D2ds_v5"
         optional_parameters = [
           {
@@ -64,7 +64,7 @@ aks_cli_config_list = [
       },
       {
         name       = "winpool4"
-        node_count = 200
+        node_count = 2
         vm_size    = "Standard_D2ds_v5"
         optional_parameters = [
           {

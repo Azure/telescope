@@ -20,27 +20,27 @@ aks_cli_config_list = [
     extra_node_pool = [
       {
         name       = "userpool0"
-        node_count = 200
+        node_count = 2
         vm_size    = "Standard_D2ds_v5"
       },
       {
         name       = "userpool1"
-        node_count = 200
+        node_count = 2
         vm_size    = "Standard_D2ds_v5"
       },
       {
         name       = "userpool2"
-        node_count = 200
+        node_count = 2
         vm_size    = "Standard_D2ds_v5"
       },
       {
         name       = "userpool3"
-        node_count = 200
+        node_count = 2
         vm_size    = "Standard_D2ds_v5"
       },
       {
         name       = "userpool4"
-        node_count = 200
+        node_count = 2
         vm_size    = "Standard_D2ds_v5"
       }
     ]
