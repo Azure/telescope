@@ -24,10 +24,9 @@ class Cl2DefaultConfigConstants:
     }
 
 
-def calculate_config(cpu_per_node, node_count, provider):
+def calculate_config(cpu_per_node, node_count, provider, pods_per_node = Cl2DefaultConfigConstants.DEFAULT_PODS_PER_NODE):
     throughput = 100
     nodes_per_namespace = min(node_count, Cl2DefaultConfigConstants.DEFAULT_NODES_PER_NAMESPACE)
-    pods_per_node = Cl2DefaultConfigConstants.DEFAULT_PODS_PER_NODE
 
     # Different cloud has different reserved values and number of daemonsets
     # Using the same percentage will lead to incorrect nodes number as the number of nodes grow
@@ -48,6 +47,10 @@ class LargeClusterArgsParser(ClusterLoader2Base.ArgsParser):
         parser.add_argument("cpu_per_node", type=int, help="CPU per node")
         parser.add_argument("node_count", type=int, help="Number of nodes")
         parser.add_argument("node_per_step", type=int, help="Number of nodes per scaling step")
+        parser.add_argument("pods_per_node",
+                            type=int,
+                            default=Cl2DefaultConfigConstants.DEFAULT_PODS_PER_NODE,
+                            help="Maximum number of pods per node")
         parser.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
         parser.add_argument("operation_timeout", type=str, help="Timeout before failing the scale up test")
         parser.add_argument("provider", type=str, help="Cloud provider name")
@@ -55,6 +58,8 @@ class LargeClusterArgsParser(ClusterLoader2Base.ArgsParser):
                             help="Whether cilium is enabled. Must be either True or False")
         parser.add_argument("scrape_containerd", type=str2bool, choices=[True, False], default=False,
                             help="Whether to scrape containerd metrics. Must be either True or False")
+        parser.add_argument("service_test", type=str2bool, choices=[True, False], default=False,
+                                  help="Whether service test is running. Must be either True or False")        
         parser.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
     def add_validate_args(self, parser: argparse.ArgumentParser):
@@ -75,11 +80,17 @@ class LargeClusterArgsParser(ClusterLoader2Base.ArgsParser):
     def add_collect_args(self, parser: argparse.ArgumentParser):
         parser.add_argument("cpu_per_node", type=int, help="CPU per node")
         parser.add_argument("node_count", type=int, help="Number of nodes")
+        parser.add_argument("pods_per_node",
+                            type=int,
+                            default=Cl2DefaultConfigConstants.DEFAULT_PODS_PER_NODE,
+                            help="Maximum number of pods per node")
         parser.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
         parser.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
         parser.add_argument("cloud_info", type=str, help="Cloud information")
         parser.add_argument("run_id", type=str, help="Run ID")
         parser.add_argument("run_url", type=str, help="Run URL")
+        parser.add_argument("service_test", type=str2bool, choices=[True, False], default=False,
+                            help="Whether service test is running. Must be either True or False")        
         parser.add_argument("result_file", type=str, help="Path to the result file")
 
 
@@ -89,11 +100,13 @@ class LargeClusterRunner(ClusterLoader2Base.Runner):
         cpu_per_node,
         node_count,
         node_per_step,
+        pods_per_node,
         repeats,
         operation_timeout,
         provider,
         cilium_enabled,
         scrape_containerd,
+        service_test,
         #pylint: disable=unused-argument
         **kwargs,
     ) -> dict:
@@ -101,7 +114,8 @@ class LargeClusterRunner(ClusterLoader2Base.Runner):
         throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(
             cpu_per_node,
             node_per_step,
-            provider
+            provider,
+            pods_per_node
         )
 
         config = {
@@ -127,6 +141,11 @@ class LargeClusterRunner(ClusterLoader2Base.Runner):
         if scrape_containerd:
             config["CL2_SCRAPE_CONTAINERD"] = str(scrape_containerd).lower()
             config["CONTAINERD_SCRAPE_INTERVAL"] = "5m"
+
+        if service_test:
+            config["CL2_SERVICE_TEST"] = "true"
+        else:
+            config["CL2_SERVICE_TEST"] = "false"
 
         if cilium_enabled:
             config["CL2_CILIUM_METRICS_ENABLED"] = "true"
@@ -158,16 +177,18 @@ class LargeClusterRunner(ClusterLoader2Base.Runner):
         test_status,
         cpu_per_node,
         node_count,
+        pods_per_node,
         repeats,
         cl2_report_dir,
         cloud_info,
         run_id,
         run_url,
+        service_test,
         #pylint: disable=unused-argument
         **kwargs,
     ) -> str:
         provider = json.loads(cloud_info)["cloud"]
-        _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, provider)
+        _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, provider, pods_per_node)
         pod_count = node_count * pods_per_node
 
         template = {
