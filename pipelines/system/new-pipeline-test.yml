@@ -15,13 +15,17 @@ stages:
             - westus2 # e.g. eastus2
           terraform_input_file_mapping:
             - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-linux.tfvars"
-          topology: cluster-automatic # e.g. cluster-autoscaler
-          engine: aks-store-demo # e.g. clusterloader2
+          topology: cluster-autoscaler # e.g. cluster-autoscaler
+          engine: clusterloader2 # e.g. clusterloader2
           engine_input:
-            wait_duration_seconds: 300  # Run for 5 minutes (300 seconds)
+            image: "ghcr.io/azure/clusterloader2:v20250513"
           matrix: # list of test parameters to customize the provisioned resources
-            stls_bootstrap_linux: 
-              tag: "2.0.0"
+            stls_bootstrap_metrics: 
+              node_count: 1003
+              operation_timeout: "10m"
+              pod_startup_latency_threshold: "3m"
+              repeats: 1
+              scrape_kubelets: true
           max_parallel: 1 # required
           credential_type: service_connection # required
           ssh_key_enabled: false
