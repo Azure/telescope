@@ -13,10 +13,12 @@ stages:
           cloud: azure # e.g. azure, aws
           regions: # list of regions
             - westus2 # e.g. eastus2
+          terraform_input_file_mapping:
+            - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-linux.tfvars"
           topology: cluster-automatic # e.g. cluster-autoscaler
           engine: aks-store-demo # e.g. clusterloader2
           matrix: # list of test parameters to customize the provisioned resources
-            stls_bootstrap_test: {}
+            stls_bootstrap_linux: {}
           max_parallel: 1 # required
           credential_type: service_connection # required
           ssh_key_enabled: false
