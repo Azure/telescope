@@ -242,9 +242,9 @@ steps:
 ### For Modifications:
 - [ ] Identify existing components to modify
 - [ ] Create new variable files if needed
+- [ ] Test in `new-pipeline-test.yml` with E2E testing guide
 - [ ] Update pipeline matrix parameters
 - [ ] Test parameter variations
-- [ ] Validate resource scaling
 - [ ] Update documentation
 
 This guide provides the foundation for implementing any test scenario modification or creation in Telescope. Choose the approach that best fits your testing requirements and follow the established patterns for consistency and maintainability.
