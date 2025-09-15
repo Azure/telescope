@@ -24,11 +24,9 @@ CPU_CAPACITY = {
 }
 # TODO: Remove aks once CL2 update provider name to be azure
 
-def calculate_config(cpu_per_node, node_count, service_test, provider):
+def calculate_config(cpu_per_node, node_count, provider, pods_per_node = DEFAULT_PODS_PER_NODE):
     throughput = 100
     nodes_per_namespace = min(node_count, DEFAULT_NODES_PER_NAMESPACE)
-
-    pods_per_node = DEFAULT_PODS_PER_NODE
 
     # Different cloud has different reserved values and number of daemonsets
     # Using the same percentage will lead to incorrect nodes number as the number of nodes grow
@@ -44,6 +42,7 @@ def configure_clusterloader2(
     cpu_per_node,
     node_count,
     node_per_step,
+    pods_per_node,
     repeats,
     operation_timeout,
     provider,
@@ -54,7 +53,7 @@ def configure_clusterloader2(
 ):
 
     steps = node_count // node_per_step
-    throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, service_test, provider)
+    throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, provider, pods_per_node)
 
     with open(override_file, 'w', encoding='utf-8') as file:
         file.write(f"CL2_NODES: {node_count}\n")
@@ -125,11 +124,13 @@ def execute_clusterloader2(
 def collect_clusterloader2(
     cpu_per_node,
     node_count,
+    pods_per_node,
     repeats,
     cl2_report_dir,
     cloud_info,
     run_id,
     run_url,
+    #pylint: disable=unused-argument
     service_test,
     result_file,
 ):
@@ -143,7 +144,7 @@ def collect_clusterloader2(
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
 
-    _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, service_test, provider)
+    _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, provider, pods_per_node)
     pod_count = node_count * pods_per_node
 
     # TODO: Expose optional parameter to include test details
@@ -205,6 +206,7 @@ def main():
     parser_configure.add_argument("cpu_per_node", type=int, help="CPU per node")
     parser_configure.add_argument("node_count", type=int, help="Number of nodes")
     parser_configure.add_argument("node_per_step", type=int, help="Number of nodes per scaling step")
+    parser_configure.add_argument("pods_per_node", type=int, default=DEFAULT_PODS_PER_NODE, help="Maximum number of pods per node")
     parser_configure.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
     parser_configure.add_argument("operation_timeout", type=str, help="Timeout before failing the scale up test")
     parser_configure.add_argument("provider", type=str, help="Cloud provider name")
@@ -236,6 +238,7 @@ def main():
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
     parser_collect.add_argument("cpu_per_node", type=int, help="CPU per node")
     parser_collect.add_argument("node_count", type=int, help="Number of nodes")
+    parser_collect.add_argument("pods_per_node", type=int, default=DEFAULT_PODS_PER_NODE, help="Maximum number of pods per node")
     parser_collect.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
     parser_collect.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
     parser_collect.add_argument("cloud_info", type=str, help="Cloud information")
@@ -252,6 +255,7 @@ def main():
             args.cpu_per_node,
             args.node_count,
             args.node_per_step,
+            args.pods_per_node,
             args.repeats,
             args.operation_timeout,
             args.provider,
@@ -279,6 +283,7 @@ def main():
         collect_clusterloader2(
             args.cpu_per_node,
             args.node_count,
+            args.pods_per_node,
             args.repeats,
             args.cl2_report_dir,
             args.cloud_info,

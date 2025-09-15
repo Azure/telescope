@@ -16,6 +16,7 @@ steps:
         $CPU_PER_NODE \
         $NODE_COUNT \
         $NODE_PER_STEP \
+        ${PODS_PER_NODE:-0} \
         $REPEATS \
         $SCALE_TIMEOUT \
         $CLOUD \
