@@ -6,7 +6,7 @@ owner          = "aks"
 aks_cli_config_list = [
   {
     role               = "automatic"
-    aks_name           = "stls-bootstrap"
+    aks_name           = "stls-bootstrap-windows"
     sku_tier           = "Standard"
     kubernetes_version = "1.33"
     aks_custom_headers = [
@@ -19,29 +19,59 @@ aks_cli_config_list = [
     }
     extra_node_pool = [
       {
-        name       = "userpool0"
+        name       = "winpool0"
         node_count = 200
         vm_size    = "Standard_D2ds_v5"
+        optional_parameters = [
+          {
+            name  = "os-type"
+            value = "Windows"
+          }
+        ]
       },
       {
-        name       = "userpool1"
+        name       = "winpool1"
         node_count = 200
         vm_size    = "Standard_D2ds_v5"
+        optional_parameters = [
+          {
+            name  = "os-type"
+            value = "Windows"
+          }
+        ]
       },
       {
-        name       = "userpool2"
+        name       = "winpool2"
         node_count = 200
         vm_size    = "Standard_D2ds_v5"
+        optional_parameters = [
+          {
+            name  = "os-type"
+            value = "Windows"
+          }
+        ]
       },
       {
-        name       = "userpool3"
+        name       = "winpool3"
         node_count = 200
         vm_size    = "Standard_D2ds_v5"
+        optional_parameters = [
+          {
+            name  = "os-type"
+            value = "Windows"
+          }
+        ]
       },
       {
-        name       = "userpool4"
+        name       = "winpool4"
         node_count = 200
         vm_size    = "Standard_D2ds_v5"
+        optional_parameters = [
+          {
+            name  = "os-type"
+            value = "Windows"
+          }
+        ]
       }
     ]
   }
