@@ -112,7 +112,7 @@ variable "aks_config" {
       auto_scaling_enabled = optional(bool, false)
       priority             = optional(string, "Regular")
       eviction_policy      = optional(string, null)
-      spot_max_price       = optional(number, -1)
+      spot_max_price       = optional(number, null)
     }))
     role_assignment_list = optional(list(string), [])
     service_mesh_profile = optional(object({
