@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "cluster-autoscaler"
+scenario_name  = "stls-perf-autoscale-windows"
 deletion_delay = "2h"
 owner          = "aks"
 
@@ -16,7 +16,6 @@ aks_config_list = [
     network_profile = {
       network_plugin      = "azure"
       network_plugin_mode = "overlay"
-      pod_cidr            = "10.128.0.0/11"
     }
     default_node_pool = {
       name                         = "system"
@@ -29,58 +28,10 @@ aks_config_list = [
     }
     extra_node_pool = [
       {
-        name                 = "userpool1"
+        name                 = "userpool"
         node_count           = 1
         min_count            = 1
-        max_count            = 251
-        auto_scaling_enabled = true
-        vm_size              = "Standard_D2ds_v5"
-        max_pods             = 110
-        node_labels          = { "cas" = "dedicated" }
-        optional_parameters = [
-          {
-            name  = "os-type"
-            value = "Windows"
-          }
-        ]
-      },
-      {
-        name                 = "userpool2"
-        node_count           = 0
-        min_count            = 0
-        max_count            = 250
-        auto_scaling_enabled = true
-        vm_size              = "Standard_D2ds_v5"
-        max_pods             = 110
-        node_labels          = { "cas" = "dedicated" }
-        optional_parameters = [
-          {
-            name  = "os-type"
-            value = "Windows"
-          }
-        ]
-      },
-      {
-        name                 = "userpool3"
-        node_count           = 0
-        min_count            = 0
-        max_count            = 250
-        auto_scaling_enabled = true
-        vm_size              = "Standard_D2ds_v5"
-        max_pods             = 110
-        node_labels          = { "cas" = "dedicated" }
-        optional_parameters = [
-          {
-            name  = "os-type"
-            value = "Windows"
-          }
-        ]
-      },
-      {
-        name                 = "userpool4"
-        node_count           = 0
-        min_count            = 0
-        max_count            = 250
+        max_count            = 11
         auto_scaling_enabled = true
         vm_size              = "Standard_D2ds_v5"
         max_pods             = 110
