@@ -83,6 +83,7 @@ stages:
 
   - stage: azure_swedencentral_250_pods_1_31
     dependsOn: azure_swedencentral_managed_vs_ephemeral_1_31
+    condition: succeededOrFailed()
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
