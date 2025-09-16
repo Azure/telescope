@@ -25,7 +25,7 @@ stages:
             - region2 # e.g. westus
           terraform_input_file_mapping: # Optional: mapping of terraform input files to regions when multiple regions are specified and different input files are needed
             - region1: "scenarios/<scenario-type>/<scenario-name>/terraform-inputs/<file-name>.tfvars" # e.g. eastus: "scenarios/perf-eval/vm-iperf/terraform-inputs/aws-client.tfvars"
-              region2: "scenarios/<scenario-type>/<scenario-name>/terraform-inputs/<file-name>.tfvars" # e.g. westus: "scenarios/perf-eval/vm-iperf/terraform-inputs/aws-server.tfvars"            
+              region2: "scenarios/<scenario-type>/<scenario-name>/terraform-inputs/<file-name>.tfvars" # e.g. westus: "scenarios/perf-eval/vm-iperf/terraform-inputs/aws-server.tfvars"
           topology: <topology> # e.g. kperf, karpenter, kwok.  see available topology under /steps/topology
           engine: <engine> # e.g. clusterloader2, crud, iperf3, kperf. see available engines under /steps/engine
           matrix: # list of test parameters to customize the provisioned resources and also used for running the python code in the engine step
