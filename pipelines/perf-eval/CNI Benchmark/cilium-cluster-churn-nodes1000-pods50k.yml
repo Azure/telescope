@@ -45,7 +45,6 @@ stages:
               scale_timeout: "30m"
               cilium_enabled: False
               cl2_config_file: cluster-churn.yaml
-              service_test: False
           max_parallel: 1
           timeout_in_minutes: 720
           credential_type: service_connection
@@ -77,7 +76,6 @@ stages:
               scale_timeout: "30m"
               cilium_enabled: False
               cl2_config_file: cluster-churn.yaml
-              service_test: False
             azure_cilium:
               cpu_per_node: 4
               node_count: 1000
@@ -89,7 +87,6 @@ stages:
               network_policy: cilium
               network_dataplane: cilium
               cl2_config_file: cluster-churn.yaml
-              service_test: False
           max_parallel: 2
           timeout_in_minutes: 720
           credential_type: service_connection
