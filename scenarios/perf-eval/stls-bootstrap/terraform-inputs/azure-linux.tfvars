@@ -23,7 +23,7 @@ aks_cli_config_list = [
         node_count = 2
         vm_size    = "Standard_D2ds_v5"
         node_labels = {
-          cas = "dedicated"
+          "cas" = "dedicated"
         }
       },
       {
@@ -31,7 +31,7 @@ aks_cli_config_list = [
         node_count = 2
         vm_size    = "Standard_D2ds_v5"
         node_labels = {
-          cas = "dedicated"
+          "cas" = "dedicated"
         }
       },
       {
@@ -39,7 +39,7 @@ aks_cli_config_list = [
         node_count = 2
         vm_size    = "Standard_D2ds_v5"
         node_labels = {
-          cas = "dedicated"
+          "cas" = "dedicated"
         }
       },
       {
@@ -47,7 +47,7 @@ aks_cli_config_list = [
         node_count = 2
         vm_size    = "Standard_D2ds_v5"
         node_labels = {
-          cas = "dedicated"
+          "cas" = "dedicated"
         }
       },
       {
@@ -55,7 +55,7 @@ aks_cli_config_list = [
         node_count = 2
         vm_size    = "Standard_D2ds_v5"
         node_labels = {
-          cas = "dedicated"
+          "cas" = "dedicated"
         }
       }
     ]
