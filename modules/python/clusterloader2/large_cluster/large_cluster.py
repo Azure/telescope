@@ -76,8 +76,6 @@ def configure_clusterloader2(
             file.write(f"CL2_SCRAPE_CONTAINERD: {str(scrape_containerd).lower()}\n")
             file.write("CONTAINERD_SCRAPE_INTERVAL: 5m\n")
 
-        file.write("CL2_SERVICE_TEST: true\n")
-
         if cilium_enabled:
             file.write("CL2_CILIUM_METRICS_ENABLED: true\n")
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true\n")
