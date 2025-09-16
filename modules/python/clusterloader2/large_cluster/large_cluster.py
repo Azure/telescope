@@ -24,7 +24,7 @@ CPU_CAPACITY = {
 }
 # TODO: Remove aks once CL2 update provider name to be azure
 
-def calculate_config(cpu_per_node, node_count, provider, pods_per_node = DEFAULT_PODS_PER_NODE):
+def calculate_config(cpu_per_node, node_count, provider, pods_per_node):
     throughput = 100
     nodes_per_namespace = min(node_count, DEFAULT_NODES_PER_NAMESPACE)
 
@@ -48,7 +48,6 @@ def configure_clusterloader2(
     provider,
     cilium_enabled,
     scrape_containerd,
-    service_test,
     override_file
 ):
 
@@ -77,10 +76,7 @@ def configure_clusterloader2(
             file.write(f"CL2_SCRAPE_CONTAINERD: {str(scrape_containerd).lower()}\n")
             file.write("CONTAINERD_SCRAPE_INTERVAL: 5m\n")
 
-        if service_test:
-            file.write("CL2_SERVICE_TEST: true\n")
-        else:
-            file.write("CL2_SERVICE_TEST: false\n")
+        file.write("CL2_SERVICE_TEST: true\n")
 
         if cilium_enabled:
             file.write("CL2_CILIUM_METRICS_ENABLED: true\n")
@@ -130,8 +126,6 @@ def collect_clusterloader2(
     cloud_info,
     run_id,
     run_url,
-    #pylint: disable=unused-argument
-    service_test,
     result_file,
 ):
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
@@ -206,7 +200,7 @@ def main():
     parser_configure.add_argument("cpu_per_node", type=int, help="CPU per node")
     parser_configure.add_argument("node_count", type=int, help="Number of nodes")
     parser_configure.add_argument("node_per_step", type=int, help="Number of nodes per scaling step")
-    parser_configure.add_argument("pods_per_node", type=int, default=DEFAULT_PODS_PER_NODE, help="Maximum number of pods per node")
+    parser_configure.add_argument("pods_per_node", type=int, required=True, help="The number of pods per node")
     parser_configure.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
     parser_configure.add_argument("operation_timeout", type=str, help="Timeout before failing the scale up test")
     parser_configure.add_argument("provider", type=str, help="Cloud provider name")
@@ -214,8 +208,6 @@ def main():
                                   help="Whether cilium is enabled. Must be either True or False")
     parser_configure.add_argument("scrape_containerd", type=str2bool, choices=[True, False], default=False,
                                   help="Whether to scrape containerd metrics. Must be either True or False")
-    parser_configure.add_argument("service_test", type=str2bool, choices=[True, False], default=False,
-                                  help="Whether service test is running. Must be either True or False")
     parser_configure.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
     # Sub-command for validate_clusterloader2
@@ -238,14 +230,12 @@ def main():
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
     parser_collect.add_argument("cpu_per_node", type=int, help="CPU per node")
     parser_collect.add_argument("node_count", type=int, help="Number of nodes")
-    parser_collect.add_argument("pods_per_node", type=int, default=DEFAULT_PODS_PER_NODE, help="Maximum number of pods per node")
+    parser_collect.add_argument("pods_per_node", type=int, required=True, help="The number of pods per node")
     parser_collect.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
     parser_collect.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
     parser_collect.add_argument("cloud_info", type=str, help="Cloud information")
     parser_collect.add_argument("run_id", type=str, help="Run ID")
     parser_collect.add_argument("run_url", type=str, help="Run URL")
-    parser_collect.add_argument("service_test", type=str2bool, choices=[True, False], default=False,
-                                  help="Whether service test is running. Must be either True or False")
     parser_collect.add_argument("result_file", type=str, help="Path to the result file")
 
     args = parser.parse_args()
@@ -261,7 +251,6 @@ def main():
             args.provider,
             args.cilium_enabled,
             args.scrape_containerd,
-            args.service_test,
             args.cl2_override_file,
         )
     elif args.command == "validate":
@@ -289,7 +278,6 @@ def main():
             args.cloud_info,
             args.run_id,
             args.run_url,
-            args.service_test,
             args.result_file,
         )
 

@@ -24,7 +24,6 @@ steps:
       "$CLOUD_INFO" \
       $RUN_ID \
       $RUN_URL \
-      $SERVICE_TEST \
       $TEST_RESULTS_FILE
   workingDirectory: modules/python
   env:

@@ -22,7 +22,6 @@ steps:
         $CLOUD \
         $CILIUM_ENABLED \
         ${SCRAPE_CONTAINERD:-False} \
-        ${SERVICE_TEST:-False} \
         ${CL2_CONFIG_DIR}/overrides.yaml
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
         ${CL2_IMAGE} \
