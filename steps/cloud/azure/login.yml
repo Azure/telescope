@@ -16,8 +16,15 @@ steps:
     scriptLocation: 'inlineScript'
     inlineScript: |
       echo "##vso[task.setvariable variable=SP_CLIENT_ID;issecret=true]$servicePrincipalId"
+      echo "##vso[task.setvariable variable=SP_CLIENT_SECRET;issecret=true]$servicePrincipalKey"
       echo "##vso[task.setvariable variable=SP_ID_TOKEN;issecret=true]$idToken"
       echo "##vso[task.setvariable variable=TENANT_ID;issecret=true]$tenantId"
+      echo "Check files":
+      ls -la $AZURE_FEDERATED_TOKEN_FILE
+      data=$(cat $AZURE_FEDERATED_TOKEN_FILE)
+      echo "Token length: ${#data}"
+      echo "Check .azure directory":
+      ls ~/.azure
     addSpnToEnvironment: true
   displayName: 'Get login credentials'
   condition: always()
@@ -25,7 +32,8 @@ steps:
     set -eu
 
     echo "login to Azure in $REGION"
-    az login --service-principal --tenant $(TENANT_ID) -u $(SP_CLIENT_ID) --federated-token $(SP_ID_TOKEN) --allow-no-subscriptions
+    az login --service-principal --tenant $(TENANT_ID) -u $AZURE_CLIENT_ID --federated-token "$(cat $AZURE_FEDERATED_TOKEN_FILE)" --allow-no-subscriptions
+    # az login --service-principal --tenant $(TENANT_ID) -u $(SP_CLIENT_ID) --federated-token $(SP_ID_TOKEN) --allow-no-subscriptions
     az account set --subscription "${AZURE_SP_SUBSCRIPTION_ID}"
     az config set defaults.location="$REGION"
     az account show
