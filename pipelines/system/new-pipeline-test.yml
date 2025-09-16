@@ -14,16 +14,16 @@ stages:
           regions: # list of regions
             - westus2 # e.g. eastus2
           terraform_input_file_mapping:
-            - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-linux.tfvars"
+            - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-autoscaler-linux.tfvars"
           topology: cluster-autoscaler # e.g. cluster-autoscaler
           engine: clusterloader2 # e.g. clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250513"
+            image: "ghcr.io/azure/clusterloader2:v20250423"
           matrix: # list of test parameters to customize the provisioned resources
-            stls_bootstrap_linux: 
-              cpu_per_node: 2
-              node_count: 10
-              pod_count: 50
+            stls_bootstrap_linux:
+              cpu_per_node: 8
+              node_count: 6
+              pod_count: 11
               scale_up_timeout: "15m"
               scale_down_timeout: "15m"
               loop_count: 1
@@ -35,3 +35,4 @@ stages:
           credential_type: service_connection # required
           ssh_key_enabled: false
           timeout_in_minutes: 180 # if not specified, default is 60
+  
