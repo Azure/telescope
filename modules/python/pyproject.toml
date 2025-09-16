@@ -21,17 +21,14 @@ classifiers = [
     "Topic :: Software Development :: Testing",
     "Topic :: System :: Benchmark",
 ]
-dependencies = [
-    "docker==7.1.0",
-    "kubernetes==31.0.0",
-    "pylint==3.3.4",
-    "coverage==7.6.12",
-    "numpy==2.2.5"
-]
+dynamic = ["dependencies"]
 
 [project.urls]
 Source = "https://github.com/Azure/telescope"
 Documentation = "https://github.com/Azure/telescope/tree/main/modules/python"
+
+[tool.hatch.metadata]
+dependencies = ["requirements.txt"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["iperf3", "clients", "utils", "clusterloader2", "kwok"]
