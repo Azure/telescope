@@ -243,6 +243,7 @@ steps:
 - [ ] Identify existing components to modify
 - [ ] Create new variable files if needed
 - [ ] Test in `new-pipeline-test.yml` with E2E testing guide
+- [ ] Validate locally using `verify.md`
 - [ ] Update pipeline matrix parameters
 - [ ] Test parameter variations
 - [ ] Update documentation
