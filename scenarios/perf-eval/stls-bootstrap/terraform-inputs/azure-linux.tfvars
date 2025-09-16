@@ -19,44 +19,34 @@ aks_cli_config_list = [
     }
     extra_node_pool = [
       {
-        name       = "userpool0"
-        node_count = 2
-        vm_size    = "Standard_D2ds_v5"
-        node_labels = {
-          "cas" = "dedicated"
-        }
+        name        = "userpool0"
+        node_count  = 2
+        vm_size     = "Standard_D2ds_v5"
+        node_labels = { "cas" = "dedicated" }
       },
       {
-        name       = "userpool1"
-        node_count = 2
-        vm_size    = "Standard_D2ds_v5"
-        node_labels = {
-          "cas" = "dedicated"
-        }
+        name        = "userpool1"
+        node_count  = 2
+        vm_size     = "Standard_D2ds_v5"
+        node_labels = { "cas" = "dedicated" }
       },
       {
-        name       = "userpool2"
-        node_count = 2
-        vm_size    = "Standard_D2ds_v5"
-        node_labels = {
-          "cas" = "dedicated"
-        }
+        name        = "userpool2"
+        node_count  = 2
+        vm_size     = "Standard_D2ds_v5"
+        node_labels = { "cas" = "dedicated" }
       },
       {
-        name       = "userpool3"
-        node_count = 2
-        vm_size    = "Standard_D2ds_v5"
-        node_labels = {
-          "cas" = "dedicated"
-        }
+        name        = "userpool3"
+        node_count  = 2
+        vm_size     = "Standard_D2ds_v5"
+        node_labels = { "cas" = "dedicated" }
       },
       {
-        name       = "userpool4"
-        node_count = 2
-        vm_size    = "Standard_D2ds_v5"
-        node_labels = {
-          "cas" = "dedicated"
-        }
+        name        = "userpool4"
+        node_count  = 2
+        vm_size     = "Standard_D2ds_v5"
+        node_labels = { "cas" = "dedicated" }
       }
     ]
   }

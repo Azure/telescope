@@ -19,12 +19,10 @@ aks_cli_config_list = [
     }
     extra_node_pool = [
       {
-        name       = "winpool0"
-        node_count = 2
-        vm_size    = "Standard_D2ds_v5"
-        node_labels = {
-          "cas" = "dedicated"
-        }
+        name        = "winpool0"
+        node_count  = 2
+        vm_size     = "Standard_D2ds_v5"
+        node_labels = { "cas" = "dedicated" }
         optional_parameters = [
           {
             name  = "os-type"
@@ -33,12 +31,10 @@ aks_cli_config_list = [
         ]
       },
       {
-        name       = "winpool1"
-        node_count = 2
-        vm_size    = "Standard_D2ds_v5"
-        node_labels = {
-          "cas" = "dedicated"
-        }
+        name        = "winpool1"
+        node_count  = 2
+        vm_size     = "Standard_D2ds_v5"
+        node_labels = { "cas" = "dedicated" }
         optional_parameters = [
           {
             name  = "os-type"
@@ -47,12 +43,10 @@ aks_cli_config_list = [
         ]
       },
       {
-        name       = "winpool2"
-        node_count = 2
-        vm_size    = "Standard_D2ds_v5"
-        node_labels = {
-          "cas" = "dedicated"
-        }
+        name        = "winpool2"
+        node_count  = 2
+        vm_size     = "Standard_D2ds_v5"
+        node_labels = { "cas" = "dedicated" }
         optional_parameters = [
           {
             name  = "os-type"
@@ -61,12 +55,10 @@ aks_cli_config_list = [
         ]
       },
       {
-        name       = "winpool3"
-        node_count = 2
-        vm_size    = "Standard_D2ds_v5"
-        node_labels = {
-          "cas" = "dedicated"
-        }
+        name        = "winpool3"
+        node_count  = 2
+        vm_size     = "Standard_D2ds_v5"
+        node_labels = { "cas" = "dedicated" }
         optional_parameters = [
           {
             name  = "os-type"
@@ -75,12 +67,10 @@ aks_cli_config_list = [
         ]
       },
       {
-        name       = "winpool4"
-        node_count = 2
-        vm_size    = "Standard_D2ds_v5"
-        node_labels = {
-          "cas" = "dedicated"
-        }
+        name        = "winpool4"
+        node_count  = 2
+        vm_size     = "Standard_D2ds_v5"
+        node_labels = { "cas" = "dedicated" }
         optional_parameters = [
           {
             name  = "os-type"
