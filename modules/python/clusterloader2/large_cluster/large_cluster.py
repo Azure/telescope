@@ -127,14 +127,12 @@ def collect_clusterloader2(
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
     json_data = json.loads(details)
     testsuites = json_data["testsuites"]
-    provider = json.loads(cloud_info)["cloud"]
 
     if testsuites:
         status = "success" if testsuites[0]["failures"] == 0 else "failure"
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
 
-    _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, provider, pods_per_node)
     pod_count = node_count * pods_per_node
 
     # TODO: Expose optional parameter to include test details
