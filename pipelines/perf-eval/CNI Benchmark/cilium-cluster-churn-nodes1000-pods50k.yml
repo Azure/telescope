@@ -40,7 +40,7 @@ stages:
               cpu_per_node: 4
               node_count: 1000
               node_per_step: 100
-              pods_per_node: 110
+              pods_per_node: 40
               repeats: 1
               scale_timeout: "30m"
               cilium_enabled: False
@@ -71,7 +71,7 @@ stages:
               cpu_per_node: 4
               node_count: 1000
               node_per_step: 100
-              pods_per_node: 110
+              pods_per_node: 40
               repeats: 1
               scale_timeout: "30m"
               cilium_enabled: False
@@ -80,7 +80,7 @@ stages:
               cpu_per_node: 4
               node_count: 1000
               node_per_step: 100
-              pods_per_node: 110
+              pods_per_node: 40
               repeats: 1
               scale_timeout: "30m"
               cilium_enabled: True

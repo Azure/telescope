@@ -8,8 +8,6 @@ from clusterloader2.utils import parse_xml_to_json, run_cl2_command, get_measure
 from clients.kubernetes_client import KubernetesClient
 from utils.common import str2bool
 
-DEFAULT_PODS_PER_NODE = 40
-
 DEFAULT_NODES_PER_NAMESPACE = 100
 CPU_REQUEST_LIMIT_MILLI = 1
 DAEMONSETS_PER_NODE = {
@@ -36,7 +34,7 @@ def calculate_config(cpu_per_node, node_count, provider, pods_per_node):
     cpu_request = (cpu_per_node * 1000 * capacity) // pods_per_node
     cpu_request = max(cpu_request, CPU_REQUEST_LIMIT_MILLI)
 
-    return throughput, nodes_per_namespace, pods_per_node, cpu_request
+    return throughput, nodes_per_namespace, cpu_request
 
 def configure_clusterloader2(
     cpu_per_node,
@@ -52,7 +50,7 @@ def configure_clusterloader2(
 ):
 
     steps = node_count // node_per_step
-    throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, provider, pods_per_node)
+    throughput, nodes_per_namespace, cpu_request = calculate_config(cpu_per_node, node_per_step, provider, pods_per_node)
 
     with open(override_file, 'w', encoding='utf-8') as file:
         file.write(f"CL2_NODES: {node_count}\n")
