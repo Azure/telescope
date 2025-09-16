@@ -24,7 +24,7 @@ class Cl2DefaultConfigConstants:
     }
 
 
-def calculate_config(cpu_per_node, node_count, provider, pods_per_node = Cl2DefaultConfigConstants.DEFAULT_PODS_PER_NODE):
+def calculate_config(cpu_per_node, node_count, provider, pods_per_node):
     throughput = 100
     nodes_per_namespace = min(node_count, Cl2DefaultConfigConstants.DEFAULT_NODES_PER_NAMESPACE)
 
@@ -50,7 +50,7 @@ class LargeClusterArgsParser(ClusterLoader2Base.ArgsParser):
         parser.add_argument("pods_per_node",
                             type=int,
                             default=Cl2DefaultConfigConstants.DEFAULT_PODS_PER_NODE,
-                            help="Maximum number of pods per node")
+                            help="The number of pods per node")
         parser.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
         parser.add_argument("operation_timeout", type=str, help="Timeout before failing the scale up test")
         parser.add_argument("provider", type=str, help="Cloud provider name")
@@ -58,8 +58,6 @@ class LargeClusterArgsParser(ClusterLoader2Base.ArgsParser):
                             help="Whether cilium is enabled. Must be either True or False")
         parser.add_argument("scrape_containerd", type=str2bool, choices=[True, False], default=False,
                             help="Whether to scrape containerd metrics. Must be either True or False")
-        parser.add_argument("service_test", type=str2bool, choices=[True, False], default=False,
-                                  help="Whether service test is running. Must be either True or False")        
         parser.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
     def add_validate_args(self, parser: argparse.ArgumentParser):
@@ -83,14 +81,12 @@ class LargeClusterArgsParser(ClusterLoader2Base.ArgsParser):
         parser.add_argument("pods_per_node",
                             type=int,
                             default=Cl2DefaultConfigConstants.DEFAULT_PODS_PER_NODE,
-                            help="Maximum number of pods per node")
+                            help="The number of pods per node")
         parser.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
         parser.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
         parser.add_argument("cloud_info", type=str, help="Cloud information")
         parser.add_argument("run_id", type=str, help="Run ID")
         parser.add_argument("run_url", type=str, help="Run URL")
-        parser.add_argument("service_test", type=str2bool, choices=[True, False], default=False,
-                            help="Whether service test is running. Must be either True or False")        
         parser.add_argument("result_file", type=str, help="Path to the result file")
 
 
@@ -106,8 +102,6 @@ class LargeClusterRunner(ClusterLoader2Base.Runner):
         provider,
         cilium_enabled,
         scrape_containerd,
-        service_test,
-        #pylint: disable=unused-argument
         **kwargs,
     ) -> dict:
         steps = node_count // node_per_step
@@ -142,11 +136,6 @@ class LargeClusterRunner(ClusterLoader2Base.Runner):
             config["CL2_SCRAPE_CONTAINERD"] = str(scrape_containerd).lower()
             config["CONTAINERD_SCRAPE_INTERVAL"] = "5m"
 
-        if service_test:
-            config["CL2_SERVICE_TEST"] = "true"
-        else:
-            config["CL2_SERVICE_TEST"] = "false"
-
         if cilium_enabled:
             config["CL2_CILIUM_METRICS_ENABLED"] = "true"
             config["CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR"] = "true"
@@ -174,7 +163,6 @@ class LargeClusterRunner(ClusterLoader2Base.Runner):
 
     def collect(
         self,
-        test_status,
         cpu_per_node,
         node_count,
         pods_per_node,
@@ -183,8 +171,7 @@ class LargeClusterRunner(ClusterLoader2Base.Runner):
         cloud_info,
         run_id,
         run_url,
-        service_test,
-        #pylint: disable=unused-argument
+        test_status,
         **kwargs,
     ) -> str:
         provider = json.loads(cloud_info)["cloud"]

@@ -1,8 +1,5 @@
 name: service-churn
 
-# Config options for test type
-{{$SERVICE_TEST := DefaultParam .CL2_SERVICE_TEST true}}
-
 # Config options for test parameters
 {{$nodesPerNamespace := DefaultParam .CL2_NODES_PER_NAMESPACE 100}}
 {{$podsPerNode := DefaultParam .CL2_PODS_PER_NODE 50}}
