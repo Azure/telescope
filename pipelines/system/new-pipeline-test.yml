@@ -21,18 +21,18 @@ stages:
             image: "ghcr.io/azure/clusterloader2:v20250423"
           matrix: # list of test parameters to customize the provisioned resources
             stls_bootstrap_linux:
-              cpu_per_node: 8
-              node_count: 6
-              pod_count: 11
+              cpu_per_node: 2
+              node_count: 11
+              pod_count: 110
               scale_up_timeout: "15m"
               scale_down_timeout: "15m"
-              loop_count: 1
               node_label_selector: "cas = dedicated"
               node_selector: "{cas: dedicated}"
+              loop_count: 5
               warmup_deployment: false
               capacity_type: on-demand
           max_parallel: 1 # required
           credential_type: service_connection # required
           ssh_key_enabled: false
-          timeout_in_minutes: 180 # if not specified, default is 60
+          timeout_in_minutes: 360 # if not specified, default is 60
   
