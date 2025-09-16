@@ -10,6 +10,9 @@ aks_config_list = [
     dns_prefix  = "cas"
     subnet_name = "aks-network"
     sku_tier    = "Standard"
+    aks_custom_headers = [
+      "AKSHTTPCustomFeatures=Microsoft.ContainerService/EnableSecureTLSBootstrapping"
+    ]
     network_profile = {
       network_plugin      = "azure"
       network_plugin_mode = "overlay"
