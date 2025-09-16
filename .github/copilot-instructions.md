@@ -8,7 +8,10 @@ See the [design.md](../docs/design.md) for an overview of telescope's architectu
 
 ## Contribute
 
-See the [contribute.md](../docs/contribute.md) for instructions to add a new test scenario or update existing test scenario.
+See the [contribute.md](../docs/contribute.md) and [test-scenario-implementation-guide.md](../docs/test-scenario-implementation-guide.md) for detailed walkthroughs on implementing new test scenarios or modifying existing ones.
+
+## Best Practices
+See the [best-practices.md](../docs/best-practices.md) for guidelines on writing effective test scenarios.
 
 ## Verify
 
