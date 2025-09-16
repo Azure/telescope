@@ -20,9 +20,9 @@ stages:
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
           matrix: # list of test parameters to customize the provisioned resources
-            stls_bootstrap_metrics: 
+            stls_bootstrap_linux: 
               cpu_per_node: 2
-              node_count: 13
+              node_count: 10
               pod_count: 50
               scale_up_timeout: "15m"
               scale_down_timeout: "15m"
