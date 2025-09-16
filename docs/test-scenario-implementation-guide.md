@@ -230,7 +230,7 @@ steps:
 
 ### For New Scenarios:
 - [ ] Create scenario directory structure
-- [ ] Define terraform variable files
+- [ ] Define terraform input variable files
 - [ ] Create test input JSON files
 - [ ] Implement or select engine
 - [ ] Configure topology
