@@ -14,7 +14,7 @@ stages:
           regions: # list of regions
             - westus2 # e.g. eastus2
           terraform_input_file_mapping:
-            - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-autoscaler-linux.tfvars"
+            - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-autoscaler-windows.tfvars"
           topology: cluster-autoscaler # e.g. cluster-autoscaler
           engine: clusterloader2 # e.g. clusterloader2
           engine_input:
