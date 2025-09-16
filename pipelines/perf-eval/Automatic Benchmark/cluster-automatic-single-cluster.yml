@@ -19,7 +19,7 @@ variables:
   SCENARIO_NAME: cluster-automatic
 
 stages:
-  - stage: azure_eastasia
+  - stage: azure_australiaeast_acn_off
 #    condition: |
 #        or(
 #          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 3:00 PM'),
@@ -33,9 +33,9 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - eastasia
+            - australiaeast
           terraform_input_file_mapping:
-            - eastasia: "scenarios/perf-eval/cluster-automatic/terraform-inputs/azure-automatic-benchmark.tfvars"
+            - australiaeast: "scenarios/perf-eval/cluster-automatic/terraform-inputs/azure-automatic-benchmark.tfvars"
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250912"
@@ -51,7 +51,45 @@ stages:
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
               warmup_deployment: false
-              vm_size: Standard_D2lds_v5
+              vm_size: Standard_D2s_v4
+              capacity_type: on-demand
+          max_parallel: 1
+          timeout_in_minutes: 90
+          credential_type: service_connection
+          ssh_key_enabled: false
+  - stage: azure_australiaeast_acn_on
+#    condition: |
+#        or(
+#          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 3:00 PM'),
+#          eq(variables['Build.Reason'], 'Manual')
+#        )
+    dependsOn: []
+#    variables:
+#      - group: NAP-5K-Config
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - australiaeast
+          terraform_input_file_mapping:
+            - australiaeast: "scenarios/perf-eval/cluster-automatic/terraform-inputs/azure-automatic-benchmark-acn-on.tfvars"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250912"
+          topology: cluster-automatic
+          matrix:
+            automatic-acn-on:
+              cpu_per_node: 2
+              node_count: 30
+              pod_count: 30
+              scale_up_timeout: "150m"
+              scale_down_timeout: "150m"
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 1
+              warmup_deployment: false
+              vm_size: Standard_D2s_v4
               capacity_type: on-demand
           max_parallel: 1
           timeout_in_minutes: 90
