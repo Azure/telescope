@@ -6,8 +6,8 @@ owner          = "aks"
 aks_config_list = [
   {
     role        = "cas"
-    aks_name    = "cas"
-    dns_prefix  = "cas"
+    aks_name    = "stls-autoscaler-win"
+    dns_prefix  = "stls-autoscaler-win"
     subnet_name = "aks-network"
     sku_tier    = "Standard"
     aks_custom_headers = [
