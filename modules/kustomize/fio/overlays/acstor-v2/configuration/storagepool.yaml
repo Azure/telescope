@@ -1,9 +1,0 @@
-apiVersion: containerstorage.azure.com/v1
-kind: StoragePool
-metadata:
-  name: nvmedisk
-  namespace: cns-system
-spec:
-  poolType:
-    ephemeralDisk:
-      diskType: "nvme"
