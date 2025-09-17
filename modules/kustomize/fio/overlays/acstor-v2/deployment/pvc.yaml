@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: acstor-mount
+  name: $name
   annotations:
     localdisk.csi.acstor.io/accept-ephemeral-storage: "true"
 spec:
