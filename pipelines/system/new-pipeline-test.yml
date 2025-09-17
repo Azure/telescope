@@ -153,7 +153,7 @@ stages:
           ssh_key_enabled: false
 
   - stage: autoscale_azure_westus2_linux
-    dependsOn: []
+    dependsOn: cri_large_azure_westus2_linux
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
