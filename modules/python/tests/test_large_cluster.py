@@ -42,7 +42,7 @@ class TestLargeClusterArgsParser(unittest.TestCase):
         LargeClusterArgsParser().add_validate_args(validate_parser)
 
         dests = self._get_arg_dests(validate_parser)
-        expected = {"node_count", "operation_timeout"}
+        expected = {"node_count", "operation_timeout_in_minute"}
         self.assertTrue(expected.issubset(dests))
 
     def test_add_execute_args(self):
@@ -90,6 +90,7 @@ class TestLargeClusterArgsParser(unittest.TestCase):
             "8",            # cpu_per_node
             "1000",         # node_count
             "100",          # node_per_step
+            "40",           # pods_per_node
             "3",            # repeats
             "30m",          # operation_timeout
             "azure",        # provider
@@ -105,6 +106,7 @@ class TestLargeClusterArgsParser(unittest.TestCase):
         self.assertEqual(args.cpu_per_node, 8)
         self.assertEqual(args.node_count, 1000)
         self.assertEqual(args.node_per_step, 100)
+        self.assertEqual(args.pods_per_node, 40)
         self.assertEqual(args.repeats, 3)
         self.assertEqual(args.operation_timeout, "30m")
         self.assertEqual(args.provider, "azure")
@@ -118,12 +120,13 @@ class TestLargeClusterRunner(unittest.TestCase):
         self.runner = LargeClusterRunner()
 
     @patch("clusterloader2.large_cluster.large_cluster.calculate_config",
-           return_value=(100, 50, 40, 250))
+           return_value=(100, 50, 250))
     def test_configure_basic(self, mock_calc):
         config = self.runner.configure(
             cpu_per_node=8,
             node_count=1000,
             node_per_step=100,
+            pods_per_node=40,
             repeats=3,
             operation_timeout="30m",
             provider="azure",
@@ -131,7 +134,7 @@ class TestLargeClusterRunner(unittest.TestCase):
             scrape_containerd=False,
         )
         # calculate_config called with cpu_per_node and node_per_step (per implementation)
-        mock_calc.assert_called_once_with(8, 100, "azure")
+        mock_calc.assert_called_once_with(8, 100, "azure", 40)
 
         expected_keys = {
             "CL2_NODES",
@@ -167,28 +170,32 @@ class TestLargeClusterRunner(unittest.TestCase):
         self.assertNotIn("CL2_SCRAPE_CONTAINERD", config)
 
     @patch("clusterloader2.large_cluster.large_cluster.calculate_config",
-           return_value=(200, 60, 30, 111))
+           return_value=(200, 60, 111))
     def test_configure_with_cilium_and_containerd(self, _mock_calc):
         config = self.runner.configure(
             cpu_per_node=16,
             node_count=900,
             node_per_step=90,
+            pods_per_node=40,
             repeats=2,
             operation_timeout="45m",
             provider="aws",
             cilium_enabled=True,
             scrape_containerd=True,
         )
+        print(config)
         self.assertIn("CL2_CILIUM_METRICS_ENABLED", config)
         self.assertIn("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR", config)
         self.assertIn("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT", config)
         self.assertIn("CL2_SCRAPE_CONTAINERD", config)
+        self.assertIn("CL2_PODS_PER_NODE", config)
         self.assertEqual(config["CONTAINERD_SCRAPE_INTERVAL"], "5m")
         self.assertEqual(config["CL2_SCRAPE_CONTAINERD"], "true")
+        self.assertEqual(config["CL2_PODS_PER_NODE"], 40)
 
     @patch("clusterloader2.large_cluster.large_cluster.KubernetesClient.wait_for_nodes_ready")
     def test_validate_calls_wait_for_nodes_ready(self, mock_wait):
-        self.runner.validate(node_count=50, operation_timeout=15)
+        self.runner.validate(node_count=50, operation_timeout_in_minute=15)
         mock_wait.assert_called_once_with(
             node_count=50,
             operation_timeout_in_minutes=15,
@@ -219,7 +226,7 @@ class TestLargeClusterRunner(unittest.TestCase):
         self.assertTrue(kwargs["scrape_containerd"])
 
     @patch("clusterloader2.large_cluster.large_cluster.calculate_config",
-           return_value=(123, 10, 25, 77))
+           return_value=(123, 10, 77))
     @patch("clusterloader2.large_cluster.large_cluster.datetime")
     @patch("clusterloader2.large_cluster.large_cluster.LargeClusterRunner.process_cl2_reports",
            return_value="PROCESSED_CONTENT")
@@ -238,6 +245,7 @@ class TestLargeClusterRunner(unittest.TestCase):
         result = self.runner.collect(
             test_status="success",
             cpu_per_node=4,
+            pods_per_node=40,
             node_count=80,
             repeats=5,
             cl2_report_dir="/reports",
@@ -253,8 +261,8 @@ class TestLargeClusterRunner(unittest.TestCase):
         self.assertEqual(template["status"], "success")
         self.assertEqual(template["cpu_per_node"], 4)
         self.assertEqual(template["node_count"], 80)
-        # pods_per_node (25) * node_count
-        self.assertEqual(template["pod_count"], 80 * 25)
+        # pods_per_node (40) * node_count
+        self.assertEqual(template["pod_count"], 80 * 40)
         self.assertEqual(template["churn_rate"], 5)
         self.assertEqual(template["cloud_info"], '{"cloud":"azure"}')
         self.assertEqual(template["run_id"], "RID123")
