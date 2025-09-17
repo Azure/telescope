@@ -3,10 +3,7 @@ kind: StorageClass
 metadata:
   name: zfs-localpv
 parameters:
-  recordsize: "128k"
-  compression: "off"
-  dedup: "off"
-  fstype: "zfs"
+  fstype: "ext4"
   poolname: "zfspv-pool"
 provisioner: zfs.csi.openebs.io
 volumeBindingMode: WaitForFirstConsumer
