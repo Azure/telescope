@@ -42,7 +42,6 @@ aks_config_list = [
       node_count                   = 3
       vm_size                      = "Standard_D16_v5"
       os_disk_type                 = "Managed"
-      os_sku                       = "Ubuntu"
       only_critical_addons_enabled = true
       temporary_name_for_rotation  = "defaulttmp"
     }
@@ -53,7 +52,6 @@ aks_config_list = [
         auto_scaling_enabled = false
         vm_size              = "Standard_D16_v5"
         os_disk_type         = "Managed"
-        os_sku               = "Ubuntu"
         node_labels          = { "prometheus" = "true" }
       },
       {
@@ -64,10 +62,10 @@ aks_config_list = [
         os_disk_type         = "Ephemeral"
         os_type              = "Windows"
         os_sku               = "Windows2022"
-        node_taints          = ["cri-resource-consume=true:NoSchedule"]
+        node_taints          = ["cri-resource-consume=true:NoSchedule", "cri-resource-consume=true:NoExecute"]
         node_labels          = { "cri-resource-consume" = "true" }
       }
     ]
-    kubernetes_version = "1.32"
+    kubernetes_version = "1.33"
   }
 ]
