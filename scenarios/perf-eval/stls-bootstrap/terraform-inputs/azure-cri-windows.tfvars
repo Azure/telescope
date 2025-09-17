@@ -60,8 +60,8 @@ aks_config_list = [
         auto_scaling_enabled = false
         vm_size              = "Standard_D16ds_v5"
         os_disk_type         = "Ephemeral"
-        node_taints          = ["stls-cri=true:NoSchedule", "stls-cri=true:NoExecute"]
-        node_labels          = { "stls-cri" = "true" }
+        node_taints          = ["cri-resource-consume=true:NoSchedule", "cri-resource-consume=true:NoExecute"]
+        node_labels          = { "cri-resource-consume" = "true" }
         optional_parameters = [
           {
             name  = "os-type"
