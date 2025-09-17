@@ -61,7 +61,7 @@ def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, po
 
 def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file, warmup_deployment, cl2_config_dir):
     logger.info(f"CPU per node: {cpu_per_node}")
-    desired_node_count = 1
+    desired_node_count = 0
     if warmup_deployment in ["true", "True"]:
         warmup_deployment_for_karpeneter(cl2_config_dir)
         desired_node_count = 0
