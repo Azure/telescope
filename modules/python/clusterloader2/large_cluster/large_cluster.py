@@ -1,4 +1,3 @@
-import json
 import argparse
 from datetime import datetime, timezone
 from dataclasses import dataclass
@@ -9,7 +8,6 @@ from utils.common import str2bool
 
 @dataclass(frozen=True)
 class Cl2DefaultConfigConstants:
-    DEFAULT_PODS_PER_NODE = 40
     DEFAULT_NODES_PER_NAMESPACE = 100
     CPU_REQUEST_LIMIT_MILLI = 1
     DAEMONSETS_PER_NODE = {
@@ -31,12 +29,12 @@ def calculate_config(cpu_per_node, node_count, provider, pods_per_node):
     # Different cloud has different reserved values and number of daemonsets
     # Using the same percentage will lead to incorrect nodes number as the number of nodes grow
     # For AWS, see: https://github.com/awslabs/amazon-eks-ami/blob/main/templates/al2/runtime/bootstrap.sh#L290
-    # For Azure, see: https://learn.microsoft.com/en-us/azure/aks/node-resource-reservations#cpu-reservations    
+    # For Azure, see: https://learn.microsoft.com/en-us/azure/aks/node-resource-reservations#cpu-reservations
     capacity = Cl2DefaultConfigConstants.CPU_CAPACITY[provider]
     cpu_request = (cpu_per_node * 1000 * capacity) // pods_per_node
     cpu_request = max(cpu_request, Cl2DefaultConfigConstants.CPU_REQUEST_LIMIT_MILLI)
 
-    return throughput, nodes_per_namespace, pods_per_node, cpu_request
+    return throughput, nodes_per_namespace, cpu_request
 
 
 class LargeClusterArgsParser(ClusterLoader2Base.ArgsParser):
@@ -47,10 +45,7 @@ class LargeClusterArgsParser(ClusterLoader2Base.ArgsParser):
         parser.add_argument("cpu_per_node", type=int, help="CPU per node")
         parser.add_argument("node_count", type=int, help="Number of nodes")
         parser.add_argument("node_per_step", type=int, help="Number of nodes per scaling step")
-        parser.add_argument("pods_per_node",
-                            type=int,
-                            default=Cl2DefaultConfigConstants.DEFAULT_PODS_PER_NODE,
-                            help="The number of pods per node")
+        parser.add_argument("pods_per_node", type=int, help="The number of pods per node")
         parser.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
         parser.add_argument("operation_timeout", type=str, help="Timeout before failing the scale up test")
         parser.add_argument("provider", type=str, help="Cloud provider name")
@@ -78,10 +73,7 @@ class LargeClusterArgsParser(ClusterLoader2Base.ArgsParser):
     def add_collect_args(self, parser: argparse.ArgumentParser):
         parser.add_argument("cpu_per_node", type=int, help="CPU per node")
         parser.add_argument("node_count", type=int, help="Number of nodes")
-        parser.add_argument("pods_per_node",
-                            type=int,
-                            default=Cl2DefaultConfigConstants.DEFAULT_PODS_PER_NODE,
-                            help="The number of pods per node")
+        parser.add_argument("pods_per_node", type=int, help="The number of pods per node")
         parser.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
         parser.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
         parser.add_argument("cloud_info", type=str, help="Cloud information")
@@ -102,10 +94,11 @@ class LargeClusterRunner(ClusterLoader2Base.Runner):
         provider,
         cilium_enabled,
         scrape_containerd,
+        #pylint: disable=unused_argument
         **kwargs,
     ) -> dict:
         steps = node_count // node_per_step
-        throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(
+        throughput, nodes_per_namespace, cpu_request = calculate_config(
             cpu_per_node,
             node_per_step,
             provider,
@@ -172,10 +165,9 @@ class LargeClusterRunner(ClusterLoader2Base.Runner):
         run_id,
         run_url,
         test_status,
+        #pylint: disable=unused-argument
         **kwargs,
     ) -> str:
-        provider = json.loads(cloud_info)["cloud"]
-        _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, provider, pods_per_node)
         pod_count = node_count * pods_per_node
 
         template = {
