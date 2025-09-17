@@ -35,6 +35,7 @@ stages:
               load_type: memory
               scrape_kubelets: True
               os_type: windows
+              host_network: false
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
