@@ -59,7 +59,7 @@ spec:
                 echo "Creating ZFS pool 'zfspv-pool' on the host..."
                 chroot /host zpool create zfspv-pool $(eval echo "/dev/nvme{0..$NUMBER_OF_NVME}n1") || echo "Failed to create ZFS pool."
               fi
-              
+
               echo "Disabling ZFS primarycache and secondarycache on the host..."
               chroot /host zfs set primarycache=none zfspv-pool || echo "Failed to set primarycache."
               chroot /host zfs set secondarycache=none zfspv-pool || echo "Failed to set secondarycache."
