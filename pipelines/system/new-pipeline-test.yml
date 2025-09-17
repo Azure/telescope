@@ -12,47 +12,6 @@ variables:
   SCENARIO_NAME: stls-bootstrap-cri-resource-consume
 
 stages:
-  - stage: azure_westus2_linux
-    dependsOn: []
-    jobs:
-      - template: /jobs/competitive-test.yml
-        parameters:
-          cloud: azure
-          regions:
-            - westus2
-          terraform_input_file_mapping:
-            - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-cri-linux.tfvars"
-          topology: cri-resource-consume
-          engine: clusterloader2
-          engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250513"
-          matrix:
-            n10-p300-memory:
-              node_count: 10
-              max_pods: 30
-              repeats: 1
-              operation_timeout: 3m
-              load_type: memory
-              scrape_kubelets: True
-            n10-p700-memory:
-              node_count: 10
-              max_pods: 70
-              repeats: 1
-              operation_timeout: 7m
-              load_type: memory
-              scrape_kubelets: True
-            n10-p1100-memoryl:
-              node_count: 10
-              max_pods: 110
-              repeats: 1
-              operation_timeout: 11m
-              load_type: memory
-              scrape_kubelets: True
-          max_parallel: 3
-          timeout_in_minutes: 120
-          credential_type: service_connection
-          ssh_key_enabled: false
-
   - stage: azure_westus2_windows
     dependsOn: []
     jobs:
@@ -72,27 +31,11 @@ stages:
               node_count: 10
               max_pods: 30
               repeats: 1
-              operation_timeout: 3m
+              operation_timeout: 5m
               load_type: memory
               scrape_kubelets: True
               os_type: windows
-            n10-p700-memory:
-              node_count: 10
-              max_pods: 70
-              repeats: 1
-              operation_timeout: 7m
-              load_type: memory
-              scrape_kubelets: True
-              os_type: windows
-            n10-p1100-memory:
-              node_count: 10
-              max_pods: 110
-              repeats: 1
-              operation_timeout: 11m
-              load_type: memory
-              scrape_kubelets: True
-              os_type: windows
-          max_parallel: 3
+          max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false
