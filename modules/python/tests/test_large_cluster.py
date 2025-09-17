@@ -159,6 +159,7 @@ class TestLargeClusterRunner(unittest.TestCase):
         self.assertEqual(config["CL2_STEPS"], 1000 // 100)
         self.assertEqual(config["CL2_REPEATS"], 3)
         self.assertEqual(config["CL2_OPERATION_TIMEOUT"], "30m")
+        self.assertEqual(config["CL2_PODS_PER_NODE"], 40)
         # Values from patched calculate_config
         self.assertEqual(config["CL2_LOAD_TEST_THROUGHPUT"], 100)
         self.assertEqual(config["CL2_NODES_PER_NAMESPACE"], 50)
@@ -183,7 +184,6 @@ class TestLargeClusterRunner(unittest.TestCase):
             cilium_enabled=True,
             scrape_containerd=True,
         )
-        print(config)
         self.assertIn("CL2_CILIUM_METRICS_ENABLED", config)
         self.assertIn("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR", config)
         self.assertIn("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT", config)
@@ -271,6 +271,7 @@ class TestLargeClusterRunner(unittest.TestCase):
         self.assertIsNone(template["measurement"])
         self.assertIsNone(template["result"])
         self.assertEqual(template["timestamp"], "2025-01-01T00:00:00Z")
+
 
 if __name__ == "__main__":
     unittest.main()
