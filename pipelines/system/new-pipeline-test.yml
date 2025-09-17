@@ -24,14 +24,14 @@ stages:
               node_count: 10
               max_pods: 110
               repeats: 1
-              operation_timeout: 11m
+              operation_timeout: 20m
               load_type: memory
               kubernetes_version: "1.33"
               scrape_kubelets: True
           max_parallel: 1 # required
           credential_type: service_connection # required
           ssh_key_enabled: false
-          timeout_in_minutes: 120 # if not specified, default is 60
+          timeout_in_minutes: 180 # increased for STLS overhead
 
   - stage: azure_westus2_windows
     dependsOn: []
@@ -52,7 +52,7 @@ stages:
               node_count: 10
               max_pods: 110
               repeats: 1
-              operation_timeout: 11m
+              operation_timeout: 25m
               load_type: memory
               kubernetes_version: "1.33"
               scrape_kubelets: True
@@ -60,5 +60,5 @@ stages:
           max_parallel: 1 # required
           credential_type: service_connection # required
           ssh_key_enabled: false
-          timeout_in_minutes: 120 # Windows same timeout as Linux for 110 pods
+          timeout_in_minutes: 180 # increased for Windows STLS overhead
   
