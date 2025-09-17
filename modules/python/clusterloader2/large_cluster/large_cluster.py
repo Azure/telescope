@@ -57,7 +57,7 @@ class LargeClusterArgsParser(ClusterLoader2Base.ArgsParser):
 
     def add_validate_args(self, parser: argparse.ArgumentParser):
         parser.add_argument("node_count", type=int, help="Number of desired nodes")
-        parser.add_argument("operation_timeout", type=int, default=600,
+        parser.add_argument("operation_timeout_in_minute", type=int, default=600,
                             help="Operation timeout to wait for nodes to be ready")
 
     def add_execute_args(self, parser: argparse.ArgumentParser):
@@ -137,11 +137,11 @@ class LargeClusterRunner(ClusterLoader2Base.Runner):
 
         return config
 
-    def validate(self, node_count, operation_timeout):
+    def validate(self, node_count, operation_timeout_in_minute):
         kube_client = KubernetesClient()
         kube_client.wait_for_nodes_ready(
             node_count=node_count,
-            operation_timeout_in_minutes=operation_timeout
+            operation_timeout_in_minutes=operation_timeout_in_minute
         )
 
     def execute(
