@@ -57,7 +57,7 @@ aks_config_list = [
         node_labels          = { "prometheus" = "true" }
       },
       {
-        name                 = "userpool0"
+        name                 = "user"
         node_count           = 10
         auto_scaling_enabled = false
         vm_size              = "Standard_D16ds_v5"
