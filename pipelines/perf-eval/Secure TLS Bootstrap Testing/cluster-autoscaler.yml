@@ -8,18 +8,18 @@ stages:
   - stage: azure_westus2_linux_autoscaler
     dependsOn: []
     jobs:
-      - template: /jobs/competitive-test.yml # must keep as is
+      - template: /jobs/competitive-test.yml
         parameters:
-          cloud: azure # e.g. azure, aws
-          regions: # list of regions
-            - westus2 # e.g. eastus2
+          cloud: azure
+          regions:
+            - westus2
           terraform_input_file_mapping:
             - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-autoscaler-linux.tfvars"
-          topology: cluster-autoscaler # e.g. cluster-autoscaler
-          engine: clusterloader2 # e.g. clusterloader2
+          topology: cluster-autoscaler
+          engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
-          matrix: # list of test parameters to customize the provisioned resources
+          matrix:
             stls_bootstrap_linux:
               cpu_per_node: 2
               node_count: 1001
@@ -31,26 +31,26 @@ stages:
               loop_count: 1
               warmup_deployment: false
               capacity_type: on-demand
-          max_parallel: 1 # required
-          credential_type: service_connection # required
+          max_parallel: 1
+          credential_type: service_connection
           ssh_key_enabled: false
-          timeout_in_minutes: 360 # if not specified, default is 60
+          timeout_in_minutes: 360
 
   - stage: azure_westus2_windows_autoscaler
     dependsOn: azure_westus2_linux_autoscaler
     jobs:
-      - template: /jobs/competitive-test.yml # must keep as is
+      - template: /jobs/competitive-test.yml
         parameters:
-          cloud: azure # e.g. azure, aws
-          regions: # list of regions
-            - westus2 # e.g. eastus2
+          cloud: azure
+          regions:
+            - westus2
           terraform_input_file_mapping:
             - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-autoscaler-windows.tfvars"
-          topology: cluster-autoscaler # e.g. cluster-autoscaler
-          engine: clusterloader2 # e.g. clusterloader2
+          topology: cluster-autoscaler
+          engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
-          matrix: # list of test parameters to customize the provisioned resources
+          matrix:
             stls_bootstrap_windows:
               cpu_per_node: 2
               node_count: 1001
@@ -62,8 +62,8 @@ stages:
               loop_count: 1
               warmup_deployment: false
               capacity_type: on-demand
-          max_parallel: 1 # required
-          credential_type: service_connection # required
+          max_parallel: 1
+          credential_type: service_connection
           ssh_key_enabled: false
-          timeout_in_minutes: 360 # if not specified, default is 60
+          timeout_in_minutes: 360
   
