@@ -1,49 +1,36 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "telescope-benchmarks"
 version = "0.1.0"
 description = "Tools for running performance benchmarks across cloud providers"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = {text = "MIT"}
 authors = [
     { name = "Telescope Project Contributors" }
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Topic :: Software Development :: Testing",
     "Topic :: System :: Benchmark",
 ]
-dependencies = [
-    "docker==7.1.0",
-    "kubernetes==33.1.0",
-    "pylint==3.3.4",
-    "pytest==8.3.5",
-    "pytest-cov==6.1.1",
-    "azure-mgmt-containerservice==39.0.0",
-    "azure-identity==1.25.0",
-    "boto3==1.36.5",
-    "botocore==1.36.5",
-    "coverage==7.6.12",
-    "numpy==2.2.5",
-    "semver==3.0.4",
-    "requests==2.32.4",
-    "pyyaml==6.0.2"
-]
+dynamic = ["dependencies"]
 
 [project.urls]
 Source = "https://github.com/Azure/telescope"
 Documentation = "https://github.com/Azure/telescope/tree/main/modules/python"
 
-[tool.hatch.build.targets.wheel]
+[tool.setuptools]
 packages = ["iperf3", "clients", "utils", "clusterloader2", "kwok"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
 
 [project.scripts]
 telescope-iperf3 = "iperf3.iperf3_pod:main"
