@@ -1,7 +1,7 @@
 trigger: none
 schedules:
-  - cron: "0 2-23/4 * * *"
-    displayName: "Every 4 Hour"
+  - cron: "0 12 * * *"
+    displayName: "Every day at 12:00 PM"
     branches:
       include:
         - main
@@ -9,7 +9,7 @@ schedules:
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: stls-bootstrap-cri-resource-consume
+  SCENARIO_NAME: stls-bootstrap-autoscaler
 
 stages:
   - stage: azure_westus2_linux
@@ -21,28 +21,30 @@ stages:
           regions:
             - westus2
           terraform_input_file_mapping:
-            - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-cri-linux.tfvars"
-          topology: cri-resource-consume
+            - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-autoscaler-linux.tfvars"
+          topology: cluster-autoscaler
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250513"
+            image: "ghcr.io/azure/clusterloader2:v20250423"
           matrix:
-            n10-p2500-memory:
-              node_count: 10
-              max_pods: 250
-              repeats: 1
-              operation_timeout: 11m
-              load_type: memory
-              kubernetes_version: "1.31"
-              k8s_machine_type: Standard_D32ds_v5
-              k8s_os_disk_type: Ephemeral
+            large-scale-demand-linux:
+              cpu_per_node: 2
+              node_count: 1001
+              pod_count: 1001
+              scale_up_timeout: "60m"
+              scale_down_timeout: "60m"
+              node_label_selector: "cas = dedicated"
+              node_selector: "{cas: dedicated}"
+              loop_count: 1
+              warmup_deployment: false
+              capacity_type: on-demand
           max_parallel: 1
-          timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false
+          timeout_in_minutes: 360
 
   - stage: azure_westus2_windows
-    dependsOn: []
+    dependsOn: azure_westus2_linux
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -50,23 +52,25 @@ stages:
           regions:
             - westus2
           terraform_input_file_mapping:
-            - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-cri-windows.tfvars"
-          topology: cri-resource-consume
+            - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-autoscaler-windows.tfvars"
+          topology: cluster-autoscaler
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250513"
+            image: "ghcr.io/azure/clusterloader2:v20250423"
           matrix:
-            n10-p2500-memory:
-              node_count: 10
-              max_pods: 250
-              repeats: 1
-              operation_timeout: 11m
-              load_type: memory
-              kubernetes_version: "1.31"
-              k8s_machine_type: Standard_D32ds_v5
-              k8s_os_disk_type: Ephemeral
-              host_network: false
+            large-scale-demand-windows:
+              cpu_per_node: 2
+              node_count: 1001
+              pod_count: 1001
+              scale_up_timeout: "60m"
+              scale_down_timeout: "60m"
+              node_label_selector: "cas = dedicated"
+              node_selector: "{cas: dedicated}"
+              loop_count: 1
+              warmup_deployment: false
+              capacity_type: on-demand
           max_parallel: 1
-          timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false
+          timeout_in_minutes: 360
+  
