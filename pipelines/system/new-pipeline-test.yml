@@ -1,64 +1,74 @@
 trigger: none
+schedules:
+  - cron: "0 2-23/4 * * *"
+    displayName: "Every 4 Hour"
+    branches:
+      include:
+        - main
+    always: true
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: stls-bootstrap
+  SCENARIO_NAME: stls-bootstrap-cri-resource-consume
 
 stages:
-  - stage: azure_westus2 # format: <cloud>[_<region>]+ (e.g. azure_eastus2, aws_eastus_westus)
+  - stage: azure_westus2_linux
     dependsOn: []
     jobs:
-      - template: /jobs/competitive-test.yml # must keep as is
+      - template: /jobs/competitive-test.yml
         parameters:
-          cloud: azure # e.g. azure, aws
-          regions: # list of regions
-            - westus2 # e.g. eastus2
+          cloud: azure
+          regions:
+            - westus2
           terraform_input_file_mapping:
             - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-cri-linux.tfvars"
-          topology: cri-resource-consume # e.g. cluster-autoscaler
-          engine: clusterloader2 # e.g. clusterloader2
+          topology: cri-resource-consume
+          engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
-          matrix: # list of test parameters to customize the provisioned resources
-            stls_cri_linux_110_pods:
+          matrix:
+            n10-p2500-memory:
               node_count: 10
-              max_pods: 110
+              max_pods: 250
               repeats: 1
-              operation_timeout: 20m
+              operation_timeout: 11m
               load_type: memory
-              kubernetes_version: "1.33"
+              kubernetes_version: "1.31"
+              k8s_machine_type: Standard_D32ds_v5
+              k8s_os_disk_type: Ephemeral
               scrape_kubelets: True
-          max_parallel: 1 # required
-          credential_type: service_connection # required
+          max_parallel: 1
+          credential_type: service_connection
           ssh_key_enabled: false
-          timeout_in_minutes: 180 # increased for STLS overhead
+          timeout_in_minutes: 180
 
   - stage: azure_westus2_windows
     dependsOn: []
     jobs:
-      - template: /jobs/competitive-test.yml # must keep as is
+      - template: /jobs/competitive-test.yml
         parameters:
-          cloud: azure # e.g. azure, aws
-          regions: # list of regions
-            - westus2 # e.g. eastus2
+          cloud: azure
+          regions:
+            - westus2
           terraform_input_file_mapping:
             - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-cri-windows.tfvars"
-          topology: cri-resource-consume # e.g. cluster-autoscaler
-          engine: clusterloader2 # e.g. clusterloader2
+          topology: cri-resource-consume
+          engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
-          matrix: # list of test parameters to customize the provisioned resources
-            stls_cri_windows_110_pods:
+          matrix:
+            n10-p2500-memory:
               node_count: 10
-              max_pods: 110
+              max_pods: 250
               repeats: 1
-              operation_timeout: 25m
+              operation_timeout: 11m
               load_type: memory
-              kubernetes_version: "1.33"
+              kubernetes_version: "1.31"
+              k8s_machine_type: Standard_D32ds_v5
+              k8s_os_disk_type: Ephemeral
               scrape_kubelets: True
-              os_type: windows
-          max_parallel: 1 # required
-          credential_type: service_connection # required
+          max_parallel: 1
+          credential_type: service_connection
           ssh_key_enabled: false
-          timeout_in_minutes: 180 # increased for Windows STLS overhead
+          timeout_in_minutes: 180
   
