@@ -34,6 +34,7 @@ stages:
               operation_timeout: 3m
               load_type: memory
               scrape_kubelets: True
+              host_network: false
             n10-p700-memory:
               node_count: 10
               max_pods: 70
@@ -41,6 +42,7 @@ stages:
               operation_timeout: 7m
               load_type: memory
               scrape_kubelets: True
+              host_network: false
             n10-p1100-memoryl:
               node_count: 10
               max_pods: 110
@@ -48,6 +50,7 @@ stages:
               operation_timeout: 11m
               load_type: memory
               scrape_kubelets: True
+              host_network: false
           max_parallel: 3
           timeout_in_minutes: 120
           credential_type: service_connection

@@ -37,7 +37,12 @@ aks_config_list = [
         vm_size              = "Standard_D2ds_v5"
         max_pods             = 110
         node_labels          = { "cas" = "dedicated" }
-        os_type              = "Windows"
+        optional_parameters = [
+          {
+            name  = "os-type"
+            value = "Windows"
+          }
+        ]
       },
       {
         name                 = "userpool2"
@@ -48,7 +53,12 @@ aks_config_list = [
         vm_size              = "Standard_D2ds_v5"
         max_pods             = 110
         node_labels          = { "cas" = "dedicated" }
-        os_type              = "Windows"
+        optional_parameters = [
+          {
+            name  = "os-type"
+            value = "Windows"
+          }
+        ]
       },
       {
         name                 = "userpool3"
@@ -59,7 +69,12 @@ aks_config_list = [
         vm_size              = "Standard_D2ds_v5"
         max_pods             = 110
         node_labels          = { "cas" = "dedicated" }
-        os_type              = "Windows"
+        optional_parameters = [
+          {
+            name  = "os-type"
+            value = "Windows"
+          }
+        ]
       },
       {
         name                 = "userpool4"
@@ -70,7 +85,12 @@ aks_config_list = [
         vm_size              = "Standard_D2ds_v5"
         max_pods             = 110
         node_labels          = { "cas" = "dedicated" }
-        os_type              = "Windows"
+        optional_parameters = [
+          {
+            name  = "os-type"
+            value = "Windows"
+          }
+        ]
       }
     ]
     kubernetes_version = "1.33"
