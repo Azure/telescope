@@ -184,7 +184,7 @@ stages:
           timeout_in_minutes: 360
 
   - stage: autoscale_azure_westus2_windows
-    dependsOn: azure_westus2_linux
+    dependsOn: autoscale_azure_westus2_linux
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
