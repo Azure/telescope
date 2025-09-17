@@ -21,14 +21,26 @@ classifiers = [
     "Topic :: Software Development :: Testing",
     "Topic :: System :: Benchmark",
 ]
-dynamic = ["dependencies"]
+dependencies = [
+    "docker==7.1.0",
+    "kubernetes==33.1.0",
+    "pylint==3.3.4",
+    "pytest==8.3.5",
+    "pytest-cov==6.1.1",
+    "azure-mgmt-containerservice==39.0.0",
+    "azure-identity==1.25.0",
+    "boto3==1.36.5",
+    "botocore==1.36.5",
+    "coverage==7.6.12",
+    "numpy==2.2.5",
+    "semver==3.0.4",
+    "requests==2.32.4",
+    "pyyaml==6.0.2"
+]
 
 [project.urls]
 Source = "https://github.com/Azure/telescope"
 Documentation = "https://github.com/Azure/telescope/tree/main/modules/python"
-
-[tool.hatch.metadata]
-dependencies = ["requirements.txt"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["iperf3", "clients", "utils", "clusterloader2", "kwok"]
