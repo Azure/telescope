@@ -40,7 +40,7 @@ aks_config_list = [
     default_node_pool = {
       name                         = "default"
       node_count                   = 3
-      vm_size                      = "Standard_D8ds_v5"
+      vm_size                      = "Standard_D16_v5"
       os_disk_type                 = "Managed"
       only_critical_addons_enabled = true
       temporary_name_for_rotation  = "defaulttmp"
@@ -50,7 +50,7 @@ aks_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8ds_v5"
+        vm_size              = "Standard_D16_v5"
         os_disk_type         = "Managed"
         node_labels          = { "prometheus" = "true" }
       },
@@ -58,7 +58,7 @@ aks_config_list = [
         name                 = "userpool0"
         node_count           = 10
         auto_scaling_enabled = false
-        vm_size              = "Standard_D2ds_v5"
+        vm_size              = "Standard_D16ds_v6"
         os_disk_type         = "Ephemeral"
         node_taints          = ["stls-cri=true:NoSchedule", "stls-cri=true:NoExecute"]
         node_labels          = { "stls-cri" = "true" }
