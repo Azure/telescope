@@ -33,15 +33,15 @@ stages:
               - "4k|16|randread|600|16|32G"
               - "4k|16|randrw|600|16|32G"
           matrix:
-            # zfs-localpv:
-            #   storage_name: zfs-localpv
-            #   desired_nodes: 7
+            zfs-localpv:
+              storage_name: zfs-localpv
+              desired_nodes: 7
             acstor-v2:
               storage_name: acstor-v2
               desired_nodes: 7
-            # local-hostpath:
-            #   storage_name: local-hostpath
-            #   desired_nodes: 7
+            local-hostpath:
+              storage_name: local-hostpath
+              desired_nodes: 7
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
