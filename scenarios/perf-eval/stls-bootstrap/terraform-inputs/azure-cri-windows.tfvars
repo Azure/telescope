@@ -58,7 +58,7 @@ aks_config_list = [
         name                 = "userpool0"
         node_count           = 10
         auto_scaling_enabled = false
-        vm_size              = "Standard_D16_v5"
+        vm_size              = "Standard_D16ds_v5"
         os_disk_type         = "Ephemeral"
         node_taints          = ["cri-resource-consume=true:NoSchedule", "cri-resource-consume=true:NoExecute"]
         node_labels          = { "cri-resource-consume" = "true" }
