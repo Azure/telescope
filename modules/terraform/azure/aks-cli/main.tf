@@ -1,4 +1,6 @@
 locals {
+#  subnets              = var.subnets
+
   tags_list = [
     for key, value in merge(var.tags, { "role" = var.aks_cli_config.role }) :
     format("%s=%s", key, value)
@@ -37,6 +39,15 @@ locals {
       format("--%s %s", param.name, param.value)
     ])
   )
+
+#  vnet_subnet_id_from_subnet_name_parameter = (var.aks_cli_config.subnet_name == null ?
+#    "" :
+#    format(
+#      "%s %s",
+#      "--vnet_subnet_id", 
+#      try(local.subnets[var.aks_cli_config.subnet_name], try(var.subnet_id, null))
+#    )
+#  )
 
   subnet_id_parameter = (var.subnet_id == null ?
     "" :

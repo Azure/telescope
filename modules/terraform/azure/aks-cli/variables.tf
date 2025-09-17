@@ -28,6 +28,12 @@ variable "aks_cli_custom_config_path" {
   default     = null
 }
 
+# variable "subnets" {
+#  description = "Maps of subnets"
+#  type        = map(string)
+#  default     = {}
+#}
+
 variable "aks_cli_config" {
   type = object({
     role                          = string
