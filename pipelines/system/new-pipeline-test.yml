@@ -20,15 +20,13 @@ stages:
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
           matrix: # list of test parameters to customize the provisioned resources
-            stls_cri_linux_250_pods:
+            stls_cri_linux_110_pods:
               node_count: 10
-              max_pods: 250
+              max_pods: 110
               repeats: 1
               operation_timeout: 11m
               load_type: memory
               kubernetes_version: "1.33"
-              k8s_machine_type: Standard_D32ds_v6
-              k8s_os_disk_type: Ephemeral
               scrape_kubelets: True
           max_parallel: 1 # required
           credential_type: service_connection # required
@@ -50,19 +48,17 @@ stages:
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
           matrix: # list of test parameters to customize the provisioned resources
-            stls_cri_windows_250_pods:
+            stls_cri_windows_110_pods:
               node_count: 10
-              max_pods: 250
+              max_pods: 110
               repeats: 1
-              operation_timeout: 15m
+              operation_timeout: 11m
               load_type: memory
               kubernetes_version: "1.33"
-              k8s_machine_type: Standard_D32ds_v6
-              k8s_os_disk_type: Ephemeral
               scrape_kubelets: True
               os_type: windows
           max_parallel: 1 # required
           credential_type: service_connection # required
           ssh_key_enabled: false
-          timeout_in_minutes: 180 # Windows typically takes longer
+          timeout_in_minutes: 120 # Windows same timeout as Linux for 110 pods
   
