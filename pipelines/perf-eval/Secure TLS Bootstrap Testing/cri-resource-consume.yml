@@ -2,10 +2,10 @@ trigger: none
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: stls-bootstrap
+  SCENARIO_NAME: stls-bootstrap-cri-resource-consume
 
 stages:
-  - stage: azure_westus2
+  - stage: azure_westus2_linux
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -20,7 +20,7 @@ stages:
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
           matrix:
-            stls_cri_linux_110_pods:
+            linux-n10-p1100-ephemeral:
               node_count: 10
               max_pods: 110
               repeats: 1
@@ -48,7 +48,7 @@ stages:
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
           matrix:
-            stls_cri_windows_110_pods:
+            windows-n10-p1100-ephemeral:
               node_count: 10
               max_pods: 110
               repeats: 1

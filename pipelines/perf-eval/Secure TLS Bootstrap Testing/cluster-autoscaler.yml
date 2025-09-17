@@ -2,10 +2,10 @@ trigger: none
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: stls-bootstrap
+  SCENARIO_NAME: stls-bootstrap-autoscaler
 
 stages:
-  - stage: azure_westus2_linux_autoscaler
+  - stage: azure_westus2_linux
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -20,7 +20,7 @@ stages:
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
           matrix:
-            stls_bootstrap_linux:
+            large-scale-demand-linux:
               cpu_per_node: 2
               node_count: 1001
               pod_count: 1001
@@ -36,8 +36,8 @@ stages:
           ssh_key_enabled: false
           timeout_in_minutes: 360
 
-  - stage: azure_westus2_windows_autoscaler
-    dependsOn: azure_westus2_linux_autoscaler
+  - stage: azure_westus2_windows
+    dependsOn: azure_westus2_linux
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -51,7 +51,7 @@ stages:
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
           matrix:
-            stls_bootstrap_windows:
+            large-scale-demand-windows:
               cpu_per_node: 2
               node_count: 1001
               pod_count: 1001
