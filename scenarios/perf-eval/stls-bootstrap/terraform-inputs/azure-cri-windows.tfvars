@@ -23,7 +23,7 @@ network_config_list = [
 aks_config_list = [
   {
     role        = "client"
-    aks_name    = "stls-cri-windows"
+    aks_name    = "stls-cri-win"
     dns_prefix  = "stls-cri-win"
     subnet_name = "stls-cri-vnet"
     sku_tier    = "Standard"
