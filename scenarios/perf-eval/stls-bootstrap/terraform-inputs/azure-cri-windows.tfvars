@@ -53,7 +53,7 @@ aks_cli_config_list = [
         vm_set_type = "VirtualMachineScaleSets"
         optional_parameters = [
           { name = "os-sku", value = "Ubuntu" },
-          { name = "node-labels", value = "prometheus=true" }
+          { name = "node-labels", value = "\"prometheus=true\"" }
         ]
       },
       {
@@ -65,8 +65,8 @@ aks_cli_config_list = [
           { name = "os-type", value = "Windows" },
           { name = "os-sku", value = "Windows2022" },
           { name = "os-disk-type", value = "Ephemeral" },
-          { name = "node-taints", value = "cri-resource-consume=true:NoSchedule" },
-          { name = "node-labels", value = "cri-resource-consume=true" }
+          { name = "node-taints", value = "\"cri-resource-consume=true:NoSchedule\"" },
+          { name = "node-labels", value = "\"cri-resource-consume=true\"" }
         ]
       }
     ]
