@@ -5,7 +5,7 @@ variables:
   SCENARIO_NAME: stls-bootstrap-cri-resource-consume
 
 stages:
-  - stage: azure_westus2_windows
+  - stage: azure_westus2_250_pods_windows
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -20,16 +20,17 @@ stages:
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
           matrix:
-            n10-p1100-memory:
+            n10-p2500-memory:
               node_count: 10
-              max_pods: 110
+              max_pods: 250
               repeats: 1
               operation_timeout: 15m
               load_type: memory
-              scrape_kubelets: True
-              os_type: windows
+              kubernetes_version: "1.31"
+              k8s_machine_type: Standard_D32ds_v5
+              k8s_os_disk_type: Ephemeral
               host_network: false
-          max_parallel: 3
-          timeout_in_minutes: 120
+          max_parallel: 1
+          timeout_in_minutes: 150
           credential_type: service_connection
           ssh_key_enabled: false
