@@ -48,6 +48,6 @@ stages:
               storage_name: local-hostpath
               desired_nodes: 7
           max_parallel: 1
-          timeout_in_minutes: 120
+          timeout_in_minutes: 300
           credential_type: service_connection
           ssh_key_enabled: false
