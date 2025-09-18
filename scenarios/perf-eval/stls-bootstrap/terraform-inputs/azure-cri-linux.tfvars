@@ -82,7 +82,7 @@ aks_cli_config_list = [
       },
       {
         name       = "userpool0"
-        node_count = 10
+        node_count = 2
         vm_size    = "Standard_D16ds_v5"
         optional_parameters = [
           {
@@ -91,7 +91,7 @@ aks_cli_config_list = [
           },
           {
             name = "node-taints"
-            value = "cri-resource-consume=true:NoSchedule"
+            value = "cri-resource-consume=true:NoSchedule,cri-resource-consume=true:NoExecute"
           },
           {
             name = "node-osdisk-type"
