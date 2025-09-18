@@ -28,8 +28,8 @@ stages:
             image: "ghcr.io/azure/clusterloader2:v20250513"
           matrix:
             n10-p300-memory:
-              node_count: 2
-              max_pods: 10
+              node_count: 10
+              max_pods: 30
               repeats: 1
               operation_timeout: 3m
               load_type: memory
