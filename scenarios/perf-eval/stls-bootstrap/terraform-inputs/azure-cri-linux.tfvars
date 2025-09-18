@@ -52,7 +52,7 @@ aks_cli_config_list = [
         vm_size     = "Standard_D16_v5"
         vm_set_type = "VirtualMachineScaleSets"
         optional_parameters = [
-          { name = "node-labels", value = "prometheus=true" }
+          { name = "node-labels", value = "\"prometheus=true\"" }
         ]
       },
       {
@@ -62,8 +62,8 @@ aks_cli_config_list = [
         vm_set_type = "VirtualMachineScaleSets"
         optional_parameters = [
           { name = "os-disk-type", value = "Ephemeral" },
-          { name = "node-taints", value = "cri-resource-consume=true:NoSchedule,cri-resource-consume=true:NoExecute" },
-          { name = "node-labels", value = "cri-resource-consume=true" }
+          { name = "node-taints", value = "\"cri-resource-consume=true:NoSchedule,cri-resource-consume=true:NoExecute\"" },
+          { name = "node-labels", value = "\"cri-resource-consume=true\"" }
         ]
       }
     ]
