@@ -3,18 +3,6 @@ scenario_name  = "stls-perf-autoscale-linux"
 deletion_delay = "2h"
 owner          = "aks"
 
-# NOTE: Converting from aks_config_list to aks_cli_config_list
-# LIMITATION: auto_scaler_profile cannot be configured via CLI
-# The autoscaler profile settings will use AKS defaults:
-# - scale_down_delay_after_add: 10m (instead of 1m)
-# - scale_down_delay_after_failure: 3m (instead of 1m) 
-# - scale_down_unneeded: 10m (instead of 1m)
-# - scale_down_unready: 20m (instead of 5m)
-# - scan_interval: 10s (instead of 20s)
-# - max_unready_percentage: 45 (instead of 90)
-# - skip_nodes_with_local_storage: true (instead of false)
-# - empty_bulk_delete_max: 10 (instead of 1000)
-# - max_graceful_termination_sec: 600 (instead of 30)
 aks_cli_config_list = [
   {
     role     = "cas"
@@ -45,6 +33,10 @@ aks_cli_config_list = [
       {
         name  = "node-osdisk-type"
         value = "Managed"
+      },
+      {
+        name  = "cluster-autoscaler-profile"
+        value = "scan-interval=20s,scale-down-delay-after-add=1m,scale-down-delay-after-failure=1m,scale-down-unneeded-time=1m,scale-down-unready-time=5m,max-graceful-termination-sec=30,max-empty-bulk-delete=1000,skip-nodes-with-local-storage=false,max-total-unready-percentage=90"
       }
     ]
     default_node_pool = {
