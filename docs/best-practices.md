@@ -5,7 +5,7 @@ This guide provides comprehensive best practices and guidelines for creating, mo
 ## Development Best Practices
 
 ### 1. **Start Small and Iterate**
-- Begin with existing scenarios and modify parameters before creating new ones
+- Begin with existing scenarios and modify pipeline matrix parameters before creating new ones
 - Test with minimal resources first (e.g., 2-3 nodes) before scaling up
 - Use `new-pipeline-test.yml` for validation before final deployment
 - Validate configurations locally using instructions in [verify.md](verify.md)
