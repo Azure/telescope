@@ -1,153 +1,25 @@
 trigger: none
 
 variables:
-  SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: stls-bootstrap
+  SCENARIO_TYPE: <scenario-type>
+  SCENARIO_NAME: <scenario-name>
 
 stages:
-  - stage: cri_azure_westus2_linux
+  - stage: <stage-name> # format: <cloud>[_<region>]+ (e.g. azure_eastus2, aws_eastus_westus)
     dependsOn: []
     jobs:
-      - template: /jobs/competitive-test.yml
+      - template: /jobs/competitive-test.yml # must keep as is
         parameters:
-          cloud: azure
-          regions:
-            - westus2
-          terraform_input_file_mapping:
-            - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-cri-linux.tfvars"
-          topology: cri-resource-consume
-          engine: clusterloader2
-          engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250513"
-          matrix:
-            n10-p300-memory:
-              node_count: 10
-              max_pods: 30
-              repeats: 1
-              operation_timeout: 3m
-              load_type: memory
-              scrape_kubelets: True
-            n10-p700-memory:
-              node_count: 10
-              max_pods: 70
-              repeats: 1
-              operation_timeout: 7m
-              load_type: memory
-              scrape_kubelets: True
-            n10-p1100-memoryl:
-              node_count: 10
-              max_pods: 110
-              repeats: 1
-              operation_timeout: 11m
-              load_type: memory
-              scrape_kubelets: True
-          max_parallel: 3
-          timeout_in_minutes: 120
-          credential_type: service_connection
+          cloud: <cloud> # e.g. azure, aws
+          regions: # list of regions
+            - region1 # e.g. eastus2
+          topology: <topology> # e.g. cluster-autoscaler
+          engine: <engine> # e.g. clusterloader2
+          matrix: # list of test parameters to customize the provisioned resources
+            <case-name>:
+              <key1>: <value1>
+              <key2>: <value2>
+          max_parallel: <number of concurrent jobs> # required
+          credential_type: service_connection # required
           ssh_key_enabled: false
-
-  - stage: cri_azure_westus2_windows
-    dependsOn: []
-    jobs:
-      - template: /jobs/competitive-test.yml
-        parameters:
-          cloud: azure
-          regions:
-            - westus2
-          terraform_input_file_mapping:
-            - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-cri-windows.tfvars"
-          topology: cri-resource-consume
-          engine: clusterloader2
-          engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250513"
-          matrix:
-            n10-p300-memory:
-              node_count: 10
-              max_pods: 30
-              repeats: 1
-              operation_timeout: 3m
-              load_type: memory
-              scrape_kubelets: True
-              os_type: windows
-              host_network: false
-            n10-p700-memory:
-              node_count: 10
-              max_pods: 70
-              repeats: 1
-              operation_timeout: 7m
-              load_type: memory
-              scrape_kubelets: True
-              os_type: windows
-              host_network: false
-            n10-p1100-memory:
-              node_count: 10
-              max_pods: 110
-              repeats: 1
-              operation_timeout: 11m
-              load_type: memory
-              scrape_kubelets: True
-              os_type: windows
-              host_network: false
-          max_parallel: 3
-          timeout_in_minutes: 120
-          credential_type: service_connection
-          ssh_key_enabled: false
-
-  - stage: cri_large_azure_westus2_linux
-    dependsOn: [cri_azure_westus2_linux, cri_azure_westus2_windows]
-    jobs:
-      - template: /jobs/competitive-test.yml
-        parameters:
-          cloud: azure
-          regions:
-            - westus2
-          terraform_input_file_mapping:
-            - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-cri-linux.tfvars"
-          topology: cri-resource-consume
-          engine: clusterloader2
-          engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250513"
-          matrix:
-            n10-p2500-memory:
-              node_count: 10
-              max_pods: 250
-              repeats: 1
-              operation_timeout: 11m
-              load_type: memory
-              kubernetes_version: "1.31"
-              k8s_machine_type: Standard_D32ds_v5
-              k8s_os_disk_type: Ephemeral
-          max_parallel: 1
-          timeout_in_minutes: 120
-          credential_type: service_connection
-          ssh_key_enabled: false
-
-  - stage: cri_large_azure_westus2_windows
-    dependsOn: [cri_azure_westus2_linux, cri_azure_westus2_windows]
-    jobs:
-      - template: /jobs/competitive-test.yml
-        parameters:
-          cloud: azure
-          regions:
-            - westus2
-          terraform_input_file_mapping:
-            - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-cri-windows.tfvars"
-          topology: cri-resource-consume
-          engine: clusterloader2
-          engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250513"
-          matrix:
-            n10-p2500-memory:
-              node_count: 10
-              max_pods: 250
-              repeats: 1
-              operation_timeout: 11m
-              load_type: memory
-              kubernetes_version: "1.31"
-              k8s_machine_type: Standard_D32ds_v5
-              k8s_os_disk_type: Ephemeral
-              host_network: false
-          max_parallel: 1
-          timeout_in_minutes: 120
-          credential_type: service_connection
-          ssh_key_enabled: false
+          timeout_in_minutes: 60 # if not specified, default is 60
