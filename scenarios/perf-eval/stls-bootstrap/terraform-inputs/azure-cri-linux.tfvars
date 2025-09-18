@@ -82,7 +82,7 @@ aks_cli_config_list = [
       },
       {
         name       = "userpool0"
-        node_count = 2
+        node_count = 10
         vm_size    = "Standard_D16ds_v5"
         optional_parameters = [
           {
