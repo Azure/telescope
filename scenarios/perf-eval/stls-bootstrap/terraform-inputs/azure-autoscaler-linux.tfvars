@@ -3,24 +3,6 @@ scenario_name  = "stls-perf-autoscale-linux"
 deletion_delay = "2h"
 owner          = "aks"
 
-# Network configuration for the autoscaler cluster
-network_config_list = [
-  {
-    role               = "cas"
-    vnet_name          = "stls-autoscaler-vnet"
-    vnet_address_space = "10.0.0.0/9"
-    subnet = [
-      {
-        name           = "stls-autoscaler-subnet"
-        address_prefix = "10.0.0.0/16"
-      }
-    ]
-    network_security_group_name = ""
-    nic_public_ip_associations  = []
-    nsr_rules                   = []
-  }
-]
-
 # NOTE: Converting from aks_config_list to aks_cli_config_list
 # LIMITATION: auto_scaler_profile cannot be configured via CLI
 # The autoscaler profile settings will use AKS defaults:
