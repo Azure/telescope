@@ -1,0 +1,124 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Telescope Test Scenario Generation Schema",
+  "description": "Schema for generating test scenarios in Telescope framework with multi-cloud and variation support",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "enum": ["1.0"],
+      "description": "Version of the schema being used"
+    },
+    "scenarios": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/definitions/scenario"
+      }
+    }
+  },
+  "required": ["schema_version", "scenarios"],
+  "additionalProperties": false,
+  
+  "definitions": {
+    "scenario": {
+      "type": "object",
+      "properties": {
+        "test_objective": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 500,
+          "description": "What you're trying to test"
+        },
+        "scenario_name": {
+          "type": "string",
+          "pattern": "^[a-z0-9-]{1,30}$",
+          "description": "Unique scenario name, kebab-case, max 30 characters"
+        },
+        "test_type": {
+          "type": "string",
+          "enum": ["performance", "issue-reproduction"],
+          "description": "Type of test being performed"
+        },
+        "component": {
+          "type": "string",
+          "enum": ["autoscaler", "networking", "storage", "api-server", "scheduler", "container-runtime", "gpu", ""],
+          "description": "Component being tested (helps with tool selection)"
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Team or individual responsible for the test"
+        },
+        "stages": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/stage"
+          }
+        }
+      },
+      "required": ["test_objective", "scenario_name", "test_type", "owner", "stages"],
+      "additionalProperties": false
+    },
+    
+    "stage": {
+      "type": "object",
+      "properties": {
+        "cloud": {
+          "type": "string",
+          "enum": ["azure", "aws","gcp"],
+          "description": "Cloud provider"
+        },
+        "region": {
+          "type": "string",
+          "description": "Region to deploy in (validated against cloud)"
+        },
+        "pipeline_variations": {
+          "type": "object",
+          "description": "Additional pipeline configuration for this stage (scale, vm_size, etc.)"
+        }
+      },
+      "required": ["cloud", "region"],
+      "additionalProperties": false,
+      
+      "allOf": [
+        {
+          "if": {
+            "properties": { "cloud": { "const": "azure" } }
+          },
+          "then": {
+            "properties": {
+              "region": {
+                "enum": [
+                  "eastus", "eastus2", "westus", "westus2", "centralus",
+                  "northcentralus", "southcentralus", "westcentralus", 
+                  "australiaeast", "australiasoutheast", "brazilsouth",
+                  "canadacentral", "canadaeast", "northeurope", "westeurope",
+                  "uksouth", "ukwest", "francecentral", "germanywestcentral"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": { "cloud": { "const": "aws" } }
+          },
+          "then": {
+            "properties": {
+              "region": {
+                "enum": [
+                  "us-east-1", "us-east-2", "us-west-1", "us-west-2",
+                  "eu-west-1", "eu-west-2", "eu-central-1",
+                  "ap-southeast-1", "ap-southeast-2", "ap-northeast-1", 
+                  "ca-central-1", "sa-east-1"
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

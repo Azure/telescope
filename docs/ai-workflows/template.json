@@ -1,0 +1,80 @@
+{
+  "schema_version": "1.0",
+  "scenarios": [
+    {
+      "test_objective": "",
+      "scenario_name": "",
+      "test_type": "performance",
+      "component": "",
+      "owner": "",
+      "stages": [
+        {
+          "cloud": "azure",
+          "region": "eastus2",
+          "pipeline_variations": {}
+        }
+      ]
+    }
+  ],
+  
+  "_examples": {
+    "simple_test": {
+      "test_objective": "Test cluster autoscaler basic functionality",
+      "scenario_name": "my-autoscaler-test",
+      "test_type": "performance",
+      "component": "autoscaler",
+      "owner": "my-team",
+      "stages": [
+        {"cloud": "azure", "region": "eastus2", "pipeline_variations": {}}
+      ]
+    },
+    
+    "multi_cloud_test": {
+      "test_objective": "Compare performance across Azure and AWS",
+      "scenario_name": "cross-cloud-perf",
+      "test_type": "performance",
+      "component": "networking",
+      "owner": "network-team", 
+      "stages": [
+        {"cloud": "azure", "region": "eastus2", "pipeline_variations": {}},
+        {"cloud": "aws", "region": "us-east-2", "pipeline_variations": {}}
+      ]
+    },
+    
+    "scale_variation": {
+      "test_objective": "Test storage performance at different scales",
+      "scenario_name": "storage-scale-test",
+      "test_type": "performance",
+      "component": "storage",
+      "owner": "storage-team",
+      "stages": [
+        {"cloud": "azure", "region": "eastus2", "pipeline_variations": {"scale": "small"}},
+        {"cloud": "azure", "region": "australiaeast", "pipeline_variations": {"scale": "large"}}
+      ]
+    },
+    
+    "vm_size_variation": {
+      "test_objective": "Compare VM sizes for autoscaling",
+      "scenario_name": "vm-size-comparison",
+      "test_type": "performance",
+      "component": "autoscaler",
+      "owner": "perf-team",
+      "stages": [
+        {"cloud": "azure", "region": "eastus2", "pipeline_variations": {"vm_size": "Standard_D4s_v3"}},
+        {"cloud": "azure", "region": "eastus2", "pipeline_variations": {"vm_size": "Standard_D8s_v3"}}
+      ]
+    },
+    
+    "version_testing": {
+      "test_objective": "Test across different Kubernetes versions",
+      "scenario_name": "k8s-version-test",
+      "test_type": "performance",
+      "component": "api-server",
+      "owner": "platform-team",
+      "stages": [
+        {"cloud": "azure", "region": "eastus2", "pipeline_variations": {"k8s_version": "1.28"}},
+        {"cloud": "azure", "region": "eastus2", "pipeline_variations": {"k8s_version": "1.29"}}
+      ]
+    }
+  }
+}

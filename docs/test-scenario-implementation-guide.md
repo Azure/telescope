@@ -236,14 +236,14 @@ steps:
 - [ ] Configure topology
 - [ ] Create pipeline definition
 - [ ] Test in `new-pipeline-test.yml`
-- [ ] Validate locally using `verify.md`
+- [ ] Validate locally using `verify.md` based on the modules used
 - [ ] Move to appropriate category directory
 
 ### For Modifications:
 - [ ] Identify existing components to modify
 - [ ] Create new variable files if needed
 - [ ] Test in `new-pipeline-test.yml` with E2E testing guide
-- [ ] Validate locally using `verify.md`
+- [ ] Validate locally using `verify.md` based on the modules used
 - [ ] Update pipeline matrix parameters
 - [ ] Test parameter variations
 - [ ] Update documentation
