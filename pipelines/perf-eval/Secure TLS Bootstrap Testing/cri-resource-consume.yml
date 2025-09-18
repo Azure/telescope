@@ -100,7 +100,7 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: azure_westus2_250_pods_linux
+  - stage: azure_westus2_2500_pods_linux
     dependsOn: [azure_westus2_linux, azure_westus2_windows]
     jobs:
       - template: /jobs/competitive-test.yml
@@ -129,7 +129,7 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: azure_westus2_250_pods_windows
+  - stage: azure_westus2_2500_pods_windows
     dependsOn: [azure_westus2_linux, azure_westus2_windows]
     jobs:
       - template: /jobs/competitive-test.yml
