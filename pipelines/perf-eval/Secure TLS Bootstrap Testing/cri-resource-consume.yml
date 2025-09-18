@@ -72,7 +72,7 @@ stages:
               node_count: 10
               max_pods: 30
               repeats: 1
-              operation_timeout: 3m
+              operation_timeout: 5m
               load_type: memory
               scrape_kubelets: True
               os_type: windows
@@ -81,7 +81,7 @@ stages:
               node_count: 10
               max_pods: 70
               repeats: 1
-              operation_timeout: 7m
+              operation_timeout: 10m
               load_type: memory
               scrape_kubelets: True
               os_type: windows
@@ -90,13 +90,13 @@ stages:
               node_count: 10
               max_pods: 110
               repeats: 1
-              operation_timeout: 11m
+              operation_timeout: 15m
               load_type: memory
               scrape_kubelets: True
               os_type: windows
               host_network: false
-          max_parallel: 3
-          timeout_in_minutes: 120
+          max_parallel: 1
+          timeout_in_minutes: 150
           credential_type: service_connection
           ssh_key_enabled: false
 
@@ -148,13 +148,13 @@ stages:
               node_count: 10
               max_pods: 250
               repeats: 1
-              operation_timeout: 11m
+              operation_timeout: 15m
               load_type: memory
               kubernetes_version: "1.31"
               k8s_machine_type: Standard_D32ds_v5
               k8s_os_disk_type: Ephemeral
               host_network: false
           max_parallel: 1
-          timeout_in_minutes: 120
+          timeout_in_minutes: 150
           credential_type: service_connection
           ssh_key_enabled: false
