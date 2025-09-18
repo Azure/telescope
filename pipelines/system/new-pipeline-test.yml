@@ -20,29 +20,11 @@ stages:
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
           matrix:
-            n10-p300-memory:
-              node_count: 10
-              max_pods: 30
-              repeats: 1
-              operation_timeout: 3m
-              load_type: memory
-              scrape_kubelets: True
-              os_type: windows
-              host_network: false
-            n10-p700-memory:
-              node_count: 10
-              max_pods: 70
-              repeats: 1
-              operation_timeout: 7m
-              load_type: memory
-              scrape_kubelets: True
-              os_type: windows
-              host_network: false
             n10-p1100-memory:
               node_count: 10
               max_pods: 110
               repeats: 1
-              operation_timeout: 11m
+              operation_timeout: 15m
               load_type: memory
               scrape_kubelets: True
               os_type: windows
