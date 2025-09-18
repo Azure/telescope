@@ -99,3 +99,62 @@ stages:
           timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false
+
+  - stage: azure_westus2_250_pods_linux
+    dependsOn: [azure_westus2_linux, azure_westus2_windows]
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - westus2
+          terraform_input_file_mapping:
+            - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-cri-linux.tfvars"
+          topology: cri-resource-consume
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+          matrix:
+            n10-p2500-memory:
+              node_count: 10
+              max_pods: 250
+              repeats: 1
+              operation_timeout: 11m
+              load_type: memory
+              kubernetes_version: "1.31"
+              k8s_machine_type: Standard_D32ds_v5
+              k8s_os_disk_type: Ephemeral
+          max_parallel: 1
+          timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: azure_westus2_250_pods_windows
+    dependsOn: [azure_westus2_linux, azure_westus2_windows]
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - westus2
+          terraform_input_file_mapping:
+            - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-cri-windows.tfvars"
+          topology: cri-resource-consume
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+          matrix:
+            n10-p2500-memory:
+              node_count: 10
+              max_pods: 250
+              repeats: 1
+              operation_timeout: 11m
+              load_type: memory
+              kubernetes_version: "1.31"
+              k8s_machine_type: Standard_D32ds_v5
+              k8s_os_disk_type: Ephemeral
+              host_network: false
+          max_parallel: 1
+          timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false
