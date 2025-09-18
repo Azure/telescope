@@ -60,7 +60,7 @@ aks_cli_config_list = [
         optional_parameters = [
           {
             name  = "enable-cluster-autoscaler"
-            value = "true"
+            value = ""
           },
           {
             name  = "min-count"
