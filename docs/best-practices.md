@@ -11,6 +11,7 @@ This guide provides comprehensive best practices and guidelines for creating, mo
 - Validate configurations locally using instructions in [verify.md](verify.md)
 
 ### 2. **Reuse and Extend Components**
+- Check existing pipelines that match your requirements and reuse their components
 - Leverage existing engines and topologies whenever possible
 - Extend rather than recreate infrastructure modules
 - Follow established patterns from similar scenarios
