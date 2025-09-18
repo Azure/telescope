@@ -76,7 +76,6 @@ stages:
               load_type: memory
               scrape_kubelets: True
               os_type: windows
-              host_network: false
             n10-p700-memory:
               node_count: 10
               max_pods: 70
@@ -85,7 +84,6 @@ stages:
               load_type: memory
               scrape_kubelets: True
               os_type: windows
-              host_network: false
             n10-p1100-memory:
               node_count: 10
               max_pods: 110
@@ -94,7 +92,6 @@ stages:
               load_type: memory
               scrape_kubelets: True
               os_type: windows
-              host_network: false
           max_parallel: 1
           timeout_in_minutes: 150
           credential_type: service_connection
