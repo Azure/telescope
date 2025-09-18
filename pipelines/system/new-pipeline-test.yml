@@ -21,7 +21,7 @@ stages:
           regions:
             - westus2
           terraform_input_file_mapping:
-            - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-cri-linux.tfvars"
+            - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-cri-windows.tfvars"
           topology: cri-resource-consume
           engine: clusterloader2
           engine_input:
@@ -31,9 +31,10 @@ stages:
               node_count: 10
               max_pods: 30
               repeats: 1
-              operation_timeout: 3m
+              operation_timeout: 5m
               load_type: memory
               scrape_kubelets: True
+              os_type: windows
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
