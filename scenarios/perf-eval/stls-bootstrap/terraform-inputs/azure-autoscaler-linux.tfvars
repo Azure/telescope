@@ -3,53 +3,101 @@ scenario_name  = "stls-perf-autoscale-linux"
 deletion_delay = "2h"
 owner          = "aks"
 
-aks_config_list = [
+# Network configuration for the autoscaler cluster
+network_config_list = [
   {
-    role        = "cas"
-    aks_name    = "stls-autoscaler"
-    dns_prefix  = "stls-autoscaler"
-    subnet_name = "aks-network"
-    sku_tier    = "Standard"
+    role               = "cas"
+    vnet_name          = "stls-autoscaler-vnet"
+    vnet_address_space = "10.0.0.0/9"
+    subnet = [
+      {
+        name           = "stls-autoscaler-subnet"
+        address_prefix = "10.0.0.0/16"
+      }
+    ]
+    network_security_group_name = ""
+    nic_public_ip_associations  = []
+    nsr_rules                   = []
+  }
+]
+
+# NOTE: Converting from aks_config_list to aks_cli_config_list
+# LIMITATION: auto_scaler_profile cannot be configured via CLI
+# The autoscaler profile settings will use AKS defaults:
+# - scale_down_delay_after_add: 10m (instead of 1m)
+# - scale_down_delay_after_failure: 3m (instead of 1m) 
+# - scale_down_unneeded: 10m (instead of 1m)
+# - scale_down_unready: 20m (instead of 5m)
+# - scan_interval: 10s (instead of 20s)
+# - max_unready_percentage: 45 (instead of 90)
+# - skip_nodes_with_local_storage: true (instead of false)
+# - empty_bulk_delete_max: 10 (instead of 1000)
+# - max_graceful_termination_sec: 600 (instead of 30)
+aks_cli_config_list = [
+  {
+    role     = "cas"
+    aks_name = "stls-autoscaler"
+    sku_tier = "Standard"
     aks_custom_headers = [
       "AKSHTTPCustomFeatures=Microsoft.ContainerService/EnableSecureTLSBootstrapping"
     ]
-    network_profile = {
-      network_plugin      = "azure"
-      network_plugin_mode = "overlay"
-      pod_cidr            = "10.128.0.0/11"
-    }
+    subnet_name = "stls-autoscaler-subnet"
+    kubernetes_version = "1.33"
+    optional_parameters = [
+      {
+        name  = "dns-name-prefix"
+        value = "stls-autoscaler"
+      },
+      {
+        name  = "network-plugin"
+        value = "azure"
+      },
+      {
+        name  = "network-plugin-mode"
+        value = "overlay"
+      },
+      {
+        name  = "pod-cidr"
+        value = "10.128.0.0/11"
+      },
+      {
+        name  = "node-osdisk-type"
+        value = "Managed"
+      }
+    ]
     default_node_pool = {
-      name                         = "system"
-      node_count                   = 5
-      auto_scaling_enabled         = false
-      vm_size                      = "Standard_D8ds_v5"
-      os_disk_type                 = "Managed"
-      only_critical_addons_enabled = false
-      temporary_name_for_rotation  = "defaulttmp"
+      name       = "system"
+      node_count = 5
+      vm_size    = "Standard_D8ds_v5"
     }
     extra_node_pool = [
       {
-        name                 = "userpool"
-        node_count           = 1
-        min_count            = 1
-        max_count            = 11
-        auto_scaling_enabled = true
-        vm_size              = "Standard_D4ds_v5"
-        max_pods             = 110
-        node_labels          = { "cas" = "dedicated" }
+        name       = "userpool"
+        node_count = 1
+        vm_size    = "Standard_D4ds_v5"
+        optional_parameters = [
+          {
+            name  = "enable-cluster-autoscaler"
+            value = "true"
+          },
+          {
+            name  = "min-count"
+            value = "1"
+          },
+          {
+            name  = "max-count"
+            value = "11"
+          },
+          {
+            name  = "max-pods"
+            value = "110"
+          },
+          {
+            name  = "labels"
+            value = "cas=dedicated"
+          }
+        ]
       }
     ]
-    kubernetes_version = "1.33"
-    auto_scaler_profile = {
-      scale_down_delay_after_add     = "1m"
-      scale_down_delay_after_failure = "1m"
-      scale_down_unneeded            = "1m"
-      scale_down_unready             = "5m"
-      scan_interval                  = "20s"
-      max_unready_percentage         = 90
-      skip_nodes_with_local_storage  = false
-      empty_bulk_delete_max          = "1000"
-      max_graceful_termination_sec   = "30"
-    }
   }
 ]
