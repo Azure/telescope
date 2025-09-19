@@ -1,3 +1,5 @@
+{{$OSType := DefaultParam .OSType "linux"}}
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -20,14 +22,25 @@ spec:
       {{- end }}
       containers:
         - name: nginx
+          {{if eq $OSType "windows"}}
+          image: mcr.microsoft.com/windows/nanoserver:ltsc2022
+          {{else}}
           image: mcr.microsoft.com/cbl-mariner/base/nginx:1
+          {{end}}
           resources:
             requests:
               cpu: {{.CPUperJob}}
             limits:
               cpu: {{.CPUperJob}}
+          {{if eq $OSType "windows"}}
+          command:
+            - "powershell.exe"
+            - "-Command"
+            - "$runtime = 60; $endtime = (Get-Date).AddSeconds($runtime); while ((Get-Date) -le $endtime) { Write-Host (Get-Date); Start-Sleep -Seconds 60 }"
+          {{else}}
           command:
             - "/bin/bash"
             - "-c"
             - runtime="1 minute"; endtime=$(date -ud "$runtime" +%s); while [[ $(date -u +%s) -le $endtime ]]; do echo $(date); sleep 6000; done
+          {{end}}
       restartPolicy: Always

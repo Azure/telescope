@@ -12,6 +12,7 @@
 {{$refreshInterval := DefaultParam .CL2_REFRESH_INTERVAL "5s"}}
 {{$loopCount := DefaultParam .CL2_LOOP_COUNT 1}}
 {{$coolDownTime := DefaultParam .CL2_COOLDOWN_TIME "120s"}}
+{{$osType := DefaultParam .CL2_OS_TYPE "linux"}}
 {{$percentilesList := StringSplit "0.50,0.70,0.90,0.99,1.00"}}
 {{$countErrorMargin := MultiplyInt .CL2_DEPLOYMENT_SIZE 0.01}}
 
@@ -44,6 +45,7 @@ steps:
         Replicas: {{$deploymentSize}}
         CPUperJob: {{$deploymentCpu}}
         NodeSelector: {{ (StructuralData $nodeSelector) }}
+        OSType: {{$osType}}
 - name: Measure nodes and pods scale up {{$i}}
   measurements:
   - Identifier: WaitForRunningPodsUp {{$i}}
@@ -87,6 +89,7 @@ steps:
       templateFillMap:
         Replicas: {{$deploymentSize}}
         CPUperJob: {{$deploymentCpu}}
+        OSType: {{$osType}}
 - name: Measure nodes and pods scale down {{$i}}
   measurements:
   - Identifier: WaitForRunningPodsDown {{$i}}
