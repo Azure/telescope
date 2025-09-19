@@ -16,7 +16,7 @@ Telescope supports multiple approaches to create and modify test scenarios, each
 
 ### 1. Expand Existing Scenario
 
-**Use Case**: Create variations of existing tests with different variants (e.g., node count, k8s version, capacity type, OS type)
+**Use Case-1**: Create variations of existing tests with different variants (e.g., node count, k8s version, capacity type, OS type)
 
 **Steps**:
 ```bash
@@ -55,7 +55,30 @@ scenarios/perf-eval/<scenario-name>/terraform-inputs/aws-windows.tfvars
             scale_up_timeout: "90m"
             scale_down_timeout: "90m"
 ```
-
+**Use Case-2**: Add new variants to existing scenarios for different scale, k8s version, capacity type, OS type if they support matrix parameters. Instead of creating new tfvars files, you can leverage matrix parameters to define different variants.
+```yaml
+- stage: azure_eastus2_xlarge_scale_spot
+  condition: |
+    or(
+      eq(variables['Build.CronSchedule.DisplayName'], 'Weekly XLarge Scale Spot'),
+      eq(variables['Build.Reason'], 'Manual')
+    )
+  jobs:
+    - template: /jobs/competitive-test.yml
+      parameters:
+        cloud: azure
+        regions:
+          - eastus2
+        terraform_input_file_mapping:
+          - eastus2: "scenarios/perf-eval/cluster-autoscaler/terraform-inputs/azure-5k.tfvars"
+        matrix:
+          xlarge-scale-spot:
+            node_count: 2001
+            pod_count: 2001
+            scale_up_timeout: "90m"
+            scale_down_timeout: "90m"
+            capacity_type: spot
+```
 ### 2. Create New Scenario with Custom Infrastructure
 
 **Use Case**: Implementing a completely new test scenario with unique infrastructure requirements
@@ -236,14 +259,14 @@ steps:
 - [ ] Configure topology
 - [ ] Create pipeline definition
 - [ ] Test in `new-pipeline-test.yml`
-- [ ] Validate locally using `verify.md`
+- [ ] Validate locally using `verify.md` based on the modules generated as part of changes
 - [ ] Move to appropriate category directory
 
 ### For Modifications:
 - [ ] Identify existing components to modify
 - [ ] Create new variable files if needed
 - [ ] Test in `new-pipeline-test.yml` with E2E testing guide
-- [ ] Validate locally using `verify.md`
+- [ ] Validate locally using `verify.md` based on the modules generated as part of changes
 - [ ] Update pipeline matrix parameters
 - [ ] Test parameter variations
 - [ ] Update documentation
