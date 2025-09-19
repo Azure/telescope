@@ -46,9 +46,9 @@ aks_cli_config_list = [
     }
     extra_node_pool = [
       {
-        name       = "user1"
+        name       = "userpool"
         node_count = 1
-        vm_size    = "Standard_D2ds_v5"
+        vm_size    = "Standard_D4ds_v5"
         optional_parameters = [
           {
             name  = "enable-cluster-autoscaler"
@@ -60,100 +60,7 @@ aks_cli_config_list = [
           },
           {
             name  = "max-count"
-            value = "251"
-          },
-          {
-            name  = "max-pods"
-            value = "110"
-          },
-          {
-            name  = "labels"
-            value = "cas=dedicated"
-          },
-          {
-            name  = "os-type"
-            value = "Windows"
-          }
-        ]
-      },
-      {
-        name       = "user2"
-        node_count = 0
-        vm_size    = "Standard_D2ds_v5"
-        optional_parameters = [
-          {
-            name  = "enable-cluster-autoscaler"
-            value = ""
-          },
-          {
-            name  = "min-count"
-            value = "0"
-          },
-          {
-            name  = "max-count"
-            value = "250"
-          },
-          {
-            name  = "max-pods"
-            value = "110"
-          },
-          {
-            name  = "labels"
-            value = "cas=dedicated"
-          },
-          {
-            name  = "os-type"
-            value = "Windows"
-          }
-        ]
-      },
-      {
-        name       = "user3"
-        node_count = 0
-        vm_size    = "Standard_D2ds_v5"
-        optional_parameters = [
-          {
-            name  = "enable-cluster-autoscaler"
-            value = ""
-          },
-          {
-            name  = "min-count"
-            value = "0"
-          },
-          {
-            name  = "max-count"
-            value = "250"
-          },
-          {
-            name  = "max-pods"
-            value = "110"
-          },
-          {
-            name  = "labels"
-            value = "cas=dedicated"
-          },
-          {
-            name  = "os-type"
-            value = "Windows"
-          }
-        ]
-      },
-      {
-        name       = "user4"
-        node_count = 0
-        vm_size    = "Standard_D2ds_v5"
-        optional_parameters = [
-          {
-            name  = "enable-cluster-autoscaler"
-            value = ""
-          },
-          {
-            name  = "min-count"
-            value = "0"
-          },
-          {
-            name  = "max-count"
-            value = "250"
+            value = "11"
           },
           {
             name  = "max-pods"
