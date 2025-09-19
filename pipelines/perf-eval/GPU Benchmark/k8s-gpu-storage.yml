@@ -28,6 +28,12 @@ stages:
               - "128k|16|write|600|16|32G"
               - "128k|16|read|600|16|32G"
               - "128k|16|rw|600|16|32G"
+              - "128k|16|randwrite|600|16|32G"
+              - "128k|16|randread|600|16|32G"
+              - "128k|16|randrw|600|16|32G"
+              - "4k|16|write|600|16|32G"
+              - "4k|16|read|600|16|32G"
+              - "4k|16|rw|600|16|32G"
               - "4k|16|randwrite|600|16|32G"
               - "4k|16|randread|600|16|32G"
               - "4k|16|randrw|600|16|32G"
@@ -42,6 +48,6 @@ stages:
               storage_name: local-hostpath
               desired_nodes: 7
           max_parallel: 1
-          timeout_in_minutes: 120
+          timeout_in_minutes: 300
           credential_type: service_connection
           ssh_key_enabled: false

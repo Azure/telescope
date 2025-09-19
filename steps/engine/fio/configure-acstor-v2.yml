@@ -2,17 +2,12 @@ steps:
   - script: |
       set -euo pipefail
       set -x
-      helm install cert-manager "oci://mcr.microsoft.com/azurelinux/helm/cert-manager" --version 1.12.12-5 \
-        --values configuration/cert-manager-values.yaml --namespace cert-manager --create-namespace --wait --atomic
-      kubectl wait --for=condition=Ready pod -l app.kubernetes.io/instance=cert-manager -n cert-manager --timeout=600s
-      kubectl get pods -n cert-manager
-
-      helm install cns oci://mcr.microsoft.com/cns/cns --version 2.0.0-alpha.nvidia.4 \
-        --values configuration/cns-values.yaml --namespace cns-system --create-namespace --wait --atomic
-      kubectl wait --for=condition=Ready pod -l app.kubernetes.io/instance=cns -n cns-system --timeout=600s
+      helm install local-csi-driver oci://localcsidriver.azurecr.io/acstor/charts/local-csi-driver --version 0.2.5 \
+        --namespace local-csi-system --create-namespace --wait --atomic
+      kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=local-csi-driver -n local-csi-system --timeout=600s
       kustomize build configuration | kubectl apply -f -
-      kubectl wait --for=condition=Ready storagepool nvmedisk -n cns-system --timeout=600s
-      kubectl get pods -n cns-system
+      kubectl get storageclass local
+      kubectl get pods -n local-csi-system
     condition: eq(variables.storage_name, 'acstor-v2')
     workingDirectory: modules/kustomize/fio/overlays/acstor-v2
     displayName: "Configure acstor-v2"

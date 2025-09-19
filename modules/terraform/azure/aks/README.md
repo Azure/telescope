@@ -58,6 +58,9 @@ This module provisions an Azure Kubernetes Service (AKS) cluster. It allows you 
     - `vm_size`: Size of Virtual Machines to create as Kubernetes nodes.
     - `max_pods`: Maximum pods per node on the node pool.
     - `zones`: Zones of the node pool
+    - `priority`: Priority of Virtual Machine Scale Set. Can be "Regular" or "Spot". Defaults to "Regular".
+    - `eviction_policy`: Eviction policy for Spot instances. Can be "Delete" or "Deallocate". Only valid when priority is "Spot".
+    - `spot_max_price`: Maximum price for Spot instances. Set to -1 for pay-as-you-go pricing. Only valid when priority is "Spot".
 
 ### `k8s_machine_type` (optional)
 
@@ -101,10 +104,15 @@ module "aks" {
         max_pods   = 3
       },
       {
-        name       = "pool-2"
-        node_count = 2
-        vm_size    = "Standard_D2s_v3"
-        max_pods   = 3
+        name            = "spot-pool"
+        node_count      = 2
+        vm_size         = "Standard_D2s_v3"
+        max_pods        = 3
+        priority        = "Spot"
+        eviction_policy = "Delete"
+        spot_max_price  = 0.5
+        node_labels     = { "kubernetes.azure.com/scalesetpriority" = "spot" }
+        node_taints     = ["kubernetes.azure.com/scalesetpriority=spot:NoSchedule"]
       }
     ]
   }
