@@ -46,7 +46,7 @@ aks_cli_config_list = [
     }
     extra_node_pool = [
       {
-        name       = "userpool"
+        name       = "user"
         node_count = 1
         vm_size    = "Standard_D4ds_v5"
         optional_parameters = [
