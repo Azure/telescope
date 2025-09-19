@@ -12,7 +12,7 @@ aks_cli_config_list = [
       "AKSHTTPCustomFeatures=Microsoft.ContainerService/EnableSecureTLSBootstrapping"
     ]
     subnet_name = "stls-autoscaler-win-subnet"
-    kubernetes_version = "1.32"
+    kubernetes_version = "1.33"
     optional_parameters = [
       {
         name  = "dns-name-prefix"
@@ -46,9 +46,9 @@ aks_cli_config_list = [
     }
     extra_node_pool = [
       {
-        name       = "user"
+        name       = "user1"
         node_count = 1
-        vm_size    = "Standard_D4ds_v5"
+        vm_size    = "Standard_D2ds_v5"
         optional_parameters = [
           {
             name  = "enable-cluster-autoscaler"
@@ -60,7 +60,100 @@ aks_cli_config_list = [
           },
           {
             name  = "max-count"
-            value = "11"
+            value = "251"
+          },
+          {
+            name  = "max-pods"
+            value = "110"
+          },
+          {
+            name  = "labels"
+            value = "cas=dedicated"
+          },
+          {
+            name  = "os-type"
+            value = "Windows"
+          }
+        ]
+      },
+      {
+        name       = "user2"
+        node_count = 0
+        vm_size    = "Standard_D2ds_v5"
+        optional_parameters = [
+          {
+            name  = "enable-cluster-autoscaler"
+            value = ""
+          },
+          {
+            name  = "min-count"
+            value = "0"
+          },
+          {
+            name  = "max-count"
+            value = "250"
+          },
+          {
+            name  = "max-pods"
+            value = "110"
+          },
+          {
+            name  = "labels"
+            value = "cas=dedicated"
+          },
+          {
+            name  = "os-type"
+            value = "Windows"
+          }
+        ]
+      },
+      {
+        name       = "user3"
+        node_count = 0
+        vm_size    = "Standard_D2ds_v5"
+        optional_parameters = [
+          {
+            name  = "enable-cluster-autoscaler"
+            value = ""
+          },
+          {
+            name  = "min-count"
+            value = "0"
+          },
+          {
+            name  = "max-count"
+            value = "250"
+          },
+          {
+            name  = "max-pods"
+            value = "110"
+          },
+          {
+            name  = "labels"
+            value = "cas=dedicated"
+          },
+          {
+            name  = "os-type"
+            value = "Windows"
+          }
+        ]
+      },
+      {
+        name       = "user4"
+        node_count = 0
+        vm_size    = "Standard_D2ds_v5"
+        optional_parameters = [
+          {
+            name  = "enable-cluster-autoscaler"
+            value = ""
+          },
+          {
+            name  = "min-count"
+            value = "0"
+          },
+          {
+            name  = "max-count"
+            value = "250"
           },
           {
             name  = "max-pods"
