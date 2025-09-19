@@ -34,9 +34,9 @@ spec:
               cpu: {{.CPUperJob}}
           {{if eq $OSType "windows"}}
           command:
-            - "powershell.exe"
-            - "-Command"
-            - "$runtime = 60; $endtime = (Get-Date).AddSeconds($runtime); while ((Get-Date) -le $endtime) { Write-Host (Get-Date); Start-Sleep -Seconds 60 }"
+          - "cmd.exe"
+          - "/c"
+          - "echo %date% %time% && timeout /t 6000 /nobreak > nul"
           {{else}}
           command:
             - "/bin/bash"
