@@ -4,10 +4,10 @@ parameters:
     default: "deploy"
   - name: cluster_context
     type: string
-    default: ""
+    default: "automatic"
   - name: namespace
     type: string
-    default: "aks-store-demo"
+    default: "default"
 
 steps:
   - script: |
@@ -18,7 +18,8 @@ steps:
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT \
         --action "${{ parameters.action }}" \
         --cluster-context "${{ parameters.cluster_context }}" \
-        --namespace "${{ parameters.namespace }}"
+        --namespace "${{ parameters.namespace }}" \
+        --tag $TAG
 
     displayName: '${{ parameters.action }} AKS Store Demo'
     workingDirectory: modules/python

@@ -12,14 +12,5 @@ spec:
               mountPath: /mnt/data
       volumes:
         - name: acstor-mount
-          ephemeral:
-            volumeClaimTemplate:
-              metadata:
-                labels:
-                  type: acstor-volume
-              spec:
-                accessModes: ["ReadWriteOnce"]
-                storageClassName: cns-nvmedisk
-                resources:
-                  requests:
-                    storage: 800Gi
+          persistentVolumeClaim:
+            claimName: $name
