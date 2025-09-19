@@ -36,3 +36,33 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
           timeout_in_minutes: 360
+  - stage: azure_westus2_linux
+    dependsOn: [azure_westus2_windows]
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - westus2
+          terraform_input_file_mapping:
+            - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-autoscaler-linux.tfvars"
+          topology: cluster-autoscaler
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250423"
+          matrix:
+            large-scale-demand-linux:
+              cpu_per_node: 2
+              node_count: 1001
+              pod_count: 1001
+              scale_up_timeout: "60m"
+              scale_down_timeout: "60m"
+              node_label_selector: "cas = dedicated"
+              node_selector: "{cas: dedicated}"
+              loop_count: 1
+              warmup_deployment: false
+              capacity_type: on-demand
+          max_parallel: 1
+          credential_type: service_connection
+          ssh_key_enabled: false
+          timeout_in_minutes: 360
