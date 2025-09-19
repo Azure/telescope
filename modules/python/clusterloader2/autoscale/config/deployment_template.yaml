@@ -23,7 +23,7 @@ spec:
       containers:
         - name: nginx
           {{if eq $OSType "windows"}}
-          image: mcr.microsoft.com/windows/servercore:ltsc2022
+          image: mcr.microsoft.com/windows/nanoserver:ltsc2022
           {{else}}
           image: mcr.microsoft.com/cbl-mariner/base/nginx:1
           {{end}}
@@ -34,9 +34,9 @@ spec:
               cpu: {{.CPUperJob}}
           {{if eq $OSType "windows"}}
           command:
-          - "powershell.exe"
-          - "-Command"
-          - "Write-Host (Get-Date -Format 'ddd MMM dd HH:mm:ss UTC yyyy'); Start-Sleep -Seconds 6000"
+          - "cmd.exe"
+          - "/c"
+          - "echo %date% %time% && ping -n 6001 127.0.0.1 > nul"
           {{else}}
           command:
             - "/bin/bash"
