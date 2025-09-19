@@ -13,7 +13,7 @@ variables:
 
 stages:
   - stage: azure_westus2_windows
-    dependsOn: []
+    dependsOn: azure_westus2_linux
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -27,12 +27,12 @@ stages:
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
           matrix:
-            small-scale-on-demand:
-              cpu_per_node: 4
-              node_count: 11
-              pod_count: 110
-              scale_up_timeout: "15m"
-              scale_down_timeout: "15m"
+            large-scale-demand-windows:
+              cpu_per_node: 2
+              node_count: 1001
+              pod_count: 1001
+              scale_up_timeout: "60m"
+              scale_down_timeout: "60m"
               node_label_selector: "cas = dedicated"
               node_selector: "{cas: dedicated}"
               loop_count: 1

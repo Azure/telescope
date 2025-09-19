@@ -69,6 +69,7 @@ stages:
               loop_count: 1
               warmup_deployment: false
               capacity_type: on-demand
+              os_type: windows
           max_parallel: 1
           credential_type: service_connection
           ssh_key_enabled: false
