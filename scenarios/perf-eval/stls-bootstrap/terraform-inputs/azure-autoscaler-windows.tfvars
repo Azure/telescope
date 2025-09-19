@@ -12,7 +12,7 @@ aks_cli_config_list = [
       "AKSHTTPCustomFeatures=Microsoft.ContainerService/EnableSecureTLSBootstrapping"
     ]
     subnet_name = "stls-autoscaler-win-subnet"
-    kubernetes_version = "1.33"
+    kubernetes_version = "1.32"
     optional_parameters = [
       {
         name  = "dns-name-prefix"
