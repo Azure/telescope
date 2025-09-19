@@ -67,17 +67,17 @@ class ClusterLoader2Base(ABC):
     class Runner(ABC):
         @abstractmethod
         #pylint: disable=unused-argument
-        def configure(self, *args, **kwargs) -> dict:
+        def configure(self, **kwargs) -> dict:
             pass
 
         @abstractmethod
         #pylint: disable=unused-argument
-        def validate(self, *args, **kwargs):
+        def validate(self, **kwargs):
             pass
 
         @abstractmethod
         #pylint: disable=unused-argument
-        def collect(self, *args, **kwargs) -> str:
+        def collect(self, **kwargs) -> str:
             pass
 
         def get_measurement(self, file_path):
