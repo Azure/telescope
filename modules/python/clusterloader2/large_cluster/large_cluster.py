@@ -94,7 +94,7 @@ class LargeClusterRunner(ClusterLoader2Base.Runner):
         provider,
         cilium_enabled,
         scrape_containerd,
-        #pylint: disable=unused_argument
+        #pylint: disable=unused-argument
         **kwargs,
     ) -> dict:
         steps = node_count // node_per_step
