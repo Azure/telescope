@@ -5,14 +5,14 @@ variables:
   SCENARIO_NAME: osguard-resource-consume
 
 stages:
-  - stage: azure_swedencentral # format: <cloud>[_<region>]+ (e.g. azure_eastus2, aws_eastus_westus)
+  - stage: azure_eastus2 # format: <cloud>[_<region>]+ (e.g. azure_eastus2, aws_eastus_westus)
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml # must keep as is
         parameters:
           cloud: azure # e.g. azure, aws
           regions: # list of regions
-            - swedencentral # e.g. eastus2
+            - eastus2 # e.g. eastus2
           topology: cri-resource-consume # e.g. cluster-autoscaler
           engine: clusterloader2 # e.g. clusterloader2
           engine_input:
