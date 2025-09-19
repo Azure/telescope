@@ -45,7 +45,7 @@ stages:
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
               warmup_deployment: false
-              vm_size: Standard_D4s_v5
+              vm_size: standard_d4lds_v5
               capacity_type: on-demand
             automatic-acn-off-100-nodes:
               cpu_per_node: 2
@@ -57,7 +57,7 @@ stages:
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
               warmup_deployment: false
-              vm_size: Standard_D4s_v5
+              vm_size: standard_d4lds_v5
               capacity_type: on-demand
           max_parallel: 1
           timeout_in_minutes: 90
@@ -85,17 +85,29 @@ stages:
             image: "ghcr.io/azure/clusterloader2:v20250912"
           topology: cluster-automatic
           matrix:
-            automatic-acn-on:
+            automatic-acn-on-1-node:
               cpu_per_node: 2
-              node_count: 30
-              pod_count: 30
+              node_count: 1
+              pod_count: 1
               scale_up_timeout: "150m"
               scale_down_timeout: "150m"
               node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
               warmup_deployment: false
-              vm_size: Standard_D2s_v4
+              vm_size: standard_d4lds_v5
+              capacity_type: on-demand
+            automatic-acn-on-100-nodes:
+              cpu_per_node: 2
+              node_count: 100
+              pod_count: 100
+              scale_up_timeout: "150m"
+              scale_down_timeout: "150m"
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 1
+              warmup_deployment: false
+              vm_size: standard_d4lds_v5
               capacity_type: on-demand
           max_parallel: 1
           timeout_in_minutes: 90
