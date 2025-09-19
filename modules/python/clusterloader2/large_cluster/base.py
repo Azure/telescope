@@ -66,15 +66,18 @@ class ClusterLoader2Base(ABC):
 
     class Runner(ABC):
         @abstractmethod
-        def configure(self) -> dict:
+        #pylint: disable=unused-argument
+        def configure(self, **kwargs) -> dict:
             pass
 
         @abstractmethod
-        def validate(self):
+        #pylint: disable=unused-argument
+        def validate(self, **kwargs):
             pass
 
         @abstractmethod
-        def collect(self) -> str:
+        #pylint: disable=unused-argument
+        def collect(self, **kwargs) -> str:
             pass
 
         def get_measurement(self, file_path):
@@ -156,6 +159,8 @@ class ClusterLoader2Base(ABC):
             scrape_containerd: bool=False,
             scrape_ksm: bool=False,
             scrape_metrics_server: bool=False,
+            #pylint: disable=unused-argument
+            **kwargs,
         ):
             docker_client = DockerClient()
             command = f"""--provider={provider} --v=2
