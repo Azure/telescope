@@ -12,39 +12,8 @@ variables:
   SCENARIO_NAME: stls-bootstrap-cri-resource-consume
 
 stages:
-  - stage: azure_westus2_linux
-    dependsOn: []
-    jobs:
-      - template: /jobs/competitive-test.yml
-        parameters:
-          cloud: azure
-          regions:
-            - westus2
-          terraform_input_file_mapping:
-            - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-autoscaler-linux.tfvars"
-          topology: cluster-autoscaler
-          engine: clusterloader2
-          engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250423"
-          matrix:
-            large-scale-demand-linux:
-              cpu_per_node: 2
-              node_count: 1001
-              pod_count: 1001
-              scale_up_timeout: "60m"
-              scale_down_timeout: "60m"
-              node_label_selector: "cas = dedicated"
-              node_selector: "{cas: dedicated}"
-              loop_count: 1
-              warmup_deployment: false
-              capacity_type: on-demand
-          max_parallel: 1
-          credential_type: service_connection
-          ssh_key_enabled: false
-          timeout_in_minutes: 360
-
   - stage: azure_westus2_windows
-    dependsOn: azure_westus2_linux
+    dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -58,12 +27,12 @@ stages:
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
           matrix:
-            large-scale-demand-windows:
-              cpu_per_node: 2
-              node_count: 1001
-              pod_count: 1001
-              scale_up_timeout: "60m"
-              scale_down_timeout: "60m"
+            small-scale-on-demand:
+              cpu_per_node: 4
+              node_count: 11
+              pod_count: 110
+              scale_up_timeout: "15m"
+              scale_down_timeout: "15m"
               node_label_selector: "cas = dedicated"
               node_selector: "{cas: dedicated}"
               loop_count: 1
@@ -73,88 +42,3 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
           timeout_in_minutes: 360
-
-  - stage: azure_westus2_cri_linux
-    dependsOn: [azure_westus2_linux, azure_westus2_windows]
-    jobs:
-      - template: /jobs/competitive-test.yml
-        parameters:
-          cloud: azure
-          regions:
-            - westus2
-          terraform_input_file_mapping:
-            - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-cri-linux.tfvars"
-          topology: cri-resource-consume
-          engine: clusterloader2
-          engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250513"
-          matrix:
-            n10-p300-memory:
-              node_count: 10
-              max_pods: 30
-              repeats: 1
-              operation_timeout: 3m
-              load_type: memory
-              scrape_kubelets: True
-            n10-p700-memory:
-              node_count: 10
-              max_pods: 70
-              repeats: 1
-              operation_timeout: 7m
-              load_type: memory
-              scrape_kubelets: True
-            n10-p1100-memoryl:
-              node_count: 10
-              max_pods: 110
-              repeats: 1
-              operation_timeout: 11m
-              load_type: memory
-              scrape_kubelets: True
-          max_parallel: 3
-          timeout_in_minutes: 120
-          credential_type: service_connection
-          ssh_key_enabled: false
-
-  - stage: azure_westus2_cri_windows
-    dependsOn: [azure_westus2_linux, azure_westus2_windows]
-    jobs:
-      - template: /jobs/competitive-test.yml
-        parameters:
-          cloud: azure
-          regions:
-            - westus2
-          terraform_input_file_mapping:
-            - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-cri-windows.tfvars"
-          topology: cri-resource-consume
-          engine: clusterloader2
-          engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250513"
-          matrix:
-            n10-p300-memory:
-              node_count: 10
-              max_pods: 30
-              repeats: 1
-              operation_timeout: 5m
-              load_type: memory
-              scrape_kubelets: True
-              os_type: windows
-            n10-p700-memory:
-              node_count: 10
-              max_pods: 70
-              repeats: 1
-              operation_timeout: 10m
-              load_type: memory
-              scrape_kubelets: True
-              os_type: windows
-            n10-p1100-memory:
-              node_count: 10
-              max_pods: 110
-              repeats: 1
-              operation_timeout: 15m
-              load_type: memory
-              scrape_kubelets: True
-              os_type: windows
-          max_parallel: 1
-          timeout_in_minutes: 150
-          credential_type: service_connection
-          ssh_key_enabled: false
