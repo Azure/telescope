@@ -19,15 +19,13 @@ variables:
   SCENARIO_NAME: nap
 
 stages:
-  - stage: azure_eastus2_5k_ondemand
+  - stage: azure_canadacentral_5k_ondemand
     condition: |
         or(
           eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 3:00 PM'),
           eq(variables['Build.Reason'], 'Manual')
         )
     dependsOn: []
-    # variables:
-      # - group: NAP-5K-Config
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
