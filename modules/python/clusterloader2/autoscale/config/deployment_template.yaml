@@ -21,7 +21,7 @@ spec:
         {{ (StructuralData $key ) }}: {{ $value }}
       {{- end }}
       containers:
-        - name: nginx
+        - name: load-generator
           {{if eq $OSType "windows"}}
           image: mcr.microsoft.com/windows/nanoserver:ltsc2022
           {{else}}
