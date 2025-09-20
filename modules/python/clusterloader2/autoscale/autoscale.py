@@ -59,7 +59,7 @@ def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, po
     cpu_request = int(cpu_request * 0.95)
     return cpu_request
 
-def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file, warmup_deployment, cl2_config_dir):
+def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file, warmup_deployment, cl2_config_dir, os_type="linux"):
     logger.info(f"CPU per node: {cpu_per_node}")
     desired_node_count = 1
     if warmup_deployment in ["true", "True"]:
@@ -83,6 +83,7 @@ def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up
         file.write(f"CL2_LOOP_COUNT: {loop_count}\n")
         file.write(f"CL2_NODE_LABEL_SELECTOR: {node_label_selector}\n")
         file.write(f"CL2_NODE_SELECTOR: \"{node_selector}\"\n")
+        file.write(f"CL2_OS_TYPE: {os_type}\n")
 
     file.close()
 
@@ -196,6 +197,7 @@ def main():
     parser_override.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
     parser_override.add_argument("warmup_deployment", type=str, help="Warmup deployment to get the cpu request")
     parser_override.add_argument("cl2_config_dir", type=str, help="Path to the CL2 config directory")
+    parser_override.add_argument("--os_type", type=str, choices=["linux", "windows"], default="linux", help="Operating system type for the node pools")
 
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", help="Execute scale up operation")
@@ -220,7 +222,7 @@ def main():
     args = parser.parse_args()
 
     if args.command == "override":
-        override_config_clusterloader2(args.cpu_per_node, args.node_count, args.pod_count, args.scale_up_timeout, args.scale_down_timeout, args.loop_count, args.node_label_selector, args.node_selector, args.cl2_override_file, args.warmup_deployment, args.cl2_config_dir)
+        override_config_clusterloader2(args.cpu_per_node, args.node_count, args.pod_count, args.scale_up_timeout, args.scale_down_timeout, args.loop_count, args.node_label_selector, args.node_selector, args.cl2_override_file, args.warmup_deployment, args.cl2_config_dir, args.os_type)
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider)
     elif args.command == "collect":
