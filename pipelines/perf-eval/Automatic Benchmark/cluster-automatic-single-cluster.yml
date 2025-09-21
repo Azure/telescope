@@ -45,7 +45,7 @@ stages:
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
               warmup_deployment: false
-              vm_size: standard_d4lds_v5
+              vm_size: Standard_D4ds_v5
               capacity_type: on-demand
             automatic-acn-off-100-nodes:
               cpu_per_node: 2
@@ -57,7 +57,7 @@ stages:
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
               warmup_deployment: false
-              vm_size: standard_d4lds_v5
+              vm_size: Standard_D4ds_v5
               capacity_type: on-demand
           max_parallel: 1
           timeout_in_minutes: 90
@@ -95,7 +95,7 @@ stages:
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
               warmup_deployment: false
-              vm_size: standard_d4lds_v5
+              vm_size: Standard_D4ds_v5
               capacity_type: on-demand
             automatic-acn-on-100-nodes:
               cpu_per_node: 2
@@ -107,7 +107,7 @@ stages:
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
               warmup_deployment: false
-              vm_size: standard_d4lds_v5
+              vm_size: Standard_D4ds_v5
               capacity_type: on-demand
           max_parallel: 1
           timeout_in_minutes: 90
