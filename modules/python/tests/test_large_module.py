@@ -21,6 +21,7 @@ class TestLargeCluster(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures for each test"""
+        #pylint: disable=consider-using-with
         self.temp_file = tempfile.NamedTemporaryFile(delete=False, mode='w+', encoding='utf-8')
         self.temp_path = self.temp_file.name
         self.temp_file.close()
