@@ -66,16 +66,10 @@ def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up
         warmup_deployment_for_karpeneter(cl2_config_dir)
         desired_node_count = 0
 
-    # cpu_request = calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, pod_count, warmup_deployment, cl2_config_dir)
-    # hard coded temporarily 
-    # cpu_request = 1000
-
     logger.info(f"Total number of nodes: {node_count}, total number of pods: {pod_count}")
-    # logger.info(f"CPU request for each pod: {cpu_request}m")
 
     # assuming the number of surge nodes is no more than 10
     with open(override_file, 'w', encoding='utf-8') as file:
-        #file.write(f"CL2_DEPLOYMENT_CPU: {cpu_request}m\n")
         file.write(f"CL2_MIN_NODE_COUNT: {node_count}\n")
         file.write(f"CL2_MAX_NODE_COUNT: {node_count + 10}\n")
         file.write(f"CL2_DESIRED_NODE_COUNT: {desired_node_count}\n")
