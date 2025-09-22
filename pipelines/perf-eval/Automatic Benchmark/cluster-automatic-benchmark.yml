@@ -14,14 +14,7 @@ variables:
 
 stages:
   - stage: azure_australiaeast_acn_off
-#    condition: |
-#        or(
-#          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 3:00 PM'),
-#          eq(variables['Build.Reason'], 'Manual')
-#        )
     dependsOn: []
-#    variables:
-#      - group: NAP-5K-Config
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -64,14 +57,7 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
   - stage: azure_australiaeast_acn_on
-#    condition: |
-#        or(
-#          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 3:00 PM'),
-#          eq(variables['Build.Reason'], 'Manual')
-#        )
     dependsOn: azure_australiaeast_acn_off
-#    variables:
-#      - group: NAP-5K-Config
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
