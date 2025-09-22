@@ -41,7 +41,7 @@ stages:
               operation_timeout: 7m
               load_type: memory
               scrape_kubelets: True
-            n10-p1100-memoryl:
+            n10-p1100-memory:
               node_count: 10
               max_pods: 110
               repeats: 1
