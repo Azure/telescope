@@ -12,6 +12,11 @@ aks_cli_config_list = [
     sku_tier              = "standard"
     kubernetes_version    = "1.33"
     use_aks_preview_cli_extension = true
+
+    aks_custom_headers = [
+      "AKSHTTPCustomFeatures=Microsoft.ContainerService/DisableSSHPreview"
+    ]
+
     default_node_pool = {
       name                         = "system"
       node_count                   = 5
@@ -28,23 +33,23 @@ aks_cli_config_list = [
             value = "disabled"
           },
           {
-            name  = "enableAutoscaling"
+            name  = "enable-cluster-autoscaler"
             value = true
           },
           {
-            name  = "nodeCountMin"
+            name  = "min-count"
             value = 1
           },
           {
-            name  = "nodeCountMax"
+            name  = "max-count"
             value = 2
           },
           {
-        name  = "maxPods"
+        name  = "max-pods"
         value = 5
           },
           {
-        name  = "nodepool-labels"
+        name  = "labels"
         value = "cas=dedicated"
           }
         ]
@@ -55,27 +60,32 @@ aks_cli_config_list = [
         vm_size    = "Standard_D2ds_v4",
         optional_parameters = [
           {
+        name       = "scalepool1",
+        node_count = 1,
+        vm_size    = "Standard_D2ds_v4",
+        optional_parameters = [
+          {
             name  = "sshAccess"
             value = "disabled"
           },
           {
-            name  = "enableAutoscaling"
+            name  = "enable-cluster-autoscaler"
             value = true
           },
           {
-            name  = "nodeCountMin"
+            name  = "min-count"
             value = 0
           },
           {
-            name  = "nodeCountMax"
+            name  = "max-count"
             value = 1
           },
           {
-        name  = "maxPods"
+        name  = "max-pods"
         value = 5
           },
           {
-        name  = "nodepool-labels"
+        name  = "labels"
         value = "cas=dedicated"
           }
         ]
@@ -90,23 +100,23 @@ aks_cli_config_list = [
             value = "disabled"
           },
           {
-            name  = "enableAutoscaling"
+            name  = "enable-cluster-autoscaler"
             value = true
           },
           {
-            name  = "nodeCountMin"
+            name  = "min-count"
             value = 0
           },
           {
-            name  = "nodeCountMax"
+            name  = "max-count"
             value = 1
           },
           {
-        name  = "maxPods"
+        name  = "max-pods"
         value = 5
           },
           {
-        name  = "nodepool-labels"
+        name  = "labels"
         value = "cas=dedicated"
           }
         ]
@@ -121,23 +131,23 @@ aks_cli_config_list = [
             value = "disabled"
           },
           {
-            name  = "enableAutoscaling"
+            name  = "enable-cluster-autoscaler"
             value = true
           },
           {
-            name  = "nodeCountMin"
+            name  = "min-count"
             value = 0
           },
           {
-            name  = "nodeCountMax"
+            name  = "max-count"
             value = 1
           },
           {
-        name  = "maxPods"
+        name  = "max-pods"
         value = 5
           },
           {
-        name  = "nodepool-labels"
+        name  = "labels"
         value = "cas=dedicated"
           }
         ]
