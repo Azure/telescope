@@ -37,11 +37,11 @@ aks_cli_config_list = [
           },
           {
             name  = "nodeCountMax"
-            value = 251
+            value = 2
           },
           {
         name  = "maxPods"
-        value = "110"
+        value = 5
           },
           {
         name  = "nodepool-labels"
@@ -68,11 +68,11 @@ aks_cli_config_list = [
           },
           {
             name  = "nodeCountMax"
-            value = 250
+            value = 1
           },
           {
         name  = "maxPods"
-        value = "110"
+        value = 5
           },
           {
         name  = "nodepool-labels"
@@ -99,11 +99,11 @@ aks_cli_config_list = [
           },
           {
             name  = "nodeCountMax"
-            value = 250
+            value = 1
           },
           {
         name  = "maxPods"
-        value = "110"
+        value = 5
           },
           {
         name  = "nodepool-labels"
@@ -130,11 +130,11 @@ aks_cli_config_list = [
           },
           {
             name  = "nodeCountMax"
-            value = 250
+            value = 1
           },
           {
         name  = "maxPods"
-        value = "110"
+        value = 5
           },
           {
         name  = "nodepool-labels"
