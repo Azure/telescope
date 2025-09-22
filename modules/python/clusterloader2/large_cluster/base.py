@@ -7,7 +7,16 @@ from xml.dom import minidom
 
 import docker
 from clients.docker_client import DockerClient
-from utils.constants import MeasurementPrefixConstants
+from clusterloader2.utils import (
+    POD_STARTUP_LATENCY_FILE_PREFIX_MEASUREMENT_MAP,
+    NETWORK_METRIC_PREFIXES,
+    PROM_QUERY_PREFIX,
+    RESOURCE_USAGE_SUMMARY_PREFIX,
+    NETWORK_POLICY_SOAK_MEASUREMENT_PREFIX,
+    JOB_LIFECYCLE_LATENCY_PREFIX,
+    SCHEDULING_THROUGHPUT_PROMETHEUS_PREFIX,
+    SCHEDULING_THROUGHPUT_PREFIX,
+)
 from utils.logger_config import get_logger, setup_logging
 
 setup_logging()
@@ -62,33 +71,33 @@ class ClusterLoader2Base(ABC):
 
     def get_measurement(self, file_path):
         file_name = os.path.basename(file_path)
-        for file_prefix, measurement in MeasurementPrefixConstants.POD_STARTUP_LATENCY_FILE_PREFIX_MEASUREMENT_MAP.items():
+        for file_prefix, measurement in POD_STARTUP_LATENCY_FILE_PREFIX_MEASUREMENT_MAP.items():
             if file_name.startswith(file_prefix):
                 group_name = file_name.split("_")[2]
                 return measurement, group_name
-        for file_prefix in MeasurementPrefixConstants.NETWORK_METRIC_PREFIXES:
+        for file_prefix in NETWORK_METRIC_PREFIXES:
             if file_name.startswith(file_prefix):
                 group_name = file_name.split("_")[1]
                 return file_prefix, group_name
-        if file_name.startswith(MeasurementPrefixConstants.PROM_QUERY_PREFIX):
+        if file_name.startswith(PROM_QUERY_PREFIX):
             group_name = file_name.split("_")[1]
-            measurement_name = file_name.split("_")[0][len(MeasurementPrefixConstants.PROM_QUERY_PREFIX)+1:]
+            measurement_name = file_name.split("_")[0][len(PROM_QUERY_PREFIX)+1:]
             return measurement_name, group_name
-        if file_name.startswith(MeasurementPrefixConstants.JOB_LIFECYCLE_LATENCY_PREFIX):
+        if file_name.startswith(JOB_LIFECYCLE_LATENCY_PREFIX):
             group_name = file_name.split("_")[1]
-            return MeasurementPrefixConstants.JOB_LIFECYCLE_LATENCY_PREFIX, group_name
-        if file_name.startswith(MeasurementPrefixConstants.RESOURCE_USAGE_SUMMARY_PREFIX):
+            return JOB_LIFECYCLE_LATENCY_PREFIX, group_name
+        if file_name.startswith(RESOURCE_USAGE_SUMMARY_PREFIX):
             group_name = file_name.split("_")[1]
-            return MeasurementPrefixConstants.RESOURCE_USAGE_SUMMARY_PREFIX, group_name
-        if file_name.startswith(MeasurementPrefixConstants.NETWORK_POLICY_SOAK_MEASUREMENT_PREFIX):
+            return RESOURCE_USAGE_SUMMARY_PREFIX, group_name
+        if file_name.startswith(NETWORK_POLICY_SOAK_MEASUREMENT_PREFIX):
             group_name = file_name.split("_")[1]
-            return MeasurementPrefixConstants.NETWORK_POLICY_SOAK_MEASUREMENT_PREFIX, group_name
-        if file_name.startswith(MeasurementPrefixConstants.SCHEDULING_THROUGHPUT_PROMETHEUS_PREFIX):
+            return NETWORK_POLICY_SOAK_MEASUREMENT_PREFIX, group_name
+        if file_name.startswith(SCHEDULING_THROUGHPUT_PROMETHEUS_PREFIX):
             group_name = file_name.split("_")[1]
-            return MeasurementPrefixConstants.SCHEDULING_THROUGHPUT_PROMETHEUS_PREFIX, group_name
-        if file_name.startswith(MeasurementPrefixConstants.SCHEDULING_THROUGHPUT_PREFIX):
+            return SCHEDULING_THROUGHPUT_PROMETHEUS_PREFIX, group_name
+        if file_name.startswith(SCHEDULING_THROUGHPUT_PREFIX):
             group_name = file_name.split("_")[1]
-            return MeasurementPrefixConstants.SCHEDULING_THROUGHPUT_PREFIX, group_name
+            return SCHEDULING_THROUGHPUT_PREFIX, group_name
         return None, None
 
     def process_cl2_reports(self, cl2_report_dir, template):
