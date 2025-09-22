@@ -1,35 +1,64 @@
 scenario_type  = "perf-eval"
-scenario_name  = "security-feature-perf"
+scenario_name  = "security-perf"
 deletion_delay = "6h"
 owner          = "aks"
 
 aks_cli_config_list = [
   {
-    role       = "security"
-    aks_name   = "security-feature-perf"
+    role       = "client"
+    aks_name   = "security-perf"
     sku_tier              = "standard"
-    subnet_name           = "security-subnet"
-    managed_identity_name = "security-identity"
     kubernetes_version    = "1.33"
-
     use_aks_preview_cli_extension = true
-    use_aks_preview_private_build = true
-
-    aks_custom_headers = [
-      "AKSHTTPCustomFeatures=Microsoft.ContainerService/DisableSSHPreview",
-    ]
-
     default_node_pool = {
       name                         = "default"
-      node_count                   = 1000
-      vm_size                      = "Standard_D2s_v3"
+      node_count                   = 3
+      vm_size                      = "Standard_D16_v5"
     }
-    extra_node_pool = []
-    optional_parameters = [
+   extra_node_pool = [
       {
-        name  = "ssh-access"
-        value = "disabled"
+        name       = "scalepool1",
+        node_count = 1,
+        vm_size    = "Standard_D16_v5",
+        optional_parameters = [
+          {
+            name  = "sshAccess"
+            value = "disabled"
+          },
+          {
+            name  = "enableAutoscaling"
+            value = true
+          },
+          {
+            name  = "nodeCountMin"
+            value = 1
+          },
+          {
+            name  = "nodeCountMax"
+            value = 499
+          },
+      {
+        name       = "scalepool2",
+        node_count = 0,
+        vm_size    = "Standard_D16_v5",
+        optional_parameters = [
+          {
+            name  = "sshAccess"
+            value = "disabled"
+          },
+          {
+            name  = "enableAutoscaling"
+            value = true
+          },
+          {
+            name  = "nodeCountMin"
+            value = 0
+          },
+          {
+            name  = "nodeCountMax"
+            value = 499
+          },
+        ]
       }
-    ]
   }
 ]
