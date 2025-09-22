@@ -75,7 +75,7 @@ stages:
           regions:
             - australiaeast
           terraform_input_file_mapping:
-            - australiaeast: "scenarios/perf-eval/cluster-autoscaler/terraform-inputs/azure-500nodes.tfvars"
+            - australiaeast: "scenarios/perf-eval/security-perf/terraform-inputs/azure.tfvars"
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
