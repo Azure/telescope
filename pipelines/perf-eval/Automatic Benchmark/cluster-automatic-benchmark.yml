@@ -1,7 +1,7 @@
 trigger: none
 schedules:
-  # Azure Large Scale(5000) On-Demand Schedule
-  - cron: "0 15 * * *"
+  # AKS Automatic On-Demand Schedule
+  - cron: "0 15/6 * * *"
     displayName: "Every day at 3:00 PM"
     branches:
       include:
