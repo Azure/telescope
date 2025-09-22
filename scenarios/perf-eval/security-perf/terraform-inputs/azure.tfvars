@@ -30,7 +30,7 @@ aks_cli_config_list = [
         vm_size    = "Standard_D2ds_v4"
         optional_parameters = [
           {
-            name  = "sshAccess"
+            name  = "ssh-access"
             value = "disabled"
           },
           {
@@ -61,7 +61,7 @@ aks_cli_config_list = [
         vm_size    = "Standard_D2ds_v4"
         optional_parameters = [
           {
-            name  = "sshAccess"
+            name  = "ssh-access"
             value = "disabled"
           },
           {
@@ -92,7 +92,7 @@ aks_cli_config_list = [
         vm_size    = "Standard_D2ds_v4"
         optional_parameters = [
           {
-            name  = "sshAccess"
+            name  = "ssh-access"
             value = "disabled"
           },
           {
@@ -123,7 +123,7 @@ aks_cli_config_list = [
         vm_size    = "Standard_D2ds_v4"
         optional_parameters = [
           {
-            name  = "sshAccess"
+            name  = "ssh-access"
             value = "disabled"
           },
           {
