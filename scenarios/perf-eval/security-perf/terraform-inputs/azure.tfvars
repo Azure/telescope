@@ -47,7 +47,7 @@ aks_cli_config_list = [
           },
           {
             name  = "max-pods"
-            value = 5
+            value = 110
           },
           {
             name  = "labels"
@@ -78,7 +78,7 @@ aks_cli_config_list = [
           },
           {
             name  = "max-pods"
-            value = 5
+            value = 110
           },
           {
             name  = "labels"
@@ -109,7 +109,7 @@ aks_cli_config_list = [
           },
           {
             name  = "max-pods"
-            value = 5
+            value = 110
           },
           {
             name  = "labels"
@@ -140,7 +140,7 @@ aks_cli_config_list = [
           },
           {
             name  = "max-pods"
-            value = 5
+            value = 110
           },
           {
             name  = "labels"
