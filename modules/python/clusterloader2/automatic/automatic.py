@@ -12,12 +12,12 @@ from utils.logger_config import get_logger, setup_logging
 setup_logging()
 logger = get_logger(__name__)
 
-def warmup_deployment_for_karpeneter(cl2_config_dir):
+def warmup_deployment_for_karpenter(cl2_config_dir):
     logger.info("WarmUp Deployment Started")
     deployment_file = f"{cl2_config_dir}/warmup_deployment.yaml"
     subprocess.run(["kubectl", "apply", "-f", deployment_file], check=True)
 
-def cleanup_warmup_deployment_for_karpeneter(cl2_config_dir):
+def cleanup_warmup_deployment_for_karpenter(cl2_config_dir):
     deployment_file = f"{cl2_config_dir}/warmup_deployment.yaml"
     subprocess.run(["kubectl", "delete", "-f", deployment_file], check=True)
     logger.info("WarmUp Deployment Deleted")
@@ -50,7 +50,7 @@ def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, po
     # Remove warmup deployment cpu request from the total cpu value
     if warmup_deployment in ["true", "True"]:
         cpu_value -= 100
-        cleanup_warmup_deployment_for_karpeneter(cl2_config_dir)
+        cleanup_warmup_deployment_for_karpenter(cl2_config_dir)
 
     # Calculate the cpu request for each pod
     pods_per_node = pod_count // node_count
@@ -63,7 +63,7 @@ def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up
     logger.info(f"CPU per node: {cpu_per_node}")
     desired_node_count = 0
     if warmup_deployment in ["true", "True"]:
-        warmup_deployment_for_karpeneter(cl2_config_dir)
+        warmup_deployment_for_karpenter(cl2_config_dir)
         desired_node_count = 0
 
     logger.info(f"Total number of nodes: {node_count}, total number of pods: {pod_count}")
