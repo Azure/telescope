@@ -5,12 +5,12 @@ owner          = "aks"
 
 aks_cli_config_list = [
   {
-    role       = "cas"
-    aks_name   = "cas"
-    dns_prefix  = "cas"
-    subnet_name = "aks-network"
-    sku_tier              = "standard"
-    kubernetes_version    = "1.33"
+    role                          = "cas"
+    aks_name                      = "cas"
+    dns_prefix                    = "cas"
+    subnet_name                   = "aks-network"
+    sku_tier                      = "standard"
+    kubernetes_version            = "1.33"
     use_aks_preview_cli_extension = true
 
     aks_custom_headers = [
@@ -18,15 +18,16 @@ aks_cli_config_list = [
     ]
 
     default_node_pool = {
-      name                         = "system"
-      node_count                   = 5
-      vm_size                      = "Standard_D4_v5"
+      name       = "system"
+      node_count = 5
+      vm_size    = "Standard_D4_v5"
     }
-   extra_node_pool = [
+
+    extra_node_pool = [
       {
-        name       = "scalepool1",
-        node_count = 1,
-        vm_size    = "Standard_D2ds_v4",
+        name       = "scalepool1"
+        node_count = 1
+        vm_size    = "Standard_D2ds_v4"
         optional_parameters = [
           {
             name  = "sshAccess"
@@ -45,24 +46,19 @@ aks_cli_config_list = [
             value = 2
           },
           {
-        name  = "max-pods"
-        value = 5
+            name  = "max-pods"
+            value = 5
           },
           {
-        name  = "labels"
-        value = "cas=dedicated"
+            name  = "labels"
+            value = "cas=dedicated"
           }
         ]
-      },    
+      },
       {
-        name       = "scalepool2",
-        node_count = 0,
-        vm_size    = "Standard_D2ds_v4",
-        optional_parameters = [
-          {
-        name       = "scalepool1",
-        node_count = 1,
-        vm_size    = "Standard_D2ds_v4",
+        name       = "scalepool2"
+        node_count = 0
+        vm_size    = "Standard_D2ds_v4"
         optional_parameters = [
           {
             name  = "sshAccess"
@@ -81,19 +77,19 @@ aks_cli_config_list = [
             value = 1
           },
           {
-        name  = "max-pods"
-        value = 5
+            name  = "max-pods"
+            value = 5
           },
           {
-        name  = "labels"
-        value = "cas=dedicated"
+            name  = "labels"
+            value = "cas=dedicated"
           }
         ]
       },
-       {
-        name       = "scalepool3",
-        node_count = 0,
-        vm_size    = "Standard_D2ds_v4",
+      {
+        name       = "scalepool3"
+        node_count = 0
+        vm_size    = "Standard_D2ds_v4"
         optional_parameters = [
           {
             name  = "sshAccess"
@@ -112,19 +108,19 @@ aks_cli_config_list = [
             value = 1
           },
           {
-        name  = "max-pods"
-        value = 5
+            name  = "max-pods"
+            value = 5
           },
           {
-        name  = "labels"
-        value = "cas=dedicated"
+            name  = "labels"
+            value = "cas=dedicated"
           }
         ]
       },
-     {
-        name       = "scalepool4",
-        node_count = 0,
-        vm_size    = "Standard_D2ds_v4",
+      {
+        name       = "scalepool4"
+        node_count = 0
+        vm_size    = "Standard_D2ds_v4"
         optional_parameters = [
           {
             name  = "sshAccess"
@@ -143,15 +139,15 @@ aks_cli_config_list = [
             value = 1
           },
           {
-        name  = "max-pods"
-        value = 5
+            name  = "max-pods"
+            value = 5
           },
           {
-        name  = "labels"
-        value = "cas=dedicated"
+            name  = "labels"
+            value = "cas=dedicated"
           }
         ]
       }
-     ]
-    }
+    ]
+  }
 ]
