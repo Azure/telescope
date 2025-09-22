@@ -278,9 +278,9 @@ class ClusterLoader2Base(ABC):
             description="Collect scale up data",
         )
 
-        return self._parser.parse()
+        return self._parser.parse_args()
 
-    def perform(self):
+    def main(self):
         args = self.parse_arguments()
         args_dict = vars(args)
         command = args_dict.pop("command", None)

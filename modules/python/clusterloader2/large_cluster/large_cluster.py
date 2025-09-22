@@ -37,7 +37,7 @@ def calculate_config(cpu_per_node, node_count, provider, pods_per_node):
     return throughput, nodes_per_namespace, cpu_request
 
 
-class LargeClusterArgsParser(ClusterLoader2Base.ArgsParser):
+class LargeCluster(ClusterLoader2Base):
     def __init__(self):
         super().__init__(description="SLO Kubernetes resources.")
 
@@ -81,8 +81,6 @@ class LargeClusterArgsParser(ClusterLoader2Base.ArgsParser):
         parser.add_argument("run_url", type=str, help="Run URL")
         parser.add_argument("result_file", type=str, help="Path to the result file")
 
-
-class LargeClusterRunner(ClusterLoader2Base.Runner):
     def configure(
         self,
         cpu_per_node,
@@ -188,18 +186,5 @@ class LargeClusterRunner(ClusterLoader2Base.Runner):
         return self.process_cl2_reports(cl2_report_dir, template)
 
 
-class LargeCluster(ClusterLoader2Base):
-    def __init__(self):
-        self._parser = LargeClusterArgsParser()
-        self._runner = LargeClusterRunner()
-
-    @property
-    def args_parser(self) -> ClusterLoader2Base.ArgsParser:
-        return self._parser
-
-    @property
-    def runner(self) -> ClusterLoader2Base.Runner:
-        return self._runner
-
 if __name__ == "__main__":
-    LargeCluster().perform()
+    LargeCluster().main()
