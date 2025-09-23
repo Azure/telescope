@@ -6,11 +6,6 @@ variables:
 
 stages:
   - stage: azure_eastus2_small_scale
-    condition: |
-        or(
-          eq(variables['Build.CronSchedule.DisplayName'], '1:00 AM Daily'),
-          eq(variables['Build.Reason'], 'Manual')
-        )
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -40,11 +35,6 @@ stages:
           ssh_key_enabled: false
 
   - stage: azure_eastus2_small_scale_karpenter
-    condition: |
-        or(
-          eq(variables['Build.CronSchedule.DisplayName'], '3:00 AM Daily'),
-          eq(variables['Build.Reason'], 'Manual')
-        )
     dependsOn: [azure_eastus2_small_scale]
     jobs:
       - template: /jobs/competitive-test.yml
