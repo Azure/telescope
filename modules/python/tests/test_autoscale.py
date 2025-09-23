@@ -101,7 +101,7 @@ class TestClusterLoaderFunctions(unittest.TestCase):
         # Mock the CPU request calculation
         mock_calculate_cpu_request.return_value = 1900
 
-        override_config_clusterloader2(2, 100, 1000, '5m', '5m', 1, 'autoscaler = true', '{autoscaler : true}', 'override_file', 'false', '/mock/path')
+        override_config_clusterloader2(2, 100, 1000, '5m', '5m', 1, 'autoscaler = true', '{autoscaler : true}', 'override_file', 'false', '/mock/path', 'linux')
         mock_open.assert_any_call('override_file', 'w', encoding='utf-8')
         handle = mock_open()
         handle.write.assert_any_call('CL2_DEPLOYMENT_CPU: 1900m\n')
@@ -114,6 +114,7 @@ class TestClusterLoaderFunctions(unittest.TestCase):
         handle.write.assert_any_call('CL2_LOOP_COUNT: 1\n')
         handle.write.assert_any_call('CL2_NODE_LABEL_SELECTOR: autoscaler = true\n')
         handle.write.assert_any_call('CL2_NODE_SELECTOR: "{autoscaler : true}"\n')
+        handle.write.assert_any_call('CL2_OS_TYPE: linux\n')
 
         mock_logger.info.assert_any_call("CPU per node: 2")
         mock_logger.info.assert_any_call("Total number of nodes: 100, total number of pods: 1000")
@@ -121,8 +122,20 @@ class TestClusterLoaderFunctions(unittest.TestCase):
 
         # Test with warmup deployment true
         mock_warmup.retun_value = None
-        override_config_clusterloader2(2, 100, 1000, '5m', '5m', 1, 'autoscaler = true', '{autoscaler : true}', 'override_file', 'true', '/mock/path')
+        override_config_clusterloader2(2, 100, 1000, '5m', '5m', 1, 'autoscaler = true', '{autoscaler : true}', 'override_file', 'true', '/mock/path', 'windows')
         mock_open.assert_any_call('override_file', 'w', encoding='utf-8')
+        handle = mock_open()
+        handle.write.assert_any_call('CL2_DEPLOYMENT_CPU: 1900m\n')
+        handle.write.assert_any_call('CL2_MIN_NODE_COUNT: 100\n')
+        handle.write.assert_any_call('CL2_MAX_NODE_COUNT: 110\n')
+        handle.write.assert_any_call('CL2_DESIRED_NODE_COUNT: 0\n')
+        handle.write.assert_any_call('CL2_DEPLOYMENT_SIZE: 1000\n')
+        handle.write.assert_any_call('CL2_SCALE_UP_TIMEOUT: 5m\n')
+        handle.write.assert_any_call('CL2_SCALE_DOWN_TIMEOUT: 5m\n')
+        handle.write.assert_any_call('CL2_LOOP_COUNT: 1\n')
+        handle.write.assert_any_call('CL2_NODE_LABEL_SELECTOR: autoscaler = true\n')
+        handle.write.assert_any_call('CL2_NODE_SELECTOR: "{autoscaler : true}"\n')
+        handle.write.assert_any_call('CL2_OS_TYPE: windows\n')
         handle = mock_open()
         handle.write.assert_any_call('CL2_DEPLOYMENT_CPU: 1900m\n')
         handle.write.assert_any_call('CL2_MIN_NODE_COUNT: 100\n')
@@ -214,7 +227,7 @@ class TestClusterLoaderFunctions(unittest.TestCase):
             mock_override.assert_called_once_with(
                 4, 3, 200, '10m', '5m', 2,
                 'nodepool=default', 'env=prod',
-                'override.yaml', 'warmup-deploy', 'config-dir'
+                'override.yaml', 'warmup-deploy', 'config-dir', 'linux'
             )
 
     @patch('clusterloader2.autoscale.autoscale.execute_clusterloader2')
