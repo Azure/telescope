@@ -68,6 +68,14 @@ class ClusterLoader2Base(ABC):
     #pylint: disable=unused-argument
     def collect(self, **kwargs) -> str:
         pass
+    
+    @property
+    def parser(self) -> argparse.ArgumentParser:
+        return self._parser
+    
+    @property
+    def command_parser(self) -> argparse.ArgumentParser:
+        return self._command_parser
 
     def get_measurement(self, file_path):
         file_name = os.path.basename(file_path)
