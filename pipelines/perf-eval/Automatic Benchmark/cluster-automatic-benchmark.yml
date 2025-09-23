@@ -24,7 +24,7 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250912"
-          topology: karpenter
+          topology: cluster-automatic
           matrix:
             automatic-acn-off-1-node:
               cpu_per_node: 4
@@ -67,7 +67,7 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250912"
-          topology: karpenter
+          topology: cluster-automatic
           matrix:
             automatic-acn-on-1-node:
               cpu_per_node: 4
