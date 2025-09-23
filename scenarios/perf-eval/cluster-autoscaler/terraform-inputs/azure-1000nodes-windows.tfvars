@@ -13,6 +13,7 @@ aks_config_list = [
     network_profile = {
       network_plugin      = "azure"
       network_plugin_mode = "overlay"
+      pod_cidr            = "10.128.0.0/11"
     }
     default_node_pool = {
       name                         = "system"
@@ -25,12 +26,48 @@ aks_config_list = [
     }
     extra_node_pool = [
       {
-        name                 = "user"
+        name                 = "user1"
         node_count           = 1
         min_count            = 1
-        max_count            = 11
+        max_count            = 251
         auto_scaling_enabled = true
-        vm_size              = "Standard_D4_v5"
+        vm_size              = "Standard_D2ds_v4"
+        max_pods             = 110
+        os_type              = "Windows"
+        os_sku               = "Windows2022"
+        node_labels          = { "cas" = "dedicated" }
+      },
+      {
+        name                 = "user2"
+        node_count           = 0
+        min_count            = 0
+        max_count            = 250
+        auto_scaling_enabled = true
+        vm_size              = "Standard_D2ds_v4"
+        max_pods             = 110
+        os_type              = "Windows"
+        os_sku               = "Windows2022"
+        node_labels          = { "cas" = "dedicated" }
+      },
+      {
+        name                 = "user3"
+        node_count           = 0
+        min_count            = 0
+        max_count            = 250
+        auto_scaling_enabled = true
+        vm_size              = "Standard_D2ds_v4"
+        max_pods             = 110
+        os_type              = "Windows"
+        os_sku               = "Windows2022"
+        node_labels          = { "cas" = "dedicated" }
+      },
+      {
+        name                 = "user4"
+        node_count           = 0
+        min_count            = 0
+        max_count            = 250
+        auto_scaling_enabled = true
+        vm_size              = "Standard_D2ds_v4"
         max_pods             = 110
         os_type              = "Windows"
         os_sku               = "Windows2022"
