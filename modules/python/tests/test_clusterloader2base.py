@@ -3,12 +3,11 @@ import json
 import os
 import tempfile
 import unittest
-from unittest.mock import Mock, MagicMock, patch, mock_open
-from xml.dom import minidom
+from unittest.mock import Mock, patch, mock_open
 import docker
 
 # Import the class under test
-from clusterloader2.large_cluster.base import ClusterLoader2Base, Command
+from clusterloader2.large_cluster.base import ClusterLoader2Base
 
 
 class ConcreteClusterLoader2Base(ClusterLoader2Base):
@@ -54,32 +53,32 @@ class TestClusterLoader2Base(unittest.TestCase):
         description = "Test ClusterLoader2"
         instance = ConcreteClusterLoader2Base(description)
 
-        self.assertIsInstance(instance._parser, argparse.ArgumentParser)
-        self.assertEqual(instance._parser.description, description)
+        self.assertIsInstance(instance.parser, argparse.ArgumentParser)
+        self.assertEqual(instance.parser.description, description)
 
     def test_init_empty_string_description(self):
         """Test initialization with empty string description"""
         description = ""
         instance = ConcreteClusterLoader2Base(description)
 
-        self.assertIsInstance(instance._parser, argparse.ArgumentParser)
-        self.assertEqual(instance._parser.description, description)
+        self.assertIsInstance(instance.parser, argparse.ArgumentParser)
+        self.assertEqual(instance.parser.description, description)
 
     def test_init_long_description(self):
         """Test initialization with long description"""
         description = "A" * 250  # 250 character string
         instance = ConcreteClusterLoader2Base(description)
 
-        self.assertIsInstance(instance._parser, argparse.ArgumentParser)
-        self.assertEqual(instance._parser.description, description)
+        self.assertIsInstance(instance.parser, argparse.ArgumentParser)
+        self.assertEqual(instance.parser.description, description)
 
     def test_init_unicode_description(self):
         """Test initialization with unicode description"""
         description = "测试 ClusterLoader2"
         instance = ConcreteClusterLoader2Base(description)
 
-        self.assertIsInstance(instance._parser, argparse.ArgumentParser)
-        self.assertEqual(instance._parser.description, description)
+        self.assertIsInstance(instance.parser, argparse.ArgumentParser)
+        self.assertEqual(instance.parser.description, description)
 
     # Abstract Methods Tests
     def test_abstract_methods_must_be_implemented(self):
@@ -236,25 +235,25 @@ class TestClusterLoader2Base(unittest.TestCase):
 
         result_str = self.instance.process_cl2_reports("/root/workspace/results", self.template)
         result = json.loads(result_str)
-        
+
         # Assert basic structure
         self.assertIn("test", result)
         self.assertIn("group", result)
         self.assertIn("measurement", result)
         self.assertIn("result", result)
-        
+
         # Assert template data is preserved
         self.assertEqual(result["test"], "template")
-        
+
         # Assert extracted metadata
         self.assertEqual(result["group"], "testgroup")
         self.assertEqual(result["measurement"], "ResourceUsageSummary")
-        
+
         # Assert result data structure
         self.assertIn("data", result["result"])
         self.assertIn("unit", result["result"])
         self.assertEqual(result["result"]["unit"], "count")
-        
+
         # Assert specific metric values
         expected_data = {
             "Envoy Downstream Connections Rate": 0.027266895378350486,
@@ -265,7 +264,7 @@ class TestClusterLoader2Base(unittest.TestCase):
             "Envoy Upstream Connections Total": 20.866666666666664
         }
         self.assertEqual(result["result"]["data"], expected_data)
-        
+
         # Assert result is single line output
         self.assertEqual(len(result_str.strip().split('\n')), 1)
 
@@ -343,7 +342,7 @@ class TestClusterLoader2Base(unittest.TestCase):
         )
 
         mock_docker_client.run_container.assert_called_once()
-        args, kwargs = mock_docker_client.run_container.call_args
+        args, _ = mock_docker_client.run_container.call_args
         self.assertIn("--provider=aws", args[1])
 
     @patch('clusterloader2.large_cluster.base.DockerClient')
@@ -365,7 +364,7 @@ class TestClusterLoader2Base(unittest.TestCase):
             enable_prometheus=True
         )
 
-        args, kwargs = mock_docker_client.run_container.call_args
+        args, _ = mock_docker_client.run_container.call_args
         self.assertIn("--enable-prometheus-server=True", args[1])
 
     @patch('clusterloader2.large_cluster.base.DockerClient')
@@ -387,7 +386,7 @@ class TestClusterLoader2Base(unittest.TestCase):
             overrides=True
         )
 
-        args, kwargs = mock_docker_client.run_container.call_args
+        args, _ = mock_docker_client.run_container.call_args
         self.assertIn("--testoverrides=", args[1])
 
     @patch('clusterloader2.large_cluster.base.DockerClient')
@@ -414,7 +413,7 @@ class TestClusterLoader2Base(unittest.TestCase):
             scrape_metrics_server=True
         )
 
-        args, kwargs = mock_docker_client.run_container.call_args
+        args, _ = mock_docker_client.run_container.call_args
         command = args[1]
         self.assertIn("--enable-prometheus-server=True", command)
         self.assertIn("--prometheus-scrape-kubelets=True", command)
@@ -561,7 +560,7 @@ class TestClusterLoader2Base(unittest.TestCase):
 
         # Parse with configure command to verify it was added
         with patch('sys.argv', ['prog', 'configure', '--cl2_override_file', 'test.yaml']):
-            args = self.instance._parser.parse_args(['configure', '--cl2_override_file', 'test.yaml'])
+            args = self.instance.parser.parse_args(['configure', '--cl2_override_file', 'test.yaml'])
             self.assertEqual(args.command, "configure")
 
     def test_add_subparser_validate_command(self):
@@ -569,7 +568,7 @@ class TestClusterLoader2Base(unittest.TestCase):
         self.instance._add_subparser("validate", "Validate test")
 
         with patch('sys.argv', ['prog', 'validate', '--kubeconfig', 'test.config']):
-            args = self.instance._parser.parse_args(['validate', '--kubeconfig', 'test.config'])
+            args = self.instance.parser.parse_args(['validate', '--kubeconfig', 'test.config'])
             self.assertEqual(args.command, "validate")
 
     def test_add_subparser_execute_command(self):
@@ -579,7 +578,7 @@ class TestClusterLoader2Base(unittest.TestCase):
         test_args = ['execute', '--kubeconfig', 'test.config', '--cl2_image', 'image',
                     '--cl2_config_dir', 'config', '--cl2_report_dir', 'reports',
                     '--provider', 'aws']
-        args = self.instance._parser.parse_args(test_args)
+        args = self.instance.parser.parse_args(test_args)
         self.assertEqual(args.command, "execute")
 
     def test_add_subparser_collect_command(self):
@@ -587,7 +586,7 @@ class TestClusterLoader2Base(unittest.TestCase):
         self.instance._add_subparser("collect", "Collect test")
 
         test_args = ['collect', '--cl2_report_dir', 'reports', '--result_file', 'result.json']
-        args = self.instance._parser.parse_args(test_args)
+        args = self.instance.parser.parse_args(test_args)
         self.assertEqual(args.command, "collect")
 
     # Parse Arguments Tests
@@ -596,7 +595,7 @@ class TestClusterLoader2Base(unittest.TestCase):
         test_args = ['configure', '--cl2_override_file', 'override.yaml']
 
         with patch('sys.argv', ['prog'] + test_args):
-            with patch.object(self.instance._parser, 'parse_args', return_value=argparse.Namespace(
+            with patch.object(self.instance.parser, 'parse_args', return_value=argparse.Namespace(
                 command='configure', cl2_override_file='override.yaml'
             )) as mock_parse:
                 result = self.instance.parse_arguments()
@@ -608,7 +607,7 @@ class TestClusterLoader2Base(unittest.TestCase):
         """Test parsing validate command arguments"""
         test_args = ['validate', '--kubeconfig', 'test.config']
 
-        with patch.object(self.instance._parser, 'parse_args', return_value=argparse.Namespace(
+        with patch.object(self.instance.parser, 'parse_args', return_value=argparse.Namespace(
             command='validate', kubeconfig='test.config'
         )) as mock_parse:
             result = self.instance.parse_arguments()
@@ -618,7 +617,7 @@ class TestClusterLoader2Base(unittest.TestCase):
 
     def test_parse_arguments_execute_command(self):
         """Test parsing execute command arguments"""
-        with patch.object(self.instance._parser, 'parse_args', return_value=argparse.Namespace(
+        with patch.object(self.instance.parser, 'parse_args', return_value=argparse.Namespace(
             command='execute', kubeconfig='test.config', cl2_image='image',
             cl2_config_dir='config', cl2_report_dir='reports', provider='aws'
         )) as mock_parse:
@@ -629,7 +628,7 @@ class TestClusterLoader2Base(unittest.TestCase):
 
     def test_parse_arguments_collect_command(self):
         """Test parsing collect command arguments"""
-        with patch.object(self.instance._parser, 'parse_args', return_value=argparse.Namespace(
+        with patch.object(self.instance.parser, 'parse_args', return_value=argparse.Namespace(
             command='collect', cl2_report_dir='reports', result_file='result.json'
         )) as mock_parse:
             result = self.instance.parse_arguments()
