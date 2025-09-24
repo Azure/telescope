@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "security-perf"
-deletion_delay = "6h"
+deletion_delay = "2h"
 owner          = "aks"
 
 aks_cli_config_list = [
@@ -35,9 +35,19 @@ aks_cli_config_list = [
     ]
 
     default_node_pool = {
-      name       = "system"
-      node_count = 5
-      vm_size    = "Standard_D2s_v3"
+      name                         = "system"
+      node_count                   = 5
+      vm_size                      = "Standard_D4_v5"
+      optional_parameters = [
+        {
+          name  = "enable-cluster-autoscaler"
+          value = ""
+        },
+        {
+          name  = "node-osdisk-type"
+          value = "Managed"
+        }
+      ]
     }
 
     extra_node_pool = [
@@ -65,10 +75,6 @@ aks_cli_config_list = [
           {
             name  = "labels"
             value = "cas=dedicated"
-          },
-          {
-            name  = "node-count"
-            value = "1"
           },
           {
             name  = "enable-cluster-autoscaler"
@@ -102,10 +108,6 @@ aks_cli_config_list = [
             value = "cas=dedicated"
           },
           {
-            name  = "node-count"
-            value = "0"
-          },
-          {
             name  = "enable-cluster-autoscaler"
             value = ""
           }
@@ -137,10 +139,6 @@ aks_cli_config_list = [
             value = "cas=dedicated"
           },
           {
-            name  = "node-count"
-            value = "0"
-          },
-          {
             name  = "enable-cluster-autoscaler"
             value = ""
           }
@@ -170,10 +168,6 @@ aks_cli_config_list = [
           {
             name  = "labels"
             value = "cas=dedicated"
-          },
-          {
-            name  = "node-count"
-            value = "0"
           },
           {
             name  = "enable-cluster-autoscaler"
