@@ -16,6 +16,8 @@ aks_cli_config_list = [
       network_plugin      = "azure"
       network_plugin_mode = "overlay"
       pod_cidr            = "10.128.0.0/11"
+      service_cidr         = "10.2.0.0/16"
+      dns_service_ip       = "10.2.0.10"
     }
 
     auto_scaler_profile = {
