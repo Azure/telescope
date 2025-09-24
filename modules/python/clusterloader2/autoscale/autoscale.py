@@ -14,6 +14,7 @@ logger = get_logger(__name__)
 
 def warmup_deployment_for_karpeneter(cl2_config_dir):
     logger.info("WarmUp Deployment Started")
+    logger.info(cl2_config_dir)
     deployment_file = f"{cl2_config_dir}/warmup_deployment.yaml"
     subprocess.run(["kubectl", "apply", "-f", deployment_file], check=True)
 
