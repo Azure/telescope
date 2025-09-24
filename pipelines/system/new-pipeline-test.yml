@@ -7,16 +7,16 @@ schedules:
       include:
         - main
     always: true
-  # Azure Large Scale(1000) Schedule
-  - cron: "0 12 * * *"
-    displayName: "Every day at 12:00 PM"
+ # Azure Medium Scale(500) Schedule
+  - cron: "0 10 * * *"
+    displayName: "Every day at 10:00 AM"
     branches:
       include:
         - main
     always: true
- # Azure Medium Scale(500) Schedule
-  - cron: "0 10 * * *"
-    displayName: "Every day at 10:00 AM"
+ # Azure Large Scale(1000) Schedule
+  - cron: "0 12 * * *"
+    displayName: "Every day at 12:00 PM"
     branches:
       include:
         - main
