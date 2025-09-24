@@ -74,4 +74,3 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
           timeout_in_minutes: 360
-  
