@@ -46,6 +46,10 @@ aks_cli_config_list = [
           value = ""
         },
         {
+            name  = "ssh-access"
+            value = "disabled"
+        },
+        {
           name  = "node-osdisk-type"
           value = "Managed"
         }
