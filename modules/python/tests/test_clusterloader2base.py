@@ -620,8 +620,19 @@ class TestClusterLoader2Base(unittest.TestCase):
             )) as mock_parse:
                 result = self.instance.parse_arguments()
 
+                # Verify parser.parse_args was called
+                mock_parse.assert_called_once()
+
+                # Verify returned namespace has expected attributes
+                self.assertTrue(hasattr(result, 'command'))
+                self.assertTrue(hasattr(result, 'cl2_override_file'))
+
+                # Verify attribute values
                 self.assertEqual(result.command, 'configure')
                 self.assertEqual(result.cl2_override_file, 'override.yaml')
+
+                # Verify the result is an argparse.Namespace
+                self.assertIsInstance(result, argparse.Namespace)
 
     def test_parse_arguments_validate_command(self):
         """Test parsing validate command arguments"""
@@ -632,8 +643,19 @@ class TestClusterLoader2Base(unittest.TestCase):
         )) as mock_parse:
             result = self.instance.parse_arguments()
 
+            # Verify parser.parse_args was called
+            mock_parse.assert_called_once()
+
+            # Verify returned namespace has expected attributes
+            self.assertTrue(hasattr(result, 'command'))
+            self.assertTrue(hasattr(result, 'kubeconfig'))
+
+            # Verify attribute values
             self.assertEqual(result.command, 'validate')
             self.assertEqual(result.kubeconfig, 'test.config')
+
+            # Verify the result is an argparse.Namespace
+            self.assertIsInstance(result, argparse.Namespace)
 
     def test_parse_arguments_execute_command(self):
         """Test parsing execute command arguments"""
@@ -643,8 +665,24 @@ class TestClusterLoader2Base(unittest.TestCase):
         )) as mock_parse:
             result = self.instance.parse_arguments()
 
+            # Verify parser.parse_args was called
+            mock_parse.assert_called_once()
+
+            # Verify returned namespace has expected attributes
+            expected_attrs = ['command', 'kubeconfig', 'cl2_image', 'cl2_config_dir', 'cl2_report_dir', 'provider']
+            for attr in expected_attrs:
+                self.assertTrue(hasattr(result, attr), f"Missing attribute: {attr}")
+
+            # Verify attribute values
             self.assertEqual(result.command, 'execute')
+            self.assertEqual(result.kubeconfig, 'test.config')
+            self.assertEqual(result.cl2_image, 'image')
+            self.assertEqual(result.cl2_config_dir, 'config')
+            self.assertEqual(result.cl2_report_dir, 'reports')
             self.assertEqual(result.provider, 'aws')
+
+            # Verify the result is an argparse.Namespace
+            self.assertIsInstance(result, argparse.Namespace)
 
     def test_parse_arguments_collect_command(self):
         """Test parsing collect command arguments"""
@@ -653,8 +691,21 @@ class TestClusterLoader2Base(unittest.TestCase):
         )) as mock_parse:
             result = self.instance.parse_arguments()
 
+            # Verify parser.parse_args was called
+            mock_parse.assert_called_once()
+
+            # Verify returned namespace has expected attributes
+            expected_attrs = ['command', 'cl2_report_dir', 'result_file']
+            for attr in expected_attrs:
+                self.assertTrue(hasattr(result, attr), f"Missing attribute: {attr}")
+
+            # Verify attribute values
             self.assertEqual(result.command, 'collect')
+            self.assertEqual(result.cl2_report_dir, 'reports')
             self.assertEqual(result.result_file, 'result.json')
+
+            # Verify the result is an argparse.Namespace
+            self.assertIsInstance(result, argparse.Namespace)
 
     # Main Method Tests
     @patch.object(ConcreteClusterLoader2Base, 'parse_arguments')
