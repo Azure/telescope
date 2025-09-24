@@ -6,17 +6,13 @@ from unittest.mock import patch, MagicMock
 
 from clusterloader2.large_cluster.large_cluster import (
     calculate_config,
-    configure_clusterloader2,
-    validate_clusterloader2,
-    execute_clusterloader2,
-    collect_clusterloader2,
-    main,
-    DEFAULT_NODES_PER_NAMESPACE,
-    CPU_CAPACITY,
+    LargeCluster,
+    Cl2DefaultConfigConstants,
 )
 
 
 class TestLargeCluster(unittest.TestCase):
+
     """Comprehensive test class for all large_cluster.py functions"""
 
     def setUp(self):
@@ -25,6 +21,8 @@ class TestLargeCluster(unittest.TestCase):
         self.temp_file = tempfile.NamedTemporaryFile(delete=False, mode='w+', encoding='utf-8')
         self.temp_path = self.temp_file.name
         self.temp_file.close()
+
+        self.large_cluster = LargeCluster()
 
         self.test_params = {
             "cpu_per_node": 4,
@@ -50,7 +48,7 @@ class TestLargeCluster(unittest.TestCase):
         )
         self.assertEqual(throughput, 100)
         self.assertEqual(nodes_per_namespace, 10)
-        expected_cpu = (2 * 1000 * CPU_CAPACITY["aws"]) // 10
+        expected_cpu = (2 * 1000 * Cl2DefaultConfigConstants.CPU_CAPACITY["aws"]) // 10
         self.assertEqual(cpu_request, int(expected_cpu))
 
     def test_calculate_config_medium_aws_cluster(self):
@@ -60,7 +58,7 @@ class TestLargeCluster(unittest.TestCase):
         )
         self.assertEqual(throughput, 100)
         self.assertEqual(nodes_per_namespace, 50)
-        expected_cpu = (4 * 1000 * CPU_CAPACITY["aws"]) // 20
+        expected_cpu = (4 * 1000 * Cl2DefaultConfigConstants.CPU_CAPACITY["aws"]) // 20
         self.assertEqual(cpu_request, int(expected_cpu))
 
     def test_calculate_config_large_aws_cluster(self):
@@ -69,8 +67,8 @@ class TestLargeCluster(unittest.TestCase):
             cpu_per_node=8, node_count=150, provider="aws", pods_per_node=30
         )
         self.assertEqual(throughput, 100)
-        self.assertEqual(nodes_per_namespace, DEFAULT_NODES_PER_NAMESPACE)  # Should be capped at 100
-        expected_cpu = (8 * 1000 * CPU_CAPACITY["aws"]) // 30
+        self.assertEqual(nodes_per_namespace, Cl2DefaultConfigConstants.DEFAULT_NODES_PER_NAMESPACE)  # Should be capped at 100
+        expected_cpu = (8 * 1000 * Cl2DefaultConfigConstants.CPU_CAPACITY["aws"]) // 30
         self.assertEqual(cpu_request, int(expected_cpu))
 
     def test_calculate_config_small_azure_cluster(self):
@@ -80,7 +78,7 @@ class TestLargeCluster(unittest.TestCase):
         )
         self.assertEqual(throughput, 100)
         self.assertEqual(nodes_per_namespace, 10)
-        expected_cpu = (2 * 1000 * CPU_CAPACITY["azure"]) // 10
+        expected_cpu = (2 * 1000 * Cl2DefaultConfigConstants.CPU_CAPACITY["azure"]) // 10
         self.assertEqual(cpu_request, int(expected_cpu))
 
     def test_calculate_config_medium_azure_cluster(self):
@@ -90,7 +88,7 @@ class TestLargeCluster(unittest.TestCase):
         )
         self.assertEqual(throughput, 100)
         self.assertEqual(nodes_per_namespace, 50)
-        expected_cpu = (4 * 1000 * CPU_CAPACITY["azure"]) // 20
+        expected_cpu = (4 * 1000 * Cl2DefaultConfigConstants.CPU_CAPACITY["azure"]) // 20
         self.assertEqual(cpu_request, int(expected_cpu))
 
     def test_calculate_config_large_azure_cluster(self):
@@ -99,8 +97,8 @@ class TestLargeCluster(unittest.TestCase):
             cpu_per_node=8, node_count=150, provider="azure", pods_per_node=30
         )
         self.assertEqual(throughput, 100)
-        self.assertEqual(nodes_per_namespace, DEFAULT_NODES_PER_NAMESPACE)
-        expected_cpu = (8 * 1000 * CPU_CAPACITY["azure"]) // 30
+        self.assertEqual(nodes_per_namespace, Cl2DefaultConfigConstants.DEFAULT_NODES_PER_NAMESPACE)
+        expected_cpu = (8 * 1000 * Cl2DefaultConfigConstants.CPU_CAPACITY["azure"]) // 30
         self.assertEqual(cpu_request, int(expected_cpu))
 
     def test_calculate_config_small_aks_cluster(self):
@@ -110,7 +108,7 @@ class TestLargeCluster(unittest.TestCase):
         )
         self.assertEqual(throughput, 100)
         self.assertEqual(nodes_per_namespace, 10)
-        expected_cpu = (2 * 1000 * CPU_CAPACITY["aks"]) // 10
+        expected_cpu = (2 * 1000 * Cl2DefaultConfigConstants.CPU_CAPACITY["aks"]) // 10
         self.assertEqual(cpu_request, int(expected_cpu))
 
     def test_calculate_config_edge_case_min_cpu(self):
@@ -128,15 +126,15 @@ class TestLargeCluster(unittest.TestCase):
             cpu_per_node=16, node_count=200, provider="azure", pods_per_node=50
         )
         self.assertEqual(throughput, 100)
-        self.assertEqual(nodes_per_namespace, DEFAULT_NODES_PER_NAMESPACE)
-        expected_cpu = (16 * 1000 * CPU_CAPACITY["azure"]) // 50
+        self.assertEqual(nodes_per_namespace, Cl2DefaultConfigConstants.DEFAULT_NODES_PER_NAMESPACE)
+        expected_cpu = (16 * 1000 * Cl2DefaultConfigConstants.CPU_CAPACITY["azure"]) // 50
         self.assertEqual(cpu_request, int(expected_cpu))
 
-    # ==================== configure_clusterloader2() Tests ====================
+    # ==================== self.large_cluster.configure() Tests ====================
 
     def test_configure_clusterloader2_basic_aws_config(self):
         """Test basic AWS configuration"""
-        configure_clusterloader2(
+        self.large_cluster.configure(
             cpu_per_node=4, node_count=20, node_per_step=5,
             pods_per_node=10, repeats=3, operation_timeout="30m",
             provider="aws", cilium_enabled=False,
@@ -157,7 +155,7 @@ class TestLargeCluster(unittest.TestCase):
 
     def test_configure_clusterloader2_basic_azure_config(self):
         """Test basic Azure configuration"""
-        configure_clusterloader2(
+        self.large_cluster.configure(
             cpu_per_node=4, node_count=20, node_per_step=5,
             pods_per_node=10, repeats=3, operation_timeout="30m",
             provider="azure", cilium_enabled=False,
@@ -172,7 +170,7 @@ class TestLargeCluster(unittest.TestCase):
 
     def test_configure_clusterloader2_cilium_enabled(self):
         """Test configuration with Cilium enabled"""
-        configure_clusterloader2(
+        self.large_cluster.configure(
             cpu_per_node=4, node_count=50, node_per_step=10,
             pods_per_node=15, repeats=5, operation_timeout="45m",
             provider="azure", cilium_enabled=True,
@@ -189,7 +187,7 @@ class TestLargeCluster(unittest.TestCase):
 
     def test_configure_clusterloader2_containerd_scraping(self):
         """Test configuration with containerd scraping enabled"""
-        configure_clusterloader2(
+        self.large_cluster.configure(
             cpu_per_node=8, node_count=100, node_per_step=20,
             pods_per_node=20, repeats=2, operation_timeout="60m",
             provider="aws", cilium_enabled=False,
@@ -204,7 +202,7 @@ class TestLargeCluster(unittest.TestCase):
 
     def test_configure_clusterloader2_all_features_enabled(self):
         """Test configuration with all features enabled"""
-        configure_clusterloader2(
+        self.large_cluster.configure(
             cpu_per_node=8, node_count=100, node_per_step=25,
             pods_per_node=25, repeats=4, operation_timeout="90m",
             provider="azure", cilium_enabled=True,
@@ -221,7 +219,7 @@ class TestLargeCluster(unittest.TestCase):
 
     def test_configure_clusterloader2_large_scale(self):
         """Test large scale configuration"""
-        configure_clusterloader2(
+        self.large_cluster.configure(
             cpu_per_node=16, node_count=500, node_per_step=50,
             pods_per_node=30, repeats=1, operation_timeout="120m",
             provider="aws", cilium_enabled=False,
@@ -237,7 +235,7 @@ class TestLargeCluster(unittest.TestCase):
 
     def test_configure_clusterloader2_single_step(self):
         """Test single step configuration"""
-        configure_clusterloader2(
+        self.large_cluster.configure(
             cpu_per_node=2, node_count=10, node_per_step=10,
             pods_per_node=5, repeats=1, operation_timeout="15m",
             provider="azure", cilium_enabled=False,
@@ -249,7 +247,7 @@ class TestLargeCluster(unittest.TestCase):
 
         self.assertIn("CL2_STEPS: 1", content)  # 10 // 10
 
-    # ==================== validate_clusterloader2() Tests ====================
+    # ==================== self.large_cluster.validate() Tests ====================
 
     @patch('clusterloader2.large_cluster.large_cluster.KubernetesClient')
     @patch('clusterloader2.large_cluster.large_cluster.time.sleep')
@@ -260,7 +258,7 @@ class TestLargeCluster(unittest.TestCase):
         mock_kube_client_class.return_value = mock_kube_client
 
         # Should not raise exception
-        validate_clusterloader2(node_count=5, operation_timeout_in_minutes=10)
+        self.large_cluster.validate(node_count=5, operation_timeout_in_minute=10)
 
         # Should call get_ready_nodes at least once
         mock_kube_client.get_ready_nodes.assert_called()
@@ -285,7 +283,7 @@ class TestLargeCluster(unittest.TestCase):
         start_time = 1000
         mock_time.side_effect = [start_time, start_time + 60, start_time + 120, start_time + 180]  # Time progression
 
-        validate_clusterloader2(node_count=10, operation_timeout_in_minutes=5)
+        self.large_cluster.validate(node_count=10, operation_timeout_in_minute=5)
 
         # Should call get_ready_nodes multiple times
         self.assertEqual(mock_kube_client.get_ready_nodes.call_count, 3)
@@ -307,7 +305,7 @@ class TestLargeCluster(unittest.TestCase):
         mock_time.side_effect = [start_time, timeout_time + 1]  # Exceed timeout
 
         with self.assertRaises(Exception) as context:
-            validate_clusterloader2(node_count=20, operation_timeout_in_minutes=2)
+            self.large_cluster.validate(node_count=20, operation_timeout_in_minute=2)
 
             self.assertIn("Only 15 nodes are ready, expected 20 nodes!", str(context.exception))
         mock_sleep.assert_not_called()
@@ -327,9 +325,9 @@ class TestLargeCluster(unittest.TestCase):
         mock_time.side_effect = start_time
 
         with self.assertRaises(Exception) as context:
-            validate_clusterloader2(
+            self.large_cluster.validate(
                 node_count=2,
-                operation_timeout_in_minutes=2
+                operation_timeout_in_minute=2
             )
 
             self.assertIn(
@@ -346,7 +344,7 @@ class TestLargeCluster(unittest.TestCase):
         mock_kube_client.get_ready_nodes.return_value = ['node1']
         mock_kube_client_class.return_value = mock_kube_client
 
-        validate_clusterloader2(node_count=1, operation_timeout_in_minutes=5)
+        self.large_cluster.validate(node_count=1, operation_timeout_in_minute=5)
 
         mock_kube_client.get_ready_nodes.assert_called()
 
@@ -357,16 +355,16 @@ class TestLargeCluster(unittest.TestCase):
         mock_kube_client.get_ready_nodes.return_value = []
         mock_kube_client_class.return_value = mock_kube_client
 
-        validate_clusterloader2(node_count=0, operation_timeout_in_minutes=5)
+        self.large_cluster.validate(node_count=0, operation_timeout_in_minute=5)
 
         mock_kube_client.get_ready_nodes.assert_called()
 
-    # ==================== execute_clusterloader2() Tests ====================
+    # ==================== self.large_cluster.execute() Tests ====================
 
     @patch('clusterloader2.large_cluster.large_cluster.run_cl2_command')
     def test_execute_clusterloader2_basic_aws_execution(self, mock_run_cl2_command):
         """Test basic AWS execution"""
-        execute_clusterloader2(
+        self.large_cluster.execute(
             cl2_image="k8s.io/perf-tests/clusterloader2:latest",
             cl2_config_dir="/test/config",
             cl2_report_dir="/test/report",
@@ -391,7 +389,7 @@ class TestLargeCluster(unittest.TestCase):
     @patch('clusterloader2.large_cluster.large_cluster.run_cl2_command')
     def test_execute_clusterloader2_basic_azure_execution(self, mock_run_cl2_command):
         """Test basic Azure execution"""
-        execute_clusterloader2(
+        self.large_cluster.execute(
             cl2_image="k8s.io/perf-tests/clusterloader2:v1.2.3",
             cl2_config_dir="/azure/config",
             cl2_report_dir="/azure/report",
@@ -416,7 +414,7 @@ class TestLargeCluster(unittest.TestCase):
     @patch('clusterloader2.large_cluster.large_cluster.run_cl2_command')
     def test_execute_clusterloader2_with_containerd_scraping(self, mock_run_cl2_command):
         """Test execution with containerd scraping"""
-        execute_clusterloader2(
+        self.large_cluster.execute(
             cl2_image="custom/cl2:latest",
             cl2_config_dir="/custom/config",
             cl2_report_dir="/custom/report",
@@ -441,7 +439,7 @@ class TestLargeCluster(unittest.TestCase):
     @patch('clusterloader2.large_cluster.large_cluster.run_cl2_command')
     def test_execute_clusterloader2_custom_image(self, mock_run_cl2_command):
         """Test execution with custom image"""
-        execute_clusterloader2(
+        self.large_cluster.execute(
             cl2_image="private-registry/cl2:dev",
             cl2_config_dir="/dev/config",
             cl2_report_dir="/dev/report",
@@ -463,7 +461,7 @@ class TestLargeCluster(unittest.TestCase):
             scrape_containerd=False
         )
 
-    # ==================== collect_clusterloader2() Tests ====================
+    # ==================== self.large_cluster.collect() Tests ====================
 
     def create_mock_junit_xml(self, temp_dir, failures=0):
         """Helper to create mock junit.xml file"""
@@ -508,7 +506,7 @@ class TestLargeCluster(unittest.TestCase):
 
             result_file = os.path.join(temp_dir, "result.json")
 
-            collect_clusterloader2(
+            self.large_cluster.collect(
                 cl2_report_dir=temp_dir,
                 result_file=result_file,
                 **self.test_params
@@ -539,7 +537,7 @@ class TestLargeCluster(unittest.TestCase):
 
             result_file = os.path.join(temp_dir, "result.json")
 
-            collect_clusterloader2(
+            self.large_cluster.collect(
                 cl2_report_dir=temp_dir,
                 result_file=result_file,
                 **self.test_params
@@ -566,7 +564,7 @@ class TestLargeCluster(unittest.TestCase):
 
             result_file = os.path.join(temp_dir, "result.json")
 
-            collect_clusterloader2(
+            self.large_cluster.collect(
                 cl2_report_dir=temp_dir,
                 result_file=result_file,
                 **self.test_params
@@ -595,7 +593,7 @@ class TestLargeCluster(unittest.TestCase):
 
             result_file = os.path.join(temp_dir, "result.json")
 
-            collect_clusterloader2(
+            self.large_cluster.collect(
                 cl2_report_dir=temp_dir,
                 result_file=result_file,
                 **self.test_params
@@ -613,7 +611,7 @@ class TestLargeCluster(unittest.TestCase):
             result_file = os.path.join(temp_dir, "result.json")
 
             with self.assertRaises(Exception):
-                collect_clusterloader2(
+                self.large_cluster.collect(
                     cl2_report_dir=temp_dir,
                     result_file=result_file,
                     **self.test_params
@@ -630,7 +628,7 @@ class TestLargeCluster(unittest.TestCase):
             result_file = os.path.join(temp_dir, "result.json")
 
             with self.assertRaises(Exception) as context:
-                collect_clusterloader2(
+                self.large_cluster.collect(
                     cl2_report_dir=temp_dir,
                     result_file=result_file,
                     **self.test_params
@@ -649,7 +647,7 @@ class TestLargeCluster(unittest.TestCase):
             result_file = os.path.join(temp_dir, "result.json")
 
             with self.assertRaises(Exception):
-                collect_clusterloader2(
+                self.large_cluster.collect(
                     cl2_report_dir=temp_dir,
                     result_file=result_file,
                     **self.test_params
@@ -665,7 +663,7 @@ class TestLargeCluster(unittest.TestCase):
             result_file = os.path.join(temp_dir, "result.json")
 
             with self.assertRaises(Exception):
-                collect_clusterloader2(
+                self.large_cluster.collect(
                     cl2_report_dir=temp_dir,
                     result_file=result_file,
                     **self.test_params
@@ -682,7 +680,7 @@ class TestLargeCluster(unittest.TestCase):
             result_file = os.path.join(temp_dir, "result.json")
 
             with self.assertRaises(Exception):
-                collect_clusterloader2(
+                self.large_cluster.collect(
                     cl2_report_dir=temp_dir,
                     result_file=result_file,
                     **self.test_params
@@ -698,20 +696,20 @@ class TestLargeCluster(unittest.TestCase):
             result_file = os.path.join(temp_dir, "result.json")
 
             with self.assertRaises(Exception):
-                collect_clusterloader2(
+                self.large_cluster.collect(
                     cl2_report_dir=temp_dir,
                     result_file=result_file,
                     **self.test_params
                 )
 
-    # ==================== main() Tests ====================
+    # ==================== self.large_cluster.main() Tests ====================
 
     @patch('clusterloader2.large_cluster.large_cluster.configure_clusterloader2')
     @patch('sys.argv', ['large_cluster.py', 'configure', '4', '20', '5', '10', '3', '30m',
                         'aws', 'False', 'False', '/tmp/override.yaml'])
     def test_main_configure_command(self, mock_configure):
         """Test configure command parsing"""
-        main()
+        self.large_cluster.main()
 
         mock_configure.assert_called_once_with(
             4, 20, 5, 10, 3, '30m', 'aws', False, False, '/tmp/override.yaml'
@@ -721,7 +719,7 @@ class TestLargeCluster(unittest.TestCase):
     @patch('sys.argv', ['large_cluster.py', 'validate', '20', '600'])
     def test_main_validate_command(self, mock_validate):
         """Test validate command parsing"""
-        main()
+        self.large_cluster.main()
 
         mock_validate.assert_called_once_with(20, 600)
 
@@ -730,7 +728,7 @@ class TestLargeCluster(unittest.TestCase):
                         'config.yaml', '/kubeconfig', 'aws', 'False'])
     def test_main_execute_command(self, mock_execute):
         """Test execute command parsing"""
-        main()
+        self.large_cluster.main()
 
         mock_execute.assert_called_once_with(
             'cl2:latest', '/config', '/report', 'config.yaml', '/kubeconfig', 'aws', False
@@ -741,7 +739,7 @@ class TestLargeCluster(unittest.TestCase):
                         '{"cloud":"test"}', 'run123', 'http://example.com', '/result.json'])
     def test_main_collect_command(self, mock_collect):
         """Test collect command parsing"""
-        main()
+        self.large_cluster.main()
 
         mock_collect.assert_called_once_with(
             4, 20, 10, 3, '/report', '{"cloud":"test"}', 'run123', 'http://example.com', '/result.json'
