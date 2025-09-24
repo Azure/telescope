@@ -620,16 +620,20 @@ class TestClusterLoader2Base(unittest.TestCase):
             )) as mock_parse:
                 result = self.instance.parse_arguments()
 
-                # Verify parser.parse_args was called
-                mock_parse.assert_called_once()
+                # Verify parser.parse_args was called with no arguments (uses sys.argv)
+                mock_parse.assert_called_once_with()
+
+                # Parse test_args and verify against result
+                expected_command = test_args[0]
+                expected_file = test_args[2]
 
                 # Verify returned namespace has expected attributes
                 self.assertTrue(hasattr(result, 'command'))
                 self.assertTrue(hasattr(result, 'cl2_override_file'))
 
-                # Verify attribute values
-                self.assertEqual(result.command, 'configure')
-                self.assertEqual(result.cl2_override_file, 'override.yaml')
+                # Verify attribute values match test_args
+                self.assertEqual(result.command, expected_command)
+                self.assertEqual(result.cl2_override_file, expected_file)
 
                 # Verify the result is an argparse.Namespace
                 self.assertIsInstance(result, argparse.Namespace)
@@ -643,66 +647,88 @@ class TestClusterLoader2Base(unittest.TestCase):
         )) as mock_parse:
             result = self.instance.parse_arguments()
 
-            # Verify parser.parse_args was called
-            mock_parse.assert_called_once()
+            # Verify parser.parse_args was called with no arguments (uses sys.argv by default)
+            mock_parse.assert_called_once_with()
+
+            # Parse test_args and verify against result
+            expected_command = test_args[0]
+            expected_kubeconfig = test_args[2]
 
             # Verify returned namespace has expected attributes
             self.assertTrue(hasattr(result, 'command'))
             self.assertTrue(hasattr(result, 'kubeconfig'))
 
-            # Verify attribute values
-            self.assertEqual(result.command, 'validate')
-            self.assertEqual(result.kubeconfig, 'test.config')
+            # Verify attribute values match test_args
+            self.assertEqual(result.command, expected_command)
+            self.assertEqual(result.kubeconfig, expected_kubeconfig)
 
             # Verify the result is an argparse.Namespace
             self.assertIsInstance(result, argparse.Namespace)
 
     def test_parse_arguments_execute_command(self):
         """Test parsing execute command arguments"""
+        test_args = ['execute', '--kubeconfig', 'test.config', '--cl2_image', 'image',
+                    '--cl2_config_dir', 'config', '--cl2_report_dir', 'reports', '--provider', 'aws']
+
         with patch.object(self.instance.parser, 'parse_args', return_value=argparse.Namespace(
             command='execute', kubeconfig='test.config', cl2_image='image',
             cl2_config_dir='config', cl2_report_dir='reports', provider='aws'
         )) as mock_parse:
             result = self.instance.parse_arguments()
 
-            # Verify parser.parse_args was called
-            mock_parse.assert_called_once()
+            # Verify parser.parse_args was called with no arguments (uses sys.argv by default)
+            mock_parse.assert_called_once_with()
+
+            # Parse test_args and verify against result
+            expected_command = test_args[0]
+            expected_kubeconfig = test_args[2]
+            expected_image = test_args[4]
+            expected_config_dir = test_args[6]
+            expected_report_dir = test_args[8]
+            expected_provider = test_args[10]
 
             # Verify returned namespace has expected attributes
             expected_attrs = ['command', 'kubeconfig', 'cl2_image', 'cl2_config_dir', 'cl2_report_dir', 'provider']
             for attr in expected_attrs:
                 self.assertTrue(hasattr(result, attr), f"Missing attribute: {attr}")
 
-            # Verify attribute values
-            self.assertEqual(result.command, 'execute')
-            self.assertEqual(result.kubeconfig, 'test.config')
-            self.assertEqual(result.cl2_image, 'image')
-            self.assertEqual(result.cl2_config_dir, 'config')
-            self.assertEqual(result.cl2_report_dir, 'reports')
-            self.assertEqual(result.provider, 'aws')
+            # Verify attribute values match test_args expectations
+            self.assertEqual(result.command, expected_command)
+            self.assertEqual(result.kubeconfig, expected_kubeconfig)
+            self.assertEqual(result.cl2_image, expected_image)
+            self.assertEqual(result.cl2_config_dir, expected_config_dir)
+            self.assertEqual(result.cl2_report_dir, expected_report_dir)
+            self.assertEqual(result.provider, expected_provider)
 
             # Verify the result is an argparse.Namespace
             self.assertIsInstance(result, argparse.Namespace)
 
     def test_parse_arguments_collect_command(self):
         """Test parsing collect command arguments"""
+        test_args = ['collect', '--cl2_report_dir', 'reports', '--result_file', 'result.json']
+
         with patch.object(self.instance.parser, 'parse_args', return_value=argparse.Namespace(
             command='collect', cl2_report_dir='reports', result_file='result.json'
         )) as mock_parse:
             result = self.instance.parse_arguments()
 
-            # Verify parser.parse_args was called
-            mock_parse.assert_called_once()
+            # Verify parser.parse_args was called with no arguments (uses sys.argv by default)
+            mock_parse.assert_called_once_with()
+
+            # Parse test_args and verify against result
+            expected_command = test_args[0]
+            expected_report_dir = test_args[2]
+            expected_result_file = test_args[4]
 
             # Verify returned namespace has expected attributes
             expected_attrs = ['command', 'cl2_report_dir', 'result_file']
             for attr in expected_attrs:
                 self.assertTrue(hasattr(result, attr), f"Missing attribute: {attr}")
 
-            # Verify attribute values
-            self.assertEqual(result.command, 'collect')
-            self.assertEqual(result.cl2_report_dir, 'reports')
-            self.assertEqual(result.result_file, 'result.json')
+            # Verify attribute values match test_args expectations
+            self.assertEqual(result.command, expected_command)
+            self.assertEqual(result.cl2_report_dir, expected_report_dir)
+            self.assertEqual(result.result_file, expected_result_file)
 
             # Verify the result is an argparse.Namespace
             self.assertIsInstance(result, argparse.Namespace)
