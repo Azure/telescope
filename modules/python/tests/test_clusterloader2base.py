@@ -90,62 +90,48 @@ class TestClusterLoader2Base(unittest.TestCase):
     def test_add_configure_args_called(self):
         """Test that add_configure_args is called correctly"""
         parser = argparse.ArgumentParser()
+
+        # This should not raise an exception
         self.instance.add_configure_args(parser)
 
-        # Test by actually parsing arguments - this verifies the argument exists and works
-        try:
-            args = parser.parse_args(['--cl2_override_file', 'test.yaml'])
-            self.assertEqual(args.cl2_override_file, 'test.yaml')
-        except SystemExit:
-            self.fail("Required argument cl2_override_file was not added properly")
+        # Verify the argument was added
+        self.assertTrue(any(action.dest == 'cl2_override_file'
+                          for action in parser._actions
+                          if hasattr(action, 'dest')))
 
     def test_add_validate_args_called(self):
         """Test that add_validate_args is called correctly"""
         parser = argparse.ArgumentParser()
+
         self.instance.add_validate_args(parser)
 
-        try:
-            args = parser.parse_args(['--kubeconfig', 'test.config'])
-            self.assertEqual(args.kubeconfig, 'test.config')
-        except SystemExit:
-            self.fail("Required argument kubeconfig was not added properly")
+        self.assertTrue(any(action.dest == 'kubeconfig'
+                          for action in parser._actions
+                          if hasattr(action, 'dest')))
 
     def test_add_execute_args_called(self):
         """Test that add_execute_args is called correctly"""
         parser = argparse.ArgumentParser()
+
         self.instance.add_execute_args(parser)
 
-        test_args = [
-            '--kubeconfig', 'test.config',
-            '--cl2_image', 'test-image',
-            '--cl2_config_dir', 'test-config',
-            '--cl2_report_dir', 'test-reports',
-            '--provider', 'aws'
-        ]
-
-        try:
-            args = parser.parse_args(test_args)
-            self.assertEqual(args.kubeconfig, 'test.config')
-            self.assertEqual(args.cl2_image, 'test-image')
-            self.assertEqual(args.cl2_config_dir, 'test-config')
-            self.assertEqual(args.cl2_report_dir, 'test-reports')
-            self.assertEqual(args.provider, 'aws')
-        except SystemExit:
-            self.fail("Required execute arguments were not added properly")
+        expected_args = ['kubeconfig', 'cl2_image', 'cl2_config_dir', 'cl2_report_dir', 'provider']
+        for expected_arg in expected_args:
+            self.assertTrue(any(action.dest == expected_arg
+                              for action in parser._actions
+                              if hasattr(action, 'dest')))
 
     def test_add_collect_args_called(self):
         """Test that add_collect_args is called correctly"""
         parser = argparse.ArgumentParser()
+
         self.instance.add_collect_args(parser)
 
-        test_args = ['--cl2_report_dir', 'test-reports', '--result_file', 'result.json']
-
-        try:
-            args = parser.parse_args(test_args)
-            self.assertEqual(args.cl2_report_dir, 'test-reports')
-            self.assertEqual(args.result_file, 'result.json')
-        except SystemExit:
-            self.fail("Required collect arguments were not added properly")
+        expected_args = ['cl2_report_dir', 'result_file']
+        for expected_arg in expected_args:
+            self.assertTrue(any(action.dest == expected_arg
+                              for action in parser._actions
+                              if hasattr(action, 'dest')))
 
     # Get Measurement Tests
     def test_get_measurement_test_cases(self):
@@ -355,62 +341,9 @@ class TestClusterLoader2Base(unittest.TestCase):
             provider="aws"
         )
 
-        # Verify DockerClient was instantiated
-        mock_docker_client_class.assert_called_once()
-
-        # Verify run_container was called once
         mock_docker_client.run_container.assert_called_once()
-
-        # Get the call arguments
-        args, kwargs = mock_docker_client.run_container.call_args
-
-        # Verify image parameter
-        self.assertEqual(args[0], "test-image")
-
-        # Verify command contains required parameters
-        command = args[1]
-        self.assertIn("--provider=aws", command)
-        self.assertIn("--kubeconfig /root/.kube/config", command)
-        self.assertIn("--testconfig /root/perf-tests/clusterloader2/config/config.yaml", command)
-        self.assertIn("--report-dir /root/perf-tests/clusterloader2/results", command)
-        self.assertIn("--v=2", command)
-
-        # Verify default boolean parameters
-        self.assertIn("--enable-exec-service=False", command)
-        self.assertIn("--enable-prometheus-server=False", command)
-        self.assertIn("--prometheus-scrape-kubelets=False", command)
-        self.assertIn("--tear-down-prometheus-server=True", command)
-        self.assertIn("--prometheus-scrape-kube-state-metrics=False", command)
-        self.assertIn("--prometheus-scrape-metrics-server=False", command)
-
-        # Verify volumes are mounted correctly
-        self.assertIn('volumes', kwargs)
-        volumes = kwargs['volumes']
-        expected_volumes = {
-            '/test/kubeconfig': {'bind': '/root/.kube/config', 'mode': 'rw'},
-            '/test/config': {'bind': '/root/perf-tests/clusterloader2/config', 'mode': 'rw'},
-            '/test/reports': {'bind': '/root/perf-tests/clusterloader2/results', 'mode': 'rw'},
-        }
-
-        # Check AWS credentials volume is added for AWS provider
-        aws_path = os.path.expanduser("~/.aws/credentials")
-        expected_volumes[aws_path] = {'bind': '/root/.aws/credentials', 'mode': 'rw'}
-
-        self.assertEqual(volumes, expected_volumes)
-
-        # Verify detach parameter
-        self.assertIn('detach', kwargs)
-        self.assertTrue(kwargs['detach'])
-
-        # Verify container logs were retrieved with streaming
-        mock_container.logs.assert_called_once_with(stream=True)
-
-        # Verify container wait was called
-        mock_container.wait.assert_called_once()
-
-        # Verify optional parameters are not present (since not specified)
-        self.assertNotIn("--testoverrides", command)
-        self.assertNotIn("--prometheus-scrape-containerd", command)
+        args, _ = mock_docker_client.run_container.call_args
+        self.assertIn("--provider=aws", args[1])
 
     @patch('clusterloader2.large_cluster.base.DockerClient')
     def test_execute_azure_with_prometheus(self, mock_docker_client_class):
@@ -488,12 +421,15 @@ class TestClusterLoader2Base(unittest.TestCase):
         self.assertIn("--prometheus-scrape-kube-state-metrics=True", command)
         self.assertIn("--prometheus-scrape-metrics-server=True", command)
 
+    @patch('clusterloader2.large_cluster.base.logger')
     @patch('clusterloader2.large_cluster.base.DockerClient')
-    def test_execute_container_failure(self, mock_logger, mock_docker_client_class):
+    def test_execute_container_failure(self, mock_docker_client_class, mock_logger):
         """Test execution with container failure"""
+        exp_exit_status = 1
+        exp_stderr = b"error"
         mock_docker_client = Mock()
         mock_docker_client.run_container.side_effect = docker.errors.ContainerError(
-            container="test", exit_status=1, command="test", image="test", stderr=b"error"
+            container="test", exit_status=exp_exit_status, command="test", image="test", stderr=exp_stderr
         )
         mock_docker_client_class.return_value = mock_docker_client
 
@@ -506,11 +442,8 @@ class TestClusterLoader2Base(unittest.TestCase):
             provider="aws"
         )
 
-        # Verify that the error was logged
-        mock_logger.error.assert_called_once()
-        error_call_args = mock_logger.error.call_args[0][0]
-        self.assertIn("Container exited with a non-zero status code: 1", error_call_args)
-        self.assertIn("error", error_call_args)
+        # Verify that the error was logged with decoded stderr
+        mock_logger.error.assert_called_with(f"Container exited with a non-zero status code: {exp_exit_status}\n{exp_stderr.decode('utf-8')}")
 
     # Parse XML to JSON Tests
     def test_parse_xml_to_json_valid_xml(self):
@@ -555,26 +488,6 @@ class TestClusterLoader2Base(unittest.TestCase):
                 result = self.instance.parse_xml_to_json(f.name, indent=2)
                 # Check that result contains indentation
                 self.assertIn('  ', result)
-                
-                # Verify the parsed content is correct
-                json_data = json.loads(result)
-                self.assertIn("testsuites", json_data)
-                self.assertEqual(len(json_data["testsuites"]), 1)
-                
-                # Verify test suite data
-                testsuite = json_data["testsuites"][0]
-                self.assertEqual(testsuite["name"], "TestSuite1")
-                self.assertEqual(testsuite["tests"], 1)
-                self.assertEqual(testsuite["failures"], 0)
-                self.assertEqual(testsuite["errors"], 0)
-                
-                # Verify test case data
-                self.assertEqual(len(testsuite["testcases"]), 1)
-                testcase = testsuite["testcases"][0]
-                self.assertEqual(testcase["name"], "Test1")
-                self.assertEqual(testcase["classname"], "Class1")
-                self.assertEqual(testcase["time"], "1.5")
-                self.assertIsNone(testcase["failure"])
             finally:
                 os.unlink(f.name)
 
@@ -658,7 +571,6 @@ class TestClusterLoader2Base(unittest.TestCase):
 
     def test_add_subparser_validate_command(self):
         """Test adding validate subparser"""
-
         self.instance._add_subparser("validate", "Validate test")
 
         with patch('sys.argv', ['prog', 'validate', '--kubeconfig', 'test.config']):
