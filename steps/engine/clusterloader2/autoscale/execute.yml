@@ -27,9 +27,8 @@ steps:
     REGION: ${{ parameters.region }}
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/autoscale.py
     CL2_IMAGE: ${{ parameters.engine_input.image }}
-    ${{ if eq(parameters.engine_input.cl2_config_dir, '') }}:
-      CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/config
-    ${{ if eq(parameters.engine_input.cl2_config_dir, 'automatic123') }}:
+    CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/config
+    ${{ if eq(parameters.engine_input.cl2_config_directory, 'automatic') }}:
       CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/config/automatic
     CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/results
   displayName: "Run Benchmark"
