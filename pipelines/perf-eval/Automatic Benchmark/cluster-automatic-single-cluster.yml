@@ -38,7 +38,7 @@ stages:
               warmup_deployment: true
               vm_size: Standard_D4ds_v5
               capacity_type: on-demand
-              cl2_config_directory: automatic
+              cl2_config_dir: automatic
             #automatic-acn-off-100-nodes:
             #  cpu_per_node: 4
             #  node_count: 100
