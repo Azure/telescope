@@ -16,8 +16,6 @@ aks_cli_config_list = [
       network_plugin      = "azure"
       network_plugin_mode = "overlay"
       pod_cidr            = "10.128.0.0/11"
-      service_cidr         = "10.2.0.0/16"
-      dns_service_ip       = "10.2.0.10"
     }
 
     auto_scaler_profile = {
@@ -72,7 +70,100 @@ aks_cli_config_list = [
           },
           {
             name  = "max-count"
-            value = 1000
+            value = 251
+          },
+          {
+            name  = "max-pods"
+            value = 110
+          },
+          {
+            name  = "labels"
+            value = "cas=dedicated"
+          },
+          {
+            name  = "enable-cluster-autoscaler"
+            value = ""
+          }
+        ]
+      },
+    {
+        name       = "scalepool2"
+        node_count = 0
+        vm_size    = "Standard_D2ds_v4"
+        optional_parameters = [
+          {
+            name  = "ssh-access"
+            value = "disabled"
+          },
+          {
+            name  = "min-count"
+            value = 0
+          },
+          {
+            name  = "max-count"
+            value = 250
+          },
+          {
+            name  = "max-pods"
+            value = 110
+          },
+          {
+            name  = "labels"
+            value = "cas=dedicated"
+          },
+          {
+            name  = "enable-cluster-autoscaler"
+            value = ""
+          }
+        ]
+      },
+     {
+        name       = "scalepool3"
+        node_count = 0
+        vm_size    = "Standard_D2ds_v4"
+        optional_parameters = [
+          {
+            name  = "ssh-access"
+            value = "disabled"
+          },
+          {
+            name  = "min-count"
+            value = 0
+          },
+          {
+            name  = "max-count"
+            value = 250
+          },
+          {
+            name  = "max-pods"
+            value = 110
+          },
+          {
+            name  = "labels"
+            value = "cas=dedicated"
+          },
+          {
+            name  = "enable-cluster-autoscaler"
+            value = ""
+          }
+        ]
+      },
+   {
+        name       = "scalepool4"
+        node_count = 0
+        vm_size    = "Standard_D2ds_v4"
+        optional_parameters = [
+          {
+            name  = "ssh-access"
+            value = "disabled"
+          },
+          {
+            name  = "min-count"
+            value = 0
+          },
+          {
+            name  = "max-count"
+            value = 250
           },
           {
             name  = "max-pods"
