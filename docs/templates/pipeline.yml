@@ -29,6 +29,7 @@ stages:
           topology: <topology> # e.g. kperf, karpenter, kwok.  see available topology under /steps/topology
           engine: <engine> # e.g. clusterloader2, crud, iperf3, kperf. see available engines under /steps/engine
           matrix: # list of test parameters to customize the provisioned resources and also used for running the python code in the engine step
+            # Only add parameters that are used in the engine or topology steps
             <case-name>:
               <key1>: <value1>
               <key2>: <value2>
