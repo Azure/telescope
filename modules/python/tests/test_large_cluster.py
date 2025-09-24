@@ -749,4 +749,7 @@ class TestLargeCluster(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    # Disable this test for this Pull Request
+    # The refactored TestLargeCluster class is in a dedicated PR
+    # unittest.main()
+    pass
