@@ -1,22 +1,22 @@
 trigger: none
 schedules:
   # Azure Small Scale(10) Schedule
-  - cron: "0 2 * * *"
-    displayName: "2:00 AM Daily"
-    branches:
-      include:
-        - main
-    always: true
-  # Azure Medium Scale(500) Schedule
-  - cron: "0 11 * * *"
-    displayName: "Every day at 11:00 AM"
+  - cron: "0 1 * * *"
+    displayName: "1:00 AM Daily"
     branches:
       include:
         - main
     always: true
   # Azure Large Scale(1000) Schedule
-  - cron: "0 23 * * *"
-    displayName: "Every day at 11:00 PM"
+  - cron: "0 12 * * *"
+    displayName: "Every day at 12:00 PM"
+    branches:
+      include:
+        - main
+    always: true
+ # Azure Medium Scale(500) Schedule
+  - cron: "0 10 * * *"
+    displayName: "Every day at 10:00 AM"
     branches:
       include:
         - main
@@ -25,12 +25,12 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: security-perf
-
+  
 stages:
   - stage: azure_eastus2_small_scale
     condition: |
         or(
-          eq(variables['Build.CronSchedule.DisplayName'], '2:00 AM Daily'),
+          eq(variables['Build.CronSchedule.DisplayName'], '1:00 AM Daily'),
           eq(variables['Build.Reason'], 'Manual')
         )
     dependsOn: []
@@ -64,7 +64,7 @@ stages:
   - stage: azure_australiaeast_medium_scale
     condition: |
         or(
-          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 11:00 AM'),
+          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 10:00 AM'),
           eq(variables['Build.Reason'], 'Manual')
         )
     dependsOn: []
@@ -75,7 +75,7 @@ stages:
           regions:
             - australiaeast
           terraform_input_file_mapping:
-            - australiaeast: "scenarios/perf-eval/security-perf/terraform-inputs/azure.tfvars"
+            - australiaeast: "scenarios/perf-eval/cluster-autoscaler/terraform-inputs/azure-500nodes.tfvars"
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
@@ -100,7 +100,7 @@ stages:
   - stage: azure_australiaeast_large_scale
     condition: |
         or(
-          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 11:00 PM'),
+          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 12:00 PM'),
           eq(variables['Build.Reason'], 'Manual')
         )
     dependsOn: []
@@ -111,7 +111,7 @@ stages:
           regions:
             - australiaeast
           terraform_input_file_mapping:
-            - australiaeast: "scenarios/perf-eval/security-perf/terraform-inputs/azure.tfvars"
+            - australiaeast: "scenarios/perf-eval/cluster-autoscaler/terraform-inputs/azure-1000nodes.tfvars"
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
