@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.Name}}
+  labels:
+    app: inflate
+spec:
+  replicas: {{.Replicas}}
+  selector:
+    matchLabels:
+      app: inflate
+  template:
+    metadata:
+      labels:
+        app: inflate
+    spec:
+      nodeSelector:
+      {{- range $key, $value := .NodeSelector }}
+        {{ (StructuralData $key ) }}: {{ $value }}
+      {{- end }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: inflate
+      containers:
+        - name: nginx
+          image: mcr.microsoft.com/cbl-mariner/base/nginx:1
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            exec:
+              command:
+              - cat
+              - /EULA-Container.txt
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            successThreshold: 1
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command:
+              - cat
+              - /EULA-Container.txt
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: {{.CPUperJob}}
+              memory: 100Mi
+            limits:
+              cpu: {{.CPUperJob}}
+              memory: 256Mi
+          #command: ["nginx"]
+          #args: ["-g", "daemon off;"]
+          command:
+            - "/bin/bash"
+            - "-c"
+            - runtime="500 minute"; endtime=$(date -ud "$runtime" +%s); while [[ $(date -u +%s) -le $endtime ]]; do echo $(date); sleep 6000; done
+      restartPolicy: Always
