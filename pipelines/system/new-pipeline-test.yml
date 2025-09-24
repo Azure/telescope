@@ -25,7 +25,7 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: security-perf
-  
+
 stages:
   - stage: azure_eastus2_small_scale
     condition: |
