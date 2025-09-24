@@ -90,48 +90,62 @@ class TestClusterLoader2Base(unittest.TestCase):
     def test_add_configure_args_called(self):
         """Test that add_configure_args is called correctly"""
         parser = argparse.ArgumentParser()
-
-        # This should not raise an exception
         self.instance.add_configure_args(parser)
 
-        # Verify the argument was added
-        self.assertTrue(any(action.dest == 'cl2_override_file'
-                          for action in parser._actions
-                          if hasattr(action, 'dest')))
+        # Test by actually parsing arguments - this verifies the argument exists and works
+        try:
+            args = parser.parse_args(['--cl2_override_file', 'test.yaml'])
+            self.assertEqual(args.cl2_override_file, 'test.yaml')
+        except SystemExit:
+            self.fail("Required argument cl2_override_file was not added properly")
 
     def test_add_validate_args_called(self):
         """Test that add_validate_args is called correctly"""
         parser = argparse.ArgumentParser()
-
         self.instance.add_validate_args(parser)
 
-        self.assertTrue(any(action.dest == 'kubeconfig'
-                          for action in parser._actions
-                          if hasattr(action, 'dest')))
+        try:
+            args = parser.parse_args(['--kubeconfig', 'test.config'])
+            self.assertEqual(args.kubeconfig, 'test.config')
+        except SystemExit:
+            self.fail("Required argument kubeconfig was not added properly")
 
     def test_add_execute_args_called(self):
         """Test that add_execute_args is called correctly"""
         parser = argparse.ArgumentParser()
-
         self.instance.add_execute_args(parser)
 
-        expected_args = ['kubeconfig', 'cl2_image', 'cl2_config_dir', 'cl2_report_dir', 'provider']
-        for expected_arg in expected_args:
-            self.assertTrue(any(action.dest == expected_arg
-                              for action in parser._actions
-                              if hasattr(action, 'dest')))
+        test_args = [
+            '--kubeconfig', 'test.config',
+            '--cl2_image', 'test-image',
+            '--cl2_config_dir', 'test-config',
+            '--cl2_report_dir', 'test-reports',
+            '--provider', 'aws'
+        ]
+
+        try:
+            args = parser.parse_args(test_args)
+            self.assertEqual(args.kubeconfig, 'test.config')
+            self.assertEqual(args.cl2_image, 'test-image')
+            self.assertEqual(args.cl2_config_dir, 'test-config')
+            self.assertEqual(args.cl2_report_dir, 'test-reports')
+            self.assertEqual(args.provider, 'aws')
+        except SystemExit:
+            self.fail("Required execute arguments were not added properly")
 
     def test_add_collect_args_called(self):
         """Test that add_collect_args is called correctly"""
         parser = argparse.ArgumentParser()
-
         self.instance.add_collect_args(parser)
 
-        expected_args = ['cl2_report_dir', 'result_file']
-        for expected_arg in expected_args:
-            self.assertTrue(any(action.dest == expected_arg
-                              for action in parser._actions
-                              if hasattr(action, 'dest')))
+        test_args = ['--cl2_report_dir', 'test-reports', '--result_file', 'result.json']
+
+        try:
+            args = parser.parse_args(test_args)
+            self.assertEqual(args.cl2_report_dir, 'test-reports')
+            self.assertEqual(args.result_file, 'result.json')
+        except SystemExit:
+            self.fail("Required collect arguments were not added properly")
 
     # Get Measurement Tests
     def test_get_measurement_test_cases(self):
@@ -562,7 +576,7 @@ class TestClusterLoader2Base(unittest.TestCase):
     # Add Subparser Tests
     def test_add_subparser_configure_command(self):
         """Test adding configure subparser"""
-        self.instance._add_subparser("configure", "Configure test")
+        self.instance._add_subparser("configure", "Configure test")  # pylint: disable=protected-access
 
         # Parse with configure command to verify it was added
         with patch('sys.argv', ['prog', 'configure', '--cl2_override_file', 'test.yaml']):
@@ -571,7 +585,7 @@ class TestClusterLoader2Base(unittest.TestCase):
 
     def test_add_subparser_validate_command(self):
         """Test adding validate subparser"""
-        self.instance._add_subparser("validate", "Validate test")
+        self.instance._add_subparser("validate", "Validate test")  # pylint: disable=protected-access
 
         with patch('sys.argv', ['prog', 'validate', '--kubeconfig', 'test.config']):
             args = self.instance.parser.parse_args(['validate', '--kubeconfig', 'test.config'])
@@ -579,7 +593,7 @@ class TestClusterLoader2Base(unittest.TestCase):
 
     def test_add_subparser_execute_command(self):
         """Test adding execute subparser"""
-        self.instance._add_subparser("execute", "Execute test")
+        self.instance._add_subparser("execute", "Execute test")  # pylint: disable=protected-access
 
         test_args = ['execute', '--kubeconfig', 'test.config', '--cl2_image', 'image',
                     '--cl2_config_dir', 'config', '--cl2_report_dir', 'reports',
@@ -589,7 +603,7 @@ class TestClusterLoader2Base(unittest.TestCase):
 
     def test_add_subparser_collect_command(self):
         """Test adding collect subparser"""
-        self.instance._add_subparser("collect", "Collect test")
+        self.instance._add_subparser("collect", "Collect test")  # pylint: disable=protected-access
 
         test_args = ['collect', '--cl2_report_dir', 'reports', '--result_file', 'result.json']
         args = self.instance.parser.parse_args(test_args)
