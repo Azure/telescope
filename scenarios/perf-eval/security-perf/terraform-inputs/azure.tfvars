@@ -40,10 +40,6 @@ aks_cli_config_list = [
       vm_size                      = "Standard_D4_v5"
       optional_parameters = [
         {
-          name  = "enable-cluster-autoscaler"
-          value = ""
-        },
-        {
             name  = "ssh-access"
             value = "disabled"
         },
