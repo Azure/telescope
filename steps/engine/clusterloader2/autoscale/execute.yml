@@ -12,6 +12,9 @@ steps:
 - script: |
     set -eo pipefail
 
+    CL2_CONFIG_DIR="$(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/config${{ parameters.engine_input.cl2_config_directory }}"
+    echo "CL2 Config Dir: $CL2_CONFIG_DIR"
+    
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE override \
       $CPU_PER_NODE $NODE_COUNT $POD_COUNT \
       $SCALE_UP_TIMEOUT $SCALE_DOWN_TIMEOUT \
@@ -27,9 +30,9 @@ steps:
     REGION: ${{ parameters.region }}
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/autoscale.py
     CL2_IMAGE: ${{ parameters.engine_input.image }}
-    ${{ if eq(parameters.engine_input.cl2_config_directory, '') }}:
-      CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/config
-    ${{ if eq(parameters.engine_input.cl2_config_directory, 'automatic') }}:
-      CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/config/automatic
+    #${{ if eq(parameters.engine_input.cl2_config_directory, '') }}:
+    #CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/config${{ parameters.engine_input.cl2_config_directory }}
+    #${{ if eq(parameters.engine_input.cl2_config_directory, 'automatic') }}:
+      #CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/config/automatic
     CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/results
   displayName: "Run Benchmark"

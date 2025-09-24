@@ -38,20 +38,20 @@ stages:
               warmup_deployment: true
               vm_size: Standard_D4ds_v5
               capacity_type: on-demand
-              cl2_config_directory: automatic
-            automatic-acn-off-100-nodes:
-              cpu_per_node: 4
-              node_count: 100
-              pod_count: 100
-              scale_up_timeout: "150m"
-              scale_down_timeout: "150m"
-              node_label_selector: "karpenter.sh/nodepool = default"
-              node_selector: "{karpenter.sh/nodepool: default}"
-              loop_count: 1
-              warmup_deployment: true
-              vm_size: Standard_D4ds_v5
-              capacity_type: on-demand
-              cl2_config_directory: automatic
+              cl2_config_directory: /automatic
+            #automatic-acn-off-100-nodes:
+            #  cpu_per_node: 4
+            #  node_count: 100
+            #  pod_count: 100
+            #  scale_up_timeout: "150m"
+            #  scale_down_timeout: "150m"
+            #  node_label_selector: "karpenter.sh/nodepool = default"
+            #  node_selector: "{karpenter.sh/nodepool: default}"
+            #  loop_count: 1
+            #  warmup_deployment: true
+            #  vm_size: Standard_D4ds_v5
+            #  capacity_type: on-demand
+            #  cl2_config_directory: /automatic
           max_parallel: 1
           timeout_in_minutes: 90
           credential_type: service_connection
@@ -83,7 +83,7 @@ stages:
               warmup_deployment: true
               vm_size: Standard_D4ds_v5
               capacity_type: on-demand
-              cl2_config_directory: automatic
+              cl2_config_directory: /automatic
             automatic-acn-on-100-nodes:
               cpu_per_node: 4
               node_count: 100
@@ -96,7 +96,7 @@ stages:
               warmup_deployment: true
               vm_size: Standard_D4ds_v5
               capacity_type: on-demand
-              cl2_config_directory: automatic
+              cl2_config_directory: /automatic
           max_parallel: 1
           timeout_in_minutes: 90
           credential_type: service_connection
