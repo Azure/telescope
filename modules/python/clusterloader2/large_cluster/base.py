@@ -77,14 +77,6 @@ class ClusterLoader2Base(ABC):
     def command_parser(self) -> argparse.ArgumentParser:
         return self._command_parser
 
-    @property
-    def parser(self) -> argparse.ArgumentParser:
-        return self._parser
-    
-    @property
-    def command_parser(self) -> argparse.ArgumentParser:
-        return self._command_parser
-
     def get_measurement(self, file_path):
         file_name = os.path.basename(file_path)
         for file_prefix, measurement in POD_STARTUP_LATENCY_FILE_PREFIX_MEASUREMENT_MAP.items():
