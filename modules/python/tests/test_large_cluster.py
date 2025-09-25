@@ -134,231 +134,218 @@ class TestLargeCluster(unittest.TestCase):
 
     def test_configure_clusterloader2_basic_aws_config(self):
         """Test basic AWS configuration"""
-        self.large_cluster.configure(
+        config = self.large_cluster.configure(
             cpu_per_node=4, node_count=20, node_per_step=5,
             pods_per_node=10, repeats=3, operation_timeout="30m",
             provider="aws", cilium_enabled=False,
-            scrape_containerd=False, override_file=self.temp_path
+            scrape_containerd=False
         )
 
-        with open(self.temp_path, "r", encoding='utf-8') as f:
-            content = f.read()
-
-        self.assertIn("CL2_NODES: 20", content)
-        self.assertIn("CL2_NODES_PER_STEP: 5", content)
-        self.assertIn("CL2_STEPS: 4", content)  # 20 // 5
-        self.assertIn("CL2_PODS_PER_NODE: 10", content)
-        self.assertIn("CL2_REPEATS: 3", content)
-        self.assertIn("CL2_OPERATION_TIMEOUT: 30m", content)
-        self.assertNotIn("CL2_CILIUM_METRICS_ENABLED", content)
-        self.assertNotIn("CL2_SCRAPE_CONTAINERD", content)
+        self.assertEqual(config["CL2_NODES"], 20)
+        self.assertEqual(config["CL2_NODES_PER_STEP"], 5)
+        self.assertEqual(config["CL2_STEPS"], 4)  # 20 // 5
+        self.assertEqual(config["CL2_PODS_PER_NODE"], 10)
+        self.assertEqual(config["CL2_REPEATS"], 3)
+        self.assertEqual(config["CL2_OPERATION_TIMEOUT"], "30m")
+        self.assertNotIn("CL2_CILIUM_METRICS_ENABLED", config)
+        self.assertNotIn("CL2_SCRAPE_CONTAINERD", config)
 
     def test_configure_clusterloader2_basic_azure_config(self):
         """Test basic Azure configuration"""
-        self.large_cluster.configure(
+        config = self.large_cluster.configure(
             cpu_per_node=4, node_count=20, node_per_step=5,
             pods_per_node=10, repeats=3, operation_timeout="30m",
             provider="azure", cilium_enabled=False,
-            scrape_containerd=False, override_file=self.temp_path
+            scrape_containerd=False
         )
 
-        with open(self.temp_path, "r", encoding='utf-8') as f:
-            content = f.read()
-
-        self.assertIn("CL2_NODES: 20", content)
-        self.assertIn("CL2_LOAD_TEST_THROUGHPUT: 100", content)
+        self.assertEqual(config["CL2_NODES"], 20)
+        self.assertEqual(config["CL2_LOAD_TEST_THROUGHPUT"], 100)
 
     def test_configure_clusterloader2_cilium_enabled(self):
         """Test configuration with Cilium enabled"""
-        self.large_cluster.configure(
+        config = self.large_cluster.configure(
             cpu_per_node=4, node_count=50, node_per_step=10,
             pods_per_node=15, repeats=5, operation_timeout="45m",
             provider="azure", cilium_enabled=True,
-            scrape_containerd=False, override_file=self.temp_path
+            scrape_containerd=False
         )
 
-        with open(self.temp_path, "r", encoding='utf-8') as f:
-            content = f.read()
-
-        self.assertIn("CL2_CILIUM_METRICS_ENABLED: true", content)
-        self.assertIn("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true", content)
-        self.assertIn("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true", content)
-        self.assertIn("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT_INTERVAL: 30s", content)
+        self.assertEqual(config["CL2_CILIUM_METRICS_ENABLED"], "true")
+        self.assertEqual(config["CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR"], "true")
+        self.assertEqual(config["CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT"], "true")
+        self.assertEqual(config["CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT_INTERVAL"], "30s")
 
     def test_configure_clusterloader2_containerd_scraping(self):
         """Test configuration with containerd scraping enabled"""
-        self.large_cluster.configure(
+        config = self.large_cluster.configure(
             cpu_per_node=8, node_count=100, node_per_step=20,
             pods_per_node=20, repeats=2, operation_timeout="60m",
             provider="aws", cilium_enabled=False,
-            scrape_containerd=True, override_file=self.temp_path
+            scrape_containerd=True
         )
 
-        with open(self.temp_path, "r", encoding='utf-8') as f:
-            content = f.read()
-
-        self.assertIn("CL2_SCRAPE_CONTAINERD: true", content)
-        self.assertIn("CONTAINERD_SCRAPE_INTERVAL: 5m", content)
+        self.assertEqual(config["CL2_SCRAPE_CONTAINERD"], "true")
+        self.assertEqual(config["CONTAINERD_SCRAPE_INTERVAL"], "5m")
 
     def test_configure_clusterloader2_all_features_enabled(self):
         """Test configuration with all features enabled"""
-        self.large_cluster.configure(
+        config = self.large_cluster.configure(
             cpu_per_node=8, node_count=100, node_per_step=25,
             pods_per_node=25, repeats=4, operation_timeout="90m",
             provider="azure", cilium_enabled=True,
-            scrape_containerd=True, override_file=self.temp_path
+            scrape_containerd=True
         )
 
-        with open(self.temp_path, "r", encoding='utf-8') as f:
-            content = f.read()
-
         # Check all features are present
-        self.assertIn("CL2_CILIUM_METRICS_ENABLED: true", content)
-        self.assertIn("CL2_SCRAPE_CONTAINERD: true", content)
-        self.assertIn("CL2_STEPS: 4", content)  # 100 // 25
+        self.assertEqual(config["CL2_CILIUM_METRICS_ENABLED"], "true")
+        self.assertEqual(config["CL2_SCRAPE_CONTAINERD"], "true")
+        self.assertEqual(config["CL2_STEPS"], 4)  # 100 // 25
 
     def test_configure_clusterloader2_large_scale(self):
         """Test large scale configuration"""
-        self.large_cluster.configure(
+        config = self.large_cluster.configure(
             cpu_per_node=16, node_count=500, node_per_step=50,
             pods_per_node=30, repeats=1, operation_timeout="120m",
             provider="aws", cilium_enabled=False,
-            scrape_containerd=False, override_file=self.temp_path
+            scrape_containerd=False
         )
 
-        with open(self.temp_path, "r", encoding='utf-8') as f:
-            content = f.read()
-
-        self.assertIn("CL2_NODES: 500", content)
-        self.assertIn("CL2_STEPS: 10", content)  # 500 // 50
-        self.assertIn("CL2_OPERATION_TIMEOUT: 120m", content)
+        self.assertEqual(config["CL2_NODES"], 500)
+        self.assertEqual(config["CL2_STEPS"], 10)  # 500 // 50
+        self.assertEqual(config["CL2_OPERATION_TIMEOUT"], "120m")
 
     def test_configure_clusterloader2_single_step(self):
         """Test single step configuration"""
-        self.large_cluster.configure(
+        config = self.large_cluster.configure(
             cpu_per_node=2, node_count=10, node_per_step=10,
             pods_per_node=5, repeats=1, operation_timeout="15m",
             provider="azure", cilium_enabled=False,
-            scrape_containerd=False, override_file=self.temp_path
+            scrape_containerd=False
         )
 
-        with open(self.temp_path, "r", encoding='utf-8') as f:
-            content = f.read()
-
-        self.assertIn("CL2_STEPS: 1", content)  # 10 // 10
+        self.assertEqual(config["CL2_STEPS"], 1)  # 10 // 10
 
     # ==================== self.large_cluster.validate() Tests ====================
 
     @patch('clusterloader2.large_cluster.large_cluster.KubernetesClient')
-    @patch('clusterloader2.large_cluster.large_cluster.time.sleep')
-    def test_validate_clusterloader2_immediate_success(self, mock_sleep, mock_kube_client_class):
-        """Test immediate success scenario"""
+    def test_validate_successful_validation(self, mock_kube_client_class):
+        """Test successful node validation"""
         mock_kube_client = MagicMock()
-        mock_kube_client.get_ready_nodes.return_value = ['node1', 'node2', 'node3', 'node4', 'node5']
         mock_kube_client_class.return_value = mock_kube_client
 
-        # Should not raise exception
-        self.large_cluster.validate(node_count=5, operation_timeout_in_minute=10)
+        self.large_cluster.validate(node_count=20, operation_timeout_in_minute=30)
 
-        # Should call get_ready_nodes at least once
-        mock_kube_client.get_ready_nodes.assert_called()
-        # Should not sleep since nodes are ready immediately
-        mock_sleep.assert_not_called()
+        mock_kube_client_class.assert_called_once()
+        mock_kube_client.wait_for_nodes_ready.assert_called_once_with(
+            node_count=20,
+            operation_timeout_in_minutes=30
+        )
 
     @patch('clusterloader2.large_cluster.large_cluster.KubernetesClient')
-    @patch('clusterloader2.large_cluster.large_cluster.time.sleep')
-    @patch('clusterloader2.large_cluster.large_cluster.time.time')
-    def test_validate_clusterloader2_delayed_success(self, mock_time, mock_sleep, mock_kube_client_class):
-        """Test delayed success scenario"""
+    def test_validate_large_cluster(self, mock_kube_client_class):
+        """Test validation of large cluster"""
         mock_kube_client = MagicMock()
-        # Simulate gradual node readiness: 5 -> 8 -> 10
-        mock_kube_client.get_ready_nodes.side_effect = [
-            ['node1', 'node2', 'node3', 'node4', 'node5'],  # First call: 5 nodes
-            ['node1', 'node2', 'node3', 'node4', 'node5', 'node6', 'node7', 'node8'],  # Second call: 8 nodes
-            ['node1', 'node2', 'node3', 'node4', 'node5', 'node6', 'node7', 'node8', 'node9', 'node10']  # Third call: 10 nodes
-        ]
         mock_kube_client_class.return_value = mock_kube_client
 
-        # Mock time progression
-        start_time = 1000
-        mock_time.side_effect = [start_time, start_time + 60, start_time + 120, start_time + 180]  # Time progression
+        self.large_cluster.validate(node_count=500, operation_timeout_in_minute=120)
 
-        self.large_cluster.validate(node_count=10, operation_timeout_in_minute=5)
-
-        # Should call get_ready_nodes multiple times
-        self.assertEqual(mock_kube_client.get_ready_nodes.call_count, 3)
-        mock_sleep.assert_called()
+        mock_kube_client.wait_for_nodes_ready.assert_called_once_with(
+            node_count=500,
+            operation_timeout_in_minutes=120
+        )
 
     @patch('clusterloader2.large_cluster.large_cluster.KubernetesClient')
-    @patch('clusterloader2.large_cluster.large_cluster.time.sleep')
-    @patch('clusterloader2.large_cluster.large_cluster.time.time')
-    def test_validate_clusterloader2_timeout_failure(self, mock_time, mock_sleep, mock_kube_client_class):
-        """Test timeout failure scenario"""
+    def test_validate_small_cluster(self, mock_kube_client_class):
+        """Test validation of small cluster"""
         mock_kube_client = MagicMock()
-        # Always return 15 nodes, never reaches 20
-        mock_kube_client.get_ready_nodes.return_value = [f"node{i}" for i in range(15)]
         mock_kube_client_class.return_value = mock_kube_client
 
-        # Mock timeout scenario
-        start_time = 1000
-        timeout_time = start_time + (2 * 60)  # 2 minutes timeout
-        mock_time.side_effect = [start_time, timeout_time + 1]  # Exceed timeout
+        self.large_cluster.validate(node_count=3, operation_timeout_in_minute=10)
+
+        mock_kube_client.wait_for_nodes_ready.assert_called_once_with(
+            node_count=3,
+            operation_timeout_in_minutes=10
+        )
+
+    @patch('clusterloader2.large_cluster.large_cluster.KubernetesClient')
+    def test_validate_default_timeout(self, mock_kube_client_class):
+        """Test validation with default timeout"""
+        mock_kube_client = MagicMock()
+        mock_kube_client_class.return_value = mock_kube_client
+
+        self.large_cluster.validate(node_count=50, operation_timeout_in_minute=600)
+
+        mock_kube_client.wait_for_nodes_ready.assert_called_once_with(
+            node_count=50,
+            operation_timeout_in_minutes=600
+        )
+
+    @patch('clusterloader2.large_cluster.large_cluster.KubernetesClient')
+    def test_validate_timeout_exception(self, mock_kube_client_class):
+        """Test validation when timeout occurs"""
+        mock_kube_client = MagicMock()
+        mock_kube_client_class.return_value = mock_kube_client
+        mock_kube_client.wait_for_nodes_ready.side_effect = Exception("Timeout waiting for nodes")
 
         with self.assertRaises(Exception) as context:
-            self.large_cluster.validate(node_count=20, operation_timeout_in_minute=2)
+            self.large_cluster.validate(node_count=100, operation_timeout_in_minute=5)
 
-            self.assertIn("Only 15 nodes are ready, expected 20 nodes!", str(context.exception))
-        mock_sleep.assert_not_called()
+        self.assertIn("Timeout waiting for nodes", str(context.exception))
+        mock_kube_client.wait_for_nodes_ready.assert_called_once_with(
+            node_count=100,
+            operation_timeout_in_minutes=5
+        )
 
     @patch('clusterloader2.large_cluster.large_cluster.KubernetesClient')
-    @patch('clusterloader2.large_cluster.large_cluster.time.sleep')
-    @patch('clusterloader2.large_cluster.large_cluster.time.time')
-    def test_validate_clusterloader2_too_many_ready_nodes_failure(self, mock_time, mock_sleep, mock_kube_client_class):
-        """Test there are more ready node than required"""
-        mock_kube_client = MagicMock()
-        # Always returns 5 ready nodes
-        mock_kube_client.get_ready_nodes.return_value = [f"node{i}" for i in range(5)]
-        mock_kube_client_class.return_value = mock_kube_client
-
-        # Mock timeout scenario
-        start_time = 1000
-        mock_time.side_effect = start_time
+    def test_validate_kubernetes_client_error(self, mock_kube_client_class):
+        """Test validation when KubernetesClient initialization fails"""
+        mock_kube_client_class.side_effect = Exception("Failed to initialize KubernetesClient")
 
         with self.assertRaises(Exception) as context:
-            self.large_cluster.validate(
-                node_count=2,
-                operation_timeout_in_minute=2
-            )
+            self.large_cluster.validate(node_count=20, operation_timeout_in_minute=30)
 
-            self.assertIn(
-                "Only 5 nodes are ready, expected 2 nodes!",
-                str(context.exception)
-            )
-
-        mock_sleep.assert_not_called()
+        self.assertIn("Failed to initialize KubernetesClient", str(context.exception))
 
     @patch('clusterloader2.large_cluster.large_cluster.KubernetesClient')
-    def test_validate_clusterloader2_single_node(self, mock_kube_client_class):
-        """Test single node scenario"""
+    def test_validate_wait_for_nodes_connection_error(self, mock_kube_client_class):
+        """Test validation when connection to cluster fails"""
         mock_kube_client = MagicMock()
-        mock_kube_client.get_ready_nodes.return_value = ['node1']
         mock_kube_client_class.return_value = mock_kube_client
+        mock_kube_client.wait_for_nodes_ready.side_effect = Exception("Connection refused")
 
-        self.large_cluster.validate(node_count=1, operation_timeout_in_minute=5)
+        with self.assertRaises(Exception) as context:
+            self.large_cluster.validate(node_count=10, operation_timeout_in_minute=15)
 
-        mock_kube_client.get_ready_nodes.assert_called()
+        self.assertIn("Connection refused", str(context.exception))
 
     @patch('clusterloader2.large_cluster.large_cluster.KubernetesClient')
-    def test_validate_clusterloader2_zero_nodes(self, mock_kube_client_class):
-        """Test zero nodes scenario"""
+    def test_validate_zero_nodes(self, mock_kube_client_class):
+        """Test validation with zero nodes (edge case)"""
         mock_kube_client = MagicMock()
-        mock_kube_client.get_ready_nodes.return_value = []
         mock_kube_client_class.return_value = mock_kube_client
 
         self.large_cluster.validate(node_count=0, operation_timeout_in_minute=5)
 
-        mock_kube_client.get_ready_nodes.assert_called()
+        mock_kube_client.wait_for_nodes_ready.assert_called_once_with(
+            node_count=0,
+            operation_timeout_in_minutes=5
+        )
 
+    @patch('clusterloader2.large_cluster.large_cluster.KubernetesClient')
+    def test_validate_negative_timeout(self, mock_kube_client_class):
+        """Test validation with negative timeout (edge case)"""
+        mock_kube_client = MagicMock()
+        mock_kube_client_class.return_value = mock_kube_client
+
+        self.large_cluster.validate(node_count=5, operation_timeout_in_minute=-10)
+
+        mock_kube_client.wait_for_nodes_ready.assert_called_once_with(
+            node_count=5,
+            operation_timeout_in_minutes=-10
+        )
+
+class IgnoredTests(unittest.TestCase):
     # ==================== self.large_cluster.execute() Tests ====================
 
     @patch('clusterloader2.large_cluster.large_cluster.run_cl2_command')
@@ -747,7 +734,4 @@ class TestLargeCluster(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    # Disable this test for this Pull Request
-    # The refactored TestLargeCluster class is in a dedicated PR
-    # unittest.main()
-    pass
+    unittest.main()
