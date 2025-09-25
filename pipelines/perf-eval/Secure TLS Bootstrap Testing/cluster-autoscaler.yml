@@ -9,7 +9,7 @@ schedules:
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: stls-bootstrap-autoscaler
+  SCENARIO_NAME: stls-bootstrap
 
 stages:
   - stage: azure_westus2_linux
