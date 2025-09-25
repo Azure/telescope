@@ -58,10 +58,8 @@ def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, po
     # Remove warmup deployment cpu request from the total cpu value
     if warmup_deployment in ["true", "True"]:
         cpu_value -= 100
-        if(warmup_deployment_template!=''):
-            cleanup_warmup_deployment_for_karpeneter(warmup_deployment_template)
-        else:
-            cleanup_warmup_deployment_for_karpeneter(cl2_config_dir)
+        cleanup_warmup_deployment_for_karpeneter(cl2_config_dir,warmup_deployment_template)
+        
 
     # Calculate the cpu request for each pod
     pods_per_node = pod_count // node_count
@@ -74,10 +72,7 @@ def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up
     logger.info(f"CPU per node: {cpu_per_node}")
     desired_node_count = 1
     if warmup_deployment in ["true", "True"]:
-        if(warmup_deployment_template!=''):
-            warmup_deployment_for_karpeneter(warmup_deployment_template)
-        else:
-            warmup_deployment_for_karpeneter(cl2_config_dir)
+        warmup_deployment_for_karpeneter(cl2_config_dir,warmup_deployment_template)
         desired_node_count = 0
 
     cpu_request = calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, pod_count, warmup_deployment, cl2_config_dir,warmup_deployment_template)
