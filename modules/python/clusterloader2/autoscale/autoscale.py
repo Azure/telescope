@@ -12,14 +12,21 @@ from utils.logger_config import get_logger, setup_logging
 setup_logging()
 logger = get_logger(__name__)
 
-def warmup_deployment_for_karpeneter(cl2_config_dir):
+def warmup_deployment_for_karpeneter(cl2_config_dir,warmup_deployment_template):
     logger.info("WarmUp Deployment Started")
-    logger.info(cl2_config_dir)
-    deployment_file = f"{cl2_config_dir}/warmup_deployment.yaml"
+    logger.info("warmup_deployment_template: "+warmup_deployment_template)
+    logger.info("cl2_config_dir: "+cl2_config_dir)
+    if(warmup_deployment_template!=''):
+        deployment_file = f"{warmup_deployment_template}"
+    else:
+        deployment_file = f"{cl2_config_dir}/warmup_deployment.yaml"
     subprocess.run(["kubectl", "apply", "-f", deployment_file], check=True)
 
-def cleanup_warmup_deployment_for_karpeneter(cl2_config_dir):
-    deployment_file = f"{cl2_config_dir}/warmup_deployment.yaml"
+def cleanup_warmup_deployment_for_karpeneter(cl2_config_dir,warmup_deployment_template):
+    if(warmup_deployment_template!=''):
+        deployment_file = f"{warmup_deployment_template}"
+    else:
+        deployment_file = f"{cl2_config_dir}/warmup_deployment.yaml"
     subprocess.run(["kubectl", "delete", "-f", deployment_file], check=True)
     logger.info("WarmUp Deployment Deleted")
     try:
@@ -27,7 +34,7 @@ def cleanup_warmup_deployment_for_karpeneter(cl2_config_dir):
     except Exception as e:
         logger.error(f"Error while deleting node: {e}")
 
-def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, pod_count, warmup_deployment, cl2_config_dir):
+def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, pod_count, warmup_deployment, cl2_config_dir,warmup_deployment_template):
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
     timeout = 10  # 10 minutes
     nodes = []
@@ -51,7 +58,10 @@ def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, po
     # Remove warmup deployment cpu request from the total cpu value
     if warmup_deployment in ["true", "True"]:
         cpu_value -= 100
-        cleanup_warmup_deployment_for_karpeneter(cl2_config_dir)
+        if(warmup_deployment_template!=''):
+            cleanup_warmup_deployment_for_karpeneter(warmup_deployment_template)
+        else:
+            cleanup_warmup_deployment_for_karpeneter(cl2_config_dir)
 
     # Calculate the cpu request for each pod
     pods_per_node = pod_count // node_count
@@ -60,14 +70,17 @@ def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, po
     cpu_request = int(cpu_request * 0.95)
     return cpu_request
 
-def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file, warmup_deployment, cl2_config_dir):
+def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file, warmup_deployment, cl2_config_dir,warmup_deployment_template,deployment_template):
     logger.info(f"CPU per node: {cpu_per_node}")
     desired_node_count = 1
     if warmup_deployment in ["true", "True"]:
-        warmup_deployment_for_karpeneter(cl2_config_dir)
+        if(warmup_deployment_template!=''):
+            warmup_deployment_for_karpeneter(warmup_deployment_template)
+        else:
+            warmup_deployment_for_karpeneter(cl2_config_dir)
         desired_node_count = 0
 
-    cpu_request = calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, pod_count, warmup_deployment, cl2_config_dir)
+    cpu_request = calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, pod_count, warmup_deployment, cl2_config_dir,warmup_deployment_template)
 
     logger.info(f"Total number of nodes: {node_count}, total number of pods: {pod_count}")
     logger.info(f"CPU request for each pod: {cpu_request}m")
@@ -84,6 +97,8 @@ def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up
         file.write(f"CL2_LOOP_COUNT: {loop_count}\n")
         file.write(f"CL2_NODE_LABEL_SELECTOR: {node_label_selector}\n")
         file.write(f"CL2_NODE_SELECTOR: \"{node_selector}\"\n")
+        if(deployment_template!=''):
+            file.write(f"CL2_DEPLOYMENT_TEMPLATE_PATH: {deployment_template}\n")
 
     file.close()
 
@@ -197,6 +212,8 @@ def main():
     parser_override.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
     parser_override.add_argument("warmup_deployment", type=str, help="Warmup deployment to get the cpu request")
     parser_override.add_argument("cl2_config_dir", type=str, help="Path to the CL2 config directory")
+    parser_override.add_argument("warmup_deployment_template", type=str, help="Path to the CL2 warm up deployment file")
+    parser_override.add_argument("deployment_template", type=str, help="Path to the CL2 deployment file")
 
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", help="Execute scale up operation")
@@ -221,7 +238,7 @@ def main():
     args = parser.parse_args()
 
     if args.command == "override":
-        override_config_clusterloader2(args.cpu_per_node, args.node_count, args.pod_count, args.scale_up_timeout, args.scale_down_timeout, args.loop_count, args.node_label_selector, args.node_selector, args.cl2_override_file, args.warmup_deployment, args.cl2_config_dir)
+        override_config_clusterloader2(args.cpu_per_node, args.node_count, args.pod_count, args.scale_up_timeout, args.scale_down_timeout, args.loop_count, args.node_label_selector, args.node_selector, args.cl2_override_file, args.warmup_deployment, args.cl2_config_dir, args.warmup_deployment_template, args.deployment_template)
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider)
     elif args.command == "collect":
