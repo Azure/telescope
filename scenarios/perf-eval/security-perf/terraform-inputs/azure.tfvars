@@ -39,7 +39,7 @@ aks_cli_config_list = [
           },
           {
             name  = "max-count"
-            value = 501
+            value = 251
           },
           {
             name  = "max-pods"
@@ -72,10 +72,6 @@ aks_cli_config_list = [
       {
         name  = "pod-cidr"
         value = "10.128.0.0/11"
-      },
-      {
-        name  = "service-cidr"
-        value = "192.160.0.0/11"
       },
       {
         name  = "ssh-access"
