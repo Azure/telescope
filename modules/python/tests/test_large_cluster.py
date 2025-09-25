@@ -2,6 +2,7 @@ import json
 import os
 import unittest
 import tempfile
+import datetime
 from unittest.mock import patch, MagicMock
 
 from clusterloader2.large_cluster.large_cluster import (
@@ -450,18 +451,6 @@ class TestLargeCluster(unittest.TestCase):
         
     # ==================== self.large_cluster.collect() Tests ====================
 
-    def create_mock_junit_xml(self, temp_dir, failures=0):
-        """Helper to create mock junit.xml file"""
-        junit_path = os.path.join(temp_dir, "junit.xml")
-        with open(junit_path, 'w', encoding='utf-8') as f:
-            f.write(f"""<?xml version="1.0"?>
-<testsuites>
-    <testsuite name="test" failures="{failures}">
-        <testcase name="case1" time="1.0"></testcase>
-    </testsuite>
-</testsuites>""")
-        return junit_path
-
     def create_mock_measurement_file(self, temp_dir, filename, has_data_items=True, empty_items=False):
         """Helper to create mock measurement files"""
         file_path = os.path.join(temp_dir, filename)
@@ -477,200 +466,264 @@ class TestLargeCluster(unittest.TestCase):
             json.dump(data, f)
         return file_path
 
-    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.parse_xml_to_json')
-    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.get_measurement')
-    def test_collect_clusterloader2_successful_test(self, mock_get_measurement, mock_parse_xml):
-        """Test successful test scenario"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Mock parse_xml_to_json
-            mock_parse_xml.return_value = json.dumps({
-                "testsuites": [{"failures": 0}]
-            })
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.process_cl2_reports')
+    def test_collect_basic_functionality(self, mock_process_reports):
+        """Test basic collect functionality"""
+        mock_process_reports.return_value = '{"test": "result"}\n'
+        
+        result = self.large_cluster.collect(
+            cpu_per_node=4,
+            node_count=20,
+            pods_per_node=10,
+            repeats=3,
+            cl2_report_dir="/test/reports",
+            cloud_info='{"provider": "aws"}',
+            run_id="test123",
+            run_url="http://test.com",
+            test_status="success"
+        )
 
-            # Create measurement file
-            self.create_mock_measurement_file(temp_dir, "measurement1.json")
-            mock_get_measurement.return_value = ("test_measurement", "test_group")
+        # Verify process_cl2_reports was called with correct template
+        self.assertEqual(result, '{"test": "result"}\n')
+        mock_process_reports.assert_called_once()
+        
+        # Verify template structure
+        call_args = mock_process_reports.call_args
+        template = call_args[0][1]  # Second argument is the template
+        
+        self.assertEqual(template["cpu_per_node"], 4)
+        self.assertEqual(template["node_count"], 20)
+        self.assertEqual(template["pod_count"], 200)  # 20 * 10
+        self.assertEqual(template["churn_rate"], 3)
+        self.assertEqual(template["status"], "success")
+        self.assertEqual(template["cloud_info"], '{"provider": "aws"}')
+        self.assertEqual(template["run_id"], "test123")
+        self.assertEqual(template["run_url"], "http://test.com")
+        self.assertIsNone(template["group"])
+        self.assertIsNone(template["measurement"])
+        self.assertIsNone(template["result"])
 
-            result = self.large_cluster.collect(
-                cl2_report_dir=temp_dir,
-                test_status="success",
-                **self.test_params
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.process_cl2_reports')
+    def test_collect_pod_count_calculation(self, mock_process_reports):
+        """Test pod count calculation in collect method"""
+        mock_process_reports.return_value = ""
+        
+        # Test various combinations
+        test_cases = [
+            (10, 5, 50),    # 10 nodes * 5 pods = 50
+            (100, 10, 1000), # 100 nodes * 10 pods = 1000
+            (1000, 20, 20000), # 1000 nodes * 20 pods = 20000
+        ]
+        
+        for node_count, pods_per_node, expected_pod_count in test_cases:
+            with self.subTest(nodes=node_count, pods=pods_per_node):
+                self.large_cluster.collect(
+                    cpu_per_node=4,
+                    node_count=node_count,
+                    pods_per_node=pods_per_node,
+                    repeats=1,
+                    cl2_report_dir="/test",
+                    cloud_info="{}",
+                    run_id="test",
+                    run_url="test",
+                    test_status="success"
+                )
+                
+                # Get the template from the last call
+                template = mock_process_reports.call_args[0][1]
+                self.assertEqual(template["pod_count"], expected_pod_count)
+
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.process_cl2_reports')
+    def test_collect_different_test_statuses(self, mock_process_reports):
+        """Test collect with different test statuses"""
+        mock_process_reports.return_value = ""
+        
+        test_statuses = ["success", "failure", "error", "timeout"]
+        
+        for status in test_statuses:
+            with self.subTest(status=status):
+                self.large_cluster.collect(
+                    cpu_per_node=2,
+                    node_count=10,
+                    pods_per_node=5,
+                    repeats=2,
+                    cl2_report_dir="/test",
+                    cloud_info="{}",
+                    run_id="test",
+                    run_url="test",
+                    test_status=status
+                )
+                
+                template = mock_process_reports.call_args[0][1]
+                self.assertEqual(template["status"], status)
+
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.process_cl2_reports')
+    def test_collect_timestamp_format(self, mock_process_reports):
+        """Test that timestamp is generated in correct format"""
+        mock_process_reports.return_value = ""
+        
+        with patch('clusterloader2.large_cluster.large_cluster.datetime') as mock_datetime:
+            mock_now = MagicMock()
+            mock_now.strftime.return_value = "2025-01-15T10:30:45Z"
+            mock_datetime.now.return_value = mock_now
+            mock_datetime.timezone = datetime.timezone
+            
+            self.large_cluster.collect(
+                cpu_per_node=4,
+                node_count=20,
+                pods_per_node=10,
+                repeats=1,
+                cl2_report_dir="/test",
+                cloud_info="{}",
+                run_id="test",
+                run_url="test",
+                test_status="success"
             )
+            mock_datetime.now.assert_called_once_with(datetime.timezone.utc)
+            mock_now.strftime.assert_called_once_with('%Y-%m-%dT%H:%M:%SZ')
+            
+            template = mock_process_reports.call_args[0][1]
+            self.assertEqual(template["timestamp"], "2025-01-15T10:30:45Z")
 
-            # Verify result is returned as string
-            self.assertIsInstance(result, str)
-            self.assertIn('"status": "success"', result)
-            self.assertIn('"test_measurement"', result)
-            self.assertIn('"cpu_per_node": 4', result)
-            self.assertIn('"node_count": 20', result)
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.process_cl2_reports')
+    def test_collect_cloud_info_handling(self, mock_process_reports):
+        """Test different cloud info formats"""
+        mock_process_reports.return_value = ""
+        
+        cloud_info_tests = [
+            '{"provider": "aws", "region": "us-east-1"}',
+            '{"provider": "azure", "location": "eastus2"}',
+            '{}',  # Empty JSON
+            'simple_string',  # Non-JSON string
+        ]
+        
+        for cloud_info in cloud_info_tests:
+            with self.subTest(cloud_info=cloud_info):
+                self.large_cluster.collect(
+                    cpu_per_node=4,
+                    node_count=10,
+                    pods_per_node=5,
+                    repeats=1,
+                    cl2_report_dir="/test",
+                    cloud_info=cloud_info,
+                    run_id="test",
+                    run_url="test",
+                    test_status="success"
+                )
+                
+                template = mock_process_reports.call_args[0][1]
+                self.assertEqual(template["cloud_info"], cloud_info)
 
-    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.parse_xml_to_json')
-    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.get_measurement')
-    def test_collect_clusterloader2_failed_test(self, mock_get_measurement, mock_parse_xml):
-        """Test failed test scenario"""
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.process_cl2_reports')
+    def test_collect_kwargs_handling(self, mock_process_reports):
+        """Test that extra kwargs are properly ignored"""
+        mock_process_reports.return_value = "result"
+        
+        result = self.large_cluster.collect(
+            cpu_per_node=4,
+            node_count=10,
+            pods_per_node=5,
+            repeats=1,
+            cl2_report_dir="/test",
+            cloud_info="{}",
+            run_id="test",
+            run_url="test",
+            test_status="success",
+            # Extra parameters that should be ignored
+            extra_param1="ignored",
+            extra_param2=123,
+            result_file="/ignored/path"
+        )
+        
+        self.assertEqual(result, "result")
+        mock_process_reports.assert_called_once()
+
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.process_cl2_reports')
+    def test_collect_large_scale_values(self, mock_process_reports):
+        """Test collect with large scale values"""
+        mock_process_reports.return_value = "large_scale_result"
+        
+        result = self.large_cluster.collect(
+            cpu_per_node=64,
+            node_count=5000,
+            pods_per_node=50,
+            repeats=10,
+            cl2_report_dir="/large/test",
+            cloud_info='{"type": "large_scale_test"}',
+            run_id="large_test_001",
+            run_url="http://large.test.com",
+            test_status="success"
+        )
+        
+        self.assertEqual(result, "large_scale_result")
+        
+        template = mock_process_reports.call_args[0][1]
+        self.assertEqual(template["cpu_per_node"], 64)
+        self.assertEqual(template["node_count"], 5000)
+        self.assertEqual(template["pod_count"], 250000)  # 5000 * 50
+        self.assertEqual(template["churn_rate"], 10)
+
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.process_cl2_reports')
+    def test_collect_zero_values(self, mock_process_reports):
+        """Test collect with zero/minimal values"""
+        mock_process_reports.return_value = "minimal_result"
+        
+        result = self.large_cluster.collect(
+            cpu_per_node=1,
+            node_count=1,
+            pods_per_node=1,
+            repeats=0,
+            cl2_report_dir="/minimal",
+            cloud_info="{}",
+            run_id="min_test",
+            run_url="http://min.test",
+            test_status="success"
+        )
+        
+        self.assertEqual(result, "minimal_result")
+        
+        template = mock_process_reports.call_args[0][1]
+        self.assertEqual(template["cpu_per_node"], 1)
+        self.assertEqual(template["node_count"], 1)
+        self.assertEqual(template["pod_count"], 1)  # 1 * 1
+        self.assertEqual(template["churn_rate"], 0)
+
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.process_cl2_reports')
+    def test_collect_special_characters_in_params(self, mock_process_reports):
+        """Test collect with special characters in string parameters"""
+        mock_process_reports.return_value = "special_chars_result"
+        
+        result = self.large_cluster.collect(
+            cpu_per_node=4,
+            node_count=10,
+            pods_per_node=5,
+            repeats=1,
+            cl2_report_dir="/path/with spaces/and-dashes",
+            cloud_info='{"region": "us-east-1", "special": "value with spaces & symbols!"}',
+            run_id="test_with_underscores_and_numbers_123",
+            run_url="https://test.example.com/path?param=value&other=123",
+            test_status="success"
+        )
+        
+        self.assertEqual(result, "special_chars_result")
+        mock_process_reports.assert_called_once()
+
+    def test_collect_return_type(self):
+        """Test that collect returns a string"""
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Mock parse_xml_to_json with failures
-            mock_parse_xml.return_value = json.dumps({
-                "testsuites": [{"failures": 2}]
-            })
-
-            # Create measurement file
-            self.create_mock_measurement_file(temp_dir, "measurement1.json")
-            mock_get_measurement.return_value = ("test_measurement", "test_group")
-
             result = self.large_cluster.collect(
+                cpu_per_node=4,
+                node_count=10,
+                pods_per_node=5,
+                repeats=1,
                 cl2_report_dir=temp_dir,
-                test_status="failure",
-                **self.test_params
+                cloud_info="{}",
+                run_id="test",
+                run_url="test",
+                test_status="success"
             )
-
-            # Verify result contains failure status
+            
             self.assertIsInstance(result, str)
-            self.assertIn('"status": "failure"', result)
-            self.assertIn('"test_measurement"', result)
-
-    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.parse_xml_to_json')
-    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.get_measurement')
-    def test_collect_clusterloader2_no_data_items(self, mock_get_measurement, mock_parse_xml):
-        """Test scenario with empty data items"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            mock_parse_xml.return_value = json.dumps({
-                "testsuites": [{"failures": 0}]
-            })
-
-            # Create measurement file with empty dataItems
-            self.create_mock_measurement_file(temp_dir, "measurement1.json",
-                                              has_data_items=True, empty_items=True)
-            mock_get_measurement.return_value = ("test_measurement", "test_group")
-
-            result = self.large_cluster.collect(
-                cl2_report_dir=temp_dir,
-                test_status="success",
-                **self.test_params
-            )
-
-            # Verify result is returned with minimal content
-            self.assertIsInstance(result, str)
-            self.assertIn('"status": "success"', result)
-
-    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.parse_xml_to_json')
-    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.get_measurement')
-    def test_collect_clusterloader2_multiple_measurements(self, mock_get_measurement, mock_parse_xml):
-        """Test scenario with multiple measurement files"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            mock_parse_xml.return_value = json.dumps({
-                "testsuites": [{"failures": 0}]
-            })
-
-            # Create multiple measurement files
-            self.create_mock_measurement_file(temp_dir, "measurement1.json")
-            self.create_mock_measurement_file(temp_dir, "measurement2.json")
-
-            mock_get_measurement.side_effect = [
-                ("measurement1", "group1"),
-                ("measurement2", "group2")
-            ]
-
-            result = self.large_cluster.collect(
-                cl2_report_dir=temp_dir,
-                test_status="success",
-                **self.test_params
-            )
-
-            # Verify multiple entries in result
-            self.assertIsInstance(result, str)
-            lines = result.strip().split('\n')
-            self.assertGreaterEqual(len(lines), 2)  # At least 2 JSON objects
-            self.assertIn('"measurement1"', result)
-            self.assertIn('"measurement2"', result)
-
-    def test_collect_clusterloader2_missing_junit_xml(self):
-        """Test scenario with missing junit.xml file"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            with self.assertRaises(Exception):
-                self.large_cluster.collect(
-                    cl2_report_dir=temp_dir,
-                    test_status="error",
-                    **self.test_params
-                )
-
-    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.parse_xml_to_json')
-    def test_collect_clusterloader2_empty_testsuites(self, mock_parse_xml):
-        """Test scenario with empty testsuites array"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            mock_parse_xml.return_value = json.dumps({
-                "testsuites": []
-            })
-
-            with self.assertRaises(Exception) as context:
-                self.large_cluster.collect(
-                    cl2_report_dir=temp_dir,
-                    test_status="error",
-                    **self.test_params
-                )
-
-            self.assertIn("No testsuites found", str(context.exception))
-
-    def test_collect_clusterloader2_malformed_junit_xml(self):
-        """Test handling of malformed junit.xml file"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Create malformed junit.xml
-            junit_path = os.path.join(temp_dir, "junit.xml")
-            with open(junit_path, 'w', encoding='utf-8') as f:
-                f.write("<testsuites><testsuite name='test' failures='0'><testcase name='case1'></testsuite>")  # Missing closing tags
-
-            with self.assertRaises(Exception):
-                self.large_cluster.collect(
-                    cl2_report_dir=temp_dir,
-                    test_status="error",
-                    **self.test_params
-                )
-
-    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.parse_xml_to_json')
-    def test_collect_clusterloader2_invalid_json_structure_junit_xml(self, mock_parse_xml):
-        """Test handling of junit.xml that creates invalid JSON"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Simulate parse_xml_to_json returning invalid JSON
-            mock_parse_xml.return_value = '{"testsuites": invalid_json}'
-
-            with self.assertRaises(Exception):
-                self.large_cluster.collect(
-                    cl2_report_dir=temp_dir,
-                    test_status="error",
-                    **self.test_params
-                )
-
-    def test_collect_clusterloader2_corrupted_junit_xml(self):
-        """Test handling of corrupted/truncated junit.xml file"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            junit_path = os.path.join(temp_dir, "junit.xml")
-            with open(junit_path, 'wb') as f:
-                # Write some corrupted binary data
-                f.write(b'\x00\x01\x02\x03invalid_xml_content\xff\xfe')
-
-            with self.assertRaises(Exception):
-                self.large_cluster.collect(
-                    cl2_report_dir=temp_dir,
-                    test_status="error",
-                    **self.test_params
-                )
-
-    def test_collect_clusterloader2_empty_junit_xml(self):
-        """Test handling of empty junit.xml file"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            junit_path = os.path.join(temp_dir, "junit.xml")
-            with open(junit_path, 'w', encoding='utf-8') as f:
-                f.write("")  # Empty file
-
-            with self.assertRaises(Exception):
-                self.large_cluster.collect(
-                    cl2_report_dir=temp_dir,
-                    test_status="error",
-                    **self.test_params
-                )        
-
-class IgnoredTests(unittest.TestCase):
-
 
     # ==================== self.large_cluster.main() Tests ====================
 
