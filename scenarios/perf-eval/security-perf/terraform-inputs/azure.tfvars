@@ -71,15 +71,11 @@ aks_cli_config_list = [
       },
       {
         name  = "pod-cidr"
-        value = "10.0.0.0/9"
+        value = "10.128.0.0/11"
       },
       {
         name  = "service-cidr"
-        value = "192.168.0.0/11"
-      },
-      {
-        name  = "dns-service-ip"
-        value = "192.168.0.10"
+        value = "192.160.0.0/11"
       },
       {
         name  = "ssh-access"
