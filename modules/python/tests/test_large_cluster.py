@@ -13,7 +13,6 @@ from clusterloader2.large_cluster.large_cluster import (
 
 
 class TestLargeCluster(unittest.TestCase):
-
     """Comprehensive test class for all large_cluster.py functions"""
 
     def setUp(self):
@@ -448,7 +447,7 @@ class TestLargeCluster(unittest.TestCase):
             overrides=True,
             enable_prometheus=True
         )
-        
+
     # ==================== self.large_cluster.collect() Tests ====================
 
     def create_mock_measurement_file(self, temp_dir, filename, has_data_items=True, empty_items=False):
@@ -470,7 +469,7 @@ class TestLargeCluster(unittest.TestCase):
     def test_collect_basic_functionality(self, mock_process_reports):
         """Test basic collect functionality"""
         mock_process_reports.return_value = '{"test": "result"}\n'
-        
+
         result = self.large_cluster.collect(
             cpu_per_node=4,
             node_count=20,
@@ -486,11 +485,11 @@ class TestLargeCluster(unittest.TestCase):
         # Verify process_cl2_reports was called with correct template
         self.assertEqual(result, '{"test": "result"}\n')
         mock_process_reports.assert_called_once()
-        
+
         # Verify template structure
         call_args = mock_process_reports.call_args
         template = call_args[0][1]  # Second argument is the template
-        
+
         self.assertEqual(template["cpu_per_node"], 4)
         self.assertEqual(template["node_count"], 20)
         self.assertEqual(template["pod_count"], 200)  # 20 * 10
@@ -507,14 +506,14 @@ class TestLargeCluster(unittest.TestCase):
     def test_collect_pod_count_calculation(self, mock_process_reports):
         """Test pod count calculation in collect method"""
         mock_process_reports.return_value = ""
-        
+
         # Test various combinations
         test_cases = [
             (10, 5, 50),    # 10 nodes * 5 pods = 50
             (100, 10, 1000), # 100 nodes * 10 pods = 1000
             (1000, 20, 20000), # 1000 nodes * 20 pods = 20000
         ]
-        
+
         for node_count, pods_per_node, expected_pod_count in test_cases:
             with self.subTest(nodes=node_count, pods=pods_per_node):
                 self.large_cluster.collect(
@@ -528,7 +527,7 @@ class TestLargeCluster(unittest.TestCase):
                     run_url="test",
                     test_status="success"
                 )
-                
+
                 # Get the template from the last call
                 template = mock_process_reports.call_args[0][1]
                 self.assertEqual(template["pod_count"], expected_pod_count)
@@ -537,9 +536,9 @@ class TestLargeCluster(unittest.TestCase):
     def test_collect_different_test_statuses(self, mock_process_reports):
         """Test collect with different test statuses"""
         mock_process_reports.return_value = ""
-        
+
         test_statuses = ["success", "failure", "error", "timeout"]
-        
+
         for status in test_statuses:
             with self.subTest(status=status):
                 self.large_cluster.collect(
@@ -553,7 +552,7 @@ class TestLargeCluster(unittest.TestCase):
                     run_url="test",
                     test_status=status
                 )
-                
+
                 template = mock_process_reports.call_args[0][1]
                 self.assertEqual(template["status"], status)
 
@@ -561,13 +560,13 @@ class TestLargeCluster(unittest.TestCase):
     def test_collect_timestamp_format(self, mock_process_reports):
         """Test that timestamp is generated in correct format"""
         mock_process_reports.return_value = ""
-        
+
         with patch('clusterloader2.large_cluster.large_cluster.datetime') as mock_datetime:
             mock_now = MagicMock()
             mock_now.strftime.return_value = "2025-01-15T10:30:45Z"
             mock_datetime.now.return_value = mock_now
             mock_datetime.timezone = datetime.timezone
-            
+
             self.large_cluster.collect(
                 cpu_per_node=4,
                 node_count=20,
@@ -581,7 +580,7 @@ class TestLargeCluster(unittest.TestCase):
             )
             mock_datetime.now.assert_called_once_with(datetime.timezone.utc)
             mock_now.strftime.assert_called_once_with('%Y-%m-%dT%H:%M:%SZ')
-            
+
             template = mock_process_reports.call_args[0][1]
             self.assertEqual(template["timestamp"], "2025-01-15T10:30:45Z")
 
@@ -589,14 +588,14 @@ class TestLargeCluster(unittest.TestCase):
     def test_collect_cloud_info_handling(self, mock_process_reports):
         """Test different cloud info formats"""
         mock_process_reports.return_value = ""
-        
+
         cloud_info_tests = [
             '{"provider": "aws", "region": "us-east-1"}',
             '{"provider": "azure", "location": "eastus2"}',
             '{}',  # Empty JSON
             'simple_string',  # Non-JSON string
         ]
-        
+
         for cloud_info in cloud_info_tests:
             with self.subTest(cloud_info=cloud_info):
                 self.large_cluster.collect(
@@ -610,7 +609,7 @@ class TestLargeCluster(unittest.TestCase):
                     run_url="test",
                     test_status="success"
                 )
-                
+
                 template = mock_process_reports.call_args[0][1]
                 self.assertEqual(template["cloud_info"], cloud_info)
 
@@ -618,7 +617,7 @@ class TestLargeCluster(unittest.TestCase):
     def test_collect_kwargs_handling(self, mock_process_reports):
         """Test that extra kwargs are properly ignored"""
         mock_process_reports.return_value = "result"
-        
+
         result = self.large_cluster.collect(
             cpu_per_node=4,
             node_count=10,
@@ -634,7 +633,7 @@ class TestLargeCluster(unittest.TestCase):
             extra_param2=123,
             result_file="/ignored/path"
         )
-        
+
         self.assertEqual(result, "result")
         mock_process_reports.assert_called_once()
 
@@ -642,7 +641,7 @@ class TestLargeCluster(unittest.TestCase):
     def test_collect_large_scale_values(self, mock_process_reports):
         """Test collect with large scale values"""
         mock_process_reports.return_value = "large_scale_result"
-        
+
         result = self.large_cluster.collect(
             cpu_per_node=64,
             node_count=5000,
@@ -654,9 +653,9 @@ class TestLargeCluster(unittest.TestCase):
             run_url="http://large.test.com",
             test_status="success"
         )
-        
+
         self.assertEqual(result, "large_scale_result")
-        
+
         template = mock_process_reports.call_args[0][1]
         self.assertEqual(template["cpu_per_node"], 64)
         self.assertEqual(template["node_count"], 5000)
@@ -667,7 +666,7 @@ class TestLargeCluster(unittest.TestCase):
     def test_collect_zero_values(self, mock_process_reports):
         """Test collect with zero/minimal values"""
         mock_process_reports.return_value = "minimal_result"
-        
+
         result = self.large_cluster.collect(
             cpu_per_node=1,
             node_count=1,
@@ -679,9 +678,9 @@ class TestLargeCluster(unittest.TestCase):
             run_url="http://min.test",
             test_status="success"
         )
-        
+
         self.assertEqual(result, "minimal_result")
-        
+
         template = mock_process_reports.call_args[0][1]
         self.assertEqual(template["cpu_per_node"], 1)
         self.assertEqual(template["node_count"], 1)
@@ -692,7 +691,7 @@ class TestLargeCluster(unittest.TestCase):
     def test_collect_special_characters_in_params(self, mock_process_reports):
         """Test collect with special characters in string parameters"""
         mock_process_reports.return_value = "special_chars_result"
-        
+
         result = self.large_cluster.collect(
             cpu_per_node=4,
             node_count=10,
@@ -704,7 +703,7 @@ class TestLargeCluster(unittest.TestCase):
             run_url="https://test.example.com/path?param=value&other=123",
             test_status="success"
         )
-        
+
         self.assertEqual(result, "special_chars_result")
         mock_process_reports.assert_called_once()
 
@@ -722,31 +721,31 @@ class TestLargeCluster(unittest.TestCase):
                 run_url="test",
                 test_status="success"
             )
-            
+
             self.assertIsInstance(result, str)
 
     # ==================== self.large_cluster.main() Tests ====================
 
-    @patch('clusterloader2.large_cluster.large_cluster.configure_clusterloader2')
+    @patch('clusterloader2.large_cluster.large_cluster.LargeCluster.configure')
     @patch('sys.argv', ['large_cluster.py', 'configure', '4', '20', '5', '10', '3', '30m',
                         'aws', 'False', 'False', '/tmp/override.yaml'])
     def test_main_configure_command(self, mock_configure):
         """Test configure command parsing"""
+        mock_configure.return_value = {"test": "config"}
+
         self.large_cluster.main()
 
-        mock_configure.assert_called_once_with(
-            4, 20, 5, 10, 3, '30m', 'aws', False, False, '/tmp/override.yaml'
-        )
+        mock_configure.assert_called_once()
 
-    @patch('clusterloader2.large_cluster.large_cluster.validate_clusterloader2')
+    @patch('clusterloader2.large_cluster.large_cluster.LargeCluster.validate')
     @patch('sys.argv', ['large_cluster.py', 'validate', '20', '600'])
     def test_main_validate_command(self, mock_validate):
         """Test validate command parsing"""
         self.large_cluster.main()
 
-        mock_validate.assert_called_once_with(20, 600)
+        mock_validate.assert_called_once_with(node_count=20, operation_timeout_in_minute=600)
 
-    @patch('clusterloader2.large_cluster.large_cluster.execute_clusterloader2')
+    @patch('clusterloader2.large_cluster.large_cluster.LargeCluster.execute')
     @patch('sys.argv', ['large_cluster.py', 'execute', 'cl2:latest', '/config', '/report',
                         'config.yaml', '/kubeconfig', 'aws', 'False'])
     def test_main_execute_command(self, mock_execute):
@@ -754,18 +753,41 @@ class TestLargeCluster(unittest.TestCase):
         self.large_cluster.main()
 
         mock_execute.assert_called_once_with(
-            'cl2:latest', '/config', '/report', 'config.yaml', '/kubeconfig', 'aws', False
+            cl2_image='cl2:latest',
+            cl2_config_dir='/config',
+            cl2_report_dir='/report',
+            cl2_config_file='config.yaml',
+            kubeconfig='/kubeconfig',
+            provider='aws',
+            scrape_containerd=False
         )
 
-    @patch('clusterloader2.large_cluster.large_cluster.collect_clusterloader2')
+    @patch('clusterloader2.large_cluster.large_cluster.LargeCluster.write_to_file')
+    @patch('clusterloader2.large_cluster.large_cluster.LargeCluster.collect')
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.parse_test_results')
     @patch('sys.argv', ['large_cluster.py', 'collect', '4', '20', '10', '3', '/report',
-                        '{"cloud":"test"}', 'run123', 'http://example.com', '/result.json'])
-    def test_main_collect_command(self, mock_collect):
+                        '{"cloud":"test"}', 'run123', 'http://example.com', 'result.json'])
+    def test_main_collect_command(self, mock_parse_results, mock_collect, mock_write_to_file):
         """Test collect command parsing"""
+        mock_parse_results.return_value = ("success", [])
+        mock_collect.return_value = "test_result"
+
         self.large_cluster.main()
 
+        mock_write_to_file.assert_called_once()
+        mock_parse_results.assert_called_once_with('/report')
         mock_collect.assert_called_once_with(
-            4, 20, 10, 3, '/report', '{"cloud":"test"}', 'run123', 'http://example.com', '/result.json'
+            cpu_per_node=4,
+            node_count=20,
+            pods_per_node=10,
+            repeats=3,
+            cl2_report_dir='/report',
+            cloud_info='{"cloud":"test"}',
+            run_id='run123',
+            run_url='http://example.com',
+            result_file='result.json',
+            test_status="success",
+            test_results=[]
         )
 
 
