@@ -38,10 +38,10 @@ stages:
           matrix:
             aws_vpc_cni:
               cpu_per_node: 4
-              node_count: 10
-              node_per_step: 10
+              node_count: 1000
+              node_per_step: 1000
               pods_per_node: 20
-              repeats: 1
+              repeats: 10
               scale_timeout: "15m"
               cilium_enabled: False
               service_test: True
@@ -50,7 +50,7 @@ stages:
           timeout_in_minutes: 720
           credential_type: service_connection
           ssh_key_enabled: false
-  - stage: azure_swedencentral
+  - stage: azure_eastus2
     condition: |
       or(
         eq(variables['Build.CronSchedule.DisplayName'], '6:00 AM & PM Daily'),
@@ -62,7 +62,7 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - swedencentral
+            - eastus2
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250311"
@@ -70,20 +70,20 @@ stages:
           matrix:
             azure_cni:
               cpu_per_node: 4
-              node_count: 10
-              node_per_step: 10
+              node_count: 1000
+              node_per_step: 1000
               pods_per_node: 20
-              repeats: 1
+              repeats: 10
               scale_timeout: "15m"
               cilium_enabled: False
               scrape_containerd: True
               cl2_config_file: service-churn.yaml
             azure_cilium:
               cpu_per_node: 4
-              node_count: 10
-              node_per_step: 10
+              node_count: 1000
+              node_per_step: 1000
               pods_per_node: 20
-              repeats: 1
+              repeats: 10
               scale_timeout: "15m"
               cilium_enabled: True
               network_policy: cilium

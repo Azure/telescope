@@ -41,7 +41,7 @@ spec:
           value: "true"
           effect: NoSchedule
   limits:
-    cpu: 20
+    cpu: 2000
 ---
 apiVersion: karpenter.sh/v1
 kind: NodePool
@@ -86,4 +86,4 @@ spec:
           value: "true"
           effect: NoSchedule
   limits:
-    cpu: 20
+    cpu: 2000
