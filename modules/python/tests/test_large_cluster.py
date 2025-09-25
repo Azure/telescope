@@ -31,7 +31,7 @@ class TestLargeCluster(unittest.TestCase):
             "repeats": 3,
             "cloud_info": json.dumps({"cloud": "test_cloud"}),
             "run_id": "test_run_123",
-            "run_url": "http://example.com/run123"
+            "run_url": "http://example.com/run123",
         }
 
     def tearDown(self):
@@ -345,11 +345,11 @@ class TestLargeCluster(unittest.TestCase):
             operation_timeout_in_minutes=-10
         )
 
-class IgnoredTests(unittest.TestCase):
+
     # ==================== self.large_cluster.execute() Tests ====================
 
-    @patch('clusterloader2.large_cluster.large_cluster.run_cl2_command')
-    def test_execute_clusterloader2_basic_aws_execution(self, mock_run_cl2_command):
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.execute')
+    def test_execute_clusterloader2_basic_aws_execution(self, mock_base_execute):
         """Test basic AWS execution"""
         self.large_cluster.execute(
             cl2_image="k8s.io/perf-tests/clusterloader2:latest",
@@ -361,20 +361,20 @@ class IgnoredTests(unittest.TestCase):
             scrape_containerd=False
         )
 
-        mock_run_cl2_command.assert_called_once_with(
-            "/test/kubeconfig",
-            "k8s.io/perf-tests/clusterloader2:latest",
-            "/test/config",
-            "/test/report",
-            "aws",
+        mock_base_execute.assert_called_once_with(
+            cl2_image="k8s.io/perf-tests/clusterloader2:latest",
+            cl2_config_dir="/test/config",
+            cl2_report_dir="/test/report",
             cl2_config_file="config.yaml",
+            kubeconfig="/test/kubeconfig",
+            provider="aws",
+            scrape_containerd=False,
             overrides=True,
-            enable_prometheus=True,
-            scrape_containerd=False
+            enable_prometheus=True
         )
 
-    @patch('clusterloader2.large_cluster.large_cluster.run_cl2_command')
-    def test_execute_clusterloader2_basic_azure_execution(self, mock_run_cl2_command):
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.execute')
+    def test_execute_clusterloader2_basic_azure_execution(self, mock_base_execute):
         """Test basic Azure execution"""
         self.large_cluster.execute(
             cl2_image="k8s.io/perf-tests/clusterloader2:v1.2.3",
@@ -386,20 +386,20 @@ class IgnoredTests(unittest.TestCase):
             scrape_containerd=False
         )
 
-        mock_run_cl2_command.assert_called_once_with(
-            "/azure/kubeconfig",
-            "k8s.io/perf-tests/clusterloader2:v1.2.3",
-            "/azure/config",
-            "/azure/report",
-            "azure",
+        mock_base_execute.assert_called_once_with(
+            cl2_image="k8s.io/perf-tests/clusterloader2:v1.2.3",
+            cl2_config_dir="/azure/config",
+            cl2_report_dir="/azure/report",
             cl2_config_file="azure-config.yaml",
+            kubeconfig="/azure/kubeconfig",
+            provider="azure",
+            scrape_containerd=False,
             overrides=True,
-            enable_prometheus=True,
-            scrape_containerd=False
+            enable_prometheus=True
         )
 
-    @patch('clusterloader2.large_cluster.large_cluster.run_cl2_command')
-    def test_execute_clusterloader2_with_containerd_scraping(self, mock_run_cl2_command):
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.execute')
+    def test_execute_clusterloader2_with_containerd_scraping(self, mock_base_execute):
         """Test execution with containerd scraping"""
         self.large_cluster.execute(
             cl2_image="custom/cl2:latest",
@@ -411,20 +411,20 @@ class IgnoredTests(unittest.TestCase):
             scrape_containerd=True
         )
 
-        mock_run_cl2_command.assert_called_once_with(
-            "/custom/kubeconfig",
-            "custom/cl2:latest",
-            "/custom/config",
-            "/custom/report",
-            "aws",
+        mock_base_execute.assert_called_once_with(
+            cl2_image="custom/cl2:latest",
+            cl2_config_dir="/custom/config",
+            cl2_report_dir="/custom/report",
             cl2_config_file="custom-config.yaml",
+            kubeconfig="/custom/kubeconfig",
+            provider="aws",
+            scrape_containerd=True,
             overrides=True,
-            enable_prometheus=True,
-            scrape_containerd=True
+            enable_prometheus=True
         )
 
-    @patch('clusterloader2.large_cluster.large_cluster.run_cl2_command')
-    def test_execute_clusterloader2_custom_image(self, mock_run_cl2_command):
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.execute')
+    def test_execute_clusterloader2_custom_image(self, mock_base_execute):
         """Test execution with custom image"""
         self.large_cluster.execute(
             cl2_image="private-registry/cl2:dev",
@@ -436,18 +436,18 @@ class IgnoredTests(unittest.TestCase):
             scrape_containerd=False
         )
 
-        mock_run_cl2_command.assert_called_once_with(
-            "/dev/kubeconfig",
-            "private-registry/cl2:dev",
-            "/dev/config",
-            "/dev/report",
-            "azure",
+        mock_base_execute.assert_called_once_with(
+            cl2_image="private-registry/cl2:dev",
+            cl2_config_dir="/dev/config",
+            cl2_report_dir="/dev/report",
             cl2_config_file="dev-config.yaml",
+            kubeconfig="/dev/kubeconfig",
+            provider="azure",
+            scrape_containerd=False,
             overrides=True,
-            enable_prometheus=True,
-            scrape_containerd=False
+            enable_prometheus=True
         )
-
+        
     # ==================== self.large_cluster.collect() Tests ====================
 
     def create_mock_junit_xml(self, temp_dir, failures=0):
@@ -477,8 +477,8 @@ class IgnoredTests(unittest.TestCase):
             json.dump(data, f)
         return file_path
 
-    @patch('clusterloader2.large_cluster.large_cluster.parse_xml_to_json')
-    @patch('clusterloader2.large_cluster.large_cluster.get_measurement')
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.parse_xml_to_json')
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.get_measurement')
     def test_collect_clusterloader2_successful_test(self, mock_get_measurement, mock_parse_xml):
         """Test successful test scenario"""
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -491,25 +491,21 @@ class IgnoredTests(unittest.TestCase):
             self.create_mock_measurement_file(temp_dir, "measurement1.json")
             mock_get_measurement.return_value = ("test_measurement", "test_group")
 
-            result_file = os.path.join(temp_dir, "result.json")
-
-            self.large_cluster.collect(
+            result = self.large_cluster.collect(
                 cl2_report_dir=temp_dir,
-                result_file=result_file,
+                test_status="success",
                 **self.test_params
             )
 
-            # Verify result file is created
-            self.assertTrue(os.path.exists(result_file))
+            # Verify result is returned as string
+            self.assertIsInstance(result, str)
+            self.assertIn('"status": "success"', result)
+            self.assertIn('"test_measurement"', result)
+            self.assertIn('"cpu_per_node": 4', result)
+            self.assertIn('"node_count": 20', result)
 
-            # Verify content
-            with open(result_file, 'r', encoding='utf-8') as f:
-                content = f.read()
-                self.assertIn('"status": "success"', content)
-                self.assertIn('"test_measurement"', content)
-
-    @patch('clusterloader2.large_cluster.large_cluster.parse_xml_to_json')
-    @patch('clusterloader2.large_cluster.large_cluster.get_measurement')
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.parse_xml_to_json')
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.get_measurement')
     def test_collect_clusterloader2_failed_test(self, mock_get_measurement, mock_parse_xml):
         """Test failed test scenario"""
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -522,21 +518,19 @@ class IgnoredTests(unittest.TestCase):
             self.create_mock_measurement_file(temp_dir, "measurement1.json")
             mock_get_measurement.return_value = ("test_measurement", "test_group")
 
-            result_file = os.path.join(temp_dir, "result.json")
-
-            self.large_cluster.collect(
+            result = self.large_cluster.collect(
                 cl2_report_dir=temp_dir,
-                result_file=result_file,
+                test_status="failure",
                 **self.test_params
             )
 
-            # Verify result file contains failure status
-            with open(result_file, 'r', encoding='utf-8') as f:
-                content = f.read()
-                self.assertIn('"status": "failure"', content)
+            # Verify result contains failure status
+            self.assertIsInstance(result, str)
+            self.assertIn('"status": "failure"', result)
+            self.assertIn('"test_measurement"', result)
 
-    @patch('clusterloader2.large_cluster.large_cluster.parse_xml_to_json')
-    @patch('clusterloader2.large_cluster.large_cluster.get_measurement')
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.parse_xml_to_json')
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.get_measurement')
     def test_collect_clusterloader2_no_data_items(self, mock_get_measurement, mock_parse_xml):
         """Test scenario with empty data items"""
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -549,19 +543,18 @@ class IgnoredTests(unittest.TestCase):
                                               has_data_items=True, empty_items=True)
             mock_get_measurement.return_value = ("test_measurement", "test_group")
 
-            result_file = os.path.join(temp_dir, "result.json")
-
-            self.large_cluster.collect(
+            result = self.large_cluster.collect(
                 cl2_report_dir=temp_dir,
-                result_file=result_file,
+                test_status="success",
                 **self.test_params
             )
 
-            # Result file should be created but with minimal content
-            self.assertTrue(os.path.exists(result_file))
+            # Verify result is returned with minimal content
+            self.assertIsInstance(result, str)
+            self.assertIn('"status": "success"', result)
 
-    @patch('clusterloader2.large_cluster.large_cluster.parse_xml_to_json')
-    @patch('clusterloader2.large_cluster.large_cluster.get_measurement')
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.parse_xml_to_json')
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.get_measurement')
     def test_collect_clusterloader2_multiple_measurements(self, mock_get_measurement, mock_parse_xml):
         """Test scenario with multiple measurement files"""
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -578,33 +571,30 @@ class IgnoredTests(unittest.TestCase):
                 ("measurement2", "group2")
             ]
 
-            result_file = os.path.join(temp_dir, "result.json")
-
-            self.large_cluster.collect(
+            result = self.large_cluster.collect(
                 cl2_report_dir=temp_dir,
-                result_file=result_file,
+                test_status="success",
                 **self.test_params
             )
 
-            # Verify multiple entries in result file
-            with open(result_file, 'r', encoding='utf-8') as f:
-                content = f.read()
-                lines = content.strip().split('\n')
-                self.assertGreaterEqual(len(lines), 2)  # At least 2 JSON objects
+            # Verify multiple entries in result
+            self.assertIsInstance(result, str)
+            lines = result.strip().split('\n')
+            self.assertGreaterEqual(len(lines), 2)  # At least 2 JSON objects
+            self.assertIn('"measurement1"', result)
+            self.assertIn('"measurement2"', result)
 
     def test_collect_clusterloader2_missing_junit_xml(self):
         """Test scenario with missing junit.xml file"""
         with tempfile.TemporaryDirectory() as temp_dir:
-            result_file = os.path.join(temp_dir, "result.json")
-
             with self.assertRaises(Exception):
                 self.large_cluster.collect(
                     cl2_report_dir=temp_dir,
-                    result_file=result_file,
+                    test_status="error",
                     **self.test_params
                 )
 
-    @patch('clusterloader2.large_cluster.large_cluster.parse_xml_to_json')
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.parse_xml_to_json')
     def test_collect_clusterloader2_empty_testsuites(self, mock_parse_xml):
         """Test scenario with empty testsuites array"""
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -612,12 +602,10 @@ class IgnoredTests(unittest.TestCase):
                 "testsuites": []
             })
 
-            result_file = os.path.join(temp_dir, "result.json")
-
             with self.assertRaises(Exception) as context:
                 self.large_cluster.collect(
                     cl2_report_dir=temp_dir,
-                    result_file=result_file,
+                    test_status="error",
                     **self.test_params
                 )
 
@@ -631,28 +619,24 @@ class IgnoredTests(unittest.TestCase):
             with open(junit_path, 'w', encoding='utf-8') as f:
                 f.write("<testsuites><testsuite name='test' failures='0'><testcase name='case1'></testsuite>")  # Missing closing tags
 
-            result_file = os.path.join(temp_dir, "result.json")
-
             with self.assertRaises(Exception):
                 self.large_cluster.collect(
                     cl2_report_dir=temp_dir,
-                    result_file=result_file,
+                    test_status="error",
                     **self.test_params
                 )
 
-    @patch('clusterloader2.large_cluster.large_cluster.parse_xml_to_json')
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.parse_xml_to_json')
     def test_collect_clusterloader2_invalid_json_structure_junit_xml(self, mock_parse_xml):
         """Test handling of junit.xml that creates invalid JSON"""
         with tempfile.TemporaryDirectory() as temp_dir:
             # Simulate parse_xml_to_json returning invalid JSON
             mock_parse_xml.return_value = '{"testsuites": invalid_json}'
 
-            result_file = os.path.join(temp_dir, "result.json")
-
             with self.assertRaises(Exception):
                 self.large_cluster.collect(
                     cl2_report_dir=temp_dir,
-                    result_file=result_file,
+                    test_status="error",
                     **self.test_params
                 )
 
@@ -664,12 +648,10 @@ class IgnoredTests(unittest.TestCase):
                 # Write some corrupted binary data
                 f.write(b'\x00\x01\x02\x03invalid_xml_content\xff\xfe')
 
-            result_file = os.path.join(temp_dir, "result.json")
-
             with self.assertRaises(Exception):
                 self.large_cluster.collect(
                     cl2_report_dir=temp_dir,
-                    result_file=result_file,
+                    test_status="error",
                     **self.test_params
                 )
 
@@ -680,14 +662,15 @@ class IgnoredTests(unittest.TestCase):
             with open(junit_path, 'w', encoding='utf-8') as f:
                 f.write("")  # Empty file
 
-            result_file = os.path.join(temp_dir, "result.json")
-
             with self.assertRaises(Exception):
                 self.large_cluster.collect(
                     cl2_report_dir=temp_dir,
-                    result_file=result_file,
+                    test_status="error",
                     **self.test_params
-                )
+                )        
+
+class IgnoredTests(unittest.TestCase):
+
 
     # ==================== self.large_cluster.main() Tests ====================
 
