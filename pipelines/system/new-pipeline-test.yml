@@ -83,8 +83,8 @@ stages:
           matrix:
             medium-scale-on-demand:
               cpu_per_node: 2
-              node_count: 250
-              pod_count: 250
+              node_count: 100
+              pod_count: 100
               scale_up_timeout: "40m"
               scale_down_timeout: "40m"
               node_label_selector: "cas = dedicated"
@@ -119,8 +119,8 @@ stages:
           matrix:
             large-scale-demand:
               cpu_per_node: 2
-              node_count: 500
-              pod_count: 500
+              node_count: 251
+              pod_count: 251
               scale_up_timeout: "60m"
               scale_down_timeout: "60m"
               node_label_selector: "cas = dedicated"
