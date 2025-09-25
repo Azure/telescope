@@ -39,100 +39,7 @@ aks_cli_config_list = [
           },
           {
             name  = "max-count"
-            value = 251
-          },
-          {
-            name  = "max-pods"
-            value = 110
-          },
-          {
-            name  = "labels"
-            value = "cas=dedicated"
-          },
-          {
-            name  = "enable-cluster-autoscaler"
-            value = ""
-          }
-        ]
-      },
-    {
-        name       = "scalepool2"
-        node_count = 0
-        vm_size    = "Standard_D2ds_v4"
-        optional_parameters = [
-          {
-            name  = "ssh-access"
-            value = "disabled"
-          },
-          {
-            name  = "min-count"
-            value = 0
-          },
-          {
-            name  = "max-count"
-            value = 250
-          },
-          {
-            name  = "max-pods"
-            value = 110
-          },
-          {
-            name  = "labels"
-            value = "cas=dedicated"
-          },
-          {
-            name  = "enable-cluster-autoscaler"
-            value = ""
-          }
-        ]
-      },
-     {
-        name       = "scalepool3"
-        node_count = 0
-        vm_size    = "Standard_D2ds_v4"
-        optional_parameters = [
-          {
-            name  = "ssh-access"
-            value = "disabled"
-          },
-          {
-            name  = "min-count"
-            value = 0
-          },
-          {
-            name  = "max-count"
-            value = 250
-          },
-          {
-            name  = "max-pods"
-            value = 110
-          },
-          {
-            name  = "labels"
-            value = "cas=dedicated"
-          },
-          {
-            name  = "enable-cluster-autoscaler"
-            value = ""
-          }
-        ]
-      },
-   {
-        name       = "scalepool4"
-        node_count = 0
-        vm_size    = "Standard_D2ds_v4"
-        optional_parameters = [
-          {
-            name  = "ssh-access"
-            value = "disabled"
-          },
-          {
-            name  = "min-count"
-            value = 0
-          },
-          {
-            name  = "max-count"
-            value = 250
+            value = 501
           },
           {
             name  = "max-pods"
@@ -168,7 +75,7 @@ aks_cli_config_list = [
       },
       {
         name  = "service-cidr"
-        value = "192.168.0.0/16"
+        value = "192.168.0.0/11"
       },
       {
         name  = "dns-service-ip"
