@@ -2,17 +2,13 @@ import json
 import os
 import unittest
 import tempfile
+import datetime
 from unittest.mock import patch, MagicMock
 
 from clusterloader2.large_cluster.large_cluster import (
     calculate_config,
-    configure_clusterloader2,
-    validate_clusterloader2,
-    execute_clusterloader2,
-    collect_clusterloader2,
-    main,
-    DEFAULT_NODES_PER_NAMESPACE,
-    CPU_CAPACITY,
+    LargeCluster,
+    Cl2DefaultConfigConstants,
 )
 
 
@@ -26,6 +22,8 @@ class TestLargeCluster(unittest.TestCase):
         self.temp_path = self.temp_file.name
         self.temp_file.close()
 
+        self.large_cluster = LargeCluster()
+
         self.test_params = {
             "cpu_per_node": 4,
             "node_count": 20,
@@ -33,7 +31,7 @@ class TestLargeCluster(unittest.TestCase):
             "repeats": 3,
             "cloud_info": json.dumps({"cloud": "test_cloud"}),
             "run_id": "test_run_123",
-            "run_url": "http://example.com/run123"
+            "run_url": "http://example.com/run123",
         }
 
     def tearDown(self):
@@ -50,7 +48,7 @@ class TestLargeCluster(unittest.TestCase):
         )
         self.assertEqual(throughput, 100)
         self.assertEqual(nodes_per_namespace, 10)
-        expected_cpu = (2 * 1000 * CPU_CAPACITY["aws"]) // 10
+        expected_cpu = (2 * 1000 * Cl2DefaultConfigConstants.CPU_CAPACITY["aws"]) // 10
         self.assertEqual(cpu_request, int(expected_cpu))
 
     def test_calculate_config_medium_aws_cluster(self):
@@ -60,7 +58,7 @@ class TestLargeCluster(unittest.TestCase):
         )
         self.assertEqual(throughput, 100)
         self.assertEqual(nodes_per_namespace, 50)
-        expected_cpu = (4 * 1000 * CPU_CAPACITY["aws"]) // 20
+        expected_cpu = (4 * 1000 * Cl2DefaultConfigConstants.CPU_CAPACITY["aws"]) // 20
         self.assertEqual(cpu_request, int(expected_cpu))
 
     def test_calculate_config_large_aws_cluster(self):
@@ -69,8 +67,8 @@ class TestLargeCluster(unittest.TestCase):
             cpu_per_node=8, node_count=150, provider="aws", pods_per_node=30
         )
         self.assertEqual(throughput, 100)
-        self.assertEqual(nodes_per_namespace, DEFAULT_NODES_PER_NAMESPACE)  # Should be capped at 100
-        expected_cpu = (8 * 1000 * CPU_CAPACITY["aws"]) // 30
+        self.assertEqual(nodes_per_namespace, Cl2DefaultConfigConstants.DEFAULT_NODES_PER_NAMESPACE)  # Should be capped at 100
+        expected_cpu = (8 * 1000 * Cl2DefaultConfigConstants.CPU_CAPACITY["aws"]) // 30
         self.assertEqual(cpu_request, int(expected_cpu))
 
     def test_calculate_config_small_azure_cluster(self):
@@ -80,7 +78,7 @@ class TestLargeCluster(unittest.TestCase):
         )
         self.assertEqual(throughput, 100)
         self.assertEqual(nodes_per_namespace, 10)
-        expected_cpu = (2 * 1000 * CPU_CAPACITY["azure"]) // 10
+        expected_cpu = (2 * 1000 * Cl2DefaultConfigConstants.CPU_CAPACITY["azure"]) // 10
         self.assertEqual(cpu_request, int(expected_cpu))
 
     def test_calculate_config_medium_azure_cluster(self):
@@ -90,7 +88,7 @@ class TestLargeCluster(unittest.TestCase):
         )
         self.assertEqual(throughput, 100)
         self.assertEqual(nodes_per_namespace, 50)
-        expected_cpu = (4 * 1000 * CPU_CAPACITY["azure"]) // 20
+        expected_cpu = (4 * 1000 * Cl2DefaultConfigConstants.CPU_CAPACITY["azure"]) // 20
         self.assertEqual(cpu_request, int(expected_cpu))
 
     def test_calculate_config_large_azure_cluster(self):
@@ -99,8 +97,8 @@ class TestLargeCluster(unittest.TestCase):
             cpu_per_node=8, node_count=150, provider="azure", pods_per_node=30
         )
         self.assertEqual(throughput, 100)
-        self.assertEqual(nodes_per_namespace, DEFAULT_NODES_PER_NAMESPACE)
-        expected_cpu = (8 * 1000 * CPU_CAPACITY["azure"]) // 30
+        self.assertEqual(nodes_per_namespace, Cl2DefaultConfigConstants.DEFAULT_NODES_PER_NAMESPACE)
+        expected_cpu = (8 * 1000 * Cl2DefaultConfigConstants.CPU_CAPACITY["azure"]) // 30
         self.assertEqual(cpu_request, int(expected_cpu))
 
     def test_calculate_config_small_aks_cluster(self):
@@ -110,7 +108,7 @@ class TestLargeCluster(unittest.TestCase):
         )
         self.assertEqual(throughput, 100)
         self.assertEqual(nodes_per_namespace, 10)
-        expected_cpu = (2 * 1000 * CPU_CAPACITY["aks"]) // 10
+        expected_cpu = (2 * 1000 * Cl2DefaultConfigConstants.CPU_CAPACITY["aks"]) // 10
         self.assertEqual(cpu_request, int(expected_cpu))
 
     def test_calculate_config_edge_case_min_cpu(self):
@@ -128,245 +126,232 @@ class TestLargeCluster(unittest.TestCase):
             cpu_per_node=16, node_count=200, provider="azure", pods_per_node=50
         )
         self.assertEqual(throughput, 100)
-        self.assertEqual(nodes_per_namespace, DEFAULT_NODES_PER_NAMESPACE)
-        expected_cpu = (16 * 1000 * CPU_CAPACITY["azure"]) // 50
+        self.assertEqual(nodes_per_namespace, Cl2DefaultConfigConstants.DEFAULT_NODES_PER_NAMESPACE)
+        expected_cpu = (16 * 1000 * Cl2DefaultConfigConstants.CPU_CAPACITY["azure"]) // 50
         self.assertEqual(cpu_request, int(expected_cpu))
 
-    # ==================== configure_clusterloader2() Tests ====================
+    # ==================== self.large_cluster.configure() Tests ====================
 
     def test_configure_clusterloader2_basic_aws_config(self):
         """Test basic AWS configuration"""
-        configure_clusterloader2(
+        config = self.large_cluster.configure(
             cpu_per_node=4, node_count=20, node_per_step=5,
             pods_per_node=10, repeats=3, operation_timeout="30m",
             provider="aws", cilium_enabled=False,
-            scrape_containerd=False, override_file=self.temp_path
+            scrape_containerd=False
         )
 
-        with open(self.temp_path, "r", encoding='utf-8') as f:
-            content = f.read()
-
-        self.assertIn("CL2_NODES: 20", content)
-        self.assertIn("CL2_NODES_PER_STEP: 5", content)
-        self.assertIn("CL2_STEPS: 4", content)  # 20 // 5
-        self.assertIn("CL2_PODS_PER_NODE: 10", content)
-        self.assertIn("CL2_REPEATS: 3", content)
-        self.assertIn("CL2_OPERATION_TIMEOUT: 30m", content)
-        self.assertNotIn("CL2_CILIUM_METRICS_ENABLED", content)
-        self.assertNotIn("CL2_SCRAPE_CONTAINERD", content)
+        self.assertEqual(config["CL2_NODES"], 20)
+        self.assertEqual(config["CL2_NODES_PER_STEP"], 5)
+        self.assertEqual(config["CL2_STEPS"], 4)  # 20 // 5
+        self.assertEqual(config["CL2_PODS_PER_NODE"], 10)
+        self.assertEqual(config["CL2_REPEATS"], 3)
+        self.assertEqual(config["CL2_OPERATION_TIMEOUT"], "30m")
+        self.assertNotIn("CL2_CILIUM_METRICS_ENABLED", config)
+        self.assertNotIn("CL2_SCRAPE_CONTAINERD", config)
 
     def test_configure_clusterloader2_basic_azure_config(self):
         """Test basic Azure configuration"""
-        configure_clusterloader2(
+        config = self.large_cluster.configure(
             cpu_per_node=4, node_count=20, node_per_step=5,
             pods_per_node=10, repeats=3, operation_timeout="30m",
             provider="azure", cilium_enabled=False,
-            scrape_containerd=False, override_file=self.temp_path
+            scrape_containerd=False
         )
 
-        with open(self.temp_path, "r", encoding='utf-8') as f:
-            content = f.read()
-
-        self.assertIn("CL2_NODES: 20", content)
-        self.assertIn("CL2_LOAD_TEST_THROUGHPUT: 100", content)
+        self.assertEqual(config["CL2_NODES"], 20)
+        self.assertEqual(config["CL2_LOAD_TEST_THROUGHPUT"], 100)
 
     def test_configure_clusterloader2_cilium_enabled(self):
         """Test configuration with Cilium enabled"""
-        configure_clusterloader2(
+        config = self.large_cluster.configure(
             cpu_per_node=4, node_count=50, node_per_step=10,
             pods_per_node=15, repeats=5, operation_timeout="45m",
             provider="azure", cilium_enabled=True,
-            scrape_containerd=False, override_file=self.temp_path
+            scrape_containerd=False
         )
 
-        with open(self.temp_path, "r", encoding='utf-8') as f:
-            content = f.read()
-
-        self.assertIn("CL2_CILIUM_METRICS_ENABLED: true", content)
-        self.assertIn("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true", content)
-        self.assertIn("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true", content)
-        self.assertIn("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT_INTERVAL: 30s", content)
+        self.assertEqual(config["CL2_CILIUM_METRICS_ENABLED"], "true")
+        self.assertEqual(config["CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR"], "true")
+        self.assertEqual(config["CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT"], "true")
+        self.assertEqual(config["CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT_INTERVAL"], "30s")
 
     def test_configure_clusterloader2_containerd_scraping(self):
         """Test configuration with containerd scraping enabled"""
-        configure_clusterloader2(
+        config = self.large_cluster.configure(
             cpu_per_node=8, node_count=100, node_per_step=20,
             pods_per_node=20, repeats=2, operation_timeout="60m",
             provider="aws", cilium_enabled=False,
-            scrape_containerd=True, override_file=self.temp_path
+            scrape_containerd=True
         )
 
-        with open(self.temp_path, "r", encoding='utf-8') as f:
-            content = f.read()
-
-        self.assertIn("CL2_SCRAPE_CONTAINERD: true", content)
-        self.assertIn("CONTAINERD_SCRAPE_INTERVAL: 5m", content)
+        self.assertEqual(config["CL2_SCRAPE_CONTAINERD"], "true")
+        self.assertEqual(config["CONTAINERD_SCRAPE_INTERVAL"], "5m")
 
     def test_configure_clusterloader2_all_features_enabled(self):
         """Test configuration with all features enabled"""
-        configure_clusterloader2(
+        config = self.large_cluster.configure(
             cpu_per_node=8, node_count=100, node_per_step=25,
             pods_per_node=25, repeats=4, operation_timeout="90m",
             provider="azure", cilium_enabled=True,
-            scrape_containerd=True, override_file=self.temp_path
+            scrape_containerd=True
         )
 
-        with open(self.temp_path, "r", encoding='utf-8') as f:
-            content = f.read()
-
         # Check all features are present
-        self.assertIn("CL2_CILIUM_METRICS_ENABLED: true", content)
-        self.assertIn("CL2_SCRAPE_CONTAINERD: true", content)
-        self.assertIn("CL2_STEPS: 4", content)  # 100 // 25
+        self.assertEqual(config["CL2_CILIUM_METRICS_ENABLED"], "true")
+        self.assertEqual(config["CL2_SCRAPE_CONTAINERD"], "true")
+        self.assertEqual(config["CL2_STEPS"], 4)  # 100 // 25
 
     def test_configure_clusterloader2_large_scale(self):
         """Test large scale configuration"""
-        configure_clusterloader2(
+        config = self.large_cluster.configure(
             cpu_per_node=16, node_count=500, node_per_step=50,
             pods_per_node=30, repeats=1, operation_timeout="120m",
             provider="aws", cilium_enabled=False,
-            scrape_containerd=False, override_file=self.temp_path
+            scrape_containerd=False
         )
 
-        with open(self.temp_path, "r", encoding='utf-8') as f:
-            content = f.read()
-
-        self.assertIn("CL2_NODES: 500", content)
-        self.assertIn("CL2_STEPS: 10", content)  # 500 // 50
-        self.assertIn("CL2_OPERATION_TIMEOUT: 120m", content)
+        self.assertEqual(config["CL2_NODES"], 500)
+        self.assertEqual(config["CL2_STEPS"], 10)  # 500 // 50
+        self.assertEqual(config["CL2_OPERATION_TIMEOUT"], "120m")
 
     def test_configure_clusterloader2_single_step(self):
         """Test single step configuration"""
-        configure_clusterloader2(
+        config = self.large_cluster.configure(
             cpu_per_node=2, node_count=10, node_per_step=10,
             pods_per_node=5, repeats=1, operation_timeout="15m",
             provider="azure", cilium_enabled=False,
-            scrape_containerd=False, override_file=self.temp_path
+            scrape_containerd=False
         )
 
-        with open(self.temp_path, "r", encoding='utf-8') as f:
-            content = f.read()
+        self.assertEqual(config["CL2_STEPS"], 1)  # 10 // 10
 
-        self.assertIn("CL2_STEPS: 1", content)  # 10 // 10
-
-    # ==================== validate_clusterloader2() Tests ====================
+    # ==================== self.large_cluster.validate() Tests ====================
 
     @patch('clusterloader2.large_cluster.large_cluster.KubernetesClient')
-    @patch('clusterloader2.large_cluster.large_cluster.time.sleep')
-    def test_validate_clusterloader2_immediate_success(self, mock_sleep, mock_kube_client_class):
-        """Test immediate success scenario"""
+    def test_validate_successful_validation(self, mock_kube_client_class):
+        """Test successful node validation"""
         mock_kube_client = MagicMock()
-        mock_kube_client.get_ready_nodes.return_value = ['node1', 'node2', 'node3', 'node4', 'node5']
         mock_kube_client_class.return_value = mock_kube_client
 
-        # Should not raise exception
-        validate_clusterloader2(node_count=5, operation_timeout_in_minutes=10)
+        self.large_cluster.validate(node_count=20, operation_timeout_in_minute=30)
 
-        # Should call get_ready_nodes at least once
-        mock_kube_client.get_ready_nodes.assert_called()
-        # Should not sleep since nodes are ready immediately
-        mock_sleep.assert_not_called()
+        mock_kube_client_class.assert_called_once()
+        mock_kube_client.wait_for_nodes_ready.assert_called_once_with(
+            node_count=20,
+            operation_timeout_in_minutes=30
+        )
 
     @patch('clusterloader2.large_cluster.large_cluster.KubernetesClient')
-    @patch('clusterloader2.large_cluster.large_cluster.time.sleep')
-    @patch('clusterloader2.large_cluster.large_cluster.time.time')
-    def test_validate_clusterloader2_delayed_success(self, mock_time, mock_sleep, mock_kube_client_class):
-        """Test delayed success scenario"""
+    def test_validate_large_cluster(self, mock_kube_client_class):
+        """Test validation of large cluster"""
         mock_kube_client = MagicMock()
-        # Simulate gradual node readiness: 5 -> 8 -> 10
-        mock_kube_client.get_ready_nodes.side_effect = [
-            ['node1', 'node2', 'node3', 'node4', 'node5'],  # First call: 5 nodes
-            ['node1', 'node2', 'node3', 'node4', 'node5', 'node6', 'node7', 'node8'],  # Second call: 8 nodes
-            ['node1', 'node2', 'node3', 'node4', 'node5', 'node6', 'node7', 'node8', 'node9', 'node10']  # Third call: 10 nodes
-        ]
         mock_kube_client_class.return_value = mock_kube_client
 
-        # Mock time progression
-        start_time = 1000
-        mock_time.side_effect = [start_time, start_time + 60, start_time + 120, start_time + 180]  # Time progression
+        self.large_cluster.validate(node_count=500, operation_timeout_in_minute=120)
 
-        validate_clusterloader2(node_count=10, operation_timeout_in_minutes=5)
-
-        # Should call get_ready_nodes multiple times
-        self.assertEqual(mock_kube_client.get_ready_nodes.call_count, 3)
-        mock_sleep.assert_called()
+        mock_kube_client.wait_for_nodes_ready.assert_called_once_with(
+            node_count=500,
+            operation_timeout_in_minutes=120
+        )
 
     @patch('clusterloader2.large_cluster.large_cluster.KubernetesClient')
-    @patch('clusterloader2.large_cluster.large_cluster.time.sleep')
-    @patch('clusterloader2.large_cluster.large_cluster.time.time')
-    def test_validate_clusterloader2_timeout_failure(self, mock_time, mock_sleep, mock_kube_client_class):
-        """Test timeout failure scenario"""
+    def test_validate_small_cluster(self, mock_kube_client_class):
+        """Test validation of small cluster"""
         mock_kube_client = MagicMock()
-        # Always return 15 nodes, never reaches 20
-        mock_kube_client.get_ready_nodes.return_value = [f"node{i}" for i in range(15)]
         mock_kube_client_class.return_value = mock_kube_client
 
-        # Mock timeout scenario
-        start_time = 1000
-        timeout_time = start_time + (2 * 60)  # 2 minutes timeout
-        mock_time.side_effect = [start_time, timeout_time + 1]  # Exceed timeout
+        self.large_cluster.validate(node_count=3, operation_timeout_in_minute=10)
+
+        mock_kube_client.wait_for_nodes_ready.assert_called_once_with(
+            node_count=3,
+            operation_timeout_in_minutes=10
+        )
+
+    @patch('clusterloader2.large_cluster.large_cluster.KubernetesClient')
+    def test_validate_default_timeout(self, mock_kube_client_class):
+        """Test validation with default timeout"""
+        mock_kube_client = MagicMock()
+        mock_kube_client_class.return_value = mock_kube_client
+
+        self.large_cluster.validate(node_count=50, operation_timeout_in_minute=600)
+
+        mock_kube_client.wait_for_nodes_ready.assert_called_once_with(
+            node_count=50,
+            operation_timeout_in_minutes=600
+        )
+
+    @patch('clusterloader2.large_cluster.large_cluster.KubernetesClient')
+    def test_validate_timeout_exception(self, mock_kube_client_class):
+        """Test validation when timeout occurs"""
+        mock_kube_client = MagicMock()
+        mock_kube_client_class.return_value = mock_kube_client
+        mock_kube_client.wait_for_nodes_ready.side_effect = Exception("Timeout waiting for nodes")
 
         with self.assertRaises(Exception) as context:
-            validate_clusterloader2(node_count=20, operation_timeout_in_minutes=2)
+            self.large_cluster.validate(node_count=100, operation_timeout_in_minute=5)
 
-            self.assertIn("Only 15 nodes are ready, expected 20 nodes!", str(context.exception))
-        mock_sleep.assert_not_called()
+        self.assertIn("Timeout waiting for nodes", str(context.exception))
+        mock_kube_client.wait_for_nodes_ready.assert_called_once_with(
+            node_count=100,
+            operation_timeout_in_minutes=5
+        )
 
     @patch('clusterloader2.large_cluster.large_cluster.KubernetesClient')
-    @patch('clusterloader2.large_cluster.large_cluster.time.sleep')
-    @patch('clusterloader2.large_cluster.large_cluster.time.time')
-    def test_validate_clusterloader2_too_many_ready_nodes_failure(self, mock_time, mock_sleep, mock_kube_client_class):
-        """Test there are more ready node than required"""
-        mock_kube_client = MagicMock()
-        # Always returns 5 ready nodes
-        mock_kube_client.get_ready_nodes.return_value = [f"node{i}" for i in range(5)]
-        mock_kube_client_class.return_value = mock_kube_client
-
-        # Mock timeout scenario
-        start_time = 1000
-        mock_time.side_effect = start_time
+    def test_validate_kubernetes_client_error(self, mock_kube_client_class):
+        """Test validation when KubernetesClient initialization fails"""
+        mock_kube_client_class.side_effect = Exception("Failed to initialize KubernetesClient")
 
         with self.assertRaises(Exception) as context:
-            validate_clusterloader2(
-                node_count=2,
-                operation_timeout_in_minutes=2
-            )
+            self.large_cluster.validate(node_count=20, operation_timeout_in_minute=30)
 
-            self.assertIn(
-                "Only 5 nodes are ready, expected 2 nodes!",
-                str(context.exception)
-            )
-
-        mock_sleep.assert_not_called()
+        self.assertIn("Failed to initialize KubernetesClient", str(context.exception))
 
     @patch('clusterloader2.large_cluster.large_cluster.KubernetesClient')
-    def test_validate_clusterloader2_single_node(self, mock_kube_client_class):
-        """Test single node scenario"""
+    def test_validate_wait_for_nodes_connection_error(self, mock_kube_client_class):
+        """Test validation when connection to cluster fails"""
         mock_kube_client = MagicMock()
-        mock_kube_client.get_ready_nodes.return_value = ['node1']
         mock_kube_client_class.return_value = mock_kube_client
+        mock_kube_client.wait_for_nodes_ready.side_effect = Exception("Connection refused")
 
-        validate_clusterloader2(node_count=1, operation_timeout_in_minutes=5)
+        with self.assertRaises(Exception) as context:
+            self.large_cluster.validate(node_count=10, operation_timeout_in_minute=15)
 
-        mock_kube_client.get_ready_nodes.assert_called()
+        self.assertIn("Connection refused", str(context.exception))
 
     @patch('clusterloader2.large_cluster.large_cluster.KubernetesClient')
-    def test_validate_clusterloader2_zero_nodes(self, mock_kube_client_class):
-        """Test zero nodes scenario"""
+    def test_validate_zero_nodes(self, mock_kube_client_class):
+        """Test validation with zero nodes (edge case)"""
         mock_kube_client = MagicMock()
-        mock_kube_client.get_ready_nodes.return_value = []
         mock_kube_client_class.return_value = mock_kube_client
 
-        validate_clusterloader2(node_count=0, operation_timeout_in_minutes=5)
+        self.large_cluster.validate(node_count=0, operation_timeout_in_minute=5)
 
-        mock_kube_client.get_ready_nodes.assert_called()
+        mock_kube_client.wait_for_nodes_ready.assert_called_once_with(
+            node_count=0,
+            operation_timeout_in_minutes=5
+        )
 
-    # ==================== execute_clusterloader2() Tests ====================
+    @patch('clusterloader2.large_cluster.large_cluster.KubernetesClient')
+    def test_validate_negative_timeout(self, mock_kube_client_class):
+        """Test validation with negative timeout (edge case)"""
+        mock_kube_client = MagicMock()
+        mock_kube_client_class.return_value = mock_kube_client
 
-    @patch('clusterloader2.large_cluster.large_cluster.run_cl2_command')
-    def test_execute_clusterloader2_basic_aws_execution(self, mock_run_cl2_command):
+        self.large_cluster.validate(node_count=5, operation_timeout_in_minute=-10)
+
+        mock_kube_client.wait_for_nodes_ready.assert_called_once_with(
+            node_count=5,
+            operation_timeout_in_minutes=-10
+        )
+
+
+    # ==================== self.large_cluster.execute() Tests ====================
+
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.execute')
+    def test_execute_clusterloader2_basic_aws_execution(self, mock_base_execute):
         """Test basic AWS execution"""
-        execute_clusterloader2(
+        self.large_cluster.execute(
             cl2_image="k8s.io/perf-tests/clusterloader2:latest",
             cl2_config_dir="/test/config",
             cl2_report_dir="/test/report",
@@ -376,22 +361,22 @@ class TestLargeCluster(unittest.TestCase):
             scrape_containerd=False
         )
 
-        mock_run_cl2_command.assert_called_once_with(
-            "/test/kubeconfig",
-            "k8s.io/perf-tests/clusterloader2:latest",
-            "/test/config",
-            "/test/report",
-            "aws",
+        mock_base_execute.assert_called_once_with(
+            cl2_image="k8s.io/perf-tests/clusterloader2:latest",
+            cl2_config_dir="/test/config",
+            cl2_report_dir="/test/report",
             cl2_config_file="config.yaml",
+            kubeconfig="/test/kubeconfig",
+            provider="aws",
+            scrape_containerd=False,
             overrides=True,
-            enable_prometheus=True,
-            scrape_containerd=False
+            enable_prometheus=True
         )
 
-    @patch('clusterloader2.large_cluster.large_cluster.run_cl2_command')
-    def test_execute_clusterloader2_basic_azure_execution(self, mock_run_cl2_command):
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.execute')
+    def test_execute_clusterloader2_basic_azure_execution(self, mock_base_execute):
         """Test basic Azure execution"""
-        execute_clusterloader2(
+        self.large_cluster.execute(
             cl2_image="k8s.io/perf-tests/clusterloader2:v1.2.3",
             cl2_config_dir="/azure/config",
             cl2_report_dir="/azure/report",
@@ -401,22 +386,22 @@ class TestLargeCluster(unittest.TestCase):
             scrape_containerd=False
         )
 
-        mock_run_cl2_command.assert_called_once_with(
-            "/azure/kubeconfig",
-            "k8s.io/perf-tests/clusterloader2:v1.2.3",
-            "/azure/config",
-            "/azure/report",
-            "azure",
+        mock_base_execute.assert_called_once_with(
+            cl2_image="k8s.io/perf-tests/clusterloader2:v1.2.3",
+            cl2_config_dir="/azure/config",
+            cl2_report_dir="/azure/report",
             cl2_config_file="azure-config.yaml",
+            kubeconfig="/azure/kubeconfig",
+            provider="azure",
+            scrape_containerd=False,
             overrides=True,
-            enable_prometheus=True,
-            scrape_containerd=False
+            enable_prometheus=True
         )
 
-    @patch('clusterloader2.large_cluster.large_cluster.run_cl2_command')
-    def test_execute_clusterloader2_with_containerd_scraping(self, mock_run_cl2_command):
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.execute')
+    def test_execute_clusterloader2_with_containerd_scraping(self, mock_base_execute):
         """Test execution with containerd scraping"""
-        execute_clusterloader2(
+        self.large_cluster.execute(
             cl2_image="custom/cl2:latest",
             cl2_config_dir="/custom/config",
             cl2_report_dir="/custom/report",
@@ -426,22 +411,22 @@ class TestLargeCluster(unittest.TestCase):
             scrape_containerd=True
         )
 
-        mock_run_cl2_command.assert_called_once_with(
-            "/custom/kubeconfig",
-            "custom/cl2:latest",
-            "/custom/config",
-            "/custom/report",
-            "aws",
+        mock_base_execute.assert_called_once_with(
+            cl2_image="custom/cl2:latest",
+            cl2_config_dir="/custom/config",
+            cl2_report_dir="/custom/report",
             cl2_config_file="custom-config.yaml",
+            kubeconfig="/custom/kubeconfig",
+            provider="aws",
+            scrape_containerd=True,
             overrides=True,
-            enable_prometheus=True,
-            scrape_containerd=True
+            enable_prometheus=True
         )
 
-    @patch('clusterloader2.large_cluster.large_cluster.run_cl2_command')
-    def test_execute_clusterloader2_custom_image(self, mock_run_cl2_command):
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.execute')
+    def test_execute_clusterloader2_custom_image(self, mock_base_execute):
         """Test execution with custom image"""
-        execute_clusterloader2(
+        self.large_cluster.execute(
             cl2_image="private-registry/cl2:dev",
             cl2_config_dir="/dev/config",
             cl2_report_dir="/dev/report",
@@ -451,31 +436,19 @@ class TestLargeCluster(unittest.TestCase):
             scrape_containerd=False
         )
 
-        mock_run_cl2_command.assert_called_once_with(
-            "/dev/kubeconfig",
-            "private-registry/cl2:dev",
-            "/dev/config",
-            "/dev/report",
-            "azure",
+        mock_base_execute.assert_called_once_with(
+            cl2_image="private-registry/cl2:dev",
+            cl2_config_dir="/dev/config",
+            cl2_report_dir="/dev/report",
             cl2_config_file="dev-config.yaml",
+            kubeconfig="/dev/kubeconfig",
+            provider="azure",
+            scrape_containerd=False,
             overrides=True,
-            enable_prometheus=True,
-            scrape_containerd=False
+            enable_prometheus=True
         )
 
-    # ==================== collect_clusterloader2() Tests ====================
-
-    def create_mock_junit_xml(self, temp_dir, failures=0):
-        """Helper to create mock junit.xml file"""
-        junit_path = os.path.join(temp_dir, "junit.xml")
-        with open(junit_path, 'w', encoding='utf-8') as f:
-            f.write(f"""<?xml version="1.0"?>
-<testsuites>
-    <testsuite name="test" failures="{failures}">
-        <testcase name="case1" time="1.0"></testcase>
-    </testsuite>
-</testsuites>""")
-        return junit_path
+    # ==================== self.large_cluster.collect() Tests ====================
 
     def create_mock_measurement_file(self, temp_dir, filename, has_data_items=True, empty_items=False):
         """Helper to create mock measurement files"""
@@ -492,264 +465,331 @@ class TestLargeCluster(unittest.TestCase):
             json.dump(data, f)
         return file_path
 
-    @patch('clusterloader2.large_cluster.large_cluster.parse_xml_to_json')
-    @patch('clusterloader2.large_cluster.large_cluster.get_measurement')
-    def test_collect_clusterloader2_successful_test(self, mock_get_measurement, mock_parse_xml):
-        """Test successful test scenario"""
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.process_cl2_reports')
+    def test_collect_basic_functionality(self, mock_process_reports):
+        """Test basic collect functionality"""
+        mock_process_reports.return_value = '{"test": "result"}\n'
+
+        result = self.large_cluster.collect(
+            cpu_per_node=4,
+            node_count=20,
+            pods_per_node=10,
+            repeats=3,
+            cl2_report_dir="/test/reports",
+            cloud_info='{"provider": "aws"}',
+            run_id="test123",
+            run_url="http://test.com",
+            test_status="success"
+        )
+
+        # Verify process_cl2_reports was called with correct template
+        self.assertEqual(result, '{"test": "result"}\n')
+        mock_process_reports.assert_called_once()
+
+        # Verify template structure
+        call_args = mock_process_reports.call_args
+        template = call_args[0][1]  # Second argument is the template
+
+        self.assertEqual(template["cpu_per_node"], 4)
+        self.assertEqual(template["node_count"], 20)
+        self.assertEqual(template["pod_count"], 200)  # 20 * 10
+        self.assertEqual(template["churn_rate"], 3)
+        self.assertEqual(template["status"], "success")
+        self.assertEqual(template["cloud_info"], '{"provider": "aws"}')
+        self.assertEqual(template["run_id"], "test123")
+        self.assertEqual(template["run_url"], "http://test.com")
+        self.assertIsNone(template["group"])
+        self.assertIsNone(template["measurement"])
+        self.assertIsNone(template["result"])
+
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.process_cl2_reports')
+    def test_collect_pod_count_calculation(self, mock_process_reports):
+        """Test pod count calculation in collect method"""
+        mock_process_reports.return_value = ""
+
+        # Test various combinations
+        test_cases = [
+            (10, 5, 50),    # 10 nodes * 5 pods = 50
+            (100, 10, 1000), # 100 nodes * 10 pods = 1000
+            (1000, 20, 20000), # 1000 nodes * 20 pods = 20000
+        ]
+
+        for node_count, pods_per_node, expected_pod_count in test_cases:
+            with self.subTest(nodes=node_count, pods=pods_per_node):
+                self.large_cluster.collect(
+                    cpu_per_node=4,
+                    node_count=node_count,
+                    pods_per_node=pods_per_node,
+                    repeats=1,
+                    cl2_report_dir="/test",
+                    cloud_info="{}",
+                    run_id="test",
+                    run_url="test",
+                    test_status="success"
+                )
+
+                # Get the template from the last call
+                template = mock_process_reports.call_args[0][1]
+                self.assertEqual(template["pod_count"], expected_pod_count)
+
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.process_cl2_reports')
+    def test_collect_different_test_statuses(self, mock_process_reports):
+        """Test collect with different test statuses"""
+        mock_process_reports.return_value = ""
+
+        test_statuses = ["success", "failure", "error", "timeout"]
+
+        for status in test_statuses:
+            with self.subTest(status=status):
+                self.large_cluster.collect(
+                    cpu_per_node=2,
+                    node_count=10,
+                    pods_per_node=5,
+                    repeats=2,
+                    cl2_report_dir="/test",
+                    cloud_info="{}",
+                    run_id="test",
+                    run_url="test",
+                    test_status=status
+                )
+
+                template = mock_process_reports.call_args[0][1]
+                self.assertEqual(template["status"], status)
+
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.process_cl2_reports')
+    def test_collect_timestamp_format(self, mock_process_reports):
+        """Test that timestamp is generated in correct format"""
+        mock_process_reports.return_value = ""
+
+        with patch('clusterloader2.large_cluster.large_cluster.datetime') as mock_datetime:
+            mock_now = MagicMock()
+            mock_now.strftime.return_value = "2025-01-15T10:30:45Z"
+            mock_datetime.now.return_value = mock_now
+            mock_datetime.timezone = datetime.timezone
+
+            self.large_cluster.collect(
+                cpu_per_node=4,
+                node_count=20,
+                pods_per_node=10,
+                repeats=1,
+                cl2_report_dir="/test",
+                cloud_info="{}",
+                run_id="test",
+                run_url="test",
+                test_status="success"
+            )
+            mock_datetime.now.assert_called_once_with(datetime.timezone.utc)
+            mock_now.strftime.assert_called_once_with('%Y-%m-%dT%H:%M:%SZ')
+
+            template = mock_process_reports.call_args[0][1]
+            self.assertEqual(template["timestamp"], "2025-01-15T10:30:45Z")
+
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.process_cl2_reports')
+    def test_collect_cloud_info_handling(self, mock_process_reports):
+        """Test different cloud info formats"""
+        mock_process_reports.return_value = ""
+
+        cloud_info_tests = [
+            '{"provider": "aws", "region": "us-east-1"}',
+            '{"provider": "azure", "location": "eastus2"}',
+            '{}',  # Empty JSON
+            'simple_string',  # Non-JSON string
+        ]
+
+        for cloud_info in cloud_info_tests:
+            with self.subTest(cloud_info=cloud_info):
+                self.large_cluster.collect(
+                    cpu_per_node=4,
+                    node_count=10,
+                    pods_per_node=5,
+                    repeats=1,
+                    cl2_report_dir="/test",
+                    cloud_info=cloud_info,
+                    run_id="test",
+                    run_url="test",
+                    test_status="success"
+                )
+
+                template = mock_process_reports.call_args[0][1]
+                self.assertEqual(template["cloud_info"], cloud_info)
+
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.process_cl2_reports')
+    def test_collect_kwargs_handling(self, mock_process_reports):
+        """Test that extra kwargs are properly ignored"""
+        mock_process_reports.return_value = "result"
+
+        result = self.large_cluster.collect(
+            cpu_per_node=4,
+            node_count=10,
+            pods_per_node=5,
+            repeats=1,
+            cl2_report_dir="/test",
+            cloud_info="{}",
+            run_id="test",
+            run_url="test",
+            test_status="success",
+            # Extra parameters that should be ignored
+            extra_param1="ignored",
+            extra_param2=123,
+            result_file="/ignored/path"
+        )
+
+        self.assertEqual(result, "result")
+        mock_process_reports.assert_called_once()
+
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.process_cl2_reports')
+    def test_collect_large_scale_values(self, mock_process_reports):
+        """Test collect with large scale values"""
+        mock_process_reports.return_value = "large_scale_result"
+
+        result = self.large_cluster.collect(
+            cpu_per_node=64,
+            node_count=5000,
+            pods_per_node=50,
+            repeats=10,
+            cl2_report_dir="/large/test",
+            cloud_info='{"type": "large_scale_test"}',
+            run_id="large_test_001",
+            run_url="http://large.test.com",
+            test_status="success"
+        )
+
+        self.assertEqual(result, "large_scale_result")
+
+        template = mock_process_reports.call_args[0][1]
+        self.assertEqual(template["cpu_per_node"], 64)
+        self.assertEqual(template["node_count"], 5000)
+        self.assertEqual(template["pod_count"], 250000)  # 5000 * 50
+        self.assertEqual(template["churn_rate"], 10)
+
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.process_cl2_reports')
+    def test_collect_zero_values(self, mock_process_reports):
+        """Test collect with zero/minimal values"""
+        mock_process_reports.return_value = "minimal_result"
+
+        result = self.large_cluster.collect(
+            cpu_per_node=1,
+            node_count=1,
+            pods_per_node=1,
+            repeats=0,
+            cl2_report_dir="/minimal",
+            cloud_info="{}",
+            run_id="min_test",
+            run_url="http://min.test",
+            test_status="success"
+        )
+
+        self.assertEqual(result, "minimal_result")
+
+        template = mock_process_reports.call_args[0][1]
+        self.assertEqual(template["cpu_per_node"], 1)
+        self.assertEqual(template["node_count"], 1)
+        self.assertEqual(template["pod_count"], 1)  # 1 * 1
+        self.assertEqual(template["churn_rate"], 0)
+
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.process_cl2_reports')
+    def test_collect_special_characters_in_params(self, mock_process_reports):
+        """Test collect with special characters in string parameters"""
+        mock_process_reports.return_value = "special_chars_result"
+
+        result = self.large_cluster.collect(
+            cpu_per_node=4,
+            node_count=10,
+            pods_per_node=5,
+            repeats=1,
+            cl2_report_dir="/path/with spaces/and-dashes",
+            cloud_info='{"region": "us-east-1", "special": "value with spaces & symbols!"}',
+            run_id="test_with_underscores_and_numbers_123",
+            run_url="https://test.example.com/path?param=value&other=123",
+            test_status="success"
+        )
+
+        self.assertEqual(result, "special_chars_result")
+        mock_process_reports.assert_called_once()
+
+    def test_collect_return_type(self):
+        """Test that collect returns a string"""
         with tempfile.TemporaryDirectory() as temp_dir:
-            # Mock parse_xml_to_json
-            mock_parse_xml.return_value = json.dumps({
-                "testsuites": [{"failures": 0}]
-            })
-
-            # Create measurement file
-            self.create_mock_measurement_file(temp_dir, "measurement1.json")
-            mock_get_measurement.return_value = ("test_measurement", "test_group")
-
-            result_file = os.path.join(temp_dir, "result.json")
-
-            collect_clusterloader2(
+            result = self.large_cluster.collect(
+                cpu_per_node=4,
+                node_count=10,
+                pods_per_node=5,
+                repeats=1,
                 cl2_report_dir=temp_dir,
-                result_file=result_file,
-                **self.test_params
+                cloud_info="{}",
+                run_id="test",
+                run_url="test",
+                test_status="success"
             )
 
-            # Verify result file is created
-            self.assertTrue(os.path.exists(result_file))
+            self.assertIsInstance(result, str)
 
-            # Verify content
-            with open(result_file, 'r', encoding='utf-8') as f:
-                content = f.read()
-                self.assertIn('"status": "success"', content)
-                self.assertIn('"test_measurement"', content)
+    # ==================== self.large_cluster.main() Tests ====================
 
-    @patch('clusterloader2.large_cluster.large_cluster.parse_xml_to_json')
-    @patch('clusterloader2.large_cluster.large_cluster.get_measurement')
-    def test_collect_clusterloader2_failed_test(self, mock_get_measurement, mock_parse_xml):
-        """Test failed test scenario"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Mock parse_xml_to_json with failures
-            mock_parse_xml.return_value = json.dumps({
-                "testsuites": [{"failures": 2}]
-            })
-
-            # Create measurement file
-            self.create_mock_measurement_file(temp_dir, "measurement1.json")
-            mock_get_measurement.return_value = ("test_measurement", "test_group")
-
-            result_file = os.path.join(temp_dir, "result.json")
-
-            collect_clusterloader2(
-                cl2_report_dir=temp_dir,
-                result_file=result_file,
-                **self.test_params
-            )
-
-            # Verify result file contains failure status
-            with open(result_file, 'r', encoding='utf-8') as f:
-                content = f.read()
-                self.assertIn('"status": "failure"', content)
-
-    @patch('clusterloader2.large_cluster.large_cluster.parse_xml_to_json')
-    @patch('clusterloader2.large_cluster.large_cluster.get_measurement')
-    def test_collect_clusterloader2_no_data_items(self, mock_get_measurement, mock_parse_xml):
-        """Test scenario with empty data items"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            mock_parse_xml.return_value = json.dumps({
-                "testsuites": [{"failures": 0}]
-            })
-
-            # Create measurement file with empty dataItems
-            self.create_mock_measurement_file(temp_dir, "measurement1.json",
-                                              has_data_items=True, empty_items=True)
-            mock_get_measurement.return_value = ("test_measurement", "test_group")
-
-            result_file = os.path.join(temp_dir, "result.json")
-
-            collect_clusterloader2(
-                cl2_report_dir=temp_dir,
-                result_file=result_file,
-                **self.test_params
-            )
-
-            # Result file should be created but with minimal content
-            self.assertTrue(os.path.exists(result_file))
-
-    @patch('clusterloader2.large_cluster.large_cluster.parse_xml_to_json')
-    @patch('clusterloader2.large_cluster.large_cluster.get_measurement')
-    def test_collect_clusterloader2_multiple_measurements(self, mock_get_measurement, mock_parse_xml):
-        """Test scenario with multiple measurement files"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            mock_parse_xml.return_value = json.dumps({
-                "testsuites": [{"failures": 0}]
-            })
-
-            # Create multiple measurement files
-            self.create_mock_measurement_file(temp_dir, "measurement1.json")
-            self.create_mock_measurement_file(temp_dir, "measurement2.json")
-
-            mock_get_measurement.side_effect = [
-                ("measurement1", "group1"),
-                ("measurement2", "group2")
-            ]
-
-            result_file = os.path.join(temp_dir, "result.json")
-
-            collect_clusterloader2(
-                cl2_report_dir=temp_dir,
-                result_file=result_file,
-                **self.test_params
-            )
-
-            # Verify multiple entries in result file
-            with open(result_file, 'r', encoding='utf-8') as f:
-                content = f.read()
-                lines = content.strip().split('\n')
-                self.assertGreaterEqual(len(lines), 2)  # At least 2 JSON objects
-
-    def test_collect_clusterloader2_missing_junit_xml(self):
-        """Test scenario with missing junit.xml file"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            result_file = os.path.join(temp_dir, "result.json")
-
-            with self.assertRaises(Exception):
-                collect_clusterloader2(
-                    cl2_report_dir=temp_dir,
-                    result_file=result_file,
-                    **self.test_params
-                )
-
-    @patch('clusterloader2.large_cluster.large_cluster.parse_xml_to_json')
-    def test_collect_clusterloader2_empty_testsuites(self, mock_parse_xml):
-        """Test scenario with empty testsuites array"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            mock_parse_xml.return_value = json.dumps({
-                "testsuites": []
-            })
-
-            result_file = os.path.join(temp_dir, "result.json")
-
-            with self.assertRaises(Exception) as context:
-                collect_clusterloader2(
-                    cl2_report_dir=temp_dir,
-                    result_file=result_file,
-                    **self.test_params
-                )
-
-            self.assertIn("No testsuites found", str(context.exception))
-
-    def test_collect_clusterloader2_malformed_junit_xml(self):
-        """Test handling of malformed junit.xml file"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Create malformed junit.xml
-            junit_path = os.path.join(temp_dir, "junit.xml")
-            with open(junit_path, 'w', encoding='utf-8') as f:
-                f.write("<testsuites><testsuite name='test' failures='0'><testcase name='case1'></testsuite>")  # Missing closing tags
-
-            result_file = os.path.join(temp_dir, "result.json")
-
-            with self.assertRaises(Exception):
-                collect_clusterloader2(
-                    cl2_report_dir=temp_dir,
-                    result_file=result_file,
-                    **self.test_params
-                )
-
-    @patch('clusterloader2.large_cluster.large_cluster.parse_xml_to_json')
-    def test_collect_clusterloader2_invalid_json_structure_junit_xml(self, mock_parse_xml):
-        """Test handling of junit.xml that creates invalid JSON"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Simulate parse_xml_to_json returning invalid JSON
-            mock_parse_xml.return_value = '{"testsuites": invalid_json}'
-
-            result_file = os.path.join(temp_dir, "result.json")
-
-            with self.assertRaises(Exception):
-                collect_clusterloader2(
-                    cl2_report_dir=temp_dir,
-                    result_file=result_file,
-                    **self.test_params
-                )
-
-    def test_collect_clusterloader2_corrupted_junit_xml(self):
-        """Test handling of corrupted/truncated junit.xml file"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            junit_path = os.path.join(temp_dir, "junit.xml")
-            with open(junit_path, 'wb') as f:
-                # Write some corrupted binary data
-                f.write(b'\x00\x01\x02\x03invalid_xml_content\xff\xfe')
-
-            result_file = os.path.join(temp_dir, "result.json")
-
-            with self.assertRaises(Exception):
-                collect_clusterloader2(
-                    cl2_report_dir=temp_dir,
-                    result_file=result_file,
-                    **self.test_params
-                )
-
-    def test_collect_clusterloader2_empty_junit_xml(self):
-        """Test handling of empty junit.xml file"""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            junit_path = os.path.join(temp_dir, "junit.xml")
-            with open(junit_path, 'w', encoding='utf-8') as f:
-                f.write("")  # Empty file
-
-            result_file = os.path.join(temp_dir, "result.json")
-
-            with self.assertRaises(Exception):
-                collect_clusterloader2(
-                    cl2_report_dir=temp_dir,
-                    result_file=result_file,
-                    **self.test_params
-                )
-
-    # ==================== main() Tests ====================
-
-    @patch('clusterloader2.large_cluster.large_cluster.configure_clusterloader2')
+    @patch('clusterloader2.large_cluster.large_cluster.LargeCluster.configure')
     @patch('sys.argv', ['large_cluster.py', 'configure', '4', '20', '5', '10', '3', '30m',
                         'aws', 'False', 'False', '/tmp/override.yaml'])
     def test_main_configure_command(self, mock_configure):
         """Test configure command parsing"""
-        main()
+        mock_configure.return_value = {"test": "config"}
 
-        mock_configure.assert_called_once_with(
-            4, 20, 5, 10, 3, '30m', 'aws', False, False, '/tmp/override.yaml'
-        )
+        self.large_cluster.main()
 
-    @patch('clusterloader2.large_cluster.large_cluster.validate_clusterloader2')
+        mock_configure.assert_called_once()
+
+    @patch('clusterloader2.large_cluster.large_cluster.LargeCluster.validate')
     @patch('sys.argv', ['large_cluster.py', 'validate', '20', '600'])
     def test_main_validate_command(self, mock_validate):
         """Test validate command parsing"""
-        main()
+        self.large_cluster.main()
 
-        mock_validate.assert_called_once_with(20, 600)
+        mock_validate.assert_called_once_with(node_count=20, operation_timeout_in_minute=600)
 
-    @patch('clusterloader2.large_cluster.large_cluster.execute_clusterloader2')
+    @patch('clusterloader2.large_cluster.large_cluster.LargeCluster.execute')
     @patch('sys.argv', ['large_cluster.py', 'execute', 'cl2:latest', '/config', '/report',
                         'config.yaml', '/kubeconfig', 'aws', 'False'])
     def test_main_execute_command(self, mock_execute):
         """Test execute command parsing"""
-        main()
+        self.large_cluster.main()
 
         mock_execute.assert_called_once_with(
-            'cl2:latest', '/config', '/report', 'config.yaml', '/kubeconfig', 'aws', False
+            cl2_image='cl2:latest',
+            cl2_config_dir='/config',
+            cl2_report_dir='/report',
+            cl2_config_file='config.yaml',
+            kubeconfig='/kubeconfig',
+            provider='aws',
+            scrape_containerd=False
         )
 
-    @patch('clusterloader2.large_cluster.large_cluster.collect_clusterloader2')
+    @patch('clusterloader2.large_cluster.large_cluster.LargeCluster.write_to_file')
+    @patch('clusterloader2.large_cluster.large_cluster.LargeCluster.collect')
+    @patch('clusterloader2.large_cluster.base.ClusterLoader2Base.parse_test_results')
     @patch('sys.argv', ['large_cluster.py', 'collect', '4', '20', '10', '3', '/report',
-                        '{"cloud":"test"}', 'run123', 'http://example.com', '/result.json'])
-    def test_main_collect_command(self, mock_collect):
+                        '{"cloud":"test"}', 'run123', 'http://example.com', 'result.json'])
+    def test_main_collect_command(self, mock_parse_results, mock_collect, mock_write_to_file):
         """Test collect command parsing"""
-        main()
+        mock_parse_results.return_value = ("success", [])
+        mock_collect.return_value = "test_result"
 
+        self.large_cluster.main()
+
+        mock_write_to_file.assert_called_once()
+        mock_parse_results.assert_called_once_with('/report')
         mock_collect.assert_called_once_with(
-            4, 20, 10, 3, '/report', '{"cloud":"test"}', 'run123', 'http://example.com', '/result.json'
+            cpu_per_node=4,
+            node_count=20,
+            pods_per_node=10,
+            repeats=3,
+            cl2_report_dir='/report',
+            cloud_info='{"cloud":"test"}',
+            run_id='run123',
+            run_url='http://example.com',
+            result_file='result.json',
+            test_status="success",
+            test_results=[]
         )
 
 
 if __name__ == "__main__":
-    # Disable this test for this Pull Request
-    # The refactored TestLargeCluster class is in a dedicated PR
-    # unittest.main()
-    pass
+    unittest.main()
