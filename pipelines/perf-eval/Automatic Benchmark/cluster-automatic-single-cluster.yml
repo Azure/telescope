@@ -38,8 +38,8 @@ stages:
               warmup_deployment: true
               vm_size: Standard_D4ds_v5
               capacity_type: on-demand
-              warmup_deployment_template: automatic/warmup-deployment.yaml
-              deployment_template: automatic/deployment-template.yaml
+              warmup_deployment_template: automatic/warmup_deployment.yaml
+              deployment_template: automatic/deployment_template.yaml
             #automatic-acn-off-100-nodes:
             #  cpu_per_node: 4
             #  node_count: 100
