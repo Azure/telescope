@@ -17,14 +17,14 @@ def warmup_deployment_for_karpeneter(cl2_config_dir,warmup_deployment_template):
     logger.info("warmup_deployment_template: "+warmup_deployment_template)
     logger.info("cl2_config_dir: "+cl2_config_dir)
     if(warmup_deployment_template!=''):
-        deployment_file = f"{warmup_deployment_template}"
+        deployment_file = f"{cl2_config_dir}/{warmup_deployment_template}"
     else:
         deployment_file = f"{cl2_config_dir}/warmup_deployment.yaml"
     subprocess.run(["kubectl", "apply", "-f", deployment_file], check=True)
 
 def cleanup_warmup_deployment_for_karpeneter(cl2_config_dir,warmup_deployment_template):
     if(warmup_deployment_template!=''):
-        deployment_file = f"{warmup_deployment_template}"
+        deployment_file = f"{cl2_config_dir}/{warmup_deployment_template}"
     else:
         deployment_file = f"{cl2_config_dir}/warmup_deployment.yaml"
     subprocess.run(["kubectl", "delete", "-f", deployment_file], check=True)
