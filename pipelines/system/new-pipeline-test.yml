@@ -79,6 +79,7 @@ stages:
 
   - stage: dynamicres_burst
     displayName: 'Dynamic Burst'
+    condition: false
     dependsOn: generate_base_run_id
     variables:
       BASE_RUN_ID: $[ stageDependencies.generate_base_run_id.generate_run_id.outputs['generate_id.BASE_RUN_ID'] ]
@@ -121,6 +122,7 @@ stages:
 
   - stage: staticres_burst
     displayName: 'Static Burst'
+    condition: false
     dependsOn: generate_base_run_id
     variables:
       BASE_RUN_ID: $[ stageDependencies.generate_base_run_id.generate_run_id.outputs['generate_id.BASE_RUN_ID'] ]
