@@ -92,6 +92,10 @@ Node_RG_ID=$(az group show -n $nodeRGName -o tsv --query id)
 Node_RG_ID=${Node_RG_ID//$'\r'}
 az tag update --resource-id $Node_RG_ID --operation Merge --tags SkipAutoDeleteTill=$date skipGC="swift v2 perf" gc_skip="true"
 
+echo "Assign Network Contributor role to AKS cluster identity for load balancer operations"
+AKS_CLUSTER_IDENTITY=$(az aks show --resource-group $CUST_RG --name $CLUSTER --query identity.principalId --output tsv)
+az role assignment create --assignee $AKS_CLUSTER_IDENTITY --role "Network Contributor" --scope /subscriptions/$CUST_SUB/resourceGroups/$CUST_RG
+
 echo "Deploy nginx pod on the cluster with IP - 172.27.0.30"
 az aks get-credentials --resource-group $CUST_RG --name $CLUSTER --overwrite-existing -a
 kubectl apply -f ./nginx-deployment.yaml
