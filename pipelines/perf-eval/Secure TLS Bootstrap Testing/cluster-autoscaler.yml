@@ -18,6 +18,7 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: stls-bootstrap
+  AZURE_SUBSCRIPTION_ID: "f6e2f77f-9959-42ad-87f0-c30a6abc0133"
 
 stages:
   - stage: azure_westus2_linux
@@ -35,6 +36,8 @@ stages:
             - westus2
           terraform_input_file_mapping:
             - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-autoscaler-linux.tfvars"
+          terraform_input_varibles:
+            subscription_id: $(AZURE_SUBSCRIPTION_ID)
           topology: cluster-autoscaler
           engine: clusterloader2
           engine_input:
@@ -71,6 +74,8 @@ stages:
             - westus2
           terraform_input_file_mapping:
             - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-autoscaler-windows.tfvars"
+          terraform_input_varibles:
+            subscription_id: $(AZURE_SUBSCRIPTION_ID)
           topology: cluster-autoscaler
           engine: clusterloader2
           engine_input:
