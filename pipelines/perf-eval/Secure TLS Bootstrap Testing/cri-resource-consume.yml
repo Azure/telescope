@@ -1,7 +1,15 @@
 trigger: none
 schedules:
+  # Linux CRI Resource Consume Schedule
+  - cron: "0 9,21 * * *"
+    displayName: "9:00 AM & 9:00 PM Daily"
+    branches:
+      include:
+        - main
+    always: true
+  # Windows CRI Resource Consume Schedule
   - cron: "0 13,19 * * *"
-    displayName: "Everyday at 1:00 PM & 7:00 PM"
+    displayName: "1:00 PM & 7:00 PM Daily"
     branches:
       include:
         - main
@@ -13,6 +21,11 @@ variables:
 
 stages:
   - stage: azure_westus2_linux
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], '9:00 AM & 9:00 PM Daily'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -48,12 +61,17 @@ stages:
               operation_timeout: 11m
               load_type: memory
               scrape_kubelets: True
-          max_parallel: 3
+          max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false
 
   - stage: azure_westus2_windows
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], '1:00 PM & 7:00 PM Daily'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml

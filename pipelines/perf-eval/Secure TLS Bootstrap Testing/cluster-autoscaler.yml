@@ -1,7 +1,15 @@
 trigger: none
 schedules:
+  # Linux Large Scale Schedule
   - cron: "0 7 * * *"
-    displayName: "Every day at 7:00 AM"
+    displayName: "7:00 AM Daily"
+    branches:
+      include:
+        - main
+    always: true
+  # Windows Large Scale Schedule
+  - cron: "0 11 * * *"
+    displayName: "11:00 AM Daily"
     branches:
       include:
         - main
@@ -13,6 +21,11 @@ variables:
 
 stages:
   - stage: azure_westus2_linux
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], '7:00 AM Daily'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -44,7 +57,12 @@ stages:
           timeout_in_minutes: 360
 
   - stage: azure_westus2_windows
-    dependsOn: azure_westus2_linux
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], '11:00 AM Daily'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
+    dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
