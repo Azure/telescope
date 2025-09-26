@@ -1,6 +1,18 @@
 trigger: none
 
 variables:
+  # Hardcoded ADO pipeline variables
+  AZURE_SUBSCRIPTION_ID: "9b8218f9-902a-4d20-a65c-e98acec5362f"
+  RUN_ID: ""  # Leave empty or set a default value
+  SKIP_RESOURCE_MANAGEMENT: "false"
+  AZURE_SERVICE_CONNECTION: "Azure-for-Telescope-internal"
+  AZURE_STORAGE_ACCOUNT_NAME: "akstelescope"
+  AZURE_TELESCOPE_STORAGE_ACCOUNT_NAME: "telescopedata"
+  LOCATION: "uksouth"
+  CREATESWIFTV2PING: "true"  # Set to appropriate value if needed
+  CLEANUP_RESOURCES: "true"
+  
+  # Existing scenario variables
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: swiftv2-cluster-churn-feature
   OWNER: aks
