@@ -42,13 +42,13 @@ aks_cli_config_list = [
     default_node_pool = {
       name       = "system"
       node_count = 5
-      vm_size    = "Standard_D8ds_v5"
+      vm_size    = "Standard_D8ds_v4"
     }
     extra_node_pool = [
       {
         name       = "user1"
         node_count = 1
-        vm_size    = "Standard_D2ds_v5"
+        vm_size    = "Standard_D2ds_v4"
         optional_parameters = [
           {
             name  = "enable-cluster-autoscaler"
@@ -79,7 +79,7 @@ aks_cli_config_list = [
       {
         name       = "user2"
         node_count = 0
-        vm_size    = "Standard_D2ds_v5"
+        vm_size    = "Standard_D2ds_v4"
         optional_parameters = [
           {
             name  = "enable-cluster-autoscaler"
@@ -110,7 +110,7 @@ aks_cli_config_list = [
       {
         name       = "user3"
         node_count = 0
-        vm_size    = "Standard_D2ds_v5"
+        vm_size    = "Standard_D2ds_v4"
         optional_parameters = [
           {
             name  = "enable-cluster-autoscaler"
@@ -141,7 +141,7 @@ aks_cli_config_list = [
       {
         name       = "user4"
         node_count = 0
-        vm_size    = "Standard_D2ds_v5"
+        vm_size    = "Standard_D2ds_v4"
         optional_parameters = [
           {
             name  = "enable-cluster-autoscaler"
