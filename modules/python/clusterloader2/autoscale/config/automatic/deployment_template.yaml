@@ -52,10 +52,10 @@ spec:
             failureThreshold: 3
           resources:
             requests:
-              cpu: {{.CPUperJob}}
+              cpu: 346m
               memory: 100Mi
             limits:
-              cpu: {{.CPUperJob}}
+              cpu: 346m
               memory: 256Mi
           #command: ["nginx"]
           #args: ["-g", "daemon off;"]
