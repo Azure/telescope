@@ -32,7 +32,7 @@ aks_cli_config_list = [
           {
             name  = "ssh-access"
             value = "disabled"
-          }
+          },
           {
             name  = "max-pods"
             value = 110
