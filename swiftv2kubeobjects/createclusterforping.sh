@@ -5,7 +5,6 @@ set -ex
 RG=$RUN_ID 
 CLUSTER="large"
 SUBSCRIPTION="9b8218f9-902a-4d20-a65c-e98acec5362f"
-K8S_VER=1.30
 NODEPOOLS=1
 
 # Source shared configuration if available
@@ -132,9 +131,8 @@ create_aks_cluster() {
     local cluster_name=$1
     local resource_group=$2
     local location=$3
-    local k8s_version=$4
-    local node_subnet_id=$5
-    local pod_subnet_id=$6
+    local node_subnet_id=$4
+    local pod_subnet_id=$5
     
     echo "Creating AKS cluster: $cluster_name in resource group: $resource_group"
     
@@ -165,7 +163,6 @@ create_aks_cluster() {
         --service-cidr 192.168.0.0/16 --dns-service-ip 192.168.0.10 \
         --network-plugin azure \
         --tier standard \
-        --kubernetes-version ${k8s_version} \
         --vnet-subnet-id ${node_subnet_id} \
         --pod-subnet-id ${pod_subnet_id} \
         --nodepool-tags fastpathenabled=true aks-nic-enable-multi-tenancy=true \
@@ -223,7 +220,7 @@ nodeSubnetID=$(az network vnet subnet list -g ${RG} --vnet-name ${vnetName} --qu
 podSubnetID=$(az network vnet subnet list -g ${RG} --vnet-name ${vnetName} --query "[?name=='${vnetSubnetNamePods}']" | jq -r '.[].id')
 
 # Call the function to create the cluster
-create_aks_cluster "${CLUSTER}" "${RG}" "${LOCATION}" "${K8S_VER}" "${nodeSubnetID}" "${podSubnetID}"
+create_aks_cluster "${CLUSTER}" "${RG}" "${LOCATION}" "${nodeSubnetID}" "${podSubnetID}"
 
 # Wait for cluster to be ready with retry logic and timeout
 echo "Waiting for cluster to be ready..."
@@ -246,7 +243,7 @@ while [ $elapsed -lt $TIMEOUT ]; do
         "Canceled")
             echo "Cluster creation was canceled. Attempting to restart creation..."
             # Attempt to recreate the cluster using the function
-            create_aks_cluster "${CLUSTER}" "${RG}" "${LOCATION}" "${K8S_VER}" "${nodeSubnetID}" "${podSubnetID}"
+            create_aks_cluster "${CLUSTER}" "${RG}" "${LOCATION}" "${nodeSubnetID}" "${podSubnetID}"
             echo "Cluster recreation initiated, continuing to wait..."
             ;;
         "Failed"|"Deleting"|"Deleted")
