@@ -10,7 +10,7 @@ variables:
   LOCATION: "uksouth"
   CREATESWIFTV2PING: "true"
   CLEANUP_RESOURCES: "true"
-  K8S_VERSION: "1.32"
+  K8S_VERSION: "1.33"
   # Existing scenario variables
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: swiftv2-cluster-churn-feature
