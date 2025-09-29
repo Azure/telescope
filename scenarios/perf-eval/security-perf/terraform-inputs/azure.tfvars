@@ -26,21 +26,13 @@ aks_cli_config_list = [
     extra_node_pool = [
       {
         name       = "scalepool1"
-        node_count = 1
+        node_count = 251
         vm_size    = "Standard_D2ds_v4"
         optional_parameters = [
           {
             name  = "ssh-access"
             value = "disabled"
-          },
-          {
-            name  = "min-count"
-            value = 1
-          },
-          {
-            name  = "max-count"
-            value = 251
-          },
+          }
           {
             name  = "max-pods"
             value = 110
