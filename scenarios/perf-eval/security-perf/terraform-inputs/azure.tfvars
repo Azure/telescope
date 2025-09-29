@@ -48,10 +48,6 @@ aks_cli_config_list = [
           {
             name  = "labels"
             value = "cas=dedicated"
-          },
-          {
-            name  = "enable-cluster-autoscaler"
-            value = ""
           }
         ]
       }
@@ -72,6 +68,10 @@ aks_cli_config_list = [
       {
         name  = "pod-cidr"
         value = "10.128.0.0/11"
+      },
+      {
+        name  = "labels"
+        value = "cas=dedicated"
       },
       {
         name  = "ssh-access"
