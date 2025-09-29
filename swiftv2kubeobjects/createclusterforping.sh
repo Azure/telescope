@@ -134,7 +134,11 @@ create_aks_cluster() {
     local node_subnet_id=$4
     local pod_subnet_id=$5
     
-    echo "Creating AKS cluster: $cluster_name in resource group: $resource_group"
+    if [[ -n "$K8S_VERSION" ]]; then
+        echo "Creating AKS cluster: $cluster_name in resource group: $resource_group with Kubernetes version: $K8S_VERSION"
+    else
+        echo "Creating AKS cluster: $cluster_name in resource group: $resource_group with default Kubernetes version"
+    fi
     
     # Get the kubelet identity ID from the shared infrastructure resource group
     local kubelet_identity_id=$(az identity show --name $SHARED_KUBELET_IDENTITY_NAME --resource-group ${CUST_RG:-$custRG} --query id -o tsv)
@@ -156,6 +160,11 @@ create_aks_cluster() {
     echo "Using control plane identity: $control_plane_identity_id"
 
     # Create the AKS cluster with the specified parameters
+    local k8s_version_param=""
+    if [[ -n "$K8S_VERSION" ]]; then
+        k8s_version_param="--kubernetes-version ${K8S_VERSION}"
+    fi
+    
     az aks create -n ${cluster_name} -g ${resource_group} \
         -s Standard_D4_v3 -c 5 \
         --os-sku Ubuntu \
@@ -163,6 +172,7 @@ create_aks_cluster() {
         --service-cidr 192.168.0.0/16 --dns-service-ip 192.168.0.10 \
         --network-plugin azure \
         --tier standard \
+        ${k8s_version_param} \
         --vnet-subnet-id ${node_subnet_id} \
         --pod-subnet-id ${pod_subnet_id} \
         --nodepool-tags fastpathenabled=true aks-nic-enable-multi-tenancy=true \
