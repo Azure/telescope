@@ -62,7 +62,7 @@ aks_cli_config_list = [
         value = "10.128.0.0/11"
       },
       {
-        name  = "labels"
+        name  = "nodepool-labels"
         value = "cas=dedicated"
       },
       {
