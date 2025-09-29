@@ -8,12 +8,12 @@ schedules:
         - main
     always: true
 # Azure Large Scale(5000) Spot Schedule
-# - cron: "0 3 * * *"
-#   displayName: "Every day at 3:00 AM"
-#   branches:
-#     include:
-#       - main
-#   always: true
+  - cron: "0 3 * * *"
+    displayName: "Every day at 3:00 AM"
+    branches:
+      include:
+        - main
+    always: true
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: nap
@@ -58,42 +58,41 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-# TODO: Uncomment the following stage when spot testing is ready
-# - stage: azure_eastus2_5k_spot
-#   condition: |
-#       or(
-#         eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 3:00 PM'),
-#         eq(variables['Build.Reason'], 'Manual')
-#       )
-#   dependsOn: []
-#   variables:
-#     - group: NAP-5K-Config
-#   jobs:
-#     - template: /jobs/competitive-test.yml
-#       parameters:
-#         cloud: azure
-#         regions:
-#           - eastus2
-#         terraform_input_file_mapping:
-#           - eastus2: "scenarios/perf-eval/nap/terraform-inputs/azure-5k.tfvars"
-#         engine: clusterloader2
-#         engine_input:
-#           image: "ghcr.io/azure/clusterloader2:v20250423"
-#         topology: karpenter
-#         matrix:
-#           5k-spot:
-#             cpu_per_node: 2
-#             node_count: $(_NODE_COUNT)
-#             pod_count: $(_POD_COUNT)
-#             scale_up_timeout: "150m"
-#             scale_down_timeout: "150m"
-#             node_label_selector: "karpenter.sh/nodepool = spot"
-#             node_selector: "{karpenter.sh/nodepool: spot}"
-#             loop_count: 1
-#             warmup_deployment: true
-#             vm_size: $(VM_SKU)
-#             capacity_type: spot
-#         max_parallel: 1
-#         timeout_in_minutes: 500
-#         credential_type: service_connection
-#         ssh_key_enabled: false
+  - stage: azure_eastus2_5k_spot
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 3:00 PM'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
+    dependsOn: []
+    variables:
+      - group: NAP-5K-Config
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          terraform_input_file_mapping:
+            - eastus2: "scenarios/perf-eval/nap/terraform-inputs/azure-5k.tfvars"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250423"
+          topology: karpenter
+          matrix:
+            5k-spot:
+              cpu_per_node: 2
+              node_count: 2000
+              pod_count: 2000
+              scale_up_timeout: "150m"
+              scale_down_timeout: "150m"
+              node_label_selector: "karpenter.sh/nodepool = spot"
+              node_selector: "{karpenter.sh/nodepool: spot}"
+              loop_count: 1
+              warmup_deployment: true
+              vm_size: Standard_D2s_v4
+              capacity_type: spot
+          max_parallel: 1
+          timeout_in_minutes: 500
+          credential_type: service_connection
+          ssh_key_enabled: false
