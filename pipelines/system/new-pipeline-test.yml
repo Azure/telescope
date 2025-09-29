@@ -2,19 +2,19 @@ trigger: none
 
 variables:
   # Pipeline variables with defaults - these will check for ADO pipeline variables first, then use defaults
-  AZURE_SUBSCRIPTION_ID: $[coalesce(variables['AZURE_SUBSCRIPTION_ID'], '9b8218f9-902a-4d20-a65c-e98acec5362f')]
-  SKIP_RESOURCE_MANAGEMENT: $[coalesce(variables['SKIP_RESOURCE_MANAGEMENT'], 'false')]
-  AZURE_SERVICE_CONNECTION: $[coalesce(variables['AZURE_SERVICE_CONNECTION'], 'Azure-for-Telescope-internal')]
-  AZURE_STORAGE_ACCOUNT_NAME: $[coalesce(variables['AZURE_STORAGE_ACCOUNT_NAME'], 'akstelescope')]
-  AZURE_TELESCOPE_STORAGE_ACCOUNT_NAME: $[coalesce(variables['AZURE_TELESCOPE_STORAGE_ACCOUNT_NAME'], 'telescopedata')]
-  LOCATION: $[coalesce(variables['LOCATION'], 'uksouth')]
-  CREATESWIFTV2PING: $[coalesce(variables['CREATESWIFTV2PING'], 'true')]
-  CLEANUP_RESOURCES: $[coalesce(variables['CLEANUP_RESOURCES'], 'true')]
-  K8S_VERSION: $[coalesce(variables['K8S_VERSION'], '1.32')]
+  AZURE_SUBSCRIPTION_ID: ${{ coalesce(variables['AZURE_SUBSCRIPTION_ID'], '9b8218f9-902a-4d20-a65c-e98acec5362f') }}
+  SKIP_RESOURCE_MANAGEMENT: ${{ coalesce(variables['SKIP_RESOURCE_MANAGEMENT'], 'false') }}
+  AZURE_SERVICE_CONNECTION: ${{ coalesce(variables['AZURE_SERVICE_CONNECTION'], 'Azure-for-Telescope-internal') }}
+  AZURE_STORAGE_ACCOUNT_NAME: ${{ coalesce(variables['AZURE_STORAGE_ACCOUNT_NAME'], 'akstelescope') }}
+  AZURE_TELESCOPE_STORAGE_ACCOUNT_NAME: ${{ coalesce(variables['AZURE_TELESCOPE_STORAGE_ACCOUNT_NAME'], 'telescopedata') }}
+  LOCATION: ${{ coalesce(variables['LOCATION'], 'uksouth') }}
+  CREATESWIFTV2PING: ${{ coalesce(variables['CREATESWIFTV2PING'], 'true') }}
+  CLEANUP_RESOURCES: ${{ coalesce(variables['CLEANUP_RESOURCES'], 'true') }}
+  K8S_VERSION: ${{ coalesce(variables['K8S_VERSION'], '1.32') }}
   # Scenario variables with defaults
-  SCENARIO_TYPE: $[coalesce(variables['SCENARIO_TYPE'], 'perf-eval')]
-  SCENARIO_NAME: $[coalesce(variables['SCENARIO_NAME'], 'swiftv2')]
-  OWNER: $[coalesce(variables['OWNER'], 'aks')]
+  SCENARIO_TYPE: ${{ coalesce(variables['SCENARIO_TYPE'], 'perf-eval') }}
+  SCENARIO_NAME: ${{ coalesce(variables['SCENARIO_NAME'], 'swiftv2') }}
+  OWNER: ${{ coalesce(variables['OWNER'], 'aks') }}
   # Common matrix parameters
   cpu_per_node: 4
   max_pods: 1
