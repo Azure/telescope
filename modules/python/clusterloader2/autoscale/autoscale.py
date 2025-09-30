@@ -207,8 +207,8 @@ def main():
     parser_override.add_argument("warmup_deployment", type=str, help="Warmup deployment to get the cpu request")
     parser_override.add_argument("cl2_config_dir", type=str, help="Path to the CL2 config directory")
     parser_override.add_argument("--os_type", type=str, choices=["linux", "windows"], default="linux", help="Operating system type for the node pools")
-    parser_override.add_argument("warmup_deployment_template", type=str, default="", help="Path to the CL2 warm up deployment file")
-    parser_override.add_argument("deployment_template", type=str, default="", help="Path to the CL2 deployment file")
+    parser_override.add_argument("--warmup_deployment_template", type=str, default="", help="Path to the CL2 warm up deployment file")
+    parser_override.add_argument("--deployment_template", type=str, default="", help="Path to the CL2 deployment file")
 
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", help="Execute scale up operation")
