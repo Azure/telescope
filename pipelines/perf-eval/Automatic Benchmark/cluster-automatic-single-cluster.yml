@@ -42,8 +42,8 @@ stages:
               deployment_template: automatic/deployment_template.yaml
             automatic-acn-off-100-nodes:
               cpu_per_node: 4
-              node_count: 10
-              pod_count: 10
+              node_count: 1
+              pod_count: 1
               scale_up_timeout: "150m"
               scale_down_timeout: "150m"
               node_label_selector: "karpenter.sh/nodepool = default"
