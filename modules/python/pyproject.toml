@@ -1,6 +1,6 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "telescope-benchmarks"
@@ -21,20 +21,17 @@ classifiers = [
     "Topic :: Software Development :: Testing",
     "Topic :: System :: Benchmark",
 ]
-dependencies = [
-    "docker==7.1.0",
-    "kubernetes==31.0.0",
-    "pylint==3.3.4",
-    "coverage==7.6.12",
-    "numpy==2.2.5"
-]
+dynamic = ["dependencies"]
 
 [project.urls]
 Source = "https://github.com/Azure/telescope"
 Documentation = "https://github.com/Azure/telescope/tree/main/modules/python"
 
-[tool.hatch.build.targets.wheel]
+[tool.setuptools]
 packages = ["iperf3", "clients", "utils", "clusterloader2", "kwok"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = "requirements.txt"}
 
 [project.scripts]
 telescope-iperf3 = "iperf3.iperf3_pod:main"

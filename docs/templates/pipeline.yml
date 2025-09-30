@@ -1,0 +1,39 @@
+trigger: none
+
+# Schedule is needed only after we test and validate the pipeline
+schedules:
+  - cron: <cron-syntax-schedule>
+    displayName: <schedule-name>
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  SCENARIO_TYPE: <scenario-type> # Allowed values[perf-eval, issue-repro]
+  SCENARIO_NAME: <scenario-name> # e.g. vm-iperf, vm-crud, aks-iperf, aks-crud. Max length is 30 characters. Make sure this matches the folder name under /scenarios/<scenario-type>/<scenario-name>
+
+stages:
+  - stage: <stage-name> # format: <cloud>[_<region>][_description]+ (e.g. azure_eastus2_small_Scale, aws_eastus_westus_k8s_1.33)
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml@templates # must keep as is
+        parameters:
+          cloud: <cloud> # e.g. azure, aws, gcp
+          regions: # list of regions. By default, we only run in one region unless specified otherwise
+            - region1 # e.g. eastus
+            - region2 # e.g. westus
+          terraform_input_file_mapping: # Optional: mapping of terraform input files to regions when multiple regions are specified and different input files are needed
+            - region1: "scenarios/<scenario-type>/<scenario-name>/terraform-inputs/<file-name>.tfvars" # e.g. eastus: "scenarios/perf-eval/vm-iperf/terraform-inputs/aws-client.tfvars"
+              region2: "scenarios/<scenario-type>/<scenario-name>/terraform-inputs/<file-name>.tfvars" # e.g. westus: "scenarios/perf-eval/vm-iperf/terraform-inputs/aws-server.tfvars"
+          topology: <topology> # e.g. kperf, karpenter, kwok.  see available topology under /steps/topology
+          engine: <engine> # e.g. clusterloader2, crud, iperf3, kperf. see available engines under /steps/engine
+          matrix: # list of test parameters to customize the provisioned resources and also used for running the python code in the engine step
+            # Only add parameters that are used in the engine or topology steps
+            <case-name>:
+              <key1>: <value1>
+              <key2>: <value2>
+          max_parallel: 1 # required
+          credential_type: service_connection
+          ssh_key_enabled: false # Optional: Enable SSH key for VMs (default is false)
+          timeout_in_minutes: <timeout in minutes> # if not specified, default is 60

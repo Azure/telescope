@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "k8s-gpu-storage"
-deletion_delay = "2h"
+deletion_delay = "4h"
 owner          = "aks"
 aks_config_list = [
   {

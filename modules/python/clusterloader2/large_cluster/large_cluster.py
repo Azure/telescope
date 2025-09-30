@@ -8,8 +8,6 @@ from clusterloader2.utils import parse_xml_to_json, run_cl2_command, get_measure
 from clients.kubernetes_client import KubernetesClient
 from utils.common import str2bool
 
-DEFAULT_PODS_PER_NODE = 40
-
 DEFAULT_NODES_PER_NAMESPACE = 100
 CPU_REQUEST_LIMIT_MILLI = 1
 DAEMONSETS_PER_NODE = {
@@ -24,16 +22,10 @@ CPU_CAPACITY = {
 }
 # TODO: Remove aks once CL2 update provider name to be azure
 
-def calculate_config(cpu_per_node, node_count, max_pods, provider, service_test, cnp_test, ccnp_test):
+def calculate_config(cpu_per_node, node_count, provider, pods_per_node):
     throughput = 100
     nodes_per_namespace = min(node_count, DEFAULT_NODES_PER_NAMESPACE)
 
-    pods_per_node = DEFAULT_PODS_PER_NODE
-    if service_test:
-        pods_per_node = max_pods
-
-    if cnp_test or ccnp_test:
-        pods_per_node = max_pods
     # Different cloud has different reserved values and number of daemonsets
     # Using the same percentage will lead to incorrect nodes number as the number of nodes grow
     # For AWS, see: https://github.com/awslabs/amazon-eks-ami/blob/main/templates/al2/runtime/bootstrap.sh#L290
@@ -42,28 +34,23 @@ def calculate_config(cpu_per_node, node_count, max_pods, provider, service_test,
     cpu_request = (cpu_per_node * 1000 * capacity) // pods_per_node
     cpu_request = max(cpu_request, CPU_REQUEST_LIMIT_MILLI)
 
-    return throughput, nodes_per_namespace, pods_per_node, cpu_request
+    return throughput, nodes_per_namespace, cpu_request
 
 def configure_clusterloader2(
     cpu_per_node,
     node_count,
     node_per_step,
-    max_pods,
+    pods_per_node,
     repeats,
     operation_timeout,
     provider,
     cilium_enabled,
     scrape_containerd,
-    service_test,
-    cnp_test,
-    ccnp_test,
-    num_cnps,
-    num_ccnps,
-    dualstack,
-    override_file):
+    override_file
+):
 
     steps = node_count // node_per_step
-    throughput, nodes_per_namespace, pods_per_node, cpu_request = calculate_config(cpu_per_node, node_per_step, max_pods, provider, service_test, cnp_test, ccnp_test)
+    throughput, nodes_per_namespace, cpu_request = calculate_config(cpu_per_node, node_per_step, provider, pods_per_node)
 
     with open(override_file, 'w', encoding='utf-8') as file:
         file.write(f"CL2_NODES: {node_count}\n")
@@ -92,23 +79,6 @@ def configure_clusterloader2(
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true\n")
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true\n")
             file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT_INTERVAL: 30s\n")
-
-        if service_test:
-            file.write("CL2_SERVICE_TEST: true\n")
-        else:
-            file.write("CL2_SERVICE_TEST: false\n")
-
-        if cnp_test:
-            file.write("CL2_CNP_TEST: true\n")
-            file.write(f"CL2_CNPS_PER_NAMESPACE: {num_cnps}\n")
-            file.write(f"CL2_DUALSTACK: {dualstack}\n")
-            file.write("CL2_GROUP_NAME: cnp-ccnp\n")
-
-        if ccnp_test:
-            file.write("CL2_CCNP_TEST: true\n")
-            file.write(f"CL2_CCNPS: {num_ccnps}\n")
-            file.write(f"CL2_DUALSTACK: {dualstack}\n")
-            file.write("CL2_GROUP_NAME: cnp-ccnp\n")
 
     with open(override_file, 'r', encoding='utf-8') as file:
         print(f"Content of file {override_file}:\n{file.read()}")
@@ -146,30 +116,23 @@ def execute_clusterloader2(
 def collect_clusterloader2(
     cpu_per_node,
     node_count,
-    max_pods,
+    pods_per_node,
     repeats,
     cl2_report_dir,
     cloud_info,
     run_id,
     run_url,
-    service_test,
-    cnp_test,
-    ccnp_test,
     result_file,
-    test_type,
-    start_timestamp,
 ):
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
     json_data = json.loads(details)
     testsuites = json_data["testsuites"]
-    provider = json.loads(cloud_info)["cloud"]
 
     if testsuites:
         status = "success" if testsuites[0]["failures"] == 0 else "failure"
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
 
-    _, _, pods_per_node, _ = calculate_config(cpu_per_node, node_count, max_pods, provider, service_test, cnp_test, ccnp_test)
     pod_count = node_count * pods_per_node
 
     # TODO: Expose optional parameter to include test details
@@ -187,8 +150,6 @@ def collect_clusterloader2(
         "cloud_info": cloud_info,
         "run_id": run_id,
         "run_url": run_url,
-        "test_type": test_type,
-        "start_timestamp": start_timestamp,
     }
     content = ""
     for f in os.listdir(cl2_report_dir):
@@ -233,7 +194,7 @@ def main():
     parser_configure.add_argument("cpu_per_node", type=int, help="CPU per node")
     parser_configure.add_argument("node_count", type=int, help="Number of nodes")
     parser_configure.add_argument("node_per_step", type=int, help="Number of nodes per scaling step")
-    parser_configure.add_argument("max_pods", type=int, nargs='?', default=0, help="Maximum number of pods per node")
+    parser_configure.add_argument("pods_per_node", type=int, help="The number of pods per node")
     parser_configure.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
     parser_configure.add_argument("operation_timeout", type=str, help="Timeout before failing the scale up test")
     parser_configure.add_argument("provider", type=str, help="Cloud provider name")
@@ -241,16 +202,6 @@ def main():
                                   help="Whether cilium is enabled. Must be either True or False")
     parser_configure.add_argument("scrape_containerd", type=str2bool, choices=[True, False], default=False,
                                   help="Whether to scrape containerd metrics. Must be either True or False")
-    parser_configure.add_argument("service_test", type=str2bool, choices=[True, False], default=False,
-                                  help="Whether service test is running. Must be either True or False")
-    parser_configure.add_argument("cnp_test", type=str2bool, choices=[True, False], nargs='?', default=False,
-                                  help="Whether cnp test is running. Must be either True or False")
-    parser_configure.add_argument("ccnp_test", type=str2bool, choices=[True, False], nargs='?', default=False,
-                                  help="Whether ccnp test is running. Must be either True or False")
-    parser_configure.add_argument("num_cnps", type=int, nargs='?', default=0, help="Number of cnps")
-    parser_configure.add_argument("num_ccnps", type=int, nargs='?', default=0, help="Number of ccnps")
-    parser_configure.add_argument("dualstack", type=str2bool, choices=[True, False], nargs='?', default=False,
-                                  help="Whether cluster is dualstack. Must be either True or False")
     parser_configure.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
     # Sub-command for validate_clusterloader2
@@ -273,40 +224,56 @@ def main():
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
     parser_collect.add_argument("cpu_per_node", type=int, help="CPU per node")
     parser_collect.add_argument("node_count", type=int, help="Number of nodes")
-    parser_collect.add_argument("max_pods", type=int, nargs='?', default=0, help="Maximum number of pods per node")
+    parser_collect.add_argument("pods_per_node", type=int, help="The number of pods per node")
     parser_collect.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
     parser_collect.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
     parser_collect.add_argument("cloud_info", type=str, help="Cloud information")
     parser_collect.add_argument("run_id", type=str, help="Run ID")
     parser_collect.add_argument("run_url", type=str, help="Run URL")
-    parser_collect.add_argument("service_test", type=str2bool, choices=[True, False], default=False,
-                                  help="Whether service test is running. Must be either True or False")
-    parser_collect.add_argument("cnp_test", type=str2bool, choices=[True, False], nargs='?', default=False,
-                                  help="Whether cnp test is running. Must be either True or False")
-    parser_collect.add_argument("ccnp_test", type=str2bool, choices=[True, False], nargs='?', default=False,
-                                  help="Whether ccnp test is running. Must be either True or False")
     parser_collect.add_argument("result_file", type=str, help="Path to the result file")
-    parser_collect.add_argument("test_type", type=str, nargs='?', default="default-config",
-                                help="Description of test type")
-    parser_collect.add_argument("start_timestamp", type=str, help="Test start timestamp")
 
     args = parser.parse_args()
 
     if args.command == "configure":
-        configure_clusterloader2(args.cpu_per_node, args.node_count, args.node_per_step, args.max_pods,
-                                 args.repeats, args.operation_timeout, args.provider,
-                                 args.cilium_enabled, args.scrape_containerd,
-                                 args.service_test, args.cnp_test, args.ccnp_test, args.num_cnps, args.num_ccnps, args.dualstack, args.cl2_override_file)
+        configure_clusterloader2(
+            args.cpu_per_node,
+            args.node_count,
+            args.node_per_step,
+            args.pods_per_node,
+            args.repeats,
+            args.operation_timeout,
+            args.provider,
+            args.cilium_enabled,
+            args.scrape_containerd,
+            args.cl2_override_file,
+        )
     elif args.command == "validate":
-        validate_clusterloader2(args.node_count, args.operation_timeout)
+        validate_clusterloader2(
+            args.node_count,
+            args.operation_timeout,
+        )
     elif args.command == "execute":
-        execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.cl2_config_file,
-                               args.kubeconfig, args.provider, args.scrape_containerd)
+        execute_clusterloader2(
+            args.cl2_image,
+            args.cl2_config_dir,
+            args.cl2_report_dir,
+            args.cl2_config_file,
+            args.kubeconfig,
+            args.provider,
+            args.scrape_containerd,
+        )
     elif args.command == "collect":
-        collect_clusterloader2(args.cpu_per_node, args.node_count, args.max_pods, args.repeats,
-                               args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
-                               args.service_test, args.cnp_test, args.ccnp_test,
-                               args.result_file, args.test_type, args.start_timestamp)
+        collect_clusterloader2(
+            args.cpu_per_node,
+            args.node_count,
+            args.pods_per_node,
+            args.repeats,
+            args.cl2_report_dir,
+            args.cloud_info,
+            args.run_id,
+            args.run_url,
+            args.result_file,
+        )
 
 if __name__ == "__main__":
     main()

@@ -1,3 +1,5 @@
+{{$OSType := DefaultParam .OSType "linux"}}
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -19,15 +21,26 @@ spec:
         {{ (StructuralData $key ) }}: {{ $value }}
       {{- end }}
       containers:
-        - name: nginx
+        - name: load-generator
+          {{if eq $OSType "windows"}}
+          image: mcr.microsoft.com/windows/nanoserver:ltsc2022
+          {{else}}
           image: mcr.microsoft.com/cbl-mariner/base/nginx:1
+          {{end}}
           resources:
             requests:
               cpu: {{.CPUperJob}}
             limits:
               cpu: {{.CPUperJob}}
+          {{if eq $OSType "windows"}}
+          command:
+          - "cmd.exe"
+          - "/c"
+          - "echo %date% %time% && ping -n 6001 127.0.0.1 > nul"
+          {{else}}
           command:
             - "/bin/bash"
             - "-c"
             - runtime="1 minute"; endtime=$(date -ud "$runtime" +%s); while [[ $(date -u +%s) -le $endtime ]]; do echo $(date); sleep 6000; done
+          {{end}}
       restartPolicy: Always
