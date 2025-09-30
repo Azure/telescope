@@ -12,17 +12,17 @@ from utils.logger_config import get_logger, setup_logging
 setup_logging()
 logger = get_logger(__name__)
 
-def warmup_deployment_for_karpeneter(cl2_config_dir,warmup_deployment_template):
+def warmup_deployment_for_karpeneter(cl2_config_dir, warmup_deployment_template):
     logger.info("WarmUp Deployment Started")
 
-    if(warmup_deployment_template!=''):
+    if (warmup_deployment_template!=''):
         deployment_file = f"{cl2_config_dir}/{warmup_deployment_template}"
     else:
         deployment_file = f"{cl2_config_dir}/warmup_deployment.yaml"
     subprocess.run(["kubectl", "apply", "-f", deployment_file], check=True)
 
-def cleanup_warmup_deployment_for_karpeneter(cl2_config_dir,warmup_deployment_template):
-    if(warmup_deployment_template!=''):
+def cleanup_warmup_deployment_for_karpeneter(cl2_config_dir, warmup_deployment_template):
+    if (warmup_deployment_template!=''):
         deployment_file = f"{cl2_config_dir}/{warmup_deployment_template}"
     else:
         deployment_file = f"{cl2_config_dir}/warmup_deployment.yaml"
@@ -33,7 +33,7 @@ def cleanup_warmup_deployment_for_karpeneter(cl2_config_dir,warmup_deployment_te
     except Exception as e:
         logger.error(f"Error while deleting node: {e}")
 
-def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, pod_count, warmup_deployment, cl2_config_dir,warmup_deployment_template):
+def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, pod_count, warmup_deployment, cl2_config_dir, warmup_deployment_template):
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
     timeout = 10  # 10 minutes
     nodes = []
@@ -57,8 +57,7 @@ def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, po
     # Remove warmup deployment cpu request from the total cpu value
     if warmup_deployment in ["true", "True"]:
         cpu_value -= 100
-        cleanup_warmup_deployment_for_karpeneter(cl2_config_dir,warmup_deployment_template)
-        
+        cleanup_warmup_deployment_for_karpeneter(cl2_config_dir, warmup_deployment_template)
 
     # Calculate the cpu request for each pod
     pods_per_node = pod_count // node_count
@@ -67,14 +66,14 @@ def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, po
     cpu_request = int(cpu_request * 0.95)
     return cpu_request
 
-def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file, warmup_deployment, cl2_config_dir,warmup_deployment_template,deployment_template):
+def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file, warmup_deployment, cl2_config_dir, warmup_deployment_template, deployment_template):
     logger.info(f"CPU per node: {cpu_per_node}")
     desired_node_count = 1
     if warmup_deployment in ["true", "True"]:
-        warmup_deployment_for_karpeneter(cl2_config_dir,warmup_deployment_template)
+        warmup_deployment_for_karpeneter(cl2_config_dir, warmup_deployment_template)
         desired_node_count = 0
 
-    cpu_request = calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, pod_count, warmup_deployment, cl2_config_dir,warmup_deployment_template)
+    cpu_request = calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, pod_count, warmup_deployment, cl2_config_dir, warmup_deployment_template)
 
     logger.info(f"Total number of nodes: {node_count}, total number of pods: {pod_count}")
     logger.info(f"CPU request for each pod: {cpu_request}m")
@@ -91,7 +90,7 @@ def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up
         file.write(f"CL2_LOOP_COUNT: {loop_count}\n")
         file.write(f"CL2_NODE_LABEL_SELECTOR: {node_label_selector}\n")
         file.write(f"CL2_NODE_SELECTOR: \"{node_selector}\"\n")
-        if(deployment_template!=''):
+        if (deployment_template!=''):
             file.write(f"CL2_DEPLOYMENT_TEMPLATE_PATH: {deployment_template}\n")
 
     file.close()

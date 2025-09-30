@@ -41,13 +41,13 @@ class TestClusterLoaderFunctions(unittest.TestCase):
     @patch('subprocess.run')
     def test_warmup_deployment_for_karpeneter(self, mock_run):
         cl2_config_dir = '/mock/path'
-        warmup_deployment_for_karpeneter(cl2_config_dir)
+        warmup_deployment_for_karpeneter(cl2_config_dir, '/mock/path/warmup_deployment.yaml')
         mock_run.assert_called_once_with(["kubectl", "apply", "-f", f"{cl2_config_dir}/warmup_deployment.yaml"], check=True)
 
     @patch('subprocess.run')
     def test_cleanup_warmup_deployment_for_karpeneter(self, mock_run):
         cl2_config_dir = '/mock/path'
-        cleanup_warmup_deployment_for_karpeneter(cl2_config_dir)
+        cleanup_warmup_deployment_for_karpeneter(cl2_config_dir, '/mock/path/warmup_deployment.yaml')
         mock_run.assert_any_call(["kubectl", "delete", "-f", f"{cl2_config_dir}/warmup_deployment.yaml"], check=True)
         mock_run.assert_any_call(["kubectl", "delete", "nodeclaims", "--all"], check=True)
 
@@ -62,9 +62,9 @@ class TestClusterLoaderFunctions(unittest.TestCase):
         mock_kubernetes_client.return_value = mock_kubernetes_instance
 
         # Call the function under test
-        with_warmup_cpu_request = calculate_cpu_request_for_clusterloader2('{"autoscaler": "true"}', 1, 1, 'true', '/mock/path')
+        with_warmup_cpu_request = calculate_cpu_request_for_clusterloader2('{"autoscaler": "true"}', 1, 1, 'true', '/mock/path', '/mock/path/warmup_deployment.yaml')
 
-        without_warmup_cpu_request = calculate_cpu_request_for_clusterloader2('{"autoscaler": "true"}', 1, 1, 'false', '/mock/path')
+        without_warmup_cpu_request = calculate_cpu_request_for_clusterloader2('{"autoscaler": "true"}', 1, 1, 'false', '/mock/path', '/mock/path/warmup_deployment.yaml')
 
         # Assert the CPU request calculation
         self.assertEqual(with_warmup_cpu_request, 1800*0.95)  # 2000m - 100m (allocated) - 100m (warmup)
@@ -80,7 +80,7 @@ class TestClusterLoaderFunctions(unittest.TestCase):
         mock_kubernetes_client.return_value = mock_kubernetes_instance
 
         with self.assertRaises(Exception) as context:
-            calculate_cpu_request_for_clusterloader2('{"autoscaler": "true"}', 1, 1, 'true', '/mock/path')
+            calculate_cpu_request_for_clusterloader2('{"autoscaler": "true"}', 1, 1, 'true', '/mock/path', '/mock/path/warmup_deployment.yaml')
 
         self.assertIn("Error while getting nodes:", str(context.exception))
 
@@ -89,7 +89,7 @@ class TestClusterLoaderFunctions(unittest.TestCase):
 
         # Expect the function to eventually raise after the fallback logic
         with self.assertRaises(Exception) as context:
-            calculate_cpu_request_for_clusterloader2('{"autoscaler": "true"}', 1, 1, 'true', '/mock/path')
+            calculate_cpu_request_for_clusterloader2('{"autoscaler": "true"}', 1, 1, 'true', '/mock/path', '/mock/path/warmup_deployment.yaml')
 
         self.assertIn("Error while getting nodes:", str(context.exception))
 
@@ -101,7 +101,7 @@ class TestClusterLoaderFunctions(unittest.TestCase):
         # Mock the CPU request calculation
         mock_calculate_cpu_request.return_value = 1900
 
-        override_config_clusterloader2(2, 100, 1000, '5m', '5m', 1, 'autoscaler = true', '{autoscaler : true}', 'override_file', 'false', '/mock/path', 'linux')
+        override_config_clusterloader2(2, 100, 1000, '5m', '5m', 1, 'autoscaler = true', '{autoscaler : true}', 'override_file', 'false', '/mock/path', 'linux', '/mock/path/warmup_deployment.yaml', '/mock/path/deployment.yaml')
         mock_open.assert_any_call('override_file', 'w', encoding='utf-8')
         handle = mock_open()
         handle.write.assert_any_call('CL2_DEPLOYMENT_CPU: 1900m\n')
