@@ -122,7 +122,7 @@ class TestClusterLoaderFunctions(unittest.TestCase):
 
         # Test with warmup deployment true
         mock_warmup.retun_value = None
-        override_config_clusterloader2(2, 100, 1000, '5m', '5m', 1, 'autoscaler = true', '{autoscaler : true}', 'override_file', 'true', '/mock/path', 'windows')
+        override_config_clusterloader2(2, 100, 1000, '5m', '5m', 1, 'autoscaler = true', '{autoscaler : true}', 'override_file', 'true', '/mock/path', 'windows', '/mock/path/warmup_deployment.yaml', '/mock/path/deployment.yaml')
         mock_open.assert_any_call('override_file', 'w', encoding='utf-8')
         handle = mock_open()
         handle.write.assert_any_call('CL2_DEPLOYMENT_CPU: 1900m\n')
