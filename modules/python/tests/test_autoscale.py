@@ -227,7 +227,7 @@ class TestClusterLoaderFunctions(unittest.TestCase):
             mock_override.assert_called_once_with(
                 4, 3, 200, '10m', '5m', 2,
                 'nodepool=default', 'env=prod',
-                'override.yaml', 'warmup-deploy', 'config-dir', 'linux'
+                'override.yaml', 'warmup-deploy', 'config-dir', 'linux', 'warmup_deployment.yaml', 'deployment_template.yaml'
             )
 
     @patch('clusterloader2.autoscale.autoscale.execute_clusterloader2')
