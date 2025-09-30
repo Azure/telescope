@@ -40,6 +40,9 @@ steps:
 
       kubectl get nodepool default -o yaml
       kubectl get nodepool spot -o yaml
+
+      echo "wait 5 minutes before deploying load for the Automatic cluster to be ready."
+      sleep 300
     env:
       CLOUD: ${{ parameters.cloud }}
       KARPENTER_NODEPOOL_FILE: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/nap/kubernetes/karpenter_nodepool.${{ parameters.cloud }}.yml
