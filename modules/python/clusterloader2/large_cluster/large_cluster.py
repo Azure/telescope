@@ -191,46 +191,46 @@ def main():
 
     # Sub-command for configure_clusterloader2
     parser_configure = subparsers.add_parser("configure", help="Override CL2 config file")
-    parser_configure.add_argument("cpu_per_node", type=int, help="CPU per node")
-    parser_configure.add_argument("node_count", type=int, help="Number of nodes")
-    parser_configure.add_argument("node_per_step", type=int, help="Number of nodes per scaling step")
-    parser_configure.add_argument("pods_per_node", type=int, help="The number of pods per node")
-    parser_configure.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
-    parser_configure.add_argument("operation_timeout", type=str, help="Timeout before failing the scale up test")
-    parser_configure.add_argument("provider", type=str, help="Cloud provider name")
-    parser_configure.add_argument("cilium_enabled", type=str2bool, choices=[True, False], default=False,
+    parser_configure.add_argument("--cpu_per_node", type=int, help="CPU per node")
+    parser_configure.add_argument("--node_count", type=int, help="Number of nodes")
+    parser_configure.add_argument("--node_per_step", type=int, help="Number of nodes per scaling step")
+    parser_configure.add_argument("--pods_per_node", type=int, help="The number of pods per node")
+    parser_configure.add_argument("--repeats", type=int, help="Number of times to repeat the deployment churn")
+    parser_configure.add_argument("--operation_timeout", type=str, help="Timeout before failing the scale up test")
+    parser_configure.add_argument("--provider", type=str, help="Cloud provider name")
+    parser_configure.add_argument("--cilium_enabled", type=str2bool, choices=[True, False], default=False,
                                   help="Whether cilium is enabled. Must be either True or False")
-    parser_configure.add_argument("scrape_containerd", type=str2bool, choices=[True, False], default=False,
+    parser_configure.add_argument("--scrape_containerd", type=str2bool, choices=[True, False], default=False,
                                   help="Whether to scrape containerd metrics. Must be either True or False")
-    parser_configure.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
+    parser_configure.add_argument("--cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
 
     # Sub-command for validate_clusterloader2
     parser_validate = subparsers.add_parser("validate", help="Validate cluster setup")
-    parser_validate.add_argument("node_count", type=int, help="Number of desired nodes")
-    parser_validate.add_argument("operation_timeout", type=int, default=600, help="Operation timeout to wait for nodes to be ready")
+    parser_validate.add_argument("--node_count", type=int, help="Number of desired nodes")
+    parser_validate.add_argument("--operation_timeout", type=int, default=600, help="Operation timeout to wait for nodes to be ready")
 
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", help="Execute scale up operation")
-    parser_execute.add_argument("cl2_image", type=str, help="Name of the CL2 image")
-    parser_execute.add_argument("cl2_config_dir", type=str, help="Path to the CL2 config directory")
-    parser_execute.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
-    parser_execute.add_argument("cl2_config_file", type=str, help="Path to the CL2 config file")
-    parser_execute.add_argument("kubeconfig", type=str, help="Path to the kubeconfig file")
-    parser_execute.add_argument("provider", type=str, help="Cloud provider name")
-    parser_execute.add_argument("scrape_containerd", type=str2bool, choices=[True, False], default=False,
+    parser_execute.add_argument("--cl2_image", type=str, help="Name of the CL2 image")
+    parser_execute.add_argument("--cl2_config_dir", type=str, help="Path to the CL2 config directory")
+    parser_execute.add_argument("--cl2_report_dir", type=str, help="Path to the CL2 report directory")
+    parser_execute.add_argument("--cl2_config_file", type=str, help="Path to the CL2 config file")
+    parser_execute.add_argument("--kubeconfig", type=str, help="Path to the kubeconfig file")
+    parser_execute.add_argument("--provider", type=str, help="Cloud provider name")
+    parser_execute.add_argument("--scrape_containerd", type=str2bool, choices=[True, False], default=False,
                                 help="Whether to scrape containerd metrics. Must be either True or False")
 
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
-    parser_collect.add_argument("cpu_per_node", type=int, help="CPU per node")
-    parser_collect.add_argument("node_count", type=int, help="Number of nodes")
-    parser_collect.add_argument("pods_per_node", type=int, help="The number of pods per node")
-    parser_collect.add_argument("repeats", type=int, help="Number of times to repeat the deployment churn")
-    parser_collect.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
-    parser_collect.add_argument("cloud_info", type=str, help="Cloud information")
-    parser_collect.add_argument("run_id", type=str, help="Run ID")
-    parser_collect.add_argument("run_url", type=str, help="Run URL")
-    parser_collect.add_argument("result_file", type=str, help="Path to the result file")
+    parser_collect.add_argument("--cpu_per_node", type=int, help="CPU per node")
+    parser_collect.add_argument("--node_count", type=int, help="Number of nodes")
+    parser_collect.add_argument("--pods_per_node", type=int, help="The number of pods per node")
+    parser_collect.add_argument("--repeats", type=int, help="Number of times to repeat the deployment churn")
+    parser_collect.add_argument("--cl2_report_dir", type=str, help="Path to the CL2 report directory")
+    parser_collect.add_argument("--cloud_info", type=str, help="Cloud information")
+    parser_collect.add_argument("--run_id", type=str, help="Run ID")
+    parser_collect.add_argument("--run_url", type=str, help="Run URL")
+    parser_collect.add_argument("--result_file", type=str, help="Path to the result file")
 
     args = parser.parse_args()
 
