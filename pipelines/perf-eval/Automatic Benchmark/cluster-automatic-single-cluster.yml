@@ -36,21 +36,21 @@ stages:
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
               warmup_deployment: true
-              vm_size: Standard_D4ds_v5
+              vm_size: Standard_E4_v5
               capacity_type: on-demand
               warmup_deployment_template: automatic/warmup_deployment.yaml
               deployment_template: automatic/deployment_template.yaml
             automatic-acn-off-100-nodes:
               cpu_per_node: 4
-              node_count: 100
-              pod_count: 100
+              node_count: 10
+              pod_count: 10
               scale_up_timeout: "150m"
               scale_down_timeout: "150m"
               node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
               warmup_deployment: true
-              vm_size: Standard_D4ds_v5
+              vm_size: Standard_E4_v5
               capacity_type: on-demand
               warmup_deployment_template: automatic/warmup_deployment.yaml
               deployment_template: automatic/deployment_template.yaml
