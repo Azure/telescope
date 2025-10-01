@@ -34,7 +34,7 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20241022"
-          topology: slo
+          topology: large-cluster
           matrix:
             aws_vpc_cni:
               cpu_per_node: 4
@@ -65,7 +65,7 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20241022"
-          topology: slo
+          topology: large-cluster
           matrix:
             azure_cni:
               cpu_per_node: 4
