@@ -123,7 +123,7 @@ stages:
   - stage: staticres_burst
     condition: false
     displayName: 'Static Burst'
-    dependsOn: generate_base_run_id
+    dependsOn: staticres_gradual
     variables:
       BASE_RUN_ID: $[ stageDependencies.generate_base_run_id.generate_run_id.outputs['generate_id.BASE_RUN_ID'] ]
     jobs:
