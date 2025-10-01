@@ -1,8 +1,9 @@
 name: deployment-churn
 
 {{$nodesPerStep := DefaultParam .CL2_NODES_PER_STEP 100}}
+{{$scaledPodsPerStep := MulInt $nodesPerStep 7}}
 {{$nodes := DefaultParam .CL2_NODES 1000}}
-{{$steps := DivideInt $nodes $nodesPerStep}}
+{{$steps := DivideInt $nodes $scaledPodsPerStep}}
 {{$latencyPodCpu := DefaultParam .CL2_LATENCY_POD_CPU 10}}
 {{$latencyPodMemory := DefaultParam .CL2_LATENCY_POD_MEMORY 50}}
 {{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "60s"}}
@@ -78,7 +79,7 @@ steps:
           - basename: deployment-churn-{{$j}}
             objectTemplatePath: swiftv2_deployment_template.yaml
             templateFillMap:
-              Replicas: {{$nodesPerStep}}
+              Replicas: {{$scaledPodsPerStep}}
               PodGroup: {{$groupName}}
               Group: {{$groupName}}-{{$j}}
               CpuRequest: {{$latencyPodCpu}}m
@@ -112,7 +113,7 @@ steps:
         labelSelector: group={{$groupName}}-{{$j}}
         interval: 300s
         container: deployment-churn
-        limit: {{$nodesPerStep}} 
+        limit: {{$scaledPodsPerStep}} 
         failOnCommandError: true
         failOnExecError: true
         failOnTimeout: true

@@ -26,43 +26,43 @@ parameters:
       node_count: 20
       node_per_step: 20
       test_timeout: "2m"
-      test_type: Burst_DynamicRes_PPS=20_Nodes=20
+      test_type: Burst_DynamicRes_PPS=140_Pods=140_Nodes=20
       cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
     nodes=50:
       node_count: 50
       node_per_step: 50
       test_timeout: "3m"
-      test_type: Burst_DynamicRes_PPS=50_Nodes=50
+      test_type: Burst_DynamicRes_PPS=350_Pods=350_Nodes=50
       cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
     nodes=100:
       node_count: 100
       node_per_step: 100
       test_timeout: "4m"
-      test_type: Burst_DynamicRes_PPS=100_Nodes=100
+      test_type: Burst_DynamicRes_PPS=700_Pods=700_Nodes=100
       cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
     nodes=200:
       node_count: 200
       node_per_step: 200
       test_timeout: "6m"
-      test_type: Burst_DynamicRes_PPS=200_Nodes=200
+      test_type: Burst_DynamicRes_PPS=1400_Pods=1400_Nodes=200
       cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
     nodes=500:
       node_count: 500
       node_per_step: 500
       test_timeout: "7m"
-      test_type: Burst_DynamicRes_PPS=500_Nodes=500
+      test_type: Burst_DynamicRes_PPS=3500_Pods=3500_Nodes=500
       cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
     nodes=750:
       node_count: 750
       node_per_step: 750
       test_timeout: "9m"
-      test_type: Burst_DynamicRes_PPS=750_Nodes=750
+      test_type: Burst_DynamicRes_PPS=5250_Pods=5250_Nodes=750
       cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
     burst_nodes=1000:
       node_count: 1000
       node_per_step: 1000
       test_timeout: "10m"
-      test_type: Burst_DynamicRes_PPS=1000_Nodes=1000
+      test_type: Burst_DynamicRes_PPS=7000_Pods=7000_Nodes=1000
       cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
 
 jobs:

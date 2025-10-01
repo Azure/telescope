@@ -32,7 +32,7 @@ create_and_verify_nodepool() {
     local nodepool_name=$2
     local resource_group=$3
     local node_count=${4:-1}
-    local node_size=${5:-"Standard_D4_v3"}
+    local node_size=${5:-"Standard_D16_v3"}
     local node_subnet_id=$6
     local pod_subnet_id=$7
     local labels=${8:-""}
@@ -166,7 +166,7 @@ create_aks_cluster() {
     fi
     
     az aks create -n ${cluster_name} -g ${resource_group} \
-        -s Standard_D4_v3 -c 5 \
+        -s Standard_D16_v3 -c 5 \
         --os-sku Ubuntu \
         -l ${location} \
         --service-cidr 192.168.0.0/16 --dns-service-ip 192.168.0.10 \
@@ -175,7 +175,7 @@ create_aks_cluster() {
         ${k8s_version_param} \
         --vnet-subnet-id ${node_subnet_id} \
         --pod-subnet-id ${pod_subnet_id} \
-        --nodepool-tags fastpathenabled=true aks-nic-enable-multi-tenancy=true \
+        --nodepool-tags fastpathenabled=true aks-nic-enable-multi-tenancy=true aks-nic-secondary-count=7 \
         --vm-set-type VirtualMachineScaleSets \
         --tags run_id=${resource_group} role=slo \
         --load-balancer-backend-pool-type nodeIP \
@@ -288,7 +288,7 @@ az tag update --resource-id $SV2_CLUSTER_RESOURCE_ID --operation Merge --tags Sk
 # Create user nodepool with 1 node (will be scaled later by scale-cluster.sh)
 INITIAL_USER_NODES=1  # Always start with 1 node, regardless of target
 echo "Creating user nodepool with $INITIAL_USER_NODES node (will be scaled to $TARGET_USER_NODE_COUNT later)..."
-if ! create_and_verify_nodepool "${CLUSTER}" "userpool1" "${RG}" "$INITIAL_USER_NODES" "Standard_D4_v3" "${nodeSubnetID}" "${podSubnetID}" "slo=true testscenario=swiftv2 agentpool=userpool1" "slo=true:NoSchedule"; then
+if ! create_and_verify_nodepool "${CLUSTER}" "userpool1" "${RG}" "$INITIAL_USER_NODES" "Standard_D16_v3" "${nodeSubnetID}" "${podSubnetID}" "slo=true testscenario=swiftv2 agentpool=userpool1" "slo=true:NoSchedule"; then
     echo "ERROR: Failed to create user nodepool"
     exit 1
 fi
@@ -300,7 +300,7 @@ if [[ $BUFFER_NODE_COUNT -lt 1 ]]; then
 fi
 
 echo "Creating buffer nodepool with $BUFFER_NODE_COUNT nodes (5% of target $TARGET_USER_NODE_COUNT user nodes)..."
-if ! create_and_verify_nodepool "${CLUSTER}" "bufferpool1" "${RG}" "$BUFFER_NODE_COUNT" "Standard_D4_v3" "${nodeSubnetID}" "${podSubnetID}" "role=buffer testscenario=swiftv2 agentpool=bufferpool1" "" ""; then
+if ! create_and_verify_nodepool "${CLUSTER}" "bufferpool1" "${RG}" "$BUFFER_NODE_COUNT" "Standard_D16_v3" "${nodeSubnetID}" "${podSubnetID}" "role=buffer testscenario=swiftv2 agentpool=bufferpool1" "" ""; then
     echo "ERROR: Failed to create buffer nodepool"
     exit 1
 fi
