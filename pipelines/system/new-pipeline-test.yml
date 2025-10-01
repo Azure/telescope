@@ -78,7 +78,7 @@ stages:
           base_run_id: $(BASE_RUN_ID)
 
   - stage: dynamicres_burst
-    enabled: false
+    condition: false
     displayName: 'Dynamic Burst'
     dependsOn: generate_base_run_id
     variables:
@@ -121,7 +121,7 @@ stages:
           base_run_id: $(BASE_RUN_ID)
 
   - stage: staticres_burst
-    enabled: false
+    condition: false
     displayName: 'Static Burst'
     dependsOn: generate_base_run_id
     variables:
