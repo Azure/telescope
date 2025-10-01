@@ -707,8 +707,11 @@ class TestLargeCluster(unittest.TestCase):
     # ==================== main() Tests ====================
 
     @patch('clusterloader2.large_cluster.large_cluster.configure_clusterloader2')
-    @patch('sys.argv', ['large_cluster.py', 'configure', '4', '20', '5', '10', '3', '30m',
-                        'aws', 'False', 'False', '/tmp/override.yaml'])
+    @patch('sys.argv', ['large_cluster.py', 'configure',
+                        '--cpu_per_node', '4', '--node_count', '20', '--node_per_step', '5',
+                        '--pods_per_node', '10', '--repeats', '3', '--operation_timeout', '30m',
+                        '--provider', 'aws', '--cilium_enabled', 'False', '--scrape_containerd', 'False',
+                        '--cl2_override_file', '/tmp/override.yaml'])
     def test_main_configure_command(self, mock_configure):
         """Test configure command parsing"""
         main()
@@ -718,7 +721,7 @@ class TestLargeCluster(unittest.TestCase):
         )
 
     @patch('clusterloader2.large_cluster.large_cluster.validate_clusterloader2')
-    @patch('sys.argv', ['large_cluster.py', 'validate', '20', '600'])
+    @patch('sys.argv', ['large_cluster.py', 'validate', '--node_count', '20', '--operation_timeout', '600'])
     def test_main_validate_command(self, mock_validate):
         """Test validate command parsing"""
         main()
@@ -726,8 +729,10 @@ class TestLargeCluster(unittest.TestCase):
         mock_validate.assert_called_once_with(20, 600)
 
     @patch('clusterloader2.large_cluster.large_cluster.execute_clusterloader2')
-    @patch('sys.argv', ['large_cluster.py', 'execute', 'cl2:latest', '/config', '/report',
-                        'config.yaml', '/kubeconfig', 'aws', 'False'])
+    @patch('sys.argv', ['large_cluster.py', 'execute',
+                        '--cl2_image', 'cl2:latest', '--cl2_config_dir', '/config',
+                        '--cl2_report_dir', '/report', '--cl2_config_file', 'config.yaml',
+                        '--kubeconfig', '/kubeconfig', '--provider', 'aws', '--scrape_containerd', 'False'])
     def test_main_execute_command(self, mock_execute):
         """Test execute command parsing"""
         main()
@@ -737,8 +742,10 @@ class TestLargeCluster(unittest.TestCase):
         )
 
     @patch('clusterloader2.large_cluster.large_cluster.collect_clusterloader2')
-    @patch('sys.argv', ['large_cluster.py', 'collect', '4', '20', '10', '3', '/report',
-                        '{"cloud":"test"}', 'run123', 'http://example.com', '/result.json'])
+    @patch('sys.argv', ['large_cluster.py', 'collect',
+                        '--cpu_per_node', '4', '--node_count', '20', '--pods_per_node', '10',
+                        '--repeats', '3', '--cl2_report_dir', '/report', '--cloud_info', '{"cloud":"test"}',
+                        '--run_id', 'run123', '--run_url', 'http://example.com', '--result_file', '/result.json'])
     def test_main_collect_command(self, mock_collect):
         """Test collect command parsing"""
         main()
