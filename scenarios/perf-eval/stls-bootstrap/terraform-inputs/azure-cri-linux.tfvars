@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "stls-bootstrap"
+scenario_name  = "stls-bootstrap-cri"
 deletion_delay = "2h"
 owner          = "aks"
 

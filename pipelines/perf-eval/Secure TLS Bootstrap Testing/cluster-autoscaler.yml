@@ -17,8 +17,7 @@ schedules:
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: stls-bootstrap
-  AZURE_SUBSCRIPTION_ID: "f6e2f77f-9959-42ad-87f0-c30a6abc0133"
+  SCENARIO_NAME: stls-bootstrap-autoscale
 
 stages:
   - stage: azure_westus2_linux
