@@ -34,7 +34,7 @@ stages:
           regions:
             - westus2
           terraform_input_file_mapping:
-            - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-autoscaler-linux.tfvars"
+            - westus2: "scenarios/perf-eval/stls-bootstrap-autoscale/terraform-inputs/azure-autoscaler-linux.tfvars"
           terraform_input_varibles:
             subscription_id: $(AZURE_SUBSCRIPTION_ID)
           topology: cluster-autoscaler
@@ -72,7 +72,7 @@ stages:
           regions:
             - westus2
           terraform_input_file_mapping:
-            - westus2: "scenarios/perf-eval/stls-bootstrap/terraform-inputs/azure-autoscaler-windows.tfvars"
+            - westus2: "scenarios/perf-eval/stls-bootstrap-autoscale/terraform-inputs/azure-autoscaler-windows.tfvars"
           terraform_input_varibles:
             subscription_id: $(AZURE_SUBSCRIPTION_ID)
           topology: cluster-autoscaler
