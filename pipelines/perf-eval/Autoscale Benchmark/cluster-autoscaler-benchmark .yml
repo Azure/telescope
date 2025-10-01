@@ -22,7 +22,7 @@ schedules:
         - main
     always: true
   # Azure Large Scale Windows(1000) Schedule
-  - cron: "0 14 * * *"
+  - cron: "0 17 * * *"
     displayName: "Every day at 5:00 PM"
     branches:
       include:
