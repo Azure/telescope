@@ -12,20 +12,14 @@ from utils.logger_config import get_logger, setup_logging
 setup_logging()
 logger = get_logger(__name__)
 
-def warmup_deployment_for_karpeneter(cl2_config_dir, warmup_deployment_template):
+def warmup_deployment_for_karpeneter(cl2_config_dir, warmup_deployment_template="warmup_deployment.yaml"):
     logger.info("WarmUp Deployment Started")
 
-    if warmup_deployment_template != '':
-        deployment_file = f"{cl2_config_dir}/{warmup_deployment_template}"
-    else:
-        deployment_file = f"{cl2_config_dir}/warmup_deployment.yaml"
+    deployment_file = f"{cl2_config_dir}/{warmup_deployment_template}"
     subprocess.run(["kubectl", "apply", "-f", deployment_file], check=True)
 
-def cleanup_warmup_deployment_for_karpeneter(cl2_config_dir, warmup_deployment_template):
-    if warmup_deployment_template !='':
-        deployment_file = f"{cl2_config_dir}/{warmup_deployment_template}"
-    else:
-        deployment_file = f"{cl2_config_dir}/warmup_deployment.yaml"
+def cleanup_warmup_deployment_for_karpeneter(cl2_config_dir, warmup_deployment_template="warmup_deployment.yaml"):
+    deployment_file = f"{cl2_config_dir}/{warmup_deployment_template}"
     subprocess.run(["kubectl", "delete", "-f", deployment_file], check=True)
     logger.info("WarmUp Deployment Deleted")
     try:
