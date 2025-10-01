@@ -12,7 +12,7 @@ steps:
       role: network-load
       region: ${{ parameters.regions[0] }}
   # reusing slo validation because it is generic and simple, and it does not save any artifacts. At time of this writing, it only checks node count
-  - template: /steps/engine/clusterloader2/slo/validate.yml
+  - template: /steps/engine/clusterloader2/large_cluster/validate.yml
     parameters:
       desired_nodes: 13
       validation_timeout_in_minutes: 30
