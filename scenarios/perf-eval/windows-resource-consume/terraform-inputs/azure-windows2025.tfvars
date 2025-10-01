@@ -29,7 +29,7 @@ aks_cli_config_list = [
             value = "Ubuntu"
           },
           {
-            name  = "node-osdisk-type "
+            name  = "node-osdisk-type"
             value = "Ephemeral"
           }
         ]
@@ -88,7 +88,7 @@ aks_cli_config_list = [
         value = "192.168.0.10"
       },
       {
-        name  = "node-osdisk-type "
+        name  = "node-osdisk-type"
         value = "Ephemeral"
       },
       {
