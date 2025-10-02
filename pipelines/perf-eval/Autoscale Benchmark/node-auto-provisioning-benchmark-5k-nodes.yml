@@ -61,7 +61,7 @@ stages:
   - stage: azure_eastus2_5k_spot
     condition: |
         or(
-          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 3:00 PM'),
+          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 3:00 AM'),
           eq(variables['Build.Reason'], 'Manual')
         )
     dependsOn: []
