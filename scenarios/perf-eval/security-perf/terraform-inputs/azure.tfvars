@@ -7,8 +7,6 @@ aks_cli_config_list = [
   {
     role                          = "cas"
     aks_name                      = "cas"
-    dns_prefix                    = "cas"
-    subnet_name                   = "aks-network"
     sku_tier                      = "standard"
     kubernetes_version            = "1.33"
     use_aks_preview_cli_extension = true
@@ -23,28 +21,12 @@ aks_cli_config_list = [
       vm_size                      = "Standard_D4_v5"
     }
 
-    extra_node_pool = [
-      {
-        name       = "scalepool1"
-        node_count = 251
-        vm_size    = "Standard_D2ds_v4"
-        optional_parameters = [
-          {
-            name  = "ssh-access"
-            value = "disabled"
-          },
-          {
-            name  = "max-pods"
-            value = 110
-          },
-          {
-            name  = "labels"
-            value = "cas=dedicated"
-          }
-        ]
-      }
-    ]
+    extra_node_pool = []
     optional_parameters = [
+      {
+        name  = "node-provisioning-mode"
+        value = "Auto"
+      },
       {
         name  = "network-plugin"
         value = "azure"
@@ -60,10 +42,6 @@ aks_cli_config_list = [
       {
         name  = "pod-cidr"
         value = "10.128.0.0/11"
-      },
-      {
-        name  = "nodepool-labels"
-        value = "cas=dedicated"
       },
       {
         name  = "ssh-access"
