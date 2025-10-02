@@ -5,8 +5,8 @@ owner          = "aks"
 
 aks_cli_config_list = [
   {
-    role                          = "cas"
-    aks_name                      = "cas"
+    role                          = "nap"
+    aks_name                      = "nap"
     sku_tier                      = "standard"
     kubernetes_version            = "1.33"
     use_aks_preview_cli_extension = true
