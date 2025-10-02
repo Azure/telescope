@@ -22,7 +22,6 @@ schedules:
         - main
     always: true
 
-
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: security-perf
@@ -168,5 +167,3 @@ stages:
           timeout_in_minutes: 360
           credential_type: service_connection
           ssh_key_enabled: false
-
- 
