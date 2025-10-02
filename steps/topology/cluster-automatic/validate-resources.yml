@@ -13,7 +13,7 @@ steps:
     region: ${{ parameters.regions[0] }}
     alias: automatic
 
-- ${{ if eq(parameters.cloud, 'azure')}}:
+- ${{ if eq(parameters.cloud, 'azure') }}:
   - template: /steps/cloud/azure/install-kubelogin.yml
     parameters:
       cloud: ${{ parameters.cloud }}
