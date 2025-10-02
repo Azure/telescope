@@ -11,7 +11,7 @@ steps:
     parameters:
       role: slo
       region: ${{ parameters.regions[0] }}
-  - template: /steps/engine/clusterloader2/slo/validate.yml
+  - template: /steps/engine/clusterloader2/large_cluster/validate.yml
     parameters:
       desired_nodes: 1006
       validation_timeout_in_minutes: 30
