@@ -1,0 +1,98 @@
+trigger: none
+schedules:
+  # Linux Large Scale Schedule
+  - cron: "0 7 * * *"
+    displayName: "7:00 AM Daily"
+    branches:
+      include:
+        - main
+    always: true
+  # Windows Large Scale Schedule
+  - cron: "0 11 * * *"
+    displayName: "11:00 AM Daily"
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: stls-bootstrap-autoscale
+
+stages:
+  - stage: azure_westus2_linux
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], '7:00 AM Daily'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - westus2
+          terraform_input_file_mapping:
+            - westus2: "scenarios/perf-eval/stls-bootstrap-autoscale/terraform-inputs/azure-autoscaler-linux.tfvars"
+          terraform_input_varibles:
+            subscription_id: $(AZURE_SUBSCRIPTION_ID)
+          topology: cluster-autoscaler
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250423"
+          matrix:
+            large-scale-demand-linux:
+              cpu_per_node: 2
+              node_count: 1001
+              pod_count: 1001
+              scale_up_timeout: "60m"
+              scale_down_timeout: "60m"
+              node_label_selector: "cas = dedicated"
+              node_selector: "{cas: dedicated}"
+              loop_count: 1
+              warmup_deployment: false
+              capacity_type: on-demand
+          max_parallel: 1
+          credential_type: service_connection
+          ssh_key_enabled: false
+          timeout_in_minutes: 360
+
+  - stage: azure_westus2_windows
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], '11:00 AM Daily'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - westus2
+          terraform_input_file_mapping:
+            - westus2: "scenarios/perf-eval/stls-bootstrap-autoscale/terraform-inputs/azure-autoscaler-windows.tfvars"
+          terraform_input_varibles:
+            subscription_id: $(AZURE_SUBSCRIPTION_ID)
+          topology: cluster-autoscaler
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250423"
+          matrix:
+            large-scale-demand-windows:
+              cpu_per_node: 2
+              node_count: 1001
+              pod_count: 1001
+              scale_up_timeout: "60m"
+              scale_down_timeout: "60m"
+              node_label_selector: "cas = dedicated"
+              node_selector: "{cas: dedicated}"
+              loop_count: 1
+              warmup_deployment: false
+              capacity_type: on-demand
+              os_type: windows
+          max_parallel: 1
+          credential_type: service_connection
+          ssh_key_enabled: false
+          timeout_in_minutes: 360
