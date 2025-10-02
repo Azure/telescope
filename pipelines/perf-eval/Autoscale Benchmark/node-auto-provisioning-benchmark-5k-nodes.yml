@@ -7,7 +7,7 @@ schedules:
       include:
         - main
     always: true
-# Azure Large Scale(5000) Spot Schedule
+  # Azure Large Scale(5000) Spot Schedule
   - cron: "0 3 * * *"
     displayName: "Every day at 3:00 AM"
     branches:
