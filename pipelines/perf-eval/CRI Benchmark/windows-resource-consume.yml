@@ -12,7 +12,7 @@ variables:
   SCENARIO_NAME: windows-resource-consume
 
 stages:
-  - stage: windows_westus3
+  - stage: azure_westus3_windows2022
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -51,5 +51,50 @@ stages:
               os_type: windows
           max_parallel: 1
           timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: azure_westus3_windows2025
+    dependsOn: [azure_westus3_windows2022]
+    condition: succeededOrFailed()
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - westus3
+          terraform_input_file_mapping:
+            - westus3: "scenarios/perf-eval/windows-resource-consume/terraform-inputs/azure-windows2025.tfvars"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+          topology: cri-resource-consume
+          matrix:
+            n10-p300-memory:
+              node_count: 10
+              max_pods: 30
+              repeats: 1
+              operation_timeout: 3m
+              load_type: memory
+              scrape_kubelets: True
+              os_type: windows
+            n10-p700-memory:
+              node_count: 10
+              max_pods: 70
+              repeats: 1
+              operation_timeout: 7m
+              load_type: memory
+              scrape_kubelets: True
+              os_type: windows
+            n10-p1100-memory:
+              node_count: 10
+              max_pods: 110
+              repeats: 1
+              operation_timeout: 11m
+              load_type: memory
+              scrape_kubelets: True
+              os_type: windows
+          max_parallel: 1
+          timeout_in_minutes: 180
           credential_type: service_connection
           ssh_key_enabled: false
