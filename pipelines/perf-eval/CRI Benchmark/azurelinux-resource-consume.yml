@@ -82,10 +82,10 @@ stages:
             - eastus2
           terraform_input_file_mapping:
             - eastus2: "scenarios/perf-eval/azurelinux-resource-consume/terraform-inputs/azure-osguard.tfvars"
-          topology: cri-resource-consume
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
+          topology: cri-resource-consume
           matrix:
             n10-p300-memory:
               node_count: 10
