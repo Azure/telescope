@@ -106,3 +106,18 @@ parameters:
       test_timeout: "3m"
       test_type: Gradual_DynamicRes_PPS=98_Pods=28000_Nodes=4000
       cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
+
+jobs:
+- template: /jobs/competitive-test.yml
+  parameters:
+    cloud: ${{ parameters.cloud }}
+    regions: ${{ parameters.regions }}
+    engine: ${{ parameters.engine }}
+    engine_input: ${{ parameters.engine_input }}
+    topology: ${{ parameters.topology }}
+    matrix: ${{ parameters.matrix }}
+    max_parallel: ${{ parameters.max_parallel }}
+    timeout_in_minutes: ${{ parameters.timeout_in_minutes }}
+    credential_type: ${{ parameters.credential_type }}
+    ssh_key_enabled: ${{ parameters.ssh_key_enabled }}
+    base_run_id: ${{ parameters.base_run_id }}
