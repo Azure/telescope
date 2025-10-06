@@ -1,20 +1,29 @@
 # Complete Structure Diagram: new-pipeline-test.yml Dependencies
 
-This document provides a comprehensive overview of all files and dependencies referenced from `pipelines/system/new-pipeline-test.yml`.
+> Last documentation refresh: 2025-10-06
+
+This document provides an overview of the files and dependencies currently referenced (or required) by `pipelines/system/new-pipeline-test.yml`.
 
 ## Pipeline Overview
 
-The `new-pipeline-test.yml` pipeline orchestrates comprehensive performance testing for SwiftV2 cluster churn scenarios with both dynamic and static resource configurations, using ClusterLoader2 as the testing engine on Azure AKS clusters.
+The `new-pipeline-test.yml` pipeline orchestrates comprehensive performance testing for SwiftV2 scale / churn scenarios (dynamic vs static reservation; burst vs gradual) using ClusterLoader2 on AKS.
+
+The pipeline runs SwiftV2 scale / churn scenarios (dynamic vs static reservation; burst vs gradual) using ClusterLoader2 on AKS.
 
 ## Dependency Structure
 
 ```text
 pipelines/system/new-pipeline-test.yml (Main Pipeline)
-├── Variables:
+├── Variables (updated):
 │   ├── SCENARIO_TYPE: perf-eval
-│   ├── SCENARIO_NAME: swiftv2-cluster-churn-feature
+│   ├── SCENARIO_NAME: swiftv2
 │   ├── OWNER: aks
-│   └── Test Configuration Variables (cpu_per_node, max_pods, etc.)
+│   ├── VM_SKU: Standard_D16_v3
+│   ├── pods_per_node: 7 (used to derive target pod counts / step scaling)
+│   ├── cpu_per_node: 16
+│   ├── max_pods: 15 (accounts for daemonsets + workload pods)
+│   ├── node_label: "swiftv2slo=true"
+│   └── Other flags: cilium_enabled=False, scrape_containerd=False, service_test=False, ds_test=True
 │
 ├── Stage 0: generate_base_run_id
 │   └── Job: generate_run_id
@@ -25,29 +34,22 @@ pipelines/system/new-pipeline-test.yml (Main Pipeline)
 │
 ├── Stage 1: dynamicres_gradual
 │   └── Template: pipelines/system/matrices/swiftv2-dynamicres-gradual-matrix.yml
-│       ├── Matrix Parameters (15 configurations):
-│       │   ├── pps=20_nodes=100/200/500/750/1000
-│       │   ├── pps=50_nodes=100/200/500/750/1000  
-│       │   └── pps=100_nodes=200/500/750/1000
-│       ├── References: cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-│       └── Base Run ID: $(BASE_RUN_ID) (each job gets unique 5-char suffix from System.JobId)
+│       ├── Matrix entries keyed `pps=<rate>_pods=<total>_nodes=<n>` (uses `pods_per_step`).
+│       ├── Config file: swiftv2_deployment_dynamicres_scale_config.yaml
+│       └── Base Run ID: $(BASE_RUN_ID)
 │
 ├── Stage 2: dynamicres_burst
 │   └── Template: pipelines/system/matrices/swiftv2-dynamicres-burst-matrix.yml
-│       ├── Matrix Parameters (7 configurations):
-│       │   └── nodes=20/50/100/200/500/750/1000
-│       ├── References: cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-│       └── Base Run ID: $(BASE_RUN_ID) (each job gets unique 5-char suffix from System.JobId)
+│       ├── Matrix covers scaled pod totals aligned to node counts.
+│       └── Config file: swiftv2_deployment_dynamicres_scale_config.yaml
 │
 ├── Stage 3: staticres_gradual
 │   └── Template: pipelines/system/matrices/swiftv2-staticres-gradual-matrix.yml
-│       ├── References: cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-│       └── Base Run ID: $(BASE_RUN_ID) (each job gets unique 5-char suffix from System.JobId)
+│       └── Config file: swiftv2_deployment_staticres_scale_config.yaml
 │
 ├── Stage 4: staticres_burst
 │   └── Template: pipelines/system/matrices/swiftv2-staticres-burst-matrix.yml
-│       ├── References: cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-│       └── Base Run ID: $(BASE_RUN_ID) (each job gets unique 5-char suffix from System.JobId)
+│       └── Config file: swiftv2_deployment_staticres_scale_config.yaml
 │
 └── All Matrix Templates Reference: jobs/competitive-test.yml
     ├── Parameters: cloud, regions, engine, topology, base_run_id, etc.
@@ -87,35 +89,32 @@ pipelines/system/new-pipeline-test.yml (Main Pipeline)
         │       └── SwiftV2 PING Cluster (Conditional: CREATESWIFTV2PING=true):
         │           └── swiftv2kubeobjects/createclusterforping.sh
         │
-        ├── 3. Validate Resources
-        │   └── Template: steps/validate-resources.yml
-        │       ├── Validate OWNER variable (condition: SKIP_RESOURCE_MANAGEMENT=true)
-        │       └── Topology-specific: steps/topology/swiftv2-ds-churn/validate-resources.yml
-        │           ├── steps/cloud/azure/update-kubeconfig.yml (role: slo)
-        │           ├── steps/engine/clusterloader2/swiftv2/scale-cluster.yml
-        │           │   ├── Scale cluster to NODE_COUNT nodes
-        │           │   └── Set enable_autoscale=false
-        │           └── steps/engine/clusterloader2/swiftv2/validate.yml
-        │               └── Validation timeout: 10 minutes
+  ├── 3. Validate Resources
+  │   └── Template: steps/validate-resources.yml
+  │       ├── Validate OWNER variable (condition: SKIP_RESOURCE_MANAGEMENT=true)
+  │       └── Topology-specific: `steps/topology/swiftv2/validate-resources.yml`
+  │           ├── update-kubeconfig (role: slo)
+  │           ├── scale & validate templates (required)
+  │           └── Validation timeout: 10 minutes
         │
-        ├── 4. Execute Tests
-        │   └── Template: steps/execute-tests.yml
-        │       └── Topology-specific: steps/topology/swiftv2-ds-churn/execute-clusterloader2.yml
-        │           └── steps/engine/clusterloader2/slo/execute.yml
-        │               ├── Set SLO_START_TIME timestamp
-        │               ├── Python execution: modules/python/clusterloader2/slo/slo.py
-        │               │   ├── configure: CPU_PER_NODE, NODE_COUNT, NODE_PER_STEP, MAX_PODS, etc.
-        │               │   └── execute: CL2_IMAGE, CL2_CONFIG_DIR, CL2_REPORT_DIR, CL2_CONFIG_FILE
-        │               ├── ClusterLoader2 Container: ghcr.io/azure/clusterloader2:v20250311
-        │               └── Config Files: modules/python/clusterloader2/slo/config/
-        │                   ├── swiftv2_deployment_dynamicres_scale_config.yaml
-        │                   ├── swiftv2_deployment_staticres_scale_config.yaml
-        │                   └── swiftv2_deployment_template.yaml
+    ├── 4. Execute Tests
+    │   └── Template: steps/execute-tests.yml
+    │       └── Topology-specific: `steps/topology/swiftv2/execute-clusterloader2.yml`
+  │           └── steps/engine/clusterloader2/swiftv2/execute.yml
+    │               ├── Set SLO_START_TIME timestamp
+    │               ├── Python execution: modules/python/clusterloader2/slo/slo.py
+    │               │   ├── configure: CPU_PER_NODE, NODE_COUNT, PODS_PER_STEP, MAX_PODS
+    │               │   └── execute: CL2_IMAGE, CL2_CONFIG_DIR, CL2_REPORT_DIR, CL2_CONFIG_FILE
+    │               ├── ClusterLoader2 Container: ghcr.io/azure/clusterloader2:v20250311
+    │               └── Config Files: modules/python/clusterloader2/slo/config/
+    │                   ├── swiftv2_deployment_dynamicres_scale_config.yaml
+    │                   ├── swiftv2_deployment_staticres_scale_config.yaml
+    │                   └── swiftv2_deployment_template.yaml
         │
-        ├── 5. Publish Results
-        │   └── Template: steps/publish-results.yml
-        │       ├── steps/topology/swiftv2-ds-churn/collect-clusterloader2.yml
-        │       │   ├── steps/engine/clusterloader2/slo/collect.yml
+    ├── 5. Publish Results
+    │   └── Template: steps/publish-results.yml
+    │       ├── Collector: `steps/topology/swiftv2/collect-clusterloader2.yml`
+  │       │   ├── steps/engine/clusterloader2/swiftv2/collect.yml
         │       │   └── Set unique Run ID for publishing
         │       └── steps/collect-telescope-metadata.yml
         │           ├── Collect cloud info and metadata
@@ -156,30 +155,35 @@ pipelines/system/new-pipeline-test.yml (Main Pipeline)
 - `steps/publish-results.yml` - Collect and publish test results
 - `steps/cleanup-resources.yml` - Clean up infrastructure resources
 
-### Topology-Specific Files
+### Topology-Specific Files (Updated)
 
-- `steps/topology/swiftv2-ds-churn/validate-resources.yml`
-- `steps/topology/swiftv2-ds-churn/execute-clusterloader2.yml`
-- `steps/topology/swiftv2-ds-churn/collect-clusterloader2.yml`
+Current topology (swiftv2):
+
+- `steps/topology/swiftv2/validate-resources.yml`
+- `steps/topology/swiftv2/execute-clusterloader2.yml`
+- `steps/topology/swiftv2/collect-clusterloader2.yml`
+
 
 ### Engine-Specific Files
 
-- `steps/engine/clusterloader2/slo/execute.yml`
-- `steps/engine/clusterloader2/slo/collect.yml`
-- `steps/engine/clusterloader2/swiftv2/scale-cluster.yml`
-- `steps/engine/clusterloader2/swiftv2/validate.yml`
+Engine (swiftv2) currently referenced:
+
+- `steps/engine/clusterloader2/swiftv2-slo/execute.yml`
+- `steps/engine/clusterloader2/swiftv2-slo/collect.yml`
+- `steps/engine/clusterloader2/swiftv2-slo/scale-cluster.yml`, `validate.yml` 
+
 
 ### Configuration and Scripts
 
-- `modules/python/clusterloader2/slo/slo.py` (Main test execution script)
-- `modules/python/clusterloader2/slo/config/swiftv2_deployment_dynamicres_scale_config.yaml`
-- `modules/python/clusterloader2/slo/config/swiftv2_deployment_staticres_scale_config.yaml`
-- `scenarios/perf-eval/swiftv2-cluster-churn-feature/terraform-inputs/azure.tfvars`
+Config path referenced by pipeline:
+
+- `modules/python/clusterloader2/slo/slo.py` & `modules/python/clusterloader2/slo/config/*`
+
 
 ### SwiftV2 Infrastructure Scripts
 
-- `swiftv2kubeobjects/runCustomerSetup.sh` (Customer resources and ping-target cluster setup)
-- `swiftv2kubeobjects/createclusterforping.sh` (Large cluster with overlay networking setup)
+- `swiftv2kubeobjects/runCustomerSetup.sh`
+- `swiftv2kubeobjects/createclusterforping.sh` 
 - `swiftv2kubeobjects/nginx-deployment.yaml` (Nginx pod deployment for ping target - used by runCustomerSetup.sh)
 - `swiftv2kubeobjects/pn.yaml` (Pod network configuration - used by createclusterforping.sh)
 
@@ -202,15 +206,17 @@ pipelines/system/new-pipeline-test.yml (Main Pipeline)
 
 ## Test Configurations
 
-### Pipeline Variables
+### Pipeline Variables 
 
 - **SCENARIO_TYPE**: `perf-eval`
-- **SCENARIO_NAME**: `swiftv2-cluster-churn-feature`
+- **SCENARIO_NAME**: `swiftv2`
 - **OWNER**: `aks`
-- **cpu_per_node**: 4
-- **max_pods**: 1
+- **VM_SKU**: `Standard_D16_v3`
+- **cpu_per_node**: 16 (previous: 4)
+- **pods_per_node**: 7 (new explicit variable)
+- **max_pods**: 15 (previous: 1) → adjusts scheduling density assumptions
 - **repeats**: 1
-- **node_label**: `"slo=true"`
+- **node_label**: `"swiftv2slo=true"` (previous: `slo=true`)
 - **cilium_enabled**: False
 - **scrape_containerd**: False
 - **service_test**: False
@@ -234,7 +240,7 @@ pipelines/system/new-pipeline-test.yml (Main Pipeline)
 - **Cloud Provider**: Azure (AKS)
 - **Engine**: ClusterLoader2
 - **Container Image**: `ghcr.io/azure/clusterloader2:v20250311`
-- **Topology**: `swiftv2-ds-churn`
+- **Topology**: `swiftv2`
 - **Max Parallel Jobs**: 1
 - **Timeout**: 2160 minutes (36 hours)
 - **Credential Type**: Service Connection

@@ -18,4 +18,4 @@ steps:
     condition: eq(variables['SCALENODES'], 'true')
     env:
       VALIDATION_TIMEOUT_IN_MINUTES: ${{ parameters.validation_timeout_in_minutes }}
-      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/slo/slo.py
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/swiftv2-slo/slo.py

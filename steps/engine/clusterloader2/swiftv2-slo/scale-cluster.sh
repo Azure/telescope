@@ -8,7 +8,7 @@ set -x
 # Required Environment Variables:
 # - REGION: Azure region where the AKS cluster is located
 # - ROLE: Role tag for resource identification
-# - NODES_PER_NODEPOOL: Target node count per nodepool
+# - NODE_COUNT: Target node count per nodepool
 # - RUN_ID: Run identifier tag for resource filtering
 
 # Source required libraries
@@ -448,7 +448,7 @@ function validate_environment() {
     
     [ -z "${REGION:-}" ] && missing_vars="$missing_vars REGION"
     [ -z "${ROLE:-}" ] && missing_vars="$missing_vars ROLE"
-    [ -z "${NODES_PER_NODEPOOL:-}" ] && missing_vars="$missing_vars NODES_PER_NODEPOOL"
+    [ -z "${NODE_COUNT:-}" ] && missing_vars="$missing_vars NODE_COUNT"
     [ -z "${RUN_ID:-}" ] && missing_vars="$missing_vars RUN_ID"
     
     if [ -n "$missing_vars" ]; then
@@ -465,7 +465,7 @@ function main() {
     log_info "Starting simplified AKS nodepool scaling operation"
     log_info "  Region: $REGION"
     log_info "  Role: $ROLE"
-    log_info "  Target nodes per nodepool: $NODES_PER_NODEPOOL"
+    log_info "  Desired total user nodes (NODE_COUNT): $NODE_COUNT"
     log_info "  Run ID: $RUN_ID"
     
     # Discover and connect to AKS cluster
@@ -478,42 +478,93 @@ function main() {
         log_info "No user nodepools found to scale, exiting"
         exit 0
     fi
-    
-    # Process each nodepool
-    log_info "Processing $(echo "$usernodepools" | wc -w) nodepool(s)..."
+
+    local total_user_nodepools
+    total_user_nodepools=$(echo "$usernodepools" | wc -w)
+    log_info "Discovered $total_user_nodepools user nodepool(s): $usernodepools"
+
+    # Treat NODE_COUNT as TOTAL desired user nodes across all userpool* pools.
+    # Fill pools sequentially (userpool1, userpool2, ...) up to 500 nodes each.
+    local total_target=${NODE_COUNT}
+    if [[ -z "$total_target" || "$total_target" -le 0 ]]; then
+        log_warning "Total desired user node count invalid ('$total_target'); defaulting to 1"
+        total_target=1
+    fi
+
+    declare -A CURRENT_COUNTS
+    declare -A TARGETS
+    local current_total=0
+
+    # Gather current counts first
     for nodepool in $usernodepools; do
-        log_info "=== Processing nodepool: '$nodepool' ==="
-        
-        # Get current node count
-        local current_nodes
-        current_nodes=$(get_nodepool_count "$aks_name" "$nodepool" "$aks_rg")
-        log_info "Current node count for nodepool '$nodepool': $current_nodes"
-        
-        # Scale if needed
-        if [ "$current_nodes" != "$NODES_PER_NODEPOOL" ]; then
-            log_info "Scaling nodepool '$nodepool': $current_nodes → $NODES_PER_NODEPOOL"
-            if ! scale_nodepool "$aks_name" "$nodepool" "$aks_rg" "$NODES_PER_NODEPOOL"; then
-                log_warning "Scale operation failed for nodepool '$nodepool', continuing with other nodepools..."
+        local cnt
+        cnt=$(get_nodepool_count "$aks_name" "$nodepool" "$aks_rg")
+        CURRENT_COUNTS[$nodepool]=$cnt
+        current_total=$((current_total + cnt))
+    done
+
+    log_info "Current total user nodes across pools: $current_total"
+
+    if [[ $current_total -ge $total_target ]]; then
+        log_warning "Current total ($current_total) already >= desired total ($total_target). No scale up performed (no scale down logic)."
+        for nodepool in $usernodepools; do
+            TARGETS[$nodepool]=${CURRENT_COUNTS[$nodepool]}
+        done
+        total_required_nodes=$current_total
+    else
+        local remaining=$((total_target - current_total))
+        log_info "Need to add $remaining node(s) across pools to reach target $total_target"
+        for nodepool in $usernodepools; do
+            local current=${CURRENT_COUNTS[$nodepool]}
+            local capacity=$((500 - current))
+            if [[ $capacity -le 0 || $remaining -le 0 ]]; then
+                TARGETS[$nodepool]=$current
+                continue
             fi
-        else
-            log_info "Nodepool '$nodepool' already at target size ($NODES_PER_NODEPOOL)"
+            local add=$capacity
+            if [[ $add -gt $remaining ]]; then
+                add=$remaining
+            fi
+            TARGETS[$nodepool]=$((current + add))
+            remaining=$((remaining - add))
+        done
+        if [[ $remaining -gt 0 ]]; then
+            log_warning "Unable to reach desired total ($total_target). Remaining $remaining node(s) exceed aggregate capacity of existing pools (max 500 each)."
         fi
-        
-        # Wait a moment for scale operation to stabilize
-        log_info "Waiting 60 seconds for scale operation to stabilize..."
-        sleep 60
-        
+        # Compute total_required_nodes as sum of targets
+        total_required_nodes=0
+        for nodepool in $usernodepools; do
+            total_required_nodes=$((total_required_nodes + TARGETS[$nodepool]))
+        done
+    fi
+
+    log_info "Planned per-pool targets (sequential fill up to 500 each):"
+    for nodepool in $usernodepools; do
+        log_info "  $nodepool: current=${CURRENT_COUNTS[$nodepool]} -> target=${TARGETS[$nodepool]}"
+    done
+    log_info "Aggregate planned total: $total_required_nodes (desired: $total_target)"
+
+    # Process each nodepool with its computed target
+    for nodepool in $usernodepools; do
+        local pool_target=${TARGETS[$nodepool]}
+        local current_nodes=${CURRENT_COUNTS[$nodepool]}
+        log_info "=== Processing nodepool: '$nodepool' current=$current_nodes target=$pool_target ==="
+        if [[ $pool_target -gt $current_nodes ]]; then
+            log_info "Scaling nodepool '$nodepool': $current_nodes → $pool_target"
+            if ! scale_nodepool "$aks_name" "$nodepool" "$aks_rg" "$pool_target"; then
+                log_warning "Scale operation failed for nodepool '$nodepool', continuing..."
+            fi
+            log_info "Waiting 60 seconds for scale operation to stabilize..."
+            sleep 60
+        else
+            log_info "No scale up needed for $nodepool (current >= target)"
+        fi
         log_info "Completed processing nodepool '$nodepool'"
     done
     
-    # Calculate total required nodes (user nodepools only, buffer pools provide additional capacity)
-    local total_user_nodepools
-    total_user_nodepools=$(echo "$usernodepools" | wc -w)
-    local total_required_nodes=$((total_user_nodepools * NODES_PER_NODEPOOL))
-    
     log_info "Verifying overall cluster capacity..."
     log_info "Expected user nodepools: $total_user_nodepools"
-    log_info "Expected total required nodes: $total_required_nodes"
+    log_info "Expected total required nodes (sum of per-pool targets): $total_required_nodes"
     
     # Check if VM repair is needed based on total ready node count
     if is_vm_repair_needed "$aks_name" "$aks_rg" "$total_required_nodes"; then
@@ -532,7 +583,8 @@ function main() {
             repair_failed_vms "$vmss_name" "$node_rg" "$nodepool"
             
             # Verify all nodes are ready in Kubernetes
-            if ! verify_node_readiness "$nodepool" "$aks_name" "$aks_rg" "$NODES_PER_NODEPOOL"; then
+            local pool_target=${TARGETS[$nodepool]:-${CURRENT_COUNTS[$nodepool]}}
+            if ! verify_node_readiness "$nodepool" "$aks_name" "$aks_rg" "$pool_target"; then
                 log_warning "Node readiness verification failed for nodepool '$nodepool', but continuing..."
             fi
             

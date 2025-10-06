@@ -11,12 +11,11 @@ steps:
     parameters:
       role: slo
       region: ${{ parameters.regions[0] }}
-  - template: /steps/engine/clusterloader2/swiftv2/scale-cluster.yml
+  - template: /steps/engine/clusterloader2/swiftv2-slo/scale-cluster.yml
     parameters:
       role: slo
       region: ${{ parameters.regions[0] }}
-      nodes_per_nodepool: $(node_count)
       enable_autoscale: "false"
-  - template: /steps/engine/clusterloader2/swiftv2/validate.yml
+  - template: /steps/engine/clusterloader2/swiftv2-slo/validate.yml
     parameters:
       validation_timeout_in_minutes: 10

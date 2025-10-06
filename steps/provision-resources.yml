@@ -102,5 +102,3 @@ steps:
   displayName: "SetupAKSMTClusterPING"
   condition: eq(variables['CREATESWIFTV2PING'], 'true')
   name: SetupAKSMTClusterPING
-  env:
-    NODES_PER_NODEPOOL: $(node_count)

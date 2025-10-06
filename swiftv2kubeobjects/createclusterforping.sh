@@ -4,7 +4,7 @@ set -ex
 
 RG=$RUN_ID 
 CLUSTER="large"
-SUBSCRIPTION="9b8218f9-902a-4d20-a65c-e98acec5362f"
+SUBSCRIPTION=$AZURE_SUBSCRIPTION_ID
 NODEPOOLS=1
 
 # Source shared configuration if available
@@ -23,7 +23,7 @@ else
 fi
 
 # Get target user node count from environment variable (used only for buffer pool calculation)
-TARGET_USER_NODE_COUNT=$NODES_PER_NODEPOOL
+TARGET_USER_NODE_COUNT=$NODE_COUNT
 echo "Target user nodepool size for buffer calculation: $TARGET_USER_NODE_COUNT nodes"
 
 # Function to create and verify nodepool
@@ -31,19 +31,18 @@ create_and_verify_nodepool() {
     local cluster_name=$1
     local nodepool_name=$2
     local resource_group=$3
-    local node_count=${4:-1}
-    local node_size=${5:-"Standard_D16_v3"}
+    local initial_node_count=$4
     local node_subnet_id=$6
     local pod_subnet_id=$7
     local labels=${8:-""}
     local taints=${9:-""}
     local extra_args=${10:-""}
-    
-    echo "Creating nodepool: $nodepool_name with $node_count nodes of size $node_size"
-    
+
+    echo "Creating nodepool: $nodepool_name with $initial_node_count nodes of size $VM_SKU"
+
     # Build the nodepool creation command
     local nodepool_cmd="az aks nodepool add --cluster-name ${cluster_name} --name ${nodepool_name} --resource-group ${resource_group}"
-    nodepool_cmd+=" --node-count ${node_count} -s ${node_size} --os-sku Ubuntu"
+    nodepool_cmd+=" --node-count ${initial_node_count} -s ${VM_SKU} --os-sku Ubuntu"
     nodepool_cmd+=" --vnet-subnet-id ${node_subnet_id} --pod-subnet-id ${pod_subnet_id}"
     nodepool_cmd+=" --tags fastpathenabled=true aks-nic-enable-multi-tenancy=true"
     
@@ -166,7 +165,7 @@ create_aks_cluster() {
     fi
     
     az aks create -n ${cluster_name} -g ${resource_group} \
-        -s Standard_D16_v3 -c 5 \
+        -s $VM_SKU -c 5 \
         --os-sku Ubuntu \
         -l ${location} \
         --service-cidr 192.168.0.0/16 --dns-service-ip 192.168.0.10 \
@@ -283,24 +282,57 @@ fi
         
 SV2_CLUSTER_RESOURCE_ID=$(az group show -n MC_sv2perf-$RG-$CLUSTER -o tsv --query id)
 date=$(date -d "+1 week" +"%Y-%m-%d")
-az tag update --resource-id $SV2_CLUSTER_RESOURCE_ID --operation Merge --tags SkipAutoDeleteTill=$date skipGC="swift v2 perf" gc_skip="true"
+az tag update --resource-id $SV2_CLUSTER_RESOURCE_ID --operation Merge --tags SkipAutoDeleteTill=$date skipGC="swift v2 perf" gc_skip="true" 
 
-# Create user nodepool with 1 node (will be scaled later by scale-cluster.sh)
-INITIAL_USER_NODES=1  # Always start with 1 node, regardless of target
-echo "Creating user nodepool with $INITIAL_USER_NODES node (will be scaled to $TARGET_USER_NODE_COUNT later)..."
-if ! create_and_verify_nodepool "${CLUSTER}" "userpool1" "${RG}" "$INITIAL_USER_NODES" "Standard_D16_v3" "${nodeSubnetID}" "${podSubnetID}" "slo=true testscenario=swiftv2 agentpool=userpool1" "slo=true:NoSchedule"; then
-    echo "ERROR: Failed to create user nodepool"
-    exit 1
+############################################################
+# Create user nodepools (sharded) with 1 node each initially
+#
+# Constraints / rationale:
+# - A single AKS nodepool can scale to 1000 nodes, but we purposefully
+#   shard at 500 nodes per pool for faster scale operations, failure
+#   domain isolation, and parallel provisioning.
+# - We start each user pool at 1 node; a later scale script will fan out
+#   to the desired TARGET_USER_NODE_COUNT total across pools.
+# - USER_NODEPOOL_COUNT = ceil(TARGET_USER_NODE_COUNT / 500)
+############################################################
+
+INITIAL_USER_NODES=1  # Always start with 1 node per user pool
+USER_NODEPOOL_SIZE=500
+
+# Guard / default if TARGET_USER_NODE_COUNT is unset or invalid
+if [[ -z "$TARGET_USER_NODE_COUNT" || "$TARGET_USER_NODE_COUNT" -le 0 ]]; then
+    echo "TARGET_USER_NODE_COUNT not set or <=0; defaulting to 1"
+    TARGET_USER_NODE_COUNT=1
 fi
 
+USER_NODEPOOL_COUNT=$(( (TARGET_USER_NODE_COUNT + USER_NODEPOOL_SIZE - 1) / USER_NODEPOOL_SIZE ))
+if [[ $USER_NODEPOOL_COUNT -lt 1 ]]; then
+    USER_NODEPOOL_COUNT=1
+fi
+
+echo "Planned total user nodes: $TARGET_USER_NODE_COUNT"
+echo "User nodepool shard size: $USER_NODEPOOL_SIZE"
+echo "Creating $USER_NODEPOOL_COUNT user nodepool(s), each starting with $INITIAL_USER_NODES node"
+
+for i in $(seq 1 $USER_NODEPOOL_COUNT); do
+    pool_name="userpool${i}"
+    labels="slo=true testscenario=swiftv2 agentpool=${pool_name}"
+    taints="slo=true:NoSchedule"
+    echo "Creating user nodepool $pool_name (1/${USER_NODEPOOL_COUNT} initial node)"
+    if ! create_and_verify_nodepool "${CLUSTER}" "${pool_name}" "${RG}" "${INITIAL_USER_NODES}" "${VM_SKU}" "${nodeSubnetID}" "${podSubnetID}" "${labels}" "${taints}"; then
+        echo "ERROR: Failed to create user nodepool ${pool_name}"
+        exit 1
+    fi
+done
+
 # Calculate buffer pool size based on target user nodepool size (not initial size)
-BUFFER_NODE_COUNT=$(( (TARGET_USER_NODE_COUNT * 5 + 50) / 100 ))  # 5% of target, rounded up
+BUFFER_NODE_COUNT=$(( (TARGET_USER_NODE_COUNT * 2 + 50) / 100 ))  # 2% of target, rounded up
 if [[ $BUFFER_NODE_COUNT -lt 1 ]]; then
     BUFFER_NODE_COUNT=1
 fi
 
-echo "Creating buffer nodepool with $BUFFER_NODE_COUNT nodes (5% of target $TARGET_USER_NODE_COUNT user nodes)..."
-if ! create_and_verify_nodepool "${CLUSTER}" "bufferpool1" "${RG}" "$BUFFER_NODE_COUNT" "Standard_D16_v3" "${nodeSubnetID}" "${podSubnetID}" "role=buffer testscenario=swiftv2 agentpool=bufferpool1" "" ""; then
+echo "Creating buffer nodepool with $BUFFER_NODE_COUNT nodes (2% of target $TARGET_USER_NODE_COUNT user nodes)..."
+if ! create_and_verify_nodepool "${CLUSTER}" "bufferpool1" "${RG}" "$BUFFER_NODE_COUNT" "${VM_SKU}" "${nodeSubnetID}" "${podSubnetID}" "role=buffer testscenario=swiftv2 agentpool=bufferpool1" "" ""; then
     echo "ERROR: Failed to create buffer nodepool"
     exit 1
 fi
