@@ -13,7 +13,7 @@ variables:
   K8S_VERSION: "1.33"
   # Existing scenario variables
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: swiftv2
+  SCENARIO_NAME: swiftv2-cluster-churn-feature
   OWNER: aks
   VM_SKU: Standard_D16_v3
   # count of swiftv2 pods per step
