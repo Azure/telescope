@@ -61,6 +61,7 @@ stages:
         displayName: "Generate Base Run ID"
 
   - stage: dynamicres_gradual
+    condition: true
     displayName: 'Dynamic Gradual'
     dependsOn: generate_base_run_id
     variables:
@@ -82,6 +83,7 @@ stages:
           base_run_id: $(BASE_RUN_ID)
 
   - stage: dynamicres_burst
+    condition: true
     displayName: 'Dynamic Burst'
     dependsOn: generate_base_run_id
     variables:
@@ -103,6 +105,7 @@ stages:
           base_run_id: $(BASE_RUN_ID)
 
   - stage: staticres_gradual
+    condition: true
     displayName: 'Static Gradual'
     dependsOn: generate_base_run_id
     variables:
@@ -124,6 +127,7 @@ stages:
           base_run_id: $(BASE_RUN_ID)
 
   - stage: staticres_burst
+    condition: true
     displayName: 'Static Burst'
     dependsOn: generate_base_run_id
     variables:
