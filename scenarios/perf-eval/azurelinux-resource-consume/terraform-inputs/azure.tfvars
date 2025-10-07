@@ -38,7 +38,7 @@ aks_config_list = [
         name                 = "userpool0"
         node_count           = 10
         auto_scaling_enabled = false
-        vm_size              = "Standard_D16ds_v6"
+        vm_size              = "Standard_D16s_v6"
         os_sku               = "AzureLinux"
         node_taints          = ["cri-resource-consume=true:NoSchedule"]
         node_labels          = { "cri-resource-consume" = "true" }

@@ -46,28 +46,7 @@ stages:
               operation_timeout: 11m
               load_type: memory
               scrape-kubelets: True
-            n10-p300-cpu:
-              node_count: 10
-              max_pods: 30
-              repeats: 1
-              operation_timeout: 3m
-              load_type: cpu
-              scrape-kubelets: True
-            n10-p700-cpu:
-              node_count: 10
-              max_pods: 70
-              repeats: 1
-              operation_timeout: 7m
-              load_type: cpu
-              scrape-kubelets: True
-            n10-p1100-cpu:
-              node_count: 10
-              max_pods: 110
-              repeats: 1
-              operation_timeout: 11m
-              load_type: cpu
-              scrape-kubelets: True
-          max_parallel: 3
+          max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false
@@ -108,28 +87,7 @@ stages:
               operation_timeout: 11m
               load_type: memory
               scrape-kubelets: True
-            n10-p300-cpu:
-              node_count: 10
-              max_pods: 30
-              repeats: 1
-              operation_timeout: 3m
-              load_type: cpu
-              scrape-kubelets: True
-            n10-p700-cpu:
-              node_count: 10
-              max_pods: 70
-              repeats: 1
-              operation_timeout: 7m
-              load_type: cpu
-              scrape-kubelets: True
-            n10-p1100-cpu:
-              node_count: 10
-              max_pods: 110
-              repeats: 1
-              operation_timeout: 11m
-              load_type: cpu
-              scrape-kubelets: True
-          max_parallel: 3
+          max_parallel: 1
           credential_type: service_connection
           ssh_key_enabled: false
           timeout_in_minutes: 120
