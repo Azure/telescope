@@ -44,7 +44,7 @@ create_and_verify_nodepool() {
     local nodepool_cmd="az aks nodepool add --cluster-name ${cluster_name} --name ${nodepool_name} --resource-group ${resource_group}"
     nodepool_cmd+=" --node-count ${initial_node_count} -s ${VM_SKU} --os-sku Ubuntu"
     nodepool_cmd+=" --vnet-subnet-id ${node_subnet_id} --pod-subnet-id ${pod_subnet_id}"
-    nodepool_cmd+=" --tags fastpathenabled=true aks-nic-enable-multi-tenancy=true"
+    nodepool_cmd+=" --tags fastpathenabled=true aks-nic-enable-multi-tenancy=true aks-nic-secondary-count=${PODS_PER_NODE}"
     
     # Add optional labels
     if [[ -n "$labels" ]]; then
@@ -174,7 +174,7 @@ create_aks_cluster() {
         ${k8s_version_param} \
         --vnet-subnet-id ${node_subnet_id} \
         --pod-subnet-id ${pod_subnet_id} \
-        --nodepool-tags fastpathenabled=true aks-nic-enable-multi-tenancy=true aks-nic-secondary-count=7 \
+        --nodepool-tags fastpathenabled=true aks-nic-enable-multi-tenancy=true aks-nic-secondary-count=${PODS_PER_NODE} \
         --vm-set-type VirtualMachineScaleSets \
         --tags run_id=${resource_group} role=slo \
         --load-balancer-backend-pool-type nodeIP \
