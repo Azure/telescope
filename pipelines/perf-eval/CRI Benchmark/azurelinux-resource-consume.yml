@@ -12,14 +12,14 @@ variables:
   SCENARIO_NAME: azurelinux-resource-consume
 
 stages:
-  - stage: azurelinux_v3_swedencentral
+  - stage: azurelinux_v3_eastus2
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
-            - swedencentral
+            - eastus2
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"

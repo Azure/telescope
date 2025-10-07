@@ -3,29 +3,11 @@ scenario_name  = "osguard-resource-consume"
 deletion_delay = "2h"
 owner          = "aks"
 
-network_config_list = [
-  {
-    role               = "client"
-    vnet_name          = "cri-vnet"
-    vnet_address_space = "10.0.0.0/9"
-    subnet = [
-      {
-        name           = "cri-subnet-1"
-        address_prefix = "10.0.0.0/16"
-      }
-    ]
-    network_security_group_name = ""
-    nic_public_ip_associations  = []
-    nsr_rules                   = []
-  }
-]
-
 aks_cli_config_list = [
   {
     role     = "client"
     aks_name = "cri-resource-consume"
     sku_tier = "standard"
-    subnet_name = "cri-vnet"
     optional_parameters = [
       {
         name = "dns-name-prefix"
@@ -79,13 +61,13 @@ aks_cli_config_list = [
     default_node_pool = {
       name       = "default"
       node_count = 3
-      vm_size    = "Standard_D16s_v4"
+      vm_size    = "Standard_D16_v4"
     }
     extra_node_pool = [
       {
         name       = "prompool"
         node_count = 1
-        vm_size    = "Standard_D16s_v4"
+        vm_size    = "Standard_D16_v4"
         optional_parameters = [
           {
             name = "labels"
@@ -112,7 +94,7 @@ aks_cli_config_list = [
       {
         name       = "userpool0"
         node_count = 10
-        vm_size    = "Standard_D16s_v4"
+        vm_size    = "Standard_D16ds_v6"
         optional_parameters = [
           {
             name = "labels"
