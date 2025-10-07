@@ -49,6 +49,7 @@ def configure_clusterloader2(
     override_file):
 
     steps = node_count * pods_per_node // pods_per_step if pods_per_step else 1
+    total_pods = node_count * pods_per_node
     throughput, nodes_per_namespace, cpu_request = calculate_config(cpu_per_node, node_count, max_pods, provider)
 
     with open(override_file, 'w', encoding='utf-8') as file:
@@ -57,6 +58,7 @@ def configure_clusterloader2(
         file.write(f"CL2_NODES_PER_NAMESPACE: {nodes_per_namespace}\n")
         file.write(f"CL2_PODS_PER_NODE: {pods_per_node}\n")
         file.write(f"CL2_PODS_PER_STEP: {pods_per_step}\n")
+        file.write(f"CL2_TOTAL_PODS: {total_pods}\n")
         file.write(f"CL2_LATENCY_POD_CPU: {cpu_request}\n")
         file.write(f"CL2_REPEATS: {repeats}\n")
         file.write(f"CL2_STEPS: {steps}\n")

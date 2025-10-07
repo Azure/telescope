@@ -3,6 +3,7 @@ name: deployment-churn
 {{$podsPerNode := DefaultParam .CL2_PODS_PER_NODE 1}}
 {{$podsPerStep := DefaultParam .CL2_PODS_PER_STEP 7}}
 {{$nodes := DefaultParam .CL2_NODES 1000}}
+{{$total_pods := DefaultParam .CL2_TOTAL_PODS 7000}}
 {{$steps := DefaultParam .CL2_STEPS 1}}
 {{$latencyPodCpu := DefaultParam .CL2_LATENCY_POD_CPU 10}}
 {{$latencyPodMemory := DefaultParam .CL2_LATENCY_POD_MEMORY 50}}
@@ -26,7 +27,7 @@ tuningSets:
       qps: 1
 
 steps:
-  - name: Log - steps={{$steps}}, nodes={{$nodes}}, pods/step={{$podsPerStep}}, pods/node={{$podsPerNode}}
+  - name: Log - steps={{$steps}}, nodes={{$nodes}}, pods/step={{$podsPerStep}}, pods/node={{$podsPerNode}}, total pods={{$total_pods}}
     measurements:
     - Identifier: Dummy
       Method: Sleep
@@ -97,23 +98,24 @@ steps:
         kind: Deployment
         labelSelector: group={{$groupName}}-{{$j}}
         operationTimeout: {{$operationTimeout}}
-  - name: Wait for network readiness -{{$j}}
+  {{end}}
+  - name: Gather Pod Startup Latency Measurements
     measurements:
-    - Identifier: NetworkReadiness-{{$j}}
-      Method: Sleep
+    - Identifier: PodStartupLatency
+      Method: PodStartupLatency
       Params:
-        action: start
-        duration: 30s  # Allow more time for network setup
-  - name: Starting measurement Pod Curl Command -{{$j}}
+        action: gather
+        labelSelector: podgroup={{$groupName}}
+  - name: Starting measurement Pod Curl Command
     measurements:
-    - Identifier: PodPeriodicCommand-{{$j}}
+    - Identifier: PodPeriodicCommand
       Method: PodPeriodicCommand
       Params:
         action: start
-        labelSelector: group={{$groupName}}-{{$j}}
+        labelSelector: podgroup={{$groupName}}
         interval: 300s
         container: deployment-churn
-        limit: {{$podsPerStep}} 
+        limit: {{$total_pods}} 
         failOnCommandError: true
         failOnExecError: true
         failOnTimeout: true
@@ -122,25 +124,17 @@ steps:
           # 172.27.0.30 is the IP of the service created in swiftv2kubeobjects/nginx-deployment.yaml
           command: ["/bin/sh", "-c", "curl --retry 5 --retry-delay 15 --max-time 30 172.27.0.30"]
           timeout: 180s
-  - name: Wait for curl command to be done -{{$j}}
+  - name: Wait for curl command to be done
     measurements:
-    - Identifier: Curl_Dummy-{{$j}}
+    - Identifier: Curl_Dummy
       Method: Sleep
       Params:
         action: start
         duration: 250s
-  - name: Ending measurement Pod Curl Command -{{$j}}
+  - name: Ending measurement Pod Curl Command
     measurements:
-    - Identifier: PodPeriodicCommand-{{$j}}
+    - Identifier: PodPeriodicCommand
       Method: PodPeriodicCommand
-      Params:
-        action: gather
-        labelSelector: group={{$groupName}}-{{$j}}
-  {{end}}
-  - name: Gather Pod Startup Latency Measurements
-    measurements:
-    - Identifier: PodStartupLatency
-      Method: PodStartupLatency
       Params:
         action: gather
         labelSelector: podgroup={{$groupName}}
