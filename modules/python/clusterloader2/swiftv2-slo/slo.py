@@ -252,6 +252,7 @@ def main():
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
     parser_collect.add_argument("cpu_per_node", type=int)
     parser_collect.add_argument("node_count", type=int)
+    parser_collect.add_argument("pods_per_step", type=int)
     parser_collect.add_argument("pods_per_node", type=int)
     parser_collect.add_argument("max_pods", type=int, nargs='?', default=0)
     parser_collect.add_argument("repeats", type=int)
@@ -281,7 +282,7 @@ def main():
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.cl2_config_file,
                                args.kubeconfig, args.provider, args.scrape_containerd)
     elif args.command == "collect":
-        collect_clusterloader2(args.cpu_per_node, args.node_count, args.pods_per_node, args.max_pods, args.repeats,
+        collect_clusterloader2(args.cpu_per_node, args.node_count, args.pods_per_step, args.pods_per_node, args.max_pods, args.repeats,
                                args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
                                args.service_test, args.cnp_test, args.ccnp_test, args.ds_test,
                                args.result_file, args.test_type, args.start_timestamp)
