@@ -332,7 +332,9 @@ if [[ $BUFFER_NODE_COUNT -lt 1 ]]; then
 fi
 
 echo "Creating buffer nodepool with $BUFFER_NODE_COUNT nodes (2% of target $TARGET_USER_NODE_COUNT user nodes)..."
-if ! create_and_verify_nodepool "${CLUSTER}" "bufferpool1" "${RG}" "$BUFFER_NODE_COUNT" "${VM_SKU}" "${nodeSubnetID}" "${podSubnetID}" "role=buffer testscenario=swiftv2 agentpool=bufferpool1" "" ""; then
+    labels="slo=true testscenario=swiftv2 agentpool=bufferpool1"
+    taints="slo=true:NoSchedule"
+if ! create_and_verify_nodepool "${CLUSTER}" "bufferpool1" "${RG}" "$BUFFER_NODE_COUNT" "${VM_SKU}" "${nodeSubnetID}" "${podSubnetID}" "${labels}" "${taints}"; then
     echo "ERROR: Failed to create buffer nodepool"
     exit 1
 fi
