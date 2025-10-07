@@ -13,7 +13,7 @@ steps:
     cloud_info=$(jq -n \
       --arg cloud "azure" \
       --arg region "$(echo $aks_info | jq -r .location)" \
-      --arg ccp "$(echo $aks_info | jq -r .properties.resourceUID)" \
+      --arg ccp "$(echo $aks_info | jq -r .resourceUid)" \
       --arg resource_group "$(echo $aks_info | jq -r .resourceGroup)" \
       --arg fqdn "$(echo $aks_info | jq -r .fqdn)" \
       --arg k8s_version "$(echo $aks_info | jq -r .currentKubernetesVersion)" \
