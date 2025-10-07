@@ -136,6 +136,7 @@ def execute_clusterloader2(
 def collect_clusterloader2(
     cpu_per_node,
     node_count,
+    pods_per_step,
     pods_per_node,
     max_pods,
     repeats,
