@@ -19,7 +19,7 @@ variables:
   SCENARIO_NAME: nap
 
 stages:
-  - stage: azure_eastus2_5k_ondemand
+  - stage: azure_eastus_5k_ondemand
     condition: |
         or(
           eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 3:00 PM'),
@@ -33,9 +33,9 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - eastus
           terraform_input_file_mapping:
-            - eastus2: "scenarios/perf-eval/nap/terraform-inputs/azure-5k.tfvars"
+            - eastus: "scenarios/perf-eval/nap/terraform-inputs/azure-5k.tfvars"
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
@@ -58,7 +58,7 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: azure_eastus2_5k_spot
+  - stage: azure_eastus_5k_spot
     condition: |
         or(
           eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 3:00 AM'),
@@ -72,9 +72,9 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - eastus
           terraform_input_file_mapping:
-            - eastus2: "scenarios/perf-eval/nap/terraform-inputs/azure-5k.tfvars"
+            - eastus: "scenarios/perf-eval/nap/terraform-inputs/azure-5k.tfvars"
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
