@@ -1,0 +1,130 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: autoscale-1
+---
+# Warm-up for on-demand NodePool
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: warmup-default
+  namespace: autoscale-1
+  labels:
+    app: warmup-default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: warmup-default
+  template:
+    metadata:
+      labels:
+        app: warmup-default
+    spec:
+      nodeSelector:
+        karpenter.sh/nodepool: default
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: warmup-default
+      containers:
+        - name: nginx
+          image: mcr.microsoft.com/cbl-mariner/base/nginx:1
+          readinessProbe:
+            exec:
+              command:
+              - cat
+              - /EULA-Container.txt
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            successThreshold: 1
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command:
+              - cat
+              - /EULA-Container.txt
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 100Mi
+            limits:
+              cpu: 100m
+              memory: 256Mi
+          command:
+            - "/bin/bash"
+            - "-c"
+            - |
+              runtime="1 minute"; endtime=$(date -ud "$runtime" +%s); while [[ $(date -u +%s) -le $endtime ]]; do echo $(date); sleep 6000; done
+---
+# Warm-up for spot NodePool
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: warmup-spot
+  namespace: autoscale-1
+  labels:
+    app: warmup-spot
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: warmup-spot
+  template:
+    metadata:
+      labels:
+        app: warmup-spot
+    spec:
+      nodeSelector:
+        karpenter.sh/nodepool: spot
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: warmup-spot
+      containers:
+        - name: nginx
+          image: mcr.microsoft.com/cbl-mariner/base/nginx:1
+          readinessProbe:
+            exec:
+              command:
+              - cat
+              - /EULA-Container.txt
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            successThreshold: 1
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command:
+              - cat
+              - /EULA-Container.txt
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            successThreshold: 1
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 100Mi
+            limits:
+              cpu: 100m
+              memory: 256Mi
+          command:
+            - "/bin/bash"
+            - "-c"
+            - |
+              runtime="1 minute"; endtime=$(date -ud "$runtime" +%s); while [[ $(date -u +%s) -le $endtime ]]; do echo $(date); sleep 6000; done
