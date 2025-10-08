@@ -11,7 +11,7 @@ steps:
     parameters:
       role: netpol-scale # role value passed here is ignored by update-kubeconfig.yml
       region: ${{ parameters.regions[0] }}
-  - template: /steps/engine/clusterloader2/large_cluster/validate.yml
+  - template: /steps/engine/clusterloader2/large-cluster/validate.yml
     parameters:
       # keeping this low value for now, in auto scale enabled clusters
       # usually the node count will be min and scale up.
