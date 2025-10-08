@@ -11,6 +11,6 @@ steps:
   parameters:
     role: client
     region: ${{ parameters.regions[0] }}
-- template: /steps/engine/clusterloader2/slo/validate.yml
+- template: /steps/engine/clusterloader2/large-cluster/validate.yml
   parameters:
     desired_nodes: 5

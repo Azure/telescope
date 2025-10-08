@@ -10,7 +10,7 @@ parameters:
   default: {}
 
 steps:
-- template: /steps/engine/clusterloader2/slo/execute.yml
+- template: /steps/engine/clusterloader2/large-cluster/execute.yml
   parameters:
     cloud: ${{ parameters.cloud }}
     engine_input: ${{ parameters.engine_input }}
