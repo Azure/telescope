@@ -15,7 +15,7 @@ schedules:
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: slo-servicediscovery
+  SCENARIO_NAME: service-churn
 
 stages:
   - stage: aws_eastus1
