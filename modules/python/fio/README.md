@@ -3,23 +3,27 @@
 ## Validate
 
 ```bash
-cd modules/python
+pushd modules/python
 PYTHON_SCRIPT_FILE=$(pwd)/fio/fio.py
 DESIRED_NODES=7
 VALIDATION_TIMEOUT_IN_MINUTES=1
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE validate \
     $DESIRED_NODES $VALIDATION_TIMEOUT_IN_MINUTES
+popd
 ```
 
 ### Configure acstor-v2
 
 ```bash
-helm install local-csi-driver oci://localcsidriver.azurecr.io/acstor/charts/local-csi-driver --version 0.2.5 \
+pushd modules/kustomize/fio/overlays/acstor-v2
+CSI_DRIVER_VERSION=0.2.5
+helm install local-csi-driver oci://localcsidriver.azurecr.io/acstor/charts/local-csi-driver --version $CSI_DRIVER_VERSION \
     --namespace local-csi-system --create-namespace --wait --atomic
 kubectl wait --for=condition=Ready pod -l app.kubernetes.io/name=local-csi-driver -n local-csi-system --timeout=600s
 kustomize build configuration | kubectl apply -f -
 kubectl get storageclass local
 kubectl get pods -n local-csi-system
+popd
 ```
 
 ## Execute

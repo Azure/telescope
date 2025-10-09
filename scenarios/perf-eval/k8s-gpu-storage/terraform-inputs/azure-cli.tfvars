@@ -11,13 +11,15 @@ aks_cli_config_list = [
     default_node_pool = {
       name       = "default"
       node_count = 2
-      vm_size    = "Standard_D16ds_v4"
+      # vm_size    = "Standard_D16ds_v4"
+      vm_size = "Standard_NC4as_T4_v3"
     }
     extra_node_pool = [
       {
         name       = "user",
         node_count = 2,
-        vm_size    = "Standard_NC24ads_A100_v4",
+        # vm_size    = "Standard_NC24ads_A100_v4",
+        vm_size = "Standard_ND96asr_v4",
         optional_parameters = [
           {
             name  = "node-osdisk-type"
@@ -34,6 +36,10 @@ aks_cli_config_list = [
           {
             name  = "labels"
             value = "fio-dedicated=true"
+          },
+          {
+            name  = "gpu-driver"
+            value = "none"
           }
         ]
       }
@@ -52,7 +58,7 @@ aks_cli_config_list = [
         value = "Ubuntu2404"
       },
       {
-        name = "node-osdisk-type"
+        name  = "node-osdisk-type"
         value = "Ephemeral"
       }
     ]
