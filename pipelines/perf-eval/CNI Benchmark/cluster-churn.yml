@@ -15,7 +15,7 @@ schedules:
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: cilium-cluster-churn-n1000p50k
+  SCENARIO_NAME: cluster-churn
 
 stages:
   - stage: aws_eastus1

@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
-scenario_name  = "cilium-cluster-churn-n1000p50k"
-deletion_delay = "12h"
+scenario_name  = "service-churn"
+deletion_delay = "8h"
 owner          = "aks"
 
 network_config_list = [
@@ -54,10 +54,8 @@ aks_config_list = [
       },
       {
         name                 = "userpool0"
-        node_count           = 0
-        min_count            = 0
-        max_count            = 500
-        auto_scaling_enabled = true
+        node_count           = 300
+        auto_scaling_enabled = false
         vm_size              = "Standard_D4_v3"
         max_pods             = 110
         node_taints          = ["slo=true:NoSchedule"]
@@ -65,10 +63,17 @@ aks_config_list = [
       },
       {
         name                 = "userpool1"
-        node_count           = 0
-        min_count            = 0
-        max_count            = 500
-        auto_scaling_enabled = true
+        node_count           = 300
+        auto_scaling_enabled = false
+        vm_size              = "Standard_D4_v3"
+        max_pods             = 110
+        node_taints          = ["slo=true:NoSchedule"]
+        node_labels          = { "slo" = "true" }
+      },
+      {
+        name                 = "userpool2"
+        node_count           = 400
+        auto_scaling_enabled = false
         vm_size              = "Standard_D4_v3"
         max_pods             = 110
         node_taints          = ["slo=true:NoSchedule"]
