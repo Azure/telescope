@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "slo-servicediscovery"
+scenario_name  = "service-churn"
 deletion_delay = "8h"
 owner          = "aks"
 
