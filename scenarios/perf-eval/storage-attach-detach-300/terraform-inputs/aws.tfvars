@@ -62,7 +62,7 @@ eks_config_list = [{
   eks_managed_node_groups = [
     {
       name           = "user"
-      ami_type       = "AL2_x86_64"
+      ami_type       = "AL2023_x86_64_STANDARD"
       instance_types = ["t2.large"]
       min_size       = 300
       max_size       = 300
@@ -77,5 +77,5 @@ eks_config_list = [{
       policy_arns     = ["service-role/AmazonEBSCSIDriverPolicy"]
     }
   ]
-  kubernetes_version = "1.30"
+  kubernetes_version = "1.33"
 }]

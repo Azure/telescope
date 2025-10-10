@@ -7,7 +7,7 @@ aks_config_list = [
     role       = "client"
     aks_name   = "perfevala1000"
     dns_prefix = "attach"
-    sku_tier   = "Free"
+    sku_tier   = "Standard"
     network_profile = {
       network_plugin = "kubenet"
       pod_cidr       = "125.4.0.0/14"
@@ -30,6 +30,6 @@ aks_config_list = [
         node_labels = { "csi" = "true" }
       }
     ]
-    kubernetes_version = "1.30"
+    kubernetes_version = "1.33"
   }
 ]
