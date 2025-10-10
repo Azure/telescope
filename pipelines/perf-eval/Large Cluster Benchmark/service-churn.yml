@@ -1,17 +1,4 @@
 trigger: none
-schedules:
-  - cron: "0 6,18 * * *"
-    displayName: "6:00 AM & PM Daily"
-    branches:
-      include:
-        - main
-    always: true
-  - cron: "0 6 * * 2"
-    displayName: "6:00 AM on Tuesdays"
-    branches:
-      include:
-        - main
-    always: true
 
 variables:
   SCENARIO_TYPE: perf-eval
