@@ -190,3 +190,31 @@ stages:
       timeout_in_minutes: 120
       credential_type: service_connection
       ssh_key_enabled: false
+
+- stage: azure_eastus2_ray_small
+  dependsOn: []
+  condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '4:00 AM daily (small scale)')), eq(variables['Build.Reason'], 'Manual'))
+  jobs:
+  - template: /jobs/competitive-test.yml
+    parameters:
+      cloud: azure
+      regions:
+      - eastus2
+      engine: clusterloader2
+      engine_input:
+        image: "ghcr.io/azure/clusterloader2:v20250513"
+      topology: kwok
+      matrix:
+        small:
+          node_count: 200
+          job_count: 2000
+          job_throughput: 100
+          scale_timeout: "30m"
+          node_gpu: 8
+          job_gpu: 8
+          enable_dra: false
+          job_template_path: ray/job_template.yaml
+      max_parallel: 1
+      timeout_in_minutes: 60
+      credential_type: service_connection
+      ssh_key_enabled: false
