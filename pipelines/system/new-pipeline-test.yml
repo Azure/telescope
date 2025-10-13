@@ -2,4 +2,4 @@ trigger: none
 
 # Invoke the cluster-churn.yml pipeline directly
 extends:
-  template: /pipelines/perf-eval/CNI Benchmark/cluster-churn.yml
+  template: /pipelines/perf-eval/Large Cluster Benchmark/cluster-churn.yml
