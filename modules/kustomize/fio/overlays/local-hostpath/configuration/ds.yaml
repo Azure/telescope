@@ -160,7 +160,7 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: spec.nodeName
-        image: telescope.azurecr.io/bitnami/kubectl:1.33.2
+        image: telescope.azurecr.io/bitnami/kubectl:v1.33.2
         command:
         - bash
         - -exc
