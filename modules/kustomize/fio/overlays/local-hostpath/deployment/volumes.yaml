@@ -8,8 +8,8 @@ spec:
       containers:
         - name: fio
           volumeMounts:
-          - name: hostpath-mount
-            mountPath: /mnt/nvme-raid
+            - name: hostpath-mount
+              mountPath: /mnt/nvme-raid
       volumes:
       - name: hostpath-mount
         hostPath:
