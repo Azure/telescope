@@ -1,46 +1,42 @@
 #!/bin/bash
 # This script is manually from devbox since this is not required for every run.
-# Make sure to update the variables in shared-config.sh as per your requirements 
+
+# Prerequisites:
+# Make sure you have the Azure CLI installed and you're logged in.
+# Make sure you have Docker installed and running.
+# Make sure you have kubectl installed. 
 # Make sure jq is installed on your devbox
+
 # Usage:
-# az login --use-device-code
+# Update the variables in shared-config.sh as per your requirements (location, subscription, etc.)
 # cd to current folder
 # chmod +x runCustomerSetup.sh
+# chmod +x shared-config.sh
 # ./runCustomerSetup.sh
 
 set -ex
 
 # Source shared configuration if available
-if [[ -f "$(dirname "$0")/shared-config.sh" ]]; then
-    echo "Loading shared configuration..."
-    source "$(dirname "$0")/shared-config.sh"
-else
-    # Fallback to direct configuration
-    CUST_SUB=${SUBSCRIPTION:-9b8218f9-902a-4d20-a65c-e98acec5362f}
-    LOCATION=${LOCATION:-"uksouth"}
-    CUST_RG="sv2-perf-cust-$LOCATION"
-    CUST_VNET_NAME=custvnet
-    CUST_SCALE_DEL_SUBNET="scaledel"
-    SETUP_ACR_AND_MI=true
-    SHARED_KUBELET_IDENTITY_NAME="sharedKubeletIdentity"
-    SHARED_CONTROL_PLANE_IDENTITY_NAME="sharedControlPlaneIdentity"
-fi
 
-CLUSTER="ping-target"
+echo "Loading shared configuration..."
+source "$(dirname "$0")/shared-config.sh"
+
+export SETUP_ACR_AND_MI=true
+export CLUSTER="ping-target"
 
 # create RG
 echo "Create RG"
-date=$(date -d "+3 month" +"%Y-%m-%d")
+export date=$(date -d "+3 month" +"%Y-%m-%d")
 az account set -s $CUST_SUB
 az group create --location $LOCATION --name $CUST_RG --tags SkipAutoDeleteTill=$date skipGC="swift v2 perf" gc_skip="true"
 
 # create customer vnet
-custAKSNodeSubnet="aksnodes"
-custAKSPodSubnet="akspods"
-custVnetAddressSpaceCIDR="172.16.0.0/12"
-custScaleDelSubnetCIDR="172.26.0.0/16"
-custAKSNodeSubnetCIDR="172.27.0.0/24"
-custAKSPodSubnetCIDR="172.27.1.0/24"
+export custAKSNodeSubnet="aksnodes"
+export custAKSPodSubnet="akspods"
+export custVnetAddressSpaceCIDR="172.16.0.0/12"
+export custScaleDelSubnetCIDR="172.26.0.0/16"
+export custAKSNodeSubnetCIDR="172.27.0.0/24"
+export custAKSPodSubnetCIDR="172.27.1.0/24"
 
 az network vnet create -n ${CUST_VNET_NAME} -g $CUST_RG --address-prefixes ${custVnetAddressSpaceCIDR} -l ${LOCATION} -o none
 az network vnet subnet create --resource-group $CUST_RG --vnet-name $CUST_VNET_NAME --name $CUST_SCALE_DEL_SUBNET --address-prefixes $custScaleDelSubnetCIDR --delegations Microsoft.SubnetDelegator/msfttestclients
@@ -72,9 +68,9 @@ az network vnet subnet create \
 
 # create cluster
 echo "create cluster"
-nodeSubnetID=$(az network vnet subnet list -g $CUST_RG --vnet-name ${CUST_VNET_NAME} --query "[?name=='${custAKSNodeSubnet}']" | jq -r '.[].id')
-podSubnetID=$(az network vnet subnet list -g $CUST_RG --vnet-name ${CUST_VNET_NAME} --query "[?name=='${custAKSPodSubnet}']" | jq -r '.[].id')
-nodeRGName=MC_$CUST_RG-$CLUSTER-$LOCATION
+export nodeSubnetID=$(az network vnet subnet list -g $CUST_RG --vnet-name ${CUST_VNET_NAME} --query "[?name=='${custAKSNodeSubnet}']" | jq -r '.[].id')
+export podSubnetID=$(az network vnet subnet list -g $CUST_RG --vnet-name ${CUST_VNET_NAME} --query "[?name=='${custAKSPodSubnet}']" | jq -r '.[].id')
+export nodeRGName=MC_$CUST_RG-$CLUSTER-$LOCATION
 az aks create --name $CLUSTER \
         -g $CUST_RG \
         -l $LOCATION \
@@ -88,8 +84,8 @@ az aks create --name $CLUSTER \
         --node-resource-group $nodeRGName
 
 echo "Prevent autodeletion of cluster resources"
-Node_RG_ID=$(az group show -n $nodeRGName -o tsv --query id)
-Node_RG_ID=${Node_RG_ID//$'\r'}
+export Node_RG_ID=$(az group show -n $nodeRGName -o tsv --query id)
+export Node_RG_ID=${Node_RG_ID//$'\r'}
 az tag update --resource-id $Node_RG_ID --operation Merge --tags SkipAutoDeleteTill=$date skipGC="swift v2 perf" gc_skip="true"
 
 echo "Deploy nginx pod on the cluster with IP - 172.27.0.30"
@@ -100,11 +96,11 @@ if [ "$SETUP_ACR_AND_MI" != "true" ]; then
   echo "Skipping ACR and MI setup as SETUP_ACR_AND_MI is not set to true"
   exit 0
 fi
-ACR_NAME="sv2perfacr$LOCATION"
-IMAGE_NAME="nicolaka/netshoot"
-ACR_IMAGE_NAME="netshoot:latest"
-SHARED_KUBELET_IDENTITY_NAME="sharedKubeletIdentity"
-SHARED_CONTROL_PLANE_IDENTITY_NAME="sharedControlPlaneIdentity"
+export ACR_NAME="sv2perfacr$LOCATION"
+export IMAGE_NAME="nicolaka/netshoot"
+export ACR_IMAGE_NAME="netshoot:latest"
+export SHARED_KUBELET_IDENTITY_NAME="sharedKubeletIdentity"
+export SHARED_CONTROL_PLANE_IDENTITY_NAME="sharedControlPlaneIdentity"
 
 az acr create --resource-group $CUST_RG --name $ACR_NAME --sku Basic
 az acr login --name $ACR_NAME
@@ -119,7 +115,7 @@ az identity create \
   --resource-group $CUST_RG \
   --location $LOCATION
 
-pId=$(az identity show \
+export pId=$(az identity show \
   --name $SHARED_KUBELET_IDENTITY_NAME \
   --resource-group $CUST_RG \
   --query principalId \
@@ -136,7 +132,7 @@ az identity create \
   --resource-group $CUST_RG \
   --location $LOCATION 
 
-cPID=$(az identity show \
+export cPID=$(az identity show \
   --name $SHARED_CONTROL_PLANE_IDENTITY_NAME \
   --resource-group $CUST_RG \
   --query principalId \
