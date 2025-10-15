@@ -9,8 +9,9 @@ spec:
         - name: fio
           volumeMounts:
             - name: hostpath-mount
-              mountPath: /mnt/data
+              mountPath: /mnt/nvme-raid
       volumes:
         - name: hostpath-mount
-          persistentVolumeClaim:
-            claimName: $name
+          hostPath:
+            path: /mnt/nvme-raid
+            type: Directory
