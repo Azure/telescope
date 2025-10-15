@@ -21,6 +21,13 @@ schedules:
       include:
         - main
     always: true
+  # Azure Large Scale Windows(1000) Schedule
+  - cron: "0 17 * * *"
+    displayName: "Every day at 5:00 PM"
+    branches:
+      include:
+        - main
+    always: true
   # Azure Medium Scale(500) Schedule
   - cron: "0 10 * * *"
     displayName: "Every day at 10:00 AM"
@@ -149,6 +156,43 @@ stages:
               loop_count: 1
               warmup_deployment: false
               capacity_type: on-demand
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: azure_australiaeast_large_scale_windows
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 5:00 PM'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - australiaeast
+          terraform_input_file_mapping:
+            - australiaeast: "scenarios/perf-eval/cluster-autoscaler/terraform-inputs/azure-1000nodes-windows.tfvars"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250423"
+          topology: cluster-autoscaler
+          matrix:
+            large-scale-demand:
+              cpu_per_node: 2
+              node_count: 1001
+              pod_count: 1001
+              scale_up_timeout: "60m"
+              scale_down_timeout: "60m"
+              node_label_selector: "cas = dedicated"
+              node_selector: "{cas: dedicated}"
+              loop_count: 1
+              warmup_deployment: false
+              capacity_type: on-demand
+              os_type: windows
           max_parallel: 1
           timeout_in_minutes: 360
           credential_type: service_connection

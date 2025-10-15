@@ -3,6 +3,3 @@ kind: Kustomization
 
 resources:
   - ds.yaml
-  - storageclass.yaml
-  - configmap.yaml
-  - deployment.yaml
