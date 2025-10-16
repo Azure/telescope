@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp-{{NODE_POOL_NAME}}-{{INDEX}}
+  labels:
+    app: nginx-container
+spec:
+  template:
+    metadata:
+      name:
+      labels:
+        app: nginx-container
+    spec:
+      containers:
+        - name: nginx-container
+          image: mcr.microsoft.com/oss/nginx/nginx:1.21.6
+          ports:
+            - containerPort: 80
+  replicas: {{DEPLOYMENT_REPLICAS}}
+  selector:
+    matchLabels:
+      app: nginx-container
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: myapp-{{NODE_POOL_NAME}}-{{INDEX}}
+spec:
+  ports:
+  - port: 80
+    name: myapp
+  clusterIP: None
+  selector:
+    app: nginx-container
