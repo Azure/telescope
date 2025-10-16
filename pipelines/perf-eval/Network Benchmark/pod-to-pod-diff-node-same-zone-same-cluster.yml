@@ -58,7 +58,8 @@ stages:
               - "4|tcp|2000|1|--time 60 --bandwidth 2000M --parallel 1 --interval 1 --port 20003|direct|pod"
               - "5|tcp|4000|1|--time 60 --bandwidth 4000M --parallel 1 --interval 1 --port 20003|direct|pod"
               - "6|tcp|0|14|--time 60 --bandwidth 0 --parallel 14 --interval 1 --port 20003|direct|pod"
-              - "7|tcp|0|1|--time 60 --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "7|tcp|0|16|--time 60 --bandwidth 0 --parallel 16 --interval 1 --port 20003|direct|pod"
+              - "8|tcp|0|1|--time 60 --bandwidth 0 --parallel 1 --interval 1 --port 20003|direct|pod"
           matrix:
             ${{ each machine_type in parameters.azure_machine_types }}:
               ${{ each network in parameters.host_networks }}:
@@ -91,7 +92,8 @@ stages:
               - "3|tcp|5000|3|--time 60 --bandwidth 5000M --parallel 3 --interval 1 --port 20003|direct|pod"
               - "4|tcp|10000|1|--time 60 --bandwidth 10000M --parallel 1 --interval 1 --port 20003|direct|pod"
               - "5|tcp|15000|1|--time 60 --bandwidth 15000M --parallel 1 --interval 1 --port 20003|direct|pod"
-              - "6|tcp|0|1|--time 60 --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "6|tcp|0|16|--time 60 --bandwidth 0 --parallel 16 --interval 1 --port 20003|direct|pod"
+              - "7|tcp|0|1|--time 60 --bandwidth 0 --parallel 1 --interval 1 --port 20003|direct|pod"
           matrix:
             ${{ each machine_type in parameters.azure_machine_types_new_sku }}:
               ${{ each network in parameters.host_networks }}:
@@ -126,7 +128,8 @@ stages:
               - "3|tcp|5000|3|--time 60 --bandwidth 5000M --parallel 3 --interval 1 --port 20003|direct|pod"
               - "4|tcp|10000|1|--time 60 --bandwidth 10000M --parallel 1 --interval 1 --port 20003|direct|pod"
               - "5|tcp|15000|1|--time 60 --bandwidth 15000M --parallel 1 --interval 1 --port 20003|direct|pod"
-              - "6|tcp|0|1|--time 60 --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "6|tcp|0|16|--time 60 --bandwidth 0 --parallel 16 --interval 1 --port 20003|direct|pod"
+              - "7|tcp|0|1|--time 60 --bandwidth 0 --parallel 1 --interval 1 --port 20003|direct|pod"
           matrix:
             ${{ each network in parameters.host_networks }}:
               Standard_D48s_v6_azure_${{ network }}:
@@ -160,7 +163,8 @@ stages:
               - "4|tcp|2000|1|--time 60 --bandwidth 2000M --parallel 1 --interval 1 --port 20003|direct|pod"
               - "5|tcp|4000|1|--time 60 --bandwidth 4000M --parallel 1 --interval 1 --port 20003|direct|pod"
               - "6|tcp|0|14|--time 60 --bandwidth 0 --parallel 14 --interval 1 --port 20003|direct|pod"
-              - "7|tcp|0|1|--time 60 --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "7|tcp|0|16|--time 60 --bandwidth 0 --parallel 16 --interval 1 --port 20003|direct|pod"
+              - "8|tcp|0|1|--time 60 --bandwidth 0 --parallel 1 --interval 1 --port 20003|direct|pod"
           matrix:
             ${{ each machine_type in parameters.aws_machine_types }}:
               ${{ each network in parameters.host_networks }}:
@@ -195,7 +199,8 @@ stages:
               - "3|tcp|5000|3|--time 60 --bandwidth 5000M --parallel 3 --interval 1 --port 20003|direct|pod"
               - "4|tcp|10000|1|--time 60 --bandwidth 10000M --parallel 1 --interval 1 --port 20003|direct|pod"
               - "5|tcp|15000|1|--time 60 --bandwidth 15000M --parallel 1 --interval 1 --port 20003|direct|pod"
-              - "6|tcp|0|1|--time 60 --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "6|tcp|0|16|--time 60 --bandwidth 0 --parallel 16 --interval 1 --port 20003|direct|pod"
+              - "7|tcp|0|1|--time 60 --bandwidth 0 --parallel 1 --interval 1 --port 20003|direct|pod"
           matrix:
             ${{ each machine_type in parameters.aws_machine_types_new_sku }}:
               ${{ each network in parameters.host_networks }}:
