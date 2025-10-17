@@ -22,11 +22,11 @@ parameters:
 - name: matrix
   type: object
   default:
-    pps=25_pods=140_nodes=20:
-      node_count: 20
+    pps=25_pods=1000_nodes=143:
+      node_count: 143
       pods_per_step: 25
       test_timeout: "2m"
-      test_type: Gradual_DynamicRes_PPS=25_Pods=140_Nodes=20
+      test_type: Gradual_DynamicRes_PPS=25_Pods=1000_Nodes=143
       cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
     # pps=25_pods=700_nodes=100:
     #   node_count: 100
