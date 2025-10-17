@@ -75,80 +75,137 @@ spec:
           UNUSED_DEVICES=()
 
           if [ -e ${RAID_DEVICE} ]; then
-                  echo "RAID device already exists, exiting successfully"
-                  exit 0
-          fi
-
-          if ! command -v mdadm &> /dev/null; then
-                  apt-get update >/dev/null && apt-get install -y mdadm
-          fi
-
-          for device in $ALL_NVME_DEVICES; do
-                  if mdadm --examine "$device" | grep -q 'RAID superblock'; then
-                          continue
+                  echo "RAID device already exists, proceeding to bind mount setup"
+          else
+                  if ! command -v mdadm &> /dev/null; then
+                          apt-get update >/dev/null && apt-get install -y mdadm
                   fi
 
-                  if findmnt -S "$device" -n &> /dev/null; then
-                          continue
-                  fi
-                  if blkid "$device" &> /dev/null; then
-                          continue
-                  fi
-                  UNUSED_DEVICES+=("$device")
-          done
+                  for device in $ALL_NVME_DEVICES; do
+                          if mdadm --examine "$device" | grep -q 'RAID superblock'; then
+                                  continue
+                          fi
 
-          if [ "${#UNUSED_DEVICES[@]}" -eq 1 ]; then
-                  echo "Only one unused NVMe device found: ${UNUSED_DEVICES[0]}"
-                  DEVICE="${UNUSED_DEVICES[0]}"
-                  echo "Creating ${FILESYSTEM_TYPE} filesystem on ${DEVICE}"
-                  mkfs.${FILESYSTEM_TYPE} "${DEVICE}"
+                          if findmnt -S "$device" -n &> /dev/null; then
+                                  continue
+                          fi
+                          if blkid "$device" &> /dev/null; then
+                                  continue
+                          fi
+                          UNUSED_DEVICES+=("$device")
+                  done
+
+                  if [ "${#UNUSED_DEVICES[@]}" -lt 2 ]; then
+                          echo "Error: Found fewer than 2 unused NVMe devices.  Cannot create a RAID0 array."
+                          exit 1
+                  fi
+
+                  echo ""
+                  echo "${#UNUSED_DEVICES[@]} devices will be combined into a RAID0 array:"
+                  for device in "${UNUSED_DEVICES[@]}"; do
+                          echo "  - $device"
+                  done
+                  echo ""
+
+                  mdadm --create "$RAID_DEVICE" \
+                          --level=0 \
+                          --raid-devices="${#UNUSED_DEVICES[@]}" \
+                          "${UNUSED_DEVICES[@]}" \
+                          --run \
+                          --force
+
+                  if [ $? -ne 0 ]; then
+                          echo "Error: Failed to create RAID array."
+                          exit 1
+                  fi
+
+                  echo "RAID array created successfully."
+                  echo "Waiting a few seconds for the device to be ready"
+                  sleep 5
+
+                  echo "Creating ${FILESYSTEM_TYPE} filesystem on ${RAID_DEVICE}"
+                  mkfs.${FILESYSTEM_TYPE} "${RAID_DEVICE}"
+
+                  if [ $? -ne 0 ]; then
+                          echo "Error: Failed to create filesystem"
+                          mdadm --stop "$RAID_DEVICE"
+                          exit 1
+                  fi
+
+                  mdadm --detail --scan | sudo tee -a /etc/mdadm/mdadm.conf
                   mkdir -p ${MOUNT_POINT}
-                  mount ${DEVICE} ${MOUNT_POINT}
-                  echo "${DEVICE}\t${MOUNT_POINT}\t${FILESYSTEM_TYPE}\tdefaults,nofail,discard\t0\t0" >> /etc/fstab
-                  exit 0
+                  mount ${RAID_DEVICE} ${MOUNT_POINT}
+                  echo "${RAID_DEVICE}	${MOUNT_POINT}	${FILESYSTEM_TYPE}	defaults,nofail,discard	0	0" >> /etc/fstab
           fi
 
-          if [ "${#UNUSED_DEVICES[@]}" -lt 2 ]; then
-                  echo "Error: Found fewer than 2 unused NVMe devices.  Cannot create a RAID0 array."
-                  exit 1
-          fi
+          # Setup bind mounts for kubelet and containerd
+          setup_bind_mount() {
+              local service_name=$1
+              local mount_point=$2
+              local array_mount_point="${MOUNT_POINT}/${service_name}"
+              local mount_unit_name="var-lib-${service_name}.mount"
 
-          echo ""
-          echo "${#UNUSED_DEVICES[@]} devices will be combined into a RAID0 array:"
-          for device in "${UNUSED_DEVICES[@]}"; do
-                  echo "  - $device"
-          done
-          echo ""
+              # Check if bind mount is already correctly configured on /mnt/nvme-raid
+              if systemctl is-active --quiet "${mount_unit_name}" 2>/dev/null; then
+                  if findmnt -S "${array_mount_point}" "${mount_point}" -n &> /dev/null; then
+                      echo "${service_name} bind mount on /mnt/nvme-raid already exists, skipping setup"
+                      return 0
+                  else
+                      echo "${service_name} bind mount exists but not on /mnt/nvme-raid, will recreate"
+                  fi
+              fi
 
-          mdadm --create "$RAID_DEVICE" \
-                  --level=0 \
-                  --raid-devices="${#UNUSED_DEVICES[@]}" \
-                  "${UNUSED_DEVICES[@]}" \
-                  --run \
-                  --force
+              echo "Setting up bind mount for ${service_name}"
 
-          if [ $? -ne 0 ]; then
-                  echo "Error: Failed to create RAID array."
-                  exit 1
-          fi
+              # Create directory on RAID array
+              mkdir -p "${array_mount_point}"
 
-          echo "RAID array created successfully."
-          echo "Waiting a few seconds for the device to be ready"
-          sleep 5
+              # Stop the service if it's running
+              if systemctl is-active --quiet "${service_name}" 2>/dev/null; then
+                  echo "Stopping ${service_name} service"
+                  systemctl stop "${service_name}"
+              fi
 
-          echo "Creating ${FILESYSTEM_TYPE} filesystem on ${RAID_DEVICE}"
-          mkfs.${FILESYSTEM_TYPE} "${RAID_DEVICE}"
+              # Copy existing data if mount point exists and has content
+              if [ -d "${mount_point}" ] && [ "$(ls -A ${mount_point} 2>/dev/null)" ]; then
+                  echo "Copying existing ${service_name} data to RAID array"
+                  cp -a "${mount_point}/." "${array_mount_point}/"
+              fi
 
-          if [ $? -ne 0 ]; then
-                  echo "Error: Failed to create filesystem"
-                  mdadm --stop "$RAID_DEVICE"
-                  exit 1
-          fi
+              # Create systemd mount unit
+              cat > "/etc/systemd/system/${mount_unit_name}" << EOF
+          [Unit]
+          Description=Mount ${service_name} on NVMe RAID0
+          Before=${service_name}.service
+          RequiredBy=${service_name}.service
 
-          mdadm --detail --scan | sudo tee -a /etc/mdadm/mdadm.conf
-          mkdir -p ${MOUNT_POINT}
-          mount ${RAID_DEVICE} ${MOUNT_POINT}
-          echo "${RAID_DEVICE}	${MOUNT_POINT}	${FILESYSTEM_TYPE}	defaults,nofail,discard	0	0" >> /etc/fstab
+          [Mount]
+          What=${array_mount_point}
+          Where=${mount_point}
+          Type=none
+          Options=bind
+
+          [Install]
+          WantedBy=multi-user.target
+          EOF
+
+              # Reload systemd and enable/start the mount
+              systemctl daemon-reload
+              systemctl enable "${mount_unit_name}"
+              systemctl start "${mount_unit_name}"
+
+              # Verify mount is active
+              if ! systemctl is-active --quiet "${mount_unit_name}"; then
+                  echo "Error: Failed to activate ${mount_unit_name}"
+                  return 1
+              fi
+
+              echo "Successfully setup bind mount for ${service_name}"
+          }
+
+          # Setup bind mounts for kubelet and containerd (includes existence check)
+          setup_bind_mount "kubelet" "/var/lib/kubelet"
+          setup_bind_mount "containerd" "/var/lib/containerd"
 
         securityContext:
           runAsUser: 0
