@@ -1,0 +1,116 @@
+#!/bin/bash
+set -x
+set -e
+set -o pipefail
+
+RAID_DEVICE="/dev/md0"
+FILESYSTEM_TYPE="xfs"
+MOUNT_POINT="/mnt/nvme-raid"
+
+ALL_NVME_DEVICES=$(ls /dev/nvme*n* 2>/dev/null)
+UNUSED_DEVICES=()
+
+if [ -e ${RAID_DEVICE} ]; then
+echo "RAID device already exists, proceeding to bind mount setup"
+else
+if ! command -v mdadm &> /dev/null; then
+    apt-get update >/dev/null && apt-get install -y mdadm
+fi
+
+for device in $ALL_NVME_DEVICES; do
+    if mdadm --examine "$device" | grep -q 'RAID superblock'; then
+    continue
+    fi
+
+    if findmnt -S "$device" -n &> /dev/null; then
+    continue
+    fi
+    if blkid "$device" &> /dev/null; then
+    continue
+    fi
+    UNUSED_DEVICES+=("$device")
+done
+
+echo ""
+echo "${#UNUSED_DEVICES[@]} devices will be combined into a RAID0 array:"
+for device in "${UNUSED_DEVICES[@]}"; do
+    echo "  - $device"
+done
+echo ""
+
+mdadm --create "$RAID_DEVICE" \
+    --level=0 \
+    --raid-devices="${#UNUSED_DEVICES[@]}" \
+    "${UNUSED_DEVICES[@]}" \
+    --run \
+    --force
+
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to create RAID array."
+    exit 1
+fi
+
+echo "RAID array created successfully."
+echo "Waiting a few seconds for the device to be ready"
+sleep 5
+
+echo "Creating ${FILESYSTEM_TYPE} filesystem on ${RAID_DEVICE}"
+mkfs.${FILESYSTEM_TYPE} "${RAID_DEVICE}"
+
+if [ $? -ne 0 ]; then
+    echo "Error: Failed to create filesystem"
+    mdadm --stop "$RAID_DEVICE"
+    exit 1
+fi
+
+mdadm --detail --scan | sudo tee -a /etc/mdadm/mdadm.conf
+mkdir -p ${MOUNT_POINT}
+mount ${RAID_DEVICE} ${MOUNT_POINT}
+echo "${RAID_DEVICE}	${MOUNT_POINT}	${FILESYSTEM_TYPE}	defaults,nofail,discard	0	0" >> /etc/fstab
+fi
+
+dev_uuid=$(blkid -s UUID -o value "${RAID_DEVICE}")
+mount_unit_name="$(systemd-escape --path --suffix=mount "${MOUNT_POINT}")"
+cat > "/etc/systemd/system/${mount_unit_name}" <<EOF
+[Unit]
+Description=Mount NVMe disk RAID0
+[Mount]
+What=UUID=${dev_uuid}
+Where=${MOUNT_POINT}
+Type=xfs
+Options=defaults,noatime
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemd-analyze verify "${mount_unit_name}"
+systemctl enable "${mount_unit_name}" --now
+for unit in kubelet containerd; do
+# Check if the bind mount from the RAID already exists
+if [[ "$(systemctl is-active var-lib-${unit}.mount)" != "active" ]]; then
+    # If the component is running, stop it before moving data
+
+    mount_point="/var/lib/${unit}"
+    array_mount_point_unit="${MOUNT_POINT}/${unit}"
+    mkdir -p "${mount_point}"
+    echo "Copying ${mount_point}/ to ${array_mount_point_unit}/"
+    cp -a "${mount_point}/" "${array_mount_point_unit}/"
+    mount_unit_name="$(systemd-escape --path --suffix=mount "${mount_point}")"
+    cat > "/etc/systemd/system/${mount_unit_name}" << EOF
+[Unit]
+Description=Mount ${unit} on NVMe RAID0
+[Mount]
+What=${array_mount_point_unit}
+Where=${mount_point}
+Type=none
+Options=bind
+[Install]
+WantedBy=multi-user.target
+EOF
+    systemd-analyze verify "${mount_unit_name}"
+    systemctl enable "${mount_unit_name}" --now
+
+    # Restart the component after bind mount
+    systemctl restart "${unit}"
+fi
+done
