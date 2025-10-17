@@ -66,6 +66,32 @@ stages:
             image: "ghcr.io/azure/clusterloader2:v20250423"
           topology: karpenter
           matrix:
+            extra-small-scale-on-demand:
+              cpu_per_node: 4
+              node_count: 1
+              pod_count: 10
+              scale_up_timeout: "5m"
+              scale_down_timeout: "5m"
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 5
+              warmup_deployment: true
+              warmup_deployment_template: warmup_deployment.yaml
+              vm_size: Standard_D4_v5
+              capacity_type: on-demand
+            extra-small-scale-spot:
+              cpu_per_node: 4
+              node_count: 1
+              pod_count: 10
+              scale_up_timeout: "5m"
+              scale_down_timeout: "5m"
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 5
+              warmup_deployment: true
+              warmup_deployment_template: warmup_deployment.yaml
+              vm_size: Standard_D4_v5
+              capacity_type: spot              
             small-scale-on-demand:
               cpu_per_node: 4
               node_count: 10
@@ -213,6 +239,32 @@ stages:
             image: "ghcr.io/azure/clusterloader2:v20250423"
           topology: karpenter
           matrix:
+            extra-small-scale-on-demand:
+              cpu_per_node: 4
+              node_count: 1
+              pod_count: 10
+              scale_up_timeout: "5m"
+              scale_down_timeout: "5m"
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 5
+              warmup_deployment: true
+              warmup_deployment_template: warmup_deployment.yaml
+              vm_size: m5.xlarge
+              capacity_type: on-demand
+            extra-small-scale-spot:
+              cpu_per_node: 4
+              node_count: 1
+              pod_count: 10
+              scale_up_timeout: "5m"
+              scale_down_timeout: "5m"
+              node_label_selector: "karpenter.sh/nodepool = spot"
+              node_selector: "{karpenter.sh/nodepool: spot}"
+              loop_count: 5
+              warmup_deployment: true
+              warmup_deployment_template: warmup_deployment.yaml
+              vm_size: m5.xlarge
+              capacity_type: spot
             small-scale-on-demand:
               cpu_per_node: 4
               node_count: 10
