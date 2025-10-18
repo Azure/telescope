@@ -21,7 +21,7 @@ variables:
 parameters:
   - name: azure_machine_types
     type: object
-    default: [Standard_D16_v3, Standard_D16_v5]
+    default: [Standard_D16s_v3, Standard_D16s_v5]
   - name: azure_machine_types_new_sku
     type: object
     default: [Standard_D48s_v3, Standard_D48s_v6]
@@ -39,7 +39,7 @@ parameters:
     default: ["true", "false"]
 
 stages:
-  - stage: azure_eastus2_v3_v5
+  - stage: azure_eastus2_v3
     condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday')
     dependsOn: []
     jobs:
@@ -48,6 +48,8 @@ stages:
           cloud: azure
           regions:
             - eastus2
+          terraform_input_file_mapping:
+            - eastus2: "scenarios/perf-eval/pod-diff-node-same-zone/terraform-inputs/azure-v3-ubuntu2404.tfvars"
           topology: pod-to-pod/diff-nodes
           engine: iperf3
           engine_input:
@@ -61,14 +63,47 @@ stages:
               - "7|tcp|0|16|--time 60 --bandwidth 0 --parallel 16 --interval 1 --port 20003|direct|pod"
               - "8|tcp|0|1|--time 60 --bandwidth 0 --parallel 1 --interval 1 --port 20003|direct|pod"
           matrix:
-            ${{ each machine_type in parameters.azure_machine_types }}:
-              ${{ each network in parameters.host_networks }}:
-                ${{ each dataplane in parameters.network_dataplanes }}:
-                  ${{ machine_type }}_${{ dataplane }}_${{ network }}:
-                    k8s_machine_type: ${{ machine_type }}
-                    network_dataplane: ${{ dataplane }}
-                    host_network: ${{ network }}
-                    configure_mtu: "false"
+            ${{ each network in parameters.host_networks }}:
+              ${{ each dataplane in parameters.network_dataplanes }}:
+                Standard_D16s_v3_${{ dataplane }}_${{ network }}:
+                  network_dataplane: ${{ dataplane }}
+                  host_network: ${{ network }}
+                  configure_mtu: "false"
+          max_parallel: 2
+          timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: azure_eastus2_v5
+    condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday')
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          terraform_input_file_mapping:
+            - eastus2: "scenarios/perf-eval/pod-diff-node-same-zone/terraform-inputs/azure-v5-ubuntu2404.tfvars"
+          topology: pod-to-pod/diff-nodes
+          engine: iperf3
+          engine_input:
+            iperf3_command_array:
+              - "1|tcp|1000|1|--time 60 --bandwidth 1000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "2|tcp|1000|1|--time 60 --bandwidth 1000M --parallel 2 --interval 1 --port 20003|direct|pod"
+              - "3|tcp|1000|1|--time 60 --bandwidth 1000M --parallel 4 --interval 1 --port 20003|direct|pod"
+              - "4|tcp|2000|1|--time 60 --bandwidth 2000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "5|tcp|4000|1|--time 60 --bandwidth 4000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "6|tcp|0|14|--time 60 --bandwidth 0 --parallel 14 --interval 1 --port 20003|direct|pod"
+              - "7|tcp|0|16|--time 60 --bandwidth 0 --parallel 16 --interval 1 --port 20003|direct|pod"
+              - "8|tcp|0|1|--time 60 --bandwidth 0 --parallel 1 --interval 1 --port 20003|direct|pod"
+          matrix:
+            ${{ each network in parameters.host_networks }}:
+              ${{ each dataplane in parameters.network_dataplanes }}:
+                Standard_D16s_v5_${{ dataplane }}_${{ network }}:
+                  network_dataplane: ${{ dataplane }}
+                  host_network: ${{ network }}
+                  configure_mtu: "false"
           max_parallel: 2
           timeout_in_minutes: 120
           credential_type: service_connection
