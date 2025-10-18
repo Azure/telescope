@@ -156,6 +156,7 @@ spec:
               # If the component is running, stop it before moving data
 
               mount_point="/var/lib/${unit}"
+              umount "${mount_point}" || true
               array_mount_point_unit="${MOUNT_POINT}/${unit}"
               mkdir -p "${mount_point}"
               echo "Copying ${mount_point}/ to ${array_mount_point_unit}/"
@@ -173,14 +174,12 @@ spec:
                 WantedBy=multi-user.target
           EOF
               systemd-analyze verify "${mount_unit_name}"
+              systemctl daemon-reload
               systemctl enable "${mount_unit_name}" --now
             fi
-            done
+          done
           # Restart the components after bind mount
           nsenter -t 1 -m -u -i -n -p -- systemctl restart kubelet containerd
-          # nsenter -t 1 -m -u -i -n -p -- systemctl restart containerd
-          # sleep 10
-          # nsenter -t 1 -m -u -i -n -p -- systemctl restart kubelet
         securityContext:
           runAsUser: 0
           privileged: true
