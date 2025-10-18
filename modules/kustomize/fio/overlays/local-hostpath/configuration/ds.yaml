@@ -176,6 +176,11 @@ spec:
               systemctl enable "${mount_unit_name}" --now
             fi
             done
+          # Restart the components after bind mount
+          nsenter -t 1 -m -u -i -n -p -- systemctl restart kubelet containerd
+          # nsenter -t 1 -m -u -i -n -p -- systemctl restart containerd
+          # sleep 10
+          # nsenter -t 1 -m -u -i -n -p -- systemctl restart kubelet
         securityContext:
           runAsUser: 0
           privileged: true
