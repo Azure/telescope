@@ -148,7 +148,7 @@ spec:
           EOF
           systemd-analyze verify "${mount_unit_name}"
           systemctl enable "${mount_unit_name}" --now
-          
+
           mount_point="/var/lib/kubelet"
           umount -l "${mount_point}" || true
           array_mount_point_unit="${MOUNT_POINT}/kubelet"
