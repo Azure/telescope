@@ -19,9 +19,6 @@ variables:
   SCENARIO_NAME: pod-diff-node-same-zone
 
 parameters:
-  - name: azure_machine_types
-    type: object
-    default: [Standard_D16s_v3, Standard_D16s_v5]
   - name: azure_machine_types_new_sku
     type: object
     default: [Standard_D48s_v3, Standard_D48s_v6]
