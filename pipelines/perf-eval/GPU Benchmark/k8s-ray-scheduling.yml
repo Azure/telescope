@@ -31,12 +31,12 @@ stages:
     parameters:
       cloud: azure
       regions:
-      - eastus2
+        - eastus2
       engine: clusterloader2
       engine_input:
         image: "ghcr.io/azure/clusterloader2:v20250513"
       topology: kwok
-  matrix:
+      matrix:
         small:
           node_count: 100
           job_count: 100
@@ -60,12 +60,12 @@ stages:
     parameters:
       cloud: azure
       regions:
-      - eastus2
+        - eastus2
       engine: clusterloader2
       engine_input:
         image: "ghcr.io/azure/clusterloader2:v20250513"
       topology: kwok
-  matrix:
+      matrix:
         medium:
           node_count: 1000
           job_throughput: 100
@@ -89,12 +89,12 @@ stages:
     parameters:
       cloud: azure
       regions:
-      - eastus2
+        - eastus2
       engine: clusterloader2
       engine_input:
         image: "ghcr.io/azure/clusterloader2:v20250513"
       topology: kwok
-  matrix:
+      matrix:
         high:
           node_count: 5000
           job_throughput: 100

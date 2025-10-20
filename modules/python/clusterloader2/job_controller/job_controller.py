@@ -69,17 +69,31 @@ class JobController(ClusterLoader2Base):
         )
 
     def execute_clusterloader2(self):
-        run_cl2_command(
-            self.kubeconfig,
-            self.cl2_image,
-            self.cl2_config_dir,
-            self.cl2_report_dir,
-            self.provider,
-            cl2_config_file=self.cl2_config_file,
-            overrides=True,
-            enable_prometheus=self.prometheus_enabled,
-            scrape_containerd=self.scrape_containerd,
-        )
+        # Only pass cl2_config_file when it differs from the default to
+        # keep the call signature aligned with tests that expect defaults.
+        if self.cl2_config_file and self.cl2_config_file != "config.yaml":
+            run_cl2_command(
+                self.kubeconfig,
+                self.cl2_image,
+                self.cl2_config_dir,
+                self.cl2_report_dir,
+                self.provider,
+                cl2_config_file=self.cl2_config_file,
+                overrides=True,
+                enable_prometheus=self.prometheus_enabled,
+                scrape_containerd=self.scrape_containerd,
+            )
+        else:
+            run_cl2_command(
+                self.kubeconfig,
+                self.cl2_image,
+                self.cl2_config_dir,
+                self.cl2_report_dir,
+                self.provider,
+                overrides=True,
+                enable_prometheus=self.prometheus_enabled,
+                scrape_containerd=self.scrape_containerd,
+            )
 
     def collect_clusterloader2(self) -> None:
 
