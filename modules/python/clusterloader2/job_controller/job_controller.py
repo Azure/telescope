@@ -32,6 +32,7 @@ class JobController(ClusterLoader2Base):
     cl2_image: str = ""
     cl2_config_dir: str = ""
     cl2_report_dir: str = ""
+    cl2_config_file: str = "config.yaml"
     kubeconfig: str = ""
     provider: str = ""
     prometheus_enabled: bool = False
@@ -73,6 +74,7 @@ class JobController(ClusterLoader2Base):
             self.cl2_config_dir,
             self.cl2_report_dir,
             self.provider,
+            cl2_config_file=self.cl2_config_file,
             overrides=True,
             enable_prometheus=self.prometheus_enabled,
             scrape_containerd=self.scrape_containerd,
@@ -190,6 +192,9 @@ class JobController(ClusterLoader2Base):
         )
         parser.add_argument(
             "--cl2_report_dir", type=str, help="Path to the CL2 report directory"
+        )
+        parser.add_argument(
+            "--cl2_config_file", type=str, default="config.yaml", help="CL2 config filename inside the config dir"
         )
         parser.add_argument(
             "--kubeconfig", type=str, help="Path to the kubeconfig file"

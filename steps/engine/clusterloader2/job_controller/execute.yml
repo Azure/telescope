@@ -26,6 +26,7 @@ steps:
         --cl2_image ${CL2_IMAGE} \
         --cl2_config_dir ${CL2_CONFIG_DIR} \
         --cl2_report_dir $CL2_REPORT_DIR \
+        --cl2_config_file ${CL2_CONFIG_FILE:-config.yaml} \
         --prometheus_enabled ${PROMETHEUS_ENABLED:-False} \
         --kubeconfig ${HOME}/.kube/config \
         --provider $CLOUD
