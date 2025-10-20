@@ -1,0 +1,74 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{.Name}}
+  labels:
+    group: {{.Group}}
+spec:
+  shutdownAfterJobFinishes: false
+  entrypoint: python ray_train_pytorch_mnist.py
+  runtimeEnvYAML: |
+    env_vars:
+      NUM_WORKERS: "4"
+      GPUS_PER_WORKER: "1"
+      OMP_NUM_THREADS: "1" # Set OMP_NUM_THREADS to avoid KeyErorr race condition.
+  submitterPodTemplate:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        type: kwok
+      tolerations:
+      - key: "kwok.x-k8s.io/node"
+        operator: "Exists"
+        effect: "NoSchedule"
+      containers:
+        - name: ray-submitter
+          image: rayproject/ray:2.41.0
+  rayClusterSpec:
+    rayVersion: '2.9.3'
+    headGroupSpec:
+      rayStartParams: {}
+      template:
+        spec:
+          nodeSelector:
+            type: kwok
+          tolerations:
+          - key: "kwok.x-k8s.io/node"
+            operator: "Exists"
+            effect: "NoSchedule"
+          containers:
+            - name: ray-head
+              image: rayproject/ray:2.41.0
+              ports:
+                - containerPort: 6379
+                  name: gcs-server
+                - containerPort: 8265
+                  name: dashboard
+                - containerPort: 10001
+                  name: client
+              resources:
+                limits:
+                  cpu: "1"
+                requests:
+                  cpu: "1"
+    workerGroupSpecs:
+      - replicas: 4
+        groupName: worker-group
+        rayStartParams: {}
+        template:
+          spec:
+            nodeSelector:
+              type: kwok
+            tolerations:
+            - key: "kwok.x-k8s.io/node"
+              operator: "Exists"
+              effect: "NoSchedule"
+            containers:
+              - name: ray-worker
+                image: rayproject/ray:2.41.0
+                resources:
+                  limits:
+                    nvidia.com/gpu: 1
+                  requests:
+                    nvidia.com/gpu: 1
+

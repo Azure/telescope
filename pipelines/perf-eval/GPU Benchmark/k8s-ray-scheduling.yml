@@ -36,16 +36,16 @@ stages:
       engine_input:
         image: "ghcr.io/azure/clusterloader2:v20250513"
       topology: kwok
-      matrix:
-        small:
-          node_count: 200
-          job_count: 2000
-          job_throughput: 100
-          scale_timeout: "30m"
-          node_gpu: 8
-          job_gpu: 8
-          enable_dra: false
-          job_template_path: gpu/job_template.yaml
+  matrix:
+    small:
+      node_count: 100
+      job_count: 100
+      job_throughput: 100
+      scale_timeout: "30m"
+      node_gpu: 4
+      job_gpu: 1
+      enable_dra: false
+      job_template_path: ray/job_template.yaml
       max_parallel: 1
       timeout_in_minutes: 60
       credential_type: service_connection
@@ -64,16 +64,16 @@ stages:
       engine_input:
         image: "ghcr.io/azure/clusterloader2:v20250513"
       topology: kwok
-      matrix:
-        medium:
-          node_count: 1000
-          job_throughput: 500
-          job_count: 10000
-          scale_timeout: "45m"
-          node_gpu: 8
-          job_gpu: 8
-          enable_dra: false
-          job_template_path: gpu/job_template.yaml
+  matrix:
+    medium:
+      node_count: 1000
+      job_throughput: 100
+      job_count: 1000
+      scale_timeout: "45m"
+      node_gpu: 4
+      job_gpu: 1
+      enable_dra: false
+      job_template_path: ray/job_template.yaml
       max_parallel: 1
       timeout_in_minutes: 120
       credential_type: service_connection
@@ -92,18 +92,17 @@ stages:
       engine_input:
         image: "ghcr.io/azure/clusterloader2:v20250513"
       topology: kwok
-      matrix:
-        high:
-          node_count: 2000
-          job_throughput: 800
-          job_count: 20000
-          scale_timeout: "1h"
-          node_gpu: 8
-          job_gpu: 8
-          enable_dra: false
-          job_template_path: gpu/job_template.yaml
+  matrix:
+    high:
+      node_count: 5000
+      job_throughput: 100
+      job_count: 5000
+      scale_timeout: "1h"
+      node_gpu: 4
+      job_gpu: 1
+      enable_dra: false
+      job_template_path: ray/job_template.yaml
       max_parallel: 1
       timeout_in_minutes: 120
       credential_type: service_connection
       ssh_key_enabled: false
-
