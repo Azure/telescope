@@ -91,7 +91,7 @@ stages:
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
               vm_size: Standard_D4_v5
-              capacity_type: spot              
+              capacity_type: spot
             small-scale-on-demand:
               cpu_per_node: 4
               node_count: 10
