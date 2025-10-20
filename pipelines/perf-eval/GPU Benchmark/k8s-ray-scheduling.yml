@@ -31,7 +31,7 @@ stages:
     parameters:
       cloud: azure
       regions:
-        - eastus2
+      - eastus2
       engine: clusterloader2
       engine_input:
         image: "ghcr.io/azure/clusterloader2:v20250513"
@@ -60,7 +60,7 @@ stages:
     parameters:
       cloud: azure
       regions:
-        - eastus2
+      - eastus2
       engine: clusterloader2
       engine_input:
         image: "ghcr.io/azure/clusterloader2:v20250513"
@@ -89,7 +89,7 @@ stages:
     parameters:
       cloud: azure
       regions:
-        - eastus2
+      - eastus2
       engine: clusterloader2
       engine_input:
         image: "ghcr.io/azure/clusterloader2:v20250513"
