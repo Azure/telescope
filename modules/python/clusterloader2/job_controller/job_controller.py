@@ -1,5 +1,6 @@
 import json
 import os
+import subprocess
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -120,6 +121,92 @@ class JobController(ClusterLoader2Base):
         os.makedirs(os.path.dirname(self.result_file), exist_ok=True)
         with open(self.result_file, "w", encoding="utf-8") as file:
             file.write(content)
+
+    def install_ray_dependencies(self):
+        """Install Ray test dependencies and supporting resources.
+
+        - Installs KubeRay operator via Helm using values at
+          "<cl2_config_dir>/ray/values.yaml" if present.
+        - Applies supporting manifests: configmap.yaml, deployment.yaml, service.yaml
+          from "<cl2_config_dir>/ray/".
+        - Waits for operator and mock-head pods to be ready.
+        """
+        values_file = os.path.join(self.cl2_config_dir, "ray", "values.yaml")
+        config_dir = os.path.join(self.cl2_config_dir, "ray")
+
+        # Install KubeRay operator via Helm
+        try:
+            logger.info("Adding KubeRay Helm repo: kuberay")
+            subprocess.run(
+                [
+                    "helm",
+                    "repo",
+                    "add",
+                    "kuberay",
+                    "https://ray-project.github.io/kuberay-helm",
+                ],
+                check=True,
+            )
+        except subprocess.CalledProcessError:
+            logger.warning("Helm repo add failed (possibly already added); continuing")
+
+        logger.info("Updating Helm repositories")
+        subprocess.run(["helm", "repo", "update"], check=True)
+
+        install_cmd = [
+            "helm",
+            "upgrade",
+            "--install",
+            "kuberay-operator",
+            "kuberay/kuberay-operator",
+            "--namespace",
+            "kuberay-system",
+            "--create-namespace",
+            "--atomic",
+            "--wait",
+        ]
+        if os.path.exists(values_file):
+            install_cmd.extend(["--values", values_file])
+            logger.info("Using values file: %s", values_file)
+        else:
+            logger.info("Values file not found at %s; proceeding with chart defaults", values_file)
+
+        logger.info("Executing: %s", " ".join(install_cmd))
+        subprocess.run(install_cmd, check=True)
+
+        kube_client = KubernetesClient()
+        # Wait for KubeRay operator pods to be ready
+        try:
+            kube_client.wait_for_pods_ready(
+                label_selector="app.kubernetes.io/name=kuberay-operator",
+                namespace="kuberay-system",
+                operation_timeout_in_minutes=10,
+            )
+        except Exception:  # fallback label
+            kube_client.wait_for_pods_ready(
+                label_selector="app.kubernetes.io/instance=kuberay-operator",
+                namespace="kuberay-system",
+                operation_timeout_in_minutes=10,
+            )
+
+        # Apply supporting manifests (CoreDNS rewrite, mock head deployment and service)
+        for manifest in ("configmap.yaml", "deployment.yaml", "service.yaml"):
+            path = os.path.join(config_dir, manifest)
+            if os.path.exists(path):
+                logger.info("Applying manifest: %s", path)
+                kube_client.apply_manifest_from_file(path)
+            else:
+                logger.warning("Manifest not found: %s", path)
+
+        # Wait for mock-head to be ready
+        try:
+            kube_client.wait_for_pods_ready(
+                label_selector="app=mock-head",
+                namespace="default",
+                operation_timeout_in_minutes=5,
+            )
+        except Exception as e:
+            logger.warning("mock-head readiness wait encountered an issue: %s", e)
 
     @staticmethod
     def add_configure_subparser_arguments(parser):
