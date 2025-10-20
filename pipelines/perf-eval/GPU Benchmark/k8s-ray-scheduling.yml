@@ -7,7 +7,7 @@ schedules:
     - main
   always: true
 - cron: "0 16 * * 1,3"
-  displayName: "4:00 PM on Mondays and Wednesday (medium scale)"
+  displayName: "4:00 PM on Mondays and Wednesdays (medium scale)"
   branches:
     include:
     - main
