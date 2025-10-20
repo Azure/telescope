@@ -11,7 +11,7 @@ spec:
     env_vars:
       NUM_WORKERS: "4"
       GPUS_PER_WORKER: "1"
-      OMP_NUM_THREADS: "1" # Set OMP_NUM_THREADS to avoid KeyErorr race condition.
+      OMP_NUM_THREADS: "1" # Set OMP_NUM_THREADS to avoid KeyError race condition.
   submitterPodTemplate:
     spec:
       restartPolicy: Never
