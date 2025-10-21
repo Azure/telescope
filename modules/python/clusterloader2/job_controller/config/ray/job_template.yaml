@@ -1,5 +1,5 @@
-apiVersion: batch/v1
-kind: Job
+apiVersion: ray.io/v1
+kind: RayJob
 metadata:
   name: {{.Name}}
   labels:
@@ -11,7 +11,7 @@ spec:
     env_vars:
       NUM_WORKERS: "4"
       GPUS_PER_WORKER: "1"
-      OMP_NUM_THREADS: "1" # Set OMP_NUM_THREADS to avoid KeyError race condition.
+      OMP_NUM_THREADS: "1" # Set OMP_NUM_THREADS to avoid KeyErorr race condition.
   submitterPodTemplate:
     spec:
       restartPolicy: Never
