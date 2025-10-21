@@ -1,14 +1,33 @@
-name: kuberay
+name: job-scheduling
+
+{{$jobs := DefaultParam .CL2_JOBS 1000}}
+{{$namespaces := DefaultParam .CL2_NAMESPACES 10}}
+{{$qps := DefaultParam .CL2_LOAD_TEST_THROUGHPUT 100}}
+{{$replicas_per_namespace := DivideInt $jobs $namespaces}}
+{{$pod_startup_latency_threshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "60s"}}
+{{$job_template_path := DefaultParam .CL2_JOB_TEMPLATE_PATH "job_template.yaml"}}
+{{$job_gpu := DefaultParam .CL2_JOB_GPU 0}}
+{{$enable_resource_claims := DefaultParam .CL2_ENABLE_RESOURCE_CLAIMS false}}
+{{$resource_claim_template_path := DefaultParam .CL2_RESOURCE_CLAIM_TEMPLATE_PATH "dra/resource-claim-template.yaml"}}
+
 namespace:
-  number: 10
+  number: {{$namespaces}}
   prefix: test
 
 tuningSets:
-- name: Uniform100qps
+- name: Uniform{{$qps}}qps
   qpsLoad:
-    qps: 100
+    qps: {{$qps}}
 
 steps:
+- name: Log - jobs={{$jobs}}, namespaces={{$namespaces}}, job_template_path={{$job_template_path}}
+  measurements:
+  - Identifier: Dummy
+    Method: Sleep
+    Params:
+      action: start
+      duration: 1ms
+        
 - name: Start measurements
   measurements:
   - Identifier: PodStartupLatency
@@ -16,7 +35,7 @@ steps:
     Params:
       action: start
       labelSelector: app.kubernetes.io/created-by = kuberay-operator
-      threshold: 30m
+      threshold: {{$pod_startup_latency_threshold}}
   - Identifier: JobLifecycleLatency
     Method: JobLifecycleLatency
     Params:
@@ -34,14 +53,15 @@ steps:
   phases:
   - namespaceRange:
       min: 1
-      max: 10
-    replicasPerNamespace: 100
-    tuningSet: Uniform100qps
+      max: {{$namespaces}}
+    replicasPerNamespace: {{$replicas_per_namespace}}
+    tuningSet: Uniform{{$qps}}qps
     objectBundle:
-    - basename: pytorch-mnist
-      objectTemplatePath: pytorch-mnist-rayjob.yaml
+    - basename: test
+      objectTemplatePath: {{$job_template_path}}
       templateFillMap:
         Image: "rayproject/ray:2.46.0" # replace with image built from images/ray-pytorch
+        JobGPU: {{$job_gpu}}
 
 - name: Wait for RayJobs complete
   measurements:
@@ -53,7 +73,7 @@ steps:
       command:
       - "bash"
       - "../wait-for-jobs.sh"
-      - "1000"
+      - "{{$jobs}}"
 
 - name: Collect measurements
   measurements:
