@@ -52,7 +52,7 @@ steps:
       timeout: 30m
       command:
       - "bash"
-      - "../cl2/wait-for-jobs.sh"
+      - "../wait-for-jobs.sh"
       - "1000"
 
 - name: Collect measurements
