@@ -1,19 +1,19 @@
 trigger: none
 schedules:
-- cron: "0 4 * * *"
-  displayName: "4:00 AM daily (small scale)"
+- cron: "0 8 * * *"
+  displayName: "8:00 AM daily (small scale)"
   branches:
     include:
     - main
   always: true
-- cron: "0 16 * * 1,3"
-  displayName: "4:00 PM on Mondays and Wednesday (medium scale)"
+- cron: "0 20 * * 1,3"
+  displayName: "8:00 PM on Mondays and Wednesday (medium scale)"
   branches:
     include:
     - main
   always: true
-- cron: "0 16 * * 4"
-  displayName: "4:00 PM on Thursdays (high scale)"
+- cron: "0 20 * * 4"
+  displayName: "8:00 PM on Thursdays (high scale)"
   branches:
     include:
     - main
