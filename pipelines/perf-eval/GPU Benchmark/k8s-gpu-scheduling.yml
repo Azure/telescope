@@ -25,7 +25,7 @@ variables:
 stages:
 - stage: azure_eastus2_gpu_small
   dependsOn: []
-  condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '4:00 AM daily (small scale)')), eq(variables['Build.Reason'], 'Manual'))
+  condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '8:00 AM daily (small scale)')), eq(variables['Build.Reason'], 'Manual'))
   jobs:
   - template: /jobs/competitive-test.yml
     parameters:
@@ -53,7 +53,7 @@ stages:
 
 - stage: azure_eastus2_gpu_medium
   dependsOn: []
-  condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '4:00 PM on Mondays and Wednesday (medium scale)')), eq(variables['Build.Reason'], 'Manual'))
+  condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '8:00 PM on Mondays and Wednesday (medium scale)')), eq(variables['Build.Reason'], 'Manual'))
   jobs:
   - template: /jobs/competitive-test.yml
     parameters:
@@ -81,7 +81,7 @@ stages:
 
 - stage: azure_eastus2_gpu_high
   dependsOn: []
-  condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '4:00 PM on Thursdays (high scale)')), eq(variables['Build.Reason'], 'Manual'))
+  condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '8:00 PM on Thursdays (high scale)')), eq(variables['Build.Reason'], 'Manual'))
   jobs:
   - template: /jobs/competitive-test.yml
     parameters:
@@ -109,7 +109,7 @@ stages:
 
 - stage: azure_eastus2_dra_small
   dependsOn: []
-  condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '4:00 AM daily (small scale)')), eq(variables['Build.Reason'], 'Manual'))
+  condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '8:00 AM daily (small scale)')), eq(variables['Build.Reason'], 'Manual'))
   jobs:
   - template: /jobs/competitive-test.yml
     parameters:
@@ -137,7 +137,7 @@ stages:
 
 - stage: azure_eastus2_dra_medium
   dependsOn: []
-  condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '4:00 PM on Mondays and Wednesday (medium scale)')), eq(variables['Build.Reason'], 'Manual'))
+  condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '8:00 PM on Mondays and Wednesday (medium scale)')), eq(variables['Build.Reason'], 'Manual'))
   jobs:
   - template: /jobs/competitive-test.yml
     parameters:
@@ -165,7 +165,7 @@ stages:
 
 - stage: azure_eastus2_dra_high
   dependsOn: []
-  condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '4:00 PM on Thursdays (high scale)')), eq(variables['Build.Reason'], 'Manual'))
+  condition: or(and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.CronSchedule.DisplayName'], '8:00 PM on Thursdays (high scale)')), eq(variables['Build.Reason'], 'Manual'))
   jobs:
   - template: /jobs/competitive-test.yml
     parameters:
