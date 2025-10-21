@@ -72,7 +72,7 @@ steps:
       timeout: 30m
       command:
       - "bash"
-      - "../wait-for-jobs.sh"
+      - "../../wait-for-jobs.sh"
       - "{{$jobs}}"
 
 - name: Collect measurements
