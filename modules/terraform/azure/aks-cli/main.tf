@@ -136,7 +136,7 @@ resource "terraform_data" "enable_aks_cli_preview_extension" {
 
   provisioner "local-exec" {
     when    = destroy
-    command = "if az extension show -n aks-preview &>/dev/null; then az extension remove -n aks-preview; fi"
+    command = "az extension remove -n aks-preview 2>/dev/null || true"
   }
 }
 
