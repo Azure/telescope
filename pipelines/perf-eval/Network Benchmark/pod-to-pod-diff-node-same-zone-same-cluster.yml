@@ -81,7 +81,7 @@ stages:
           regions:
             - eastus2
           terraform_input_file_mapping:
-            eastus2: "scenarios/perf-eval/pod-diff-node-same-zone/terraform-inputs/azure-v5-ubuntu2404.tfvars"
+            - eastus2: "scenarios/perf-eval/pod-diff-node-same-zone/terraform-inputs/azure-v5-ubuntu2404.tfvars"
           topology: pod-to-pod/diff-nodes
           engine: iperf3
           engine_input:
