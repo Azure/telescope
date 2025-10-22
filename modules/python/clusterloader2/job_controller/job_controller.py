@@ -1,6 +1,7 @@
 import json
 import os
 import subprocess
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -29,6 +30,7 @@ class JobController(ClusterLoader2Base):
     job_template_path: str = ""
     job_gpu: int = 0
     dra_enabled: bool = False
+    ray_enabled: bool = False
     node_label: str = ""
     cl2_image: str = ""
     cl2_config_dir: str = ""
@@ -61,6 +63,10 @@ class JobController(ClusterLoader2Base):
             config["CL2_PROMETHEUS_CPU_SCALE_FACTOR"] = 30.0
             config["CL2_PROMETHEUS_NODE_SELECTOR"] = "\"prometheus: \\\"true\\\"\""
         self.write_cl2_override_file(logger, self.cl2_override_file, config)
+
+        # Install Ray dependencies if ray_enabled is True
+        if self.ray_enabled:
+            self.install_ray_dependencies()
 
     def validate_clusterloader2(self):
         kube_client = KubernetesClient()
@@ -189,6 +195,21 @@ class JobController(ClusterLoader2Base):
         subprocess.run(install_cmd, check=True)
 
         kube_client = KubernetesClient()
+
+        # Patch CoreDNS deployment resources
+        try:
+            logger.info("Patching CoreDNS deployment with increased resource limits")
+            kube_client.patch_deployment_resources(
+                name="coredns",
+                namespace="kube-system",
+                container_name="coredns",
+                cpu_limit="8",
+                memory_limit="4Gi"
+            )
+            logger.info("Successfully patched CoreDNS deployment resources")
+        except Exception as e:
+            logger.warning("Failed to patch CoreDNS deployment resources: %s", e)
+
         # Wait for KubeRay operator pods to be ready
         try:
             kube_client.wait_for_pods_ready(
@@ -221,6 +242,37 @@ class JobController(ClusterLoader2Base):
             )
         except Exception as e:
             logger.warning("mock-head readiness wait encountered an issue: %s", e)
+
+        # Wait for all pods to be ready across key namespaces
+        logger.info("Waiting for all pods to be ready in key namespaces")
+        namespaces_to_check = ["kube-system", "kuberay-system", "default"]
+
+        for ns in namespaces_to_check:
+            try:
+                logger.info("Checking pods in namespace: %s", ns)
+                pods = kube_client.get_pods_by_namespace(namespace=ns)
+                if pods:
+                    logger.info("Found %d pods in namespace %s, waiting for all to be ready", len(pods), ns)
+                    ready_pods = kube_client.get_ready_pods_by_namespace(namespace=ns)
+                    timeout_start = time.time()
+                    timeout_duration = 600  # 10 minutes timeout
+
+                    while len(ready_pods) < len(pods) and (time.time() - timeout_start) < timeout_duration:
+                        logger.info("Namespace %s: %d/%d pods ready, waiting...", ns, len(ready_pods), len(pods))
+                        time.sleep(10)
+                        pods = kube_client.get_pods_by_namespace(namespace=ns)
+                        ready_pods = kube_client.get_ready_pods_by_namespace(namespace=ns)
+
+                    if len(ready_pods) == len(pods):
+                        logger.info("All %d pods in namespace %s are ready", len(pods), ns)
+                    else:
+                        logger.warning("Timeout: Only %d/%d pods ready in namespace %s", len(ready_pods), len(pods), ns)
+                else:
+                    logger.info("No pods found in namespace %s", ns)
+            except Exception as e:
+                logger.warning("Error checking pods in namespace %s: %s", ns, e)
+
+        logger.info("Ray dependencies installation and pod readiness check completed")
 
     @staticmethod
     def add_configure_subparser_arguments(parser):
@@ -260,6 +312,13 @@ class JobController(ClusterLoader2Base):
             choices=[True, False],
             default=False,
             help="Whether to enable Prometheus scraping. Must be either True or False",
+        )
+        parser.add_argument(
+            "--ray_enabled",
+            type=str2bool,
+            choices=[True, False],
+            default=False,
+            help="Whether to enable Ray dependencies installation. Must be either True or False",
         )
 
     @staticmethod
