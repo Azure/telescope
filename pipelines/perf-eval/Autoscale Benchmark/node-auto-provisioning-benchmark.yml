@@ -119,7 +119,7 @@ stages:
               vm_size: Standard_D4_v5
               capacity_type: spot
           max_parallel: 1
-          timeout_in_minutes: 360
+          timeout_in_minutes: 560
           credential_type: service_connection
           ssh_key_enabled: false
 
