@@ -66,13 +66,13 @@ aks_cli_config_list = [
     default_node_pool = {
       name       = "default"
       node_count = 3
-      vm_size    = "Standard_D16_v5"
+      vm_size    = "Standard_D16ds_v4"
     }
     extra_node_pool = [
       {
         name       = "prompool"
         node_count = 1
-        vm_size    = "Standard_D16_v5"
+        vm_size    = "Standard_D16ds_v4"
         optional_parameters = [
           {
             name = "labels"
@@ -83,7 +83,7 @@ aks_cli_config_list = [
       {
         name       = "user"
         node_count = 10
-        vm_size    = "Standard_D16ds_v5"
+        vm_size    = "Standard_D16ds_v4"
         optional_parameters = [
           {
             name = "labels"
