@@ -45,7 +45,7 @@ stages:
           node_gpu: 4
           job_gpu: 1
           enable_dra: false
-          ray_enabled: true
+          enable_ray: true
           job_template_path: ray/job_template.yaml
           cl2_config_file: ray/config.yaml
       max_parallel: 1
@@ -75,7 +75,7 @@ stages:
           node_gpu: 4
           job_gpu: 1
           enable_dra: false
-          ray_enabled: true
+          enable_ray: true
           job_template_path: ray/job_template.yaml
           cl2_config_file: ray/config.yaml
       max_parallel: 1
@@ -105,7 +105,7 @@ stages:
           node_gpu: 4
           job_gpu: 1
           enable_dra: false
-          ray_enabled: true
+          enable_ray: true
           job_template_path: ray/job_template.yaml
           cl2_config_file: ray/config.yaml
       max_parallel: 1

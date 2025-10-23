@@ -19,7 +19,7 @@ steps:
         --operation_timeout $SCALE_TIMEOUT \
         --prometheus_enabled ${PROMETHEUS_ENABLED:-False} \
         --dra_enabled ${ENABLE_DRA:-False} \
-        --ray_enabled ${RAY_ENABLED:-False} \
+        --ray_enabled ${ENABLE_RAY:-False} \
         --job_gpu ${JOB_GPU:-0} \
         --cl2_override_file ${CL2_CONFIG_DIR}/overrides.yaml
 
