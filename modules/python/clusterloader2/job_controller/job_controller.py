@@ -131,6 +131,7 @@ class JobController(ClusterLoader2Base):
             "job_template_path": self.job_template_path,
             "job_gpu": self.job_gpu,
             "dra_enabled": self.dra_enabled,
+            "ray_enabled": self.ray_enabled,
             "provider": provider,
         }
 
@@ -409,6 +410,13 @@ class JobController(ClusterLoader2Base):
             choices=[True, False],
             default=False,
             help="Whether to enable DRA. Must be either True or False",
+        )
+        parser.add_argument(
+            "--ray_enabled",
+            type=str2bool,
+            choices=[True, False],
+            default=False,
+            help="Whether to enable Ray dependencies installation. Must be either True or False",
         )
 
 
