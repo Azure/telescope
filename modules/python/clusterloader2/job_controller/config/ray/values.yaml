@@ -1,0 +1,11 @@
+image:
+  repository: "telescope.azurecr.io/kuberay/operator"
+  tag: "v1.4.2"
+reconcileConcurrency: 100
+kubeClient:
+  qps: 200
+  burst: 400
+resources:
+  limits:
+    cpu: 48
+    memory: 192Gi
