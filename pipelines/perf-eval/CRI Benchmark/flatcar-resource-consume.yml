@@ -1,6 +1,6 @@
 trigger: none
 schedules:
-  - cron: "15 1-23/4 * * *"
+  - cron: "30 3-23/4 * * *"
     displayName: "Every 4 Hour"
     branches:
       include:
