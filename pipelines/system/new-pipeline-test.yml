@@ -1,8 +1,8 @@
 trigger: none
 
 variables:
-  SCENARIO_TYPE: <scenario-type>
-  SCENARIO_NAME: <scenario-name>
+  SCENARIO_TYPE: stlscritesting
+  SCENARIO_NAME: stlscritesting
 
 stages:
   - stage: azure_westus2_linux
