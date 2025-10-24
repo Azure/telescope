@@ -34,7 +34,7 @@ stages:
       - eastus2
       engine: clusterloader2
       engine_input:
-        image: "ghcr.io/azure/clusterloader2:v20251020"
+        image: "ghcr.io/azure/clusterloader2:v20251024"
       topology: kwok
       matrix:
         small:
@@ -64,7 +64,7 @@ stages:
       - eastus2
       engine: clusterloader2
       engine_input:
-        image: "ghcr.io/azure/clusterloader2:v20251020"
+        image: "ghcr.io/azure/clusterloader2:v20251024"
       topology: kwok
       matrix:
         medium:
@@ -94,7 +94,7 @@ stages:
       - eastus2
       engine: clusterloader2
       engine_input:
-        image: "ghcr.io/azure/clusterloader2:v20251020"
+        image: "ghcr.io/azure/clusterloader2:v20251024"
       topology: kwok
       matrix:
         high:
