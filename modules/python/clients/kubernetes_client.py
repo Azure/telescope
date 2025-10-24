@@ -1687,12 +1687,12 @@ class KubernetesClient:
                 resources["limits"] = limits
 
             if cpu_request or memory_request:
-                requests = {}
+                reqs = {}
                 if cpu_request:
-                    requests["cpu"] = cpu_request
+                    reqs["cpu"] = cpu_request
                 if memory_request:
-                    requests["memory"] = memory_request
-                resources["requests"] = requests
+                    reqs["memory"] = memory_request
+                resources["requests"] = reqs
 
             if not resources:
                 logger.warning("No resource limits or requests specified for patching")
