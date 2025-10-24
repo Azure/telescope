@@ -27,39 +27,35 @@ aks_cli_config_list = [
     aks_custom_headers = [
       "AKSHTTPCustomFeatures=Microsoft.ContainerService/EnableSecureTLSBootstrapping"
     ]
-    sku_tier = "Standard"
+    sku_tier    = "Standard"
     subnet_name = "stls-cri-vnet"
     optional_parameters = [
       {
-        name = "dns-name-prefix"
+        name  = "dns-name-prefix"
         value = "stls-cri-win"
       },
       {
-        name = "network-plugin"
+        name  = "network-plugin"
         value = "azure"
       },
       {
-        name = "network-plugin-mode"
+        name  = "network-plugin-mode"
         value = "overlay"
       },
       {
-        name = "pod-cidr"
+        name  = "pod-cidr"
         value = "10.0.0.0/9"
       },
       {
-        name = "service-cidr"
+        name  = "service-cidr"
         value = "192.168.0.0/16"
       },
       {
-        name = "dns-service-ip"
+        name  = "dns-service-ip"
         value = "192.168.0.10"
       },
       {
-        name = "node-osdisk-type"
-        value = "Managed"
-      },
-      {
-        name = "nodepool-taints"
+        name  = "nodepool-taints"
         value = "CriticalAddonsOnly=true:NoSchedule"
       }
     ]
@@ -67,6 +63,16 @@ aks_cli_config_list = [
       name       = "default"
       node_count = 3
       vm_size    = "Standard_D16ds_v4"
+      optional_parameters = [
+        {
+          name  = "node-osdisk-type"
+          value = "Ephemeral"
+        },
+        {
+          name  = "os-sku"
+          value = "Windows2022"
+        }
+      ]
     }
     extra_node_pool = [
       {
@@ -75,8 +81,16 @@ aks_cli_config_list = [
         vm_size    = "Standard_D16ds_v4"
         optional_parameters = [
           {
-            name = "labels"
+            name  = "labels"
             value = "prometheus=true"
+          },
+          {
+            name  = "node-osdisk-type"
+            value = "Ephemeral"
+          },
+          {
+            name  = "os-sku"
+            value = "Ubuntu"
           }
         ]
       },
@@ -86,23 +100,23 @@ aks_cli_config_list = [
         vm_size    = "Standard_D16ds_v4"
         optional_parameters = [
           {
-            name = "labels"
+            name  = "labels"
             value = "cri-resource-consume=true"
           },
           {
-            name = "node-taints"
+            name  = "node-taints"
             value = "cri-resource-consume=true:NoSchedule"
           },
           {
-            name = "node-osdisk-type"
+            name  = "node-osdisk-type"
             value = "Ephemeral"
           },
           {
-            name = "os-type"
+            name  = "os-type"
             value = "Windows"
           },
           {
-            name = "os-sku"
+            name  = "os-sku"
             value = "Windows2022"
           }
         ]

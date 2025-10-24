@@ -96,6 +96,7 @@ stages:
               repeats: 1
               operation_timeout: 5m
               load_type: memory
+              kubernetes_version: "1.33"
               scrape_kubelets: True
               os_type: windows
             n10-p700-memory:
@@ -104,6 +105,7 @@ stages:
               repeats: 1
               operation_timeout: 10m
               load_type: memory
+              kubernetes_version: "1.33"
               scrape_kubelets: True
               os_type: windows
             n10-p1100-memory:
@@ -112,6 +114,7 @@ stages:
               repeats: 1
               operation_timeout: 15m
               load_type: memory
+              kubernetes_version: "1.33"
               scrape_kubelets: True
               os_type: windows
           max_parallel: 1
