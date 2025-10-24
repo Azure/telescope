@@ -35,6 +35,8 @@ stages:
             - westus2
           terraform_input_file_mapping:
             - westus2: "scenarios/perf-eval/stls-bootstrap-cri/terraform-inputs/azure-cri-linux.tfvars"
+          terraform_input_varibles:
+            subscription_id: $(AZURE_SUBSCRIPTION_ID)
           topology: cri-resource-consume
           engine: clusterloader2
           engine_input:
@@ -81,6 +83,8 @@ stages:
             - westus2
           terraform_input_file_mapping:
             - westus2: "scenarios/perf-eval/stls-bootstrap-cri/terraform-inputs/azure-cri-windows.tfvars"
+          terraform_input_varibles:
+            subscription_id: $(AZURE_SUBSCRIPTION_ID)
           topology: cri-resource-consume
           engine: clusterloader2
           engine_input:
