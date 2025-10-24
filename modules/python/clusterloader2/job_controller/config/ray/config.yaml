@@ -60,6 +60,7 @@ steps:
     - basename: test
       objectTemplatePath: job_template.yaml
       templateFillMap:
+        Group: ray-scheduling
         Image: "rayproject/ray:2.46.0" # replace with image built from images/ray-pytorch
         JobGPU: {{$job_gpu}}
 
