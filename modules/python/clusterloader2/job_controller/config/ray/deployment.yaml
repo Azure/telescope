@@ -13,7 +13,6 @@ spec:
       labels:
         app: mock-head
     spec:
-      nodeName: kwok-kwok-control-plane
       containers:
       - name: server
         image: telescope.azurecr.io/kuberay/kwok:v1.4.2
