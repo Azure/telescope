@@ -152,8 +152,8 @@ class JobController(ClusterLoader2Base):
           from "<cl2_config_dir>/ray/".
         - Waits for operator and mock-head pods to be ready.
         """
-        values_file = os.path.join(self.cl2_config_dir, "ray", "values.yaml")
-        config_dir = os.path.join(self.cl2_config_dir, "ray")
+        config_dir = os.path.join("./clusterloader2/job_controller/config", "ray")
+        values_file = os.path.join(config_dir, "values.yaml")
 
         # Install KubeRay operator via Helm
         try:
