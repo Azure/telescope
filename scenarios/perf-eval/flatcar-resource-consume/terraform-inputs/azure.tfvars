@@ -6,7 +6,7 @@ owner          = "aks"
 aks_cli_config_list = [
   {
     role               = "client"
-    aks_name           = "flatcar-cri-resource-consume"
+    aks_name           = "flatcar-resource-consume"
     sku_tier           = "standard"
     kubernetes_version = "1.32"
     default_node_pool = {
@@ -33,7 +33,7 @@ aks_cli_config_list = [
       {
         name       = "userpool0",
         node_count = 10,
-        vm_size    = "Standard_D16ds_v5",
+        vm_size    = "Standard_D16ds_v6",
         optional_parameters = [
           {
             name  = "node-osdisk-type"

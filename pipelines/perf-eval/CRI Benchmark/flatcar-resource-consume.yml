@@ -1,6 +1,6 @@
 trigger: none
 schedules:
-  - cron: "45 1-23/4 * * *"
+  - cron: "15 1-23/4 * * *"
     displayName: "Every 4 Hour"
     branches:
       include:
@@ -32,7 +32,7 @@ stages:
               operation_timeout: 3m
               load_type: memory
               scrape_kubelets: True
-              os_type: flatcar
+              os_type: linux
             n10-p700-memory:
               node_count: 10
               max_pods: 70
@@ -40,7 +40,7 @@ stages:
               operation_timeout: 7m
               load_type: memory
               scrape_kubelets: True
-              os_type: flatcar
+              os_type: linux
             n10-p1100-memory:
               node_count: 10
               max_pods: 110
@@ -48,10 +48,8 @@ stages:
               operation_timeout: 11m
               load_type: memory
               scrape_kubelets: True
-              os_type: flatcar
+              os_type: linux
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false
-
-  
