@@ -62,6 +62,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             provider="aks",
             os_type="linux",
             scrape_kubelets=True,
+            scrape_containerd=True,
             host_network=True,
             override_file="/mock/override.yaml"
         )
@@ -116,6 +117,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             provider="aks",
             os_type="linux",
             scrape_kubelets=False,
+            scrape_containerd=False,
             host_network=False,
             override_file="/mock/override.yaml"
         )
@@ -135,13 +137,14 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             cl2_report_dir="/mock/report",
             kubeconfig="/mock/kubeconfig",
             provider="aks",
-            scrape_kubelets=True
+            scrape_kubelets=True,
+            scrape_containerd=False
         )
 
         # Verify the command execution
         mock_run_cl2_command.assert_called_once_with(
             "/mock/kubeconfig", "mock-image", "/mock/config", "/mock/report", "aks",
-            overrides=True, enable_prometheus=True, tear_down_prometheus=False, scrape_kubelets=True
+            overrides=True, enable_prometheus=True, tear_down_prometheus=False, scrape_kubelets=True, scrape_containerd=False
         )
 
     @patch('clusterloader2.cri.cri.KubernetesClient')
@@ -185,7 +188,8 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             run_id="12345",
             run_url="http://example.com",
             result_file=result_file,
-            scrape_kubelets=False
+            scrape_kubelets=False,
+            scrape_containerd=False
         )
 
         self.assertTrue(os.path.exists(result_file))
@@ -210,7 +214,8 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
                 run_id="12345",
                 run_url="http://example.com",
                 result_file="/mock/result.json",
-                scrape_kubelets=False
+                scrape_kubelets=False,
+                scrape_containerd=False
             )
 
         self.assertIn("No testsuites found in the report", str(context.exception))
@@ -230,13 +235,14 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             "--provider", "aws", 
             "--os_type", "linux", 
             "--scrape_kubelets", "False", 
+            "--scrape_containerd", "False",
             "--host_network", "False",
             "--cl2_override_file", "/tmp/override.yaml"
         ]
         with patch.object(sys, 'argv', test_args):
             main()
             mock_override.assert_called_once_with(
-                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "linux", False, False, "/tmp/override.yaml"
+                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "linux", False, False, False, "/tmp/override.yaml"
             )
 
     @patch("clusterloader2.cri.cri.override_config_clusterloader2")
@@ -255,12 +261,13 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             "--provider", "aws", 
             "--os_type", "linux", 
             "--scrape_kubelets", "False", 
+            "--scrape_containerd", "False",
             "--cl2_override_file", "/tmp/override.yaml"
         ]
         with patch.object(sys, 'argv', test_args):
             main()
             mock_override.assert_called_once_with(
-                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "linux", False, True, "/tmp/override.yaml"
+                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "linux", False, False, True, "/tmp/override.yaml"
             )
 
     @patch("clusterloader2.cri.cri.execute_clusterloader2")
@@ -272,13 +279,14 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             "--cl2_report_dir", "/reports",
             "--kubeconfig", "/home/user/.kube/config", 
             "--provider", "gcp", 
-            "--scrape_kubelets", "True"
+            "--scrape_kubelets", "True",
+            "--scrape_containerd", "False"
         ]
         with patch.object(sys, 'argv', test_args):
             main()
             mock_execute.assert_called_once_with(
                 "gcr.io/cl2:latest", "/configs", "/reports",
-                "/home/user/.kube/config", "gcp", True
+                "/home/user/.kube/config", "gcp", True, False
             )
 
     @patch("clusterloader2.cri.cri.collect_clusterloader2")
@@ -294,13 +302,14 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             "--run_id", "run-123", 
             "--run_url", "https://run.url", 
             "--result_file", "/tmp/results.json", 
-            "--scrape_kubelets", "False"
+            "--scrape_kubelets", "False",
+            "--scrape_containerd", "False"
         ]
         with patch.object(sys, 'argv', test_args):
             main()
             mock_collect.assert_called_once_with(
                 3, 100, 5, "memory", "/reports", "gcp-zone", "run-123",
-                "https://run.url", "/tmp/results.json", False
+                "https://run.url", "/tmp/results.json", False, False
             )
 
 if __name__ == '__main__':

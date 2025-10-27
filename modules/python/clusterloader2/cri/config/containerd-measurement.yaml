@@ -1,0 +1,67 @@
+{{$action := .action}} # start, gather
+
+steps:
+  - name: {{$action}} Containerd Measurements
+    measurements:
+    - Identifier: ContainerdCriSandboxCreateNetwork
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ContainerdCriSandboxCreateNetwork
+        metricVersion: v1
+        unit: s
+        queries:
+        - name: Perc100
+          query: histogram_quantile(1, sum(rate(containerd_cri_sandbox_create_network_seconds_bucket[5m])) by (le))
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(rate(containerd_cri_sandbox_create_network_seconds_bucket[5m])) by (le))
+        - name: Perc90
+          query: histogram_quantile(0.90, sum(rate(containerd_cri_sandbox_create_network_seconds_bucket[5m])) by (le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(rate(containerd_cri_sandbox_create_network_seconds_bucket[5m])) by (le))
+        - name: Sum
+          query: sum(containerd_cri_sandbox_create_network_seconds_sum)
+        - name: Count
+          query: sum(containerd_cri_sandbox_create_network_seconds_count)
+    - Identifier: ContainerdCriSandboxDeleteNetwork
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ContainerdCriSandboxDeleteNetwork
+        metricVersion: v1
+        unit: s
+        queries:
+        - name: Perc100
+          query: histogram_quantile(1, sum(rate(containerd_cri_sandbox_delete_network_seconds_bucket[5m])) by (le))
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(rate(containerd_cri_sandbox_delete_network_seconds_bucke}[5m])) by (le))
+        - name: Perc90
+          query: histogram_quantile(0.90, sum(rate(containerd_cri_sandbox_delete_network_seconds_bucket[5m])) by (le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(rate(containerd_cri_sandbox_delete_network_seconds_bucket[5m])) by (le))
+        - name: Sum
+          query: sum(containerd_cri_sandbox_delete_network_seconds_sum)
+        - name: Count
+          query: sum(containerd_cri_sandbox_delete_network_seconds_count)
+    - Identifier: ContainerdCriNetworkPluginOperations
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ContainerdCriNetworkPluginOperations
+        metricVersion: v1
+        unit: s
+        dimensions:
+          - operation_type
+        queries:
+        - name: Perc100
+          query: histogram_quantile(1, sum(rate(containerd_cri_network_plugin_operations_duration_seconds_seconds_bucket[5m])) by (operation_type, le))
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(rate(containerd_cri_network_plugin_operations_duration_seconds_seconds_bucket[5m])) by (operation_type, le))
+        - name: Perc90
+          query: histogram_quantile(0.90, sum(rate(containerd_cri_network_plugin_operations_duration_seconds_seconds_bucket[5m])) by (operation_type, le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(rate(containerd_cri_network_plugin_operations_duration_seconds_seconds_bucket[5m])) by (operation_type, le))
+        - name: Sum
+          query: sum(containerd_cri_network_plugin_operations_duration_seconds_seconds_sum) by (operation_type)
+        - name: Count
+          query: sum(containerd_cri_network_plugin_operations_duration_seconds_seconds_count) by (operation_type)
