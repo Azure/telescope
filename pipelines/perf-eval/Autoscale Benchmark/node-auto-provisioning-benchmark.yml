@@ -48,6 +48,80 @@ variables:
   SCENARIO_NAME: nap
 
 stages:
+  - stage: azure_westus2_small_scale
+    condition: |
+        or(
+          eq(variables['Build.Reason'], 'Manual')
+        )
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - westus2
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250423"
+          topology: karpenter
+          matrix:
+            extra-small-scale-on-demand:
+              cpu_per_node: 4
+              node_count: 1
+              pod_count: 10
+              scale_up_timeout: "5m"
+              scale_down_timeout: "5m"
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 20
+              warmup_deployment: true
+              warmup_deployment_template: warmup_deployment.yaml
+              vm_size: Standard_D4_v5
+              capacity_type: on-demand
+            extra-small-scale-spot:
+              cpu_per_node: 4
+              node_count: 1
+              pod_count: 10
+              scale_up_timeout: "5m"
+              scale_down_timeout: "5m"
+              node_label_selector: "karpenter.sh/nodepool = spot"
+              node_selector: "{karpenter.sh/nodepool: spot}"
+              loop_count: 20
+              warmup_deployment: true
+              warmup_deployment_template: warmup_deployment.yaml
+              vm_size: Standard_D4_v5
+              capacity_type: spot
+            small-scale-on-demand:
+              cpu_per_node: 4
+              node_count: 10
+              pod_count: 100
+              scale_up_timeout: "15m"
+              scale_down_timeout: "15m"
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 5
+              warmup_deployment: true
+              warmup_deployment_template: warmup_deployment.yaml
+              vm_size: Standard_D4_v5
+              capacity_type: on-demand
+            small-scale-spot:
+              cpu_per_node: 4
+              node_count: 10
+              pod_count: 100
+              scale_up_timeout: "15m"
+              scale_down_timeout: "15m"
+              node_label_selector: "karpenter.sh/nodepool = spot"
+              node_selector: "{karpenter.sh/nodepool: spot}"
+              loop_count: 5
+              warmup_deployment: true
+              warmup_deployment_template: warmup_deployment.yaml
+              vm_size: Standard_D4_v5
+              capacity_type: spot
+          max_parallel: 1
+          timeout_in_minutes: 560
+          credential_type: service_connection
+          ssh_key_enabled: false
+
   - stage: azure_eastus2_small_scale
     condition: |
         or(
