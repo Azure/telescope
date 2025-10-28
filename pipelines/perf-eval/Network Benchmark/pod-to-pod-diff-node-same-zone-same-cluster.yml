@@ -36,7 +36,7 @@ parameters:
     default: ["true", "false"]
 
 stages:
-  - stage: azure_eastus2_v3
+  - stage: azure_eastus2_v3_azure
     condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday')
     dependsOn: []
     jobs:
@@ -46,7 +46,7 @@ stages:
           regions:
             - eastus2
           terraform_input_file_mapping:
-            - eastus2: "scenarios/perf-eval/pod-diff-node-same-zone/terraform-inputs/azure-v3-ubuntu2404.tfvars"
+            - eastus2: "scenarios/perf-eval/pod-diff-node-same-zone/terraform-inputs/azure-v3-ubuntu2404-azure.tfvars"
           topology: pod-to-pod/diff-nodes
           engine: iperf3
           engine_input:
@@ -61,17 +61,15 @@ stages:
               - "8|tcp|0|1|--time 60 --bandwidth 0 --parallel 1 --interval 1 --port 20003|direct|pod"
           matrix:
             ${{ each network in parameters.host_networks }}:
-              ${{ each dataplane in parameters.network_dataplanes }}:
-                Standard_D16s_v3_${{ dataplane }}_${{ network }}:
-                  network_dataplane: ${{ dataplane }}
-                  host_network: ${{ network }}
-                  configure_mtu: "false"
+              Standard_D16s_v3_azure_${{ network }}:
+                host_network: ${{ network }}
+                configure_mtu: "false"
           max_parallel: 2
           timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: azure_eastus2_v5
+  - stage: azure_eastus2_v3_cilium
     condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday')
     dependsOn: []
     jobs:
@@ -81,7 +79,7 @@ stages:
           regions:
             - eastus2
           terraform_input_file_mapping:
-            - eastus2: "scenarios/perf-eval/pod-diff-node-same-zone/terraform-inputs/azure-v5-ubuntu2404.tfvars"
+            - eastus2: "scenarios/perf-eval/pod-diff-node-same-zone/terraform-inputs/azure-v3-ubuntu2404-cilium.tfvars"
           topology: pod-to-pod/diff-nodes
           engine: iperf3
           engine_input:
@@ -96,11 +94,75 @@ stages:
               - "8|tcp|0|1|--time 60 --bandwidth 0 --parallel 1 --interval 1 --port 20003|direct|pod"
           matrix:
             ${{ each network in parameters.host_networks }}:
-              ${{ each dataplane in parameters.network_dataplanes }}:
-                Standard_D16s_v5_${{ dataplane }}_${{ network }}:
-                  network_dataplane: ${{ dataplane }}
-                  host_network: ${{ network }}
-                  configure_mtu: "false"
+              Standard_D16s_v3_cilium_${{ network }}:
+                host_network: ${{ network }}
+                configure_mtu: "false"
+          max_parallel: 2
+          timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: azure_eastus2_v5_azure
+    condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday')
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          terraform_input_file_mapping:
+            - eastus2: "scenarios/perf-eval/pod-diff-node-same-zone/terraform-inputs/azure-v5-ubuntu2404-azure.tfvars"
+          topology: pod-to-pod/diff-nodes
+          engine: iperf3
+          engine_input:
+            iperf3_command_array:
+              - "1|tcp|1000|1|--time 60 --bandwidth 1000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "2|tcp|1000|1|--time 60 --bandwidth 1000M --parallel 2 --interval 1 --port 20003|direct|pod"
+              - "3|tcp|1000|1|--time 60 --bandwidth 1000M --parallel 4 --interval 1 --port 20003|direct|pod"
+              - "4|tcp|2000|1|--time 60 --bandwidth 2000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "5|tcp|4000|1|--time 60 --bandwidth 4000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "6|tcp|0|14|--time 60 --bandwidth 0 --parallel 14 --interval 1 --port 20003|direct|pod"
+              - "7|tcp|0|16|--time 60 --bandwidth 0 --parallel 16 --interval 1 --port 20003|direct|pod"
+              - "8|tcp|0|1|--time 60 --bandwidth 0 --parallel 1 --interval 1 --port 20003|direct|pod"
+          matrix:
+            ${{ each network in parameters.host_networks }}:
+              Standard_D16s_v5_azure_${{ network }}:
+                host_network: ${{ network }}
+                configure_mtu: "false"
+          max_parallel: 2
+          timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: azure_eastus2_v5_cilium
+    condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday')
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          terraform_input_file_mapping:
+            - eastus2: "scenarios/perf-eval/pod-diff-node-same-zone/terraform-inputs/azure-v5-ubuntu2404-cilium.tfvars"
+          topology: pod-to-pod/diff-nodes
+          engine: iperf3
+          engine_input:
+            iperf3_command_array:
+              - "1|tcp|1000|1|--time 60 --bandwidth 1000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "2|tcp|1000|1|--time 60 --bandwidth 1000M --parallel 2 --interval 1 --port 20003|direct|pod"
+              - "3|tcp|1000|1|--time 60 --bandwidth 1000M --parallel 4 --interval 1 --port 20003|direct|pod"
+              - "4|tcp|2000|1|--time 60 --bandwidth 2000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "5|tcp|4000|1|--time 60 --bandwidth 4000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "6|tcp|0|14|--time 60 --bandwidth 0 --parallel 14 --interval 1 --port 20003|direct|pod"
+              - "7|tcp|0|16|--time 60 --bandwidth 0 --parallel 16 --interval 1 --port 20003|direct|pod"
+              - "8|tcp|0|1|--time 60 --bandwidth 0 --parallel 1 --interval 1 --port 20003|direct|pod"
+          matrix:
+            ${{ each network in parameters.host_networks }}:
+              Standard_D16s_v5_cilium_${{ network }}:
+                host_network: ${{ network }}
+                configure_mtu: "false"
           max_parallel: 2
           timeout_in_minutes: 120
           credential_type: service_connection
