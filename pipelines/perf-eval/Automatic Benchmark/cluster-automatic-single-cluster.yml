@@ -36,7 +36,7 @@ stages:
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
               warmup_deployment: true
-              vm_size: Standard_F4as_v6
+              vm_size: Standard_L8as_v3
               capacity_type: on-demand
               warmup_deployment_template: automatic/warmup_deployment.yaml
               deployment_template: automatic/deployment_template.yaml
@@ -50,7 +50,7 @@ stages:
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
               warmup_deployment: true
-              vm_size: Standard_F4as_v6
+              vm_size: Standard_L8as_v3
               capacity_type: on-demand
               warmup_deployment_template: automatic/warmup_deployment.yaml
               deployment_template: automatic/deployment_template.yaml
