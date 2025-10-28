@@ -49,10 +49,7 @@ variables:
 
 stages:
   - stage: azure_westus2_small_scale
-    condition: |
-        or(
-          eq(variables['Build.Reason'], 'Manual')
-        )
+    condition: eq(variables['Build.Reason'], 'Manual')
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
