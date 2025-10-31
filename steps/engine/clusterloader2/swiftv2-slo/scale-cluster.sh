@@ -16,6 +16,45 @@ SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 source "$SCRIPT_DIR/aks-utils.sh"
 
 # =============================================================================
+# CANCELLATION HANDLING
+# =============================================================================
+
+# Global flag for cancellation detection
+CANCELLED=false
+
+# Signal handler for graceful shutdown
+function handle_cancellation() {
+    log_warning "Received cancellation signal (SIGTERM/SIGINT)"
+    CANCELLED=true
+    
+    # Give processes a moment to clean up
+    sleep 2
+    
+    log_error "Pipeline cancellation detected. Exiting gracefully..."
+    exit 143  # Standard exit code for SIGTERM
+}
+
+# Set up signal traps for cancellation
+trap handle_cancellation SIGTERM SIGINT
+
+# Check if pipeline has been cancelled (Azure DevOps specific)
+function check_cancellation() {
+    if [ "$CANCELLED" = true ]; then
+        log_warning "Cancellation detected, stopping current operation..."
+        return 1
+    fi
+    
+    # Check for Azure DevOps cancellation marker file (if exists)
+    if [ -f "/tmp/pipeline_cancelled" ]; then
+        log_warning "Pipeline cancellation marker detected"
+        CANCELLED=true
+        return 1
+    fi
+    
+    return 0
+}
+
+# =============================================================================
 # SIMPLIFIED SCALING AND VM REPAIR
 # =============================================================================
 
@@ -226,6 +265,12 @@ function wait_for_vmss_replacement() {
     log_info "Waiting for $expected_replacements replacement VM instances to be provisioned..."
     
     while [ $elapsed -lt $max_wait_time ]; do
+        # Check for cancellation
+        if ! check_cancellation; then
+            log_warning "Operation cancelled during VMSS replacement wait"
+            return 1
+        fi
+        
         # Check current instance count and their states
         local instance_info
         instance_info=$(az vmss list-instances \
@@ -352,6 +397,12 @@ function verify_node_readiness() {
     
     # Poll for node readiness
     while [ $elapsed -lt $node_readiness_timeout ]; do
+        # Check for cancellation
+        if ! check_cancellation; then
+            log_warning "Operation cancelled during node readiness verification"
+            return 1
+        fi
+        
         # Query node status for this nodepool
         local READY_NODES=$(kubectl get nodes -l agentpool="$nodepool" --no-headers 2>/dev/null | grep " Ready " | wc -l || echo 0)
         local NOT_READY_NODES=$(kubectl get nodes -l agentpool="$nodepool" --no-headers 2>/dev/null | grep " NotReady " | wc -l || echo 0)
@@ -544,6 +595,12 @@ function main() {
 
     # Gather current counts first
     for nodepool in $usernodepools; do
+        # Check for cancellation before gathering nodepool info
+        if ! check_cancellation; then
+            log_error "Pipeline cancelled while gathering nodepool information"
+            exit 143
+        fi
+        
         local cnt
         cnt=$(get_nodepool_count "$aks_name" "$nodepool" "$aks_rg")
         CURRENT_COUNTS[$nodepool]=$cnt
@@ -593,6 +650,12 @@ function main() {
 
     # Process each nodepool with its computed target
     for nodepool in $usernodepools; do
+        # Check for cancellation before processing each nodepool
+        if ! check_cancellation; then
+            log_error "Pipeline cancelled before processing nodepool '$nodepool'"
+            exit 143
+        fi
+        
         local pool_target=${TARGETS[$nodepool]}
         local current_nodes=${CURRENT_COUNTS[$nodepool]}
         log_info "=== Processing nodepool: '$nodepool' current=$current_nodes target=$pool_target ==="
@@ -615,10 +678,22 @@ function main() {
     
     # Check if VM repair is needed based on total ready node count
     if is_vm_repair_needed "$aks_name" "$aks_rg" "$total_required_nodes"; then
+        # Check for cancellation before starting VM repair
+        if ! check_cancellation; then
+            log_error "Pipeline cancelled before VM repair operations"
+            exit 143
+        fi
+        
         log_info "Insufficient ready nodes detected. Performing failed VM cleanup and replacement..."
         
         # Process each nodepool for VM repair
         for nodepool in $usernodepools; do
+            # Check for cancellation before each nodepool repair
+            if ! check_cancellation; then
+                log_warning "Pipeline cancelled during VM repair for nodepool '$nodepool'"
+                exit 143
+            fi
+            
             log_info "=== Cleaning up failed VMs for nodepool: '$nodepool' ==="
             
             # List VM status and get VMSS info

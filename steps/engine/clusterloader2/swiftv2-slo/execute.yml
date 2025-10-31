@@ -19,6 +19,9 @@ steps:
   - script: |
       set -eo pipefail
       set -x
+      
+      # Add signal handler for graceful cancellation
+      trap 'echo "Benchmark execution cancelled by user"; exit 143' SIGTERM SIGINT
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
         $CPU_PER_NODE $NODE_COUNT $PODS_PER_STEP $PODS_PER_NODE ${MAX_PODS:-0} \

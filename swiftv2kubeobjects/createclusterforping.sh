@@ -2,6 +2,46 @@
 
 set -ex
 
+# =============================================================================
+# CANCELLATION HANDLING
+# =============================================================================
+
+# Global flag for cancellation detection
+CANCELLED=false
+
+# Signal handler for graceful shutdown
+handle_cancellation() {
+    echo "WARNING: Received cancellation signal (SIGTERM/SIGINT)"
+    CANCELLED=true
+    
+    # Give processes a moment to clean up
+    sleep 2
+    
+    echo "ERROR: Pipeline cancellation detected. Exiting gracefully..."
+    echo "Note: Any partially created resources will be cleaned up by the cleanup phase"
+    exit 143  # Standard exit code for SIGTERM
+}
+
+# Set up signal traps for cancellation
+trap handle_cancellation SIGTERM SIGINT
+
+# Check if pipeline has been cancelled
+check_cancellation() {
+    if [ "$CANCELLED" = true ]; then
+        echo "WARNING: Cancellation detected, stopping current operation..."
+        return 1
+    fi
+    
+    # Check for Azure DevOps cancellation marker file (if exists)
+    if [ -f "/tmp/pipeline_cancelled" ]; then
+        echo "WARNING: Pipeline cancellation marker detected"
+        CANCELLED=true
+        return 1
+    fi
+    
+    return 0
+}
+
 RG=$RUN_ID 
 CLUSTER="large"
 SUBSCRIPTION=$AZURE_SUBSCRIPTION_ID
@@ -64,6 +104,12 @@ create_and_verify_nodepool() {
     # Create nodepool with retry logic
     local max_attempts=5
     for attempt in $(seq 1 $max_attempts); do
+        # Check for cancellation before each retry
+        if ! check_cancellation; then
+            echo "ERROR: Pipeline cancelled during nodepool creation for ${nodepool_name}"
+            return 1
+        fi
+        
         echo "Creating nodepool ${nodepool_name}: attempt $attempt/$max_attempts"
         if eval $nodepool_cmd; then
             echo "Nodepool ${nodepool_name} creation command succeeded"
@@ -85,6 +131,12 @@ create_and_verify_nodepool() {
     local elapsed=0
     
     while [ $elapsed -lt $timeout ]; do
+        # Check for cancellation in wait loop
+        if ! check_cancellation; then
+            echo "WARNING: Pipeline cancelled while waiting for nodepool ${nodepool_name}"
+            return 1
+        fi
+        
         local status=$(az aks nodepool show --resource-group ${resource_group} --cluster-name ${cluster_name} --name ${nodepool_name} --query "provisioningState" --output tsv 2>/dev/null || echo "QueryFailed")
         local power_state=$(az aks nodepool show --resource-group ${resource_group} --cluster-name ${cluster_name} --name ${nodepool_name} --query "powerState.code" --output tsv 2>/dev/null || echo "QueryFailed")
         
@@ -238,6 +290,12 @@ RETRY_INTERVAL=30  # Check every 30 seconds
 elapsed=0
 
 while [ $elapsed -lt $TIMEOUT ]; do
+    # Check for cancellation during cluster wait
+    if ! check_cancellation; then
+        echo "WARNING: Pipeline cancelled while waiting for cluster to be ready"
+        exit 143
+    fi
+    
     STATUS=$(az aks show --name $CLUSTER --resource-group $RG --query "provisioningState" --output tsv 2>/dev/null || echo "QueryFailed")
     echo "Current cluster status: $STATUS (elapsed: ${elapsed}s)"
     
@@ -315,6 +373,12 @@ echo "User nodepool shard size: $USER_NODEPOOL_SIZE"
 echo "Creating $USER_NODEPOOL_COUNT user nodepool(s), each starting with $INITIAL_USER_NODES node"
 
 for i in $(seq 1 $USER_NODEPOOL_COUNT); do
+    # Check for cancellation before creating each nodepool
+    if ! check_cancellation; then
+        echo "ERROR: Pipeline cancelled before creating user nodepool $i"
+        exit 143
+    fi
+    
     pool_name="userpool${i}"
     labels="slo=true testscenario=swiftv2 agentpool=${pool_name}"
     taints="slo=true:NoSchedule"
@@ -362,6 +426,12 @@ PN_RETRY_INTERVAL=15  # Check every 15 seconds
 pn_elapsed=0
 
 while [ $pn_elapsed -lt $PN_TIMEOUT ]; do
+    # Check for cancellation during PN wait
+    if ! check_cancellation; then
+        echo "WARNING: Pipeline cancelled while waiting for PN to be ready"
+        exit 143
+    fi
+    
     if kubectl get pn pn100 -o yaml 2>/dev/null | grep 'status: Ready' > /dev/null; then
         echo "PN is ready"
         break

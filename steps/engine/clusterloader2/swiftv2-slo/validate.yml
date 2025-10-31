@@ -9,8 +9,11 @@ parameters:
 steps:
   - script: |
       set -eo pipefail
+      
+      # Add signal handler for graceful cancellation
+      trap 'echo "Validation cancelled by user"; exit 143' SIGTERM SIGINT
 
-      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE validate \
+      PYTHONPATH=$PYTHONPATH:$(pwd) timeout ${VALIDATION_TIMEOUT_IN_MINUTES}m python3 $PYTHON_SCRIPT_FILE validate \
         $NODE_COUNT $VALIDATION_TIMEOUT_IN_MINUTES $NODE_LABEL
     workingDirectory: modules/python
     timeoutInMinutes: ${{ parameters.validation_timeout_in_minutes }}
