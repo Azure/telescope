@@ -20,6 +20,9 @@ parameters:
 steps:
 - script: |
     set -e
+    
+    # Signal handler for graceful cancellation
+    trap 'echo "Terraform operation cancelled by user"; exit 143' SIGTERM SIGINT
 
     cd $TERRAFORM_WORKING_DIRECTORY
     if [[ ${{ parameters.command }} == "apply" || ${{ parameters.command }} == "destroy" ]]; then

@@ -15,6 +15,14 @@ parameters:
   default: managed_identity
 
 steps:
+- script: |
+    echo "==================================================================="
+    echo "Starting cleanup process for Run ID: $RUN_ID"
+    echo "Cleanup will proceed even if pipeline was cancelled"
+    echo "==================================================================="
+  displayName: "Cleanup Notice"
+  condition: always()
+  
 - template: /steps/terraform/run-command.yml
   parameters:
     command: destroy
@@ -23,17 +31,27 @@ steps:
     cloud: ${{ parameters.cloud }}
     retry_attempt_count: ${{ parameters.retry_attempt_count }}
     credential_type: ${{ parameters.credential_type }}
+    
 - script: |
     set -eu
+    
+    # Signal handler - still try to complete cleanup even if cancelled again
+    trap 'echo "Cleanup received cancellation signal but will attempt to continue"; sleep 2' SIGTERM SIGINT
+    
     for attempt in $(seq 1 5); do
       echo "Attempting to execute subnetdelegator DELETE command: $attempt/5"
       script --return --quiet -c "az containerapp exec -n subnetdelegator-westus-u3h4j -g subnetdelegator-westus --command 'curl -X DELETE http://localhost:8080/DelegatedSubnet/%2Fsubscriptions%2F9b8218f9-902a-4d20-a65c-e98acec5362f%2FresourceGroups%2F$RUN_ID%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2Fcustvnet%2Fsubnets%2Fscaledel'" /dev/null && break || echo "Command failed, retrying..."
       sleep 30
     done
   displayName: "Delete SAL Ping"
-  condition: and(eq(variables['CREATE_CUSTOMER_RESOURCES'], 'true'), eq(variables['CLEANUP_RESOURCES'], 'true'))
+  condition: and(always(), eq(variables['CREATE_CUSTOMER_RESOURCES'], 'true'), eq(variables['CLEANUP_RESOURCES'], 'true'))
+  continueOnError: true
 - script: |
     set -eu
+    
+    # Signal handler - still try to complete cleanup even if cancelled again
+    trap 'echo "Cleanup received cancellation signal but will attempt to continue"; sleep 2' SIGTERM SIGINT
+    
     echo "Force cleanup Azure resources in $RUN_ID before resource group deletion"
     
     # Function to retry commands with exponential backoff
@@ -127,14 +145,20 @@ steps:
     
     echo "Pre-cleanup completed"
   displayName: "Force Cleanup Azure Resources"
-  condition: and(${{ eq(parameters.cloud, 'azure') }}, eq(variables['CLEANUP_RESOURCES'], 'true'))
+  condition: and(always(), ${{ eq(parameters.cloud, 'azure') }}, eq(variables['CLEANUP_RESOURCES'], 'true'))
+  continueOnError: true
   
 - script: |
     set -eu
+    
+    # Signal handler - still try to complete cleanup even if cancelled again
+    trap 'echo "Cleanup received cancellation signal but will attempt to continue"; sleep 2' SIGTERM SIGINT
+    
     echo "Delete resource group $RUN_ID"
     az group delete --name $RUN_ID --yes
   displayName: "Destroy Resource Group"
-  condition: and(${{ eq(parameters.cloud, 'azure') }}, eq(variables['CLEANUP_RESOURCES'], 'true'))
+  condition: and(always(), ${{ eq(parameters.cloud, 'azure') }}, eq(variables['CLEANUP_RESOURCES'], 'true'))
+  continueOnError: true
 
 - ${{ if eq(variables['Build.SourceBranchName'], 'main') }}:
   - template: /steps/collect-terraform-operation-metadata.yml
