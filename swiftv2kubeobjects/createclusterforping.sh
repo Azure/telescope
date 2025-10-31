@@ -228,7 +228,7 @@ create_aks_cluster() {
         --pod-subnet-id ${pod_subnet_id} \
         --nodepool-tags fastpathenabled=true aks-nic-enable-multi-tenancy=true aks-nic-secondary-count=${PODS_PER_NODE} \
         --vm-set-type VirtualMachineScaleSets \
-        --tags run_id=${resource_group} role=swiftv2slo \
+        --tags run_id=${resource_group} role=slo \
         --load-balancer-backend-pool-type nodeIP \
         --outbound-type userAssignedNATGateway \
         --no-ssh-key \
