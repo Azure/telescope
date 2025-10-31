@@ -27,10 +27,7 @@ cat > /etc/cni/net.d/10-bridge.conf << EOF
 }
 EOF
 
-kubectl apply -f https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/master/deployments/multus-daemonset-thick.yml
-kubectl get pods -n kube-system -l app=multus -o wide
-kubectl get crd
-kubectl get net-attach-def
+
 
 # Create NetworkAttachmentDefinitions for ipvlan L3
 cat <<EOF > /etc/cni/multus/net.d/ipv6-l3-node0.conf
@@ -146,20 +143,76 @@ cat <<EOF > /etc/cni/multus/net.d/ipv6-l3s-node1.conf
 }
 EOF
 
+kubectl apply -f https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/master/deployments/multus-daemonset-thick.yml
+kubectl get pods -n kube-system -l app=multus -o wide
+kubectl get crd
+kubectl get net-attach-def
+kubectl rollout restart ds kube-multus-ds -n kube-system
+kubectl rollout status ds kube-multus-ds -n kube-system
+
+# Updated ipvlan l3 with correct subnet fd00:5852:d4bf::/64
+cat <<EOF > /etc/cni/net.d/ipv6-l3-node0.conf
+{
+    "cniVersion": "0.3.1",
+    "name": "ipv6-l3-node0",
+    "type": "ipvlan",
+    "master": "eth0",
+    "mode": "l3",
+    "ipam": {
+        "type": "host-local",
+        "ranges": [
+            [
+                {
+                    "subnet": "fd00:5852:d4bf::/64",
+                    "rangeStart": "fd00:5852:d4bf::1000",
+                    "rangeEnd": "fd00:5852:d4bf::1fff"
+                }
+            ]
+        ]
+    }
+}
+EOF
+
+cat <<EOF > /etc/cni/net.d/ipv6-l3-node1.conf
+{
+    "cniVersion": "0.3.1",
+    "name": "ipv6-l3-node1",
+    "type": "ipvlan",
+    "master": "eth0",
+    "mode": "l3",
+    "ipam": {
+        "type": "host-local",
+        "ranges": [
+            [
+                {
+                    "subnet": "fd00:5852:d4bf::/64",
+                    "rangeStart": "fd00:5852:d4bf::2000",
+                    "rangeEnd": "fd00:5852:d4bf::2fff"
+                }
+            ]
+        ]
+    }
+}
+EOF
+
 # Check IPv6 addresses
 kubectl get pods -o wide
 kubectl exec pod0 -- ip -6 addr show
 kubectl exec pod1 -- ip -6 addr show
 kubectl exec pod0 -- ip -6 route show
 kubectl exec pod1 -- ip -6 route show
-kubectl exec pod0 -- ping6 -c 1 fd00:ae48:be9:2::112
-kubectl exec pod1 -- ping6 -c 1 fd00:ae48:be9:1::110
+
+# Test connectivity with updated subnet ranges
+kubectl exec pod0 -- ping6 -c 1 fd00:5852:d4bf::2001  # ping node1 pod range
+kubectl exec pod1 -- ping6 -c 1 fd00:5852:d4bf::1001  # ping node0 pod range
 
 kubectl delete -f /home/alyssavu/telescope/debug/cni/pods.yaml && kubectl apply -f /home/alyssavu/telescope/debug/cni/pods.yaml
 
 # On each node, add routes to reach the other subnet through the master interface
-ip -6 route add fd00:ae48:be9:2::/64 dev eth0  # On node with subnet 1
-ip -6 route add fd00:ae48:be9:1::/64 dev eth0  # On node with subnet 2
+# Run this on node0:
+ip -6 route add fd00:ae48:be9:2::/64 dev eth0
+# Run this on node1:  
+ip -6 route add fd00:ae48:be9:1::/64 dev eth0
 ip -6 route show
 
 az aks nodepool add --name agent --cluster-name ipvlan -g ipv6-test --subscription 137f0351-8235-42a6-ac7a-6b46be2d21c7 \
