@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: bridge-cni
+  namespace: kube-system
+  labels:
+    app: bridge-cni
+spec:
+  selector:
+    matchLabels:
+      app: bridge-cni
+  template:
+    metadata:
+      labels:
+        app: bridge-cni
+    spec:
+      nodeSelector:
+        agentpool: "default"
+      hostNetwork: true
+      tolerations:
+      - operator: Exists
+        effect: NoSchedule
+      - operator: Exists
+        effect: NoExecute
+      containers:
+      - name: config
+        image: alpine:latest
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -eo pipefail
+          echo "Writing bridge CNI configuration..."
+
+          # List existing CNI configurations
+          ls -la /etc/cni/net.d/
+
+          # Write the bridge CNI configuration
+          cat > /etc/cni/net.d/10-bridge.conf << 'EOF'
+          {
+            "cniVersion": "0.3.1",
+            "name": "mynet",
+            "type": "bridge",
+            "bridge": "cni0",
+            "isGateway": true,
+            "ipMasq": true,
+            "ipam": {
+              "type": "host-local",
+              "subnet": "10.22.0.0/16",
+              "routes": [
+                { "dst": "0.0.0.0/0" }
+              ]
+            }
+          }
+          EOF
+          
+          echo "Bridge CNI configuration written successfully"
+          echo "Contents of /etc/cni/net.d/10-bridge.conf:"
+          cat /etc/cni/net.d/10-bridge.conf
+
+          # Keep the container running to maintain the DaemonSet
+          echo "Configuration complete. Sleeping indefinitely..."
+          while true; do
+            sleep infinity
+          done
+        volumeMounts:
+        - name: cni-config
+          mountPath: /etc/cni/net.d
+        securityContext:
+          runAsUser: 0
+          privileged: true
+      volumes:
+      - name: cni-config
+        hostPath:
+          path: /etc/cni/net.d
+          type: Directory
+      terminationGracePeriodSeconds: 30

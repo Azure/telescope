@@ -1,0 +1,127 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ipvlan-node0
+  namespace: kube-system
+  labels:
+    app: ipvlan-config
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: aks-user-35262288-vms1
+  tolerations:
+  - key: "node.kubernetes.io/not-ready"
+    operator: "Exists"
+  hostNetwork: true
+  containers:
+  - name: config
+    image: alpine:latest
+    command:
+    - /bin/sh
+    - -c
+    - |
+      set -eo pipefail
+      echo "Writing ipvlan CNI configuration..."
+
+      # List existing CNI configurations
+      ls -la /etc/cni
+      ls -la /etc/cni/net.d/
+      ls -ls /etc/multus/cni/net.d/ || true
+
+      # Write the ipvlan CNI configuration
+      cat > /etc/cni/net.d/ipvlan-l3.conf << 'EOF'
+      {
+        "cniVersion": "0.3.1",
+        "name": "ipvlan-l3",
+        "type": "ipvlan",
+        "master": "eth0", 
+        "mode": "l3",
+        "ipam": {
+            "type": "host-local",
+            "subnet": "10.224.200.0/24",
+            "rangeStart": "10.224.200.10",
+            "rangeEnd": "10.224.200.50"
+        }
+      }
+      EOF
+      
+      echo "CNI configuration written successfully"
+      cat /etc/cni/net.d/ipvlan-l3.conf
+      exit 0
+    volumeMounts:
+    - name: cni-config
+      mountPath: /etc/cni
+    securityContext:
+      runAsUser: 0
+      privileged: true
+      capabilities:
+        add: ["NET_ADMIN"]
+  volumes:
+  - name: cni-config
+    hostPath:
+      path: /etc/cni
+      type: Directory
+  restartPolicy: Never
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ipvlan-node1
+  namespace: kube-system
+  labels:
+    app: ipvlan-config
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: aks-user-35262288-vms2
+  tolerations:
+  - key: "node.kubernetes.io/not-ready"
+    operator: "Exists"
+  hostNetwork: true
+  containers:
+  - name: config
+    image: alpine:latest
+    command:
+    - /bin/sh
+    - -c
+    - |
+      set -eo pipefail
+      echo "Writing ipvlan CNI configuration..."
+
+      # List existing CNI configurations
+      ls -la /etc/cni
+      ls -la /etc/cni/net.d/
+      ls -ls /etc/multus/cni/net.d/ || true
+
+      # Write the ipvlan CNI configuration
+      cat > /etc/cni/net.d/ipvlan-l3.conf << 'EOF'
+      {
+        "cniVersion": "0.3.1",
+        "name": "ipvlan-l3",
+        "type": "ipvlan",
+        "master": "eth0", 
+        "mode": "l3",
+        "ipam": {
+            "type": "host-local",
+            "subnet": "10.224.200.0/24",
+            "rangeStart": "10.224.200.51",
+            "rangeEnd": "10.224.200.90"
+        }
+      }
+      EOF
+      
+      echo "CNI configuration written successfully"
+      cat /etc/cni/net.d/ipvlan-l3.conf
+      exit 0
+    volumeMounts:
+    - name: cni-config
+      mountPath: /etc/cni
+    securityContext:
+      runAsUser: 0
+      privileged: true
+      capabilities:
+        add: ["NET_ADMIN"]
+  volumes:
+  - name: cni-config
+    hostPath:
+      path: /etc/cni
+      type: Directory
+  restartPolicy: Never
