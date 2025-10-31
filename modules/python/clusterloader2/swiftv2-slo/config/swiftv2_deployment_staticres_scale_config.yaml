@@ -100,24 +100,16 @@ steps:
         kind: Deployment
         labelSelector: group={{$groupName}}-{{$j}}
         operationTimeout: {{$operationTimeout}}
-  {{end}}
-  - name: Gather Pod Startup Latency Measurements
+  - name: Pod Curl Command for Deployment -{{$j}}
     measurements:
-    - Identifier: PodStartupLatency
-      Method: PodStartupLatency
-      Params:
-        action: gather
-        labelSelector: podgroup={{$groupName}}
-  - name: Starting measurement Pod Curl Command
-    measurements:
-    - Identifier: PodPeriodicCommand
+    - Identifier: PodPeriodicCommand-{{$j}}
       Method: PodPeriodicCommand
       Params:
         action: start
-        labelSelector: podgroup={{$groupName}}
-        interval: 300s
+        labelSelector: group={{$groupName}}-{{$j}}
+        interval: 1s
         container: deployment-churn
-        limit: {{$total_pods}}
+        limit: {{$podsPerStep}}
         failOnCommandError: true
         failOnExecError: true
         failOnTimeout: true
@@ -126,17 +118,16 @@ steps:
           # 172.27.0.30 is the IP of the service created in swiftv2kubeobjects/nginx-deployment.yaml
           command: ["/bin/sh", "-c", "curl --retry 5 --retry-delay 15 --max-time 30 172.27.0.30"]
           timeout: 180s
-  - name: Wait for curl command to be done
-    measurements:
-    - Identifier: Curl_Dummy
-      Method: Sleep
-      Params:
-        action: start
-        duration: 250s
-  - name: Ending measurement Pod Curl Command
-    measurements:
-    - Identifier: PodPeriodicCommand
+    - Identifier: PodPeriodicCommand-{{$j}}
       Method: PodPeriodicCommand
+      Params:
+        action: gather
+        labelSelector: group={{$groupName}}-{{$j}}
+  {{end}}
+  - name: Gather Pod Startup Latency Measurements
+    measurements:
+    - Identifier: PodStartupLatency
+      Method: PodStartupLatency
       Params:
         action: gather
         labelSelector: podgroup={{$groupName}}

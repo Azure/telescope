@@ -176,7 +176,7 @@ create_aks_cluster() {
         --pod-subnet-id ${pod_subnet_id} \
         --nodepool-tags fastpathenabled=true aks-nic-enable-multi-tenancy=true aks-nic-secondary-count=${PODS_PER_NODE} \
         --vm-set-type VirtualMachineScaleSets \
-        --tags run_id=${resource_group} role=slo \
+        --tags run_id=${resource_group} role=swiftv2slo \
         --load-balancer-backend-pool-type nodeIP \
         --outbound-type userAssignedNATGateway \
         --no-ssh-key \
@@ -189,10 +189,10 @@ create_aks_cluster() {
 } 
 
 #az login
-# create RG
-echo "Create RG"
+# Append tags to existing RG
+echo "Appending tags to existing RG"
 date=$(date -d "+1 week" +"%Y-%m-%d")
-az group create --location $LOCATION --name $RG --tags SkipAutoDeleteTill=$date skipGC="swift v2 perf" gc_skip="true"
+az tag update --resource-id /subscriptions/${SUBSCRIPTION}/resourceGroups/${RG} --operation Merge --tags SkipAutoDeleteTill=$date skipGC="swift v2 perf" gc_skip="true" owner="ACN"
 
 NAT_GW_NAME=$CLUSTER-ng
 az network public-ip create -g $RG -n $CLUSTER-ip --allocation-method Static --ip-tags 'FirstPartyUsage=/DelegatedNetworkControllerTest' --tier Regional --version IPv4 -l $LOCATION --sku standard
@@ -325,18 +325,24 @@ for i in $(seq 1 $USER_NODEPOOL_COUNT); do
     fi
 done
 
-# Calculate buffer pool size based on target user nodepool size (not initial size)
-BUFFER_NODE_COUNT=$(( (TARGET_USER_NODE_COUNT * 2 + 50) / 100 ))  # 2% of target, rounded up
-if [[ $BUFFER_NODE_COUNT -lt 1 ]]; then
-    BUFFER_NODE_COUNT=1
-fi
+# only provision bufferpool if PROVISION_BUFFER_NODES is set to true
+if [[ "${PROVISION_BUFFER_NODES:-false}" != "true" ]]; then
+    echo "Skipping buffer nodepool creation as PROVISION_BUFFER_NODES is not set to true"
+else
+    # Calculate buffer pool size based on target user nodepool size (not initial size)
+    BUFFER_NODE_COUNT=$(( (TARGET_USER_NODE_COUNT * 2 + 50) / 100 ))  # 2% of target, rounded up
+    if [[ $BUFFER_NODE_COUNT -lt 1 ]]; then
+        BUFFER_NODE_COUNT=1
+    fi
 
-echo "Creating buffer nodepool with $BUFFER_NODE_COUNT nodes (2% of target $TARGET_USER_NODE_COUNT user nodes)..."
-    labels="slo=true testscenario=swiftv2 agentpool=bufferpool1"
-    taints="slo=true:NoSchedule"
-if ! create_and_verify_nodepool "${CLUSTER}" "bufferpool1" "${RG}" "$BUFFER_NODE_COUNT" "${VM_SKU}" "${nodeSubnetID}" "${podSubnetID}" "${labels}" "${taints}"; then
-    echo "ERROR: Failed to create buffer nodepool"
-    exit 1
+    echo "Creating buffer nodepool with $BUFFER_NODE_COUNT nodes (2% of target $TARGET_USER_NODE_COUNT user nodes)..."
+        pool_name="bufferpool1"
+        labels="slo=true testscenario=swiftv2 agentpool=${pool_name}"
+        taints="slo=true:NoSchedule"
+    if ! create_and_verify_nodepool "${CLUSTER}" "${pool_name}" "${RG}" "$BUFFER_NODE_COUNT" "${VM_SKU}" "${nodeSubnetID}" "${podSubnetID}" "${labels}" "${taints}"; then
+        echo "ERROR: Failed to create buffer nodepool"
+        exit 1
+    fi
 fi
 
 # customer vnet (created using runCustomerSetup.sh manually)

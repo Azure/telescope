@@ -271,6 +271,53 @@ function wait_for_vmss_replacement() {
     return 1
 }
 
+# Label a specific number of nodes with swiftv2slo=true across nodepools
+function label_swiftv2slo_nodes() {
+    local cluster_name=$1
+    local resource_group=$2
+    local total_nodes_to_label=$3
+    
+    log_info "Labeling $total_nodes_to_label nodes with swiftv2slo=true..."
+    
+    # Get all ready nodes from user nodepools (excluding already labeled ones)
+    local unlabeled_nodes
+    unlabeled_nodes=$(kubectl get nodes \
+        -l agentpool \
+        -o json 2>/dev/null | \
+        jq -r '.items[] | 
+            select(.metadata.labels.agentpool | startswith("userpool")) | 
+            select(.status.conditions[] | select(.type=="Ready" and .status=="True")) |
+            select(.metadata.labels.swiftv2slo != "true") |
+            .metadata.name' | head -n "$total_nodes_to_label")
+    
+    if [ -z "$unlabeled_nodes" ]; then
+        log_warning "No unlabeled ready nodes found to label with swiftv2slo=true"
+        return 1
+    fi
+    
+    local labeled_count=0
+    while IFS= read -r node; do
+        if [ -n "$node" ]; then
+            log_info "Labeling node '$node' with swiftv2slo=true"
+            if kubectl label node "$node" swiftv2slo=true --overwrite 2>/dev/null; then
+                labeled_count=$((labeled_count + 1))
+                log_info "Successfully labeled node '$node' ($labeled_count/$total_nodes_to_label)"
+            else
+                log_warning "Failed to label node '$node'"
+            fi
+        fi
+    done <<< "$unlabeled_nodes"
+    
+    log_info "Labeled $labeled_count nodes with swiftv2slo=true (target: $total_nodes_to_label)"
+    
+    if [ $labeled_count -lt $total_nodes_to_label ]; then
+        log_warning "Only labeled $labeled_count out of $total_nodes_to_label requested nodes"
+        return 1
+    fi
+    
+    return 0
+}
+
 # Verify that all nodes in a nodepool are ready in Kubernetes
 function verify_node_readiness() {
     local nodepool=$1
@@ -604,6 +651,12 @@ function main() {
     if ! verify_total_node_capacity "$aks_name" "$aks_rg" "$total_required_nodes"; then
         log_warning "Total node capacity verification failed, but continuing..."
         log_info "Note: Buffer pool may provide additional capacity for workload distribution"
+    fi
+    
+    # Label the required number of nodes with swiftv2slo=true
+    log_info "Labeling $total_required_nodes nodes with swiftv2slo=true for workload placement..."
+    if ! label_swiftv2slo_nodes "$aks_name" "$aks_rg" "$total_required_nodes"; then
+        log_warning "Node labeling encountered issues, but continuing..."
     fi
     
     log_info "All nodepool operations completed"

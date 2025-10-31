@@ -24,7 +24,7 @@ spec:
         restart: {{.deploymentLabel}}
     spec:
       nodeSelector:
-        slo: "true"
+        swiftv2slo: "true"
       containers:
       - image: sv2perfacr{{.Location}}.azurecr.io/netshoot:latest
         command: ["sleep", "infinity"]
@@ -38,8 +38,6 @@ spec:
             acn.azure.com/vnet-nic: "1"
           limits:
             acn.azure.com/vnet-nic: "1"
-      # Add not-ready/unreachable tolerations for 15 minutes so that node
-      # failure doesn't trigger pod deletion.
       tolerations:
       - key: "slo"
         operator: "Equal"
