@@ -1,17 +1,17 @@
 scenario_type  = "perf-eval"
 scenario_name  = "cni-prototype"
-deletion_delay = "240h"
+deletion_delay = "480h"
 owner          = "aks"
 
 network_config_list = [
   {
     role               = "cni"
     vnet_name          = "cni-vnet"
-    vnet_address_space = ["172.18.0.0/16", "fd00:ae00::/24"]
+    vnet_address_space = ["10.224.0.0/12", "fd00:5852:d4bf::/48"]
     subnet = [
       {
         name           = "cni-subnet"
-        address_prefix = ["172.18.0.0/24", "fd00:ae48:be9::/64"]
+        address_prefix = ["10.224.0.0/16", "fd00:5852:d4bf::/64"]
       }
     ]
     network_security_group_name = ""
@@ -29,14 +29,14 @@ aks_cli_config_list = [
     subnet_name        = "cni-subnet"
     default_node_pool = {
       name       = "default"
-      node_count = 3
-      vm_size    = "Standard_D8_v5"
+      node_count = 2
+      vm_size    = "Standard_D16_v5"
     }
     extra_node_pool = [
       {
         name       = "user",
-        node_count = 3,
-        vm_size    = "Standard_D8ds_v6",
+        node_count = 2,
+        vm_size    = "Standard_D16ds_v6",
         optional_parameters = [
           {
             name  = "node-osdisk-type"
@@ -53,10 +53,6 @@ aks_cli_config_list = [
       {
         name  = "network-plugin"
         value = "none"
-      },
-      {
-        name  = "node-init-taints"
-        value = "CriticalAddonsOnly=true:NoSchedule"
       },
       {
         name  = "os-sku"
