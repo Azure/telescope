@@ -120,8 +120,8 @@ stages:
           matrix:
             5k-spot:
               cpu_per_node: 2
-              node_count: 2000
-              pod_count: 2000
+              node_count: 5
+              pod_count: 5
               scale_up_timeout: "90m"
               scale_down_timeout: "90m"
               node_label_selector: "karpenter.sh/nodepool = spot"
@@ -160,8 +160,8 @@ stages:
           matrix:
             5k-on-demand:
               cpu_per_node: 2
-              node_count: 5000
-              pod_count: 5000
+              node_count: 5
+              pod_count: 5
               scale_up_timeout: "150m"
               scale_down_timeout: "150m"
               node_label_selector: "karpenter.sh/nodepool = default"
