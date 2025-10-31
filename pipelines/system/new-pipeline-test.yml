@@ -62,7 +62,7 @@ stages:
         displayName: "Generate Base Run ID"
 
   - stage: staticres_gradual
-    condition: true
+    condition: succeeded()
     displayName: 'Static Gradual'
     dependsOn: 
       - generate_base_run_id
