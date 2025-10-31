@@ -219,7 +219,7 @@ stages:
               loop_count: 5
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D4_v5
+              vm_size: Standard_D4_v3
               capacity_type: on-demand
             extra-small-scale-spot:
               cpu_per_node: 4
@@ -232,7 +232,7 @@ stages:
               loop_count: 5
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D4_v5
+              vm_size: Standard_D4_v3
               capacity_type: spot
             small-scale-on-demand:
               cpu_per_node: 4
@@ -245,7 +245,7 @@ stages:
               loop_count: 5
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D4_v5
+              vm_size: Standard_D4_v3
               capacity_type: on-demand
             small-scale-spot:
               cpu_per_node: 4
@@ -258,7 +258,7 @@ stages:
               loop_count: 5
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D4_v5
+              vm_size: Standard_D4_v3
               capacity_type: spot
           max_parallel: 1
           timeout_in_minutes: 560
