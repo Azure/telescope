@@ -9,7 +9,7 @@ variables:
   AZURE_TELESCOPE_STORAGE_ACCOUNT_NAME: "telescopedata"
   LOCATION: "uksouth"
   CREATESWIFTV2PING: "true"
-  CLEANUP_RESOURCES: "true"
+  CLEANUP_RESOURCES: "false"
   K8S_VERSION: "1.33"
   PROVISION_BUFFER_NODES: "false"
   # Existing scenario variables
@@ -107,7 +107,7 @@ stages:
           base_run_id: $(BASE_RUN_ID)
 
   - stage: dynamicres_gradual
-    condition: true
+    condition: false
     displayName: 'Dynamic Gradual'
     dependsOn: 
       - generate_base_run_id
