@@ -3,11 +3,11 @@ kind: Pod
 metadata:
   name: pod0
   namespace: default
-  annotations:
-    k8s.v1.cni.cncf.io/networks: default/ipv6-l3-node0
+  # annotations:
+  #   k8s.v1.cni.cncf.io/networks: default/ipv6-l3-node0
 spec:
   nodeSelector:
-    kubernetes.io/hostname: aks-user-10686417-vmss000000
+    kubernetes.io/hostname: aks-agent-25759247-vms1
   containers:
     - name: tester
       image: busybox:latest
@@ -18,11 +18,11 @@ kind: Pod
 metadata:
   name: pod1
   namespace: default
-  annotations:
-    k8s.v1.cni.cncf.io/networks: default/ipv6-l3-node1
+  # annotations:
+  #   k8s.v1.cni.cncf.io/networks: default/ipv6-l3-node1
 spec:
   nodeSelector:
-    kubernetes.io/hostname: aks-user-10686417-vmss000001
+    kubernetes.io/hostname: aks-agent-25759247-vms2
   containers:
     - name: tester
       image: busybox:latest
