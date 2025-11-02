@@ -77,7 +77,7 @@ stages:
               loop_count: 20
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D4d_v5
+              vm_size: Standard_E2a_v4
               capacity_type: on-demand
             extra-small-scale-spot:
               cpu_per_node: 4
@@ -90,7 +90,7 @@ stages:
               loop_count: 20
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D4d_v5
+              vm_size: Standard_E2a_v4
               capacity_type: spot
             small-scale-on-demand:
               cpu_per_node: 4
