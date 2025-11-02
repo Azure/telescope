@@ -10,7 +10,7 @@ schedules:
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: k8s-gpu-storage
+  SCENARIO_NAME: k8s-nvme-disk
 
 stages:
   - stage: azure_eastus2
