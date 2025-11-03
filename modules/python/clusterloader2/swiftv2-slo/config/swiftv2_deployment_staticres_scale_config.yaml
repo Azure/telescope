@@ -100,6 +100,12 @@ steps:
         kind: Deployment
         labelSelector: group={{$groupName}}-{{$j}}
         operationTimeout: {{$operationTimeout}}
+  - name: Wait for Pod Curl Commands to Start -{{$j}}
+    measurements:
+    - Identifier: Dummy
+      Method: Sleep
+      Params:
+        duration: 30s
   - name: Pod Curl Command for Deployment -{{$j}}
     measurements:
     - Identifier: PodPeriodicCommand-{{$j}}
@@ -107,7 +113,7 @@ steps:
       Params:
         action: start
         labelSelector: group={{$groupName}}-{{$j}}
-        interval: 1s
+        interval: 60s
         container: deployment-churn
         limit: {{$podsPerStep}}
         failOnCommandError: true
