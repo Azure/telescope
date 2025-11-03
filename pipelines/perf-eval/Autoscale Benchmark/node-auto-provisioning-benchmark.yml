@@ -265,7 +265,6 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-
   - stage: azure_australiaeast_medium_scale
     condition: |
         or(
