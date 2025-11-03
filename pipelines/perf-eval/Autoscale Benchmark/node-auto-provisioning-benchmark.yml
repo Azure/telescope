@@ -207,6 +207,9 @@ stages:
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
           topology: karpenter
+          terraform_input_varibles:
+            aks_cli_system_node_pool:
+              vm_size: "Standard_D4_v3"
           matrix:
             extra-small-scale-on-demand:
               cpu_per_node: 4
