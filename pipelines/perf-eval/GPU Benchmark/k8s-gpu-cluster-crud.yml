@@ -33,11 +33,6 @@ variables:
 stages:
   - stage: azure_H100_gpu_test
     dependsOn: []
-    condition: |
-      or(
-        eq(variables['Build.CronSchedule.DisplayName'], 'Every 6 hours'),
-        eq(variables['Build.Reason'], 'Manual')
-      )
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -64,11 +59,6 @@ stages:
 
   - stage: azure_ND_A100_gpu_test
     dependsOn: []
-    condition: |
-      or(
-        eq(variables['Build.CronSchedule.DisplayName'], 'At 30 minute past every 6th hour'),
-        eq(variables['Build.Reason'], 'Manual')
-      )
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -100,12 +90,6 @@ stages:
 
   - stage: aws_H100_gpu_test
     dependsOn: []
-    condition: |
-      or(
-        eq(variables['Build.CronSchedule.DisplayName'], '20th of every month for every 1 hr'),
-        eq(variables['Build.CronSchedule.DisplayName'], '21st of every month for every 1 hr'),
-        eq(variables['Build.Reason'], 'Manual')
-      )
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -138,12 +122,6 @@ stages:
 
   - stage: aws_A100_gpu_test
     dependsOn: []
-    condition: |
-      or(
-        eq(variables['Build.CronSchedule.DisplayName'], '20th of every month for every 1 hr'),
-        eq(variables['Build.CronSchedule.DisplayName'], '21st of every month for every 1 hr'),
-        eq(variables['Build.Reason'], 'Manual')
-      )
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:

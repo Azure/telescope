@@ -1,25 +1,32 @@
 trigger: none
-
 variables:
-  SCENARIO_TYPE: <scenario-type>
-  SCENARIO_NAME: <scenario-name>
-
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: k8s-gpu-cluster-crud
 stages:
-  - stage: <stage-name> # format: <cloud>[_<region>]+ (e.g. azure_eastus2, aws_eastus_westus)
+  - stage: azure_H100_gpu_test
     dependsOn: []
     jobs:
-      - template: /jobs/competitive-test.yml # must keep as is
+      - template: /jobs/competitive-test.yml
         parameters:
-          cloud: <cloud> # e.g. azure, aws
-          regions: # list of regions
-            - region1 # e.g. eastus2
-          topology: <topology> # e.g. cluster-autoscaler
-          engine: <engine> # e.g. clusterloader2
-          matrix: # list of test parameters to customize the provisioned resources
-            <case-name>:
-              <key1>: <value1>
-              <key2>: <value2>
-          max_parallel: <number of concurrent jobs> # required
-          credential_type: service_connection # required
+          cloud: azure
+          regions:
+            - australiaeast
+          terraform_input_file_mapping:
+            - australiaeast: "scenarios/perf-eval/k8s-gpu-cluster-crud/terraform-inputs/azure-scriptless.tfvars"
+          topology: k8s-crud-gpu
+          engine: crud
+          matrix:
+            h100_gpu_node_pool:
+              gpu_node_pool: true
+              pool_name: h100nodepool
+              vm_size: Standard_NC40ads_H100_v5
+              create_node_count: 0
+              scale_node_count: 2
+              scale_step_size: 1
+              step_time_out: 600
+              step_wait_time: 30
+              run_nccl_tests: "false"
+          max_parallel: 1
+          credential_type: service_connection
           ssh_key_enabled: false
-          timeout_in_minutes: 60 # if not specified, default is 60
+          timeout_in_minutes: 180
