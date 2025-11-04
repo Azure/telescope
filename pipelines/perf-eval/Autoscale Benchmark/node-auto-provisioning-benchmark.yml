@@ -313,7 +313,7 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: azure_eastus_large_scale
+  - stage: azure_intv2_large_scale
     condition: eq(variables['Build.Reason'], 'Manual')
     dependsOn: []
     jobs:
