@@ -48,7 +48,7 @@ variables:
   SCENARIO_NAME: nap
 
 stages:
-  - stage: azure_westus2_small_scale
+  - stage: azure_staging_small_scale
     condition: eq(variables['Build.Reason'], 'Manual')
     dependsOn: []
     jobs:
@@ -168,7 +168,7 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: azure_eastus_small_scale
+  - stage: azure_intv2_small_scale
     condition: eq(variables['Build.Reason'], 'Manual')
     dependsOn: []
     jobs:
