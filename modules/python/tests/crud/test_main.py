@@ -392,6 +392,32 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         # Verify
         self.assertEqual(result, 1)  # 1 means failure
 
+    @mock.patch("crud.main.logger")
+    @mock.patch("crud.main.AzureNodePoolCRUD")
+    def test_handle_workload_operations_exception(self, mock_azure_crud, mock_logger):
+        """Test handle_workload_operations with exception during operation"""
+        # Setup
+        mock_args = mock.MagicMock()
+        mock_args.command = "create_pod"
+        mock_args.node_pool_name = "test-nodepool"
+        mock_args.deployment_name = "test-deployment"
+        mock_args.namespace = "default"
+        mock_args.replicas = 5
+        mock_args.manifest_dir = "/path/to/manifests"
+        mock_args.number_of_deployments = 3
+
+        # Configure mock to raise exception
+        mock_azure_crud.create_deployment.side_effect = ValueError("Test error")
+
+        # Execute
+        result = handle_workload_operations(mock_azure_crud, mock_args)
+
+        # Verify
+        self.assertEqual(result, 1)  # 1 means error
+        mock_logger.error.assert_called_with(
+            "Error during 'create_pod' operation: Test error"
+        )
+
 
 class TestCollectBenchmarkResults(unittest.TestCase):
     """Tests for the collect_benchmark_results function"""
