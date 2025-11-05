@@ -26,9 +26,9 @@ kind: Service
 metadata:
   name: myapp-{{NODE_POOL_NAME}}-{{INDEX}}
 spec:
-  ports:
-  - port: 80
-    name: myapp
-  clusterIP: None
-  selector:
-    app: nginx-container
+    ports:
+    - port: 80
+      name: myapp
+    clusterIP: None
+    selector:
+      app: nginx-container
