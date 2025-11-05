@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mock-head
+  namespace: default
+spec:
+  ports:
+  - port: 8265
+    targetPort: 8265
+    protocol: TCP
+  selector:
+    app: mock-head

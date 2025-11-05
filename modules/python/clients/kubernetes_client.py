@@ -1645,3 +1645,86 @@ class KubernetesClient:
         except Exception as e:
             logger.error(f"Unexpected error getting ConfigMap '{name}' from namespace '{namespace}': {str(e)}")
             raise Exception(f"Unexpected error getting ConfigMap '{name}' from namespace '{namespace}': {str(e)}") from e
+
+    def patch_deployment_resources(self, name, namespace, container_name, cpu_limit=None, memory_limit=None, cpu_request=None, memory_request=None):
+        """
+        Patch a deployment's container resource limits and requests.
+
+        :param name: Name of the deployment to patch
+        :param namespace: Namespace of the deployment
+        :param container_name: Name of the container to patch
+        :param cpu_limit: CPU limit (e.g., "8", "500m")
+        :param memory_limit: Memory limit (e.g., "4Gi", "512Mi")
+        :param cpu_request: CPU request (e.g., "100m", "1")
+        :param memory_request: Memory request (e.g., "128Mi", "1Gi")
+        :return: None
+        """
+        try:
+            # Get the current deployment
+            deployment = self.get_deployment(name, namespace)
+            if not deployment:
+                raise Exception(f"Deployment '{name}' not found in namespace '{namespace}'")
+
+            # Find the container to patch
+            containers = deployment.spec.template.spec.containers
+            target_container_index = None
+            for i, container in enumerate(containers):
+                if container.name == container_name:
+                    target_container_index = i
+                    break
+
+            if target_container_index is None:
+                raise Exception(f"Container '{container_name}' not found in deployment '{name}'")
+
+            # Build resource patch
+            resources = {}
+            if cpu_limit or memory_limit:
+                limits = {}
+                if cpu_limit:
+                    limits["cpu"] = cpu_limit
+                if memory_limit:
+                    limits["memory"] = memory_limit
+                resources["limits"] = limits
+
+            if cpu_request or memory_request:
+                reqs = {}
+                if cpu_request:
+                    reqs["cpu"] = cpu_request
+                if memory_request:
+                    reqs["memory"] = memory_request
+                resources["requests"] = reqs
+
+            if not resources:
+                logger.warning("No resource limits or requests specified for patching")
+                return
+
+            # Construct the patch body
+            patch_body = {
+                "spec": {
+                    "template": {
+                        "spec": {
+                            "containers": [
+                                {
+                                    "name": container_name,
+                                    "resources": resources
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+
+            logger.info(f"Patching deployment '{name}' container '{container_name}' resources in namespace '{namespace}'")
+            logger.info(f"Resource patch: {resources}")
+
+            # Apply the patch using strategic merge
+            self.app.patch_namespaced_deployment(
+                name=name,
+                namespace=namespace,
+                body=patch_body
+            )
+            logger.info(f"Successfully patched deployment '{name}' container '{container_name}' resources")
+
+        except Exception as e:
+            logger.error(f"Error patching deployment '{name}' container '{container_name}' resources: {str(e)}")
+            raise Exception(f"Error patching deployment '{name}' container '{container_name}' resources: {str(e)}") from e

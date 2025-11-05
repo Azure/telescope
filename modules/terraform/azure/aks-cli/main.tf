@@ -128,21 +128,15 @@ resource "terraform_data" "enable_aks_cli_preview_extension" {
     EOT
       ) : (
       <<EOT
-      az extension add -n aks-preview --version 18.0.0b40
+      az extension add -n aks-preview --version 19.0.0b5
       az version
     EOT
     )
   }
 
   provisioner "local-exec" {
-    when = destroy
-    command = join(" ", [
-      "az",
-      "extension",
-      "remove",
-      "-n",
-      "aks-preview",
-    ])
+    when    = destroy
+    command = "az extension remove -n aks-preview 2>/dev/null || true"
   }
 }
 
