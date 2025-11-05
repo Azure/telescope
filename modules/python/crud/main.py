@@ -353,15 +353,15 @@ def main():
     deployment_parser.add_argument("--node-pool-name", required=True, help="Node pool name")
     deployment_parser.add_argument("--deployment-name", required=True, help="Deployment name")
     deployment_parser.add_argument(
-        "--number_of_deployments", 
-        type=int, 
-        default=1, 
+        "--number_of_deployments",
+        type=int,
+        default=1,
         help="Number of deployments"
     )
     deployment_parser.add_argument(
-        "--replicas", 
-        type=int, 
-        default=10, 
+        "--replicas",
+        type=int,
+        default=10,
         help="Number of deployment replicas"
     )
     deployment_parser.add_argument(
