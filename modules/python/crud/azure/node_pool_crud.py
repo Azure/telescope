@@ -347,12 +347,11 @@ class NodePoolCRUD:
             if successful_deployments == number_of_deployments:
                 logger.info(f"Successfully created all {number_of_deployments} deployment(s)")
                 return True
-            elif successful_deployments > 0:
+            if successful_deployments > 0:
                 logger.warning(f"Created {successful_deployments}/{number_of_deployments} deployment(s)")
                 return False
-            else:
-                logger.error("Failed to create any deployments")
-                return False
+            logger.error("Failed to create any deployments")
+            return False
             
         except Exception as e:
             logger.error(f"Failed to create deployments: {str(e)}")
