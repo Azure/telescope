@@ -64,10 +64,12 @@ steps:
 - script: |
     set -e
     echo "Install Python dependencies"
-    pip3 install --upgrade pip
+    pip3 install --upgrade "pip<24"
     pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
 
     echo "Install Ubuntu packages"
+    sudo dpkg --configure -a || true
+    sudo apt-get update
     sudo apt-get -y install bc
   displayName: "Install Dependencies"
 
