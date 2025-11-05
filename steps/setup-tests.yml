@@ -64,6 +64,7 @@ steps:
 - script: |
     set -e
     echo "Install Python dependencies"
+    # Constrain pip to versions below 24 due to compatibility issues with some packages and breaking changes introduced in pip 24.
     pip3 install --upgrade "pip<24"
     pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
 
