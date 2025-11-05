@@ -20,6 +20,7 @@ steps:
         --job_throughput $JOB_THROUGHPUT \
         --job_count $JOB_COUNT \
         --dra_enabled ${ENABLE_DRA:-False} \
+        --ray_enabled ${ENABLE_RAY:-False} \
         --job_gpu ${JOB_GPU:-0} \
         --cl2_report_dir $CL2_REPORT_DIR \
         --cloud_info "$CLOUD_INFO" \

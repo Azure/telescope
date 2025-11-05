@@ -29,8 +29,10 @@ spec:
             - -c
             - |
               set -euo pipefail
-              export NUMBER_OF_NVME=$(($(ls /dev/nvme*n1 | wc -l) - 1))
+              # Collect NVMe disks excluding the first (nvme0n1) which is typically the OS disk
+              NVME_DISKS=$(ls /dev/nvme*n1 2>/dev/null | grep -v '/dev/nvme0n1' || true)
               echo "Starting ZFS setup on node $(hostname)..."
+              echo "Disks selected for ZFS (excluding nvme0n1): ${NVME_DISKS:-<none>}"
 
               echo "Updating package repository on the host..."
               chroot /host apt update
@@ -42,22 +44,26 @@ spec:
               if chroot /host zpool list | grep -q zfspv-pool; then
                 echo "ZFS pool 'zfspv-pool' already exists. Skipping disk setup."
               else
-                echo "ZFS pool does not exist. Proceeding with disk setup on the host..."
-                for disk in $(eval echo "/dev/nvme{0..$NUMBER_OF_NVME}n1"); do
-                  echo "Preparing disk $disk..."
-                  if [ -e $disk ]; then
-                    chroot /host sgdisk --zap-all $disk
-                    chroot /host sgdisk --new=1:0:0 $disk
-                  else
-                    echo "Disk $disk not found. Skipping."
-                  fi
-                done
+                if [ -z "$NVME_DISKS" ]; then
+                  echo "No additional NVMe disks (excluding nvme0n1) found. Skipping pool creation."
+                else
+                  echo "ZFS pool does not exist. Proceeding with disk setup on the host..."
+                  for disk in $NVME_DISKS; do
+                    echo "Preparing disk $disk..."
+                    if [ -e "$disk" ]; then
+                      chroot /host sgdisk --zap-all "$disk"
+                      chroot /host sgdisk --new=1:0:0 "$disk"
+                    else
+                      echo "Disk $disk not found. Skipping."
+                    fi
+                  done
 
-                echo "Loading ZFS kernel module on the host..."
-                chroot /host modprobe zfs
+                  echo "Loading ZFS kernel module on the host..."
+                  chroot /host modprobe zfs
 
-                echo "Creating ZFS pool 'zfspv-pool' on the host..."
-                chroot /host zpool create zfspv-pool $(eval echo "/dev/nvme{0..$NUMBER_OF_NVME}n1") || echo "Failed to create ZFS pool."
+                  echo "Creating ZFS pool 'zfspv-pool' on the host with disks: $NVME_DISKS"
+                  chroot /host zpool create zfspv-pool $NVME_DISKS || echo "Failed to create ZFS pool."
+                fi
               fi
 
               echo "Disabling ZFS primarycache and secondarycache on the host..."

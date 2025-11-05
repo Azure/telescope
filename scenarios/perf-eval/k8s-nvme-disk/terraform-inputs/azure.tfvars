@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "k8s-gpu-storage"
+scenario_name  = "k8s-nvme-disk"
 deletion_delay = "4h"
 owner          = "aks"
 aks_config_list = [
@@ -24,7 +24,7 @@ aks_config_list = [
       {
         name         = "user"
         node_count   = 5
-        vm_size      = "Standard_NC24ads_A100_v4"
+        vm_size      = "Standard_L16s_v4"
         os_disk_type = "Ephemeral"
         node_labels  = { fio-dedicated = "true" }
         node_taints  = ["fio-dedicated=true:NoExecute", "fio-dedicated=true:NoSchedule"]
