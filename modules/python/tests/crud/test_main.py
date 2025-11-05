@@ -13,6 +13,7 @@ import json
 from crud.main import (
     get_node_pool_crud_class,
     handle_node_pool_operation,
+    handle_workload_operations,
     main,
     check_for_progressive_scaling,
     collect_benchmark_results,
