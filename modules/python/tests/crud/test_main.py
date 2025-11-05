@@ -341,11 +341,11 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         self.assertEqual(cm.exception.code, 0)
 
     @mock.patch("crud.main.AzureNodePoolCRUD")
-    def test_handle_workload_operations_deployment_success(self, mock_azure_crud):
-        """Test handle_workload_operations for successful deployment creation"""
+    def test_handle_workload_operations_create_pod_success(self, mock_azure_crud):
+        """Test handle_workload_operations for successful pod creation"""
         # Setup
         mock_args = mock.MagicMock()
-        mock_args.command = "deployment"
+        mock_args.command = "create_pod"
         mock_args.node_pool_name = "test-nodepool"
         mock_args.deployment_name = "test-deployment"
         mock_args.namespace = "default"
