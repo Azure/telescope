@@ -340,6 +340,36 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         mock_collect_func.assert_called_once()
         self.assertEqual(cm.exception.code, 0)
 
+    @mock.patch("crud.main.AzureNodePoolCRUD")
+    def test_handle_workload_operations_deployment_success(self, mock_azure_crud):
+        """Test handle_workload_operations for successful deployment creation"""
+        # Setup
+        mock_args = mock.MagicMock()
+        mock_args.command = "deployment"
+        mock_args.node_pool_name = "test-nodepool"
+        mock_args.deployment_name = "test-deployment"
+        mock_args.namespace = "default"
+        mock_args.replicas = 5
+        mock_args.manifest_dir = "/path/to/manifests"
+        mock_args.number_of_deployments = 3
+
+        # Configure mock to return success
+        mock_azure_crud.create_deployment.return_value = True
+
+        # Execute
+        result = handle_workload_operations(mock_azure_crud, mock_args)
+
+        # Verify
+        self.assertEqual(result, 0)  # 0 means success
+        mock_azure_crud.create_deployment.assert_called_once_with(
+            node_pool_name="test-nodepool",
+            deployment_name="test-deployment",
+            namespace="default",
+            replicas=5,
+            manifest_dir="/path/to/manifests",
+            number_of_deployments=3
+        )
+
 
 class TestCollectBenchmarkResults(unittest.TestCase):
     """Tests for the collect_benchmark_results function"""
