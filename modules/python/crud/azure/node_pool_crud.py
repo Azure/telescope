@@ -338,6 +338,10 @@ class NodePoolCRUD:
                         manifest_dict=yaml.safe_load_all(deployment_template)
                     )
                     
+                    logger.info(f"Applied manifest for deployment {deployment_name}")
+                    
+                    # Wait for deployment to be available (successful deployment verification)
+                    logger.info(f"Waiting for deployment {deployment_name} to become available...")
                     deployment_ready = k8s_client.wait_for_condition(
                         resource_type="deployment",
                         wait_condition_type="available",
