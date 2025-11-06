@@ -320,6 +320,9 @@ class NodePoolCRUD:
                         # Use default template path
                         template_path = "modules/python/crud/workload_templates/deployment.yml"
                     
+                    # Generate deployment name
+                    deployment_name = f"myapp-{node_pool_name}-{deployment_index}"
+                    
                     # Create deployment template using k8s_client.create_template
                     deployment_template = k8s_client.create_template(
                         template_path,
