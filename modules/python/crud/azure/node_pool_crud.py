@@ -361,6 +361,9 @@ class NodePoolCRUD:
                             pod_count=replicas,
                             label_selector=f"app=nginx-container"
                         )
+                        
+                        logger.info(f"Successfully created and verified deployment {deployment_index}")
+                        successful_deployments += 1
                     else:
                         logger.error(f"Deployment {deployment_name} failed to become available within timeout")
                         continue
