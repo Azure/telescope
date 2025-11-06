@@ -338,9 +338,13 @@ class NodePoolCRUD:
                         manifest_dict=yaml.safe_load_all(deployment_template)
                     )
                     
-                    logger.info(f"Successfully created deployment {deployment_index} using template")
-                    successful_deployments += 1
-                    
+                    deployment_ready = k8s_client.wait_for_condition(
+                        resource_type="deployment",
+                        wait_condition_type="available",
+                        resource_name=deployment_name,
+                        namespace="default",
+                        timeout_seconds=300  # 5 minutes timeout
+                    )
                 except Exception as e:
                     logger.error(f"Failed to create deployment {deployment_index}: {str(e)}")
                     # Continue with next deployment instead of failing completely
