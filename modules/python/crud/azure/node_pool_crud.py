@@ -349,6 +349,9 @@ class NodePoolCRUD:
                         namespace="default",
                         timeout_seconds=300  # 5 minutes timeout
                     )
+                    
+                    if deployment_ready:
+                        logger.info(f"Deployment {deployment_name} is successfully available")
                 except Exception as e:
                     logger.error(f"Failed to create deployment {deployment_index}: {str(e)}")
                     # Continue with next deployment instead of failing completely
