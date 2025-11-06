@@ -222,6 +222,42 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
         # Check time.sleep was called 3 times (between operations)
         self.assertEqual(mock_time.sleep.call_count, 3)
 
+    def test_create_deployment_success(self):
+        """Test successful deployment creation"""
+        # Setup
+        mock_k8s_client = mock.MagicMock()
+        self.mock_aks_client.k8s_client = mock_k8s_client
+        mock_k8s_client.wait_for_condition.return_value = True
+
+        # Execute
+        result = self.node_pool_crud.create_deployment(node_pool_name="test-pool")
+
+        # Verify
+        self.assertTrue(result)
+
+    def test_create_deployment_failure(self):
+        """Test deployment creation failure"""
+        # Setup
+        mock_k8s_client = mock.MagicMock()
+        self.mock_aks_client.k8s_client = mock_k8s_client
+        mock_k8s_client.wait_for_condition.return_value = False
+
+        # Execute
+        result = self.node_pool_crud.create_deployment(node_pool_name="test-pool")
+
+        # Verify
+        self.assertFalse(result)
+
+    def test_create_deployment_no_client(self):
+        """Test deployment creation with no Kubernetes client"""
+        # Setup
+        self.mock_aks_client.k8s_client = None
+
+        # Execute
+        result = self.node_pool_crud.create_deployment(node_pool_name="test-pool")
+
+        # Verify
+        self.assertFalse(result)
 
 if __name__ == "__main__":
     unittest.main()
