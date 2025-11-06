@@ -352,6 +352,8 @@ class NodePoolCRUD:
                     
                     if deployment_ready:
                         logger.info(f"Deployment {deployment_name} is successfully available")
+                        
+                        # Additionally wait for pods to be ready
                         logger.info(f"Waiting for pods of deployment {deployment_name} to be ready...")
                         k8s_client.wait_for_pods_ready(
                             operation_timeout_in_minutes=5,
@@ -359,6 +361,10 @@ class NodePoolCRUD:
                             pod_count=replicas,
                             label_selector=f"app=nginx-container"
                         )
+                    else:
+                        logger.error(f"Deployment {deployment_name} failed to become available within timeout")
+                        continue
+                        
                 except Exception as e:
                     logger.error(f"Failed to create deployment {deployment_index}: {str(e)}")
                     # Continue with next deployment instead of failing completely
