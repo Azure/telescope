@@ -83,6 +83,15 @@ resource "azurerm_kubernetes_cluster" "aks" {
   kubernetes_version        = var.aks_config.kubernetes_version
   edge_zone                 = var.aks_config.edge_zone
 
+  dynamic "azure_active_directory_role_based_access_control" {
+    for_each = var.aks_config.azure_active_directory_role_based_access_control != null ? [var.aks_config.azure_active_directory_role_based_access_control] : []
+    content {
+      tenant_id              = azure_active_directory_role_based_access_control.value.tenant_id
+      admin_group_object_ids = azure_active_directory_role_based_access_control.value.admin_group_object_ids
+      azure_rbac_enabled     = azure_active_directory_role_based_access_control.value.azure_rbac_enabled
+    }
+  }
+
   dynamic "web_app_routing" {
     for_each = var.aks_config.web_app_routing != null && local.dns_zone_ids != null ? [var.aks_config.web_app_routing] : []
     content {

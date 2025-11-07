@@ -5,6 +5,8 @@ locals {
   aks_kubernetes_version   = lookup(var.json_input, "aks_kubernetes_version", null)
   aks_network_policy       = lookup(var.json_input, "aks_network_policy", null)
   aks_network_dataplane    = lookup(var.json_input, "aks_network_dataplane", null)
+  aks_aad_enabled          = lookup(var.json_input, "aks_aad_enabled", null)
+  aks_aad_admin_group_object_ids = lookup(var.json_input, "aks_aad_admin_group_object_ids", null)
   aks_cli_system_node_pool = lookup(var.json_input, "aks_cli_system_node_pool", null)
   aks_cli_user_node_pool   = lookup(var.json_input, "aks_cli_user_node_pool", null)
   aks_custom_headers       = lookup(var.json_input, "aks_custom_headers", [])
@@ -31,6 +33,11 @@ locals {
       {
         sku_tier           = local.aks_sku_tier != null ? local.aks_sku_tier : aks.sku_tier
         kubernetes_version = local.aks_kubernetes_version != null ? local.aks_kubernetes_version : aks.kubernetes_version
+        azure_active_directory_role_based_access_control = local.aks_aad_enabled == "true" ? {
+          tenant_id = null
+          admin_group_object_ids = local.aks_aad_admin_group_object_ids != null ? split(",", local.aks_aad_admin_group_object_ids) : []
+          azure_rbac_enabled = false
+        } : aks.azure_active_directory_role_based_access_control
       }
     )
   ] : []

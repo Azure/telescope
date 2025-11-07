@@ -123,6 +123,11 @@ variable "aks_config" {
     workload_identity_enabled = optional(bool, false)
     kubernetes_version        = optional(string, null)
     edge_zone                 = optional(string, null)
+    azure_active_directory_role_based_access_control = optional(object({
+      tenant_id              = optional(string, null)
+      admin_group_object_ids = optional(list(string), [])
+      azure_rbac_enabled     = optional(bool, false)
+    }), null)
     auto_scaler_profile = optional(object({
       balance_similar_node_groups      = optional(bool, false)
       expander                         = optional(string, "random")
