@@ -1,0 +1,78 @@
+# cluster configuration for Morgan Stanley
+scenario_type  = "perf-eval"
+scenario_name  = "nap"
+deletion_delay = "8h"
+owner          = "aks"
+
+network_config_list = [
+  {
+    role               = "crud"
+    vnet_name          = "nap-vnet-ms"
+    vnet_address_space = "10.192.0.0/10"
+    subnet = [
+      {
+        name           = "nap-subnet-ms"
+        address_prefix = "10.192.0.0/10"
+      }
+    ]
+  }
+]
+
+aks_cli_config_list = [
+  {
+    role                  = "nap"
+    aks_name              = "nap-complex"
+    sku_tier              = "standard"
+    subnet_name           = "nap-subnet-ms"
+    managed_identity_name = "nap-identity"
+    kubernetes_version    = "1.33"
+    default_node_pool = {
+      name       = "system"
+      node_count = 5
+      vm_size    = "Standard_D8_v5"
+    }
+    extra_node_pool = []
+    optional_parameters = [
+      {
+        name  = "node-provisioning-mode"
+        value = "Auto"
+      },
+      {
+        name  = "network-plugin"
+        value = "azure"
+      },
+      {
+        name  = "network-plugin-mode"
+        value = "overlay"
+      },
+      {
+        name  = "node-init-taints"
+        value = "CriticalAddonsOnly=true:NoSchedule"
+      },
+      {
+        name  = "pod-cidr"
+        value = "10.128.0.0/11"
+      },
+      {
+        name  = "enable-oidc-issuer"
+        value = "true"
+      },
+      {
+        name  = "enable-workload-identity"
+        value = "true"
+      },
+      {
+        name  = "enable-addons"
+        value = "azure-keyvault-secrets-provider"
+      },
+      {
+        name  = "enable-keda"
+        value = "true"
+      },
+      {
+        name  = "enable-image-cleaner"
+        value = "true"
+      }
+    ]
+  }
+]
