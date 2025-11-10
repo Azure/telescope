@@ -18,7 +18,6 @@ variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: nap
 
-
 stages:
   - stage: azure_eastus2_5k_ondemand
     condition: |
