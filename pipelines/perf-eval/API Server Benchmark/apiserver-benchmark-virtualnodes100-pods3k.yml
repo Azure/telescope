@@ -26,9 +26,6 @@ stages:
             workload-low:
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: ""
-            exempt:
-              flowcontrol: "exempt:5"
-              extra_benchmark_subcmd_args: ""
           engine_input:
             runner_image: ghcr.io/azure/kperf:0.3.4
             benchmark_subcmd: node100_job1_pod3k
