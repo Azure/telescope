@@ -20,11 +20,7 @@ variables:
 
 stages:
   - stage: azure_eastus2_5k_ondemand
-    condition: |
-        or(
-          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 3:00 PM'),
-          eq(variables['Build.Reason'], 'Manual')
-        )
+    condition: eq(variables['Build.Reason'], 'Manual')
     dependsOn: []
     variables:
       - group: NAP-5K-Config
@@ -60,11 +56,7 @@ stages:
           ssh_key_enabled: false
 
   - stage: azure_eastus2_5k_spot
-    condition: |
-        or(
-          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 3:00 AM'),
-          eq(variables['Build.Reason'], 'Manual')
-        )
+    condition: eq(variables['Build.Reason'], 'Manual')
     dependsOn: []
     variables:
       - group: NAP-5K-Config
