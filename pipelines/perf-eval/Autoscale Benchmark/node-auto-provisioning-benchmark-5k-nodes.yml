@@ -65,7 +65,7 @@ stages:
         or(
           eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 3:00 AM'),
           eq(variables['Build.Reason'], 'Manual')
-        ) 
+        )
     dependsOn: []
     variables:
       - group: NAP-5K-Config
