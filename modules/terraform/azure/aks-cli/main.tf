@@ -54,6 +54,14 @@ locals {
     )
   )
 
+  api_server_vnet_integration_parameter = (var.aks_cli_config.api_server_subnet_id == null ?
+    "" :
+    format(
+      "--enable-apiserver-vnet-integration --apiserver-subnet-id %s",
+      var.aks_cli_config.api_server_subnet_id,
+    )
+  )
+
   custom_configurations = (
     var.aks_cli_config.use_custom_configurations && var.aks_cli_custom_config_path != null ?
     format(
@@ -88,6 +96,7 @@ locals {
     local.optional_parameters,
     local.subnet_id_parameter,
     local.managed_identity_parameter,
+    local.api_server_vnet_integration_parameter,
   ], local.default_node_pool_parameters))
 
   aks_cli_destroy_command = join(" ", [
