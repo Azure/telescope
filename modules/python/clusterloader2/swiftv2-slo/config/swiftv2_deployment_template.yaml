@@ -1,45 +1,58 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{.Name}}
+  name: { { .Name } }
   labels:
-    group: {{.Group}}
+    group: { { .Group } }
     kubernetes.azure.com/pod-network: pn100
-    kubernetes.azure.com/pod-network-instance: {{.pniName}}
+    kubernetes.azure.com/pod-network-instance: { { .pniName } }
 spec:
-  replicas: {{.Replicas}}
+  replicas: { { .Replicas } }
   selector:
     matchLabels:
-      name: {{.Name}}
+      name: { { .Name } }
   strategy:
     type: RollingUpdate
   template:
     metadata:
       labels:
-        name: {{.Name}}
-        group: {{.Group}}
-        podgroup: {{.PodGroup}}
+        name: { { .Name } }
+        group: { { .Group } }
+        podgroup: { { .PodGroup } }
+        pod-index: "{{.Index}}"
         kubernetes.azure.com/pod-network: pn100
-        kubernetes.azure.com/pod-network-instance: {{.pniName}}
-        restart: {{.deploymentLabel}}
+        kubernetes.azure.com/pod-network-instance: { { .pniName } }
+        restart: { { .deploymentLabel } }
     spec:
+      serviceAccountName: swiftv2-test-sa
       nodeSelector:
         swiftv2slo: "true"
       containers:
-      - image: sv2perfacr{{.Location}}.azurecr.io/netshoot:latest
-        command: ["sleep", "infinity"]
-        imagePullPolicy: IfNotPresent
-        securityContext:
-          privileged: true
-        name: deployment-churn
-        ports:
-        resources:
-          requests:
-            acn.azure.com/vnet-nic: "1"
-          limits:
-            acn.azure.com/vnet-nic: "1"
+        - image: sv2perfacr{{.Location}}.azurecr.io/netshoot-kubectl:latest
+          command: ["sleep", "infinity"]
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+          name: deployment-churn
+          env:
+            - name: POD_INDEX
+              value: "{{.Index}}"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          ports:
+          resources:
+            requests:
+              acn.azure.com/vnet-nic: "1"
+            limits:
+              acn.azure.com/vnet-nic: "1"
       tolerations:
-      - key: "slo"
-        operator: "Equal"
-        value: "true"
-        effect: "NoSchedule"
+        - key: "slo"
+          operator: "Equal"
+          value: "true"
+          effect: "NoSchedule"

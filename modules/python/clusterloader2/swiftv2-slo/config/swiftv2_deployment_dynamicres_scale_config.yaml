@@ -34,6 +34,18 @@ steps:
       Params:
         action: start
         duration: 1ms
+  - name: "Create RBAC Resources"
+    phases:
+    - namespaceRange:
+        min: 1
+        max: 1
+      replicasPerNamespace: 1
+      tuningSet: DeploymentCreatePNIQps
+      objectBundle:
+      - basename: swiftv2-rbac
+        objectTemplatePath: rbac_template.yaml
+        templateFillMap:
+          Namespace: slo-1
   - name: "Create PNI"
     phases:
     - namespaceRange:
@@ -121,6 +133,43 @@ steps:
         - name: CustPodCurl
           # 172.27.0.30 is the IP of the service created in swiftv2kubeobjects/nginx-deployment.yaml
           command: ["/bin/sh", "-c", "curl --retry 10 --retry-delay 3 --max-time 60 172.27.0.30"]
+          timeout: 60s
+        - name: IngressConnectivity
+          command: 
+          - "/bin/sh"
+          - "-c"
+          - |
+            set -e
+            MY_INDEX=${POD_INDEX}
+            TARGET_INDEX=$((MY_INDEX + 1))
+            NAMESPACE=${NAMESPACE:-"slo-1"}
+            echo "Pod index ${MY_INDEX}: Looking for target pod with index ${TARGET_INDEX}"
+            
+            # Find target pod by label (pod-index set via {{.Index}} in deployment template)
+            TARGET_POD=$(kubectl get pods -n ${NAMESPACE} -l "pod-index=${TARGET_INDEX}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+            if [ -z "$TARGET_POD" ]; then
+              echo "Pod ${MY_INDEX}: No target pod found with index ${TARGET_INDEX} (might be last pod)"
+              exit 0
+            fi
+            echo "Pod ${MY_INDEX}: Found target pod: ${TARGET_POD}"
+            
+            # MTPNC name == pod name (1:1 mapping)
+            MTPNC_NAME=${TARGET_POD}
+            TARGET_IP=$(kubectl get mtpnc ${MTPNC_NAME} -n ${NAMESPACE} -o jsonpath='{.status.allocatedIPs[0]}' 2>/dev/null || echo "")
+            if [ -z "$TARGET_IP" ]; then
+              echo "ERROR: Pod ${MY_INDEX}: Could not get Swift v2 IP from MTPNC ${MTPNC_NAME}"
+              exit 1
+            fi
+            echo "Pod ${MY_INDEX}: Testing ingress to Pod ${TARGET_INDEX} (${TARGET_POD}) at ${TARGET_IP}"
+            
+            # Test Swift v2 IP connectivity
+            if curl --connect-timeout 10 --max-time 30 http://${TARGET_IP}:80 2>&1 | head -5; then
+              echo "SUCCESS: Pod ${MY_INDEX} -> Pod ${TARGET_INDEX} (${TARGET_IP})"
+              exit 0
+            else
+              echo "FAILURE: Pod ${MY_INDEX} -> Pod ${TARGET_INDEX} (${TARGET_IP})"
+              exit 1
+            fi
           timeout: 60s
   - name: Wait for Pod Curl Commands to Execute -{{$j}}
     measurements:

@@ -1,0 +1,33 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: swiftv2-test-sa
+  namespace: { { .Namespace } }
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: swiftv2-test-role
+  namespace: { { .Namespace } }
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: ["network.azure.com"]
+    resources: ["multitenantpodnetworkconfigs"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: swiftv2-test-binding
+  namespace: { { .Namespace } }
+subjects:
+  - kind: ServiceAccount
+    name: swiftv2-test-sa
+    namespace: { { .Namespace } }
+roleRef:
+  kind: Role
+  name: swiftv2-test-role
+  apiGroup: rbac.authorization.k8s.io
