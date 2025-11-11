@@ -15,6 +15,9 @@ network_config_list = [
         address_prefix = "10.192.0.0/10"
       }
     ]
+    network_security_group_name = ""
+    nic_public_ip_associations  = []
+    nsr_rules                   = []
   }
 ]
 
