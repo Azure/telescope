@@ -3,13 +3,14 @@ kind: Pod
 metadata:
   name: pod0
   namespace: default
-  # annotations:
-  #   k8s.v1.cni.cncf.io/networks: default/ipv6-l3-node0
+  labels:
+    app: test
 spec:
   nodeSelector:
-    kubernetes.io/hostname: aks-agent-25759247-vms1
+    kubernetes.io/hostname: aks-user-36058353-vmss000000
   containers:
     - name: tester
+      # image: telescope.azurecr.io/perf-eval/iperf3.18:v20250415
       image: busybox:latest
       command: ["sleep", "3600"]
 ---
@@ -18,12 +19,29 @@ kind: Pod
 metadata:
   name: pod1
   namespace: default
-  # annotations:
-  #   k8s.v1.cni.cncf.io/networks: default/ipv6-l3-node1
+  labels:
+    app: test
 spec:
   nodeSelector:
-    kubernetes.io/hostname: aks-agent-25759247-vms2
+    kubernetes.io/hostname: aks-user-36058353-vmss000000
   containers:
     - name: tester
+      # image: telescope.azurecr.io/perf-eval/iperf3.18:v20250415
+      image: busybox:latest
+      command: ["sleep", "3600"]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod2
+  namespace: default
+  labels:
+    app: test
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: aks-user-36058353-vmss000001
+  containers:
+    - name: tester
+      # image: telescope.azurecr.io/perf-eval/iperf3.18:v20250415
       image: busybox:latest
       command: ["sleep", "3600"]
