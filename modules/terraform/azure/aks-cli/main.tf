@@ -124,6 +124,14 @@ resource "azurerm_role_assignment" "network_contributor" {
   principal_id         = azurerm_user_assigned_identity.userassignedidentity[0].principal_id
 }
 
+resource "azurerm_role_assignment" "network_contributor_api_server_subnet" {
+  count = var.aks_cli_config.enable_apiserver_vnet_integration ? 1 : 0
+
+  role_definition_name = "Network Contributor"
+  scope                = var.aks_cli_config.api_server_subnet_id
+  principal_id         = azurerm_user_assigned_identity.userassignedidentity[0].principal_id
+}
+
 resource "terraform_data" "enable_aks_cli_preview_extension" {
   count = var.aks_cli_config.use_aks_preview_cli_extension == true ? 1 : 0
 
@@ -152,7 +160,8 @@ resource "terraform_data" "enable_aks_cli_preview_extension" {
 resource "terraform_data" "aks_cli" {
   depends_on = [
     terraform_data.enable_aks_cli_preview_extension,
-    azurerm_role_assignment.network_contributor
+    azurerm_role_assignment.network_contributor,
+    azurerm_role_assignment.network_contributor_api_server_subnet
   ]
 
   input = {

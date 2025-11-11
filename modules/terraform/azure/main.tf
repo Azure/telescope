@@ -48,6 +48,7 @@ locals {
         aks_custom_headers   = length(local.aks_custom_headers) > 0 ? local.aks_custom_headers : aks.aks_custom_headers
         default_node_pool    = local.aks_cli_system_node_pool != null ? local.aks_cli_system_node_pool : aks.default_node_pool
         extra_node_pool      = local.aks_cli_user_node_pool != null ? local.aks_cli_user_node_pool : aks.extra_node_pool
+        enable_apiserver_vnet_integration = local.enable_apiserver_vnet_integration
         api_server_subnet_id = local.enable_apiserver_vnet_integration && local.api_server_subnet_name != null ? try(local.all_subnets[local.api_server_subnet_name], null) : null
       }
     )
