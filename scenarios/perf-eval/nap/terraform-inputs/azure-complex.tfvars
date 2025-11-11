@@ -58,11 +58,11 @@ aks_cli_config_list = [
       },
       {
         name  = "enable-oidc-issuer"
-        value = "true"
+        value = ""
       },
       {
         name  = "enable-workload-identity"
-        value = "true"
+        value = ""
       },
       {
         name  = "enable-addons"
@@ -70,11 +70,11 @@ aks_cli_config_list = [
       },
       {
         name  = "enable-keda"
-        value = "true"
+        value = ""
       },
       {
         name  = "enable-image-cleaner"
-        value = "true"
+        value = ""
       }
     ]
   }
