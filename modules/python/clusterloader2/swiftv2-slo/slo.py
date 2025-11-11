@@ -133,6 +133,92 @@ def execute_clusterloader2(
                     scrape_containerd=scrape_containerd)
 
 
+def calculate_failure_percentages(cl2_report_dir, junit_data, total_pods, pods_per_step):
+    """
+    Calculate detailed failure percentages for control plane and data plane.
+    
+    Args:
+        cl2_report_dir: Directory containing CL2 report files
+        junit_data: Parsed junit.xml data
+        total_pods: Total number of pods expected
+        pods_per_step: Number of pods per deployment step
+    
+    Returns:
+        dict: Failure analysis with percentages and counts
+    """
+    controlplane_failures = 0
+    dataplane_failures = 0
+    controlplane_total_tests = 0
+    dataplane_total_tests = 0
+    
+    # Parse junit.xml test cases
+    testsuites = junit_data.get("testsuites", [])
+    if testsuites and len(testsuites) > 0:
+        testsuite = testsuites[0]
+        testcases = testsuite.get("testcases", [])
+        
+        for testcase in testcases:
+            testcase_name = testcase.get("name", "")
+            failure = testcase.get("failure")
+            
+            # Control plane failures: WaitForControlledPodsRunning tests
+            if "WaitForControlledPodsRunning" in testcase_name:
+                controlplane_total_tests += 1
+                if failure:
+                    controlplane_failures += 1
+                    print(f"Control plane failure detected: {testcase_name}")
+                    print(f"  Failure message: {failure[:200]}..." if len(failure) > 200 else f"  Failure message: {failure}")
+            
+            # Data plane failures: PodPeriodicCommand tests
+            if "PodPeriodicCommand" in testcase_name or "CustPodCurl" in testcase_name:
+                dataplane_total_tests += 1
+                if failure:
+                    dataplane_failures += 1
+                    print(f"Data plane failure detected: {testcase_name}")
+                    print(f"  Failure message: {failure[:200]}..." if len(failure) > 200 else f"  Failure message: {failure}")
+    
+    # Try to get more accurate counts from measurement files if available
+    # PodPeriodicCommand files contain detailed per-pod execution results
+    try:
+        for filename in os.listdir(cl2_report_dir):
+            if filename.startswith("PodPeriodicCommand-stats_"):
+                file_path = os.path.join(cl2_report_dir, filename)
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    # The stats file contains detailed execution information
+                    # Format may vary, but typically has success/failure counts
+                    if isinstance(data, dict):
+                        # Look for failure indicators in the data
+                        print(f"Found PodPeriodicCommand stats file: {filename}")
+                        print(f"  Data keys: {list(data.keys())}")
+    except Exception as e:
+        print(f"Note: Could not parse detailed measurement files: {e}")
+    
+    # Calculate failure percentages
+    # Each failed test typically represents a batch (pods_per_step pods)
+    controlplane_failure_percentage = 0.0
+    if controlplane_total_tests > 0:
+        failed_pods = controlplane_failures * pods_per_step
+        controlplane_failure_percentage = (failed_pods / total_pods) * 100 if total_pods > 0 else 0.0
+    
+    dataplane_failure_percentage = 0.0
+    if dataplane_total_tests > 0:
+        failed_pods = dataplane_failures * pods_per_step
+        dataplane_failure_percentage = (failed_pods / total_pods) * 100 if total_pods > 0 else 0.0
+    
+    return {
+        "controlplane_failure_percentage": controlplane_failure_percentage,
+        "dataplane_failure_percentage": dataplane_failure_percentage,
+        "controlplane_failures": controlplane_failures,
+        "controlplane_total_tests": controlplane_total_tests,
+        "controlplane_estimated_failed_pods": controlplane_failures * pods_per_step,
+        "dataplane_failures": dataplane_failures,
+        "dataplane_total_tests": dataplane_total_tests,
+        "dataplane_estimated_failed_pods": dataplane_failures * pods_per_step,
+        "total_pods": total_pods
+    }
+
+
 def collect_clusterloader2(
     cpu_per_node,
     node_count,
@@ -162,6 +248,41 @@ def collect_clusterloader2(
         raise Exception(f"No testsuites found in the report! Raw data: {details}")
 
     pod_count = node_count * pods_per_node
+    total_pods = node_count * pods_per_node
+    
+    # Calculate detailed failure percentages
+    failure_analysis = calculate_failure_percentages(
+        cl2_report_dir=cl2_report_dir,
+        junit_data=json_data,
+        total_pods=total_pods,
+        pods_per_step=pods_per_step
+    )
+    
+    # Extract values for convenience
+    controlplane_failure_percentage = failure_analysis["controlplane_failure_percentage"]
+    dataplane_failure_percentage = failure_analysis["dataplane_failure_percentage"]
+    controlplane_failures = failure_analysis["controlplane_failures"]
+    controlplane_total_tests = failure_analysis["controlplane_total_tests"]
+    dataplane_failures = failure_analysis["dataplane_failures"]
+    dataplane_total_tests = failure_analysis["dataplane_total_tests"]
+    
+    # Print summary
+    print("\n" + "="*80)
+    print("FAILURE ANALYSIS SUMMARY")
+    print("="*80)
+    print(f"\nControl Plane (Pod Startup):")
+    print(f"  - Total deployment batches tested: {controlplane_total_tests}")
+    print(f"  - Failed deployment batches: {controlplane_failures}")
+    print(f"  - Estimated failed pods: {failure_analysis['controlplane_estimated_failed_pods']}/{total_pods}")
+    print(f"  - Control plane failure percentage: {controlplane_failure_percentage:.2f}%")
+    
+    print(f"\nData Plane (Network Connectivity):")
+    print(f"  - Total curl test batches: {dataplane_total_tests}")
+    print(f"  - Failed curl test batches: {dataplane_failures}")
+    print(f"  - Estimated failed pods: {failure_analysis['dataplane_estimated_failed_pods']}/{total_pods}")
+    print(f"  - Data plane failure percentage: {dataplane_failure_percentage:.2f}%")
+    
+    print("\n" + "="*80)
 
     template = {
         "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
@@ -170,6 +291,12 @@ def collect_clusterloader2(
         "pod_count": pod_count,
         "churn_rate": repeats,
         "status": status,
+        "controlplane_failure_percentage": controlplane_failure_percentage,
+        "dataplane_failure_percentage": dataplane_failure_percentage,
+        "controlplane_failures": controlplane_failures,
+        "controlplane_total_tests": controlplane_total_tests,
+        "dataplane_failures": dataplane_failures,
+        "dataplane_total_tests": dataplane_total_tests,
         "group": None,
         "measurement": None,
         "result": None,
@@ -210,6 +337,43 @@ def collect_clusterloader2(
     os.makedirs(os.path.dirname(result_file), exist_ok=True)
     with open(result_file, 'w', encoding='utf-8') as rf:
         rf.write(content)
+    
+    # Write a separate failure summary file for easy analysis
+    summary_file = result_file.replace('.json', '_failure_summary.json')
+    failure_summary = {
+        "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+        "run_id": run_id,
+        "run_url": run_url,
+        "test_type": test_type,
+        "cloud_info": cloud_info,
+        "overall_status": status,
+        "pod_configuration": {
+            "total_pods": total_pods,
+            "node_count": node_count,
+            "pods_per_node": pods_per_node,
+            "pods_per_step": pods_per_step,
+        },
+        "control_plane": {
+            "failure_percentage": round(controlplane_failure_percentage, 2),
+            "failed_batches": controlplane_failures,
+            "total_batches": controlplane_total_tests,
+            "estimated_failed_pods": failure_analysis['controlplane_estimated_failed_pods'],
+            "description": "Pods that failed to reach Running state"
+        },
+        "data_plane": {
+            "failure_percentage": round(dataplane_failure_percentage, 2),
+            "failed_batches": dataplane_failures,
+            "total_batches": dataplane_total_tests,
+            "estimated_failed_pods": failure_analysis['dataplane_estimated_failed_pods'],
+            "description": "Pods that failed network connectivity tests (curl)"
+        }
+    }
+    
+    with open(summary_file, 'w', encoding='utf-8') as sf:
+        json.dump(failure_summary, sf, indent=2)
+    
+    print(f"\nResults written to: {result_file}")
+    print(f"Failure summary written to: {summary_file}")
 
 
 def main():
