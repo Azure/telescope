@@ -57,6 +57,10 @@ aks_cli_config_list = [
       {
         name  = "os-sku"
         value = "Ubuntu2404"
+      },
+      {
+        name = "ip-families"
+        value = "IPv4,IPv6"
       }
     ]
   }
