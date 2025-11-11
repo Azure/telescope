@@ -38,6 +38,7 @@ variable "aks_cli_config" {
     kubernetes_version            = optional(string, null)
     aks_custom_headers            = optional(list(string), [])
     api_server_subnet_id          = optional(string, null)
+    enable_apiserver_vnet_integration = optional(bool, false)
     use_custom_configurations     = optional(bool, false)
     use_aks_preview_cli_extension = optional(bool, true)
     use_aks_preview_private_build = optional(bool, false)
