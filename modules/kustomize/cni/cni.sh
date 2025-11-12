@@ -96,74 +96,18 @@ kubectl rollout status ds kube-multus-ds -n kube-system
 kubectl logs -n kube-system -l app=multus
 
 # IPv4 test
-kubectl get pods -l app=ipvlan-config -n kube-system
-kubectl delete pods -l app=ipvlan-config -n kube-system
+kubectl get pods -l app=ipvlan -n kube-system
+kubectl delete pods -l app=ipvlan -n kube-system
 
 journalctl -u containerd | grep CNI
-
-# Add cross-node routes
-sudo ip route add 10.224.2.0/24 via 10.224.0.11 dev eth0
-sudo ip route add 10.224.1.0/24 via 10.224.0.10 dev eth0
-ip route | grep 10.224
-
-# Test pods
-kubectl get pods -l app=test -o wide
-kubectl exec pod0 -- ping -c1 10.224.2.3
-kubectl exec pod1 -- ping -c1 10.224.1.3
-
-# Updated ipvlan l3 with correct subnet fd00:5852:d4bf::/64
-cat <<EOF > /etc/cni/net.d/ipv6-l3-node0.conf
-{
-    "cniVersion": "0.3.1",
-    "name": "ipv6-l3-node0",
-    "type": "ipvlan",
-    "master": "eth0",
-    "mode": "l3",
-    "ipam": {
-        "type": "host-local",
-        "ranges": [
-            [
-                {
-                    "subnet": "fd00:5852:d4bf::/64",
-                    "rangeStart": "fd00:5852:d4bf::1000",
-                    "rangeEnd": "fd00:5852:d4bf::1fff"
-                }
-            ]
-        ]
-    }
-}
-EOF
-
-cat <<EOF > /etc/cni/net.d/ipv6-l3-node1.conf
-{
-    "cniVersion": "0.3.1",
-    "name": "ipv6-l3-node1",
-    "type": "ipvlan",
-    "master": "eth0",
-    "mode": "l3",
-    "ipam": {
-        "type": "host-local",
-        "ranges": [
-            [
-                {
-                    "subnet": "fd00:5852:d4bf::/64",
-                    "rangeStart": "fd00:5852:d4bf::2000",
-                    "rangeEnd": "fd00:5852:d4bf::2fff"
-                }
-            ]
-        ]
-    }
-}
-EOF
+journalctl -u containerd -n 100 --no-pager
+systemctl status containerd
 
 # Check IPv6 addresses
 kubectl get pods -o wide
 kubectl exec pod0 -- ip -6 addr show
-kubectl exec pod1 -- ip -6 addr show
 kubectl exec pod0 -- ip -6 route show
-kubectl exec pod1 -- ip -6 route show
-kubectl exec pod0 -- ping6 -c 3 fd00:5852:d4bf::2001
-kubectl exec pod1 -- ping6 -c 3 fd00:5852:d4bf::1001
+kubectl exec pod0 -- ping6 -c1 fd00:5852:d4bf::1
 
 # Recreate pods to ensure they pick up the new network configuration
 kubectl delete -f /home/alyssavu/telescope/modules/kustomize/cni/pods.yaml
