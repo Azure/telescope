@@ -13,11 +13,6 @@ variables:
 
 stages:
   - stage: azure_eastus2_ondemand_complex_config
-    condition: |
-      or(
-        eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 9:00 PM'),
-        eq(variables['Build.Reason'], 'Manual')
-      )
     dependsOn: []
     variables:
       - group: NAP-5K-Config
