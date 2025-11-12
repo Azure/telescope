@@ -54,7 +54,8 @@ locals {
     )
   )
 
-  api_server_vnet_integration_parameter = (var.aks_cli_config.enable_apiserver_vnet_integration ?
+
+  api_server_vnet_integration_parameter = (var.aks_cli_config.enable_apiserver_vnet_integration && var.aks_cli_config.api_server_subnet_id != null ?
     format(
       "--enable-apiserver-vnet-integration --apiserver-subnet-id %s",
       var.aks_cli_config.api_server_subnet_id,
