@@ -125,7 +125,7 @@ resource "azurerm_role_assignment" "network_contributor" {
 }
 
 resource "azurerm_role_assignment" "network_contributor_api_server_subnet" {
-  count = var.aks_cli_config.enable_apiserver_vnet_integration ? 1 : 0
+  count = (var.aks_cli_config.managed_identity_name != null && var.aks_cli_config.enable_apiserver_vnet_integration) ? 1 : 0
 
   role_definition_name = "Network Contributor"
   scope                = var.aks_cli_config.api_server_subnet_id
