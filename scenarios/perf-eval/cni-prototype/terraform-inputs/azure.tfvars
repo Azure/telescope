@@ -22,21 +22,23 @@ network_config_list = [
 
 aks_cli_config_list = [
   {
-    role               = "cni"
-    aks_name           = "cni-prototype"
-    sku_tier           = "standard"
-    kubernetes_version = "1.33"
-    subnet_name        = "cni-subnet"
+    role                  = "cni"
+    aks_name              = "cni-prototype"
+    sku_tier              = "standard"
+    kubernetes_version    = "1.33"
+    subnet_name           = "cni-subnet"
+    managed_identity_name = "cni-identity"
     default_node_pool = {
-      name       = "default"
-      node_count = 2
-      vm_size    = "Standard_D16_v5"
+      name        = "default"
+      node_count  = 3
+      vm_size     = "Standard_D8ds_v6"
     }
     extra_node_pool = [
       {
-        name       = "user",
-        node_count = 2,
-        vm_size    = "Standard_D16ds_v6",
+        name        = "user",
+        node_count  = 2,
+        vm_size     = "Standard_D16ds_v6",
+        vm_set_type = "VirtualMachines",
         optional_parameters = [
           {
             name  = "node-osdisk-type"
@@ -59,7 +61,7 @@ aks_cli_config_list = [
         value = "Ubuntu2404"
       },
       {
-        name = "ip-families"
+        name  = "ip-families"
         value = "IPv4,IPv6"
       }
     ]
