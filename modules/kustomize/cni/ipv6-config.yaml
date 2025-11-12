@@ -4,7 +4,7 @@ metadata:
   name: ipvlan-node0
   namespace: kube-system
   labels:
-    app: ipvlan-config
+    app: ipvlan
 spec:
   nodeSelector:
     kubernetes.io/hostname: aks-user-36058353-vmss000000
@@ -47,6 +47,9 @@ spec:
                       "gateway": "fd00:5852:d4bf::1"
                     }
                   ]
+                ],
+                "routes": [
+                  { "dst": "::/0", "gw": "fd00:5852:d4bf::1" }
                 ]
               }
           }
@@ -76,7 +79,7 @@ metadata:
   name: ipvlan-node1
   namespace: kube-system
   labels:
-    app: ipvlan-config
+    app: ipvlan
 spec:
   nodeSelector:
     kubernetes.io/hostname: aks-user-36058353-vmss000001
@@ -119,6 +122,9 @@ spec:
                     "gateway": "fd00:5852:d4bf::1:1"
                   }
                 ]
+              ],
+              "routes": [
+                { "dst": "::/0", "gw": "fd00:5852:d4bf::1:1" }
               ]
             }
           }
