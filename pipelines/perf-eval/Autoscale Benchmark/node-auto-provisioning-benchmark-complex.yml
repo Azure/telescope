@@ -33,8 +33,8 @@ stages:
               cpu_per_node: 2
               node_count: 5
               pod_count: 5
-              scale_up_timeout: "150m"
-              scale_down_timeout: "150m"
+              scale_up_timeout: "15m"
+              scale_down_timeout: "15m"
               node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
@@ -43,6 +43,6 @@ stages:
               vm_size: Standard_D2s_v4
               capacity_type: on-demand
           max_parallel: 1
-          timeout_in_minutes: 500
+          timeout_in_minutes: 60
           credential_type: service_connection
           ssh_key_enabled: false
