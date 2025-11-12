@@ -143,7 +143,15 @@ steps:
             MY_INDEX=${POD_INDEX}
             TARGET_INDEX=$((MY_INDEX + 1))
             NAMESPACE=${NAMESPACE:-"slo-1"}
+            TOTAL_PODS={{$podsPerStep}}
+            
             echo "Pod index ${MY_INDEX}: Looking for target pod with index ${TARGET_INDEX}"
+            
+            # Check if this is the last pod (no n+1 exists)
+            if [ ${TARGET_INDEX} -ge ${TOTAL_PODS} ]; then
+              echo "Pod ${MY_INDEX}: I am the last pod (${TOTAL_PODS} total), no n+1 to test. Exiting successfully."
+              exit 0
+            fi
             
             # Find target pod by label (pod-index set via {{.Index}} in deployment template)
             TARGET_POD=$(kubectl get pods -n ${NAMESPACE} -l "pod-index=${TARGET_INDEX}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
