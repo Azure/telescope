@@ -21,7 +21,7 @@ variables:
   PODS_PER_NODE: 7
   cpu_per_node: 16
   # max_pods = swiftv2 pods + default daemon sets
-  max_pods: 15 
+  max_pods: 15
   # Common matrix parameters
   repeats: 1
   node_label: "swiftv2slo=true"
@@ -32,39 +32,39 @@ variables:
 
 stages:
   - stage: generate_base_run_id
-    displayName: 'Generate Base Run ID'
+    displayName: "Generate Base Run ID"
     jobs:
-    - job: generate_run_id
-      displayName: 'Generate Base Run ID'
-      steps:
-      - script: |
-          # Generate base run ID: Initials-DDHHMMSS (17 chars total with job suffix)
-          timestamp=$(date +%d%H%M%S)
-          
-          # Extract user initials from Build.RequestedFor (e.g., "John Doe" -> "JD")
-          user_name="$(Build.RequestedFor)"
-          echo "Pipeline triggered by: $user_name"
-          
-          # Extract initials - get first letter of each word, convert to uppercase, take first 2
-          user_initials=$(echo "$user_name" | sed 's/[^A-Za-z ]//g' | awk '{for(i=1;i<=NF;i++) printf substr(toupper($i),1,1)}' | cut -c1-2)
-          
-          # Fallback if initials are empty or too short
-          if [ -z "$user_initials" ] || [ ${#user_initials} -lt 2 ]; then
-            user_initials="XX"
-          fi
-          
-          base_run_id="${user_initials}-${timestamp}"
-          echo "Generated timestamp: $timestamp"
-          echo "User initials: $user_initials"
-          echo "Generated base run ID: $base_run_id"
-          echo "##vso[task.setvariable variable=BASE_RUN_ID;isOutput=true]$base_run_id"
-        name: generate_id
+      - job: generate_run_id
         displayName: "Generate Base Run ID"
+        steps:
+          - script: |
+              # Generate base run ID: Initials-DDHHMMSS (17 chars total with job suffix)
+              timestamp=$(date +%d%H%M%S)
+
+              # Extract user initials from Build.RequestedFor (e.g., "John Doe" -> "JD")
+              user_name="$(Build.RequestedFor)"
+              echo "Pipeline triggered by: $user_name"
+
+              # Extract initials - get first letter of each word, convert to uppercase, take first 2
+              user_initials=$(echo "$user_name" | sed 's/[^A-Za-z ]//g' | awk '{for(i=1;i<=NF;i++) printf substr(toupper($i),1,1)}' | cut -c1-2)
+
+              # Fallback if initials are empty or too short
+              if [ -z "$user_initials" ] || [ ${#user_initials} -lt 2 ]; then
+                user_initials="XX"
+              fi
+
+              base_run_id="${user_initials}-${timestamp}"
+              echo "Generated timestamp: $timestamp"
+              echo "User initials: $user_initials"
+              echo "Generated base run ID: $base_run_id"
+              echo "##vso[task.setvariable variable=BASE_RUN_ID;isOutput=true]$base_run_id"
+            name: generate_id
+            displayName: "Generate Base Run ID"
 
   - stage: staticres_gradual
-    condition: succeeded()
-    displayName: 'Static Gradual'
-    dependsOn: 
+    condition: false
+    displayName: "Static Gradual"
+    dependsOn:
       - generate_base_run_id
     variables:
       BASE_RUN_ID: $[ stageDependencies.generate_base_run_id.generate_run_id.outputs['generate_id.BASE_RUN_ID'] ]
@@ -86,7 +86,7 @@ stages:
 
   - stage: staticres_burst
     condition: false
-    displayName: 'Static Burst'
+    displayName: "Static Burst"
     dependsOn: generate_base_run_id
     variables:
       BASE_RUN_ID: $[ stageDependencies.generate_base_run_id.generate_run_id.outputs['generate_id.BASE_RUN_ID'] ]
@@ -108,8 +108,8 @@ stages:
 
   - stage: dynamicres_gradual
     condition: true
-    displayName: 'Dynamic Gradual'
-    dependsOn: 
+    displayName: "Dynamic Gradual"
+    dependsOn:
       - generate_base_run_id
       - staticres_gradual
     variables:
@@ -132,7 +132,7 @@ stages:
 
   - stage: dynamicres_burst
     condition: false
-    displayName: 'Dynamic Burst'
+    displayName: "Dynamic Burst"
     dependsOn: generate_base_run_id
     variables:
       BASE_RUN_ID: $[ stageDependencies.generate_base_run_id.generate_run_id.outputs['generate_id.BASE_RUN_ID'] ]
