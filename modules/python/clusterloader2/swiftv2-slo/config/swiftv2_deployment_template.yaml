@@ -1,28 +1,28 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: { { .Name } }
+  name: "{{.Name}}"
   labels:
-    group: { { .Group } }
+    group: "{{.Group}}"
     kubernetes.azure.com/pod-network: pn100
-    kubernetes.azure.com/pod-network-instance: { { .pniName } }
+    kubernetes.azure.com/pod-network-instance: "{{.pniName}}"
 spec:
   replicas: { { .Replicas } }
   selector:
     matchLabels:
-      name: { { .Name } }
+      name: "{{.Name}}"
   strategy:
     type: RollingUpdate
   template:
     metadata:
       labels:
-        name: { { .Name } }
-        group: { { .Group } }
-        podgroup: { { .PodGroup } }
+        name: "{{.Name}}"
+        group: "{{.Group}}"
+        podgroup: "{{.PodGroup}}"
         pod-index: "{{.Index}}"
         kubernetes.azure.com/pod-network: pn100
-        kubernetes.azure.com/pod-network-instance: { { .pniName } }
-        restart: { { .deploymentLabel } }
+        kubernetes.azure.com/pod-network-instance: "{{.pniName}}"
+        restart: "{{.deploymentLabel}}"
     spec:
       serviceAccountName: swiftv2-test-sa
       nodeSelector:
