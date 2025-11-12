@@ -54,6 +54,14 @@ locals {
     )
   )
 
+  api_server_vnet_integration_parameter = (var.aks_cli_config.enable_apiserver_vnet_integration ?
+    format(
+      "--enable-apiserver-vnet-integration --apiserver-subnet-id %s",
+      var.aks_cli_config.api_server_subnet_id,
+    ) :
+    ""
+  )
+
   custom_configurations = (
     var.aks_cli_config.use_custom_configurations && var.aks_cli_custom_config_path != null ?
     format(
@@ -88,6 +96,7 @@ locals {
     local.optional_parameters,
     local.subnet_id_parameter,
     local.managed_identity_parameter,
+    local.api_server_vnet_integration_parameter,
   ], local.default_node_pool_parameters))
 
   aks_cli_destroy_command = join(" ", [
@@ -112,6 +121,14 @@ resource "azurerm_role_assignment" "network_contributor" {
   count                = var.aks_cli_config.managed_identity_name == null ? 0 : 1
   role_definition_name = "Network Contributor"
   scope                = var.subnet_id
+  principal_id         = azurerm_user_assigned_identity.userassignedidentity[0].principal_id
+}
+
+resource "azurerm_role_assignment" "network_contributor_api_server_subnet" {
+  count = (var.aks_cli_config.managed_identity_name != null && var.aks_cli_config.enable_apiserver_vnet_integration) ? 1 : 0
+
+  role_definition_name = "Network Contributor"
+  scope                = var.aks_cli_config.api_server_subnet_id
   principal_id         = azurerm_user_assigned_identity.userassignedidentity[0].principal_id
 }
 
@@ -143,7 +160,8 @@ resource "terraform_data" "enable_aks_cli_preview_extension" {
 resource "terraform_data" "aks_cli" {
   depends_on = [
     terraform_data.enable_aks_cli_preview_extension,
-    azurerm_role_assignment.network_contributor
+    azurerm_role_assignment.network_contributor,
+    azurerm_role_assignment.network_contributor_api_server_subnet
   ]
 
   input = {
