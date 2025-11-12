@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: iperf3-client
+  namespace: default
+  labels:
+    app: iperf3
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: aks-user-40702790-vms1
+  containers:
+    - name: tester
+      image: telescope.azurecr.io/perf-eval/iperf3.18:v20250415
+      command: ["sleep", "infinity"]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: iperf3-server
+  namespace: default
+  labels:
+    app: iperf3
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: aks-user-40702790-vms2
+  containers:
+    - name: tester
+      image: telescope.azurecr.io/perf-eval/iperf3.18:v20250415
+      command: ["iperf3", "-s", "-p", "20003"]
+      ports:
+        - containerPort: 20003
