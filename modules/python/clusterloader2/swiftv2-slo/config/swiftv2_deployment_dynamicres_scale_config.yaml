@@ -153,7 +153,7 @@ steps:
               exit 0
             fi
             
-            # Find target pod by label (pod-index set via {{.Index}} in deployment template)
+            # Find target pod by label (pod-index set via Index template variable in deployment template)
             TARGET_POD=$(kubectl get pods -n ${NAMESPACE} -l "pod-index=${TARGET_INDEX}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
             if [ -z "$TARGET_POD" ]; then
               echo "Pod ${MY_INDEX}: No target pod found with index ${TARGET_INDEX} (might be last pod)"
