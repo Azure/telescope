@@ -11,9 +11,3 @@ steps:
   parameters:
     role: cas
     region: ${{ parameters.regions[0] }}
-
-- ${{ if eq(parameters.cloud, 'azure') }}:
-  - template: /steps/cloud/azure/install-kubelogin.yml
-    parameters:
-      cloud: ${{ parameters.cloud }}
-      region: ${{ parameters.regions[0] }}
