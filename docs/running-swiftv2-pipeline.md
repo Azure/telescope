@@ -9,7 +9,7 @@ Here is the pipeline [link](https://dev.azure.com/akstelescope/telescope/_build?
 
 ## Pipeline variables, branches and test matrix
 
-- As of 11/11/2025, no pipeline variables need to be touched in ADO. All the variables are hardcoded in `pipelines/system/new-pipeline-test.yml`. For example, subscription, vm-sku, number of nics, etc.
+- As of 11/11/2025, no pipeline variables need to be touched in ADO. All the variables are hardcoded in `pipelines/system/new-pipeline-test.yml`. For example, location, subscription, vm-sku, number of nics, etc.
 - This is the official branch - `feature/swiftv2GA/swiftv2scale`, and it has comprehensive test matrix. Not all of which needs to be run for a given objective.
 - It is recomended to create a test branch and disable/comment out unnnecessary test cases.
 
