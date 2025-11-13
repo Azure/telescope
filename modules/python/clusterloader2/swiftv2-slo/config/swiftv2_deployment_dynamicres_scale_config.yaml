@@ -42,8 +42,16 @@ steps:
       replicasPerNamespace: 1
       tuningSet: DeploymentCreatePNIQps
       objectBundle:
-      - basename: swiftv2-rbac
-        objectTemplatePath: rbac_template.yaml
+      - basename: swiftv2-sa
+        objectTemplatePath: serviceaccount_template.yaml
+        templateFillMap:
+          Namespace: slo-1
+      - basename: swiftv2-role
+        objectTemplatePath: role_template.yaml
+        templateFillMap:
+          Namespace: slo-1
+      - basename: swiftv2-binding
+        objectTemplatePath: rolebinding_template.yaml
         templateFillMap:
           Namespace: slo-1
   - name: "Create PNI"

@@ -1,0 +1,13 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: swiftv2-binding
+  namespace: "{{.Namespace}}"
+subjects:
+  - kind: ServiceAccount
+    name: swiftv2-sa-0
+    namespace: "{{.Namespace}}"
+roleRef:
+  kind: Role
+  name: swiftv2-role-0
+  apiGroup: rbac.authorization.k8s.io

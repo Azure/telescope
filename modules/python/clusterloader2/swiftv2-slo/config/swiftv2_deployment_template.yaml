@@ -24,7 +24,7 @@ spec:
         kubernetes.azure.com/pod-network-instance: "{{.pniName}}"
         restart: "{{.deploymentLabel}}"
     spec:
-      serviceAccountName: swiftv2-rbac-0
+      serviceAccountName: swiftv2-sa-0
       nodeSelector:
         swiftv2slo: "true"
       containers:

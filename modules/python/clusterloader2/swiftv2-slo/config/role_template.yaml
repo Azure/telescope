@@ -1,0 +1,12 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: swiftv2-role
+  namespace: "{{.Namespace}}"
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: ["multitenancy.acn.azure.com"]
+    resources: ["multitenantpodnetworkconfigs"]
+    verbs: ["get", "list"]
