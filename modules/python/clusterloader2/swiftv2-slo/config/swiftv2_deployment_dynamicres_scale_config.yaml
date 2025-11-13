@@ -36,7 +36,10 @@ steps:
         duration: 1ms
   - name: "Create RBAC Resources"
     phases:
-    - replicasPerNamespace: 1
+    - namespaceRange:
+        min: 1
+        max: 1
+      replicasPerNamespace: 1
       tuningSet: DeploymentCreatePNIQps
       objectBundle:
       - basename: swiftv2-rbac
