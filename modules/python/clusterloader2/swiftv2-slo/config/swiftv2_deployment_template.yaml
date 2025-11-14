@@ -20,6 +20,7 @@ spec:
         group: "{{.Group}}"
         podgroup: "{{.PodGroup}}"
         pod-index: "{{.Index}}"
+        step: "{{.Step}}"
         kubernetes.azure.com/pod-network: pn100
         kubernetes.azure.com/pod-network-instance: "{{.pniName}}"
         restart: "{{.deploymentLabel}}"
@@ -37,6 +38,8 @@ spec:
           env:
             - name: POD_INDEX
               value: "{{.Index}}"
+            - name: STEP_NUM
+              value: "{{.Step}}"
             - name: POD_NAME
               valueFrom:
                 fieldRef:

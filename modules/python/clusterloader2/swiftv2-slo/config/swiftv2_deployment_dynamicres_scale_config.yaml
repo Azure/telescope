@@ -103,6 +103,7 @@ steps:
               Replicas: 1
               PodGroup: {{$groupName}}
               Group: {{$groupName}}-{{$j}}
+              Step: {{$j}}
               CpuRequest: {{$latencyPodCpu}}m
               MemoryRequest: {{$latencyPodMemory}}M
               deploymentLabel: start
@@ -149,25 +150,26 @@ steps:
           - |
             set -e
             MY_INDEX=${POD_INDEX}
+            MY_STEP=${STEP_NUM}
             TARGET_INDEX=$((MY_INDEX + 1))
             NAMESPACE=${NAMESPACE:-"slo-1"}
             TOTAL_PODS={{$podsPerStep}}
             
-            echo "Pod index ${MY_INDEX}: Looking for target pod with index ${TARGET_INDEX}"
+            echo "Pod step ${MY_STEP} index ${MY_INDEX}: Looking for target pod with index ${TARGET_INDEX}"
             
-            # Check if this is the last pod (no n+1 exists)
+            # Check if this is the last pod in this step (no n+1 exists in same step)
             if [ ${TARGET_INDEX} -ge ${TOTAL_PODS} ]; then
-              echo "Pod ${MY_INDEX}: I am the last pod (${TOTAL_PODS} total), no n+1 to test. Exiting successfully."
+              echo "Pod ${MY_STEP}-${MY_INDEX}: I am the last pod in step ${MY_STEP}, no n+1 to test. Exiting successfully."
               exit 0
             fi
             
-            # Find target pod by label (pod-index set via Index template variable in deployment template)
-            TARGET_POD=$(kubectl get pods -n ${NAMESPACE} -l "pod-index=${TARGET_INDEX}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+            # Find target pod by label (pod-index AND step must match)
+            TARGET_POD=$(kubectl get pods -n ${NAMESPACE} -l "pod-index=${TARGET_INDEX},step=${MY_STEP}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
             if [ -z "$TARGET_POD" ]; then
-              echo "Pod ${MY_INDEX}: No target pod found with index ${TARGET_INDEX} (might be last pod)"
+              echo "Pod ${MY_STEP}-${MY_INDEX}: No target pod found with index ${TARGET_INDEX} in step ${MY_STEP}"
               exit 0
             fi
-            echo "Pod ${MY_INDEX}: Found target pod: ${TARGET_POD}"
+            echo "Pod ${MY_STEP}-${MY_INDEX}: Found target pod: ${TARGET_POD}"
             
             # MTPNC name == pod name (1:1 mapping)
             MTPNC_NAME=${TARGET_POD}
