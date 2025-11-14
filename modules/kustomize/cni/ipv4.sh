@@ -19,5 +19,10 @@ ip route show
 # Test cross-node connectivity
 kubectl exec pod0 -- ip -4 addr show
 kubectl exec pod0 -- ip -4 route show
-kubectl exec pod0 -- ping -c3 10.224.0.37  # pod2 on node2
+kubectl exec pod0 -- ping -c3 10.224.0.38  # pod2 on node2
+kubectl exec pod2 -- ping -c3 10.224.0.26 # pod0 on node1
 kubectl exec iperf3-client -- iperf3 -c 10.224.0.39 -t 10 -p 20003
+
+# Test ingress-egress connectivity
+kubectl exec pod3 -- ping -c3 8.8.8.8
+kubectl exec pod3 -- wget -q -O- -T 5 http://google.com
