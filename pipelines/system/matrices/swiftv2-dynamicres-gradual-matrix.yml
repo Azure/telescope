@@ -28,11 +28,11 @@ parameters:
         test_timeout: "2m"
         test_type: Gradual_DynamicRes_PPS=5_Pods=35_Nodes=5
         cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-      pps=10_pods=70_nodes=10:
+      pps=35_pods=70_nodes=10:
          node_count: 10
-         pods_per_step: 10
+         pods_per_step: 35
          test_timeout: "2m"
-         test_type: Gradual_DynamicRes_PPS=10_Pods=70_Nodes=10
+         test_type: Gradual_DynamicRes_PPS=35_Pods=70_Nodes=10
          cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
       pps=50_pods=350_nodes=50:
          node_count: 50
