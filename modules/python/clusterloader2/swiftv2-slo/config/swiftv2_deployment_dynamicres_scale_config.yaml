@@ -173,19 +173,19 @@ steps:
             
             # MTPNC name == pod name (1:1 mapping)
             MTPNC_NAME=${TARGET_POD}
-            TARGET_IP=$(kubectl get mtpnc ${MTPNC_NAME} -n ${NAMESPACE} -o jsonpath='{.status.allocatedIPs[0]}' 2>/dev/null || echo "")
+            TARGET_IP=$(kubectl get mtpnc ${MTPNC_NAME} -n ${NAMESPACE} -o jsonpath='{.status.primaryIP}' 2>/dev/null | cut -d'/' -f1)
             if [ -z "$TARGET_IP" ]; then
               echo "ERROR: Pod ${MY_INDEX}: Could not get Swift v2 IP from MTPNC ${MTPNC_NAME}"
               exit 1
             fi
             echo "Pod ${MY_INDEX}: Testing ingress to Pod ${TARGET_INDEX} (${TARGET_POD}) at ${TARGET_IP}"
             
-            # Test Swift v2 IP connectivity
-            if curl --connect-timeout 10 --max-time 30 http://${TARGET_IP}:80 2>&1 | head -5; then
-              echo "SUCCESS: Pod ${MY_INDEX} -> Pod ${TARGET_INDEX} (${TARGET_IP})"
+            # Test Swift v2 IP connectivity with ping
+            if ping -c 3 -W 5 ${TARGET_IP} >/dev/null 2>&1; then
+              echo "SUCCESS: Pod ${MY_INDEX} -> Pod ${TARGET_INDEX} (${TARGET_IP}) - ping successful"
               exit 0
             else
-              echo "FAILURE: Pod ${MY_INDEX} -> Pod ${TARGET_INDEX} (${TARGET_IP})"
+              echo "FAILURE: Pod ${MY_INDEX} -> Pod ${TARGET_INDEX} (${TARGET_IP}) - ping failed"
               exit 1
             fi
           timeout: 60s
