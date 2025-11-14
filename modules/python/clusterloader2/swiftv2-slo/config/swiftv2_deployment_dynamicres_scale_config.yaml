@@ -149,6 +149,11 @@ steps:
           - "-c"
           - |
             set -e
+            LOGFILE="/tmp/ingress-test.log"
+            exec >> ${LOGFILE} 2>&1
+            
+            echo "=========================================="
+            echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
             MY_INDEX=${POD_INDEX}
             MY_STEP=${STEP_NUM}
             TARGET_INDEX=$((MY_INDEX + 1))
@@ -164,16 +169,18 @@ steps:
             fi
             
             # Find target pod by label (pod-index AND step must match)
-            TARGET_POD=$(kubectl get pods -n ${NAMESPACE} -l "pod-index=${TARGET_INDEX},step=${MY_STEP}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+            echo "Searching for target pod with labels: pod-index=${TARGET_INDEX},step=${MY_STEP}"
+            TARGET_POD=$(kubectl get pods -n ${NAMESPACE} -l "pod-index=${TARGET_INDEX},step=${MY_STEP}" -o jsonpath='{.items[0].metadata.name}' 2>&1)
             if [ -z "$TARGET_POD" ]; then
-              echo "Pod ${MY_STEP}-${MY_INDEX}: No target pod found with index ${TARGET_INDEX} in step ${MY_STEP}"
-              exit 0
+              echo "ERROR: No target pod found with index ${TARGET_INDEX} in step ${MY_STEP}"
+              exit 1
             fi
             echo "Pod ${MY_STEP}-${MY_INDEX}: Found target pod: ${TARGET_POD}"
             
             # MTPNC name == pod name (1:1 mapping)
             MTPNC_NAME=${TARGET_POD}
-            TARGET_IP=$(kubectl get mtpnc ${MTPNC_NAME} -n ${NAMESPACE} -o jsonpath='{.status.primaryIP}' 2>/dev/null | cut -d'/' -f1)
+            echo "Querying MTPNC: ${MTPNC_NAME}"
+            TARGET_IP=$(kubectl get mtpnc ${MTPNC_NAME} -n ${NAMESPACE} -o jsonpath='{.status.primaryIP}' 2>&1 | cut -d'/' -f1)
             if [ -z "$TARGET_IP" ]; then
               echo "ERROR: Pod ${MY_INDEX}: Could not get Swift v2 IP from MTPNC ${MTPNC_NAME}"
               exit 1
@@ -181,11 +188,12 @@ steps:
             echo "Pod ${MY_INDEX}: Testing ingress to Pod ${TARGET_INDEX} (${TARGET_POD}) at ${TARGET_IP}"
             
             # Test Swift v2 IP connectivity with ping
-            if ping -c 3 -W 5 ${TARGET_IP} >/dev/null 2>&1; then
-              echo "SUCCESS: Pod ${MY_INDEX} -> Pod ${TARGET_INDEX} (${TARGET_IP}) - ping successful"
+            echo "Executing: ping -c 3 -W 5 ${TARGET_IP}"
+            if ping -c 3 -W 5 ${TARGET_IP}; then
+              echo "✓ SUCCESS: Pod ${MY_INDEX} -> Pod ${TARGET_INDEX} (${TARGET_IP}) - ping successful"
               exit 0
             else
-              echo "FAILURE: Pod ${MY_INDEX} -> Pod ${TARGET_INDEX} (${TARGET_IP}) - ping failed"
+              echo "✗ FAILURE: Pod ${MY_INDEX} -> Pod ${TARGET_INDEX} (${TARGET_IP}) - ping failed"
               exit 1
             fi
           timeout: 60s
