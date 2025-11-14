@@ -20,7 +20,7 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - australiaeast
+            - eastus2
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250912"
@@ -36,7 +36,7 @@ stages:
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
               warmup_deployment: true
-              vm_size: Standard_L8as_v3
+              vm_size: Standard_D4ds_v5
               capacity_type: on-demand
               warmup_deployment_template: automatic/warmup_deployment.yaml
               deployment_template: automatic/deployment_template.yaml
@@ -50,7 +50,7 @@ stages:
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
               warmup_deployment: true
-              vm_size: Standard_L8as_v3
+              vm_size: Standard_D4ds_v5
               capacity_type: on-demand
               warmup_deployment_template: automatic/warmup_deployment.yaml
               deployment_template: automatic/deployment_template.yaml
@@ -65,7 +65,7 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - australiaeast
+            - eastus2
           terraform_input_file_mapping:
             - australiaeast: "scenarios/perf-eval/cluster-automatic/terraform-inputs/azure-automatic-benchmark-acn-on.tfvars"
           engine: clusterloader2
