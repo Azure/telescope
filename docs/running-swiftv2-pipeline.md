@@ -17,3 +17,12 @@ Here is the pipeline [link](https://dev.azure.com/akstelescope/telescope/_build?
 
 - If certain stages are not required for the perf run, in `pipelines/system/new-pipeline-test.yml` flip `condition` flag to `false`. At the moment both `burst` stages are set to false.
 - Each stage has a matrix file here - `pipelines/system/matrices`, where different combinations of pods, nodes and pods-per-step are set. Comment out the matrix entries that are irrelevant for the enabled stages.
+
+## Kusto
+
+cluster('telescopedata.eastus.kusto.windows.net').database('perf_eval')
+
+```KQL
+swiftv2_cluster_churn_feature_swiftv2scale
+| where timestamp > ago(1d)
+```
