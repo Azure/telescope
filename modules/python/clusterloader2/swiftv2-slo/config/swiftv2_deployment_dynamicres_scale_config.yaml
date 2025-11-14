@@ -94,13 +94,13 @@ steps:
       - namespaceRange:
           min: 1
           max: 1
-        replicasPerNamespace: 1
+        replicasPerNamespace: {{$podsPerStep}}
         tuningSet: DeploymentCreateQps
         objectBundle:
           - basename: deployment-churn-{{$j}}
             objectTemplatePath: swiftv2_deployment_template.yaml
             templateFillMap:
-              Replicas: {{$podsPerStep}}
+              Replicas: 1
               PodGroup: {{$groupName}}
               Group: {{$groupName}}-{{$j}}
               CpuRequest: {{$latencyPodCpu}}m

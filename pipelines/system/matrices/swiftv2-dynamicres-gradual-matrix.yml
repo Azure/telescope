@@ -24,9 +24,9 @@ parameters:
     default:
       pps=25_pods=100_nodes=20:
         node_count: 5
-        pods_per_step: 5
+        pods_per_step: 25
         test_timeout: "2m"
-        test_type: Gradual_DynamicRes_PPS=25_Pods=700_Nodes=100
+        test_type: Gradual_DynamicRes_PPS=25_Pods=100_Nodes=20
         cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
       # pps=50_pods=700_nodes=100:
       #   node_count: 100
