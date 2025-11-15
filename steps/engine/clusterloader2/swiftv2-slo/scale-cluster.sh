@@ -75,37 +75,124 @@ function get_scale_timeout() {
     fi
 }
 
-# Scale nodepool with dynamic timeout based on node count
+# Get actual VMSS instance count for a nodepool
+function get_vmss_instance_count() {
+    local nodepool=$1
+    local cluster_name=$2
+    local resource_group=$3
+    
+    local node_rg
+    node_rg=$(get_node_resource_group "$cluster_name" "$resource_group")
+    
+    local vmss_name
+    vmss_name=$(get_vmss_name "$nodepool" "$node_rg")
+    
+    if [ -z "$vmss_name" ]; then
+        echo "0"
+        return 1
+    fi
+    
+    local instance_count
+    instance_count=$(az vmss list-instances \
+        --name "$vmss_name" \
+        --resource-group "$node_rg" \
+        --query "length([?provisioningState=='Succeeded'])" \
+        --output tsv 2>/dev/null || echo "0")
+    
+    echo "$instance_count"
+    return 0
+}
+
+# Scale nodepool with dynamic timeout and retries if VMs are not provisioned
 function scale_nodepool() {
     local cluster_name=$1
     local nodepool=$2
     local resource_group=$3
     local target_count=$4
+    local max_scale_retries=${MAX_SCALE_RETRIES:-3}  # Allow override via env var
+    local retry_delay=60  # Wait 60 seconds between retries
     
-    # Calculate timeout based on node count
-    local timeout_seconds
-    timeout_seconds=$(get_scale_timeout "$target_count")
-    local timeout_minutes=$((timeout_seconds / 60))
+    local scale_attempt=0
+    local scale_success=false
     
-    log_info "Scaling nodepool '$nodepool' to $target_count nodes (timeout: ${timeout_minutes} minutes)..."
-    
-    # Scale with dynamic timeout
-    if timeout "$timeout_seconds" az aks nodepool scale \
-        --cluster-name "$cluster_name" \
-        --name "$nodepool" \
-        --resource-group "$resource_group" \
-        --node-count "$target_count"; then
-        log_info "Successfully scaled nodepool '$nodepool' to $target_count nodes"
-        return 0
-    else
-        local exit_code=$?
-        if [ $exit_code -eq 124 ]; then
-            log_warning "Scale operation timed out after ${timeout_minutes} minutes for nodepool '$nodepool'"
-        else
-            log_warning "Scale operation failed with exit code $exit_code for nodepool '$nodepool'"
+    while [ $scale_attempt -lt $max_scale_retries ] && [ "$scale_success" = false ]; do
+        scale_attempt=$((scale_attempt + 1))
+        
+        if [ $scale_attempt -gt 1 ]; then
+            log_warning "Retry attempt $scale_attempt/$max_scale_retries for scaling nodepool '$nodepool'"
+            log_info "Waiting $retry_delay seconds before retry..."
+            sleep $retry_delay
         fi
-        return $exit_code
+        
+        # Calculate timeout based on node count
+        local timeout_seconds
+        timeout_seconds=$(get_scale_timeout "$target_count")
+        local timeout_minutes=$((timeout_seconds / 60))
+        
+        log_info "Scaling nodepool '$nodepool' to $target_count nodes (attempt $scale_attempt/$max_scale_retries, timeout: ${timeout_minutes} minutes)..."
+        
+        # Scale with dynamic timeout
+        local scale_result=0
+        if timeout "$timeout_seconds" az aks nodepool scale \
+            --cluster-name "$cluster_name" \
+            --name "$nodepool" \
+            --resource-group "$resource_group" \
+            --node-count "$target_count"; then
+            log_info "Scale command completed for nodepool '$nodepool'"
+        else
+            scale_result=$?
+            if [ $scale_result -eq 124 ]; then
+                log_warning "Scale operation timed out after ${timeout_minutes} minutes for nodepool '$nodepool'"
+            else
+                log_warning "Scale operation failed with exit code $scale_result for nodepool '$nodepool'"
+            fi
+        fi
+        
+        # Wait for VMSS to stabilize
+        log_info "Waiting 30 seconds for VMSS to stabilize..."
+        sleep 30
+        
+        # Verify actual VMSS instance count
+        log_info "Verifying actual VMSS instance count for nodepool '$nodepool'..."
+        local actual_count
+        actual_count=$(get_vmss_instance_count "$nodepool" "$cluster_name" "$resource_group")
+        
+        log_info "VMSS actual count: $actual_count, target: $target_count (attempt $scale_attempt/$max_scale_retries)"
+        
+        if [ "$actual_count" -eq "$target_count" ]; then
+            log_info "Successfully scaled nodepool '$nodepool' to $target_count nodes (verified)"
+            scale_success=true
+            return 0
+        elif [ "$actual_count" -gt 0 ] && [ "$actual_count" -ge $((target_count - 5)) ]; then
+            log_warning "Nodepool '$nodepool' scaled to $actual_count/$target_count nodes (within tolerance)"
+            scale_success=true
+            return 0
+        else
+            log_warning "Scale incomplete for nodepool '$nodepool': got $actual_count/$target_count nodes (attempt $scale_attempt/$max_scale_retries)"
+            
+            # If this isn't the last retry, continue to next attempt
+            if [ $scale_attempt -lt $max_scale_retries ]; then
+                log_info "Will retry scaling operation..."
+            fi
+        fi
+    done
+    
+    # All retries exhausted
+    if [ "$scale_success" = false ]; then
+        log_error "Failed to scale nodepool '$nodepool' to $target_count nodes after $max_scale_retries attempts"
+        log_error "Final VMSS count: $(get_vmss_instance_count "$nodepool" "$cluster_name" "$resource_group")/$target_count"
+        
+        # Check if we should fail hard when exact count is required
+        if [ "${PROVISION_BUFFER_NODES:-true}" = "false" ]; then
+            log_error "PROVISION_BUFFER_NODES is false. Failing due to insufficient VMs."
+            return 1
+        else
+            log_warning "PROVISION_BUFFER_NODES is true. Continuing to VM repair phase..."
+            return 0  # Continue to VM repair instead of failing
+        fi
     fi
+    
+    return 0
 }
 
 # List all VMs in a nodepool and their status
@@ -316,48 +403,78 @@ function wait_for_vmss_replacement() {
     return 1
 }
 
-# Label a specific number of nodes with swiftv2slo=true across nodepools
+# Label a specific number of nodes with swiftv2slo=true across nodepools (batch operation)
 function label_swiftv2slo_nodes() {
-    local cluster_name=$1
-    local resource_group=$2
-    local total_nodes_to_label=$3
-    
+    local total_nodes_to_label=$1
+
     log_info "Labeling $total_nodes_to_label nodes with swiftv2slo=true..."
-    
-    # Get all ready nodes from user nodepools (excluding already labeled ones)
+
+    # Get ready nodes from user nodepools using kubectl label selector
+    local kubectl_output
+    if ! kubectl_output=$(kubectl get nodes \
+        -l 'agentpool,agentpool!=promnodepool,!swiftv2slo' \
+        -o json 2>&1); then
+        log_error "kubectl get nodes failed while selecting nodes to label: $kubectl_output"
+        return 1
+    fi
+
     local unlabeled_nodes
-    unlabeled_nodes=$(kubectl get nodes \
-        -l agentpool \
-        -o json 2>/dev/null | \
-        jq -r '.items[] | 
-            select(.metadata.labels.agentpool | startswith("userpool")) | 
+    unlabeled_nodes=$(echo "$kubectl_output" | jq -r '.items[] |
+            select(.metadata.labels.agentpool | startswith("userpool")) |
             select(.status.conditions[] | select(.type=="Ready" and .status=="True")) |
-            select(.metadata.labels.swiftv2slo != "true") |
-            .metadata.name' | head -n "$total_nodes_to_label")
-    
+            .metadata.name' | grep -v '^$' | head -n "$total_nodes_to_label")
+
+    # Check if we have any nodes
     if [ -z "$unlabeled_nodes" ]; then
         log_warning "No unlabeled ready nodes found to label with swiftv2slo=true"
         return 1
     fi
     
-    local labeled_count=0
-    while IFS= read -r node; do
+    # Convert to array for proper counting and handling
+    local -a node_array
+    readarray -t node_array <<< "$unlabeled_nodes"
+    
+    # Filter out empty elements
+    local -a filtered_nodes=()
+    for node in "${node_array[@]}"; do
         if [ -n "$node" ]; then
-            log_info "Labeling node '$node' with swiftv2slo=true"
-            if kubectl label node "$node" swiftv2slo=true --overwrite 2>/dev/null; then
-                labeled_count=$((labeled_count + 1))
-                log_info "Successfully labeled node '$node' ($labeled_count/$total_nodes_to_label)"
-            else
-                log_warning "Failed to label node '$node'"
-            fi
+            filtered_nodes+=("$node")
         fi
-    done <<< "$unlabeled_nodes"
+    done
     
-    log_info "Labeled $labeled_count nodes with swiftv2slo=true (target: $total_nodes_to_label)"
+    local node_count=${#filtered_nodes[@]}
     
-    if [ $labeled_count -lt $total_nodes_to_label ]; then
-        log_warning "Only labeled $labeled_count out of $total_nodes_to_label requested nodes"
+    # Validate we have nodes to label
+    if [ "$node_count" -eq 0 ]; then
+        log_warning "No valid nodes to label"
         return 1
+    fi
+    
+    log_info "Found $node_count node(s) to label (requested: $total_nodes_to_label)"
+    
+    # Actually label the nodes
+    local labeled_count=0
+    local failed_count=0
+    
+    for node in "${filtered_nodes[@]}"; do
+        if kubectl label node "$node" swiftv2slo=true --overwrite 2>/dev/null; then
+            labeled_count=$((labeled_count + 1))
+            log_info "Successfully labeled node: $node ($labeled_count/$node_count)"
+        else
+            failed_count=$((failed_count + 1))
+            log_warning "Failed to label node: $node"
+        fi
+    done
+    
+    log_info "Labeling complete: $labeled_count successful, $failed_count failed"
+    
+    if [ "$labeled_count" -eq 0 ]; then
+        log_error "Failed to label any nodes"
+        return 1
+    fi
+    
+    if [ "$labeled_count" -lt "$total_nodes_to_label" ]; then
+        log_warning "Only labeled $labeled_count/$total_nodes_to_label requested nodes"
     fi
     
     return 0
@@ -404,9 +521,17 @@ function verify_node_readiness() {
         fi
         
         # Query node status for this nodepool
-        local READY_NODES=$(kubectl get nodes -l agentpool="$nodepool" --no-headers 2>/dev/null | grep " Ready " | wc -l || echo 0)
-        local NOT_READY_NODES=$(kubectl get nodes -l agentpool="$nodepool" --no-headers 2>/dev/null | grep " NotReady " | wc -l || echo 0)
-        local TOTAL_NODES=$(kubectl get nodes -l agentpool="$nodepool" --no-headers 2>/dev/null | wc -l || echo 0)
+        local READY_NODES
+        READY_NODES=$(kubectl get nodes -l agentpool="$nodepool" --no-headers 2>/dev/null | grep " Ready " | wc -l 2>/dev/null)
+        READY_NODES=${READY_NODES:-0}
+        
+        local NOT_READY_NODES
+        NOT_READY_NODES=$(kubectl get nodes -l agentpool="$nodepool" --no-headers 2>/dev/null | grep " NotReady " | wc -l 2>/dev/null)
+        NOT_READY_NODES=${NOT_READY_NODES:-0}
+        
+        local TOTAL_NODES
+        TOTAL_NODES=$(kubectl get nodes -l agentpool="$nodepool" --no-headers 2>/dev/null | wc -l 2>/dev/null)
+        TOTAL_NODES=${TOTAL_NODES:-0}
         
         log_info "Node readiness for '$nodepool': $READY_NODES ready, $NOT_READY_NODES not ready, $TOTAL_NODES total (target: $expected_nodes, elapsed: ${elapsed}s)"
         
@@ -446,6 +571,12 @@ function verify_node_readiness() {
     # Show final node status
     log_info "Final node status:"
     kubectl get nodes -l agentpool="$nodepool" -o wide 2>/dev/null || echo "Unable to get node status"
+    
+    # Check if we should fail hard when buffer nodes are not available
+    if [ "${PROVISION_BUFFER_NODES:-true}" = "false" ]; then
+        log_error "PROVISION_BUFFER_NODES is false and not all nodes are ready. Failing the script."
+        exit 1
+    fi
     
     return 1
 }
@@ -648,6 +779,10 @@ function main() {
     done
     log_info "Aggregate planned total: $total_required_nodes (desired: $total_target)"
 
+    # Track scale failures
+    local scale_failures=0
+    declare -A SCALE_FAILED
+    
     # Process each nodepool with its computed target
     for nodepool in $usernodepools; do
         # Check for cancellation before processing each nodepool
@@ -662,7 +797,9 @@ function main() {
         if [[ $pool_target -gt $current_nodes ]]; then
             log_info "Scaling nodepool '$nodepool': $current_nodes → $pool_target"
             if ! scale_nodepool "$aks_name" "$nodepool" "$aks_rg" "$pool_target"; then
-                log_warning "Scale operation failed for nodepool '$nodepool', continuing..."
+                scale_failures=$((scale_failures + 1))
+                SCALE_FAILED[$nodepool]=1
+                log_warning "Scale incomplete for nodepool '$nodepool', VM repair will attempt to fix issues..."
             fi
             log_info "Waiting 60 seconds for scale operation to stabilize..."
             sleep 60
@@ -671,6 +808,10 @@ function main() {
         fi
         log_info "Completed processing nodepool '$nodepool'"
     done
+    
+    if [ $scale_failures -gt 0 ]; then
+        log_warning "Scale operations failed for $scale_failures nodepool(s)"
+    fi
     
     log_info "Verifying overall cluster capacity..."
     log_info "Expected user nodepools: $total_user_nodepools"
@@ -722,16 +863,27 @@ function main() {
         log_info "Sufficient ready nodes available. Skipping failed VM cleanup operations."
     fi
     
-    # Verify total healthy node count meets requirements
-    if ! verify_total_node_capacity "$aks_name" "$aks_rg" "$total_required_nodes"; then
-        log_warning "Total node capacity verification failed, but continuing..."
-        log_info "Note: Buffer pool may provide additional capacity for workload distribution"
-    fi
-    
     # Label the required number of nodes with swiftv2slo=true
     log_info "Labeling $total_required_nodes nodes with swiftv2slo=true for workload placement..."
-    if ! label_swiftv2slo_nodes "$aks_name" "$aks_rg" "$total_required_nodes"; then
+    if ! label_swiftv2slo_nodes "$total_required_nodes"; then
         log_warning "Node labeling encountered issues, but continuing..."
+    fi
+    
+    # Final verification: if PROVISION_BUFFER_NODES is false, ensure we have exactly the required nodes
+    if [ "${PROVISION_BUFFER_NODES:-true}" = "false" ]; then
+        log_info "PROVISION_BUFFER_NODES is false. Performing strict final node count verification..."
+        local final_ready_nodes
+        final_ready_nodes=$(get_total_ready_nodes "$aks_name" "$aks_rg")
+        
+        if [ "$final_ready_nodes" -lt "$total_required_nodes" ]; then
+            log_error "PROVISION_BUFFER_NODES is false and final ready node count ($final_ready_nodes) is less than required ($total_required_nodes)"
+            log_error "Missing nodes: $((total_required_nodes - final_ready_nodes))"
+            exit 1
+        fi
+        
+        log_info "✓ Strict verification passed: $final_ready_nodes ready nodes >= $total_required_nodes required"
+    else
+        log_info "Final cluster state: $(get_total_ready_nodes "$aks_name" "$aks_rg") ready nodes available"
     fi
     
     log_info "All nodepool operations completed"
