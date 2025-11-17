@@ -167,12 +167,12 @@ run "eks_auto_mode_disabled" {
   }
 
   assert {
-    condition     = length(module.eks["auto_mode_false"].eks_cluster.compute_config) == 0
+    condition     = module.eks["auto_mode_false"].eks_cluster.compute_config == null
     error_message = "EKS Auto Mode should not enable compute_config when disabled"
   }
 
   assert {
-    condition     = length(module.eks["auto_mode_false"].eks_cluster.storage_config) == 0
+    condition     = module.eks["auto_mode_false"].eks_cluster.storage_config == null
     error_message = "EKS Auto Mode should not enable block storage when disabled"
   }
 
