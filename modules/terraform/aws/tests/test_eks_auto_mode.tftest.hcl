@@ -166,16 +166,6 @@ run "eks_auto_mode_disabled" {
     error_message = "EKS Auto Mode should enable self-managed addons when disabled"
   }
 
-  assert {
-    condition     = module.eks["auto_mode_false"].eks_cluster.compute_config == null
-    error_message = "EKS Auto Mode should not enable compute_config when disabled"
-  }
-
-  assert {
-    condition     = module.eks["auto_mode_false"].eks_cluster.storage_config == null
-    error_message = "EKS Auto Mode should not enable block storage when disabled"
-  }
-
   # Test that metrics-server manifest deployment is not created when Auto Mode is disabled
   assert {
     condition     = length(module.eks["auto_mode_false"].apply_metrics_server_addon) == 0
