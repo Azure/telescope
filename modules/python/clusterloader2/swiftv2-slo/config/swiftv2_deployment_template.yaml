@@ -35,6 +35,10 @@ spec:
           securityContext:
             privileged: true
           name: deployment-churn
+          lifecycle:
+            postStart:
+              exec:
+                command: ["/bin/bash", "/opt/swiftv2/bin/ingress-egress-check.sh"]
           env:
             - name: POD_INDEX
               value: "{{.Index}}"
@@ -48,12 +52,37 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            - name: TOTAL_PODS_PER_STEP
+              value: "{{.PodsPerStep}}"
+            - name: INGRESS_SERVICE_IP
+              value: "{{.ServiceIp}}"
+            - name: INGRESS_MAX_ATTEMPTS
+              value: "{{.IngressMaxAttempts}}"
+            - name: INGRESS_RETRY_SECONDS
+              value: "{{.IngressRetrySeconds}}"
+            - name: TARGET_READY_TIMEOUT
+              value: "{{.TargetReadyTimeout}}"
+            - name: LOGFILE_PATH
+              value: "/var/log/swiftv2/ingress-test.log"
           ports:
+          volumeMounts:
+            - name: ingress-script
+              mountPath: /opt/swiftv2/bin
+              readOnly: true
+            - name: ingress-logs
+              mountPath: /var/log/swiftv2
           resources:
             requests:
               acn.azure.com/vnet-nic: "1"
             limits:
               acn.azure.com/vnet-nic: "1"
+      volumes:
+        - name: ingress-script
+          configMap:
+            name: swiftv2-ingress-script
+            defaultMode: 0555
+        - name: ingress-logs
+          emptyDir: {}
       tolerations:
         - key: "slo"
           operator: "Equal"

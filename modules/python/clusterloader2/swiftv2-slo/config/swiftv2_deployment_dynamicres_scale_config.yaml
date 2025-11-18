@@ -10,6 +10,9 @@ name: deployment-churn
 {{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "60s"}}
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "120s"}}
 {{$groupName := DefaultParam .CL2_GROUP_NAME "deployment-churn"}}
+{{$serviceIP := DefaultParam .CL2_SERVICE_IP "172.27.0.30"}}
+{{$ingressMaxAttempts := DefaultParam .CL2_INGRESS_MAX_ATTEMPTS 2}}
+{{$ingressRetrySeconds := DefaultParam .CL2_INGRESS_RETRY_SECONDS 5}}
 
 namespace:
   number: 1
@@ -54,6 +57,18 @@ steps:
         objectTemplatePath: rolebinding_template.yaml
         templateFillMap:
           Namespace: slo-1
+  - name: "Create Ingress Test Script"
+    phases:
+    - namespaceRange:
+        min: 1
+        max: 1
+      replicasPerNamespace: 1
+      tuningSet: DeploymentCreatePNIQps
+      objectBundle:
+      - basename: swiftv2-ingress-script
+        objectTemplatePath: swiftv2_ingress_script_configmap.yaml
+        templateFillMap:
+          Namespace: slo-1
   - name: "Create PNI"
     phases:
     - namespaceRange:
@@ -78,7 +93,7 @@ steps:
         action: start
         labelSelector: podgroup={{$groupName}}
         threshold: {{$podStartupLatencyThreshold}}
-  {{range $j := Loop $steps}}
+{{range $j := Loop $steps}}
   - name: Starting Deployment Latency Measurements -{{$j}}
     measurements:
     - Identifier: WaitForControlledPodsRunning-{{$j}}
@@ -109,6 +124,11 @@ steps:
               deploymentLabel: start
               pniName: pod-network-instance-0
               Location: {{$.CL2_LOCATION}}
+              PodsPerStep: {{$podsPerStep}}
+              ServiceIp: {{$serviceIP}}
+              IngressMaxAttempts: {{$ingressMaxAttempts}}
+              IngressRetrySeconds: {{$ingressRetrySeconds}}
+              TargetReadyTimeout: {{DefaultParam $.CL2_TARGET_READY_TIMEOUT "120s"}}
   - name: Wait for all Deployments to be Running -{{$j}}
     measurements:
     - Identifier: WaitForControlledPodsRunning-{{$j}}
@@ -119,98 +139,7 @@ steps:
         kind: Deployment
         labelSelector: group={{$groupName}}-{{$j}}
         operationTimeout: {{$operationTimeout}}
-  - name: Wait for Pod Curl Commands to Start -{{$j}}
-    measurements:
-    - Identifier: Dummy
-      Method: Sleep
-      Params:
-        duration: 30s
-  - name: Pod Curl Command for Deployment -{{$j}}
-    measurements:
-    - Identifier: PodPeriodicCommand-{{$j}}
-      Method: PodPeriodicCommand
-      Params:
-        action: start
-        labelSelector: group={{$groupName}}-{{$j}}
-        interval: 60s
-        container: deployment-churn
-        limit: {{$podsPerStep}}
-        failOnCommandError: true
-        failOnExecError: true
-        failOnTimeout: true
-        commands:
-        - name: CustPodCurl
-          # 172.27.0.30 is the IP of the service created in swiftv2kubeobjects/nginx-deployment.yaml
-          command: ["/bin/sh", "-c", "curl --retry 10 --retry-delay 3 --max-time 60 172.27.0.30"]
-          timeout: 60s
-        - name: IngressConnectivity
-          command: 
-          - "/bin/sh"
-          - "-c"
-          - |
-            set -e
-            LOGFILE="/tmp/ingress-test.log"
-            exec >> ${LOGFILE} 2>&1
-            
-            echo "=========================================="
-            echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-            MY_INDEX=${POD_INDEX}
-            MY_STEP=${STEP_NUM}
-            TARGET_INDEX=$((MY_INDEX + 1))
-            NAMESPACE=${NAMESPACE:-"slo-1"}
-            TOTAL_PODS={{$podsPerStep}}
-            
-            echo "Pod step ${MY_STEP} index ${MY_INDEX}: Looking for target pod with index ${TARGET_INDEX}"
-            
-            # Check if this is the last pod in this step (no n+1 exists in same step)
-            if [ ${TARGET_INDEX} -ge ${TOTAL_PODS} ]; then
-              echo "Pod ${MY_STEP}-${MY_INDEX}: I am the last pod in step ${MY_STEP}, no n+1 to test. Exiting successfully."
-              exit 0
-            fi
-            
-            # Find target pod by label (pod-index AND step must match)
-            echo "Searching for target pod with labels: pod-index=${TARGET_INDEX},step=${MY_STEP}"
-            TARGET_POD=$(kubectl get pods -n ${NAMESPACE} -l "pod-index=${TARGET_INDEX},step=${MY_STEP}" -o jsonpath='{.items[0].metadata.name}' 2>&1)
-            if [ -z "$TARGET_POD" ]; then
-              echo "ERROR: No target pod found with index ${TARGET_INDEX} in step ${MY_STEP}"
-              exit 1
-            fi
-            echo "Pod ${MY_STEP}-${MY_INDEX}: Found target pod: ${TARGET_POD}"
-            
-            # MTPNC name == pod name (1:1 mapping)
-            MTPNC_NAME=${TARGET_POD}
-            echo "Querying MTPNC: ${MTPNC_NAME}"
-            TARGET_IP=$(kubectl get mtpnc ${MTPNC_NAME} -n ${NAMESPACE} -o jsonpath='{.status.primaryIP}' 2>&1 | cut -d'/' -f1)
-            if [ -z "$TARGET_IP" ]; then
-              echo "ERROR: Pod ${MY_INDEX}: Could not get Swift v2 IP from MTPNC ${MTPNC_NAME}"
-              exit 1
-            fi
-            echo "Pod ${MY_INDEX}: Testing ingress to Pod ${TARGET_INDEX} (${TARGET_POD}) at ${TARGET_IP}"
-            
-            # Test Swift v2 IP connectivity with ping
-            echo "Executing: ping -c 3 -W 5 ${TARGET_IP}"
-            if ping -c 3 -W 5 ${TARGET_IP}; then
-              echo "✓ SUCCESS: Pod ${MY_INDEX} -> Pod ${TARGET_INDEX} (${TARGET_IP}) - ping successful"
-              exit 0
-            else
-              echo "✗ FAILURE: Pod ${MY_INDEX} -> Pod ${TARGET_INDEX} (${TARGET_IP}) - ping failed"
-              exit 1
-            fi
-          timeout: 60s
-  - name: Wait for Pod Curl Commands to Execute -{{$j}}
-    measurements:
-    - Identifier: Dummy
-      Method: Sleep
-      Params:
-        duration: 60s
-  - name: Gather Pod Curl Command Results -{{$j}}
-    measurements:
-    - Identifier: PodPeriodicCommand-{{$j}}
-      Method: PodPeriodicCommand
-      Params:
-        action: gather
-        labelSelector: group={{$groupName}}-{{$j}}
-  {{end}}
+{{end}}
   - name: Gather Pod Startup Latency Measurements
     measurements:
     - Identifier: PodStartupLatency
