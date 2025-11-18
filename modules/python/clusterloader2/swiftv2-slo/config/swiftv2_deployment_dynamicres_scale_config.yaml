@@ -19,7 +19,7 @@ namespace:
   prefix: slo
   deleteStaleNamespaces: false
   deleteAutomanagedNamespaces: false
-  enableExistingNamespaces: false
+  enableExistingNamespaces: true
 
 tuningSets:
   - name: DeploymentCreatePNIQps
