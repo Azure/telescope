@@ -1,0 +1,92 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: swiftv2-ingress-script
+  namespace: {{.Namespace}}
+data:
+  ingress-egress-check.sh: |
+    #!/bin/bash
+    set -u
+
+    LOGFILE="${LOGFILE_PATH:-/var/log/swiftv2/ingress-test.log}"
+    mkdir -p "$(dirname "${LOGFILE}")"
+    exec > >(tee -a "${LOGFILE}") 2>&1
+    set -o pipefail
+
+    log() {
+      echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] $*"
+    }
+
+    MAX_ATTEMPTS="${INGRESS_MAX_ATTEMPTS:-2}"
+    RETRY_DELAY="${INGRESS_RETRY_SECONDS:-5}"
+    SERVICE_IP="${INGRESS_SERVICE_IP:-172.27.0.30}"
+    MY_INDEX="${POD_INDEX:-0}"
+    MY_STEP="${STEP_NUM:-0}"
+    TOTAL_PODS="${TOTAL_PODS_PER_STEP:-1}"
+    NAMESPACE="${NAMESPACE:-default}"
+    PING_COUNT="${PING_COUNT:-3}"
+    PING_TIMEOUT="${PING_TIMEOUT:-5}"
+    TARGET_READY_TIMEOUT="${TARGET_READY_TIMEOUT:-120s}"
+
+    run_custpodcurl() {
+      log "CustPodCurl: curling ${SERVICE_IP}"
+      curl --fail --retry 5 --retry-delay 3 --max-time 60 "${SERVICE_IP}" >/dev/null
+    }
+
+    run_ingress_ping() {
+      local target_index=$((MY_INDEX + 1))
+      if [ "${target_index}" -ge "${TOTAL_PODS}" ]; then
+        log "IngressConnectivity: pod ${MY_STEP}-${MY_INDEX} is last pod within step; skipping"
+        return 0
+      fi
+
+      log "IngressConnectivity: locating target pod with labels pod-index=${target_index},step=${MY_STEP}"
+      local target_pod
+      target_pod=$(kubectl get pods -n "${NAMESPACE}" -l "pod-index=${target_index},step=${MY_STEP}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null | tr -d '\n')
+      if [ -z "${target_pod}" ]; then
+        log "IngressConnectivity: ERROR unable to find target pod"
+        return 1
+      fi
+
+      log "IngressConnectivity: waiting for ${target_pod} to become Ready (timeout ${TARGET_READY_TIMEOUT})"
+      if ! kubectl wait pod "${target_pod}" -n "${NAMESPACE}" --for=condition=Ready --timeout="${TARGET_READY_TIMEOUT}" >/dev/null 2>&1; then
+        log "IngressConnectivity: ERROR target pod ${target_pod} failed to become Ready"
+        return 1
+      fi
+
+      local target_ip
+      target_ip=$(kubectl get mtpnc "${target_pod}" -n "${NAMESPACE}" -o jsonpath='{.status.primaryIP}' 2>/dev/null | cut -d'/' -f1 | tr -d '\n')
+      if [ -z "${target_ip}" ]; then
+        log "IngressConnectivity: ERROR unable to resolve target IP from MTPNC ${target_pod}"
+        return 1
+      fi
+
+      log "IngressConnectivity: pinging ${target_pod} at ${target_ip}"
+      if ping -c "${PING_COUNT}" -W "${PING_TIMEOUT}" "${target_ip}" >/dev/null; then
+        log "IngressConnectivity: SUCCESS"
+        return 0
+      fi
+
+      log "IngressConnectivity: ERROR ping failed"
+      return 1
+    }
+
+    attempt=1
+    while [ "${attempt}" -le "${MAX_ATTEMPTS}" ]; do
+      log "Attempt ${attempt}/${MAX_ATTEMPTS} starting"
+
+      if run_custpodcurl && run_ingress_ping; then
+        log "Ingress/Egress validation succeeded"
+        exit 0
+      fi
+
+      log "Attempt ${attempt} failed"
+      attempt=$((attempt + 1))
+      if [ "${attempt}" -le "${MAX_ATTEMPTS}" ]; then
+        log "Retrying after ${RETRY_DELAY}s"
+        sleep "${RETRY_DELAY}"
+      fi
+    done
+
+    log "All attempts failed"
+    exit 1
