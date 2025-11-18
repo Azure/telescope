@@ -36,7 +36,7 @@ locals {
         sku_tier           = local.aks_sku_tier != null ? local.aks_sku_tier : aks.sku_tier
         kubernetes_version = local.aks_kubernetes_version != null ? local.aks_kubernetes_version : aks.kubernetes_version
         azure_active_directory_role_based_access_control = local.aks_aad_enabled == "true" ? {
-          tenant_id              = local.aks_aad_tenant_id != null ? local.aks_aad_tenant_id : data.azurerm_client_config.current.tenant_id
+          tenant_id              = data.azurerm_client_config.current.tenant_id
           admin_group_object_ids = local.aks_aad_admin_group_object_ids != null ? split(",", local.aks_aad_admin_group_object_ids) : []
           azure_rbac_enabled     = local.aks_aad_azure_rbac_enabled == "true"
         } : aks.azure_active_directory_role_based_access_control
