@@ -167,3 +167,27 @@ kubectl get svc pod0-lb -w
 EXTERNAL_IP=$(kubectl get svc pod0-lb -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
 curl http://$EXTERNAL_IP
 ```
+
+### Explanation
+
+```bash
+iptables -t nat -A POSTROUTING -s 10.224.0.16/28 ! -d 10.224.0.0/16 -j MASQUERADE
+```
+
+Pod wants to reach google.com (142.251.40.46)
+
+BEFORE this rule (at pod):
+  Source: 10.224.0.17 (pod IP)
+  Dest: 142.251.40.46 (Google)
+
+AFTER this rule (leaving node):
+  Source: 10.224.0.6 (node1's IP) ← Changed by MASQUERADE
+  Dest: 142.251.40.46 (Google)
+
+Return traffic:
+  Source: 142.251.40.46 (Google)
+  Dest: 10.224.0.6 (node IP)
+  
+Node's conntrack automatically un-NATs:
+  Source: 142.251.40.46 (Google)
+  Dest: 10.224.0.17 (pod IP) ← Restored
