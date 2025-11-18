@@ -1,0 +1,140 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ipv4-masq-node1
+  namespace: default
+  labels:
+    app: ipv4-masq
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: aks-default-42863573-vms1
+  tolerations:
+    - key: "node.kubernetes.io/not-ready"
+      operator: "Exists"
+  hostNetwork: true
+  containers:
+    - name: setup-masquerade
+      image: alpine:latest
+      command:
+        - /bin/sh
+        - -c
+        - |
+          set -eo pipefail
+          
+          # Install iptables
+          apk add --no-cache iptables
+          
+          echo "Setting up IP masquerading for pod subnet 10.224.0.16/28..."
+          
+          # Enable IP forwarding
+          echo 1 > /proc/sys/net/ipv4/ip_forward
+          
+          # Add masquerading rule for pod traffic going to internet
+          iptables -t nat -C POSTROUTING -s 10.224.0.16/28 ! -d 10.224.0.0/16 -j MASQUERADE 2>/dev/null || \
+          iptables -t nat -A POSTROUTING -s 10.224.0.16/28 ! -d 10.224.0.0/16 -j MASQUERADE
+          
+          echo "IP masquerading configured successfully"
+          iptables -t nat -L POSTROUTING -n -v | grep -A 2 MASQUERADE || true
+          
+          # Keep container running
+          sleep infinity
+      securityContext:
+        runAsUser: 0
+        privileged: true
+        capabilities:
+          add: ["NET_ADMIN", "NET_RAW"]
+  restartPolicy: Always
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ipv4-masq-node2
+  namespace: default
+  labels:
+    app: ipv4-masq
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: aks-default-42863573-vms2
+  tolerations:
+    - key: "node.kubernetes.io/not-ready"
+      operator: "Exists"
+  hostNetwork: true
+  containers:
+    - name: setup-masquerade
+      image: alpine:latest
+      command:
+        - /bin/sh
+        - -c
+        - |
+          set -eo pipefail
+          
+          # Install iptables
+          apk add --no-cache iptables
+          
+          echo "Setting up IP masquerading for pod subnet 10.224.0.32/28..."
+          
+          # Enable IP forwarding
+          echo 1 > /proc/sys/net/ipv4/ip_forward
+          
+          # Add masquerading rule for pod traffic going to internet
+          iptables -t nat -C POSTROUTING -s 10.224.0.32/28 ! -d 10.224.0.0/16 -j MASQUERADE 2>/dev/null || \
+          iptables -t nat -A POSTROUTING -s 10.224.0.32/28 ! -d 10.224.0.0/16 -j MASQUERADE
+          
+          echo "IP masquerading configured successfully"
+          iptables -t nat -L POSTROUTING -n -v | grep -A 2 MASQUERADE || true
+          
+          # Keep container running
+          sleep infinity
+      securityContext:
+        runAsUser: 0
+        privileged: true
+        capabilities:
+          add: ["NET_ADMIN", "NET_RAW"]
+  restartPolicy: Always
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ipv4-masq-node3
+  namespace: default
+  labels:
+    app: ipv4-masq
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: aks-default-42863573-vms3
+  tolerations:
+    - key: "node.kubernetes.io/not-ready"
+      operator: "Exists"
+  hostNetwork: true
+  containers:
+    - name: setup-masquerade
+      image: alpine:latest
+      command:
+        - /bin/sh
+        - -c
+        - |
+          set -eo pipefail
+          
+          # Install iptables
+          apk add --no-cache iptables
+          
+          echo "Setting up IP masquerading for pod subnet 10.224.0.48/28..."
+          
+          # Enable IP forwarding
+          echo 1 > /proc/sys/net/ipv4/ip_forward
+          
+          # Add masquerading rule for pod traffic going to internet
+          iptables -t nat -C POSTROUTING -s 10.224.0.48/28 ! -d 10.224.0.0/16 -j MASQUERADE 2>/dev/null || \
+          iptables -t nat -A POSTROUTING -s 10.224.0.48/28 ! -d 10.224.0.0/16 -j MASQUERADE
+          
+          echo "IP masquerading configured successfully"
+          iptables -t nat -L POSTROUTING -n -v | grep -A 2 MASQUERADE || true
+          
+          # Keep container running
+          sleep infinity
+      securityContext:
+        runAsUser: 0
+        privileged: true
+        capabilities:
+          add: ["NET_ADMIN", "NET_RAW"]
+  restartPolicy: Always

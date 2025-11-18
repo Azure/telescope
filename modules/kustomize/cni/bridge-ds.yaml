@@ -14,8 +14,8 @@ spec:
       labels:
         app: bridge-cni
     spec:
-      nodeSelector:
-        agentpool: "default"
+      # nodeSelector:
+        # agentpool: "default"
       hostNetwork: true
       tolerations:
       - operator: Exists

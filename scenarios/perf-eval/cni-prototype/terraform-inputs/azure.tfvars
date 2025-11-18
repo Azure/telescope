@@ -32,25 +32,26 @@ aks_cli_config_list = [
       name        = "default"
       node_count  = 3
       vm_size     = "Standard_D8ds_v6"
+      vm_set_type = "VirtualMachines"
     }
-    extra_node_pool = [
-      {
-        name        = "user",
-        node_count  = 2,
-        vm_size     = "Standard_D16ds_v6",
-        vm_set_type = "VirtualMachines",
-        optional_parameters = [
-          {
-            name  = "node-osdisk-type"
-            value = "Ephemeral"
-          },
-          {
-            name  = "os-sku"
-            value = "Ubuntu2404"
-          }
-        ]
-      }
-    ]
+    # extra_node_pool = [
+    #   {
+    #     name        = "user",
+    #     node_count  = 2,
+    #     vm_size     = "Standard_D16ds_v6",
+    #     vm_set_type = "VirtualMachines",
+    #     optional_parameters = [
+    #       {
+    #         name  = "node-osdisk-type"
+    #         value = "Ephemeral"
+    #       },
+    #       {
+    #         name  = "os-sku"
+    #         value = "Ubuntu2404"
+    #       }
+    #     ]
+    #   }
+    # ]
     optional_parameters = [
       {
         name  = "network-plugin"

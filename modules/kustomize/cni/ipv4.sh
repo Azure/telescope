@@ -2,17 +2,26 @@
 # Note: These are temporary and will be lost on reboot
 # For persistent configuration, use systemd-networkd or cloud-init
 
-## Node 1 (aks-user-40702790-vms1, IP: 10.224.0.7)
+## Node 1 (aks-default-42863573-vms1, IP: 10.224.0.6)
 sudo ip addr add 10.224.0.16/28 dev eth0
 # Add route to Node2's pod subnet via Node2's IP
-sudo ip route add 10.224.0.32/28 via 10.224.0.8 dev eth0
+sudo ip route add 10.224.0.32/28 via 10.224.0.4 dev eth0
+sudo ip route add 10.224.0.48/28 via 10.224.0.5 dev eth0
 ip -4 a show eth0
 ip route show
 
-## Node 2 (aks-user-40702790-vms2, IP: 10.224.0.8)
+## Node 2 (aks-default-42863573-vms2, IP: 10.224.0.4)
 sudo ip addr add 10.224.0.32/28 dev eth0
 # Add route to Node1's pod subnet via Node1's IP
-sudo ip route add 10.224.0.16/28 via 10.224.0.7 dev eth0
+sudo ip route add 10.224.0.16/28 via 10.224.0.6 dev eth0
+sudo ip route add 10.224.0.48/28 via 10.224.0.5 dev eth0
+ip -4 a show eth0
+ip route show
+
+## Node 3 (aks-default-42863573-vms3, IP: 10.224.0.5)
+sudo ip addr add 10.224.0.48/28 dev eth0
+sudo ip route add 10.224.0.16/28 via 10.224.0.6 dev eth0
+sudo ip route add 10.224.0.32/28 via 10.224.0.4 dev eth0
 ip -4 a show eth0
 ip route show
 
@@ -110,3 +119,10 @@ default via 10.22.0.1 dev eth0
 (env) alyssavu@CPC-alyss-5IIXY:~/telescope$ kubectl exec pod1 -- ip -4 route show
 10.224.0.0/16 via 10.224.0.17 dev eth0 
 10.224.0.16/28 dev eth0 scope link  src 10.224.0.20 
+
+## Combine mode: bridge first, ipvlan second
+(env) alyssavu@CPC-alyss-5IIXY:~/telescope$ kubectl exec pod1 -- ip -4 route show
+default via 10.22.0.1 dev eth0 
+10.22.0.0/16 dev eth0 scope link  src 10.22.0.3 
+10.224.0.0/16 via 10.224.0.17 dev net1 
+10.224.0.16/28 dev net1 scope link  src 10.224.0.18 
