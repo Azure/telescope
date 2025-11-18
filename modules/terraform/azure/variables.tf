@@ -11,7 +11,7 @@ variable "json_input" {
     k8s_machine_type                  = optional(string, null)
     k8s_os_disk_type                  = optional(string, null)
     enable_apiserver_vnet_integration = optional(bool, false)
-    api_server_subnet_name            = optional(string, null)
+
     aks_cli_system_node_pool = optional(object({
       name        = string
       node_count  = number
@@ -238,6 +238,7 @@ variable "aks_cli_config_list" {
     use_custom_configurations     = optional(bool, false)
     use_aks_preview_cli_extension = optional(bool, true)
     use_aks_preview_private_build = optional(bool, false)
+    api_server_subnet_name= optional(string, false)
 
     default_node_pool = optional(object({
       name        = string

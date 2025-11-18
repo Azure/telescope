@@ -10,7 +10,6 @@ locals {
   aks_custom_headers                = lookup(var.json_input, "aks_custom_headers", [])
   k8s_machine_type                  = lookup(var.json_input, "k8s_machine_type", null)
   k8s_os_disk_type                  = lookup(var.json_input, "k8s_os_disk_type", null)
-  api_server_subnet_name            = lookup(var.json_input, "api_server_subnet_name", null)
   enable_apiserver_vnet_integration = lookup(var.json_input, "enable_apiserver_vnet_integration", false)
 
   tags = {
@@ -48,8 +47,9 @@ locals {
         aks_custom_headers   = length(local.aks_custom_headers) > 0 ? local.aks_custom_headers : aks.aks_custom_headers
         default_node_pool    = local.aks_cli_system_node_pool != null ? local.aks_cli_system_node_pool : aks.default_node_pool
         extra_node_pool      = local.aks_cli_user_node_pool != null ? local.aks_cli_user_node_pool : aks.extra_node_pool
+        api_server_subnet_name = try(aks.api_server_subnet_name, null)
         enable_apiserver_vnet_integration = local.enable_apiserver_vnet_integration
-        api_server_subnet_id = local.enable_apiserver_vnet_integration && local.api_server_subnet_name != null ? try(local.all_subnets[local.api_server_subnet_name], null) : null
+        api_server_subnet_id = local.enable_apiserver_vnet_integration && try(aks.api_server_subnet_name, null) != null ? try(local.all_subnets[aks.api_server_subnet_name], null) : null
       }
     )
   ] : []
