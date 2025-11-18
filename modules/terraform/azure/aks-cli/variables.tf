@@ -37,11 +37,12 @@ variable "aks_cli_config" {
     managed_identity_name         = optional(string, null)
     kubernetes_version            = optional(string, null)
     aks_custom_headers            = optional(list(string), [])
-    api_server_subnet_id          = optional(string, null)
-    enable_apiserver_vnet_integration = optional(bool, false)
     use_custom_configurations     = optional(bool, false)
     use_aks_preview_cli_extension = optional(bool, true)
     use_aks_preview_private_build = optional(bool, false)
+    api_server_subnet_name        = optional(string, false)
+    api_server_subnet_id          = optional(string, null)
+    enable_apiserver_vnet_integration = optional(bool, false)
     default_node_pool = optional(object({
       name        = string
       node_count  = number
