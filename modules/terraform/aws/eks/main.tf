@@ -491,8 +491,8 @@ resource "aws_eks_addon" "before_compute" {
   service_account_role_arn = aws_iam_role.addon_role[0].arn
   configuration_values     = try(each.value.configuration_values, null) != null ? jsonencode(each.value.configuration_values) : null
 
-  resolve_conflicts_on_create = "OVERWRITE"
-  resolve_conflicts_on_update = "OVERWRITE"
+  resolve_conflicts_on_create = try(each.value.resolve_conflicts_on_create, "OVERWRITE")
+  resolve_conflicts_on_update = try(each.value.resolve_conflicts_on_update, "OVERWRITE")
 
   tags = {
     "Name" = each.value.name
