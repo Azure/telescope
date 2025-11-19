@@ -112,6 +112,6 @@ module "aks-cli" {
   location                   = local.region
   aks_cli_config             = each.value
   tags                       = local.tags
-  subnet_map                 = local.all_subnets
+  subnets_map                 = local.all_subnets
   aks_cli_custom_config_path = local.aks_cli_custom_config_path
 }
