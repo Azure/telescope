@@ -45,7 +45,6 @@ stages:
               warmup_deployment: false
               capacity_type: on-demand
               enable_apiserver_vnet_integration: "false"
-              api_server_subnet_name: "apiserver-subnet"
           max_parallel: 1
           credential_type: service_connection
           ssh_key_enabled: false
