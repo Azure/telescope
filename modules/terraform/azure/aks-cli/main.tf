@@ -133,7 +133,7 @@ resource "azurerm_user_assigned_identity" "userassignedidentity" {
 resource "azurerm_role_assignment" "network_contributor" {
   count                = var.aks_cli_config.managed_identity_name == null ? 0 : 1
   role_definition_name = "Network Contributor"
-  scope                = var.subnet_id
+  scope                = local.aks_subnet_id
   principal_id         = azurerm_user_assigned_identity.userassignedidentity[0].principal_id
 }
 
@@ -141,7 +141,7 @@ resource "azurerm_role_assignment" "network_contributor_api_server_subnet" {
   count = (var.aks_cli_config.managed_identity_name != null && var.aks_cli_config.enable_apiserver_vnet_integration) ? 1 : 0
 
   role_definition_name = "Network Contributor"
-  scope                = var.aks_cli_config.api_server_subnet_id
+  scope                = local.api_server_subnet_id
   principal_id         = azurerm_user_assigned_identity.userassignedidentity[0].principal_id
 }
 
