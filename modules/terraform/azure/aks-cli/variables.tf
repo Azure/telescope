@@ -16,10 +16,10 @@ variable "tags" {
   }
 }
 
-variable "subnet_id" {
-  description = "Value of the subnet id"
-  type        = string
-  default     = null
+variable "subnets_map" {
+  description = "Map of subnet names to subnet objects"
+  type = map(any)
+  default = {}
 }
 
 variable "aks_cli_custom_config_path" {
@@ -41,7 +41,6 @@ variable "aks_cli_config" {
     use_aks_preview_cli_extension = optional(bool, true)
     use_aks_preview_private_build = optional(bool, false)
     api_server_subnet_name        = optional(string, false)
-    api_server_subnet_id          = optional(string, null)
     enable_apiserver_vnet_integration = optional(bool, false)
     default_node_pool = optional(object({
       name        = string
