@@ -1,14 +1,14 @@
 trigger: none
 
 schedules:
-  - cron: "0 11,23 * * *"
-    displayName: "11:00 AM & PM Daily"
+  - cron: "0 11 * * *"
+    displayName: "11:00 AM Daily"
     branches:
       include:
         - main
     always: true
-  - cron: "0 23 * * 2"
-    displayName: "11:00 PM Every Tuesday"
+  - cron: "0 23 * * *"
+    displayName: "11:00 PM Daily"
     branches:
       include:
         - main
@@ -37,7 +37,6 @@ parameters:
 
 stages:
   - stage: azure_eastus2_v3_azure
-    condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday')
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -74,7 +73,6 @@ stages:
           ssh_key_enabled: false
 
   - stage: azure_eastus2_v3_cilium
-    condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday')
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -111,7 +109,6 @@ stages:
           ssh_key_enabled: false
 
   - stage: azure_eastus2_v5_azure
-    condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday')
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -148,7 +145,6 @@ stages:
           ssh_key_enabled: false
 
   - stage: azure_eastus2_v5_cilium
-    condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday')
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -185,7 +181,6 @@ stages:
           ssh_key_enabled: false
 
   - stage: azure_eastus2_v3_v6
-    condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday')
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -219,7 +214,6 @@ stages:
           ssh_key_enabled: false
 
   - stage: azure_eastus2_v6
-    condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday')
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -253,7 +247,7 @@ stages:
   - stage: aws_eastus2_m4_m6i
     condition: |
       or(
-        eq(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday'),
+        eq(variables['Build.CronSchedule.DisplayName'], '11:00 PM Daily'),
         and(eq(variables['Build.Reason'], 'Manual'), ne(variables['SKIP_AWS'], 'true'))
       )
     dependsOn: []
@@ -294,7 +288,7 @@ stages:
   - stage: aws_eastus2_m7i
     condition: |
       or(
-        eq(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday'),
+        eq(variables['Build.CronSchedule.DisplayName'], '11:00 PM Daily'),
         and(eq(variables['Build.Reason'], 'Manual'), ne(variables['SKIP_AWS'], 'true'))
       )
     dependsOn: []
