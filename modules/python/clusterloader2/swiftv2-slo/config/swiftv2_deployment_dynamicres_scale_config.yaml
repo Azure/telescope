@@ -124,7 +124,7 @@ steps:
     - Identifier: Dummy
       Method: Sleep
       Params:
-        duration: 180s
+        duration: 120s
   - name: Pod Curl Command for Deployment -{{$j}}
     measurements:
     - Identifier: PodPeriodicCommand-{{$j}}
