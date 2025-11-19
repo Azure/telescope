@@ -7,7 +7,6 @@ locals {
   aks_network_dataplane    = lookup(var.json_input, "aks_network_dataplane", null)
   aks_aad_enabled                = lookup(var.json_input, "aks_aad_enabled", null)
   aks_aad_admin_group_object_ids = lookup(var.json_input, "aks_aad_admin_group_object_ids", null)
-  aks_aad_tenant_id              = lookup(var.json_input, "aks_aad_tenant_id", null)
   aks_aad_azure_rbac_enabled     = lookup(var.json_input, "aks_aad_azure_rbac_enabled", "true")
   aks_cli_system_node_pool = lookup(var.json_input, "aks_cli_system_node_pool", null)
   aks_cli_user_node_pool   = lookup(var.json_input, "aks_cli_user_node_pool", null)

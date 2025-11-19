@@ -9,7 +9,6 @@ variable "json_input" {
     aks_network_dataplane  = optional(string, null)
     aks_aad_enabled        = optional(string, null)
     aks_aad_admin_group_object_ids = optional(string, null)
-    aks_aad_tenant_id      = optional(string, null)
     aks_aad_azure_rbac_enabled = optional(string, "true")
     aks_custom_headers     = optional(list(string), [])
     k8s_machine_type       = optional(string, null)
