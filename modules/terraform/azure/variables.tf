@@ -122,6 +122,19 @@ variable "network_config_list" {
       public_ip_names  = list(string)
       subnet_names     = list(string)
     })))
+    route_tables = optional(list(object({
+      name                          = string
+      bgp_route_propagation_enabled = optional(bool, true)
+      routes = list(object({
+        name                   = string
+        address_prefix         = string
+        next_hop_type          = string
+        next_hop_in_ip_address = optional(string, null)
+      }))
+      subnet_associations = list(object({
+        subnet_name = string
+      }))
+    })))
   }))
   default = []
 }
