@@ -108,6 +108,10 @@ variable "eks_config" {
       }))
       vpc_cni_warm_prefix_target = optional(number, 1)
       before_compute             = optional(bool, false)
+
+      #allow per-add-on conflict behaviour (AWS valid values: NONE, OVERWRITE, PRESERVE)
+      resolve_conflicts_on_create = optional(string, "OVERWRITE")
+      resolve_conflicts_on_update = optional(string, "OVERWRITE")
     }))
     kubernetes_version = optional(string, null)
     auto_scaler_profile = optional(object({
