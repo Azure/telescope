@@ -47,8 +47,7 @@ locals {
         aks_custom_headers   = length(local.aks_custom_headers) > 0 ? local.aks_custom_headers : aks.aks_custom_headers
         default_node_pool    = local.aks_cli_system_node_pool != null ? local.aks_cli_system_node_pool : aks.default_node_pool
         extra_node_pool      = local.aks_cli_user_node_pool != null ? local.aks_cli_user_node_pool : aks.extra_node_pool
-        enable_apiserver_vnet_integration = local.enable_apiserver_vnet_integration
-        api_server_subnet_id = local.enable_apiserver_vnet_integration && try(aks.api_server_subnet_name, null) != null ? try(local.all_subnets[aks.api_server_subnet_name], null) : null
+        enable_apiserver_vnet_integration = local.enable_apiserver_vnet_integration        
       }
     )
   ] : []
@@ -113,6 +112,6 @@ module "aks-cli" {
   location                   = local.region
   aks_cli_config             = each.value
   tags                       = local.tags
-  subnet_id                  = try(local.all_subnets[each.value.subnet_name], null)
+  subnets_map                 = local.all_subnets
   aks_cli_custom_config_path = local.aks_cli_custom_config_path
 }

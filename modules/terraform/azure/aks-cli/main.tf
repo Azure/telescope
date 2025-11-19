@@ -4,6 +4,18 @@ locals {
     format("%s=%s", key, value)
   ]
 
+  aks_subnet_id = (
+    var.aks_cli_config.subnet_name == null ?
+    null :
+    try(var.subnets_map[var.aks_cli_config.subnet_name], null)
+  )
+
+  api_server_subnet_id = (
+    var.aks_cli_config.api_server_subnet_name == null ?
+    null :
+    try(var.subnets_map[var.aks_cli_config.api_server_subnet_name], null)
+  )
+
   extra_pool_map = {
     for pool in var.aks_cli_config.extra_node_pool :
     pool.name => pool
@@ -38,11 +50,11 @@ locals {
     ])
   )
 
-  subnet_id_parameter = (var.subnet_id == null ?
+  subnet_id_parameter = (local.aks_subnet_id == null ?
     "" :
     format(
       "%s %s",
-      "--vnet-subnet-id", var.subnet_id,
+      "--vnet-subnet-id", local.aks_subnet_id
     )
   )
 
@@ -55,10 +67,10 @@ locals {
   )
 
 
-  api_server_vnet_integration_parameter = (var.aks_cli_config.enable_apiserver_vnet_integration && var.aks_cli_config.api_server_subnet_id != null ?
+  api_server_vnet_integration_parameter = (var.aks_cli_config.enable_apiserver_vnet_integration && local.api_server_subnet_id != null ?
     format(
       "--enable-apiserver-vnet-integration --apiserver-subnet-id %s",
-      var.aks_cli_config.api_server_subnet_id,
+      local.api_server_subnet_id
     ) :
     ""
   )
@@ -121,7 +133,7 @@ resource "azurerm_user_assigned_identity" "userassignedidentity" {
 resource "azurerm_role_assignment" "network_contributor" {
   count                = var.aks_cli_config.managed_identity_name == null ? 0 : 1
   role_definition_name = "Network Contributor"
-  scope                = var.subnet_id
+  scope                = local.aks_subnet_id
   principal_id         = azurerm_user_assigned_identity.userassignedidentity[0].principal_id
 }
 
@@ -129,7 +141,7 @@ resource "azurerm_role_assignment" "network_contributor_api_server_subnet" {
   count = (var.aks_cli_config.managed_identity_name != null && var.aks_cli_config.enable_apiserver_vnet_integration) ? 1 : 0
 
   role_definition_name = "Network Contributor"
-  scope                = var.aks_cli_config.api_server_subnet_id
+  scope                = local.api_server_subnet_id
   principal_id         = azurerm_user_assigned_identity.userassignedidentity[0].principal_id
 }
 
