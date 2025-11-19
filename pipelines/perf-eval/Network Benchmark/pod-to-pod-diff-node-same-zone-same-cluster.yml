@@ -1,14 +1,14 @@
 trigger: none
 
 schedules:
-  - cron: "0 11,23 * * *"
-    displayName: "11:00 AM & PM Daily"
+  - cron: "0 11 * * *"
+    displayName: "11:00 AM Daily"
     branches:
       include:
         - main
     always: true
-  - cron: "0 23 * * 2"
-    displayName: "11:00 PM Every Tuesday"
+  - cron: "0 23 * * *"
+    displayName: "11:00 PM Daily"
     branches:
       include:
         - main
@@ -37,7 +37,6 @@ parameters:
 
 stages:
   - stage: azure_eastus2_v3_azure
-    condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday')
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -53,21 +52,16 @@ stages:
             iperf3_command_array:
               - "1|tcp|1000|1|--time 60 --bandwidth 1000M --parallel 1 --interval 1 --port 20003|direct|pod"
               - "2|tcp|1000|2|--time 60 --bandwidth 1000M --parallel 2 --interval 1 --port 20003|direct|pod"
-              - "3|tcp|1000|3|--time 60 --bandwidth 1000M --parallel 3 --interval 1 --port 20003|direct|pod"
-              - "4|tcp|1000|4|--time 60 --bandwidth 1000M --parallel 4 --interval 1 --port 20003|direct|pod"
-              - "5|tcp|1000|5|--time 60 --bandwidth 1000M --parallel 5 --interval 1 --port 20003|direct|pod"
-              - "6|tcp|1000|6|--time 60 --bandwidth 1000M --parallel 6 --interval 1 --port 20003|direct|pod"
-              - "7|tcp|1000|7|--time 60 --bandwidth 1000M --parallel 7 --interval 1 --port 20003|direct|pod"
-              - "8|tcp|1000|8|--time 60 --bandwidth 1000M --parallel 8 --interval 1 --port 20003|direct|pod"
-              - "9|tcp|1000|9|--time 60 --bandwidth 1000M --parallel 9 --interval 1 --port 20003|direct|pod"
-              - "10|tcp|1000|10|--time 60 --bandwidth 1000M --parallel 10 --interval 1 --port 20003|direct|pod"
-              - "11|tcp|1000|11|--time 60 --bandwidth 1000M --parallel 11 --interval 1 --port 20003|direct|pod"
-              - "12|tcp|1000|12|--time 60 --bandwidth 1000M --parallel 12 --interval 1 --port 20003|direct|pod"
-              - "13|tcp|2000|1|--time 60 --bandwidth 2000M --parallel 1 --interval 1 --port 20003|direct|pod"
-              - "14|tcp|4000|1|--time 60 --bandwidth 4000M --parallel 1 --interval 1 --port 20003|direct|pod"
-              - "15|tcp|0|14|--time 60 --bandwidth 0 --parallel 14 --interval 1 --port 20003|direct|pod"
-              - "16|tcp|0|16|--time 60 --bandwidth 0 --parallel 16 --interval 1 --port 20003|direct|pod"
-              - "17|tcp|0|1|--time 60 --bandwidth 0 --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "3|tcp|1000|4|--time 60 --bandwidth 1000M --parallel 4 --interval 1 --port 20003|direct|pod"
+              - "4|tcp|1000|6|--time 60 --bandwidth 1000M --parallel 6 --interval 1 --port 20003|direct|pod"
+              - "5|tcp|1000|8|--time 60 --bandwidth 1000M --parallel 8 --interval 1 --port 20003|direct|pod"
+              - "6|tcp|1000|10|--time 60 --bandwidth 1000M --parallel 10 --interval 1 --port 20003|direct|pod"
+              - "7|tcp|1000|12|--time 60 --bandwidth 1000M --parallel 12 --interval 1 --port 20003|direct|pod"
+              - "8|tcp|2000|1|--time 60 --bandwidth 2000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "9|tcp|4000|1|--time 60 --bandwidth 4000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "10|tcp|0|14|--time 60 --bandwidth 0 --parallel 14 --interval 1 --port 20003|direct|pod"
+              - "11|tcp|0|16|--time 60 --bandwidth 0 --parallel 16 --interval 1 --port 20003|direct|pod"
+              - "12|tcp|0|1|--time 60 --bandwidth 0 --parallel 1 --interval 1 --port 20003|direct|pod"
           matrix:
             ${{ each network in parameters.host_networks }}:
               Standard_D16s_v3_azure_${{ network }}:
@@ -79,7 +73,6 @@ stages:
           ssh_key_enabled: false
 
   - stage: azure_eastus2_v3_cilium
-    condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday')
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -95,21 +88,16 @@ stages:
             iperf3_command_array:
               - "1|tcp|1000|1|--time 60 --bandwidth 1000M --parallel 1 --interval 1 --port 20003|direct|pod"
               - "2|tcp|1000|2|--time 60 --bandwidth 1000M --parallel 2 --interval 1 --port 20003|direct|pod"
-              - "3|tcp|1000|3|--time 60 --bandwidth 1000M --parallel 3 --interval 1 --port 20003|direct|pod"
-              - "4|tcp|1000|4|--time 60 --bandwidth 1000M --parallel 4 --interval 1 --port 20003|direct|pod"
-              - "5|tcp|1000|5|--time 60 --bandwidth 1000M --parallel 5 --interval 1 --port 20003|direct|pod"
-              - "6|tcp|1000|6|--time 60 --bandwidth 1000M --parallel 6 --interval 1 --port 20003|direct|pod"
-              - "7|tcp|1000|7|--time 60 --bandwidth 1000M --parallel 7 --interval 1 --port 20003|direct|pod"
-              - "8|tcp|1000|8|--time 60 --bandwidth 1000M --parallel 8 --interval 1 --port 20003|direct|pod"
-              - "9|tcp|1000|9|--time 60 --bandwidth 1000M --parallel 9 --interval 1 --port 20003|direct|pod"
-              - "10|tcp|1000|10|--time 60 --bandwidth 1000M --parallel 10 --interval 1 --port 20003|direct|pod"
-              - "11|tcp|1000|11|--time 60 --bandwidth 1000M --parallel 11 --interval 1 --port 20003|direct|pod"
-              - "12|tcp|1000|12|--time 60 --bandwidth 1000M --parallel 12 --interval 1 --port 20003|direct|pod"
-              - "13|tcp|2000|1|--time 60 --bandwidth 2000M --parallel 1 --interval 1 --port 20003|direct|pod"
-              - "14|tcp|4000|1|--time 60 --bandwidth 4000M --parallel 1 --interval 1 --port 20003|direct|pod"
-              - "15|tcp|0|14|--time 60 --bandwidth 0 --parallel 14 --interval 1 --port 20003|direct|pod"
-              - "16|tcp|0|16|--time 60 --bandwidth 0 --parallel 16 --interval 1 --port 20003|direct|pod"
-              - "17|tcp|0|1|--time 60 --bandwidth 0 --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "3|tcp|1000|4|--time 60 --bandwidth 1000M --parallel 4 --interval 1 --port 20003|direct|pod"
+              - "4|tcp|1000|6|--time 60 --bandwidth 1000M --parallel 6 --interval 1 --port 20003|direct|pod"
+              - "5|tcp|1000|8|--time 60 --bandwidth 1000M --parallel 8 --interval 1 --port 20003|direct|pod"
+              - "6|tcp|1000|10|--time 60 --bandwidth 1000M --parallel 10 --interval 1 --port 20003|direct|pod"
+              - "7|tcp|1000|12|--time 60 --bandwidth 1000M --parallel 12 --interval 1 --port 20003|direct|pod"
+              - "8|tcp|2000|1|--time 60 --bandwidth 2000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "9|tcp|4000|1|--time 60 --bandwidth 4000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "10|tcp|0|14|--time 60 --bandwidth 0 --parallel 14 --interval 1 --port 20003|direct|pod"
+              - "11|tcp|0|16|--time 60 --bandwidth 0 --parallel 16 --interval 1 --port 20003|direct|pod"
+              - "12|tcp|0|1|--time 60 --bandwidth 0 --parallel 1 --interval 1 --port 20003|direct|pod"
           matrix:
             ${{ each network in parameters.host_networks }}:
               Standard_D16s_v3_cilium_${{ network }}:
@@ -121,7 +109,6 @@ stages:
           ssh_key_enabled: false
 
   - stage: azure_eastus2_v5_azure
-    condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday')
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -137,21 +124,16 @@ stages:
             iperf3_command_array:
               - "1|tcp|1000|1|--time 60 --bandwidth 1000M --parallel 1 --interval 1 --port 20003|direct|pod"
               - "2|tcp|1000|2|--time 60 --bandwidth 1000M --parallel 2 --interval 1 --port 20003|direct|pod"
-              - "3|tcp|1000|3|--time 60 --bandwidth 1000M --parallel 3 --interval 1 --port 20003|direct|pod"
-              - "4|tcp|1000|4|--time 60 --bandwidth 1000M --parallel 4 --interval 1 --port 20003|direct|pod"
-              - "5|tcp|1000|5|--time 60 --bandwidth 1000M --parallel 5 --interval 1 --port 20003|direct|pod"
-              - "6|tcp|1000|6|--time 60 --bandwidth 1000M --parallel 6 --interval 1 --port 20003|direct|pod"
-              - "7|tcp|1000|7|--time 60 --bandwidth 1000M --parallel 7 --interval 1 --port 20003|direct|pod"
-              - "8|tcp|1000|8|--time 60 --bandwidth 1000M --parallel 8 --interval 1 --port 20003|direct|pod"
-              - "9|tcp|1000|9|--time 60 --bandwidth 1000M --parallel 9 --interval 1 --port 20003|direct|pod"
-              - "10|tcp|1000|10|--time 60 --bandwidth 1000M --parallel 10 --interval 1 --port 20003|direct|pod"
-              - "11|tcp|1000|11|--time 60 --bandwidth 1000M --parallel 11 --interval 1 --port 20003|direct|pod"
-              - "12|tcp|1000|12|--time 60 --bandwidth 1000M --parallel 12 --interval 1 --port 20003|direct|pod"
-              - "13|tcp|2000|1|--time 60 --bandwidth 2000M --parallel 1 --interval 1 --port 20003|direct|pod"
-              - "14|tcp|4000|1|--time 60 --bandwidth 4000M --parallel 1 --interval 1 --port 20003|direct|pod"
-              - "15|tcp|0|14|--time 60 --bandwidth 0 --parallel 14 --interval 1 --port 20003|direct|pod"
-              - "16|tcp|0|16|--time 60 --bandwidth 0 --parallel 16 --interval 1 --port 20003|direct|pod"
-              - "17|tcp|0|1|--time 60 --bandwidth 0 --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "3|tcp|1000|4|--time 60 --bandwidth 1000M --parallel 4 --interval 1 --port 20003|direct|pod"
+              - "4|tcp|1000|6|--time 60 --bandwidth 1000M --parallel 6 --interval 1 --port 20003|direct|pod"
+              - "5|tcp|1000|8|--time 60 --bandwidth 1000M --parallel 8 --interval 1 --port 20003|direct|pod"
+              - "6|tcp|1000|10|--time 60 --bandwidth 1000M --parallel 10 --interval 1 --port 20003|direct|pod"
+              - "7|tcp|1000|12|--time 60 --bandwidth 1000M --parallel 12 --interval 1 --port 20003|direct|pod"
+              - "8|tcp|2000|1|--time 60 --bandwidth 2000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "9|tcp|4000|1|--time 60 --bandwidth 4000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "10|tcp|0|14|--time 60 --bandwidth 0 --parallel 14 --interval 1 --port 20003|direct|pod"
+              - "11|tcp|0|16|--time 60 --bandwidth 0 --parallel 16 --interval 1 --port 20003|direct|pod"
+              - "12|tcp|0|1|--time 60 --bandwidth 0 --parallel 1 --interval 1 --port 20003|direct|pod"
           matrix:
             ${{ each network in parameters.host_networks }}:
               Standard_D16s_v5_azure_${{ network }}:
@@ -163,7 +145,6 @@ stages:
           ssh_key_enabled: false
 
   - stage: azure_eastus2_v5_cilium
-    condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday')
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -179,21 +160,16 @@ stages:
             iperf3_command_array:
               - "1|tcp|1000|1|--time 60 --bandwidth 1000M --parallel 1 --interval 1 --port 20003|direct|pod"
               - "2|tcp|1000|2|--time 60 --bandwidth 1000M --parallel 2 --interval 1 --port 20003|direct|pod"
-              - "3|tcp|1000|3|--time 60 --bandwidth 1000M --parallel 3 --interval 1 --port 20003|direct|pod"
-              - "4|tcp|1000|4|--time 60 --bandwidth 1000M --parallel 4 --interval 1 --port 20003|direct|pod"
-              - "5|tcp|1000|5|--time 60 --bandwidth 1000M --parallel 5 --interval 1 --port 20003|direct|pod"
-              - "6|tcp|1000|6|--time 60 --bandwidth 1000M --parallel 6 --interval 1 --port 20003|direct|pod"
-              - "7|tcp|1000|7|--time 60 --bandwidth 1000M --parallel 7 --interval 1 --port 20003|direct|pod"
-              - "8|tcp|1000|8|--time 60 --bandwidth 1000M --parallel 8 --interval 1 --port 20003|direct|pod"
-              - "9|tcp|1000|9|--time 60 --bandwidth 1000M --parallel 9 --interval 1 --port 20003|direct|pod"
-              - "10|tcp|1000|10|--time 60 --bandwidth 1000M --parallel 10 --interval 1 --port 20003|direct|pod"
-              - "11|tcp|1000|11|--time 60 --bandwidth 1000M --parallel 11 --interval 1 --port 20003|direct|pod"
-              - "12|tcp|1000|12|--time 60 --bandwidth 1000M --parallel 12 --interval 1 --port 20003|direct|pod"
-              - "13|tcp|2000|1|--time 60 --bandwidth 2000M --parallel 1 --interval 1 --port 20003|direct|pod"
-              - "14|tcp|4000|1|--time 60 --bandwidth 4000M --parallel 1 --interval 1 --port 20003|direct|pod"
-              - "15|tcp|0|14|--time 60 --bandwidth 0 --parallel 14 --interval 1 --port 20003|direct|pod"
-              - "16|tcp|0|16|--time 60 --bandwidth 0 --parallel 16 --interval 1 --port 20003|direct|pod"
-              - "17|tcp|0|1|--time 60 --bandwidth 0 --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "3|tcp|1000|4|--time 60 --bandwidth 1000M --parallel 4 --interval 1 --port 20003|direct|pod"
+              - "4|tcp|1000|6|--time 60 --bandwidth 1000M --parallel 6 --interval 1 --port 20003|direct|pod"
+              - "5|tcp|1000|8|--time 60 --bandwidth 1000M --parallel 8 --interval 1 --port 20003|direct|pod"
+              - "6|tcp|1000|10|--time 60 --bandwidth 1000M --parallel 10 --interval 1 --port 20003|direct|pod"
+              - "7|tcp|1000|12|--time 60 --bandwidth 1000M --parallel 12 --interval 1 --port 20003|direct|pod"
+              - "8|tcp|2000|1|--time 60 --bandwidth 2000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "9|tcp|4000|1|--time 60 --bandwidth 4000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "10|tcp|0|14|--time 60 --bandwidth 0 --parallel 14 --interval 1 --port 20003|direct|pod"
+              - "11|tcp|0|16|--time 60 --bandwidth 0 --parallel 16 --interval 1 --port 20003|direct|pod"
+              - "12|tcp|0|1|--time 60 --bandwidth 0 --parallel 1 --interval 1 --port 20003|direct|pod"
           matrix:
             ${{ each network in parameters.host_networks }}:
               Standard_D16s_v5_cilium_${{ network }}:
@@ -205,7 +181,6 @@ stages:
           ssh_key_enabled: false
 
   - stage: azure_eastus2_v3_v6
-    condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday')
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -239,7 +214,6 @@ stages:
           ssh_key_enabled: false
 
   - stage: azure_eastus2_v6
-    condition: ne(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday')
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -273,7 +247,7 @@ stages:
   - stage: aws_eastus2_m4_m6i
     condition: |
       or(
-        eq(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday'),
+        eq(variables['Build.CronSchedule.DisplayName'], '11:00 PM Daily'),
         and(eq(variables['Build.Reason'], 'Manual'), ne(variables['SKIP_AWS'], 'true'))
       )
     dependsOn: []
@@ -289,21 +263,16 @@ stages:
             iperf3_command_array:
               - "1|tcp|1000|1|--time 60 --bandwidth 1000M --parallel 1 --interval 1 --port 20003|direct|pod"
               - "2|tcp|1000|2|--time 60 --bandwidth 1000M --parallel 2 --interval 1 --port 20003|direct|pod"
-              - "3|tcp|1000|3|--time 60 --bandwidth 1000M --parallel 3 --interval 1 --port 20003|direct|pod"
-              - "4|tcp|1000|4|--time 60 --bandwidth 1000M --parallel 4 --interval 1 --port 20003|direct|pod"
-              - "5|tcp|1000|5|--time 60 --bandwidth 1000M --parallel 5 --interval 1 --port 20003|direct|pod"
-              - "6|tcp|1000|6|--time 60 --bandwidth 1000M --parallel 6 --interval 1 --port 20003|direct|pod"
-              - "7|tcp|1000|7|--time 60 --bandwidth 1000M --parallel 7 --interval 1 --port 20003|direct|pod"
-              - "8|tcp|1000|8|--time 60 --bandwidth 1000M --parallel 8 --interval 1 --port 20003|direct|pod"
-              - "9|tcp|1000|9|--time 60 --bandwidth 1000M --parallel 9 --interval 1 --port 20003|direct|pod"
-              - "10|tcp|1000|10|--time 60 --bandwidth 1000M --parallel 10 --interval 1 --port 20003|direct|pod"
-              - "11|tcp|1000|11|--time 60 --bandwidth 1000M --parallel 11 --interval 1 --port 20003|direct|pod"
-              - "12|tcp|1000|12|--time 60 --bandwidth 1000M --parallel 12 --interval 1 --port 20003|direct|pod"
-              - "13|tcp|2000|1|--time 60 --bandwidth 2000M --parallel 1 --interval 1 --port 20003|direct|pod"
-              - "14|tcp|4000|1|--time 60 --bandwidth 4000M --parallel 1 --interval 1 --port 20003|direct|pod"
-              - "15|tcp|0|14|--time 60 --bandwidth 0 --parallel 14 --interval 1 --port 20003|direct|pod"
-              - "16|tcp|0|16|--time 60 --bandwidth 0 --parallel 16 --interval 1 --port 20003|direct|pod"
-              - "17|tcp|0|1|--time 60 --bandwidth 0 --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "3|tcp|1000|4|--time 60 --bandwidth 1000M --parallel 4 --interval 1 --port 20003|direct|pod"
+              - "4|tcp|1000|6|--time 60 --bandwidth 1000M --parallel 6 --interval 1 --port 20003|direct|pod"
+              - "5|tcp|1000|8|--time 60 --bandwidth 1000M --parallel 8 --interval 1 --port 20003|direct|pod"
+              - "6|tcp|1000|10|--time 60 --bandwidth 1000M --parallel 10 --interval 1 --port 20003|direct|pod"
+              - "7|tcp|1000|12|--time 60 --bandwidth 1000M --parallel 12 --interval 1 --port 20003|direct|pod"
+              - "8|tcp|2000|1|--time 60 --bandwidth 2000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "9|tcp|4000|1|--time 60 --bandwidth 4000M --parallel 1 --interval 1 --port 20003|direct|pod"
+              - "10|tcp|0|14|--time 60 --bandwidth 0 --parallel 14 --interval 1 --port 20003|direct|pod"
+              - "11|tcp|0|16|--time 60 --bandwidth 0 --parallel 16 --interval 1 --port 20003|direct|pod"
+              - "12|tcp|0|1|--time 60 --bandwidth 0 --parallel 1 --interval 1 --port 20003|direct|pod"
           matrix:
             ${{ each machine_type in parameters.aws_machine_types }}:
               ${{ each network in parameters.host_networks }}:
@@ -319,7 +288,7 @@ stages:
   - stage: aws_eastus2_m7i
     condition: |
       or(
-        eq(variables['Build.CronSchedule.DisplayName'], '11:00 PM Every Tuesday'),
+        eq(variables['Build.CronSchedule.DisplayName'], '11:00 PM Daily'),
         and(eq(variables['Build.Reason'], 'Manual'), ne(variables['SKIP_AWS'], 'true'))
       )
     dependsOn: []
