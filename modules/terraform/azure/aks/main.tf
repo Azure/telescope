@@ -6,6 +6,7 @@ locals {
   subnets              = var.subnets
   dns_zone_ids         = try([for zone_name in var.aks_config.web_app_routing.dns_zone_names : var.dns_zones[zone_name]], null)
 }
+data "azurerm_client_config" "current" {}
 
 resource "azurerm_kubernetes_cluster" "aks" {
   name                = local.name
@@ -84,11 +85,11 @@ resource "azurerm_kubernetes_cluster" "aks" {
   edge_zone                 = var.aks_config.edge_zone
 
   dynamic "azure_active_directory_role_based_access_control" {
-    for_each = var.aks_config.azure_active_directory_role_based_access_control != null ? [var.aks_config.azure_active_directory_role_based_access_control] : []
+    for_each = var.aks_aad_enabled == true ? [1] : []
     content {
-      tenant_id              = azure_active_directory_role_based_access_control.value.tenant_id
-      admin_group_object_ids = azure_active_directory_role_based_access_control.value.admin_group_object_ids
-      azure_rbac_enabled     = azure_active_directory_role_based_access_control.value.azure_rbac_enabled
+      tenant_id              = data.azurerm_client_config.current.tenant_id
+      admin_group_object_ids = [data.azurerm_client_config.current.object_id]
+      azure_rbac_enabled     = true
     }
   }
 

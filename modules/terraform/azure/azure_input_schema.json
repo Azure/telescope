@@ -22,15 +22,6 @@
     "aks_aad_enabled": {
       "type": "string"
     },
-    "aks_aad_admin_group_object_ids": {
-      "type": "string"
-    },
-    "aks_aad_tenant_id": {
-      "type": "string"
-    },
-    "aks_aad_azure_rbac_enabled": {
-      "type": "string"
-    },
     "aks_cli_system_node_pool": {
       "type": "object"
     },

@@ -47,8 +47,6 @@ steps:
                 --arg aks_network_policy "$NETWORK_POLICY" \
                 --arg aks_network_dataplane "$NETWORK_DATAPLANE" \
                 --arg aks_aad_enabled "$AAD_ENABLED" \
-                --arg aks_aad_admin_group_object_ids "$AAD_ADMIN_GROUP_OBJECT_IDS" \
-                --arg aks_aad_azure_rbac_enabled "$AAD_AZURE_RBAC_ENABLED" \
                 --arg k8s_machine_type "$K8S_MACHINE_TYPE" \
                 --arg k8s_os_disk_type "$K8S_OS_DISK_TYPE" \
                 --argjson aks_custom_headers "$AKS_CUSTOM_HEADERS" \
@@ -62,8 +60,6 @@ steps:
                   aks_network_policy: $aks_network_policy,
                   aks_network_dataplane: $aks_network_dataplane,
                   aks_aad_enabled: $aks_aad_enabled,
-                  aks_aad_admin_group_object_ids: $aks_aad_admin_group_object_ids,
-                  aks_aad_azure_rbac_enabled: $aks_aad_azure_rbac_enabled,
                   k8s_machine_type: $k8s_machine_type,
                   k8s_os_disk_type: $k8s_os_disk_type,
                   aks_custom_headers: $aks_custom_headers,
