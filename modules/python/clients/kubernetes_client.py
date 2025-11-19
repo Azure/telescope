@@ -1176,6 +1176,15 @@ class KubernetesClient:
                 apiextensions_api.create_custom_resource_definition(body=manifest)
             elif kind == "FlowSchema":
                 # FlowSchema is cluster-scoped (part of flow control API)
+                # Skip FlowSchemas that reference 'exempt' PriorityLevelConfiguration
+                # as they are protected and cannot be created/updated
+                priority_level_ref = manifest.get("spec", {}).get("priorityLevelConfiguration", {}).get("name")
+                if priority_level_ref == "exempt":
+                    logger.warning(
+                        "Skipping FlowSchema %s that references exempt PriorityLevelConfiguration",
+                        name
+                    )
+                    return
                 flowcontrol_api = client.FlowcontrolApiserverV1Api()
                 flowcontrol_api.create_flow_schema(body=manifest)
             elif kind == "Stage":
@@ -1348,6 +1357,15 @@ class KubernetesClient:
                 apiextensions_api.delete_custom_resource_definition(name=resource_name, body=delete_options)
             elif kind == "FlowSchema":
                 # FlowSchema is cluster-scoped (part of flow control API)
+                # Skip FlowSchemas that reference 'exempt' PriorityLevelConfiguration
+                # as they are protected and cannot be deleted
+                priority_level_ref = manifest.get("spec", {}).get("priorityLevelConfiguration", {}).get("name")
+                if priority_level_ref == "exempt":
+                    logger.warning(
+                        "Skipping deletion of FlowSchema %s that references exempt PriorityLevelConfiguration",
+                        resource_name
+                    )
+                    return
                 flowcontrol_api = client.FlowcontrolApiserverV1Api()
                 flowcontrol_api.delete_flow_schema(name=resource_name, body=delete_options)
             elif kind == "Stage":
