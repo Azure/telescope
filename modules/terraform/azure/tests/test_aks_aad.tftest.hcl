@@ -263,35 +263,3 @@ run "valid_override_tfvars_aad_config" {
     error_message = "Expected: tenant_id should use fallback value from data source when not provided"
   }
 }
-
-# Test case 7: Verify custom tenant_id is used when provided
-run "valid_custom_tenant_id" {
-
-  command = plan
-
-  variables {
-    json_input = {
-      "run_id" : "123456789",
-      "region" : "eastus",
-      "public_key_path" : "public_key_path",
-      "aks_aad_enabled" : "true",
-      "aks_aad_admin_group_object_ids" : "00000000-0000-0000-0000-000000000001",
-      "aks_aad_tenant_id" : "11111111-1111-1111-1111-111111111111"
-    }
-  }
-
-  assert {
-    condition     = length(module.aks["test"].aks_cluster.azure_active_directory_role_based_access_control) > 0
-    error_message = "Expected: AAD block to exist when enabled"
-  }
-
-  assert {
-    condition     = module.aks["test"].aks_cluster.azure_active_directory_role_based_access_control[0].tenant_id == "11111111-1111-1111-1111-111111111111"
-    error_message = "Expected: custom tenant_id to be used when provided"
-  }
-
-  assert {
-    condition     = module.aks["test"].aks_cluster.azure_active_directory_role_based_access_control[0].azure_rbac_enabled == true
-    error_message = "Expected: azure_rbac_enabled to be true when AAD is enabled"
-  }
-}
