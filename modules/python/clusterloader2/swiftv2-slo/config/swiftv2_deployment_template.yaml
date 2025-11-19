@@ -30,15 +30,27 @@ spec:
         swiftv2slo: "true"
       containers:
         - image: sv2perfacr{{.Location}}.azurecr.io/netshoot-kubectl:latest
-          command: ["sleep", "infinity"]
+          command: 
+            - /bin/bash
+            - -c
+            - |
+              /opt/swiftv2/bin/ingress-egress-check.sh &
+              sleep infinity
           imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
           name: deployment-churn
-          lifecycle:
-            postStart:
-              exec:
-                command: ["/bin/bash", "/opt/swiftv2/bin/ingress-egress-check.sh"]
+          readinessProbe:
+            exec:
+              command:
+                - test
+                - -f
+                - /tmp/ingress-test-passed
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 2
+            successThreshold: 1
+            failureThreshold: 3
           env:
             - name: POD_INDEX
               value: "{{.Index}}"
@@ -79,7 +91,7 @@ spec:
       volumes:
         - name: ingress-script
           configMap:
-            name: swiftv2-ingress-script
+            name: swiftv2-ingress-script-0
             defaultMode: 0555
         - name: ingress-logs
           emptyDir: {}

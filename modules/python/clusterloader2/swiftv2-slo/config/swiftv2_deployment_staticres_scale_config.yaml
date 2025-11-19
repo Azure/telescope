@@ -137,7 +137,7 @@ steps:
       Params:
         action: gather
         labelSelector: group={{$groupName}}-{{$j}}
-  {{end}}
+{{end}}
   - name: Gather Pod Startup Latency Measurements
     measurements:
     - Identifier: PodStartupLatency

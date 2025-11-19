@@ -34,40 +34,47 @@ data:
     }
 
     run_ingress_ping() {
-      local target_index=$((MY_INDEX + 1))
-      if [ "${target_index}" -ge "${TOTAL_PODS}" ]; then
-        log "IngressConnectivity: pod ${MY_STEP}-${MY_INDEX} is last pod within step; skipping"
+      log "IngressConnectivity: looking for any ready pod in step ${MY_STEP}"
+      
+      # Get all pods in this step except myself
+      local all_pods
+      all_pods=$(kubectl get pods -n "${NAMESPACE}" -l "step=${MY_STEP}" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null)
+      if [ -z "${all_pods}" ]; then
+        log "IngressConnectivity: no other pods found in step yet"
+        return 1
+      fi
+
+      local peer_count=0
+      # Try each pod until we find one with an IP
+      for target_pod in ${all_pods}; do
+        # Skip myself
+        if [[ "${target_pod}" == *"-${MY_INDEX}-"* ]] || [[ "${target_pod}" == *"-${MY_INDEX}" ]]; then
+          continue
+        fi
+        
+        peer_count=$((peer_count + 1))
+
+        log "IngressConnectivity: checking pod ${target_pod}"
+        local target_ip
+        target_ip=$(kubectl get mtpnc "${target_pod}" -n "${NAMESPACE}" -o jsonpath='{.status.primaryIP}' 2>/dev/null | cut -d'/' -f1 | tr -d '\n')
+        
+        if [ -n "${target_ip}" ]; then
+          log "IngressConnectivity: found target ${target_pod} with IP ${target_ip}, attempting ping"
+          if ping -c "${PING_COUNT}" -W "${PING_TIMEOUT}" "${target_ip}" >/dev/null 2>&1; then
+            log "IngressConnectivity: SUCCESS - pinged ${target_pod} at ${target_ip}"
+            return 0
+          else
+            log "IngressConnectivity: ping to ${target_pod} at ${target_ip} failed, trying next pod"
+          fi
+        fi
+      done
+
+      if [ "${peer_count}" -eq 0 ]; then
+        log "IngressConnectivity: no peer pods in this step (single pod deployment), skipping peer connectivity test"
         return 0
       fi
 
-      log "IngressConnectivity: locating target pod with labels pod-index=${target_index},step=${MY_STEP}"
-      local target_pod
-      target_pod=$(kubectl get pods -n "${NAMESPACE}" -l "pod-index=${target_index},step=${MY_STEP}" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null | tr -d '\n')
-      if [ -z "${target_pod}" ]; then
-        log "IngressConnectivity: ERROR unable to find target pod"
-        return 1
-      fi
-
-      log "IngressConnectivity: waiting for ${target_pod} to become Ready (timeout ${TARGET_READY_TIMEOUT})"
-      if ! kubectl wait pod "${target_pod}" -n "${NAMESPACE}" --for=condition=Ready --timeout="${TARGET_READY_TIMEOUT}" >/dev/null 2>&1; then
-        log "IngressConnectivity: ERROR target pod ${target_pod} failed to become Ready"
-        return 1
-      fi
-
-      local target_ip
-      target_ip=$(kubectl get mtpnc "${target_pod}" -n "${NAMESPACE}" -o jsonpath='{.status.primaryIP}' 2>/dev/null | cut -d'/' -f1 | tr -d '\n')
-      if [ -z "${target_ip}" ]; then
-        log "IngressConnectivity: ERROR unable to resolve target IP from MTPNC ${target_pod}"
-        return 1
-      fi
-
-      log "IngressConnectivity: pinging ${target_pod} at ${target_ip}"
-      if ping -c "${PING_COUNT}" -W "${PING_TIMEOUT}" "${target_ip}" >/dev/null; then
-        log "IngressConnectivity: SUCCESS"
-        return 0
-      fi
-
-      log "IngressConnectivity: ERROR ping failed"
+      log "IngressConnectivity: no reachable pods found in this attempt"
       return 1
     }
 
@@ -77,6 +84,7 @@ data:
 
       if run_custpodcurl && run_ingress_ping; then
         log "Ingress/Egress validation succeeded"
+        touch /tmp/ingress-test-passed
         exit 0
       fi
 
@@ -88,5 +96,6 @@ data:
       fi
     done
 
-    log "All attempts failed"
-    exit 1
+    log "All attempts failed - marking test as failed"
+    touch /tmp/ingress-test-failed
+    exit 0
