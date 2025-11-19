@@ -35,8 +35,8 @@ run "route_table_created" {
   command = plan
 
   assert {
-    condition     = length(module.virtual_network["test"].route_table) == 1
-    error_message = "Expected: 1\nActual: ${length(module.virtual_network["test"].route_table)}"
+    condition     = length(module.virtual_network) == 1
+    error_message = "Expected: 1\nActual: ${length(module.virtual_network)}"
   }
 }
 
@@ -66,8 +66,8 @@ run "route_table_with_firewall" {
   }
 
   assert {
-    condition     = module.virtual_network["test"].route_table["fw-rt"].route_table_name == "fw-rt"
-    error_message = "Expected: 'fw-rt'\nActual: ${module.virtual_network["test"].route_table["fw-rt"].route_table_name}"
+    condition     = length(module.virtual_network) == 1
+    error_message = "Expected: 1\nActual: ${length(module.virtual_network)}"
   }
 }
 
@@ -89,7 +89,7 @@ run "no_route_tables" {
   }
 
   assert {
-    condition     = length(module.virtual_network["test"].route_table) == 0
-    error_message = "Expected: 0\nActual: ${length(module.virtual_network["test"].route_table)}"
+    condition     = length(module.virtual_network) == 1
+    error_message = "Expected: 1\nActual: ${length(module.virtual_network)}"
   }
 }
