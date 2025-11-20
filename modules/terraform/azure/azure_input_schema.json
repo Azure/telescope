@@ -20,7 +20,7 @@
       "type": "string"
     },
     "aks_aad_enabled": {
-      "type": "bool"
+      "type": "boolean"
     },
     "aks_cli_system_node_pool": {
       "type": "object"
