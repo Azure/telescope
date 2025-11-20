@@ -48,6 +48,8 @@ aks_cli_config_list = [
     }
     extra_node_pool = []
     optional_parameters = [
+      "--enable-node-provisioning",
+      "--node-provisioning-mode Auto"
     ]
   }
 ]
