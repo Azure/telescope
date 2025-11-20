@@ -12,7 +12,7 @@ variables:
   SCENARIO_NAME: nap
 
 stages:
-  - stage: azure_eastus2_ondemand_complex_config
+  - stage: azure_eastus2
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -27,7 +27,7 @@ stages:
             image: "ghcr.io/azure/clusterloader2:v20250423"
           topology: karpenter
           matrix:
-            complex-nap:
+            test-rt:
               cpu_per_node: 2
               node_count: 5
               pod_count: 5
@@ -35,9 +35,6 @@ stages:
               scale_down_timeout: "15m"
               node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
-              loop_count: 1
-              warmup_deployment: true
-              warmup_deployment_template: warmup_deployment.yaml
               vm_size: Standard_D2s_v4
           max_parallel: 1
           timeout_in_minutes: 60
