@@ -46,46 +46,6 @@ aks_cli_config_list = [
     }
     extra_node_pool = []
     optional_parameters = [
-      {
-        name  = "node-provisioning-mode"
-        value = "Auto"
-      },
-      {
-        name  = "network-plugin"
-        value = "azure"
-      },
-      {
-        name  = "network-plugin-mode"
-        value = "overlay"
-      },
-      {
-        name  = "node-init-taints"
-        value = "CriticalAddonsOnly=true:NoSchedule"
-      },
-      {
-        name  = "pod-cidr"
-        value = "10.128.0.0/11"
-      },
-      {
-        name  = "enable-oidc-issuer"
-        value = ""
-      },
-      {
-        name  = "enable-workload-identity"
-        value = ""
-      },
-      {
-        name  = "enable-addons"
-        value = "azure-keyvault-secrets-provider"
-      },
-      {
-        name  = "enable-keda"
-        value = ""
-      },
-      {
-        name  = "enable-image-cleaner"
-        value = ""
-      }
     ]
   }
 ]
