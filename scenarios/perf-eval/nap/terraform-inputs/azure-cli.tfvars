@@ -22,7 +22,7 @@ network_config_list = [
       },
       {
         name           = "AzureFirewallSubnet"
-        address_prefix = "10.192.1.0/26"
+        address_prefix = "10.193.0.0/26"
       }
     ]
     network_security_group_name = ""
@@ -45,7 +45,7 @@ network_config_list = [
             name                   = "default-route"
             address_prefix         = "0.0.0.0/0"
             next_hop_type          = "VirtualAppliance"
-            next_hop_in_ip_address = "10.192.1.4"
+            next_hop_in_ip_address = "10.193.0.4"
           }
         ]
         subnet_associations = [{ subnet_name = "nap-subnet-ms" }]

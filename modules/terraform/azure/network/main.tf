@@ -113,19 +113,6 @@ module "nat_gateway" {
   tags                    = local.tags
 }
 
-module "route_table" {
-  source   = "./route-table"
-  for_each = local.input_route_tables_map
-
-  route_table_config  = each.value
-  resource_group_name = var.resource_group_name
-  location            = var.location
-  subnets_map         = local.subnets_map
-  tags                = local.tags
-
-  depends_on = [azurerm_virtual_network.vnet]
-}
-
 module "firewall" {
   source   = "./firewall"
   for_each = local.firewalls_map
@@ -138,4 +125,17 @@ module "firewall" {
   tags                = local.tags
 
   depends_on = [azurerm_virtual_network.vnet]
+}
+
+module "route_table" {
+  source   = "./route-table"
+  for_each = local.input_route_tables_map
+
+  route_table_config  = each.value
+  resource_group_name = var.resource_group_name
+  location            = var.location
+  subnets_map         = local.subnets_map
+  tags                = local.tags
+
+  depends_on = [azurerm_virtual_network.vnet, module.firewall]
 }

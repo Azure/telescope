@@ -29,12 +29,13 @@ output "route_tables" {
 }
 
 output "firewalls" {
-  description = "Map of firewall names to their private IPs"
+  description = "Map of firewall names to their properties"
   value = {
-    for fw_name, fw_module in module.firewall :
+    for fw_name, fw_config in local.firewalls_map :
     fw_name => {
-      id         = fw_module.firewall_id
-      private_ip = fw_module.firewall_private_ip
+      id         = module.firewall[fw_name].firewall.id
+      private_ip = module.firewall[fw_name].firewall.ip_configuration[0].private_ip_address
+      name       = module.firewall[fw_name].firewall.name
     }
   }
 }
