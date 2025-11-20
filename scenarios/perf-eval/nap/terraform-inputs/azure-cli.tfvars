@@ -21,7 +21,13 @@ network_config_list = [
         {
             name                          = "nap-rt"
             bgp_route_propagation_enabled = false
-            routes                        = []
+            routes                        = [
+                {
+                    name                   = "default-route"
+                    address_prefix         = "0.0.0.0/0"
+                    next_hop_type          = "Internet"
+                }
+            ]
             subnet_associations           = [{ subnet_name = "nap-subnet-ms" }]
         }
     ]
