@@ -7,6 +7,7 @@ variable "json_input" {
     aks_kubernetes_version = optional(string, null)
     aks_network_policy     = optional(string, null)
     aks_network_dataplane  = optional(string, null)
+    aks_aad_enabled        = optional(bool, null)
     aks_custom_headers     = optional(list(string), [])
     k8s_machine_type       = optional(string, null)
     k8s_os_disk_type       = optional(string, null)

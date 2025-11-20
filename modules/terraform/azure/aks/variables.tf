@@ -60,6 +60,12 @@ variable "network_dataplane" {
   default     = null
 }
 
+variable "aks_aad_enabled" {
+  description = "Indicates whether Azure Active Directory integration is enabled for AKS"
+  type        = bool
+  default     = false
+}
+
 variable "aks_config" {
   type = object({
     role        = string

@@ -10,6 +10,7 @@ locals {
   aks_custom_headers       = lookup(var.json_input, "aks_custom_headers", [])
   k8s_machine_type         = lookup(var.json_input, "k8s_machine_type", null)
   k8s_os_disk_type         = lookup(var.json_input, "k8s_os_disk_type", null)
+  aks_aad_enabled          = lookup(var.json_input, "aks_aad_enabled", "false")
 
   tags = {
     "owner"             = var.owner
@@ -100,6 +101,7 @@ module "aks" {
   network_dataplane   = local.aks_network_dataplane
   network_policy      = local.aks_network_policy
   dns_zones           = try(module.dns_zones.dns_zone_ids, null)
+  aks_aad_enabled     = local.aks_aad_enabled
 }
 
 module "aks-cli" {

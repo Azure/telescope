@@ -19,6 +19,9 @@
     "aks_network_dataplane": {
       "type": "string"
     },
+    "aks_aad_enabled": {
+      "type": "bool"
+    },
     "aks_cli_system_node_pool": {
       "type": "object"
     },
