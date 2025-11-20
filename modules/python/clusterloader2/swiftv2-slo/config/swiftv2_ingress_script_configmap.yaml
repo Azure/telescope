@@ -17,8 +17,8 @@ data:
       echo "[$(date -u '+%Y-%m-%d %H:%M:%S UTC')] $*"
     }
 
-    MAX_ATTEMPTS="${INGRESS_MAX_ATTEMPTS:-2}"
-    RETRY_DELAY="${INGRESS_RETRY_SECONDS:-5}"
+    MAX_ATTEMPTS="${INGRESS_MAX_ATTEMPTS:-3}"
+    RETRY_DELAY="${INGRESS_RETRY_SECONDS:-10}"
     SERVICE_IP="${INGRESS_SERVICE_IP:-172.27.0.30}"
     MY_INDEX="${POD_INDEX:-0}"
     MY_STEP="${STEP_NUM:-0}"
@@ -36,11 +36,17 @@ data:
     run_ingress_ping() {
       log "IngressConnectivity: looking for any ready pod in step ${MY_STEP}"
       
+      # Only skip peer test if we explicitly know we're in single-pod deployment
+      if [ "${TOTAL_PODS}" -eq 1 ]; then
+        log "IngressConnectivity: TOTAL_PODS=1, skipping peer connectivity test (expected single pod)"
+        return 0
+      fi
+      
       # Get all pods in this step except myself
       local all_pods
       all_pods=$(kubectl get pods -n "${NAMESPACE}" -l "step=${MY_STEP}" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null)
       if [ -z "${all_pods}" ]; then
-        log "IngressConnectivity: no other pods found in step yet"
+        log "IngressConnectivity: ERROR - no pods found in step ${MY_STEP} (expected ${TOTAL_PODS} pods)"
         return 1
       fi
 
@@ -69,12 +75,7 @@ data:
         fi
       done
 
-      if [ "${peer_count}" -eq 0 ]; then
-        log "IngressConnectivity: no peer pods in this step (single pod deployment), skipping peer connectivity test"
-        return 0
-      fi
-
-      log "IngressConnectivity: no reachable pods found in this attempt"
+      log "IngressConnectivity: ERROR - found 0 peer pods (expected ~${TOTAL_PODS} total pods). This indicates a configuration or discovery issue."
       return 1
     }
 
