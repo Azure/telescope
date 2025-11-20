@@ -16,12 +16,6 @@ variable "tags" {
   }
 }
 
-variable "subnet_id" {
-  description = "Value of the subnet id"
-  type        = string
-  default     = null
-}
-
 variable "subnets_map" {
   description = "Map of subnet names to subnet objects"
   type        = map(any)
@@ -65,7 +59,7 @@ variable "aks_cli_config" {
           value = string
         })), [])
     })), [])
-    optional_parameters = optional(list(object({ # Refer to https://learn.microsoft.com/en-us/cli/azure/aks?view=azure-cli-latest#az-aks-create(aks-preview) for available parameters
+    optional_parameters = optional(list(object({  # Refer to https://learn.microsoft.com/en-us/cli/azure/aks?view=azure-cli-latest#az-aks-create(aks-preview) for available parameters
       name  = string
       value = string
     })), [])
