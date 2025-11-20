@@ -3,6 +3,13 @@ scenario_name  = "nap"
 deletion_delay = "2h"
 owner          = "aks"
 
+public_ip_config_list = [
+  {
+    name = "firewall-pip"
+    sku  = "Standard"
+  }
+]
+
 network_config_list = [
   {
     role               = "crud"
@@ -11,18 +18,38 @@ network_config_list = [
     subnet = [
       {
         name           = "nap-subnet-ms"
-        address_prefix = "10.192.0.0/11"
+        address_prefix = "10.192.0.0/16"
+      },
+      {
+        name           = "AzureFirewallSubnet"
+        address_prefix = "10.192.1.0/26"
       }
     ]
     network_security_group_name = ""
     nic_public_ip_associations  = []
     nsr_rules                   = []
+    firewalls = [
+      {
+        name           = "nap-firewall"
+        sku_tier       = "Standard"
+        subnet_name    = "AzureFirewallSubnet"
+        public_ip_name = "firewall-pip"
+      }
+    ]
     route_tables = [
-        {
-            name                          = "nap-rt"
-            bgp_route_propagation_enabled = false
-            subnet_associations           = [{ subnet_name = "nap-subnet-ms" }]
-        }
+      {
+        name                          = "nap-rt"
+        bgp_route_propagation_enabled = false
+        routes = [
+          {
+            name                   = "default-route"
+            address_prefix         = "0.0.0.0/0"
+            next_hop_type          = "VirtualAppliance"
+            next_hop_in_ip_address = "10.192.1.4"
+          }
+        ]
+        subnet_associations = [{ subnet_name = "nap-subnet-ms" }]
+      }
     ]
   }
 ]

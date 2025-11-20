@@ -135,6 +135,15 @@ variable "network_config_list" {
         subnet_name = string
       }))
     })))
+    firewalls = optional(list(object({
+      name                  = string
+      sku_name              = optional(string, "AZFW_VNet")
+      sku_tier              = optional(string, "Standard")
+      firewall_policy_id    = optional(string, null)
+      subnet_name           = string
+      public_ip_name        = string
+      ip_configuration_name = optional(string, "firewall-ipconfig")
+    })))
   }))
   default = []
 }

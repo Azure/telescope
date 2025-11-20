@@ -62,16 +62,25 @@ variable "network_config" {
     route_tables = optional(list(object({
       name                          = string
       bgp_route_propagation_enabled = optional(bool, true)
-      routes = list(object({
+      routes = optional(list(object({
         name                   = string
         address_prefix         = string
         next_hop_type          = string
         next_hop_in_ip_address = optional(string, null)
-      }))
+      })), [])
       subnet_associations = list(object({
         subnet_name = string
       }))
-    })),[])
+    })), [])
+    firewalls = optional(list(object({
+      name                  = string
+      sku_name              = optional(string, "AZFW_VNet")
+      sku_tier              = optional(string, "Standard")
+      firewall_policy_id    = optional(string, null)
+      subnet_name           = string
+      public_ip_name        = string
+      ip_configuration_name = optional(string, "firewall-ipconfig")
+    })), [])
   })
 }
 

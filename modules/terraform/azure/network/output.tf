@@ -27,3 +27,14 @@ output "route_tables" {
     rt_name => keys(rt_module.subnet_associations)
   }
 }
+
+output "firewalls" {
+  description = "Map of firewall names to their private IPs"
+  value = {
+    for fw_name, fw_module in module.firewall :
+    fw_name => {
+      id         = fw_module.firewall_id
+      private_ip = fw_module.firewall_private_ip
+    }
+  }
+}
