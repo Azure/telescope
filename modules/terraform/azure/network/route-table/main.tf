@@ -1,7 +1,3 @@
-locals {
-  routes_map = var.route_table_config.routes != null ? { for route in var.route_table_config.routes : route.name => route } : {}
-}
-
 resource "azurerm_route_table" "route_table" {
   name                          = var.route_table_config.name
   location                      = var.location
@@ -11,7 +7,7 @@ resource "azurerm_route_table" "route_table" {
 }
 
 resource "azurerm_route" "routes" {
-  for_each = local.routes_map
+  for_each = var.route_table_config.routes != null ? { for route in var.route_table_config.routes : route.name => route } : {}
 
   name                   = each.value.name
   resource_group_name    = var.resource_group_name
