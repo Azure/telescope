@@ -24,6 +24,7 @@ data:
     MY_STEP="${STEP_NUM:-0}"
     TOTAL_PODS="${TOTAL_PODS_PER_STEP:-1}"
     NAMESPACE="${NAMESPACE:-default}"
+    MY_POD_NAME="${POD_NAME:-unknown}"
     PING_COUNT="${PING_COUNT:-3}"
     PING_TIMEOUT="${PING_TIMEOUT:-5}"
     TARGET_READY_TIMEOUT="${TARGET_READY_TIMEOUT:-120s}"
@@ -53,8 +54,9 @@ data:
       local peer_count=0
       # Try each pod until we find one with an IP
       for target_pod in ${all_pods}; do
-        # Skip myself
-        if [[ "${target_pod}" == *"-${MY_INDEX}-"* ]] || [[ "${target_pod}" == *"-${MY_INDEX}" ]]; then
+        # Skip myself using exact pod name match
+        if [ "${target_pod}" = "${MY_POD_NAME}" ]; then
+          log "IngressConnectivity: skipping self (${MY_POD_NAME})"
           continue
         fi
         
