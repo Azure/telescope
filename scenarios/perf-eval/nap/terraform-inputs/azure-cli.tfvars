@@ -39,6 +39,7 @@ aks_cli_config_list = [
     network_profile       = {
         network_plugin = "azure"
         outbound_type  = "userDefinedRouting"
+        pod_cidr       = "172.16.0.0/16"  # Use 172.16.x.x to avoid overlap with 10.x subnet ranges
     }
     default_node_pool = {
       name       = "system"
