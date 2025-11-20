@@ -25,7 +25,8 @@ network_config_list = [
                 {
                     name                   = "default-route"
                     address_prefix         = "0.0.0.0/0"
-                    next_hop_type          = "Internet"
+                    next_hop_type          = "VirtualAppliance"
+                    next_hop_in_ip_address = "10.192.1.4"  # Azure Firewall or NVA IP
                 }
             ]
             subnet_associations           = [{ subnet_name = "nap-subnet-ms" }]
@@ -44,6 +45,7 @@ aks_cli_config_list = [
     kubernetes_version    = "1.33"
     network_profile       = {
         network_plugin = "azure"
+        network_plugin_mode = "overlay"
         outbound_type  = "userDefinedRouting"
         pod_cidr       = "10.128.0.0/11" 
     }
