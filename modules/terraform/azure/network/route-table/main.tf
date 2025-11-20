@@ -1,5 +1,5 @@
 locals {
-  routes_map = { for route in var.route_table_config.routes : route.name => route }
+  routes_map = var.route_table_config.routes != null ? { for route in var.route_table_config.routes : route.name => route } : {}
 }
 
 resource "azurerm_route_table" "route_table" {
