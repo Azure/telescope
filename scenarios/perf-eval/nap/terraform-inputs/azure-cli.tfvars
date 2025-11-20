@@ -21,6 +21,7 @@ network_config_list = [
         {
             name                          = "nap-rt"
             bgp_route_propagation_enabled = false
+            routes                        = []
             subnet_associations           = [{ subnet_name = "nap-subnet-ms" }]
         }
     ]

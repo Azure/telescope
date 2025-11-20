@@ -449,7 +449,7 @@ aks_cli_config_list = [
 #   nsr_rules = []
 #   route_tables = [{
 #     name = "aks-firewall-rt"
-#     disable_bgp_route_propagation = false
+#     bgp_route_propagation_enabled = false
 #     routes = [
 #       {
 #         name = "internet-via-firewall"
