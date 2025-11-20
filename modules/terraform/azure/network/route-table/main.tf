@@ -10,13 +10,6 @@ resource "azurerm_route_table" "route_table" {
   tags                          = var.tags
 }
 
-resource "azurerm_subnet_route_table_association" "subnet_associations" {
-  for_each = { for assoc in var.route_table_config.subnet_associations : assoc.subnet_name => assoc }
-
-  subnet_id      = var.subnets_map[each.value.subnet_name].id
-  route_table_id = azurerm_route_table.route_table.id
-}
-
 resource "azurerm_route" "routes" {
   for_each = local.routes_map
 
@@ -26,6 +19,11 @@ resource "azurerm_route" "routes" {
   address_prefix         = each.value.address_prefix
   next_hop_type          = each.value.next_hop_type
   next_hop_in_ip_address = try(each.value.next_hop_in_ip_address, null)
+}
 
-  depends_on = [azurerm_subnet_route_table_association.subnet_associations]
+resource "azurerm_subnet_route_table_association" "subnet_associations" {
+  for_each = { for assoc in var.route_table_config.subnet_associations : assoc.subnet_name => assoc }
+
+  subnet_id      = var.subnets_map[each.value.subnet_name].id
+  route_table_id = azurerm_route_table.route_table.id
 }

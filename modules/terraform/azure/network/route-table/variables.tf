@@ -3,12 +3,12 @@ variable "route_table_config" {
   type = object({
     name                          = string
     bgp_route_propagation_enabled = optional(bool, true)
-    routes = list(object({
+    routes = optional(list(object({
       name                   = string
       address_prefix         = string
       next_hop_type          = string
       next_hop_in_ip_address = optional(string, null)
-    }))
+    })), [])
     subnet_associations = list(object({
       subnet_name = string
     }))
