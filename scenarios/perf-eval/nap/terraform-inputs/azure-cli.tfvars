@@ -6,7 +6,7 @@ owner          = "aks"
 public_ip_config_list = [
   {
     name = "firewall-pip"
-    sku  = "Standard"
+    count = 1
   }
 ]
 

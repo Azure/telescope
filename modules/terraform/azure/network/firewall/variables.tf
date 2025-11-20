@@ -28,11 +28,9 @@ variable "subnets_map" {
   }))
 }
 
-variable "public_ips_map" {
-  description = "Map of public IP names to public IP objects"
-  type = map(object({
-    id = string
-  }))
+variable "public_ips" {
+  description = "Map of public IP names to IDs"
+  type        = map(string)
 }
 
 variable "tags" {

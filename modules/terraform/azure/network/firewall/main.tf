@@ -10,6 +10,6 @@ resource "azurerm_firewall" "firewall" {
   ip_configuration {
     name                 = var.firewall_config.ip_configuration_name
     subnet_id            = var.subnets_map[var.firewall_config.subnet_name].id
-    public_ip_address_id = var.public_ips_map[var.firewall_config.public_ip_name].id
+    public_ip_address_id = var.public_ips[var.firewall_config.public_ip_name]
   }
 }

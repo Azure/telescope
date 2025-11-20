@@ -134,7 +134,7 @@ module "firewall" {
   resource_group_name = var.resource_group_name
   location            = var.location
   subnets_map         = local.subnets_map
-  public_ips_map      = var.public_ips
+  public_ips          = var.public_ips
   tags                = local.tags
 
   depends_on = [azurerm_virtual_network.vnet]
