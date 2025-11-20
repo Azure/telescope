@@ -26,4 +26,6 @@ resource "azurerm_route" "routes" {
   address_prefix         = each.value.address_prefix
   next_hop_type          = each.value.next_hop_type
   next_hop_in_ip_address = try(each.value.next_hop_in_ip_address, null)
+
+  depends_on = [azurerm_subnet_route_table_association.subnet_associations]
 }
