@@ -29,13 +29,12 @@ output "route_tables" {
 }
 
 output "firewalls" {
-  description = "Map of firewall names to their properties"
+  description = "Map of firewall names to their private IPs"
   value = {
-    for fw_name, fw_config in local.firewalls_map :
+    for fw_name, fw in azurerm_firewall.firewall :
     fw_name => {
-      id         = module.firewall[fw_name].firewall.id
-      private_ip = module.firewall[fw_name].firewall.ip_configuration[0].private_ip_address
-      name       = module.firewall[fw_name].firewall.name
+      id         = fw.id
+      private_ip = fw.ip_configuration[0].private_ip_address
     }
   }
 }

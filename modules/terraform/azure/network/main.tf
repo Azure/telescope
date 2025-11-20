@@ -113,16 +113,22 @@ module "nat_gateway" {
   tags                    = local.tags
 }
 
-module "firewall" {
-  source   = "./firewall"
+resource "azurerm_firewall" "firewall" {
   for_each = local.firewalls_map
 
-  firewall_config     = each.value
-  resource_group_name = var.resource_group_name
+  name                = each.value.name
   location            = var.location
-  subnets_map         = local.subnets_map
-  public_ips          = var.public_ips
+  resource_group_name = var.resource_group_name
+  sku_name            = each.value.sku_name
+  sku_tier            = each.value.sku_tier
+  firewall_policy_id  = each.value.firewall_policy_id
   tags                = local.tags
+
+  ip_configuration {
+    name                 = each.value.ip_configuration_name
+    subnet_id            = local.subnets_map[each.value.subnet_name].id
+    public_ip_address_id = var.public_ips[each.value.public_ip_name]
+  }
 
   depends_on = [azurerm_virtual_network.vnet]
 }
@@ -137,5 +143,5 @@ module "route_table" {
   subnets_map         = local.subnets_map
   tags                = local.tags
 
-  depends_on = [azurerm_virtual_network.vnet, module.firewall]
+  depends_on = [azurerm_virtual_network.vnet, azurerm_firewall.firewall]
 }
