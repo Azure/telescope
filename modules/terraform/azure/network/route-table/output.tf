@@ -1,9 +1,7 @@
-output "route_table_id" {
-  description = "The ID of the route table"
-  value       = azurerm_route_table.route_table.id
-}
-
-output "route_table_name" {
-  description = "The name of the route table"
-  value       = azurerm_route_table.route_table.name
+output "subnet_associations" {
+  description = "Map of subnet names to route table association IDs"
+  value = {
+    for subnet_name, assoc in azurerm_subnet_route_table_association.subnet_associations :
+    subnet_name => assoc.id
+  }
 }

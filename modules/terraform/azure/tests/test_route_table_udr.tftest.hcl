@@ -36,7 +36,17 @@ run "route_table_created" {
 
   assert {
     condition     = length(module.virtual_network) == 1
-    error_message = "Expected: 1\nActual: ${length(module.virtual_network)}"
+    error_message = "Expected: 1 virtual network\nActual: ${length(module.virtual_network)}"
+  }
+
+  assert {
+    condition     = length(keys(module.virtual_network["test"].route_tables)) == 1
+    error_message = "Expected: 1 route table\nActual: ${length(keys(module.virtual_network["test"].route_tables))}"
+  }
+
+  assert {
+    condition     = contains(module.virtual_network["test"].route_tables["test-rt"], "test-subnet")
+    error_message = "Expected route table to be associated with test-subnet"
   }
 }
 
@@ -67,7 +77,17 @@ run "route_table_with_firewall" {
 
   assert {
     condition     = length(module.virtual_network) == 1
-    error_message = "Expected: 1\nActual: ${length(module.virtual_network)}"
+    error_message = "Expected: 1 virtual network\nActual: ${length(module.virtual_network)}"
+  }
+
+  assert {
+    condition     = length(module.virtual_network["test"].route_tables["fw-rt"]) == 1
+    error_message = "Expected: 1 subnet association\nActual: ${length(module.virtual_network["test"].route_tables["fw-rt"])}"
+  }
+
+  assert {
+    condition     = contains(module.virtual_network["test"].route_tables["fw-rt"], "test-subnet")
+    error_message = "Expected route table to be associated with test-subnet"
   }
 }
 
@@ -90,6 +110,11 @@ run "no_route_tables" {
 
   assert {
     condition     = length(module.virtual_network) == 1
-    error_message = "Expected: 1\nActual: ${length(module.virtual_network)}"
+    error_message = "Expected: 1 virtual network\nActual: ${length(module.virtual_network)}"
+  }
+
+  assert {
+    condition     = length(keys(module.virtual_network["test"].route_tables)) == 0
+    error_message = "Expected: 0 route tables\nActual: ${length(keys(module.virtual_network["test"].route_tables))}"
   }
 }
