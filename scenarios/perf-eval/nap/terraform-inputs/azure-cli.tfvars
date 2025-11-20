@@ -21,14 +21,7 @@ network_config_list = [
         {
             name                          = "nap-rt"
             bgp_route_propagation_enabled = false
-            routes                        = [
-                {
-                    name                   = "default-route"
-                    address_prefix         = "0.0.0.0/0"
-                    next_hop_type          = "VirtualAppliance"
-                    next_hop_in_ip_address = "10.192.1.4"  # Azure Firewall or NVA IP
-                }
-            ]
+            routes                        = []
             subnet_associations           = [{ subnet_name = "nap-subnet-ms" }]
         }
     ]
