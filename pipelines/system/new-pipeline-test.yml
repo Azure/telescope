@@ -28,14 +28,18 @@ stages:
           topology: karpenter
           matrix:
             test-rt:
-              cpu_per_node: 2
-              node_count: 5
-              pod_count: 5
+              cpu_per_node: 4
+              node_count: 10
+              pod_count: 100
               scale_up_timeout: "15m"
               scale_down_timeout: "15m"
-              node_label_selector: "karpenter.sh/nodepool = default"
-              node_selector: "{karpenter.sh/nodepool: default}"
-              vm_size: Standard_D2s_v4
+              node_label_selector: "karpenter.sh/nodepool = spot"
+              node_selector: "{karpenter.sh/nodepool: spot}"
+              loop_count: 5
+              warmup_deployment: true
+              warmup_deployment_template: warmup_deployment.yaml
+              vm_size: Standard_D4_v5
+              capacity_type: spot
           max_parallel: 1
           timeout_in_minutes: 60
           credential_type: service_connection

@@ -44,7 +44,7 @@ aks_cli_config_list = [
     default_node_pool = {
       name       = "system"
       node_count = 5
-      vm_size    = "Standard_D8_v5"
+      vm_size    = "Standard_D4_v5"
     }
     extra_node_pool = []
     optional_parameters = [
@@ -67,26 +67,6 @@ aks_cli_config_list = [
       {
         name  = "pod-cidr"
         value = "10.128.0.0/11"
-      },
-      {
-        name  = "enable-oidc-issuer"
-        value = ""
-      },
-      {
-        name  = "enable-workload-identity"
-        value = ""
-      },
-      {
-        name  = "enable-addons"
-        value = "azure-keyvault-secrets-provider"
-      },
-      {
-        name  = "enable-keda"
-        value = ""
-      },
-      {
-        name  = "enable-image-cleaner"
-        value = ""
       }
     ]
   }
