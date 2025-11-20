@@ -77,7 +77,7 @@ run "apiserver_vnet_disabled" {
   }
 }
 
-# Test 3: Enable but no subnet ID provided
+# Test 3: Enable but no subnet name provided
 # Pipeline: ENABLE_APISERVER_VNET_INTEGRATION=true, but API_SERVER_SUBNET_ID not set
 # Expected: api_server_subnet_id should be null, no CLI parameters added
 run "apiserver_vnet_enabled_no_subnet" {
@@ -89,7 +89,7 @@ run "apiserver_vnet_enabled_no_subnet" {
       "region" : "eastus",
       "enable_apiserver_vnet_integration" : true
     }
-    
+
     aks_cli_config_list = [
       {
         role                          = "client"

@@ -7,6 +7,7 @@ variable "json_input" {
     aks_kubernetes_version            = optional(string, null)
     aks_network_policy                = optional(string, null)
     aks_network_dataplane             = optional(string, null)
+    aks_aad_enabled                   = optional(bool, null)
     aks_custom_headers                = optional(list(string), [])
     k8s_machine_type                  = optional(string, null)
     k8s_os_disk_type                  = optional(string, null)
@@ -231,15 +232,14 @@ variable "aks_cli_config_list" {
     aks_name = string
     sku_tier = string
 
-    managed_identity_name         = optional(string, null)
-    subnet_name                   = optional(string, null)
-    kubernetes_version            = optional(string, null)
-    aks_custom_headers            = optional(list(string), [])
-    use_custom_configurations     = optional(bool, false)
-    use_aks_preview_cli_extension = optional(bool, true)
-    use_aks_preview_private_build = optional(bool, false)
-    api_server_subnet_name        = optional(string, false)
-    api_server_subnet_id          = optional(string, null)
+    managed_identity_name             = optional(string, null)
+    subnet_name                       = optional(string, null)
+    kubernetes_version                = optional(string, null)
+    aks_custom_headers                = optional(list(string), [])
+    use_custom_configurations         = optional(bool, false)
+    use_aks_preview_cli_extension     = optional(bool, true)
+    use_aks_preview_private_build     = optional(bool, false)
+    api_server_subnet_name            = optional(string, false)
     enable_apiserver_vnet_integration = optional(bool, false)
 
     default_node_pool = optional(object({

@@ -22,6 +22,12 @@ variable "subnet_id" {
   default     = null
 }
 
+variable "subnets_map" {
+  description = "Map of subnet names to subnet objects"
+  type        = map(any)
+  default     = {}
+}
+
 variable "aks_cli_custom_config_path" {
   description = "Path to the custom configuration file for AKS CLI"
   type        = string
@@ -30,18 +36,17 @@ variable "aks_cli_custom_config_path" {
 
 variable "aks_cli_config" {
   type = object({
-    role                          = string
-    aks_name                      = string
-    sku_tier                      = string
-    subnet_name                   = optional(string, null)
-    managed_identity_name         = optional(string, null)
-    kubernetes_version            = optional(string, null)
-    aks_custom_headers            = optional(list(string), [])
-    use_custom_configurations     = optional(bool, false)
-    use_aks_preview_cli_extension = optional(bool, true)
-    use_aks_preview_private_build = optional(bool, false)
-    api_server_subnet_name        = optional(string, false)
-    api_server_subnet_id          = optional(string, null)
+    role                              = string
+    aks_name                          = string
+    sku_tier                          = string
+    subnet_name                       = optional(string, null)
+    managed_identity_name             = optional(string, null)
+    kubernetes_version                = optional(string, null)
+    aks_custom_headers                = optional(list(string), [])
+    use_custom_configurations         = optional(bool, false)
+    use_aks_preview_cli_extension     = optional(bool, true)
+    use_aks_preview_private_build     = optional(bool, false)
+    api_server_subnet_name            = optional(string, false)
     enable_apiserver_vnet_integration = optional(bool, false)
     default_node_pool = optional(object({
       name        = string
@@ -60,7 +65,7 @@ variable "aks_cli_config" {
           value = string
         })), [])
     })), [])
-    optional_parameters = optional(list(object({  # Refer to https://learn.microsoft.com/en-us/cli/azure/aks?view=azure-cli-latest#az-aks-create(aks-preview) for available parameters
+    optional_parameters = optional(list(object({ # Refer to https://learn.microsoft.com/en-us/cli/azure/aks?view=azure-cli-latest#az-aks-create(aks-preview) for available parameters
       name  = string
       value = string
     })), [])
