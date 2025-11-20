@@ -11,7 +11,7 @@ network_config_list = [
     subnet = [
       {
         name           = "nap-subnet-ms"
-        address_prefix = "10.192.0.0/16"
+        address_prefix = "10.192.0.0/11"
       }
     ]
     network_security_group_name = ""
@@ -39,7 +39,7 @@ aks_cli_config_list = [
     network_profile       = {
         network_plugin = "azure"
         outbound_type  = "userDefinedRouting"
-        pod_cidr       = "172.16.0.0/16"  # Use 172.16.x.x to avoid overlap with 10.x subnet ranges
+        pod_cidr       = "10.128.0.0/11" 
     }
     default_node_pool = {
       name       = "system"
