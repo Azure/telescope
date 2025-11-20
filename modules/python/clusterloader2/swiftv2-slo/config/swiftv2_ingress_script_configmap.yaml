@@ -51,6 +51,9 @@ data:
         return 1
       fi
 
+      # Shuffle pod list for random peer selection
+      all_pods=$(echo "${all_pods}" | tr ' ' '\n' | shuf | tr '\n' ' ')
+
       local peer_count=0
       # Try each pod until we find one with an IP
       for target_pod in ${all_pods}; do
