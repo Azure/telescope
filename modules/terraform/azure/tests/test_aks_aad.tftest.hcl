@@ -18,7 +18,7 @@ variables {
     "run_id" : "123456789",
     "region" : "eastus",
     "public_key_path" : "public_key_path",
-    "aks_aad_enabled" : "true"
+    "aks_aad_enabled" : true
   }
 
   aks_config_list = [
@@ -100,7 +100,7 @@ run "valid_aad_disabled" {
   }
 }
 
-# Test case 3: Verify AAD is disabled when aks_aad_enabled is "false"
+# Test case 3: Verify AAD is disabled when aks_aad_enabled is false
 run "valid_aad_explicitly_disabled" {
 
   command = plan
@@ -110,7 +110,7 @@ run "valid_aad_explicitly_disabled" {
       "run_id" : "123456789",
       "region" : "eastus",
       "public_key_path" : "public_key_path",
-      "aks_aad_enabled" : "false"
+      "aks_aad_enabled" : false
     }
   }
 
