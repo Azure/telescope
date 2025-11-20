@@ -61,6 +61,10 @@ aks_cli_config_list = [
         value = "overlay"
       },
       {
+        name  = "outbound-type"
+        value = "userDefinedRouting"
+      },
+      {
         name  = "node-init-taints"
         value = "CriticalAddonsOnly=true:NoSchedule"
       },
