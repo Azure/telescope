@@ -45,7 +45,7 @@ network_config_list = [
             name                   = "default-route"
             address_prefix         = "0.0.0.0/0"
             next_hop_type          = "VirtualAppliance"
-            next_hop_in_ip_address = "10.193.0.4"
+            next_hop_in_ip_address = "firewall:nap-firewall"
           }
         ]
         subnet_associations = [{ subnet_name = "nap-subnet-ms" }]
