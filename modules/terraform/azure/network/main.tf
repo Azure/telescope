@@ -1,32 +1,8 @@
 locals {
   nsr_rules_map                = { for rule in var.network_config.nsr_rules : rule.name => rule }
   nat_gateway_associations_map = var.network_config.nat_gateway_associations == null ? {} : { for nat in var.network_config.nat_gateway_associations : nat.nat_gateway_name => nat }
-  input_route_tables_map       = var.network_config.route_tables == null ? {} : { for rt in var.network_config.route_tables : rt.name => rt }
-  firewalls_map                = var.network_config.firewalls == null ? {} : { for fw in var.network_config.firewalls : fw.name => fw }
-  
-  # Map of firewall names to their private IPs
-  firewall_ips = {
-    for name, fw in azurerm_firewall.firewall :
-    name => fw.ip_configuration[0].private_ip_address
-  }
-  
-  # Resolve firewall references in route tables (firewall:name -> IP)
-  route_tables = {
-    for name, config in local.input_route_tables_map :
-    name => merge(config, {
-      routes = [
-        for route in coalesce(config.routes, []) :
-        merge(route, {
-          next_hop_in_ip_address = try(
-            startswith(route.next_hop_in_ip_address, "firewall:") ?
-            local.firewall_ips[trimprefix(route.next_hop_in_ip_address, "firewall:")] :
-            route.next_hop_in_ip_address,
-            null
-          )
-        })
-      ]
-    })
-  }
+  route_tables_input           = var.network_config.route_tables == null ? {} : { for rt in var.network_config.route_tables : rt.name => rt }
+  firewalls_input              = var.network_config.firewalls == null ? {} : { for fw in var.network_config.firewalls : fw.name => fw }
   
   vnet_name                    = var.network_config.vnet_name
   input_subnet_map             = { for subnet in var.network_config.subnet : subnet.name => subnet }
@@ -57,7 +33,7 @@ resource "azurerm_virtual_network" "vnet" {
   tags                = local.tags
 
   dynamic "subnet" {
-    for_each = local.subnets_input
+    for_each = local.input_subnet_map
     content {
       name                                          = subnet.value.name
       address_prefixes                              = [subnet.value.address_prefix]
@@ -139,7 +115,7 @@ module "nat_gateway" {
 }
 
 resource "azurerm_firewall" "firewall" {
-  for_each = local.firewalls_map
+  for_each = local.firewalls_input
 
   name                = each.value.name
   location            = var.location
@@ -160,9 +136,18 @@ resource "azurerm_firewall" "firewall" {
 
 module "route_table" {
   source   = "./route-table"
-  for_each = local.route_tables
+  for_each = local.route_tables_input
 
-  route_table_config  = each.value
+  route_table_config = merge(each.value, {
+    routes = [
+      for r in coalesce(each.value.routes, []) : merge(r, {
+        next_hop_in_ip_address = startswith(coalesce(r.next_hop_in_ip_address, ""), "firewall:") ?
+          azurerm_firewall.firewall[replace(r.next_hop_in_ip_address, "firewall:", "")].ip_configuration[0].private_ip_address :
+          r.next_hop_in_ip_address
+      })
+    ]
+  })
+
   resource_group_name = var.resource_group_name
   location            = var.location
   subnets_map         = local.subnets_map
