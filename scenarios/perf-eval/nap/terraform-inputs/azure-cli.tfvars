@@ -45,7 +45,7 @@ network_config_list = [
                 source_addresses      = ["10.192.0.0/16"]
                 destination_addresses = ["*"]
                 destination_ports     = ["*"]
-                protocols             = ["Any"]
+                protocols             = ["TCP", "UDP", "ICMP"]
               }
             ]
           }
