@@ -114,68 +114,18 @@ module "nat_gateway" {
   tags                    = local.tags
 }
 
-resource "azurerm_firewall" "firewall" {
+module "firewall" {
+  source   = "./firewall"
   for_each = local.firewalls_input
 
-  name                = each.value.name
-  location            = var.location
-  resource_group_name = var.resource_group_name
-  sku_name            = each.value.sku_name
-  sku_tier            = each.value.sku_tier
-  firewall_policy_id  = each.value.firewall_policy_id
-  tags                = local.tags
-
-  ip_configuration {
-    name                 = each.value.ip_configuration_name
+  firewall_config = merge(each.value, {
     subnet_id            = local.subnets_map[each.value.subnet_name].id
     public_ip_address_id = var.public_ips[each.value.public_ip_name]
-  }
+  })
 
-  dynamic "nat_rule_collection" {
-    for_each = coalesce(each.value.nat_rule_collections, [])
-    content {
-      name     = nat_rule_collection.value.name
-      priority = nat_rule_collection.value.priority
-      action   = nat_rule_collection.value.action
-
-      dynamic "rule" {
-        for_each = nat_rule_collection.value.rules
-        content {
-          name                  = rule.value.name
-          source_addresses      = rule.value.source_addresses
-          source_ip_groups      = rule.value.source_ip_groups
-          destination_ports     = rule.value.destination_ports
-          destination_addresses = rule.value.destination_addresses
-          translated_address    = rule.value.translated_address
-          translated_port       = rule.value.translated_port
-          protocols             = rule.value.protocols
-        }
-      }
-    }
-  }
-
-  dynamic "network_rule_collection" {
-    for_each = coalesce(each.value.network_rule_collections, [])
-    content {
-      name     = network_rule_collection.value.name
-      priority = network_rule_collection.value.priority
-      action   = network_rule_collection.value.action
-
-      dynamic "rule" {
-        for_each = network_rule_collection.value.rules
-        content {
-          name                  = rule.value.name
-          source_addresses      = rule.value.source_addresses
-          source_ip_groups      = rule.value.source_ip_groups
-          destination_ports     = rule.value.destination_ports
-          destination_addresses = rule.value.destination_addresses
-          destination_fqdns     = rule.value.destination_fqdns
-          destination_ip_groups = rule.value.destination_ip_groups
-          protocols             = rule.value.protocols
-        }
-      }
-    }
-  }
+  resource_group_name = var.resource_group_name
+  location            = var.location
+  tags                = local.tags
 
   depends_on = [azurerm_virtual_network.vnet]
 }
@@ -189,7 +139,7 @@ module "route_table" {
       for r in coalesce(each.value.routes, []) : merge(r, {
         next_hop_in_ip_address = (
           startswith(coalesce(r.next_hop_in_ip_address, ""), "firewall:") ?
-          azurerm_firewall.firewall[replace(r.next_hop_in_ip_address, "firewall:", "")].ip_configuration[0].private_ip_address :
+          module.firewall[replace(r.next_hop_in_ip_address, "firewall:", "")].private_ip_address :
           r.next_hop_in_ip_address
         )
       })
@@ -201,5 +151,5 @@ module "route_table" {
   subnets_map         = local.subnets_map
   tags                = local.tags
 
-  depends_on = [azurerm_virtual_network.vnet, azurerm_firewall.firewall]
+  depends_on = [azurerm_virtual_network.vnet, module.firewall]
 }

@@ -31,10 +31,9 @@ output "route_tables" {
 output "firewalls" {
   description = "Map of firewall names to their private IPs"
   value = {
-    for fw_name, fw in azurerm_firewall.firewall :
+    for fw_name, fw in module.firewall :
     fw_name => {
-      id         = fw.id
-      private_ip = fw.ip_configuration[0].private_ip_address
+      private_ip = fw.private_ip_address
     }
   }
 }
