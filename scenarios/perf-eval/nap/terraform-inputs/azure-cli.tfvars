@@ -92,10 +92,6 @@ aks_cli_config_list = [
         value = "userDefinedRouting"
       },
       {
-        name  = "node-taints"
-        value = "CriticalAddonsOnly=true:NoSchedule"
-      },
-      {
         name  = "pod-cidr"
         value = "10.128.0.0/11"
       }
