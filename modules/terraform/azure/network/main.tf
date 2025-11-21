@@ -141,9 +141,11 @@ module "route_table" {
   route_table_config = merge(each.value, {
     routes = [
       for r in coalesce(each.value.routes, []) : merge(r, {
-        next_hop_in_ip_address = startswith(coalesce(r.next_hop_in_ip_address, ""), "firewall:") ?
+        next_hop_in_ip_address = (
+          startswith(coalesce(r.next_hop_in_ip_address, ""), "firewall:") ?
           azurerm_firewall.firewall[replace(r.next_hop_in_ip_address, "firewall:", "")].ip_configuration[0].private_ip_address :
           r.next_hop_in_ip_address
+        )
       })
     ]
   })
