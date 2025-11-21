@@ -92,7 +92,7 @@ aks_cli_config_list = [
         value = "userDefinedRouting"
       },
       {
-        name  = "node-init-taints"
+        name  = "node-taints"
         value = "CriticalAddonsOnly=true:NoSchedule"
       },
       {
