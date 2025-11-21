@@ -80,6 +80,36 @@ variable "network_config" {
       subnet_name           = string
       public_ip_name        = string
       ip_configuration_name = optional(string, "firewall-ipconfig")
+      nat_rule_collections = optional(list(object({
+        name     = string
+        priority = number
+        action   = optional(string, "Dnat")
+        rules = list(object({
+          name                  = string
+          source_addresses      = optional(list(string), [])
+          source_ip_groups      = optional(list(string), [])
+          destination_ports     = list(string)
+          destination_addresses = list(string)
+          translated_address    = string
+          translated_port       = string
+          protocols             = list(string)
+        }))
+      })), [])
+      network_rule_collections = optional(list(object({
+        name     = string
+        priority = number
+        action   = string # "Allow" or "Deny"
+        rules = list(object({
+          name                  = string
+          source_addresses      = optional(list(string), [])
+          source_ip_groups      = optional(list(string), [])
+          destination_ports     = list(string)
+          destination_addresses = optional(list(string), [])
+          destination_fqdns     = optional(list(string), [])
+          destination_ip_groups = optional(list(string), [])
+          protocols             = list(string) # "TCP", "UDP", "ICMP", "Any"
+        }))
+      })), [])
     })), [])
   })
 }

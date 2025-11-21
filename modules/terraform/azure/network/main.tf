@@ -131,6 +131,52 @@ resource "azurerm_firewall" "firewall" {
     public_ip_address_id = var.public_ips[each.value.public_ip_name]
   }
 
+  dynamic "nat_rule_collection" {
+    for_each = coalesce(each.value.nat_rule_collections, [])
+    content {
+      name     = nat_rule_collection.value.name
+      priority = nat_rule_collection.value.priority
+      action   = nat_rule_collection.value.action
+
+      dynamic "rule" {
+        for_each = nat_rule_collection.value.rules
+        content {
+          name                  = rule.value.name
+          source_addresses      = rule.value.source_addresses
+          source_ip_groups      = rule.value.source_ip_groups
+          destination_ports     = rule.value.destination_ports
+          destination_addresses = rule.value.destination_addresses
+          translated_address    = rule.value.translated_address
+          translated_port       = rule.value.translated_port
+          protocols             = rule.value.protocols
+        }
+      }
+    }
+  }
+
+  dynamic "network_rule_collection" {
+    for_each = coalesce(each.value.network_rule_collections, [])
+    content {
+      name     = network_rule_collection.value.name
+      priority = network_rule_collection.value.priority
+      action   = network_rule_collection.value.action
+
+      dynamic "rule" {
+        for_each = network_rule_collection.value.rules
+        content {
+          name                  = rule.value.name
+          source_addresses      = rule.value.source_addresses
+          source_ip_groups      = rule.value.source_ip_groups
+          destination_ports     = rule.value.destination_ports
+          destination_addresses = rule.value.destination_addresses
+          destination_fqdns     = rule.value.destination_fqdns
+          destination_ip_groups = rule.value.destination_ip_groups
+          protocols             = rule.value.protocols
+        }
+      }
+    }
+  }
+
   depends_on = [azurerm_virtual_network.vnet]
 }
 

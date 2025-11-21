@@ -34,6 +34,22 @@ network_config_list = [
         sku_tier       = "Standard"
         subnet_name    = "AzureFirewallSubnet"
         public_ip_name = "firewall-pip"
+        network_rule_collections = [
+          {
+            name     = "aks-outbound"
+            priority = 100
+            action   = "Allow"
+            rules = [
+              {
+                name                  = "allow-all-outbound"
+                source_addresses      = ["10.192.0.0/16"]
+                destination_addresses = ["*"]
+                destination_ports     = ["*"]
+                protocols             = ["Any"]
+              }
+            ]
+          }
+        ]
       }
     ]
     route_tables = [
