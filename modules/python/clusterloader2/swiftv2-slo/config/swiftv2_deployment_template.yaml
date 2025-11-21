@@ -5,7 +5,7 @@ metadata:
   labels:
     group: "{{.Group}}"
     kubernetes.azure.com/pod-network: pn100
-    kubernetes.azure.com/pod-network-instance: "{{.pniName}}"
+    kubernetes.azure.com/pod-network-instance: "{{.pniName}}-{{.Index}}"
 spec:
   replicas: {{.Replicas}}
   selector:
@@ -22,7 +22,7 @@ spec:
         pod-index: "{{.Index}}"
         step: "{{.Step}}"
         kubernetes.azure.com/pod-network: pn100
-        kubernetes.azure.com/pod-network-instance: "{{.pniName}}"
+        kubernetes.azure.com/pod-network-instance: "{{.pniName}}-{{.Index}}"
         restart: "{{.deploymentLabel}}"
     spec:
       serviceAccountName: swiftv2-sa-0
