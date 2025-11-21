@@ -112,4 +112,6 @@ module "aks-cli" {
   tags                       = local.tags
   subnet_id                  = try(local.all_subnets[each.value.subnet_name], null)
   aks_cli_custom_config_path = local.aks_cli_custom_config_path
+
+  depends_on = [module.virtual_network]
 }

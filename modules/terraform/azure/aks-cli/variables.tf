@@ -64,4 +64,3 @@ variable "aks_cli_config" {
     dry_run = optional(bool, false) # If true, only print the command without executing it. Useful for testing.
   })
 }
-
