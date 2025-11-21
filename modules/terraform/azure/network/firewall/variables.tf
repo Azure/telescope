@@ -38,6 +38,22 @@ variable "firewall_config" {
         protocols             = list(string)
       }))
     })))
+    application_rule_collections = optional(list(object({
+      name     = string
+      priority = number
+      action   = string
+      rules = list(object({
+        name             = string
+        source_addresses = optional(list(string))
+        source_ip_groups = optional(list(string))
+        target_fqdns     = optional(list(string))
+        fqdn_tags        = optional(list(string))
+        protocols = optional(list(object({
+          port = string
+          type = string
+        })))
+      }))
+    })))
   })
 }
 

@@ -34,15 +34,33 @@ network_config_list = [
         sku_tier       = "Standard"
         subnet_name    = "AzureFirewallSubnet"
         public_ip_name = "firewall-pip"
-        network_rule_collections = [
+        application_rule_collections = [
           {
-            name     = "aks-outbound"
+            name     = "allow-all-http"
             priority = 100
             action   = "Allow"
             rules = [
               {
-                name                  = "allow-all-outbound"
-                source_addresses      = ["10.192.0.0/16"]
+                name             = "allow-all-web"
+                source_addresses = ["*"]
+                target_fqdns     = ["*"]
+                protocols = [
+                  { port = "80", type = "Http" },
+                  { port = "443", type = "Https" }
+                ]
+              }
+            ]
+          }
+        ]
+        network_rule_collections = [
+          {
+            name     = "allow-all"
+            priority = 200
+            action   = "Allow"
+            rules = [
+              {
+                name                  = "allow-everything"
+                source_addresses      = ["*"]
                 destination_addresses = ["*"]
                 destination_ports     = ["*"]
                 protocols             = ["TCP", "UDP", "ICMP"]

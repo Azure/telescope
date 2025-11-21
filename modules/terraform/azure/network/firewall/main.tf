@@ -67,3 +67,35 @@ resource "azurerm_firewall_network_rule_collection" "network_rules" {
     }
   }
 }
+
+resource "azurerm_firewall_application_rule_collection" "application_rules" {
+  for_each = {
+    for collection in coalesce(var.firewall_config.application_rule_collections, []) :
+    collection.name => collection
+  }
+
+  name                = each.value.name
+  azure_firewall_name = azurerm_firewall.firewall.name
+  resource_group_name = var.resource_group_name
+  priority            = each.value.priority
+  action              = each.value.action
+
+  dynamic "rule" {
+    for_each = each.value.rules
+    content {
+      name             = rule.value.name
+      source_addresses = lookup(rule.value, "source_addresses", null)
+      source_ip_groups = lookup(rule.value, "source_ip_groups", null)
+      target_fqdns     = lookup(rule.value, "target_fqdns", null)
+      fqdn_tags        = lookup(rule.value, "fqdn_tags", null)
+
+      dynamic "protocol" {
+        for_each = lookup(rule.value, "protocols", [])
+        content {
+          port = protocol.value.port
+          type = protocol.value.type
+        }
+      }
+    }
+  }
+}
