@@ -69,22 +69,33 @@ steps:
         objectTemplatePath: swiftv2_ingress_script_configmap.yaml
         templateFillMap:
           Namespace: slo-1
-  - name: "Create PNI"
+{{range $j := Loop $steps}}
+  - name: "Create PNIs for Step {{$j}}"
+    measurements:
+    - Identifier: APIResponsivenessPrometheusSimple-PNI-{{$j}}
+      Method: APIResponsivenessPrometheus
+      Params:
+        action: start
     phases:
     - namespaceRange:
         min: 1
         max: 1
-      replicasPerNamespace: 1
+      replicasPerNamespace: {{$podsPerStep}}
       tuningSet: DeploymentCreatePNIQps
       objectBundle:
-      - basename: pod-network-instance
+      - basename: pod-network-instance-step-{{$j}}
         objectTemplatePath: pni_dynamic_template.yaml
-  - name: Wait for PNI to be created and nodes to be registered
+  - name: Wait for PNIs to be ready - Step {{$j}}
     measurements:
+      - Identifier: APIResponsivenessPrometheusSimple-PNI-{{$j}}
+        Method: APIResponsivenessPrometheus
+        Params:
+          action: gather
       - Identifier: Dummy
         Method: Sleep
         Params:
-          duration: 60s
+          duration: 30s
+{{end}}
   - name: Starting Pod Startup Latency Measurements
     measurements:
     - Identifier: PodStartupLatency
@@ -122,7 +133,7 @@ steps:
               CpuRequest: {{$latencyPodCpu}}m
               MemoryRequest: {{$latencyPodMemory}}M
               deploymentLabel: start
-              pniName: pod-network-instance-0
+              pniName: pod-network-instance-step-{{$j}}-{{.Index}}
               Location: {{$.CL2_LOCATION}}
               PodsPerStep: {{$podsPerStep}}
               ServiceIp: {{$serviceIP}}
