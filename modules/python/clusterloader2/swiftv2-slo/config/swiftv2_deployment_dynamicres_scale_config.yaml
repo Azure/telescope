@@ -71,11 +71,6 @@ steps:
           Namespace: slo-1
 {{range $j := Loop $steps}}
   - name: "Create PNIs for Step {{$j}}"
-    measurements:
-    - Identifier: APIResponsivenessPrometheusSimple-PNI-{{$j}}
-      Method: APIResponsivenessPrometheus
-      Params:
-        action: start
     phases:
     - namespaceRange:
         min: 1
@@ -85,12 +80,8 @@ steps:
       objectBundle:
       - basename: pod-network-instance-step-{{$j}}
         objectTemplatePath: pni_dynamic_template.yaml
-  - name: Wait for PNIs to be ready - Step {{$j}}
+  - name: "Wait for PNIs to be ready - Step {{$j}}"
     measurements:
-      - Identifier: APIResponsivenessPrometheusSimple-PNI-{{$j}}
-        Method: APIResponsivenessPrometheus
-        Params:
-          action: gather
       - Identifier: Dummy
         Method: Sleep
         Params:
