@@ -255,7 +255,7 @@ variable "aks_config_list" {
       dns_zone_names = list(string)
     }), null)
     kms_key_name             = optional(string, null)
-    key_vault_network_access = optional(string, "public")
+    key_vault_network_access = optional(string, "Public")
   }))
   default = []
 }
@@ -298,7 +298,7 @@ variable "aks_cli_config_list" {
       value = string
     })), [])
     kms_key_name             = optional(string, null)
-    key_vault_network_access = optional(string, "public")
+    key_vault_network_access = optional(string, "Public")
     dry_run                  = optional(bool, false) # If true, only print the command without executing it. Useful for testing.
   }))
   default = []
