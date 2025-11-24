@@ -13,7 +13,9 @@ resource "azurerm_key_vault" "kv" {
 }
 
 resource "azurerm_key_vault_key" "kms_key" {
-  for_each = var.key_vault_config != null ? toset(var.key_vault_config.keys) : toset([])
+  for_each = var.key_vault_config != null ? {
+    for key in var.key_vault_config.keys : key.key_name => key
+  } : {}
 
   name         = each.value.key_name
   key_vault_id = azurerm_key_vault.kv[0].id

@@ -116,11 +116,10 @@ module "aks" {
   aks_aad_enabled     = local.aks_aad_enabled
   key_management_service = (
     var.key_vault_kms_config != null &&
-    each.value.kms_key_name != null &&
-    try(module.key_vault.key_ids[each.value.kms_key_name], null) != null
+    each.value.kms_key_name != null
     ) ? {
     key_vault_id     = module.key_vault.key_vault_id
-    key_vault_key_id = module.key_vault.key_ids[each.value.kms_key_name]
+    key_vault_key_id = try(module.key_vault.key_ids[each.value.kms_key_name], null)
   } : null
 
   depends_on = [
@@ -140,11 +139,10 @@ module "aks-cli" {
   aks_cli_custom_config_path = local.aks_cli_custom_config_path
   key_management_service = (
     var.key_vault_kms_config != null &&
-    each.value.kms_key_name != null &&
-    try(module.key_vault.key_ids[each.value.kms_key_name], null) != null
+    each.value.kms_key_name != null
     ) ? {
     key_vault_id     = module.key_vault.key_vault_id
-    key_vault_key_id = module.key_vault.key_ids[each.value.kms_key_name]
+    key_vault_key_id = try(module.key_vault.key_ids[each.value.kms_key_name], null)
   } : null
 
   depends_on = [
@@ -152,4 +150,3 @@ module "aks-cli" {
   ]
 }
 
-# Role assignments are now handled within each module (aks and aks-cli)

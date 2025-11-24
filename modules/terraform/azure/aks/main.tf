@@ -49,7 +49,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
   }
 
   dynamic "key_management_service" {
-    for_each = var.key_management_service != null ? [var.key_management_service] : []
+    for_each = var.key_management_service == null || var.key_management_service.key_vault_key_id == null? [] : [var.key_management_service]
     content {
       key_vault_key_id         = key_management_service.value.key_vault_key_id
       key_vault_network_access = var.aks_config.key_vault_network_access

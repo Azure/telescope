@@ -50,7 +50,7 @@ locals {
 
 
   kms_parameters = (
-    var.key_management_service == null ?
+    var.key_management_service == null || var.key_management_service.key_vault_key_id == null ?
     "" :
     join(" ", [
       "--enable-azure-keyvault-kms",
@@ -236,6 +236,10 @@ resource "terraform_data" "aks_nodepool_cli" {
 data "azurerm_kubernetes_cluster" "aks_cli" {
   name                = var.aks_cli_config.aks_name
   resource_group_name = var.resource_group_name
+
+  depends_on = [
+    terraform_data.aks_cli
+  ]
 }
 
 # Grant Key Vault Crypto User role for KMS encryption
