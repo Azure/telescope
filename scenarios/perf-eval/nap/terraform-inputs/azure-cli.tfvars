@@ -83,11 +83,6 @@ network_config_list = [
             address_prefix         = "0.0.0.0/0"
             next_hop_type          = "VirtualAppliance"
             next_hop_in_ip_address = "firewall:nap-firewall"
-          },
-          {
-            name           = "firewall-internet"
-            address_prefix = "publicip:firewall-pip"
-            next_hop_type  = "Internet"
           }
         ]
         subnet_associations = [{ subnet_name = "nap-subnet-ms" }]
