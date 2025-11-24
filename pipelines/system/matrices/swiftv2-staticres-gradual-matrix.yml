@@ -23,8 +23,8 @@ parameters:
   type: object
   default:
     pps=25_pods=700_nodes=100:
-      node_count: 5
-      pods_per_step: 5
+      node_count: 600
+      pods_per_step: 50
       test_timeout: "2m"
       test_type: Gradual_StaticRes_PPS=25_Pods=700_Nodes=100
       cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
