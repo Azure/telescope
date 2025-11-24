@@ -28,6 +28,13 @@ resource "azurerm_kubernetes_cluster" "aks" {
     },
   )
   sku_tier = var.aks_config.sku_tier
+  
+  # Wait for KMS role assignment to propagate
+  depends_on = [
+    azurerm_role_assignment.aks_key_service_encryption_user,
+    azurerm_role_assignment.aks_kv_service_encryption_user
+  ]
+
   default_node_pool {
     name                         = var.aks_config.default_node_pool.name
     node_count                   = var.aks_config.default_node_pool.node_count
@@ -158,16 +165,21 @@ resource "azurerm_role_assignment" "aks_on_subnet" {
   principal_id         = var.key_management_service != null ? azurerm_user_assigned_identity.aks_identity[0].principal_id : azurerm_kubernetes_cluster.aks.identity[0].principal_id
 }
 
-# Grant Key Vault Crypto User role for KMS encryption
-resource "azurerm_role_assignment" "kms_crypto_user" {
-  count = var.key_management_service != null ? 1 : 0
-
-  scope                = var.key_management_service.key_vault_id
-  role_definition_name = "Key Vault Crypto User"
-  principal_id         = azurerm_user_assigned_identity.aks_identity[0].principal_id
-}
-
 resource "local_file" "save_kube_config" {
   filename = "/tmp/${azurerm_kubernetes_cluster.aks.fqdn}"
   content  = azurerm_kubernetes_cluster.aks.kube_config_raw
+}
+
+# Grant Key Vault Crypto Service Encryption User role for KMS encryption
+resource "azurerm_role_assignment" "aks_key_service_encryption_user" {
+  count                = var.key_management_service == null || var.key_management_service.key_vault_key_id == null ? 0: 1
+  scope                = var.key_management_service.key_vault_key_id
+  role_definition_name = "Key Vault Crypto Service Encryption User"
+  principal_id         = azurerm_user_assigned_identity.aks_identity[0].principal_id
+}
+resource "azurerm_role_assignment" "aks_kv_service_encryption_user" {
+  count                = var.key_management_service == null || var.key_management_service.key_vault_id == null ? 0: 1
+  scope                = var.key_management_service.key_vault_id
+  role_definition_name = "Key Vault Crypto Service Encryption User"
+  principal_id         = azurerm_user_assigned_identity.aks_identity[0].principal_id
 }
