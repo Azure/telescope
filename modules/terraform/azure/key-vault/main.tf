@@ -21,7 +21,7 @@ resource "azurerm_key_vault_key" "kms_key" {
   key_vault_id = azurerm_key_vault.kv[0].id
   key_type     = "RSA"
   key_size     = 2048
-  key_opts     = ["decrypt", "encrypt"]
+  key_opts     = ["encrypt", "decrypt", "wrapKey", "unwrapKey"]
 
   depends_on = [
     azurerm_role_assignment.current_user_crypto_officer
