@@ -28,7 +28,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
     },
   )
   sku_tier = var.aks_config.sku_tier
-  
+
   # Wait for KMS role assignment to propagate
   depends_on = [
     azurerm_role_assignment.aks_key_service_encryption_user,
@@ -65,7 +65,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
   }
 
   dynamic "key_management_service" {
-    for_each = var.key_management_service == null || var.key_management_service.key_vault_key_id == null? [] : [var.key_management_service]
+    for_each = var.key_management_service == null ? [] : [var.key_management_service]
     content {
       key_vault_key_id         = key_management_service.value.key_vault_key_id
       key_vault_network_access = var.aks_config.key_vault_network_access
@@ -172,13 +172,13 @@ resource "local_file" "save_kube_config" {
 
 # Grant Key Vault Crypto Service Encryption User role for KMS encryption
 resource "azurerm_role_assignment" "aks_key_service_encryption_user" {
-  count                = var.key_management_service == null || var.key_management_service.key_vault_key_id == null ? 0: 1
+  count                = var.key_management_service != null ? 1 : 0
   scope                = var.key_management_service.key_vault_key_id
   role_definition_name = "Key Vault Crypto Service Encryption User"
   principal_id         = azurerm_user_assigned_identity.aks_identity[0].principal_id
 }
 resource "azurerm_role_assignment" "aks_kv_service_encryption_user" {
-  count                = var.key_management_service == null || var.key_management_service.key_vault_id == null ? 0: 1
+  count                = var.key_management_service != null ? 1 : 0
   scope                = var.key_management_service.key_vault_id
   role_definition_name = "Key Vault Crypto Service Encryption User"
   principal_id         = azurerm_user_assigned_identity.aks_identity[0].principal_id
