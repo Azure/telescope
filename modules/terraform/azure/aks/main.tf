@@ -31,7 +31,6 @@ resource "azurerm_kubernetes_cluster" "aks" {
 
   # Wait for KMS role assignment to propagate
   depends_on = [
-    azurerm_role_assignment.aks_key_service_encryption_user,
     azurerm_role_assignment.aks_kv_service_encryption_user
   ]
 
