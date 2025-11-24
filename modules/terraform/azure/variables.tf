@@ -150,6 +150,25 @@ variable "dns_zones" {
   default = []
 }
 
+variable "key_vault_kms_config" {
+  description = "Key Vault configuration for AKS KMS encryption. If specified, a Key Vault will be created with encryption keys."
+  type = object({
+    name = string # Key Vault name (3-24 chars, globally unique)
+    keys = list(object({
+      key_name = string # Encryption key name
+    }))
+  })
+  default = null
+
+  validation {
+    condition = (
+      var.key_vault_kms_config == null ? true :
+      length(var.key_vault_kms_config.keys) > 0
+    )
+    error_message = "At least one key must be defined when key_vault_kms_config is specified"
+  }
+}
+
 variable "aks_config_list" {
   type = list(object({
     role        = string
@@ -235,6 +254,8 @@ variable "aks_config_list" {
     web_app_routing = optional(object({
       dns_zone_names = list(string)
     }), null)
+    kms_key_name             = optional(string, null)
+    key_vault_network_access = optional(string, "public")
   }))
   default = []
 }
@@ -276,7 +297,9 @@ variable "aks_cli_config_list" {
       name  = string
       value = string
     })), [])
-    dry_run = optional(bool, false) # If true, only print the command without executing it. Useful for testing.
+    kms_key_name             = optional(string, null)
+    key_vault_network_access = optional(string, "public")
+    dry_run                  = optional(bool, false) # If true, only print the command without executing it. Useful for testing.
   }))
   default = []
 }

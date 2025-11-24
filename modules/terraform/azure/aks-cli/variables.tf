@@ -28,6 +28,16 @@ variable "aks_cli_custom_config_path" {
   default     = null
 }
 
+variable "key_management_service" {
+  description = "Azure Key Vault Key Management Service configuration for etcd encryption"
+  type = object({
+    key_vault_id     = string
+    key_vault_key_id = string
+  })
+  default = null
+}
+
+
 variable "aks_cli_config" {
   type = object({
     role                              = string
@@ -59,11 +69,13 @@ variable "aks_cli_config" {
           value = string
         })), [])
     })), [])
-    optional_parameters = optional(list(object({  # Refer to https://learn.microsoft.com/en-us/cli/azure/aks?view=azure-cli-latest#az-aks-create(aks-preview) for available parameters
+    optional_parameters = optional(list(object({ # Refer to https://learn.microsoft.com/en-us/cli/azure/aks?view=azure-cli-latest#az-aks-create(aks-preview) for available parameters
       name  = string
       value = string
     })), [])
-    dry_run = optional(bool, false) # If true, only print the command without executing it. Useful for testing.
+    kms_key_name             = optional(string, null)
+    key_vault_network_access = optional(string, "public")
+    dry_run                  = optional(bool, false) # If true, only print the command without executing it. Useful for testing.
   })
 }
 

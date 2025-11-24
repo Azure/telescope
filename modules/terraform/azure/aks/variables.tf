@@ -66,6 +66,15 @@ variable "aks_aad_enabled" {
   default     = false
 }
 
+variable "key_management_service" {
+  description = "Azure Key Vault Key Management Service configuration for etcd encryption"
+  type = object({
+    key_vault_id     = string
+    key_vault_key_id = string
+  })
+  default = null
+}
+
 variable "aks_config" {
   type = object({
     role        = string
@@ -151,6 +160,8 @@ variable "aks_config" {
     web_app_routing = optional(object({
       dns_zone_names = list(string)
     }), null)
+    kms_key_name             = optional(string, null)
+    key_vault_network_access = optional(string, "public")
   })
 
   validation {

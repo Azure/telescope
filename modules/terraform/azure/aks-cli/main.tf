@@ -48,6 +48,17 @@ locals {
     ])
   )
 
+
+  kms_parameters = (
+    var.key_management_service == null ?
+    "" :
+    join(" ", [
+      "--enable-azure-keyvault-kms",
+      format("--azure-keyvault-kms-key-id %s", var.key_management_service.key_vault_key_id),
+      format("--azure-keyvault-kms-key-vault-network-access %s", var.aks_cli_config.key_vault_network_access)
+    ])
+  )
+
   subnet_id_parameter = (local.aks_subnet_id == null ?
     "" :
     format(
@@ -105,6 +116,7 @@ locals {
     "--no-ssh-key",
     local.kubernetes_version,
     local.optional_parameters,
+    local.kms_parameters,
     local.subnet_id_parameter,
     local.managed_identity_parameter,
     local.api_server_vnet_integration_parameter,
@@ -218,4 +230,23 @@ resource "terraform_data" "aks_nodepool_cli" {
       ]),
     ])
   }
+}
+
+# Data source to query the created AKS cluster for identity information
+data "azurerm_kubernetes_cluster" "aks_cli" {
+  name                = var.aks_cli_config.aks_name
+  resource_group_name = var.resource_group_name
+}
+
+# Grant Key Vault Crypto User role for KMS encryption
+resource "azurerm_role_assignment" "kms_crypto_user" {
+  count = var.key_management_service != null ? 1 : 0
+
+  scope                = var.key_management_service.key_vault_id
+  role_definition_name = "Key Vault Crypto User"
+  principal_id         = data.azurerm_kubernetes_cluster.aks_cli.identity[0].principal_id
+
+  depends_on = [
+    terraform_data.aks_cli
+  ]
 }

@@ -54,6 +54,7 @@ locals {
   ] : []
 
   aks_cli_config_map = { for aks in local.updated_aks_cli_config_list : aks.role => aks }
+
 }
 
 provider "azurerm" {
@@ -87,6 +88,15 @@ module "dns_zones" {
   tags                = local.tags
 }
 
+module "key_vault" {
+  source = "./key-vault"
+
+  resource_group_name = local.run_id
+  location            = local.region
+  key_vault_config    = var.key_vault_kms_config
+  tags                = local.tags
+}
+
 module "aks" {
   for_each = local.aks_config_map
 
@@ -104,6 +114,18 @@ module "aks" {
   network_policy      = local.aks_network_policy
   dns_zones           = try(module.dns_zones.dns_zone_ids, null)
   aks_aad_enabled     = local.aks_aad_enabled
+  key_management_service = (
+    var.key_vault_kms_config != null &&
+    each.value.kms_key_name != null &&
+    try(module.key_vault.key_ids[each.value.kms_key_name], null) != null
+    ) ? {
+    key_vault_id     = module.key_vault.key_vault_id
+    key_vault_key_id = module.key_vault.key_ids[each.value.kms_key_name]
+  } : null
+
+  depends_on = [
+    module.key_vault
+  ]
 }
 
 module "aks-cli" {
@@ -116,4 +138,18 @@ module "aks-cli" {
   tags                       = local.tags
   subnets_map                = local.all_subnets
   aks_cli_custom_config_path = local.aks_cli_custom_config_path
+  key_management_service = (
+    var.key_vault_kms_config != null &&
+    each.value.kms_key_name != null &&
+    try(module.key_vault.key_ids[each.value.kms_key_name], null) != null
+    ) ? {
+    key_vault_id     = module.key_vault.key_vault_id
+    key_vault_key_id = module.key_vault.key_ids[each.value.kms_key_name]
+  } : null
+
+  depends_on = [
+    module.key_vault
+  ]
 }
+
+# Role assignments are now handled within each module (aks and aks-cli)

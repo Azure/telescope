@@ -48,6 +48,14 @@ resource "azurerm_kubernetes_cluster" "aks" {
     type = "SystemAssigned"
   }
 
+  dynamic "key_management_service" {
+    for_each = var.key_management_service != null ? [var.key_management_service] : []
+    content {
+      key_vault_key_id         = key_management_service.value.key_vault_key_id
+      key_vault_network_access = var.aks_config.key_vault_network_access
+    }
+  }
+
   dynamic "service_mesh_profile" {
     for_each = try(var.aks_config.service_mesh_profile != null ? [var.aks_config.service_mesh_profile] : [])
     content {
@@ -138,6 +146,15 @@ resource "azurerm_role_assignment" "aks_on_subnet" {
 
   role_definition_name = each.key
   scope                = var.vnet_id
+  principal_id         = azurerm_kubernetes_cluster.aks.identity[0].principal_id
+}
+
+# Grant Key Vault Crypto User role for KMS encryption
+resource "azurerm_role_assignment" "kms_crypto_user" {
+  count = var.key_management_service != null ? 1 : 0
+
+  scope                = var.key_management_service.key_vault_id
+  role_definition_name = "Key Vault Crypto User"
   principal_id         = azurerm_kubernetes_cluster.aks.identity[0].principal_id
 }
 
