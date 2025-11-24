@@ -8,6 +8,14 @@ locals {
 }
 data "azurerm_client_config" "current" {}
 
+resource "azurerm_user_assigned_identity" "aks_identity" {
+  count               = var.key_management_service != null ? 1 : 0
+  location            = var.location
+  name                = "${local.name}-identity"
+  resource_group_name = var.resource_group_name
+  tags                = var.tags
+}
+
 resource "azurerm_kubernetes_cluster" "aks" {
   name                = local.name
   location            = var.location
@@ -45,7 +53,8 @@ resource "azurerm_kubernetes_cluster" "aks" {
     dns_service_ip      = var.aks_config.network_profile.dns_service_ip
   }
   identity {
-    type = "SystemAssigned"
+    type         = var.key_management_service != null ? "UserAssigned" : "SystemAssigned"
+    identity_ids = var.key_management_service != null ? [azurerm_user_assigned_identity.aks_identity[0].id] : []
   }
 
   dynamic "key_management_service" {
@@ -146,7 +155,7 @@ resource "azurerm_role_assignment" "aks_on_subnet" {
 
   role_definition_name = each.key
   scope                = var.vnet_id
-  principal_id         = azurerm_kubernetes_cluster.aks.identity[0].principal_id
+  principal_id         = var.key_management_service != null ? azurerm_user_assigned_identity.aks_identity[0].principal_id : azurerm_kubernetes_cluster.aks.identity[0].principal_id
 }
 
 # Grant Key Vault Crypto User role for KMS encryption
@@ -155,7 +164,7 @@ resource "azurerm_role_assignment" "kms_crypto_user" {
 
   scope                = var.key_management_service.key_vault_id
   role_definition_name = "Key Vault Crypto User"
-  principal_id         = azurerm_kubernetes_cluster.aks.identity[0].principal_id
+  principal_id         = azurerm_user_assigned_identity.aks_identity[0].principal_id
 }
 
 resource "local_file" "save_kube_config" {
