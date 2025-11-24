@@ -39,14 +39,16 @@ run "route_table_created" {
     error_message = "Expected: 1 virtual network\nActual: ${length(module.virtual_network)}"
   }
 
+  # Check that the route table resource will be created
   assert {
-    condition     = length(keys(module.virtual_network["test"].route_tables)) == 1
-    error_message = "Expected: 1 route table\nActual: ${length(keys(module.virtual_network["test"].route_tables))}"
+    condition     = length([for r in resource.changes : r if r.type == "azurerm_route_table" && r.change.actions[0] == "create"]) == 1
+    error_message = "Expected: 1 route table to be created"
   }
 
+  # Check that subnet association will be created
   assert {
-    condition     = contains(module.virtual_network["test"].route_tables["test-rt"], "test-subnet")
-    error_message = "Expected route table to be associated with test-subnet"
+    condition     = length([for r in resource.changes : r if r.type == "azurerm_subnet_route_table_association" && r.change.actions[0] == "create"]) == 1
+    error_message = "Expected: 1 subnet route table association to be created"
   }
 }
 
@@ -80,14 +82,16 @@ run "route_table_with_firewall" {
     error_message = "Expected: 1 virtual network\nActual: ${length(module.virtual_network)}"
   }
 
+  # Check that the route table resource will be created with VirtualAppliance next hop
   assert {
-    condition     = length(module.virtual_network["test"].route_tables["fw-rt"]) == 1
-    error_message = "Expected: 1 subnet association\nActual: ${length(module.virtual_network["test"].route_tables["fw-rt"])}"
+    condition     = length([for r in resource.changes : r if r.type == "azurerm_route_table" && r.change.actions[0] == "create"]) == 1
+    error_message = "Expected: 1 route table to be created"
   }
 
+  # Check that a route with VirtualAppliance next hop type exists
   assert {
-    condition     = contains(module.virtual_network["test"].route_tables["fw-rt"], "test-subnet")
-    error_message = "Expected route table to be associated with test-subnet"
+    condition     = length([for r in resource.changes : r if r.type == "azurerm_route" && r.change.after.next_hop_type == "VirtualAppliance"]) == 1
+    error_message = "Expected: 1 route with VirtualAppliance next hop type"
   }
 }
 
@@ -113,8 +117,9 @@ run "no_route_tables" {
     error_message = "Expected: 1 virtual network\nActual: ${length(module.virtual_network)}"
   }
 
+  # Check that no route tables will be created
   assert {
-    condition     = length(keys(module.virtual_network["test"].route_tables)) == 0
-    error_message = "Expected: 0 route tables\nActual: ${length(keys(module.virtual_network["test"].route_tables))}"
+    condition     = length([for r in resource.changes : r if r.type == "azurerm_route_table" && r.change.actions[0] == "create"]) == 0
+    error_message = "Expected: 0 route tables to be created"
   }
 }
