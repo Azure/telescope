@@ -44,9 +44,9 @@ network_config_list = [
             action   = "Allow"
             rules = [
               {
-                name             = "fqdn"
+                name             = "allow-all"
                 source_addresses = ["*"]
-                fqdn_tags        = ["AzureKubernetesService"]
+                target_fqdns     = ["*"]
                 protocols = [
                   { port = "80", type = "Http" },
                   { port = "443", type = "Https" }
@@ -62,39 +62,11 @@ network_config_list = [
             action   = "Allow"
             rules = [
               {
-                name                  = "apitcp"
+                name                  = "allow-all"
                 source_addresses      = ["*"]
-                destination_addresses = ["AzureCloud.EastUS2"]
-                destination_ports     = ["9000"]
-                protocols             = ["TCP"]
-              },
-              {
-                name                  = "apiudp"
-                source_addresses      = ["*"]
-                destination_addresses = ["AzureCloud.EastUS2"]
-                destination_ports     = ["1194"]
-                protocols             = ["UDP"]
-              },
-              {
-                name              = "time"
-                source_addresses  = ["*"]
-                destination_fqdns = ["ntp.ubuntu.com"]
-                destination_ports = ["123"]
-                protocols         = ["UDP"]
-              },
-              {
-                name              = "ghcr"
-                source_addresses  = ["*"]
-                destination_fqdns = ["ghcr.io", "pkg-containers.githubusercontent.com"]
-                destination_ports = ["443"]
-                protocols         = ["TCP"]
-              },
-              {
-                name              = "docker"
-                source_addresses  = ["*"]
-                destination_fqdns = ["docker.io", "registry-1.docker.io", "production.cloudflare.docker.com"]
-                destination_ports = ["443"]
-                protocols         = ["TCP"]
+                destination_addresses = ["*"]
+                destination_ports     = ["*"]
+                protocols             = ["Any"]
               }
             ]
           }
