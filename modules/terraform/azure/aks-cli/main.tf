@@ -185,7 +185,7 @@ resource "terraform_data" "aks_cli" {
     terraform_data.enable_aks_cli_preview_extension,
     azurerm_role_assignment.network_contributor,
     azurerm_role_assignment.network_contributor_api_server_subnet,
-    azurerm_role_assignment.aks_key_service_encryption_user，
+    azurerm_role_assignment.aks_key_service_encryption_user,
     azurerm_role_assignment.aks_kv_service_encryption_user
   ]
 
