@@ -113,8 +113,12 @@ aks_cli_config_list = [
     extra_node_pool = []
     optional_parameters = [
       {
-        name  = "pod-cidr"
-        value = "10.128.0.0/11"
+        name  = "network-plugin"
+        value = "azure"
+      },
+      {
+        name  = "outbound-type"
+        value = "userDefinedRouting"
       },
       {
         name  = "api-server-authorized-ip-ranges"
