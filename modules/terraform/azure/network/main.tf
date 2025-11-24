@@ -122,5 +122,5 @@ module "route_table" {
   subnets_map         = local.subnets_map
   tags                = local.tags
 
-  depends_on = [module.virtual_network]
+  depends_on = [azurerm_virtual_network.vnet]
 }
