@@ -13,6 +13,11 @@ variable "public_ips" {
   type        = map(string)
 }
 
+variable "public_ip_addresses" {
+  description = "Map of public IP names to IP addresses"
+  type        = map(string)
+}
+
 variable "accelerated_networking" {
   description = "Value of the accelerated networking"
   type        = bool
@@ -77,6 +82,9 @@ variable "network_config" {
       sku_name              = optional(string, "AZFW_VNet")
       sku_tier              = optional(string, "Standard")
       firewall_policy_id    = optional(string, null)
+      threat_intel_mode     = optional(string, "Alert")
+      dns_proxy_enabled     = optional(bool, false)
+      dns_servers           = optional(list(string), null)
       subnet_name           = string
       public_ip_name        = string
       ip_configuration_name = optional(string, "firewall-ipconfig")

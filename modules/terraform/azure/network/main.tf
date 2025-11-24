@@ -137,10 +137,17 @@ module "route_table" {
   route_table_config = merge(each.value, {
     routes = [
       for r in coalesce(each.value.routes, []) : merge(r, {
+        # Support dynamic firewall IP resolution in next_hop_in_ip_address
         next_hop_in_ip_address = (
           startswith(coalesce(r.next_hop_in_ip_address, ""), "firewall:") ?
           module.firewall[replace(r.next_hop_in_ip_address, "firewall:", "")].private_ip_address :
           r.next_hop_in_ip_address
+        )
+        # Support dynamic public IP resolution in address_prefix
+        address_prefix = (
+          startswith(coalesce(r.address_prefix, ""), "publicip:") ?
+          "${var.public_ip_addresses[replace(r.address_prefix, "publicip:", "")]}/32" :
+          r.address_prefix
         )
       })
     ]

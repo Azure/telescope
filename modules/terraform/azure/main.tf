@@ -73,6 +73,7 @@ module "virtual_network" {
   resource_group_name = local.run_id
   location            = local.region
   public_ips          = module.public_ips.pip_ids
+  public_ip_addresses = module.public_ips.pip_addresses
   tags                = local.tags
 }
 
@@ -112,6 +113,7 @@ module "aks-cli" {
   tags                       = local.tags
   subnet_id                  = try(local.all_subnets[each.value.subnet_name], null)
   aks_cli_custom_config_path = local.aks_cli_custom_config_path
+  public_ip_addresses        = module.public_ips.pip_addresses
 
   depends_on = [module.virtual_network]
 }

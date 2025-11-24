@@ -5,6 +5,9 @@ variable "firewall_config" {
     sku_name               = optional(string, "AZFW_VNet")
     sku_tier               = string
     firewall_policy_id     = optional(string)
+    threat_intel_mode      = optional(string, "Alert")
+    dns_proxy_enabled      = optional(bool, false)
+    dns_servers            = optional(list(string))
     ip_configuration_name  = optional(string, "ip_config")
     subnet_id              = string
     public_ip_address_id   = string

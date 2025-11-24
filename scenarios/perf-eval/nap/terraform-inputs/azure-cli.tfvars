@@ -30,20 +30,23 @@ network_config_list = [
     nsr_rules                   = []
     firewalls = [
       {
-        name           = "nap-firewall"
-        sku_tier       = "Standard"
-        subnet_name    = "AzureFirewallSubnet"
-        public_ip_name = "firewall-pip"
+        name                  = "nap-firewall"
+        sku_tier              = "Standard"
+        subnet_name           = "AzureFirewallSubnet"
+        public_ip_name        = "firewall-pip"
+        threat_intel_mode     = "Alert"
+        dns_proxy_enabled     = true
+        ip_configuration_name = "nap-fw-ipconfig"
         application_rule_collections = [
           {
-            name     = "allow-all-http"
+            name     = "aksfwar"
             priority = 100
             action   = "Allow"
             rules = [
               {
-                name             = "allow-all-web"
+                name             = "fqdn"
                 source_addresses = ["*"]
-                target_fqdns     = ["*"]
+                fqdn_tags        = ["AzureKubernetesService"]
                 protocols = [
                   { port = "80", type = "Http" },
                   { port = "443", type = "Https" }
@@ -54,16 +57,44 @@ network_config_list = [
         ]
         network_rule_collections = [
           {
-            name     = "allow-all"
-            priority = 200
+            name     = "aksfwnr"
+            priority = 100
             action   = "Allow"
             rules = [
               {
-                name                  = "allow-everything"
+                name                  = "apitcp"
                 source_addresses      = ["*"]
-                destination_addresses = ["*"]
-                destination_ports     = ["*"]
-                protocols             = ["TCP", "UDP", "ICMP"]
+                destination_addresses = ["AzureCloud.EastUS2"]
+                destination_ports     = ["9000"]
+                protocols             = ["TCP"]
+              },
+              {
+                name                  = "apiudp"
+                source_addresses      = ["*"]
+                destination_addresses = ["AzureCloud.EastUS2"]
+                destination_ports     = ["1194"]
+                protocols             = ["UDP"]
+              },
+              {
+                name              = "time"
+                source_addresses  = ["*"]
+                destination_fqdns = ["ntp.ubuntu.com"]
+                destination_ports = ["123"]
+                protocols         = ["UDP"]
+              },
+              {
+                name              = "ghcr"
+                source_addresses  = ["*"]
+                destination_fqdns = ["ghcr.io", "pkg-containers.githubusercontent.com"]
+                destination_ports = ["443"]
+                protocols         = ["TCP"]
+              },
+              {
+                name              = "docker"
+                source_addresses  = ["*"]
+                destination_fqdns = ["docker.io", "registry-1.docker.io", "production.cloudflare.docker.com"]
+                destination_ports = ["443"]
+                protocols         = ["TCP"]
               }
             ]
           }
@@ -80,6 +111,11 @@ network_config_list = [
             address_prefix         = "0.0.0.0/0"
             next_hop_type          = "VirtualAppliance"
             next_hop_in_ip_address = "firewall:nap-firewall"
+          },
+          {
+            name           = "firewall-internet"
+            address_prefix = "publicip:firewall-pip"
+            next_hop_type  = "Internet"
           }
         ]
         subnet_associations = [{ subnet_name = "nap-subnet-ms" }]
@@ -104,7 +140,7 @@ aks_cli_config_list = [
     }
     default_node_pool = {
       name       = "system"
-      node_count = 5
+      node_count = 3
       vm_size    = "Standard_D4_v5"
     }
     extra_node_pool = []
@@ -128,6 +164,10 @@ aks_cli_config_list = [
       {
         name  = "pod-cidr"
         value = "10.128.0.0/11"
+      },
+      {
+        name  = "api-server-authorized-ip-ranges"
+        value = "publicip:firewall-pip"
       }
     ]
   }
