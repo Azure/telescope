@@ -1,15 +1,18 @@
 variable "json_input" {
   description = "value of the json input"
   type = object({
-    run_id                 = string
-    region                 = string
-    aks_sku_tier           = optional(string, null)
-    aks_kubernetes_version = optional(string, null)
-    aks_network_policy     = optional(string, null)
-    aks_network_dataplane  = optional(string, null)
-    aks_custom_headers     = optional(list(string), [])
-    k8s_machine_type       = optional(string, null)
-    k8s_os_disk_type       = optional(string, null)
+    run_id                            = string
+    region                            = string
+    aks_sku_tier                      = optional(string, null)
+    aks_kubernetes_version            = optional(string, null)
+    aks_network_policy                = optional(string, null)
+    aks_network_dataplane             = optional(string, null)
+    aks_aad_enabled                   = optional(bool, null)
+    aks_custom_headers                = optional(list(string), [])
+    k8s_machine_type                  = optional(string, null)
+    k8s_os_disk_type                  = optional(string, null)
+    enable_apiserver_vnet_integration = optional(bool, false)
+
     aks_cli_system_node_pool = optional(object({
       name        = string
       node_count  = number
@@ -242,13 +245,15 @@ variable "aks_cli_config_list" {
     aks_name = string
     sku_tier = string
 
-    managed_identity_name         = optional(string, null)
-    subnet_name                   = optional(string, null)
-    kubernetes_version            = optional(string, null)
-    aks_custom_headers            = optional(list(string), [])
-    use_custom_configurations     = optional(bool, false)
-    use_aks_preview_cli_extension = optional(bool, true)
-    use_aks_preview_private_build = optional(bool, false)
+    managed_identity_name             = optional(string, null)
+    subnet_name                       = optional(string, null)
+    kubernetes_version                = optional(string, null)
+    aks_custom_headers                = optional(list(string), [])
+    use_custom_configurations         = optional(bool, false)
+    use_aks_preview_cli_extension     = optional(bool, true)
+    use_aks_preview_private_build     = optional(bool, false)
+    api_server_subnet_name            = optional(string, false)
+    enable_apiserver_vnet_integration = optional(bool, false)
 
     default_node_pool = optional(object({
       name        = string
