@@ -1,13 +1,5 @@
 ls -la /opt/cni/bin/ # List all CNI plugins
 
-/opt/cni/bin/host-local
-# CNI host-local plugin v1.6.2
-# CNI protocol versions supported: 0.1.0, 0.2.0, 0.3.0, 0.3.1, 0.4.0, 1.0.0, 1.1.0
-
-/opt/cni/bin/ipvlan
-# CNI ipvlan plugin v1.6.2
-# CNI protocol versions supported: 0.1.0, 0.2.0, 0.3.0, 0.3.1, 0.4.0, 1.0.0, 1.1.0
-
 kubectl apply -f https://raw.githubusercontent.com/k8snetworkplumbingwg/multus-cni/master/deployments/multus-daemonset-thick.yml
 kubectl get pods -n kube-system -l app=multus -o wide
 kubectl get crd
