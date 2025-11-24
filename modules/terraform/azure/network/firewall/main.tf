@@ -6,15 +6,9 @@ resource "azurerm_firewall" "firewall" {
   sku_tier            = var.firewall_config.sku_tier
   firewall_policy_id  = var.firewall_config.firewall_policy_id
   threat_intel_mode   = var.firewall_config.threat_intel_mode
+  dns_servers         = var.firewall_config.dns_proxy_enabled ? var.firewall_config.dns_servers : null
+  dns_proxy_enabled   = var.firewall_config.dns_proxy_enabled
   tags                = var.tags
-
-  dynamic "dns" {
-    for_each = var.firewall_config.dns_proxy_enabled ? [1] : []
-    content {
-      servers       = var.firewall_config.dns_servers
-      enable_proxy  = true
-    }
-  }
 
   ip_configuration {
     name                 = var.firewall_config.ip_configuration_name
