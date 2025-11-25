@@ -22,7 +22,7 @@ network_config_list = [
       {
         name                          = "nap-rt"
         bgp_route_propagation_enabled = false
-        routes = []
+        routes = [] # TODO: add firewall once UDR is enabled
         subnet_associations = [
           { subnet_name = "nap-subnet-ms" }
         ]
@@ -78,7 +78,6 @@ aks_cli_config_list = [
         name  = "pod-cidr"
         value = "10.128.0.0/11"
       },
-      
       {
         name  = "enable-oidc-issuer"
         value = ""
