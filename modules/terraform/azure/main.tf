@@ -128,6 +128,10 @@ module "aks" {
       module.key_vault.key_ids[each.value.kms_key_name],
       values(module.key_vault.key_ids)[0]
     )
+    key_vault_key_resource_id = try(
+      module.key_vault.key_resource_ids[each.value.kms_key_name],
+      values(module.key_vault.key_resource_ids)[0]
+    )
   } : null
 
   depends_on = [
@@ -149,8 +153,15 @@ module "aks-cli" {
     var.key_vault_kms_config != null &&
     each.value.kms_key_name != null
     ) ? {
-    key_vault_id     = module.key_vault.key_vault_id
-    key_vault_key_id = try(module.key_vault.key_ids[each.value.kms_key_name], null)
+    key_vault_id = module.key_vault.key_vault_id
+    key_vault_key_id = try(
+      module.key_vault.key_ids[each.value.kms_key_name],
+      values(module.key_vault.key_ids)[0]
+    )
+    key_vault_key_resource_id = try(
+      module.key_vault.key_resource_ids[each.value.kms_key_name],
+      values(module.key_vault.key_resource_ids)[0]
+    )
   } : null
 
   depends_on = [
