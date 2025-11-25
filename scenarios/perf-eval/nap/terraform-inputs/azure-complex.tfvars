@@ -40,12 +40,6 @@ aks_cli_config_list = [
     subnet_name           = "nap-subnet-ms"
     managed_identity_name = "nap-identity"
     kubernetes_version    = "1.33"
-    network_profile       = {
-        network_plugin = "azure"
-        # TODO: change to udr once firewall is enabled, or once private cluster is enabled
-        outbound_type  = "loadBalancer" 
-        pod_cidr       = "10.128.0.0/11" 
-    }
     default_node_pool = {
       name       = "system"
       node_count = 5
