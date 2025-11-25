@@ -42,7 +42,8 @@ aks_cli_config_list = [
     kubernetes_version    = "1.33"
     network_profile       = {
         network_plugin = "azure"
-        outbound_type  = "loadBalancer" # changed to udr once firewall is enabled
+        # TODO: change to udr once firewall is enabled, or once private cluster is enabled
+        outbound_type  = "loadBalancer" 
         pod_cidr       = "10.128.0.0/11" 
     }
     default_node_pool = {
@@ -70,7 +71,8 @@ aks_cli_config_list = [
       },
       {
         name  = "outbound-type"
-        value = "loadBalancer" # changed to UDR, once firewall is enabled
+        # TODO: change to UDR, once firewall is enabled or once private cluster is enabled
+        value = "loadBalancer" 
       },
       {
         name  = "pod-cidr"
