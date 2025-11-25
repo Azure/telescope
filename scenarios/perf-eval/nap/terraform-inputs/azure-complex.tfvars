@@ -42,7 +42,7 @@ aks_cli_config_list = [
     kubernetes_version    = "1.33"
     network_profile       = {
         network_plugin = "azure"
-        outbound_type  = "userDefinedRouting"
+        outbound_type  = "loadBalancer" # changed to udr once firewall is enabled
         pod_cidr       = "10.128.0.0/11" 
     }
     default_node_pool = {
@@ -70,7 +70,7 @@ aks_cli_config_list = [
       },
       {
         name  = "outbound-type"
-        value = "userDefinedRouting"
+        value = "loadBalancer" # changed to UDR, once firewall is enabled
       },
       {
         name  = "pod-cidr"
