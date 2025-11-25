@@ -18,6 +18,17 @@ network_config_list = [
     network_security_group_name = ""
     nic_public_ip_associations  = []
     nsr_rules                   = []
+    route_tables = [
+      {
+        name                          = "nap-rt"
+        bgp_route_propagation_enabled = false
+        routes = [] # TODO: add firewall once UDR is enabled
+        subnet_associations = [
+          { subnet_name = "nap-subnet-ms" }
+        ]
+      }
+    ]
+    
   }
 ]
 
@@ -51,6 +62,11 @@ aks_cli_config_list = [
       {
         name  = "node-init-taints"
         value = "CriticalAddonsOnly=true:NoSchedule"
+      },
+      {
+        name  = "outbound-type"
+        # TODO: change to UDR, once firewall is enabled or once private cluster is enabled
+        value = "loadBalancer" 
       },
       {
         name  = "pod-cidr"
