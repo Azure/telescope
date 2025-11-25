@@ -185,6 +185,7 @@ resource "terraform_data" "aks_cli" {
     terraform_data.enable_aks_cli_preview_extension,
     azurerm_role_assignment.network_contributor,
     azurerm_role_assignment.network_contributor_api_server_subnet,
+    azurerm_role_assignment.aks_key_service_crypto_user,
     azurerm_role_assignment.aks_key_service_encryption_user,
     azurerm_role_assignment.aks_kv_service_encryption_user
   ]
@@ -235,7 +236,7 @@ resource "terraform_data" "aks_nodepool_cli" {
 }
 
 # Grant Key Vault Crypto Service Encryption User role for KMS encryption
-resource "azurerm_role_assignment" "aks_key_service_encryption_user" {
+resource "azurerm_role_assignment" "aks_key_service_crypto_user" {
   count                = var.key_management_service == null ? 0 : 1
   scope                = var.key_management_service.key_vault_key_resource_id
   role_definition_name = "Key Vault Crypto User"
