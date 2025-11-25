@@ -1,12 +1,14 @@
 data "azurerm_client_config" "current" {}
 
 resource "random_string" "kv_suffix" {
-  length  = 5
+  length  = 4
   special = false
+  upper   = false
+  numeric = true
 }
 resource "azurerm_key_vault" "kv" {
   count                      = var.key_vault_config != null ? 1 : 0
-  name                       = "${var.key_vault_config.name}-${random_string.kv_suffix.result}"
+  name                       = "${lower(var.key_vault_config.name)}-${random_string.kv_suffix.result}"
   location                   = var.location
   resource_group_name        = var.resource_group_name
   tenant_id                  = data.azurerm_client_config.current.tenant_id
