@@ -1,0 +1,157 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ipv4-node0
+  namespace: default
+  labels:
+    app: ipvlan
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: ip-10-0-13-44.ec2.internal
+  tolerations:
+    - key: "node.kubernetes.io/not-ready"
+      operator: "Exists"
+  hostNetwork: true
+  containers:
+    - name: config
+      image: alpine:latest
+      command:
+        - /bin/sh
+        - -c
+        - |
+          set -eo pipefail
+          echo "Writing chained CNI configuration..."
+
+          # List existing CNI configurations
+          ls -la /etc/cni
+          ls -la /etc/cni/net.d/
+          ls -ls /etc/multus/cni/net.d/ || true
+
+          # Write the chained ipvlan CNI configuration
+          cat > /etc/cni/net.d/00-cni-ipvlan.conflist << 'EOF'
+          {
+              "cniVersion": "0.4.0",
+              "name": "cni-ipvlan-vpc-k8s",
+              "plugins": 
+            [
+              {
+                "cniVersion": "0.4.0",
+                "type": "cni-ipvlan-vpc-k8s-ipam",
+                "interfaceIndex": 1,
+                "secGroupIds": 
+                  [
+                    "sg-0aac655633214e047"
+                  ]
+              },
+              {
+                "cniVersion": "0.4.0",
+                "type": "cni-ipvlan-vpc-k8s-ipvlan",
+                "mode": "l2"
+              },
+              {
+                "cniVersion": "0.4.0",
+                "type": "cni-ipvlan-vpc-k8s-unnumbered-ptp",
+                "hostInterface": "ens5",
+                "containerInterface": "eth1",
+                "ipMasq": true
+              }
+              ]
+          }
+          EOF
+
+          echo "CNI configuration written successfully"
+          cat /etc/cni/net.d/00-cni-ipvlan.conflist
+          exit 0
+      volumeMounts:
+        - name: cni-config
+          mountPath: /etc/cni
+      securityContext:
+        runAsUser: 0
+        privileged: true
+        capabilities:
+          add: ["NET_ADMIN"]
+  volumes:
+    - name: cni-config
+      hostPath:
+        path: /etc/cni
+        type: Directory
+  restartPolicy: Never
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ipv4-node1
+  namespace: default
+  labels:
+    app: ipvlan
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: ip-10-0-34-111.ec2.internal
+  tolerations:
+    - key: "node.kubernetes.io/not-ready"
+      operator: "Exists"
+  hostNetwork: true
+  containers:
+    - name: config
+      image: alpine:latest
+      command:
+        - /bin/sh
+        - -c
+        - |
+          set -eo pipefail
+          echo "Writing CNI configuration..."
+
+          # List existing CNI configurations
+          ls -la /etc/cni
+          ls -la /etc/cni/net.d/
+          ls -ls /etc/multus/cni/net.d/ || true
+
+          # Write the ipvlan CNI configuration
+          cat > /etc/cni/net.d/00-cni-ipvlan.conflist << 'EOF'
+          {
+              "cniVersion": "0.4.0",
+              "name": "cni-ipvlan-vpc-k8s",
+              "plugins": 
+            [
+              {
+                "cniVersion": "0.4.0",
+                "type": "cni-ipvlan-vpc-k8s-ipam",
+                "interfaceIndex": 1,
+                "secGroupIds": 
+                  [
+                    "sg-0aac655633214e047"
+                  ]
+              },
+              {
+                "cniVersion": "0.4.0",
+                "type": "cni-ipvlan-vpc-k8s-ipvlan",
+                "mode": "l2"
+              },
+              {
+                "cniVersion": "0.4.0",
+                "type": "cni-ipvlan-vpc-k8s-unnumbered-ptp",
+                "hostInterface": "ens5",
+                "containerInterface": "eth1",
+                "ipMasq": true
+              }
+              ]
+          }
+          EOF
+
+          echo "CNI configuration written successfully"
+          cat /etc/cni/net.d/00-cni-ipvlan.conflist
+          exit 0
+      volumeMounts:
+        - name: cni-config
+          mountPath: /etc/cni
+      securityContext:
+        runAsUser: 0
+        privileged: true
+        capabilities:
+          add: ["NET_ADMIN"]
+  volumes:
+    - name: cni-config
+      hostPath:
+        path: /etc/cni
+        type: Directory
+  restartPolicy: Never
