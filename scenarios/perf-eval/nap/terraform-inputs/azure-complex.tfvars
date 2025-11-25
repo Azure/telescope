@@ -18,6 +18,17 @@ network_config_list = [
     network_security_group_name = ""
     nic_public_ip_associations  = []
     nsr_rules                   = []
+    route_tables = [
+      {
+        name                          = "nap-rt"
+        bgp_route_propagation_enabled = false
+        routes = []
+        subnet_associations = [
+          { subnet_name = "nap-subnet-ms" }
+        ]
+      }
+    ]
+    
   }
 ]
 
@@ -29,6 +40,11 @@ aks_cli_config_list = [
     subnet_name           = "nap-subnet-ms"
     managed_identity_name = "nap-identity"
     kubernetes_version    = "1.33"
+    network_profile       = {
+        network_plugin = "azure"
+        outbound_type  = "userDefinedRouting"
+        pod_cidr       = "10.128.0.0/11" 
+    }
     default_node_pool = {
       name       = "system"
       node_count = 5
@@ -53,9 +69,14 @@ aks_cli_config_list = [
         value = "CriticalAddonsOnly=true:NoSchedule"
       },
       {
+        name  = "outbound-type"
+        value = "userDefinedRouting"
+      },
+      {
         name  = "pod-cidr"
         value = "10.128.0.0/11"
       },
+      
       {
         name  = "enable-oidc-issuer"
         value = ""
