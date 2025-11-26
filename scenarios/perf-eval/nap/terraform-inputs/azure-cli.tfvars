@@ -64,14 +64,14 @@ network_config_list = [
               {
                 name                  = "apiudp"
                 source_addresses      = ["*"]
-                destination_addresses = ["AzureCloud.EastUS2"]
+                destination_addresses = ["AzureCloud"]
                 destination_ports     = ["1194"]
                 protocols             = ["UDP"]
               },
               {
                 name                  = "apitcp"
                 source_addresses      = ["*"]
-                destination_addresses = ["AzureCloud.EastUS2"]
+                destination_addresses = ["AzureCloud"]
                 destination_ports     = ["9000"]
                 protocols             = ["TCP"]
               },
