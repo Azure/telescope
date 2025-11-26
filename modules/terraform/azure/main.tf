@@ -132,10 +132,6 @@ module "aks" {
       module.key_vault.key_resource_ids[each.value.kms_key_name] :
       error("Specified kms_key_name '${each.value.kms_key_name}' does not exist in Key Vault key resource IDs: ${join(", ", keys(module.key_vault.key_resource_ids))}")
   } : null
-
-  depends_on = [
-    module.key_vault
-  ]
 }
 
 module "aks-cli" {
