@@ -1,16 +1,16 @@
 variable "firewall_config" {
   description = "Firewall configuration"
   type = object({
-    name                   = string
-    sku_name               = optional(string, "AZFW_VNet")
-    sku_tier               = string
-    firewall_policy_id     = optional(string)
-    threat_intel_mode      = optional(string, "Alert")
-    dns_proxy_enabled      = optional(bool, false)
-    dns_servers            = optional(list(string))
-    ip_configuration_name  = optional(string, "ip_config")
-    subnet_id              = string
-    public_ip_address_id   = string
+    name                  = string
+    sku_name              = optional(string, "AZFW_VNet")
+    sku_tier              = string
+    firewall_policy_id    = optional(string)
+    threat_intel_mode     = optional(string, "Alert")
+    dns_proxy_enabled     = optional(bool, false)
+    dns_servers           = optional(list(string))
+    ip_configuration_name = optional(string, "ip_config")
+    subnet_id             = string
+    public_ip_address_id  = string
     nat_rule_collections = optional(list(object({
       name     = string
       priority = number
@@ -74,3 +74,4 @@ variable "tags" {
   description = "Tags to apply to resources"
   type        = map(string)
   default     = {}
+}
