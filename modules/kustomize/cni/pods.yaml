@@ -5,12 +5,20 @@ metadata:
   namespace: default
   labels:
     app: test
-  # annotations:
-  #   k8s.v1.cni.cncf.io/networks: ipv4-l3-node1
+    role: node1
 spec:
-  nodeSelector:
-    # kubernetes.io/hostname: aks-user-40702790-vms1
-    kubernetes.io/hostname: aks-default-11967610-vmss000001
+  # nodeSelector:
+  #   kubernetes.io/hostname: <node-name>
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+          - key: role
+            operator: In
+            values:
+            - node2
+        topologyKey: kubernetes.io/hostname
   containers:
     - name: tester
       image: busybox:latest
@@ -23,12 +31,20 @@ metadata:
   namespace: default
   labels:
     app: test
-  # annotations:
-  #   k8s.v1.cni.cncf.io/networks: ipv4-l3-node2
+    role: node2
 spec:
-  nodeSelector:
-    # kubernetes.io/hostname: aks-user-40702790-vms2
-    kubernetes.io/hostname: aks-default-11967610-vmss000002
+  # nodeSelector:
+  #   kubernetes.io/hostname: <node-name>
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+          - key: role
+            operator: In
+            values:
+            - node1
+        topologyKey: kubernetes.io/hostname
   containers:
     - name: tester
       image: busybox:latest
