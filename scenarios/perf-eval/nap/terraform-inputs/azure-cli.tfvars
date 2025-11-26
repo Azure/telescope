@@ -44,13 +44,17 @@ network_config_list = [
             action   = "Allow"
             rules = [
               {
-                name             = "allow-all"
-                source_addresses = ["*"]
-                target_fqdns     = ["*"]
-                protocols = [
-                  { port = "80", type = "Http" },
-                  { port = "443", type = "Https" }
-                ]
+                name          = "allow-aks-app"
+                source_addresses = ["10.192.0.0/16"]
+                target_fqdns  = ["*.mcr.microsoft.com","*.docker.io","*.aka.ms","*.raw.githubusercontent.com","*.monitoring.azure.com"]
+                protocols     = [{ type = "Https", port = 443 }]
+              },
+              {
+                name                    = "allow-aks-system"
+                source_addresses        = ["10.192.0.0/16"]       # AKS subnet + pods
+                destination_addresses   = ["168.63.129.16","management.azure.com","mcr.microsoft.com","login.microsoftonline.com"]
+                destination_ports       = ["*"]                  # TCP/443
+                protocols               = ["TCP"]
               }
             ]
           }
