@@ -138,10 +138,6 @@ aks_cli_config_list = [
       {
         name  = "outbound-type"
         value = "userDefinedRouting"
-      },
-      {
-        name  = "api-server-authorized-ip-ranges"
-        value = "publicip:firewall-pip"
       }
     ]
   }
