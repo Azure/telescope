@@ -12,11 +12,37 @@ resource "azurerm_firewall" "firewall" {
 
   ip_configuration {
     name                 = var.firewall_config.ip_configuration_name
-    subnet_id            = var.subnets_map[var.firewall_config.subnet_name].id
-    public_ip_address_id = var.public_ips_map[var.firewall_config.public_ip_name].id
+    subnet_id            = var.firewall_config.subnet_id
+    public_ip_address_id = var.firewall_config.public_ip_address_id
   }
 }
 
+resource "azurerm_firewall_nat_rule_collection" "nat_rules" {
+  for_each = {
+    for collection in coalesce(var.firewall_config.nat_rule_collections, []) :
+    collection.name => collection
+  }
+
+  name                = each.value.name
+  azure_firewall_name = azurerm_firewall.firewall.name
+  resource_group_name = var.resource_group_name
+  priority            = each.value.priority
+  action              = each.value.action
+
+  dynamic "rule" {
+    for_each = each.value.rules
+    content {
+      name                  = rule.value.name
+      source_addresses      = lookup(rule.value, "source_addresses", null)
+      source_ip_groups      = lookup(rule.value, "source_ip_groups", null)
+      destination_ports     = rule.value.destination_ports
+      destination_addresses = rule.value.destination_addresses
+      translated_address    = rule.value.translated_address
+      translated_port       = rule.value.translated_port
+      protocols             = rule.value.protocols
+    }
+  }
+}
 
 resource "azurerm_firewall_network_rule_collection" "network_rules" {
   for_each = {
@@ -67,39 +93,12 @@ resource "azurerm_firewall_application_rule_collection" "application_rules" {
       fqdn_tags        = lookup(rule.value, "fqdn_tags", null)
 
       dynamic "protocol" {
-        # Only include protocols when NOT using fqdn_tags
-        for_each = lookup(rule.value, "fqdn_tags", null) == null ? lookup(rule.value, "protocols", []) : []
+        for_each = lookup(rule.value, "protocols", [])
         content {
           port = protocol.value.port
           type = protocol.value.type
         }
       }
-    }
-  }
-}
-resource "azurerm_firewall_nat_rule_collection" "nat_rules" {
-  for_each = {
-    for collection in coalesce(var.firewall_config.nat_rule_collections, []) :
-    collection.name => collection
-  }
-
-  name                = each.value.name
-  azure_firewall_name = azurerm_firewall.firewall.name
-  resource_group_name = var.resource_group_name
-  priority            = each.value.priority
-  action              = each.value.action
-
-  dynamic "rule" {
-    for_each = each.value.rules
-    content {
-      name                  = rule.value.name
-      source_addresses      = lookup(rule.value, "source_addresses", null)
-      source_ip_groups      = lookup(rule.value, "source_ip_groups", null)
-      destination_ports     = rule.value.destination_ports
-      destination_addresses = rule.value.destination_addresses
-      translated_address    = rule.value.translated_address
-      translated_port       = rule.value.translated_port
-      protocols             = rule.value.protocols
     }
   }
 }
