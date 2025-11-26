@@ -124,14 +124,13 @@ module "aks" {
     each.value.kms_key_name != null
     ) ? {
     key_vault_id = module.key_vault.key_vault_id
-    key_vault_key_id = try(
-      module.key_vault.key_ids[each.value.kms_key_name],
-      values(module.key_vault.key_ids)[0]
-    )
-    key_vault_key_resource_id = try(
-      module.key_vault.key_resource_ids[each.value.kms_key_name],
-      values(module.key_vault.key_resource_ids)[0]
-    )
+    key_vault_key_id = contains(keys(module.key_vault.key_ids), each.value.kms_key_name) ?
+      module.key_vault.key_ids[each.value.kms_key_name] :
+      error("Specified kms_key_name '${each.value.kms_key_name}' does not exist in Key Vault keys: ${join(", ", keys(module.key_vault.key_ids))}")
+
+    key_vault_key_resource_id = contains(keys(module.key_vault.key_resource_ids), each.value.kms_key_name) ?
+      module.key_vault.key_resource_ids[each.value.kms_key_name] :
+      error("Specified kms_key_name '${each.value.kms_key_name}' does not exist in Key Vault key resource IDs: ${join(", ", keys(module.key_vault.key_resource_ids))}")
   } : null
 
   depends_on = [
