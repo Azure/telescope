@@ -11,72 +11,6 @@ NODE_GROUP_TAGS=$(aws eks describe-nodegroup --cluster-name $CLUSTER_NAME --node
 TAGS=$(echo "$NODE_GROUP_TAGS" | jq -r 'del(.Name)')
 echo "TAGS: $TAGS"
 
-# Create launch template with user data to disable network plugin
-# USER_DATA=$(cat << EOF | base64 -w 0
-# #!/bin/bash
-# /etc/eks/bootstrap.sh $CLUSTER_NAME --container-runtime containerd --kubelet-extra-args "--network-plugin="
-# EOF
-# )
-
-# LAUNCH_TEMPLATE_ID=$(aws ec2 create-launch-template \
-#     --launch-template-name ${CLUSTER_NAME}-user \
-#     --launch-template-data "{\"UserData\":\"$USER_DATA\"}" \
-#     --query 'LaunchTemplate.LaunchTemplateId' --output text)
-
-
-# Get cluster details for NodeConfig
-# CLUSTER_ENDPOINT=$(aws eks describe-cluster --name $CLUSTER_NAME --query "cluster.endpoint" --output text)
-# CLUSTER_CA=$(aws eks describe-cluster --name $CLUSTER_NAME --query "cluster.certificateAuthority.data" --output text)
-# CLUSTER_CIDR=$(aws eks describe-cluster --name $CLUSTER_NAME --query "cluster.kubernetesNetworkConfig.serviceIpv4Cidr" --output text)
-
-# Alternative approach using NodeConfig with flags
-# USER_DATA_NODECONFIG=$(cat << EOF | base64 -w 0
-# MIME-Version: 1.0
-# Content-Type: multipart/mixed; boundary="BOUNDARY"
-
-# --BOUNDARY
-# Content-Type: application/node.eks.aws
-
-# apiVersion: node.eks.aws/v1alpha1
-# kind: NodeConfig
-# spec:
-#   cluster:
-#     name: $CLUSTER_NAME
-#     apiServerEndpoint: $CLUSTER_ENDPOINT
-#     certificateAuthority: $CLUSTER_CA
-#     cidr: $CLUSTER_CIDR
-#   kubelet:
-#     flags:
-#     - --network-plugin=
-
-# --BOUNDARY--
-# EOF
-# )
-
-# Convert NODE_GROUP_TAGS JSON to tag-specifications format
-# TAG_SPEC=$(echo "$TAGS" | jq -r 'to_entries | map("{Key=\(.key),Value=\(.value)}") | "ResourceType=launch-template,Tags=[\(join(","))]"')
-# echo "TAG_SPEC: $TAG_SPEC"
-# LAUNCH_TEMPLATE_NODECONFIG_ID=$(aws ec2 create-launch-template \
-#     --launch-template-name ${CLUSTER_NAME}-user-nodeconfig \
-#     --launch-template-data "{\"UserData\":\"$USER_DATA_NODECONFIG\"}" \
-#     --tag-specifications "$TAG_SPEC" \
-#     --query 'LaunchTemplate.LaunchTemplateId' --output text || aws ec2 describe-launch-templates \
-#     --filters "Name=launch-template-name,Values=${CLUSTER_NAME}-user-nodeconfig" --query "LaunchTemplates[0].LaunchTemplateId" --output text)
-# echo "Alternative NodeConfig launch template created: $LAUNCH_TEMPLATE_NODECONFIG_ID"
-
-# Create node group with both launch template (for kubelet args) and taints (to prevent aws-node)
-# aws eks create-nodegroup \
-#     --cluster-name $CLUSTER_NAME \
-#     --nodegroup-name user \
-#     --subnets $SUBNETS \
-#     --node-role $NODE_ROLE \
-#     --instance-types m6i.4xlarge \
-#     --ami-type AL2023_x86_64_STANDARD \
-#     --scaling-config minSize=2,maxSize=2,desiredSize=2 \
-#     --launch-template id=$LAUNCH_TEMPLATE_NODECONFIG_ID \
-#     --taints key=no-cni,value=true,effect=NO_SCHEDULE \
-#     --tags "$TAGS"
-
 aws eks create-nodegroup \
     --cluster-name $CLUSTER_NAME \
     --nodegroup-name user \
@@ -85,6 +19,7 @@ aws eks create-nodegroup \
     --instance-types m6i.4xlarge \
     --ami-type AL2023_x86_64_STANDARD \
     --scaling-config minSize=2,maxSize=2,desiredSize=2 \
+    --taints key=no-cni,value=true,effect=NO_SCHEDULE \
     --disk-size 20 \
     --tags "$TAGS"
 
@@ -272,3 +207,11 @@ default via 10.0.34.111 dev eth1
 10.0.0.0/16 via 10.0.32.1 dev eth0 
 10.0.32.0/20 dev eth0 proto kernel scope link src 10.0.42.237 
 10.0.34.111 dev eth1 scope link
+
+
+## Copy to node
+pod_name=nsenter-eitmex
+kubectl cp cni-ipvlan-vpc-k8s-ipam ${pod_name}:/opt/cni/bin
+kubectl cp cni-ipvlan-vpc-k8s-ipvlan ${pod_name}:/opt/cni/bin
+kubectl cp cni-ipvlan-vpc-k8s-tool ${pod_name}:/opt/cni/bin
+kubectl cp cni-ipvlan-vpc-k8s-unnumbered-ptp ${pod_name}:/opt/cni/bin
