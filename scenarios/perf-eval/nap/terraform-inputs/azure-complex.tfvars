@@ -28,7 +28,6 @@ network_config_list = [
         ]
       }
     ]
-    
   }
 ]
 
