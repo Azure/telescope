@@ -75,3 +75,13 @@ variable "tags" {
   type        = map(string)
   default     = {}
 }
+
+output "firewalls" {
+  description = "Map of firewall names to their private IPs"
+  value = {
+    for fw_name, fw in module.firewall :
+    fw_name => {
+      private_ip = fw.private_ip_address
+    }
+  }
+}
