@@ -1,12 +1,13 @@
 # Azure Firewall Module
 
-This module creates an Azure Firewall with optional NAT and Network rule collections.
+This module creates an Azure Firewall with optional NAT, Network, and Application rule collections.
 
 ## Features
 
 - Azure Firewall with configurable SKU
 - NAT rule collections for DNAT
 - Network rule collections for Allow/Deny traffic filtering
+- Application rule collections for controlling outbound web (HTTP/HTTPS) traffic
 - Automatic rule management through separate resources
 
 ## Usage
