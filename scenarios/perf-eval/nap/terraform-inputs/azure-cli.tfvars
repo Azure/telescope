@@ -44,17 +44,13 @@ network_config_list = [
             action   = "Allow"
             rules = [
               {
-                name          = "allow-aks-app"
-                source_addresses = ["10.192.0.0/16"]
-                target_fqdns  = ["*.mcr.microsoft.com","*.docker.io","*.aka.ms","*.raw.githubusercontent.com","*.monitoring.azure.com"]
-                protocols     = [{ type = "Https", port = 443 }]
-              },
-              {
-                name                    = "allow-aks-system"
-                source_addresses        = ["10.192.0.0/16"]       # AKS subnet + pods
-                destination_addresses   = ["168.63.129.16","management.azure.com","mcr.microsoft.com","login.microsoftonline.com"]
-                destination_ports       = ["*"]                  # TCP/443
-                protocols               = ["TCP"]
+                name             = "fqdn"
+                source_addresses = ["*"]
+                fqdn_tags        = ["AzureKubernetesService"]
+                protocols = [
+                  { port = "80", type = "Http" },
+                  { port = "443", type = "Https" }
+                ]
               }
             ]
           }
@@ -66,11 +62,25 @@ network_config_list = [
             action   = "Allow"
             rules = [
               {
-                name                  = "allow-all"
+                name                  = "apiudp"
                 source_addresses      = ["*"]
-                destination_addresses = ["*"]
-                destination_ports     = ["*"]
-                protocols             = ["Any"]
+                destination_addresses = ["AzureCloud.EastUS2"]
+                destination_ports     = ["1194"]
+                protocols             = ["UDP"]
+              },
+              {
+                name                  = "apitcp"
+                source_addresses      = ["*"]
+                destination_addresses = ["AzureCloud.EastUS2"]
+                destination_ports     = ["9000"]
+                protocols             = ["TCP"]
+              },
+              {
+                name              = "time"
+                source_addresses  = ["*"]
+                destination_fqdns = ["ntp.ubuntu.com"]
+                destination_ports = ["123"]
+                protocols         = ["UDP"]
               }
             ]
           }
@@ -87,6 +97,11 @@ network_config_list = [
             address_prefix         = "0.0.0.0/0"
             next_hop_type          = "VirtualAppliance"
             next_hop_in_ip_address = "firewall:nap-firewall"
+          },
+          {
+            name           = "firewall-internet"
+            address_prefix = "publicip:firewall-pip"
+            next_hop_type  = "Internet"
           }
         ]
         subnet_associations = [{ subnet_name = "nap-subnet-ms" }]
