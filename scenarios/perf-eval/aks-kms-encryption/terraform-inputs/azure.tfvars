@@ -35,95 +35,84 @@ network_config_list = [
 ]
 
 # AKS Configuration with KMS Encryption (using Terraform provider)
-#aks_config_list = [
-#  {
-#    role       = "cas"
-#    aks_name   = "cas"
-#    dns_prefix = "cas"
-#    sku_tier   = "Standard"
-#    network_profile = {
-#      network_plugin = "azure"
-#      network_policy = "azure"
-#      service_cidr   = "172.20.0.0/16"
-#      dns_service_ip = "172.20.0.10"
-#    }
-#    default_node_pool = {
-#      name                         = "system"
-#      node_count                   = 2
-#      auto_scaling_enabled         = false
-#      vm_size                      = "Standard_D2_v5"
-#      os_disk_type                 = "Managed"
-#      only_critical_addons_enabled = false
-#      temporary_name_for_rotation  = "defaulttmp"
-#    }
-#    extra_node_pool = [
-#      {
-#        name                 = "userpool"
-#        node_count           = 1
-#        min_count            = 1
-#        max_count            = 3
-#        auto_scaling_enabled = true
-#        vm_size              = "Standard_D2_v5"
-#        max_pods             = 110
-#        node_labels          = { "cas" = "dedicated" }
-#      }
-#    ]
-#    oidc_issuer_enabled       = false
-#    workload_identity_enabled = false
-#    # Optional: Specify which key this AKS cluster should use
-#    # If not specified, uses the first key
-#    kms_key_name = "kms-prod"
-#    key_vault_network_access = "Public"
-#  }
-#]
-
-
-# AKS Configuration with KMS Encryption (using Azure CLI)
-# Same configuration as aks_config_list but uses CLI deployment method
-aks_cli_config_list = [
+aks_config_list = [
   {
-    role                          = "cas"
-    aks_name                      = "cas"
-    sku_tier                      = "Standard"
-    subnet_name                   = "aks-subnet"
-    managed_identity_name         = "kms-test"
-    use_aks_preview_cli_extension = true
+    role       = "cas"
+    aks_name   = "cas"
+    dns_prefix = "cas"
+    sku_tier   = "Standard"
+    network_profile = {
+      network_plugin = "azure"
+      network_policy = "azure"
+      service_cidr   = "172.20.0.0/16"
+      dns_service_ip = "172.20.0.10"
+    }
     default_node_pool = {
-      name        = "system"
-      node_count  = 2
-      vm_size     = "Standard_D2_v5"
-      vm_set_type = "VirtualMachineScaleSets"
+      name                         = "system"
+      node_count                   = 2
+      auto_scaling_enabled         = false
+      vm_size                      = "Standard_D2_v5"
+      os_disk_type                 = "Managed"
+      only_critical_addons_enabled = false
+      temporary_name_for_rotation  = "defaulttmp"
     }
     extra_node_pool = [
       {
-        name        = "userpool"
-        node_count  = 1
-        vm_size     = "Standard_D2_v5"
-        optional_parameters = [
-          {
-            name  = "enable-cluster-autoscaler"
-            value = ""
-          },
-          {
-            name  = "min-count"
-            value = "1"
-          },
-          {
-            name  = "max-count"
-            value = "3"
-          },
-          {
-            name  = "max-pods"
-            value = "110"
-          },
-          {
-            name  = "labels"
-            value = "cas=dedicated"
-          }
-        ]
+        name                 = "userpool"
+        node_count           = 1
+        min_count            = 1
+        max_count            = 3
+        auto_scaling_enabled = true
+        vm_size              = "Standard_D2_v5"
+        max_pods             = 110
+        node_labels          = { "cas" = "dedicated" }
       }
     ]
-    kms_key_name              = "kms-dev"
-    key_vault_network_access = "Private"
+    oidc_issuer_enabled       = false
+    workload_identity_enabled = false
+    # Optional: Specify which key this AKS cluster should use
+    # If not specified, uses the first key
+    kms_key_name = "kms-prod"
+    key_vault_network_access = "Public"
   }
 ]
+
+
+# AKS Configuration with KMS Encryption (using Azure CLI)
+# Mirrors the aks_config_list structure but uses CLI for deployment
+#aks_cli_config_list = [
+#  {
+#    role                          = "server"
+#    aks_name                      = "aks-kms-cluster-cli"
+#    sku_tier                      = "Standard"
+#    subnet_name                   = "aks-subnet"
+#    managed_identity_name         = "kms-test"
+#    use_aks_preview_cli_extension = true
+#    network_profile = {
+#     network_plugin = "azure"
+#      network_policy = "azure"
+#      service_cidr   = "172.21.0.0/16"
+#      dns_service_ip = "172.21.0.10"
+#    }
+#    default_node_pool = {
+#      name        = "system"
+#      node_count  = 5
+#      vm_size     = "Standard_D4_v5"
+#      vm_set_type = "VirtualMachineScaleSets"
+#    }
+#    extra_node_pool = [
+#      {
+#        name        = "userpool"
+#        node_count  = 1
+#        vm_size     = "Standard_D4_v5"
+#        vm_set_type = "VirtualMachineScaleSets"
+#      }
+#    ]
+#    # Optional: Specify which key this AKS cluster should use
+#    # If not specified, uses the first key
+#    kms_key_name              = "kms-dev"
+#    key_vault_network_access = "Public"
+#    oidc_issuer_enabled       = true
+#    workload_identity_enabled = true
+#  }
+#]
