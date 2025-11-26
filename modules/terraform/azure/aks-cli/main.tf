@@ -44,7 +44,12 @@ locals {
     "" :
     join(" ", [
       for param in var.aks_cli_config.optional_parameters :
-      format("--%s %s", param.name, param.value)
+      format("--%s %s", param.name, 
+        # Support dynamic public IP resolution in parameter values
+        startswith(param.value, "publicip:") ?
+        var.public_ip_addresses[replace(param.value, "publicip:", "")] :
+        param.value
+      )
     ])
   )
 

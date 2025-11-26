@@ -28,6 +28,12 @@ variable "aks_cli_custom_config_path" {
   default     = null
 }
 
+variable "public_ip_addresses" {
+  description = "Map of public IP names to IP addresses for dynamic resolution"
+  type        = map(string)
+  default     = {}
+}
+
 variable "aks_cli_config" {
   type = object({
     role                              = string
@@ -66,4 +72,3 @@ variable "aks_cli_config" {
     dry_run = optional(bool, false) # If true, only print the command without executing it. Useful for testing.
   })
 }
-

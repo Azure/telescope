@@ -4,7 +4,7 @@ locals {
   vpc_name                      = var.network_config.vpc_name
   secondary_ipv4_cidr_block_map = var.network_config.secondary_ipv4_cidr_blocks == null ? {} : { for cidr in var.network_config.secondary_ipv4_cidr_blocks : cidr => cidr }
   subnet_map                    = { for subnet in var.network_config.subnet : subnet.name => subnet }
-  route_tables_map              = var.network_config.route_tables == null ? {} : { for rt in var.network_config.route_tables : rt.name => rt }
+  input_route_tables_map              = var.network_config.route_tables == null ? {} : { for rt in var.network_config.route_tables : rt.name => rt }
   route_table_associations_map  = var.network_config.route_table_associations == null ? {} : { for rta in var.network_config.route_table_associations : rta.name => rta }
   nat_gateway_public_ips_map    = var.network_config.nat_gateway_public_ips == null ? {} : { for pip in var.network_config.nat_gateway_public_ips : pip.name => pip }
   nat_gateways_map              = var.network_config.nat_gateways == null ? {} : { for ng in var.network_config.nat_gateways : ng.name => ng }
@@ -105,7 +105,7 @@ resource "aws_internet_gateway" "internet_gateway" {
 }
 
 resource "aws_route_table" "route_tables" {
-  for_each = local.route_tables_map
+  for_each = local.input_route_tables_map
 
   vpc_id = aws_vpc.vpc.id
 

@@ -19,3 +19,21 @@ output "vnet_id" {
   description = "vnet id"
   value       = azurerm_virtual_network.vnet.id
 }
+
+output "route_tables" {
+  description = "Map of route table names to their associated subnets"
+  value = {
+    for rt_name, rt_module in module.route_table :
+    rt_name => rt_module.subnet_associations
+  }
+}
+
+output "firewalls" {
+  description = "Map of firewall names to their private IPs"
+  value = {
+    for fw_name, fw in module.firewall :
+    fw_name => {
+      private_ip = fw.private_ip_address
+    }
+  }
+}
