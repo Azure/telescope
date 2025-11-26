@@ -127,7 +127,7 @@ module "firewall" {
   location            = var.location
   tags                = local.tags
 
-  depends_on = [azurerm_virtual_network.vnet]
+  depends_on = [azurerm_virtual_network]
 }
 
 module "route_table" {
