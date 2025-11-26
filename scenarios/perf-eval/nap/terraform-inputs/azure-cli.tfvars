@@ -65,21 +65,21 @@ network_config_list = [
                 name                  = "apiudp"
                 source_addresses      = ["*"]
                 destination_addresses = ["AzureCloud"]
-                destination_ports     = ["1194"]
+                destination_ports     = ["1194"] # vpn/remote access
                 protocols             = ["UDP"]
               },
               {
                 name                  = "apitcp"
                 source_addresses      = ["*"]
                 destination_addresses = ["AzureCloud"]
-                destination_ports     = ["9000"]
+                destination_ports     = ["9000"] # api
                 protocols             = ["TCP"]
               },
               {
-                name              = "time"
+                name              = "time" 
                 source_addresses  = ["*"]
                 destination_fqdns = ["ntp.ubuntu.com"]
-                destination_ports = ["123"]
+                destination_ports = ["123"] # network time protocol
                 protocols         = ["UDP"]
               }
             ]
