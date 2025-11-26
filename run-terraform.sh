@@ -55,7 +55,7 @@ az network firewall application-rule create -g $RG -f $FWNAME --collection-name 
 
 az network vnet subnet update -g $RG --vnet-name $VNET_NAME --name $AKSSUBNET_NAME --route-table $FWROUTE_TABLE_NAME
 
-mySSHKeyFilePath="shtao-dev-ssh-key.pub" # Depends on you. Or you can use --generate-ssh-keys
+mySSHKeyFilePath="shtao-dev-ssh-key.pub" # Depends on you. Or you can useC --generate-ssh-keys
 myWindowsUserName="azureuser" # Recommend azureuser
 myWindowsPassword="Shiqian8Windows@AKS" # Complex enough
 

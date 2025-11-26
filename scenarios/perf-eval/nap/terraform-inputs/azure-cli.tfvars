@@ -46,7 +46,7 @@ network_config_list = [
               {
                 name             = "fqdn"
                 source_addresses = ["*"]
-                fqdn_tags        = ["AzureKubernetesService"]
+                target_fqdns     = ["AzureKubernetesService"]
                 protocols = [
                   { port = "80", type = "Http" },
                   { port = "443", type = "Https" }
