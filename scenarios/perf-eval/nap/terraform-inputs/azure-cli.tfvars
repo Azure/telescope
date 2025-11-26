@@ -44,11 +44,28 @@ network_config_list = [
             action   = "Allow"
             rules = [
               {
-                name             = "fqdn"
+                name             = "aks-required"
                 source_addresses = ["*"]
                 target_fqdns     = ["AzureKubernetesService"]
                 protocols = [
                   { port = "80", type = "Http" },
+                  { port = "443", type = "Https" }
+                ]
+              },
+              {
+                name             = "ubuntu-packages"
+                source_addresses = ["*"]
+                target_fqdns     = ["archive.ubuntu.com", "security.ubuntu.com", "azure.archive.ubuntu.com", "*.archive.ubuntu.com"]
+                protocols = [
+                  { port = "80", type = "Http" },
+                  { port = "443", type = "Https" }
+                ]
+              },
+              {
+                name             = "microsoft-repos"
+                source_addresses = ["*"]
+                target_fqdns     = ["*.blob.core.windows.net", "*.table.core.windows.net"]
+                protocols = [
                   { port = "443", type = "Https" }
                 ]
               }
@@ -62,25 +79,46 @@ network_config_list = [
             action   = "Allow"
             rules = [
               {
+                name                  = "dns"
+                source_addresses      = ["*"]
+                destination_addresses = ["*"]
+                destination_ports     = ["53"]
+                protocols             = ["UDP", "TCP"]
+              },
+              {
                 name                  = "apiudp"
                 source_addresses      = ["*"]
-                destination_addresses = ["AzureCloud"]
-                destination_ports     = ["1194"] # vpn/remote access
+                destination_addresses = ["AzureCloud.eastus2"]
+                destination_ports     = ["1194"]
                 protocols             = ["UDP"]
               },
               {
                 name                  = "apitcp"
                 source_addresses      = ["*"]
-                destination_addresses = ["AzureCloud"]
-                destination_ports     = ["9000"] # api
+                destination_addresses = ["AzureCloud.eastus2"]
+                destination_ports     = ["9000"]
                 protocols             = ["TCP"]
               },
               {
                 name              = "time" 
                 source_addresses  = ["*"]
                 destination_fqdns = ["ntp.ubuntu.com"]
-                destination_ports = ["123"] # network time protocol
+                destination_ports = ["123"]
                 protocols         = ["UDP"]
+              },
+              {
+                name                  = "https-outbound"
+                source_addresses      = ["*"]
+                destination_addresses = ["*"]
+                destination_ports     = ["443"]
+                protocols             = ["TCP"]
+              },
+              {
+                name                  = "http-outbound"
+                source_addresses      = ["*"]
+                destination_addresses = ["*"]
+                destination_ports     = ["80"]
+                protocols             = ["TCP"]
               }
             ]
           }
