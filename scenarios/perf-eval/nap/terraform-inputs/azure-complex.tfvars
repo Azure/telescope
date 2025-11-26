@@ -20,6 +20,10 @@ network_config_list = [
       {
         name           = "nap-subnet-ms"
         address_prefix = "10.192.0.0/10"
+      },
+      {
+        name           = "AzureFirewallSubnet"
+        address_prefix = "10.193.0.0/26"
       }
     ]
     network_security_group_name = ""
@@ -36,33 +40,24 @@ network_config_list = [
         ip_configuration_name = "nap-fw-ipconfig"
         application_rule_collections = [
           {
-            name     = "aksfwar"
+            name     = "egress-rules"
             priority = 100
             action   = "Allow"
             rules = [
               {
-                name             = "aks-required"
+                name             = "azure-services"
                 source_addresses = ["*"]
-                target_fqdns     = ["AzureKubernetesService"]
+                target_fqdns     = ["*.azure.com", "*.core.windows.net", "*.azurecr.io", "AzureKubernetesService"]
                 protocols = [
-                  { port = "80", type = "Http" },
                   { port = "443", type = "Https" }
                 ]
               },
               {
-                name             = "ubuntu-packages"
+                name             = "linux-packages"
                 source_addresses = ["*"]
-                target_fqdns     = ["archive.ubuntu.com", "security.ubuntu.com", "azure.archive.ubuntu.com", "*.archive.ubuntu.com"]
+                target_fqdns     = ["*.ubuntu.com", "archive.ubuntu.com", "security.ubuntu.com"]
                 protocols = [
                   { port = "80", type = "Http" },
-                  { port = "443", type = "Https" }
-                ]
-              },
-              {
-                name             = "microsoft-repos"
-                source_addresses = ["*"]
-                target_fqdns     = ["*.blob.core.windows.net", "*.table.core.windows.net"]
-                protocols = [
                   { port = "443", type = "Https" }
                 ]
               }
@@ -71,7 +66,7 @@ network_config_list = [
         ]
         network_rule_collections = [
           {
-            name     = "aksfwnr"
+            name     = "network-rules"
             priority = 100
             action   = "Allow"
             rules = [
@@ -83,38 +78,24 @@ network_config_list = [
                 protocols             = ["UDP", "TCP"]
               },
               {
-                name                  = "apiudp"
+                name                  = "azure-api"
                 source_addresses      = ["*"]
                 destination_addresses = ["AzureCloud"]
-                destination_ports     = ["1194"]
+                destination_ports     = ["443", "9000", "1194"]
+                protocols             = ["TCP", "UDP"]
+              },
+              {
+                name                  = "ntp"
+                source_addresses      = ["*"]
+                destination_addresses = ["*"]
+                destination_ports     = ["123"]
                 protocols             = ["UDP"]
               },
               {
-                name                  = "apitcp"
-                source_addresses      = ["*"]
-                destination_addresses = ["AzureCloud"]
-                destination_ports     = ["9000"]
-                protocols             = ["TCP"]
-              },
-              {
-                name              = "time" 
-                source_addresses  = ["*"]
-                destination_fqdns = ["ntp.ubuntu.com"]
-                destination_ports = ["123"]
-                protocols         = ["UDP"]
-              },
-              {
-                name                  = "https-outbound"
+                name                  = "http-https-outbound"
                 source_addresses      = ["*"]
                 destination_addresses = ["*"]
-                destination_ports     = ["443"]
-                protocols             = ["TCP"]
-              },
-              {
-                name                  = "http-outbound"
-                source_addresses      = ["*"]
-                destination_addresses = ["*"]
-                destination_ports     = ["80"]
+                destination_ports     = ["80", "443"]
                 protocols             = ["TCP"]
               }
             ]
