@@ -65,7 +65,7 @@ aks_cli_config_list = [
       {
         name  = "outbound-type"
         # TODO: change to UDR, once firewall is enabled or once private cluster is enabled
-        value = "loadBalancer" 
+        value = "loadBalancer"
       },
       {
         name  = "pod-cidr"
