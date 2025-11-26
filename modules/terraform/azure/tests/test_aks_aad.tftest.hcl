@@ -50,7 +50,7 @@ variables {
 # Test case 1: Verify AAD is enabled with default service principal object_id
 run "valid_aad_enabled" {
 
-  command = plan
+  command = apply
 
   assert {
     condition     = length(module.aks["test"].aks_cluster.azure_active_directory_role_based_access_control) > 0
@@ -84,7 +84,7 @@ run "valid_aad_enabled" {
 # Test case 2: Verify AAD is disabled when aks_aad_enabled is not set
 run "valid_aad_disabled" {
 
-  command = plan
+  command = apply
 
   variables {
     json_input = {
@@ -103,7 +103,7 @@ run "valid_aad_disabled" {
 # Test case 3: Verify AAD is disabled when aks_aad_enabled is false
 run "valid_aad_explicitly_disabled" {
 
-  command = plan
+  command = apply
 
   variables {
     json_input = {
