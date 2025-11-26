@@ -110,3 +110,19 @@ module "nat_gateway" {
   subnets_map             = local.subnets_map
   tags                    = local.tags
 }
+
+module "firewall" {
+  source   = "./firewall"
+  for_each = local.firewalls_input
+
+  firewall_config = merge(each.value, {
+    subnet_id            = local.subnets_map[each.value.subnet_name].id
+    public_ip_address_id = var.public_ips[each.value.public_ip_name]
+  })
+
+  resource_group_name = var.resource_group_name
+  location            = var.location
+  tags                = local.tags
+
+  depends_on = [azurerm_virtual_network.vnet]
+}
