@@ -4,6 +4,13 @@ scenario_name  = "nap"
 deletion_delay = "2h"
 owner          = "aks"
 
+public_ip_config_list = [
+  {
+    name = "firewall-pip"
+    count = 1
+  }
+]
+
 network_config_list = [
   {
     role               = "crud"
@@ -18,6 +25,103 @@ network_config_list = [
     network_security_group_name = ""
     nic_public_ip_associations  = []
     nsr_rules                   = []
+    firewalls = [
+      {
+        name                  = "nap-firewall"
+        sku_tier              = "Standard"
+        subnet_name           = "AzureFirewallSubnet"
+        public_ip_name        = "firewall-pip"
+        threat_intel_mode     = "Alert"
+        dns_proxy_enabled     = true
+        ip_configuration_name = "nap-fw-ipconfig"
+        application_rule_collections = [
+          {
+            name     = "aksfwar"
+            priority = 100
+            action   = "Allow"
+            rules = [
+              {
+                name             = "aks-required"
+                source_addresses = ["*"]
+                target_fqdns     = ["AzureKubernetesService"]
+                protocols = [
+                  { port = "80", type = "Http" },
+                  { port = "443", type = "Https" }
+                ]
+              },
+              {
+                name             = "ubuntu-packages"
+                source_addresses = ["*"]
+                target_fqdns     = ["archive.ubuntu.com", "security.ubuntu.com", "azure.archive.ubuntu.com", "*.archive.ubuntu.com"]
+                protocols = [
+                  { port = "80", type = "Http" },
+                  { port = "443", type = "Https" }
+                ]
+              },
+              {
+                name             = "microsoft-repos"
+                source_addresses = ["*"]
+                target_fqdns     = ["*.blob.core.windows.net", "*.table.core.windows.net"]
+                protocols = [
+                  { port = "443", type = "Https" }
+                ]
+              }
+            ]
+          }
+        ]
+        network_rule_collections = [
+          {
+            name     = "aksfwnr"
+            priority = 100
+            action   = "Allow"
+            rules = [
+              {
+                name                  = "dns"
+                source_addresses      = ["*"]
+                destination_addresses = ["*"]
+                destination_ports     = ["53"]
+                protocols             = ["UDP", "TCP"]
+              },
+              {
+                name                  = "apiudp"
+                source_addresses      = ["*"]
+                destination_addresses = ["AzureCloud.eastus2"]
+                destination_ports     = ["1194"]
+                protocols             = ["UDP"]
+              },
+              {
+                name                  = "apitcp"
+                source_addresses      = ["*"]
+                destination_addresses = ["AzureCloud.eastus2"]
+                destination_ports     = ["9000"]
+                protocols             = ["TCP"]
+              },
+              {
+                name              = "time" 
+                source_addresses  = ["*"]
+                destination_fqdns = ["ntp.ubuntu.com"]
+                destination_ports = ["123"]
+                protocols         = ["UDP"]
+              },
+              {
+                name                  = "https-outbound"
+                source_addresses      = ["*"]
+                destination_addresses = ["*"]
+                destination_ports     = ["443"]
+                protocols             = ["TCP"]
+              },
+              {
+                name                  = "http-outbound"
+                source_addresses      = ["*"]
+                destination_addresses = ["*"]
+                destination_ports     = ["80"]
+                protocols             = ["TCP"]
+              }
+            ]
+          }
+        ]
+      }
+    ]
   }
 ]
 
@@ -75,6 +179,10 @@ aks_cli_config_list = [
       {
         name  = "enable-image-cleaner"
         value = ""
+      },
+      {
+        name  = "outbound-type"
+        value = "userDefinedRouting"
       }
     ]
   }
