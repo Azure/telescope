@@ -5,6 +5,9 @@ locals {
   role_assignment_list = var.aks_config.role_assignment_list
   subnets              = var.subnets
   dns_zone_ids         = try([for zone_name in var.aks_config.web_app_routing.dns_zone_names : var.dns_zones[zone_name]], null)
+  authorized_ip_ranges = var.aks_config.api_server_authorized_ip_ranges == null ? [] : var.aks_config.api_server_authorized_ip_ranges
+  private_cluster      = try(var.aks_config.private_cluster_enabled, false)
+  private_dns_zone_id  = try(var.aks_config.private_dns_zone_id, null)
 }
 data "azurerm_client_config" "current" {}
 
@@ -19,7 +22,9 @@ resource "azurerm_kubernetes_cluster" "aks" {
       "role" = local.role
     },
   )
-  sku_tier = var.aks_config.sku_tier
+  sku_tier                = var.aks_config.sku_tier
+  private_cluster_enabled = local.private_cluster
+
   default_node_pool {
     name                         = var.aks_config.default_node_pool.name
     node_count                   = var.aks_config.default_node_pool.node_count

@@ -12,6 +12,7 @@ variable "json_input" {
     k8s_machine_type                  = optional(string, null)
     k8s_os_disk_type                  = optional(string, null)
     enable_apiserver_vnet_integration = optional(bool, false)
+    public_key_path                   = optional(string, null)
 
     aks_cli_system_node_pool = optional(object({
       name        = string
@@ -222,6 +223,18 @@ variable "aks_config_list" {
     web_app_routing = optional(object({
       dns_zone_names = list(string)
     }), null)
+    private_cluster_enabled = optional(bool, false)
+  }))
+  default = []
+}
+
+variable "jumpbox_config_list" {
+  description = "Configuration for jumpbox VMs"
+  type = list(object({
+    role              = string
+    name              = optional(string)
+    subnet_name       = optional(string)
+    vm_size           = optional(string, "Standard_D4s_v3")
   }))
   default = []
 }
@@ -241,6 +254,7 @@ variable "aks_cli_config_list" {
     use_aks_preview_private_build     = optional(bool, false)
     api_server_subnet_name            = optional(string, false)
     enable_apiserver_vnet_integration = optional(bool, false)
+    enable_private_cluster            = optional(bool, false)
 
     default_node_pool = optional(object({
       name        = string

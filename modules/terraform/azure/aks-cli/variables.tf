@@ -42,6 +42,7 @@ variable "aks_cli_config" {
     use_aks_preview_private_build     = optional(bool, false)
     api_server_subnet_name            = optional(string, false)
     enable_apiserver_vnet_integration = optional(bool, false)
+    enable_private_cluster            = optional(bool, false)
     default_node_pool = optional(object({
       name        = string
       node_count  = number
@@ -59,7 +60,7 @@ variable "aks_cli_config" {
           value = string
         })), [])
     })), [])
-    optional_parameters = optional(list(object({  # Refer to https://learn.microsoft.com/en-us/cli/azure/aks?view=azure-cli-latest#az-aks-create(aks-preview) for available parameters
+    optional_parameters = optional(list(object({ # Refer to https://learn.microsoft.com/en-us/cli/azure/aks?view=azure-cli-latest#az-aks-create(aks-preview) for available parameters
       name  = string
       value = string
     })), [])

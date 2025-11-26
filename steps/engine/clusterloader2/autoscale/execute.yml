@@ -12,12 +12,147 @@ steps:
 - script: |
     set -eo pipefail
 
-    PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE override \
-      $CPU_PER_NODE $NODE_COUNT $POD_COUNT \
-      $SCALE_UP_TIMEOUT $SCALE_DOWN_TIMEOUT \
-      $LOOP_COUNT "$NODE_LABEL_SELECTOR" "$NODE_SELECTOR" ${CL2_CONFIG_DIR}/overrides.yaml ${WARMUP_DEPLOYMENT:-false} ${CL2_CONFIG_DIR} --os_type ${OS_TYPE:-linux} --warmup_deployment_template ${WARMUP_DEPLOYMENT_TEMPLATE:-""} --deployment_template ${DEPLOYMENT_TEMPLATE:-""}
-    PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
-      ${CL2_IMAGE} ${CL2_CONFIG_DIR} $CL2_REPORT_DIR ${HOME}/.kube/config $CLOUD
+    run_locally() {
+      local overrides_file="${CL2_CONFIG_DIR}/overrides.yaml"
+      local kubeconfig_path="${CL2_KUBECONFIG_PATH:-${HOME}/.kube/config}"
+
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" override \
+        "$CPU_PER_NODE" "$NODE_COUNT" "$POD_COUNT" \
+        "$SCALE_UP_TIMEOUT" "$SCALE_DOWN_TIMEOUT" \
+        "$LOOP_COUNT" "$NODE_LABEL_SELECTOR" "$NODE_SELECTOR" "$overrides_file" "${WARMUP_DEPLOYMENT:-false}" "$CL2_CONFIG_DIR" --os_type "${OS_TYPE:-linux}" --warmup_deployment_template "${WARMUP_DEPLOYMENT_TEMPLATE:-""}" --deployment_template "${DEPLOYMENT_TEMPLATE:-""}"
+
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" execute \
+        "$CL2_IMAGE" "$CL2_CONFIG_DIR" "$CL2_REPORT_DIR" "$kubeconfig_path" "$CLOUD"
+    }
+
+    run_on_jumpbox() {
+      if [ -z "${JUMPBOX_HOST:-}" ]; then
+        echo "JUMPBOX_HOST is required when running on a jumpbox." >&2
+        exit 1
+      fi
+
+      if [ -z "${SSH_KEY_PATH:-}" ] || [ ! -f "$SSH_KEY_PATH" ]; then
+        echo "SSH_KEY_PATH is not set or file not found. Enable ssh_key_enabled and ensure the key is available." >&2
+        exit 1
+      fi
+
+      local ssh_user="${JUMPBOX_USERNAME:-azureuser}"
+      local ssh_port="${JUMPBOX_PORT:-22}"
+      local build_id="${BUILD_ID:-$(date +%s)}"
+      local jumpbox_workdir="${JUMPBOX_WORKDIR:-/tmp/telescope-run}"
+      local remote_root="${jumpbox_workdir}/run-${build_id}"
+      local remote_archive="/tmp/telescope-modules-${build_id}.tar.gz"
+      local local_archive="/tmp/telescope-modules-${build_id}.tar.gz"
+      local ssh_target="${ssh_user}@${JUMPBOX_HOST}"
+      local remote_python_dir="${remote_root}/modules/python"
+      local remote_script="${remote_python_dir}/clusterloader2/autoscale/autoscale.py"
+      local remote_config_dir="${remote_python_dir}/clusterloader2/autoscale/config"
+      local remote_report_dir="${remote_python_dir}/clusterloader2/autoscale/results"
+      local local_kubeconfig=""
+      if [ -n "${JUMPBOX_SOURCE_KUBECONFIG:-}" ]; then
+        local_kubeconfig="${JUMPBOX_SOURCE_KUBECONFIG}"
+      elif [ -n "${CL2_KUBECONFIG_PATH:-}" ]; then
+        local_kubeconfig="${CL2_KUBECONFIG_PATH}"
+      fi
+
+      local remote_kubeconfig="${JUMPBOX_KUBECONFIG:-}"
+      local should_copy_kubeconfig="false"
+      if [ -z "$remote_kubeconfig" ] && [ -n "$local_kubeconfig" ]; then
+        remote_kubeconfig="${remote_root}/kubeconfig"
+        should_copy_kubeconfig="true"
+      fi
+      local env_file
+      env_file="$(mktemp)"
+      local ssh_opts=(-i "$SSH_KEY_PATH" -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null" -p "$ssh_port")
+
+      echo "Packaging modules/python for remote execution..."
+      tar -czf "$local_archive" -C "$SOURCE_DIR" modules/python
+
+      echo "Uploading sources to jumpbox ${JUMPBOX_HOST}..."
+      scp "${ssh_opts[@]}" "$local_archive" "${ssh_target}:${remote_archive}"
+
+      echo "Preparing remote workspace..."
+      ssh "${ssh_opts[@]}" "$ssh_target" "set -eo pipefail && rm -rf '${remote_root}' && mkdir -p '${remote_root}' && tar -xzf '${remote_archive}' -C '${remote_root}' && mkdir -p '${remote_report_dir}'"
+
+  cat > "$env_file" <<EOF
+export CLOUD="${CLOUD}"
+export REGION="${REGION}"
+export PYTHON_SCRIPT_FILE="${remote_script}"
+export CL2_IMAGE="${CL2_IMAGE}"
+export CL2_CONFIG_DIR="${remote_config_dir}"
+export CL2_REPORT_DIR="${remote_report_dir}"
+export CPU_PER_NODE="${CPU_PER_NODE}"
+export NODE_COUNT="${NODE_COUNT}"
+export POD_COUNT="${POD_COUNT}"
+export SCALE_UP_TIMEOUT="${SCALE_UP_TIMEOUT}"
+export SCALE_DOWN_TIMEOUT="${SCALE_DOWN_TIMEOUT}"
+export LOOP_COUNT="${LOOP_COUNT}"
+export NODE_LABEL_SELECTOR="${NODE_LABEL_SELECTOR}"
+export NODE_SELECTOR="${NODE_SELECTOR}"
+export WARMUP_DEPLOYMENT="${WARMUP_DEPLOYMENT}"
+export WARMUP_DEPLOYMENT_TEMPLATE="${WARMUP_DEPLOYMENT_TEMPLATE}"
+export DEPLOYMENT_TEMPLATE="${DEPLOYMENT_TEMPLATE}"
+export OS_TYPE="${OS_TYPE}"
+export REMOTE_PYTHON_DIR="${remote_python_dir}"
+export CUSTOM_KUBECONFIG="${remote_kubeconfig}"
+EOF
+
+      scp "${ssh_opts[@]}" "$env_file" "${ssh_target}:${remote_root}/jumpbox-env.sh"
+      rm -f "$env_file" "$local_archive"
+
+      if [ "$should_copy_kubeconfig" = "true" ]; then
+        if [ -n "$local_kubeconfig" ] && [ -f "$local_kubeconfig" ]; then
+          echo "Uploading kubeconfig to jumpbox..."
+          scp "${ssh_opts[@]}" "$local_kubeconfig" "${ssh_target}:${remote_kubeconfig}"
+        else
+          echo "Kubeconfig file '$local_kubeconfig' not found; continuing without copying." >&2
+        fi
+      fi
+
+      echo "Executing clusterloader2 on jumpbox..."
+      ssh "${ssh_opts[@]}" "$ssh_target" "REMOTE_ROOT='${remote_root}' bash -s" <<'REMOTE'
+set -eo pipefail
+source "$REMOTE_ROOT/jumpbox-env.sh"
+
+cd "$REMOTE_PYTHON_DIR"
+pip3 install --user -r requirements.txt
+export PATH="$HOME/.local/bin:$PATH"
+
+overrides_file="${CL2_CONFIG_DIR}/overrides.yaml"
+
+PYTHONPATH=$PYTHONPATH:"$REMOTE_PYTHON_DIR" python3 "$PYTHON_SCRIPT_FILE" override \
+  "$CPU_PER_NODE" "$NODE_COUNT" "$POD_COUNT" \
+  "$SCALE_UP_TIMEOUT" "$SCALE_DOWN_TIMEOUT" \
+  "$LOOP_COUNT" "$NODE_LABEL_SELECTOR" "$NODE_SELECTOR" "$overrides_file" "${WARMUP_DEPLOYMENT:-false}" "$CL2_CONFIG_DIR" --os_type "${OS_TYPE:-linux}" --warmup_deployment_template "${WARMUP_DEPLOYMENT_TEMPLATE:-""}" --deployment_template "${DEPLOYMENT_TEMPLATE:-""}"
+
+remote_kubeconfig="$CUSTOM_KUBECONFIG"
+if [ -z "$remote_kubeconfig" ]; then
+  remote_kubeconfig="$HOME/.kube/config"
+fi
+
+PYTHONPATH=$PYTHONPATH:"$REMOTE_PYTHON_DIR" python3 "$PYTHON_SCRIPT_FILE" execute \
+  "$CL2_IMAGE" "$CL2_CONFIG_DIR" "$CL2_REPORT_DIR" "$remote_kubeconfig" "$CLOUD"
+REMOTE
+
+      echo "Syncing reports back to pipeline workspace..."
+      local report_parent
+      report_parent="$(dirname "$CL2_REPORT_DIR")"
+      rm -rf "$CL2_REPORT_DIR"
+      mkdir -p "$report_parent"
+      scp -r "${ssh_opts[@]}" "${ssh_target}:${remote_report_dir}" "$report_parent"
+
+      if [ "${JUMPBOX_PRESERVE_WORKSPACE:-false}" != "true" ]; then
+        echo "Cleaning up remote workspace..."
+        ssh "${ssh_opts[@]}" "$ssh_target" "rm -rf '${remote_root}' '${remote_archive}'"
+      fi
+    }
+
+    if [ -n "${JUMPBOX_HOST:-}" ]; then
+      run_on_jumpbox
+    else
+      run_locally
+    fi
+
   workingDirectory: modules/python
   env:
     ${{ if eq(parameters.cloud, 'azure') }}:
@@ -29,4 +164,8 @@ steps:
     CL2_IMAGE: ${{ parameters.engine_input.image }}
     CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/config
     CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/results
+    SOURCE_DIR: $(Pipeline.Workspace)/s
+    BUILD_ID: $(Build.BuildId)
+    CL2_KUBECONFIG_PATH: $(CL2_KUBECONFIG_PATH)
+    JUMPBOX_SOURCE_KUBECONFIG: $(JUMPBOX_SOURCE_KUBECONFIG)
   displayName: "Run Benchmark"

@@ -12,7 +12,11 @@ network_config_list = [
     subnet = [
       {
         name           = "nap-subnet-ms"
-        address_prefix = "10.192.0.0/10"
+        address_prefix = "10.192.0.0/11"
+      },
+      {
+        name           = "jumpbox-subnet"
+        address_prefix = "10.224.0.0/12"
       }
     ]
     network_security_group_name = ""
@@ -29,6 +33,7 @@ aks_cli_config_list = [
     subnet_name           = "nap-subnet-ms"
     managed_identity_name = "nap-identity"
     kubernetes_version    = "1.33"
+    enable_private_cluster = true
     default_node_pool = {
       name       = "system"
       node_count = 5
@@ -77,5 +82,15 @@ aks_cli_config_list = [
         value = ""
       }
     ]
+  }
+]
+
+# Jumpbox Configuration - Auto-provisioned for testing
+jumpbox_config_list = [
+  {
+    role        = "nap"
+    name        = "nap-jumpbox"
+    subnet_name = "jumpbox-subnet"
+    vm_size     = "Standard_D4s_v3"
   }
 ]

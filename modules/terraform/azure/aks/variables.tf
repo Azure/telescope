@@ -82,7 +82,8 @@ variable "aks_config" {
       service_cidr        = optional(string, null)
       dns_service_ip      = optional(string, null)
     }))
-    sku_tier = string
+    api_server_authorized_ip_ranges = optional(list(string), null)
+    sku_tier                        = string
     default_node_pool = object({
       name                         = string
       subnet_name                  = optional(string, null)
@@ -151,6 +152,7 @@ variable "aks_config" {
     web_app_routing = optional(object({
       dns_zone_names = list(string)
     }), null)
+    private_cluster_enabled = optional(bool, false)
   })
 
   validation {

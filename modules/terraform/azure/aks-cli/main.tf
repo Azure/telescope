@@ -73,6 +73,8 @@ locals {
     ""
   )
 
+  private_cluster_parameter = (var.aks_cli_config.enable_private_cluster ? "--enable-private-cluster" : "")
+
   custom_configurations = (
     var.aks_cli_config.use_custom_configurations && var.aks_cli_custom_config_path != null ?
     format(
@@ -108,6 +110,7 @@ locals {
     local.subnet_id_parameter,
     local.managed_identity_parameter,
     local.api_server_vnet_integration_parameter,
+    local.private_cluster_parameter,
   ], local.default_node_pool_parameters))
 
   aks_cli_destroy_command = join(" ", [
