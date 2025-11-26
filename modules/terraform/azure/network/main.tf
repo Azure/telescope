@@ -7,6 +7,7 @@ locals {
     for subnet in azurerm_virtual_network.vnet.subnet :
     split("/", subnet.id)[length(split("/", subnet.id)) - 1] => subnet
   }
+  firewalls_input = var.network_config.firewalls == null ? {} : { for fw in var.network_config.firewalls : fw.name => fw }
   network_security_group_name = var.network_config.network_security_group_name
   expanded_nic_association_map = flatten([
     for nic in var.network_config.nic_public_ip_associations : [
