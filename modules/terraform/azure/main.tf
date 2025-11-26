@@ -162,8 +162,5 @@ module "aks-cli" {
       fail("KMS key name '${each.value.kms_key_name}' not found in key_vault.key_resource_ids")
   } : null
 
-  depends_on = [
-    module.key_vault
-  ]
 }
 
