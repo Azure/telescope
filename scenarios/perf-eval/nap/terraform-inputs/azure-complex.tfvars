@@ -4,6 +4,14 @@ scenario_name  = "nap"
 deletion_delay = "2h"
 owner          = "aks"
 
+
+public_ip_config_list = [
+  {
+    name = "firewall-pip"
+    count = 1
+  }
+]
+
 network_config_list = [
   {
     role               = "crud"
@@ -18,6 +26,51 @@ network_config_list = [
     network_security_group_name = ""
     nic_public_ip_associations  = []
     nsr_rules                   = []
+    firewalls = [
+      {
+        name                  = "nap-firewall"
+        sku_tier              = "Standard"
+        subnet_name           = "AzureFirewallSubnet"
+        public_ip_name        = "firewall-pip"
+        threat_intel_mode     = "Alert"
+        dns_proxy_enabled     = true
+        ip_configuration_name = "nap-fw-ipconfig"
+        application_rule_collections = [
+          {
+            name     = "allow-all"
+            priority = 100
+            action   = "Allow"
+            rules = [
+              {
+                name             = "allow-all-traffic"
+                source_addresses = ["*"]
+                target_fqdns     = ["*"]
+                protocols = [
+                  { port = "80", type = "Http" },
+                  { port = "443", type = "Https" }
+                ]
+              }
+            ]
+          }
+        ]
+        network_rule_collections = [
+          {
+            name     = "allow-all"
+            priority = 100
+            action   = "Allow"
+            rules = [
+              {
+                name                  = "allow-all-traffic"
+                source_addresses      = ["*"]
+                destination_addresses = ["*"]
+                destination_ports     = ["*"]
+                protocols             = ["TCP", "UDP"]
+              }
+            ]
+          }
+        ]
+      }
+    ]
   }
 ]
 
