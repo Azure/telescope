@@ -153,7 +153,7 @@ variable "dns_zones" {
 variable "key_vault_kms_config" {
   description = "Key Vault configuration for AKS KMS encryption. If specified, a Key Vault will be created with encryption keys."
   type = object({
-    name = string # Key Vault name (3-24 chars, globally unique)
+    name = string # Key Vault name
     keys = list(object({
       key_name = string # Encryption key name
     }))
@@ -162,10 +162,13 @@ variable "key_vault_kms_config" {
 
   validation {
     condition = (
-      var.key_vault_kms_config == null ? true :
-      length(var.key_vault_kms_config.keys) > 0
+      var.key_vault_config == null ? true : (
+        length(var.key_vault_config.name) >= 3 &&
+        length(var.key_vault_config.name) <= 20 &&
+        length(var.key_vault_config.keys) >= 1
+      )
     )
-    error_message = "At least one key must be defined when key_vault_kms_config is specified"
+    error_message = "Key Vault name must be 3-20 characters (total 24 after adding 4-char random suffix), and at least one key must be defined."
   }
 }
 

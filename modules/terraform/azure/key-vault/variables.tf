@@ -17,7 +17,7 @@ variable "tags" {
 variable "key_vault_config" {
   description = "Key Vault configuration for AKS KMS encryption"
   type = object({
-    name = string # Key Vault name (3-24 chars, globally unique)
+    name = string # Key Vault name
     keys = list(object({
       key_name = string # Encryption key name
     }))

@@ -12,7 +12,7 @@ output "key_ids" {
 }
 
 output "key_resource_ids" {
-  description = "Map of Key names to Key IDs: {key_name => key_id}"
+  description = "Map of Key names to Key Resource IDs: {key_name => key_resource_id}"
   value = {
     for k, v in azurerm_key_vault_key.kms_key :
     v.name => v.resource_id
