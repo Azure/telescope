@@ -162,10 +162,10 @@ variable "key_vault_kms_config" {
 
   validation {
     condition = (
-      var.key_vault_config == null ? true : (
-        length(var.key_vault_config.name) >= 3 &&
-        length(var.key_vault_config.name) <= 20 &&
-        length(var.key_vault_config.keys) >= 1
+      var.key_vault_kms_config == null ? true : (
+        length(var.key_vault_kms_config.name) >= 3 &&
+        length(var.key_vault_kms_config.name) <= 20 &&
+        length(var.key_vault_kms_config.keys) >= 1
       )
     )
     error_message = "Key Vault name must be 3-20 characters (total 24 after adding 4-char random suffix), and at least one key must be defined."
