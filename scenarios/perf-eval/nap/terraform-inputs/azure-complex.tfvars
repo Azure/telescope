@@ -19,7 +19,7 @@ network_config_list = [
     subnet = [
       {
         name           = "nap-subnet-ms"
-        address_prefix = "10.192.0.0/10"
+        address_prefix = "10.192.0.0/16"
       },
       {
         name           = "AzureFirewallSubnet"
@@ -40,22 +40,14 @@ network_config_list = [
         ip_configuration_name = "nap-fw-ipconfig"
         application_rule_collections = [
           {
-            name     = "egress-rules"
+            name     = "allow-egress"
             priority = 100
             action   = "Allow"
             rules = [
               {
-                name             = "azure-services"
+                name             = "required-services"
                 source_addresses = ["*"]
-                target_fqdns     = ["*.azure.com", "*.core.windows.net", "*.azurecr.io", "AzureKubernetesService"]
-                protocols = [
-                  { port = "443", type = "Https" }
-                ]
-              },
-              {
-                name             = "linux-packages"
-                source_addresses = ["*"]
-                target_fqdns     = ["*.ubuntu.com", "archive.ubuntu.com", "security.ubuntu.com"]
+                target_fqdns     = ["*.azure.com", "*.core.windows.net", "*.azurecr.io", "*.ubuntu.com", "AzureKubernetesService"]
                 protocols = [
                   { port = "80", type = "Http" },
                   { port = "443", type = "Https" }
@@ -78,25 +70,11 @@ network_config_list = [
                 protocols             = ["UDP", "TCP"]
               },
               {
-                name                  = "azure-api"
+                name                  = "azure-and-web"
                 source_addresses      = ["*"]
-                destination_addresses = ["AzureCloud"]
-                destination_ports     = ["443", "9000", "1194"]
+                destination_addresses = ["*"]
+                destination_ports     = ["80", "123", "443", "1194", "9000"]
                 protocols             = ["TCP", "UDP"]
-              },
-              {
-                name                  = "ntp"
-                source_addresses      = ["*"]
-                destination_addresses = ["*"]
-                destination_ports     = ["123"]
-                protocols             = ["UDP"]
-              },
-              {
-                name                  = "http-https-outbound"
-                source_addresses      = ["*"]
-                destination_addresses = ["*"]
-                destination_ports     = ["80", "443"]
-                protocols             = ["TCP"]
               }
             ]
           }
