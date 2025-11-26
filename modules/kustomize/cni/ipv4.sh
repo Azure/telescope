@@ -48,9 +48,9 @@ root@aks-user-20102827-vms1:/etc/cni/net.d# ip -4 a show eth0
     inet 10.224.0.16/28 scope global eth0
        valid_lft forever preferred_lft forever
 root@aks-user-20102827-vms1:/etc/cni/net.d# ip -4 route show
-default via 10.224.0.1 dev eth0 proto dhcp src 10.224.0.8 metric 100 
-10.224.0.0/16 dev eth0 proto kernel scope link src 10.224.0.8 metric 100 
-10.224.0.1 dev eth0 proto dhcp scope link src 10.224.0.8 metric 100 
+default via 10.224.0.1 dev eth0 proto dhcp src 10.224.0.8 metric 100 # default gateway of subnet
+10.224.0.0/16 dev eth0 proto kernel scope link src 10.224.0.8 metric 100 # subnet route
+10.224.0.1 dev eth0 proto dhcp scope link src 10.224.0.8 metric 100 # gateway IP of subnet
 10.224.0.16/28 dev eth0 proto kernel scope link src 10.224.0.16 
 10.224.0.32/28 via 10.224.0.7 dev eth0 
 168.63.129.16 via 10.224.0.1 dev eth0 proto dhcp src 10.224.0.8 metric 100 
