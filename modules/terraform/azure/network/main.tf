@@ -1,6 +1,7 @@
 locals {
   nsr_rules_map                = { for rule in var.network_config.nsr_rules : rule.name => rule }
   nat_gateway_associations_map = var.network_config.nat_gateway_associations == null ? {} : { for nat in var.network_config.nat_gateway_associations : nat.nat_gateway_name => nat }
+  input_route_tables_map             = var.network_config.route_tables == null ? {} : { for rt in var.network_config.route_tables : rt.name => rt }
   vnet_name                    = var.network_config.vnet_name
   input_subnet_map             = { for subnet in var.network_config.subnet : subnet.name => subnet }
   subnets_map = {
@@ -126,4 +127,35 @@ module "firewall" {
   tags                = local.tags
 
   depends_on = [azurerm_virtual_network.vnet]
+}
+
+module "route_table" {
+  source   = "./route-table"
+  for_each = local.route_tables_input
+
+  route_table_config = merge(each.value, {
+    routes = [
+      for r in coalesce(each.value.routes, []) : merge(r, {
+        # Support dynamic firewall IP resolution in next_hop_in_ip_address
+        next_hop_in_ip_address = (
+          r.next_hop_in_ip_address != null && startswith(r.next_hop_in_ip_address, "firewall:") ?
+          module.firewall[replace(r.next_hop_in_ip_address, "firewall:", "")].private_ip_address :
+          r.next_hop_in_ip_address
+        )
+        # Support dynamic public IP resolution in address_prefix
+        address_prefix = (
+          r.address_prefix != null && startswith(r.address_prefix, "publicip:") ?
+          "${var.public_ip_addresses[replace(r.address_prefix, "publicip:", "")]}/32" :
+          r.address_prefix
+        )
+      })
+    ]
+  })
+
+  resource_group_name = var.resource_group_name
+  location            = var.location
+  subnets_map         = local.subnets_map
+  tags                = local.tags
+
+  depends_on = [azurerm_virtual_network.vnet, module.firewall]
 }

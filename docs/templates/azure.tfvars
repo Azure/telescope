@@ -174,6 +174,33 @@ network_config_list = [
         subnet_names     = [<subnet-list>]                # Subnet names - e.g., ["aks-subnet"]
       }
     ]
+    
+    # Route tables for User Defined Routing (UDR) (optional)
+    # Used for controlling network traffic flow, commonly with Azure Firewall or NVA
+    # IMPORTANT: Route tables must be created BEFORE AKS cluster when using outbound_type = "userDefinedRouting"
+    route_tables = [
+      {
+        name                         = "<route-table-name>"          # Route table name - e.g., "aks-udr-rt", "firewall-rt"
+        bgp_route_propagation_enabled = <enable-bgp>                # Enable BGP route propagation - true/false (optional, default: true)
+        
+        # Routes configuration
+        routes = [
+          {
+            name                   = "<route-name>"                   # Route name - e.g., "default-route", "internet-via-firewall"
+            address_prefix         = "<destination-cidr>"             # Destination address prefix - e.g., "0.0.0.0/0", "10.0.0.0/16"
+            next_hop_type          = "<next-hop-type>"               # Next hop type - Options: "VirtualAppliance", "VnetLocal", "Internet", "None"
+            next_hop_in_ip_address = "<next-hop-ip>"                 # Next hop IP address - e.g., "10.0.2.4" (required when next_hop_type is "VirtualAppliance", otherwise optional)
+          }
+        ]
+        
+        # Subnet associations - which subnets should use this route table
+        subnet_associations = [
+          {
+            subnet_name = "<subnet-name>"                            # Subnet name - must match subnet name above, e.g., "aks-subnet"
+          }
+        ]
+      }
+    ]
   }
 ]
 
@@ -397,6 +424,127 @@ aks_cli_config_list = [
 #   kubernetes_version = "1.29"
 # }]
 
+# Example 4: AKS with User Defined Routing (UDR) through Azure Firewall
+# scenario_name = "aks-udr-firewall"
+# scenario_type = "perf-eval"
+# owner = "aks"
+# deletion_delay = "4h"
+#
+# network_config_list = [{
+#   role = "udr-network"
+#   vnet_name = "aks-udr-vnet"
+#   vnet_address_space = "10.0.0.0/16"
+#   subnet = [
+#     {
+#       name = "aks-subnet"
+#       address_prefix = "10.0.1.0/24"
+#     },
+#     {
+#       name = "firewall-subnet"
+#       address_prefix = "10.0.2.0/24"
+#     }
+#   ]
+#   network_security_group_name = ""
+#   nic_public_ip_associations = []
+#   nsr_rules = []
+#   route_tables = [{
+#     name = "aks-firewall-rt"
+#     bgp_route_propagation_enabled = false
+#     routes = [
+#       {
+#         name = "internet-via-firewall"
+#         address_prefix = "0.0.0.0/0"
+#         next_hop_type = "VirtualAppliance"
+#         next_hop_in_ip_address = "10.0.2.4"  # Azure Firewall IP
+#       },
+#       {
+#         name = "local-vnet"
+#         address_prefix = "10.0.0.0/16"
+#         next_hop_type = "VnetLocal"
+#       }
+#     ]
+#     subnet_associations = [
+#       { subnet_name = "aks-subnet" }
+#     ]
+#   }]
+# }]
+#
+# aks_config_list = [{
+#   role = "udr-cluster"
+#   aks_name = "aks-udr"
+#   dns_prefix = "aksudr"
+#   subnet_name = "aks-subnet"
+#   sku_tier = "Standard"
+#   network_profile = {
+#     network_plugin = "azure"
+#     network_plugin_mode = "overlay"
+#     outbound_type = "userDefinedRouting"  # Required for UDR
+#     pod_cidr = "10.244.0.0/16"
+#     service_cidr = "10.245.0.0/16"
+#     dns_service_ip = "10.245.0.10"
+#   }
+#   default_node_pool = {
+#     name = "system"
+#     node_count = 3
+#     vm_size = "Standard_D4s_v3"
+#     os_disk_type = "Managed"
+#     only_critical_addons_enabled = false
+#     temporary_name_for_rotation = "systemtmp"
+#   }
+#   extra_node_pool = []
+# }]
+
+# Example 5: Hub-and-Spoke topology with multiple route tables
+# network_config_list = [{
+#   role = "spoke-network"
+#   vnet_name = "spoke-vnet"
+#   vnet_address_space = "10.1.0.0/16"
+#   subnet = [
+#     {
+#       name = "aks-subnet"
+#       address_prefix = "10.1.1.0/24"
+#     },
+#     {
+#       name = "services-subnet"
+#       address_prefix = "10.1.2.0/24"
+#     }
+#   ]
+#   network_security_group_name = ""
+#   nic_public_ip_associations = []
+#   nsr_rules = []
+#   route_tables = [
+#     {
+#       name = "aks-to-hub-rt"
+#       routes = [
+#         {
+#           name = "to-hub"
+#           address_prefix = "10.0.0.0/16"  # Hub VNet CIDR
+#           next_hop_type = "VirtualAppliance"
+#           next_hop_in_ip_address = "10.0.0.4"  # NVA in hub
+#         },
+#         {
+#           name = "to-internet"
+#           address_prefix = "0.0.0.0/0"
+#           next_hop_type = "VirtualAppliance"
+#           next_hop_in_ip_address = "10.0.0.4"
+#         }
+#       ]
+#       subnet_associations = [{ subnet_name = "aks-subnet" }]
+#     },
+#     {
+#       name = "services-rt"
+#       routes = [
+#         {
+#           name = "direct-internet"
+#           address_prefix = "0.0.0.0/0"
+#           next_hop_type = "Internet"
+#         }
+#       ]
+#       subnet_associations = [{ subnet_name = "services-subnet" }]
+#     }
+#   ]
+# }]
+
 # ==============================================================================
 # VALIDATION NOTES
 # ==============================================================================
@@ -412,6 +560,11 @@ aks_cli_config_list = [
 # - Network policies: "azure", "cilium", "calico" (null to disable)
 # - OS SKUs: "Ubuntu" (default), "CBLMariner", "Windows2019", "Windows2022"
 # - Availability zones: ["1"], ["2"], ["3"], ["1", "2"], ["1", "2", "3"], [] (no zones)
+# - Route table next_hop_type options: "VirtualAppliance", "VnetLocal", "Internet", "None"
+# - When using outbound_type = "userDefinedRouting", route table must be created before AKS cluster
+# - next_hop_in_ip_address is required when next_hop_type is "VirtualAppliance"
+# - Route tables can be associated with multiple subnets
+# - For UDR with AKS, ensure routes allow connectivity to required Azure services (ACR, AAD, AKS control plane, etc.)
 
 # ==============================================================================
 # PIPELINE MATRIX ADVANCED USAGE
