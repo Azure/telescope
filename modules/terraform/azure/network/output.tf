@@ -20,6 +20,7 @@ output "vnet_id" {
   value       = azurerm_virtual_network.vnet.id
 }
 
+
 output "firewalls" {
   description = "Map of firewall names to their private IPs"
   value = {
