@@ -131,7 +131,7 @@ module "firewall" {
 
 module "route_table" {
   source   = "./route-table"
-  for_each = local.route_tables_input
+  for_each = local.input_route_tables_map
 
   route_table_config = merge(each.value, {
     routes = [
