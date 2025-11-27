@@ -126,9 +126,9 @@ module "aks" {
     each.value.kms_key_name != null &&
     each.value.kms_key_vault_name != null
     ) ? {
-    key_vault_id              = try(module.key_vault[each.value.kms_key_vault_name].id, null)
-    key_vault_key_id          = try(module.key_vault[each.value.kms_key_vault_name].keys[each.value.kms_key_name].id, null)
-    key_vault_key_resource_id = try(module.key_vault[each.value.kms_key_vault_name].keys[each.value.kms_key_name].resource_id, null)
+    key_vault_id              = try(module.key_vault[each.value.kms_key_vault_name].key_vaults.id, null)
+    key_vault_key_id          = try(module.key_vault[each.value.kms_key_vault_name].key_vaults.keys[each.value.kms_key_name].id, null)
+    key_vault_key_resource_id = try(module.key_vault[each.value.kms_key_vault_name].key_vaults.keys[each.value.kms_key_name].resource_id, null)
   } : null
 }
 
@@ -147,9 +147,9 @@ module "aks-cli" {
     each.value.kms_key_name != null &&
     each.value.kms_key_vault_name != null
     ) ? {
-    key_vault_id              = try(module.key_vault[each.value.kms_key_vault_name].id, null)
-    key_vault_key_id          = try(module.key_vault[each.value.kms_key_vault_name].keys[each.value.kms_key_name].id, null)
-    key_vault_key_resource_id = try(module.key_vault[each.value.kms_key_vault_name].keys[each.value.kms_key_name].resource_id, null)
+    key_vault_id              = try(module.key_vault[each.value.kms_key_vault_name].key_vaults.id, null)
+    key_vault_key_id          = try(module.key_vault[each.value.kms_key_vault_name].key_vaults.keys[each.value.kms_key_name].id, null)
+    key_vault_key_resource_id = try(module.key_vault[each.value.kms_key_vault_name].key_vaults.keys[each.value.kms_key_name].resource_id, null)
   } : null
 
 }
