@@ -35,8 +35,8 @@ steps:
         echo $AKS_CUSTOM_CONFIG > $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/config/aks_custom_config.json
       fi
 
-  regional_config=$REGIONAL_CONFIG
-  PUBLIC_KEY_PATH=${SSH_PUBLIC_KEY_PATH:-}
+      regional_config=$REGIONAL_CONFIG
+      PUBLIC_KEY_PATH=${SSH_PUBLIC_KEY_PATH:-}
       for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
         if [ -z "$INPUT_VARIABLES" ]; then
           echo "Set input variables for region $REGION"
