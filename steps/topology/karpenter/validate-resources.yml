@@ -29,8 +29,6 @@ steps:
 
       kubectl get nodepool default -o yaml
       kubectl get nodepool spot -o yaml
-    env:
-      VM_SIZE: ${{ parameters.vm_size }}
     displayName: "Validate Karpenter setup (local)"
 
 - ${{ if ne(variables['JUMPBOX_HOST'], '') }}:
