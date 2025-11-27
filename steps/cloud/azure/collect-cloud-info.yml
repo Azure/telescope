@@ -2,42 +2,38 @@ parameters:
 - name: region
   type: string
 
-variables:
-  COLLECT_CLOUD_INFO_SCRIPT: |
-    set -eu
-
-    aks_name=$(az resource list --resource-type Microsoft.ContainerService/managedClusters \
-      --resource-group $RUN_ID --query "[0].name" --location $REGION  --output tsv)
-    aks_info=$(az aks show --resource-group $RUN_ID --name $aks_name --output json)
-
-    cloud_info=$(jq -n \
-      --arg cloud "azure" \
-      --arg region "$(echo $aks_info | jq -r .location)" \
-      --arg fqdn "$(echo $aks_info | jq -r .fqdn)" \
-      --arg k8s_version "$(echo $aks_info | jq -r .currentKubernetesVersion)" \
-      --arg sku_tier "$(echo $aks_info | jq -r .sku.tier)" \
-      --arg subscription "$(az account show --query id --output tsv)" \
-      --arg edge_zone "$(echo $aks_info | jq -r .extendedLocation.name)" \
-      --arg network_profile "$(echo $aks_info | jq -r .networkProfile)" \
-      --arg agentpool_profile "$(echo $aks_info | jq -r .agentPoolProfiles)" \
-      '{
-        cloud: $cloud,
-        region: $region,
-        fqdn: $fqdn,
-        k8s_version: $k8s_version,
-        sku_tier: $sku_tier,
-        subscription: $subscription,
-        edge_zone: $edge_zone,
-        network_profile: $network_profile,
-        agentpool_profile: $agentpool_profile
-      }')
-    echo $cloud_info | jq -c .
-
 steps:
 - ${{ if eq(variables['JUMPBOX_HOST'], '') }}:
   # Public cluster: collect cloud info locally on agent
   - script: |
-      cloud_info_str=$($(COLLECT_CLOUD_INFO_SCRIPT))
+      set -eu
+
+      aks_name=$(az resource list --resource-type Microsoft.ContainerService/managedClusters \
+        --resource-group $RUN_ID --query "[0].name" --location $REGION  --output tsv)
+      aks_info=$(az aks show --resource-group $RUN_ID --name $aks_name --output json)
+
+      cloud_info=$(jq -n \
+        --arg cloud "azure" \
+        --arg region "$(echo $aks_info | jq -r .location)" \
+        --arg fqdn "$(echo $aks_info | jq -r .fqdn)" \
+        --arg k8s_version "$(echo $aks_info | jq -r .currentKubernetesVersion)" \
+        --arg sku_tier "$(echo $aks_info | jq -r .sku.tier)" \
+        --arg subscription "$(az account show --query id --output tsv)" \
+        --arg edge_zone "$(echo $aks_info | jq -r .extendedLocation.name)" \
+        --arg network_profile "$(echo $aks_info | jq -r .networkProfile)" \
+        --arg agentpool_profile "$(echo $aks_info | jq -r .agentPoolProfiles)" \
+        '{
+          cloud: $cloud,
+          region: $region,
+          fqdn: $fqdn,
+          k8s_version: $k8s_version,
+          sku_tier: $sku_tier,
+          subscription: $subscription,
+          edge_zone: $edge_zone,
+          network_profile: $network_profile,
+          agentpool_profile: $agentpool_profile
+        }')
+      cloud_info_str=$(echo $cloud_info | jq -c .)
       echo "Cloud info: $cloud_info_str"
       echo "##vso[task.setvariable variable=CLOUD_INFO;]$cloud_info_str"
     displayName: 'Collect Cloud Info for Azure (local)'
@@ -50,6 +46,33 @@ steps:
     parameters:
       displayName: "Collect Cloud Info for Azure"
       script: |
-        cloud_info_str=$($(COLLECT_CLOUD_INFO_SCRIPT))
+        set -eu
+
+        aks_name=$(az resource list --resource-type Microsoft.ContainerService/managedClusters \
+          --resource-group $RUN_ID --query "[0].name" --location $REGION  --output tsv)
+        aks_info=$(az aks show --resource-group $RUN_ID --name $aks_name --output json)
+
+        cloud_info=$(jq -n \
+          --arg cloud "azure" \
+          --arg region "$(echo $aks_info | jq -r .location)" \
+          --arg fqdn "$(echo $aks_info | jq -r .fqdn)" \
+          --arg k8s_version "$(echo $aks_info | jq -r .currentKubernetesVersion)" \
+          --arg sku_tier "$(echo $aks_info | jq -r .sku.tier)" \
+          --arg subscription "$(az account show --query id --output tsv)" \
+          --arg edge_zone "$(echo $aks_info | jq -r .extendedLocation.name)" \
+          --arg network_profile "$(echo $aks_info | jq -r .networkProfile)" \
+          --arg agentpool_profile "$(echo $aks_info | jq -r .agentPoolProfiles)" \
+          '{
+            cloud: $cloud,
+            region: $region,
+            fqdn: $fqdn,
+            k8s_version: $k8s_version,
+            sku_tier: $sku_tier,
+            subscription: $subscription,
+            edge_zone: $edge_zone,
+            network_profile: $network_profile,
+            agentpool_profile: $agentpool_profile
+          }')
+        cloud_info_str=$(echo $cloud_info | jq -c .)
         echo "Cloud info: $cloud_info_str"
         echo "##vso[task.setvariable variable=CLOUD_INFO;]$cloud_info_str"

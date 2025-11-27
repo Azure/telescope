@@ -6,23 +6,6 @@ parameters:
 - name: regions
   type: object
 
-variables:
-  KARPENTER_SETUP_SCRIPT: |
-    set -euo pipefail
-    set -x
-    KARPENTER_NODEPOOL_FILE=$(pwd)/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/karpenter_nodepool.${{ parameters.cloud }}.yml
-    
-    kubectl apply -f $KARPENTER_NODEPOOL_FILE
-
-    # Patch the On-Demand NodePool
-    kubectl patch nodepool default --type='json' -p="[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['$VM_SIZE']}]"
-
-    # Patch the Spot NodePool
-    kubectl patch nodepool spot --type='json' -p="[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['$VM_SIZE']}]"
-
-    kubectl get nodepool default -o yaml
-    kubectl get nodepool spot -o yaml
-
 steps:
 - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
   parameters:
@@ -32,7 +15,20 @@ steps:
 - ${{ if eq(variables['JUMPBOX_HOST'], '') }}:
   # Public cluster: run locally on agent
   - bash: |
-      $(KARPENTER_SETUP_SCRIPT)
+      set -euo pipefail
+      set -x
+      KARPENTER_NODEPOOL_FILE=$(pwd)/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/karpenter_nodepool.${{ parameters.cloud }}.yml
+      
+      kubectl apply -f $KARPENTER_NODEPOOL_FILE
+
+      # Patch the On-Demand NodePool
+      kubectl patch nodepool default --type='json' -p="[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['$VM_SIZE']}]"
+
+      # Patch the Spot NodePool
+      kubectl patch nodepool spot --type='json' -p="[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['$VM_SIZE']}]"
+
+      kubectl get nodepool default -o yaml
+      kubectl get nodepool spot -o yaml
     env:
       VM_SIZE: ${{ parameters.vm_size }}
     displayName: "Validate Karpenter setup (local)"
@@ -42,4 +38,18 @@ steps:
   - template: /steps/cloud/${{ parameters.cloud }}/run-on-jumpbox.yml
     parameters:
       displayName: "Validate Karpenter setup"
-      script: $(KARPENTER_SETUP_SCRIPT)
+      script: |
+        set -euo pipefail
+        set -x
+        KARPENTER_NODEPOOL_FILE=$(pwd)/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/karpenter_nodepool.${{ parameters.cloud }}.yml
+        
+        kubectl apply -f $KARPENTER_NODEPOOL_FILE
+
+        # Patch the On-Demand NodePool
+        kubectl patch nodepool default --type='json' -p="[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['$VM_SIZE']}]"
+
+        # Patch the Spot NodePool
+        kubectl patch nodepool spot --type='json' -p="[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['$VM_SIZE']}]"
+
+        kubectl get nodepool default -o yaml
+        kubectl get nodepool spot -o yaml
