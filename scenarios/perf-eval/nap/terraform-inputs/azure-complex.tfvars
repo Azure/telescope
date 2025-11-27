@@ -4,13 +4,6 @@ scenario_name  = "nap"
 deletion_delay = "2h"
 owner          = "aks"
 
-public_ip_config_list = [
-  {
-    name = "firewall-pip"
-    count = 1
-  }
-]
-
 network_config_list = [
   {
     role               = "crud"
@@ -19,88 +12,12 @@ network_config_list = [
     subnet = [
       {
         name           = "nap-subnet-ms"
-        address_prefix = "10.192.0.0/16"
-      },
-      {
-        name           = "AzureFirewallSubnet"
-        address_prefix = "10.193.0.0/26"
+        address_prefix = "10.192.0.0/10"
       }
     ]
     network_security_group_name = ""
     nic_public_ip_associations  = []
     nsr_rules                   = []
-    firewalls = [
-      {
-        name                  = "nap-firewall"
-        sku_tier              = "Standard"
-        subnet_name           = "AzureFirewallSubnet"
-        public_ip_name        = "firewall-pip"
-        threat_intel_mode     = "Alert"
-        dns_proxy_enabled     = true
-        ip_configuration_name = "nap-fw-ipconfig"
-        application_rule_collections = [
-          {
-            name     = "allow-egress"
-            priority = 100
-            action   = "Allow"
-            rules = [
-              {
-                name             = "required-services"
-                source_addresses = ["*"]
-                target_fqdns     = ["*.azure.com", "*.core.windows.net", "*.azurecr.io", "*.ubuntu.com", "AzureKubernetesService"]
-                protocols = [
-                  { port = "80", type = "Http" },
-                  { port = "443", type = "Https" }
-                ]
-              }
-            ]
-          }
-        ]
-        network_rule_collections = [
-          {
-            name     = "network-rules"
-            priority = 100
-            action   = "Allow"
-            rules = [
-              {
-                name                  = "dns"
-                source_addresses      = ["*"]
-                destination_addresses = ["*"]
-                destination_ports     = ["53"]
-                protocols             = ["UDP", "TCP"]
-              },
-              {
-                name                  = "azure-and-web"
-                source_addresses      = ["*"]
-                destination_addresses = ["*"]
-                destination_ports     = ["80", "123", "443", "1194", "9000"]
-                protocols             = ["TCP", "UDP"]
-              }
-            ]
-          }
-        ]
-      }
-    ]
-    route_tables = [
-      {
-        name                          = "nap-rt"
-        bgp_route_propagation_enabled = false
-        routes = [
-          {
-            name                   = "default-route"
-            address_prefix         = "0.0.0.0/0"
-            next_hop_type          = "VirtualAppliance"
-            next_hop_in_ip_address = "firewall:nap-firewall"
-          },
-          {
-            name           = "firewall-internet"
-            address_prefix = "publicip:firewall-pip"
-            next_hop_type  = "Internet"
-          }
-        ]
-        subnet_associations = [{ subnet_name = "nap-subnet-ms" }]
-      }
-    ]
   }
 ]
 
@@ -134,10 +51,6 @@ aks_cli_config_list = [
       {
         name  = "node-init-taints"
         value = "CriticalAddonsOnly=true:NoSchedule"
-      },
-      {
-        name  = "outbound-type"
-        value = "userDefinedRouting"
       },
       {
         name  = "pod-cidr"
