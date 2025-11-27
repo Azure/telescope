@@ -162,6 +162,7 @@ variable "aks_config" {
       dns_zone_names = list(string)
     }), null)
     kms_key_name             = optional(string, null)
+    kms_key_vault_name       = optional(string, null)
     key_vault_network_access = optional(string, "Public")
   })
 

@@ -55,6 +55,7 @@ locals {
 
   aks_cli_config_map = { for aks in local.updated_aks_cli_config_list : aks.role => aks }
 
+  key_vault_config_map = { for kv in var.key_vault_config_list : kv.name => kv }
 }
 
 provider "azurerm" {
@@ -94,11 +95,12 @@ module "dns_zones" {
 }
 
 module "key_vault" {
-  source = "./key-vault"
+  for_each = local.key_vault_config_map
 
+  source              = "./key-vault"
   resource_group_name = local.run_id
   location            = local.region
-  key_vault_config    = var.key_vault_kms_config
+  key_vault_config    = each.value
   tags                = local.tags
 }
 
@@ -120,19 +122,13 @@ module "aks" {
   dns_zones           = try(module.dns_zones.dns_zone_ids, null)
   aks_aad_enabled     = local.aks_aad_enabled
   key_management_service = (
-    var.key_vault_kms_config != null &&
-    each.value.kms_key_name != null
+    var.key_vault_config_list != null &&
+    each.value.kms_key_name != null &&
+    each.value.kms_key_vault_name != null
     ) ? {
-    key_vault_id = module.key_vault.key_vault_id
-    key_vault_key_id = try(
-      module.key_vault.key_ids[each.value.kms_key_name],
-      error("Specified kms_key_name '${each.value.kms_key_name}' does not exist in Key Vault keys: ${join(", ", keys(module.key_vault.key_ids))}")
-    )
-
-    key_vault_key_resource_id = try(
-      module.key_vault.key_resource_ids[each.value.kms_key_name],
-      error("Specified kms_key_name '${each.value.kms_key_name}' does not exist in Key Vault key resource IDs: ${join(", ", keys(module.key_vault.key_resource_ids))}")
-    )
+    key_vault_id              = try(module.key_vault[each.value.kms_key_vault_name].id, null)
+    key_vault_key_id          = try(module.key_vault[each.value.kms_key_vault_name].keys[each.value.kms_key_name].id, null)
+    key_vault_key_resource_id = try(module.key_vault[each.value.kms_key_vault_name].keys[each.value.kms_key_name].resource_id, null)
   } : null
 }
 
@@ -147,19 +143,13 @@ module "aks-cli" {
   subnets_map                = local.all_subnets
   aks_cli_custom_config_path = local.aks_cli_custom_config_path
   key_management_service = (
-    var.key_vault_kms_config != null &&
-    each.value.kms_key_name != null
+    var.key_vault_config_list != null &&
+    each.value.kms_key_name != null &&
+    each.value.kms_key_vault_name != null
     ) ? {
-    key_vault_id = module.key_vault.key_vault_id
-    key_vault_key_id = try(
-      module.key_vault.key_ids[each.value.kms_key_name],
-      error("Specified kms_key_name '${each.value.kms_key_name}' does not exist in Key Vault keys: ${join(", ", keys(module.key_vault.key_ids))}")
-    )
-
-    key_vault_key_resource_id = try(
-      module.key_vault.key_resource_ids[each.value.kms_key_name],
-      error("Specified kms_key_name '${each.value.kms_key_name}' does not exist in Key Vault key resource IDs: ${join(", ", keys(module.key_vault.key_resource_ids))}")
-    )
+    key_vault_id              = try(module.key_vault[each.value.kms_key_vault_name].id, null)
+    key_vault_key_id          = try(module.key_vault[each.value.kms_key_vault_name].keys[each.value.kms_key_name].id, null)
+    key_vault_key_resource_id = try(module.key_vault[each.value.kms_key_vault_name].keys[each.value.kms_key_name].resource_id, null)
   } : null
 
 }

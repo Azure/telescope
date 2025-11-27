@@ -150,25 +150,25 @@ variable "dns_zones" {
   default = []
 }
 
-variable "key_vault_kms_config" {
-  description = "Key Vault configuration for AKS KMS encryption. If specified, a Key Vault will be created with encryption keys."
-  type = object({
+variable "key_vault_config_list" {
+  description = "List of Key Vault configurations for AKS KMS encryption. Each configuration specifies a Key Vault and its encryption keys to be created."
+  type = list(object({
     name = string # Key Vault name
     keys = list(object({
       key_name = string # Encryption key name
     }))
-  })
-  default = null
+  }))
+  default = []
 
   validation {
-    condition = (
-      var.key_vault_kms_config == null ? true : (
-        length(var.key_vault_kms_config.name) >= 3 &&
-        length(var.key_vault_kms_config.name) <= 20 &&
-        length(var.key_vault_kms_config.keys) >= 1
+    condition = alltrue([
+      for config in var.key_vault_config_list : (
+        length(config.name) >= 3 &&
+        length(config.name) <= 20 &&
+        length(config.keys) >= 1
       )
-    )
-    error_message = "Key Vault name must be 3-20 characters (total 24 after adding 4-char random suffix), and at least one key must be defined."
+    ])
+    error_message = "Each Key Vault config must have name 3-20 characters (total 24 after adding 4-char random suffix), and at least one key must be defined."
   }
 }
 
@@ -258,6 +258,7 @@ variable "aks_config_list" {
       dns_zone_names = list(string)
     }), null)
     kms_key_name             = optional(string, null)
+    kms_key_vault_name       = optional(string, null)
     key_vault_network_access = optional(string, "Public")
   }))
   default = []
@@ -301,6 +302,7 @@ variable "aks_cli_config_list" {
       value = string
     })), [])
     kms_key_name             = optional(string, null)
+    kms_key_vault_name       = optional(string, null)
     key_vault_network_access = optional(string, "Public")
     dry_run                  = optional(bool, false) # If true, only print the command without executing it. Useful for testing.
   }))

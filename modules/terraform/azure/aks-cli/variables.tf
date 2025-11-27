@@ -75,6 +75,7 @@ variable "aks_cli_config" {
       value = string
     })), [])
     kms_key_name             = optional(string, null)
+    kms_key_vault_name       = optional(string, null)
     key_vault_network_access = optional(string, "Public")
     dry_run                  = optional(bool, false) # If true, only print the command without executing it. Useful for testing.
   })
