@@ -6,15 +6,12 @@ parameters:
 - name: regions
   type: object
 
-steps:
-- template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
-  parameters:
-    role: nap
-    region: ${{ parameters.regions[0] }}
-
-- bash: |
+variables:
+  KARPENTER_SETUP_SCRIPT: |
     set -euo pipefail
     set -x
+    KARPENTER_NODEPOOL_FILE=$(pwd)/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/karpenter_nodepool.${{ parameters.cloud }}.yml
+    
     kubectl apply -f $KARPENTER_NODEPOOL_FILE
 
     # Patch the On-Demand NodePool
@@ -25,7 +22,24 @@ steps:
 
     kubectl get nodepool default -o yaml
     kubectl get nodepool spot -o yaml
-  env:
-    CLOUD: ${{ parameters.cloud }}
-    KARPENTER_NODEPOOL_FILE: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/karpenter_nodepool.${{ parameters.cloud }}.yml
-  displayName: "Validate Karpenter setup"
+
+steps:
+- template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
+  parameters:
+    role: nap
+    region: ${{ parameters.regions[0] }}
+
+- ${{ if eq(variables['JUMPBOX_HOST'], '') }}:
+  # Public cluster: run locally on agent
+  - bash: |
+      $(KARPENTER_SETUP_SCRIPT)
+    env:
+      VM_SIZE: ${{ parameters.vm_size }}
+    displayName: "Validate Karpenter setup (local)"
+
+- ${{ if ne(variables['JUMPBOX_HOST'], '') }}:
+  # Private cluster: run on jumpbox
+  - template: /steps/cloud/${{ parameters.cloud }}/run-on-jumpbox.yml
+    parameters:
+      displayName: "Validate Karpenter setup"
+      script: $(KARPENTER_SETUP_SCRIPT)

@@ -2,8 +2,8 @@ parameters:
 - name: region
   type: string
 
-steps:
-- script: |
+variables:
+  COLLECT_CLOUD_INFO_SCRIPT: |
     set -eu
 
     aks_name=$(az resource list --resource-type Microsoft.ContainerService/managedClusters \
@@ -31,9 +31,25 @@ steps:
         network_profile: $network_profile,
         agentpool_profile: $agentpool_profile
       }')
-    cloud_info_str=$(echo $cloud_info | jq -c .)
-    echo "Cloud info: $cloud_info_str"
-    echo "##vso[task.setvariable variable=CLOUD_INFO;]$cloud_info_str"
-  displayName: 'Collect Cloud Info for Azure'
-  env:
-    REGION: ${{ parameters.region }}
+    echo $cloud_info | jq -c .
+
+steps:
+- ${{ if eq(variables['JUMPBOX_HOST'], '') }}:
+  # Public cluster: collect cloud info locally on agent
+  - script: |
+      cloud_info_str=$($(COLLECT_CLOUD_INFO_SCRIPT))
+      echo "Cloud info: $cloud_info_str"
+      echo "##vso[task.setvariable variable=CLOUD_INFO;]$cloud_info_str"
+    displayName: 'Collect Cloud Info for Azure (local)'
+    env:
+      REGION: ${{ parameters.region }}
+
+- ${{ if ne(variables['JUMPBOX_HOST'], '') }}:
+  # Private cluster: collect cloud info on jumpbox via SSH
+  - template: /steps/cloud/azure/run-on-jumpbox.yml
+    parameters:
+      displayName: "Collect Cloud Info for Azure"
+      script: |
+        cloud_info_str=$($(COLLECT_CLOUD_INFO_SCRIPT))
+        echo "Cloud info: $cloud_info_str"
+        echo "##vso[task.setvariable variable=CLOUD_INFO;]$cloud_info_str"

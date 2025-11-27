@@ -1,0 +1,51 @@
+parameters:
+- name: script
+  type: string
+- name: displayName
+  type: string
+  default: "Run on Jumpbox"
+
+steps:
+- ${{ if eq(variables['JUMPBOX_HOST'], '') }}:
+  # Public cluster: run script locally on agent
+  - bash: ${{ parameters.script }}
+    displayName: "${{ parameters.displayName }}"
+
+- ${{ if ne(variables['JUMPBOX_HOST'], '') }}:
+  # Private cluster: run script on jumpbox via SSH
+  - bash: |
+      set -euo pipefail
+      
+      # SSH key setup
+      mkdir -p ~/.ssh
+      chmod 700 ~/.ssh
+      cat "$(SSH_PRIVATE_KEY_PATH)" > ~/.ssh/id_rsa
+      chmod 600 ~/.ssh/id_rsa
+      
+      ssh_opts=(-i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null)
+      ssh_target="${JUMPBOX_USERNAME}@${JUMPBOX_HOST}"
+      
+      # Prepare workspace on jumpbox
+      build_id="${BUILD_ID:-$(date +%s)}"
+      remote_workdir="/tmp/telescope-workspace-${build_id}"
+      local_archive="/tmp/telescope-workspace-${build_id}.tar.gz"
+      remote_archive="/tmp/telescope-workspace-${build_id}.tar.gz"
+      
+      echo "Packaging workspace for remote execution..."
+      tar -czf "$local_archive" -C "$(Pipeline.Workspace)/s" . || tar -czf "$local_archive" -C . .
+      
+      echo "Uploading workspace to jumpbox..."
+      scp "${ssh_opts[@]}" "$local_archive" "${ssh_target}:${remote_archive}"
+      
+      echo "Preparing remote workspace..."
+      ssh "${ssh_opts[@]}" "$ssh_target" "set -eo pipefail && rm -rf '${remote_workdir}' && mkdir -p '${remote_workdir}' && tar -xzf '${remote_archive}' -C '${remote_workdir}'"
+      
+      # Run script on jumpbox with access to workspace
+      ssh "${ssh_opts[@]}" "$ssh_target" "cd '${remote_workdir}' && bash -c '${{ parameters.script }}'"
+      
+      # Cleanup
+      rm -f "$local_archive"
+      ssh "${ssh_opts[@]}" "$ssh_target" "rm -rf '${remote_workdir}' '${remote_archive}'" || true
+    displayName: "${{ parameters.displayName }} (on jumpbox)"
+    env:
+      BUILD_ID: $(Build.BuildId)

@@ -10,11 +10,3 @@ output "jumpbox_connection_info" {
     }
   }
 }
-
-output "aks_kubeconfig_paths" {
-  description = "Local kubeconfig paths generated for each AKS role"
-  value = {
-    for role, aks in module.aks :
-    role => aks.aks_cluster_kubeconfig_path
-  }
-}
