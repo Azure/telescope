@@ -13,6 +13,11 @@ variable "public_ips" {
   type        = map(string)
 }
 
+variable "public_ip_addresses" {
+  description = "Map of public IP names to IP addresses"
+  type        = map(string)
+}
+
 variable "accelerated_networking" {
   description = "Value of the accelerated networking"
   type        = bool
