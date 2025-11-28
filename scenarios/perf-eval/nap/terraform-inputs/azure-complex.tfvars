@@ -55,10 +55,6 @@ aks_cli_config_list = [
         value = "overlay"
       },
       {
-        name  = "network-policy"
-        value = "cilium"
-      },
-      {
         name  = "node-init-taints"
         value = "CriticalAddonsOnly=true:NoSchedule"
       },
