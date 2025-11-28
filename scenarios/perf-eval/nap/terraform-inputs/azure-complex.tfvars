@@ -65,27 +65,27 @@ aks_cli_config_list = [
       {
         name  = "enable-private-cluster"
         value = ""
-      },
-      {
-        name  = "enable-oidc-issuer"
-        value = ""
-      },
-      {
-        name  = "enable-workload-identity"
-        value = ""
-      },
-      {
-        name  = "enable-addons"
-        value = "azure-keyvault-secrets-provider"
-      },
-      {
-        name  = "enable-keda"
-        value = ""
-      },
-      {
-        name  = "enable-image-cleaner"
-        value = ""
       }
+      # {
+      #   name  = "enable-oidc-issuer"
+      #   value = ""
+      # },
+      # {
+      #   name  = "enable-workload-identity"
+      #   value = ""
+      # },
+      # {
+      #   name  = "enable-addons"
+      #   value = "azure-keyvault-secrets-provider"
+      # },
+      # {
+      #   name  = "enable-keda"
+      #   value = ""
+      # },
+      # {
+      #   name  = "enable-image-cleaner"
+      #   value = ""
+      # }
     ]
   }
 ]
