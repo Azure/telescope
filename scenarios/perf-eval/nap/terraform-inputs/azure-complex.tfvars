@@ -60,32 +60,32 @@ aks_cli_config_list = [
       },
       {
         name  = "pod-cidr"
-        value = "10.128.0.0/11"
+        value = "172.16.0.0/12"
       },
       {
         name  = "enable-private-cluster"
         value = ""
+      },
+      {
+        name  = "enable-oidc-issuer"
+        value = ""
+      },
+      {
+        name  = "enable-workload-identity"
+        value = ""
+      },
+      {
+        name  = "enable-addons"
+        value = "azure-keyvault-secrets-provider"
+      },
+      {
+        name  = "enable-keda"
+        value = ""
+      },
+      {
+        name  = "enable-image-cleaner"
+        value = ""
       }
-      # {
-      #   name  = "enable-oidc-issuer"
-      #   value = ""
-      # },
-      # {
-      #   name  = "enable-workload-identity"
-      #   value = ""
-      # },
-      # {
-      #   name  = "enable-addons"
-      #   value = "azure-keyvault-secrets-provider"
-      # },
-      # {
-      #   name  = "enable-keda"
-      #   value = ""
-      # },
-      # {
-      #   name  = "enable-image-cleaner"
-      #   value = ""
-      # }
     ]
   }
 ]
