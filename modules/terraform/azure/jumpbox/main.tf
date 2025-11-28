@@ -112,3 +112,15 @@ resource "azurerm_role_assignment" "jumpbox_aks_cluster_user" {
   principal_id         = azurerm_linux_virtual_machine.jumpbox.identity[0].principal_id
 }
 
+# Get resource group for RBAC
+data "azurerm_resource_group" "rg" {
+  name = var.resource_group_name
+}
+
+# RBAC: Reader role on resource group - allows az resource list
+resource "azurerm_role_assignment" "jumpbox_rg_reader" {
+  scope                = data.azurerm_resource_group.rg.id
+  role_definition_name = "Reader"
+  principal_id         = azurerm_linux_virtual_machine.jumpbox.identity[0].principal_id
+}
+
