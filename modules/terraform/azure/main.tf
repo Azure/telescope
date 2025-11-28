@@ -136,4 +136,5 @@ module "jumpbox" {
   tags                = local.tags
   ssh_public_key      = local.ssh_public_key
   vm_size             = each.value.vm_size
+  aks_cluster_name    = try(each.value.aks_name, null)
 }

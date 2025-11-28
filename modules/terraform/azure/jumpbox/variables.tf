@@ -41,3 +41,8 @@ variable "vm_size" {
   default     = "Standard_D4s_v3"
 }
 
+variable "aks_cluster_name" {
+  description = "AKS cluster name for RBAC role assignment"
+  type        = string
+  default     = null
+}

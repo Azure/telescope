@@ -19,9 +19,21 @@ network_config_list = [
         address_prefix = "10.224.0.0/12"
       }
     ]
-    network_security_group_name = ""
+    network_security_group_name = "nsg-nap"
     nic_public_ip_associations  = []
-    nsr_rules                   = []
+    nsr_rules                   = [
+      {
+        name                       = "Allow-SSH"
+        priority                   = 100
+        direction                  = "Inbound"
+        access                     = "Allow"
+        protocol                   = "Tcp"
+        source_port_range          = "*"
+        destination_port_range     = "22"
+        source_address_prefix      = "0.0.0.0/0"
+        destination_address_prefix = "*"
+      }
+    ]
   }
 ]
 
@@ -92,5 +104,6 @@ jumpbox_config_list = [
     name        = "nap-jumpbox"
     subnet_name = "jumpbox-subnet"
     vm_size     = "Standard_D4s_v3"
+    aks_name    = “nap-complex”
   }
 ]

@@ -235,6 +235,7 @@ variable "jumpbox_config_list" {
     name              = optional(string)
     subnet_name       = optional(string)
     vm_size           = optional(string, "Standard_D4s_v3")
+    aks_name          = string
   }))
   default = []
 }

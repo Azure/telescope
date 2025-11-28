@@ -18,27 +18,6 @@ resource "azurerm_public_ip" "jumpbox" {
   tags                = var.tags
 }
 
-data "azurerm_client_config" "current" {}
-
-data "azurerm_key_vault" "kv" {
-  name                = "jumpbox-keyvault"
-  resource_group_name = "xinwei_key_valut_rg"
-}
-
-resource "azurerm_role_assignment" "kv_secret_reader" {
-  scope                = data.azurerm_key_vault.kv.id
-  role_definition_name = "Key Vault Secrets User"
-  principal_id         = data.azurerm_client_config.current.object_id
-}
-
-data "azurerm_key_vault_secret" "jumpbox_pub" {
-  name         = "jumpbox-public-key"
-  key_vault_id = data.azurerm_key_vault.kv.id
-  
-  depends_on = [
-    azurerm_role_assignment.kv_secret_reader
-  ]
-}
 
 resource "azurerm_network_security_group" "jumpbox" {
   name                = "${var.name}-nsg"
@@ -81,6 +60,7 @@ resource "azurerm_network_interface_security_group_association" "jumpbox" {
   network_security_group_id = azurerm_network_security_group.jumpbox.id
 }
 
+
 resource "azurerm_linux_virtual_machine" "jumpbox" {
   name                            = var.name
   location                        = var.location
@@ -94,7 +74,7 @@ resource "azurerm_linux_virtual_machine" "jumpbox" {
 
   admin_ssh_key {
     username   = local.admin_username
-    public_key = data.azurerm_key_vault_secret.jumpbox_pub.value
+    public_key = var.ssh_public_key
   }
 
   os_disk {
@@ -114,3 +94,21 @@ resource "azurerm_linux_virtual_machine" "jumpbox" {
     type = "SystemAssigned"
   }
 }
+
+# Get current subscription for RBAC scope
+
+# Get AKS cluster by name and resource group
+data "azurerm_kubernetes_cluster" "aks" {
+  count               = var.aks_cluster_name != null ? 1 : 0
+  name                = var.aks_cluster_name
+  resource_group_name = var.resource_group_name
+}
+
+# RBAC: Azure Kubernetes Service Cluster User Role - allows az aks get-credentials
+resource "azurerm_role_assignment" "jumpbox_aks_cluster_user" {
+  count                = var.aks_cluster_name != null ? 1 : 0
+  scope                = data.azurerm_kubernetes_cluster.aks[0].id
+  role_definition_name = "Azure Kubernetes Service Cluster User Role"
+  principal_id         = azurerm_linux_virtual_machine.jumpbox.identity[0].principal_id
+}
+
