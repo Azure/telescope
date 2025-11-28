@@ -10,22 +10,32 @@ steps:
     for region in $(echo "$REGIONS" | jq -r '.[]'); do
       terraform workspace select "$region" >/dev/null
 
-      jumpbox_output=$(terraform output -json jumpbox_connection_info 2>/dev/null || echo '')
+      jumpbox_output=$(terraform output -json jumpbox_connection_info 2>/dev/null || echo '{}')
 
-      if [ -z "$jumpbox_output" ]; then
+      if [ -z "$jumpbox_output" ] || [ "$jumpbox_output" = "{}" ] || [ "$jumpbox_output" = "null" ]; then
+        echo "No jumpbox output for region $region"
         continue
       fi
 
-      first_jumpbox=$(echo "$jumpbox_output" | jq -c '.value | to_entries[0] // null')
-      if [ "$first_jumpbox" = "null" ]; then
+      # Check if output has any keys
+      key_count=$(echo "$jumpbox_output" | jq 'keys | length' 2>/dev/null || echo "0")
+      if [ "$key_count" = "0" ]; then
+        echo "Empty jumpbox config for region $region"
         continue
       fi
 
-      host=$(echo "$first_jumpbox" | jq -r '.value.public_ip')
+      first_jumpbox=$(echo "$jumpbox_output" | jq -c 'to_entries[0] // null')
+      if [ "$first_jumpbox" = "null" ] || [ -z "$first_jumpbox" ]; then
+        echo "No jumpbox entries for region $region"
+        continue
+      fi
+
+      host=$(echo "$first_jumpbox" | jq -r '.value.public_ip // empty')
       username=$(echo "$first_jumpbox" | jq -r '.value.username // "azureuser"')
-      role=$(echo "$first_jumpbox" | jq -r '.key')
+      role=$(echo "$first_jumpbox" | jq -r '.key // empty')
 
-      if [ -z "$host" ] || [ "$host" = "null" ]; then
+      if [ -z "$host" ]; then
+        echo "No public IP for jumpbox in region $region"
         continue
       fi
 

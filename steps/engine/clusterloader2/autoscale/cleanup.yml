@@ -1,6 +1,21 @@
 steps:
-- script: |
-    kubectl delete --all nodeclaim --ignore-not-found
-    kubectl delete --all nodepool --ignore-not-found
-  displayName: "Delete NodeClaim and NodePool"
-  condition: always()
+# Run cleanup locally when no jumpbox (public cluster)
+- ${{ if eq(variables['JUMPBOX_HOST'], '') }}:
+  - script: |
+      kubectl delete --all nodeclaim --ignore-not-found
+      kubectl delete --all nodepool --ignore-not-found
+    displayName: "Delete NodeClaim and NodePool"
+    condition: always()
+
+# Run cleanup via jumpbox (private cluster)
+- ${{ if ne(variables['JUMPBOX_HOST'], '') }}:
+  - script: |
+      set -eo pipefail
+      SSH_KEY_PATH="${SSH_PRIVATE_KEY_PATH:-$(Pipeline.Workspace)/ssh_key}"
+      ssh_target="${JUMPBOX_USERNAME}@${JUMPBOX_HOST}"
+      ssh_opts=(-i "$SSH_KEY_PATH" -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null")
+
+      echo "Cleaning up NodeClaim and NodePool via jumpbox ${JUMPBOX_HOST}..."
+      ssh "${ssh_opts[@]}" "$ssh_target" "kubectl delete --all nodeclaim --ignore-not-found; kubectl delete --all nodepool --ignore-not-found"
+    displayName: "Delete NodeClaim and NodePool (via Jumpbox)"
+    condition: always()
