@@ -137,4 +137,7 @@ module "jumpbox" {
   ssh_public_key      = local.ssh_public_key
   vm_size             = each.value.vm_size
   aks_cluster_name    = try(each.value.aks_name, null)
+
+  # Ensure AKS cluster is created before jumpbox tries to look it up for RBAC
+  depends_on = [module.aks, module.aks-cli]
 }
