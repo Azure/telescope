@@ -33,7 +33,7 @@ aks_cli_config_list = [
     subnet_name           = "nap-subnet-ms"
     managed_identity_name = "nap-identity"
     kubernetes_version    = "1.33"
-    aks_custom_headers    = ["ControlPlaneUnderlay=hcp-underlay-eastus2-cx-382"]
+    aks_custom_headers    = ["ControlPlaneUnderlay=hcp-underlay-eastus2-cx-402"]
     enable_private_cluster = true
     default_node_pool = {
       name       = "system"
