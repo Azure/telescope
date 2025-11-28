@@ -12,42 +12,57 @@ steps:
     role: nap
     region: ${{ parameters.regions[0] }}
 
-- ${{ if eq(variables['JUMPBOX_HOST'], '') }}:
-  # Public cluster: run locally on agent
-  - bash: |
-      set -euo pipefail
-      set -x
-      KARPENTER_NODEPOOL_FILE=$(pwd)/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/karpenter_nodepool.${{ parameters.cloud }}.yml
-      
-      kubectl apply -f $KARPENTER_NODEPOOL_FILE
+# Public cluster: run locally on agent (when JUMPBOX_HOST is empty)
+- bash: |
+    set -euo pipefail
+    set -x
+    KARPENTER_NODEPOOL_FILE=$(pwd)/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/karpenter_nodepool.${{ parameters.cloud }}.yml
+    
+    kubectl apply -f $KARPENTER_NODEPOOL_FILE
 
-      # Patch the On-Demand NodePool
-      kubectl patch nodepool default --type='json' -p="[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['$VM_SIZE']}]"
+    # Patch the On-Demand NodePool
+    kubectl patch nodepool default --type='json' -p="[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['$VM_SIZE']}]"
 
-      # Patch the Spot NodePool
-      kubectl patch nodepool spot --type='json' -p="[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['$VM_SIZE']}]"
+    # Patch the Spot NodePool
+    kubectl patch nodepool spot --type='json' -p="[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['$VM_SIZE']}]"
 
-      kubectl get nodepool default -o yaml
-      kubectl get nodepool spot -o yaml
-    displayName: "Validate Karpenter setup (local)"
+    kubectl get nodepool default -o yaml
+    kubectl get nodepool spot -o yaml
+  displayName: "Validate Karpenter setup (local)"
+  condition: eq(variables['JUMPBOX_HOST'], '')
 
-- ${{ if ne(variables['JUMPBOX_HOST'], '') }}:
-  # Private cluster: run on jumpbox
-  - template: /steps/cloud/${{ parameters.cloud }}/run-on-jumpbox.yml
-    parameters:
-      displayName: "Validate Karpenter setup"
-      script: |
-        set -euo pipefail
-        set -x
-        KARPENTER_NODEPOOL_FILE=$(pwd)/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/karpenter_nodepool.${{ parameters.cloud }}.yml
-        
-        kubectl apply -f $KARPENTER_NODEPOOL_FILE
-
-        # Patch the On-Demand NodePool
-        kubectl patch nodepool default --type='json' -p="[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['$VM_SIZE']}]"
-
-        # Patch the Spot NodePool
-        kubectl patch nodepool spot --type='json' -p="[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['$VM_SIZE']}]"
-
-        kubectl get nodepool default -o yaml
-        kubectl get nodepool spot -o yaml
+# Private cluster: run on jumpbox (when JUMPBOX_HOST is set)
+- bash: |
+    set -euo pipefail
+    
+    SSH_KEY_PATH="${SSH_PRIVATE_KEY_PATH:-$(Pipeline.Workspace)/ssh_key}"
+    ssh_target="${JUMPBOX_USERNAME}@${JUMPBOX_HOST}"
+    ssh_opts=(-i "$SSH_KEY_PATH" -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null")
+    
+    SOURCE_DIR="$(Pipeline.Workspace)/s"
+    remote_root="/tmp/telescope-$(Build.BuildId)"
+    local_archive="/tmp/telescope-workspace.tar.gz"
+    remote_archive="${remote_root}/workspace.tar.gz"
+    
+    KARPENTER_NODEPOOL_FILE="scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/karpenter_nodepool.${{ parameters.cloud }}.yml"
+    
+    echo "Packaging workspace for remote execution..."
+    tar -czf "$local_archive" -C "$SOURCE_DIR" "$KARPENTER_NODEPOOL_FILE"
+    
+    echo "Uploading to jumpbox ${JUMPBOX_HOST}..."
+    scp "${ssh_opts[@]}" "$local_archive" "${ssh_target}:${remote_archive}"
+    
+    echo "Preparing remote workspace..."
+    ssh "${ssh_opts[@]}" "$ssh_target" "mkdir -p '${remote_root}' && tar -xzf '${remote_archive}' -C '${remote_root}'"
+    
+    echo "Executing Karpenter validation on jumpbox..."
+    ssh "${ssh_opts[@]}" "$ssh_target" "cd '${remote_root}' && set -euo pipefail && set -x && \
+      kubectl apply -f ${KARPENTER_NODEPOOL_FILE} && \
+      kubectl patch nodepool default --type='json' -p=\"[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['${VM_SIZE}']}]\" && \
+      kubectl patch nodepool spot --type='json' -p=\"[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['${VM_SIZE}']}]\" && \
+      kubectl get nodepool default -o yaml && \
+      kubectl get nodepool spot -o yaml"
+    
+    rm -f "$local_archive"
+  displayName: "Validate Karpenter setup (via Jumpbox)"
+  condition: ne(variables['JUMPBOX_HOST'], '')
