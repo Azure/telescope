@@ -104,6 +104,6 @@ jumpbox_config_list = [
     name        = "nap-jumpbox"
     subnet_name = "jumpbox-subnet"
     vm_size     = "Standard_D4s_v3"
-    aks_name    = “nap-complex”
+    aks_name    = "nap-complex"
   }
 ]
