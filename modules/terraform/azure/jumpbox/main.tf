@@ -18,6 +18,28 @@ resource "azurerm_public_ip" "jumpbox" {
   tags                = var.tags
 }
 
+data "azurerm_client_config" "current" {}
+
+data "azurerm_key_vault" "kv" {
+  name                = "jumpbox-keyvault"
+  resource_group_name = "xinwei_key_valut_rg"
+}
+
+resource "azurerm_role_assignment" "kv_secret_reader" {
+  scope                = data.azurerm_key_vault.kv.id
+  role_definition_name = "Key Vault Secrets User"
+  principal_id         = data.azurerm_client_config.current.object_id
+}
+
+data "azurerm_key_vault_secret" "jumpbox_pub" {
+  name         = "jumpbox-public-key"
+  key_vault_id = data.azurerm_key_vault.kv.id
+  
+  depends_on = [
+    azurerm_role_assignment.kv_secret_reader
+  ]
+}
+
 resource "azurerm_network_security_group" "jumpbox" {
   name                = "${var.name}-nsg"
   location            = var.location
@@ -72,7 +94,7 @@ resource "azurerm_linux_virtual_machine" "jumpbox" {
 
   admin_ssh_key {
     username   = local.admin_username
-    public_key = var.ssh_public_key
+    public_key = data.azurerm_key_vault_secret.jumpbox_pub.value
   }
 
   os_disk {
