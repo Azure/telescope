@@ -55,11 +55,14 @@ steps:
     echo "Packaging workspace for remote execution..."
     tar -czf "$local_archive" -C "$SOURCE_DIR" "$KARPENTER_NODEPOOL_FILE"
     
+    echo "Creating remote directory on jumpbox..."
+    ssh "${ssh_opts[@]}" "$ssh_target" "mkdir -p '${remote_root}'"
+    
     echo "Uploading to jumpbox ${JUMPBOX_HOST}..."
     scp "${ssh_opts[@]}" "$local_archive" "${ssh_target}:${remote_archive}"
     
-    echo "Preparing remote workspace..."
-    ssh "${ssh_opts[@]}" "$ssh_target" "mkdir -p '${remote_root}' && tar -xzf '${remote_archive}' -C '${remote_root}'"
+    echo "Extracting workspace on jumpbox..."
+    ssh "${ssh_opts[@]}" "$ssh_target" "tar -xzf '${remote_archive}' -C '${remote_root}'"
     
     echo "Executing Karpenter validation on jumpbox..."
     ssh "${ssh_opts[@]}" "$ssh_target" "cd '${remote_root}' && set -euo pipefail && set -x && \
