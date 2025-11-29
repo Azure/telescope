@@ -37,7 +37,6 @@ steps:
       fi
 
       local ssh_user="${JUMPBOX_USERNAME:-azureuser}"
-      local ssh_port="${JUMPBOX_PORT:-22}"
       local build_id="${BUILD_ID:-$(date +%s)}"
       local jumpbox_workdir="${JUMPBOX_WORKDIR:-/tmp/telescope-run}"
       local remote_root="${jumpbox_workdir}/run-${build_id}"
@@ -48,22 +47,10 @@ steps:
       local remote_script="${remote_python_dir}/clusterloader2/autoscale/autoscale.py"
       local remote_config_dir="${remote_python_dir}/clusterloader2/autoscale/config"
       local remote_report_dir="${remote_python_dir}/clusterloader2/autoscale/results"
-      local local_kubeconfig=""
-      if [ -n "${JUMPBOX_SOURCE_KUBECONFIG:-}" ]; then
-        local_kubeconfig="${JUMPBOX_SOURCE_KUBECONFIG}"
-      elif [ -n "${CL2_KUBECONFIG_PATH:-}" ]; then
-        local_kubeconfig="${CL2_KUBECONFIG_PATH}"
-      fi
 
-      local remote_kubeconfig="${JUMPBOX_KUBECONFIG:-}"
-      local should_copy_kubeconfig="false"
-      if [ -z "$remote_kubeconfig" ] && [ -n "$local_kubeconfig" ]; then
-        remote_kubeconfig="${remote_root}/kubeconfig"
-        should_copy_kubeconfig="true"
-      fi
       local env_file
       env_file="$(mktemp)"
-      local ssh_opts=(-i "$SSH_KEY_PATH" -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null" -p "$ssh_port")
+      local ssh_opts=(-i "$SSH_KEY_PATH" -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null")
 
       echo "Packaging modules/python for remote execution..."
       tar -czf "$local_archive" -C "$SOURCE_DIR" modules/python
@@ -94,20 +81,10 @@ steps:
       export DEPLOYMENT_TEMPLATE="${DEPLOYMENT_TEMPLATE}"
       export OS_TYPE="${OS_TYPE}"
       export REMOTE_PYTHON_DIR="${remote_python_dir}"
-      export CUSTOM_KUBECONFIG="${remote_kubeconfig}"
-    ENVEOF
+      ENVEOF
 
       scp "${ssh_opts[@]}" "$env_file" "${ssh_target}:${remote_root}/jumpbox-env.sh"
       rm -f "$env_file" "$local_archive"
-
-      if [ "$should_copy_kubeconfig" = "true" ]; then
-        if [ -n "$local_kubeconfig" ] && [ -f "$local_kubeconfig" ]; then
-          echo "Uploading kubeconfig to jumpbox..."
-          scp "${ssh_opts[@]}" "$local_kubeconfig" "${ssh_target}:${remote_kubeconfig}"
-        else
-          echo "Kubeconfig file '$local_kubeconfig' not found; continuing without copying." >&2
-        fi
-      fi
 
       echo "Executing clusterloader2 on jumpbox..."
       ssh "${ssh_opts[@]}" "$ssh_target" "REMOTE_ROOT='${remote_root}' bash -s" <<'REMOTE'
@@ -115,7 +92,7 @@ steps:
       source "$REMOTE_ROOT/jumpbox-env.sh"
 
       cd "$REMOTE_PYTHON_DIR"
-      pip3 install --user -r requirements.txt
+      pip3 install --user --break-system-packages -r requirements.txt
       export PATH="$HOME/.local/bin:$PATH"
 
       overrides_file="${CL2_CONFIG_DIR}/overrides.yaml"
@@ -125,14 +102,11 @@ steps:
         "$SCALE_UP_TIMEOUT" "$SCALE_DOWN_TIMEOUT" \
         "$LOOP_COUNT" "$NODE_LABEL_SELECTOR" "$NODE_SELECTOR" "$overrides_file" "${WARMUP_DEPLOYMENT:-false}" "$CL2_CONFIG_DIR" --os_type "${OS_TYPE:-linux}" --warmup_deployment_template "${WARMUP_DEPLOYMENT_TEMPLATE:-""}" --deployment_template "${DEPLOYMENT_TEMPLATE:-""}"
 
-      remote_kubeconfig="$CUSTOM_KUBECONFIG"
-      if [ -z "$remote_kubeconfig" ]; then
-        remote_kubeconfig="$HOME/.kube/config"
-      fi
+      remote_kubeconfig="$HOME/.kube/config"
 
       PYTHONPATH=$PYTHONPATH:"$REMOTE_PYTHON_DIR" python3 "$PYTHON_SCRIPT_FILE" execute \
         "$CL2_IMAGE" "$CL2_CONFIG_DIR" "$CL2_REPORT_DIR" "$remote_kubeconfig" "$CLOUD"
-    REMOTE
+      REMOTE
 
       echo "Syncing reports back to pipeline workspace..."
       local report_parent
@@ -166,6 +140,4 @@ steps:
     CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/results
     SOURCE_DIR: $(Pipeline.Workspace)/s
     BUILD_ID: $(Build.BuildId)
-    CL2_KUBECONFIG_PATH: $(CL2_KUBECONFIG_PATH)
-    JUMPBOX_SOURCE_KUBECONFIG: $(JUMPBOX_SOURCE_KUBECONFIG)
   displayName: "Run Benchmark"
