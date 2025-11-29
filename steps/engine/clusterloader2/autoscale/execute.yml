@@ -114,11 +114,6 @@ steps:
       rm -rf "$CL2_REPORT_DIR"
       mkdir -p "$report_parent"
       scp -r "${ssh_opts[@]}" "${ssh_target}:${remote_report_dir}" "$report_parent"
-
-      if [ "${JUMPBOX_PRESERVE_WORKSPACE:-false}" != "true" ]; then
-        echo "Cleaning up remote workspace..."
-        ssh "${ssh_opts[@]}" "$ssh_target" "rm -rf '${remote_root}' '${remote_archive}'"
-      fi
     }
 
     if [ -n "${JUMPBOX_HOST:-}" ]; then
