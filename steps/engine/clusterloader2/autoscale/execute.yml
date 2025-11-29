@@ -95,7 +95,7 @@ steps:
       export OS_TYPE="${OS_TYPE}"
       export REMOTE_PYTHON_DIR="${remote_python_dir}"
       export CUSTOM_KUBECONFIG="${remote_kubeconfig}"
-      ENVEOF
+    ENVEOF
 
       scp "${ssh_opts[@]}" "$env_file" "${ssh_target}:${remote_root}/jumpbox-env.sh"
       rm -f "$env_file" "$local_archive"
@@ -132,7 +132,7 @@ steps:
 
       PYTHONPATH=$PYTHONPATH:"$REMOTE_PYTHON_DIR" python3 "$PYTHON_SCRIPT_FILE" execute \
         "$CL2_IMAGE" "$CL2_CONFIG_DIR" "$CL2_REPORT_DIR" "$remote_kubeconfig" "$CLOUD"
-      REMOTE
+    REMOTE
 
       echo "Syncing reports back to pipeline workspace..."
       local report_parent
