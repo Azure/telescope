@@ -34,7 +34,7 @@ stages:
               warmup_deployment_template: warmup_deployment.yaml
               vm_size: Standard_D2s_v4
               capacity_type: on-demand
-              AAD_ENABLED: "true"
+              enable_apiserver_vnet_integration: "true"
           max_parallel: 1
           timeout_in_minutes: 600
           credential_type: service_connection

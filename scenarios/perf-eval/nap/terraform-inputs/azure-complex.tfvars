@@ -17,6 +17,10 @@ network_config_list = [
       {
         name           = "jumpbox-subnet"
         address_prefix = "10.224.0.0/12"
+      },
+      {
+        name           = "apiserver-subnet"
+        address_prefix = "10.240.0.0/16"
       }
     ]
     network_security_group_name = "nsg-nap"
@@ -46,6 +50,7 @@ aks_cli_config_list = [
     managed_identity_name = "nap-identity"
     kubernetes_version    = "1.33"
     enable_private_cluster = true
+    api_server_subnet_name = "apiserver-subnet"
     default_node_pool = {
       name       = "system"
       node_count = 5
