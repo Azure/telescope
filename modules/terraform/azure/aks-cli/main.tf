@@ -82,6 +82,8 @@ locals {
     ""
   )
 
+  private_cluster_parameter = (var.enable_private_cluster ? "--enable-private-cluster" : "")
+
   default_node_pool_parameters = (
     var.aks_cli_config.default_node_pool == null ? [] : [
       "--nodepool-name", var.aks_cli_config.default_node_pool.name,
@@ -108,6 +110,7 @@ locals {
     local.subnet_id_parameter,
     local.managed_identity_parameter,
     local.api_server_vnet_integration_parameter,
+    local.private_cluster_parameter,
   ], local.default_node_pool_parameters))
 
   aks_cli_destroy_command = join(" ", [

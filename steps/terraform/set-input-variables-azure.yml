@@ -50,6 +50,7 @@ steps:
                 --arg k8s_machine_type "$K8S_MACHINE_TYPE" \
                 --arg k8s_os_disk_type "$K8S_OS_DISK_TYPE" \
                 --arg enable_apiserver_vnet_integration "$([ "$ENABLE_APISERVER_VNET_INTEGRATION" = "true" ] && echo "true" || echo "false")" \
+                --arg enable_private_cluster "$([ "$ENABLE_PRIVATE_CLUSTER" = "true" ] && echo "true" || echo "false")" \
                 --argjson aks_custom_headers "$AKS_CUSTOM_HEADERS" \
                 --argjson aks_cli_system_node_pool "$SYSTEM_NODE_POOL" \
                 --argjson aks_cli_user_node_pool "$USER_NODE_POOL" \
@@ -64,6 +65,7 @@ steps:
                   k8s_machine_type: $k8s_machine_type,
                   k8s_os_disk_type: $k8s_os_disk_type,
                   enable_apiserver_vnet_integration: $enable_apiserver_vnet_integration,
+                  enable_private_cluster: $enable_private_cluster,
                   aks_custom_headers: $aks_custom_headers,
                   aks_cli_system_node_pool: $aks_cli_system_node_pool,
                   aks_cli_user_node_pool: $aks_cli_user_node_pool

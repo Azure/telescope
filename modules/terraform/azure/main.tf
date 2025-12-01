@@ -12,6 +12,7 @@ locals {
   k8s_os_disk_type                  = lookup(var.json_input, "k8s_os_disk_type", null)
   aks_aad_enabled                   = lookup(var.json_input, "aks_aad_enabled", "false")
   enable_apiserver_vnet_integration = lookup(var.json_input, "enable_apiserver_vnet_integration", false)
+  enable_private_cluster            = lookup(var.json_input, "enable_private_cluster", false)
 
   tags = {
     "owner"             = var.owner
@@ -90,20 +91,21 @@ module "dns_zones" {
 module "aks" {
   for_each = local.aks_config_map
 
-  source              = "./aks"
-  resource_group_name = local.run_id
-  location            = local.region
-  aks_config          = each.value
-  tags                = local.tags
-  subnet_id           = try(local.all_subnets[each.value.subnet_name], null)
-  vnet_id             = try(module.virtual_network[each.value.role].vnet_id, null)
-  subnets             = try(local.all_subnets, null)
-  k8s_machine_type    = local.k8s_machine_type
-  k8s_os_disk_type    = local.k8s_os_disk_type
-  network_dataplane   = local.aks_network_dataplane
-  network_policy      = local.aks_network_policy
-  dns_zones           = try(module.dns_zones.dns_zone_ids, null)
-  aks_aad_enabled     = local.aks_aad_enabled
+  source                 = "./aks"
+  resource_group_name    = local.run_id
+  location               = local.region
+  aks_config             = each.value
+  tags                   = local.tags
+  subnet_id              = try(local.all_subnets[each.value.subnet_name], null)
+  vnet_id                = try(module.virtual_network[each.value.role].vnet_id, null)
+  subnets                = try(local.all_subnets, null)
+  k8s_machine_type       = local.k8s_machine_type
+  k8s_os_disk_type       = local.k8s_os_disk_type
+  network_dataplane      = local.aks_network_dataplane
+  network_policy         = local.aks_network_policy
+  dns_zones              = try(module.dns_zones.dns_zone_ids, null)
+  aks_aad_enabled        = local.aks_aad_enabled
+  enable_private_cluster = local.enable_private_cluster
 }
 
 module "aks-cli" {
@@ -116,4 +118,5 @@ module "aks-cli" {
   tags                       = local.tags
   subnets_map                = local.all_subnets
   aks_cli_custom_config_path = local.aks_cli_custom_config_path
+  enable_private_cluster     = local.enable_private_cluster
 }

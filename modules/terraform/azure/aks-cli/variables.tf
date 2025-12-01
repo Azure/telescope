@@ -28,6 +28,12 @@ variable "aks_cli_custom_config_path" {
   default     = null
 }
 
+variable "enable_private_cluster" {
+  description = "Indicates whether private cluster is enabled for AKS"
+  type        = bool
+  default     = false
+}
+
 variable "aks_cli_config" {
   type = object({
     role                              = string
@@ -59,7 +65,7 @@ variable "aks_cli_config" {
           value = string
         })), [])
     })), [])
-    optional_parameters = optional(list(object({  # Refer to https://learn.microsoft.com/en-us/cli/azure/aks?view=azure-cli-latest#az-aks-create(aks-preview) for available parameters
+    optional_parameters = optional(list(object({ # Refer to https://learn.microsoft.com/en-us/cli/azure/aks?view=azure-cli-latest#az-aks-create(aks-preview) for available parameters
       name  = string
       value = string
     })), [])

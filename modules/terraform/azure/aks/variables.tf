@@ -66,6 +66,12 @@ variable "aks_aad_enabled" {
   default     = false
 }
 
+variable "enable_private_cluster" {
+  description = "Indicates whether private cluster is enabled for AKS"
+  type        = bool
+  default     = false
+}
+
 variable "aks_config" {
   type = object({
     role        = string

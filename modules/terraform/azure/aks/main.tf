@@ -19,7 +19,9 @@ resource "azurerm_kubernetes_cluster" "aks" {
       "role" = local.role
     },
   )
-  sku_tier = var.aks_config.sku_tier
+  sku_tier                = var.aks_config.sku_tier
+  private_cluster_enabled = var.enable_private_cluster
+
   default_node_pool {
     name                         = var.aks_config.default_node_pool.name
     node_count                   = var.aks_config.default_node_pool.node_count

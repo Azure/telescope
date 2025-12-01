@@ -12,6 +12,7 @@ variable "json_input" {
     k8s_machine_type                  = optional(string, null)
     k8s_os_disk_type                  = optional(string, null)
     enable_apiserver_vnet_integration = optional(bool, false)
+    enable_private_cluster            = optional(bool, false)
 
     aks_cli_system_node_pool = optional(object({
       name        = string
@@ -137,7 +138,7 @@ variable "network_config_list" {
       subnet_associations = list(object({
         subnet_name = string
       }))
-    })),[])
+    })), [])
   }))
   default = []
 }
