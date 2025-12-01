@@ -126,3 +126,8 @@ default via 10.22.0.1 dev eth0
 10.22.0.0/16 dev eth0 scope link  src 10.22.0.3 
 10.224.0.0/16 via 10.224.0.17 dev net1 
 10.224.0.16/28 dev net1 scope link  src 10.224.0.18 
+
+# Command to add ipconfig
+mc_rg=MC_1764202814_cni-prototype_eastus2
+nic_name=aks-default-22830941-vmsnic-1-b478587a
+az network nic ip-config create -g $mc_rg --nic-name $nic_name --name ipvlan --private-ip-prefix-len 28

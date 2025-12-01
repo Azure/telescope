@@ -1,0 +1,31 @@
+{
+    "cniVersion": "0.3.1",
+    "name": "ipvlan-ptp-chain",
+    "plugins": [
+        {
+            "cniVersion": "0.3.1",
+            "type": "ipvlan",
+            "master": "eth0",
+            "mode": "l2",
+            "ipam": {
+                "type": "host-local",
+                "ranges": [
+                    [
+                        {
+                            "subnet": "10.244.0.0/24"
+                        }
+                    ]
+                ],
+                "routes": [
+                    { "dst": "0.0.0.0/0" }
+                ]
+            }
+        },
+        {
+            "cniVersion": "0.3.1",
+            "type": "ptp",
+            "ipMasq": true,
+            "mtu": 1500
+        }
+    ]
+}
