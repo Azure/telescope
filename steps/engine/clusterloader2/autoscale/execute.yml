@@ -34,6 +34,8 @@ steps:
   condition: eq(variables['JUMPBOX_HOST'], '')
 
 - script: |
+    set -eo pipefail
+
     if [ -z "${JUMPBOX_HOST:-}" ]; then
       echo "JUMPBOX_HOST is required when running on a jumpbox." >&2
       exit 1
@@ -44,21 +46,19 @@ steps:
       exit 1
     fi
 
-    local ssh_user="${JUMPBOX_USERNAME:-azureuser}"
-    local build_id="${BUILD_ID:-$(date +%s)}"
-    local jumpbox_workdir="${JUMPBOX_WORKDIR:-/tmp/telescope-run}"
-    local remote_root="${jumpbox_workdir}/run-${build_id}"
-    local tar_archive="/tmp/telescope-modules-${build_id}.tar.gz"
-    local remote_python_dir="${remote_root}/modules/python"
-    local remote_script="${remote_python_dir}/clusterloader2/autoscale/autoscale.py"
-    local remote_config_dir="${remote_python_dir}/clusterloader2/autoscale/config"
-    local remote_report_dir="${remote_python_dir}/clusterloader2/autoscale/results"
+    ssh_user="${JUMPBOX_USERNAME:-azureuser}"
+    build_id="${BUILD_ID:-$(date +%s)}"
+    jumpbox_workdir="/tmp/telescope-run"
+    remote_root="${jumpbox_workdir}/run-${build_id}"
+    tar_archive="/tmp/telescope-modules-${build_id}.tar.gz"
+    remote_python_dir="${remote_root}/modules/python"
+    remote_script="${remote_python_dir}/clusterloader2/autoscale/autoscale.py"
+    remote_config_dir="${remote_python_dir}/clusterloader2/autoscale/config"
+    remote_report_dir="${remote_python_dir}/clusterloader2/autoscale/results"
 
-    local ssh_target="${ssh_user}@${JUMPBOX_HOST}"
-
-    local env_file
+    ssh_target="${ssh_user}@${JUMPBOX_HOST}"
     env_file="$(mktemp)"
-    local ssh_opts=(-i "$SSH_KEY_PATH" -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null")
+    ssh_opts=(-i "$SSH_KEY_PATH" -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null")
 
     echo "Packaging modules/python for remote execution..."
     tar -czf "$tar_archive" -C "$SOURCE_DIR" modules/python
@@ -92,7 +92,7 @@ steps:
     } > "$env_file"
 
     scp "${ssh_opts[@]}" "$env_file" "${ssh_target}:${remote_root}/jumpbox-env.sh"
-    rm -f "$env_file" "$tar_archive"
+    rm -f "$env_file"
 
     echo "Executing clusterloader2 on jumpbox..."
     {
@@ -117,12 +117,14 @@ steps:
     } | ssh "${ssh_opts[@]}" "$ssh_target" "REMOTE_ROOT='${remote_root}' bash -s"
 
     echo "Syncing reports back to pipeline workspace..."
-    local report_parent
     report_parent="$(dirname "$CL2_REPORT_DIR")"
     rm -rf "$CL2_REPORT_DIR"
     mkdir -p "$report_parent"
     scp -r "${ssh_opts[@]}" "${ssh_target}:${remote_report_dir}" "$report_parent"
-    workingDirectory: modules/python
+
+    # Cleanup remote tar archive
+    rm -f "$tar_archive"
+  workingDirectory: modules/python
   env:
     ${{ if eq(parameters.cloud, 'azure') }}:
       CLOUD: aks
