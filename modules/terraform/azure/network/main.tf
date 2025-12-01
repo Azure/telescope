@@ -1,4 +1,6 @@
 locals {
+  public_ip_ids       = { for name, ip in var.public_ips : name => ip.id }
+  public_ip_addresses = { for name, ip in var.public_ips : name => ip.ip_address }
   nsr_rules_map                = { for rule in var.network_config.nsr_rules : rule.name => rule }
   nat_gateway_associations_map = var.network_config.nat_gateway_associations == null ? {} : { for nat in var.network_config.nat_gateway_associations : nat.nat_gateway_name => nat }
   input_route_tables_map             = var.network_config.route_tables == null ? {} : { for rt in var.network_config.route_tables : rt.name => rt }
@@ -8,7 +10,6 @@ locals {
     for subnet in azurerm_virtual_network.vnet.subnet :
     split("/", subnet.id)[length(split("/", subnet.id)) - 1] => subnet
   }
-  firewalls_input = var.network_config.firewalls == null ? {} : { for fw in var.network_config.firewalls : fw.name => fw }
   network_security_group_name = var.network_config.network_security_group_name
   expanded_nic_association_map = flatten([
     for nic in var.network_config.nic_public_ip_associations : [
@@ -79,7 +80,7 @@ resource "azurerm_network_interface" "nic" {
     name                          = each.value.ip_configuration_name
     subnet_id                     = local.subnets_map[each.value.subnet_name].id
     private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = each.value.public_ip_name != null ? var.public_ips[each.value.public_ip_name] : null
+    public_ip_address_id          = each.value.public_ip_name != null ? local.public_ip_ids[each.value.public_ip_name] : null
   }
 }
 
@@ -111,22 +112,6 @@ module "nat_gateway" {
   nat_gateway_association = each.value
   subnets_map             = local.subnets_map
   tags                    = local.tags
-}
-
-module "firewall" {
-  source   = "./firewall"
-  for_each = local.firewalls_input
-
-  firewall_config = merge(each.value, {
-    subnet_id            = local.subnets_map[each.value.subnet_name].id
-    public_ip_address_id = var.public_ips[each.value.public_ip_name]
-  })
-
-  resource_group_name = var.resource_group_name
-  location            = var.location
-  tags                = local.tags
-
-  depends_on = [azurerm_virtual_network.vnet]
 }
 
 module "route_table" {
