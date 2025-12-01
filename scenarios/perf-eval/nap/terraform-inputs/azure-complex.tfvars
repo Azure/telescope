@@ -47,7 +47,7 @@ network_config_list = [
               {
                 name             = "required-services"
                 source_addresses = ["*"]
-                target_fqdns     = ["*.azure.com", "*.core.windows.net", "*.azurecr.io", "*.ubuntu.com", "AzureKubernetesService"]
+                target_fqdns     = ["*.azure.com", "*.windows.net", "*.azurecr.io", "*.ubuntu.com", "AzureKubernetesService","mcr-0001.mcr-msedge.net","*.microsoft.com","*.microsoftonline.com","acs-mirror.azureedge.net","packages.aks.azure.com"]
                 protocols = [
                   { port = "80", type = "Http" },
                   { port = "443", type = "Https" }
@@ -63,6 +63,13 @@ network_config_list = [
             action   = "Allow"
             rules = [
               {
+                name                  = "imds"
+                source_addresses      = ["*"]
+                destination_addresses = ["169.254.169.254"]
+                destination_ports     = ["80"]
+                protocols             = ["Any"]
+              },
+              {
                 name                  = "dns"
                 source_addresses      = ["*"]
                 destination_addresses = ["*"]
@@ -73,7 +80,7 @@ network_config_list = [
                 name                  = "azure-and-web"
                 source_addresses      = ["*"]
                 destination_addresses = ["*"]
-                destination_ports     = ["80", "123", "443", "1194", "9000"]
+                destination_ports     = ["443"]
                 protocols             = ["TCP", "UDP"]
               }
             ]
