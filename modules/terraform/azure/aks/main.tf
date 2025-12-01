@@ -5,11 +5,29 @@ locals {
   role_assignment_list = var.aks_config.role_assignment_list
   subnets              = var.subnets
   dns_zone_ids         = try([for zone_name in var.aks_config.web_app_routing.dns_zone_names : var.dns_zones[zone_name]], null)
+  
+  key_management_service = (
+    var.aks_config.kms_key_vault_name != null &&
+    var.aks_config.kms_key_name != null
+  ) ? {
+    key_vault_id = try(
+      var.key_vaults[var.aks_config.kms_key_vault_name].id,
+      error("Specified kms_key_vault_name '${var.aks_config.kms_key_vault_name}' does not exist in Key Vaults: ${join(", ", keys(var.key_vaults))}")
+    )
+    key_vault_key_id = try(
+      var.key_vaults[var.aks_config.kms_key_vault_name].keys[var.aks_config.kms_key_name].id,
+      error("Specified kms_key_name '${var.aks_config.kms_key_name}' does not exist in Key Vault '${var.aks_config.kms_key_vault_name}' keys: ${join(", ", keys(var.key_vaults[var.aks_config.kms_key_vault_name].keys))}")
+    )
+    key_vault_key_resource_id = try(
+      var.key_vaults[var.aks_config.kms_key_vault_name].keys[var.aks_config.kms_key_name].resource_id,
+      error("Specified kms_key_name '${var.aks_config.kms_key_name}' does not exist in Key Vault '${var.aks_config.kms_key_vault_name}' keys: ${join(", ", keys(var.key_vaults[var.aks_config.kms_key_vault_name].keys))}")
+    )
+  } : null
 }
 data "azurerm_client_config" "current" {}
 
 resource "azurerm_user_assigned_identity" "aks_identity" {
-  count               = var.key_management_service != null ? 1 : 0
+  count               = local.key_management_service != null ? 1 : 0
   location            = var.location
   name                = "${local.name}-identity"
   resource_group_name = var.resource_group_name
@@ -60,12 +78,12 @@ resource "azurerm_kubernetes_cluster" "aks" {
     dns_service_ip      = var.aks_config.network_profile.dns_service_ip
   }
   identity {
-    type         = var.key_management_service != null ? "UserAssigned" : "SystemAssigned"
-    identity_ids = var.key_management_service != null ? [azurerm_user_assigned_identity.aks_identity[0].id] : []
+    type         = local.key_management_service != null ? "UserAssigned" : "SystemAssigned"
+    identity_ids = local.key_management_service != null ? [azurerm_user_assigned_identity.aks_identity[0].id] : []
   }
 
   dynamic "key_management_service" {
-    for_each = var.key_management_service == null ? [] : [var.key_management_service]
+    for_each = local.key_management_service == null ? [] : [local.key_management_service]
     content {
       key_vault_key_id         = key_management_service.value.key_vault_key_id
       key_vault_network_access = var.aks_config.key_vault_network_access
@@ -162,7 +180,7 @@ resource "azurerm_role_assignment" "aks_on_subnet" {
 
   role_definition_name = each.key
   scope                = var.vnet_id
-  principal_id         = var.key_management_service != null ? azurerm_user_assigned_identity.aks_identity[0].principal_id : azurerm_kubernetes_cluster.aks.identity[0].principal_id
+  principal_id         = local.key_management_service != null ? azurerm_user_assigned_identity.aks_identity[0].principal_id : azurerm_kubernetes_cluster.aks.identity[0].principal_id
 }
 
 resource "local_file" "save_kube_config" {
@@ -171,14 +189,14 @@ resource "local_file" "save_kube_config" {
 }
 
 resource "azurerm_role_assignment" "aks_key_service_encryption_user" {
-  count                = var.key_management_service == null ? 0 : 1
-  scope                = var.key_management_service.key_vault_key_resource_id
+  count                = local.key_management_service == null ? 0 : 1
+  scope                = local.key_management_service.key_vault_key_resource_id
   role_definition_name = "Key Vault Crypto Service Encryption User"
   principal_id         = azurerm_user_assigned_identity.aks_identity[0].principal_id
 }
 resource "azurerm_role_assignment" "aks_kv_service_encryption_user" {
-  count                = var.key_management_service != null ? 1 : 0
-  scope                = var.key_management_service.key_vault_id
+  count                = local.key_management_service != null ? 1 : 0
+  scope                = local.key_management_service.key_vault_id
   role_definition_name = "Key Vault Crypto User"
   principal_id         = azurerm_user_assigned_identity.aks_identity[0].principal_id
 }

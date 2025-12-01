@@ -9,6 +9,24 @@ locals {
     pool.name => pool
   }
 
+  key_management_service = (
+    var.aks_cli_config.kms_key_vault_name != null &&
+    var.aks_cli_config.kms_key_name != null
+  ) ? {
+    key_vault_id = try(
+      var.key_vaults[var.aks_cli_config.kms_key_vault_name].id,
+      error("Specified kms_key_vault_name '${var.aks_cli_config.kms_key_vault_name}' does not exist in Key Vaults: ${join(", ", keys(var.key_vaults))}")
+    )
+    key_vault_key_id = try(
+      var.key_vaults[var.aks_cli_config.kms_key_vault_name].keys[var.aks_cli_config.kms_key_name].id,
+      error("Specified kms_key_name '${var.aks_cli_config.kms_key_name}' does not exist in Key Vault '${var.aks_cli_config.kms_key_vault_name}' keys: ${join(", ", keys(var.key_vaults[var.aks_cli_config.kms_key_vault_name].keys))}")
+    )
+    key_vault_key_resource_id = try(
+      var.key_vaults[var.aks_cli_config.kms_key_vault_name].keys[var.aks_cli_config.kms_key_name].resource_id,
+      error("Specified kms_key_name '${var.aks_cli_config.kms_key_name}' does not exist in Key Vault '${var.aks_cli_config.kms_key_vault_name}' keys: ${join(", ", keys(var.key_vaults[var.aks_cli_config.kms_key_vault_name].keys))}")
+    )
+  } : null
+
   kubernetes_version = (
     var.aks_cli_config.kubernetes_version == null ?
     "" :
@@ -50,11 +68,11 @@ locals {
 
 
   kms_parameters = (
-    var.key_management_service == null || var.aks_cli_config.managed_identity_name == null ?
+    local.key_management_service == null || var.aks_cli_config.managed_identity_name == null ?
     "" :
     join(" ", [
       "--enable-azure-keyvault-kms",
-      format("--azure-keyvault-kms-key-id %s", var.key_management_service.key_vault_key_id),
+      format("--azure-keyvault-kms-key-id %s", local.key_management_service.key_vault_key_id),
       format("--azure-keyvault-kms-key-vault-network-access %s", var.aks_cli_config.key_vault_network_access)
     ])
   )
@@ -236,14 +254,14 @@ resource "terraform_data" "aks_nodepool_cli" {
 
 # Grant Key Vault Crypto Service Encryption User role for KMS encryption
 resource "azurerm_role_assignment" "aks_key_service_encryption_user" {
-  count                = var.key_management_service == null || var.aks_cli_config.managed_identity_name == null ? 0 : 1
-  scope                = var.key_management_service.key_vault_key_resource_id
+  count                = local.key_management_service == null || var.aks_cli_config.managed_identity_name == null ? 0 : 1
+  scope                = local.key_management_service.key_vault_key_resource_id
   role_definition_name = "Key Vault Crypto Service Encryption User"
   principal_id         = azurerm_user_assigned_identity.userassignedidentity[0].principal_id
 }
 resource "azurerm_role_assignment" "aks_kv_service_encryption_user" {
-  count                = var.key_management_service == null || var.aks_cli_config.managed_identity_name == null ? 0 : 1
-  scope                = var.key_management_service.key_vault_id
+  count                = local.key_management_service == null || var.aks_cli_config.managed_identity_name == null ? 0 : 1
+  scope                = local.key_management_service.key_vault_id
   role_definition_name = "Key Vault Crypto User"
   principal_id         = azurerm_user_assigned_identity.userassignedidentity[0].principal_id
 }

@@ -27,6 +27,7 @@ locals {
   aks_cli_custom_config_path = "${path.cwd}/../../../scenarios/${var.scenario_type}/${var.scenario_name}/config/aks_custom_config.json"
 
   all_subnets = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
+  all_key_vaults = merge([for kv_name, kv in module.key_vault : { (kv_name) = kv.key_vaults }]...)
   updated_aks_config_list = length(var.aks_config_list) > 0 ? [
     for aks in var.aks_config_list : merge(
       aks,
@@ -121,15 +122,7 @@ module "aks" {
   network_policy      = local.aks_network_policy
   dns_zones           = try(module.dns_zones.dns_zone_ids, null)
   aks_aad_enabled     = local.aks_aad_enabled
-  key_management_service = (
-    var.key_vault_config_list != null &&
-    each.value.kms_key_name != null &&
-    each.value.kms_key_vault_name != null
-    ) ? {
-    key_vault_id              = try(module.key_vault[each.value.kms_key_vault_name].key_vaults.id, null)
-    key_vault_key_id          = try(module.key_vault[each.value.kms_key_vault_name].key_vaults.keys[each.value.kms_key_name].id, null)
-    key_vault_key_resource_id = try(module.key_vault[each.value.kms_key_vault_name].key_vaults.keys[each.value.kms_key_name].resource_id, null)
-  } : null
+  key_vaults          = local.all_key_vaults
 }
 
 module "aks-cli" {
@@ -142,15 +135,6 @@ module "aks-cli" {
   tags                       = local.tags
   subnets_map                = local.all_subnets
   aks_cli_custom_config_path = local.aks_cli_custom_config_path
-  key_management_service = (
-    var.key_vault_config_list != null &&
-    each.value.kms_key_name != null &&
-    each.value.kms_key_vault_name != null
-    ) ? {
-    key_vault_id              = try(module.key_vault[each.value.kms_key_vault_name].key_vaults.id, null)
-    key_vault_key_id          = try(module.key_vault[each.value.kms_key_vault_name].key_vaults.keys[each.value.kms_key_name].id, null)
-    key_vault_key_resource_id = try(module.key_vault[each.value.kms_key_vault_name].key_vaults.keys[each.value.kms_key_name].resource_id, null)
-  } : null
-
+  key_vaults                 = local.all_key_vaults
 }
 
