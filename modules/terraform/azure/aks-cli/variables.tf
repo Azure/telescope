@@ -59,7 +59,7 @@ variable "aks_cli_config" {
           value = string
         })), [])
     })), [])
-    optional_parameters = optional(list(object({  # Refer to https://learn.microsoft.com/en-us/cli/azure/aks?view=azure-cli-latest#az-aks-create(aks-preview) for available parameters
+    optional_parameters = optional(list(object({ # Refer to https://learn.microsoft.com/en-us/cli/azure/aks?view=azure-cli-latest#az-aks-create(aks-preview) for available parameters
       name  = string
       value = string
     })), [])

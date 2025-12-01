@@ -16,6 +16,7 @@ steps:
       $CPU_PER_NODE $NODE_COUNT $POD_COUNT \
       $SCALE_UP_TIMEOUT $SCALE_DOWN_TIMEOUT \
       $LOOP_COUNT "$NODE_LABEL_SELECTOR" "$NODE_SELECTOR" ${CL2_CONFIG_DIR}/overrides.yaml ${WARMUP_DEPLOYMENT:-false} ${CL2_CONFIG_DIR} --os_type ${OS_TYPE:-linux} --warmup_deployment_template ${WARMUP_DEPLOYMENT_TEMPLATE:-""} --deployment_template ${DEPLOYMENT_TEMPLATE:-""}
+
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
       ${CL2_IMAGE} ${CL2_CONFIG_DIR} $CL2_REPORT_DIR ${HOME}/.kube/config $CLOUD
   workingDirectory: modules/python
@@ -30,3 +31,107 @@ steps:
     CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/config
     CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/results
   displayName: "Run Benchmark"
+  condition: eq(variables['JUMPBOX_HOST'], '')
+
+- script: |
+    if [ -z "${JUMPBOX_HOST:-}" ]; then
+      echo "JUMPBOX_HOST is required when running on a jumpbox." >&2
+      exit 1
+    fi
+
+    if [ -z "${SSH_KEY_PATH:-}" ] || [ ! -f "$SSH_KEY_PATH" ]; then
+      echo "SSH_KEY_PATH is not set or file not found. Enable ssh_key_enabled and ensure the key is available." >&2
+      exit 1
+    fi
+
+    local ssh_user="${JUMPBOX_USERNAME:-azureuser}"
+    local build_id="${BUILD_ID:-$(date +%s)}"
+    local jumpbox_workdir="${JUMPBOX_WORKDIR:-/tmp/telescope-run}"
+    local remote_root="${jumpbox_workdir}/run-${build_id}"
+    local tar_archive="/tmp/telescope-modules-${build_id}.tar.gz"
+    local remote_python_dir="${remote_root}/modules/python"
+    local remote_script="${remote_python_dir}/clusterloader2/autoscale/autoscale.py"
+    local remote_config_dir="${remote_python_dir}/clusterloader2/autoscale/config"
+    local remote_report_dir="${remote_python_dir}/clusterloader2/autoscale/results"
+
+    local ssh_target="${ssh_user}@${JUMPBOX_HOST}"
+
+    local env_file
+    env_file="$(mktemp)"
+    local ssh_opts=(-i "$SSH_KEY_PATH" -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null")
+
+    echo "Packaging modules/python for remote execution..."
+    tar -czf "$tar_archive" -C "$SOURCE_DIR" modules/python
+
+    echo "Uploading sources to jumpbox ${JUMPBOX_HOST}..."
+    scp "${ssh_opts[@]}" "$tar_archive" "${ssh_target}:${tar_archive}"
+
+    echo "Preparing remote workspace..."
+    ssh "${ssh_opts[@]}" "$ssh_target" "set -eo pipefail && rm -rf '${remote_root}' && mkdir -p '${remote_root}' && tar -xzf '${tar_archive}' -C '${remote_root}' && mkdir -p '${remote_report_dir}'"
+
+    {
+      echo "export CLOUD=\"${CLOUD}\""
+      echo "export REGION=\"${REGION}\""
+      echo "export PYTHON_SCRIPT_FILE=\"${remote_script}\""
+      echo "export CL2_IMAGE=\"${CL2_IMAGE}\""
+      echo "export CL2_CONFIG_DIR=\"${remote_config_dir}\""
+      echo "export CL2_REPORT_DIR=\"${remote_report_dir}\""
+      echo "export CPU_PER_NODE=\"${CPU_PER_NODE}\""
+      echo "export NODE_COUNT=\"${NODE_COUNT}\""
+      echo "export POD_COUNT=\"${POD_COUNT}\""
+      echo "export SCALE_UP_TIMEOUT=\"${SCALE_UP_TIMEOUT}\""
+      echo "export SCALE_DOWN_TIMEOUT=\"${SCALE_DOWN_TIMEOUT}\""
+      echo "export LOOP_COUNT=\"${LOOP_COUNT}\""
+      echo "export NODE_LABEL_SELECTOR=\"${NODE_LABEL_SELECTOR}\""
+      echo "export NODE_SELECTOR=\"${NODE_SELECTOR}\""
+      echo "export WARMUP_DEPLOYMENT=\"${WARMUP_DEPLOYMENT}\""
+      echo "export WARMUP_DEPLOYMENT_TEMPLATE=\"${WARMUP_DEPLOYMENT_TEMPLATE}\""
+      echo "export DEPLOYMENT_TEMPLATE=\"${DEPLOYMENT_TEMPLATE}\""
+      echo "export OS_TYPE=\"${OS_TYPE}\""
+      echo "export REMOTE_PYTHON_DIR=\"${remote_python_dir}\""
+    } > "$env_file"
+
+    scp "${ssh_opts[@]}" "$env_file" "${ssh_target}:${remote_root}/jumpbox-env.sh"
+    rm -f "$env_file" "$tar_archive"
+
+    echo "Executing clusterloader2 on jumpbox..."
+    {
+      echo 'set -eo pipefail'
+      echo 'source "$REMOTE_ROOT/jumpbox-env.sh"'
+      echo ''
+      echo 'cd "$REMOTE_PYTHON_DIR"'
+      echo 'pip3 install --user --break-system-packages -r requirements.txt'
+      echo 'export PATH="$HOME/.local/bin:$PATH"'
+      echo ''
+      echo 'overrides_file="${CL2_CONFIG_DIR}/overrides.yaml"'
+      echo ''
+      echo 'PYTHONPATH=$PYTHONPATH:"$REMOTE_PYTHON_DIR" python3 "$PYTHON_SCRIPT_FILE" override \'
+      echo '  "$CPU_PER_NODE" "$NODE_COUNT" "$POD_COUNT" \'
+      echo '  "$SCALE_UP_TIMEOUT" "$SCALE_DOWN_TIMEOUT" \'
+      echo '  "$LOOP_COUNT" "$NODE_LABEL_SELECTOR" "$NODE_SELECTOR" "$overrides_file" "${WARMUP_DEPLOYMENT:-false}" "$CL2_CONFIG_DIR" --os_type "${OS_TYPE:-linux}" --warmup_deployment_template "${WARMUP_DEPLOYMENT_TEMPLATE:-""}" --deployment_template "${DEPLOYMENT_TEMPLATE:-""}"'
+      echo ''
+      echo 'remote_kubeconfig="$HOME/.kube/config"'
+      echo ''
+      echo 'PYTHONPATH=$PYTHONPATH:"$REMOTE_PYTHON_DIR" python3 "$PYTHON_SCRIPT_FILE" execute \'
+      echo '  "$CL2_IMAGE" "$CL2_CONFIG_DIR" "$CL2_REPORT_DIR" "$remote_kubeconfig" "$CLOUD"'
+    } | ssh "${ssh_opts[@]}" "$ssh_target" "REMOTE_ROOT='${remote_root}' bash -s"
+
+    echo "Syncing reports back to pipeline workspace..."
+    local report_parent
+    report_parent="$(dirname "$CL2_REPORT_DIR")"
+    rm -rf "$CL2_REPORT_DIR"
+    mkdir -p "$report_parent"
+    scp -r "${ssh_opts[@]}" "${ssh_target}:${remote_report_dir}" "$report_parent"
+    workingDirectory: modules/python
+  env:
+    ${{ if eq(parameters.cloud, 'azure') }}:
+      CLOUD: aks
+    ${{ else }}:
+      CLOUD: ${{ parameters.cloud }}
+    REGION: ${{ parameters.region }}
+    CL2_IMAGE: ${{ parameters.engine_input.image }}
+    CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/results
+    SOURCE_DIR: $(Pipeline.Workspace)/s
+    BUILD_ID: $(Build.BuildId)
+  displayName: "Run Benchmark on jumpbox"
+  condition: ne(variables['JUMPBOX_HOST'], '')

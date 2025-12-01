@@ -73,6 +73,7 @@ locals {
     ""
   )
 
+
   custom_configurations = (
     var.aks_cli_config.use_custom_configurations && var.aks_cli_custom_config_path != null ?
     format(
