@@ -116,4 +116,5 @@ module "aks-cli" {
   tags                       = local.tags
   subnets_map                = local.all_subnets
   aks_cli_custom_config_path = local.aks_cli_custom_config_path
+  aks_aad_enabled     = local.aks_aad_enabled
 }
