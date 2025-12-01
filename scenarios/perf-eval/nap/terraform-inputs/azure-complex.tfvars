@@ -58,16 +58,30 @@ network_config_list = [
         ]
         network_rule_collections = [
           {
-            name     = "mds"
+            name     = "network-rules"
             priority = 100
             action   = "Allow"
             rules = [
               {
-                name                  = "dns"
+                name                  = "imds"
                 source_addresses      = ["*"]
                 destination_addresses = ["169.254.169.254"]
                 destination_ports     = ["80"]
                 protocols             = ["Any"]
+              },
+              {
+                name                  = "dns"
+                source_addresses      = ["*"]
+                destination_addresses = ["*"]
+                destination_ports     = ["53"]
+                protocols             = ["UDP", "TCP"]
+              },
+              {
+                name                  = "azure-and-web"
+                source_addresses      = ["*"]
+                destination_addresses = ["*"]
+                destination_ports     = ["443"]
+                protocols             = ["TCP", "UDP"]
               }
             ]
           }
