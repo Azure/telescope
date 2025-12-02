@@ -24,6 +24,8 @@ runcmd:
   - bash -c "az extension add --name aks-preview || true"
   # Install kubectl
   - bash -c 'KUBECTL_VERSION=$(curl -sSfL https://dl.k8s.io/release/stable.txt) && curl -sSfL "https://dl.k8s.io/release/$${KUBECTL_VERSION}/bin/linux/amd64/kubectl" -o /usr/local/bin/kubectl && chmod +x /usr/local/bin/kubectl'
+  # Install kubectl and kubelogin (required for AAD-enabled AKS clusters)
+  - bash -c 'az aks install-cli'
   # Install Helm
   - bash -c "curl -sSfL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash"
   # Install Python tools
