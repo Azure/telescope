@@ -6,6 +6,7 @@ schedules:
     branches:
       include:
         - main
+        - ms_nap_complex
     always: true
 variables:
   SCENARIO_TYPE: perf-eval
