@@ -160,6 +160,7 @@ aks_cli_config_list = [
     subnet_name           = "nap-subnet-ms"
     managed_identity_name = "nap-identity"
     kubernetes_version    = "1.33"
+    api_server_subnet_name = "apiserver-subnet"
     default_node_pool = {
       name       = "system"
       node_count = 5
@@ -210,6 +211,14 @@ aks_cli_config_list = [
       {
         name  = "enable-image-cleaner"
         value = ""
+      },
+      {
+        name  = "network-dataplane"
+        value = "cilium"
+      },
+      {
+        name  = "network-policy"
+        value = "cilium"
       }
     ]
   }
