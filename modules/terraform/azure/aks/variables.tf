@@ -157,9 +157,11 @@ variable "aks_config" {
     web_app_routing = optional(object({
       dns_zone_names = list(string)
     }), null)
-    kms_key_name             = optional(string, null)
-    kms_key_vault_name       = optional(string, null)
-    key_vault_network_access = optional(string, "Public")
+    kms_config = optional(object({
+      key_name       = string
+      key_vault_name = string
+      network_access = optional(string, "Public")
+    }), null)
   })
 
   validation {

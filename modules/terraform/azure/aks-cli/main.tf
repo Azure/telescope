@@ -10,20 +10,19 @@ locals {
   }
 
   key_management_service = (
-    var.aks_cli_config.kms_key_vault_name != null &&
-    var.aks_cli_config.kms_key_name != null
+    var.aks_cli_config.kms_config != null
     ) ? {
     key_vault_id = try(
-      var.key_vaults[var.aks_cli_config.kms_key_vault_name].id,
-      error("Specified kms_key_vault_name '${var.aks_cli_config.kms_key_vault_name}' does not exist in Key Vaults: ${join(", ", keys(var.key_vaults))}")
+      var.key_vaults[var.aks_cli_config.kms_config.key_vault_name].id,
+      error("Specified kms_key_vault_name '${var.aks_cli_config.kms_config.key_vault_name}' does not exist in Key Vaults: ${join(", ", keys(var.key_vaults))}")
     )
     key_vault_key_id = try(
-      var.key_vaults[var.aks_cli_config.kms_key_vault_name].keys[var.aks_cli_config.kms_key_name].id,
-      error("Specified kms_key_name '${var.aks_cli_config.kms_key_name}' does not exist in Key Vault '${var.aks_cli_config.kms_key_vault_name}' keys: ${join(", ", keys(var.key_vaults[var.aks_cli_config.kms_key_vault_name].keys))}")
+      var.key_vaults[var.aks_cli_config.kms_config.key_vault_name].keys[var.aks_cli_config.kms_config.key_name].id,
+      error("Specified kms_key_name '${var.aks_cli_config.kms_config.key_name}' does not exist in Key Vault '${var.aks_cli_config.kms_config.key_vault_name}' keys: ${join(", ", keys(var.key_vaults[var.aks_cli_config.kms_config.key_vault_name].keys))}")
     )
     key_vault_key_resource_id = try(
-      var.key_vaults[var.aks_cli_config.kms_key_vault_name].keys[var.aks_cli_config.kms_key_name].resource_id,
-      error("Specified kms_key_name '${var.aks_cli_config.kms_key_name}' does not exist in Key Vault '${var.aks_cli_config.kms_key_vault_name}' keys: ${join(", ", keys(var.key_vaults[var.aks_cli_config.kms_key_vault_name].keys))}")
+      var.key_vaults[var.aks_cli_config.kms_config.key_vault_name].keys[var.aks_cli_config.kms_config.key_name].resource_id,
+      error("Specified kms_key_name '${var.aks_cli_config.kms_config.key_name}' does not exist in Key Vault '${var.aks_cli_config.kms_config.key_vault_name}' keys: ${join(", ", keys(var.key_vaults[var.aks_cli_config.kms_config.key_vault_name].keys))}")
     )
   } : null
 
@@ -73,7 +72,7 @@ locals {
     join(" ", [
       "--enable-azure-keyvault-kms",
       format("--azure-keyvault-kms-key-id %s", local.key_management_service.key_vault_key_id),
-      format("--azure-keyvault-kms-key-vault-network-access %s", var.aks_cli_config.key_vault_network_access)
+      format("--azure-keyvault-kms-key-vault-network-access %s", var.aks_cli_config.kms_config.network_access)
     ])
   )
 

@@ -6,20 +6,19 @@ locals {
   subnets              = var.subnets
   dns_zone_ids         = try([for zone_name in var.aks_config.web_app_routing.dns_zone_names : var.dns_zones[zone_name]], null)
   key_management_service = (
-    var.aks_config.kms_key_vault_name != null &&
-    var.aks_config.kms_key_name != null
+    var.aks_config.kms_config != null
     ) ? {
     key_vault_id = try(
-      var.key_vaults[var.aks_config.kms_key_vault_name].id,
-      error("Specified kms_key_vault_name '${var.aks_config.kms_key_vault_name}' does not exist in Key Vaults: ${join(", ", keys(var.key_vaults))}")
+      var.key_vaults[var.aks_config.kms_config.key_vault_name].id,
+      error("Specified kms_key_vault_name '${var.aks_config.kms_config.key_vault_name}' does not exist in Key Vaults: ${join(", ", keys(var.key_vaults))}")
     )
     key_vault_key_id = try(
-      var.key_vaults[var.aks_config.kms_key_vault_name].keys[var.aks_config.kms_key_name].id,
-      error("Specified kms_key_name '${var.aks_config.kms_key_name}' does not exist in Key Vault '${var.aks_config.kms_key_vault_name}' keys: ${join(", ", keys(var.key_vaults[var.aks_config.kms_key_vault_name].keys))}")
+      var.key_vaults[var.aks_config.kms_config.key_vault_name].keys[var.aks_config.kms_config.key_name].id,
+      error("Specified kms_key_name '${var.aks_config.kms_config.key_name}' does not exist in Key Vault '${var.aks_config.kms_config.key_vault_name}' keys: ${join(", ", keys(var.key_vaults[var.aks_config.kms_config.key_vault_name].keys))}")
     )
     key_vault_key_resource_id = try(
-      var.key_vaults[var.aks_config.kms_key_vault_name].keys[var.aks_config.kms_key_name].resource_id,
-      error("Specified kms_key_name '${var.aks_config.kms_key_name}' does not exist in Key Vault '${var.aks_config.kms_key_vault_name}' keys: ${join(", ", keys(var.key_vaults[var.aks_config.kms_key_vault_name].keys))}")
+      var.key_vaults[var.aks_config.kms_config.key_vault_name].keys[var.aks_config.kms_config.key_name].resource_id,
+      error("Specified kms_key_name '${var.aks_config.kms_config.key_name}' does not exist in Key Vault '${var.aks_config.kms_config.key_vault_name}' keys: ${join(", ", keys(var.key_vaults[var.aks_config.kms_config.key_vault_name].keys))}")
     )
   } : null
 }
@@ -85,7 +84,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
     for_each = local.key_management_service == null ? [] : [local.key_management_service]
     content {
       key_vault_key_id         = key_management_service.value.key_vault_key_id
-      key_vault_network_access = var.aks_config.key_vault_network_access
+      key_vault_network_access = var.aks_config.kms_config.network_access
     }
   }
 
