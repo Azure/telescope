@@ -16,7 +16,7 @@ stages:
             - eastus2: "scenarios/perf-eval/nap/terraform-inputs/azure-complex.tfvars"
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250423"
+            image: "ghcr.io/azure/clusterloader2:v20250912"
           topology: karpenter
           matrix:
             complex-nap:
@@ -37,4 +37,4 @@ stages:
           max_parallel: 1
           timeout_in_minutes: 60
           credential_type: service_connection
-          ssh_key_enabled: false
+          ssh_key_enabled: true

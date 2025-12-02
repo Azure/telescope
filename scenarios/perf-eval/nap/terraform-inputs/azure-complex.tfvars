@@ -36,6 +36,10 @@ network_config_list = [
         address_prefix = "10.240.0.0/16"
       },
       {
+        name           = "jumpbox-subnet"
+        address_prefix = "10.224.0.0/12"
+      },
+      {
         name           = "AzureFirewallSubnet"
         address_prefix = "10.193.0.0/26"
       }
@@ -236,7 +240,20 @@ aks_cli_config_list = [
       {
         name  = "network-policy"
         value = "cilium"
+      },
+      {
+        name  = "enable-private-cluster"
+        value = ""
       }
     ]
+  }
+]
+# Jumpbox Configuration - Auto-provisioned for testing
+jumpbox_config_list = [
+  {
+    role        = "nap"
+    name        = "nap-jumpbox"
+    subnet_name = "jumpbox-subnet"
+    vm_size     = "Standard_D4s_v3"
   }
 ]
