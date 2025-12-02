@@ -112,6 +112,14 @@ resource "azurerm_role_assignment" "jumpbox_aks_cluster_user" {
   principal_id         = azurerm_linux_virtual_machine.jumpbox.identity[0].principal_id
 }
 
+# RBAC: Azure Kubernetes Service RBAC Cluster Admin - allows kubectl operations
+resource "azurerm_role_assignment" "jumpbox_aks_rbac_admin" {
+  count                = var.aks_cluster_name != null ? 1 : 0
+  scope                = data.azurerm_kubernetes_cluster.aks[0].id
+  role_definition_name = "Azure Kubernetes Service RBAC Cluster Admin"
+  principal_id         = azurerm_linux_virtual_machine.jumpbox.identity[0].principal_id
+}
+
 # Get resource group for RBAC
 data "azurerm_resource_group" "rg" {
   name = var.resource_group_name
