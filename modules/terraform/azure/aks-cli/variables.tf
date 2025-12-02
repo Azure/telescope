@@ -28,14 +28,10 @@ variable "aks_cli_custom_config_path" {
   default     = null
 }
 
-variable "key_management_service" {
-  description = "Azure Key Vault Key Management Service configuration for etcd encryption"
-  type = object({
-    key_vault_id              = string
-    key_vault_key_id          = string
-    key_vault_key_resource_id = string
-  })
-  default = null
+variable "key_vaults" {
+  description = "Map of Key Vault configurations with keys"
+  type        = map(any)
+  default     = {}
 }
 
 
