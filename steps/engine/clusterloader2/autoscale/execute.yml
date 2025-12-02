@@ -16,6 +16,7 @@ steps:
       $CPU_PER_NODE $NODE_COUNT $POD_COUNT \
       $SCALE_UP_TIMEOUT $SCALE_DOWN_TIMEOUT \
       $LOOP_COUNT "$NODE_LABEL_SELECTOR" "$NODE_SELECTOR" ${CL2_CONFIG_DIR}/overrides.yaml ${WARMUP_DEPLOYMENT:-false} ${CL2_CONFIG_DIR} --os_type ${OS_TYPE:-linux} --warmup_deployment_template ${WARMUP_DEPLOYMENT_TEMPLATE:-""} --deployment_template ${DEPLOYMENT_TEMPLATE:-""}
+
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
       ${CL2_IMAGE} ${CL2_CONFIG_DIR} $CL2_REPORT_DIR ${HOME}/.kube/config $CLOUD
   workingDirectory: modules/python
@@ -30,3 +31,132 @@ steps:
     CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/config
     CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/results
   displayName: "Run Benchmark"
+  condition: eq(variables['JUMPBOX_HOST'], '')
+
+# Jumpbox Execution Pipeline
+
+# 1. Prepare Remote Workspace
+- template: /steps/ssh/run-command.yml
+  parameters:
+    vm_ip: $(JUMPBOX_HOST)
+    command: |
+      rm -rf '/tmp/telescope-run/run-$(Build.BuildId)'
+      mkdir -p '/tmp/telescope-run/run-$(Build.BuildId)/modules/python/clusterloader2/autoscale/results'
+
+# 2. Upload Code and Environment
+- script: |
+    set -eo pipefail
+    
+    if [ -z "${SSH_KEY_PATH:-}" ] || [ ! -f "$SSH_KEY_PATH" ]; then
+      echo "SSH_KEY_PATH not found" >&2; exit 1
+    fi
+
+    if [ -z "${JUMPBOX_HOST:-}" ]; then
+       echo "JUMPBOX_HOST is not set." >&2
+       exit 1
+    fi
+
+    ssh_opts=(-i "$SSH_KEY_PATH" -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null")
+    ssh_target="${JUMPBOX_USERNAME:-azureuser}@${JUMPBOX_HOST}"
+    
+    # Pack modules
+    tar_archive="/tmp/telescope-modules-$(Build.BuildId).tar.gz"
+    tar -czf "$tar_archive" -C "$(Pipeline.Workspace)/s" modules/python
+    
+    remote_root="/tmp/telescope-run/run-$(Build.BuildId)"
+    remote_python_dir="${remote_root}/modules/python"
+    
+    # Generate Environment File
+    env_file="$(mktemp)"
+    {
+       echo "export CLOUD=\"${CLOUD}\""
+       echo "export REGION=\"${REGION}\""
+       echo "export PYTHON_SCRIPT_FILE=\"${remote_python_dir}/clusterloader2/autoscale/autoscale.py\""
+       echo "export CL2_IMAGE=\"${CL2_IMAGE}\""
+       echo "export CL2_CONFIG_DIR=\"${remote_python_dir}/clusterloader2/autoscale/config\""
+       echo "export CL2_REPORT_DIR=\"${remote_python_dir}/clusterloader2/autoscale/results\""
+       echo "export CPU_PER_NODE=\"${CPU_PER_NODE}\""
+       echo "export NODE_COUNT=\"${NODE_COUNT}\""
+       echo "export POD_COUNT=\"${POD_COUNT}\""
+       echo "export SCALE_UP_TIMEOUT=\"${SCALE_UP_TIMEOUT}\""
+       echo "export SCALE_DOWN_TIMEOUT=\"${SCALE_DOWN_TIMEOUT}\""
+       echo "export LOOP_COUNT=\"${LOOP_COUNT}\""
+       echo "export NODE_LABEL_SELECTOR=\"${NODE_LABEL_SELECTOR}\""
+       echo "export NODE_SELECTOR=\"${NODE_SELECTOR}\""
+       echo "export WARMUP_DEPLOYMENT=\"${WARMUP_DEPLOYMENT}\""
+       echo "export WARMUP_DEPLOYMENT_TEMPLATE=\"${WARMUP_DEPLOYMENT_TEMPLATE}\""
+       echo "export DEPLOYMENT_TEMPLATE=\"${DEPLOYMENT_TEMPLATE}\""
+       echo "export OS_TYPE=\"${OS_TYPE}\""
+       echo "export REMOTE_PYTHON_DIR=\"${remote_python_dir}\""
+    } > "$env_file"
+
+    echo "Uploading..."
+    scp "${ssh_opts[@]}" "$tar_archive" "${ssh_target}:${remote_root}/modules.tar.gz"
+    scp "${ssh_opts[@]}" "$env_file" "${ssh_target}:${remote_root}/jumpbox-env.sh"
+    rm -f "$env_file" "$tar_archive"
+  displayName: "Upload Code and Env to Jumpbox"
+  condition: ne(variables['JUMPBOX_HOST'], '')
+  env:
+    ${{ if eq(parameters.cloud, 'azure') }}:
+      CLOUD: aks
+    ${{ else }}:
+      CLOUD: ${{ parameters.cloud }}
+    REGION: ${{ parameters.region }}
+    CL2_IMAGE: ${{ parameters.engine_input.image }}
+
+# 3. Execute Benchmark
+- template: /steps/ssh/run-command.yml
+  parameters:
+    vm_ip: $(JUMPBOX_HOST)
+    command: |
+      set -e
+      tar -xzf '/tmp/telescope-run/run-$(Build.BuildId)/modules.tar.gz' -C '/tmp/telescope-run/run-$(Build.BuildId)'
+      pip3 install --user --break-system-packages -r '/tmp/telescope-run/run-$(Build.BuildId)/modules/python/requirements.txt' || pip3 install --user -r '/tmp/telescope-run/run-$(Build.BuildId)/modules/python/requirements.txt'
+      source '/tmp/telescope-run/run-$(Build.BuildId)/jumpbox-env.sh'
+      PYTHONPATH=${PYTHONPATH:-}:$REMOTE_PYTHON_DIR python3 $PYTHON_SCRIPT_FILE override \
+        $CPU_PER_NODE $NODE_COUNT $POD_COUNT \
+        $SCALE_UP_TIMEOUT $SCALE_DOWN_TIMEOUT \
+        $LOOP_COUNT "$NODE_LABEL_SELECTOR" "$NODE_SELECTOR" "${CL2_CONFIG_DIR}/overrides.yaml" ${WARMUP_DEPLOYMENT:-false} ${CL2_CONFIG_DIR} --os_type ${OS_TYPE:-linux} --warmup_deployment_template ${WARMUP_DEPLOYMENT_TEMPLATE:-""} --deployment_template ${DEPLOYMENT_TEMPLATE:-""}
+      PYTHONPATH=${PYTHONPATH:-}:$REMOTE_PYTHON_DIR python3 $PYTHON_SCRIPT_FILE execute \
+        $CL2_IMAGE $CL2_CONFIG_DIR $CL2_REPORT_DIR "$HOME/.kube/config" $CLOUD
+
+# 4. Download Results
+- script: |
+    set -eo pipefail
+    
+    if [ -z "${SSH_KEY_PATH:-}" ] || [ ! -f "$SSH_KEY_PATH" ]; then
+      echo "SSH_KEY_PATH not found" >&2; exit 1
+    fi
+
+    if [ -z "${JUMPBOX_HOST:-}" ]; then
+      echo "JUMPBOX_HOST is not set." >&2
+      exit 1
+    fi
+
+    ssh_opts=(-i "$SSH_KEY_PATH" -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null" -o "ServerAliveInterval=60" -o "ServerAliveCountMax=5")
+    ssh_target="${JUMPBOX_USERNAME:-azureuser}@${JUMPBOX_HOST}"
+    
+    remote_report_dir="/tmp/telescope-run/run-$(Build.BuildId)/modules/python/clusterloader2/autoscale/results"
+    local_report_dir="$(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/results"
+    
+    echo "=== Debug Info ==="
+    echo "Jumpbox Host: ${JUMPBOX_HOST}"
+    echo "SSH Key Path: ${SSH_KEY_PATH}"
+    echo "Remote Dir: ${remote_report_dir}"
+    echo "Local Dir: ${local_report_dir}"
+    echo ""
+    
+    echo "=== Testing network connectivity ==="
+    nc -zv -w 10 "${JUMPBOX_HOST}" 22 2>&1 || echo "nc test failed"
+    echo ""
+    
+    echo "=== Testing SSH connection ==="
+    ssh -v "${ssh_opts[@]}" "${ssh_target}" "echo 'SSH OK'; ls -la ${remote_report_dir} | head -20" || echo "SSH test failed"
+    echo ""
+    
+    echo "=== Downloading results ==="
+    rm -rf "$local_report_dir"
+    mkdir -p "$(dirname "$local_report_dir")"
+    scp -v -r "${ssh_opts[@]}" "${ssh_target}:${remote_report_dir}" "$(dirname "$local_report_dir")"
+  displayName: "Download Results from Jumpbox"
+  condition: ne(variables['JUMPBOX_HOST'], '')
