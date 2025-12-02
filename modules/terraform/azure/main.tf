@@ -12,6 +12,8 @@ locals {
   k8s_os_disk_type                  = lookup(var.json_input, "k8s_os_disk_type", null)
   aks_aad_enabled                   = lookup(var.json_input, "aks_aad_enabled", false)
   enable_apiserver_vnet_integration = lookup(var.json_input, "enable_apiserver_vnet_integration", false)
+  public_key_path                   = lookup(var.json_input, "public_key_path", null)
+  ssh_public_key                    = (local.public_key_path != null && fileexists(local.public_key_path)) ? file(local.public_key_path) : null
 
   tags = merge(
     var.tags,
@@ -62,6 +64,8 @@ locals {
   aks_cli_config_map = { for aks in local.updated_aks_cli_config_list : aks.role => aks }
 
   key_vault_config_map = { for kv in var.key_vault_config_list : kv.name => kv }
+
+  jumpbox_config_map = { for jumpbox in var.jumpbox_config_list : jumpbox.role => jumpbox }
 }
 
 provider "azurerm" {
@@ -175,3 +179,17 @@ module "aks-cli" {
   depends_on                 = [module.route_table, module.virtual_network]
 }
 
+module "jumpbox" {
+  for_each = local.jumpbox_config_map
+
+  source              = "./jumpbox"
+  resource_group_name = local.run_id
+  location            = local.region
+  tags                = local.tags
+  ssh_public_key      = local.ssh_public_key
+  jumpbox_config      = each.value
+  nics_map            = try(module.virtual_network[each.value.role].nics, null)
+
+  # Ensure AKS cluster is created before jumpbox tries to look it up for RBAC
+  depends_on = [module.aks, module.aks-cli]
+}
