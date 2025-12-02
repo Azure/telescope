@@ -9,6 +9,7 @@ stages:
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
+          retry_attempt_count: 1
           cloud: azure
           regions:
             - eastus2
