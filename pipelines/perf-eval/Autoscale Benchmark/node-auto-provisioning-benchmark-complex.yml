@@ -1,11 +1,10 @@
 trigger: none
 schedules:
   # On-Demand Schedule with Morgan Stanley cluster config
-  - cron: "0 21 * * *"
-    displayName: "Every day at 9:00 PM"
+  - cron: "0 */2 * * *"    # Every 2 hours
+    displayName: "Every 2 hours"
     branches:
       include:
-        - main
         - ms_nap_complex
     always: true
 variables:
