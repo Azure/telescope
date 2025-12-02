@@ -15,10 +15,11 @@ stages:
   - stage: azure_eastus2_ondemand_complex_config
     dependsOn: []
     variables:
-      - group: NAP-5K-Config
+      - group: NAP-MS-Requirements
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
+          retry_attempt_count: 1
           cloud: azure
           regions:
             - eastus2
@@ -26,7 +27,7 @@ stages:
             - eastus2: "scenarios/perf-eval/nap/terraform-inputs/azure-complex.tfvars"
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250423"
+            image: "ghcr.io/azure/clusterloader2:v20250912"
           topology: karpenter
           matrix:
             complex-nap:
@@ -42,7 +43,9 @@ stages:
               warmup_deployment_template: warmup_deployment.yaml
               vm_size: Standard_D2s_v4
               capacity_type: on-demand
+              aad_enabled: "true"
+              enable_apiserver_vnet_integration: "true"
           max_parallel: 1
           timeout_in_minutes: 60
           credential_type: service_connection
-          ssh_key_enabled: false
+          ssh_key_enabled: true
