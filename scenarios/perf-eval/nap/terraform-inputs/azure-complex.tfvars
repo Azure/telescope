@@ -22,6 +22,10 @@ network_config_list = [
         address_prefix = "10.192.0.0/16"
       },
       {
+        name           = "apiserver-subnet"
+        address_prefix = "10.240.0.0/16"
+      },
+      {
         name           = "AzureFirewallSubnet"
         address_prefix = "10.193.0.0/26"
       }
