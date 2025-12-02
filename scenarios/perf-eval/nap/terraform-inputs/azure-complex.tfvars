@@ -13,6 +13,10 @@ network_config_list = [
       {
         name           = "nap-subnet-ms"
         address_prefix = "10.192.0.0/10"
+      },
+      {
+        name           = "apiserver-subnet"
+        address_prefix = "10.240.0.0/16"
       }
     ]
     network_security_group_name = ""
@@ -29,6 +33,7 @@ aks_cli_config_list = [
     subnet_name           = "nap-subnet-ms"
     managed_identity_name = "nap-identity"
     kubernetes_version    = "1.33"
+    api_server_subnet_name = "apiserver-subnet"
     default_node_pool = {
       name       = "system"
       node_count = 5
