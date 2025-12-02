@@ -19,9 +19,9 @@ az aks create -l eastus2 \
     --node-vm-size Standard_D8ds_v6 \
     --node-count 3 \
     --os-sku Ubuntu2404 \
-    --ip-families "IPv4,IPv6" \
-    --aks-custom-headers AKSHTTPCustomFeatures="CustomIPV6SupportedPodSubnet,CustomIPV6SupportedPodSubnetIPAddressPrefixLength=80" \
-    --debug
+    --ip-families "IPv4,IPv6"
+    # --aks-custom-headers AKSHTTPCustomFeatures="CustomIPV6SupportedPodSubnet,CustomIPV6SupportedPodSubnetIPAddressPrefixLength=80" \
+    # --debug
 
 az aks get-credentials -n ${CLUSTER_NAME} -g ${RESOURCE_GROUP}
 ```
@@ -32,7 +32,8 @@ az aks get-credentials -n ${CLUSTER_NAME} -g ${RESOURCE_GROUP}
 python3 setup.py \
   --resource-group "${RESOURCE_GROUP}" \
   --cluster-name "${CLUSTER_NAME}" \
-  --ipvlan-prefix-length 28 \
+  --address-version "IPv6" \
+  --ipvlan-prefix-length 80 \
   --boostrap-cni-config
 ```
 

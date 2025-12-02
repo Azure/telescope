@@ -37,7 +37,8 @@ def subnet_prefix_for(subnet_id):
     prefix = subnet.get("addressPrefix")
     if not prefix:
         prefixes = subnet.get("addressPrefixes") or []
-        prefix = prefixes[0] if prefixes else ""
+        print(f"Subnet {subnet_id} has prefixes: {prefixes}")
+        prefix = prefixes[1] if prefixes else ""
     subnet_cache[subnet_id] = prefix
     return prefix
 
@@ -65,7 +66,7 @@ def scan_node_nics(node_rg):
         ip_configs = []
         for cfg in nic.get("ipConfigurations") or []:
             cfg_name = cfg.get("name", "")
-            if not (cfg.get("primary") or cfg_name == "ipvlan"):
+            if not (cfg.get("primary") or cfg_name in ("ipvlan", "ipv6config")):
                 continue
             subnet_id = (cfg.get("subnet") or {}).get("id", "")
             ip_configs.append(
@@ -87,7 +88,7 @@ def scan_node_nics(node_rg):
     return results
 
 
-def boostrap_cni_config(node_rg, nic_name, vm_name, ipvlan_cfg):
+def boostrap_cni_config(node_rg, nic_name, vm_name, ipvlan_cfg, address_version="IPv4"):
     if not vm_name or vm_name == "null":
         print(f"NIC {nic_name} not attached to a VM; skipping CNI config.")
         return
@@ -102,7 +103,7 @@ def boostrap_cni_config(node_rg, nic_name, vm_name, ipvlan_cfg):
     if not subnet_prefix:
         print(f"Unable to read subnet prefix for NIC {subnet_prefix}; skipping.")
         return
-    start, end = derive_range(ipvlan_cidr).split()
+    start, end = derive_range(ipvlan_cidr, address_version).split()
 
     config = {
         "cniVersion": "0.3.1",
@@ -151,8 +152,12 @@ def boostrap_cni_config(node_rg, nic_name, vm_name, ipvlan_cfg):
     )
 
 
-def derive_range(ip_addr):
-    network = ipaddress.IPv4Network(ip_addr, strict=False)
+def derive_range(ip_addr, address_version="IPv4"):
+    if address_version == "IPv6":
+        network = ipaddress.IPv6Network(ip_addr, strict=False)
+    else:
+        network = ipaddress.IPv4Network(ip_addr, strict=False)
+    
     if network.num_addresses <= 2:
         raise ValueError("Prefix too small for usable host range")
     start = network.network_address + 1
@@ -160,7 +165,7 @@ def derive_range(ip_addr):
     return f"{start} {end}"
 
 
-def ensure_ipvlan_ipconfig(node_rg, nic, prefix_length):
+def ensure_ipvlan_ipconfig(node_rg, nic, address_version, prefix_length):
     nic_name = nic["name"]
     ipvlan_cfg = next(
         (cfg for cfg in nic["ip_configs"] if cfg["name"] == "ipvlan"), None
@@ -176,6 +181,25 @@ def ensure_ipvlan_ipconfig(node_rg, nic, prefix_length):
     if not subnet_id:
         print(f"Unable to determine subnet for NIC {nic_name}; skipping.")
         return None
+    ipv6_cfg = next(
+        (cfg for cfg in nic["ip_configs"] if cfg["name"] == "ipv6config"), None
+    )
+    print(address_version, ipv6_cfg)
+    if address_version == "IPv6" and ipv6_cfg:
+        run_az(
+            [
+                "network",
+                "nic",
+                "ip-config",
+                "delete",
+                "--resource-group",
+                node_rg,
+                "--nic-name",
+                nic_name,
+                "--name",
+                "ipv6config",
+            ]
+        )
     print(f"Creating ipvlan IP config for NIC {nic_name} in {node_rg}...")
     run_az(
         [
@@ -192,7 +216,7 @@ def ensure_ipvlan_ipconfig(node_rg, nic, prefix_length):
             "--subnet",
             subnet_id,
             "--private-ip-address-version",
-            "IPv4",
+            address_version,
             "--private-ip-address-prefix-length",
             str(prefix_length),
         ]
@@ -232,6 +256,7 @@ def main():
     parser = argparse.ArgumentParser(description="Sync ipvlan configs for AKS nodes.")
     parser.add_argument("--resource-group", required=True)
     parser.add_argument("--cluster-name", required=True)
+    parser.add_argument("--address-version", type=str, default="IPv4")
     parser.add_argument("--ipvlan-prefix-length", type=int, default=28)
     parser.add_argument("--boostrap-cni-config", type=bool, default=False)
     args = parser.parse_args()
@@ -263,14 +288,16 @@ def main():
         if not vm_name:
             print(f"NIC {nic_name} is detached; skipping CNI config push.")
             continue
-        ipvlan_cfg = ensure_ipvlan_ipconfig(node_rg, nic, args.ipvlan_prefix_length)
+        ipvlan_cfg = ensure_ipvlan_ipconfig(
+            node_rg, nic, args.address_version, args.ipvlan_prefix_length
+        )
         if not ipvlan_cfg:
             print(
                 f"NIC {nic_name} does not yet have an ipvlan IP config; skipping CNI config push."
             )
             continue
         if args.boostrap_cni_config:
-            boostrap_cni_config(node_rg, nic_name, vm_name, ipvlan_cfg)
+            boostrap_cni_config(node_rg, nic_name, vm_name, ipvlan_cfg, args.address_version)
 
 
 if __name__ == "__main__":
