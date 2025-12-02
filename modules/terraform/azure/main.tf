@@ -12,6 +12,8 @@ locals {
   k8s_os_disk_type                  = lookup(var.json_input, "k8s_os_disk_type", null)
   aks_aad_enabled                   = lookup(var.json_input, "aks_aad_enabled", false)
   enable_apiserver_vnet_integration = lookup(var.json_input, "enable_apiserver_vnet_integration", false)
+  public_key_path                   = lookup(var.json_input, "public_key_path", null)
+  ssh_public_key                    = local.public_key_path != "" ? file(local.public_key_path) : null
 
   tags = {
     "owner"             = var.owner
@@ -57,8 +59,16 @@ locals {
   ] : []
 
   aks_cli_config_map = { for aks in local.updated_aks_cli_config_list : aks.role => aks }
+<<<<<<< HEAD
 
   key_vault_config_map = { for kv in var.key_vault_config_list : kv.name => kv }
+=======
+  jumpbox_config_map = {
+    for jb in var.jumpbox_config_list : jb.role => merge(jb, {
+      subnet_id              = try(local.all_subnets[jb.subnet_name], null)
+    })
+  }
+>>>>>>> 8d3fd2ae (Support for jumpbox)
 }
 
 provider "azurerm" {
@@ -155,3 +165,22 @@ module "aks-cli" {
   aks_aad_enabled     = local.aks_aad_enabled
 }
 
+<<<<<<< HEAD
+=======
+module "jumpbox" {
+  for_each = local.jumpbox_config_map
+
+  source              = "./jumpbox"
+  resource_group_name = local.run_id
+  location            = local.region
+  name                = each.value.name
+  subnet_id           = each.value.subnet_id
+  tags                = local.tags
+  ssh_public_key      = local.ssh_public_key
+  vm_size             = each.value.vm_size
+  aks_cluster_name    = try(each.value.aks_name, null)
+
+  # Ensure AKS cluster is created before jumpbox tries to look it up for RBAC
+  depends_on = [module.aks, module.aks-cli]
+}
+>>>>>>> 8d3fd2ae (Support for jumpbox)

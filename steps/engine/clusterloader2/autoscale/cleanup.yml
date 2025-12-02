@@ -1,6 +1,26 @@
 steps:
+# Run cleanup locally when no jumpbox (public cluster)
 - script: |
     kubectl delete --all nodeclaim --ignore-not-found
     kubectl delete --all nodepool --ignore-not-found
   displayName: "Delete NodeClaim and NodePool"
-  condition: always()
+  condition: and(always(), eq(variables['JUMPBOX_HOST'], ''))
+
+# Run cleanup via jumpbox (private cluster)
+- script: |
+    set -eo pipefail
+
+    # SSH_KEY_PATH is set by steps/ssh/setup-key.yml
+    if [ -z "${SSH_KEY_PATH:-}" ] || [ ! -f "$SSH_KEY_PATH" ]; then
+      echo "SSH_KEY_PATH is not set or file not found: ${SSH_KEY_PATH:-'(not set)'}" >&2
+      exit 1
+    fi
+
+    ssh_target="${JUMPBOX_USERNAME}@${JUMPBOX_HOST}"
+    ssh_opts=(-i "$SSH_KEY_PATH" -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null")
+
+    echo "Using SSH key: $SSH_KEY_PATH"
+    echo "Cleaning up NodeClaim and NodePool via jumpbox ${JUMPBOX_HOST}..."
+    ssh "${ssh_opts[@]}" "$ssh_target" "kubectl delete --all nodeclaim --ignore-not-found; kubectl delete --all nodepool --ignore-not-found"
+  displayName: "Delete NodeClaim and NodePool (via Jumpbox)"
+  condition: and(always(), ne(variables['JUMPBOX_HOST'], ''))
