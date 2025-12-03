@@ -57,6 +57,8 @@ stages:
           cloud: azure
           regions:
             - westus2
+          terraform_input_file_mapping:
+            - westus2: "scenarios/perf-eval/nap/terraform-inputs/azure-intv2.tfvars"
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
