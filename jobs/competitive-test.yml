@@ -56,7 +56,7 @@ jobs:
     matrix:
       ${{ parameters.matrix }}
   timeoutInMinutes: ${{ parameters.timeout_in_minutes }}
-  condition: or(eq(variables['Build.Reason'], 'Manual'), and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.SourceBranchName'], 'main')))
+  # condition: or(eq(variables['Build.Reason'], 'Manual'), and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.SourceBranchName'], 'main')))
   steps:
   - template: /steps/setup-tests.yml
     parameters:

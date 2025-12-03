@@ -1,12 +1,12 @@
 trigger: none
-# schedules:
-#   # On-Demand Schedule with Morgan Stanley cluster config
-#   - cron: "0 */4 * * *"    # Every 4 hours
-#     displayName: "Every 4 hours"
-#     branches:
-#       include:
-#         - ms_nap_complex
-#     always: true
+schedules:
+  # On-Demand Schedule with Morgan Stanley cluster config
+  - cron: "0 */4 * * *"    # Every 4 hours
+    displayName: "Every 4 hours"
+    branches:
+      include:
+        - ms_nap_complex
+    always: true
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: nap
