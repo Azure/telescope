@@ -5,7 +5,7 @@ schedules:
     displayName: "Every 4 hours"
     branches:
       include:
-        - ms_nap_complex
+        - ms-nap-complex
     always: true
 variables:
   SCENARIO_TYPE: perf-eval
