@@ -34,7 +34,7 @@ python3 setup.py \
   --cluster-name "${CLUSTER_NAME}" \
   --address-version "IPv6" \
   --ipvlan-prefix-length 80 \
-  --boostrap-cni-config
+  --boostrap-cni-config True
 ```
 
 ## Test CNI

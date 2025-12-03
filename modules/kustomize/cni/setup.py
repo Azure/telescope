@@ -105,13 +105,14 @@ def boostrap_cni_config(node_rg, nic_name, vm_name, ipvlan_cfg, address_version=
         return
     start, end = derive_range(ipvlan_cidr, address_version).split()
 
+    default_route = "::/0" if address_version == "IPv6" else "0.0.0.0/0"
     config = {
         "cniVersion": "0.3.1",
         "name": "ipvlan-eth0",
         "type": "ipvlan",
         "master": "eth0",
         "linkInContainer": False,
-        "mode": "l3s",
+        "mode": "l3",
         "ipam": {
             "type": "host-local",
             "ranges": [
@@ -123,18 +124,31 @@ def boostrap_cni_config(node_rg, nic_name, vm_name, ipvlan_cfg, address_version=
                     }
                 ]
             ],
-            "routes": [{"dst": "0.0.0.0/0"}],
+            "routes": [{"dst": default_route}],
         },
     }
     ipvlan_payload = base64.b64encode(json.dumps(config, indent=2).encode()).decode()
     print(
         f"Pushing ipvlan CNI config with subnet {ipvlan_cidr}, rangeStart {start}, rangeEnd {end} to VM {vm_name}..."
     )
+
+    iptables_cmd = "ip6tables" if address_version == "IPv6" else "iptables"
+
     scripts = [
         f"echo {ipvlan_payload} | base64 -d | tee /etc/cni/net.d/01-ipvlan-eth0.conf",
         f"ip addr replace {ipvlan_cidr} dev eth0",
-        f"iptables -t nat -A POSTROUTING -s {ipvlan_cidr} ! -d {subnet_prefix} -j MASQUERADE",
+        f"{iptables_cmd} -t nat -A POSTROUTING -s {ipvlan_cidr} ! -d {subnet_prefix} -j MASQUERADE",
     ]
+
+    # Add IPv6-specific routing if needed
+    if address_version == "IPv6":
+        scripts.extend(
+            [
+                "sysctl -w net.ipv6.conf.all.forwarding=1",
+                "sysctl -w net.ipv6.conf.default.forwarding=1",
+                "sysctl -w net.ipv6.conf.eth0.forwarding=1",
+            ]
+        )
     run_az(
         [
             "vm",
@@ -157,7 +171,7 @@ def derive_range(ip_addr, address_version="IPv4"):
         network = ipaddress.IPv6Network(ip_addr, strict=False)
     else:
         network = ipaddress.IPv4Network(ip_addr, strict=False)
-    
+
     if network.num_addresses <= 2:
         raise ValueError("Prefix too small for usable host range")
     start = network.network_address + 1
@@ -297,7 +311,9 @@ def main():
             )
             continue
         if args.boostrap_cni_config:
-            boostrap_cni_config(node_rg, nic_name, vm_name, ipvlan_cfg, args.address_version)
+            boostrap_cni_config(
+                node_rg, nic_name, vm_name, ipvlan_cfg, args.address_version
+            )
 
 
 if __name__ == "__main__":
