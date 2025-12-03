@@ -106,13 +106,17 @@ def boostrap_cni_config(node_rg, nic_name, vm_name, ipvlan_cfg, address_version=
     start, end = derive_range(ipvlan_cidr, address_version).split()
 
     default_route = "::/0" if address_version == "IPv6" else "0.0.0.0/0"
+    dummy_name = "ipvlan-dummy0"
+
+    # CNI config uses dummy interface as master instead of eth0
+    # This allows node-to-pod communication while keeping eth0 free
     config = {
         "cniVersion": "0.3.1",
-        "name": "ipvlan-eth0",
+        "name": "ipvlan-dummy",
         "type": "ipvlan",
-        "master": "eth0",
+        "master": dummy_name,
         "linkInContainer": False,
-        "mode": "l3",
+        "mode": "l3s",
         "ipam": {
             "type": "host-local",
             "ranges": [
@@ -133,20 +137,43 @@ def boostrap_cni_config(node_rg, nic_name, vm_name, ipvlan_cfg, address_version=
     )
 
     iptables_cmd = "ip6tables" if address_version == "IPv6" else "iptables"
+    network = ipaddress.ip_network(ipvlan_cidr, strict=False)
+    dummy_ip = str(network.network_address + 1)
+    route_cmd = "ip -6 route" if address_version == "IPv6" else "ip route"
 
     scripts = [
+        # Create dummy interface (virtual interface for IPvlan master)
+        f"ip link add {dummy_name} type dummy || true",
+        # Bring dummy interface up
+        f"ip link set {dummy_name} up",
+        # Assign gateway IP to BOTH dummy interface AND eth0
+        # This makes the gateway IP reachable on the network for cross-node routing
+        f"ip addr replace {dummy_ip}/{network.prefixlen} dev {dummy_name}",
+        f"ip addr add {dummy_ip}/128 dev eth0 || true",  # /128 = single host route, won't conflict
+        # Add local route for the entire pod subnet (makes kernel think pods are local)
+        f"{route_cmd} replace local {ipvlan_cidr} dev {dummy_name} || true",
+        # Write CNI config
         f"echo {ipvlan_payload} | base64 -d | tee /etc/cni/net.d/01-ipvlan-eth0.conf",
-        f"ip addr replace {ipvlan_cidr} dev eth0",
+        # Setup NAT for outbound traffic (pods to internet)
         f"{iptables_cmd} -t nat -A POSTROUTING -s {ipvlan_cidr} ! -d {subnet_prefix} -j MASQUERADE",
     ]
 
-    # Add IPv6-specific routing if needed
+    # Add IPv6-specific configuration
     if address_version == "IPv6":
         scripts.extend(
             [
+                # Enable IPv6 forwarding globally and on interfaces
                 "sysctl -w net.ipv6.conf.all.forwarding=1",
                 "sysctl -w net.ipv6.conf.default.forwarding=1",
                 "sysctl -w net.ipv6.conf.eth0.forwarding=1",
+                f"sysctl -w net.ipv6.conf.{dummy_name}.forwarding=1",
+                # Enable accepting local addresses (critical for L3S with local routes)
+                "sysctl -w net.ipv6.conf.all.accept_local=1",
+                f"sysctl -w net.ipv6.conf.{dummy_name}.accept_local=1",
+                # Disable RA (Router Advertisement) on dummy to prevent conflicts
+                f"sysctl -w net.ipv6.conf.{dummy_name}.accept_ra=0",
+                # Enable NDP proxy for proper neighbor resolution
+                f"sysctl -w net.ipv6.conf.{dummy_name}.proxy_ndp=1",
             ]
         )
     run_az(
@@ -314,6 +341,11 @@ def main():
             boostrap_cni_config(
                 node_rg, nic_name, vm_name, ipvlan_cfg, args.address_version
             )
+
+    # Setup cross-node routing after all nodes are configured
+    if args.boostrap_cni_config:
+        print("Setting up cross-node routes...")
+        setup_cross_node_routes(node_rg, nic_views, args.address_version)
 
 
 if __name__ == "__main__":
