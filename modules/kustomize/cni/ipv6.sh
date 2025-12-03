@@ -9,8 +9,11 @@ az network nic ip-config show --name ipvlan --nic-name $nic_name --resource-grou
 
 ip -6 addr show
 ip -6 route show
+ip -6 neigh show dev eth0
 ip6tables -t nat -L -v -n
 ip6tables -t nat -L POSTROUTING -v -n
+
+ip -6 addr replace fd5d:beb3:90df:4910:1::/80 dev ipvlan-dummy0
 
 kubectl exec pod1 -- ping6 -c1 fd5d:beb3:90df:4910:3::4
 
