@@ -75,6 +75,14 @@ aks_cli_config_list = [
       {
         name  = "enable-image-cleaner"
         value = ""
+      },
+      {
+        name  = "network-dataplane"
+        value = "cilium"
+      },
+      {
+        name  = "network-policy"
+        value = "cilium"
       }
     ]
   }
