@@ -11,7 +11,7 @@ steps:
   parameters:
     role: nap
     region: ${{ parameters.regions[0] }}
-    
+
 - ${{ if eq(parameters.cloud, 'azure') }}:
   - template: /steps/cloud/azure/install-kubelogin.yml
     parameters:
