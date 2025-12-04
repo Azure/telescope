@@ -1,19 +1,19 @@
 trigger: none
-# schedules:
-#   # Azure Large Scale(5000) On-Demand Schedule
-#   - cron: "0 15 * * *"
-#     displayName: "Every day at 3:00 PM"
-#     branches:
-#       include:
-#         - main
-#     always: true
-#   # Azure Large Scale(5000) Spot Schedule
-#   - cron: "0 3 * * *"
-#     displayName: "Every day at 3:00 AM"
-#     branches:
-#       include:
-#         - main
-#     always: true
+schedules:
+  # Azure Large Scale(5000) On-Demand Schedule
+  - cron: "0 15 * * *"
+    displayName: "Every day at 3:00 PM"
+    branches:
+      include:
+        - main
+    always: true
+  # Azure Large Scale(5000) Spot Schedule
+  - cron: "0 3 * * *"
+    displayName: "Every day at 3:00 AM"
+    branches:
+      include:
+        - main
+    always: true
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: nap

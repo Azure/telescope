@@ -32,8 +32,8 @@ stages:
           matrix:
             complex-nap:
               cpu_per_node: 2
-              node_count: 5000
-              pod_count: 20000
+              node_count: 1000
+              pod_count: 1000
               scale_up_timeout: "150m"
               scale_down_timeout: "150m"
               node_label_selector: "karpenter.sh/nodepool = default"
