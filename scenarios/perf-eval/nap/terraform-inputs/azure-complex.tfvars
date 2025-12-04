@@ -172,22 +172,23 @@ network_config_list = [
 
 aks_cli_config_list = [
   {
-    role                  = "nap"
-    aks_name              = "nap-complex"
-    sku_tier              = "standard"
-    subnet_name           = "nap-subnet-ms"
-    managed_identity_name = "nap-identity"
-    kubernetes_version    = "1.33"
+    role                   = "nap"
+    aks_name               = "nap-complex"
+    sku_tier               = "standard"
+    subnet_name            = "nap-subnet-ms"
+    managed_identity_name  = "nap-identity"
+    kubernetes_version     = "1.33"
     api_server_subnet_name = "apiserver-subnet"
+    aks_custom_headers     = ["OverrideControlplaneResources=W3siY29udGFpbmVyTmFtZSI6Imt1YmUtYXBpc2VydmVyIiwiY3B1TGltaXQiOiIzMCIsImNwdVJlcXVlc3QiOiIyNyIsIm1lbW9yeUxpbWl0IjoiNjRHaSIsIm1lbW9yeVJlcXVlc3QiOiI2NEdpIiwiZ29tYXhwcm9jcyI6MzB9XSAg,ControlPlaneUnderlay=hcp-underlay-westeurope-cx-696,AKSHTTPCustomFeatures=OverrideControlplaneResources"]
     default_node_pool = {
       name       = "system"
       node_count = 5
       vm_size    = "Standard_D8_v5"
     }
-    kms_key_name              = "kms-nap"
-    kms_key_vault_name        = "akskms"
+    kms_key_name             = "kms-nap"
+    kms_key_vault_name       = "akskms"
     key_vault_network_access = "Private"
-    extra_node_pool = []
+    extra_node_pool          = []
     optional_parameters = [
       {
         name  = "node-provisioning-mode"
