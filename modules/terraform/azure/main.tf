@@ -10,7 +10,7 @@ locals {
   aks_custom_headers                = lookup(var.json_input, "aks_custom_headers", [])
   k8s_machine_type                  = lookup(var.json_input, "k8s_machine_type", null)
   k8s_os_disk_type                  = lookup(var.json_input, "k8s_os_disk_type", null)
-  aks_aad_enabled                   = lookup(var.json_input, "aks_aad_enabled", "false")
+  aks_aad_enabled                   = lookup(var.json_input, "aks_aad_enabled", false)
   enable_apiserver_vnet_integration = lookup(var.json_input, "enable_apiserver_vnet_integration", false)
 
   tags = {
@@ -27,6 +27,7 @@ locals {
   aks_cli_custom_config_path = "${path.cwd}/../../../scenarios/${var.scenario_type}/${var.scenario_name}/config/aks_custom_config.json"
 
   all_subnets = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
+  firewall_config_map = { for fw in var.firewall_config_list : fw.name => fw }
   updated_aks_config_list = length(var.aks_config_list) > 0 ? [
     for aks in var.aks_config_list : merge(
       aks,
@@ -75,8 +76,7 @@ module "virtual_network" {
   network_config      = each.value
   resource_group_name = local.run_id
   location            = local.region
-  public_ips          = module.public_ips.pip_ids
-  public_ip_addresses = module.public_ips.pip_addresses
+  public_ips          = module.public_ips.public_ips
   tags                = local.tags
 }
 
@@ -86,6 +86,22 @@ module "dns_zones" {
   resource_group_name = local.run_id
   dns_zones           = var.dns_zones
   tags                = local.tags
+}
+
+module "firewall" {
+  for_each = local.firewall_config_map
+
+  source              = "./firewall"
+  resource_group_name = local.run_id
+  location            = local.region
+  tags                = local.tags
+  
+  firewall_config = merge(each.value, {
+    subnet_id            = local.all_subnets[each.value.subnet_name]
+    public_ip_address_id = module.public_ips.public_ips[each.value.public_ip_name].id
+  })
+  
+  depends_on = [module.virtual_network]
 }
 
 module "aks" {
@@ -117,4 +133,5 @@ module "aks-cli" {
   tags                       = local.tags
   subnets_map                = local.all_subnets
   aks_cli_custom_config_path = local.aks_cli_custom_config_path
+  aks_aad_enabled     = local.aks_aad_enabled
 }
