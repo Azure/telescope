@@ -21,6 +21,11 @@ locals {
       error("Specified kms_key_name '${var.aks_config.kms_config.key_name}' does not exist in Key Vault '${var.aks_config.kms_config.key_vault_name}' keys: ${join(", ", keys(var.key_vaults[var.aks_config.kms_config.key_vault_name].keys))}")
     )
   } : null
+  aks_kms_role_assignments = local.key_management_service != null ? {
+    "Key Vault Crypto Service Encryption User" = local.key_management_service.key_vault_key_resource_id
+    "Key Vault Crypto User"                    = local.key_management_service.key_vault_id
+  } : {}
+
 }
 data "azurerm_client_config" "current" {}
 
@@ -47,8 +52,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
 
   # Wait for KMS role assignment to propagate
   depends_on = [
-    azurerm_role_assignment.aks_key_service_encryption_user,
-    azurerm_role_assignment.aks_kv_service_encryption_user
+    azurerm_role_assignment.aks_identity_kms_roles
   ]
 
   default_node_pool {
@@ -186,15 +190,10 @@ resource "local_file" "save_kube_config" {
   content  = azurerm_kubernetes_cluster.aks.kube_config_raw
 }
 
-resource "azurerm_role_assignment" "aks_key_service_encryption_user" {
-  count                = local.key_management_service == null ? 0 : 1
-  scope                = local.key_management_service.key_vault_key_resource_id
-  role_definition_name = "Key Vault Crypto Service Encryption User"
-  principal_id         = azurerm_user_assigned_identity.aks_identity[0].principal_id
-}
-resource "azurerm_role_assignment" "aks_kv_service_encryption_user" {
-  count                = local.key_management_service != null ? 1 : 0
-  scope                = local.key_management_service.key_vault_id
-  role_definition_name = "Key Vault Crypto User"
+# Grant AKS identity KMS-related Key Vault roles
+resource "azurerm_role_assignment" "aks_identity_kms_roles" {
+  for_each             = local.aks_kms_role_assignments
+  scope                = each.value
+  role_definition_name = each.key
   principal_id         = azurerm_user_assigned_identity.aks_identity[0].principal_id
 }

@@ -137,7 +137,7 @@ variable "network_config_list" {
       subnet_associations = list(object({
         subnet_name = string
       }))
-    })),[])
+    })), [])
   }))
   default = []
 }

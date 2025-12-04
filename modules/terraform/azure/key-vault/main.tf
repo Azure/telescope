@@ -1,5 +1,13 @@
 data "azurerm_client_config" "current" {}
 
+locals {
+  key_vault_role_assignments = var.key_vault_config != null ? toset([
+    # Grant current user/service principal Key Vault Crypto Officer role to create keys
+    "Key Vault Crypto Officer",
+    # Grant Key Vault Contributor role for purge operations
+    "Key Vault Contributor"
+  ]) : toset([])
+}
 resource "random_string" "kv_suffix" {
   count   = var.key_vault_config != null ? 1 : 0
   length  = 4
@@ -31,22 +39,13 @@ resource "azurerm_key_vault_key" "kms_key" {
   key_opts     = ["encrypt", "decrypt", "wrapKey", "unwrapKey"]
 
   depends_on = [
-    azurerm_role_assignment.current_user_crypto_officer
+    azurerm_role_assignment.current_user_kv_roles
   ]
 }
 
-# Grant current user/service principal Key Vault Crypto Officer role to create keys
-resource "azurerm_role_assignment" "current_user_crypto_officer" {
-  count                = var.key_vault_config != null ? 1 : 0
+resource "azurerm_role_assignment" "current_user_kv_roles" {
+  for_each             = local.key_vault_role_assignments
   scope                = azurerm_key_vault.kv[0].id
-  role_definition_name = "Key Vault Crypto Officer"
-  principal_id         = data.azurerm_client_config.current.object_id
-}
-
-# Grant Key Vault Contributor role for purge operations
-resource "azurerm_role_assignment" "kv_contributor" {
-  count                = var.key_vault_config != null ? 1 : 0
-  scope                = azurerm_key_vault.kv[0].id
-  role_definition_name = "Key Vault Contributor"
+  role_definition_name = each.value
   principal_id         = data.azurerm_client_config.current.object_id
 }

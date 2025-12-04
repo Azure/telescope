@@ -76,6 +76,12 @@ locals {
     ])
   )
 
+  aks_kms_role_assignments = var.aks_cli_config.managed_identity_name != null && local.kms_parameters != null ? {
+    "Key Vault Crypto Service Encryption User" = local.key_management_service.key_vault_key_resource_id
+    "Key Vault Crypto User"                    = local.key_management_service.key_vault_id
+  } : {}
+
+
   subnet_id_parameter = (local.aks_subnet_id == null ?
     "" :
     format(
@@ -202,8 +208,7 @@ resource "terraform_data" "aks_cli" {
     terraform_data.enable_aks_cli_preview_extension,
     azurerm_role_assignment.network_contributor,
     azurerm_role_assignment.network_contributor_api_server_subnet,
-    azurerm_role_assignment.aks_key_service_encryption_user,
-    azurerm_role_assignment.aks_kv_service_encryption_user
+    azurerm_role_assignment.aks_identity_kms_roles
   ]
 
   input = {
@@ -251,16 +256,10 @@ resource "terraform_data" "aks_nodepool_cli" {
   }
 }
 
-# Grant Key Vault Crypto Service Encryption User role for KMS encryption
-resource "azurerm_role_assignment" "aks_key_service_encryption_user" {
-  count                = local.key_management_service == null || var.aks_cli_config.managed_identity_name == null ? 0 : 1
-  scope                = local.key_management_service.key_vault_key_resource_id
-  role_definition_name = "Key Vault Crypto Service Encryption User"
-  principal_id         = azurerm_user_assigned_identity.userassignedidentity[0].principal_id
-}
-resource "azurerm_role_assignment" "aks_kv_service_encryption_user" {
-  count                = local.key_management_service == null || var.aks_cli_config.managed_identity_name == null ? 0 : 1
-  scope                = local.key_management_service.key_vault_id
-  role_definition_name = "Key Vault Crypto User"
+# Grant AKS identity KMS-related Key Vault roles
+resource "azurerm_role_assignment" "aks_identity_kms_roles" {
+  for_each             = local.aks_kms_role_assignments
+  scope                = each.value
+  role_definition_name = each.key
   principal_id         = azurerm_user_assigned_identity.userassignedidentity[0].principal_id
 }
