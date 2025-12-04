@@ -4,19 +4,6 @@ scenario_name  = "nap"
 deletion_delay = "2h"
 owner          = "aks"
 
-key_vault_config_list = [
-  {
-    name = "akskms"
-    keys = [
-      {
-        key_name = "kms-nap"
-      },
-      {
-        key_name = "kms-nap2"
-      },
-    ]
-  }
-]
 network_config_list = [
   {
     role               = "crud"
@@ -34,37 +21,6 @@ network_config_list = [
   }
 ]
 
-aks_config_list = [
-  {
-    role                  = "nap"
-    aks_name              = "nap-complex2"
-    sku_tier              = "Standard"
-    subnet_name           = "nap-subnet-ms"
-    dns_prefix            = "nap2"
-    network_profile = {
-      network_plugin      = "azure"
-      network_plugin_mode = "overlay"
-      pod_cidr        = "10.128.0.0/11"
-    }
-    default_node_pool = {
-      name       = "system"
-      node_count = 5
-      vm_size    = "Standard_D8_v5"
-      only_critical_addons_enabled = true
-      temporary_name_for_rotation  = "defaulttmp"
-    }
-    extra_node_pool = []
-    kms_config = {
-      key_name       = "kms-nap2"
-      key_vault_name = "akskms"
-      network_access = "Public"
-    }
-
-    kubernetes_version = "1.33"
-  }
-]
-
-
 aks_cli_config_list = [
   {
     role                  = "nap"
@@ -77,11 +33,6 @@ aks_cli_config_list = [
       name       = "system"
       node_count = 5
       vm_size    = "Standard_D8_v5"
-    }
-    kms_config = {
-      key_name       = "kms-nap"
-      key_vault_name = "akskms"
-      network_access = "Private"
     }
     extra_node_pool = []
     optional_parameters = [
