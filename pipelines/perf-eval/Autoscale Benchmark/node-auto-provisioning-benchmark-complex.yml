@@ -5,7 +5,7 @@ variables:
   SCENARIO_NAME: nap
 
 stages:
-  - stage: azure_eastus2_ondemand_complex_config
+  - stage: azure_westeurope_ondemand_complex_config
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
