@@ -46,6 +46,6 @@ stages:
               aad_enabled: "true"
               enable_apiserver_vnet_integration: "true"
           max_parallel: 1
-          timeout_in_minutes: 60
+          timeout_in_minutes: 300
           credential_type: service_connection
           ssh_key_enabled: true
