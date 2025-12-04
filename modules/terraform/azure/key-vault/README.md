@@ -127,8 +127,11 @@ module "aks" {
     aks_name           = "my-aks"
     dns_prefix         = "myaks"
     sku_tier           = "Standard"
-    kms_key_name       = "kms-key"
-    kms_key_vault_name = "akskms"
+    kms_config = {
+      key_name       = "kms-nap"
+      key_vault_name = "akskms"
+      network_access = "Public"
+    }
     # ... other config
   }
   key_vaults = {
