@@ -34,8 +34,8 @@ stages:
               cpu_per_node: 2
               node_count: 5000
               pod_count: 5000
-              scale_up_timeout: "15m"
-              scale_down_timeout: "15m"
+              scale_up_timeout: "150m"
+              scale_down_timeout: "150m"
               node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
@@ -46,6 +46,6 @@ stages:
               aad_enabled: "true"
               enable_apiserver_vnet_integration: "true"
           max_parallel: 1
-          timeout_in_minutes: 300
+          timeout_in_minutes: 500
           credential_type: service_connection
           ssh_key_enabled: true
