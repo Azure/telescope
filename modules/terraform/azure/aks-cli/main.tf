@@ -76,7 +76,7 @@ locals {
     ])
   )
 
-  aks_kms_role_assignments = var.aks_cli_config.managed_identity_name != null && local.kms_parameters != null ? {
+  aks_kms_role_assignments = var.aks_cli_config.managed_identity_name != null && local.key_management_service != null ? {
     "Key Vault Crypto Service Encryption User" = local.key_management_service.key_vault_key_resource_id
     "Key Vault Crypto User"                    = local.key_management_service.key_vault_id
   } : {}
