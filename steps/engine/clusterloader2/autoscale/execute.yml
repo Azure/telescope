@@ -58,7 +58,7 @@ steps:
 
     ssh_target="${ssh_user}@${JUMPBOX_HOST}"
     env_file="$(mktemp)"
-    ssh_opts=(-i "$SSH_KEY_PATH" -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null")
+    ssh_opts=(-i "$SSH_KEY_PATH" -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null" -o "ServerAliveInterval=60" -o "ServerAliveCountMax=5")
 
     echo "Packaging modules/python for remote execution..."
     tar -czf "$tar_archive" -C "$SOURCE_DIR" modules/python
