@@ -119,3 +119,153 @@ run "valid_aad_explicitly_disabled" {
     error_message = "Expected: AAD block should not exist when explicitly disabled"
   }
 }
+
+# ============================================================================
+# AAD Integration Tests for aks-cli module
+# ============================================================================
+
+# Test case 4: Verify AAD parameters are correctly generated in aks-cli when enabled
+run "valid_aks_cli_aad_enabled" {
+
+  command = apply
+
+  variables {
+    json_input = {
+      "run_id" : "123456789",
+      "region" : "eastus",
+      "public_key_path" : "public_key_path",
+      "aks_aad_enabled" : true
+    }
+
+    aks_config_list = []
+
+    aks_cli_config_list = [
+      {
+        role                          = "client"
+        aks_name                      = "test-aad-cli"
+        sku_tier                      = "Standard"
+        use_aks_preview_cli_extension = true
+        default_node_pool = {
+          name       = "default"
+          node_count = 2
+          vm_size    = "Standard_D2s_v3"
+        }
+        optional_parameters = []
+        dry_run             = true
+      }
+    ]
+  }
+
+  # Verify the CLI command includes --enable-aad flag
+  assert {
+    condition     = can(regex("--enable-aad", module.aks-cli["client"].aks_cli_command))
+    error_message = "Expected: CLI command should include --enable-aad flag\nActual: ${module.aks-cli["client"].aks_cli_command}"
+  }
+
+  # Verify the CLI command includes --enable-azure-rbac flag
+  assert {
+    condition     = can(regex("--enable-azure-rbac", module.aks-cli["client"].aks_cli_command))
+    error_message = "Expected: CLI command should include --enable-azure-rbac flag\nActual: ${module.aks-cli["client"].aks_cli_command}"
+  }
+
+  # Verify the CLI command includes --aad-admin-group-object-ids with the mocked object_id
+  assert {
+    condition     = can(regex("--aad-admin-group-object-ids 12345678-1234-5678-9abc-def012345678", module.aks-cli["client"].aks_cli_command))
+    error_message = "Expected: CLI command should include --aad-admin-group-object-ids with correct object_id\nActual: ${module.aks-cli["client"].aks_cli_command}"
+  }
+
+  # Verify the CLI command includes --aad-tenant-id with the mocked tenant_id
+  assert {
+    condition     = can(regex("--aad-tenant-id 00000000-0000-0000-0000-000000000000", module.aks-cli["client"].aks_cli_command))
+    error_message = "Expected: CLI command should include --aad-tenant-id with correct tenant_id\nActual: ${module.aks-cli["client"].aks_cli_command}"
+  }
+}
+
+# Test case 5: Verify AAD parameters are omitted in aks-cli when disabled
+run "valid_aks_cli_aad_disabled" {
+
+  command = apply
+
+  variables {
+    json_input = {
+      "run_id" : "123456789",
+      "region" : "eastus",
+      "public_key_path" : "public_key_path",
+      "aks_aad_enabled" : false
+    }
+
+    aks_config_list = []
+
+    aks_cli_config_list = [
+      {
+        role                          = "client"
+        aks_name                      = "test-no-aad-cli"
+        sku_tier                      = "Standard"
+        use_aks_preview_cli_extension = true
+        default_node_pool = {
+          name       = "default"
+          node_count = 2
+          vm_size    = "Standard_D2s_v3"
+        }
+        optional_parameters = []
+        dry_run             = true
+      }
+    ]
+  }
+
+  # Verify the CLI command does NOT include --enable-aad flag
+  assert {
+    condition     = !can(regex("--enable-aad", module.aks-cli["client"].aks_cli_command))
+    error_message = "Expected: CLI command should NOT include --enable-aad flag when disabled\nActual: ${module.aks-cli["client"].aks_cli_command}"
+  }
+
+  # Verify the CLI command does NOT include any AAD-related flags
+  assert {
+    condition     = !can(regex("--aad-", module.aks-cli["client"].aks_cli_command))
+    error_message = "Expected: CLI command should NOT include any --aad-* flags when disabled\nActual: ${module.aks-cli["client"].aks_cli_command}"
+  }
+}
+
+# Test case 6: Verify AAD parameters are omitted in aks-cli when not set (default behavior)
+run "valid_aks_cli_aad_not_set" {
+
+  command = apply
+
+  variables {
+    json_input = {
+      "run_id" : "123456789",
+      "region" : "eastus",
+      "public_key_path" : "public_key_path"
+    }
+
+    aks_config_list = []
+
+    aks_cli_config_list = [
+      {
+        role                          = "client"
+        aks_name                      = "test-default-cli"
+        sku_tier                      = "Standard"
+        use_aks_preview_cli_extension = true
+        default_node_pool = {
+          name       = "default"
+          node_count = 2
+          vm_size    = "Standard_D2s_v3"
+        }
+        optional_parameters = []
+        dry_run             = true
+      }
+    ]
+  }
+
+  # Verify the CLI command does NOT include --enable-aad flag when not set
+  assert {
+    condition     = !can(regex("--enable-aad", module.aks-cli["client"].aks_cli_command))
+    error_message = "Expected: CLI command should NOT include --enable-aad flag when not set\nActual: ${module.aks-cli["client"].aks_cli_command}"
+  }
+
+  # Verify the CLI command does NOT include any AAD-related flags when not set
+  assert {
+    condition     = !can(regex("--aad-", module.aks-cli["client"].aks_cli_command))
+    error_message = "Expected: CLI command should NOT include any --aad-* flags when not set\nActual: ${module.aks-cli["client"].aks_cli_command}"
+  }
+}

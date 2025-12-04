@@ -107,6 +107,16 @@ locals {
     ""
   )
 
+  aad_parameter = (
+    var.aks_aad_enabled == true ?
+    format(
+      "--enable-aad --enable-azure-rbac --aad-admin-group-object-ids %s --aad-tenant-id %s",
+      data.azurerm_client_config.current.object_id,
+      data.azurerm_client_config.current.tenant_id
+    )
+    : ""
+  )
+
   custom_configurations = (
     var.aks_cli_config.use_custom_configurations && var.aks_cli_custom_config_path != null ?
     format(
@@ -143,6 +153,7 @@ locals {
     local.subnet_id_parameter,
     local.managed_identity_parameter,
     local.api_server_vnet_integration_parameter,
+    local.aad_parameter,
   ], local.default_node_pool_parameters))
 
   aks_cli_destroy_command = join(" ", [
@@ -154,6 +165,8 @@ locals {
     "--yes",
   ])
 }
+
+data "azurerm_client_config" "current" {}
 
 resource "azurerm_user_assigned_identity" "userassignedidentity" {
   count               = var.aks_cli_config.managed_identity_name == null ? 0 : 1
