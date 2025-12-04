@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "stls-bootstrap-autoscale"
+scenario_name  = "stls-bootstrap-nap"
 deletion_delay = "2h"
 owner          = "aks"
 
