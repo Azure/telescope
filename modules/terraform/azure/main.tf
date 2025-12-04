@@ -24,9 +24,11 @@ locals {
 
   network_config_map = { for network in var.network_config_list : network.role => network }
 
+  route_table_config_map = { for rt in var.route_table_config_list : rt.name => rt }
+
   aks_cli_custom_config_path = "${path.cwd}/../../../scenarios/${var.scenario_type}/${var.scenario_name}/config/aks_custom_config.json"
 
-  all_subnets = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
+  all_subnets = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets_map]...)
   updated_aks_config_list = length(var.aks_config_list) > 0 ? [
     for aks in var.aks_config_list : merge(
       aks,
@@ -85,6 +87,20 @@ module "dns_zones" {
   resource_group_name = local.run_id
   dns_zones           = var.dns_zones
   tags                = local.tags
+}
+
+module "route_table" {
+  for_each = local.route_table_config_map
+
+  source = "./route-table"
+
+  route_table_config  = each.value
+  resource_group_name = local.run_id
+  location            = local.region
+  subnets_map         = local.all_subnets
+  tags                = local.tags
+
+  depends_on = [module.virtual_network]
 }
 
 module "aks" {

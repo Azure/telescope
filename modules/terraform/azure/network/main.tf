@@ -1,7 +1,6 @@
 locals {
   nsr_rules_map                = { for rule in var.network_config.nsr_rules : rule.name => rule }
   nat_gateway_associations_map = var.network_config.nat_gateway_associations == null ? {} : { for nat in var.network_config.nat_gateway_associations : nat.nat_gateway_name => nat }
-  input_route_tables_map             = var.network_config.route_tables == null ? {} : { for rt in var.network_config.route_tables : rt.name => rt }
   vnet_name                    = var.network_config.vnet_name
   input_subnet_map             = { for subnet in var.network_config.subnet : subnet.name => subnet }
   subnets_map = {
@@ -110,17 +109,4 @@ module "nat_gateway" {
   nat_gateway_association = each.value
   subnets_map             = local.subnets_map
   tags                    = local.tags
-}
-
-module "route_table" {
-  source   = "./route-table"
-  for_each = local.input_route_tables_map
-
-  route_table_config  = each.value
-  resource_group_name = var.resource_group_name
-  location            = var.location
-  subnets_map         = local.subnets_map
-  tags                = local.tags
-
-  depends_on = [azurerm_virtual_network.vnet]
 }
