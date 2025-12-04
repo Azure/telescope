@@ -1,22 +1,21 @@
 trigger: none
+
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: nap
 
 stages:
-  - stage: azure_eastus2_ondemand_complex_config
+  - stage: azure_westeurope_ondemand_complex_config
     dependsOn: []
-    variables:
-      - group: NAP-MS-Requirements
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           retry_attempt_count: 1
           cloud: azure
           regions:
-            - eastus2
+            - westeurope
           terraform_input_file_mapping:
-            - eastus2: "scenarios/perf-eval/nap/terraform-inputs/azure-complex.tfvars"
+            - westeurope: "scenarios/perf-eval/nap/terraform-inputs/azure-complex.tfvars"
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250912"
