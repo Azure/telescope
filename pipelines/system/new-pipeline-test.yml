@@ -2,7 +2,9 @@ trigger: none
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: stls-bootstrap-autoscale
+  SCENARIO_NAME: stls-bootstrap-nap
+
+AZURE_SUBSCRIPTION_ID: "f6e2f77f-9959-42ad-87f0-c30a6abc0133"
 
 stages:
   - stage: azure_westus2_small
@@ -14,7 +16,9 @@ stages:
           regions:
             - westus2
           terraform_input_file_mapping:
-            - westus2: "scenarios/perf-eval/stls-bootstrap-autoscale/terraform-inputs/azure-nap-linux.tfvars"
+            - westus2: "scenarios/perf-eval/stls-bootstrap-nap/terraform-inputs/azure.tfvars"
+          terraform_input_varibles:
+            subscription_id: $(AZURE_SUBSCRIPTION_ID)
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
