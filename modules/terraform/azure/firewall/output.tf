@@ -1,6 +1,8 @@
 output "firewall_private_ips" {
   description = "Map of firewall names to their private IP addresses"
-  value       = { (azurerm_firewall.firewall.name) => azurerm_firewall.firewall.ip_configuration[0].private_ip_address }
+  value = {
+    for fw_name, fw in azurerm_firewall.firewall : fw_name => fw.ip_configuration[0].private_ip_address
+  }
   
   depends_on = [
     azurerm_firewall_nat_rule_collection.nat_rules,

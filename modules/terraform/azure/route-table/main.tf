@@ -4,13 +4,6 @@ resource "azurerm_route_table" "route_table" {
   resource_group_name           = var.resource_group_name
   bgp_route_propagation_enabled = var.route_table_config.bgp_route_propagation_enabled
   tags                          = var.tags
-
-  lifecycle {
-    postcondition {
-      condition     = true
-      error_message = "DEBUG: Firewall private IPs available: ${jsonencode(var.firewall_private_ips)}"
-    }
-  }
 }
 
 resource "azurerm_route" "routes" {
