@@ -13,7 +13,6 @@ variable "public_ips" {
   type        = map(string)
 }
 
-
 variable "accelerated_networking" {
   description = "Value of the accelerated networking"
   type        = bool
