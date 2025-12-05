@@ -20,10 +20,3 @@ output "vnet_id" {
   value       = azurerm_virtual_network.vnet.id
 }
 
-output "subnets_map" {
-  description = "Map of subnet names to subnet resource objects with full properties"
-  value = {
-    for subnet in azurerm_virtual_network.vnet.subnet :
-    split("/", subnet.id)[length(split("/", subnet.id)) - 1] => subnet
-  }
-}

@@ -25,17 +25,9 @@ variable "location" {
   type        = string
 }
 
-variable "subnets_map" {
-  description = "Map of subnet names to subnet resource objects from network module"
-  type = map(object({
-    id                                              = string
-    name                                            = string
-    address_prefixes                                = list(string)
-    service_endpoints                               = list(string)
-    private_link_service_network_policies_enabled   = bool
-    private_endpoint_network_policies_enabled       = optional(bool)
-    security_group                                  = optional(string)
-  }))
+variable "subnets_ids" {
+  description = "Map of subnet names to subnet IDs from network module"
+  type        = map(string)
 }
 
 variable "tags" {
