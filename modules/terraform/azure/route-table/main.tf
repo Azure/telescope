@@ -25,6 +25,10 @@ resource "azurerm_route" "routes" {
   )
 
   lifecycle {
+    postcondition {
+      condition     = true
+      error_message = "DEBUG Route '${each.value.name}': next_hop_type='${each.value.next_hop_type}', firewall_name='${each.value.next_hop_firewall_name}', next_hop_ip='${self.next_hop_in_ip_address}', available_firewalls='${jsonencode(keys(var.firewall_private_ips))}', all_ips='${jsonencode(var.firewall_private_ips)}'"
+    }
     precondition {
       condition = (each.value.next_hop_type != "VirtualAppliance" ||
         each.value.next_hop_firewall_name == null ||
