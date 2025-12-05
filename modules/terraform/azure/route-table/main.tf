@@ -5,6 +5,12 @@ resource "azurerm_route_table" "route_table" {
   bgp_route_propagation_enabled = var.route_table_config.bgp_route_propagation_enabled
   tags                          = var.tags
 
+  lifecycle {
+    postcondition {
+      condition     = true
+      error_message = "DEBUG: Firewall private IPs available: ${jsonencode(var.firewall_private_ips)}"
+    }
+  }
 }
 
 resource "azurerm_route" "routes" {
@@ -21,7 +27,7 @@ resource "azurerm_route" "routes" {
   next_hop_type = each.value.next_hop_type
   next_hop_in_ip_address = (
     each.value.next_hop_firewall_name != null
-    ? var.firewall_private_ips[each.value.next_hop_firewall_name]
+    ? try(var.firewall_private_ips[each.value.next_hop_firewall_name], null)
     : each.value.next_hop_in_ip_address
   )
 
@@ -29,8 +35,8 @@ resource "azurerm_route" "routes" {
     precondition {
       condition = (each.value.next_hop_type != "VirtualAppliance" ||
         each.value.next_hop_firewall_name == null ||
-      contains(keys(var.firewall_private_ips), each.value.next_hop_firewall_name))
-      error_message = "Route '${each.value.name}': Firewall '${coalesce(each.value.next_hop_firewall_name, "UNKNOWN")}' not found! Available firewalls: ${jsonencode(keys(var.firewall_private_ips))}"
+        (try(var.firewall_private_ips[each.value.next_hop_firewall_name], null) != null))
+      error_message = "Route '${each.value.name}': Firewall '${coalesce(each.value.next_hop_firewall_name, "UNKNOWN")}' not found! Available firewalls: ${jsonencode(keys(var.firewall_private_ips))}. Firewall IPs: ${jsonencode(var.firewall_private_ips)}"
     }
   }
 }
