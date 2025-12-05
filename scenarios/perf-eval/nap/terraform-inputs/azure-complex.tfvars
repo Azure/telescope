@@ -103,7 +103,7 @@ route_table_config_list = [
       },
       {
         name           = "firewall-internet"
-        address_prefix = "publicip:firewall-pip"
+        address_prefix_publicip_name = "firewall-pip"
         next_hop_type  = "Internet"
       }
     ]
