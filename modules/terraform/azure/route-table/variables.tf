@@ -25,11 +25,9 @@ variable "location" {
   type        = string
 }
 
-variable "subnets_map" {
-  description = "Map of subnet names to subnet objects"
-  type = map(object({
-    id = string
-  }))
+variable "subnets_ids" {
+  description = "Map of subnet names to subnet IDs from network module"
+  type        = map(string)
 }
 
 variable "tags" {
