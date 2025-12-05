@@ -33,6 +33,7 @@ network_config_list = [
 firewall_config_list = [
   {
     name                  = "nap-firewall"
+    network_role          = "crud"
     sku_tier              = "Standard"
     subnet_name           = "AzureFirewallSubnet"
     public_ip_name        = "firewall-pip"
