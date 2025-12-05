@@ -1,37 +1,50 @@
+locals {
+  firewall_config_map = { for fw in var.firewall_config_list : fw.name => fw }
+}
+
 resource "azurerm_firewall" "firewall" {
-  name                = var.firewall_config.name
+  for_each = local.firewall_config_map
+
+  name                = each.value.name
   location            = var.location
   resource_group_name = var.resource_group_name
-  sku_name            = var.firewall_config.sku_name
-  sku_tier            = var.firewall_config.sku_tier
-  firewall_policy_id  = var.firewall_config.firewall_policy_id
-  threat_intel_mode   = var.firewall_config.threat_intel_mode
-  dns_servers         = var.firewall_config.dns_proxy_enabled ? var.firewall_config.dns_servers : null
-  dns_proxy_enabled   = var.firewall_config.dns_proxy_enabled
+  sku_name            = each.value.sku_name
+  sku_tier            = each.value.sku_tier
+  firewall_policy_id  = each.value.firewall_policy_id
+  threat_intel_mode   = each.value.threat_intel_mode
+  dns_servers         = each.value.dns_proxy_enabled ? each.value.dns_servers : null
+  dns_proxy_enabled   = each.value.dns_proxy_enabled
   tags                = var.tags
 
   ip_configuration {
-    name                 = var.firewall_config.ip_configuration_name
-    subnet_id            = var.firewall_config.subnet_id
-    public_ip_address_id = var.firewall_config.public_ip_address_id
+    name                 = each.value.ip_configuration_name
+    subnet_id            = each.value.subnet_id
+    public_ip_address_id = each.value.public_ip_address_id
   }
 
 }
 
 resource "azurerm_firewall_nat_rule_collection" "nat_rules" {
   for_each = {
-    for collection in coalesce(var.firewall_config.nat_rule_collections, []) :
-    collection.name => collection
+    for item in flatten([
+      for fw_name, fw_config in local.firewall_config_map : [
+        for collection in coalesce(fw_config.nat_rule_collections, []) : {
+          fw_name       = fw_name
+          fw_name_col   = "${fw_name}-${collection.name}"
+          collection    = collection
+        }
+      ]
+    ]) : item.fw_name_col => item
   }
 
-  name                = each.value.name
-  azure_firewall_name = azurerm_firewall.firewall.name
+  name                = each.value.collection.name
+  azure_firewall_name = azurerm_firewall.firewall[each.value.fw_name].name
   resource_group_name = var.resource_group_name
-  priority            = each.value.priority
-  action              = each.value.action
+  priority            = each.value.collection.priority
+  action              = each.value.collection.action
 
   dynamic "rule" {
-    for_each = each.value.rules
+    for_each = each.value.collection.rules
     content {
       name                  = rule.value.name
       source_addresses      = lookup(rule.value, "source_addresses", null)
@@ -47,18 +60,25 @@ resource "azurerm_firewall_nat_rule_collection" "nat_rules" {
 
 resource "azurerm_firewall_network_rule_collection" "network_rules" {
   for_each = {
-    for collection in coalesce(var.firewall_config.network_rule_collections, []) :
-    collection.name => collection
+    for item in flatten([
+      for fw_name, fw_config in local.firewall_config_map : [
+        for collection in coalesce(fw_config.network_rule_collections, []) : {
+          fw_name       = fw_name
+          fw_name_col   = "${fw_name}-${collection.name}"
+          collection    = collection
+        }
+      ]
+    ]) : item.fw_name_col => item
   }
 
-  name                = each.value.name
-  azure_firewall_name = azurerm_firewall.firewall.name
+  name                = each.value.collection.name
+  azure_firewall_name = azurerm_firewall.firewall[each.value.fw_name].name
   resource_group_name = var.resource_group_name
-  priority            = each.value.priority
-  action              = each.value.action
+  priority            = each.value.collection.priority
+  action              = each.value.collection.action
 
   dynamic "rule" {
-    for_each = each.value.rules
+    for_each = each.value.collection.rules
     content {
       name                  = rule.value.name
       source_addresses      = lookup(rule.value, "source_addresses", null)
@@ -74,18 +94,25 @@ resource "azurerm_firewall_network_rule_collection" "network_rules" {
 
 resource "azurerm_firewall_application_rule_collection" "application_rules" {
   for_each = {
-    for collection in coalesce(var.firewall_config.application_rule_collections, []) :
-    collection.name => collection
+    for item in flatten([
+      for fw_name, fw_config in local.firewall_config_map : [
+        for collection in coalesce(fw_config.application_rule_collections, []) : {
+          fw_name       = fw_name
+          fw_name_col   = "${fw_name}-${collection.name}"
+          collection    = collection
+        }
+      ]
+    ]) : item.fw_name_col => item
   }
 
-  name                = each.value.name
-  azure_firewall_name = azurerm_firewall.firewall.name
+  name                = each.value.collection.name
+  azure_firewall_name = azurerm_firewall.firewall[each.value.fw_name].name
   resource_group_name = var.resource_group_name
-  priority            = each.value.priority
-  action              = each.value.action
+  priority            = each.value.collection.priority
+  action              = each.value.collection.action
 
   dynamic "rule" {
-    for_each = each.value.rules
+    for_each = each.value.collection.rules
     content {
       name             = rule.value.name
       source_addresses = lookup(rule.value, "source_addresses", null)

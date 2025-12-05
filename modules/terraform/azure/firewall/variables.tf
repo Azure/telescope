@@ -1,6 +1,6 @@
-variable "firewall_config" {
-  description = "Firewall configuration"
-  type = object({
+variable "firewall_config_list" {
+  description = "List of firewall configurations"
+  type = list(object({
     name                  = string
     network_role          = optional(string)
     subnet_name           = optional(string)
@@ -60,7 +60,8 @@ variable "firewall_config" {
         })))
       }))
     })))
-  })
+  }))
+  default = []
 }
 
 variable "resource_group_name" {
