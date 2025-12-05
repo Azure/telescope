@@ -124,7 +124,7 @@ module "route_table" {
   public_ip_addresses  = module.public_ips.pip_addresses
   tags                 = local.tags
 
-  depends_on = [module.firewall, module.virtual_network]
+  depends_on = [module.firewall, module.virtual_network, module.public_ips]
 }
 module "aks" {
   for_each = local.aks_config_map

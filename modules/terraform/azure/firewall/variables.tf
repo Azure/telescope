@@ -2,6 +2,9 @@ variable "firewall_config" {
   description = "Firewall configuration"
   type = object({
     name                  = string
+    network_role          = optional(string)
+    subnet_name           = optional(string)
+    public_ip_name        = optional(string)
     sku_name              = optional(string, "AZFW_VNet")
     sku_tier              = optional(string, "Standard")
     firewall_policy_id    = optional(string)
@@ -9,8 +12,8 @@ variable "firewall_config" {
     dns_proxy_enabled     = optional(bool, false)
     dns_servers           = optional(list(string))
     ip_configuration_name = optional(string, "firewall-ipconfig")
-    subnet_id             = string
-    public_ip_address_id  = string
+    subnet_id             = optional(string)
+    public_ip_address_id  = optional(string)
     nat_rule_collections = optional(list(object({
       name     = string
       priority = number
