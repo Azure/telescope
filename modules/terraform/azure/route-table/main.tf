@@ -27,9 +27,9 @@ resource "azurerm_route" "routes" {
 
   lifecycle {
     precondition {
-      condition = each.value.next_hop_type != "VirtualAppliance" || 
-                  each.value.next_hop_firewall_name == null || 
-                  contains(keys(var.firewall_private_ips), each.value.next_hop_firewall_name)
+      condition = (each.value.next_hop_type != "VirtualAppliance" ||
+        each.value.next_hop_firewall_name == null ||
+      contains(keys(var.firewall_private_ips), each.value.next_hop_firewall_name))
       error_message = "Route '${each.value.name}': Firewall '${each.value.next_hop_firewall_name}' not found! Available firewalls: ${jsonencode(keys(var.firewall_private_ips))}"
     }
   }
