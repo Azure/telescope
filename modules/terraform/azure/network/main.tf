@@ -8,7 +8,7 @@ locals {
     for subnet in azurerm_virtual_network.vnet.subnet :
     split("/", subnet.id)[length(split("/", subnet.id)) - 1] => subnet
   }
-  
+
   network_security_group_name = var.network_config.network_security_group_name
   expanded_nic_association_map = flatten([
     for nic in var.network_config.nic_public_ip_associations : [
@@ -117,29 +117,11 @@ module "route_table" {
   source   = "./route-table"
   for_each = local.input_route_tables_map
 
-  route_table_config = merge(each.value, {
-    routes = [
-      for r in coalesce(each.value.routes, []) : merge(r, {
-        # Support dynamic firewall IP resolution in next_hop_in_ip_address
-        next_hop_in_ip_address = (
-          r.next_hop_in_ip_address != null && startswith(r.next_hop_in_ip_address, "firewall:") ?
-          module.firewall[replace(r.next_hop_in_ip_address, "firewall:", "")].private_ip_address :
-          r.next_hop_in_ip_address
-        )
-        # Support dynamic public IP resolution in address_prefix
-        address_prefix = (
-          r.address_prefix != null && startswith(r.address_prefix, "publicip:") ?
-          "${var.public_ip_addresses[replace(r.address_prefix, "publicip:", "")]}/32" :
-          r.address_prefix
-        )
-      })
-    ]
-  })
-
+  route_table_config  = each.value
   resource_group_name = var.resource_group_name
   location            = var.location
   subnets_map         = local.subnets_map
   tags                = local.tags
 
-  depends_on = [azurerm_virtual_network.vnet, module.firewall]
+  depends_on = [azurerm_virtual_network.vnet]
 }
