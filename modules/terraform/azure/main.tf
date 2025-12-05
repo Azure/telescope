@@ -26,8 +26,6 @@ locals {
 
   route_table_config_map = { for rt in var.route_table_config_list : rt.name => rt }
 
-  firewall_config_map = { for fw in var.firewall_config_list : fw.name => fw }
-
   aks_cli_custom_config_path = "${path.cwd}/../../../scenarios/${var.scenario_type}/${var.scenario_name}/config/aks_custom_config.json"
 
   all_subnets = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
