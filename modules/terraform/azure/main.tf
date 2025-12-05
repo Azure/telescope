@@ -143,10 +143,7 @@ module "aks" {
   dns_zones           = try(module.dns_zones.dns_zone_ids, null)
   aks_aad_enabled     = local.aks_aad_enabled
   
-  depends_on = concat(
-    length(var.route_table_config_list) > 0 ? [module.route_table] : [],
-    length(var.firewall_config_list) > 0 ? [module.firewall] : []
-  )
+  depends_on = [module.route_table]
 }
 
 module "aks-cli" {
@@ -161,8 +158,5 @@ module "aks-cli" {
   aks_cli_custom_config_path = local.aks_cli_custom_config_path
   aks_aad_enabled            = local.aks_aad_enabled
 
-  depends_on = concat(
-    length(var.route_table_config_list) > 0 ? [module.route_table] : [],
-    length(var.firewall_config_list) > 0 ? [module.firewall] : []
-  )
+  depends_on = [module.route_table]
 }

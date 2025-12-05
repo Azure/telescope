@@ -4,6 +4,7 @@ resource "azurerm_route_table" "route_table" {
   resource_group_name           = var.resource_group_name
   bgp_route_propagation_enabled = var.route_table_config.bgp_route_propagation_enabled
   tags                          = var.tags
+  
 }
 
 resource "azurerm_route" "routes" {
@@ -26,4 +27,5 @@ resource "azurerm_subnet_route_table_association" "subnet_associations" {
 
   subnet_id      = var.subnets_ids[each.value.subnet_name]
   route_table_id = azurerm_route_table.route_table.id
-}
+
+  depends_on = [azurerm_route.routes]
