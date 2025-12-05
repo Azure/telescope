@@ -18,11 +18,11 @@ resource "azurerm_route" "routes" {
     ? try(var.public_ip_addresses[each.value.address_prefix_publicip_name], null)
     : each.value.address_prefix
   )
-  next_hop_type       = each.value.next_hop_type
-  next_hop_ip_address = (
+  next_hop_type           = each.value.next_hop_type
+  next_hop_in_ip_address  = (
     each.value.next_hop_firewall_name != null
     ? try(var.firewall_private_ips[each.value.next_hop_firewall_name], null)
-    : each.value.next_hop_ip_address
+    : each.value.next_hop_in_ip_address
   )
 }
 
