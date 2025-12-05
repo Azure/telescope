@@ -137,7 +137,7 @@ variable "network_config_list" {
       subnet_associations = list(object({
         subnet_name = string
       }))
-    })),[])
+    })), [])
   }))
   default = []
 }
@@ -148,6 +148,28 @@ variable "dns_zones" {
     name = string
   }))
   default = []
+}
+
+variable "key_vault_config_list" {
+  description = "List of Key Vault configurations for AKS KMS encryption. Each configuration specifies a Key Vault and its encryption keys to be created."
+  type = list(object({
+    name = string # Key Vault name
+    keys = list(object({
+      key_name = string # Encryption key name
+    }))
+  }))
+  default = []
+
+  validation {
+    condition = alltrue([
+      for config in var.key_vault_config_list : (
+        length(config.name) >= 3 &&
+        length(config.name) <= 20 &&
+        length(config.keys) >= 1
+      )
+    ])
+    error_message = "Each Key Vault config must have name 3-20 characters (total 24 after adding 4-char random suffix), and at least one key must be defined."
+  }
 }
 
 variable "aks_config_list" {
@@ -235,6 +257,11 @@ variable "aks_config_list" {
     web_app_routing = optional(object({
       dns_zone_names = list(string)
     }), null)
+    kms_config = optional(object({
+      key_name       = string
+      key_vault_name = string
+      network_access = optional(string, "Public")
+    }), null)
   }))
   default = []
 }
@@ -276,6 +303,11 @@ variable "aks_cli_config_list" {
       name  = string
       value = string
     })), [])
+    kms_config = optional(object({
+      key_name       = string
+      key_vault_name = string
+      network_access = optional(string, "Public")
+    }), null)
     dry_run = optional(bool, false) # If true, only print the command without executing it. Useful for testing.
   }))
   default = []

@@ -9,6 +9,23 @@ locals {
     pool.name => pool
   }
 
+  key_management_service = (
+    var.aks_cli_config.kms_config != null
+    ) ? {
+    key_vault_id = try(
+      var.key_vaults[var.aks_cli_config.kms_config.key_vault_name].id,
+      error("Specified kms_key_vault_name '${var.aks_cli_config.kms_config.key_vault_name}' does not exist in Key Vaults: ${join(", ", keys(var.key_vaults))}")
+    )
+    key_vault_key_id = try(
+      var.key_vaults[var.aks_cli_config.kms_config.key_vault_name].keys[var.aks_cli_config.kms_config.key_name].id,
+      error("Specified kms_key_name '${var.aks_cli_config.kms_config.key_name}' does not exist in Key Vault '${var.aks_cli_config.kms_config.key_vault_name}' keys: ${join(", ", keys(var.key_vaults[var.aks_cli_config.kms_config.key_vault_name].keys))}")
+    )
+    key_vault_key_resource_id = try(
+      var.key_vaults[var.aks_cli_config.kms_config.key_vault_name].keys[var.aks_cli_config.kms_config.key_name].resource_id,
+      error("Specified kms_key_name '${var.aks_cli_config.kms_config.key_name}' does not exist in Key Vault '${var.aks_cli_config.kms_config.key_vault_name}' keys: ${join(", ", keys(var.key_vaults[var.aks_cli_config.kms_config.key_vault_name].keys))}")
+    )
+  } : null
+
   kubernetes_version = (
     var.aks_cli_config.kubernetes_version == null ?
     "" :
@@ -47,6 +64,23 @@ locals {
       format("--%s %s", param.name, param.value)
     ])
   )
+
+
+  kms_parameters = (
+    local.key_management_service == null || var.aks_cli_config.managed_identity_name == null ?
+    "" :
+    join(" ", [
+      "--enable-azure-keyvault-kms",
+      format("--azure-keyvault-kms-key-id %s", local.key_management_service.key_vault_key_id),
+      format("--azure-keyvault-kms-key-vault-network-access %s", var.aks_cli_config.kms_config.network_access)
+    ])
+  )
+
+  aks_kms_role_assignments = var.aks_cli_config.managed_identity_name != null && local.key_management_service != null ? {
+    "Key Vault Crypto Service Encryption User" = local.key_management_service.key_vault_key_resource_id
+    "Key Vault Crypto User"                    = local.key_management_service.key_vault_id
+  } : {}
+
 
   subnet_id_parameter = (local.aks_subnet_id == null ?
     "" :
@@ -115,6 +149,7 @@ locals {
     "--no-ssh-key",
     local.kubernetes_version,
     local.optional_parameters,
+    local.kms_parameters,
     local.subnet_id_parameter,
     local.managed_identity_parameter,
     local.api_server_vnet_integration_parameter,
@@ -185,7 +220,8 @@ resource "terraform_data" "aks_cli" {
   depends_on = [
     terraform_data.enable_aks_cli_preview_extension,
     azurerm_role_assignment.network_contributor,
-    azurerm_role_assignment.network_contributor_api_server_subnet
+    azurerm_role_assignment.network_contributor_api_server_subnet,
+    azurerm_role_assignment.aks_identity_kms_roles
   ]
 
   input = {
@@ -231,4 +267,12 @@ resource "terraform_data" "aks_nodepool_cli" {
       ]),
     ])
   }
+}
+
+# Grant AKS identity KMS-related Key Vault roles
+resource "azurerm_role_assignment" "aks_identity_kms_roles" {
+  for_each             = local.aks_kms_role_assignments
+  scope                = each.value
+  role_definition_name = each.key
+  principal_id         = azurerm_user_assigned_identity.userassignedidentity[0].principal_id
 }

@@ -28,6 +28,13 @@ variable "aks_cli_custom_config_path" {
   default     = null
 }
 
+variable "key_vaults" {
+  description = "Map of Key Vault configurations with keys"
+  type        = map(any)
+  default     = {}
+}
+
+
 variable "aks_aad_enabled" {
   description = "Indicates whether Azure Active Directory integration is enabled for AKS"
   type        = bool
@@ -69,6 +76,11 @@ variable "aks_cli_config" {
       name  = string
       value = string
     })), [])
+    kms_config = optional(object({
+      key_name       = string
+      key_vault_name = string
+      network_access = optional(string, "Public")
+    }), null)
     dry_run = optional(bool, false) # If true, only print the command without executing it. Useful for testing.
   })
 }
