@@ -123,7 +123,7 @@ module "route_table" {
   firewall_private_ips = local.firewall_private_ips
   tags                 = local.tags
 
-  depends_on = [module.firewall]
+  depends_on = length(var.firewall_config_list) > 0 ? [module.firewall] : [module.virtual_network]
 }
 module "aks" {
   for_each = local.aks_config_map
@@ -142,6 +142,11 @@ module "aks" {
   network_policy      = local.aks_network_policy
   dns_zones           = try(module.dns_zones.dns_zone_ids, null)
   aks_aad_enabled     = local.aks_aad_enabled
+  
+  depends_on = concat(
+    length(var.route_table_config_list) > 0 ? [module.route_table] : [],
+    length(var.firewall_config_list) > 0 ? [module.firewall] : []
+  )
 }
 
 module "aks-cli" {
@@ -155,4 +160,9 @@ module "aks-cli" {
   subnets_map                = local.all_subnets
   aks_cli_custom_config_path = local.aks_cli_custom_config_path
   aks_aad_enabled            = local.aks_aad_enabled
+
+  depends_on = concat(
+    length(var.route_table_config_list) > 0 ? [module.route_table] : [],
+    length(var.firewall_config_list) > 0 ? [module.firewall] : []
+  )
 }

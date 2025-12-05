@@ -5,6 +5,10 @@ owner          = "aks"
 
 aks_config_list = []
 
+route_table_config_list = []
+
+firewall_config_list = []
+
 aks_cli_config_list = [
   {
     role               = "nap"
