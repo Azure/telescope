@@ -32,7 +32,6 @@ locals {
 
   all_subnets = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
 
-  firewall_private_ips = length(var.firewall_config_list) > 0 ? merge([for fw_module in module.firewall : fw_module.firewall_private_ips_map]...) : {}
   updated_aks_config_list = length(var.aks_config_list) > 0 ? [
     for aks in var.aks_config_list : merge(
       aks,
@@ -120,8 +119,8 @@ module "route_table" {
   resource_group_name  = local.run_id
   location             = local.region
   subnets_ids          = local.all_subnets
-  firewall_private_ips = local.firewall_private_ips
-  public_ip_addresses  = module.public_ips.pip_addresses
+  firewall_private_ips = module.firewall.firewall_private_ips
+  public_ip_addresses  = module.public_ips.pip_ids
   tags                 = local.tags
 
   depends_on = [module.firewall, module.virtual_network, module.public_ips]

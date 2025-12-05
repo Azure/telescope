@@ -16,16 +16,6 @@ resource "azurerm_firewall" "firewall" {
     public_ip_address_id = var.firewall_config.public_ip_address_id
   }
 
-  lifecycle {
-    precondition {
-      condition     = var.firewall_config.subnet_id != null && var.firewall_config.subnet_id != ""
-      error_message = "Firewall '${var.firewall_config.name}': subnet_id cannot be null or empty. Check that the subnet exists in the network."
-    }
-    precondition {
-      condition     = var.firewall_config.public_ip_address_id != null && var.firewall_config.public_ip_address_id != ""
-      error_message = "Firewall '${var.firewall_config.name}': public_ip_address_id cannot be null or empty. Check that the public IP exists."
-    }
-  }
 }
 
 resource "azurerm_firewall_nat_rule_collection" "nat_rules" {
