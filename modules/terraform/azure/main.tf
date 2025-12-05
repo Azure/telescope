@@ -123,7 +123,7 @@ module "route_table" {
   firewall_private_ips = local.firewall_private_ips
   tags                 = local.tags
 
-  depends_on = length(var.firewall_config_list) > 0 ? [module.firewall] : [module.virtual_network]
+  depends_on = [module.firewall,module.virtual_network]
 }
 module "aks" {
   for_each = local.aks_config_map
