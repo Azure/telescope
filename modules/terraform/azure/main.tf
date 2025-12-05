@@ -109,7 +109,7 @@ module "firewall" {
   location            = local.region
   tags                = local.tags
 
-  depends_on = [module.virtual_network]
+  depends_on = [module.virtual_network, module.public_ips]
 }
 module "route_table" {
   for_each = local.route_table_config_map
