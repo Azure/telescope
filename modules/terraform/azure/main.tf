@@ -96,14 +96,14 @@ module "dns_zones" {
 
 
 module "firewall" {
-  for_each = local.firewall_config_map
-
   source = "./firewall"
 
-  firewall_config = merge(each.value, {
-    subnet_id            = try(module.virtual_network[each.value.network_role].subnets_map[each.value.subnet_name].id, null)
-    public_ip_address_id = module.public_ips.pip_ids[each.value.public_ip_name]
-  })
+  firewall_config_list = [
+    for fw in var.firewall_config_list : merge(fw, {
+      subnet_id            = try(module.virtual_network[fw.network_role].subnets_map[fw.subnet_name].id, null)
+      public_ip_address_id = module.public_ips.pip_ids[fw.public_ip_name]
+    })
+  ]
   resource_group_name = local.run_id
   location            = local.region
   tags                = local.tags
@@ -119,7 +119,7 @@ module "route_table" {
   resource_group_name  = local.run_id
   location             = local.region
   subnets_ids          = local.all_subnets
-  firewall_private_ips = module.firewall_private_ips
+  firewall_private_ips = module.firewall.firewall_private_ips
   public_ip_addresses  = module.public_ips.pip_addresses
   tags                 = local.tags
 
