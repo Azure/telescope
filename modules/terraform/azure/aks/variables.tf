@@ -66,6 +66,12 @@ variable "aks_aad_enabled" {
   default     = false
 }
 
+variable "key_vaults" {
+  description = "Map of Key Vault configurations with keys"
+  type        = map(any)
+  default     = {}
+}
+
 variable "aks_config" {
   type = object({
     role        = string
@@ -150,6 +156,11 @@ variable "aks_config" {
     }))
     web_app_routing = optional(object({
       dns_zone_names = list(string)
+    }), null)
+    kms_config = optional(object({
+      key_name       = string
+      key_vault_name = string
+      network_access = optional(string, "Public")
     }), null)
   })
 

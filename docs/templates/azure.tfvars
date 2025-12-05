@@ -96,6 +96,24 @@ scenario_type = "<scenario-type>"                           # Type of scenario -
 deletion_delay = "<deletion-delay>"                         # Time format: "1h", "2h", "4h", "24h". Default: "2h"
 
 # ==============================================================================
+# KEY VAULT CONFIGURATION (Optional)
+# ==============================================================================
+
+# Key Vault configuration for AKS KMS encryption (ETCD encryption at rest)
+# Remove this section if KMS encryption is not needed
+key_vault_config_list = [
+  {
+    name = "<key-vault-name>"                              # Key Vault name (3-20 chars) - e.g., "akskms", "mykeyvault"
+                                                           # NOTE: A 4-character random suffix will be added automatically for global uniqueness
+    keys = [                                               # List of encryption keys to create
+      {
+        key_name = "<key-name>"                            # Encryption key name - e.g., "kms-encryption-key", "etcd-key"
+      }
+    ]
+  }
+]
+
+# ==============================================================================
 # PUBLIC IP CONFIGURATION (Optional)
 # ==============================================================================
 
@@ -326,6 +344,13 @@ aks_config_list = [
     web_app_routing = {
       dns_zone_names = [<dns-zones>]                     # DNS zone names - e.g., ["example.com"] (must match dns_zones above)
     }
+    
+    # KMS configuration (optional)
+    kms_config = {
+      key_name       = "<key-name>"                        # Key name - must match key_name in key_vault_config_list
+      key_vault_name = "<key-vault-name>"                  # Key vault name - must match name in key_vault_config_list
+      network_access = "<network-access>"                  # Network access - Options: "Public", "Private" (optional, default: "Public")
+    }
   }
 ]
 
@@ -381,6 +406,13 @@ aks_cli_config_list = [
     ]
     
     dry_run = <dry-run>                                   # Dry run mode - true/false (optional, default: false). If true, only prints commands without executing
+    
+    # KMS configuration (optional)
+    kms_config = {
+      key_name       = "<key-name>"                        # Key name - must match key_name in key_vault_config_list
+      key_vault_name = "<key-vault-name>"                  # Key vault name - must match name in key_vault_config_list
+      network_access = "<network-access>"                  # Network access - Options: "Public", "Private" (optional, default: "Public")
+    }
   }
 ]
 
