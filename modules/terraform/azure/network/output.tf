@@ -15,18 +15,15 @@ output "subnets" {
   }
 }
 
+output "subnets_map" {
+  description = "Map of subnet names to subnet resource objects with full properties"
+  value = {
+    for subnet in azurerm_virtual_network.vnet.subnet :
+    split("/", subnet.id)[length(split("/", subnet.id)) - 1] => subnet
+  }
+}
+
 output "vnet_id" {
   description = "vnet id"
   value       = azurerm_virtual_network.vnet.id
-}
-
-
-output "firewalls" {
-  description = "Map of firewall names to their private IPs"
-  value = {
-    for fw_name, fw in module.firewall :
-    fw_name => {
-      private_ip = fw.private_ip_address
-    }
-  }
 }

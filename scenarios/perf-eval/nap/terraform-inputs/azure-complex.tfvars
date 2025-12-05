@@ -20,6 +20,16 @@ network_config_list = [
     nsr_rules                   = []
   }
 ]
+route_table_config_list =  [
+  {
+    name                          = "nap-rt"
+    bgp_route_propagation_enabled = false
+    routes = [
+    ]
+    subnet_associations = [{ subnet_name = "nap-subnet-ms" }]
+  }
+]
+
 
 aks_cli_config_list = [
   {
@@ -75,6 +85,14 @@ aks_cli_config_list = [
       {
         name  = "enable-image-cleaner"
         value = ""
+      },
+      {
+        name  = "network-dataplane"
+        value = "cilium"
+      },
+      {
+        name  = "network-policy"
+        value = "cilium"
       }
     ]
   }

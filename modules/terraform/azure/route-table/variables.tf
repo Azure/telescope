@@ -8,6 +8,7 @@ variable "route_table_config" {
       address_prefix         = string
       next_hop_type          = string
       next_hop_in_ip_address = optional(string, null)
+      next_hop_firewall_name = optional(string, null)
     }))
     subnet_associations = list(object({
       subnet_name = string
@@ -25,11 +26,15 @@ variable "location" {
   type        = string
 }
 
-variable "subnets_map" {
-  description = "Map of subnet names to subnet objects"
-  type = map(object({
-    id = string
-  }))
+variable "subnets_ids" {
+  description = "Map of subnet names to subnet IDs from network module"
+  type        = map(string)
+}
+
+variable "firewall_private_ips" {
+  description = "Map of firewall names to their private IP addresses"
+  type        = map(string)
+  default     = {}
 }
 
 variable "tags" {

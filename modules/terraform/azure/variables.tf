@@ -182,7 +182,7 @@ variable "network_config_list" {
           })), [])
         }))
       })), [])
-    })),[])
+    })), [])
     route_tables = optional(list(object({
       name                          = string
       bgp_route_propagation_enabled = optional(bool, true)
@@ -195,7 +195,43 @@ variable "network_config_list" {
       subnet_associations = list(object({
         subnet_name = string
       }))
-    })),[])
+    })), [])
+  }))
+  default = []
+}
+
+variable "route_table_config_list" {
+  description = "List of route table configurations"
+  type = list(object({
+    name                          = string
+    bgp_route_propagation_enabled = optional(bool, true)
+    routes = list(object({
+      name                   = string
+      address_prefix         = string
+      next_hop_type          = string
+      next_hop_in_ip_address = optional(string, null)
+    }))
+    subnet_associations = list(object({
+      subnet_name = string
+    }))
+  }))
+  default = []
+}
+
+variable "firewall_config_list" {
+  description = "List of firewall configurations"
+  type = list(object({
+    name                  = string
+    sku_name              = optional(string, "AZFW_VNet")
+    sku_tier              = optional(string, "Standard")
+    firewall_policy_id    = optional(string)
+    threat_intel_mode     = optional(string, "Alert")
+    dns_proxy_enabled     = optional(bool, false)
+    dns_servers           = optional(list(string))
+    ip_configuration_name = optional(string, "firewall-ipconfig")
+    subnet_name           = string
+    network_role          = string
+    public_ip_name        = string
   }))
   default = []
 }

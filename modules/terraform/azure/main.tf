@@ -10,7 +10,7 @@ locals {
   aks_custom_headers                = lookup(var.json_input, "aks_custom_headers", [])
   k8s_machine_type                  = lookup(var.json_input, "k8s_machine_type", null)
   k8s_os_disk_type                  = lookup(var.json_input, "k8s_os_disk_type", null)
-  aks_aad_enabled                   = lookup(var.json_input, "aks_aad_enabled", "false")
+  aks_aad_enabled                   = lookup(var.json_input, "aks_aad_enabled", false)
   enable_apiserver_vnet_integration = lookup(var.json_input, "enable_apiserver_vnet_integration", false)
 
   tags = {
@@ -24,9 +24,15 @@ locals {
 
   network_config_map = { for network in var.network_config_list : network.role => network }
 
+  route_table_config_map = { for rt in var.route_table_config_list : rt.name => rt }
+
+  firewall_config_map = { for fw in var.firewall_config_list : fw.name => fw }
+
   aks_cli_custom_config_path = "${path.cwd}/../../../scenarios/${var.scenario_type}/${var.scenario_name}/config/aks_custom_config.json"
 
   all_subnets = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
+
+  firewall_private_ips = length(var.firewall_config_list) > 0 ? { for fw_name, fw in module.firewall : fw_name => fw.private_ip_address } : {}
   updated_aks_config_list = length(var.aks_config_list) > 0 ? [
     for aks in var.aks_config_list : merge(
       aks,
@@ -88,6 +94,37 @@ module "dns_zones" {
   tags                = local.tags
 }
 
+
+
+module "firewall" {
+  for_each = local.firewall_config_map
+
+  source = "./firewall"
+
+  firewall_config = merge(each.value, {
+    subnet_id            = try(module.virtual_network[each.value.network_role].subnets_map[each.value.subnet_name].id, null)
+    public_ip_address_id = module.public_ips.pip_ids[each.value.public_ip_name]
+  })
+  resource_group_name = local.run_id
+  location            = local.region
+  tags                = local.tags
+
+  depends_on = [module.virtual_network]
+}
+module "route_table" {
+  for_each = local.route_table_config_map
+
+  source = "./route-table"
+
+  route_table_config   = each.value
+  resource_group_name  = local.run_id
+  location             = local.region
+  subnets_ids          = local.all_subnets
+  firewall_private_ips = local.firewall_private_ips
+  tags                 = local.tags
+
+  depends_on = [module.virtual_network]
+}
 module "aks" {
   for_each = local.aks_config_map
 
@@ -117,4 +154,5 @@ module "aks-cli" {
   tags                       = local.tags
   subnets_map                = local.all_subnets
   aks_cli_custom_config_path = local.aks_cli_custom_config_path
+  aks_aad_enabled            = local.aks_aad_enabled
 }
