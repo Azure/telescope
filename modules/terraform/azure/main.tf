@@ -116,15 +116,15 @@ module "route_table" {
 
   source = "./route-table"
 
-  route_table_config    = each.value
-  resource_group_name   = local.run_id
-  location              = local.region
-  subnets_ids           = local.all_subnets
-  firewall_private_ips  = local.firewall_private_ips
-  public_ip_addresses   = module.public_ips.pip_addresses
-  tags                  = local.tags
+  route_table_config   = each.value
+  resource_group_name  = local.run_id
+  location             = local.region
+  subnets_ids          = local.all_subnets
+  firewall_private_ips = local.firewall_private_ips
+  public_ip_addresses  = module.public_ips.pip_addresses
+  tags                 = local.tags
 
-  depends_on = [module.firewall,module.virtual_network]
+  depends_on = [module.firewall, module.virtual_network]
 }
 module "aks" {
   for_each = local.aks_config_map
@@ -143,7 +143,7 @@ module "aks" {
   network_policy      = local.aks_network_policy
   dns_zones           = try(module.dns_zones.dns_zone_ids, null)
   aks_aad_enabled     = local.aks_aad_enabled
-  
+
   depends_on = [module.route_table]
 }
 

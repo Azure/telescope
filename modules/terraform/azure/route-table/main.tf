@@ -4,7 +4,7 @@ resource "azurerm_route_table" "route_table" {
   resource_group_name           = var.resource_group_name
   bgp_route_propagation_enabled = var.route_table_config.bgp_route_propagation_enabled
   tags                          = var.tags
-  
+
 }
 
 resource "azurerm_route" "routes" {
@@ -13,13 +13,13 @@ resource "azurerm_route" "routes" {
   name                = each.value.name
   resource_group_name = var.resource_group_name
   route_table_name    = azurerm_route_table.route_table.name
-  address_prefix      = (
+  address_prefix = (
     each.value.address_prefix_publicip_name != null
-    ? try(var.public_ip_addresses[each.value.address_prefix_publicip_name], null)
+    ? "${try(var.public_ip_addresses[each.value.address_prefix_publicip_name], null)}/32"
     : each.value.address_prefix
   )
-  next_hop_type           = each.value.next_hop_type
-  next_hop_in_ip_address  = (
+  next_hop_type = each.value.next_hop_type
+  next_hop_in_ip_address = (
     each.value.next_hop_firewall_name != null
     ? var.firewall_private_ips[each.value.next_hop_firewall_name]
     : each.value.next_hop_in_ip_address
