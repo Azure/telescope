@@ -125,64 +125,6 @@ variable "network_config_list" {
       public_ip_names  = list(string)
       subnet_names     = list(string)
     })))
-    firewalls = optional(list(object({
-      name                  = string
-      sku_name              = optional(string, "AZFW_VNet")
-      sku_tier              = optional(string, "Standard")
-      firewall_policy_id    = optional(string, null)
-      threat_intel_mode     = optional(string, "Alert")
-      dns_proxy_enabled     = optional(bool, false)
-      dns_servers           = optional(list(string), null)
-      subnet_name           = string
-      public_ip_name        = string
-      ip_configuration_name = optional(string, "firewall-ipconfig")
-      nat_rule_collections = optional(list(object({
-        name     = string
-        priority = number
-        action   = optional(string, "Dnat")
-        rules = list(object({
-          name                  = string
-          source_addresses      = optional(list(string), [])
-          source_ip_groups      = optional(list(string), [])
-          destination_ports     = list(string)
-          destination_addresses = list(string)
-          translated_address    = string
-          translated_port       = string
-          protocols             = list(string)
-        }))
-      })), [])
-      network_rule_collections = optional(list(object({
-        name     = string
-        priority = number
-        action   = string
-        rules = list(object({
-          name                  = string
-          source_addresses      = optional(list(string), [])
-          source_ip_groups      = optional(list(string), [])
-          destination_ports     = list(string)
-          destination_addresses = optional(list(string), [])
-          destination_fqdns     = optional(list(string), [])
-          destination_ip_groups = optional(list(string), [])
-          protocols             = list(string)
-        }))
-      })), [])
-      application_rule_collections = optional(list(object({
-        name     = string
-        priority = number
-        action   = string
-        rules = list(object({
-          name             = string
-          source_addresses = optional(list(string), [])
-          source_ip_groups = optional(list(string), [])
-          target_fqdns     = optional(list(string), [])
-          fqdn_tags        = optional(list(string), [])
-          protocols = optional(list(object({
-            port = string
-            type = string
-          })), [])
-        }))
-      })), [])
-    })),[])
     route_tables = optional(list(object({
       name                          = string
       bgp_route_propagation_enabled = optional(bool, true)
@@ -195,7 +137,7 @@ variable "network_config_list" {
       subnet_associations = list(object({
         subnet_name = string
       }))
-    })),[])
+    })), [])
   }))
   default = []
 }
@@ -204,6 +146,72 @@ variable "dns_zones" {
   description = "List of DNS zones to create"
   type = list(object({
     name = string
+  }))
+  default = []
+}
+
+variable "firewall_config_list" {
+  description = "List of firewall configurations"
+  type = list(object({
+    name                  = string
+    network_role          = optional(string)
+    subnet_name           = optional(string)
+    public_ip_name        = optional(string)
+    sku_name              = optional(string, "AZFW_VNet")
+    sku_tier              = optional(string, "Standard")
+    firewall_policy_id    = optional(string)
+    threat_intel_mode     = optional(string, "Alert")
+    dns_proxy_enabled     = optional(bool, false)
+    dns_servers           = optional(list(string))
+    ip_configuration_name = optional(string, "firewall-ipconfig")
+    subnet_id             = optional(string)
+    public_ip_address_id  = optional(string)
+    nat_rule_collections = optional(list(object({
+      name     = string
+      priority = number
+      action   = optional(string, "Dnat")
+      rules = list(object({
+        name                  = string
+        source_addresses      = optional(list(string))
+        source_ip_groups      = optional(list(string))
+        destination_ports     = list(string)
+        destination_addresses = list(string)
+        translated_address    = string
+        translated_port       = string
+        protocols             = list(string)
+      }))
+    })))
+    network_rule_collections = optional(list(object({
+      name     = string
+      priority = number
+      action   = string
+      rules = list(object({
+        name                  = string
+        source_addresses      = optional(list(string))
+        source_ip_groups      = optional(list(string))
+        destination_ports     = list(string)
+        destination_addresses = optional(list(string))
+        destination_fqdns     = optional(list(string))
+        destination_ip_groups = optional(list(string))
+        protocols             = list(string)
+      }))
+    })))
+    application_rule_collections = optional(list(object({
+      name     = string
+      priority = number
+      action   = string
+      rules = list(object({
+        name             = string
+        source_addresses = optional(list(string))
+        source_ip_groups = optional(list(string))
+        target_fqdns     = optional(list(string))
+        fqdn_tags        = optional(list(string))
+        protocols = optional(list(object({
+          port = string
+          type = string
+        })))
+      }))
+    })))
   }))
   default = []
 }

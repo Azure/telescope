@@ -4,6 +4,13 @@ scenario_name  = "nap"
 deletion_delay = "2h"
 owner          = "aks"
 
+public_ip_config_list = [
+  {
+    name  = "firewall-pip"
+    count = 1
+  }
+]
+
 network_config_list = [
   {
     role               = "crud"
@@ -13,6 +20,9 @@ network_config_list = [
       {
         name           = "nap-subnet-ms"
         address_prefix = "10.192.0.0/10"
+      },{
+        name           = "AzureFirewallSubnet"
+        address_prefix = "10.193.0.0/26"
       }
     ]
     network_security_group_name = ""
@@ -21,6 +31,66 @@ network_config_list = [
   }
 ]
 
+firewall_config_list = [
+  {
+    name                  = "nap-firewall"
+    network_role          = "crud"
+    sku_tier              = "Standard"
+    subnet_name           = "AzureFirewallSubnet"
+    public_ip_name        = "firewall-pip"
+    threat_intel_mode     = "Alert"
+    dns_proxy_enabled     = true
+    ip_configuration_name = "nap-fw-ipconfig"
+    application_rule_collections = [
+      {
+        name     = "allow-egress"
+        priority = 100
+        action   = "Allow"
+        rules = [
+          {
+            name             = "required-services"
+            source_addresses = ["*"]
+            target_fqdns     = ["*.azure.com", "*.windows.net", "*.azurecr.io", "*.ubuntu.com", "AzureKubernetesService", "mcr-0001.mcr-msedge.net", "*.microsoft.com", "*.microsoftonline.com", "acs-mirror.azureedge.net", "packages.aks.azure.com"]
+            protocols = [
+              { port = "80", type = "Http" },
+              { port = "443", type = "Https" }
+            ]
+          }
+        ]
+      }
+    ]
+    network_rule_collections = [
+      {
+        name     = "network-rules"
+        priority = 100
+        action   = "Allow"
+        rules = [
+          {
+            name                  = "imds"
+            source_addresses      = ["*"]
+            destination_addresses = ["169.254.169.254"]
+            destination_ports     = ["80"]
+            protocols             = ["Any"]
+          },
+          {
+            name                  = "dns"
+            source_addresses      = ["*"]
+            destination_addresses = ["*"]
+            destination_ports     = ["53"]
+            protocols             = ["UDP", "TCP"]
+          },
+          {
+            name                  = "azure-and-web"
+            source_addresses      = ["*"]
+            destination_addresses = ["*"]
+            destination_ports     = ["443"]
+            protocols             = ["TCP", "UDP"]
+          }
+        ]
+      }
+    ]
+  }
+]
 aks_cli_config_list = [
   {
     role                  = "nap"

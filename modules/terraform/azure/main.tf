@@ -88,6 +88,23 @@ module "dns_zones" {
   tags                = local.tags
 }
 
+
+module "firewall" {
+  source = "./firewall"
+
+  firewall_config_list = [
+    for fw in var.firewall_config_list : merge(fw, {
+      subnet_id            = try(module.virtual_network[fw.network_role].subnets_map[fw.subnet_name].id, null)
+      public_ip_address_id = module.public_ips.pip_ids[fw.public_ip_name]
+    })
+  ]
+  resource_group_name = local.run_id
+  location            = local.region
+  tags                = local.tags
+
+  depends_on = [module.virtual_network]
+}
+
 module "aks" {
   for_each = local.aks_config_map
 
