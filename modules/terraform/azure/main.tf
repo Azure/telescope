@@ -32,7 +32,7 @@ locals {
 
   all_subnets = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
 
-  firewall_private_ips = length(var.firewall_config_list) > 0 ? { for fw_name, fw in module.firewall : fw_name => fw.private_ip_address } : {}
+  firewall_private_ips = length(var.firewall_config_list) > 0 ? merge([for fw_module in module.firewall : fw_module.firewall_private_ips_map]...) : {}
   updated_aks_config_list = length(var.aks_config_list) > 0 ? [
     for aks in var.aks_config_list : merge(
       aks,

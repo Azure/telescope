@@ -21,7 +21,7 @@ resource "azurerm_route" "routes" {
   next_hop_type           = each.value.next_hop_type
   next_hop_in_ip_address  = (
     each.value.next_hop_firewall_name != null
-    ? try(var.firewall_private_ips[each.value.next_hop_firewall_name], null)
+    ? var.firewall_private_ips[each.value.next_hop_firewall_name]
     : each.value.next_hop_in_ip_address
   )
 }
