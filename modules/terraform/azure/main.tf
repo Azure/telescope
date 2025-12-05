@@ -76,7 +76,6 @@ module "virtual_network" {
   resource_group_name = local.run_id
   location            = local.region
   public_ips          = module.public_ips.pip_ids
-  public_ip_addresses = module.public_ips.pip_addresses
   tags                = local.tags
 }
 
