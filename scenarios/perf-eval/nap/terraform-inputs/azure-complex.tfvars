@@ -18,7 +18,7 @@ network_config_list = [
     subnet = [
       {
         name           = "nap-subnet-ms"
-        address_prefix = "10.192.0.0/10"
+        address_prefix = "10.192.0.0/16"
       },
       {
         name           = "AzureFirewallSubnet"
