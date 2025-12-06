@@ -100,15 +100,12 @@ module "dns_zones" {
 module "firewall" {
   source = "./firewall"
 
-  firewall_config_list = [
-    for fw in var.firewall_config_list : merge(fw, {
-      subnet_id            = try(module.virtual_network[fw.network_role].all_subnets[fw.subnet_name], null)
-      public_ip_address_id = module.public_ips.pip_ids[fw.public_ip_name]
-    })
-  ]
-  resource_group_name = local.run_id
-  location            = local.region
-  tags                = local.tags
+  firewall_config_list  = var.firewall_config_list
+  subnets_map           = local.all_subnets
+  public_ips_map        = module.public_ips.pip_ids
+  resource_group_name   = local.run_id
+  location              = local.region
+  tags                  = local.tags
 
   depends_on = [module.virtual_network]
 }

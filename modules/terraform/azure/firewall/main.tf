@@ -1,5 +1,17 @@
 locals {
-  firewall_config_map = { for fw in var.firewall_config_list : fw.name => fw }
+  # Resolve subnet_id and public_ip_address_id for each firewall config
+  resolved_firewall_config_map = {
+    for fw in var.firewall_config_list : fw.name => merge(fw, {
+      subnet_id = fw.subnet_id != null ? fw.subnet_id : (
+        fw.subnet_name != null ? try(var.subnets_map[fw.subnet_name].id, null) : null
+      )
+      public_ip_address_id = fw.public_ip_address_id != null ? fw.public_ip_address_id : (
+        fw.public_ip_name != null ? try(var.public_ips_map[fw.public_ip_name], null) : null
+      )
+    })
+  }
+  
+  firewall_config_map = local.resolved_firewall_config_map
 }
 
 resource "azurerm_firewall" "firewall" {
