@@ -4,10 +4,12 @@ variable "route_table_config" {
     name                          = string
     bgp_route_propagation_enabled = optional(bool, true)
     routes = list(object({
-      name                   = string
-      address_prefix         = string
-      next_hop_type          = string
-      next_hop_in_ip_address = optional(string, null)
+      name                         = string
+      address_prefix               = optional(string, null)
+      address_prefix_publicip_name = optional(string, null)
+      next_hop_type                = string
+      next_hop_in_ip_address       = optional(string, null)
+      next_hop_firewall_name       = optional(string, null)
     }))
     subnet_associations = list(object({
       subnet_name = string
@@ -28,6 +30,18 @@ variable "location" {
 variable "subnets_ids" {
   description = "Map of subnet names to subnet IDs from network module"
   type        = map(string)
+}
+
+variable "firewall_private_ips" {
+  description = "Map of firewall names to their private IP addresses"
+  type        = map(string)
+  default     = {}
+}
+
+variable "public_ip_addresses" {
+  description = "Map of public IP names to their IP addresses"
+  type        = map(string)
+  default     = {}
 }
 
 variable "tags" {
