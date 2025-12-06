@@ -10,7 +10,7 @@ locals {
       )
     })
   }
-  
+
   firewall_config_map = local.resolved_firewall_config_map
 }
 
@@ -41,9 +41,9 @@ resource "azurerm_firewall_nat_rule_collection" "nat_rules" {
     for item in flatten([
       for fw_name, fw_config in local.firewall_config_map : [
         for collection in coalesce(fw_config.nat_rule_collections, []) : {
-          fw_name       = fw_name
-          fw_name_col   = "${fw_name}-${collection.name}"
-          collection    = collection
+          fw_name     = fw_name
+          fw_name_col = "${fw_name}-${collection.name}"
+          collection  = collection
         }
       ]
     ]) : item.fw_name_col => item
@@ -75,9 +75,9 @@ resource "azurerm_firewall_network_rule_collection" "network_rules" {
     for item in flatten([
       for fw_name, fw_config in local.firewall_config_map : [
         for collection in coalesce(fw_config.network_rule_collections, []) : {
-          fw_name       = fw_name
-          fw_name_col   = "${fw_name}-${collection.name}"
-          collection    = collection
+          fw_name     = fw_name
+          fw_name_col = "${fw_name}-${collection.name}"
+          collection  = collection
         }
       ]
     ]) : item.fw_name_col => item
@@ -109,9 +109,9 @@ resource "azurerm_firewall_application_rule_collection" "application_rules" {
     for item in flatten([
       for fw_name, fw_config in local.firewall_config_map : [
         for collection in coalesce(fw_config.application_rule_collections, []) : {
-          fw_name       = fw_name
-          fw_name_col   = "${fw_name}-${collection.name}"
-          collection    = collection
+          fw_name     = fw_name
+          fw_name_col = "${fw_name}-${collection.name}"
+          collection  = collection
         }
       ]
     ]) : item.fw_name_col => item

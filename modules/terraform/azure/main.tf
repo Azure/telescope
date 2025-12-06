@@ -100,12 +100,12 @@ module "dns_zones" {
 module "firewall" {
   source = "./firewall"
 
-  firewall_config_list  = var.firewall_config_list
-  subnets_map           = local.all_subnets
-  public_ips_map        = module.public_ips.pip_ids
-  resource_group_name   = local.run_id
-  location              = local.region
-  tags                  = local.tags
+  firewall_config_list = var.firewall_config_list
+  subnets_map          = local.all_subnets
+  public_ips_map       = module.public_ips.pip_ids
+  resource_group_name  = local.run_id
+  location             = local.region
+  tags                 = local.tags
 
   depends_on = [module.virtual_network]
 }
@@ -115,13 +115,13 @@ module "route_table" {
 
   source = "./route-table"
 
-  route_table_config  = each.value
-  resource_group_name = local.run_id
-  location            = local.region
-  subnets_ids         = local.all_subnets
+  route_table_config   = each.value
+  resource_group_name  = local.run_id
+  location             = local.region
+  subnets_ids          = local.all_subnets
   firewall_private_ips = module.firewall.firewall_private_ips
-  public_ip_addresses = module.public_ips.pip_addresses
-  tags                = local.tags
+  public_ip_addresses  = module.public_ips.pip_addresses
+  tags                 = local.tags
 
   depends_on = [module.virtual_network, module.firewall]
 }
@@ -154,7 +154,7 @@ module "aks" {
   dns_zones           = try(module.dns_zones.dns_zone_ids, null)
   aks_aad_enabled     = local.aks_aad_enabled
   key_vaults          = local.all_key_vaults
-  depends_on = [module.route_table, module.virtual_network]
+  depends_on          = [module.route_table, module.virtual_network]
 }
 
 module "aks-cli" {
@@ -168,7 +168,7 @@ module "aks-cli" {
   subnets_map                = local.all_subnets
   aks_cli_custom_config_path = local.aks_cli_custom_config_path
   key_vaults                 = local.all_key_vaults
-  aks_aad_enabled     = local.aks_aad_enabled
-  depends_on = [module.route_table, module.virtual_network]
+  aks_aad_enabled            = local.aks_aad_enabled
+  depends_on                 = [module.route_table, module.virtual_network]
 }
 

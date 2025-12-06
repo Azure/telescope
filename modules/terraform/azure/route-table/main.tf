@@ -29,7 +29,7 @@ resource "azurerm_route" "routes" {
 resource "azurerm_subnet_route_table_association" "subnet_associations" {
   for_each = { for assoc in var.route_table_config.subnet_associations : assoc.subnet_name => assoc }
 
-  subnet_id = var.subnets_ids[each.value.subnet_name]
+  subnet_id      = var.subnets_ids[each.value.subnet_name]
   route_table_id = azurerm_route_table.route_table.id
-  depends_on = [azurerm_route.routes]
+  depends_on     = [azurerm_route.routes]
 }
