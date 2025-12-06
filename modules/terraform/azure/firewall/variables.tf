@@ -82,14 +82,11 @@ variable "tags" {
 
 variable "subnets_map" {
   description = "Map of all subnets by name (for resolving subnet references)"
-  type        = map(object({
-    id = string
-  }))
-  default = {}
+  type        = map(string)
 }
 
 variable "public_ips_map" {
   description = "Map of public IP IDs by name (for resolving public IP references)"
   type        = map(string)
-  default = {}
+
 }
