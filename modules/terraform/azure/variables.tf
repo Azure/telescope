@@ -136,7 +136,7 @@ variable "route_table_config_list" {
     bgp_route_propagation_enabled = optional(bool, true)
     routes = list(object({
       name                   = string
-      address_prefix         = string
+      address_prefix         = optional(string, null)
       address_prefix_publicip_name = optional(string, null)
       next_hop_type          = string
       next_hop_in_ip_address = optional(string, null)
