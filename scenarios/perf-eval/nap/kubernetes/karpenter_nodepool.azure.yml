@@ -19,8 +19,8 @@ metadata:
     kubernetes.io/description: "General purpose On-Demand NodePool"
 spec:
   disruption:
-    consolidationPolicy: WhenEmpty
-    consolidateAfter: 40m
+    consolidationPolicy: WhenUnderutilized
+    consolidateAfter: 10m
     budgets:
       - nodes: "100%"
   template:
