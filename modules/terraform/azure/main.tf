@@ -157,6 +157,7 @@ module "aks" {
   dns_zones           = try(module.dns_zones.dns_zone_ids, null)
   aks_aad_enabled     = local.aks_aad_enabled
   key_vaults          = local.all_key_vaults
+  depends_on = [module.route_table, module.virtual_network]
 }
 
 module "aks-cli" {
@@ -171,5 +172,6 @@ module "aks-cli" {
   aks_cli_custom_config_path = local.aks_cli_custom_config_path
   key_vaults                 = local.all_key_vaults
   aks_aad_enabled     = local.aks_aad_enabled
+  depends_on = [module.route_table, module.virtual_network]
 }
 
