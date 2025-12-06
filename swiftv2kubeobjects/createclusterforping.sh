@@ -192,6 +192,7 @@ create_aks_cluster() {
     fi
     
     # Get the kubelet identity ID from the shared infrastructure resource group
+    az account set --subscription $CUST_SUB
     local kubelet_identity_id=$(az identity show --name $SHARED_KUBELET_IDENTITY_NAME --resource-group ${CUST_RG:-$custRG} --query id -o tsv)
     
     if [ -z "$kubelet_identity_id" ]; then
@@ -210,6 +211,7 @@ create_aks_cluster() {
 
     echo "Using control plane identity: $control_plane_identity_id"
 
+    az account set --subscription $SUBSCRIPTION
     # Create the AKS cluster with the specified parameters
     local k8s_version_param=""
     if [[ -n "$K8S_VERSION" ]]; then
@@ -268,12 +270,16 @@ az network vnet subnet create -n ${vnetSubnetNameNodes} --vnet-name ${vnetName} 
 az network vnet subnet create -n ${vnetSubnetNamePods} --vnet-name ${vnetName} --address-prefixes ${vnetSubnetPodsCIDR} --nat-gateway $NAT_GW_NAME --default-outbound-access false -g ${RG}
 
 # az role assignment create --assignee d0fdeb79-ee9b-464c-ae0f-ba72d307208d --role "Network Contributor" --scope /subscriptions/${SUBSCRIPTION}/resourceGroups/$RG/providers/Microsoft.Network/virtualNetworks/$vnetName
+# set az account to subnetDelegator
+az account set --subscription $CUST_SUB
 for attempt in $(seq 1 5); do
     echo "Attempting to set stampcreatorservicename using subnetdelegator command: $attempt/5"
     script --return --quiet -c "az containerapp exec -n subnetdelegator-westus-u3h4j -g subnetdelegator-westus --command 'curl -v -X PUT http://localhost:8080/VirtualNetwork/%2Fsubscriptions%2F${SUBSCRIPTION}%2FresourceGroups%2F$RG%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F$vnetName/stampcreatorservicename'" /dev/null && break || echo "Command failed, retrying..."
     sleep 30
 done
 
+# set az account back to original
+az account set --subscription $SUBSCRIPTION
 # create cluster
 echo "create cluster"
 vnetID=$(az network vnet list -g ${RG} | jq -r '.[].id')
@@ -410,10 +416,13 @@ else
 fi
 
 # customer vnet (created using runCustomerSetup.sh manually)
-
+az account set --subscription $CUST_SUB
 export custVnetGUID=$(az network vnet show --name ${CUST_VNET_NAME} --resource-group ${CUST_RG} --query resourceGuid --output tsv)
 export custSubnetResourceId=$(az network vnet subnet show --name ${CUST_SCALE_DEL_SUBNET} --vnet-name ${CUST_VNET_NAME} --resource-group ${CUST_RG} --query id --output tsv)
 export custSubnetGUID=$(az rest --method get --url "/subscriptions/${CUST_SUB}/resourceGroups/${CUST_RG}/providers/Microsoft.Network/virtualNetworks/${CUST_VNET_NAME}/subnets/${CUST_SCALE_DEL_SUBNET}?api-version=2024-05-01" | jq -r '.properties.serviceAssociationLinks[0].properties.subnetId')
+
+# set az account back to original
+az account set --subscription $SUBSCRIPTION
 
 az aks get-credentials -n ${CLUSTER} -g ${RG} --admin
 

@@ -3,7 +3,7 @@
 # This file should be sourced by both runCustomerSetup.sh and createclusterforping.sh
 
 # Common subscription and location settings
-export CUST_SUB=${SUBSCRIPTION:-"9b8218f9-902a-4d20-a65c-e98acec5362f"}
+export CUST_SUB="9b8218f9-902a-4d20-a65c-e98acec5362f"
 export LOCATION=${LOCATION:-"eastus2euap"}
 
 # Customer VNet configuration
