@@ -102,7 +102,7 @@ module "firewall" {
 
   firewall_config_list = [
     for fw in var.firewall_config_list : merge(fw, {
-      subnet_id            = try(module.virtual_network[fw.network_role].subnets_map[fw.subnet_name].id, null)
+      subnet_id            = try(module.virtual_network[fw.network_role].all_subnets[fw.subnet_name], null)
       public_ip_address_id = module.public_ips.pip_ids[fw.public_ip_name]
     })
   ]
