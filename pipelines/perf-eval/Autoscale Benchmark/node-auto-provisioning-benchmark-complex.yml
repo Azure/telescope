@@ -39,7 +39,7 @@ stages:
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: ""
               disable_warmup: "false"
-              warmup_subcmd_args: "--total 20000 --core-warmup-ready-threshold=65536 --vc-affinity=node.kubernetes.io/instance-type=Standard_D2_v5 --rg-affinity=node.kubernetes.io/instance-type=Standard_D2_v5"
+              warmup_subcmd_args: "--total 2000 --core-warmup-ready-threshold=65536 --vc-affinity=node.kubernetes.io/instance-type=Standard_D2_v5 --rg-affinity=node.kubernetes.io/instance-type=Standard_D2_v5"
               # clusterloader2 parameters
               cpu_per_node: 2
               scale_up_timeout: "150m"
