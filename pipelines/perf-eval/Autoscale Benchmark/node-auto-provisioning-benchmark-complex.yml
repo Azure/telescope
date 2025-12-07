@@ -12,7 +12,8 @@ variables:
   SCENARIO_NAME: nap
 
 stages:
-  - stage: azure_eastus2_ondemand_complex_config
+  # Stage 1: Run kperf benchmark first
+  - stage: azure_eastus2_kperf
     dependsOn: []
     variables:
       - group: NAP-MS-Requirements
@@ -24,6 +25,36 @@ stages:
           regions:
             - eastus2
           terraform_input_file_mapping:
+            - eastus2: "scenarios/perf-eval/apiserver-vn10pod100/terraform-inputs/azure.tfvars"
+          engine: kperf
+          engine_input:
+            runner_image: ghcr.io/azure/kperf:0.3.4
+            benchmark_subcmd: node10_job1_pod100
+            benchmark_subcmd_args: "--total 1000"
+          topology: kperf
+          matrix:
+            kperf-benchmark:
+              flowcontrol: "workload-low:1000"
+              extra_benchmark_subcmd_args: ""
+              disable_warmup: "false"
+              warmup_subcmd_args: "--total 20000 --core-warmup-ready-threshold=65536 --vc-affinity=node.kubernetes.io/instance-type=Standard_D2_v5 --rg-affinity=node.kubernetes.io/instance-type=Standard_D2_v5"
+          max_parallel: 1
+          timeout_in_minutes: 60
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  # Stage 2: Run clusterloader2 benchmark (after kperf)
+  - stage: azure_eastus2_clusterloader2
+    dependsOn: [azure_eastus2_kperf]
+    variables:
+      - group: NAP-MS-Requirements
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          terraform_input_file_mapping:
             - eastus2: "scenarios/perf-eval/nap/terraform-inputs/azure-complex.tfvars"
           engine: clusterloader2
           engine_input:
@@ -31,15 +62,15 @@ stages:
           topology: karpenter
           matrix:
             complex-nap:
-              cpu_per_node: 4
-              scale_up_timeout: "200m"
-              scale_down_timeout: "200m"
+              cpu_per_node: 2
+              scale_up_timeout: "150m"
+              scale_down_timeout: "150m"
               node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D4_v5
+              vm_size: Standard_D2_v5
               capacity_type: on-demand
               aad_enabled: "true"
               enable_apiserver_vnet_integration: "true"

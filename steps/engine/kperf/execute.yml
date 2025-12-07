@@ -21,6 +21,7 @@ parameters:
   type: string
 
 steps:
+# Install kperf locally (when no jumpbox)
 - script: |
     set -euo pipefail
     set -x
@@ -36,6 +37,9 @@ steps:
   env:
     RUNNER_IMAGE: ${{ parameters.engine_input.runner_image }}
   displayName: "Install runkperf binary"
+  condition: eq(variables['JUMPBOX_HOST'], '')
+
+# Warmup locally (when no jumpbox)
 - script: |
     set -euo pipefail
     set -x
@@ -65,6 +69,9 @@ steps:
     DISABLE_WARMUP: ${{ parameters.disable_warmup }}
     WARMUP_SUBCMD_ARGS: ${{ parameters.warmup_subcmd_args }}
   displayName: "Warmup"
+  condition: eq(variables['JUMPBOX_HOST'], '')
+
+# Run Benchmark locally (when no jumpbox)
 - script: |
     set -euo pipefail
     set -x
@@ -95,3 +102,116 @@ steps:
     EXTRA_BENCHMARK_SUBCMD_ARGS: ${{ parameters.extra_benchmark_subcmd_args }}
     FLOWCONTROL: ${{ parameters.flowcontrol }}
   displayName: "Run Benchmark"
+  condition: eq(variables['JUMPBOX_HOST'], '')
+
+# Run kperf on jumpbox (when jumpbox is available)
+- script: |
+    set -eo pipefail
+
+    if [ -z "${JUMPBOX_HOST:-}" ]; then
+      echo "JUMPBOX_HOST is required when running on a jumpbox." >&2
+      exit 1
+    fi
+
+    if [ -z "${SSH_KEY_PATH:-}" ] || [ ! -f "$SSH_KEY_PATH" ]; then
+      echo "SSH_KEY_PATH is not set or file not found. Enable ssh_key_enabled and ensure the key is available." >&2
+      exit 1
+    fi
+
+    ssh_user="${JUMPBOX_USERNAME:-azureuser}"
+    build_id="${BUILD_ID:-$(date +%s)}"
+    jumpbox_workdir="/tmp/telescope-run"
+    remote_root="${jumpbox_workdir}/run-${build_id}"
+    remote_results_dir="${remote_root}/results"
+
+    ssh_target="${ssh_user}@${JUMPBOX_HOST}"
+    env_file="$(mktemp)"
+    ssh_opts=(-i "$SSH_KEY_PATH" -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null" -o "ServerAliveInterval=60" -o "ServerAliveCountMax=5")
+
+    echo "Preparing remote workspace on jumpbox ${JUMPBOX_HOST}..."
+    ssh "${ssh_opts[@]}" "$ssh_target" "mkdir -p '${remote_root}' '${remote_results_dir}'"
+
+    {
+      echo "export CLOUD=\"${CLOUD}\""
+      echo "export REGION=\"${REGION}\""
+      echo "export RUNNER_IMAGE=\"${RUNNER_IMAGE}\""
+      echo "export BENCHMARK_SUBCMD=\"${BENCHMARK_SUBCMD}\""
+      echo "export BENCHMARK_SUBCMD_ARGS=\"${BENCHMARK_SUBCMD_ARGS}\""
+      echo "export EXTRA_BENCHMARK_SUBCMD_ARGS=\"${EXTRA_BENCHMARK_SUBCMD_ARGS}\""
+      echo "export FLOWCONTROL=\"${FLOWCONTROL}\""
+      echo "export DISABLE_WARMUP=\"${DISABLE_WARMUP}\""
+      echo "export WARMUP_SUBCMD_ARGS=\"${WARMUP_SUBCMD_ARGS}\""
+      echo "export REMOTE_RESULTS_DIR=\"${remote_results_dir}\""
+    } > "$env_file"
+
+    scp "${ssh_opts[@]}" "$env_file" "${ssh_target}:${remote_root}/jumpbox-env.sh"
+    rm -f "$env_file"
+
+    echo "Executing kperf on jumpbox..."
+    {
+      echo 'set -eo pipefail'
+      echo 'set -x'
+      echo ''
+      echo 'source "$REMOTE_ROOT/jumpbox-env.sh"'
+      echo ''
+      echo '# Install kperf from docker image'
+      echo 'temp_dir=$(mktemp -p /tmp -d kperfinstall.XXXX)'
+      echo 'docker pull ${RUNNER_IMAGE}'
+      echo 'docker run --rm -v ${temp_dir}:/install-dir \'
+      echo '  ${RUNNER_IMAGE} bash -c "set -x; install /kperf /runkperf /install-dir"'
+      echo ''
+      echo 'sudo install ${temp_dir}/kperf ${temp_dir}/runkperf /usr/local/bin'
+      echo 'rm -rf ${temp_dir}'
+      echo 'docker rmi ${RUNNER_IMAGE} || true'
+      echo ''
+      echo '# Warmup'
+      echo 'is_eks=""'
+      echo 'if [[ "${CLOUD}" == "aws" ]]; then'
+      echo '  is_eks="--eks"'
+      echo 'fi'
+      echo ''
+      echo 'if [[ "${DISABLE_WARMUP}" != "true" ]]; then'
+      echo '  cmd_name=ekswarmup'
+      echo '  new_version=$(runkperf ekswarmup -h 2> /dev/null || echo true)'
+      echo '  if [[ "${new_version}" == "true" ]]; then'
+      echo '    cmd_name=warmup'
+      echo '  fi'
+      echo ''
+      echo '  sudo -E $(command -v runkperf) -v 3 ${cmd_name} \'
+      echo '    --kubeconfig ~/.kube/config \'
+      echo '    --runner-image ${RUNNER_IMAGE} ${is_eks} \'
+      echo '    ${WARMUP_SUBCMD_ARGS}'
+      echo 'fi'
+      echo ''
+      echo '# Run Benchmark'
+      echo 'new_version=$(runkperf ekswarmup -h 2> /dev/null || echo true)'
+      echo 'if [[ "${new_version}" == "true" ]]; then'
+      echo '  is_eks=""'
+      echo 'fi'
+      echo ''
+      echo 'sudo -E $(command -v runkperf) -v 3 bench ${is_eks} \'
+      echo '  --kubeconfig ~/.kube/config \'
+      echo '  --runner-image="${RUNNER_IMAGE}" \'
+      echo '  --runner-flowcontrol="${FLOWCONTROL}" \'
+      echo '  --result ${REMOTE_RESULTS_DIR}/tmp_results.json \'
+      echo '  ${BENCHMARK_SUBCMD} ${BENCHMARK_SUBCMD_ARGS} ${EXTRA_BENCHMARK_SUBCMD_ARGS}'
+    } | ssh "${ssh_opts[@]}" "$ssh_target" "REMOTE_ROOT='${remote_root}' bash -s"
+
+    echo "Syncing results back to pipeline workspace..."
+    mkdir -p "${TEST_RESULTS_DIR}"
+    scp -r "${ssh_opts[@]}" "${ssh_target}:${remote_results_dir}" "${TEST_RESULTS_DIR}/"
+
+  env:
+    CLOUD: ${{ parameters.cloud }}
+    REGION: ${{ parameters.region }}
+    RUNNER_IMAGE: ${{ parameters.engine_input.runner_image }}
+    BENCHMARK_SUBCMD: ${{ parameters.engine_input.benchmark_subcmd }}
+    BENCHMARK_SUBCMD_ARGS: ${{ parameters.engine_input.benchmark_subcmd_args }}
+    EXTRA_BENCHMARK_SUBCMD_ARGS: ${{ parameters.extra_benchmark_subcmd_args }}
+    FLOWCONTROL: ${{ parameters.flowcontrol }}
+    DISABLE_WARMUP: ${{ parameters.disable_warmup }}
+    WARMUP_SUBCMD_ARGS: ${{ parameters.warmup_subcmd_args }}
+    BUILD_ID: $(Build.BuildId)
+    TEST_RESULTS_DIR: $(TEST_RESULTS_DIR)
+  displayName: "Run kperf on jumpbox"
+  condition: ne(variables['JUMPBOX_HOST'], '')
