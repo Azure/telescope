@@ -1,0 +1,44 @@
+parameters:
+- name: cloud
+  type: string
+  default: ''
+- name: engine_input
+  type: object
+  default: {}
+- name: regions
+  type: object
+  default: {}
+
+steps:
+# Step 1: Run kperf benchmark first
+- script: |
+    echo "=============================================="
+    echo "Step 1: Running kperf benchmark"
+    echo "=============================================="
+  displayName: "Begin kperf benchmark"
+
+- template: /steps/engine/kperf/execute.yml
+  parameters:
+    cloud: ${{ parameters.cloud }}
+    engine_input:
+      runner_image: $(kperf_runner_image)
+      benchmark_subcmd: $(kperf_benchmark_subcmd)
+      benchmark_subcmd_args: $(kperf_benchmark_subcmd_args)
+    flowcontrol: $(flowcontrol)
+    extra_benchmark_subcmd_args: $(extra_benchmark_subcmd_args)
+    disable_warmup: $(disable_warmup)
+    warmup_subcmd_args: $(warmup_subcmd_args)
+    region: ${{ parameters.regions[0] }}
+
+# Step 2: Run clusterloader2 benchmark after kperf
+- script: |
+    echo "=============================================="
+    echo "Step 2: Running clusterloader2 benchmark"
+    echo "=============================================="
+  displayName: "Begin clusterloader2 benchmark"
+
+- template: /steps/engine/clusterloader2/autoscale/execute.yml
+  parameters:
+    cloud: ${{ parameters.cloud }}
+    engine_input: ${{ parameters.engine_input }}
+    region: ${{ parameters.regions[0] }}

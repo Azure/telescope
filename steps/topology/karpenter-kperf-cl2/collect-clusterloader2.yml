@@ -1,0 +1,33 @@
+parameters:
+- name: cloud
+  type: string
+  default: ''
+- name: engine_input
+  type: object
+  default: {}
+- name: regions
+  type: object
+  default: {}
+
+steps:
+# Collect kperf results
+- template: /steps/engine/kperf/collect.yml
+  parameters:
+    cloud: ${{ parameters.cloud }}
+    engine_input:
+      runner_image: $(kperf_runner_image)
+      benchmark_subcmd: $(kperf_benchmark_subcmd)
+      benchmark_subcmd_args: $(kperf_benchmark_subcmd_args)
+    flowcontrol: $(flowcontrol)
+    extra_benchmark_subcmd_args: $(extra_benchmark_subcmd_args)
+    region: ${{ parameters.regions[0] }}
+
+# Collect clusterloader2 results
+- template: /steps/engine/clusterloader2/autoscale/collect.yml
+  parameters:
+    cloud: ${{ parameters.cloud }}
+    engine_input: ${{ parameters.engine_input }}
+    region: ${{ parameters.regions[0] }}
+
+# Cleanup clusterloader2
+- template: /steps/engine/clusterloader2/autoscale/cleanup.yml

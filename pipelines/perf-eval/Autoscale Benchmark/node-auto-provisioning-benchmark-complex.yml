@@ -12,7 +12,8 @@ variables:
   SCENARIO_NAME: nap
 
 stages:
-  - stage: azure_eastus2_ondemand_complex_config
+  # Single stage: Run kperf first, then clusterloader2 on the SAME cluster
+  - stage: azure_eastus2_kperf_cl2
     dependsOn: []
     variables:
       - group: NAP-MS-Requirements
@@ -28,22 +29,31 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250912"
-          topology: karpenter
+          topology: karpenter-kperf-cl2
           matrix:
             complex-nap:
-              cpu_per_node: 4
-              scale_up_timeout: "200m"
-              scale_down_timeout: "200m"
+              # kperf parameters
+              kperf_runner_image: "ghcr.io/azure/kperf:0.3.4"
+              kperf_benchmark_subcmd: "node10_job1_pod100"
+              kperf_benchmark_subcmd_args: "--total 1000"
+              flowcontrol: "workload-low:1000"
+              extra_benchmark_subcmd_args: ""
+              disable_warmup: "false"
+              warmup_subcmd_args: "--total 20000 --core-warmup-ready-threshold=65536 --vc-affinity=node.kubernetes.io/instance-type=Standard_D2_v5 --rg-affinity=node.kubernetes.io/instance-type=Standard_D2_v5"
+              # clusterloader2 parameters
+              cpu_per_node: 2
+              scale_up_timeout: "150m"
+              scale_down_timeout: "150m"
               node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D4_v5
+              vm_size: Standard_D2_v5
               capacity_type: on-demand
               aad_enabled: "true"
               enable_apiserver_vnet_integration: "true"
           max_parallel: 1
-          timeout_in_minutes: 500
+          timeout_in_minutes: 560
           credential_type: service_connection
           ssh_key_enabled: true
