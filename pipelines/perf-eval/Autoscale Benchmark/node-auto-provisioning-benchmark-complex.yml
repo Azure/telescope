@@ -39,7 +39,7 @@ stages:
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D6_v5
+              vm_size: Standard_D8_v5
               capacity_type: on-demand
               aad_enabled: "true"
               enable_apiserver_vnet_integration: "true"

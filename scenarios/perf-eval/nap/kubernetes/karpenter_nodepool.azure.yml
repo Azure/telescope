@@ -39,7 +39,7 @@ spec:
           values: ["on-demand"]
         - key: karpenter.azure.com/sku-name
           operator: In
-          values: [Standard_D6_v5]
+          values: [Standard_D8_v5]
 
 # Spot NodePool
 ---
