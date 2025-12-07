@@ -20,7 +20,7 @@ metadata:
 spec:
   disruption:
     consolidationPolicy: WhenEmpty
-    consolidateAfter: 15m
+    consolidateAfter: 1s
     budgets:
       - nodes: "100%"
   template:
@@ -71,4 +71,4 @@ spec:
           values: ["spot"]
         - key: karpenter.azure.com/sku-name
           operator: In
-          values: [Standard_D2_v5]
+          values: [Standard_D8_v3]

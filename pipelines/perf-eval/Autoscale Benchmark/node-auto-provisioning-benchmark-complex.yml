@@ -12,7 +12,7 @@ variables:
   SCENARIO_NAME: nap
 
 stages:
-  - stage: azure_eastus2_ondemand_complex_config
+  - stage: azure_canadacentral_ondemand_complex_config
     dependsOn: []
     variables:
       - group: NAP-MS-Requirements
@@ -22,18 +22,18 @@ stages:
           retry_attempt_count: 1
           cloud: azure
           regions:
-            - eastus2
+            - canadacentral
           terraform_input_file_mapping:
-            - eastus2: "scenarios/perf-eval/nap/terraform-inputs/azure-complex.tfvars"
+            - canadacentral: "scenarios/perf-eval/nap/terraform-inputs/azure-complex.tfvars"
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250912"
           topology: karpenter
           matrix:
             complex-nap:
-              cpu_per_node: 2
-              node_count: 2000
-              pod_count: 2000
+              cpu_per_node: 8
+              node_count: 5000
+              pod_count: 5000
               scale_up_timeout: "200m"
               scale_down_timeout: "200m"
               node_label_selector: "karpenter.sh/nodepool = default"
@@ -41,7 +41,7 @@ stages:
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D2ds_v5
+              vm_size: Standard_D8_v3
               capacity_type: on-demand
               aad_enabled: "true"
               enable_apiserver_vnet_integration: "true"
