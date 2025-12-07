@@ -31,7 +31,7 @@ stages:
           topology: karpenter
           matrix:
             complex-nap:
-              cpu_per_node: 4
+              cpu_per_node: 6
               scale_up_timeout: "200m"
               scale_down_timeout: "200m"
               node_label_selector: "karpenter.sh/nodepool = default"
@@ -39,7 +39,7 @@ stages:
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D4_v5
+              vm_size: Standard_D6_v5
               capacity_type: on-demand
               aad_enabled: "true"
               enable_apiserver_vnet_integration: "true"
