@@ -22,7 +22,7 @@ stages:
           retry_attempt_count: 1
           cloud: azure
           regions:
-            - eastus2
+            - canadacentral
           terraform_input_file_mapping:
             - eastus2: "scenarios/perf-eval/nap/terraform-inputs/azure-complex.tfvars"
           engine: clusterloader2
