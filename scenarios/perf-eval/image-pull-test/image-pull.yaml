@@ -1,0 +1,71 @@
+name: image-pull-test
+namespace:
+  number: 1
+tuningSets:
+- name: UniformQPS
+  qpsLoad:
+    qps: 10
+steps:
+- measurements:
+  - identifier: PodStartupLatency
+    method: PodStartupLatency
+    params:
+      action: start
+      labelSelector: group = image-pull
+      threshold: 3m
+- module:
+    path: containerd-measurements.yaml
+    params:
+      action: start
+- module:
+    path: kubelet-measurement.yaml
+    params:
+      action: start
+- name: Start deployment
+  phases:
+  - namespaceRange:
+      min: 1
+      max: 1
+    replicasPerNamespace: 10
+    tuningSet: UniformQPS
+    objectBundle:
+    - basename: image-pull-deployment
+      objectTemplatePath: deployment.yaml
+      templateFillMap:
+        Replicas: 1
+        Group: image-pull
+        Image: <your-acr>.azurecr.io/<your-image>:<tag>  # TODO: Replace with your image
+- name: Wait for pods to start and metrics to be collected
+  measurements:
+  - identifier: WaitForRunningDeployments
+    method: WaitForControlledPodsRunning
+    params:
+      action: start
+      apiVersion: apps/v1
+      kind: Deployment
+      labelSelector: group = image-pull
+      operationTimeout: 5m
+- measurements:
+  - identifier: WaitForRunningDeployments
+    method: WaitForControlledPodsRunning
+    params:
+      action: gather
+- name: Wait for containerd metrics to accumulate (histogram buckets need multiple scrapes)
+  measurements:
+  - identifier: Sleep
+    method: Sleep
+    params:
+      duration: 10m
+- module:
+    path: containerd-measurements.yaml
+    params:
+      action: gather
+- module:
+    path: kubelet-measurement.yaml
+    params:
+      action: gather
+- measurements:
+  - identifier: PodStartupLatency
+    method: PodStartupLatency
+    params:
+      action: gather
