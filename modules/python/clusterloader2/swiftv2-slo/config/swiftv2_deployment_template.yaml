@@ -5,7 +5,7 @@ metadata:
   labels:
     group: "{{.Group}}"
     kubernetes.azure.com/pod-network: pn100
-    kubernetes.azure.com/pod-network-instance: "{{.pniName}}-{{.Index}}"
+    kubernetes.azure.com/pod-network-instance: "{{.pniName}}"
 spec:
   replicas: {{.Replicas}}
   selector:
@@ -22,7 +22,7 @@ spec:
         pod-index: "{{.Index}}"
         step: "{{.Step}}"
         kubernetes.azure.com/pod-network: pn100
-        kubernetes.azure.com/pod-network-instance: "{{.pniName}}-{{.Index}}"
+        kubernetes.azure.com/pod-network-instance: "{{.pniName}}"
         restart: "{{.deploymentLabel}}"
     spec:
       serviceAccountName: swiftv2-sa-0
@@ -40,17 +40,6 @@ spec:
           securityContext:
             privileged: true
           name: deployment-churn
-          readinessProbe:
-            exec:
-              command:
-                - test
-                - -f
-                - /tmp/ingress-test-passed
-            initialDelaySeconds: 10
-            periodSeconds: 5
-            timeoutSeconds: 2
-            successThreshold: 1
-            failureThreshold: 3
           env:
             - name: POD_INDEX
               value: "{{.Index}}"
