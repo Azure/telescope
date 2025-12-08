@@ -1,7 +1,7 @@
 # cluster configuration for Morgan Stanley
 scenario_type  = "perf-eval"
 scenario_name  = "nap"
-deletion_delay = "10h"
+deletion_delay = "4h"
 owner          = "aks"
 
 public_ip_config_list = [
@@ -240,21 +240,7 @@ aks_cli_config_list = [
       {
         name  = "network-policy"
         value = "cilium"
-      },
-      {
-        name  = "enable-private-cluster"
-        value = ""
       }
     ]
-  }
-]
-# Jumpbox Configuration - Auto-provisioned for testing
-jumpbox_config_list = [
-  {
-    role        = "nap"
-    name        = "nap-jumpbox"
-    subnet_name = "jumpbox-subnet"
-    vm_size     = "Standard_D4s_v3"
-    aks_name    = "nap-complex"
   }
 ]
