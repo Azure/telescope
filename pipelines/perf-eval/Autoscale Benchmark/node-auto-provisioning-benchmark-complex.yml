@@ -1,19 +1,10 @@
 trigger: none
-schedules:
-  # On-Demand Schedule with Morgan Stanley cluster config
-  - cron: "0 */4 * * *"    # Every 4 hours
-    displayName: "Every 4 hours"
-    branches:
-      include:
-        - ms-nap-complex
-    always: true
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: nap
 
 stages:
-  # Single stage: Run kperf first, then clusterloader2 on the SAME cluster
-  - stage: azure_canadacentral_kperf_cl2
+  - stage: azure_canadacentral_ondemand_complex_config
     dependsOn: []
     variables:
       - group: NAP-MS-Requirements
@@ -29,18 +20,9 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250912"
-          topology: karpenter-kperf-cl2
+          topology: karpenter
           matrix:
             complex-nap:
-              # kperf parameters
-              kperf_runner_image: "ghcr.io/azure/kperf:0.3.4"
-              kperf_benchmark_subcmd: "node10_job1_pod100"
-              kperf_benchmark_subcmd_args: "--total 1000 --vc-affinity=node.kubernetes.io/instance-type=Standard_D2_v3 --rg-affinity=node.kubernetes.io/instance-type=Standard_D2_v3"
-              flowcontrol: "workload-low:1000"
-              extra_benchmark_subcmd_args: ""
-              disable_warmup: "false"
-              warmup_subcmd_args: "--total 5000 --core-warmup-ready-threshold=65536 --vc-affinity=node.kubernetes.io/instance-type=Standard_D2_v3 --rg-affinity=node.kubernetes.io/instance-type=Standard_D2_v3"
-              # clusterloader2 parameters
               cpu_per_node: 2
               scale_up_timeout: "150m"
               scale_down_timeout: "150m"
@@ -54,6 +36,6 @@ stages:
               aad_enabled: "true"
               enable_apiserver_vnet_integration: "true"
           max_parallel: 1
-          timeout_in_minutes: 560
+          timeout_in_minutes: 500
           credential_type: service_connection
           ssh_key_enabled: true
