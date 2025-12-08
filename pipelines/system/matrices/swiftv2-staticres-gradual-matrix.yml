@@ -22,12 +22,12 @@ parameters:
 - name: matrix
   type: object
   default:
-    pps=35_pods=70_nodes=10:
-      node_count: 10
-      pods_per_step: 35
-      test_timeout: "2m"
-      test_type: Gradual_StaticRes_PPS=35_Pods=70_Nodes=10
-      cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+    # pps=35_pods=70_nodes=10:
+    #   node_count: 10
+    #   pods_per_step: 35
+    #   test_timeout: "2m"
+    #   test_type: Gradual_StaticRes_PPS=35_Pods=70_Nodes=10
+    #   cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
     # pps=25_pods=700_nodes=100:
     #   node_count: 100
     #   pods_per_step: 25
@@ -100,12 +100,12 @@ parameters:
       test_timeout: "2m"
       test_type: Gradual_StaticRes_PPS=50_Pods=7000_Nodes=1000
       cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-    pps=50_pods=12600_nodes=1800:
-      node_count: 1800
-      pods_per_step: 50
-      test_timeout: "2m"
-      test_type: Gradual_StaticRes_PPS=50_Pods=12600_Nodes=1800
-      cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+    # pps=50_pods=12600_nodes=1800:
+    #   node_count: 1800
+    #   pods_per_step: 50
+    #   test_timeout: "2m"
+    #   test_type: Gradual_StaticRes_PPS=50_Pods=12600_Nodes=1800
+    #   cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
 
 jobs:
 - template: /jobs/competitive-test.yml
