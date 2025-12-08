@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.Name}}
+  labels:
+    group: {{.Group}}
+spec:
+  replicas: {{.Replicas}}
+  selector:
+    matchLabels:
+      group: {{.Group}}
+  template:
+    metadata:
+      labels:
+        group: {{.Group}}
+    spec:
+      containers:
+      - name: test-container
+        image: {{.Image}}
+        imagePullPolicy: Always
+        command: ["sleep"]
+        args: ["3600"]
+        resources:
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        readinessProbe:
+          exec:
+            command: ["true"]
+          initialDelaySeconds: 5
+          periodSeconds: 10
