@@ -131,11 +131,6 @@ network_config_list = [
             name           = "aks-apiserver-subnet"
             address_prefix = "10.240.0.0/27" 
             next_hop_type  = "VnetLocal"
-          },
-          {
-            name           = "aks-control-plane"
-            address_prefix = "AzureKubernetesService"
-            next_hop_type  = "Internet"
           }
         ]
         subnet_associations = [{ subnet_name = "nap-subnet-ms" }]
