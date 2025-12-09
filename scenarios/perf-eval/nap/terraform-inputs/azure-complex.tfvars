@@ -11,16 +11,6 @@ public_ip_config_list = [
   }
 ]
 
-key_vault_config_list = [
-  {
-    name = "akskms"
-    keys = [
-      {
-        key_name = "kms-nap"
-      }
-    ]
-  }
-]
 network_config_list = [
   {
     role               = "crud"
@@ -185,9 +175,7 @@ aks_cli_config_list = [
       node_count = 5
       vm_size    = "Standard_D8_v5"
     }
-    kms_key_name              = "kms-nap"
-    kms_key_vault_name        = "akskms"
-    key_vault_network_access = "Private"
+
     extra_node_pool = []
     optional_parameters = [
       {
