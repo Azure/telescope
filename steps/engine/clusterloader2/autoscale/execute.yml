@@ -30,6 +30,7 @@ steps:
     CL2_IMAGE: ${{ parameters.engine_input.image }}
     CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/config
     CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/results
+    CPU_PER_NODE: -1
   displayName: "Run Benchmark"
   condition: eq(variables['JUMPBOX_HOST'], '')
 
@@ -135,5 +136,6 @@ steps:
     CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/results
     SOURCE_DIR: $(Pipeline.Workspace)/s
     BUILD_ID: $(Build.BuildId)
+    CPU_PER_NODE: -1
   displayName: "Run Benchmark on jumpbox"
   condition: ne(variables['JUMPBOX_HOST'], '')
