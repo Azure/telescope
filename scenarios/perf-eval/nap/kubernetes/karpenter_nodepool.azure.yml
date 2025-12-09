@@ -20,7 +20,7 @@ metadata:
 spec:
   disruption:
     consolidationPolicy: WhenEmpty
-    consolidateAfter: 1s
+    consolidateAfter: 1m
     budgets:
       - nodes: "100%"
   template:
@@ -37,9 +37,15 @@ spec:
         - key: karpenter.sh/capacity-type
           operator: In
           values: ["on-demand"]
-        - key: karpenter.azure.com/sku-name
+        - key: karpenter.azure.com/sku-family
           operator: In
-          values: [Standard_D8_v3]
+          values:
+          - D
+        - key: karpenter.azure.com/sku-cpu
+          operator: In
+          values:
+          - 16
+          - 32
 
 # Spot NodePool
 ---

@@ -21,28 +21,25 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - centraluseuap
           terraform_input_file_mapping:
-            - eastus2: "scenarios/perf-eval/nap/terraform-inputs/azure-complex.tfvars"
+            - centraluseuap: "scenarios/perf-eval/nap/terraform-inputs/azure-complex.tfvars"
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
           topology: karpenter
           matrix:
             complex-nap:
-              cpu_per_node: 2
-              node_count: 10
-              pod_count: 1000
-              scale_up_timeout: "15m"
-              scale_down_timeout: "15m"
+              scale_up_timeout: "200m"
+              scale_down_timeout: "200m"
               node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D8_v3
               capacity_type: on-demand
               aad_enabled: "true"
+              vm_size: "D"
               enable_apiserver_vnet_integration: "false"
           max_parallel: 1
           timeout_in_minutes: 60
