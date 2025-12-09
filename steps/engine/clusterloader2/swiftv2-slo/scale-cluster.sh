@@ -1,6 +1,5 @@
 #!/bin/bash
 set -euo pipefail
-set -x
 
 # Simplified AKS Nodepool Scaling Script
 # Focuses on scaling and then repairing failed VMs
@@ -14,45 +13,6 @@ set -x
 # Source required libraries
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 source "$SCRIPT_DIR/aks-utils.sh"
-
-# =============================================================================
-# CANCELLATION HANDLING
-# =============================================================================
-
-# Global flag for cancellation detection
-CANCELLED=false
-
-# Signal handler for graceful shutdown
-function handle_cancellation() {
-    log_warning "Received cancellation signal (SIGTERM/SIGINT)"
-    CANCELLED=true
-    
-    # Give processes a moment to clean up
-    sleep 2
-    
-    log_error "Pipeline cancellation detected. Exiting gracefully..."
-    exit 143  # Standard exit code for SIGTERM
-}
-
-# Set up signal traps for cancellation
-trap handle_cancellation SIGTERM SIGINT
-
-# Check if pipeline has been cancelled (Azure DevOps specific)
-function check_cancellation() {
-    if [ "$CANCELLED" = true ]; then
-        log_warning "Cancellation detected, stopping current operation..."
-        return 1
-    fi
-    
-    # Check for Azure DevOps cancellation marker file (if exists)
-    if [ -f "/tmp/pipeline_cancelled" ]; then
-        log_warning "Pipeline cancellation marker detected"
-        CANCELLED=true
-        return 1
-    fi
-    
-    return 0
-}
 
 # =============================================================================
 # SIMPLIFIED SCALING AND VM REPAIR
@@ -119,8 +79,7 @@ function scale_nodepool() {
         scale_attempt=$((scale_attempt + 1))
         
         if [ $scale_attempt -gt 1 ]; then
-            log_warning "Retry attempt $scale_attempt/$max_scale_retries for scaling nodepool '$nodepool'"
-            log_info "Waiting $retry_delay seconds before retry..."
+            log_info "Retrying scale operation for nodepool '$nodepool' (attempt $scale_attempt/$max_scale_retries)..."
             sleep $retry_delay
         fi
         
@@ -160,15 +119,20 @@ function scale_nodepool() {
         log_info "VMSS actual count: $actual_count, target: $target_count (attempt $scale_attempt/$max_scale_retries)"
         
         if [ "$actual_count" -eq "$target_count" ]; then
-            log_info "Successfully scaled nodepool '$nodepool' to $target_count nodes (verified)"
+            log_info "Successfully scaled nodepool '$nodepool' to $target_count nodes"
             scale_success=true
             return 0
         elif [ "$actual_count" -gt 0 ] && [ "$actual_count" -ge $((target_count - 5)) ]; then
-            log_warning "Nodepool '$nodepool' scaled to $actual_count/$target_count nodes (within tolerance)"
+            local shortfall=$((target_count - actual_count))
+            if [ "${PROVISION_BUFFER_NODES}" = "true" ]; then
+                log_info "Nodepool '$nodepool' has $actual_count/$target_count nodes ($shortfall VM(s) failed - buffer pool will provide additional capacity)"
+            else
+                log_info "Nodepool '$nodepool' has $actual_count/$target_count nodes ($shortfall VM(s) failed - VM repair will attempt to recover)"
+            fi
             scale_success=true
             return 0
         else
-            log_warning "Scale incomplete for nodepool '$nodepool': got $actual_count/$target_count nodes (attempt $scale_attempt/$max_scale_retries)"
+            log_warning "Scale incomplete for nodepool '$nodepool': $actual_count/$target_count nodes provisioned (attempt $scale_attempt/$max_scale_retries)"
             
             # If this isn't the last retry, continue to next attempt
             if [ $scale_attempt -lt $max_scale_retries ]; then
@@ -179,18 +143,69 @@ function scale_nodepool() {
     
     # All retries exhausted
     if [ "$scale_success" = false ]; then
-        log_error "Failed to scale nodepool '$nodepool' to $target_count nodes after $max_scale_retries attempts"
+        log_error "Failed to scale nodepool '$nodepool' to $target_count nodes after $max_scale_retries attempts. Later steps will attempt to recover"
         log_error "Final VMSS count: $(get_vmss_instance_count "$nodepool" "$cluster_name" "$resource_group")/$target_count"
         
-        # Check if we should fail hard when exact count is required
-        if [ "${PROVISION_BUFFER_NODES:-true}" = "false" ]; then
-            log_error "PROVISION_BUFFER_NODES is false. Failing due to insufficient VMs."
-            return 1
-        else
-            log_warning "PROVISION_BUFFER_NODES is true. Continuing to VM repair phase..."
-            return 0  # Continue to VM repair instead of failing
-        fi
     fi
+    
+    return 0
+}
+
+# Scale the buffer pool (userpoolBuffer) to handle shortfall when buffer pool exists
+function scale_buffer_pool() {
+    local cluster_name=$1
+    local resource_group=$2
+    local shortfall=$3
+    
+    local buffer_pool_name="userpoolBuffer"
+    
+    # Calculate target size (2x shortfall)
+    local additional_nodes=$((shortfall * 2))
+    log_info "=== Scaling buffer pool to handle shortfall ==="
+    log_info "  Buffer pool: $buffer_pool_name"
+    log_info "  Shortfall detected: $shortfall nodes"
+    log_info "  Additional nodes to provision (2x shortfall): $additional_nodes nodes"
+    
+    # Get current buffer pool size
+    log_info "Step 1/3: Getting current buffer pool size..."
+    local current_count
+    current_count=$(get_nodepool_count "$cluster_name" "$buffer_pool_name" "$resource_group" 2>/dev/null || echo "0")
+    log_info "  Current buffer pool size: $current_count nodes"
+    
+    # Calculate new target
+    local new_target=$((current_count + additional_nodes))
+    
+    # Cap at 500 nodes per pool
+    if [ "$new_target" -gt 500 ]; then
+        log_warning "Target $new_target exceeds max pool size, capping at 500"
+        new_target=500
+    fi
+    
+    log_info "  New target size: $new_target nodes"
+    
+    # Scale the buffer pool
+    log_info "Step 2/3: Scaling buffer pool '$buffer_pool_name' from $current_count to $new_target nodes..."
+    
+    if ! scale_nodepool "$cluster_name" "$buffer_pool_name" "$resource_group" "$new_target"; then
+        log_warning "Buffer pool scale operation did not fully succeed"
+    fi
+    
+    # Wait for nodes to be ready
+    log_info "Step 3/3: Waiting for buffer pool nodes to become ready..."
+    sleep 30  # Initial stabilization
+    
+    if ! verify_node_readiness "$buffer_pool_name" "$new_target"; then
+        log_warning "Not all nodes in buffer pool are ready, but continuing with available nodes"
+    fi
+    
+    # Get final ready count
+    local ready_count
+    ready_count=$(kubectl get nodes -l agentpool="$buffer_pool_name" --no-headers 2>/dev/null | grep " Ready " | wc -l)
+    log_info "=== Buffer pool scaling complete ==="
+    log_info "  Pool name: $buffer_pool_name"
+    log_info "  Previous size: $current_count nodes"
+    log_info "  Target size: $new_target nodes"
+    log_info "  Ready nodes: $ready_count"
     
     return 0
 }
@@ -352,12 +367,6 @@ function wait_for_vmss_replacement() {
     log_info "Waiting for $expected_replacements replacement VM instances to be provisioned..."
     
     while [ $elapsed -lt $max_wait_time ]; do
-        # Check for cancellation
-        if ! check_cancellation; then
-            log_warning "Operation cancelled during VMSS replacement wait"
-            return 1
-        fi
-        
         # Check current instance count and their states
         local instance_info
         instance_info=$(az vmss list-instances \
@@ -474,7 +483,9 @@ function label_swiftv2slo_nodes() {
     fi
     
     if [ "$labeled_count" -lt "$total_nodes_to_label" ]; then
-        log_warning "Only labeled $labeled_count/$total_nodes_to_label requested nodes"
+        local missing=$((total_nodes_to_label - labeled_count))
+        log_error "Only labeled $labeled_count/$total_nodes_to_label nodes ($missing nodes missing)"
+        return 1
     fi
     
     return 0
@@ -483,43 +494,21 @@ function label_swiftv2slo_nodes() {
 # Verify that all nodes in a nodepool are ready in Kubernetes
 function verify_node_readiness() {
     local nodepool=$1
-    local cluster_name=$2
-    local resource_group=$3
-    local expected_nodes=$4
+    local expected_nodes=$2
     
-    # Get current nodepool count to validate
-    local current_count
-    current_count=$(get_nodepool_count "$cluster_name" "$nodepool" "$resource_group")
-    
-    # Skip verification if nodepool wasn't scaled to target
-    if [ "$current_count" != "$expected_nodes" ]; then
-        log_info "Skipping readiness check for nodepool '$nodepool' (current: $current_count, expected: $expected_nodes)"
-        return 0
+    if [ "$expected_nodes" -le 0 ]; then
+        log_warning "No nodes to verify in nodepool '$nodepool'"
+        return 1
     fi
     
-    log_info "Verifying node readiness for nodepool '$nodepool' ($expected_nodes nodes)..."
+    log_info "Verifying node readiness for nodepool '$nodepool' (expecting $expected_nodes nodes)..."
     
-    # Calculate dynamic timeout based on node count
-    local node_readiness_timeout=$((expected_nodes * 15))  # 15 seconds per node
-    
-    # Apply minimum and maximum timeout bounds
-    if [ $node_readiness_timeout -lt 480 ]; then
-        node_readiness_timeout=480  # 8 minutes minimum
-    elif [ $node_readiness_timeout -gt 900 ]; then
-        node_readiness_timeout=900  # 15 minutes maximum
-    fi
-    
+    local node_readiness_timeout=900  # 15 minutes timeout
     local RETRY_INTERVAL=30  # Check every 30 seconds
     local elapsed=0
     
     # Poll for node readiness
     while [ $elapsed -lt $node_readiness_timeout ]; do
-        # Check for cancellation
-        if ! check_cancellation; then
-            log_warning "Operation cancelled during node readiness verification"
-            return 1
-        fi
-        
         # Query node status for this nodepool
         local READY_NODES
         READY_NODES=$(kubectl get nodes -l agentpool="$nodepool" --no-headers 2>/dev/null | grep " Ready " | wc -l 2>/dev/null)
@@ -533,11 +522,11 @@ function verify_node_readiness() {
         TOTAL_NODES=$(kubectl get nodes -l agentpool="$nodepool" --no-headers 2>/dev/null | wc -l 2>/dev/null)
         TOTAL_NODES=${TOTAL_NODES:-0}
         
-        log_info "Node readiness for '$nodepool': $READY_NODES ready, $NOT_READY_NODES not ready, $TOTAL_NODES total (target: $expected_nodes, elapsed: ${elapsed}s)"
+        log_info "Node readiness for '$nodepool': $READY_NODES ready, $NOT_READY_NODES not ready, $TOTAL_NODES total (expected: $expected_nodes, elapsed: ${elapsed}s)"
         
-        # Success condition: all expected nodes are ready
-        if [ "$READY_NODES" -eq "$expected_nodes" ] && [ "$READY_NODES" -gt 0 ]; then
-            log_info "All $READY_NODES nodes in nodepool '$nodepool' are ready"
+        # Success condition: expected nodes are ready
+        if [ "$READY_NODES" -ge "$expected_nodes" ]; then
+            log_info "All $expected_nodes expected nodes in nodepool '$nodepool' are ready"
             return 0
         fi
         
@@ -566,17 +555,11 @@ function verify_node_readiness() {
     done
     
     # Timeout reached
-    log_error "Timeout waiting for nodes in nodepool '$nodepool' to be ready"
+    log_error "Timeout waiting for $expected_nodes nodes in nodepool '$nodepool' to be ready"
     
     # Show final node status
     log_info "Final node status:"
     kubectl get nodes -l agentpool="$nodepool" -o wide 2>/dev/null || echo "Unable to get node status"
-    
-    # Check if we should fail hard when buffer nodes are not available
-    if [ "${PROVISION_BUFFER_NODES:-true}" = "false" ]; then
-        log_error "PROVISION_BUFFER_NODES is false and not all nodes are ready. Failing the script."
-        exit 1
-    fi
     
     return 1
 }
@@ -604,8 +587,8 @@ function get_total_ready_nodes() {
     echo "$ready_nodes"
 }
 
-# Check if VM repair is needed based on ready node count
-function is_vm_repair_needed() {
+# Check if there's a node shortfall based on ready node count
+function has_node_shortfall() {
     local cluster_name=$1
     local resource_group=$2
     local target_nodes=$3
@@ -614,11 +597,11 @@ function is_vm_repair_needed() {
     ready_nodes=$(get_total_ready_nodes "$cluster_name" "$resource_group")
     
     if [[ $ready_nodes -ge $target_nodes ]]; then
-        log_info "Sufficient ready nodes ($ready_nodes >= $target_nodes). VM repair not needed."
-        return 1  # Not needed
+        log_info "Sufficient ready nodes ($ready_nodes >= $target_nodes). No shortfall detected."
+        return 1  # No shortfall
     else
-        log_info "Insufficient ready nodes ($ready_nodes < $target_nodes). VM repair needed."
-        return 0  # Needed
+        log_info "Insufficient ready nodes ($ready_nodes < $target_nodes). Shortfall detected."
+        return 0  # Has shortfall
     fi
 }
 
@@ -686,52 +669,20 @@ function validate_environment() {
     fi
 }
 
-# Main execution function
-function main() {
-    # Validate environment
-    validate_environment
-    
-    log_info "Starting simplified AKS nodepool scaling operation"
-    log_info "  Region: $REGION"
-    log_info "  Role: $ROLE"
-    log_info "  Desired total user nodes (NODE_COUNT): $NODE_COUNT"
-    log_info "  Run ID: $RUN_ID"
-    
-    # Discover and connect to AKS cluster
-    find_aks_cluster "$REGION" "$ROLE"
-    
-    # Get user nodepools to scale
-    local usernodepools
-    usernodepools=$(get_user_nodepools "$aks_name" "$aks_rg")
-    if [ $? -ne 0 ]; then
-        log_info "No user nodepools found to scale, exiting"
-        exit 0
-    fi
+# =============================================================================
+# MAIN WORKFLOW FUNCTIONS
+# =============================================================================
 
-    local total_user_nodepools
-    total_user_nodepools=$(echo "$usernodepools" | wc -w)
-    log_info "Discovered $total_user_nodepools user nodepool(s): $usernodepools"
-
-    # Treat NODE_COUNT as TOTAL desired user nodes across all userpool* pools.
-    # Fill pools sequentially (userpool1, userpool2, ...) up to 500 nodes each.
-    local total_target=${NODE_COUNT}
-    if [[ -z "$total_target" || "$total_target" -le 0 ]]; then
-        log_warning "Total desired user node count invalid ('$total_target'); defaulting to 1"
-        total_target=1
-    fi
-
-    declare -A CURRENT_COUNTS
-    declare -A TARGETS
+# Calculate per-pool scaling targets using sequential fill strategy
+# Sets global: CURRENT_COUNTS, TARGETS, total_required_nodes
+function calculate_scaling_targets() {
+    local usernodepools=$1
+    local total_target=$2
+    
     local current_total=0
 
     # Gather current counts first
     for nodepool in $usernodepools; do
-        # Check for cancellation before gathering nodepool info
-        if ! check_cancellation; then
-            log_error "Pipeline cancelled while gathering nodepool information"
-            exit 143
-        fi
-        
         local cnt
         cnt=$(get_nodepool_count "$aks_name" "$nodepool" "$aks_rg")
         CURRENT_COUNTS[$nodepool]=$cnt
@@ -741,7 +692,7 @@ function main() {
     log_info "Current total user nodes across pools: $current_total"
 
     if [[ $current_total -ge $total_target ]]; then
-        log_warning "Current total ($current_total) already >= desired total ($total_target). No scale up performed (no scale down logic)."
+        log_info "Current total ($current_total) already meets desired total ($total_target). No scaling needed."
         for nodepool in $usernodepools; do
             TARGETS[$nodepool]=${CURRENT_COUNTS[$nodepool]}
         done
@@ -749,6 +700,8 @@ function main() {
     else
         local remaining=$((total_target - current_total))
         log_info "Need to add $remaining node(s) across pools to reach target $total_target"
+        
+        # Fill pools sequentially up to 500 nodes each
         for nodepool in $usernodepools; do
             local current=${CURRENT_COUNTS[$nodepool]}
             local capacity=$((500 - current))
@@ -763,9 +716,11 @@ function main() {
             TARGETS[$nodepool]=$((current + add))
             remaining=$((remaining - add))
         done
+        
         if [[ $remaining -gt 0 ]]; then
             log_warning "Unable to reach desired total ($total_target). Remaining $remaining node(s) exceed aggregate capacity of existing pools (max 500 each)."
         fi
+        
         # Compute total_required_nodes as sum of targets
         total_required_nodes=0
         for nodepool in $usernodepools; do
@@ -773,120 +728,272 @@ function main() {
         done
     fi
 
+    # Log the plan
     log_info "Planned per-pool targets (sequential fill up to 500 each):"
     for nodepool in $usernodepools; do
         log_info "  $nodepool: current=${CURRENT_COUNTS[$nodepool]} -> target=${TARGETS[$nodepool]}"
     done
     log_info "Aggregate planned total: $total_required_nodes (desired: $total_target)"
+}
 
-    # Track scale failures
+# Scale all user nodepools to their targets
+# Returns number of scale failures
+function scale_user_nodepools() {
+    local usernodepools=$1
     local scale_failures=0
-    declare -A SCALE_FAILED
     
-    # Process each nodepool with its computed target
     for nodepool in $usernodepools; do
-        # Check for cancellation before processing each nodepool
-        if ! check_cancellation; then
-            log_error "Pipeline cancelled before processing nodepool '$nodepool'"
-            exit 143
-        fi
-        
         local pool_target=${TARGETS[$nodepool]}
         local current_nodes=${CURRENT_COUNTS[$nodepool]}
+        
         log_info "=== Processing nodepool: '$nodepool' current=$current_nodes target=$pool_target ==="
+        
         if [[ $pool_target -gt $current_nodes ]]; then
             log_info "Scaling nodepool '$nodepool': $current_nodes → $pool_target"
+            
             if ! scale_nodepool "$aks_name" "$nodepool" "$aks_rg" "$pool_target"; then
                 scale_failures=$((scale_failures + 1))
                 SCALE_FAILED[$nodepool]=1
-                log_warning "Scale incomplete for nodepool '$nodepool', VM repair will attempt to fix issues..."
+                
+                if [ "${PROVISION_BUFFER_NODES}" = "true" ]; then
+                    log_warning "Scale failed for nodepool '$nodepool'. Buffer pool should provide additional capacity."
+                else
+                    log_info "Scale did not reach target for nodepool '$nodepool'. VM repair phase will attempt to recover failed VMs."
+                fi
             fi
+            
             log_info "Waiting 60 seconds for scale operation to stabilize..."
             sleep 60
         else
             log_info "No scale up needed for $nodepool (current >= target)"
         fi
+        
         log_info "Completed processing nodepool '$nodepool'"
     done
     
     if [ $scale_failures -gt 0 ]; then
-        log_warning "Scale operations failed for $scale_failures nodepool(s)"
+        if [ "${PROVISION_BUFFER_NODES}" = "true" ]; then
+            log_info "$scale_failures nodepool(s) did not reach full target. Buffer pool will provide additional capacity."
+        else
+            log_info "$scale_failures nodepool(s) did not reach full target. VM repair will attempt recovery."
+        fi
     fi
+    
+    return $scale_failures
+}
+
+# Handle shortfall by scaling buffer pool
+function handle_shortfall_with_buffer_pool() {
+    local shortfall=$1
+    
+    log_info "=== Buffer pool mode: Scaling userpoolBuffer to handle shortfall ==="
+    log_info "Strategy: Scale userpoolBuffer with 2x shortfall ($((shortfall * 2))) additional nodes"
+    
+    scale_buffer_pool "$aks_name" "$aks_rg" "$shortfall"
+    local scale_result=$?
+    
+    if [ $scale_result -eq 0 ]; then
+        log_info "✓ Buffer pool scaling completed"
+        
+        # Wait for 30 secs for stabilization before verification
+        sleep 30
+        log_info "Verifying node count after buffer pool scaling..."
+        local post_scale_ready
+        post_scale_ready=$(get_total_ready_nodes "$aks_name" "$aks_rg")
+        log_info "Ready nodes after buffer pool scaling: $post_scale_ready (required: $total_required_nodes)"
+        
+        if [ "$post_scale_ready" -ge "$total_required_nodes" ]; then
+            log_info "✓ Buffer pool scaling successfully provided enough nodes to meet requirement"
+            return 0
+        else
+            log_error "Buffer pool scaled but total ready nodes ($post_scale_ready) still below requirement ($total_required_nodes)"
+            log_error "Missing nodes: $((total_required_nodes - post_scale_ready))"
+            return 1
+        fi
+    else
+        log_error "Buffer pool scaling encountered issues"
+        return 1
+    fi
+}
+
+# Handle shortfall by repairing failed VMs
+function handle_shortfall_with_vm_repair() {
+    local usernodepools=$1
+    
+    log_info "=== No buffer pool mode: Performing VM repair ==="
+    log_info "Strategy: Delete failed VMs to trigger VMSS replacement"
+    
+    # Step 1: Repair failed VMs in all nodepools
+    for nodepool in $usernodepools; do
+        log_info "--- VM repair for nodepool: '$nodepool' ---"
+        
+        log_info "Checking VM status for nodepool '$nodepool'..."
+        local vmss_info
+        vmss_info=$(list_vm_status "$nodepool" "$aks_name" "$aks_rg")
+        IFS=':' read -r vmss_name node_rg <<< "$vmss_info"
+        
+        if [ -z "$vmss_name" ]; then
+            log_warning "No VMSS found for nodepool '$nodepool', skipping"
+            continue
+        fi
+        log_info "  VMSS: $vmss_name"
+        log_info "  Node RG: $node_rg"
+        
+        log_info "Deleting failed VMs for nodepool '$nodepool'..."
+        repair_failed_vms "$vmss_name" "$node_rg" "$nodepool"
+        
+        log_info "--- Completed VM repair for nodepool '$nodepool' ---"
+    done
+    
+    # Step 2: Wait for total required nodes with retries
+    log_info "Waiting for cluster to reach $total_required_nodes ready nodes..."
+    
+    local max_retries=3
+    local retry_timeout=900  # 15 minutes per retry
+    local retry_interval=30
+    
+    for attempt in $(seq 1 $max_retries); do
+        log_info "Verification attempt $attempt/$max_retries (timeout: $((retry_timeout / 60)) minutes)..."
+        
+        local elapsed=0
+        while [ $elapsed -lt $retry_timeout ]; do
+            local ready_nodes
+            ready_nodes=$(get_total_ready_nodes "$aks_name" "$aks_rg")
+            
+            log_info "Ready nodes: $ready_nodes / $total_required_nodes (elapsed: ${elapsed}s)"
+            
+            if [ "$ready_nodes" -ge "$total_required_nodes" ]; then
+                log_info "✓ VM repair successfully recovered enough nodes to meet requirement"
+                return 0
+            fi
+            
+            sleep $retry_interval
+            elapsed=$((elapsed + retry_interval))
+        done
+        
+        if [ $attempt -lt $max_retries ]; then
+            log_warning "Attempt $attempt timed out. Retrying..."
+        fi
+    done
+    
+    # All retries exhausted
+    local final_ready_nodes
+    final_ready_nodes=$(get_total_ready_nodes "$aks_name" "$aks_rg")
+    log_error "VM repair failed after $max_retries attempts. Ready nodes: $final_ready_nodes (required: $total_required_nodes)"
+    log_error "Missing nodes: $((total_required_nodes - final_ready_nodes))"
+    return 1
+}
+
+# Recover from node shortfall using appropriate strategy
+function recover_from_shortfall() {
+    local usernodepools=$1
+    local total_user_nodepools=$2
     
     log_info "Verifying overall cluster capacity..."
     log_info "Expected user nodepools: $total_user_nodepools"
-    log_info "Expected total required nodes (sum of per-pool targets): $total_required_nodes"
+    log_info "Expected total required nodes: $total_required_nodes"
     
-    # Check if VM repair is needed based on total ready node count
-    if is_vm_repair_needed "$aks_name" "$aks_rg" "$total_required_nodes"; then
-        # Check for cancellation before starting VM repair
-        if ! check_cancellation; then
-            log_error "Pipeline cancelled before VM repair operations"
-            exit 143
+    if has_node_shortfall "$aks_name" "$aks_rg" "$total_required_nodes"; then
+        log_warning "Insufficient ready nodes detected."
+        
+        # Calculate shortfall
+        local current_ready_nodes
+        current_ready_nodes=$(get_total_ready_nodes "$aks_name" "$aks_rg")
+        local shortfall=$((total_required_nodes - current_ready_nodes))
+        
+        log_info "Current ready nodes: $current_ready_nodes"
+        log_info "Required nodes: $total_required_nodes"
+        log_info "Shortfall: $shortfall nodes"
+        
+        if [ "${PROVISION_BUFFER_NODES}" = "true" ]; then
+            if ! handle_shortfall_with_buffer_pool "$shortfall"; then
+                log_error "Failed to recover from shortfall using buffer pool"
+                return 1
+            fi
+        else
+            if ! handle_shortfall_with_vm_repair "$usernodepools"; then
+                log_error "Failed to recover from shortfall using VM repair"
+                return 1
+            fi
         fi
-        
-        log_info "Insufficient ready nodes detected. Performing failed VM cleanup and replacement..."
-        
-        # Process each nodepool for VM repair
-        for nodepool in $usernodepools; do
-            # Check for cancellation before each nodepool repair
-            if ! check_cancellation; then
-                log_warning "Pipeline cancelled during VM repair for nodepool '$nodepool'"
-                exit 143
-            fi
-            
-            log_info "=== Cleaning up failed VMs for nodepool: '$nodepool' ==="
-            
-            # List VM status and get VMSS info
-            local vmss_info
-            vmss_info=$(list_vm_status "$nodepool" "$aks_name" "$aks_rg")
-            IFS=':' read -r vmss_name node_rg <<< "$vmss_info"
-            
-            # Delete any failed VMs to trigger replacement
-            repair_failed_vms "$vmss_name" "$node_rg" "$nodepool"
-            
-            # Verify all nodes are ready in Kubernetes
-            local pool_target=${TARGETS[$nodepool]:-${CURRENT_COUNTS[$nodepool]}}
-            if ! verify_node_readiness "$nodepool" "$aks_name" "$aks_rg" "$pool_target"; then
-                log_warning "Node readiness verification failed for nodepool '$nodepool', but continuing..."
-            fi
-            
-            log_info "Completed failed VM cleanup for nodepool '$nodepool'"
-        done
-        
-        # Final check after cleanup and replacement
-        log_info "Verifying node count after VM cleanup and replacement..."
-        local final_ready_nodes
-        final_ready_nodes=$(get_total_ready_nodes "$aks_name" "$aks_rg")
-        log_info "Final ready node count: $final_ready_nodes (required: $total_required_nodes)"
     else
-        log_info "Sufficient ready nodes available. Skipping failed VM cleanup operations."
+        log_info "✓ Sufficient ready nodes available. No recovery operations needed."
     fi
     
-    # Label the required number of nodes with swiftv2slo=true
+    return 0
+}
+
+# Label nodes for workload placement
+function label_nodes_for_workload() {
     log_info "Labeling $total_required_nodes nodes with swiftv2slo=true for workload placement..."
+    
     if ! label_swiftv2slo_nodes "$total_required_nodes"; then
-        log_warning "Node labeling encountered issues, but continuing..."
+        log_error "Failed to label all required nodes ($total_required_nodes). Cluster does not have sufficient capacity."
+        return 1
     fi
     
-    # Final verification: if PROVISION_BUFFER_NODES is false, ensure we have exactly the required nodes
-    if [ "${PROVISION_BUFFER_NODES:-true}" = "false" ]; then
-        log_info "PROVISION_BUFFER_NODES is false. Performing strict final node count verification..."
-        local final_ready_nodes
-        final_ready_nodes=$(get_total_ready_nodes "$aks_name" "$aks_rg")
-        
-        if [ "$final_ready_nodes" -lt "$total_required_nodes" ]; then
-            log_error "PROVISION_BUFFER_NODES is false and final ready node count ($final_ready_nodes) is less than required ($total_required_nodes)"
-            log_error "Missing nodes: $((total_required_nodes - final_ready_nodes))"
-            exit 1
-        fi
-        
-        log_info "✓ Strict verification passed: $final_ready_nodes ready nodes >= $total_required_nodes required"
-    else
-        log_info "Final cluster state: $(get_total_ready_nodes "$aks_name" "$aks_rg") ready nodes available"
+    return 0
+}
+
+# =============================================================================
+# MAIN ENTRY POINT
+# =============================================================================
+
+function main() {
+    validate_environment
+    
+    log_info "Starting AKS nodepool scaling operation"
+    log_info "  Region: $REGION"
+    log_info "  Role: $ROLE"
+    log_info "  Desired total user nodes: $NODE_COUNT"
+    log_info "  Run ID: $RUN_ID"
+    log_info "  Buffer pool enabled: ${PROVISION_BUFFER_NODES:-false}"
+    
+    # Step 1: Discover cluster and nodepools
+    find_aks_cluster "$REGION" "$ROLE"
+    
+    local usernodepools
+    usernodepools=$(get_user_nodepools "$aks_name" "$aks_rg")
+    if [ $? -ne 0 ]; then
+        log_info "No user nodepools found to scale, exiting"
+        exit 0
+    fi
+
+    local total_user_nodepools
+    total_user_nodepools=$(echo "$usernodepools" | wc -w)
+    log_info "Discovered $total_user_nodepools user nodepool(s): $usernodepools"
+
+    # Validate target node count
+    local total_target=${NODE_COUNT}
+    if [[ -z "$total_target" || "$total_target" -le 0 ]]; then
+        log_warning "Total desired user node count invalid ('$total_target'); defaulting to 1"
+        total_target=1
+    fi
+
+    # Step 2: Calculate scaling targets
+    declare -g -A CURRENT_COUNTS
+    declare -g -A TARGETS
+    declare -g -A SCALE_FAILED
+    declare -g total_required_nodes=0
+    
+    calculate_scaling_targets "$usernodepools" "$total_target"
+    
+    # Step 3: Scale user nodepools
+    scale_user_nodepools "$usernodepools"
+    
+    # Step 4: Recover from any shortfall
+    if ! recover_from_shortfall "$usernodepools" "$total_user_nodepools"; then
+        log_error "Failed to recover from node shortfall"
+        exit 1
     fi
     
-    log_info "All nodepool operations completed"
+    # Step 5: Label nodes for workload placement
+    if ! label_nodes_for_workload; then
+        log_error "Failed to label nodes for workload"
+        exit 1
+    fi
+    
+    log_info "All nodepool operations completed successfully"
 }
 
 # Execute main function

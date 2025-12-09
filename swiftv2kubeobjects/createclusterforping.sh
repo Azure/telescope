@@ -399,17 +399,14 @@ done
 if [[ "${PROVISION_BUFFER_NODES:-false}" != "true" ]]; then
     echo "Skipping buffer nodepool creation as PROVISION_BUFFER_NODES is not set to true"
 else
-    # Calculate buffer pool size based on target user nodepool size (not initial size)
-    BUFFER_NODE_COUNT=$(( (TARGET_USER_NODE_COUNT * 2 + 50) / 100 ))  # 2% of target, rounded up
-    if [[ $BUFFER_NODE_COUNT -lt 1 ]]; then
-        BUFFER_NODE_COUNT=1
-    fi
+    # Start buffer pool with 1 node (like userpools)
+    # The scale-cluster.sh script will scale userpoolBuffer to handle any shortfall
 
-    echo "Creating buffer nodepool with $BUFFER_NODE_COUNT nodes (2% of target $TARGET_USER_NODE_COUNT user nodes)..."
-        pool_name="bufferpool1"
+    echo "Creating buffer nodepool with $INITIAL_USER_NODES node (will be scaled later if needed)..."
+        pool_name="userpoolBuffer"
         labels="slo=true testscenario=swiftv2 agentpool=${pool_name}"
         taints="slo=true:NoSchedule"
-    if ! create_and_verify_nodepool "${CLUSTER}" "${pool_name}" "${RG}" "$BUFFER_NODE_COUNT" "${VM_SKU}" "${nodeSubnetID}" "${podSubnetID}" "${labels}" "${taints}"; then
+    if ! create_and_verify_nodepool "${CLUSTER}" "${pool_name}" "${RG}" "${INITIAL_USER_NODES}" "${VM_SKU}" "${nodeSubnetID}" "${podSubnetID}" "${labels}" "${taints}"; then
         echo "ERROR: Failed to create buffer nodepool"
         exit 1
     fi
