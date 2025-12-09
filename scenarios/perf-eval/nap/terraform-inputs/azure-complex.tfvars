@@ -1,24 +1,13 @@
 # cluster configuration for Morgan Stanley
 scenario_type  = "perf-eval"
 scenario_name  = "nap"
-deletion_delay = "8h"
+deletion_delay = "2h"
 owner          = "aks"
 
 public_ip_config_list = [
   {
-    name  = "firewall-pip"
+    name = "firewall-pip"
     count = 1
-  }
-]
-
-key_vault_config_list = [
-  {
-    name = "akskms"
-    keys = [
-      {
-        key_name = "kms-nap"
-      }
-    ]
   }
 ]
 
@@ -31,14 +20,6 @@ network_config_list = [
       {
         name           = "nap-subnet-ms"
         address_prefix = "10.192.0.0/16"
-      },
-      {
-        name           = "apiserver-subnet"
-        address_prefix = "10.240.0.0/16"
-      },
-      {
-        name           = "jumpbox-subnet"
-        address_prefix = "10.224.0.0/12"
       },
       {
         name           = "AzureFirewallSubnet"
@@ -64,19 +45,12 @@ network_config_list = [
             action   = "Allow"
             rules = [
               {
-                name     = "allow-egress"
-                priority = 100
-                action   = "Allow"
-                rules = [
-                  {
-                    name             = "required-services"
-                    source_addresses = ["*"]
-                    target_fqdns     = ["*"]
-                    protocols = [
-                      { port = "80", type = "Http" },
-                      { port = "443", type = "Https" }
-                    ]
-                  }
+                name             = "required-services"
+                source_addresses = ["*"]
+                target_fqdns     = ["*.azure.com", "*.windows.net", "*.azurecr.io", "*.ubuntu.com", "AzureKubernetesService","mcr-0001.mcr-msedge.net","*.microsoft.com","*.microsoftonline.com","acs-mirror.azureedge.net","packages.aks.azure.com"]
+                protocols = [
+                  { port = "80", type = "Http" },
+                  { port = "443", type = "Https" }
                 ]
               }
             ]
@@ -84,15 +58,29 @@ network_config_list = [
         ]
         network_rule_collections = [
           {
-            name     = "allow-all"
+            name     = "network-rules"
             priority = 100
             action   = "Allow"
             rules = [
               {
-                name                  = "allow-all-traffic"
+                name                  = "imds"
+                source_addresses      = ["*"]
+                destination_addresses = ["169.254.169.254"]
+                destination_ports     = ["80"]
+                protocols             = ["Any"]
+              },
+              {
+                name                  = "dns"
                 source_addresses      = ["*"]
                 destination_addresses = ["*"]
-                destination_ports     = ["80", "53", "123", "443", "1194", "9000"]
+                destination_ports     = ["53"]
+                protocols             = ["UDP", "TCP"]
+              },
+              {
+                name                  = "azure-and-web"
+                source_addresses      = ["*"]
+                destination_addresses = ["*"]
+                destination_ports     = ["443"]
                 protocols             = ["TCP", "UDP"]
               }
             ]
@@ -155,6 +143,10 @@ aks_cli_config_list = [
         value = "CriticalAddonsOnly=true:NoSchedule"
       },
       {
+        name  = "outbound-type"
+        value = "userDefinedRouting"
+      },
+      {
         name  = "pod-cidr"
         value = "10.128.0.0/11"
       },
@@ -177,18 +169,6 @@ aks_cli_config_list = [
       {
         name  = "enable-image-cleaner"
         value = ""
-      },
-      {
-        name  = "network-dataplane"
-        value = "cilium"
-      },
-      {
-        name  = "outbound-type"
-        value = "userDefinedRouting"
-      },
-      {
-        name  = "network-policy"
-        value = "cilium"
       }
     ]
   }
