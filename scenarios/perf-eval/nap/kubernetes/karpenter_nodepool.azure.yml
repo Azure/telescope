@@ -40,12 +40,12 @@ spec:
         - key: karpenter.azure.com/sku-family
           operator: In
           values:
-          - D
+          - "D"
         - key: karpenter.azure.com/sku-cpu
           operator: In
           values:
-          - 16
-          - 32
+          - "16"
+          - "32"
 
 # Spot NodePool
 ---
