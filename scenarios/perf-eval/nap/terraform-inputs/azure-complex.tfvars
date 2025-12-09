@@ -186,7 +186,7 @@ aks_cli_config_list = [
     }
     kms_key_name              = "kms-nap"
     kms_key_vault_name        = "akskms"
-    key_vault_network_access = "Private"
+    key_vault_network_access = "Public"
     extra_node_pool = []
     optional_parameters = [
       {

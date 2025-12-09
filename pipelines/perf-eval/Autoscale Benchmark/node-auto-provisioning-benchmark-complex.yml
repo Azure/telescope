@@ -14,6 +14,8 @@ variables:
 stages:
   - stage: azure_canadacentral_ondemand_complex_config
     dependsOn: []
+    variables:
+      - group: NAP-5K-Config
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
