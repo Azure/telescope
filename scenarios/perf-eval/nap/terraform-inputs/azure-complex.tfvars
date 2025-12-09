@@ -148,26 +148,26 @@ network_config_list = [
     #     ]
     #   }
     # ]
-    # route_tables = [
-    #   {
-    #     name                          = "nap-rt"
-    #     bgp_route_propagation_enabled = false
-    #     routes = [
-    #       {
-    #         name                   = "default-route"
-    #         address_prefix         = "0.0.0.0/0"
-    #         next_hop_type          = "VirtualAppliance"
-    #         next_hop_in_ip_address = "firewall:nap-firewall"
-    #       },
-    #       {
-    #         name           = "firewall-internet"
-    #         address_prefix = "publicip:firewall-pip"
-    #         next_hop_type  = "Internet"
-    #       }
-    #     ]
-    #     subnet_associations = [{ subnet_name = "nap-subnet-ms" }]
-    #   }
-    # ]
+    route_tables = [
+      {
+        name                          = "nap-rt"
+        bgp_route_propagation_enabled = false
+        routes = [
+          # {
+          #   name                   = "default-route"
+          #   address_prefix         = "0.0.0.0/0"
+          #   next_hop_type          = "VirtualAppliance"
+          #   next_hop_in_ip_address = "firewall:nap-firewall"
+          # },
+          # {
+          #   name           = "firewall-internet"
+          #   address_prefix = "publicip:firewall-pip"
+          #   next_hop_type  = "Internet"
+          # }
+        ]
+        subnet_associations = [{ subnet_name = "nap-subnet-ms" }]
+      }
+    ]
   }
 ]
 
@@ -230,10 +230,10 @@ aks_cli_config_list = [
         name  = "network-dataplane"
         value = "cilium"
       },
-      {
-        name  = "outbound-type"
-        value = "userDefinedRouting"
-      },
+      # {
+      #   name  = "outbound-type"
+      #   value = "userDefinedRouting"
+      # },
       {
         name  = "network-policy"
         value = "cilium"
