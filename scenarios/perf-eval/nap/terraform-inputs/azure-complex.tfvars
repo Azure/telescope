@@ -6,8 +6,19 @@ owner          = "aks"
 
 public_ip_config_list = [
   {
-    name = "firewall-pip"
+    name  = "firewall-pip"
     count = 1
+  }
+]
+
+key_vault_config_list = [
+  {
+    name = "akskms"
+    keys = [
+      {
+        key_name = "kms-nap"
+      }
+    ]
   }
 ]
 
@@ -20,6 +31,14 @@ network_config_list = [
       {
         name           = "nap-subnet-ms"
         address_prefix = "10.192.0.0/16"
+      },
+      {
+        name           = "apiserver-subnet"
+        address_prefix = "10.240.0.0/16"
+      },
+      {
+        name           = "jumpbox-subnet"
+        address_prefix = "10.224.0.0/12"
       },
       {
         name           = "AzureFirewallSubnet"
@@ -47,7 +66,7 @@ network_config_list = [
               {
                 name             = "required-services"
                 source_addresses = ["*"]
-                target_fqdns     = ["*.azure.com", "*.windows.net", "*.azurecr.io", "*.ubuntu.com", "AzureKubernetesService","mcr-0001.mcr-msedge.net","*.microsoft.com","*.microsoftonline.com","acs-mirror.azureedge.net","packages.aks.azure.com"]
+                target_fqdns     = ["*.azure.com", "*.azure.net", "*.windows.net", "*.azurecr.io", "*.ubuntu.com", "AzureKubernetesService", "mcr-0001.mcr-msedge.net", "*.microsoft.com", "*.microsoftonline.com", "acs-mirror.azureedge.net", "packages.aks.azure.com"]
                 protocols = [
                   { port = "80", type = "Http" },
                   { port = "443", type = "Https" }
@@ -113,12 +132,16 @@ network_config_list = [
 
 aks_cli_config_list = [
   {
-    role                  = "nap"
-    aks_name              = "nap-complex"
-    sku_tier              = "standard"
-    subnet_name           = "nap-subnet-ms"
-    managed_identity_name = "nap-identity"
-    kubernetes_version    = "1.33"
+    role                     = "nap"
+    aks_name                 = "nap-complex"
+    sku_tier                 = "standard"
+    subnet_name              = "nap-subnet-ms"
+    managed_identity_name    = "nap-identity"
+    kubernetes_version       = "1.33"
+    api_server_subnet_name   = "apiserver-subnet"
+    kms_key_name             = "kms-nap"
+    kms_key_vault_name       = "akskms"
+    key_vault_network_access = "Private"
     default_node_pool = {
       name       = "system"
       node_count = 5
