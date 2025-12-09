@@ -1,6 +1,7 @@
 {{$deploymentTemplatePath := DefaultParam .CL2_DEPLOYMENT_TEMPLATE_PATH "deployment_template.yaml"}}
 {{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 100}}
 {{$deploymentCpu := DefaultParam .CL2_DEPLOYMENT_CPU "346m"}}
+{{$deploymentMemory := DefaultParam .CL2_DEPLOYMENT_MEMORY "100Mi"}}
 {{$nodeLabelSelector := DefaultParam .CL2_NODE_LABEL_SELECTOR "karpenter.sh/nodepool = default"}}
 {{$nodeSelector := DefaultParam .CL2_NODE_SELECTOR  "{karpenter.sh/nodepool: default}"}}
 {{$minNodeCount := DefaultParam .CL2_MIN_NODE_COUNT 10}}
@@ -44,6 +45,7 @@ steps:
       templateFillMap:
         Replicas: {{$deploymentSize}}
         CPUperJob: {{$deploymentCpu}}
+        MemoryRequest: {{$deploymentMemory}}
         NodeSelector: {{ (StructuralData $nodeSelector) }}
         OSType: {{$osType}}
 - name: Measure nodes and pods scale up {{$i}}
@@ -89,6 +91,7 @@ steps:
       templateFillMap:
         Replicas: {{$deploymentSize}}
         CPUperJob: {{$deploymentCpu}}
+        MemoryRequest: {{$deploymentMemory}}
         OSType: {{$osType}}
 - name: Measure nodes and pods scale down {{$i}}
   measurements:
