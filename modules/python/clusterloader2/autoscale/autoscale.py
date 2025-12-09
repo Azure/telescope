@@ -76,7 +76,7 @@ def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up
     with open(override_file, 'w', encoding='utf-8') as file:
 #        file.write(f"CL2_DEPLOYMENT_CPU: {cpu_request}m\n")
         file.write(f"CL2_DEPLOYMENT_CPU: 16\n")
-        file.write(f"CL2_DEPLOYMENT_MEMORY: 64Gi\n")
+        file.write(f"CL2_DEPLOYMENT_MEMORY: 60Gi\n")
         file.write(f"CL2_MIN_NODE_COUNT: 10\n")
         file.write(f"CL2_MAX_NODE_COUNT: {pod_count+100}\n")
         file.write(f"CL2_DESIRED_NODE_COUNT: {desired_node_count}\n")
