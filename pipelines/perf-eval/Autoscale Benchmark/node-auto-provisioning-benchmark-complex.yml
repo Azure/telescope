@@ -41,7 +41,7 @@ stages:
               capacity_type: on-demand
               aad_enabled: "true"
               vm_size: "D"
-              enable_apiserver_vnet_integration: "false"
+              enable_apiserver_vnet_integration: "true"
           max_parallel: 1
           timeout_in_minutes: 60
           credential_type: service_connection
