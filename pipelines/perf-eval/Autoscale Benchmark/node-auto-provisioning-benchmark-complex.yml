@@ -12,7 +12,7 @@ variables:
   SCENARIO_NAME: nap
 
 stages:
-  - stage: azure_canadacentral_ondemand_complex_config
+  - stage: azure_eastus2_ondemand_complex_config
     dependsOn: []
     variables:
       - group: NAP-5K-Config
@@ -31,9 +31,6 @@ stages:
           topology: karpenter
           matrix:
             complex-nap:
-              cpu_per_node: 8
-              node_count: 5000
-              pod_count: 5000
               scale_up_timeout: "200m"
               scale_down_timeout: "200m"
               node_label_selector: "karpenter.sh/nodepool = default"
@@ -41,9 +38,9 @@ stages:
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D8_v3
               capacity_type: on-demand
               aad_enabled: "true"
+              vm_size: "D"
               enable_apiserver_vnet_integration: "true"
           max_parallel: 1
           timeout_in_minutes: 500
