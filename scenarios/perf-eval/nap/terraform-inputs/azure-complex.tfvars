@@ -48,126 +48,126 @@ network_config_list = [
     network_security_group_name = ""
     nic_public_ip_associations  = []
     nsr_rules                   = []
-    # firewalls = [
-    #   {
-    #     name                  = "nap-firewall"
-    #     sku_tier              = "Standard"
-    #     subnet_name           = "AzureFirewallSubnet"
-    #     public_ip_name        = "firewall-pip"
-    #     threat_intel_mode     = "Alert"
-    #     dns_proxy_enabled     = true
-    #     ip_configuration_name = "nap-fw-ipconfig"
-    #     application_rule_collections = [
-    #       {
-    #         name     = "allow-egress"
-    #         priority = 100
-    #         action   = "Allow"
-    #         rules = [
-    #           {
-    #             name             = "required-services"
-    #             source_addresses = ["*"]
-    #             target_fqdns = ["*.azure.com", "*.blob.core.windows.net", "*.data.mcr.microsoft.com",
-    #               "*.security.microsoft.com", "*.windows.net", "acs-mirror.azureedge.net",
-    #               "azure.archive.ubuntu.com",
-    #               "changelogs.ubuntu.com",
-    #               "login.microsoftonline.co",
-    #               "login.microsoftonline.com",
-    #               "management.azure.com",
-    #               "mcr-0001.mcr-msedge.net",
-    #               "mcr.microsoft.com",
-    #               "packages.aks.azure.com",
-    #               "packages.microsoft.com",
-    #               "security.ubuntu.com",
-    #             "snapshot.ubuntu.com"]
-    #             protocols = [
-    #               { port = "80", type = "Http" },
-    #               { port = "443", type = "Https" }
-    #             ]
-    #           },
-    #           {
-    #             name             = "k8s-updates"
-    #             source_addresses = ["*"]
-    #             target_fqdns = ["*.amazonaws.com", "*.cloudflarestorage.com",
-    #               "*.cloudfront.net", "*.docker.io",
-    #               "*.gcr.io",
-    #               "*.googleapis.com",
-    #               "*.googleusercontent.com",
-    #               "*.lz4.dev",
-    #               "*.pkg.dev",
-    #               "*.s3.amazonaws.com",
-    #               "*.s3.dualstack.ap-northeast-1.amazonaws.com",
-    #               "*.s3.dualstack.ap-southeast-1.amazonaws.com",
-    #               "*.s3.dualstack.eu-west-1.amazonaws.com",
-    #               "*.s3.dualstack.us-east-1.amazonaws.com",
-    #               "*.s3.dualstack.us-west-2.amazonaws.com",
-    #               "auth.docker.io",
-    #               "gcr.io",
-    #               "ghcr.io",
-    #               "k8s.gcr.io",
-    #               "pkg-containers.githubusercontent.com",
-    #               "registry-1.docker.io",
-    #               "registry.k8s.io",
-    #             "storage.googleapis.com"]
-    #             protocols = [
-    #               { port = "80", type = "Http" },
-    #               { port = "443", type = "Https" }
-    #             ]
-    #           }
-    #         ]
-    #       }
-    #     ]
-    #     network_rule_collections = [
-    #       {
-    #         name     = "network-rules"
-    #         priority = 100
-    #         action   = "Allow"
-    #         rules = [
-    #           {
-    #             name                  = "imds"
-    #             source_addresses      = ["*"]
-    #             destination_addresses = ["169.254.169.254"]
-    #             destination_ports     = ["80"]
-    #             protocols             = ["Any"]
-    #           },
-    #           {
-    #             name                  = "dns"
-    #             source_addresses      = ["*"]
-    #             destination_addresses = ["*"]
-    #             destination_ports     = ["53"]
-    #             protocols             = ["UDP", "TCP"]
-    #           },
-    #           {
-    #             name                  = "azure-and-web"
-    #             source_addresses      = ["*"]
-    #             destination_addresses = ["*"]
-    #             destination_ports     = ["443"]
-    #             protocols             = ["TCP", "UDP"]
-    #           }
-    #         ]
-    #       }
-    #     ]
-    #   }
-    # ]
-    # route_tables = [
-    #   {
-    #     name                          = "nap-rt"
-    #     bgp_route_propagation_enabled = false
-    #     routes = [
-    #       {
-    #         name                   = "default-route"
-    #         address_prefix         = "0.0.0.0/0"
-    #         next_hop_type          = "VirtualAppliance"
-    #         next_hop_in_ip_address = "firewall:nap-firewall"
-    #       },
-    #       {
-    #         name           = "firewall-internet"
-    #         address_prefix = "publicip:firewall-pip"
-    #         next_hop_type  = "Internet"
-    #       }
-    #     ]
-    #     subnet_associations = [{ subnet_name = "nap-subnet-ms" }]
-    #   }
-    # ]
+    firewalls = [
+      {
+        name                  = "nap-firewall"
+        sku_tier              = "Standard"
+        subnet_name           = "AzureFirewallSubnet"
+        public_ip_name        = "firewall-pip"
+        threat_intel_mode     = "Alert"
+        dns_proxy_enabled     = true
+        ip_configuration_name = "nap-fw-ipconfig"
+        application_rule_collections = [
+          {
+            name     = "allow-egress"
+            priority = 100
+            action   = "Allow"
+            rules = [
+              {
+                name             = "required-services"
+                source_addresses = ["*"]
+                target_fqdns = ["*.azure.com", "*.blob.core.windows.net", "*.data.mcr.microsoft.com",
+                  "*.security.microsoft.com", "*.windows.net", "acs-mirror.azureedge.net",
+                  "azure.archive.ubuntu.com",
+                  "changelogs.ubuntu.com",
+                  "login.microsoftonline.co",
+                  "login.microsoftonline.com",
+                  "management.azure.com",
+                  "mcr-0001.mcr-msedge.net",
+                  "mcr.microsoft.com",
+                  "packages.aks.azure.com",
+                  "packages.microsoft.com",
+                  "security.ubuntu.com",
+                "snapshot.ubuntu.com"]
+                protocols = [
+                  { port = "80", type = "Http" },
+                  { port = "443", type = "Https" }
+                ]
+              },
+              {
+                name             = "k8s-updates"
+                source_addresses = ["*"]
+                target_fqdns = ["*.amazonaws.com", "*.cloudflarestorage.com",
+                  "*.cloudfront.net", "*.docker.io",
+                  "*.gcr.io",
+                  "*.googleapis.com",
+                  "*.googleusercontent.com",
+                  "*.lz4.dev",
+                  "*.pkg.dev",
+                  "*.s3.amazonaws.com",
+                  "*.s3.dualstack.ap-northeast-1.amazonaws.com",
+                  "*.s3.dualstack.ap-southeast-1.amazonaws.com",
+                  "*.s3.dualstack.eu-west-1.amazonaws.com",
+                  "*.s3.dualstack.us-east-1.amazonaws.com",
+                  "*.s3.dualstack.us-west-2.amazonaws.com",
+                  "auth.docker.io",
+                  "gcr.io",
+                  "ghcr.io",
+                  "k8s.gcr.io",
+                  "pkg-containers.githubusercontent.com",
+                  "registry-1.docker.io",
+                  "registry.k8s.io",
+                "storage.googleapis.com"]
+                protocols = [
+                  { port = "80", type = "Http" },
+                  { port = "443", type = "Https" }
+                ]
+              }
+            ]
+          }
+        ]
+        network_rule_collections = [
+          {
+            name     = "network-rules"
+            priority = 100
+            action   = "Allow"
+            rules = [
+              {
+                name                  = "imds"
+                source_addresses      = ["*"]
+                destination_addresses = ["169.254.169.254"]
+                destination_ports     = ["80"]
+                protocols             = ["Any"]
+              },
+              {
+                name                  = "dns"
+                source_addresses      = ["*"]
+                destination_addresses = ["*"]
+                destination_ports     = ["53"]
+                protocols             = ["UDP", "TCP"]
+              },
+              {
+                name                  = "azure-and-web"
+                source_addresses      = ["*"]
+                destination_addresses = ["*"]
+                destination_ports     = ["443"]
+                protocols             = ["TCP", "UDP"]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+    route_tables = [
+      {
+        name                          = "nap-rt"
+        bgp_route_propagation_enabled = false
+        routes = [
+          {
+            name                   = "default-route"
+            address_prefix         = "0.0.0.0/0"
+            next_hop_type          = "VirtualAppliance"
+            next_hop_in_ip_address = "firewall:nap-firewall"
+          },
+          {
+            name           = "firewall-internet"
+            address_prefix = "publicip:firewall-pip"
+            next_hop_type  = "Internet"
+          }
+        ]
+        subnet_associations = [{ subnet_name = "nap-subnet-ms" }]
+      }
+    ]
   }
 ]
 
