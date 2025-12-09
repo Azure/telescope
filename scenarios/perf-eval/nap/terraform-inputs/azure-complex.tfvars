@@ -65,19 +65,20 @@ network_config_list = [
               {
                 name             = "required-services"
                 source_addresses = ["*"]
-                target_fqdns = ["*.azure.com", "*.blob.core.windows.net", "*.data.mcr.microsoft.com",
-                  "*.security.microsoft.com", "*.windows.net", "acs-mirror.azureedge.net",
-                  "azure.archive.ubuntu.com",
-                  "changelogs.ubuntu.com",
-                  "login.microsoftonline.co",
-                  "login.microsoftonline.com",
-                  "management.azure.com",
-                  "mcr-0001.mcr-msedge.net",
-                  "mcr.microsoft.com",
-                  "packages.aks.azure.com",
-                  "packages.microsoft.com",
-                  "security.ubuntu.com",
-                "snapshot.ubuntu.com"]
+                target_fqdns = ["*"]
+                # target_fqdns = ["*.azure.com", "*.blob.core.windows.net", "*.data.mcr.microsoft.com",
+                #   "*.security.microsoft.com", "*.windows.net", "acs-mirror.azureedge.net",
+                #   "azure.archive.ubuntu.com",
+                #   "changelogs.ubuntu.com",
+                #   "login.microsoftonline.co",
+                #   "login.microsoftonline.com",
+                #   "management.azure.com",
+                #   "mcr-0001.mcr-msedge.net",
+                #   "mcr.microsoft.com",
+                #   "packages.aks.azure.com",
+                #   "packages.microsoft.com",
+                #   "security.ubuntu.com",
+                # "snapshot.ubuntu.com"]
                 protocols = [
                   { port = "80", type = "Http" },
                   { port = "443", type = "Https" }
@@ -86,27 +87,28 @@ network_config_list = [
               {
                 name             = "k8s-updates"
                 source_addresses = ["*"]
-                target_fqdns = ["*.amazonaws.com", "*.cloudflarestorage.com",
-                  "*.cloudfront.net", "*.docker.io",
-                  "*.gcr.io",
-                  "*.googleapis.com",
-                  "*.googleusercontent.com",
-                  "*.lz4.dev",
-                  "*.pkg.dev",
-                  "*.s3.amazonaws.com",
-                  "*.s3.dualstack.ap-northeast-1.amazonaws.com",
-                  "*.s3.dualstack.ap-southeast-1.amazonaws.com",
-                  "*.s3.dualstack.eu-west-1.amazonaws.com",
-                  "*.s3.dualstack.us-east-1.amazonaws.com",
-                  "*.s3.dualstack.us-west-2.amazonaws.com",
-                  "auth.docker.io",
-                  "gcr.io",
-                  "ghcr.io",
-                  "k8s.gcr.io",
-                  "pkg-containers.githubusercontent.com",
-                  "registry-1.docker.io",
-                  "registry.k8s.io",
-                "storage.googleapis.com"]
+                # target_fqdns = ["*.amazonaws.com", "*.cloudflarestorage.com",
+                #   "*.cloudfront.net", "*.docker.io",
+                #   "*.gcr.io",
+                #   "*.googleapis.com",
+                #   "*.googleusercontent.com",
+                #   "*.lz4.dev",
+                #   "*.pkg.dev",
+                #   "*.s3.amazonaws.com",
+                #   "*.s3.dualstack.ap-northeast-1.amazonaws.com",
+                #   "*.s3.dualstack.ap-southeast-1.amazonaws.com",
+                #   "*.s3.dualstack.eu-west-1.amazonaws.com",
+                #   "*.s3.dualstack.us-east-1.amazonaws.com",
+                #   "*.s3.dualstack.us-west-2.amazonaws.com",
+                #   "auth.docker.io",
+                #   "gcr.io",
+                #   "ghcr.io",
+                #   "k8s.gcr.io",
+                #   "pkg-containers.githubusercontent.com",
+                #   "registry-1.docker.io",
+                #   "registry.k8s.io",
+                # "storage.googleapis.com"]
+                target_fqdns = ["*"]
                 protocols = [
                   { port = "80", type = "Http" },
                   { port = "443", type = "Https" }
