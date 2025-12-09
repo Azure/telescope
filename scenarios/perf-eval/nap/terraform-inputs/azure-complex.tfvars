@@ -92,7 +92,7 @@ network_config_list = [
                 name                  = "allow-all-traffic"
                 source_addresses      = ["*"]
                 destination_addresses = ["*"]
-                destination_ports     = ["*"]
+                destination_ports     = ["80", "53", "123", "443", "1194", "9000"]
                 protocols             = ["TCP", "UDP"]
               }
             ]
