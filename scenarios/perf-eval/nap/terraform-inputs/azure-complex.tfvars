@@ -205,10 +205,10 @@ aks_cli_config_list = [
         name  = "network-policy"
         value = "cilium"
       }
-      # {
-      #   name  = "enable-private-cluster"
-      #   value = ""
-      # }
+      {
+        name  = "enable-private-cluster"
+        value = ""
+      }
     ]
   }
 ]
