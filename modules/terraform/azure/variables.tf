@@ -277,8 +277,8 @@ variable "jumpbox_config_list" {
   description = "Configuration for jumpbox VMs"
   type = list(object({
     role              = string
-    name              = optional(string)
-    subnet_name       = optional(string)
+    name              = optional(string, "Jumpbox")
+    subnet_name       = string
     vm_size           = optional(string, "Standard_D4s_v3")
     aks_name          = string
   }))

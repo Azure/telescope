@@ -8,7 +8,7 @@ variable "priority" {
   type        = number
   validation {
     condition     = var.priority >= 100 && var.priority <= 4096
-    error_message = "Priority must be between 120 and 4096."
+    error_message = "Priority must be between 100 and 4096."
   }
 }
 
