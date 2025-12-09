@@ -59,16 +59,13 @@ locals {
   ] : []
 
   aks_cli_config_map = { for aks in local.updated_aks_cli_config_list : aks.role => aks }
-<<<<<<< HEAD
 
   key_vault_config_map = { for kv in var.key_vault_config_list : kv.name => kv }
-=======
   jumpbox_config_map = {
     for jb in var.jumpbox_config_list : jb.role => merge(jb, {
       subnet_id              = try(local.all_subnets[jb.subnet_name], null)
     })
   }
->>>>>>> 8d3fd2ae (Support for jumpbox)
 }
 
 provider "azurerm" {
@@ -165,8 +162,6 @@ module "aks-cli" {
   aks_aad_enabled     = local.aks_aad_enabled
 }
 
-<<<<<<< HEAD
-=======
 module "jumpbox" {
   for_each = local.jumpbox_config_map
 
@@ -183,4 +178,3 @@ module "jumpbox" {
   # Ensure AKS cluster is created before jumpbox tries to look it up for RBAC
   depends_on = [module.aks, module.aks-cli]
 }
->>>>>>> 8d3fd2ae (Support for jumpbox)

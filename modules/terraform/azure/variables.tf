@@ -263,13 +263,11 @@ variable "aks_config_list" {
     web_app_routing = optional(object({
       dns_zone_names = list(string)
     }), null)
-<<<<<<< HEAD
     kms_config = optional(object({
       key_name       = string
       key_vault_name = string
       network_access = optional(string, "Public")
     }), null)
-=======
     private_cluster_enabled = optional(bool, false)
   }))
   default = []
@@ -283,7 +281,6 @@ variable "jumpbox_config_list" {
     subnet_name       = optional(string)
     vm_size           = optional(string, "Standard_D4s_v3")
     aks_name          = string
->>>>>>> 8d3fd2ae (Support for jumpbox)
   }))
   default = []
 }
