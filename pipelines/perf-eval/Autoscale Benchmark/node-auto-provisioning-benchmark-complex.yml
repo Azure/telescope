@@ -29,7 +29,9 @@ stages:
             image: "ghcr.io/azure/clusterloader2:v20250423"
           topology: karpenter
           matrix:
-            complex-nap:
+            complex-nap: # 16 cores cpu per pod with 64Gi memory
+              node_count: 10 # let karpenter scale to provision 5000 pods
+              pod_count: 5000
               scale_up_timeout: "200m"
               scale_down_timeout: "200m"
               node_label_selector: "karpenter.sh/nodepool = default"
