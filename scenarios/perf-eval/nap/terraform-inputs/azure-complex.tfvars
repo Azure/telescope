@@ -66,7 +66,11 @@ network_config_list = [
               {
                 name             = "required-services"
                 source_addresses = ["*"]
-                target_fqdns     = ["*.azure.com", "*.azure.net", "*.windows.net", "*.azurecr.io", "*.ubuntu.com", "AzureKubernetesService", "mcr-0001.mcr-msedge.net", "*.microsoft.com", "*.microsoftonline.com", "acs-mirror.azureedge.net", "packages.aks.azure.com"]
+                target_fqdns = ["*.azure.com", "*.azure.net",
+                  "*.windows.net", "*.azurecr.io", "*.ubuntu.com", "AzureKubernetesService",
+                  "mcr-0001.mcr-msedge.net", "*.microsoft.com",
+                  "*.microsoftonline.com", "*.microsoftonline.co","*.azureedge.net",
+                "packages.aks.azure.com"]
                 protocols = [
                   { port = "80", type = "Http" },
                   { port = "443", type = "Https" }
