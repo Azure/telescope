@@ -20,7 +20,7 @@ metadata:
 spec:
   disruption:
     consolidationPolicy: WhenEmpty
-    consolidateAfter: 10m
+    consolidateAfter: 1m
     budgets:
       - nodes: "100%"
   template:

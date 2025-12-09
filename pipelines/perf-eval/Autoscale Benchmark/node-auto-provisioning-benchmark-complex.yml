@@ -20,9 +20,9 @@ stages:
           retry_attempt_count: 1
           cloud: azure
           regions:
-            - canadacentral
+            - centraluseuap
           terraform_input_file_mapping:
-            - canadacentral: "scenarios/perf-eval/nap/terraform-inputs/azure-complex.tfvars"
+            - centraluseuap: "scenarios/perf-eval/nap/terraform-inputs/azure-complex.tfvars"
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250912"
@@ -38,6 +38,7 @@ stages:
               warmup_deployment_template: warmup_deployment.yaml
               capacity_type: on-demand
               aad_enabled: "true"
+              vm_size: "D"
               enable_apiserver_vnet_integration: "true"
           max_parallel: 1
           timeout_in_minutes: 500
