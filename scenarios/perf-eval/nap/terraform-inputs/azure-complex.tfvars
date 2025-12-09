@@ -212,3 +212,14 @@ aks_cli_config_list = [
     ]
   }
 ]
+
+# Jumpbox Configuration - Auto-provisioned for testing
+jumpbox_config_list = [
+  {
+    role        = "nap"
+    name        = "nap-jumpbox"
+    subnet_name = "jumpbox-subnet"
+    vm_size     = "Standard_D4s_v3"
+    aks_name    = "nap-complex"
+  }
+]
