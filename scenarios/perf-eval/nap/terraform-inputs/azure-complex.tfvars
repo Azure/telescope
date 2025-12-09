@@ -231,6 +231,10 @@ aks_cli_config_list = [
         value = "cilium"
       },
       {
+        name  = "outbound-type"
+        value = "userDefinedRouting"
+      },
+      {
         name  = "network-policy"
         value = "cilium"
       }
