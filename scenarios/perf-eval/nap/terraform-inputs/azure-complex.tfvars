@@ -66,7 +66,7 @@ network_config_list = [
               {
                 name             = "required-services"
                 source_addresses = ["*"]
-                target_fqdns = ["*.azure.com", "*.azure.net",
+                target_fqdns = ["*.azure.com", "*.azure.net", "*.azmk8s.io",
                   "*.windows.net", "*.azurecr.io", "*.ubuntu.com", "AzureKubernetesService",
                   "mcr-0001.mcr-msedge.net", "*.microsoft.com",
                   "*.microsoftonline.com", "*.microsoftonline.co","*.azureedge.net",
