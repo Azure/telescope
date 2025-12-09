@@ -77,6 +77,7 @@ network_config_list = [
                   "packages.aks.azure.com",
                   "packages.microsoft.com",
                   "security.ubuntu.com",
+                  "*.vault.azure.net",
                 "snapshot.ubuntu.com"]
                 protocols = [
                   { port = "80", type = "Http" },
