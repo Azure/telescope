@@ -176,6 +176,9 @@ aks_cli_config_list = [
     aks_name              = "nap-complex"
     sku_tier              = "standard"
     subnet_name           = "nap-subnet-ms"
+    aks_custom_headers    = [
+      " OverrideControlplaneResources=W3siY29udGFpbmVyTmFtZSI6Imt1YmUtYXBpc2VydmVyIiwiY3B1TGltaXQiOiIzMCIsImNwdVJlcXVlc3QiOiIyNyIsIm1lbW9yeUxpbWl0IjoiNjRHaSIsIm1lbW9yeVJlcXVlc3QiOiI2NEdpIiwiZ29tYXhwcm9jcyI6MzB9XSAg,ControlPlaneUnderlay=hcp-underlay-canadacentral-cx-100,AKSHTTPCustomFeatures=OverrideControlplaneResources,EtcdServersOverrides=hyperscale"
+    ]
     managed_identity_name = "nap-identity"
     kubernetes_version    = "1.33"
     api_server_subnet_name = "apiserver-subnet"
