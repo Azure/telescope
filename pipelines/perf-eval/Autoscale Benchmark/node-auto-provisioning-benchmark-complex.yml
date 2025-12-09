@@ -1,12 +1,12 @@
 trigger: none
-schedules:
-  # On-Demand Schedule with Morgan Stanley cluster config
-  - cron: "0 */3 * * *"
-    displayName: "Every 3 hours"
-    branches:
-      include:
-        - ms-nap-complex
-    always: true
+# schedules:
+#   # On-Demand Schedule with Morgan Stanley cluster config
+#   - cron: "0 */3 * * *"
+#     displayName: "Every 3 hours"
+#     branches:
+#       include:
+#         - ms-nap-complex
+#     always: true
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: nap
@@ -15,23 +15,22 @@ stages:
   - stage: azure_eastus2_ondemand_complex_config
     dependsOn: []
     variables:
-      - group: NAP-5K-Config
+      - group: NAP-MS-Requirements
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - canadacentral
           terraform_input_file_mapping:
-            - eastus2: "scenarios/perf-eval/nap/terraform-inputs/azure-complex.tfvars"
+            - canadacentral: "scenarios/perf-eval/nap/terraform-inputs/azure-complex.tfvars"
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
           topology: karpenter
           matrix:
             complex-nap: # 16 cores cpu per pod with 64Gi memory
-              node_count: 2 # let karpenter scale to provision 5000 pods
-              pod_count: 10
+              pod_count: 5000
               scale_up_timeout: "200m"
               scale_down_timeout: "200m"
               node_label_selector: "karpenter.sh/nodepool = default"

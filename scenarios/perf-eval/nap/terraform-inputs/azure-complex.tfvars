@@ -133,7 +133,7 @@ network_config_list = [
             next_hop_type  = "VnetLocal"
           }
         ]
-        subnet_associations = [{ subnet_name = "nap-subnet-ms" }]
+        subnet_associations = [{ subnet_name = "nap-subnet-ms", subnet_name = "apiserver-subnet" }]
       }
     ]
   }
