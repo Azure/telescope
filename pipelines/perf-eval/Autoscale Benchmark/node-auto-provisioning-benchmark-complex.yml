@@ -1,11 +1,11 @@
 trigger: none
 schedules:
   # On-Demand Schedule with Morgan Stanley cluster config
-  - cron: "0 */4 * * *"    # Every 4 hours
-    displayName: "Every 4 hours"
+  - cron: "0 21 * * *"
+    displayName: "Every day at 9:00 PM"
     branches:
       include:
-        - ms-nap-complex
+        - main
     always: true
 variables:
   SCENARIO_TYPE: perf-eval
@@ -19,7 +19,6 @@ stages:
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
-          retry_attempt_count: 1
           cloud: azure
           regions:
             - eastus2
@@ -27,22 +26,23 @@ stages:
             - eastus2: "scenarios/perf-eval/nap/terraform-inputs/azure-complex.tfvars"
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250912"
+            image: "ghcr.io/azure/clusterloader2:v20250423"
           topology: karpenter
           matrix:
             complex-nap:
-              scale_up_timeout: "200m"
-              scale_down_timeout: "200m"
+              cpu_per_node: 2
+              node_count: 5
+              pod_count: 5
+              scale_up_timeout: "15m"
+              scale_down_timeout: "15m"
               node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
+              vm_size: Standard_D2s_v4
               capacity_type: on-demand
-              aad_enabled: "true"
-              vm_size: "D"
-              enable_apiserver_vnet_integration: "true"
           max_parallel: 1
-          timeout_in_minutes: 500
+          timeout_in_minutes: 60
           credential_type: service_connection
-          ssh_key_enabled: true
+          ssh_key_enabled: false
