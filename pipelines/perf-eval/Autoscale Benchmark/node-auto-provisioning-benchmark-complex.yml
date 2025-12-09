@@ -15,7 +15,7 @@ stages:
   - stage: azure_eastus2_ondemand_complex_config
     dependsOn: []
     variables:
-      - group: NAP-MS-Requirements
+      - group: NAP-5K-Config
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
