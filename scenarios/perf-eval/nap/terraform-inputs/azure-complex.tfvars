@@ -34,7 +34,7 @@ network_config_list = [
       },
       {
         name           = "apiserver-subnet"
-        address_prefix = "10.240.0.0/16"
+        address_prefix = "10.240.0.0/27"
       },
       {
         name           = "jumpbox-subnet"
@@ -125,6 +125,16 @@ network_config_list = [
           {
             name           = "firewall-internet"
             address_prefix = "publicip:firewall-pip"
+            next_hop_type  = "Internet"
+          },
+          {
+            name           = "aks-apiserver-subnet"
+            address_prefix = "10.240.0.0/27" 
+            next_hop_type  = "VnetLocal"
+          },
+          {
+            name           = "aks-control-plane"
+            address_prefix = "AzureKubernetesService"
             next_hop_type  = "Internet"
           }
         ]
