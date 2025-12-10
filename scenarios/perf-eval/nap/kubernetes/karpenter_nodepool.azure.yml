@@ -45,6 +45,11 @@ spec:
           operator: In
           values:
           - "3"
+        - key: karpenter.azure.com/sku-cpu
+          operator: In
+          values:
+          - "96"
+          - "64"
 
 # Spot NodePool
 ---
