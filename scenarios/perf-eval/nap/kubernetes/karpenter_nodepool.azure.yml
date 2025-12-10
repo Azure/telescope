@@ -41,10 +41,11 @@ spec:
           operator: In
           values:
           - "D"
-        - key: karpenter.azure.com/sku-version
-          operator: In
-          values:
-          - "3"  # v3 generation
+        # - key: karpenter.azure.com/sku-version
+        #   operator: In
+        #   values:
+        #   - "3"  # v3 generation
+        #   - "5"
 
 # Spot NodePool
 ---
