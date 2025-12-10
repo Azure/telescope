@@ -1,0 +1,19 @@
+parameters:
+- name: cloud
+  type: string
+- name: engine
+  type: string
+- name: regions
+  type: object
+
+steps:
+- template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
+  parameters:
+    role: client
+    region: ${{ parameters.regions[0] }}
+- script: |
+    set -eo pipefail
+    echo "Validating cluster resources..."
+    kubectl get nodes -o wide
+    echo "Cluster is ready for image-pull test"
+  displayName: "Validate Resources"
