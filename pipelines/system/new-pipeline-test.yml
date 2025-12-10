@@ -21,7 +21,7 @@ stages:
             image-pull-10pods:
               deployment_count: 10
               replicas: 1
-              kubernetes_version: "1.31"
+              kubernetes_version: "1.33"
           max_parallel: 1
           credential_type: service_connection
           ssh_key_enabled: false
