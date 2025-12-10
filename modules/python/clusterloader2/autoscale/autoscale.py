@@ -114,17 +114,17 @@ def collect_clusterloader2(
     summary = {}
     metric_mappings = {
         "WaitForRunningPodsUp": ("up", "wait_for_pods_seconds"),
-        "WaitForNodesUpPerc50": ("up", "wait_for_50Perc_nodes_seconds"),
-        "WaitForNodesUpPerc70": ("up", "wait_for_70Perc_nodes_seconds"),
-        "WaitForNodesUpPerc90": ("up", "wait_for_90Perc_nodes_seconds"),
-        "WaitForNodesUpPerc99": ("up", "wait_for_99Perc_nodes_seconds"),
-        "WaitForNodesUpPerc100": ("up", "wait_for_nodes_seconds"),
+        # "WaitForNodesUpPerc50": ("up", "wait_for_50Perc_nodes_seconds"),
+        # "WaitForNodesUpPerc70": ("up", "wait_for_70Perc_nodes_seconds"),
+        # "WaitForNodesUpPerc90": ("up", "wait_for_90Perc_nodes_seconds"),
+        # "WaitForNodesUpPerc99": ("up", "wait_for_99Perc_nodes_seconds"),
+        # "WaitForNodesUpPerc100": ("up", "wait_for_nodes_seconds"),
         "WaitForRunningPodsDown": ("down", "wait_for_pods_seconds"),
-        "WaitForNodesDownPerc50": ("down", "wait_for_50Perc_nodes_seconds"),
-        "WaitForNodesDownPerc70": ("down", "wait_for_70Perc_nodes_seconds"),
-        "WaitForNodesDownPerc90": ("down", "wait_for_90Perc_nodes_seconds"),
-        "WaitForNodesDownPerc99": ("down", "wait_for_99Perc_nodes_seconds"),
-        "WaitForNodesDownPerc100": ("down", "wait_for_nodes_seconds"),
+        # "WaitForNodesDownPerc50": ("down", "wait_for_50Perc_nodes_seconds"),
+        # "WaitForNodesDownPerc70": ("down", "wait_for_70Perc_nodes_seconds"),
+        # "WaitForNodesDownPerc90": ("down", "wait_for_90Perc_nodes_seconds"),
+        # "WaitForNodesDownPerc99": ("down", "wait_for_99Perc_nodes_seconds"),
+        # "WaitForNodesDownPerc100": ("down", "wait_for_nodes_seconds"),
     }
 
     if testsuites:
@@ -154,11 +154,11 @@ def collect_clusterloader2(
         for index, inner_dict in summary.items():
             for key, value in inner_dict.items():
                 data = {
-                    "wait_for_nodes_seconds": value["wait_for_nodes_seconds"],
-                    "wait_for_50Perc_nodes_seconds": value["wait_for_50Perc_nodes_seconds"],
-                    "wait_for_70Perc_nodes_seconds": value["wait_for_70Perc_nodes_seconds"],
-                    "wait_for_90Perc_nodes_seconds": value["wait_for_90Perc_nodes_seconds"],
-                    "wait_for_99Perc_nodes_seconds": value["wait_for_99Perc_nodes_seconds"],
+                    # "wait_for_nodes_seconds": value["wait_for_nodes_seconds"],
+                    # "wait_for_50Perc_nodes_seconds": value["wait_for_50Perc_nodes_seconds"],
+                    # "wait_for_70Perc_nodes_seconds": value["wait_for_70Perc_nodes_seconds"],
+                    # "wait_for_90Perc_nodes_seconds": value["wait_for_90Perc_nodes_seconds"],
+                    # "wait_for_99Perc_nodes_seconds": value["wait_for_99Perc_nodes_seconds"],
                     "wait_for_pods_seconds": value["wait_for_pods_seconds"],
                     "autoscale_result": "success" if value["failures"] == 0 else "failure"
                 }
