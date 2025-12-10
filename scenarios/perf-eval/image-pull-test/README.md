@@ -6,27 +6,10 @@ Measures container image pull performance on AKS clusters using ClusterLoader2.
 
 ## Test Scenario
 
-Creates 10 Deployments with 1 replica each (10 pods total), pulling a large container image to measure:
+Creates 10 Deployments with 1 replica each (10 pods total), pulling a container image to measure:
 - How fast images are pulled across cluster nodes
-- Pod startup latency when pulling large images
+- Pod startup latency when pulling images
 - Containerd throughput during parallel image pulls
-
-### Default Configuration
-
-| Parameter | Value |
-|-----------|-------|
-| Deployments | 10 |
-| Replicas per deployment | 1 |
-| Total pods | 10 |
-| QPS (deployment creation rate) | 10 |
-| Pod startup timeout | 3 minutes |
-| Metrics collection wait | 10 minutes |
-| Test image | pytorch-large:2.0.0 (~15GB) |
-
-To modify, edit `image-pull.yaml`:
-- `replicasPerNamespace`: Number of deployments
-- `Replicas`: Pods per deployment
-- `qps`: Deployment creation rate
 
 ## Metrics Collected
 
@@ -37,66 +20,31 @@ To modify, edit `image-pull.yaml`:
 | Network Plugin Operations | containerd:10257 | Pod network setup/teardown time |
 | Pod Startup Latency | API server | End-to-end pod scheduling time |
 
-## Prerequisites
-
-- AKS cluster with containerd runtime
-- Azure Container Registry with test image
-- kubectl, terraform, az CLI, docker
-
 ## Configuration
 
-### 1. Set your container image
+### Test Image
 
-Edit `image-pull.yaml` line 37:
-```yaml
-Image: <your-acr>.azurecr.io/<your-image>:<tag>
-```
+The test uses `akscritelescope.azurecr.io/e2e-test-images/resource-consumer:1.13` by default.
 
-### 2. Set your ACR (in notebook)
+To change the image, edit `modules/python/clusterloader2/image_pull/config/image-pull.yaml`.
 
-Edit `run_locally.ipynb` cell 9:
-```bash
-export ACR_NAME=<your-acr-name>
-export ACR_SUBSCRIPTION_ID=<your-acr-subscription>  # if different from AKS subscription
-```
+### Cluster Settings
 
-### 3. Attach ACR to AKS
+Edit `scenarios/perf-eval/image-pull-test/terraform-inputs/azure.tfvars` for cluster configuration.
 
-The notebook handles this automatically, or run manually:
-```bash
-az aks update -g <rg> -n <cluster> --attach-acr <acr-name>
-```
+## Pipeline
 
-## Usage
-
-### Run via Notebook
-```bash
-# Open and run cells sequentially
-jupyter notebook run_locally.ipynb
-```
-
-### Run via CLI
-```bash
-export ROOT_DIR=$(git rev-parse --show-toplevel)
-./run_cl2.sh              # Run test
-./analyze_results.sh      # Analyze results
-```
+The test runs via Azure DevOps pipeline:
+- **Pipeline**: `pipelines/perf-eval/CRI Benchmark/image-pull.yml`
+- **Engine**: `steps/engine/clusterloader2/image_pull/`
+- **Topology**: `steps/topology/image-pull/`
 
 ## Files
 
-| File | Purpose |
+| Path | Purpose |
 |------|---------|
-| `image-pull.yaml` | CL2 test config - defines workload and measurements |
-| `deployment.yaml` | Pod template for image pull test |
-| `containerd-measurements.yaml` | Prometheus queries for containerd metrics |
-| `run_cl2.sh` | Shell wrapper to run test |
-| `analyze_results.sh` | Shell wrapper to analyze results |
-| `run_locally.ipynb` | Interactive notebook for local testing |
-| `terraform-inputs/azure.tfvars` | AKS cluster configuration |
-
-## Output
-
-Results are written to `results/` directory:
-- `junit.xml` - Test pass/fail status
-- `PodStartupLatency_*.json` - Pod startup metrics
-- `GenericPrometheusQuery_*.json` - Prometheus metric snapshots
+| `modules/python/clusterloader2/image_pull/` | Python module and CL2 config |
+| `steps/engine/clusterloader2/image_pull/` | Pipeline engine steps |
+| `steps/topology/image-pull/` | Pipeline topology steps |
+| `pipelines/perf-eval/CRI Benchmark/image-pull.yml` | Pipeline definition |
+| `scenarios/perf-eval/image-pull-test/terraform-inputs/` | Terraform configuration |

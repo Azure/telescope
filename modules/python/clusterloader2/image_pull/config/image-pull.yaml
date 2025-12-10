@@ -34,7 +34,7 @@ steps:
       templateFillMap:
         Replicas: 1
         Group: image-pull
-        Image: <your-acr>.azurecr.io/<your-image>:<tag>  # TODO: Replace with your image
+        Image: akscritelescope.azurecr.io/e2e-test-images/resource-consumer:1.13
 - name: Wait for pods to start and metrics to be collected
   measurements:
   - identifier: WaitForRunningDeployments
