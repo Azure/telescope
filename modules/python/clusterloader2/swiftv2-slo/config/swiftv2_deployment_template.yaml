@@ -40,6 +40,17 @@ spec:
           securityContext:
             privileged: true
           name: deployment-churn
+          readinessProbe:
+            exec:
+              command:
+                - test
+                - -f
+                - /tmp/ingress-test-passed
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 2
+            successThreshold: 1
+            failureThreshold: 3
           env:
             - name: POD_INDEX
               value: "{{.Index}}"
