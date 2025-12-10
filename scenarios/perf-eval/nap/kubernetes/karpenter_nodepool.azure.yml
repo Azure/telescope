@@ -41,6 +41,10 @@ spec:
           operator: In
           values:
           - D
+        - key: karpenter.azure.com/sku-version
+          operator: In
+          values:
+          - "3"
         - key: karpenter.azure.com/sku-cpu
           operator: In
           values:
