@@ -9,6 +9,7 @@ from unittest.mock import patch
 from clusterloader2.image_pull.image_pull import (
     execute_clusterloader2,
     collect_clusterloader2,
+    write_overrides,
     main
 )
 
@@ -16,8 +17,24 @@ from clusterloader2.image_pull.image_pull import (
 class TestImagePullFunctions(unittest.TestCase):
     """Test cases for image_pull execute and collect functions."""
 
+    def test_write_overrides(self):
+        """Test write_overrides creates correct override file."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            write_overrides(tmpdir, "aks")
+
+            override_file = os.path.join(tmpdir, "overrides.yaml")
+            self.assertTrue(os.path.exists(override_file))
+
+            with open(override_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+
+            self.assertIn("CL2_PROVIDER: aks", content)
+            self.assertIn("CL2_PROMETHEUS_TOLERATE_MASTER: true", content)
+            self.assertIn("CL2_PROMETHEUS_NODE_SELECTOR", content)
+
     @patch('clusterloader2.image_pull.image_pull.run_cl2_command')
-    def test_execute_clusterloader2(self, mock_run_cl2):
+    @patch('clusterloader2.image_pull.image_pull.write_overrides')
+    def test_execute_clusterloader2(self, mock_write_overrides, mock_run_cl2):
         """Test execute_clusterloader2 calls run_cl2_command with correct params."""
         execute_clusterloader2(
             cl2_image="ghcr.io/azure/clusterloader2:v20250311",
@@ -27,6 +44,7 @@ class TestImagePullFunctions(unittest.TestCase):
             provider="aks"
         )
 
+        mock_write_overrides.assert_called_once_with("/tmp/config", "aks")
         mock_run_cl2.assert_called_once_with(
             kubeconfig="/tmp/kubeconfig",
             cl2_image="ghcr.io/azure/clusterloader2:v20250311",
@@ -34,6 +52,7 @@ class TestImagePullFunctions(unittest.TestCase):
             cl2_report_dir="/tmp/report",
             provider="aks",
             cl2_config_file="image-pull.yaml",
+            overrides=True,
             enable_prometheus=True,
             scrape_kubelets=True,
             scrape_containerd=True,
