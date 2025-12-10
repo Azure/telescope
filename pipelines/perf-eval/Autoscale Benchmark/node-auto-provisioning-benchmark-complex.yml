@@ -29,8 +29,8 @@ stages:
           topology: karpenter
           matrix:
             complex-nap:
-              scale_up_timeout: "200m"
-              scale_down_timeout: "200m"
+              scale_up_timeout: "60m"
+              scale_down_timeout: "60m"
               node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
