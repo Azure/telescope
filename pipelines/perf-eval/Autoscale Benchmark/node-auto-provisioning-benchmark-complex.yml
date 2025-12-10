@@ -37,7 +37,7 @@ stages:
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
               capacity_type: on-demand
-              # aad_enabled: "true"
+              aad_enabled: "true"
               vm_size: "D"
               # enable_apiserver_vnet_integration: "true"
           max_parallel: 1
