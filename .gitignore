@@ -76,8 +76,6 @@ env/
 venv/
 modules/python/clusterloader2/*/results
 modules/python/clusterloader2/*/config/overrides.yaml
-scenarios/**/results
-scenarios/**/cl2-config
 
 #Jupyter
 *-checkpoint.ipynb
