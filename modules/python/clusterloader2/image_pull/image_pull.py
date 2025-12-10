@@ -12,6 +12,19 @@ setup_logging()
 logger = get_logger(__name__)
 
 
+def write_overrides(cl2_config_dir: str, provider: str):
+    """Write CL2 override file with Prometheus configuration."""
+    override_file = os.path.join(cl2_config_dir, "overrides.yaml")
+    with open(override_file, "w", encoding="utf-8") as file:
+        file.write(f"CL2_PROVIDER: {provider}\n")
+        file.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
+        file.write("CL2_PROMETHEUS_CPU_SCALE_FACTOR: 30.0\n")
+        file.write("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 30.0\n")
+        file.write("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 30.0\n")
+        file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
+    logger.info(f"Wrote overrides file: {override_file}")
+
+
 def execute_clusterloader2(
     cl2_image: str,
     cl2_config_dir: str,
@@ -23,6 +36,9 @@ def execute_clusterloader2(
     logger.info(f"Starting image-pull test with CL2 image: {cl2_image}")
     logger.info(f"Config dir: {cl2_config_dir}, Report dir: {cl2_report_dir}")
 
+    # Write overrides file with Prometheus configuration
+    write_overrides(cl2_config_dir, provider)
+
     run_cl2_command(
         kubeconfig=kubeconfig,
         cl2_image=cl2_image,
@@ -30,6 +46,7 @@ def execute_clusterloader2(
         cl2_report_dir=cl2_report_dir,
         provider=provider,
         cl2_config_file="image-pull.yaml",
+        overrides=True,
         enable_prometheus=True,
         scrape_kubelets=True,
         scrape_containerd=True,
