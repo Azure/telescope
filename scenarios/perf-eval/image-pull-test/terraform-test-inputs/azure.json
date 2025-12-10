@@ -1,12 +1,4 @@
 {
   "run_id": "test-run",
-  "region": "eastus2",
-  "aks_sku_tier": "Standard",
-  "aks_kubernetes_version": "1.29",
-  "aks_network_policy": "none",
-  "aks_network_dataplane": "azure",
-  "k8s_machine_type": "Standard_D4s_v3",
-  "k8s_os_disk_type": "Managed",
-  "aks_cli_system_node_pool": null,
-  "aks_cli_user_node_pool": null
+  "region": "eastus2"
 }
