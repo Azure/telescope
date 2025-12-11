@@ -127,6 +127,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
   workload_identity_enabled = var.aks_config.workload_identity_enabled
   kubernetes_version        = var.aks_config.kubernetes_version
   edge_zone                 = var.aks_config.edge_zone
+  support_plan              = var.aks_config.support_plan
 
   dynamic "azure_active_directory_role_based_access_control" {
     for_each = var.aks_aad_enabled == true ? [1] : []

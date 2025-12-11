@@ -134,6 +134,7 @@ variable "aks_config" {
     oidc_issuer_enabled       = optional(bool, false)
     workload_identity_enabled = optional(bool, false)
     kubernetes_version        = optional(string, null)
+    support_plan              = optional(string, null)
     edge_zone                 = optional(string, null)
     auto_scaler_profile = optional(object({
       balance_similar_node_groups      = optional(bool, false)
