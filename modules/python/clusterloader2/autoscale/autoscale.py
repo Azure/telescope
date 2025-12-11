@@ -171,13 +171,10 @@ def collect_clusterloader2(
                     # "wait_for_90Perc_nodes_seconds": value["wait_for_90Perc_nodes_seconds"],
                     # "wait_for_99Perc_nodes_seconds": value["wait_for_99Perc_nodes_seconds"],
                     "wait_for_pods_seconds": value["wait_for_pods_seconds"],
-                    "autoscale_result": "success" if value["failures"] == 0 else "failure",
-                    "group": None,
-                    "measurement": None,
-                    "result": None
+                    "autoscale_result": "success" if value["failures"] == 0 else "failure"
                 }
                 logger.info(f"Before data for index {index}, category {key}: {data}")
-                data = process_cl2_reports(cl2_report_dir, data)
+
 
                 # TODO: Expose optional parameter to include test details
                 result = {
@@ -197,6 +194,29 @@ def collect_clusterloader2(
                 # logger.info(data["metrics"])
                 logger.info(f"Result {index}, category {key}: {data}")
                 content += json.dumps(result) + "\n"
+        
+        tmplt = {
+            "group": None,
+            "measurement": None,
+            "result": None
+        }
+        data = process_cl2_reports(cl2_report_dir, tmplt)
+        cl2_measurement = {
+            "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+            "autoscale_type": "up",
+            "cpu_per_node": cpu_per_node,
+            "capacity_type": capacity_type,                    
+            "node_count": None, # karpenter decide how many node count
+            "pod_count": pod_count,
+            "data": data,
+            # "raw_data": raw_data,
+            "cloud_info": cloud_info,
+            "run_id": run_id,
+            "run_url": run_url
+        }
+        logger.info(f"Result {index}, category up: {cl2_measurement}")
+        content += json.dumps(cl2_measurement) + "\n"
+        
 
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {raw_data}")
