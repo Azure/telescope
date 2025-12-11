@@ -13,7 +13,7 @@ steps:
     set -eo pipefail
 
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE override \
-      $CPU_PER_NODE $NODE_COUNT $POD_COUNT \
+      ${CPU_PER_NODE:0} $NODE_COUNT $POD_COUNT \
       $SCALE_UP_TIMEOUT $SCALE_DOWN_TIMEOUT \
       $LOOP_COUNT "$NODE_LABEL_SELECTOR" "$NODE_SELECTOR" ${CL2_CONFIG_DIR}/overrides.yaml ${WARMUP_DEPLOYMENT:-false} ${CL2_CONFIG_DIR} --os_type ${OS_TYPE:-linux} --warmup_deployment_template ${WARMUP_DEPLOYMENT_TEMPLATE:-""} --deployment_template ${DEPLOYMENT_TEMPLATE:-""}
 
@@ -106,7 +106,7 @@ steps:
       echo 'overrides_file="${CL2_CONFIG_DIR}/overrides.yaml"'
       echo ''
       echo 'PYTHONPATH=$PYTHONPATH:"$REMOTE_PYTHON_DIR" python3 "$PYTHON_SCRIPT_FILE" override \'
-      echo '  "$CPU_PER_NODE" "$NODE_COUNT" "$POD_COUNT" \'
+      echo '  "${CPU_PER_NODE:-0}" "$NODE_COUNT" "$POD_COUNT" \'
       echo '  "$SCALE_UP_TIMEOUT" "$SCALE_DOWN_TIMEOUT" \'
       echo '  "$LOOP_COUNT" "$NODE_LABEL_SELECTOR" "$NODE_SELECTOR" "$overrides_file" "${WARMUP_DEPLOYMENT:-false}" "$CL2_CONFIG_DIR" --os_type "${OS_TYPE:-linux}" --warmup_deployment_template "${WARMUP_DEPLOYMENT_TEMPLATE:-""}" --deployment_template "${DEPLOYMENT_TEMPLATE:-""}"'
       echo ''

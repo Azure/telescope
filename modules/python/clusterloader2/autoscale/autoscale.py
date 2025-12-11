@@ -77,9 +77,10 @@ def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up
 #        file.write(f"CL2_DEPLOYMENT_CPU: {cpu_request}m\n")
         file.write(f"CL2_DEPLOYMENT_CPU: 16\n")
         file.write(f"CL2_DEPLOYMENT_MEMORY: 60Gi\n")
-        file.write(f"CL2_MIN_NODE_COUNT: 10\n")
-        file.write(f"CL2_MAX_NODE_COUNT: {pod_count+100}\n")
-        file.write(f"CL2_DESIRED_NODE_COUNT: {desired_node_count}\n")
+        if node_count:
+            file.write(f"CL2_MIN_NODE_COUNT: 10\n")
+            file.write(f"CL2_MAX_NODE_COUNT: {pod_count+100}\n")
+            file.write(f"CL2_DESIRED_NODE_COUNT: {desired_node_count}\n")
         file.write(f"CL2_DEPLOYMENT_SIZE: {pod_count}\n")
         file.write(f"CL2_SCALE_UP_TIMEOUT: {scale_up_timeout}\n")
         file.write(f"CL2_SCALE_DOWN_TIMEOUT: {scale_down_timeout}\n")
@@ -182,8 +183,8 @@ def collect_clusterloader2(
                     "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
                     "autoscale_type": key,
                     "cpu_per_node": cpu_per_node,
-                    "capacity_type": capacity_type,
-                    "node_count": node_count,
+                    "capacity_type": capacity_type,                    
+                    "node_count": None, # karpenter decide how many node count
                     "pod_count": pod_count,
                     "data": data,
                     # "raw_data": raw_data,

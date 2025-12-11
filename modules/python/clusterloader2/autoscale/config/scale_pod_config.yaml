@@ -1,5 +1,5 @@
 {{$deploymentTemplatePath := DefaultParam .CL2_DEPLOYMENT_TEMPLATE_PATH "deployment_template.yaml"}}
-{{$deploymentSize := 10}}
+{{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 100}}
 {{$deploymentCpu := DefaultParam .CL2_DEPLOYMENT_CPU "346m"}}
 {{$deploymentMemory := DefaultParam .CL2_DEPLOYMENT_MEMORY "100Mi"}}
 {{$nodeLabelSelector := DefaultParam .CL2_NODE_LABEL_SELECTOR "karpenter.sh/nodepool = default"}}
@@ -15,7 +15,7 @@
 {{$coolDownTime := DefaultParam .CL2_COOLDOWN_TIME "120s"}}
 {{$osType := DefaultParam .CL2_OS_TYPE "linux"}}
 {{$percentilesList := StringSplit "0.50,0.70,0.90,0.99,1.00"}}
-{{$countErrorMargin := $deploymentSize}}
+{{$countErrorMargin := MultiplyInt .CL2_DEPLOYMENT_SIZE 0.01}}
 
 name: autoscale
 namespace:
@@ -32,20 +32,23 @@ tuningSets:
 
 steps:
 {{range $i := Loop $loopCount}}
-- name: Start ResourceUsageSummary {{$i}}
+- name: Start Measurements {{$i}}
   measurements:
   - Identifier: ResourceUsageSummary
     Method: ResourceUsageSummary
     Params:
       action: start
-- name: Start PodStartupLatency {{$i}}
-  measurements:
   - Identifier: PodStartupLatency
     Method: PodStartupLatency
     Params:
       action: start
       labelSelector: {{$podLabelSelector}}
       threshold: {{$scaleUpTimeout}}
+  - Identifier: SchedulingThroughput
+    Method: SchedulingThroughput
+    Params:
+      action: start
+      labelSelector: {{$podLabelSelector}}
 - name: Create deployment {{$i}}
   phases:
   - namespaceRange:
@@ -73,10 +76,18 @@ steps:
       labelSelector: {{$podLabelSelector}}
       timeout: {{$scaleUpTimeout}}
       refreshInterval: {{$refreshInterval}}
-- name: Gather PodStartupLatency {{$i}}
+- name: Gather Measurements {{$i}}
   measurements:
   - Identifier: PodStartupLatency
     Method: PodStartupLatency
+    Params:
+      action: gather
+  - Identifier: SchedulingThroughput
+    Method: SchedulingThroughput
+    Params:
+      action: gather
+  - Identifier: ResourceUsageSummary
+    Method: ResourceUsageSummary
     Params:
       action: gather
 - name: WaitBeforeDelete
@@ -111,17 +122,4 @@ steps:
       labelSelector: {{$podLabelSelector}}
       timeout: {{$scaleDownTimeout}}
       refreshInterval: {{$refreshInterval}}
-- name: WaitBeforeCreate
-  measurements:
-  - Identifier: WaitBeforeCreate
-    Method: Sleep
-    Params:
-      action: start
-      duration: {{$coolDownTime}}
-- name: Gather ResourceUsageSummary {{$i}}
-  measurements:
-  - Identifier: ResourceUsageSummary
-    Method: ResourceUsageSummary
-    Params:
-      action: gather
 {{end}}
