@@ -1,9 +1,8 @@
----
 {{$action := .action}}
+
 steps:
   - name: {{$action}} Containerd Measurements
     measurements:
-      # ContainerdCriImagePullingThroughput - WORKS (has histogram buckets)
       - identifier: ContainerdCriImagePullingThroughput
         method: GenericPrometheusQuery
         params:
@@ -12,12 +11,10 @@ steps:
           metricVersion: v1
           unit: MB/s
           queries:
-            - name: Perc100
-              query: histogram_quantile(1, sum(rate(containerd_cri_image_pulling_throughput_bucket{nodepool=~"userpool.*"}[%v])) by (le))
             - name: Perc99
               query: histogram_quantile(0.99, sum(rate(containerd_cri_image_pulling_throughput_bucket{nodepool=~"userpool.*"}[%v])) by (le))
-            - name: Perc90
-              query: histogram_quantile(0.90, sum(rate(containerd_cri_image_pulling_throughput_bucket{nodepool=~"userpool.*"}[%v])) by (le))
+            - name: Perc75
+              query: histogram_quantile(0.75, sum(rate(containerd_cri_image_pulling_throughput_bucket{nodepool=~"userpool.*"}[%v])) by (le))
             - name: Perc50
               query: histogram_quantile(0.50, sum(rate(containerd_cri_image_pulling_throughput_bucket{nodepool=~"userpool.*"}[%v])) by (le))
             - name: Sum

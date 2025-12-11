@@ -12,6 +12,24 @@ steps:
   - script: |
       set -eo pipefail
 
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE override \
+        --cl2_config_dir ${CL2_CONFIG_DIR} \
+        --provider $CLOUD
+    workingDirectory: modules/python
+    env:
+      ${{ if eq(parameters.cloud, 'azure') }}:
+        CLOUD: aks
+      ${{ elseif eq(parameters.cloud, 'aws') }}:
+        CLOUD: eks
+      ${{ else }}:
+        CLOUD: ${{ parameters.cloud }}
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/image_pull/image_pull.py
+      CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/image_pull/config
+    displayName: "Override CL2 Config"
+
+  - script: |
+      set -eo pipefail
+
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
         --cl2_image ${CL2_IMAGE} \
         --cl2_config_dir ${CL2_CONFIG_DIR} \

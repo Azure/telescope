@@ -1,7 +1,7 @@
 scenario_type  = "perf-eval"
-scenario_name  = "image-pull-test"
+scenario_name  = "image-pull-throughput"
 deletion_delay = "2h"
-owner          = "telescope"
+owner          = "acr"
 
 network_config_list = [
   {
