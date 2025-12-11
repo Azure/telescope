@@ -30,12 +30,12 @@ stages:
           topology: karpenter
           matrix:
             complex-nap: # 16 cores cpu per pod with 64Gi memory
-              cpu_per_node: 96 # 64 cores and 96 cores per node
+              cpu_per_node: 96 # 96 cores per node
               pod_count: 5000
               pod_cpu_request: 16
               pod_memory_request: "60Gi"
-              scale_up_timeout: "30m"
-              scale_down_timeout: "30m"
+              scale_up_timeout: "15m"
+              scale_down_timeout: "15m"
               node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
