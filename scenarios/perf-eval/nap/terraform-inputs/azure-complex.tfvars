@@ -1,7 +1,7 @@
 # cluster configuration for Morgan Stanley
 scenario_type  = "perf-eval"
 scenario_name  = "nap"
-deletion_delay = "4h"
+deletion_delay = "2h"
 owner          = "aks"
 
 public_ip_config_list = [
