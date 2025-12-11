@@ -130,15 +130,23 @@ def process_cl2_reports(cl2_report_dir, template):
                     continue
                 for item in items:
                     result = template.copy()
-                    result["group"] = group_name
-                    result["measurement"] = measurement
-                    result["result"] = item
+                    # result["group"] = group_name
+                    # result["measurement"] = measurement
+                    tmp = {
+                        "measurement": measurement,
+                        "result": item
+                    }
+                    result["data"] = tmp
                     content += json.dumps(result) + "\n"
             else:
                 result = template.copy()
-                result["group"] = group_name
-                result["measurement"] = measurement
-                result["result"] = data
+                # result["group"] = group_name
+                # result["measurement"] = measurement
+                tmp = {
+                    "measurement": measurement,
+                    "result": data
+                }
+                result["data"] = tmp
                 content += json.dumps(result) + "\n"
     return content
 

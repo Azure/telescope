@@ -194,13 +194,8 @@ def collect_clusterloader2(
                 # logger.info(data["metrics"])
                 logger.info(f"Result {index}, category {key}: {data}")
                 content += json.dumps(result) + "\n"
+
         
-        tmplt = {
-            "group": None,
-            "measurement": None,
-            "result": None
-        }
-        data = process_cl2_reports(cl2_report_dir, tmplt)
         cl2_measurement = {
             "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
             "autoscale_type": "up",
@@ -208,14 +203,15 @@ def collect_clusterloader2(
             "capacity_type": capacity_type,                    
             "node_count": None, # karpenter decide how many node count
             "pod_count": pod_count,
-            "data": data,
+            "data": None,
             # "raw_data": raw_data,
             "cloud_info": cloud_info,
             "run_id": run_id,
             "run_url": run_url
         }
-        logger.info(f"Result, category up: {cl2_measurement}")
-        content += json.dumps(cl2_measurement) + "\n"
+        cl2_result = process_cl2_reports(cl2_report_dir,cl2_measurement)
+        logger.info(f"Result, category up: {cl2_result}")
+        content += json.dumps(cl2_result) + "\n"
         
 
     else:
