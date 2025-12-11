@@ -67,8 +67,8 @@ steps:
     echo "Executing Karpenter validation on jumpbox..."
     ssh "${ssh_opts[@]}" "$ssh_target" "set -euo pipefail && set -x && \
       kubectl apply -f '${remote_nodepool_file}' && \
-      kubectl patch nodepool default --type='json' -p=\"[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['${VM_SIZE}']}]\" && \
-      kubectl patch nodepool spot --type='json' -p=\"[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['${VM_SIZE}']}]\" && \
+      # kubectl patch nodepool default --type='json' -p=\"[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['${VM_SIZE}']}]\" && \
+      # kubectl patch nodepool spot --type='json' -p=\"[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['${VM_SIZE}']}]\" && \
       kubectl get nodepool default -o yaml && \
       kubectl get nodepool spot -o yaml"
   env:
