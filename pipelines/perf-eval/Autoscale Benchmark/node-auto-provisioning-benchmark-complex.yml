@@ -31,7 +31,7 @@ stages:
           matrix:
             complex-nap: # 16 cores cpu per pod with 64Gi memory
               cpu_per_node: 32 
-              pod_count: 5000
+              pod_count: 100
               scale_up_timeout: "30m"
               scale_down_timeout: "30m"
               node_label_selector: "karpenter.sh/nodepool = default"
@@ -42,7 +42,6 @@ stages:
               warmup_deployment_template: warmup_deployment.yaml
               capacity_type: on-demand
               aad_enabled: "true"
-              vm_size: "D"
               enable_apiserver_vnet_integration: "false" # TODO: enable when bug fix completed
           max_parallel: 1
           timeout_in_minutes: 500
