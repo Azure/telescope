@@ -29,7 +29,7 @@ spec:
       nodeSelector:
         swiftv2slo: "true"
       containers:
-        - image: sv2perfacr{{.Location}}.azurecr.io/netshoot:latest
+        - image: sv2perfacr{{.Location}}.azurecr.io/netshoot-kubectl:latest
           command: 
             - /bin/bash
             - -c
