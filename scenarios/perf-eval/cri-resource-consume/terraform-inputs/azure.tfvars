@@ -27,6 +27,7 @@ aks_config_list = [
     dns_prefix  = "cri"
     subnet_name = "cri-vnet"
     sku_tier    = "Standard"
+    kubernetes_version = "1.33"
     network_profile = {
       network_plugin      = "azure"
       network_plugin_mode = "overlay"
