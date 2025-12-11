@@ -40,9 +40,11 @@ spec:
         - key: karpenter.azure.com/sku-name
           operator: In
           values:
-          - "Standard_D8_v3"
-          # - "Standard_D96Ds_v5"
-          # - "Standard_D96_v5"
+          - "Standard_D96_v5" # 50k Dv5
+          - "Standard_D96ds_v5" # 30k DDSv5
+          - "Standard_D96d_v5" # 10k DDv5
+          - "Standard_D96s_v5" # 10k Dsv5
+          - "Standard_E96_v5" # 6k Ev5
 
 # Spot NodePool
 ---
