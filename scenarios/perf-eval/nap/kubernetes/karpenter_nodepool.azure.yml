@@ -41,16 +41,31 @@ spec:
           operator: In
           values:
           - D
-        - key: karpenter.azure.com/sku-version
+        - key: karpenter.azure.com/sku-name
           operator: In
           values:
-          - "3"
-          - "4"
-        - key: karpenter.azure.com/sku-cpu
-          operator: In
-          values:
-          - "96"
-          - "64"
+          - "Standard_D96d_v5"
+          - "Standard_D96_v5"
+          - "Standard_D96a_v4"
+          - "Standard_D64_v4"
+          - "Standard_D64_v3"
+        # - key: karpenter.azure.com/sku-version
+        #   operator: In
+        #   values:
+        #   - "4"
+        #   - "3"
+        # - key: karpenter.azure.com/sku-cpu
+        #   operator: In
+        #   values:
+        #   - "96"
+        #   - "64"
+      kubelet:
+        systemReserved:
+          cpu: "2"
+          memory: "4Gi"
+        kubeReserved:
+          cpu: "2"
+          memory: "4Gi"
 
 # Spot NodePool
 ---
