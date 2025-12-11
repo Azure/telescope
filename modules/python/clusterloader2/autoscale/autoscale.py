@@ -203,7 +203,7 @@ def collect_clusterloader2(
             "capacity_type": capacity_type,                    
             "node_count": None, # karpenter decide how many node count
             "pod_count": pod_count,
-            "data": None,
+            "data": {},  # Empty dict, will be filled by process_cl2_reports
             # "raw_data": raw_data,
             "cloud_info": cloud_info,
             "run_id": run_id,
@@ -211,7 +211,7 @@ def collect_clusterloader2(
         }
         cl2_result = process_cl2_reports(cl2_report_dir,cl2_measurement)
         logger.info(f"Result, category up: {cl2_result}")
-        content += json.dumps(cl2_result) + "\n"
+        content += cl2_result
         
 
     else:
