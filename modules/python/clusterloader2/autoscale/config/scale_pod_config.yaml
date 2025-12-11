@@ -1,0 +1,127 @@
+{{$deploymentTemplatePath := DefaultParam .CL2_DEPLOYMENT_TEMPLATE_PATH "deployment_template.yaml"}}
+{{$deploymentSize := 10}}
+{{$deploymentCpu := DefaultParam .CL2_DEPLOYMENT_CPU "346m"}}
+{{$deploymentMemory := DefaultParam .CL2_DEPLOYMENT_MEMORY "100Mi"}}
+{{$nodeLabelSelector := DefaultParam .CL2_NODE_LABEL_SELECTOR "karpenter.sh/nodepool = default"}}
+{{$nodeSelector := DefaultParam .CL2_NODE_SELECTOR  "{karpenter.sh/nodepool: default}"}}
+{{$minNodeCount := DefaultParam .CL2_MIN_NODE_COUNT 10}}
+{{$maxNodeCount := DefaultParam .CL2_MAX_NODE_COUNT 20}}
+{{$desiredNodeCount := DefaultParam .CL2_DESIRED_NODE_COUNT 1}}
+{{$podLabelSelector := DefaultParam .CL2_POD_LABEL_SELECTOR "app = inflate"}}
+{{$scaleUpTimeout := DefaultParam .CL2_SCALE_UP_TIMEOUT "30m"}}
+{{$scaleDownTimeout := DefaultParam .CL2_SCALE_DOWN_TIMEOUT "10m"}}
+{{$refreshInterval := DefaultParam .CL2_REFRESH_INTERVAL "5s"}}
+{{$loopCount := DefaultParam .CL2_LOOP_COUNT 1}}
+{{$coolDownTime := DefaultParam .CL2_COOLDOWN_TIME "120s"}}
+{{$osType := DefaultParam .CL2_OS_TYPE "linux"}}
+{{$percentilesList := StringSplit "0.50,0.70,0.90,0.99,1.00"}}
+{{$countErrorMargin := $deploymentSize}}
+
+name: autoscale
+namespace:
+  number: 1
+  prefix: autoscale
+  deleteStaleNamespaces: true
+  deleteAutomanagedNamespaces: true
+  enableExistingNamespaces: true
+
+tuningSets:
+- name: Uniform1qps
+  qpsLoad:
+    qps: 1
+
+steps:
+{{range $i := Loop $loopCount}}
+- name: Start ResourceUsageSummary {{$i}}
+  measurements:
+  - Identifier: ResourceUsageSummary
+    Method: ResourceUsageSummary
+    Params:
+      action: start
+- name: Start PodStartupLatency {{$i}}
+  measurements:
+  - Identifier: PodStartupLatency
+    Method: PodStartupLatency
+    Params:
+      action: start
+      labelSelector: {{$podLabelSelector}}
+      threshold: {{$scaleUpTimeout}}
+- name: Create deployment {{$i}}
+  phases:
+  - namespaceRange:
+      min: 1
+      max: 1
+    replicasPerNamespace: 1
+    tuningSet: Uniform1qps
+    objectBundle:
+    - basename: inflate
+      objectTemplatePath: {{$deploymentTemplatePath}}
+      templateFillMap:
+        Replicas: {{$deploymentSize}}
+        CPUperJob: {{$deploymentCpu}}
+        MemoryRequest: {{$deploymentMemory}}
+        NodeSelector: {{ (StructuralData $nodeSelector) }}
+        OSType: {{$osType}}
+- name: Measure nodes and pods scale up {{$i}}
+  measurements:
+  - Identifier: WaitForRunningPodsUp {{$i}}
+    Method: WaitForRunningPods
+    Params:
+      action: start
+      desiredPodCount: {{$deploymentSize}}
+      countErrorMargin: {{$countErrorMargin}}
+      labelSelector: {{$podLabelSelector}}
+      timeout: {{$scaleUpTimeout}}
+      refreshInterval: {{$refreshInterval}}
+- name: Gather PodStartupLatency {{$i}}
+  measurements:
+  - Identifier: PodStartupLatency
+    Method: PodStartupLatency
+    Params:
+      action: gather
+- name: WaitBeforeDelete
+  measurements:
+  - Identifier: WaitBeforeDelete
+    Method: Sleep
+    Params:
+      action: start
+      duration: {{$coolDownTime}}
+- name: Delete deployment {{$i}}
+  phases:
+  - namespaceRange:
+      min: 1
+      max: 1
+    replicasPerNamespace: 0
+    tuningSet: Uniform1qps
+    objectBundle:
+    - basename: inflate
+      objectTemplatePath: {{$deploymentTemplatePath}}
+      templateFillMap:
+        Replicas: {{$deploymentSize}}
+        CPUperJob: {{$deploymentCpu}}
+        MemoryRequest: {{$deploymentMemory}}
+        OSType: {{$osType}}
+- name: Measure nodes and pods scale down {{$i}}
+  measurements:
+  - Identifier: WaitForRunningPodsDown {{$i}}
+    Method: WaitForRunningPods
+    Params:
+      action: start
+      desiredPodCount: 0
+      labelSelector: {{$podLabelSelector}}
+      timeout: {{$scaleDownTimeout}}
+      refreshInterval: {{$refreshInterval}}
+- name: WaitBeforeCreate
+  measurements:
+  - Identifier: WaitBeforeCreate
+    Method: Sleep
+    Params:
+      action: start
+      duration: {{$coolDownTime}}
+- name: Gather ResourceUsageSummary {{$i}}
+  measurements:
+  - Identifier: ResourceUsageSummary
+    Method: ResourceUsageSummary
+    Params:
+      action: gather
+{{end}}

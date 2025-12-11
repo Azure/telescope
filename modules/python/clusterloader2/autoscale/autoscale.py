@@ -5,7 +5,7 @@ import re
 import subprocess
 
 from datetime import datetime, timezone
-from clusterloader2.utils import parse_xml_to_json, run_cl2_command
+from clusterloader2.utils import parse_xml_to_json, run_cl2_command, process_cl2_reports
 from clients.kubernetes_client import KubernetesClient
 from utils.logger_config import get_logger, setup_logging
 
@@ -107,25 +107,35 @@ def collect_clusterloader2(
     result_file
 ):
     index_pattern = re.compile(r'(\d+)$')
+    
     raw_data = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
 
     json_data = json.loads(raw_data)
     testsuites = json_data["testsuites"]
     summary = {}
-    metric_mappings = {
+    # metric_mappings = {
+    #     "WaitForRunningPodsUp": ("up", "wait_for_pods_seconds"),
+    #     "WaitForNodesUpPerc50": ("up", "wait_for_50Perc_nodes_seconds"),
+    #     "WaitForNodesUpPerc70": ("up", "wait_for_70Perc_nodes_seconds"),
+    #     "WaitForNodesUpPerc90": ("up", "wait_for_90Perc_nodes_seconds"),
+    #     "WaitForNodesUpPerc99": ("up", "wait_for_99Perc_nodes_seconds"),
+    #     "WaitForNodesUpPerc100": ("up", "wait_for_nodes_seconds"),
+    #     "WaitForRunningPodsDown": ("down", "wait_for_pods_seconds"),
+    #     "WaitForNodesDownPerc50": ("down", "wait_for_50Perc_nodes_seconds"),
+    #     "WaitForNodesDownPerc70": ("down", "wait_for_70Perc_nodes_seconds"),
+    #     "WaitForNodesDownPerc90": ("down", "wait_for_90Perc_nodes_seconds"),
+    #     "WaitForNodesDownPerc99": ("down", "wait_for_99Perc_nodes_seconds"),
+    #     "WaitForNodesDownPerc100": ("down", "wait_for_nodes_seconds"),
+    # }
+    
+
+    metric_mappings = { # reading metrics from junit.xml
         "WaitForRunningPodsUp": ("up", "wait_for_pods_seconds"),
-        # "WaitForNodesUpPerc50": ("up", "wait_for_50Perc_nodes_seconds"),
-        # "WaitForNodesUpPerc70": ("up", "wait_for_70Perc_nodes_seconds"),
-        # "WaitForNodesUpPerc90": ("up", "wait_for_90Perc_nodes_seconds"),
-        # "WaitForNodesUpPerc99": ("up", "wait_for_99Perc_nodes_seconds"),
-        # "WaitForNodesUpPerc100": ("up", "wait_for_nodes_seconds"),
         "WaitForRunningPodsDown": ("down", "wait_for_pods_seconds"),
-        # "WaitForNodesDownPerc50": ("down", "wait_for_50Perc_nodes_seconds"),
-        # "WaitForNodesDownPerc70": ("down", "wait_for_70Perc_nodes_seconds"),
-        # "WaitForNodesDownPerc90": ("down", "wait_for_90Perc_nodes_seconds"),
-        # "WaitForNodesDownPerc99": ("down", "wait_for_99Perc_nodes_seconds"),
-        # "WaitForNodesDownPerc100": ("down", "wait_for_nodes_seconds"),
     }
+    
+    
+
 
     if testsuites:
         # Process each loop
@@ -160,8 +170,13 @@ def collect_clusterloader2(
                     # "wait_for_90Perc_nodes_seconds": value["wait_for_90Perc_nodes_seconds"],
                     # "wait_for_99Perc_nodes_seconds": value["wait_for_99Perc_nodes_seconds"],
                     "wait_for_pods_seconds": value["wait_for_pods_seconds"],
-                    "autoscale_result": "success" if value["failures"] == 0 else "failure"
+                    "autoscale_result": "success" if value["failures"] == 0 else "failure",
+                    "group": None,
+                    "measurement": None,
+                    "result": None
+                    
                 }
+                data = process_cl2_reports(cl2_report_dir, data)
                 # TODO: Expose optional parameter to include test details
                 result = {
                     "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
