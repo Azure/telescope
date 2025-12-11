@@ -28,7 +28,7 @@ namespace:
 tuningSets:
 - name: Uniform1qps
   qpsLoad:
-    qps: 1
+    qps: 20
 
 steps:
 {{range $i := Loop $loopCount}}
