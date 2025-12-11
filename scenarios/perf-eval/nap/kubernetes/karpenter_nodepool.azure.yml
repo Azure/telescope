@@ -59,13 +59,6 @@ spec:
         #   values:
         #   - "96"
         #   - "64"
-      kubelet:
-        systemReserved:
-          cpu: "2"
-          memory: "4Gi"
-        kubeReserved:
-          cpu: "2"
-          memory: "4Gi"
 
 # Spot NodePool
 ---
