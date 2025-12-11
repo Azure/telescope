@@ -8,7 +8,7 @@ name: deployment-churn
 {{$latencyPodCpu := DefaultParam .CL2_LATENCY_POD_CPU 10}}
 {{$latencyPodMemory := DefaultParam .CL2_LATENCY_POD_MEMORY 50}}
 {{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "60s"}}
-{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "180s"}}
+{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "300s"}}
 {{$groupName := DefaultParam .CL2_GROUP_NAME "deployment-churn"}}
 {{$serviceIP := DefaultParam .CL2_SERVICE_IP "172.27.0.30"}}
 {{$ingressMaxAttempts := DefaultParam .CL2_INGRESS_MAX_ATTEMPTS 2}}

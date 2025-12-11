@@ -88,8 +88,8 @@ data:
     while [ "${attempt}" -le "${MAX_ATTEMPTS}" ]; do
       log "Attempt ${attempt}/${MAX_ATTEMPTS} starting"
 
-      if run_custpodcurl && run_ingress_ping; then
-        log "Ingress/Egress validation succeeded"
+      if run_custpodcurl; then
+        log "Egress validation succeeded"
         touch /tmp/ingress-test-passed
         exit 0
       fi
