@@ -89,6 +89,7 @@ steps:
       echo "export WARMUP_DEPLOYMENT_TEMPLATE=\"${WARMUP_DEPLOYMENT_TEMPLATE}\""
       echo "export DEPLOYMENT_TEMPLATE=\"${DEPLOYMENT_TEMPLATE}\""
       echo "export OS_TYPE=\"${OS_TYPE}\""
+      echo "export CL2_CONFIG_FILE=\"${CL2_CONFIG_FILE}\""
       echo "export REMOTE_PYTHON_DIR=\"${remote_python_dir}\""
     } > "$env_file"
 
