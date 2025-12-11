@@ -194,7 +194,7 @@ def collect_clusterloader2(
                     "run_url": run_url
                 }
                 
-                logger.info(data["metrics"])
+                # logger.info(data["metrics"])
                 logger.info(f"Result {index}, category {key}: {data}")
                 content += json.dumps(result) + "\n"
 
