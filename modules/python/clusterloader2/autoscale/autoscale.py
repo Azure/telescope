@@ -92,8 +92,8 @@ def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up
 
     file.close()
 
-def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider):
-    run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True)
+def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider, cl2_config_file):
+    run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider,cl2_config_file, overrides=True)
 
 def collect_clusterloader2(
     cpu_per_node,
@@ -228,6 +228,7 @@ def main():
     parser_execute.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
     parser_execute.add_argument("kubeconfig", type=str, help="Path to the kubeconfig file")
     parser_execute.add_argument("provider", type=str, help="Cloud provider name")
+    parser_execute.add_argument("--cl2_config_file", type=str,default="config.yaml" help="Path to the CL2 config file")
 
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
@@ -246,7 +247,7 @@ def main():
     if args.command == "override":
         override_config_clusterloader2(args.cpu_per_node, args.node_count, args.pod_count, args.scale_up_timeout, args.scale_down_timeout, args.loop_count, args.node_label_selector, args.node_selector, args.cl2_override_file, args.warmup_deployment, args.cl2_config_dir, args.os_type, args.warmup_deployment_template, args.deployment_template)
     elif args.command == "execute":
-        execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider)
+        execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider, args.cl2_config_file)
     elif args.command == "collect":
         collect_clusterloader2(args.cpu_per_node, args.capacity_type, args.node_count, args.pod_count, args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file)
 

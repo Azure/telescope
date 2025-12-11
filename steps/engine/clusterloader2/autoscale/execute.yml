@@ -113,7 +113,7 @@ steps:
       echo 'remote_kubeconfig="$HOME/.kube/config"'
       echo ''
       echo 'PYTHONPATH=$PYTHONPATH:"$REMOTE_PYTHON_DIR" python3 "$PYTHON_SCRIPT_FILE" execute \'
-      echo '  "$CL2_IMAGE" "$CL2_CONFIG_DIR" "$CL2_REPORT_DIR" "$remote_kubeconfig" "$CLOUD"'
+      echo '  "$CL2_IMAGE" "$CL2_CONFIG_DIR" "$CL2_REPORT_DIR" "$remote_kubeconfig" "$CLOUD" "${CL2_CONFIG_FILE:-config.yaml}"'
     } | ssh "${ssh_opts[@]}" "$ssh_target" "REMOTE_ROOT='${remote_root}' bash -s"
 
     echo "Syncing reports back to pipeline workspace..."
@@ -135,6 +135,6 @@ steps:
     CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/results
     SOURCE_DIR: $(Pipeline.Workspace)/s
     BUILD_ID: $(Build.BuildId)
-    CPU_PER_NODE: 0
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/autoscale.py
   displayName: "Run Benchmark on jumpbox"
   condition: ne(variables['JUMPBOX_HOST'], '')
