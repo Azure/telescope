@@ -12,8 +12,8 @@ setup_logging()
 logger = get_logger(__name__)
 
 
-def write_overrides(cl2_config_dir: str, provider: str):
-    """Write CL2 override file with Prometheus configuration."""
+def override_config_clusterloader2(cl2_config_dir: str, provider: str):
+    """Override CL2 config file with Prometheus configuration."""
     override_file = os.path.join(cl2_config_dir, "overrides.yaml")
     with open(override_file, "w", encoding="utf-8") as file:
         file.write(f"CL2_PROVIDER: {provider}\n")
@@ -35,9 +35,6 @@ def execute_clusterloader2(
     """Execute ClusterLoader2 image-pull test."""
     logger.info(f"Starting image-pull test with CL2 image: {cl2_image}")
     logger.info(f"Config dir: {cl2_config_dir}, Report dir: {cl2_report_dir}")
-
-    # Write overrides file with Prometheus configuration
-    write_overrides(cl2_config_dir, provider)
 
     run_cl2_command(
         kubeconfig=kubeconfig,
@@ -130,6 +127,13 @@ def main():
     parser = argparse.ArgumentParser(description="Image Pull performance test")
     subparsers = parser.add_subparsers(dest="command")
 
+    # Override subcommand
+    parser_override = subparsers.add_parser("override", help="Override CL2 config file")
+    parser_override.add_argument("--cl2_config_dir", type=str, required=True,
+                                 help="Path to CL2 config directory")
+    parser_override.add_argument("--provider", type=str, required=True,
+                                 help="Cloud provider (aks, eks, gke)")
+
     # Execute subcommand
     parser_execute = subparsers.add_parser("execute", help="Execute image-pull test")
     parser_execute.add_argument("--cl2_image", type=str, required=True,
@@ -163,7 +167,12 @@ def main():
 
     args = parser.parse_args()
 
-    if args.command == "execute":
+    if args.command == "override":
+        override_config_clusterloader2(
+            cl2_config_dir=args.cl2_config_dir,
+            provider=args.provider
+        )
+    elif args.command == "execute":
         execute_clusterloader2(
             cl2_image=args.cl2_image,
             cl2_config_dir=args.cl2_config_dir,

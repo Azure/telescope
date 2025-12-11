@@ -9,7 +9,7 @@ from unittest.mock import patch
 from clusterloader2.image_pull.image_pull import (
     execute_clusterloader2,
     collect_clusterloader2,
-    write_overrides,
+    override_config_clusterloader2,
     main
 )
 
@@ -17,10 +17,10 @@ from clusterloader2.image_pull.image_pull import (
 class TestImagePullFunctions(unittest.TestCase):
     """Test cases for image_pull execute and collect functions."""
 
-    def test_write_overrides(self):
-        """Test write_overrides creates correct override file."""
+    def test_override_config_clusterloader2(self):
+        """Test override_config_clusterloader2 creates correct override file."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            write_overrides(tmpdir, "aks")
+            override_config_clusterloader2(tmpdir, "aks")
 
             override_file = os.path.join(tmpdir, "overrides.yaml")
             self.assertTrue(os.path.exists(override_file))
@@ -33,8 +33,7 @@ class TestImagePullFunctions(unittest.TestCase):
             self.assertIn("CL2_PROMETHEUS_NODE_SELECTOR", content)
 
     @patch('clusterloader2.image_pull.image_pull.run_cl2_command')
-    @patch('clusterloader2.image_pull.image_pull.write_overrides')
-    def test_execute_clusterloader2(self, mock_write_overrides, mock_run_cl2):
+    def test_execute_clusterloader2(self, mock_run_cl2):
         """Test execute_clusterloader2 calls run_cl2_command with correct params."""
         execute_clusterloader2(
             cl2_image="ghcr.io/azure/clusterloader2:v20250311",
@@ -44,7 +43,6 @@ class TestImagePullFunctions(unittest.TestCase):
             provider="aks"
         )
 
-        mock_write_overrides.assert_called_once_with("/tmp/config", "aks")
         mock_run_cl2.assert_called_once_with(
             kubeconfig="/tmp/kubeconfig",
             cl2_image="ghcr.io/azure/clusterloader2:v20250311",
