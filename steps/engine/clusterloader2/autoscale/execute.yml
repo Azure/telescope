@@ -18,7 +18,7 @@ steps:
       $LOOP_COUNT "$NODE_LABEL_SELECTOR" "$NODE_SELECTOR" ${CL2_CONFIG_DIR}/overrides.yaml ${WARMUP_DEPLOYMENT:-false} ${CL2_CONFIG_DIR} --os_type ${OS_TYPE:-linux} --warmup_deployment_template ${WARMUP_DEPLOYMENT_TEMPLATE:-""} --deployment_template ${DEPLOYMENT_TEMPLATE:-""}
 
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
-      ${CL2_IMAGE} ${CL2_CONFIG_DIR} $CL2_REPORT_DIR ${HOME}/.kube/config $CLOUD
+      ${CL2_IMAGE} ${CL2_CONFIG_DIR} $CL2_REPORT_DIR ${HOME}/.kube/config $CLOUD --cl2_config_file ${CL2_CONFIG_FILE:-config.yaml}
   workingDirectory: modules/python
   env:
     ${{ if eq(parameters.cloud, 'azure') }}:
@@ -113,7 +113,7 @@ steps:
       echo 'remote_kubeconfig="$HOME/.kube/config"'
       echo ''
       echo 'PYTHONPATH=$PYTHONPATH:"$REMOTE_PYTHON_DIR" python3 "$PYTHON_SCRIPT_FILE" execute \'
-      echo '  "$CL2_IMAGE" "$CL2_CONFIG_DIR" "$CL2_REPORT_DIR" "$remote_kubeconfig" "$CLOUD" "${CL2_CONFIG_FILE:-config.yaml}"'
+      echo '  "$CL2_IMAGE" "$CL2_CONFIG_DIR" "$CL2_REPORT_DIR" "$remote_kubeconfig" "$CLOUD" --cl2_config_file"${CL2_CONFIG_FILE:-config.yaml}"'
     } | ssh "${ssh_opts[@]}" "$ssh_target" "REMOTE_ROOT='${remote_root}' bash -s"
 
     echo "Syncing reports back to pipeline workspace..."

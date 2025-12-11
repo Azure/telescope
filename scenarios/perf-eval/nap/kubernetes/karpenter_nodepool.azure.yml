@@ -47,6 +47,7 @@ spec:
           - Standard_D64Ds_v5
           - Standard_D64_v5
           - Standard_D96_v3
+          - Standard_D64_v3
 
 # Spot NodePool
 ---

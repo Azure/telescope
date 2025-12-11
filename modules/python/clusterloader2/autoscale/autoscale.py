@@ -93,8 +93,8 @@ def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up
 
     file.close()
 
-def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider, cl2_config_file):
-    run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider,cl2_config_file, overrides=True)
+def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider, cl2_config_file="config.yaml"):
+    run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, cl2_config_file, overrides=True)
 
 def collect_clusterloader2(
     cpu_per_node,
@@ -229,7 +229,7 @@ def main():
     parser_execute.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
     parser_execute.add_argument("kubeconfig", type=str, help="Path to the kubeconfig file")
     parser_execute.add_argument("provider", type=str, help="Cloud provider name")
-    parser_execute.add_argument("--cl2_config_file", type=str,default="config.yaml", help="Path to the CL2 config file")
+    parser_execute.add_argument("--cl2_config_file", type=str, default="config.yaml", help="Path to the CL2 config file")
 
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
