@@ -60,8 +60,8 @@ def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, po
     cpu_request = int(cpu_request * 0.95)
     return cpu_request
 
-def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file, warmup_deployment, cl2_config_dir, os_type="linux", warmup_deployment_template="", deployment_template=""):
-    logger.info(f"CPU per node: {cpu_per_node}")
+def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file, warmup_deployment, cl2_config_dir, os_type="linux", warmup_deployment_template="", deployment_template="", pod_cpu_request=16, pod_memory_request="60Gi"):
+    # logger.info(f"CPU per node: {cpu_per_node}")
     desired_node_count = 1
     if warmup_deployment in ["true", "True"]:
         warmup_deployment_for_karpeneter(cl2_config_dir, warmup_deployment_template)
@@ -70,13 +70,13 @@ def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up
     # cpu_request = calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, pod_count, warmup_deployment, cl2_config_dir, warmup_deployment_template)
 
     logger.info(f"Total number of pods: {pod_count}")
-    logger.info(f"CPU request for each pod: 16cores")
+    # logger.info(f"CPU request for each pod: 16cores")
 
     # assuming the number of surge nodes is no more than 10
     with open(override_file, 'w', encoding='utf-8') as file:
 #        file.write(f"CL2_DEPLOYMENT_CPU: {cpu_request}m\n")
-        file.write(f"CL2_DEPLOYMENT_CPU: 16\n")
-        file.write(f"CL2_DEPLOYMENT_MEMORY: 60Gi\n")
+        file.write(f"CL2_DEPLOYMENT_CPU: {pod_cpu_request}\n")
+        file.write(f"CL2_DEPLOYMENT_MEMORY: {pod_memory_request}\n")
         if node_count:
             file.write(f"CL2_MIN_NODE_COUNT: 10\n")
             file.write(f"CL2_MAX_NODE_COUNT: {pod_count+100}\n")
@@ -226,6 +226,8 @@ def main():
     parser_override.add_argument("--os_type", type=str, choices=["linux", "windows"], default="linux", help="Operating system type for the node pools")
     parser_override.add_argument("--warmup_deployment_template", type=str, default="", help="Path to the CL2 warm up deployment file")
     parser_override.add_argument("--deployment_template", type=str, default="", help="Path to the CL2 deployment file")
+    parser_override.add_argument("--pod_cpu_request", type=int, default=16, help="CPU request for each pod")
+    parser_override.add_argument("--pod_memory_request", type=str, default="60Gi", help="Memory request for each pod")
 
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", help="Execute scale up operation")
@@ -251,7 +253,7 @@ def main():
     args = parser.parse_args()
 
     if args.command == "override":
-        override_config_clusterloader2(args.cpu_per_node, args.node_count, args.pod_count, args.scale_up_timeout, args.scale_down_timeout, args.loop_count, args.node_label_selector, args.node_selector, args.cl2_override_file, args.warmup_deployment, args.cl2_config_dir, args.os_type, args.warmup_deployment_template, args.deployment_template)
+        override_config_clusterloader2(args.cpu_per_node, args.node_count, args.pod_count, args.scale_up_timeout, args.scale_down_timeout, args.loop_count, args.node_label_selector, args.node_selector, args.cl2_override_file, args.warmup_deployment, args.cl2_config_dir, args.os_type, args.warmup_deployment_template, args.deployment_template, pod_cpu_request=args.pod_cpu_request, pod_memory_request=args.pod_memory_request)
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider, args.cl2_config_file)
     elif args.command == "collect":
