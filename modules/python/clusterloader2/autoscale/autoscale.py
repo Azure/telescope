@@ -229,7 +229,7 @@ def main():
     parser_execute.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
     parser_execute.add_argument("kubeconfig", type=str, help="Path to the kubeconfig file")
     parser_execute.add_argument("provider", type=str, help="Cloud provider name")
-    parser_execute.add_argument("--cl2_config_file", type=str,default="config.yaml" help="Path to the CL2 config file")
+    parser_execute.add_argument("--cl2_config_file", type=str,default="config.yaml", help="Path to the CL2 config file")
 
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
