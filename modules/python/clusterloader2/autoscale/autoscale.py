@@ -171,13 +171,10 @@ def collect_clusterloader2(
                     # "wait_for_90Perc_nodes_seconds": value["wait_for_90Perc_nodes_seconds"],
                     # "wait_for_99Perc_nodes_seconds": value["wait_for_99Perc_nodes_seconds"],
                     "wait_for_pods_seconds": value["wait_for_pods_seconds"],
-                    "autoscale_result": "success" if value["failures"] == 0 else "failure",
-                    "group": None,
-                    "measurement": None,
-                    "result": None
-                    
+                    "autoscale_result": "success" if value["failures"] == 0 else "failure"
                 }
-                data = process_cl2_reports(cl2_report_dir, data)
+                logger.info(f"Before data for index {index}, category {key}: {data}")
+
                 # TODO: Expose optional parameter to include test details
                 result = {
                     "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
@@ -192,6 +189,14 @@ def collect_clusterloader2(
                     "run_id": run_id,
                     "run_url": run_url
                 }
+                template = {
+                    "group": None,
+                    "measurement": None,
+                    "result": None,
+                }
+                data["metrics"]= process_cl2_reports(cl2_report_dir, template)
+                logger.info(data["metrics"])
+                logger.info(f"Result {index}, category {key}: {data}")
                 content += json.dumps(result) + "\n"
 
     else:
