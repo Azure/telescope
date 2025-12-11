@@ -37,14 +37,10 @@ spec:
         - key: karpenter.sh/capacity-type
           operator: In
           values: ["on-demand"]
-        - key: karpenter.azure.com/sku-family
-          operator: In
-          values:
-          - "D"
         - key: karpenter.azure.com/sku-name
           operator: In
           values:
-          - Standard_D8_v3
+          - "Standard_D8_v3"
 
 # Spot NodePool
 ---
