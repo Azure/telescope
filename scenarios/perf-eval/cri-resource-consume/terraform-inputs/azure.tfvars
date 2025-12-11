@@ -26,8 +26,7 @@ aks_config_list = [
     aks_name    = "cri-resource-consume"
     dns_prefix  = "cri"
     subnet_name = "cri-vnet"
-    sku_tier    = "Standard"
-    kubernetes_version = "1.33"
+    sku_tier    = "Premium"
     network_profile = {
       network_plugin      = "azure"
       network_plugin_mode = "overlay"
@@ -35,6 +34,7 @@ aks_config_list = [
       service_cidr        = "192.168.0.0/16"
       dns_service_ip      = "192.168.0.10"
     }
+    support_plan = "AKSLongTermSupport"
     default_node_pool = {
       name                         = "default"
       node_count                   = 3
