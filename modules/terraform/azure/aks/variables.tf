@@ -88,7 +88,8 @@ variable "aks_config" {
       service_cidr        = optional(string, null)
       dns_service_ip      = optional(string, null)
     }))
-    sku_tier = string
+    sku_tier                        = string
+    support_plan                    = optional(string, "KubernetesOfficial")
     default_node_pool = object({
       name                         = string
       subnet_name                  = optional(string, null)

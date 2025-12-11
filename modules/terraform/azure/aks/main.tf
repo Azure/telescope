@@ -48,7 +48,8 @@ resource "azurerm_kubernetes_cluster" "aks" {
       "role" = local.role
     },
   )
-  sku_tier = var.aks_config.sku_tier
+  sku_tier     = var.aks_config.sku_tier
+  support_plan = var.aks_config.support_plan
 
   # Wait for KMS role assignment to propagate
   depends_on = [
