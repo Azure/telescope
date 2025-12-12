@@ -8,10 +8,11 @@ spec:
   replicas: {{.Replicas}}
   selector:
     matchLabels:
-      group: {{.Group}}
+      name: {{.Name}}
   template:
     metadata:
       labels:
+        name: {{.Name}}
         group: {{.Group}}
     spec:
       containers:

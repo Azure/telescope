@@ -1,24 +1,39 @@
 name: image-pull-test
+
+{{$replicasPerNamespace := DefaultParam .CL2_REPLICAS_PER_NAMESPACE 10}}
+{{$replicas := DefaultParam .CL2_REPLICAS 1}}
+{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "5m"}}
+{{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "3m"}}
+{{$image := DefaultParam .CL2_IMAGE "akscritelescope.azurecr.io/e2e-test-images/resource-consumer:1.13"}}
+{{$groupName := DefaultParam .CL2_GROUP_NAME "image-pull"}}
+
 namespace:
   number: 1
+  prefix: image-pull
+  deleteStaleNamespaces: true
+  deleteAutomanagedNamespaces: true
+  enableExistingNamespaces: false
+
 tuningSets:
 - name: UniformQPS
   qpsLoad:
     qps: 10
+
 steps:
-- measurements:
-  - identifier: PodStartupLatency
-    method: PodStartupLatency
+- name: Start measurements
+  measurements:
+  - Identifier: PodStartupLatency
+    Method: PodStartupLatency
+    Params:
+      action: start
+      labelSelector: group = {{$groupName}}
+      threshold: {{$podStartupLatencyThreshold}}
+- module:
+    path: /containerd-measurements.yaml
     params:
       action: start
-      labelSelector: group = image-pull
-      threshold: 3m
 - module:
-    path: containerd-measurements.yaml
-    params:
-      action: start
-- module:
-    path: kubelet-measurement.yaml
+    path: /kubelet-measurement.yaml
     params:
       action: start
 - name: Start deployment
@@ -26,46 +41,48 @@ steps:
   - namespaceRange:
       min: 1
       max: 1
-    replicasPerNamespace: 10
+    replicasPerNamespace: {{$replicasPerNamespace}}
     tuningSet: UniformQPS
     objectBundle:
     - basename: image-pull-deployment
-      objectTemplatePath: deployment.yaml
+      objectTemplatePath: deployment_template.yaml
       templateFillMap:
-        Replicas: 1
-        Group: image-pull
-        Image: akscritelescope.azurecr.io/e2e-test-images/resource-consumer:1.13
+        Replicas: {{$replicas}}
+        Group: {{$groupName}}
+        Image: {{$image}}
 - name: Wait for pods to start and metrics to be collected
   measurements:
-  - identifier: WaitForRunningDeployments
-    method: WaitForControlledPodsRunning
-    params:
+  - Identifier: WaitForRunningDeployments
+    Method: WaitForControlledPodsRunning
+    Params:
       action: start
       apiVersion: apps/v1
       kind: Deployment
-      labelSelector: group = image-pull
-      operationTimeout: 5m
-- measurements:
-  - identifier: WaitForRunningDeployments
-    method: WaitForControlledPodsRunning
-    params:
+      labelSelector: group = {{$groupName}}
+      operationTimeout: {{$operationTimeout}}
+- name: Waiting for pods to be running
+  measurements:
+  - Identifier: WaitForRunningDeployments
+    Method: WaitForControlledPodsRunning
+    Params:
       action: gather
 - name: Wait for containerd metrics to accumulate (histogram buckets need multiple scrapes)
   measurements:
-  - identifier: Sleep
-    method: Sleep
-    params:
+  - Identifier: Sleep
+    Method: Sleep
+    Params:
       duration: 10m
 - module:
-    path: containerd-measurements.yaml
+    path: /containerd-measurements.yaml
     params:
       action: gather
 - module:
-    path: kubelet-measurement.yaml
+    path: /kubelet-measurement.yaml
     params:
       action: gather
-- measurements:
-  - identifier: PodStartupLatency
-    method: PodStartupLatency
-    params:
+- name: Gather measurements
+  measurements:
+  - Identifier: PodStartupLatency
+    Method: PodStartupLatency
+    Params:
       action: gather

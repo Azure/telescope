@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "image-pull-throughput"
+scenario_name  = "image-pull-n10"
 deletion_delay = "2h"
 owner          = "acr"
 
