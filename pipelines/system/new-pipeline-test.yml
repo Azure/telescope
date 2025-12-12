@@ -2,7 +2,7 @@ trigger: none
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: image-pull-throughput
+  SCENARIO_NAME: image-pull-n10
 
 stages:
   - stage: azure_eastus2_image_pull
