@@ -7,6 +7,9 @@ parameters:
     default: {}
   - name: region
     type: string
+  - name: registry
+    type: string
+    default: ""
 
 steps:
   - script: |
@@ -22,6 +25,7 @@ steps:
         --scale_enabled ${SCALE_ENABLED:-False} \
         --pod_startup_latency_threshold ${POD_STARTUP_LATENCY_THRESHOLD:-15s} \
         --provider $CLOUD \
+        --registry $REGISTRY \
         --os_type ${OS_TYPE:-linux} \
         --scrape_kubelets ${SCRAPE_KUBELETS:-False} \
         --host_network ${HOST_NETWORK:-True} \
@@ -39,6 +43,7 @@ steps:
         CLOUD: aks
       ${{ else }}:
         CLOUD: ${{ parameters.cloud }}
+      REGISTRY: ${{ parameters.registry }}
       REGION: ${{ parameters.region }}
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/cri.py
       CL2_IMAGE: ${{ parameters.engine_input.image }}

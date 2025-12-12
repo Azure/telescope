@@ -60,6 +60,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             scale_enabled=False,
             pod_startup_latency_threshold="15s",
             provider="aks",
+            registry="akscritelescope",
             os_type="linux",
             scrape_kubelets=True,
             host_network=True,
@@ -86,6 +87,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
         handle.write.assert_any_call("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
         handle.write.assert_any_call("CL2_POD_STARTUP_LATENCY_THRESHOLD: 15s\n")
         handle.write.assert_any_call("CL2_PROVIDER: aks\n")
+        handle.write.assert_any_call("CL2_REGISTRY: akscritelescope\n")
         handle.write.assert_any_call("CL2_OS_TYPE: linux\n")
         handle.write.assert_any_call("CL2_SCRAPE_KUBELETS: true\n")
         handle.write.assert_any_call("CL2_HOST_NETWORK: true\n")
@@ -114,6 +116,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             scale_enabled=False,
             pod_startup_latency_threshold="15s",
             provider="aks",
+            registry="akscritelescope",
             os_type="linux",
             scrape_kubelets=False,
             host_network=False,
@@ -236,7 +239,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
         with patch.object(sys, 'argv', test_args):
             main()
             mock_override.assert_called_once_with(
-                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "linux", False, False, "/tmp/override.yaml"
+                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", None, "linux", False, False, "/tmp/override.yaml"
             )
 
     @patch("clusterloader2.cri.cri.override_config_clusterloader2")
@@ -260,7 +263,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
         with patch.object(sys, 'argv', test_args):
             main()
             mock_override.assert_called_once_with(
-                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "linux", False, True, "/tmp/override.yaml"
+                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", None, "linux", False, True, "/tmp/override.yaml"
             )
 
     @patch("clusterloader2.cri.cri.execute_clusterloader2")
