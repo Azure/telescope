@@ -13,18 +13,14 @@ steps:
           queries:
             - name: Perc99
               query: histogram_quantile(0.99, sum(rate(containerd_cri_image_pulling_throughput_bucket{nodepool=~"userpool.*"}[%v])) by (le))
-            - name: Perc75
-              query: histogram_quantile(0.75, sum(rate(containerd_cri_image_pulling_throughput_bucket{nodepool=~"userpool.*"}[%v])) by (le))
+            - name: Perc90
+              query: histogram_quantile(0.90, sum(rate(containerd_cri_image_pulling_throughput_bucket{nodepool=~"userpool.*"}[%v])) by (le))
             - name: Perc50
               query: histogram_quantile(0.50, sum(rate(containerd_cri_image_pulling_throughput_bucket{nodepool=~"userpool.*"}[%v])) by (le))
             - name: Sum
               query: sum(containerd_cri_image_pulling_throughput_sum{nodepool=~"userpool.*"})
             - name: Count
               query: sum(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"})
-            - name: Average
-              query: sum(rate(containerd_cri_image_pulling_throughput_sum{nodepool=~"userpool.*"}[%v])) / sum(rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v]))
-
-      # ContainerdCriNetworkPluginOperations - Sum/Count only (histograms may not work)
       - identifier: ContainerdCriNetworkPluginOperations
         method: GenericPrometheusQuery
         params:
@@ -39,10 +35,6 @@ steps:
               query: sum(containerd_cri_network_plugin_operations_duration_seconds_seconds_sum{nodepool=~"userpool.*"}) by (operation_type)
             - name: Count
               query: sum(containerd_cri_network_plugin_operations_duration_seconds_seconds_count{nodepool=~"userpool.*"}) by (operation_type)
-            - name: Average
-              query: sum(rate(containerd_cri_network_plugin_operations_duration_seconds_seconds_sum{nodepool=~"userpool.*"}[%v])) by (operation_type) / sum(rate(containerd_cri_network_plugin_operations_duration_seconds_seconds_count{nodepool=~"userpool.*"}[%v])) by (operation_type)
-
-      # ContainerdCriSandboxCreateNetwork - Sum/Count only
       - identifier: ContainerdCriSandboxCreateNetwork
         method: GenericPrometheusQuery
         params:
@@ -55,10 +47,6 @@ steps:
               query: sum(containerd_cri_sandbox_create_network_seconds_sum{nodepool=~"userpool.*"})
             - name: Count
               query: sum(containerd_cri_sandbox_create_network_seconds_count{nodepool=~"userpool.*"})
-            - name: Average
-              query: sum(rate(containerd_cri_sandbox_create_network_seconds_sum{nodepool=~"userpool.*"}[%v])) / sum(rate(containerd_cri_sandbox_create_network_seconds_count{nodepool=~"userpool.*"}[%v]))
-
-      # ContainerdCriSandboxDeleteNetwork - Sum/Count only
       - identifier: ContainerdCriSandboxDeleteNetwork
         method: GenericPrometheusQuery
         params:
@@ -71,5 +59,3 @@ steps:
               query: sum(containerd_cri_sandbox_delete_network_seconds_sum{nodepool=~"userpool.*"})
             - name: Count
               query: sum(containerd_cri_sandbox_delete_network_seconds_count{nodepool=~"userpool.*"})
-            - name: Average
-              query: sum(rate(containerd_cri_sandbox_delete_network_seconds_sum{nodepool=~"userpool.*"}[%v])) / sum(rate(containerd_cri_sandbox_delete_network_seconds_count{nodepool=~"userpool.*"}[%v]))

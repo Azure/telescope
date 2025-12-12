@@ -16,8 +16,8 @@ steps:
         queries:
         - name: Perc99
           query: histogram_quantile(0.99, sum(rate(kubelet_runtime_operations_duration_seconds_bucket{operation_type!="pull_image"}[10m])) by (node, operation_type, le))
-        - name: Perc75
-          query: histogram_quantile(0.75, sum(rate(kubelet_runtime_operations_duration_seconds_bucket{operation_type!="pull_image"}[10m])) by (node, operation_type, le))
+        - name: Perc90
+          query: histogram_quantile(0.90, sum(rate(kubelet_runtime_operations_duration_seconds_bucket{operation_type!="pull_image"}[10m])) by (node, operation_type, le))
         - name: Perc50
           query: histogram_quantile(0.50, sum(rate(kubelet_runtime_operations_duration_seconds_bucket{operation_type!="pull_image"}[10m])) by (node, operation_type, le))
         - name: Sum
@@ -35,8 +35,8 @@ steps:
         queries:
         - name: Perc99
           query: histogram_quantile(0.99, sum(avg_over_time(kubelet_runtime_operations_duration_seconds_bucket{operation_type="pull_image"}[5m])) by (node, operation_type, le))
-        - name: Perc75
-          query: histogram_quantile(0.75, sum(avg_over_time(kubelet_runtime_operations_duration_seconds_bucket{operation_type="pull_image"}[5m])) by (node, operation_type, le))
+        - name: Perc90
+          query: histogram_quantile(0.90, sum(avg_over_time(kubelet_runtime_operations_duration_seconds_bucket{operation_type="pull_image"}[5m])) by (node, operation_type, le))
         - name: Perc50
           query: histogram_quantile(0.50, sum(avg_over_time(kubelet_runtime_operations_duration_seconds_bucket{operation_type="pull_image"}[5m])) by (node, operation_type, le))
         - name: Sum
