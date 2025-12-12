@@ -60,6 +60,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             scale_enabled=False,
             pod_startup_latency_threshold="15s",
             provider="aks",
+            registry="akscritelescope",
             os_type="linux",
             scrape_kubelets=True,
             host_network=True,
@@ -86,6 +87,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
         handle.write.assert_any_call("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
         handle.write.assert_any_call("CL2_POD_STARTUP_LATENCY_THRESHOLD: 15s\n")
         handle.write.assert_any_call("CL2_PROVIDER: aks\n")
+        handle.write.assert_any_call("CL2_REGISTRY: akscritelescope\n")
         handle.write.assert_any_call("CL2_OS_TYPE: linux\n")
         handle.write.assert_any_call("CL2_SCRAPE_KUBELETS: true\n")
         handle.write.assert_any_call("CL2_HOST_NETWORK: true\n")
@@ -114,6 +116,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             scale_enabled=False,
             pod_startup_latency_threshold="15s",
             provider="aks",
+            registry="akscritelescope",
             os_type="linux",
             scrape_kubelets=False,
             host_network=False,
@@ -228,6 +231,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             "--scale_enabled", "True", 
             "--pod_startup_latency_threshold", "10s",
             "--provider", "aws", 
+            "--registry", "", 
             "--os_type", "linux", 
             "--scrape_kubelets", "False", 
             "--host_network", "False",
@@ -253,6 +257,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             "--scale_enabled", "True", 
             "--pod_startup_latency_threshold", "10s",
             "--provider", "aws", 
+            "--registry", "", 
             "--os_type", "linux", 
             "--scrape_kubelets", "False", 
             "--cl2_override_file", "/tmp/override.yaml"
