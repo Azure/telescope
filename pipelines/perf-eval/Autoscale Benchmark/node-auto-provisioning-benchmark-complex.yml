@@ -31,7 +31,7 @@ stages:
           matrix:
             complex-nap: 
               cpu_per_node: 96 
-              pod_count: 100
+              pod_count: 5000
               pod_cpu_request: 16
               pod_memory_request: "60Gi"
               scale_up_timeout: "15m"
