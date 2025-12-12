@@ -1,6 +1,9 @@
 parameters:
 - name: region
   type: string
+- name: registry
+  type: string
+  default: ''
 
 steps:
 - script: |
@@ -10,6 +13,15 @@ steps:
       --resource-group $RUN_ID --query "[0].name" --location $REGION  --output tsv)
     aks_info=$(az aks show --resource-group $RUN_ID --name $aks_name --output json)
 
+    acr_name=$(az resource list --resource-type Microsoft.ContainerRegistry/registries \
+      --name $REGISTRY --query "[0].name" --location eastus2 --output tsv)
+    acr_info="{}"
+    if [ -n "$acr_name" ]; then
+      acr_info=$(az acr show --name $acr_name --output json \
+        --query "{name:name, encryption:encryption, dataEndpointEnabled:dataEndpointEnabled, location:location, sku:sku, zoneRedundancy:zoneRedundancy}")
+    fi
+    echo "Registry $acr_name info: $acr_info"
+
     cloud_info=$(jq -n \
       --arg cloud "azure" \
       --arg region "$(echo $aks_info | jq -r .location)" \
@@ -18,6 +30,7 @@ steps:
       --arg sku_tier "$(echo $aks_info | jq -r .sku.tier)" \
       --arg subscription "$(az account show --query id --output tsv)" \
       --arg edge_zone "$(echo $aks_info | jq -r .extendedLocation.name)" \
+      --arg registry "$(echo $acr_info | jq -c .)" \
       --arg network_profile "$(echo $aks_info | jq -r .networkProfile)" \
       --arg agentpool_profile "$(echo $aks_info | jq -r .agentPoolProfiles)" \
       '{
@@ -28,6 +41,7 @@ steps:
         sku_tier: $sku_tier,
         subscription: $subscription,
         edge_zone: $edge_zone,
+        registry: $registry,
         network_profile: $network_profile,
         agentpool_profile: $agentpool_profile
       }')
@@ -37,3 +51,4 @@ steps:
   displayName: 'Collect Cloud Info for Azure'
   env:
     REGION: ${{ parameters.region }}
+    REGISTRY: ${{ parameters.registry }}
