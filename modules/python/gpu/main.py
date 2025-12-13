@@ -5,7 +5,6 @@ from datetime import datetime, timezone
 from utils.common import str2bool
 from utils.logger_config import get_logger, setup_logging
 from utils.retries import execute_with_retries
-from utils.constants import AzureSKUFamily
 from clients.kubernetes_client import KubernetesClient
 from pkg.net import install_network_operator
 from pkg.gpu import install_gpu_operator
@@ -62,7 +61,7 @@ def execute(
     provider: str,
     config_dir: str,
     result_dir: str,
-    vm_size: str = "",
+    topology_vm_size: str = "",
 ):
     """
     Execute nccl-tests
@@ -71,7 +70,8 @@ def execute(
         provider: Cloud provider (e.g., "azure", "aws")
         config_dir: Directory containing custom configuration files
         result_dir: Directory to store results
-        vm_size: Type of the machine (e.g., "ndv4", "ndv5")
+        topology_vm_size: VM SKU family for topology (e.g., "ndv4", "ndv5").
+                          When provided, creates and mounts topology configmap (Azure only)
     """
     gpu_node_count, gpu_allocatable = get_gpu_node_count_and_allocatable()
     replacements = {
@@ -80,15 +80,18 @@ def execute(
         "replicas": gpu_node_count,
         "gpu_allocatable": gpu_allocatable,
     }
-    if provider.lower() == "azure":
-        vm_sku = AzureSKUFamily.VM_SIZE_TO_SKU_FAMILY.get(vm_size, "")
-        create_topology_configmap(vm_size=vm_sku)
 
-    if provider.lower() == "aws":
+    # Configure topology for Azure - use topology_vm_size as boolean check
+    if provider.lower() == "azure" and topology_vm_size:
+        logger.info(f"Creating topology configmap for VM SKU: {topology_vm_size}")
+        create_topology_configmap(vm_size=topology_vm_size)
+        nccl_file = f"{config_dir}/mpi/{provider}-job-topology.yaml"
+    elif provider.lower() == "aws":
         efa_allocatable = get_efa_allocatable()
         replacements["efa_allocatable"] = efa_allocatable
-
-    nccl_file = f"{config_dir}/mpi/{provider}-mpijob.yaml"
+        nccl_file = f"{config_dir}/mpi/{provider}-job.yaml"
+    else:
+        nccl_file = f"{config_dir}/mpi/{provider}-job.yaml"
     logger.info(f"Running nccl-tests with {replacements} using {nccl_file}")
     nccl_template = KUBERNETES_CLIENT.create_template(nccl_file, replacements)
     nccl_dict = yaml.safe_load(nccl_template)
@@ -231,11 +234,12 @@ def main():
         help="Directory containing result files",
     )
     execute_parser.add_argument(
-        "--vm_size",
+        "--topology_vm_size",
         type=str,
         required=False,
         default="",
-        help="Type of the machine (e.g., 'ndv4', 'ndv5')",
+        choices=["", "ndv4", "ndv5"],
+        help="VM SKU family for topology configmap (e.g., 'ndv4', 'ndv5'). When provided, creates and mounts topology configmap (Azure only)",
     )
 
     # Collect command to parse NCCL test results
@@ -271,7 +275,7 @@ def main():
             provider=args.provider,
             config_dir=args.config_dir,
             result_dir=args.result_dir,
-            vm_size=args.vm_size,
+            topology_vm_size=args.topology_vm_size,
         )
     elif args.command == "collect":
         collect(

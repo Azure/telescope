@@ -1,0 +1,80 @@
+apiVersion: kubeflow.org/v2beta1
+kind: MPIJob
+metadata:
+  namespace: default
+  name: nccl-tests
+  labels:
+    app: nccl-tests
+spec:
+  slotsPerWorker: {{slots_per_worker}}
+  runPolicy:
+    cleanPodPolicy: Running
+  mpiReplicaSpecs:
+    Launcher:
+      replicas: 1
+      template:
+        metadata:
+          labels:
+            app: nccl-tests
+            component: launcher
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: nccl-launcher
+              image: ghcr.io/azure/aks-rdma-infiniband/nccl-tests:latest
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: OMPI_ALLOW_RUN_AS_ROOT
+                  value: "1"
+                - name: OMPI_ALLOW_RUN_AS_ROOT_CONFIRM
+                  value: "1"
+                - name: NUMBER_OF_PROCESSES
+                  value: "{{number_of_processes}}"
+              command:
+                - /bin/bash
+                - -c
+              args:
+                - |
+                  set -xe
+                  until mpirun -np ${NUMBER_OF_PROCESSES} -x LD_LIBRARY_PATH -bind-to none /usr/bin/nvidia-smi -L 2>/dev/null; do sleep 5; done
+                  mpirun \
+                    -np ${NUMBER_OF_PROCESSES} \
+                    -bind-to none \
+                    -x NCCL_NET_GDR_LEVEL="SYS" \
+                    -x CUDA_DEVICE_ORDER=PCI_BUS_ID \
+                    /opt/nccl_tests/build/all_reduce_perf \
+                      -b 8 \
+                      -e 8G \
+                      -f 2 \
+                      -g 1 \
+                      -n 40
+    Worker:
+      replicas: {{replicas}}
+      template:
+        metadata:
+          labels:
+            app: nccl-tests
+            component: worker
+        spec:
+          containers:
+            - name: nccl-worker
+              image: ghcr.io/azure/aks-rdma-infiniband/nccl-tests:latest
+              imagePullPolicy: IfNotPresent
+              resources:
+                limits:
+                  nvidia.com/gpu: {{gpu_allocatable}}
+                  rdma/ib: 8
+                requests:
+                  nvidia.com/gpu: {{gpu_allocatable}}
+                  rdma/ib: 8
+              securityContext:
+                capabilities:
+                  add:
+                    - "IPC_LOCK"
+              volumeMounts:
+                - name: shm
+                  mountPath: /dev/shm
+          volumes:
+            - name: shm
+              emptyDir:
+                medium: Memory

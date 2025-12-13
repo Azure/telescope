@@ -31,7 +31,7 @@ VM_SIZE="ndv4"
 CLOUD="azure"
 RESULT_DIR=/tmp/${RUN_ID}
 mkdir -p $RESULT_DIR
-PYTHON_SCRIPT_FILE=$(pwd)/gpu/gpu.py
+PYTHON_SCRIPT_FILE=$(pwd)/gpu/main.py
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
   --provider $CLOUD \
   --config_dir $CONFIG_DIR \
