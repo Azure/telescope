@@ -15,6 +15,22 @@ logger = get_logger(__name__)
 KUBERNETES_CLIENT = KubernetesClient()
 
 
+def _verify_smi() -> None:
+    """
+    Verify GPU topology by checking nvidia-smi on GPU nodes
+    """
+    driver_pods = KUBERNETES_CLIENT.get_ready_pods_by_namespace(
+        label_selector="app.kubernetes.io/component=nvidia-driver",
+        namespace="gpu-operator",
+    )
+    for pod in driver_pods:
+        KUBERNETES_CLIENT.run_pod_exec_command(
+            pod_name=pod.metadata.name,
+            namespace="gpu-operator",
+            command="nvidia-smi",
+        )
+
+
 def install_gpu_operator(
     chart_version: str,
     config_dir: str,
@@ -63,3 +79,5 @@ def install_gpu_operator(
         namespace="gpu-operator",
         timeout=600,
     )
+    if install_driver:
+        _verify_smi()
