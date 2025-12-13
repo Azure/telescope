@@ -60,14 +60,14 @@ def install_network_operator(
     KUBERNETES_CLIENT.apply_manifest_from_file(nic_file)
     execute_with_retries(
         KUBERNETES_CLIENT.wait_for_pods_ready,
-        label_selector="nvidia.com/ofed-driver=",
+        label_selector="app=sriovdp",
         namespace="network-operator",
-        operation_timeout_in_minutes=5,
+        operation_timeout_in_minutes=10,
     )
     execute_with_retries(
         KUBERNETES_CLIENT.wait_for_pods_ready,
-        label_selector="app=sriovdp",
+        label_selector="nvidia.com/ofed-driver=",
         namespace="network-operator",
-        operation_timeout_in_minutes=5,
+        operation_timeout_in_minutes=10,
     )
     _verify_rdma()
