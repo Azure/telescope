@@ -239,26 +239,6 @@ def parse_nccl_test_results(log_file_path: str) -> Dict[str, Any]:
         raise
 
 
-def get_gpu_node_count_and_allocatable() -> tuple[int, int]:
-    """
-    Get the number of GPU nodes and the allocatable GPU resource per node,
-    assuming each node has the same amount of GPU allocatable.
-
-    Returns:
-        tuple[int, int]: A tuple containing the number of GPU nodes and the allocatable GPU resources per node.
-    """
-    nodes = KUBERNETES_CLIENT.get_nodes(label_selector="gpu=true")
-    if len(nodes) == 0:
-        raise RuntimeError("No GPU nodes found in the cluster")
-    gpu_node_count = len(nodes)
-
-    gpu_allocatable = int(nodes[0].status.allocatable.get("nvidia.com/gpu", 0))
-    if gpu_allocatable <= 0:
-        raise RuntimeError("No allocatable GPU resources found on the GPU nodes")
-
-    return gpu_node_count, gpu_allocatable
-
-
 def create_topology_configmap(
     vm_size: str,
 ) -> None:

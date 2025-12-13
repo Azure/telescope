@@ -1,5 +1,6 @@
 import argparse
 import json
+import subprocess
 import yaml
 from datetime import datetime, timezone
 from utils.common import str2bool
@@ -10,7 +11,7 @@ from pkg.net import install_network_operator
 from pkg.gpu import install_gpu_operator
 from pkg.efa import install_efa_operator, get_efa_allocatable
 from pkg.mpi import install_mpi_operator
-from pkg.utils import parse_nccl_test_results, get_gpu_node_count_and_allocatable, create_topology_configmap
+from pkg.utils import parse_nccl_test_results, create_topology_configmap
 
 # Configure logging
 setup_logging()
@@ -62,6 +63,8 @@ def execute(
     config_dir: str,
     result_dir: str,
     topology_vm_size: str = "",
+    gpu_node_count: int = 1,
+    gpu_allocatable: int = 1,
 ):
     """
     Execute nccl-tests
@@ -72,8 +75,16 @@ def execute(
         result_dir: Directory to store results
         topology_vm_size: VM SKU family for topology (e.g., "ndv4", "ndv5").
                           When provided, creates and mounts topology configmap (Azure only)
+        gpu_node_count: Number of GPU nodes (default: 1)
+        gpu_allocatable: Number of GPUs per node (default: 1)
     """
-    gpu_node_count, gpu_allocatable = get_gpu_node_count_and_allocatable()
+    subprocess.run(
+        ["kubectl", "delete", "mpijob", "nccl-tests", "-n", "default", "--ignore-not-found=true"],
+        check=True,
+        capture_output=True,
+        text=True
+    )
+
     replacements = {
         "slots_per_worker": gpu_allocatable,
         "number_of_processes": gpu_node_count * gpu_allocatable,
@@ -81,7 +92,6 @@ def execute(
         "gpu_allocatable": gpu_allocatable,
     }
 
-    # Configure topology for Azure - use topology_vm_size as boolean check
     if provider.lower() == "azure" and topology_vm_size:
         logger.info(f"Creating topology configmap for VM SKU: {topology_vm_size}")
         create_topology_configmap(vm_size=topology_vm_size)
@@ -92,6 +102,7 @@ def execute(
         nccl_file = f"{config_dir}/mpi/{provider}-job.yaml"
     else:
         nccl_file = f"{config_dir}/mpi/{provider}-job.yaml"
+
     logger.info(f"Running nccl-tests with {replacements} using {nccl_file}")
     nccl_template = KUBERNETES_CLIENT.create_template(nccl_file, replacements)
     nccl_dict = yaml.safe_load(nccl_template)
@@ -241,6 +252,20 @@ def main():
         choices=["", "ndv4", "ndv5"],
         help="VM SKU family for topology configmap (e.g., 'ndv4', 'ndv5'). When provided, creates and mounts topology configmap (Azure only)",
     )
+    execute_parser.add_argument(
+        "--gpu_node_count",
+        type=int,
+        required=False,
+        default=1,
+        help="Number of GPU nodes (default: 1)",
+    )
+    execute_parser.add_argument(
+        "--gpu_allocatable",
+        type=int,
+        required=False,
+        default=1,
+        help="Number of GPUs per node (default: 1)",
+    )
 
     # Collect command to parse NCCL test results
     collect_parser = subparsers.add_parser(
@@ -276,6 +301,8 @@ def main():
             config_dir=args.config_dir,
             result_dir=args.result_dir,
             topology_vm_size=args.topology_vm_size,
+            gpu_node_count=args.gpu_node_count,
+            gpu_allocatable=args.gpu_allocatable,
         )
     elif args.command == "collect":
         collect(

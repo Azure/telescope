@@ -63,10 +63,10 @@ spec:
               resources:
                 limits:
                   nvidia.com/gpu: {{gpu_allocatable}}
-                  rdma/ib: 8
+                  rdma/ib: {{gpu_allocatable}}
                 requests:
                   nvidia.com/gpu: {{gpu_allocatable}}
-                  rdma/ib: 8
+                  rdma/ib: {{gpu_allocatable}}
               securityContext:
                 capabilities:
                   add:
