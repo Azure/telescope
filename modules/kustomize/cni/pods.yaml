@@ -49,3 +49,56 @@ spec:
     - name: tester
       image: busybox:latest
       command: ["sleep", "infinity"]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod3
+  namespace: default
+  labels:
+    app: test
+    role: node2
+spec:
+  # nodeSelector:
+  #   kubernetes.io/hostname: <node-name>
+  affinity:
+    podAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+          - key: role
+            operator: In
+            values:
+            - node2
+        topologyKey: kubernetes.io/hostname
+  containers:
+    - name: tester
+      image: busybox:latest
+      command: ["sleep", "infinity"]
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod4
+  namespace: default
+  labels:
+    app: test
+    role: node3
+spec:
+  # nodeSelector:
+  #   kubernetes.io/hostname: <node-name>
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+          - key: role
+            operator: In
+            values:
+            - node2
+            - node1
+        topologyKey: kubernetes.io/hostname
+  containers:
+    - name: tester
+      image: busybox:latest
+      command: ["sleep", "infinity"]

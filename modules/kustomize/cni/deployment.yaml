@@ -6,7 +6,7 @@ spec:
   selector:
     matchLabels:
       run: nginx-lb
-  replicas: 2
+  replicas: 60
   template:
     metadata:
       labels:
@@ -17,3 +17,12 @@ spec:
           image: nginx
           ports:
             - containerPort: 80
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app: test-pods
+                topologyKey: kubernetes.io/hostname

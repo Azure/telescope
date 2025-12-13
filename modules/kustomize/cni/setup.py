@@ -60,18 +60,12 @@ def scan_node_nics(node_rg):
     )
     results = []
     for nic in nic_records:
-        nic_name = nic.get("name", "")
-        if not nic_name.endswith("pod-nic"):
-            print(f"Skipping non-pod NIC {nic_name}")
-            continue
         vm = nic.get("virtualMachine") or {}
         vm_id = vm.get("id", "")
         vm_name = vm_id.split("/")[-1] if vm_id else ""
         ip_configs = []
         for cfg in nic.get("ipConfigurations") or []:
             cfg_name = cfg.get("name", "")
-            if not (cfg.get("primary") or cfg_name in ("ipvlan", "ipv6config")):
-                continue
             subnet_id = (cfg.get("subnet") or {}).get("id", "")
             ip_configs.append(
                 {
@@ -92,29 +86,44 @@ def scan_node_nics(node_rg):
     return results
 
 
-def boostrap_cni_config(node_rg, nic_name, vm_name, ipvlan_cfg, address_version="IPv4"):
+def boostrap_cni_config(
+    node_rg, nic_name, vm_name, ipvlan_cfgs, address_version="IPv4"
+):
     if not vm_name or vm_name == "null":
         print(f"NIC {nic_name} not attached to a VM; skipping CNI config.")
         return
-    if not ipvlan_cfg:
+    if not ipvlan_cfgs:
         print(f"NIC {nic_name} missing ipvlan metadata; skipping.")
         return
-    ipvlan_cidr = ipvlan_cfg.get("ip")
-    if not ipvlan_cidr:
-        print(f"Unable to read ipvlan IP for NIC {nic_name}; skipping.")
-        return
-    subnet_prefix = ipvlan_cfg.get("subnet_prefix")
-    if not subnet_prefix:
-        print(f"Unable to read subnet prefix for NIC {subnet_prefix}; skipping.")
-        return
-    start, end = derive_range(ipvlan_cidr, address_version).split()
 
     default_route = "::/0" if address_version == "IPv6" else "0.0.0.0/0"
-    cni_name = "ipvlan-eth1"
-    interface_name = "eth1"
+    iptables_cmd = "ip6tables" if address_version == "IPv6" else "iptables"
+    cni_name = "ipvlan-eth0"
+    interface_name = "eth0"
 
-    # CNI config uses dummy interface as master instead of eth0
-    # This allows node-to-pod communication while keeping eth0 free
+    subnets = []
+    scripts = []
+    for ipvlan_cfg in ipvlan_cfgs:
+        ipvlan_cidr = ipvlan_cfg.get("ip")
+        if not ipvlan_cidr:
+            print(f"Unable to read ipvlan IP for NIC {nic_name}; skipping.")
+            return
+        subnet_prefix = ipvlan_cfg.get("subnet_prefix")
+        if not subnet_prefix:
+            print(f"Unable to read subnet prefix for NIC {subnet_prefix}; skipping.")
+            return
+        start, end = derive_range(ipvlan_cidr, address_version).split()
+        subnet_map = {
+            "subnet": ipvlan_cidr,
+            "rangeStart": start,
+            "rangeEnd": end,
+        }
+        subnets.append(subnet_map)
+        scripts.append(f"ip addr replace {ipvlan_cidr} dev {interface_name}")
+        scripts.append(
+            f"{iptables_cmd} -t nat -A POSTROUTING -s {ipvlan_cidr} ! -d {subnet_prefix} -j MASQUERADE"
+        )
+
     config = {
         "cniVersion": "0.3.1",
         "name": cni_name,
@@ -124,58 +133,18 @@ def boostrap_cni_config(node_rg, nic_name, vm_name, ipvlan_cfg, address_version=
         "mode": "l3s",
         "ipam": {
             "type": "host-local",
-            "ranges": [
-                [
-                    {
-                        "subnet": ipvlan_cidr,
-                        "rangeStart": start,
-                        "rangeEnd": end,
-                    }
-                ]
-            ],
+            "ranges": [subnets],
             "routes": [{"dst": default_route}],
         },
     }
+    print(f"Generated ipvlan CNI config: {json.dumps(config, indent=2)}")
     ipvlan_payload = base64.b64encode(json.dumps(config, indent=2).encode()).decode()
-    print(
-        f"Pushing ipvlan CNI config with subnet {ipvlan_cidr}, rangeStart {start}, rangeEnd {end} to VM {vm_name}..."
+
+    scripts.append(
+        f"echo {ipvlan_payload} | base64 -d | tee /etc/cni/net.d/01-{cni_name}.conf"
     )
 
-    iptables_cmd = "ip6tables" if address_version == "IPv6" else "iptables"
-    # network = ipaddress.ip_network(ipvlan_cidr, strict=False)
-    # route_cmd = "ip -6 route" if address_version == "IPv6" else "ip route"
-
-    scripts = [
-        # Bring interface up
-        f"ip addr replace {ipvlan_cidr} dev {interface_name}",
-        f"ip link set {interface_name} up",
-        f"ip route add {subnet_prefix} dev {interface_name} || true",
-        # Write CNI config
-        f"echo {ipvlan_payload} | base64 -d | tee /etc/cni/net.d/01-{cni_name}.conf",
-        # Setup NAT for outbound traffic (pods to internet)
-        f"{iptables_cmd} -t nat -A POSTROUTING -s {ipvlan_cidr} ! -d {subnet_prefix} -j MASQUERADE",
-    ]
-
     print(scripts)
-
-    # Add IPv6-specific configuration
-    if address_version == "IPv6":
-        scripts.extend(
-            [
-                # Enable IPv6 forwarding globally and on interfaces
-                "sysctl -w net.ipv6.conf.all.forwarding=1",
-                "sysctl -w net.ipv6.conf.default.forwarding=1",
-                "sysctl -w net.ipv6.conf.eth0.forwarding=1",
-                f"sysctl -w net.ipv6.conf.{interface_name}.forwarding=1",
-                # Enable accepting local addresses (critical for L3S with local routes)
-                "sysctl -w net.ipv6.conf.all.accept_local=1",
-                f"sysctl -w net.ipv6.conf.{interface_name}.accept_local=1",
-                # Disable RA (Router Advertisement) on dummy to prevent conflicts
-                f"sysctl -w net.ipv6.conf.{interface_name}.accept_ra=0",
-                # Enable NDP proxy for proper neighbor resolution
-                f"sysctl -w net.ipv6.conf.{interface_name}.proxy_ndp=1",
-            ]
-        )
     run_az(
         [
             "vm",
@@ -206,14 +175,16 @@ def derive_range(ip_addr, address_version="IPv4"):
     return f"{start} {end}"
 
 
-def ensure_ipvlan_ipconfig(node_rg, nic, address_version, prefix_length):
+def ensure_ipvlan_ipconfig(node_rg, nic, address_version, config_count):
     nic_name = nic["name"]
-    ipvlan_cfg = next(
-        (cfg for cfg in nic["ip_configs"] if cfg["name"] == "ipvlan"), None
-    )
-    if ipvlan_cfg:
-        print(f"Found ipvlan IP config for NIC {nic_name} in {node_rg}...")
-        return ipvlan_cfg
+    ipvlan_cfgs = [
+        cfg for cfg in nic["ip_configs"] if cfg["name"].startswith("ipvlan")
+    ]
+    if ipvlan_cfgs and len(ipvlan_cfgs) == config_count:
+        print(
+            f"Found {len(ipvlan_cfgs)} ipvlan IP config(s) for NIC {nic_name} in {node_rg}..."
+        )
+        return ipvlan_cfgs
     primary_cfg = next((cfg for cfg in nic["ip_configs"] if cfg.get("primary")), None)
     if not primary_cfg:
         print(f"Unable to determine primary IP config for NIC {nic_name}; skipping.")
@@ -222,75 +193,61 @@ def ensure_ipvlan_ipconfig(node_rg, nic, address_version, prefix_length):
     if not subnet_id:
         print(f"Unable to determine subnet for NIC {nic_name}; skipping.")
         return None
-    ipv6_cfg = next(
-        (cfg for cfg in nic["ip_configs"] if cfg["name"] == "ipv6config"), None
+    print(
+        f"Creating {config_count} ipvlan IP configs for NIC {nic_name} in {node_rg}..."
     )
-    print(address_version, ipv6_cfg)
-    if address_version == "IPv6" and ipv6_cfg:
+    for i in range(config_count):
+        config_name = f"ipvlan{i+1}"
+        prefix_length = 28 if address_version == "IPv4" else 80
         run_az(
             [
                 "network",
                 "nic",
                 "ip-config",
-                "delete",
+                "create",
                 "--resource-group",
                 node_rg,
                 "--nic-name",
                 nic_name,
                 "--name",
-                "ipv6config",
+                config_name,
+                "--subnet",
+                subnet_id,
+                "--private-ip-address-version",
+                address_version,
+                "--private-ip-address-prefix-length",
+                str(prefix_length),
             ]
         )
-    print(f"Creating ipvlan IP config for NIC {nic_name} in {node_rg}...")
-    run_az(
-        [
-            "network",
-            "nic",
-            "ip-config",
-            "create",
-            "--resource-group",
-            node_rg,
-            "--nic-name",
-            nic_name,
-            "--name",
-            "ipvlan",
-            "--subnet",
-            subnet_id,
-            "--private-ip-address-version",
-            address_version,
-            "--private-ip-address-prefix-length",
-            str(prefix_length),
-        ]
-    )
-    created_cfg = json.loads(
-        run_az(
-            [
-                "network",
-                "nic",
-                "ip-config",
-                "show",
-                "--resource-group",
-                node_rg,
-                "--nic-name",
-                nic_name,
-                "--name",
-                "ipvlan",
-                "-o",
-                "json",
-            ]
+        created_cfg = json.loads(
+            run_az(
+                [
+                    "network",
+                    "nic",
+                    "ip-config",
+                    "show",
+                    "--resource-group",
+                    node_rg,
+                    "--nic-name",
+                    nic_name,
+                    "--name",
+                    config_name,
+                    "-o",
+                    "json",
+                ]
+            )
         )
-    )
-    subnet_id = (created_cfg.get("subnet") or {}).get("id", "")
-    ipvlan_cfg = {
-        "name": created_cfg.get("name", "ipvlan"),
-        "primary": bool(created_cfg.get("primary")),
-        "ip": created_cfg.get("privateIPAddress", ""),
-        "subnet_id": subnet_id,
-        "subnet_prefix": subnet_prefix_for(subnet_id),
-    }
-    nic["ip_configs"].append(ipvlan_cfg)
-    print(f"Created ipvlan IP config on {nic_name}.")
-    return ipvlan_cfg
+        subnet_id = (created_cfg.get("subnet") or {}).get("id", "")
+        ipvlan_cfg = {
+            "name": created_cfg.get("name", ""),
+            "primary": bool(created_cfg.get("primary")),
+            "ip": created_cfg.get("privateIPAddress", ""),
+            "subnet_id": subnet_id,
+            "subnet_prefix": subnet_prefix_for(subnet_id),
+        }
+        ipvlan_cfgs.append(ipvlan_cfg)
+        print(f"Created ipvlan IP config on {nic_name}: {ipvlan_cfg}")
+    return ipvlan_cfgs
 
 
 def main():
@@ -298,7 +255,7 @@ def main():
     parser.add_argument("--resource-group", required=True)
     parser.add_argument("--cluster-name", required=True)
     parser.add_argument("--address-version", type=str, default="IPv4")
-    parser.add_argument("--ipvlan-prefix-length", type=int, default=28)
+    parser.add_argument("--ipvlan-config-count", type=int, default=1)
     parser.add_argument("--boostrap-cni-config", type=bool, default=False)
     args = parser.parse_args()
 
@@ -329,17 +286,17 @@ def main():
         if not vm_name:
             print(f"NIC {nic_name} is detached; skipping CNI config push.")
             continue
-        ipvlan_cfg = ensure_ipvlan_ipconfig(
-            node_rg, nic, args.address_version, args.ipvlan_prefix_length
+        ipvlan_cfgs = ensure_ipvlan_ipconfig(
+            node_rg, nic, args.address_version, args.ipvlan_config_count
         )
-        if not ipvlan_cfg:
+        if not ipvlan_cfgs:
             print(
-                f"NIC {nic_name} does not yet have an ipvlan IP config; skipping CNI config push."
+                f"NIC {nic_name} does not yet have ipvlan IP config; skipping CNI config push."
             )
             continue
         if args.boostrap_cni_config:
             boostrap_cni_config(
-                node_rg, nic_name, vm_name, ipvlan_cfg, args.address_version
+                node_rg, nic_name, vm_name, ipvlan_cfgs, args.address_version
             )
 
 

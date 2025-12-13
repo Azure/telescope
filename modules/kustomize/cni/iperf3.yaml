@@ -7,18 +7,18 @@ metadata:
     app: iperf3
     role: client
 spec:
-  nodeSelector:
-    kubernetes.io/hostname: aks-system-14767067-vms3
-  # affinity:
-  #   podAntiAffinity:
-  #     requiredDuringSchedulingIgnoredDuringExecution:
-  #     - labelSelector:
-  #         matchExpressions:
-  #         - key: role
-  #           operator: In
-  #           values:
-  #           - server
-  #       topologyKey: kubernetes.io/hostname
+  # nodeSelector:
+  #   kubernetes.io/hostname: <node-name>
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+          - key: role
+            operator: In
+            values:
+            - server
+        topologyKey: kubernetes.io/hostname
   containers:
     - name: tester
       image: telescope.azurecr.io/perf-eval/iperf3.18:v20250415
@@ -33,18 +33,18 @@ metadata:
     app: iperf3
     role: server
 spec:
-  nodeSelector:
-    kubernetes.io/hostname: aks-system-14767067-vms4
-  # affinity:
-  #   podAntiAffinity:
-  #     requiredDuringSchedulingIgnoredDuringExecution:
-  #     - labelSelector:
-  #         matchExpressions:
-  #         - key: role
-  #           operator: In
-  #           values:
-  #           - client
-  #       topologyKey: kubernetes.io/hostname
+  # nodeSelector:
+  #   kubernetes.io/hostname: <node-name>
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+          - key: role
+            operator: In
+            values:
+            - client
+        topologyKey: kubernetes.io/hostname
   containers:
     - name: tester
       image: telescope.azurecr.io/perf-eval/iperf3.18:v20250415
