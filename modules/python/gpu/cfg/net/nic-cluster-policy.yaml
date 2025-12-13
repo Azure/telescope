@@ -1,0 +1,67 @@
+apiVersion: mellanox.com/v1alpha1
+kind: NicClusterPolicy
+metadata:
+  name: nic-cluster-policy
+spec:
+  # This is needed so that you don't schedule pods on the non-infiniband machines.
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+      - matchExpressions:
+        # This node label is added by NFD.
+        - key: feature.node.kubernetes.io/pci-15b3.present
+          operator: In
+          values:
+          - "true"
+
+  ofedDriver:
+    image: doca-driver
+    repository: nvcr.io/nvidia/mellanox
+    version: 25.04-0.6.1.0-2
+
+    env:
+    # TODO: Temporary fix to avoid race condition where the kernel module fails to load.
+    # Refer: https://github.com/Mellanox/doca-driver-build/issues/52
+    - name: OFED_BLACKLIST_MODULES_FILE
+      value: "/host/etc/modprobe.d/blacklist-ofed-modules.conf"
+
+    forcePrecompiled: false
+    startupProbe:
+      initialDelaySeconds: 10
+      periodSeconds: 20
+    livenessProbe:
+      initialDelaySeconds: 30
+      periodSeconds: 30
+    readinessProbe:
+      initialDelaySeconds: 10
+      periodSeconds: 30
+    upgradePolicy:
+      autoUpgrade: true
+      maxParallelUpgrades: 1
+      drain:
+        enable: true
+        force: true
+        timeoutSeconds: 300
+        deleteEmptyDir: true
+  sriovDevicePlugin:
+    repository: ghcr.io/k8snetworkplumbingwg
+    image: sriov-network-device-plugin
+    version: v3.9.0
+    # Selector explaination:
+    # - vendors: ["15b3"] - Vendor ID for Mellanox devices
+    # - linkTypes: ["infiniband"] - Link type for Infiniband devices
+    # - isRdma: true - Mounts the RDMA device to the container's /dev/infiniband
+    config: |
+      {
+        "resourceList": [
+          {
+            "resourcePrefix": "rdma",
+            "resourceName": "ib",
+            "selectors": {
+              "vendors": ["15b3"],
+              "linkTypes": ["infiniband"],
+              "isRdma": true
+            }
+          }
+        ]
+      }
