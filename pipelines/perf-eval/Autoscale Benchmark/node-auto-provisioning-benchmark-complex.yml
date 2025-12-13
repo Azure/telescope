@@ -34,8 +34,8 @@ stages:
               pod_count: 5000
               pod_cpu_request: 16
               pod_memory_request: "60Gi"
-              scale_up_timeout: "20m" # target 15m , give room if failure happens
-              scale_down_timeout: "20m"
+              scale_up_timeout: "15m"
+              scale_down_timeout: "15m"
               node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
