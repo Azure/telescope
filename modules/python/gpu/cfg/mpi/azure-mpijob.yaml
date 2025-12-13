@@ -64,10 +64,10 @@ spec:
               resources:
                 limits:
                   nvidia.com/gpu: {{gpu_allocatable}}
-                  rdma/shared_ib: 1
+                  rdma/ib: 8
                 requests:
                   nvidia.com/gpu: {{gpu_allocatable}}
-                  rdma/shared_ib: 1
+                  rdma/ib: 8
               securityContext:
                 capabilities:
                   add:
