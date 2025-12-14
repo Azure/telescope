@@ -1,0 +1,28 @@
+trigger: none
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: image-pull-n10
+
+stages:
+  - stage: azure_eastus2_image_pull
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250311"
+          topology: image-pull
+          matrix:
+            image-pull-10pods:
+              deployment_count: 10
+              replicas: 1
+              kubernetes_version: "1.33"
+          max_parallel: 1
+          credential_type: service_connection
+          ssh_key_enabled: false
+          timeout_in_minutes: 60
