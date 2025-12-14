@@ -1,8 +1,8 @@
-# Scenario: image-pull-n10
+# image-pull-n10
 
 ## Overview
 
-This scenario measures container image pull throughput and performance on AKS clusters. It benchmarks how quickly nodes can pull container images from registries under various conditions.
+Deploys 10 pods with `imagePullPolicy: Always` to trigger image pulls, and collects containerd image pulling throughput (MB/s) and kubelet runtime operation duration metrics using CL2.
 
 ## Infrastructure
 
