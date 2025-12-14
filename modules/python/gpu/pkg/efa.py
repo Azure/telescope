@@ -41,22 +41,3 @@ def install_efa_operator(
         namespace="kube-system",
         operation_timeout_in_minutes=10,
     )
-
-
-def get_efa_allocatable() -> int:
-    """
-    Get the allocatable efa resources from the EKS nodes,
-    assuming each node has the same amount of efa allocatable.
-
-    Returns:
-        int: The number of allocatable EFA resources.
-    """
-    nodes = KUBERNETES_CLIENT.get_nodes(label_selector="nvidia.com/gpu.present=true")
-    if len(nodes) == 0:
-        raise RuntimeError("No GPU nodes found in the cluster")
-
-    efa_allocatable = int(nodes[0].status.allocatable.get("vpc.amazonaws.com/efa", 0))
-    if efa_allocatable <= 0:
-        raise RuntimeError("No allocatable EFA resources found on the GPU nodes")
-
-    return efa_allocatable

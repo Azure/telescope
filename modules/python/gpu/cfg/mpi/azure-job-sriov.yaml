@@ -49,7 +49,7 @@ spec:
                       -g 1 \
                       -n 40
     Worker:
-      replicas: {{replicas}}
+      replicas: {{worker_replicas}}
       template:
         metadata:
           labels:
@@ -63,18 +63,18 @@ spec:
               resources:
                 limits:
                   nvidia.com/gpu: {{gpu_allocatable}}
-                  rdma/ib: {{gpu_allocatable}}
+                  rdma/ib: {{ib_allocatable}}
                 requests:
                   nvidia.com/gpu: {{gpu_allocatable}}
-                  rdma/ib: {{gpu_allocatable}}
+                  rdma/ib: {{ib_allocatable}}
               securityContext:
                 capabilities:
                   add:
                     - "IPC_LOCK"
               volumeMounts:
-                - name: shm
+                - name: shmem
                   mountPath: /dev/shm
           volumes:
-            - name: shm
-              emptyDir:
-                medium: Memory
+            - name: shmem
+              hostPath:
+                path: /dev/shm

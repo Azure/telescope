@@ -14,7 +14,7 @@ with patch("kubernetes.config.load_kube_config"):
     from gpu.main import configure, execute, collect, main
     from gpu.pkg.gpu import install_gpu_operator
     from gpu.pkg.net import install_network_operator, _verify_rdma
-    from gpu.pkg.efa import install_efa_operator, get_efa_allocatable
+    from gpu.pkg.efa import install_efa_operator
     from gpu.pkg.mpi import install_mpi_operator
     from gpu.pkg.utils import install_operator, create_topology_configmap, parse_nccl_test_results
 from utils.logger_config import setup_logging, get_logger
@@ -22,7 +22,6 @@ from utils.logger_config import setup_logging, get_logger
 # Create aliases for test compatibility
 _parse_nccl_test_results = parse_nccl_test_results
 _create_topology_configmap = create_topology_configmap
-_get_efa_allocatable = get_efa_allocatable
 
 # Placeholder for unimplemented function (test is skipped)
 def _get_gpu_node_count_and_allocatable():
@@ -425,16 +424,13 @@ class TestGPU(unittest.TestCase):
             )
 
     @patch("yaml.safe_load")
-    @patch("gpu.main.get_efa_allocatable")
     @patch("gpu.main.execute_with_retries")
     @patch("gpu.main.KUBERNETES_CLIENT")
     @patch("gpu.pkg.utils.create_topology_configmap")
     def test_execute_aws_provider(
-        self, mock_topology, mock_k8s_client, _mock_execute_with_retries, mock_get_efa, mock_yaml
+        self, mock_topology, mock_k8s_client, _mock_execute_with_retries, mock_yaml
     ):
         """Test execute function with AWS provider."""
-        # Mock EFA allocatable
-        mock_get_efa.return_value = 1
 
         # Mock template creation and YAML loading
         mock_k8s_client.create_template.return_value = "mocked template content"
@@ -579,6 +575,8 @@ class TestGPU(unittest.TestCase):
             topology_vm_size=self.test_vm_size,
             gpu_node_count=2,
             gpu_allocatable=4,
+            ib_allocatable=None,
+            efa_allocatable=None,
         )
 
         main()
@@ -590,6 +588,8 @@ class TestGPU(unittest.TestCase):
             topology_vm_size=self.test_vm_size,
             gpu_node_count=2,
             gpu_allocatable=4,
+            ib_allocatable=None,
+            efa_allocatable=None,
         )
 
     @patch("gpu.main.collect")
@@ -691,67 +691,6 @@ class TestGPU(unittest.TestCase):
         # Verify all calls used the correct label selector
         for node_call in mock_k8s_client.get_nodes.call_args_list:
             self.assertEqual(node_call[1]["label_selector"], "gpu=true")
-
-    @patch("gpu.pkg.efa.KUBERNETES_CLIENT")
-    def test_get_efa_allocatable(self, mock_k8s_client):
-        """Test EFA allocatable retrieval with various scenarios."""
-
-        # Test Case 1: Success with EFA resources
-        mock_node_efa = MagicMock()
-        mock_node_efa.status.allocatable = {
-            "nvidia.com/gpu": "4",
-            "vpc.amazonaws.com/efa": "2",
-        }
-        mock_k8s_client.get_nodes.return_value = [mock_node_efa]
-
-        efa_allocatable = _get_efa_allocatable()
-        self.assertEqual(efa_allocatable, 2)
-
-        # Test Case 2: Single EFA resource
-        mock_node_single_efa = MagicMock()
-        mock_node_single_efa.status.allocatable = {
-            "nvidia.com/gpu": "8",
-            "vpc.amazonaws.com/efa": "1",
-        }
-        mock_k8s_client.get_nodes.return_value = [mock_node_single_efa]
-
-        efa_allocatable = _get_efa_allocatable()
-        self.assertEqual(efa_allocatable, 1)
-
-        # Test Case 3: No GPU nodes found
-        mock_k8s_client.get_nodes.return_value = []
-        with self.assertRaises(RuntimeError) as context:
-            _get_efa_allocatable()
-        self.assertEqual(str(context.exception), "No GPU nodes found in the cluster")
-
-        # Test Case 4: Nodes with no EFA resources
-        mock_node_no_efa = MagicMock()
-        mock_node_no_efa.status.allocatable = {"nvidia.com/gpu": "4", "cpu": "16"}
-        mock_k8s_client.get_nodes.return_value = [mock_node_no_efa]
-        with self.assertRaises(RuntimeError) as context:
-            _get_efa_allocatable()
-        self.assertEqual(
-            str(context.exception),
-            "No allocatable EFA resources found on the GPU nodes",
-        )
-
-        # Test Case 5: Nodes with zero EFA resources
-        mock_node_zero_efa = MagicMock()
-        mock_node_zero_efa.status.allocatable = {
-            "nvidia.com/gpu": "4",
-            "vpc.amazonaws.com/efa": "0",
-        }
-        mock_k8s_client.get_nodes.return_value = [mock_node_zero_efa]
-        with self.assertRaises(RuntimeError) as context:
-            _get_efa_allocatable()
-        self.assertEqual(
-            str(context.exception),
-            "No allocatable EFA resources found on the GPU nodes",
-        )
-
-        # Verify all calls used the correct label selector
-        for node_call in mock_k8s_client.get_nodes.call_args_list:
-            self.assertEqual(node_call[1]["label_selector"], "nvidia.com/gpu.present=true")
 
 
 if __name__ == "__main__":

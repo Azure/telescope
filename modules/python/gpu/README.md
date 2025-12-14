@@ -27,8 +27,9 @@ PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
 ## Execute
 
 ```bash
-TOPOLOGY_VM_SIZE="ndv4"
+TOPOLOGY_VM_SIZE="ndv5"
 CLOUD="azure"
+RUN_ID="test"
 RESULT_DIR=/tmp/${RUN_ID}
 mkdir -p $RESULT_DIR
 PYTHON_SCRIPT_FILE=$(pwd)/gpu/main.py
@@ -37,8 +38,9 @@ PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
   --config_dir $CONFIG_DIR \
   --result_dir $RESULT_DIR \
   --gpu_node_count 2 \
-  --gpu_allocatable 8 \
-  --topology_vm_size ${VM_SIZE:-""}
+  --gpu_allocatable 1 \
+  --ib_allocatable 1 \
+  --topology_vm_size ${TOPOLOGY_VM_SIZE:-""}
 ```
 
 ## Collect

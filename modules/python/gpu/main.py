@@ -11,7 +11,7 @@ from utils.retries import execute_with_retries
 from clients.kubernetes_client import KubernetesClient
 from gpu.pkg.net import install_network_operator
 from gpu.pkg.gpu import install_gpu_operator
-from gpu.pkg.efa import install_efa_operator, get_efa_allocatable
+from gpu.pkg.efa import install_efa_operator
 from gpu.pkg.mpi import install_mpi_operator
 from gpu.pkg.utils import parse_nccl_test_results, create_topology_configmap
 
@@ -67,6 +67,8 @@ def execute(
     topology_vm_size: str = "",
     gpu_node_count: int = 1,
     gpu_allocatable: int = 1,
+    ib_allocatable: int = 1,
+    efa_allocatable: int = 1,
 ):
     """
     Execute nccl-tests
@@ -79,7 +81,14 @@ def execute(
                           When provided, creates and mounts topology configmap (Azure only)
         gpu_node_count: Number of GPU nodes (default: 1)
         gpu_allocatable: Number of GPUs per node (default: 1)
+        ib_allocatable: Number of InfiniBand resources per node (Azure only, default: 1)
+        efa_allocatable: Number of EFA resources per node (AWS only, default: 1)
     """
+    if gpu_node_count < 1:
+        raise ValueError(f"gpu_node_count must be at least 1, got {gpu_node_count}")
+    if gpu_allocatable < 1:
+        raise ValueError(f"gpu_allocatable must be at least 1, got {gpu_allocatable}")
+
     try:
         subprocess.run(
             ["kubectl", "delete", "mpijob", "nccl-tests", "-n", "default", "--ignore-not-found=true"],
@@ -93,25 +102,46 @@ def execute(
     replacements = {
         "slots_per_worker": gpu_allocatable,
         "number_of_processes": gpu_node_count * gpu_allocatable,
-        "replicas": gpu_node_count,
+        "worker_replicas": gpu_node_count,
         "gpu_allocatable": gpu_allocatable,
     }
 
-    if provider.lower() == "azure" and topology_vm_size:
-        logger.info(f"Creating topology configmap for VM SKU: {topology_vm_size}")
-        create_topology_configmap(vm_size=topology_vm_size)
-        nccl_file = f"{config_dir}/mpi/{provider}-job-topology.yaml"
+    if provider.lower() == "azure":
+        replacements["ib_allocatable"] = ib_allocatable
+
+        # Determine which YAML file to use
+        if ib_allocatable > 0:
+            if topology_vm_size:
+                logger.info(f"Creating topology configmap for VM SKU: {topology_vm_size}")
+                create_topology_configmap(vm_size=topology_vm_size)
+                job_type = "topology"
+            else:
+                logger.info(f"Using SR-IOV with {ib_allocatable} InfiniBand resources per node")
+                job_type = "sriov"
+        else:
+            logger.info("No SR-IOV device plugin found, using hostPath for InfiniBand")
+            job_type = "hostpath"
+
+        nccl_file = f"{config_dir}/mpi/azure-job-{job_type}.yaml"
+        logger.info(f"Running nccl-tests with {replacements} using {nccl_file}")
+        nccl_template = KUBERNETES_CLIENT.create_template(nccl_file, replacements)
+        nccl_dict = yaml.safe_load(nccl_template)
+        KUBERNETES_CLIENT.apply_manifest_from_file(manifest_dict=nccl_dict)
     elif provider.lower() == "aws":
-        efa_allocatable = get_efa_allocatable()
         replacements["efa_allocatable"] = efa_allocatable
         nccl_file = f"{config_dir}/mpi/{provider}-job.yaml"
+
+        logger.info(f"Running nccl-tests with {replacements} using {nccl_file}")
+        nccl_template = KUBERNETES_CLIENT.create_template(nccl_file, replacements)
+        nccl_dict = yaml.safe_load(nccl_template)
+        KUBERNETES_CLIENT.apply_manifest_from_file(manifest_dict=nccl_dict)
     else:
         nccl_file = f"{config_dir}/mpi/{provider}-job.yaml"
 
-    logger.info(f"Running nccl-tests with {replacements} using {nccl_file}")
-    nccl_template = KUBERNETES_CLIENT.create_template(nccl_file, replacements)
-    nccl_dict = yaml.safe_load(nccl_template)
-    KUBERNETES_CLIENT.apply_manifest_from_file(manifest_dict=nccl_dict)
+        logger.info(f"Running nccl-tests with {replacements} using {nccl_file}")
+        nccl_template = KUBERNETES_CLIENT.create_template(nccl_file, replacements)
+        nccl_dict = yaml.safe_load(nccl_template)
+        KUBERNETES_CLIENT.apply_manifest_from_file(manifest_dict=nccl_dict)
     pods = execute_with_retries(
         KUBERNETES_CLIENT.wait_for_pods_completed,
         label_selector="component=launcher",
@@ -271,6 +301,20 @@ def main():
         default=1,
         help="Number of GPUs per node (default: 1)",
     )
+    execute_parser.add_argument(
+        "--ib_allocatable",
+        type=int,
+        required=False,
+        default=1,
+        help="Number of InfiniBand resources per node (Azure only, default: 1)",
+    )
+    execute_parser.add_argument(
+        "--efa_allocatable",
+        type=int,
+        required=False,
+        default=1,
+        help="Number of EFA resources per node (AWS only, default: 1)",
+    )
 
     # Collect command to parse NCCL test results
     collect_parser = subparsers.add_parser(
@@ -308,6 +352,8 @@ def main():
             topology_vm_size=args.topology_vm_size,
             gpu_node_count=args.gpu_node_count,
             gpu_allocatable=args.gpu_allocatable,
+            ib_allocatable=args.ib_allocatable,
+            efa_allocatable=args.efa_allocatable,
         )
     elif args.command == "collect":
         collect(

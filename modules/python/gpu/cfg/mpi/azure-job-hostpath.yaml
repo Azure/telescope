@@ -41,7 +41,6 @@ spec:
                     -np ${NUMBER_OF_PROCESSES} \
                     -bind-to none \
                     -x NCCL_NET_GDR_LEVEL="SYS" \
-                    -x NCCL_TOPO_FILE=/opt/nvidia-topology/topo.xml \
                     -x CUDA_DEVICE_ORDER=PCI_BUS_ID \
                     /opt/nccl_tests/build/all_reduce_perf \
                       -b 8 \
@@ -64,10 +63,8 @@ spec:
               resources:
                 limits:
                   nvidia.com/gpu: {{gpu_allocatable}}
-                  rdma/ib: {{ib_allocatable}}
                 requests:
                   nvidia.com/gpu: {{gpu_allocatable}}
-                  rdma/ib: {{ib_allocatable}}
               securityContext:
                 capabilities:
                   add:
@@ -75,15 +72,12 @@ spec:
               volumeMounts:
                 - name: shmem
                   mountPath: /dev/shm
-                - name: nvidia-topology
-                  mountPath: /opt/nvidia-topology
+                - name: infiniband
+                  mountPath: /dev/infiniband
           volumes:
             - name: shmem
               hostPath:
                 path: /dev/shm
-            - name: nvidia-topology
-              configMap:
-                name: nvidia-topology
-                items:
-                  - key: topo.xml
-                    path: topo.xml
+            - name: infiniband
+              hostPath:
+                path: /dev/infiniband
