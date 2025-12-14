@@ -1,17 +1,19 @@
 import argparse
 import json
 import subprocess
-import yaml
 from datetime import datetime, timezone
+
+import yaml
+
 from utils.common import str2bool
 from utils.logger_config import get_logger, setup_logging
 from utils.retries import execute_with_retries
 from clients.kubernetes_client import KubernetesClient
-from pkg.net import install_network_operator
-from pkg.gpu import install_gpu_operator
-from pkg.efa import install_efa_operator, get_efa_allocatable
-from pkg.mpi import install_mpi_operator
-from pkg.utils import parse_nccl_test_results, create_topology_configmap
+from gpu.pkg.net import install_network_operator
+from gpu.pkg.gpu import install_gpu_operator
+from gpu.pkg.efa import install_efa_operator, get_efa_allocatable
+from gpu.pkg.mpi import install_mpi_operator
+from gpu.pkg.utils import parse_nccl_test_results, create_topology_configmap
 
 # Configure logging
 setup_logging()
@@ -78,12 +80,15 @@ def execute(
         gpu_node_count: Number of GPU nodes (default: 1)
         gpu_allocatable: Number of GPUs per node (default: 1)
     """
-    subprocess.run(
-        ["kubectl", "delete", "mpijob", "nccl-tests", "-n", "default", "--ignore-not-found=true"],
-        check=True,
-        capture_output=True,
-        text=True
-    )
+    try:
+        subprocess.run(
+            ["kubectl", "delete", "mpijob", "nccl-tests", "-n", "default", "--ignore-not-found=true"],
+            check=True,
+            capture_output=True,
+            text=True
+        )
+    except subprocess.CalledProcessError as e:
+        logger.warning(f"Failed to delete existing MPIJob: {e.stderr}")
 
     replacements = {
         "slots_per_worker": gpu_allocatable,
