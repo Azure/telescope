@@ -21,7 +21,7 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: nccl-launcher
-              image: ghcr.io/azure/aks-rdma-infiniband/nccl-tests:latest
+              image: telescope.azurecr.io/azure/aks-rdma-infiniband/nccl-tests:latest
               imagePullPolicy: IfNotPresent
               env:
                 - name: OMPI_ALLOW_RUN_AS_ROOT
@@ -58,7 +58,7 @@ spec:
         spec:
           containers:
             - name: nccl-worker
-              image: ghcr.io/azure/aks-rdma-infiniband/nccl-tests:latest
+              image: telescope.azurecr.io/azure/aks-rdma-infiniband/nccl-tests:latest
               imagePullPolicy: IfNotPresent
               resources:
                 limits:
