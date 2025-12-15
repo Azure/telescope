@@ -53,31 +53,7 @@ steps:
     STEP_WAIT_TIME: ${{ parameters.step_wait_time }}
     ${{ if eq(parameters.cloud, 'aws') }}:
       CAPACITY_TYPE: $(CAPACITY_TYPE)
-- script: |
-    set -eo pipefail
 
-    PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
-      --efa_operator_version ${EFA_OPERATOR_VERSION:-""} \
-      --network_operator_version ${NETWORK_OPERATOR_VERSION:-""} \
-      --gpu_operator_version ${GPU_OPERATOR_VERSION:-""} \
-      --gpu_install_driver ${GPU_INSTALL_DRIVER:-"True"} \
-      --gpu_enable_nfd ${GPU_ENABLE_NFD:-"False"} \
-      --mpi_operator_version ${MPI_OPERATOR_VERSION:-""} \
-      --config_dir $CONFIG_DIR
-
-    PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
-      --provider $CLOUD \
-      --config_dir $CONFIG_DIR \
-      --result_dir $RESULT_DIR \
-      --vm_size ${VM_SIZE:-""}
-  displayName: 'Execute nccl-tests for ${{ parameters.cloud }}'
-  condition: eq(variables.run_nccl_tests, 'true')
-  workingDirectory: modules/python
-  env:
-    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/gpu/main.py
-    CLOUD: ${{ parameters.cloud }}
-    CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/gpu/config
-    RESULT_DIR: $(TEST_RESULTS_DIR)
 - script: |
     set -eo pipefail
 
