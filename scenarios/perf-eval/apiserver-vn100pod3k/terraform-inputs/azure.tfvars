@@ -10,7 +10,7 @@ aks_config_list = [
     dns_prefix         = "kperf"
     subnet_name        = "aks-network"
     sku_tier           = "Standard"
-    kubernetes_version = "1.31"
+    kubernetes_version = "1.32"
 
     network_profile = {
       network_plugin      = "azure"
