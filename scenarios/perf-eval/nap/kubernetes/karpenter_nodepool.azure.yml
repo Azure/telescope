@@ -41,8 +41,8 @@ spec:
           operator: In
           values:
           - "Standard_D96_v5" # 60k Dv5
-          - "Standard_D96ds_v5" # 40k DDSv5
           - "Standard_D96d_v5" # 22k DDv5
+          - "Standard_D96ds_v5" # 40k DDSv5
           - "Standard_D96s_v5" # 17k Dsv5
           - "Standard_E96_v5" # 8k Ev5
 
