@@ -57,7 +57,7 @@ aks_config_list = [
         auto_scaling_enabled = false
         vm_size              = "Standard_D4s_v3"
         os_disk_type         = "Managed"
-        node_labels          = { "image-pull-test" = "true" }
+        node_labels          = { "cri-resource-consume" = "true" }
       }
     ]
   }
