@@ -24,6 +24,7 @@ steps:
         --provider $CLOUD \
         --os_type ${OS_TYPE:-linux} \
         --scrape_kubelets ${SCRAPE_KUBELETS:-False} \
+        --scrape_containerd ${SCRAPE_CONTAINERD:-False} \
         --host_network ${HOST_NETWORK:-True} \
         --cl2_override_file ${CL2_CONFIG_DIR}/overrides.yaml
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
@@ -32,7 +33,8 @@ steps:
         --cl2_report_dir $CL2_REPORT_DIR \
         --kubeconfig ${HOME}/.kube/config \
         --provider $CLOUD \
-        --scrape_kubelets ${SCRAPE_KUBELETS:-False}
+        --scrape_kubelets ${SCRAPE_KUBELETS:-False} \
+        --scrape_containerd ${SCRAPE_CONTAINERD:-False}
     workingDirectory: modules/python
     env:
       ${{ if eq(parameters.cloud, 'azure') }}:

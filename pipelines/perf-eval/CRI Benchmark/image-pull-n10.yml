@@ -15,12 +15,12 @@ stages:
             - eastus2
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250311"
-          topology: image-pull
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+          topology: cri-resource-consume
           matrix:
             image-pull-10pods:
-              deployment_count: 10
-              replicas: 1
+              node_count: 10
+              scrape_containerd: True
               kubernetes_version: "1.33"
           max_parallel: 1
           credential_type: service_connection
