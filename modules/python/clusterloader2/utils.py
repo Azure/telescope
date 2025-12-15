@@ -32,6 +32,10 @@ def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provi
 --enable-exec-service={enable_exec_service}
 --enable-prometheus-server={enable_prometheus}
 --prometheus-scrape-kubelets={scrape_kubelets}
+--prometheus-pvc-storage-class="managed"
+--prometheus-storage-class-provisioner="kubernetes.io/azure-disk"
+--prometheus-storage-class-volume-type="StandardSSD_LRS"
+--prometheus-memory-request="2Gi"
 --kubeconfig /root/.kube/config
 --testconfig /root/perf-tests/clusterloader2/config/{cl2_config_file}
 --report-dir /root/perf-tests/clusterloader2/results
