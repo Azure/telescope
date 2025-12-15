@@ -266,7 +266,7 @@ def main():
 
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
-    parser_collect.add_argument("--cpu_per_node", type=int,default=0 help="Name of cpu cores per node")
+    parser_collect.add_argument("--cpu_per_node", type=int,default=0, help="Name of cpu cores per node")
     parser_collect.add_argument("capacity_type", type=str, help="Capacity type", choices=["on-demand", "spot"], default="on-demand")
     parser_collect.add_argument("node_count", type=int, help="Number of nodes")
     parser_collect.add_argument("pod_count", type=int, help="Number of pods")
