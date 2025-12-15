@@ -26,7 +26,7 @@ stages:
               load_type: memory
               scrape_containerd: True
               scrape_kubelets: True
-              kubernetes_version: "1.31"
+              kubernetes_version: "1.33"
           max_parallel: 1
           credential_type: service_connection
           ssh_key_enabled: false
