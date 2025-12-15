@@ -2,7 +2,7 @@
 
 ## Overview
 
-Deploys 10 pods with `imagePullPolicy: Always` to trigger image pulls, and collects containerd image pulling throughput (MB/s) and kubelet runtime operation duration metrics using CL2.
+Measures containerd image pulling throughput (MB/s) and network plugin operation metrics using the CRI module with `scrape_containerd: True`. Uses the `cri-resource-consume` topology.
 
 ## Infrastructure
 
@@ -15,24 +15,12 @@ Deploys 10 pods with `imagePullPolicy: Always` to trigger image pulls, and colle
 | Prometheus Pool | 1 x Standard_D8s_v3 |
 | User Pool | 10 x Standard_D4s_v3 |
 
-## Node Pools
+## Metrics Collected
 
-| Pool | Purpose | Node Count | VM Size | Labels |
-|------|---------|------------|---------|--------|
-| default | System/critical addons | 3 | Standard_D4s_v3 | - |
-| prompool | Prometheus monitoring | 1 | Standard_D8s_v3 | `prometheus=true` |
-| userpool | Image pull tests | 10 | Standard_D4s_v3 | `image-pull-test=true` |
-
-## Network Configuration
-
-- VNet: `10.0.0.0/9`
-- Pod CIDR: `10.0.0.0/9`
-- Service CIDR: `192.168.0.0/16`
-- DNS Service IP: `192.168.0.10`
-
-## Usage
-
-Tests are executed on nodes labeled with `image-pull-test=true` in the user pool.
+- `ContainerdCriImagePullingThroughput` - Image pull throughput (MB/s)
+- `ContainerdCriNetworkPluginOperations` - Network plugin operation duration
+- `ContainerdCriSandboxCreateNetwork` - Sandbox network creation time
+- `ContainerdCriSandboxDeleteNetwork` - Sandbox network deletion time
 
 ## References
 

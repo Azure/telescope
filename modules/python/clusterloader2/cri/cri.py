@@ -17,7 +17,7 @@ MEMORY_SCALE_FACTOR = 0.95 # 95% of the total allocatable memory to account for 
 def override_config_clusterloader2(
     node_count, node_per_step, max_pods, repeats, operation_timeout,
     load_type, scale_enabled, pod_startup_latency_threshold, provider,
-    os_type, scrape_kubelets, host_network, override_file):
+    os_type, scrape_kubelets, scrape_containerd, host_network, override_file):
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
     nodes = client.get_nodes(label_selector="cri-resource-consume=true")
     if len(nodes) == 0:
@@ -90,13 +90,14 @@ def override_config_clusterloader2(
         file.write(f"CL2_PROVIDER: {provider}\n")
         file.write(f"CL2_OS_TYPE: {os_type}\n")
         file.write(f"CL2_SCRAPE_KUBELETS: {str(scrape_kubelets).lower()}\n")
+        file.write(f"CL2_SCRAPE_CONTAINERD: {str(scrape_containerd).lower()}\n")
         file.write(f"CL2_HOST_NETWORK: {str(host_network).lower()}\n")
 
     file.close()
 
-def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider, scrape_kubelets):
+def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider, scrape_kubelets, scrape_containerd):
     run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True, enable_prometheus=True,
-                    tear_down_prometheus=False, scrape_kubelets=scrape_kubelets)
+                    tear_down_prometheus=False, scrape_kubelets=scrape_kubelets, scrape_containerd=scrape_containerd)
 
 def verify_measurement():
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
@@ -259,6 +260,13 @@ def main():
         help="Whether to scrape kubelets",
     )
     parser_override.add_argument(
+        "--scrape_containerd",
+        type=str2bool,
+        choices=[True, False],
+        default=False,
+        help="Whether to scrape containerd",
+    )
+    parser_override.add_argument(
         "--host_network",
         type=str2bool,
         choices=[True, False],
@@ -290,6 +298,13 @@ def main():
         choices=[True, False],
         default=False,
         help="Whether to scrape kubelets",
+    )
+    parser_execute.add_argument(
+        "--scrape_containerd",
+        type=str2bool,
+        choices=[True, False],
+        default=False,
+        help="Whether to scrape containerd",
     )
 
     # Sub-command for collect_clusterloader2
@@ -344,6 +359,7 @@ def main():
             args.provider,
             args.os_type,
             args.scrape_kubelets,
+            args.scrape_containerd,
             args.host_network,
             args.cl2_override_file,
         )
@@ -355,6 +371,7 @@ def main():
             args.kubeconfig,
             args.provider,
             args.scrape_kubelets,
+            args.scrape_containerd,
         )
     elif args.command == "collect":
         collect_clusterloader2(
