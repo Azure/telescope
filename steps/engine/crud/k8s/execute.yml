@@ -74,7 +74,7 @@ steps:
   condition: eq(variables.run_nccl_tests, 'true')
   workingDirectory: modules/python
   env:
-    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/gpu/gpu.py
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/gpu/main.py
     CLOUD: ${{ parameters.cloud }}
     CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/gpu/config
     RESULT_DIR: $(TEST_RESULTS_DIR)

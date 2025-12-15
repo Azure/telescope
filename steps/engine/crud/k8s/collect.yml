@@ -33,7 +33,7 @@ steps:
   workingDirectory: modules/python
   condition: eq(variables.run_nccl_tests, 'true')
   env:
-    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/gpu/gpu.py
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/gpu/main.py
     RESULT_DIR: $(TEST_RESULTS_DIR)
     RUN_ID: $(RUN_ID)
     RUN_URL: $(RUN_URL)
