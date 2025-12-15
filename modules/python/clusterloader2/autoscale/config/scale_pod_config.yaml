@@ -16,6 +16,7 @@
 {{$osType := DefaultParam .CL2_OS_TYPE "linux"}}
 {{$percentilesList := StringSplit "0.50,0.70,0.90,0.99,1.00"}}
 {{$countErrorMargin := MultiplyInt .CL2_DEPLOYMENT_SIZE 0.01}}
+{{$percentilesList := StringSplit "0.50,0.70,0.90,0.99,1.00"}}
 
 name: autoscale
 namespace:
@@ -67,6 +68,18 @@ steps:
         OSType: {{$osType}}
 - name: Measure nodes and pods scale up {{$i}}
   measurements:
+  - Identifier: WaitForPendingPodsUp {{$i}}
+    Method: WaitForGenericK8sObjects
+    Params:
+      groupVersionResource:
+        group: "apps"
+        version: v1
+        resource: Deployment
+      namespaces:
+        - autoscale1
+      successfulConditions: "Pending="True"
+      minDesiredObjectCount: {{$deploymentSize}}
+      waitInterval: {{$refreshInterval}}
   - Identifier: WaitForRunningPodsUp {{$i}}
     Method: WaitForRunningPods
     Params:
