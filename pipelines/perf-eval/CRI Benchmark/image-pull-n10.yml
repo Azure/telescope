@@ -25,7 +25,7 @@ stages:
               operation_timeout: 3m
               load_type: memory
               scrape_containerd: True
-              scrape_kubelets: False
+              scrape_kubelets: True
               kubernetes_version: "1.31"
           max_parallel: 1
           credential_type: service_connection
