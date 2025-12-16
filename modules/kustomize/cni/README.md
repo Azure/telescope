@@ -5,10 +5,11 @@
 ```bash
 RESOURCE_GROUP=$(date +%s)
 CLUSTER_NAME=test
+LOCATION=eastus2
 
-az group create -n ${RESOURCE_GROUP} -l eastus2 --tags "SkipAKSCluster=1" "SkipASB_Audit=true" "SkipLinuxAzSecPack=true"
+az group create -n ${RESOURCE_GROUP} -l $LOCATION --tags "SkipAKSCluster=1" "SkipASB_Audit=true" "SkipLinuxAzSecPack=true"
 
-az aks create -l eastus2 \
+az aks create -l $LOCATION \
     --resource-group "${RESOURCE_GROUP}" \
     --name "${CLUSTER_NAME}" \
     --tier standard \
