@@ -31,6 +31,6 @@ aks_config_list = [
         zones        = ["3"]
       }
     ]
-    kubernetes_version = "1.31"
+    kubernetes_version = "1.34"
   }
 ]
