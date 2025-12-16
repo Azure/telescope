@@ -21,4 +21,3 @@ steps:
 - template: /steps/cloud/${{ parameters.cloud }}/collect-cloud-info.yml
   parameters:
     region: ${{ parameters.region }}
-
