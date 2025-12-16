@@ -104,6 +104,7 @@ def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig
         overrides=True,
         enable_prometheus=True,
         scrape_ksm=True,
+        scrape_kubelets=True,
         tear_down_prometheus=False
     )
 
