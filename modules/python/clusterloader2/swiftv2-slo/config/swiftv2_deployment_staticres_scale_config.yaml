@@ -75,18 +75,18 @@ steps:
         labelSelector: podgroup={{$groupName}}
         threshold: {{$podStartupLatencyThreshold}}
   {{range $j := Loop $steps}}
-  - name: Create PNIs for Step -{{$j}}
+  - name: Create PNI for Step -{{$j}}
     phases:
     - namespaceRange:
         min: 1
         max: 1
-      replicasPerNamespace: {{$podsPerStep}}
+      replicasPerNamespace: 1
       tuningSet: DeploymentCreatePNIQps
       objectBundle:
       - basename: pod-network-instance-step-{{$j}}
         objectTemplatePath: pni_static_template.yaml
         templateFillMap:
-              ReservationSize: 1
+              ReservationSize: {{$podsPerStep}}
   - name: Wait for PNIs to be ready - Step {{$j}}
     measurements:
       - Identifier: Dummy
@@ -103,16 +103,15 @@ steps:
         kind: Deployment
         labelSelector: group={{$groupName}}-{{$j}}
         operationTimeout: {{$operationTimeout}}
-  {{range $i := Loop $podsPerStep}}
-  - name: Create Deployment {{$j}}-{{$i}}
+  - name: Create Deployments {{$j}}
     phases:
       - namespaceRange:
           min: 1
           max: 1
-        replicasPerNamespace: 1
+        replicasPerNamespace: {{$podsPerStep}}
         tuningSet: DeploymentCreateQps
         objectBundle:
-          - basename: deployment-churn-{{$j}}-{{$i}}
+          - basename: deployment-churn-{{$j}}
             objectTemplatePath: swiftv2_deployment_template.yaml
             templateFillMap:
               Replicas: 1
@@ -122,14 +121,13 @@ steps:
               CpuRequest: {{$latencyPodCpu}}m
               MemoryRequest: {{$latencyPodMemory}}M
               deploymentLabel: start
-              pniName: pod-network-instance-step-{{$j}}-{{$i}}
+              pniName: pod-network-instance-step-{{$j}}
               Location: {{$.CL2_LOCATION}}
               PodsPerStep: {{$podsPerStep}}
               ServiceIp: {{DefaultParam $.CL2_SERVICE_IP "172.27.0.30"}}
               IngressMaxAttempts: {{DefaultParam $.CL2_INGRESS_MAX_ATTEMPTS 3}}
               IngressRetrySeconds: {{DefaultParam $.CL2_INGRESS_RETRY_SECONDS 10}}
               TargetReadyTimeout: {{DefaultParam $.CL2_TARGET_READY_TIMEOUT "120s"}}
-  {{end}}
   - name: Wait for all Deployments to be Running -{{$j}}
     measurements:
     - Identifier: WaitForControlledPodsRunning-{{$j}}
