@@ -238,7 +238,7 @@ def main():
 
     # Sub-command for override_config_clusterloader2
     parser_override = subparsers.add_parser("override", help="Override CL2 config file")
-    parser_override.add_argument("cpu_per_node", type=int, help="Name of cpu cores per node")
+    parser_override.add_argument("--cpu_per_node", type=int, default=0, help="Name of cpu cores per node")
     parser_override.add_argument("node_count", type=int, help="Number of nodes")
     parser_override.add_argument("pod_count", type=int, help="Number of pods")
     parser_override.add_argument("scale_up_timeout", type=str, help="Timeout before failing the scale up test")
@@ -266,7 +266,7 @@ def main():
 
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
-    parser_collect.add_argument("cpu_per_node", type=int, help="Name of cpu cores per node")
+    parser_collect.add_argument("--cpu_per_node", type=int,default=0, help="Name of cpu cores per node")
     parser_collect.add_argument("capacity_type", type=str, help="Capacity type", choices=["on-demand", "spot"], default="on-demand")
     parser_collect.add_argument("node_count", type=int, help="Number of nodes")
     parser_collect.add_argument("pod_count", type=int, help="Number of pods")
