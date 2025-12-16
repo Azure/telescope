@@ -56,7 +56,6 @@ stages:
               scale_step_size: 1
               step_time_out: 600
               step_wait_time: 30
-              run_nccl_tests: "false"
           max_parallel: 1
           credential_type: service_connection
           ssh_key_enabled: false
@@ -87,12 +86,6 @@ stages:
               scale_step_size: 1
               step_time_out: 600
               step_wait_time: 30
-              run_nccl_tests: "true"
-              network_operator_version: "v25.4.0"
-              gpu_operator_version: "v25.3.1"
-              gpu_install_driver: True
-              gpu_enable_nfd: False
-              mpi_operator_version: "v0.6.0"
           max_parallel: 1
           credential_type: service_connection
           ssh_key_enabled: false
@@ -125,12 +118,6 @@ stages:
               step_time_out: 1200
               step_wait_time: 30
               capacity_type: CAPACITY_BLOCK
-              run_nccl_tests: "true"
-              efa_operator_version: "v0.5.7"
-              gpu_operator_version: "v25.3.1"
-              gpu_install_driver: False
-              gpu_enable_nfd: True
-              mpi_operator_version: "v0.6.0"
           max_parallel: 1
           credential_type: service_connection
           ssh_key_enabled: false
@@ -163,12 +150,6 @@ stages:
               step_time_out: 1200
               step_wait_time: 30
               capacity_type: CAPACITY_BLOCK
-              run_nccl_tests: "true"
-              efa_operator_version: "v0.5.7"
-              gpu_operator_version: "v25.3.1"
-              gpu_install_driver: False
-              gpu_enable_nfd: True
-              mpi_operator_version: "v0.6.0"
           max_parallel: 1
           credential_type: service_connection
           ssh_key_enabled: false
