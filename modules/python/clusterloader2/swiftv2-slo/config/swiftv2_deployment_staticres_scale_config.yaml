@@ -103,15 +103,16 @@ steps:
         kind: Deployment
         labelSelector: group={{$groupName}}-{{$j}}
         operationTimeout: {{$operationTimeout}}
-  - name: Create Deployments {{$j}}
+  {{range $i := Loop $podsPerStep}}
+  - name: Create Deployment {{$j}}-{{$i}}
     phases:
       - namespaceRange:
           min: 1
           max: 1
-        replicasPerNamespace: {{$podsPerStep}}
+        replicasPerNamespace: 1
         tuningSet: DeploymentCreateQps
         objectBundle:
-          - basename: deployment-churn-{{$j}}
+          - basename: deployment-churn-{{$j}}-{{$i}}
             objectTemplatePath: swiftv2_deployment_template.yaml
             templateFillMap:
               Replicas: 1
@@ -121,13 +122,14 @@ steps:
               CpuRequest: {{$latencyPodCpu}}m
               MemoryRequest: {{$latencyPodMemory}}M
               deploymentLabel: start
-              pniName: pod-network-instance-step-{{$j}}
+              pniName: pod-network-instance-step-{{$j}}-{{$i}}
               Location: {{$.CL2_LOCATION}}
               PodsPerStep: {{$podsPerStep}}
               ServiceIp: {{DefaultParam $.CL2_SERVICE_IP "172.27.0.30"}}
               IngressMaxAttempts: {{DefaultParam $.CL2_INGRESS_MAX_ATTEMPTS 3}}
               IngressRetrySeconds: {{DefaultParam $.CL2_INGRESS_RETRY_SECONDS 10}}
               TargetReadyTimeout: {{DefaultParam $.CL2_TARGET_READY_TIMEOUT "120s"}}
+  {{end}}
   - name: Wait for all Deployments to be Running -{{$j}}
     measurements:
     - Identifier: WaitForControlledPodsRunning-{{$j}}
