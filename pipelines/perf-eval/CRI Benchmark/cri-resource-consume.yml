@@ -12,7 +12,7 @@ variables:
   SCENARIO_NAME: cri-resource-consume
 
 stages:
-  - stage: azure_swedencentral_managed_vs_ephemeral_1_31
+  - stage: azure_swedencentral_managed_vs_ephemeral_1_32
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -31,7 +31,7 @@ stages:
               repeats: 1
               operation_timeout: 3m
               load_type: memory
-              kubernetes_version: "1.31"
+              kubernetes_version: "1.32"
               scrape_kubelets: True
             n10-p700-memory-ephemeral:
               node_count: 10
@@ -39,7 +39,7 @@ stages:
               repeats: 1
               operation_timeout: 7m
               load_type: memory
-              kubernetes_version: "1.31"
+              kubernetes_version: "1.32"
               scrape_kubelets: True
             n10-p1100-memory-ephemeral:
               node_count: 10
@@ -47,7 +47,7 @@ stages:
               repeats: 1
               operation_timeout: 11m
               load_type: memory
-              kubernetes_version: "1.31"
+              kubernetes_version: "1.32"
               scrape_kubelets: True
             n10-p300-memory-managed:
               node_count: 10
@@ -55,7 +55,7 @@ stages:
               repeats: 1
               operation_timeout: 3m
               load_type: memory
-              kubernetes_version: "1.31"
+              kubernetes_version: "1.32"
               k8s_os_disk_type: Managed
               scrape_kubelets: True
             n10-p700-memory-managed:
@@ -64,7 +64,7 @@ stages:
               repeats: 1
               operation_timeout: 7m
               load_type: memory
-              kubernetes_version: "1.31"
+              kubernetes_version: "1.32"
               k8s_os_disk_type: Managed
               scrape_kubelets: True
             n10-p1100-memory-managed:
@@ -73,7 +73,7 @@ stages:
               repeats: 1
               operation_timeout: 11m
               load_type: memory
-              kubernetes_version: "1.31"
+              kubernetes_version: "1.32"
               k8s_os_disk_type: Managed
               scrape_kubelets: True
             n10-p2500-memory-ephemeral:
@@ -82,7 +82,7 @@ stages:
               repeats: 1
               operation_timeout: 11m
               load_type: memory
-              kubernetes_version: "1.31"
+              kubernetes_version: "1.32"
               k8s_machine_type: Standard_D32ds_v6
               scrape_kubelets: True
           max_parallel: 3
@@ -90,7 +90,7 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: azure_swedencentral_disabled_parallel_pull_1_31
+  - stage: azure_swedencentral_disabled_parallel_pull_1_32
     dependsOn: []
     variables:
       - group: Parallel-Pull-Disabled
@@ -111,7 +111,7 @@ stages:
               repeats: 1
               operation_timeout: 3m
               load_type: memory
-              kubernetes_version: "1.31"
+              kubernetes_version: "1.32"
               scrape_kubelets: True
             n10-p700-memory-1-31:
               node_count: 10
@@ -119,7 +119,7 @@ stages:
               repeats: 1
               operation_timeout: 7m
               load_type: memory
-              kubernetes_version: "1.31"
+              kubernetes_version: "1.32"
               scrape_kubelets: True
             n10-p1100-memory-1-31:
               node_count: 10
@@ -127,14 +127,14 @@ stages:
               repeats: 1
               operation_timeout: 11m
               load_type: memory
-              kubernetes_version: "1.31"
+              kubernetes_version: "1.32"
               scrape_kubelets: True
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: azure_swedencentral_ubuntu2404_1_32
+  - stage: azure_swedencentral_ubuntu2404_1_33
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -155,6 +155,7 @@ stages:
               repeats: 1
               operation_timeout: 3m
               load_type: memory
+              kubernetes_version: "1.33"
               scrape_kubelets: True
             n10-p700-memory:
               node_count: 10
@@ -162,12 +163,14 @@ stages:
               repeats: 1
               operation_timeout: 7m
               load_type: memory
+              kubernetes_version: "1.33"
               scrape_kubelets: True
             n10-p1100-memory:
               node_count: 10
               max_pods: 110
               repeats: 1
               operation_timeout: 11m
+              kubernetes_version: "1.33"
               load_type: memory
               scrape_kubelets: True
           max_parallel: 1
@@ -175,7 +178,7 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: azure_swedencentral_1_33
+  - stage: azure_swedencentral_1_34
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -194,7 +197,7 @@ stages:
               repeats: 1
               operation_timeout: 3m
               load_type: memory
-              kubernetes_version: "1.33"
+              kubernetes_version: "1.34"
               scrape_kubelets: True
             n10-p700-memory:
               node_count: 10
@@ -202,7 +205,7 @@ stages:
               repeats: 1
               operation_timeout: 7m
               load_type: memory
-              kubernetes_version: "1.33"
+              kubernetes_version: "1.34"
               scrape_kubelets: True
             n10-p1100-memory:
               node_count: 10
@@ -210,7 +213,7 @@ stages:
               repeats: 1
               operation_timeout: 11m
               load_type: memory
-              kubernetes_version: "1.33"
+              kubernetes_version: "1.34"
               scrape_kubelets: True
           max_parallel: 1
           timeout_in_minutes: 120
