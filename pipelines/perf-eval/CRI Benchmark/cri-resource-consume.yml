@@ -219,6 +219,48 @@ stages:
           timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false
+          
+  - stage: azure_swedencentral_lts_1_30
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - swedencentral
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+          topology: cri-resource-consume
+          matrix:
+            n10-p300-memory:
+              node_count: 10
+              max_pods: 30
+              repeats: 1
+              operation_timeout: 3m
+              load_type: memory
+              kubernetes_version: "1.30.101-akslts"
+              scrape_kubelets: True
+            n10-p700-memory:
+              node_count: 10
+              max_pods: 70
+              repeats: 1
+              operation_timeout: 7m
+              load_type: memory
+              kubernetes_version: "1.30.101-akslts"
+              scrape_kubelets: True
+            n10-p1100-memory:
+              node_count: 10
+              max_pods: 110
+              repeats: 1
+              operation_timeout: 11m
+              load_type: memory
+              kubernetes_version: "1.30.101-akslts"
+              scrape_kubelets: True
+          max_parallel: 1
+          timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false
 
   - stage: aws_westeurope
     dependsOn: []
