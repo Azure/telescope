@@ -48,9 +48,9 @@ spec:
         - key: topology.kubernetes.io/zone
           operator: In
           values:
-          - eastus2-az1
-          - eastus2-az2
-          - eastus2-az3
+          - eastus2-1
+          - eastus2-2
+          - eastus2-3
 
 # Spot NodePool
 ---
