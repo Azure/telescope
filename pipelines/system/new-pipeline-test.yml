@@ -19,11 +19,12 @@ variables:
   VM_SKU: Standard_D16_v3
   # count of swiftv2 pods/NIC per step
   PODS_PER_NODE: 7
+  DEVICE_PLUGIN: "false"
 
   # CL2 parameters
   cpu_per_node: 16
-  # max_pods = swiftv2 pods + default daemon sets
-  max_pods: 15 
+  # max_pods = PODS_PER_NODE + default k8s system pods (5)
+  max_pods: 12
   # Common matrix parameters
   repeats: 1
   node_label: "swiftv2slo=true"

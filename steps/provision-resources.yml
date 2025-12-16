@@ -102,3 +102,7 @@ steps:
   displayName: "SetupAKSMTClusterPING"
   condition: eq(variables['CREATESWIFTV2PING'], 'true')
   name: SetupAKSMTClusterPING
+  env:
+    # Ensure these pipeline variables are available as env vars to the script
+    MAX_PODS: $(max_pods)
+    DEVICE_PLUGIN: $(DEVICE_PLUGIN)
