@@ -4,6 +4,7 @@
 
 # Common subscription and location settings
 export CUST_SUB="37deca37-c375-4a14-b90a-043849bd2bf1"
+export SD_SUB="9b8218f9-902a-4d20-a65c-e98acec5362f"
 export LOCATION=${LOCATION:-"eastus2euap"}
 
 # Customer VNet configuration

@@ -271,7 +271,7 @@ az network vnet subnet create -n ${vnetSubnetNamePods} --vnet-name ${vnetName} -
 
 # az role assignment create --assignee d0fdeb79-ee9b-464c-ae0f-ba72d307208d --role "Network Contributor" --scope /subscriptions/${SUBSCRIPTION}/resourceGroups/$RG/providers/Microsoft.Network/virtualNetworks/$vnetName
 # set az account to subnetDelegator
-az account set --subscription $CUST_SUB
+az account set --subscription $SD_SUB
 for attempt in $(seq 1 5); do
     echo "Attempting to set stampcreatorservicename using subnetdelegator command: $attempt/5"
     script --return --quiet -c "az containerapp exec -n subnetdelegator-westus-u3h4j -g subnetdelegator-westus --command 'curl -v -X PUT http://localhost:8080/VirtualNetwork/%2Fsubscriptions%2F${SUBSCRIPTION}%2FresourceGroups%2F$RG%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2F$vnetName/stampcreatorservicename'" /dev/null && break || echo "Command failed, retrying..."
