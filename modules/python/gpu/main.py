@@ -107,10 +107,8 @@ def execute(
     }
 
     if provider.lower() == "azure":
-        replacements["ib_allocatable"] = ib_allocatable
-
-        # Determine which YAML file to use
         if ib_allocatable > 0:
+            replacements["ib_allocatable"] = ib_allocatable
             if topology_vm_size:
                 logger.info(f"Creating topology configmap for VM SKU: {topology_vm_size}")
                 create_topology_configmap(vm_size=topology_vm_size)
