@@ -74,6 +74,10 @@ def configure_clusterloader2(
         if location:
             file.write(f"CL2_LOCATION: {location.lower()}\n")
 
+        device_plugin_env = os.environ.get("DEVICE_PLUGIN")
+        if device_plugin_env is not None and str(device_plugin_env).strip() != "":
+            file.write(f"CL2_DEVICE_PLUGIN: {str(str2bool(device_plugin_env)).lower()}\n")
+
         if scrape_containerd:
             file.write(f"CL2_SCRAPE_CONTAINERD: {str(scrape_containerd).lower()}\n")
             file.write("CONTAINERD_SCRAPE_INTERVAL: 5m\n")

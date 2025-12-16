@@ -33,11 +33,13 @@ spec:
           privileged: true
         name: deployment-churn
         ports:
+        {{ if .DevicePluginEnabled }}
         resources:
           requests:
             acn.azure.com/vnet-nic: "1"
           limits:
             acn.azure.com/vnet-nic: "1"
+        {{ end }}
       tolerations:
       - key: "slo"
         operator: "Equal"

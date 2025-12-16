@@ -85,6 +85,17 @@ create_and_verify_nodepool() {
     nodepool_cmd+=" --node-count ${initial_node_count} -s ${VM_SKU} --os-sku Ubuntu"
     nodepool_cmd+=" --vnet-subnet-id ${node_subnet_id} --pod-subnet-id ${pod_subnet_id}"
     nodepool_cmd+=" --tags fastpathenabled=true aks-nic-enable-multi-tenancy=true aks-nic-secondary-count=${PODS_PER_NODE}"
+
+    # Only apply --max-pods when the device plugin is disabled
+    # - Pipeline variables typically arrive as env vars (e.g. max_pods -> MAX_PODS)
+    # - Keep this tolerant to missing values
+    local device_plugin_raw="${DEVICE_PLUGIN}"
+    local device_plugin_lc
+    device_plugin_lc="$(echo "${device_plugin_raw}" | tr '[:upper:]' '[:lower:]')"
+    local max_pods_value="${MAX_PODS:-${max_pods}}"
+    if [[ "${device_plugin_lc}" != "true" && "${max_pods_value}" =~ ^[0-9]+$ && "${max_pods_value}" -gt 0 ]]; then
+        nodepool_cmd+=" --max-pods ${max_pods_value}"
+    fi
     
     # Add optional labels
     if [[ -n "$labels" ]]; then

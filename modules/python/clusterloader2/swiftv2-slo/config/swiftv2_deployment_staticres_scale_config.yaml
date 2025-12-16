@@ -10,6 +10,7 @@ name: deployment-churn
 {{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "60s"}}
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "120s"}}
 {{$groupName := DefaultParam .CL2_GROUP_NAME "deployment-churn"}}
+{{$devicePluginEnabled := DefaultParam .CL2_DEVICE_PLUGIN false}}
 
 namespace:
   number: 1
@@ -90,6 +91,7 @@ steps:
               deploymentLabel: start
               pniName: pod-network-instance-{{$j}}-0
               Location: {{$.CL2_LOCATION}}
+              DevicePluginEnabled: {{$devicePluginEnabled}}
   - name: Wait for all Deployments to be Running -{{$j}}
     measurements:
     - Identifier: WaitForControlledPodsRunning-{{$j}}
