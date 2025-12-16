@@ -52,8 +52,6 @@ spec:
             successThreshold: 1
             failureThreshold: 3
           env:
-            - name: POD_INDEX
-              value: "{{.Index}}"
             - name: STEP_NUM
               value: "{{.Step}}"
             - name: POD_NAME

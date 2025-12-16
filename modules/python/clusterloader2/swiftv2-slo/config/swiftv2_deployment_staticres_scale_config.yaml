@@ -118,11 +118,10 @@ steps:
               PodGroup: {{$groupName}}
               Group: {{$groupName}}-{{$j}}
               Step: {{$j}}
-              Index: "{{.Index}}"
               CpuRequest: {{$latencyPodCpu}}m
               MemoryRequest: {{$latencyPodMemory}}M
               deploymentLabel: start
-              pniName: pod-network-instance-step-{{$j}}-{{.Index}}
+              pniName: pod-network-instance-step-{{$j}}
               Location: {{$.CL2_LOCATION}}
               PodsPerStep: {{$podsPerStep}}
               ServiceIp: {{DefaultParam $.CL2_SERVICE_IP "172.27.0.30"}}
