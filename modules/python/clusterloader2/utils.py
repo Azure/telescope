@@ -28,7 +28,7 @@ def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provi
                     scrape_containerd=False, scrape_ksm=False, scrape_metrics_server=False):
     docker_client = DockerClient()
 
-    command = f"""--provider={provider} --v=2 --nodes=1005
+    command = f"""--provider={provider} --v=2 --nodes=15005
 --enable-exec-service={enable_exec_service}
 --enable-prometheus-server={enable_prometheus}
 --prometheus-scrape-kubelets={scrape_kubelets}
