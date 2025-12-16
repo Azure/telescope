@@ -1,8 +1,8 @@
 trigger: none
 schedules:
   # On-Demand Schedule with Morgan Stanley cluster config
-  - cron: "0 */6 * * *"
-    displayName: "Every 6 hours"
+  - cron: "0 */4 * * *"
+    displayName: "Every 4 hours"
     branches:
       include:
         - ms-nap-complex
