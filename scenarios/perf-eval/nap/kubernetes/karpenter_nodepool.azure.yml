@@ -45,6 +45,12 @@ spec:
           - "Standard_D96d_v5" # 22k DDv5
           - "Standard_D96s_v5" # 17k Dsv5
           - "Standard_E96_v5" # 8k Ev5
+        - key: topology.kubernetes.io/zone
+          operator: In
+          values:
+          - eastus2-az1
+          - eastus2-az2
+          - eastus2-az3
 
 # Spot NodePool
 ---
