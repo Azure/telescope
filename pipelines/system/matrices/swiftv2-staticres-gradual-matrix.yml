@@ -22,8 +22,8 @@ parameters:
 - name: matrix
   type: object
   default:
-    pps=25_pods=700_nodes=100:
-      node_count: 1200
+    pps=25_pods=14000_nodes=2000:
+      node_count: 2000
       pods_per_step: 25
       test_timeout: "10m"
       test_type: Gradual_StaticRes_PPS=25_Pods=700_Nodes=100
