@@ -4,6 +4,9 @@ CLUSTER=cni-stretch
 VNET_NAME="aks-vnet"
 SUBNET="aks-subnet"
 
+TENANT_ID="72f988bf-86f1-41af-91ab-2d7cd011db47"
+AAD_ADMIN_GROUP_ID="8a5603a8-2c60-49ab-bc28-a989b91e187d"
+
 create_cluster() {
     az group create -n ${RG} -l $LOCATION --tags "SkipAKSCluster=1" "SkipASB_Audit=true" "SkipLinuxAzSecPack=true"
 
@@ -38,7 +41,11 @@ create_cluster() {
         --network-plugin none \
         --vnet-subnet-id $subnet_id \
         --enable-managed-identity \
-        --assign-identity $identity_id
+        --assign-identity $identity_id \
+        --enable-aad \
+        --enable-azure-rbac \
+        --aad-admin-group-object-ids $AAD_ADMIN_GROUP_ID \
+        --aad-tenant-id $TENANT_ID
 }
 
 update_aks_vmss() {
@@ -66,6 +73,7 @@ update_aks_vmss() {
     transformed_ipconfigs=$(echo "$existing_ipconfigs" | jq '[.[] | {
         name: .name,
         properties: {
+            loadBalancerBackendAddressPools: .loadBalancerBackendAddressPools,
             primary: .primary,
             subnet: {
                 id: .subnet.id
@@ -73,26 +81,83 @@ update_aks_vmss() {
             privateIPAddressVersion: .privateIpAddressVersion
         }
     }]')
-    
-    # Create new secondary IP config
-    new_ipconfig=$(jq -n \
-        --arg subnet_id "$subnet_id" \
-        '{
-            name: "ipvlan",
+
+    ipvlan_config=$(echo "$existing_ipconfigs" | jq -c '.[] | select(.name == "ipvlan")')
+    if [[ -n "$ipvlan_config" ]]; then
+        echo "IPvlan IP configuration already exists in VMSS"        
+        # Append privateIPAddressPrefixLength to the existing ipvlan config
+        updated_ipvlan_config=$(echo "$ipvlan_config" | jq '{
+            name: .name,
             properties: {
-                primary: false,
+                primary: .primary,
                 subnet: {
-                    id: $subnet_id
+                    id: .subnet.id
                 },
-                privateIPAddressVersion: "IPv4",
+                privateIPAddressVersion: .privateIpAddressVersion,
                 privateIPAddressPrefixLength: "28"
             }
         }')
-    
-    # Merge new IP config with existing ones
-    updated_ipconfigs=$(echo "$transformed_ipconfigs" | jq --argjson new "$new_ipconfig" '. + [$new]')
-    
+        
+        # Replace the existing ipvlan config with the updated one
+        updated_ipconfigs=$(echo "$transformed_ipconfigs" | jq --argjson updated "$updated_ipvlan_config" '
+            map(if .name == "ipvlan" then $updated else . end)
+        ')
+        # echo "Updated config: $updated_ipconfigs"
+    else
+        echo "IPvlan IP configuration not found. Proceeding to add it."
+        # Create new secondary IP config
+        new_ipconfig=$(jq -n \
+            --arg subnet_id "$subnet_id" \
+            '{
+                name: "ipvlan",
+                properties: {
+                    primary: false,
+                    subnet: {
+                        id: $subnet_id
+                    },
+                    privateIPAddressVersion: "IPv4",
+                    privateIPAddressPrefixLength: "28"
+                }
+            }')
+        
+        # Merge new IP config with existing ones
+        updated_ipconfigs=$(echo "$transformed_ipconfigs" | jq --argjson new "$new_ipconfig" '. + [$new]')
+    fi
+
+    # Extension profile
+    extension_profile=$(echo "$vmss_json" | jq '.virtualMachineProfile.extensionProfile')
+    # Remove existing CustomScript extension and transform others
+    transformed_extension_profile=$(echo "$extension_profile" | jq '{
+        extensions: [.extensions[] | select(.typePropertiesType != "CustomScript") | {
+            name: .name,
+            properties: ({
+                autoUpgradeMinorVersion: .autoUpgradeMinorVersion,
+                publisher: .publisher,
+                type: .typePropertiesType,
+                typeHandlerVersion: .typeHandlerVersion,
+                settings: .settings
+            } + (if .enableAutomaticUpgrade != null then {enableAutomaticUpgrade: .enableAutomaticUpgrade} else {} end)
+              + (if .suppressFailures != null then {suppressFailures: .suppressFailures} else {} end)
+              + (if .protectedSettings != null then {protectedSettings: .protectedSettings} else {} end))
+        }]
+    }')
+    # Add the new CustomScript extension (replaces the old one)
+    updated_extension_profile=$(echo "$transformed_extension_profile" | jq '.extensions += [{
+        name: "ipvlan-setup",
+        properties: {
+            autoUpgradeMinorVersion: false,
+            publisher: "Microsoft.Azure.Extensions",
+            type: "CustomScript",
+            typeHandlerVersion: "2.1",
+            settings: {
+                fileUris: ["https://raw.githubusercontent.com/Azure/telescope/refs/heads/cni-prototype/modules/kustomize/cni/stretch/setup_ipvlan.sh"],
+                commandToExecute: "bash setup_ipvlan.sh"
+            }
+        }
+    }]')
+
     echo "Creating ARM template with $(echo "$updated_ipconfigs" | jq 'length') IP configuration(s)..."
+    echo "Updated Extension Profile: $(echo "$updated_extension_profile" | jq '.extensions | length') extensions"
     
     # Create clean ARM template with only the network profile update
     jq -n \
@@ -103,13 +168,14 @@ update_aks_vmss() {
         --argjson nic_accel "$nic_accel" \
         --argjson nic_ipfwd "$nic_ipfwd" \
         --argjson ipconfigs "$updated_ipconfigs" \
+        --argjson updated_extension_profile "$updated_extension_profile" \
         '{
             "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
             "contentVersion": "1.0.0.0",
             "resources": [
                 {
                     "type": "Microsoft.Compute/virtualMachineScaleSets",
-                    "apiVersion": "2023-09-01",
+                    "apiVersion": "2025-04-01",
                     "name": $vmss_name,
                     "location": $location,
                     "properties": {
@@ -126,7 +192,8 @@ update_aks_vmss() {
                                         }
                                     }
                                 ]
-                            }
+                            },
+                            "extensionProfile": $updated_extension_profile
                         }
                     }
                 }
@@ -165,34 +232,23 @@ update_aks_vmss() {
     rm -f vmss-secondary-ip-template-generated.json
 }
 
-run_custom_script() {
-    script_path=$1
-
-    node_rg=$(az aks show --resource-group $RG --name $CLUSTER --query nodeResourceGroup -o tsv)
-    vmss_name=$(az vmss list --resource-group $node_rg --query "[0].name" -o tsv)
-
-    echo "Applying custom script extension to VMSS: $vmss_name in resource group: $node_rg"
-    az vmss extension set \
-        --resource-group $node_rg \
-        --vmss-name $vmss_name \
-        --name CustomScript \
-        --publisher Microsoft.Azure.Extensions \
-        --version 2.1 \
-        --settings "{\"fileUris\": [\"$script_path\"], \"commandToExecute\": \"bash $(basename $script_path)\"}"
-
-    echo "Updating VMSS instances..."
-    az vmss update-instances \
-        --resource-group $node_rg \
-        --name $vmss_name \
-        --instance-ids "*"
-}
-
-create_vmss() {
-    az deployment group create \
+create_vm() {
+    NODE_NAME="freenode"
+    NODE_USER="azureuser"
+    NODE_VM_SIZE="Standard_D8ds_v6"
+    az vm create \
         --resource-group $RG \
-        --template-file 
+        --name $NODE_NAME \
+        --image Ubuntu2404 \
+        --admin-username $NODE_USER \
+        --generate-ssh-keys \
+        --assign-identity \
+        --public-ip-sku Standard \
+        --vnet-name $VNET_NAME \
+        --subnet $SUBNET \
+        --size $NODE_VM_SIZE \
+        --nsg-rule SSH
 }
 
 update_aks_vmss
-# extension_script_url="https://raw.githubusercontent.com/Azure/telescope/refs/heads/cni-prototype/modules/kustomize/cni/setup_ipvlan.sh"
-# run_custom_script "$extension_script_url"
+# create_vm
