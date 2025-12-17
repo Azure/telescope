@@ -38,11 +38,14 @@ variable "firewall_private_ips" {
   default     = {}
 }
 
-variable "public_ip_addresses" {
-  description = "Map of public IP names to their IP addresses"
-  type        = map(string)
-  default     = {}
+variable "public_ips" {
+  description = "Map of public IP names to their objects containing id and ip_address"
+  type = map(object({
+    id         = string
+    ip_address = string
+  }))
 }
+
 
 variable "tags" {
   description = "Tags to apply to the route table"

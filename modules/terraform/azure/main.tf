@@ -120,7 +120,7 @@ module "route_table" {
   location             = local.region
   subnets_ids          = local.all_subnets
   firewall_private_ips = module.firewall.firewall_private_ips
-  public_ip_addresses  = module.public_ips.pip_addresses
+  public_ip_addresses  = module.public_ips.pip_ids
   tags                 = local.tags
 
   depends_on = [module.virtual_network, module.firewall]

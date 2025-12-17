@@ -6,7 +6,7 @@ locals {
         fw.subnet_name != null ? try(var.subnets_map[fw.subnet_name], null) : null
       )
       public_ip_address_id = fw.public_ip_address_id != null ? fw.public_ip_address_id : (
-        fw.public_ip_name != null ? try(var.public_ips_map[fw.public_ip_name], null) : null
+        fw.public_ip_name != null ? try(var.public_ips_map[fw.public_ip_name].id, null) : null
       )
     })
   }

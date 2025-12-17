@@ -86,7 +86,10 @@ variable "subnets_map" {
 }
 
 variable "public_ips_map" {
-  description = "Map of public IP IDs by name (for resolving public IP references)"
-  type        = map(string)
-
+  description = "Map of public IP names to their objects containing id and ip_address"
+  type = map(object({
+    id         = string
+    ip_address = string
+  }))
 }
+

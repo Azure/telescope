@@ -14,7 +14,7 @@ resource "azurerm_route" "routes" {
   route_table_name    = azurerm_route_table.route_table.name
   address_prefix = (
     each.value.address_prefix_publicip_name != null
-    ? "${var.public_ip_addresses[each.value.address_prefix_publicip_name]}/32"
+    ? "${var.public_ips[each.value.address_prefix_publicip_name].ip_address}/32"
     : each.value.address_prefix
   )
   next_hop_type = each.value.next_hop_type
