@@ -120,7 +120,7 @@ spec:
         - key: karpenter.azure.com/sku-name
           operator: In
           values:
-            - Standard_D8s_v4
+            - Standard_D16_v3
         - key: topology.kubernetes.io/zone
           operator: In
           values:
