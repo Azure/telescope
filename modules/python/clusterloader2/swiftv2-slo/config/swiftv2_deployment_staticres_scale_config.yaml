@@ -121,7 +121,7 @@ steps:
               CpuRequest: {{$latencyPodCpu}}m
               MemoryRequest: {{$latencyPodMemory}}M
               deploymentLabel: start
-              pniName: pod-network-instance-step-{{$j}}
+              pniName: pod-network-instance-step-{{$j}}-0
               Location: {{$.CL2_LOCATION}}
               PodsPerStep: {{$podsPerStep}}
               ServiceIp: {{DefaultParam $.CL2_SERVICE_IP "172.27.0.30"}}
