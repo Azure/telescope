@@ -15,6 +15,11 @@ spec:
     metadata:
       labels:
         app: inflate
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 300
+      maxUnavailable: 0
     spec:
       nodeSelector:
       {{- range $key, $value := .NodeSelector }}
@@ -27,6 +32,7 @@ spec:
           {{else}}
           image: mcr.microsoft.com/cbl-mariner/base/nginx:1
           {{end}}
+          imagePullPolicy: IfNotPresent
           resources:
             requests:
               cpu: {{.CPUperJob}}
