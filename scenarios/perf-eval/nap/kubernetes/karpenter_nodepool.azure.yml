@@ -42,6 +42,8 @@ spec:
           values:
           - "Standard_D96_v5" # 100k Dv5
           - "Standard_D96ds_v5" # 55k DDSv5
+          - "Standard_D96d_v5"
+          - "Standard_D96s_v5"
         - key: topology.kubernetes.io/zone
           operator: In
           values:
@@ -118,7 +120,7 @@ spec:
         - key: karpenter.azure.com/sku-name
           operator: In
           values:
-            - Standard_D8s_v4
+            - Standard_E16_v5
         - key: topology.kubernetes.io/zone
           operator: In
           values:
