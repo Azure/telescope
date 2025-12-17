@@ -14,6 +14,57 @@ set -euo pipefail
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 source "$SCRIPT_DIR/aks-utils.sh"
 
+# Track whether kubeconfig has been initialized for this run
+KUBECONFIG_INITIALIZED=false
+
+function ensure_kubeconfig() {
+    local cluster_name=$1
+    local resource_group=$2
+
+    if [ "${KUBECONFIG_INITIALIZED}" = true ]; then
+        return 0
+    fi
+
+    log_info "Initializing kubeconfig for cluster '$cluster_name'..." >&2
+    if ! az aks get-credentials --name "$cluster_name" --resource-group "$resource_group" --admin --overwrite-existing >/dev/null 2>&1; then
+        log_warning "Failed to get AKS credentials (kubectl operations may fail)" >&2
+        return 1
+    fi
+
+    KUBECONFIG_INITIALIZED=true
+    return 0
+}
+
+function kubectl_get_nodes_json() {
+    local selector=${1:-}
+
+    local output
+    if [ -n "$selector" ]; then
+        if ! output=$(kubectl get nodes -l "$selector" -o json 2>&1); then
+            log_warning "kubectl get nodes failed (selector='$selector'): $output" >&2
+            return 1
+        fi
+    else
+        if ! output=$(kubectl get nodes -o json 2>&1); then
+            log_warning "kubectl get nodes failed: $output" >&2
+            return 1
+        fi
+    fi
+
+    echo "$output"
+    return 0
+}
+
+function count_ready_nodes_in_json() {
+    local nodes_json=$1
+    echo "$nodes_json" | jq '[.items[] | select(.status.conditions[] | select(.type=="Ready" and .status=="True"))] | length' 2>/dev/null || echo "0"
+}
+
+function count_total_nodes_in_json() {
+    local nodes_json=$1
+    echo "$nodes_json" | jq '.items | length' 2>/dev/null || echo "0"
+}
+
 # =============================================================================
 # SIMPLIFIED SCALING AND VM REPAIR
 # =============================================================================
@@ -69,8 +120,8 @@ function scale_nodepool() {
     local nodepool=$2
     local resource_group=$3
     local target_count=$4
-    local max_scale_retries=${MAX_SCALE_RETRIES:-3}  # Allow override via env var
-    local retry_delay=60  # Wait 60 seconds between retries
+    local max_scale_retries=3
+    local retry_delay=180  # Wait between retries (default 3 min)
     
     local scale_attempt=0
     local scale_success=false
@@ -80,6 +131,7 @@ function scale_nodepool() {
         
         if [ $scale_attempt -gt 1 ]; then
             log_info "Retrying scale operation for nodepool '$nodepool' (attempt $scale_attempt/$max_scale_retries)..."
+            log_info "Waiting ${retry_delay}s before retry..."
             sleep $retry_delay
         fi
         
@@ -108,8 +160,9 @@ function scale_nodepool() {
         fi
         
         # Wait for VMSS to stabilize
-        log_info "Waiting 30 seconds for VMSS to stabilize..."
-        sleep 30
+        local vmss_stabilize_sleep=60
+        log_info "Waiting ${vmss_stabilize_sleep}s for VMSS to stabilize..."
+        sleep $vmss_stabilize_sleep
         
         # Verify actual VMSS instance count
         log_info "Verifying actual VMSS instance count for nodepool '$nodepool'..."
@@ -228,14 +281,40 @@ function list_vm_status() {
     
     if [ -n "$vmss_name" ]; then
         log_info "Found VMSS: '$vmss_name' for nodepool '$nodepool'" >&2
-        
-        # List all VM instances with their status
-        log_info "VM instance status for nodepool '$nodepool':" >&2
-        az vmss list-instances \
+
+        # Summarize VM instance states (avoid logging every instance for large pools)
+        local instance_info
+        instance_info=$(az vmss list-instances \
             --name "$vmss_name" \
             --resource-group "$node_rg" \
             --query "[].{InstanceId:instanceId,ProvisioningState:provisioningState,PowerState:instanceView.statuses[1].displayStatus}" \
-            --output table >&2 2>/dev/null || log_warning "Unable to retrieve VMSS status" >&2
+            --output json 2>/dev/null || echo "[]")
+
+        local total_instances
+        total_instances=$(echo "$instance_info" | jq 'length' 2>/dev/null || echo "0")
+
+        local succeeded_instances
+        succeeded_instances=$(echo "$instance_info" | jq '[.[] | select(.ProvisioningState=="Succeeded")] | length' 2>/dev/null || echo "0")
+
+        local non_succeeded_instances=$((total_instances - succeeded_instances))
+
+        log_info "VMSS instance summary for '$nodepool' (vmss='$vmss_name'): total=$total_instances succeeded=$succeeded_instances non_succeeded=$non_succeeded_instances" >&2
+
+        # Only report VMs that are NOT in Succeeded state, grouped by ProvisioningState.
+        if [ "$non_succeeded_instances" -gt 0 ]; then
+            local non_succeeded_states
+            non_succeeded_states=$(echo "$instance_info" | jq -r '[.[] | select(.ProvisioningState != "Succeeded") | .ProvisioningState] | unique | .[]' 2>/dev/null || echo "")
+
+            if [ -n "$non_succeeded_states" ]; then
+                for state in $non_succeeded_states; do
+                    local ids
+                    ids=$(echo "$instance_info" | jq -r --arg st "$state" '[.[] | select(.ProvisioningState==$st) | .InstanceId] | join(",")' 2>/dev/null || echo "")
+                    if [ -n "$ids" ]; then
+                        log_warning "VMSS instances not Succeeded ($state): $ids" >&2
+                    fi
+                done
+            fi
+        fi
         
         # Return VMSS info for repair operations
         echo "$vmss_name:$node_rg"
@@ -352,6 +431,149 @@ function repair_failed_vms() {
     fi
     
     log_info "VM deletion and replacement operations completed for all failed instances"
+}
+
+# Detect VMSS instances that are provisioned (Succeeded) but missing from Kubernetes
+# and delete them so the VMSS can replace them.
+function repair_unjoined_vms() {
+    local vmss_name=$1
+    local node_rg=$2
+    local nodepool=$3
+
+    local enabled=true
+    local recheck_delay=180
+
+    if [ "$enabled" != "true" ]; then
+        log_info "Unjoined-VM repair disabled (REPAIR_UNJOINED_VMS=$enabled)" >&2
+        return 0
+    fi
+
+    if [ -z "$vmss_name" ] || [ -z "$node_rg" ]; then
+        return 0
+    fi
+
+    # Safety: ensure kubeconfig exists and kubectl works before doing any destructive action.
+    if ! ensure_kubeconfig "$aks_name" "$aks_rg"; then
+        log_warning "Skipping unjoined-VM repair because kubeconfig could not be initialized" >&2
+        return 0
+    fi
+
+    local pool_nodes_json
+    if ! pool_nodes_json=$(kubectl_get_nodes_json "agentpool=$nodepool"); then
+        log_warning "Skipping unjoined-VM repair for '$nodepool' because kubectl failed" >&2
+        return 0
+    fi
+
+    local pool_nodes_total
+    pool_nodes_total=$(count_total_nodes_in_json "$pool_nodes_json")
+
+    # If the pool has zero nodes in Kubernetes, it might be an auth/control-plane issue.
+    # Don’t mass-delete VMSS instances based on an empty/failed Kubernetes view.
+    if [ "$pool_nodes_total" -eq 0 ]; then
+        log_warning "Kubernetes shows 0 nodes for agentpool '$nodepool'; skipping unjoined-VM deletion for safety" >&2
+        return 0
+    fi
+
+    # Build a set of Kubernetes node names (lowercased) for this pool.
+    local k8s_names_json
+    k8s_names_json=$(echo "$pool_nodes_json" | jq '[.items[].metadata.name | ascii_downcase]' 2>/dev/null || echo '[]')
+
+    # Fetch VMSS instances (instanceId + computerName + provisioningState).
+    local instances_json
+    instances_json=$(az vmss list-instances \
+        --name "$vmss_name" \
+        --resource-group "$node_rg" \
+        --query "[].{InstanceId:instanceId,ComputerName:osProfile.computerName,ProvisioningState:provisioningState}" \
+        --output json 2>/dev/null || echo "[]")
+
+    # Identify instances that are Succeeded in Azure but missing from Kubernetes.
+    local missing_ids
+    missing_ids=$(echo "$instances_json" | jq -r --argjson k8s "$k8s_names_json" '
+        [ .[]
+          | select(.ProvisioningState=="Succeeded")
+          | select(.ComputerName != null)
+          | select((.ComputerName | ascii_downcase) as $n | ($k8s | index($n)) == null)
+          | .InstanceId ] | unique | .[]
+    ' 2>/dev/null || echo "")
+
+    if [ -z "$missing_ids" ]; then
+        return 0
+    fi
+
+    local missing_count
+    missing_count=$(echo "$missing_ids" | wc -w | tr -d ' ')
+
+    # Recheck after a short delay to avoid deleting instances that are still joining.
+    log_warning "Detected $missing_count VMSS instance(s) provisioned but not registered in Kubernetes for '$nodepool'. Rechecking in ${recheck_delay}s..." >&2
+    log_warning "Candidate instance IDs: $(echo "$missing_ids" | tr '\n' ' ')" >&2
+    sleep "$recheck_delay"
+
+    if ! pool_nodes_json=$(kubectl_get_nodes_json "agentpool=$nodepool"); then
+        log_warning "Skipping unjoined-VM deletion after recheck (kubectl failed)" >&2
+        return 0
+    fi
+    k8s_names_json=$(echo "$pool_nodes_json" | jq '[.items[].metadata.name | ascii_downcase]' 2>/dev/null || echo '[]')
+    missing_ids=$(echo "$instances_json" | jq -r --argjson k8s "$k8s_names_json" '
+        [ .[]
+          | select(.ProvisioningState=="Succeeded")
+          | select(.ComputerName != null)
+          | select((.ComputerName | ascii_downcase) as $n | ($k8s | index($n)) == null)
+          | .InstanceId ] | unique | .[]
+    ' 2>/dev/null || echo "")
+
+    if [ -z "$missing_ids" ]; then
+        log_info "Unjoined-VM candidates appear to have joined after recheck; no deletions needed." >&2
+        return 0
+    fi
+
+    missing_count=$(echo "$missing_ids" | wc -w | tr -d ' ')
+
+    log_warning "Deleting $missing_count VMSS instance(s) that are missing from Kubernetes (nodepool='$nodepool', vmss='$vmss_name')..." >&2
+
+    local max_retries=3
+    local retry_delay=30
+    local deleted_count=0
+    local deleted_instances=""
+
+    for instance_id in $missing_ids; do
+        local retry_count=0
+        local delete_success=false
+
+        while [ $retry_count -lt $max_retries ] && [ "$delete_success" = false ]; do
+            retry_count=$((retry_count + 1))
+
+            if [ $retry_count -gt 1 ]; then
+                log_info "Retry attempt $retry_count/$max_retries for deleting unjoined VM instance '$instance_id'" >&2
+                sleep $retry_delay
+            fi
+
+            if timeout 180 az vmss delete-instances \
+                --name "$vmss_name" \
+                --resource-group "$node_rg" \
+                --instance-ids "$instance_id" \
+                --no-wait 2>/dev/null; then
+                delete_success=true
+                deleted_count=$((deleted_count + 1))
+                deleted_instances="$deleted_instances $instance_id"
+                log_info "Successfully initiated deletion for unjoined instance '$instance_id'" >&2
+            else
+                local exit_code=$?
+                if [ $retry_count -lt $max_retries ]; then
+                    log_warning "Delete attempt $retry_count failed for unjoined instance '$instance_id' (exit code: $exit_code), will retry..." >&2
+                else
+                    log_warning "All $max_retries delete attempts failed for unjoined instance '$instance_id' (exit code: $exit_code)" >&2
+                fi
+            fi
+        done
+    done
+
+    if [ $deleted_count -gt 0 ]; then
+        log_info "Successfully initiated deletion for unjoined instances:$deleted_instances" >&2
+        log_info "Waiting for VMSS to provision replacement instances for deleted unjoined VMs..." >&2
+        wait_for_vmss_replacement "$vmss_name" "$node_rg" "$nodepool" $deleted_count || true
+    fi
+
+    return 0
 }
 
 # Wait for VMSS to provision replacement instances after deletion
@@ -503,24 +725,27 @@ function verify_node_readiness() {
     
     log_info "Verifying node readiness for nodepool '$nodepool' (expecting $expected_nodes nodes)..."
     
-    local node_readiness_timeout=900  # 15 minutes timeout
-    local RETRY_INTERVAL=30  # Check every 30 seconds
+    local node_readiness_timeout=900  # default 15 minutes
+    local RETRY_INTERVAL=60  # default 60 seconds
     local elapsed=0
     
     # Poll for node readiness
     while [ $elapsed -lt $node_readiness_timeout ]; do
-        # Query node status for this nodepool
+        local nodes_json
+        if ! nodes_json=$(kubectl_get_nodes_json "agentpool=$nodepool"); then
+            log_warning "kubectl unavailable while verifying readiness for '$nodepool'; retrying..." >&2
+            sleep $RETRY_INTERVAL
+            elapsed=$((elapsed + RETRY_INTERVAL))
+            continue
+        fi
+
         local READY_NODES
-        READY_NODES=$(kubectl get nodes -l agentpool="$nodepool" --no-headers 2>/dev/null | grep " Ready " | wc -l 2>/dev/null)
-        READY_NODES=${READY_NODES:-0}
-        
-        local NOT_READY_NODES
-        NOT_READY_NODES=$(kubectl get nodes -l agentpool="$nodepool" --no-headers 2>/dev/null | grep " NotReady " | wc -l 2>/dev/null)
-        NOT_READY_NODES=${NOT_READY_NODES:-0}
-        
+        READY_NODES=$(count_ready_nodes_in_json "$nodes_json")
+
         local TOTAL_NODES
-        TOTAL_NODES=$(kubectl get nodes -l agentpool="$nodepool" --no-headers 2>/dev/null | wc -l 2>/dev/null)
-        TOTAL_NODES=${TOTAL_NODES:-0}
+        TOTAL_NODES=$(count_total_nodes_in_json "$nodes_json")
+
+        local NOT_READY_NODES=$((TOTAL_NODES - READY_NODES))
         
         log_info "Node readiness for '$nodepool': $READY_NODES ready, $NOT_READY_NODES not ready, $TOTAL_NODES total (expected: $expected_nodes, elapsed: ${elapsed}s)"
         
@@ -571,17 +796,22 @@ function get_total_ready_nodes() {
     
     log_info "Checking total ready nodes across all user and buffer nodepools..." >&2
     
-    # Get kubeconfig
-    az aks get-credentials --name "$cluster_name" --resource-group "$resource_group" --admin --overwrite-existing >/dev/null 2>&1
-    
-    # Count ready nodes with user nodepool labels (including buffer pools)
+    ensure_kubeconfig "$cluster_name" "$resource_group" >/dev/null 2>&1 || true
+
+    local nodes_json
+    if ! nodes_json=$(kubectl_get_nodes_json "agentpool"); then
+        echo "0"
+        return 0
+    fi
+
+    # Count Ready=True nodes across user/buffer pools.
     local ready_nodes
-    ready_nodes=$(kubectl get nodes \
-        -l agentpool \
-        -o jsonpath='{range .items[*]}{.metadata.labels.agentpool}{" "}{range .status.conditions[*]}{.type}={.status}{" "}{end}{"\n"}{end}' 2>/dev/null | \
-        grep -E "(userpool|bufferpool)" | \
-        grep "Ready=True" | \
-        wc -l || echo "0")
+    ready_nodes=$(echo "$nodes_json" | jq '[
+        .items[]
+        | select(.metadata.labels.agentpool != null)
+        | select(.metadata.labels.agentpool | test("(userpool|bufferpool)"; "i"))
+        | select(.status.conditions[] | select(.type=="Ready" and .status=="True"))
+    ] | length' 2>/dev/null || echo "0")
     
     log_info "Total ready nodes in user/buffer pools: $ready_nodes" >&2
     echo "$ready_nodes"
@@ -823,6 +1053,8 @@ function handle_shortfall_with_vm_repair() {
     log_info "=== No buffer pool mode: Performing VM repair ==="
     log_info "Strategy: Delete failed VMs to trigger VMSS replacement"
     
+    ensure_kubeconfig "$aks_name" "$aks_rg" >/dev/null 2>&1 || true
+
     # Step 1: Repair failed VMs in all nodepools
     for nodepool in $usernodepools; do
         log_info "--- VM repair for nodepool: '$nodepool' ---"
@@ -841,6 +1073,9 @@ function handle_shortfall_with_vm_repair() {
         
         log_info "Deleting failed VMs for nodepool '$nodepool'..."
         repair_failed_vms "$vmss_name" "$node_rg" "$nodepool"
+
+        # Also repair instances that are provisioned but never joined Kubernetes (e.g., kubelet disabled).
+        repair_unjoined_vms "$vmss_name" "$node_rg" "$nodepool"
         
         log_info "--- Completed VM repair for nodepool '$nodepool' ---"
     done
@@ -850,7 +1085,7 @@ function handle_shortfall_with_vm_repair() {
     
     local max_retries=3
     local retry_timeout=900  # 15 minutes per retry
-    local retry_interval=30
+    local retry_interval=120
     
     for attempt in $(seq 1 $max_retries); do
         log_info "Verification attempt $attempt/$max_retries (timeout: $((retry_timeout / 60)) minutes)..."
