@@ -7,36 +7,40 @@ The example below installs 3 operatiors: network operator, gpu operator, and mpi
 ```bash
 pushd modules/python
 EFA_OPERATOR_VERSION="v0.5.7" # Set for AWS only
-NETWORK_OPERATOR_VERSION="v25.4.0" # Set for Azure only
-GPU_OPERATOR_VERSION="v25.3.1"
+NETWORK_OPERATOR_VERSION="v25.7.0" # Set for Azure only
+GPU_OPERATOR_VERSION="v25.10.0"
 GPU_INSTALL_DRIVER=True # False for AWS
 GPU_ENABLE_NFD=False # True for AWS
-MPI_OPERATOR_VERSION="v0.6.0"
-CONFIG_DIR=$(pwd)/gpu/config
-PYTHON_SCRIPT_FILE=$(pwd)/gpu/gpu.py
+MPI_OPERATOR_VERSION="v0.7.0"
+CONFIG_DIR=$(pwd)/gpu/cfg
+PYTHON_SCRIPT_FILE=$(pwd)/gpu/main.py
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
-  --efa_operator_version ${EFA_OPERATOR_VERSION:-""} \
+  --config_dir $CONFIG_DIR \
   --network_operator_version ${NETWORK_OPERATOR_VERSION:-""} \
   --gpu_operator_version ${GPU_OPERATOR_VERSION:-""} \
   --gpu_install_driver ${GPU_INSTALL_DRIVER:-"True"} \
   --gpu_enable_nfd ${GPU_ENABLE_NFD:-"False"} \
   --mpi_operator_version ${MPI_OPERATOR_VERSION:-""} \
-  --config_dir $CONFIG_DIR
+  --efa_operator_version ${EFA_OPERATOR_VERSION:-""}
 ```
 
 ## Execute
 
 ```bash
-VM_SIZE="ndv4"
+TOPOLOGY_VM_SIZE="ndv5"
 CLOUD="azure"
+RUN_ID="test"
 RESULT_DIR=/tmp/${RUN_ID}
 mkdir -p $RESULT_DIR
-PYTHON_SCRIPT_FILE=$(pwd)/gpu/gpu.py
+PYTHON_SCRIPT_FILE=$(pwd)/gpu/main.py
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
   --provider $CLOUD \
   --config_dir $CONFIG_DIR \
   --result_dir $RESULT_DIR \
-  --vm_size ${VM_SIZE:-""}
+  --gpu_node_count 2 \
+  --gpu_allocatable 1 \
+  --ib_allocatable 1 \
+  --topology_vm_size ${TOPOLOGY_VM_SIZE:-""}
 ```
 
 ## Collect
