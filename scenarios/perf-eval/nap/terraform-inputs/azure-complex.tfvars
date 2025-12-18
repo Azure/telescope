@@ -12,7 +12,11 @@ network_config_list = [
     subnet = [
       {
         name           = "nap-subnet-ms"
-        address_prefix = "10.192.0.0/10"
+        address_prefix = "10.192.0.0/16"
+      },
+      {
+        name           = "AzureFirewallSubnet"
+        address_prefix = "10.193.0.0/26"
       }
     ]
     network_security_group_name = ""
@@ -20,26 +24,7 @@ network_config_list = [
     nsr_rules                   = []
   }
 ]
-route_table_config_list = [
-  {
-    name                          = "e2e-rt"
-    bgp_route_propagation_enabled = false
-    routes = [
-      {
-        name                   = "default-route"
-        address_prefix         = "0.0.0.0/0"
-        next_hop_type          = "VirtualAppliance"
-        next_hop_firewall_name = "firewall-instance"
-      },
-      {
-        name                         = "firewall-internet"
-        address_prefix_publicip_name = "firewall-pip"
-        next_hop_type                = "Internet"
-      }
-    ]
-    subnet_associations = [{ subnet_name = "subnet-fw-test" }]
-  }
-]
+
 
 firewall_config_list = [
   {
@@ -103,6 +88,26 @@ firewall_config_list = [
         ]
       }
     ]
+  }
+]
+route_table_config_list = [
+  {
+    name                          = "nap-rt"
+    bgp_route_propagation_enabled = false
+    routes = [
+      {
+        name                   = "default-route"
+        address_prefix         = "0.0.0.0/0"
+        next_hop_type          = "VirtualAppliance"
+        next_hop_firewall_name = "firewall-instance"
+      },
+      {
+        name                         = "firewall-internet"
+        address_prefix_publicip_name = "firewall-pip"
+        next_hop_type                = "Internet"
+      }
+    ]
+    subnet_associations = [{ subnet_name = "nap-subnet-ms" }]
   }
 ]
 aks_cli_config_list = [
