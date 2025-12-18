@@ -69,6 +69,7 @@ def execute(
     gpu_allocatable: int = 1,
     ib_allocatable: int = 1,
     efa_allocatable: int = 1,
+    nccl_tests_version: str = "amd64",
 ):
     """
     Execute nccl-tests
@@ -83,6 +84,7 @@ def execute(
         gpu_allocatable: Number of GPUs per node (default: 1)
         ib_allocatable: Number of InfiniBand resources per node (Azure only, default: 1)
         efa_allocatable: Number of EFA resources per node (AWS only, default: 1)
+        nccl_tests_version: NCCL tests image tag version (e.g., "amd64", "arm64", default: "amd64")
     """
     if gpu_node_count < 1:
         raise ValueError(f"gpu_node_count must be at least 1, got {gpu_node_count}")
@@ -104,6 +106,7 @@ def execute(
         "number_of_processes": gpu_node_count * gpu_allocatable,
         "worker_replicas": gpu_node_count,
         "gpu_allocatable": gpu_allocatable,
+        "nccl_tests_version": nccl_tests_version,
     }
 
     if provider.lower() == "azure":
@@ -313,6 +316,13 @@ def main():
         default=1,
         help="Number of EFA resources per node (AWS only, default: 1)",
     )
+    execute_parser.add_argument(
+        "--nccl_tests_version",
+        type=str,
+        required=False,
+        default="amd64",
+        help="NCCL tests image tag version (e.g., 'amd64', 'arm64', default: 'amd64')",
+    )
 
     # Collect command to parse NCCL test results
     collect_parser = subparsers.add_parser(
@@ -352,6 +362,7 @@ def main():
             gpu_allocatable=args.gpu_allocatable,
             ib_allocatable=args.ib_allocatable,
             efa_allocatable=args.efa_allocatable,
+            nccl_tests_version=args.nccl_tests_version,
         )
     elif args.command == "collect":
         collect(
