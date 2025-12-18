@@ -12,8 +12,6 @@ variable "firewall_config_list" {
     dns_proxy_enabled     = optional(bool, false)
     dns_servers           = optional(list(string))
     ip_configuration_name = optional(string, "firewall-ipconfig")
-    subnet_id             = optional(string)
-    public_ip_address_id  = optional(string)
     nat_rule_collections = optional(list(object({
       name     = string
       priority = number
