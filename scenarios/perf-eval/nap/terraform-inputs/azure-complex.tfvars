@@ -4,6 +4,13 @@ scenario_name  = "nap"
 deletion_delay = "2h"
 owner          = "aks"
 
+public_ip_config_list = [
+  {
+    name  = "firewall-pip"
+    count = 1
+  }
+]
+
 network_config_list = [
   {
     role               = "crud"
