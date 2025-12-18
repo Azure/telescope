@@ -14,8 +14,8 @@ aks_cli_config_list = [
     kubernetes_version = "1.33"
     default_node_pool = {
       name       = "default"
-      node_count = 1
-      vm_size    = "Standard_D4ds_v5"
+      node_count = 3
+      vm_size    = "Standard_D16_v5"
     }
     extra_node_pool = [
       {
@@ -30,6 +30,25 @@ aks_cli_config_list = [
           {
             name  = "os-sku"
             value = "Ubuntu2204"
+          }
+        ]
+      },
+      {
+        name       = "userpool1",
+        node_count = 1,
+        vm_size    = "Standard_D4ds_v5",
+        optional_parameters = [
+          {
+            name  = "os-sku"
+            value = "Ubuntu2204"
+          },
+          {
+            name  = "node-taints"
+            value = "cri-resource-consume=true:NoSchedule,cri-resource-consume=true:NoExecute"
+          },
+          {
+            name  = "labels"
+            value = "cri-resource-consume=true"
           }
         ]
       }
