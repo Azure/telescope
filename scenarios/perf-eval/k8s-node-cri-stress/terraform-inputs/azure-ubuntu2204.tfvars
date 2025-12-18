@@ -14,7 +14,7 @@ aks_cli_config_list = [
     kubernetes_version = "1.33"
     default_node_pool = {
       name       = "default"
-      node_count = 4
+      node_count = 3
       vm_size    = "Standard_D4ds_v5"
     }
     extra_node_pool = [
