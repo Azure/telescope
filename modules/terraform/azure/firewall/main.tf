@@ -2,12 +2,8 @@ locals {
   # Resolve subnet_id and public_ip_address_id for each firewall config
   resolved_firewall_config_map = {
     for fw in var.firewall_config_list : fw.name => merge(fw, {
-      subnet_id = fw.subnet_id != null ? fw.subnet_id : (
-        fw.subnet_name != null ? try(var.subnets_map[fw.subnet_name], null) : null
-      )
-      public_ip_address_id = fw.public_ip_address_id != null ? fw.public_ip_address_id : (
-        fw.public_ip_name != null ? try(var.public_ips_map[fw.public_ip_name].id, null) : null
-      )
+      subnet_id            = try(var.subnets_map[fw.subnet_name], null)
+      public_ip_address_id = try(var.public_ips_map[fw.public_ip_name].id, null)
     })
   }
 
