@@ -2,7 +2,7 @@ trigger: none
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: cri-resource-consume
+  SCENARIO_NAME: cri-resource-consume-churn
 
 stages:
   - stage: azure_westus2_stress_baseline_1_33
@@ -14,7 +14,7 @@ stages:
           regions:
             - westus2
           terraform_input_file_mapping:
-            - westus2: "scenarios/perf-eval/stls-bootstrap-cri/terraform-inputs/azure-cri-linux.tfvars"
+            - westus2: "scenarios/perf-eval/cri-resource-consume-churn/terraform-inputs/azure-ubuntu2204.tfvars"
           topology: cri-resource-consume
           engine: clusterloader2
           engine_input:
