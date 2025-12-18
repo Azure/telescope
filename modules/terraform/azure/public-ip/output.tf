@@ -1,9 +1,5 @@
 output "pip_ids" {
   description = "Map of public IP names to their objects containing id and ip_address"
-  type = map(object({
-    id         = string
-    ip_address = string
-  }))
   value = {
     for ip in azurerm_public_ip.pip : ip.name => {
       id         = ip.id
