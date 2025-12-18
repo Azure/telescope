@@ -1,12 +1,12 @@
 scenario_type  = "perf-eval"
-scenario_name  = "cri-resource-consume"
+scenario_name  = "k8s-node-cri-stress"
 deletion_delay = "2h"
 owner          = "aks"
 
 aks_cli_config_list = [
   {
     role               = "client"
-    aks_name           = "cri-resource-consume-churn"
+    aks_name           = "k8s-node-cri-stress"
     aks_custom_headers = [
       "AKSHTTPCustomFeatures=EnableSelfContainedVHD"
     ]
@@ -14,8 +14,8 @@ aks_cli_config_list = [
     kubernetes_version = "1.33"
     default_node_pool = {
       name       = "default"
-      node_count = 3
-      vm_size    = "Standard_D16_v5"
+      node_count = 4
+      vm_size    = "Standard_D4ds_v5"
     }
     extra_node_pool = [
       {
