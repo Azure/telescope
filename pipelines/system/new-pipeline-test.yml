@@ -20,34 +20,34 @@ stages:
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
           matrix:
-            n1-p60-memory-ephemeral:
+            n1-p30-memory-ephemeral:
               node_count: 1
-              max_pods: 60
+              max_pods: 30
               repeats: 1
               operation_timeout: 3m
               load_type: memory
               kubernetes_version: "1.33"
               scrape_kubelets: True
-            n1-p60-memory-managed:
+            n1-p30-memory-managed:
               node_count: 1
-              max_pods: 60
+              max_pods: 30
               repeats: 1
               operation_timeout: 3m
               load_type: memory
               kubernetes_version: "1.33"
               k8s_os_disk_type: Managed
               scrape_kubelets: True
-            n1-p60-cpu-ephemeral:
+            n1-p30-cpu-ephemeral:
               node_count: 1
-              max_pods: 60
+              max_pods: 30
               repeats: 1
               operation_timeout: 3m
               load_type: cpu
               kubernetes_version: "1.33"
               scrape_kubelets: True
-            n1-p60-cpu-managed:
+            n1-p30-cpu-managed:
               node_count: 1
-              max_pods: 60
+              max_pods: 30
               repeats: 1
               operation_timeout: 3m
               load_type: cpu
