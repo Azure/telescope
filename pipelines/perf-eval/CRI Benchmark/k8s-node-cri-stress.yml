@@ -1,0 +1,60 @@
+trigger: none
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: k8s-node-cri-stress
+
+stages:
+  - stage: azure_westus2_stress_baseline_1_33
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - westus2
+          terraform_input_file_mapping:
+            - westus2: "scenarios/perf-eval/k8s-node-cri-stress/terraform-inputs/azure-ubuntu2204.tfvars"
+          topology: cri-autoscale-resource-consume
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+          matrix:
+            n1-p60-memory-ephemeral:
+              node_count: 1
+              max_pods: 60
+              repeats: 1
+              operation_timeout: 3m
+              load_type: memory
+              kubernetes_version: "1.33"
+              scrape_kubelets: True
+            n1-p60-memory-managed:
+              node_count: 1
+              max_pods: 60
+              repeats: 1
+              operation_timeout: 3m
+              load_type: memory
+              kubernetes_version: "1.33"
+              k8s_os_disk_type: Managed
+              scrape_kubelets: True
+            n1-p60-cpu-ephemeral:
+              node_count: 1
+              max_pods: 60
+              repeats: 1
+              operation_timeout: 3m
+              load_type: cpu
+              kubernetes_version: "1.33"
+              scrape_kubelets: True
+            n1-p60-cpu-managed:
+              node_count: 1
+              max_pods: 60
+              repeats: 1
+              operation_timeout: 3m
+              load_type: cpu
+              kubernetes_version: "1.33"
+              k8s_os_disk_type: Managed
+              scrape_kubelets: True
+          max_parallel: 1
+          timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false
