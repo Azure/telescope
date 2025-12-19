@@ -120,21 +120,8 @@ stages:
               warmup_deployment_template: warmup_deployment.yaml
               vm_size: Standard_DS2_v2
               capacity_type: on-demand
-            large-scale-spot:
-              cpu_per_node: 2
-              node_count: 1000
-              pod_count: 1000
-              scale_up_timeout: "60m"
-              scale_down_timeout: "60m"
-              node_label_selector: "karpenter.sh/nodepool = spot"
-              node_selector: "{karpenter.sh/nodepool: spot}"
-              loop_count: 1
-              warmup_deployment: true
-              warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_DS2_v2
-              capacity_type: spot
           max_parallel: 1
-          timeout_in_minutes: 360
+          timeout_in_minutes: 560
           credential_type: service_connection
           ssh_key_enabled: false
 
