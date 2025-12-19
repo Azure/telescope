@@ -354,6 +354,8 @@ stages:
           cloud: azure
           regions:
             - eastus
+          terraform_input_file_mapping:
+            - eastus: "scenarios/perf-eval/nap/terraform-inputs/azure-intv2.tfvars"
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
@@ -370,21 +372,8 @@ stages:
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D2ds_v4
+              vm_size: Standard_D4_v3
               capacity_type: on-demand
-            large-scale-spot:
-              cpu_per_node: 2
-              node_count: 1000
-              pod_count: 1000
-              scale_up_timeout: "60m"
-              scale_down_timeout: "60m"
-              node_label_selector: "karpenter.sh/nodepool = spot"
-              node_selector: "{karpenter.sh/nodepool: spot}"
-              loop_count: 1
-              warmup_deployment: true
-              warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D2ds_v4
-              capacity_type: spot
           max_parallel: 1
           timeout_in_minutes: 360
           credential_type: service_connection
