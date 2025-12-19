@@ -5,7 +5,7 @@
 {{$nodeLabelSelector := DefaultParam .CL2_NODE_LABEL_SELECTOR "karpenter.sh/nodepool = default"}}
 {{$nodeSelector := DefaultParam .CL2_NODE_SELECTOR  "{karpenter.sh/nodepool: default}"}}
 {{$minNodeCount := DefaultParam .CL2_MIN_NODE_COUNT 10}}
-{{$maxNodeCount := DefaultParam .CL2_MAX_NODE_COUNT 1000}}
+{{$maxNodeCount := DefaultParam .CL2_MAX_NODE_COUNT 20}}
 {{$desiredNodeCount := DefaultParam .CL2_DESIRED_NODE_COUNT 1}}
 {{$podLabelSelector := DefaultParam .CL2_POD_LABEL_SELECTOR "app = inflate"}}
 {{$scaleUpTimeout := DefaultParam .CL2_SCALE_UP_TIMEOUT "30m"}}
@@ -28,10 +28,27 @@ namespace:
 tuningSets:
 - name: Uniform1qps
   qpsLoad:
-    qps: 1
+    qps: 20
 
 steps:
 {{range $i := Loop $loopCount}}
+- name: Start Measurements {{$i}}
+  measurements:
+  - Identifier: ResourceUsageSummary
+    Method: ResourceUsageSummary
+    Params:
+      action: start
+  - Identifier: PodStartupLatency
+    Method: PodStartupLatency
+    Params:
+      action: start
+      labelSelector: {{$podLabelSelector}}
+      threshold: {{$scaleUpTimeout}}
+  - Identifier: SchedulingThroughput
+    Method: SchedulingThroughput
+    Params:
+      action: start
+      labelSelector: {{$podLabelSelector}}
 - name: Create deployment {{$i}}
   phases:
   - namespaceRange:
@@ -59,18 +76,65 @@ steps:
       labelSelector: {{$podLabelSelector}}
       timeout: {{$scaleUpTimeout}}
       refreshInterval: {{$refreshInterval}}
-# {{range $value := $percentilesList}}
-# {{$PercentileNodeCount := MultiplyInt $minNodeCount (StructuralData $value) }}
-#   - Identifier: WaitForNodesUpPerc{{ MultiplyInt 100 (StructuralData $value) }} {{$i}}
-#     Method: WaitForNodes
-#     Params:
-#       action: start
-#       minDesiredNodeCount: {{ $PercentileNodeCount }}
-#       maxDesiredNodeCount: {{$minNodeCount}}
-#       labelSelector: {{$nodeLabelSelector}}
-#       timeout: {{$scaleUpTimeout}}
-#       refreshInterval: {{$refreshInterval}}
-# {{- end }}            
+- name: Capture Metrics After Scale Up {{$i}}
+  measurements:
+  - Identifier: ResourceMetrics{{$i}}
+    Method: GenericPrometheusQuery
+    Params:
+      action: start
+      metricName: Resource Metrics Summary
+      metricVersion: v1
+      unit: mixed
+      queries:
+      # Node Level Summary
+      - name: TotalNodes
+        query: count(kube_node_status_allocatable{resource="cpu"})
+      - name: NodeCPUAllocatable
+        query: sum(kube_node_status_allocatable{resource="cpu"})
+      - name: NodeMemoryAllocatable
+        query: sum(kube_node_status_allocatable{resource="memory"})
+      # Node CPU Usage Stats (from kubelet/cAdvisor - container metrics aggregated by node)
+      - name: NodeCPUUsageAvg
+        query: avg(sum by (instance) (rate(container_cpu_usage_seconds_total{id="/"}[2m])))
+      - name: NodeCPUUsageMax
+        query: max(sum by (instance) (rate(container_cpu_usage_seconds_total{id="/"}[2m])))
+      - name: NodeCPUUsageMin
+        query: min(sum by (instance) (rate(container_cpu_usage_seconds_total{id="/"}[2m])))
+      # Node Memory Usage Stats (from kubelet/cAdvisor - container metrics aggregated by node)
+      - name: NodeMemoryUsageAvg
+        query: avg(sum by (instance) (container_memory_working_set_bytes{id="/"}))
+      - name: NodeMemoryUsageMax
+        query: max(sum by (instance) (container_memory_working_set_bytes{id="/"}))
+      - name: NodeMemoryUsageMin
+        query: min(sum by (instance) (container_memory_working_set_bytes{id="/"}))
+      # Pod Level Summary
+      - name: TotalPods
+        query: count(kube_pod_status_phase{phase="Running"})
+      # Pod Distribution Summary
+      - name: PodsPerNodeAvg
+        query: avg(count by (node) (kube_pod_info{node!=""}))
+      - name: PodsPerNodeMax
+        query: max(count by (node) (kube_pod_info{node!=""}))
+      - name: PodsPerNodeMin
+        query: min(count by (node) (kube_pod_info{node!=""}))
+- name: Gather Measurements {{$i}}
+  measurements:
+  - Identifier: PodStartupLatency
+    Method: PodStartupLatency
+    Params:
+      action: gather
+  - Identifier: SchedulingThroughput
+    Method: SchedulingThroughput
+    Params:
+      action: gather
+  - Identifier: ResourceUsageSummary
+    Method: ResourceUsageSummary
+    Params:
+      action: gather
+  - Identifier: ResourceMetrics{{$i}}
+    Method: GenericPrometheusQuery
+    Params:
+      action: gather
 - name: WaitBeforeDelete
   measurements:
   - Identifier: WaitBeforeDelete
@@ -103,23 +167,4 @@ steps:
       labelSelector: {{$podLabelSelector}}
       timeout: {{$scaleDownTimeout}}
       refreshInterval: {{$refreshInterval}}
-# {{range $value := $percentilesList}}
-# {{$PercentileNodeCount := SubtractInt  $minNodeCount (MultiplyInt $minNodeCount (StructuralData $value)) }}
-#   - Identifier: WaitForNodesDownPerc{{ MultiplyInt 100 (StructuralData $value) }} {{$i}}
-#     Method: WaitForNodes
-#     Params:
-#       action: start
-#       minDesiredNodeCount: {{$desiredNodeCount}}
-#       maxDesiredNodeCount: {{if eq $PercentileNodeCount 0}}{{$desiredNodeCount}}{{else}}{{$PercentileNodeCount}}{{end}} 
-#       labelSelector: {{$nodeLabelSelector}}
-#       timeout: {{$scaleDownTimeout}}
-#       refreshInterval: {{$refreshInterval}}
-# {{- end }}
-- name: WaitBeforeCreate
-  measurements:
-  - Identifier: WaitBeforeCreate
-    Method: Sleep
-    Params:
-      action: start
-      duration: {{$coolDownTime}}
 {{end}}

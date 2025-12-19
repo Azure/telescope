@@ -1,7 +1,7 @@
 # cluster configuration for Morgan Stanley
 scenario_type  = "perf-eval"
 scenario_name  = "nap"
-deletion_delay = "4h"
+deletion_delay = "2h"
 owner          = "aks"
 
 public_ip_config_list = [
@@ -21,6 +21,7 @@ key_vault_config_list = [
     ]
   }
 ]
+
 network_config_list = [
   {
     role               = "crud"
@@ -65,48 +66,11 @@ network_config_list = [
               {
                 name             = "required-services"
                 source_addresses = ["*"]
-                target_fqdns = ["*.azure.com", "*.blob.core.windows.net", "*.data.mcr.microsoft.com",
-                  "*.security.microsoft.com", "*.windows.net", "acs-mirror.azureedge.net",
-                  "azure.archive.ubuntu.com",
-                  "changelogs.ubuntu.com",
-                  "login.microsoftonline.co",
-                  "login.microsoftonline.com",
-                  "management.azure.com",
-                  "mcr-0001.mcr-msedge.net",
-                  "mcr.microsoft.com",
-                  "packages.aks.azure.com",
-                  "packages.microsoft.com",
-                  "security.ubuntu.com",
-                "snapshot.ubuntu.com"]
-                protocols = [
-                  { port = "80", type = "Http" },
-                  { port = "443", type = "Https" }
-                ]
-              },
-              {
-                name             = "k8s-updates"
-                source_addresses = ["*"]
-                target_fqdns = ["*.amazonaws.com", "*.cloudflarestorage.com",
-                  "*.cloudfront.net", "*.docker.io",
-                  "*.gcr.io",
-                  "*.googleapis.com",
-                  "*.googleusercontent.com",
-                  "*.lz4.dev",
-                  "*.pkg.dev",
-                  "*.s3.amazonaws.com",
-                  "*.s3.dualstack.ap-northeast-1.amazonaws.com",
-                  "*.s3.dualstack.ap-southeast-1.amazonaws.com",
-                  "*.s3.dualstack.eu-west-1.amazonaws.com",
-                  "*.s3.dualstack.us-east-1.amazonaws.com",
-                  "*.s3.dualstack.us-west-2.amazonaws.com",
-                  "auth.docker.io",
-                  "gcr.io",
-                  "ghcr.io",
-                  "k8s.gcr.io",
-                  "pkg-containers.githubusercontent.com",
-                  "registry-1.docker.io",
-                  "registry.k8s.io",
-                "storage.googleapis.com"]
+                target_fqdns = ["*.azure.com", "*.azure.net",
+                  "*.windows.net", "*.azurecr.io", "*.ubuntu.com", "AzureKubernetesService",
+                  "mcr-0001.mcr-msedge.net", "*.microsoft.com",
+                  "*.microsoftonline.com", "*.microsoftonline.co", "*.azureedge.net",
+                "packages.aks.azure.com"]
                 protocols = [
                   { port = "80", type = "Http" },
                   { port = "443", type = "Https" }
@@ -172,22 +136,28 @@ network_config_list = [
 
 aks_cli_config_list = [
   {
-    role                  = "nap"
-    aks_name              = "nap-complex"
-    sku_tier              = "standard"
-    subnet_name           = "nap-subnet-ms"
-    managed_identity_name = "nap-identity"
-    kubernetes_version    = "1.33"
-    api_server_subnet_name = "apiserver-subnet"
+    role                     = "nap"
+    aks_name                 = "nap-complex"
+    sku_tier                 = "standard"
+    subnet_name              = "nap-subnet-ms"
+    managed_identity_name    = "nap-identity"
+    kubernetes_version       = "1.33"
+    api_server_subnet_name   = "apiserver-subnet"
+    kms_key_name             = "kms-nap"
+    kms_key_vault_name       = "akskms"
+    key_vault_network_access = "Private"
     default_node_pool = {
       name       = "system"
-      node_count = 5
-      vm_size    = "Standard_D8_v5"
+      node_count = 10
+      vm_size    = "Standard_D16s_v5"
     }
-    kms_key_name              = "kms-nap"
-    kms_key_vault_name        = "akskms"
-    key_vault_network_access = "Private"
-    extra_node_pool = []
+    extra_node_pool = [
+      {
+        name       = "prompool"
+        node_count = 5
+        vm_size    = "Standard_D16_v3"
+      }
+    ]
     optional_parameters = [
       {
         name  = "node-provisioning-mode"
@@ -240,14 +210,16 @@ aks_cli_config_list = [
       {
         name  = "network-policy"
         value = "cilium"
-      },
-      {
-        name  = "enable-private-cluster"
-        value = ""
       }
+      # , # TODO: enable private cluster after bug fix for hyperscale has been rolled out
+      # {
+      #   name  = "enable-private-cluster"
+      #   value = ""
+      # }
     ]
   }
 ]
+
 # Jumpbox Configuration - Auto-provisioned for testing
 jumpbox_config_list = [
   {

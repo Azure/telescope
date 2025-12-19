@@ -27,6 +27,7 @@ spec:
           {{else}}
           image: mcr.microsoft.com/cbl-mariner/base/nginx:1
           {{end}}
+          imagePullPolicy: IfNotPresent
           resources:
             requests:
               cpu: {{.CPUperJob}}
