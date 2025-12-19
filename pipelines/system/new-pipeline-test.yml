@@ -21,3 +21,5 @@ stages:
               <key2>: <value2>
           max_parallel: <number of concurrent jobs> # required
           credential_type: service_connection # required
+          ssh_key_enabled: false
+          timeout_in_minutes: 60 # if not specified, default is 60
