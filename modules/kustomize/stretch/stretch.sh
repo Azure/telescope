@@ -3,6 +3,11 @@ RG=stretch-rg
 CLUSTER=cni-stretch
 VNET_NAME="aks-vnet"
 SUBNET="aks-subnet"
+IDENTITY_NAME="${CLUSTER}-identity"
+VMSS_VNET="vmss-vnet"
+VMSS_SUBNET="vmss-subnet"
+VMSS_LOCATION="westus2"
+VMSS_RG="${RG}-vmss"
 
 TENANT_ID="72f988bf-86f1-41af-91ab-2d7cd011db47"
 AAD_ADMIN_GROUP_ID="8a5603a8-2c60-49ab-bc28-a989b91e187d"
@@ -17,7 +22,6 @@ create_cluster() {
     subnet_id=$(az network vnet subnet show --resource-group $RG --vnet-name $VNET_NAME --name $SUBNET --query id -o tsv)
 
     # Create user-assigned managed identity
-    IDENTITY_NAME="${CLUSTER}-identity"
     az identity create --name $IDENTITY_NAME --resource-group $RG --location $LOCATION
 
     # Get the identity resource ID and principal ID
@@ -46,6 +50,11 @@ create_cluster() {
         --enable-azure-rbac \
         --aad-admin-group-object-ids $AAD_ADMIN_GROUP_ID \
         --aad-tenant-id $TENANT_ID
+    
+    # Assign AKS RBAC Cluster Admin role to the identity at the cluster scope
+    cluster_id=$(az aks show --resource-group $RG --name $CLUSTER --query id -o tsv)
+    az role assignment create --assignee $identity_principal_id --role "Azure Kubernetes Service RBAC Cluster Admin" \
+        --scope $cluster_id
 }
 
 update_aks_vmss() {
@@ -150,7 +159,7 @@ update_aks_vmss() {
             type: "CustomScript",
             typeHandlerVersion: "2.1",
             settings: {
-                fileUris: ["https://raw.githubusercontent.com/Azure/telescope/refs/heads/cni-prototype/modules/kustomize/cni/stretch/setup_ipvlan.sh"],
+                fileUris: ["https://raw.githubusercontent.com/Azure/telescope/refs/heads/main/modules/kustomize/stretch/setup_ipvlan.sh"],
                 commandToExecute: "bash setup_ipvlan.sh"
             }
         }
@@ -233,22 +242,80 @@ update_aks_vmss() {
 }
 
 create_vm() {
-    NODE_NAME="freenode"
-    NODE_USER="azureuser"
+    NODE_NAME="vm-node"
+    NODE_USER="ubuntu"
     NODE_VM_SIZE="Standard_D8ds_v6"
+    identity_id=$(az identity show --name $IDENTITY_NAME --resource-group $RG --query id -o tsv)
     az vm create \
-        --resource-group $RG \
+        --resource-group $VMSS_RG \
         --name $NODE_NAME \
         --image Ubuntu2404 \
         --admin-username $NODE_USER \
         --generate-ssh-keys \
-        --assign-identity \
+        --assign-identity $identity_id \
         --public-ip-sku Standard \
-        --vnet-name $VNET_NAME \
-        --subnet $SUBNET \
+        --vnet-name $VMSS_VNET \
+        --subnet $VMSS_SUBNET \
         --size $NODE_VM_SIZE \
         --nsg-rule SSH
 }
 
-update_aks_vmss
-# create_vm
+create_vmss() {
+    az group create -n $VMSS_RG -l $VMSS_LOCATION --tags "SkipAKSCluster=1" "SkipASB_Audit=true" "SkipLinuxAzSecPack=true"
+    az network vnet create --resource-group $VMSS_RG --location $VMSS_LOCATION --name $VMSS_VNET --address-prefixes 172.16.0.0/12 -o none
+    az network vnet subnet create --resource-group $VMSS_RG --vnet-name $VMSS_VNET --name $VMSS_SUBNET --address-prefixes 172.16.0.0/16 -o none
+
+    az network lb create \
+        --resource-group $VMSS_RG \
+        --name vmss-lb \
+        --sku Standard \
+        --frontend-ip-name lb-frontend \
+        --backend-pool-name lb-backend-pool
+    lb_backend_pool_id=$(az network lb address-pool show \
+        --resource-group $VMSS_RG \
+        --lb-name vmss-lb \
+        --name lb-backend-pool \
+        --query id -o tsv)
+
+    identity_id=$(az identity show --name $IDENTITY_NAME --resource-group $RG --query id -o tsv)
+
+    az deployment group create \
+        --resource-group $VMSS_RG \
+        --template-file vmss-dual-ipconfig.json \
+        --parameters vmssName="test-vmss" \
+        --parameters sshPublicKey="$(cat ~/.ssh/id_rsa.pub)" \
+        --parameters vnetName=$VMSS_VNET \
+        --parameters subnetName=$VMSS_SUBNET \
+        --parameters loadBalancerBackendPoolId="$lb_backend_pool_id" \
+        --parameters managedIdentityId="$identity_id"
+
+}
+
+setup_vnet_peering() {
+    # Get VNet IDs
+    aks_vnet_id=$(az network vnet show --resource-group $RG --name $VNET_NAME --query id -o tsv)
+    vmss_vnet_id=$(az network vnet show --resource-group $VMSS_RG --name $VMSS_VNET --query id -o tsv)
+
+    # Create peering from AKS VNet to VMSS VNet
+    az network vnet peering create \
+        --name aks-to-vmss-peering \
+        --resource-group $RG \
+        --vnet-name $VNET_NAME \
+        --remote-vnet $vmss_vnet_id \
+        --allow-vnet-access \
+        --allow-forwarded-traffic
+
+    # Create peering from VMSS VNet to AKS VNet
+    az network vnet peering create \
+        --name vmss-to-aks-peering \
+        --resource-group $VMSS_RG \
+        --vnet-name $VMSS_VNET \
+        --remote-vnet $aks_vnet_id \
+        --allow-vnet-access \
+        --allow-forwarded-traffic
+}
+
+# update_aks_vmss
+create_vm
+# create_vmss
+# setup_vnet_peering

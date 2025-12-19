@@ -24,7 +24,7 @@ locals {
 
 resource "azurerm_virtual_network" "vnet" {
   name                = local.vnet_name
-  address_space       = var.network_config.vnet_address_space
+  address_space       = [var.network_config.vnet_address_space]
   location            = var.location
   resource_group_name = var.resource_group_name
   tags                = local.tags
@@ -33,7 +33,7 @@ resource "azurerm_virtual_network" "vnet" {
     for_each = local.input_subnet_map
     content {
       name                                          = subnet.value.name
-      address_prefixes                              = subnet.value.address_prefix
+      address_prefixes                              = [subnet.value.address_prefix]
       service_endpoints                             = subnet.value.service_endpoints != null ? subnet.value.service_endpoints : []
       private_link_service_network_policies_enabled = subnet.value.pls_network_policies_enabled != null ? subnet.value.pls_network_policies_enabled : true
       dynamic "delegation" {

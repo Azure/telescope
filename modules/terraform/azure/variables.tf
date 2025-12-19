@@ -89,10 +89,10 @@ variable "network_config_list" {
   type = list(object({
     role               = string
     vnet_name          = string
-    vnet_address_space = list(string)
+    vnet_address_space = string
     subnet = list(object({
       name                         = string
-      address_prefix               = list(string)
+      address_prefix               = string
       service_endpoints            = optional(list(string))
       pls_network_policies_enabled = optional(bool)
       delegations = optional(list(object({

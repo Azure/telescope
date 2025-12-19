@@ -468,9 +468,9 @@ resource "aws_eks_addon" "addon" {
   dynamic "timeouts" {
     for_each = try(each.value.timeouts, {}) != {} ? [each.value.timeouts] : []
     content {
-      create = try(timeouts.value.create, "5m")
-      update = try(timeouts.value.update, "5m")
-      delete = try(timeouts.value.delete, "5m")
+      create = try(timeouts.value.create, "20m")
+      update = try(timeouts.value.update, "20m")
+      delete = try(timeouts.value.delete, "40m")
     }
   }
 

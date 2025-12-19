@@ -65,6 +65,17 @@ derive_range() {
     fi
 }
 
+# Check for required CNI plugins
+if ls /opt/cni/bin/ipvlan 1> /dev/null 2>&1; then
+    echo "Found ipvlan CNI plugin."
+else
+    echo "Install all CNI plugins in /opt/cni/bin before running this script."
+    CNI_PLUGIN_URL="https://github.com/containernetworking/plugins/releases/download/v1.9.0/cni-plugins-linux-amd64-v1.9.0.tgz"
+    echo "Downloading CNI plugins from $CNI_PLUGIN_URL..."
+    curl -L "$CNI_PLUGIN_URL" | tar -xz -C /opt/cni/bin
+    ls -la /opt/cni/bin
+fi
+
 # Set default route and iptables command based on IP version
 if [[ "$ADDRESS_VERSION" == "IPv6" ]]; then
     DEFAULT_ROUTE="::/0"

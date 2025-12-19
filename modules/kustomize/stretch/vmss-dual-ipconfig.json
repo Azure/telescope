@@ -69,6 +69,13 @@
       "metadata": {
         "description": "Resource ID of the load balancer backend pool (optional)"
       }
+    },
+    "managedIdentityId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Resource ID of the user-assigned managed identity to associate with the VMSS (optional)"
+      }
     }
   },
   "variables": {
@@ -94,6 +101,7 @@
         "tier": "Standard",
         "capacity": "[parameters('instanceCount')]"
       },
+      "identity": "[if(empty(parameters('managedIdentityId')), json('null'), json(concat('{\"type\": \"UserAssigned\", \"userAssignedIdentities\": {\"', parameters('managedIdentityId'), '\": {}}}')))]",
       "properties": {
         "overprovision": false,
         "upgradePolicy": {
