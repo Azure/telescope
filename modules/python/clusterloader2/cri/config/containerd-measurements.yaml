@@ -11,7 +11,19 @@ steps:
         metricVersion: v1
         unit: MB/s
         queries:
+        # Weighted average throughput per image pull (nodes with more pulls have more weight)
         - name: Avg
           query: sum(rate(containerd_cri_image_pulling_throughput_sum{nodepool=~"userpool.*"}[%v])) / sum(rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v]))
+        # Unweighted average - each node contributes equally regardless of pull count
+        - name: AvgPerNode
+          query: avg(sum by (instance) (rate(containerd_cri_image_pulling_throughput_sum{nodepool=~"userpool.*"}[%v])) / sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v])))
+        # Total number of image pulls
         - name: Count
           query: sum(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"})
+        # Cluster level percentiles - throughput distribution across nodes
+        - name: Perc50
+          query: quantile(0.5, sum by (instance) (rate(containerd_cri_image_pulling_throughput_sum{nodepool=~"userpool.*"}[%v])) / sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v])))
+        - name: Perc90
+          query: quantile(0.9, sum by (instance) (rate(containerd_cri_image_pulling_throughput_sum{nodepool=~"userpool.*"}[%v])) / sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v])))
+        - name: Perc99
+          query: quantile(0.99, sum by (instance) (rate(containerd_cri_image_pulling_throughput_sum{nodepool=~"userpool.*"}[%v])) / sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v])))

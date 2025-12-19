@@ -17,10 +17,18 @@ Measures containerd image pulling throughput (MB/s) and network plugin operation
 
 ## Metrics Collected
 
-- `ContainerdCriImagePullingThroughput` - Image pull throughput (MB/s)
-- `ContainerdCriNetworkPluginOperations` - Network plugin operation duration
-- `ContainerdCriSandboxCreateNetwork` - Sandbox network creation time
-- `ContainerdCriSandboxDeleteNetwork` - Sandbox network deletion time
+### ContainerdCriImagePullingThroughput
+
+Image pull throughput (MB/s) with the following aggregations:
+
+| Metric | Description |
+|--------|-------------|
+| **Avg** | Weighted average throughput per image pull |
+| **AvgPerNode** | Unweighted average - each node contributes equally |
+| **Count** | Total number of image pulls |
+| **Perc50** | 50th percentile (median) throughput across nodes |
+| **Perc90** | 90th percentile throughput across nodes |
+| **Perc99** | 99th percentile throughput across nodes |
 
 ## References
 
