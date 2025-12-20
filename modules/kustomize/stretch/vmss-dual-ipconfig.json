@@ -76,6 +76,12 @@
       "metadata": {
         "description": "Resource ID of the user-assigned managed identity to associate with the VMSS (optional)"
       }
+    },
+    "bootstrapScript": {
+      "type": "string",
+      "metadata": {
+        "description": "A Base64-encoded bootstrap script to run on VMSS instances"
+      }
     }
   },
   "variables": {
@@ -165,6 +171,22 @@
                       }
                     }
                   ]
+                }
+              }
+            ]
+          },
+          "extensionProfile": {
+            "extensions": [
+              {
+                "name": "bootstrapExtension",
+                "properties": {
+                  "publisher": "Microsoft.Azure.Extensions",
+                  "type": "CustomScript",
+                  "typeHandlerVersion": "2.1",
+                  "autoUpgradeMinorVersion": true,
+                  "settings": {
+                    "script": "[parameters('bootstrapScript')]"
+                  }
                 }
               }
             ]

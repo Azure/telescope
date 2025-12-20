@@ -11,6 +11,7 @@ VMSS_RG="${RG}-vmss"
 
 TENANT_ID="72f988bf-86f1-41af-91ab-2d7cd011db47"
 AAD_ADMIN_GROUP_ID="8a5603a8-2c60-49ab-bc28-a989b91e187d"
+BOOTSTRAP_SCRIPT_PATH=$1
 
 create_cluster() {
     az group create -n ${RG} -l $LOCATION --tags "SkipAKSCluster=1" "SkipASB_Audit=true" "SkipLinuxAzSecPack=true"
@@ -261,24 +262,39 @@ create_vm() {
 }
 
 create_vmss() {
+    bootstrap_script_path=$1
+    LB_NAME="vmss-lb"
+    BACKEND_POOL="lb-backend-pool"
+    FRONTEND_IP="lb-frontend"
     az group create -n $VMSS_RG -l $VMSS_LOCATION --tags "SkipAKSCluster=1" "SkipASB_Audit=true" "SkipLinuxAzSecPack=true"
     az network vnet create --resource-group $VMSS_RG --location $VMSS_LOCATION --name $VMSS_VNET --address-prefixes 172.16.0.0/12 -o none
     az network vnet subnet create --resource-group $VMSS_RG --vnet-name $VMSS_VNET --name $VMSS_SUBNET --address-prefixes 172.16.0.0/16 -o none
 
     az network lb create \
         --resource-group $VMSS_RG \
-        --name vmss-lb \
+        --name $LB_NAME \
         --sku Standard \
-        --frontend-ip-name lb-frontend \
-        --backend-pool-name lb-backend-pool
+        --frontend-ip-name $FRONTEND_IP \
+        --backend-pool-name $BACKEND_POOL
     lb_backend_pool_id=$(az network lb address-pool show \
         --resource-group $VMSS_RG \
-        --lb-name vmss-lb \
-        --name lb-backend-pool \
+        --lb-name $LB_NAME \
+        --name $BACKEND_POOL \
         --query id -o tsv)
+    az network lb outbound-rule create \
+        --resource-group $VMSS_RG \
+        --lb-name $LB_NAME \
+        --name lb-outbound-rule \
+        --address-pool $BACKEND_POOL \
+        --protocol All \
+        --idle-timeout 30 \
+        --enable-tcp-reset true \
+        --frontend-ip-configs $FRONTEND_IP \
+        --outbound-ports 0
 
     identity_id=$(az identity show --name $IDENTITY_NAME --resource-group $RG --query id -o tsv)
 
+    # First create a VMSS with bootstrap script using CustomScript extension
     az deployment group create \
         --resource-group $VMSS_RG \
         --template-file vmss-dual-ipconfig.json \
@@ -287,8 +303,27 @@ create_vmss() {
         --parameters vnetName=$VMSS_VNET \
         --parameters subnetName=$VMSS_SUBNET \
         --parameters loadBalancerBackendPoolId="$lb_backend_pool_id" \
-        --parameters managedIdentityId="$identity_id"
+        --parameters managedIdentityId="$identity_id" \
+        --parameters bootstrapScript="$(base64 -w 0 $bootstrap_script_path)"
 
+    echo "VMSS created in resource group: $VMSS_RG"
+    # Next, update VMSS to uset ipvlan setup script
+    az deployment group create \
+        --resource-group $VMSS_RG \
+        --template-file vmss-dual-ipconfig.json \
+        --parameters vmssName="test-vmss" \
+        --parameters sshPublicKey="$(cat ~/.ssh/id_rsa.pub)" \
+        --parameters vnetName=$VMSS_VNET \
+        --parameters subnetName=$VMSS_SUBNET \
+        --parameters loadBalancerBackendPoolId="$lb_backend_pool_id" \
+        --parameters managedIdentityId="$identity_id" \
+        --parameters bootstrapScript="$(base64 -w 0 setup_ipvlan.sh)"
+
+    echo "Run ipvlan setup script"
+    az vmss update-instances \
+        --resource-group $node_rg \
+        --name $vmss_name \
+        --instance-ids "*"
 }
 
 setup_vnet_peering() {
@@ -316,6 +351,6 @@ setup_vnet_peering() {
 }
 
 # update_aks_vmss
-create_vm
-# create_vmss
+# create_vm
+create_vmss $BOOTSTRAP_SCRIPT_PATH
 # setup_vnet_peering
