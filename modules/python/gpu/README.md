@@ -31,6 +31,7 @@ TOPOLOGY_VM_SIZE="ndv5"
 CLOUD="azure"
 RUN_ID="test"
 RESULT_DIR=/tmp/${RUN_ID}
+NCCL_TESTS_VERSION="amd64" # Set to "amd64" or "arm64"
 mkdir -p $RESULT_DIR
 PYTHON_SCRIPT_FILE=$(pwd)/gpu/main.py
 PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
@@ -40,7 +41,8 @@ PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
   --gpu_node_count 2 \
   --gpu_allocatable 1 \
   --ib_allocatable 1 \
-  --topology_vm_size ${TOPOLOGY_VM_SIZE:-""}
+  --topology_vm_size ${TOPOLOGY_VM_SIZE:-""} \
+  --nccl_tests_version ${NCCL_TESTS_VERSION:-"amd64"}
 ```
 
 ## Collect
