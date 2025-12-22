@@ -9,8 +9,11 @@ variable "location" {
 }
 
 variable "public_ips" {
-  description = "Map of public IP names to IDs"
-  type        = map(string)
+  description = "Map of public IP names to their objects containing id and ip_address"
+  type = map(object({
+    id         = string
+    ip_address = string
+  }))
 }
 
 variable "accelerated_networking" {

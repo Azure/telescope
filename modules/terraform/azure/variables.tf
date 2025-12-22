@@ -135,14 +135,81 @@ variable "route_table_config_list" {
     name                          = string
     bgp_route_propagation_enabled = optional(bool, true)
     routes = list(object({
-      name                   = string
-      address_prefix         = string
-      next_hop_type          = string
-      next_hop_in_ip_address = optional(string, null)
+      name                         = string
+      address_prefix               = optional(string, null)
+      address_prefix_publicip_name = optional(string, null)
+      next_hop_type                = string
+      next_hop_in_ip_address       = optional(string, null)
+      next_hop_firewall_name       = optional(string, null)
     }))
     subnet_associations = list(object({
       subnet_name = string
     }))
+  }))
+  default = []
+}
+
+
+variable "firewall_config_list" {
+  description = "List of firewall configurations"
+  type = list(object({
+    name                  = string
+    network_role          = optional(string)
+    subnet_name           = optional(string)
+    public_ip_name        = optional(string)
+    sku_name              = optional(string, "AZFW_VNet")
+    sku_tier              = optional(string, "Standard")
+    firewall_policy_id    = optional(string)
+    threat_intel_mode     = optional(string, "Alert")
+    dns_proxy_enabled     = optional(bool, false)
+    dns_servers           = optional(list(string))
+    ip_configuration_name = optional(string, "firewall-ipconfig")
+    nat_rule_collections = optional(list(object({
+      name     = string
+      priority = number
+      action   = optional(string, "Dnat")
+      rules = list(object({
+        name                  = string
+        source_addresses      = optional(list(string))
+        source_ip_groups      = optional(list(string))
+        destination_ports     = list(string)
+        destination_addresses = list(string)
+        translated_address    = string
+        translated_port       = string
+        protocols             = list(string)
+      }))
+    })))
+    network_rule_collections = optional(list(object({
+      name     = string
+      priority = number
+      action   = string
+      rules = list(object({
+        name                  = string
+        source_addresses      = optional(list(string))
+        source_ip_groups      = optional(list(string))
+        destination_ports     = list(string)
+        destination_addresses = optional(list(string))
+        destination_fqdns     = optional(list(string))
+        destination_ip_groups = optional(list(string))
+        protocols             = list(string)
+      }))
+    })))
+    application_rule_collections = optional(list(object({
+      name     = string
+      priority = number
+      action   = string
+      rules = list(object({
+        name             = string
+        source_addresses = optional(list(string))
+        source_ip_groups = optional(list(string))
+        target_fqdns     = optional(list(string))
+        fqdn_tags        = optional(list(string))
+        protocols = optional(list(object({
+          port = string
+          type = string
+        })))
+      }))
+    })))
   }))
   default = []
 }
