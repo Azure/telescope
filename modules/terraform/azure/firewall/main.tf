@@ -1,17 +1,5 @@
-locals {
-  # Resolve subnet_id and public_ip_address_id for each firewall config
-  resolved_firewall_config_map = {
-    for fw in var.firewall_config_list : fw.name => merge(fw, {
-      subnet_id            = try(var.subnets_map[fw.subnet_name], null)
-      public_ip_address_id = try(var.public_ips_map[fw.public_ip_name].id, null)
-    })
-  }
-
-  firewall_config_map = local.resolved_firewall_config_map
-}
-
 resource "azurerm_firewall" "firewall" {
-  for_each = local.firewall_config_map
+  for_each = { for fw in var.firewall_config_list : fw.name => fw }
 
   name                = each.value.name
   location            = var.location
@@ -26,8 +14,8 @@ resource "azurerm_firewall" "firewall" {
 
   ip_configuration {
     name                 = each.value.ip_configuration_name
-    subnet_id            = each.value.subnet_id
-    public_ip_address_id = each.value.public_ip_address_id
+    subnet_id            = try(var.subnets_map[each.value.subnet_name], null)
+    public_ip_address_id = try(var.public_ips_map[each.value.public_ip_name].id, null)
   }
 
 }
@@ -35,10 +23,10 @@ resource "azurerm_firewall" "firewall" {
 resource "azurerm_firewall_nat_rule_collection" "nat_rules" {
   for_each = {
     for item in flatten([
-      for fw_name, fw_config in local.firewall_config_map : [
+      for fw_config in var.firewall_config_list : [
         for collection in coalesce(fw_config.nat_rule_collections, []) : {
-          fw_name     = fw_name
-          fw_name_col = "${fw_name}-${collection.name}"
+          fw_name     = fw_config.name
+          fw_name_col = "${fw_config.name}-${collection.name}"
           collection  = collection
         }
       ]
@@ -69,10 +57,10 @@ resource "azurerm_firewall_nat_rule_collection" "nat_rules" {
 resource "azurerm_firewall_network_rule_collection" "network_rules" {
   for_each = {
     for item in flatten([
-      for fw_name, fw_config in local.firewall_config_map : [
+      for fw_config in var.firewall_config_list : [
         for collection in coalesce(fw_config.network_rule_collections, []) : {
-          fw_name     = fw_name
-          fw_name_col = "${fw_name}-${collection.name}"
+          fw_name     = fw_config.name
+          fw_name_col = "${fw_config.name}-${collection.name}"
           collection  = collection
         }
       ]
@@ -103,10 +91,10 @@ resource "azurerm_firewall_network_rule_collection" "network_rules" {
 resource "azurerm_firewall_application_rule_collection" "application_rules" {
   for_each = {
     for item in flatten([
-      for fw_name, fw_config in local.firewall_config_map : [
+      for fw_config in var.firewall_config_list : [
         for collection in coalesce(fw_config.application_rule_collections, []) : {
-          fw_name     = fw_name
-          fw_name_col = "${fw_name}-${collection.name}"
+          fw_name     = fw_config.name
+          fw_name_col = "${fw_config.name}-${collection.name}"
           collection  = collection
         }
       ]
