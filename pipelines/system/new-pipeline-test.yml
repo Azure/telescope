@@ -24,7 +24,7 @@ stages:
               node_count: 1
               max_pods: 60
               repeats: 1
-              operation_timeout: 5m
+              operation_timeout: 7m
               load_type: memory
               kubernetes_version: "1.33"
               scrape_kubelets: True
@@ -32,7 +32,7 @@ stages:
               node_count: 1
               max_pods: 60
               repeats: 1
-              operation_timeout: 5m
+              operation_timeout: 7m
               load_type: memory
               kubernetes_version: "1.33"
               k8s_os_disk_type: Managed
@@ -41,7 +41,7 @@ stages:
               node_count: 1
               max_pods: 60
               repeats: 1
-              operation_timeout: 5m
+              operation_timeout: 7m
               load_type: cpu
               kubernetes_version: "1.33"
               scrape_kubelets: True
@@ -49,12 +49,12 @@ stages:
               node_count: 1
               max_pods: 60
               repeats: 1
-              operation_timeout: 5m
+              operation_timeout: 7m
               load_type: cpu
               kubernetes_version: "1.33"
               k8s_os_disk_type: Managed
               scrape_kubelets: True
           max_parallel: 1
-          timeout_in_minutes: 150
+          timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false
