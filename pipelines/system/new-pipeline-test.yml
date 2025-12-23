@@ -22,7 +22,7 @@ stages:
           matrix:
             n1-p60-memory-ephemeral:
               node_count: 1
-              max_pods: 60
+              max_pods: 40
               repeats: 1
               operation_timeout: 7m
               load_type: memory
@@ -30,7 +30,7 @@ stages:
               scrape_kubelets: True
             n1-p60-memory-managed:
               node_count: 1
-              max_pods: 60
+              max_pods: 40
               repeats: 1
               operation_timeout: 7m
               load_type: memory
@@ -39,7 +39,7 @@ stages:
               scrape_kubelets: True
             n1-p60-cpu-ephemeral:
               node_count: 1
-              max_pods: 60
+              max_pods: 40
               repeats: 1
               operation_timeout: 7m
               load_type: cpu
@@ -47,7 +47,7 @@ stages:
               scrape_kubelets: True
             n1-p60-cpu-managed:
               node_count: 1
-              max_pods: 60
+              max_pods: 40
               repeats: 1
               operation_timeout: 7m
               load_type: cpu
