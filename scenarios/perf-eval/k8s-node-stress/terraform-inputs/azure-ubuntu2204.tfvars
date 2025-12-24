@@ -1,12 +1,12 @@
 scenario_type  = "perf-eval"
-scenario_name  = "k8s-node-cri-stress"
+scenario_name  = "k8s-node-stress"
 deletion_delay = "2h"
 owner          = "aks"
 
 aks_cli_config_list = [
   {
     role               = "client"
-    aks_name           = "k8s-node-cri-stress"
+    aks_name           = "k8s-node-stress"
     aks_custom_headers = [
       "AKSHTTPCustomFeatures=EnableSelfContainedVHD"
     ]

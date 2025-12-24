@@ -2,7 +2,7 @@ trigger: none
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: k8s-node-cri-stress
+  SCENARIO_NAME: k8s-node-stress
 
 stages:
   - stage: azure_westus2_stress_baseline_1_33
@@ -14,8 +14,8 @@ stages:
           regions:
             - westus2
           terraform_input_file_mapping:
-            - westus2: "scenarios/perf-eval/k8s-node-cri-stress/terraform-inputs/azure-ubuntu2204.tfvars"
-          topology: cri-autoscale-resource-consume
+            - westus2: "scenarios/perf-eval/k8s-node-stress/terraform-inputs/azure-ubuntu2204.tfvars"
+          topology: node-stress
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
@@ -26,6 +26,7 @@ stages:
               repeats: 1
               operation_timeout: 3m
               load_type: memory
+              pod_startup_latency_threshold: 20s
               kubernetes_version: "1.33"
               scrape_kubelets: True
             n1-p60-memory-managed:
@@ -34,6 +35,7 @@ stages:
               repeats: 1
               operation_timeout: 3m
               load_type: memory
+              pod_startup_latency_threshold: 20s
               kubernetes_version: "1.33"
               k8s_os_disk_type: Managed
               scrape_kubelets: True
@@ -43,6 +45,7 @@ stages:
               repeats: 1
               operation_timeout: 3m
               load_type: cpu
+              pod_startup_latency_threshold: 20s
               kubernetes_version: "1.33"
               scrape_kubelets: True
             n1-p60-cpu-managed:
@@ -51,6 +54,7 @@ stages:
               repeats: 1
               operation_timeout: 3m
               load_type: cpu
+              pod_startup_latency_threshold: 20s
               kubernetes_version: "1.33"
               k8s_os_disk_type: Managed
               scrape_kubelets: True
