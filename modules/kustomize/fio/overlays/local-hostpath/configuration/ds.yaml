@@ -95,6 +95,23 @@ spec:
               UNUSED_DEVICES+=("$device")
             done
 
+            if [ "${#UNUSED_DEVICES[@]}" -eq 0 ]; then
+              echo "Error: No unused NVMe devices found. Cannot create RAID array."
+              exit 1
+            fi
+
+            if [ "${#UNUSED_DEVICES[@]}" -eq 1 ]; then
+              echo "Only one unused NVMe device found: ${UNUSED_DEVICES[0]}"
+              DEVICE="${UNUSED_DEVICES[0]}"
+              echo "Creating ${FILESYSTEM_TYPE} filesystem on ${DEVICE}"
+              mkfs.${FILESYSTEM_TYPE} "${DEVICE}"
+              mkdir -p ${MOUNT_POINT}
+              mount ${DEVICE} ${MOUNT_POINT}
+              echo "${DEVICE}	${MOUNT_POINT}	${FILESYSTEM_TYPE}	defaults,nofail,discard	0	0" >> /etc/fstab
+              echo "Single device setup complete"
+              exit 0
+            fi
+
             echo ""
             echo "${#UNUSED_DEVICES[@]} devices will be combined into a RAID0 array:"
             for device in "${UNUSED_DEVICES[@]}"; do
