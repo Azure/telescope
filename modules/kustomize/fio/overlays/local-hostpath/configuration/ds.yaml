@@ -75,7 +75,17 @@ spec:
           UNUSED_DEVICES=()
 
           if [ -e ${RAID_DEVICE} ]; then
-            echo "RAID device already exists, proceeding to bind mount setup"
+            echo "RAID device already exists, ensuring mount point and mount"
+            mkdir -p ${MOUNT_POINT}
+            if ! findmnt ${MOUNT_POINT} &> /dev/null; then
+              echo "Mounting ${RAID_DEVICE} to ${MOUNT_POINT}"
+              mount ${RAID_DEVICE} ${MOUNT_POINT}
+              if ! grep -q "${MOUNT_POINT}" /etc/fstab; then
+                echo "${RAID_DEVICE}\t${MOUNT_POINT}\t${FILESYSTEM_TYPE}\tdefaults,nofail,discard\t0\t0" >> /etc/fstab
+              fi
+            else
+              echo "${MOUNT_POINT} is already mounted"
+            fi
           else
             if ! command -v mdadm &> /dev/null; then
               apt-get update >/dev/null && apt-get install -y mdadm
