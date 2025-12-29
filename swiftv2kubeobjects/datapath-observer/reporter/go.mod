@@ -1,6 +1,6 @@
 module github.com/Azure/telescope/reporter
 
-go 1.22
+go 1.25
 
 require (
 	k8s.io/apimachinery v0.29.0
