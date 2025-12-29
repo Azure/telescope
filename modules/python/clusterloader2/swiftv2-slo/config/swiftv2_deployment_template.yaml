@@ -26,7 +26,9 @@ spec:
       nodeSelector:
         swiftv2slo: "true"
       containers:
-      - image: sv2perfacr{{.Location}}.azurecr.io/netshoot:latest
+      # Using shared acndev ACR (region-agnostic) instead of location-specific ACR
+      # The acndev ACR has cache rules that automatically pull from Docker Hub
+      - image: acndev.azurecr.io/netshoot:latest
         command: ["sleep", "infinity"]
         imagePullPolicy: IfNotPresent
         securityContext:

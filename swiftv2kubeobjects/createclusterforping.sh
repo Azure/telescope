@@ -47,20 +47,9 @@ CLUSTER="large"
 SUBSCRIPTION=$AZURE_SUBSCRIPTION_ID
 NODEPOOLS=1
 
-# Source shared configuration if available
-if [[ -f "$(dirname "$0")/shared-config.sh" ]]; then
-    echo "Loading shared configuration..."
-    source "$(dirname "$0")/shared-config.sh"
-else
-    # Fallback to direct configuration (should match runCustomerSetup.sh values)
-    CUST_VNET_NAME=custvnet
-    CUST_SCALE_DEL_SUBNET="scaledel"
-    CUST_SUB=${SUBSCRIPTION:-9b8218f9-902a-4d20-a65c-e98acec5362f}
-    CUST_RG="sv2-perf-cust-${LOCATION:-uksouth}"
-    ACR_NAME="sv2perfacr$LOCATION"
-    SHARED_KUBELET_IDENTITY_NAME="sharedKubeletIdentity"
-    SHARED_CONTROL_PLANE_IDENTITY_NAME="sharedControlPlaneIdentity"
-fi
+# Source shared configuration
+echo "Loading shared configuration..."
+source "$(dirname "$0")/shared-config.sh"
 
 # Get target user node count from environment variable (used only for buffer pool calculation)
 TARGET_USER_NODE_COUNT=$NODE_COUNT

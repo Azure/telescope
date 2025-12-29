@@ -98,19 +98,10 @@ if [ "$SETUP_ACR_AND_MI" != "true" ]; then
   echo "Skipping ACR and MI setup as SETUP_ACR_AND_MI is not set to true"
   exit 0
 fi
-export ACR_NAME="sv2perfacr$LOCATION"
-export IMAGE_NAME="nicolaka/netshoot"
-export ACR_IMAGE_NAME="netshoot:latest"
-export SHARED_KUBELET_IDENTITY_NAME="sharedKubeletIdentity"
-export SHARED_CONTROL_PLANE_IDENTITY_NAME="sharedControlPlaneIdentity"
 
-az acr create --resource-group $CUST_RG --name $ACR_NAME --sku Basic
-az acr login --name $ACR_NAME
-docker pull $IMAGE_NAME
-docker tag $IMAGE_NAME $ACR_NAME.azurecr.io/$ACR_IMAGE_NAME
-docker push $ACR_NAME.azurecr.io/$ACR_IMAGE_NAME
-echo "Docker image $IMAGE_NAME mirrored to ACR $ACR_NAME as $ACR_IMAGE_NAME"
-echo "You can now use this image in your AKS cluster."
+# ACR configuration and identity names are already loaded from shared-config.sh
+echo "Using shared ACR: $ACR_NAME (resource ID: $ACR_RESOURCE_ID)"
+echo "Note: To mirror images to ACR, run ./mirrorImagesToACR.sh (one-time setup)"
 
 az identity create \
   --name $SHARED_KUBELET_IDENTITY_NAME \
@@ -123,11 +114,13 @@ export pId=$(az identity show \
   --query principalId \
   --output tsv)
 
+# Grant AcrPull permission to the shared acndev ACR
+echo "Granting AcrPull permission to kubelet identity for shared ACR"
 az role assignment create \
   --assignee-object-id $pId \
   --assignee-principal-type ServicePrincipal \
   --role AcrPull \
-  --scope $(az acr show --name $ACR_NAME --query id -o tsv)
+  --scope $ACR_RESOURCE_ID
 
 az identity create \
   --name $SHARED_CONTROL_PLANE_IDENTITY_NAME \
