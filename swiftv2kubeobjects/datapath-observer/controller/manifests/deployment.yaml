@@ -1,22 +1,22 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: pod-datapath-watcher
+  name: datapath-controller
   namespace: perf-ns
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: pod-datapath-watcher
+      app: datapath-controller
   template:
     metadata:
       labels:
-        app: pod-datapath-watcher
+        app: datapath-controller
     spec:
-      serviceAccountName: pod-datapath-watcher
+      serviceAccountName: datapath-controller
       containers:
-      - name: watcher
-        image: acndev.azurecr.io/pod-datapath-watcher:2025.12.29.01
+      - name: controller
+        image: acndev.azurecr.io/datapath-controller:2025.12.29.01
         args:
         - "--namespace=perf-ns"
         - "--label-selector=app=perf-sut"

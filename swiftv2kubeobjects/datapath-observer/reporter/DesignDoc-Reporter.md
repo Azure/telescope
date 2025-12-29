@@ -76,19 +76,19 @@ Build with [Dockerfile](Dockerfile) using date-based versioning:
 ```bash
 # Tag format: YYYY.MM.DD.XX where XX is the version number for that day
 # Example for first build on Dec 29, 2025:
-docker build -t acndev.azurecr.io/telescope-reporter:2025.12.29.01 .
-docker push acndev.azurecr.io/telescope-reporter:2025.12.29.01
+docker build -t acndev.azurecr.io/datapath-reporter:2025.12.29.01 .
+docker push acndev.azurecr.io/datapath-reporter:2025.12.29.01
 
 # For subsequent builds on the same day, increment XX:
 # 2025.12.29.02, 2025.12.29.03, etc.
 
 # Optionally, also tag as latest for convenience:
-docker tag acndev.azurecr.io/telescope-reporter:2025.12.29.01 acndev.azurecr.io/telescope-reporter:latest
-docker push acndev.azurecr.io/telescope-reporter:latest
+docker tag acndev.azurecr.io/datapath-reporter:2025.12.29.01 acndev.azurecr.io/datapath-reporter:latest
+docker push acndev.azurecr.io/datapath-reporter:latest
 ```
 
 **Note:** Always use the date-versioned tag in deployment manifests to ensure reproducibility and avoid overwriting previous images.
 
 ## Implementation
 
-See [README.md](README.md) for build and deployment instructions. The implementation is in [main.go](main.go).
+The implementation is in [main.go](main.go).

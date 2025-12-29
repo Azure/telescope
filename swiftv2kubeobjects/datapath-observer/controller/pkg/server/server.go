@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Azure/telescope/controller/pkg/metrics"
+	"github.com/Azure/datapath-observer/controller/pkg/metrics"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 

@@ -14,7 +14,7 @@ Existing options have limitations:
 - **ClusterLoader2 (CL2) custom measurement:** precise, but tightly coupled to CL2, making reuse hard in non-CL2 scenarios.
 - **Pod self-annotation + pipeline scraping:** fragile—Pods may be deleted/recreated (losing history); stuck Pods leave incomplete signals; nodes may restart before results are gathered.
 
-We need an independent watcher that:
+We need an independent system that:
 
 - Observes Pods (by namespace/labels) and detects **start** and **datapath readiness**.
 - Measures **time-to-start** (useful as a cross-check against CL2) and **time-to-datapath-ready**.

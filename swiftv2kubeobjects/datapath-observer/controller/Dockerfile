@@ -17,7 +17,7 @@ COPY controllers/ controllers/
 COPY pkg/ pkg/
 
 # Build the binary
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o pod-datapath-watcher main.go
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o datapath-controller main.go
 
 # Runtime stage
 FROM gcr.io/distroless/static:nonroot
@@ -25,8 +25,8 @@ FROM gcr.io/distroless/static:nonroot
 WORKDIR /
 
 # Copy the binary from builder
-COPY --from=builder /workspace/pod-datapath-watcher .
+COPY --from=builder /workspace/datapath-controller .
 
 USER 65532:65532
 
-ENTRYPOINT ["/pod-datapath-watcher"]
+ENTRYPOINT ["/datapath-controller"]

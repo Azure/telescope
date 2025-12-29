@@ -4,7 +4,7 @@ import (
 	"context"
 	"sort"
 
-	perfv1 "github.com/Azure/telescope/controller/api/v1"
+	perfv1 "github.com/Azure/datapath-observer/controller/api/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 

@@ -32,9 +32,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	perfv1 "github.com/Azure/telescope/controller/api/v1"
-	"github.com/Azure/telescope/controller/controllers"
-	"github.com/Azure/telescope/controller/pkg/server"
+	perfv1 "github.com/Azure/datapath-observer/controller/api/v1"
+	"github.com/Azure/datapath-observer/controller/controllers"
+	"github.com/Azure/datapath-observer/controller/pkg/server"
 	//+kubebuilder:scaffold:imports
 )
 

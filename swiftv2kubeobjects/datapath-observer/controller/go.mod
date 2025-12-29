@@ -1,4 +1,4 @@
-module github.com/Azure/telescope/controller
+module github.com/Azure/datapath-observer/controller
 
 go 1.25.5
 

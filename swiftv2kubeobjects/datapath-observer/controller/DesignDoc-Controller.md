@@ -1,4 +1,4 @@
-# Pod Ready Watcher — Implementation Guide
+# Controller — Implementation Guide
 
 **Component:** controller
 
@@ -40,22 +40,22 @@ Build with [Dockerfile](Dockerfile) using date-based versioning:
 ```bash
 # Tag format: YYYY.MM.DD.XX where XX is the version number for that day
 # Example for first build on Dec 29, 2025:
-docker build -t acndev.azurecr.io/pod-datapath-watcher:2025.12.29.01 .
-docker push acndev.azurecr.io/pod-datapath-watcher:2025.12.29.01
+docker build -t acndev.azurecr.io/datapath-controller:2025.12.29.01 .
+docker push acndev.azurecr.io/datapath-controller:2025.12.29.01
 
 # For subsequent builds on the same day, increment XX:
 # 2025.12.29.02, 2025.12.29.03, etc.
 
 # Optionally, also tag as latest for convenience:
-docker tag acndev.azurecr.io/pod-datapath-watcher:2025.12.29.01 acndev.azurecr.io/pod-datapath-watcher:latest
-docker push acndev.azurecr.io/pod-datapath-watcher:latest
+docker tag acndev.azurecr.io/datapath-controller:2025.12.29.01 acndev.azurecr.io/datapath-controller:latest
+docker push acndev.azurecr.io/datapath-controller:latest
 ```
 
 **Note:** Always use the date-versioned tag in deployment manifests to ensure reproducibility and avoid overwriting previous images.
 
 ## Configuration
 
-The watcher accepts the following command-line arguments:
+The controller accepts the following command-line arguments:
 
 - `--namespace`: Target namespace to watch
 - `--label-selector`: Label selector for filtering Pods
@@ -65,8 +65,8 @@ The watcher accepts the following command-line arguments:
 Query parameters for API endpoints:
 
 - `topN`: Number of worst Pods to return (default: `10`)
-- `namespace`: Filter by namespace (optional if specified in watcher config)
-- `labelSelector`: Filter by label selector in format `key=value,key2=value2` (optional if specified in watcher config)
+- `namespace`: Filter by namespace (optional if specified in controller config)
+- `labelSelector`: Filter by label selector in format `key=value,key2=value2` (optional if specified in controller config)
 
 ## DatapathResult CRD Storage
 

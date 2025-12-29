@@ -1,4 +1,4 @@
-module github.com/Azure/telescope/reporter
+module github.com/Azure/datapath-observer/reporter
 
 go 1.25
 
