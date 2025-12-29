@@ -1,0 +1,46 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: perf-sut
+  namespace: perf-ns
+  labels:
+    app: perf-sut
+spec:
+  replicas: 200
+  selector:
+    matchLabels:
+      app: perf-sut
+  template:
+    metadata:
+      labels:
+        app: perf-sut
+        scenario: datapath-test
+    spec:
+      serviceAccountName: reporter-sa
+      initContainers:
+      - name: reporter
+        image: acndev.azurecr.io/telescope-reporter:2025.12.29.01
+        imagePullPolicy: Always
+        env:
+        - name: MY_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: MY_POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: PROBE_TARGET
+          value: "https://www.github.com"  # Replace with your target
+        - name: PROBE_TIMEOUT
+          value: "60"  # seconds
+        - name: PROBE_INTERVAL
+          value: "2"   # seconds
+        resources:
+          requests:
+            cpu: 10m
+            memory: 32Mi
+          limits:
+            cpu: 100m
+            memory: 64Mi
