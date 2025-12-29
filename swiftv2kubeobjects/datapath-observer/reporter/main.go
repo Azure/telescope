@@ -25,6 +25,10 @@ const (
 )
 
 func main() {
+	// Record start timestamp
+	startTs := time.Now().UTC()
+	log.Printf("Start timestamp: %s", startTs.Format(time.RFC3339))
+
 	// Get pod info from downward API
 	podName := mustEnv("MY_POD_NAME")
 	podNamespace := mustEnv("MY_POD_NAMESPACE")
@@ -36,10 +40,6 @@ func main() {
 
 	log.Printf("Starting reporter: %s/%s", podNamespace, podName)
 	log.Printf("Probe target: %s, timeout: %v, interval: %v", probeTarget, probeTimeout, probeInterval)
-
-	// Record start timestamp
-	startTs := time.Now().UTC()
-	log.Printf("Start timestamp: %s", startTs.Format(time.RFC3339))
 
 	// Check if annotations already exist (idempotency)
 	cfg, err := rest.InClusterConfig()
@@ -58,8 +58,10 @@ func main() {
 		log.Fatalf("Failed to get pod: %v", err)
 	}
 
+	hasStartTs := false
 	if pod.Annotations != nil {
 		if _, hasStart := pod.Annotations["perf.github.com/Azure/start-ts"]; hasStart {
+			hasStartTs = true
 			if _, hasDp := pod.Annotations["perf.github.com/Azure/dp-ready-ts"]; hasDp {
 				log.Println("Annotations already present, skipping patch (idempotent)")
 				return
@@ -77,7 +79,7 @@ func main() {
 	}
 
 	// Patch pod annotations
-	if err := patchPodAnnotations(clientset, podNamespace, podName, startTs, dpReadyTs); err != nil {
+	if err := patchPodAnnotations(clientset, podNamespace, podName, startTs, dpReadyTs, hasStartTs); err != nil {
 		log.Fatalf("Failed to patch pod annotations: %v", err)
 	}
 
@@ -149,9 +151,11 @@ func probeTCP(address string) bool {
 }
 
 // patchPodAnnotations patches the pod with start and datapath ready timestamps
-func patchPodAnnotations(clientset *kubernetes.Clientset, namespace, name string, startTs, dpReadyTs time.Time) error {
-	annotations := map[string]string{
-		"perf.github.com/Azure/start-ts": startTs.Format(time.RFC3339),
+func patchPodAnnotations(clientset *kubernetes.Clientset, namespace, name string, startTs, dpReadyTs time.Time, hasStartTs bool) error {
+	annotations := map[string]string{}
+
+	if !hasStartTs {
+		annotations["perf.github.com/Azure/start-ts"] = startTs.Format(time.RFC3339)
 	}
 
 	if !dpReadyTs.IsZero() {
