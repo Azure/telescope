@@ -17,7 +17,7 @@ rules:
 - apiGroups: [""]
   resources: ["pods"]
   verbs: ["get","list","watch"]
-- apiGroups: ["perf.github.com/Azure"]
+- apiGroups: ["perf.github.com"]
   resources: ["datapathresults"]
   verbs: ["get","list","watch","create","update","patch"]
 ---

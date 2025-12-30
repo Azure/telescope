@@ -46,8 +46,8 @@ type PodReconciler struct {
 }
 
 //+kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch
-//+kubebuilder:rbac:groups=perf.github.com/Azure,resources=datapathresults,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=perf.github.com/Azure,resources=datapathresults/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=perf.github.com,resources=datapathresults,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=perf.github.com,resources=datapathresults/status,verbs=get;update;patch
 
 func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
@@ -81,7 +81,7 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 					UID:       string(pod.UID),
 				},
 				Timestamps: perfv1.Timestamps{
-					CreatedAt: pod.CreationTimestamp.Format(time.RFC3339),
+					CreatedAt: pod.CreationTimestamp.Format("2006-01-02T15:04:05.000Z07:00"),
 				},
 				Labels: pod.Labels,
 			},
@@ -120,14 +120,14 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 func updateMetrics(dpResult *perfv1.DatapathResult, createdAt time.Time, startTsStr, dpReadyTsStr string) {
 	if startTsStr != "" {
 		dpResult.Spec.Timestamps.StartTs = startTsStr
-		startTs, err := time.Parse(time.RFC3339, startTsStr)
+		startTs, err := time.Parse("2006-01-02T15:04:05.000Z07:00", startTsStr)
 		if err == nil {
 			dpResult.Spec.Metrics.LatStartMs = startTs.Sub(createdAt).Milliseconds()
 		}
 	}
 	if dpReadyTsStr != "" {
 		dpResult.Spec.Timestamps.DpReadyTs = dpReadyTsStr
-		dpReadyTs, err := time.Parse(time.RFC3339, dpReadyTsStr)
+		dpReadyTs, err := time.Parse("2006-01-02T15:04:05.000Z07:00", dpReadyTsStr)
 		if err == nil {
 			dpResult.Spec.Metrics.LatDpReadyMs = dpReadyTs.Sub(createdAt).Milliseconds()
 		}

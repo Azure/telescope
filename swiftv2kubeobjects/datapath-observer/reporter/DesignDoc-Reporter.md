@@ -22,8 +22,8 @@ The reporter is a Kubernetes init container that reports its start time and data
 
 The reporter writes these annotations to its own Pod object:
 
-- `perf.github.com/azure-start-ts`: RFC3339 timestamp when application workload begins
-- `perf.github.com/azure-dp-ready-ts`: RFC3339 timestamp when first probe succeeds
+- `perf.github.com/azure-start-ts`: RFC3339 timestamp with millisecond precision when application workload begins
+- `perf.github.com/azure-dp-ready-ts`: RFC3339 timestamp with millisecond precision when first probe succeeds
 
 The controller reads these annotations and calculates latency metrics (time-to-start and time-to-datapath-ready) based on these timestamps and the Pod's creation time.
 

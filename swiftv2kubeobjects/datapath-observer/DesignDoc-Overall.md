@@ -43,8 +43,8 @@ Reporter (init container) → Pod annotations → Controller → DatapathResult 
 ```
 
 **Annotations used:**
-- `perf.github.com/azure-start-ts` - RFC3339 timestamp
-- `perf.github.com/azure-dp-ready-ts` - RFC3339 timestamp
+- `perf.github.com/azure-start-ts` - RFC3339 timestamp with millisecond precision
+- `perf.github.com/azure-dp-ready-ts` - RFC3339 timestamp with millisecond precision
 
 **API endpoints:**
 - `GET /api/v1/time-to-start?topN=10&namespace=<ns>&labelSelector=<k=v,...>`
@@ -67,9 +67,9 @@ spec:
     name: perf-sut-abc123
     uid: d6f4-...
   timestamps:
-    createdAt: "2025-12-17T21:19:50Z"
-    startTs: "2025-12-17T21:19:56Z"
-    dpReadyTs: "2025-12-17T21:20:10Z"
+    createdAt: "2025-12-17T21:19:50.123Z"
+    startTs: "2025-12-17T21:19:56.234Z"
+    dpReadyTs: "2025-12-17T21:20:10.345Z"
   metrics:
     latStartMs: 6000
     latDpReadyMs: 14000

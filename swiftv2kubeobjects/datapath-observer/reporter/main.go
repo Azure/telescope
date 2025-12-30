@@ -27,7 +27,7 @@ const (
 func main() {
 	// Record start timestamp
 	startTs := time.Now().UTC()
-	log.Printf("Start timestamp: %s", startTs.Format(time.RFC3339))
+	log.Printf("Start timestamp: %s", startTs.Format("2006-01-02T15:04:05.000Z07:00"))
 
 	// Get pod info from downward API
 	podName := mustEnv("MY_POD_NAME")
@@ -75,7 +75,7 @@ func main() {
 	if dpReadyTs.IsZero() {
 		log.Printf("Warning: Datapath probe did not succeed within timeout %v", probeTimeout)
 	} else {
-		log.Printf("Datapath ready timestamp: %s (latency: %v)", dpReadyTs.Format(time.RFC3339), dpReadyTs.Sub(startTs))
+		log.Printf("Datapath ready timestamp: %s (latency: %v)", dpReadyTs.Format("2006-01-02T15:04:05.000Z07:00"), dpReadyTs.Sub(startTs))
 	}
 
 	// Patch pod annotations
@@ -155,11 +155,11 @@ func patchPodAnnotations(clientset *kubernetes.Clientset, namespace, name string
 	annotations := map[string]string{}
 
 	if !hasStartTs {
-		annotations["perf.github.com/azure-start-ts"] = startTs.Format(time.RFC3339)
+		annotations["perf.github.com/azure-start-ts"] = startTs.Format("2006-01-02T15:04:05.000Z07:00")
 	}
 
 	if !dpReadyTs.IsZero() {
-		annotations["perf.github.com/azure-dp-ready-ts"] = dpReadyTs.Format(time.RFC3339)
+		annotations["perf.github.com/azure-dp-ready-ts"] = dpReadyTs.Format("2006-01-02T15:04:05.000Z07:00")
 	}
 
 	patch := map[string]interface{}{
