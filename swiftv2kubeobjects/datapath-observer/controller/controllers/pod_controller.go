@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -27,7 +28,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
+	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
 	perfv1 "github.com/Azure/datapath-observer/controller/api/v1"
 )
@@ -35,7 +39,10 @@ import (
 // PodReconciler reconciles a Pod object
 type PodReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme                  *runtime.Scheme
+	Namespace               string
+	LabelSelector           string
+	MaxConcurrentReconciles int
 }
 
 //+kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;watch
@@ -128,7 +135,101 @@ func updateMetrics(dpResult *perfv1.DatapathResult, createdAt time.Time, startTs
 }
 
 func (r *PodReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewControllerManagedBy(mgr).
+	builder := ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.Pod{}).
-		Complete(r)
+		WithOptions(controller.Options{
+			MaxConcurrentReconciles: r.MaxConcurrentReconciles,
+		})
+
+	// Apply namespace filter if specified
+	if r.Namespace != "" {
+		builder = builder.WithEventFilter(namespaceFilter(r.Namespace))
+	}
+
+	// Apply label selector filter if specified
+	if r.LabelSelector != "" {
+		builder = builder.WithEventFilter(labelSelectorFilter(r.LabelSelector))
+	}
+
+	return builder.Complete(r)
+}
+
+func namespaceFilter(namespace string) predicate.Predicate {
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return e.Object.GetNamespace() == namespace
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			if e.ObjectNew.GetNamespace() != namespace {
+				return false
+			}
+			return hasRelevantAnnotationChange(e.ObjectOld, e.ObjectNew)
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return false
+		},
+		GenericFunc: func(e event.GenericEvent) bool {
+			return e.Object.GetNamespace() == namespace
+		},
+	}
+}
+
+func labelSelectorFilter(selector string) predicate.Predicate {
+	// Parse selector string (e.g., "app=perf-sut")
+	pairs := strings.Split(selector, ",")
+	selectorMap := make(map[string]string)
+	for _, pair := range pairs {
+		parts := strings.SplitN(strings.TrimSpace(pair), "=", 2)
+		if len(parts) == 2 {
+			selectorMap[parts[0]] = parts[1]
+		}
+	}
+
+	return predicate.Funcs{
+		CreateFunc: func(e event.CreateEvent) bool {
+			return matchLabels(e.Object.GetLabels(), selectorMap)
+		},
+		UpdateFunc: func(e event.UpdateEvent) bool {
+			if !matchLabels(e.ObjectNew.GetLabels(), selectorMap) {
+				return false
+			}
+			return hasRelevantAnnotationChange(e.ObjectOld, e.ObjectNew)
+		},
+		DeleteFunc: func(e event.DeleteEvent) bool {
+			return false
+		},
+		GenericFunc: func(e event.GenericEvent) bool {
+			return matchLabels(e.Object.GetLabels(), selectorMap)
+		},
+	}
+}
+
+func matchLabels(objLabels, selector map[string]string) bool {
+	for key, val := range selector {
+		if objLabels[key] != val {
+			return false
+		}
+	}
+	return true
+}
+
+func hasRelevantAnnotationChange(oldObj, newObj client.Object) bool {
+	oldAnnotations := oldObj.GetAnnotations()
+	newAnnotations := newObj.GetAnnotations()
+
+	// Check if start-ts annotation was added or changed
+	oldStartTs := oldAnnotations["perf.github.com/Azure/start-ts"]
+	newStartTs := newAnnotations["perf.github.com/Azure/start-ts"]
+	if oldStartTs != newStartTs {
+		return true
+	}
+
+	// Check if dp-ready-ts annotation was added or changed
+	oldDpReadyTs := oldAnnotations["perf.github.com/Azure/dp-ready-ts"]
+	newDpReadyTs := newAnnotations["perf.github.com/Azure/dp-ready-ts"]
+	if oldDpReadyTs != newDpReadyTs {
+		return true
+	}
+
+	return false
 }

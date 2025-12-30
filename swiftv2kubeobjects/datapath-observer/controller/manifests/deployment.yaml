@@ -16,12 +16,11 @@ spec:
       serviceAccountName: datapath-controller
       containers:
       - name: controller
-        image: acndev.azurecr.io/datapath-controller:2025.12.29.01
+        image: acndev.azurecr.io/datapath-controller:2025.12.30.01
         args:
         - "--namespace=perf-ns"
         - "--label-selector=app=perf-sut"
-        - "--slo-start=30s"
-        - "--slo-dpready=60s"
+        - "--max-concurrent-reconciles=100"
         ports:
         - name: http
           containerPort: 8080
