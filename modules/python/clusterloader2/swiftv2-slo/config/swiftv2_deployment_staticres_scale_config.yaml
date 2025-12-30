@@ -58,10 +58,19 @@ steps:
               ReservationSize: {{$podsPerStep}}
   - name: Wait for PNI to be created and nodes to be registered -{{$j}}
     measurements:
-      - Identifier: PNI_sleep_Dummy-{{$j}}
-        Method: Sleep
+      - Identifier: WaitForPNIReady-{{$j}}
+        Method: WaitForGenericK8sObjects
         Params:
-          duration: 60s
+          objectGroup: networking.azure.com
+          objectVersion: v1alpha1
+          objectResource: podnetworkinstances
+          namespace: slo-1
+          fieldSelector: metadata.name=pod-network-instance-{{$j}}-0
+          successfulConditions:
+            - status.status=Ready
+          minDesiredObjectCount: 1
+          maxFailedObjectCount: 0
+          timeout: 5m
   - name: Starting Deployment Latency Measurements -{{$j}}
     measurements:
     - Identifier: WaitForControlledPodsRunning-{{$j}}

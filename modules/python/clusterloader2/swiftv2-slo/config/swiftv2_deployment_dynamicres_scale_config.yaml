@@ -47,10 +47,19 @@ steps:
         objectTemplatePath: pni_dynamic_template.yaml
   - name: Wait for PNI to be created and nodes to be registered
     measurements:
-      - Identifier: Dummy
-        Method: Sleep
+      - Identifier: WaitForPNIReady
+        Method: WaitForGenericK8sObjects
         Params:
-          duration: 60s
+          objectGroup: networking.azure.com
+          objectVersion: v1alpha1
+          objectResource: podnetworkinstances
+          namespace: slo-1
+          fieldSelector: metadata.name=pod-network-instance-0
+          successfulConditions:
+            - status.status=Ready
+          minDesiredObjectCount: 1
+          maxFailedObjectCount: 0
+          timeout: 5m
   - name: Starting Pod Startup Latency Measurements
     measurements:
     - Identifier: PodStartupLatency
