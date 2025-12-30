@@ -10,10 +10,9 @@ metadata:
   namespace: perf-ns
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
+kind: ClusterRole
 metadata:
   name: datapath-controller
-  namespace: perf-ns
 rules:
 - apiGroups: [""]
   resources: ["pods"]
@@ -23,15 +22,14 @@ rules:
   verbs: ["get","list","watch","create","update","patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
+kind: ClusterRoleBinding
 metadata:
   name: datapath-controller
-  namespace: perf-ns
 subjects:
 - kind: ServiceAccount
   name: datapath-controller
   namespace: perf-ns
 roleRef:
-  kind: Role
+  kind: ClusterRole
   name: datapath-controller
   apiGroup: rbac.authorization.k8s.io

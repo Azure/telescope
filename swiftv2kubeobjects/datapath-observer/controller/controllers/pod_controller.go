@@ -59,8 +59,8 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	}
 
 	// Check for annotations
-	startTsStr, hasStart := pod.Annotations["perf.github.com/Azure/start-ts"]
-	dpReadyTsStr, hasDpReady := pod.Annotations["perf.github.com/Azure/dp-ready-ts"]
+	startTsStr, hasStart := pod.Annotations["perf.github.com/azure-start-ts"]
+	dpReadyTsStr, hasDpReady := pod.Annotations["perf.github.com/azure-dp-ready-ts"]
 
 	dpResultName := fmt.Sprintf("dpresult-%s", pod.UID)
 
@@ -218,15 +218,15 @@ func hasRelevantAnnotationChange(oldObj, newObj client.Object) bool {
 	newAnnotations := newObj.GetAnnotations()
 
 	// Check if start-ts annotation was added or changed
-	oldStartTs := oldAnnotations["perf.github.com/Azure/start-ts"]
-	newStartTs := newAnnotations["perf.github.com/Azure/start-ts"]
+	oldStartTs := oldAnnotations["perf.github.com/azure-start-ts"]
+	newStartTs := newAnnotations["perf.github.com/azure-start-ts"]
 	if oldStartTs != newStartTs {
 		return true
 	}
 
 	// Check if dp-ready-ts annotation was added or changed
-	oldDpReadyTs := oldAnnotations["perf.github.com/Azure/dp-ready-ts"]
-	newDpReadyTs := newAnnotations["perf.github.com/Azure/dp-ready-ts"]
+	oldDpReadyTs := oldAnnotations["perf.github.com/azure-dp-ready-ts"]
+	newDpReadyTs := newAnnotations["perf.github.com/azure-dp-ready-ts"]
 	if oldDpReadyTs != newDpReadyTs {
 		return true
 	}

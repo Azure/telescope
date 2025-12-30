@@ -17,6 +17,8 @@ spec:
         app: perf-sut
         podgroup: deployment-churn
         scenario: datapath-test
+        kubernetes.azure.com/pod-network: pn
+        kubernetes.azure.com/pod-network-instance: pni
     spec:
       serviceAccountName: reporter-sa
       initContainers:

@@ -60,9 +60,9 @@ func main() {
 
 	hasStartTs := false
 	if pod.Annotations != nil {
-		if _, hasStart := pod.Annotations["perf.github.com/Azure/start-ts"]; hasStart {
+		if _, hasStart := pod.Annotations["perf.github.com/azure-start-ts"]; hasStart {
 			hasStartTs = true
-			if _, hasDp := pod.Annotations["perf.github.com/Azure/dp-ready-ts"]; hasDp {
+			if _, hasDp := pod.Annotations["perf.github.com/azure-dp-ready-ts"]; hasDp {
 				log.Println("Annotations already present, skipping patch (idempotent)")
 				return
 			}
@@ -155,11 +155,11 @@ func patchPodAnnotations(clientset *kubernetes.Clientset, namespace, name string
 	annotations := map[string]string{}
 
 	if !hasStartTs {
-		annotations["perf.github.com/Azure/start-ts"] = startTs.Format(time.RFC3339)
+		annotations["perf.github.com/azure-start-ts"] = startTs.Format(time.RFC3339)
 	}
 
 	if !dpReadyTs.IsZero() {
-		annotations["perf.github.com/Azure/dp-ready-ts"] = dpReadyTs.Format(time.RFC3339)
+		annotations["perf.github.com/azure-dp-ready-ts"] = dpReadyTs.Format(time.RFC3339)
 	}
 
 	patch := map[string]interface{}{

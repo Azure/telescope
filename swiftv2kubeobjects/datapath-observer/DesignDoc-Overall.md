@@ -43,8 +43,8 @@ Reporter (init container) → Pod annotations → Controller → DatapathResult 
 ```
 
 **Annotations used:**
-- `perf.github.com/Azure/start-ts` - RFC3339 timestamp
-- `perf.github.com/Azure/dp-ready-ts` - RFC3339 timestamp
+- `perf.github.com/azure-start-ts` - RFC3339 timestamp
+- `perf.github.com/azure-dp-ready-ts` - RFC3339 timestamp
 
 **API endpoints:**
 - `GET /api/v1/time-to-start?topN=10&namespace=<ns>&labelSelector=<k=v,...>`
