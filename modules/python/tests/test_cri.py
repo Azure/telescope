@@ -188,7 +188,8 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             run_id="12345",
             run_url="http://example.com",
             result_file=result_file,
-            scrape_kubelets=False
+            scrape_kubelets=False,
+            scrape_containerd=False
         )
 
         self.assertTrue(os.path.exists(result_file))
@@ -213,7 +214,8 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
                 run_id="12345",
                 run_url="http://example.com",
                 result_file="/mock/result.json",
-                scrape_kubelets=False
+                scrape_kubelets=False,
+                scrape_containerd=False
             )
 
         self.assertIn("No testsuites found in the report", str(context.exception))
@@ -299,13 +301,14 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             "--run_id", "run-123", 
             "--run_url", "https://run.url", 
             "--result_file", "/tmp/results.json", 
-            "--scrape_kubelets", "False"
+            "--scrape_kubelets", "False",
+            "--scrape_containerd", "False"
         ]
         with patch.object(sys, 'argv', test_args):
             main()
             mock_collect.assert_called_once_with(
                 3, 100, 5, "memory", "/reports", "gcp-zone", "run-123",
-                "https://run.url", "/tmp/results.json", False
+                "https://run.url", "/tmp/results.json", False, False
             )
 
 if __name__ == '__main__':

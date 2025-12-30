@@ -142,9 +142,10 @@ def collect_clusterloader2(
     run_id,
     run_url,
     result_file,
-    scrape_kubelets
+    scrape_kubelets,
+    scrape_containerd
 ):
-    if scrape_kubelets:
+    if scrape_kubelets or scrape_containerd:
         verify_measurement()
 
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
@@ -343,6 +344,13 @@ def main():
         default=False,
         help="Whether to scrape kubelets",
     )
+    parser_collect.add_argument(
+        "--scrape_containerd",
+        type=str2bool,
+        choices=[True, False],
+        default=False,
+        help="Whether to scrape containerd",
+    )
 
     args = parser.parse_args()
 
@@ -385,6 +393,7 @@ def main():
             args.run_url,
             args.result_file,
             args.scrape_kubelets,
+            args.scrape_containerd,
         )
 
 if __name__ == "__main__":
