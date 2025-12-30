@@ -18,8 +18,8 @@ spec:
       - name: controller
         image: acndev.azurecr.io/datapath-controller:2025.12.30.01
         args:
-        - "--namespace=perf-ns"
-        - "--label-selector=app=perf-sut"
+        - "--namespace=slo-1"
+        - "--label-selector=podgroup=deployment-churn"
         - "--max-concurrent-reconciles=100"
         ports:
         - name: http

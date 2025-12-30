@@ -3,7 +3,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: perf-sut
-  namespace: perf-ns
+  namespace: slo-1
   labels:
     app: perf-sut
 spec:
@@ -15,6 +15,7 @@ spec:
     metadata:
       labels:
         app: perf-sut
+        podgroup: deployment-churn
         scenario: datapath-test
     spec:
       serviceAccountName: reporter-sa
@@ -32,15 +33,21 @@ spec:
             fieldRef:
               fieldPath: metadata.namespace
         - name: PROBE_TARGET
-          value: "https://www.github.com"  # Replace with your target
+          value: "http://172.27.0.30:80"  # nginx service IP in customer cluster
         - name: PROBE_TIMEOUT
           value: "60"  # seconds
         - name: PROBE_INTERVAL
           value: "2"   # seconds
+      containers:
+      - image: acndev.azurecr.io/netshoot:latest
+        command: ["sleep", "infinity"]
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          privileged: true
+        name: deployment-churn
         resources:
           requests:
-            cpu: 10m
-            memory: 32Mi
+            acn.azure.com/vnet-nic: "1"
           limits:
-            cpu: 100m
-            memory: 64Mi
+            acn.azure.com/vnet-nic: "1"
+        ports:
