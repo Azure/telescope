@@ -27,7 +27,7 @@ class JobController(ClusterLoader2Base):
     cl2_override_file: str = ""
     job_count: int = 1000
     job_throughput: int = -1
-    job_template_path: str = ""
+    job_template_path: str = "base/job_template.yaml"
     job_gpu: int = 0
     dra_enabled: bool = False
     ray_enabled: bool = False
