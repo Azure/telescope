@@ -1,0 +1,73 @@
+parameters:
+- name: cloud
+  type: string
+  default: ''
+- name: credential_type
+  type: string
+  default: 'service_connection'
+
+steps:
+- script: |
+    set -eo pipefail
+    set -x
+
+    # Port forward to datapath-controller service
+    echo "Starting port-forward to datapath-controller..."
+    kubectl port-forward -n datapath-observer service/datapath-controller 8080:8080 &
+    PF_PID=$!
+    
+    # Cleanup port-forward on exit
+    trap "kill $PF_PID 2>/dev/null || true" EXIT
+    
+    # Wait for port-forward to be ready
+    sleep 3
+    
+    # Query time-to-start metrics
+    echo "Querying time-to-start metrics..."
+    curl -s "http://localhost:8080/api/v1/time-to-start?topN=10&namespace=${NAMESPACE}&labelSelector=${LABEL_SELECTOR}" \
+      > "${OUTPUT_DIR}/datapath-time-to-start.json"
+    
+    # Query time-to-datapath-ready metrics
+    echo "Querying time-to-datapath-ready metrics..."
+    curl -s "http://localhost:8080/api/v1/time-to-datapath-ready?topN=10&namespace=${NAMESPACE}&labelSelector=${LABEL_SELECTOR}" \
+      > "${OUTPUT_DIR}/datapath-time-to-dp-ready.json"
+    
+    # Print summary
+    echo "=== Time to Start Summary ==="
+    cat "${OUTPUT_DIR}/datapath-time-to-start.json" | jq '{totalSuccessful, totalFailed, p50, p90, p99}'
+    
+    echo "=== Time to Datapath Ready Summary ==="
+    cat "${OUTPUT_DIR}/datapath-time-to-dp-ready.json" | jq '{totalSuccessful, totalFailed, p50, p90, p99}'
+    
+    # Merge datapath results into results.json
+    if [ -f "${RESULTS_FILE}" ]; then
+      echo "Merging datapath metrics into ${RESULTS_FILE}..."
+      
+      # Extract template fields from first line of results.json
+      template=$(head -n 1 "${RESULTS_FILE}" | jq 'del(.group, .measurement, .result)')
+      
+      # Add time-to-start metrics
+      time_to_start=$(cat "${OUTPUT_DIR}/datapath-time-to-start.json")
+      echo "$template" | jq --argjson data "$time_to_start" \
+        '. + {group: "datapath", measurement: "TimeToStart", result: $data}' \
+        >> "${RESULTS_FILE}"
+      
+      # Add time-to-datapath-ready metrics
+      time_to_dp_ready=$(cat "${OUTPUT_DIR}/datapath-time-to-dp-ready.json")
+      echo "$template" | jq --argjson data "$time_to_dp_ready" \
+        '. + {group: "datapath", measurement: "TimeToDatapathReady", result: $data}' \
+        >> "${RESULTS_FILE}"
+      
+      echo "Datapath metrics merged successfully"
+    else
+      echo "##vso[task.logissue type=warning;]File ${RESULTS_FILE} does not exist. Skipping merge."
+    fi
+    
+    echo "Results saved to ${OUTPUT_DIR}"
+  env:
+    NAMESPACE: $(NAMESPACE)
+    LABEL_SELECTOR: $(LABEL_SELECTOR)
+    OUTPUT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/swiftv2-slo/results
+    RESULTS_FILE: $(TEST_RESULTS_FILE)
+  displayName: "Collect Datapath Observer Results"
+

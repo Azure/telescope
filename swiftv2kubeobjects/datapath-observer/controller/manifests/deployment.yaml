@@ -13,6 +13,8 @@ spec:
       labels:
         app: datapath-controller
     spec:
+      nodeSelector:
+        kubernetes.azure.com/mode: system
       serviceAccountName: datapath-controller
       containers:
       - name: controller

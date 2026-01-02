@@ -11,6 +11,8 @@ name: deployment-churn
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "120s"}}
 {{$groupName := DefaultParam .CL2_GROUP_NAME "deployment-churn"}}
 {{$devicePluginEnabled := DefaultParam .CL2_DEVICE_PLUGIN false}}
+{{$probeTargetUrl := DefaultParam .CL2_PROBE_TARGET_URL "http://172.27.0.30/"}}
+{{$probeTimeout := DefaultParam .CL2_PROBE_TIMEOUT "300"}}
 
 namespace:
   number: 1
@@ -99,6 +101,8 @@ steps:
               pniName: pod-network-instance-0
               Location: {{$.CL2_LOCATION}}
               DevicePluginEnabled: {{$devicePluginEnabled}}
+              ProbeTarget: {{$probeTargetUrl}}
+              ProbeTimeout: {{$probeTimeout}}
   - name: Wait for all Deployments to be Running -{{$j}}
     measurements:
     - Identifier: WaitForControlledPodsRunning-{{$j}}
@@ -109,43 +113,6 @@ steps:
         kind: Deployment
         labelSelector: group={{$groupName}}-{{$j}}
         operationTimeout: {{$operationTimeout}}
-  - name: Wait for Pod Curl Commands to Start -{{$j}}
-    measurements:
-    - Identifier: Dummy
-      Method: Sleep
-      Params:
-        duration: 60s
-  - name: Pod Curl Command for Deployment -{{$j}}
-    measurements:
-    - Identifier: PodPeriodicCommand-{{$j}}
-      Method: PodPeriodicCommand
-      Params:
-        action: start
-        labelSelector: group={{$groupName}}-{{$j}}
-        interval: 300s
-        container: deployment-churn
-        limit: {{$podsPerStep}}
-        failOnCommandError: true
-        failOnExecError: true
-        failOnTimeout: true
-        commands:
-        - name: CustPodCurl
-          # 172.27.0.30 is the IP of the service created in swiftv2kubeobjects/nginx-deployment.yaml
-          command: ["/bin/sh", "-c", "curl --connect-timeout 10 --retry 10 --retry-delay 2 --max-time 30 --retry-max-time 180 --retry-all-errors -v http://172.27.0.30/"]
-          timeout: 200s
-  - name: Wait for Pod Curl Commands to Execute -{{$j}}
-    measurements:
-    - Identifier: Dummy
-      Method: Sleep
-      Params:
-        duration: 200s
-  - name: Gather Pod Curl Command Results -{{$j}}
-    measurements:
-    - Identifier: PodPeriodicCommand-{{$j}}
-      Method: PodPeriodicCommand
-      Params:
-        action: gather
-        labelSelector: group={{$groupName}}-{{$j}}
   {{end}}
   - name: Gather Pod Startup Latency Measurements
     measurements:
@@ -154,3 +121,9 @@ steps:
       Params:
         action: gather
         labelSelector: podgroup={{$groupName}}
+  - name: Wait for Datapath Readiness
+    measurements:
+    - Identifier: Dummy
+      Method: Sleep
+      Params:
+        duration: 60s

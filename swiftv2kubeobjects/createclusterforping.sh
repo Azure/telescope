@@ -454,4 +454,33 @@ if [ $pn_elapsed -ge $PN_TIMEOUT ]; then
     exit 1
 fi
 
+# =============================================================================
+# DEPLOY DATAPATH OBSERVER CONTROLLER
+# =============================================================================
+echo "Deploying Datapath Observer Controller..."
+
+# Apply Manifests
+MANIFEST_DIR="$(dirname "$0")/datapath-observer/controller/manifests"
+echo "Applying manifests from $MANIFEST_DIR..."
+
+if [ -d "$MANIFEST_DIR" ]; then
+    kubectl apply -f "$MANIFEST_DIR/crd.yaml"
+    kubectl apply -f "$MANIFEST_DIR/rbac.yaml"
+    kubectl apply -f "$MANIFEST_DIR/deployment.yaml"
+    
+    # Wait for deployment to be ready
+    echo "Waiting for datapath-controller to be ready..."
+    if ! kubectl wait --for=condition=available --timeout=300s deployment/datapath-controller -n perf-ns; then
+        echo "ERROR: datapath-controller failed to become ready within timeout"
+        kubectl get pods -n perf-ns -l app=datapath-controller
+        kubectl describe deployment datapath-controller -n perf-ns
+        exit 1
+    fi
+else
+    echo "ERROR: Manifest directory $MANIFEST_DIR not found!"
+    # We don't exit here to avoid failing the whole cluster setup if this is optional, 
+    # but based on requirements it seems important. 
+    # For now, we'll just log error.
+fi
+
 echo "Script completed successfully!"

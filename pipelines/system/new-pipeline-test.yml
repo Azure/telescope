@@ -20,6 +20,8 @@ variables:
   # count of swiftv2 pods/NIC per step
   PODS_PER_NODE: 7
   DEVICE_PLUGIN: "false"
+  PROBE_TARGET_URL: "http://172.27.0.30/"
+  PROBE_TIMEOUT: "300"
 
   # CL2 parameters
   cpu_per_node: 16
@@ -80,6 +82,8 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250311"
+            probe_target_url: $(PROBE_TARGET_URL)
+            probe_timeout: $(PROBE_TIMEOUT)
           topology: swiftv2
           max_parallel: 1
           timeout_in_minutes: 2160
@@ -104,6 +108,8 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250311"
+            probe_target_url: $(PROBE_TARGET_URL)
+            probe_timeout: $(PROBE_TIMEOUT)
           topology: swiftv2
           max_parallel: 1
           timeout_in_minutes: 2160
@@ -126,6 +132,8 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250311"
+            probe_target_url: $(PROBE_TARGET_URL)
+            probe_timeout: $(PROBE_TIMEOUT)
           topology: swiftv2
           max_parallel: 1
           timeout_in_minutes: 2160
@@ -148,6 +156,8 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250311"
+            probe_target_url: $(PROBE_TARGET_URL)
+            probe_timeout: $(PROBE_TIMEOUT)
           topology: swiftv2
           max_parallel: 1
           timeout_in_minutes: 2160

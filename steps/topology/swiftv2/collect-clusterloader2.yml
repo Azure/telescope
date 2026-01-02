@@ -8,6 +8,9 @@ parameters:
 - name: regions
   type: object
   default: {}
+- name: credential_type
+  type: string
+  default: 'service_connection'
 
 steps:
 - template: /steps/engine/clusterloader2/swiftv2-slo/collect.yml
@@ -15,4 +18,9 @@ steps:
     cloud: ${{ parameters.cloud }}
     engine_input: ${{ parameters.engine_input }}
     region: ${{ parameters.regions[0] }}
+
+- template: /steps/topology/swiftv2/collect-datapath-observer.yml
+  parameters:
+    cloud: ${{ parameters.cloud }}
+    credential_type: ${{ parameters.credential_type }}
 # Note: Run ID is already set in setup-tests.yml and will be reused for publishing
