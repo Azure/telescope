@@ -21,7 +21,6 @@ set -ex
 echo "Loading shared configuration..."
 source "$(dirname "$0")/shared-config.sh"
 
-export SETUP_ACR_AND_MI=true
 export CLUSTER="ping-target"
 
 # create RG
@@ -147,72 +146,6 @@ else
   kubectl apply -f ./nginx-deployment.yaml
 fi
 
-if [ "$SETUP_ACR_AND_MI" != "true" ]; then
-  echo "Skipping ACR and MI setup as SETUP_ACR_AND_MI is not set to true"
-  exit 0
-fi
-
-# ACR configuration and identity names are already loaded from shared-config.sh
-echo "Using shared ACR: $ACR_NAME (resource ID: $ACR_RESOURCE_ID)"
-echo "Note: To mirror images to ACR, run ./mirrorImagesToACR.sh (one-time setup)"
-
-if az identity show --name $SHARED_KUBELET_IDENTITY_NAME --resource-group $CUST_RG &>/dev/null; then
-  echo "Managed identity $SHARED_KUBELET_IDENTITY_NAME already exists"
-else
-  echo "Creating managed identity $SHARED_KUBELET_IDENTITY_NAME"
-  az identity create \
-    --name $SHARED_KUBELET_IDENTITY_NAME \
-    --resource-group $CUST_RG \
-    --location $LOCATION
-fi
-
-export pId=$(az identity show \
-  --name $SHARED_KUBELET_IDENTITY_NAME \
-  --resource-group $CUST_RG \
-  --query principalId \
-  --output tsv)
-
-# Grant AcrPull permission to the shared acndev ACR
-echo "Granting AcrPull permission to kubelet identity for shared ACR"
-# Check if role assignment already exists
-if az role assignment list --assignee $pId --scope $ACR_RESOURCE_ID --role AcrPull | jq -e 'length > 0' &>/dev/null; then
-  echo "AcrPull role assignment already exists for kubelet identity"
-else
-  echo "Creating AcrPull role assignment for kubelet identity"
-  az role assignment create \
-    --assignee-object-id $pId \
-    --assignee-principal-type ServicePrincipal \
-    --role AcrPull \
-    --scope $ACR_RESOURCE_ID
-fi
-
-if az identity show --name $SHARED_CONTROL_PLANE_IDENTITY_NAME --resource-group $CUST_RG &>/dev/null; then
-  echo "Managed identity $SHARED_CONTROL_PLANE_IDENTITY_NAME already exists"
-else
-  echo "Creating managed identity $SHARED_CONTROL_PLANE_IDENTITY_NAME"
-  az identity create \
-    --name $SHARED_CONTROL_PLANE_IDENTITY_NAME \
-    --resource-group $CUST_RG \
-    --location $LOCATION 
-fi
-
-export cPID=$(az identity show \
-  --name $SHARED_CONTROL_PLANE_IDENTITY_NAME \
-  --resource-group $CUST_RG \
-  --query principalId \
-  --output tsv)
-
-export kubeletIdentityScope=/subscriptions/$CUST_SUB/resourcegroups/$CUST_RG/providers/Microsoft.ManagedIdentity/userAssignedIdentities/$SHARED_KUBELET_IDENTITY_NAME
-
-# Check if Managed Identity Operator role assignment already exists
-if az role assignment list --assignee $cPID --scope $kubeletIdentityScope --role "Managed Identity Operator" | jq -e 'length > 0' &>/dev/null; then
-  echo "Managed Identity Operator role assignment already exists"
-else
-  echo "Creating Managed Identity Operator role assignment"
-  az role assignment create \
-    --assignee-object-id $cPID \
-    --assignee-principal-type ServicePrincipal \
-    --role "Managed Identity Operator" \
-    --scope $kubeletIdentityScope
-fi
+echo "Customer setup completed successfully!"
+echo "Note: ACR access is now automatically configured via --attach-acr when clusters are created"
 

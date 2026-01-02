@@ -191,32 +191,13 @@ create_aks_cluster() {
         echo "Creating AKS cluster: $cluster_name in resource group: $resource_group with default Kubernetes version"
     fi
     
-    # Get the kubelet identity ID from the shared infrastructure resource group
-    az account set --subscription $CUST_SUB
-    local kubelet_identity_id=$(az identity show --name $SHARED_KUBELET_IDENTITY_NAME --resource-group ${CUST_RG:-$custRG} --query id -o tsv)
-    
-    if [ -z "$kubelet_identity_id" ]; then
-        echo "ERROR: Failed to get kubelet identity ID from resource group ${CUST_RG:-$custRG}"
-        exit 1
-    fi
-    
-    echo "Using kubelet identity: $kubelet_identity_id"
-
-    local control_plane_identity_id=$(az identity show --name $SHARED_CONTROL_PLANE_IDENTITY_NAME --resource-group ${CUST_RG:-$custRG} --query id -o tsv)
-
-    if [ -z "$control_plane_identity_id" ]; then
-        echo "ERROR: Failed to get control plane identity ID from resource group ${CUST_RG:-$custRG}"
-        exit 1
-    fi
-
-    echo "Using control plane identity: $control_plane_identity_id"
-
-    az account set --subscription $SUBSCRIPTION
     # Create the AKS cluster with the specified parameters
     local k8s_version_param=""
     if [[ -n "$K8S_VERSION" ]]; then
         k8s_version_param="--kubernetes-version ${K8S_VERSION}"
     fi
+    
+    echo "Using ACR resource ID: $ACR_RESOURCE_ID (will be automatically attached for image pull)"
     
     az aks create -n ${cluster_name} -g ${resource_group} \
         -s $VM_SKU -c 5 \
@@ -237,8 +218,7 @@ create_aks_cluster() {
         --node-resource-group MC_sv2perf-$resource_group-$cluster_name \
         --enable-managed-identity \
         --generate-ssh-keys \
-        --assign-kubelet-identity ${kubelet_identity_id} \
-        --assign-identity ${control_plane_identity_id} \
+        --attach-acr ${ACR_RESOURCE_ID} \
         --yes
 } 
 
@@ -286,7 +266,7 @@ vnetID=$(az network vnet list -g ${RG} | jq -r '.[].id')
 nodeSubnetID=$(az network vnet subnet list -g ${RG} --vnet-name ${vnetName} --query "[?name=='${vnetSubnetNameNodes}']" | jq -r '.[].id')
 podSubnetID=$(az network vnet subnet list -g ${RG} --vnet-name ${vnetName} --query "[?name=='${vnetSubnetNamePods}']" | jq -r '.[].id')
 
-# Call the function to create the cluster
+# Call the function to create the cluster (ACR permissions will be automatically configured)
 create_aks_cluster "${CLUSTER}" "${RG}" "${LOCATION}" "${nodeSubnetID}" "${podSubnetID}"
 
 # Wait for cluster to be ready with retry logic and timeout
