@@ -9,13 +9,16 @@ import (
 )
 
 type AggregatedResult struct {
-	Metric    string     `json:"metric"`
-	Unit      string     `json:"unit"`
-	Count     int        `json:"count"`
-	P50       int64      `json:"p50"`
-	P90       int64      `json:"p90"`
-	P99       int64      `json:"p99"`
-	WorstPods []WorstPod `json:"worstPods"`
+	Metric          string     `json:"metric"`
+	Unit            string     `json:"unit"`
+	Count           int        `json:"count"`
+	TotalSuccessful int        `json:"totalSuccessful"`
+	TotalFailed     int        `json:"totalFailed"`
+	P50             int64      `json:"p50"`
+	P90             int64      `json:"p90"`
+	P99             int64      `json:"p99"`
+	WorstPods       []WorstPod `json:"worstPods"`
+	FailedPods      []FailedPod `json:"failedPods"`
 }
 
 type WorstPod struct {
@@ -25,23 +28,37 @@ type WorstPod struct {
 	Value     int64  `json:"value"`
 }
 
+type FailedPod struct {
+	Namespace string `json:"namespace"`
+	Name      string `json:"name"`
+	UID       string `json:"uid"`
+}
+
 type MetricsCalculator struct {
 	Client client.Client
 }
 
 func (m *MetricsCalculator) GetTimeToStart(ctx context.Context, namespace string, labels map[string]string, topN int) (*AggregatedResult, error) {
-	return m.calculate(ctx, namespace, labels, topN, "time-to-start", func(d perfv1.DatapathResult) int64 {
-		return d.Spec.Metrics.LatStartMs
-	})
+	return m.calculate(ctx, namespace, labels, topN, "time-to-start", 
+		func(d perfv1.DatapathResult) int64 {
+			return d.Spec.Metrics.LatStartMs
+		},
+		func(d perfv1.DatapathResult) bool {
+			return d.Spec.Timestamps.StartTs != ""
+		})
 }
 
 func (m *MetricsCalculator) GetTimeToDatapathReady(ctx context.Context, namespace string, labels map[string]string, topN int) (*AggregatedResult, error) {
-	return m.calculate(ctx, namespace, labels, topN, "time-to-datapath-ready", func(d perfv1.DatapathResult) int64 {
-		return d.Spec.Metrics.LatDpReadyMs
-	})
+	return m.calculate(ctx, namespace, labels, topN, "time-to-datapath-ready", 
+		func(d perfv1.DatapathResult) int64 {
+			return d.Spec.Metrics.LatDpReadyMs
+		},
+		func(d perfv1.DatapathResult) bool {
+			return d.Spec.Timestamps.DpReadyTs != ""
+		})
 }
 
-func (m *MetricsCalculator) calculate(ctx context.Context, namespace string, labels map[string]string, topN int, metricName string, valueExtractor func(perfv1.DatapathResult) int64) (*AggregatedResult, error) {
+func (m *MetricsCalculator) calculate(ctx context.Context, namespace string, labels map[string]string, topN int, metricName string, valueExtractor func(perfv1.DatapathResult) int64, successChecker func(perfv1.DatapathResult) bool) (*AggregatedResult, error) {
 	var list perfv1.DatapathResultList
 	opts := []client.ListOption{}
 	if namespace != "" {
@@ -57,8 +74,24 @@ func (m *MetricsCalculator) calculate(ctx context.Context, namespace string, lab
 
 	values := []int64{}
 	worstPods := []WorstPod{}
+	failedPods := []FailedPod{}
+	totalSuccessful := 0
+	totalFailed := 0
 
 	for _, item := range list.Items {
+		// Track success/failure based on timestamp presence
+		if successChecker(item) {
+			totalSuccessful++
+		} else {
+			totalFailed++
+			failedPods = append(failedPods, FailedPod{
+				Namespace: item.Spec.PodRef.Namespace,
+				Name:      item.Spec.PodRef.Name,
+				UID:       item.Spec.PodRef.UID,
+			})
+		}
+
+		// Only include in percentile calculations if latency value is non-zero
 		val := valueExtractor(item)
 		if val > 0 {
 			values = append(values, val)
@@ -72,11 +105,20 @@ func (m *MetricsCalculator) calculate(ctx context.Context, namespace string, lab
 	}
 
 	count := len(values)
+	
+	// Limit failed pods to topN
+	if len(failedPods) > topN {
+		failedPods = failedPods[:topN]
+	}
+	
 	if count == 0 {
 		return &AggregatedResult{
-			Metric: metricName,
-			Unit:   "ms",
-			Count:  0,
+			Metric:          metricName,
+			Unit:            "ms",
+			Count:           0,
+			TotalSuccessful: totalSuccessful,
+			TotalFailed:     totalFailed,
+			FailedPods:      failedPods,
 		}, nil
 	}
 
@@ -89,13 +131,16 @@ func (m *MetricsCalculator) calculate(ctx context.Context, namespace string, lab
 	}
 
 	return &AggregatedResult{
-		Metric:    metricName,
-		Unit:      "ms",
-		Count:     count,
-		P50:       percentile(values, 0.50),
-		P90:       percentile(values, 0.90),
-		P99:       percentile(values, 0.99),
-		WorstPods: worstPods,
+		Metric:          metricName,
+		Unit:            "ms",
+		Count:           count,
+		TotalSuccessful: totalSuccessful,
+		TotalFailed:     totalFailed,
+		P50:             percentile(values, 0.50),
+		P90:             percentile(values, 0.90),
+		P99:             percentile(values, 0.99),
+		WorstPods:       worstPods,
+		FailedPods:      failedPods,
 	}, nil
 }
 

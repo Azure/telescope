@@ -19,7 +19,9 @@ We need an independent system that:
 - Observes Pods (by namespace/labels) and detects **start** and **datapath readiness**.
 - Measures **time-to-start** (useful as a cross-check against CL2) and **time-to-datapath-ready**.
 - Persists results in a CRD so data survives restarts and Pod churn.
-- Serves HTTP APIs to return consolidated stats (p50/p90/p99) and "top N worst" outliers for both metrics.
+- Serves HTTP APIs to return consolidated stats (p50/p90/p99), "top N worst" outliers, and success/failure counts for both metrics.
+  - For **time-to-start**: successful pods have non-zero `startTs` in their DatapathResult CR; failed pods have missing or zero `startTs`
+  - For **time-to-datapath-ready**: successful pods have non-zero `dpReadyTs` in their DatapathResult CR; failed pods have missing or zero `dpReadyTs`
 
 Here, **datapath success** means the Pod can send/receive traffic as expected. Each Pod's reporter init container reports timestamps via annotations; the controller persists and aggregates results via the `DatapathResult` CRD.
 
@@ -27,8 +29,9 @@ Here, **datapath success** means the Pod can send/receive traffic as expected. E
 
 - Track **time-to-start** (Pod creation → workload ready)
 - Track **time-to-datapath-ready** (Pod creation → first successful probe)
+- Track **success/failure counts** for both metrics
 - Persist results in CRDs for durability
-- Serve HTTP APIs with percentiles (p50/p90/p99) and worst performers
+- Serve HTTP APIs with percentiles (p50/p90/p99), worst performers, and success/failure counts
 
 ## Architecture
 
@@ -48,7 +51,11 @@ Reporter (init container) → Pod annotations → Controller → DatapathResult 
 
 **API endpoints:**
 - `GET /api/v1/time-to-start?topN=10&namespace=<ns>&labelSelector=<k=v,...>`
+  - Returns percentiles (p50/p90/p99), total successful pods (with non-zero `startTs`), total failed pods (missing/zero `startTs`), top N worst performers, and top N failed pods
+  - Percentile calculations only include CRs with non-zero `latStartMs`
 - `GET /api/v1/time-to-datapath-ready?topN=10&namespace=<ns>&labelSelector=<k=v,...>`
+  - Returns percentiles (p50/p90/p99), total successful pods (with non-zero `dpReadyTs`), total failed pods (missing/zero `dpReadyTs`), top N worst performers, and top N failed pods
+  - Percentile calculations only include CRs with non-zero `latDpReadyMs`
 
 ## Data model
 
