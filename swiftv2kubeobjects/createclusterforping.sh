@@ -191,13 +191,52 @@ create_aks_cluster() {
         echo "Creating AKS cluster: $cluster_name in resource group: $resource_group with default Kubernetes version"
     fi
     
+    # =============================================================================
+    # USE PRE-CREATED MANAGED IDENTITIES FOR ACR ACCESS
+    # =============================================================================
+    # IMPORTANT: We cannot use --attach-acr because:
+    # - The ACR is in a different subscription than this cluster
+    # - The pipeline service principal lacks permission to grant roles on the ACR
+    # - This would result in: "AuthorizationFailed: does not have authorization
+    #   to perform action 'Microsoft.Authorization/roleAssignments/write'"
+    #
+    # Instead, we use shared managed identities that were pre-created by
+    # runCustomerSetup.sh with AcrPull access already granted. This approach:
+    # - Separates permission management (one-time setup) from cluster creation
+    # - Works with limited pipeline permissions
+    # - Allows multiple clusters to share the same identities
+    #
+    # PREREQUISITE: Ensure runCustomerSetup.sh has been run to create these
+    # identities before running this script, or cluster image pulls will fail.
+    # =============================================================================
+    
+    az account set --subscription $CUST_SUB
+    local kubelet_identity_id=$(az identity show --name $SHARED_KUBELET_IDENTITY_NAME --resource-group ${CUST_RG} --query id -o tsv)
+    
+    if [ -z "$kubelet_identity_id" ]; then
+        echo "ERROR: Failed to get kubelet identity ID from resource group ${CUST_RG}"
+        echo "Please ensure runCustomerSetup.sh has been run to create shared identities"
+        exit 1
+    fi
+    
+    echo "Using pre-created kubelet identity: $kubelet_identity_id (already has ACR access)"
+
+    local control_plane_identity_id=$(az identity show --name $SHARED_CONTROL_PLANE_IDENTITY_NAME --resource-group ${CUST_RG} --query id -o tsv)
+    
+    if [ -z "$control_plane_identity_id" ]; then
+        echo "ERROR: Failed to get control plane identity ID from resource group ${CUST_RG}"
+        exit 1
+    fi
+
+    echo "Using pre-created control plane identity: $control_plane_identity_id"
+
+    az account set --subscription $SUBSCRIPTION
+    
     # Create the AKS cluster with the specified parameters
     local k8s_version_param=""
     if [[ -n "$K8S_VERSION" ]]; then
         k8s_version_param="--kubernetes-version ${K8S_VERSION}"
     fi
-    
-    echo "Creating AKS cluster with managed identity (ACR permissions will be configured post-creation)"
     
     az aks create -n ${cluster_name} -g ${resource_group} \
         -s $VM_SKU -c 5 \
@@ -218,6 +257,8 @@ create_aks_cluster() {
         --node-resource-group MC_sv2perf-$resource_group-$cluster_name \
         --enable-managed-identity \
         --generate-ssh-keys \
+        --assign-kubelet-identity ${kubelet_identity_id} \
+        --assign-identity ${control_plane_identity_id} \
         --yes
 } 
 
@@ -325,56 +366,7 @@ fi
         
 SV2_CLUSTER_RESOURCE_ID=$(az group show -n MC_sv2perf-$RG-$CLUSTER -o tsv --query id)
 date=$(date -d "+1 week" +"%Y-%m-%d")
-az tag update --resource-id $SV2_CLUSTER_RESOURCE_ID --operation Merge --tags SkipAutoDeleteTill=$date skipGC="swift v2 perf" gc_skip="true"
-
-# =============================================================================
-# CONFIGURE ACR ACCESS FOR KUBELET IDENTITY
-# =============================================================================
-echo "Configuring ACR access for cluster kubelet identity..."
-
-# Get the kubelet identity client ID from the cluster
-KUBELET_IDENTITY_ID=$(az aks show --name $CLUSTER --resource-group $RG --query "identityProfile.kubeletidentity.clientId" --output tsv)
-
-if [ -z "$KUBELET_IDENTITY_ID" ]; then
-    echo "ERROR: Failed to get kubelet identity from cluster"
-    exit 1
-fi
-
-echo "Kubelet identity client ID: $KUBELET_IDENTITY_ID"
-
-# Switch to ACR subscription to grant permission
-echo "Switching to ACR subscription to grant AcrPull role..."
-az account set --subscription $ACR_SUBSCRIPTION
-
-# Check if role assignment already exists
-if az role assignment list --assignee $KUBELET_IDENTITY_ID --scope $ACR_RESOURCE_ID --role AcrPull | jq -e 'length > 0' &>/dev/null; then
-    echo "AcrPull role assignment already exists for kubelet identity"
-else
-    echo "Creating AcrPull role assignment for kubelet identity on ACR"
-    # Retry logic for role assignment (may fail due to replication delay)
-    for attempt in $(seq 1 10); do
-        if az role assignment create \
-            --assignee $KUBELET_IDENTITY_ID \
-            --role AcrPull \
-            --scope $ACR_RESOURCE_ID; then
-            echo "AcrPull role assignment created successfully"
-            break
-        else
-            echo "Attempt $attempt failed, retrying in 15 seconds..."
-            if [ $attempt -lt 10 ]; then
-                sleep 15
-            else
-                echo "ERROR: Failed to create AcrPull role assignment after 10 attempts"
-                echo "You may need to manually grant AcrPull role to identity: $KUBELET_IDENTITY_ID"
-                exit 1
-            fi
-        fi
-    done
-fi
-
-# Switch back to cluster subscription
-az account set --subscription $SUBSCRIPTION
-echo "ACR access configured successfully" 
+az tag update --resource-id $SV2_CLUSTER_RESOURCE_ID --operation Merge --tags SkipAutoDeleteTill=$date skipGC="swift v2 perf" gc_skip="true" 
 
 ############################################################
 # Create user nodepools (sharded) with 1 node each initially
