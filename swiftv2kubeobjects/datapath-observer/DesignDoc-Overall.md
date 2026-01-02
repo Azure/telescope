@@ -131,9 +131,15 @@ spec:
 
 
 
+## Getting Started
+
+See [README.md](README.md) for quick start, deployment instructions, and usage examples.
+
 ## Implementation details
 
 See the following documents for implementation specifics:
 
+- [controller/README.md](controller/README.md) - Controller deployment and usage guide
 - [controller/DesignDoc-Controller.md](controller/DesignDoc-Controller.md) - Controller implementation details
+- [reporter/README.md](reporter/README.md) - Reporter deployment and usage guide
 - [reporter/DesignDoc-Reporter.md](reporter/DesignDoc-Reporter.md) - Reporter init container implementation details

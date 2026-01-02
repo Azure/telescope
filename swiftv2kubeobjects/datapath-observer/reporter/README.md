@@ -1,0 +1,79 @@
+# Datapath Reporter
+
+The datapath reporter is an init container that measures Pod startup time and datapath readiness, then writes the results to Pod annotations.
+
+## Prerequisites
+
+### ACR Pull Permissions
+
+The AKS kubelet identity needs permission to pull the reporter image from the container registry.
+
+```bash
+az role assignment create \
+  --assignee <KUBELET_IDENTITY_OBJECT_ID> \
+  --role AcrPull \
+  --scope /subscriptions/<SUBSCRIPTION_ID>/resourceGroups/<RESOURCE_GROUP>/providers/Microsoft.ContainerRegistry/registries/<REGISTRY_NAME>
+```
+
+**Example:**
+```bash
+az role assignment create \
+  --assignee 00000000-0000-0000-0000-000000000000 \
+  --role AcrPull \
+  --scope /subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/acn-shared-resources/providers/Microsoft.ContainerRegistry/registries/acndev
+```
+
+To find your kubelet identity:
+```bash
+az aks show -g <RESOURCE_GROUP> -n <CLUSTER_NAME> --query identityProfile.kubeletidentity.objectId -o tsv
+```
+
+## Usage
+
+Add the reporter as an init container to your test Pods:
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-pod
+  labels:
+    app: perf-test
+spec:
+  initContainers:
+  - name: datapath-reporter
+    image: acndev.azurecr.io/datapath-reporter:latest
+    env:
+    - name: PROBE_TARGET
+      value: "http://example.com"
+    - name: PROBE_TIMEOUT
+      value: "60"
+    - name: PROBE_PROTOCOL
+      value: "http"
+  containers:
+  - name: main
+    image: nginx:latest
+```
+
+## Configuration
+
+Environment variables:
+
+- `PROBE_TARGET` (required) - Target URL or host:port for datapath probe
+- `PROBE_PROTOCOL` - Protocol to use: `http`, `https`, or `tcp` (default: `http`)
+- `PROBE_TIMEOUT` - Timeout in seconds for datapath probe (default: `60`)
+- `PROBE_INTERVAL` - Interval between probe attempts in seconds (default: `1`)
+
+## Annotations Written
+
+The reporter writes two annotations to the Pod:
+
+- `perf.github.com/azure-start-ts` - RFC3339 timestamp with millisecond precision when init container started
+- `perf.github.com/azure-dp-ready-ts` - RFC3339 timestamp with millisecond precision when first successful probe completed
+
+## RBAC Requirements
+
+The reporter requires:
+- `get`, `patch` on its own Pod only (via downward API)
+
+See [DesignDoc-Reporter.md](DesignDoc-Reporter.md) for detailed technical documentation.
