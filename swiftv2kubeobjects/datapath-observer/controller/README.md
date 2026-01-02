@@ -82,6 +82,26 @@ Environment variables:
 - `LABEL_SELECTOR` - Label selector for pods to track (default: empty, tracks all)
 - `HTTP_PORT` - Port for HTTP API server (default: 8080)
 
+## Building the Image
+
+Build with [Dockerfile](Dockerfile) using date-based versioning:
+
+```bash
+# Tag format: YYYY.MM.DD.XX where XX is the version number for that day
+# Example for first build on Jan 2, 2026:
+docker build -t acndev.azurecr.io/datapath-controller:2026.01.02.01 .
+docker push acndev.azurecr.io/datapath-controller:2026.01.02.01
+
+# For subsequent builds on the same day, increment XX:
+# 2026.01.02.02, 2026.01.02.03, etc.
+
+# Optionally, also tag as latest for convenience:
+docker tag acndev.azurecr.io/datapath-controller:2026.01.02.01 acndev.azurecr.io/datapath-controller:latest
+docker push acndev.azurecr.io/datapath-controller:latest
+```
+
+**Note:** Always use the date-versioned tag in deployment manifests to ensure reproducibility and avoid overwriting previous images.
+
 ## RBAC Requirements
 
 The controller requires:

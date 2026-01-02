@@ -69,25 +69,7 @@ The following is a generic example. For Telescope deployment refer to [swiftv2_d
   - Used as init container in workload Pods
   - Environment variables: pod name, namespace, probe target, timeout, interval
 
-### Container Image
-
-Build with [Dockerfile](Dockerfile) using date-based versioning:
-
-```bash
-# Tag format: YYYY.MM.DD.XX where XX is the version number for that day
-# Example for first build on Dec 29, 2025:
-docker build -t acndev.azurecr.io/datapath-reporter:2025.12.29.01 .
-docker push acndev.azurecr.io/datapath-reporter:2025.12.29.01
-
-# For subsequent builds on the same day, increment XX:
-# 2025.12.29.02, 2025.12.29.03, etc.
-
-# Optionally, also tag as latest for convenience:
-docker tag acndev.azurecr.io/datapath-reporter:2025.12.29.01 acndev.azurecr.io/datapath-reporter:latest
-docker push acndev.azurecr.io/datapath-reporter:latest
-```
-
-**Note:** Always use the date-versioned tag in deployment manifests to ensure reproducibility and avoid overwriting previous images.
+For build instructions, see [README.md](README.md#building-the-image).
 
 ## Implementation
 
