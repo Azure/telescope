@@ -11,6 +11,10 @@ steps:
     set -eo pipefail
     set -x
 
+    # Ensure output directory exists with proper permissions
+    mkdir -p "${OUTPUT_DIR}"
+    chmod 755 "${OUTPUT_DIR}"
+
     # Port forward to datapath-controller deployment
     echo "Starting port-forward to datapath-controller..."
     kubectl port-forward -n perf-ns deployment/datapath-controller 8080:8080 &
@@ -24,12 +28,12 @@ steps:
     
     # Query time-to-start metrics
     echo "Querying time-to-start metrics..."
-    curl -s "http://localhost:8080/api/v1/time-to-start?topN=10&namespace=${NAMESPACE}&labelSelector=${LABEL_SELECTOR}" \
+    curl -s "http://localhost:8080/api/v1/time-to-start?topN=10&namespace=slo-1" \
       > "${OUTPUT_DIR}/datapath-time-to-start.json"
     
     # Query time-to-datapath-ready metrics
     echo "Querying time-to-datapath-ready metrics..."
-    curl -s "http://localhost:8080/api/v1/time-to-datapath-ready?topN=10&namespace=${NAMESPACE}&labelSelector=${LABEL_SELECTOR}" \
+    curl -s "http://localhost:8080/api/v1/time-to-datapath-ready?topN=10&namespace=slo-1" \
       > "${OUTPUT_DIR}/datapath-time-to-dp-ready.json"
     
     # Print summary
@@ -65,8 +69,6 @@ steps:
     
     echo "Results saved to ${OUTPUT_DIR}"
   env:
-    NAMESPACE: $(NAMESPACE)
-    LABEL_SELECTOR: $(LABEL_SELECTOR)
     OUTPUT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/swiftv2-slo/results
     RESULTS_FILE: $(TEST_RESULTS_FILE)
   displayName: "Collect Datapath Observer Results"
