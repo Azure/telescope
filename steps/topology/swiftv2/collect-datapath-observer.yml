@@ -11,9 +11,9 @@ steps:
     set -eo pipefail
     set -x
 
-    # Port forward to datapath-controller service
+    # Port forward to datapath-controller deployment
     echo "Starting port-forward to datapath-controller..."
-    kubectl port-forward -n perf-ns service/datapath-controller 8080:8080 &
+    kubectl port-forward -n perf-ns deployment/datapath-controller 8080:8080 &
     PF_PID=$!
     
     # Cleanup port-forward on exit
