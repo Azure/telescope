@@ -136,6 +136,21 @@ export Node_RG_ID=$(az group show -n $nodeRGName -o tsv --query id)
 export Node_RG_ID=${Node_RG_ID//$'\r'}
 az tag update --resource-id $Node_RG_ID --operation Merge --tags SkipAutoDeleteTill=$date skipGC="swift v2 perf" gc_skip="true"
 
+echo "Grant Network Contributor role to cluster control plane identity on VNet"
+export CLUSTER_IDENTITY_OBJECT_ID=$(az aks show --name $CLUSTER --resource-group $CUST_RG --query identity.principalId --output tsv)
+export VNET_RESOURCE_ID=$(az network vnet show --name ${CUST_VNET_NAME} --resource-group ${CUST_RG} --query id --output tsv)
+
+if az role assignment list --assignee $CLUSTER_IDENTITY_OBJECT_ID --scope $VNET_RESOURCE_ID --role "Network Contributor" | jq -e 'length > 0' &>/dev/null; then
+  echo "Network Contributor role assignment already exists for cluster identity"
+else
+  echo "Creating Network Contributor role assignment for cluster identity on VNet"
+  az role assignment create \
+    --assignee-object-id $CLUSTER_IDENTITY_OBJECT_ID \
+    --assignee-principal-type ServicePrincipal \
+    --role "Network Contributor" \
+    --scope $VNET_RESOURCE_ID
+fi
+
 echo "Deploy nginx pod on the cluster with IP - 172.27.0.30"
 az aks get-credentials --resource-group $CUST_RG --name $CLUSTER --overwrite-existing -a
 
