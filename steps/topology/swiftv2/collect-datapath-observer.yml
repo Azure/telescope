@@ -13,7 +13,7 @@ steps:
 
     # Port forward to datapath-controller service
     echo "Starting port-forward to datapath-controller..."
-    kubectl port-forward -n datapath-observer service/datapath-controller 8080:8080 &
+    kubectl port-forward -n perf-ns service/datapath-controller 8080:8080 &
     PF_PID=$!
     
     # Cleanup port-forward on exit
