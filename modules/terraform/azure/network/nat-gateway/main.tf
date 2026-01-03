@@ -11,7 +11,7 @@ resource "azurerm_nat_gateway_public_ip_association" "nat_gateway_ip_association
   count = length(var.nat_gateway_association.public_ip_names)
 
   nat_gateway_id       = azurerm_nat_gateway.nat_gateway.id
-  public_ip_address_id = var.public_ips[var.nat_gateway_association.public_ip_names[count.index]]
+  public_ip_address_id = var.public_ips[var.nat_gateway_association.public_ip_names[count.index]].id
 }
 
 resource "azurerm_subnet_nat_gateway_association" "nat_gateway_subnet_association" {
