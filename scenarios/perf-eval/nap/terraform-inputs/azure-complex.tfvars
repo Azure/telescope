@@ -163,10 +163,6 @@ aks_cli_config_list = [
         value = ""
       },
       {
-        name  = "enable-cluster-autoscaler"
-        value = ""
-      },
-      {
         name  = "outbound-type"
         value = "userDefinedRouting"
       },
