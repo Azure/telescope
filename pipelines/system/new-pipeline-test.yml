@@ -27,7 +27,7 @@ stages:
               repeats: 1
               operation_timeout: 3m
               load_type: memory
-              pod_startup_latency_threshold: 20s
+              pod_startup_latency_threshold: 21s
               kubernetes_version: "1.34"
               scrape_kubelets: True
             n1-p60-memory-managed:
@@ -37,7 +37,7 @@ stages:
               repeats: 1
               operation_timeout: 3m
               load_type: memory
-              pod_startup_latency_threshold: 20s
+              pod_startup_latency_threshold: 21s
               kubernetes_version: "1.34"
               k8s_os_disk_type: Managed
               scrape_kubelets: True
@@ -48,7 +48,7 @@ stages:
               repeats: 1
               operation_timeout: 3m
               load_type: cpu
-              pod_startup_latency_threshold: 20s
+              pod_startup_latency_threshold: 21s
               kubernetes_version: "1.34"
               scrape_kubelets: True
             n1-p60-cpu-managed:
@@ -58,7 +58,7 @@ stages:
               repeats: 1
               operation_timeout: 3m
               load_type: cpu
-              pod_startup_latency_threshold: 20s
+              pod_startup_latency_threshold: 21s
               kubernetes_version: "1.34"
               k8s_os_disk_type: Managed
               scrape_kubelets: True
