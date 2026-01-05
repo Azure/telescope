@@ -10,6 +10,9 @@ aks_cli_config_list = [
     role               = "nap"
     aks_name           = "nap"
     sku_tier           = "standard"
+    managed_cluster_tags = {
+      "enable-stls-nap" = "true"
+    }
     aks_custom_headers = [
       "AKSHTTPCustomFeatures=Microsoft.ContainerService/EnableSecureTLSBootstrapping"
     ]
