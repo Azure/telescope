@@ -354,6 +354,7 @@ variable "aks_cli_config_list" {
     use_aks_preview_private_build     = optional(bool, false)
     api_server_subnet_name            = optional(string, false)
     enable_apiserver_vnet_integration = optional(bool, false)
+    managed_cluster_tags              = optional(map(string), {})
 
     default_node_pool = optional(object({
       name        = string
