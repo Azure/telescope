@@ -55,7 +55,7 @@ firewall_config_list = [
             target_fqdns = ["*.azure.com", "*.azure.net",
               "*.windows.net", "*.azurecr.io", "*.ubuntu.com", "AzureKubernetesService",
               "mcr-0001.mcr-msedge.net", "*.microsoft.com",
-              "*.microsoftonline.com", "*.microsoftonline.co", "*.azureedge.net",
+              "*.microsoftonline.com", "*.microsoftonline.co", "*.azureedge.net"
             "packages.aks.azure.com"]
             protocols = [
               { port = "80", type = "Http" },
