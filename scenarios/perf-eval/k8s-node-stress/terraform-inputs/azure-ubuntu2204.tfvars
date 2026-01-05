@@ -19,6 +19,17 @@ aks_cli_config_list = [
     }
     extra_node_pool = [
       {
+        name       = "prompool"
+        node_count = 1
+        vm_size    = "Standard_D8_v5"
+        optional_parameters = [
+          {
+            name = "labels"
+            value = "prometheus=true"
+          }
+        ]
+      },
+      {
         name       = "userpool1",
         node_count = 1,
         vm_size    = "Standard_D8_v5",
