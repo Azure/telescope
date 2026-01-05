@@ -9,8 +9,14 @@ steps:
   - script: |
       set -eo pipefail
 
+      if [ -z "$CUSTOM_DESIRED_NODES" ]; then
+        VALIDATE_DESIRED_NODES=$DESIRED_NODES
+      else
+        VALIDATE_DESIRED_NODES=$CUSTOM_DESIRED_NODES
+      fi
+
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE validate \
-        --node_count $DESIRED_NODES \
+        --node_count $VALIDATE_DESIRED_NODES \
         --operation_timeout $VALIDATION_TIMEOUT_IN_MINUTES
     workingDirectory: modules/python
     timeoutInMinutes: ${{ parameters.validation_timeout_in_minutes }}
