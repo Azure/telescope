@@ -66,8 +66,8 @@ def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up
         warmup_deployment_for_karpeneter(cl2_config_dir, warmup_deployment_template)
         desired_node_count = 0
 
-    logger.info(f"Total number of nodes: {node_count}, total number of pods: {pod_count}")
-    logger.info(f"CPU request for each pod: {cpu_request}m")
+    # logger.info(f"Total number of nodes: {node_count}, total number of pods: {pod_count}")
+    # logger.info(f"CPU request for each pod: {cpu_request}m")
 
     is_complex = cl2_config_file == "ms_complex_config.yaml"
     if not is_complex:
