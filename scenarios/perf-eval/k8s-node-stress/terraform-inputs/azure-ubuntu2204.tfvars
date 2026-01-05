@@ -11,28 +11,13 @@ aks_cli_config_list = [
       "AKSHTTPCustomFeatures=EnableSelfContainedVHD"
     ]
     sku_tier           = "standard"
-    kubernetes_version = "1.33"
+    kubernetes_version = "1.34"
     default_node_pool = {
       name       = "default"
       node_count = 1
       vm_size    = "Standard_D8_v5"
     }
     extra_node_pool = [
-      {
-        name       = "prompool",
-        node_count = 1,
-        vm_size    = "Standard_D8_v5",
-        optional_parameters = [
-          {
-            name  = "labels"
-            value = "prometheus=true"
-          },
-          {
-            name  = "os-sku"
-            value = "Ubuntu2204"
-          }
-        ]
-      },
       {
         name       = "userpool1",
         node_count = 1,
