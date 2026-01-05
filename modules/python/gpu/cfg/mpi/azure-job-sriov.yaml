@@ -21,7 +21,7 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: nccl-launcher
-              image: ghcr.io/azure/aks-rdma-infiniband/nccl-tests:latest
+              image: telescope.azurecr.io/azure/aks-rdma-infiniband/nccl-tests:latest
               imagePullPolicy: IfNotPresent
               env:
                 - name: OMPI_ALLOW_RUN_AS_ROOT
@@ -41,7 +41,6 @@ spec:
                     -np ${NUMBER_OF_PROCESSES} \
                     -bind-to none \
                     -x NCCL_NET_GDR_LEVEL="SYS" \
-                    -x NCCL_TOPO_FILE=/opt/nvidia-topology/topo.xml \
                     -x CUDA_DEVICE_ORDER=PCI_BUS_ID \
                     /opt/nccl_tests/build/all_reduce_perf \
                       -b 8 \
@@ -50,7 +49,7 @@ spec:
                       -g 1 \
                       -n 40
     Worker:
-      replicas: {{replicas}}
+      replicas: {{worker_replicas}}
       template:
         metadata:
           labels:
@@ -59,31 +58,23 @@ spec:
         spec:
           containers:
             - name: nccl-worker
-              image: ghcr.io/azure/aks-rdma-infiniband/nccl-tests:latest
+              image: telescope.azurecr.io/azure/aks-rdma-infiniband/nccl-tests:latest
               imagePullPolicy: IfNotPresent
               resources:
                 limits:
                   nvidia.com/gpu: {{gpu_allocatable}}
-                  rdma/shared_ib: 1
+                  rdma/ib: {{ib_allocatable}}
                 requests:
                   nvidia.com/gpu: {{gpu_allocatable}}
-                  rdma/shared_ib: 1
+                  rdma/ib: {{ib_allocatable}}
               securityContext:
                 capabilities:
                   add:
                     - "IPC_LOCK"
               volumeMounts:
-                - name: shm
+                - name: shmem
                   mountPath: /dev/shm
-                - name: nvidia-topology
-                  mountPath: /opt/nvidia-topology
           volumes:
-            - name: shm
-              emptyDir:
-                medium: Memory
-            - name: nvidia-topology
-              configMap:
-                name: nvidia-topology
-                items:
-                  - key: topo.xml
-                    path: topo.xml
+            - name: shmem
+              hostPath:
+                path: /dev/shm

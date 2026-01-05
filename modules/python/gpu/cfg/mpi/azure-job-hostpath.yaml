@@ -1,0 +1,96 @@
+apiVersion: kubeflow.org/v2beta1
+kind: MPIJob
+metadata:
+  namespace: default
+  name: nccl-tests
+  labels:
+    app: nccl-tests
+spec:
+  slotsPerWorker: {{slots_per_worker}}
+  runPolicy:
+    cleanPodPolicy: Running
+  mpiReplicaSpecs:
+    Launcher:
+      replicas: 1
+      template:
+        metadata:
+          labels:
+            app: nccl-tests
+            component: launcher
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: nccl-launcher
+              image: telescope.azurecr.io/azure/aks-rdma-infiniband/nccl-tests:latest
+              imagePullPolicy: IfNotPresent
+              env:
+                - name: OMPI_ALLOW_RUN_AS_ROOT
+                  value: "1"
+                - name: OMPI_ALLOW_RUN_AS_ROOT_CONFIRM
+                  value: "1"
+                - name: NUMBER_OF_PROCESSES
+                  value: "{{number_of_processes}}"
+              command:
+                - /bin/bash
+                - -c
+              args:
+                - |
+                  set -xe
+                  until mpirun -np ${NUMBER_OF_PROCESSES} -x LD_LIBRARY_PATH -bind-to none /usr/bin/nvidia-smi -L 2>/dev/null; do sleep 5; done
+                  gpu_count={{slots_per_worker}}
+                  cuda_devices=$(seq -s',' 0 $((gpu_count - 1)))
+                  hcp_ports=""
+                  for i in $(seq 0 $((gpu_count - 1))); do
+                    if [ -n "$hcp_ports" ]; then
+                      hcp_ports="${hcp_ports},"
+                    fi
+                    hcp_ports="${hcp_ports}mlx5_${i}:1"
+                  done
+                  export hcp_ports
+                  echo "Detected ${gpu_count} GPUs, cuda_devices: ${cuda_devices}, hcp_ports: ${hcp_ports}"
+                  mpirun \
+                    -np ${NUMBER_OF_PROCESSES} \
+                    -bind-to none \
+                    -x NCCL_NET_GDR_LEVEL="SYS" \
+                    -x CUDA_DEVICE_ORDER=PCI_BUS_ID \
+                    -x CUDA_VISIBLE_DEVICES=${cuda_devices} \
+                    -x NCCL_SHM_DISABLE=1 \
+                    -x UCX_NET_DEVICES=${hcp_ports} \
+                    -x NCCL_IB_HCA=${hcp_ports} \
+                    /opt/nccl_tests/build/all_reduce_perf \
+                      -b 8 \
+                      -e 8G \
+                      -f 2 \
+                      -g 1 \
+                      -n 40
+    Worker:
+      replicas: {{worker_replicas}}
+      template:
+        metadata:
+          labels:
+            app: nccl-tests
+            component: worker
+        spec:
+          containers:
+            - name: nccl-worker
+              image: telescope.azurecr.io/azure/aks-rdma-infiniband/nccl-tests:latest
+              imagePullPolicy: IfNotPresent
+              resources:
+                limits:
+                  nvidia.com/gpu: {{gpu_allocatable}}
+                requests:
+                  nvidia.com/gpu: {{gpu_allocatable}}
+              securityContext:
+                privileged: true
+              volumeMounts:
+                - name: shmem
+                  mountPath: /dev/shm
+                - name: infiniband
+                  mountPath: /dev/infiniband
+          volumes:
+            - name: shmem
+              hostPath:
+                path: /dev/shm
+            - name: infiniband
+              hostPath:
+                path: /dev/infiniband

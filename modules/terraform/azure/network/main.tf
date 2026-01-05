@@ -77,7 +77,7 @@ resource "azurerm_network_interface" "nic" {
     name                          = each.value.ip_configuration_name
     subnet_id                     = local.subnets_map[each.value.subnet_name].id
     private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = each.value.public_ip_name != null ? var.public_ips[each.value.public_ip_name] : null
+    public_ip_address_id          = each.value.public_ip_name != null ? var.public_ips[each.value.public_ip_name].id : null
   }
 }
 

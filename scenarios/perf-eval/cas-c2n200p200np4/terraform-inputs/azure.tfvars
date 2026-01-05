@@ -65,7 +65,7 @@ aks_config_list = [
         node_labels          = { "cas" = "dedicated" }
       }
     ]
-    kubernetes_version = "1.31"
+    kubernetes_version = "1.34"
     auto_scaler_profile = {
       scale_down_delay_after_add     = "2m"
       scale_down_delay_after_failure = "1m"
