@@ -73,9 +73,11 @@ def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up
     logger.info(f"CPU request for each pod: {cpu_request}m")
 
     is_complex = override_file == "ms_complex_config.yaml"
+    if not is_complex:
+        pod_cpu_request = calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, pod_count, warmup_deployment, cl2_config_dir, warmup_deployment_template)
     
     with open(override_file, 'w', encoding='utf-8') as file:
-        file.write(f"CL2_DEPLOYMENT_CPU: {cpu_request}m\n")
+        file.write(f"CL2_DEPLOYMENT_CPU: {pod_cpu_request}m\n")
         file.write(f"CL2_DEPLOYMENT_MEMORY: {pod_memory_request}\n")
         file.write(f"CL2_DEPLOYMENT_SIZE: {pod_count}\n")
         file.write(f"CL2_SCALE_UP_TIMEOUT: {scale_up_timeout}\n")

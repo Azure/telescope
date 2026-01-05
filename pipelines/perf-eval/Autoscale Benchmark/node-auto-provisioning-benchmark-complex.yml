@@ -36,7 +36,6 @@ stages:
               pod_memory_request: "4Gi"
               scale_up_timeout: "15m"
               scale_down_timeout: "15m"
-              node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
               warmup_deployment: true
