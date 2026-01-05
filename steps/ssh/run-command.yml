@@ -1,0 +1,26 @@
+parameters:
+- name: vm_ip
+  type: string
+  default: ''
+- name: command_array
+  type: object
+  default:
+  - hostname
+
+steps:
+- ${{ each command in parameters.command_array }}:
+  - bash: |
+      set -eu
+      if [ -z "${SSH_KEY_PATH:-}" ] || [ ! -f "$SSH_KEY_PATH" ]; then
+        echo "SSH_KEY_PATH not found" >&2; exit 1
+      fi
+
+      ssh_opts=(-i "$SSH_KEY_PATH" -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null -o "ServerAliveInterval=60" -o "ServerAliveCountMax=5")
+
+      ssh_target="azureuser@${VM_IP}"
+      sshCommand="ssh ${ssh_opts[@]} ${ssh_target} ${{ command }}"
+      $sshCommand
+    displayName: "Run SSH Command: ${{ command }}"
+    env:
+      VM_IP: ${{ parameters.vm_ip }}
+      COMMAND: ${{ command }}

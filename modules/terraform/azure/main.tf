@@ -61,11 +61,6 @@ locals {
   aks_cli_config_map = { for aks in local.updated_aks_cli_config_list : aks.role => aks }
 
   key_vault_config_map = { for kv in var.key_vault_config_list : kv.name => kv }
-  jumpbox_config_map = {
-    for jb in var.jumpbox_config_list : jb.role => merge(jb, {
-      subnet_id              = try(local.all_subnets[jb.subnet_name], null)
-    })
-  }
 }
 
 provider "azurerm" {
@@ -168,12 +163,11 @@ module "jumpbox" {
   source              = "./jumpbox"
   resource_group_name = local.run_id
   location            = local.region
-  name                = each.value.name
-  subnet_id           = each.value.subnet_id
   tags                = local.tags
   ssh_public_key      = local.ssh_public_key
-  vm_size             = each.value.vm_size
-  aks_cluster_name    = each.value.aks_name
+  jumpbox_config      = each.value
+  public_ips_map      = module.public_ips.pip_ids
+  subnets_map         = local.all_subnets
 
   # Ensure AKS cluster is created before jumpbox tries to look it up for RBAC
   depends_on = [module.aks, module.aks-cli]

@@ -18,7 +18,6 @@ steps:
       cloud: ${{ parameters.cloud }}
       region: ${{ parameters.regions[0] }}
 
-# Public cluster: run locally on agent (when JUMPBOX_HOST is empty)
 - bash: |
     set -euo pipefail
     set -x
@@ -35,44 +34,4 @@ steps:
   env:
     CLOUD: ${{ parameters.cloud }}
     KARPENTER_NODEPOOL_FILE: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/karpenter_nodepool.${{ parameters.cloud }}.yml
-  displayName: "Validate Karpenter setup (local)"
-  condition: eq(variables['JUMPBOX_HOST'], '')
-
-# Private cluster: run on jumpbox (when JUMPBOX_HOST is set)
-- bash: |
-    set -euo pipefail
-
-    # SSH_KEY_PATH is set by steps/ssh/setup-key.yml
-    if [ -z "${SSH_KEY_PATH:-}" ] || [ ! -f "$SSH_KEY_PATH" ]; then
-      echo "SSH_KEY_PATH is not set or file not found: ${SSH_KEY_PATH:-'(not set)'}" >&2
-      exit 1
-    fi
-
-    ssh_target="${JUMPBOX_USERNAME}@${JUMPBOX_HOST}"
-    ssh_opts=(-i "$SSH_KEY_PATH" -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null")
-
-    SOURCE_DIR="$(Pipeline.Workspace)/s"
-    remote_root="/tmp/telescope-$(Build.BuildId)"
-
-    remote_nodepool_file="${remote_root}/karpenter_nodepool.yml"
-
-    echo "Using SSH key: $SSH_KEY_PATH"
-
-    echo "Creating remote directory on jumpbox..."
-    ssh "${ssh_opts[@]}" "$ssh_target" "mkdir -p '${remote_root}'"
-
-    echo "Uploading nodepool file to jumpbox ${JUMPBOX_HOST}..."
-    scp "${ssh_opts[@]}" "$KARPENTER_NODEPOOL_FILE" "${ssh_target}:${remote_nodepool_file}"
-
-    echo "Executing Karpenter validation on jumpbox..."
-    ssh "${ssh_opts[@]}" "$ssh_target" "set -euo pipefail && set -x && \
-      kubectl apply -f '${remote_nodepool_file}' && \
-      kubectl patch nodepool default --type='json' -p=\"[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['${VM_SIZE}']}]\" && \
-      kubectl patch nodepool spot --type='json' -p=\"[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['${VM_SIZE}']}]\" && \
-      kubectl get nodepool default -o yaml && \
-      kubectl get nodepool spot -o yaml"
-  env:
-    CLOUD: ${{ parameters.cloud }}
-    KARPENTER_NODEPOOL_FILE: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/karpenter_nodepool.${{ parameters.cloud }}.yml
-  displayName: "Validate Karpenter setup (via Jumpbox)"
-  condition: ne(variables['JUMPBOX_HOST'], '')
+  displayName: "Validate Karpenter setup"

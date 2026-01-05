@@ -2,25 +2,19 @@ locals {
   admin_username = "azureuser"
   jumpbox_role_assignments = var.aks_cluster_name != null ? {
     "Azure Kubernetes Service Cluster User Role" = data.azurerm_kubernetes_cluster.aks[0].id
-    "Reader"                     = data.azurerm_resource_group.rg.id
+    "Reader"                                     = data.azurerm_resource_group.rg.id
   } : {}
-}
-
-resource "azurerm_public_ip" "jumpbox" {
-  name                = "${var.name}-pip"
-  location            = var.location
-  resource_group_name = var.resource_group_name
-  allocation_method   = "Static"
-  sku                 = "Standard"
-  tags                = var.tags
+  
+  public_ip_address_id = try(var.public_ips_map[var.jumpbox_config.public_ip_name], null)
+  subnet_id = try(var.subnets_map[var.jumpbox_config.subnet_name], null)
 }
 
 
 resource "azurerm_network_security_group" "jumpbox" {
-  name                = "${var.name}-nsg"
+  name                = "${var.jumpbox_config.name}-nsg"
   location            = var.location
   resource_group_name = var.resource_group_name
-  tags                = var.tags
+  tags                = merge(var.tags, { "jumpbox" = "true" })
 
   security_rule {
     name                       = "AllowSSH"
@@ -36,35 +30,36 @@ resource "azurerm_network_security_group" "jumpbox" {
 }
 
 resource "azurerm_network_interface" "jumpbox" {
-  name                = "${var.name}-nic"
+  name                = "${var.jumpbox_config.name}-nic"
   location            = var.location
   resource_group_name = var.resource_group_name
-  tags                = var.tags
+  tags                = merge(var.tags, { "jumpbox" = "true" })
 
   ip_configuration {
     name                          = "primary"
-    subnet_id                     = var.subnet_id
+    subnet_id                     = local.subnet_id
     private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = azurerm_public_ip.jumpbox.id
+    public_ip_address_id          = local.public_ip_address_id
   }
 }
 
+# Associate the jumpbox network interface with the jumpbox network security group
 resource "azurerm_network_interface_security_group_association" "jumpbox" {
   network_interface_id      = azurerm_network_interface.jumpbox.id
   network_security_group_id = azurerm_network_security_group.jumpbox.id
 }
 
-
+# Create the jumpbox virtual machine
 resource "azurerm_linux_virtual_machine" "jumpbox" {
-  name                            = var.name
+  name                            = var.jumpbox_config.name
   location                        = var.location
   resource_group_name             = var.resource_group_name
-  size                            = var.vm_size
+  size                            = var.jumpbox_config.vm_size
   admin_username                  = local.admin_username
   network_interface_ids           = [azurerm_network_interface.jumpbox.id]
   disable_password_authentication = true
   custom_data                     = base64encode(templatefile("${path.module}/templates/cloud-init.tpl", {}))
-  tags                            = var.tags
+  tags                            = merge(var.tags, { "jumpbox" = "true" })
 
   admin_ssh_key {
     username   = local.admin_username
@@ -91,7 +86,7 @@ resource "azurerm_linux_virtual_machine" "jumpbox" {
 
 # Get AKS cluster by name and resource group
 data "azurerm_kubernetes_cluster" "aks" {
-  name                = var.aks_cluster_name
+  name                = var.jumpbox_config.aks_name
   resource_group_name = var.resource_group_name
 }
 
