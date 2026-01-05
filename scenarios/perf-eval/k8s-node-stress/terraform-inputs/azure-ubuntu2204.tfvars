@@ -45,6 +45,10 @@ aks_cli_config_list = [
           {
             name  = "labels"
             value = "cri-resource-consume=true"
+          },
+          {
+            name  = "aks-custom-headers"
+            value = "AKSHTTPCustomFeatures=EnableSelfContainedVHD"
           }
         ]
       }
