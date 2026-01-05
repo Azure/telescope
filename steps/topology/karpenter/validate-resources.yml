@@ -5,6 +5,9 @@ parameters:
   type: string
 - name: regions
   type: object
+- name: karpenter_nodepool_file
+  type: string
+  default: ''
 
 steps:
 - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
@@ -23,15 +26,24 @@ steps:
     set -x
     kubectl apply -f $KARPENTER_NODEPOOL_FILE
 
-    # Patch the On-Demand NodePool
-    kubectl patch nodepool default --type='json' -p="[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['$VM_SIZE']}]"
+    if [ -n "$VM_SIZE" ]; then
+      # Patch the On-Demand NodePool
+      kubectl patch nodepool default --type='json' -p="[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['$VM_SIZE']}]"
 
-    # Patch the Spot NodePool
-    kubectl patch nodepool spot --type='json' -p="[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['$VM_SIZE']}]"
+      # Patch the Spot NodePool
+      kubectl patch nodepool spot --type='json' -p="[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['$VM_SIZE']}]"
+    fi
 
     kubectl get nodepool default -o yaml
     kubectl get nodepool spot -o yaml
   env:
     CLOUD: ${{ parameters.cloud }}
-    KARPENTER_NODEPOOL_FILE: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/karpenter_nodepool.${{ parameters.cloud }}.yml
+    KARPENTER_DIR: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/
+    DEFAULT_KARPENTER_FILE: karpenter_nodepool.${{ parameters.cloud }}.yml
+    KARPENTER_NODEPOOL_FILE: |
+      ${{ if eq(parameters.karpenter_nodepool_file, '') }}
+        $(KARPENTER_DIR)$(DEFAULT_KARPENTER_FILE)
+      ${{ else }}
+        $(KARPENTER_DIR)${{ parameters.karpenter_nodepool_file }}
+      ${{ end }}
   displayName: "Validate Karpenter setup"
