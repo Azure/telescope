@@ -14,14 +14,14 @@ aks_cli_config_list = [
     kubernetes_version = "1.33"
     default_node_pool = {
       name       = "default"
-      node_count = 3
-      vm_size    = "Standard_D8ds_v5"
+      node_count = 1
+      vm_size    = "Standard_D8_v5"
     }
     extra_node_pool = [
       {
         name       = "prompool",
         node_count = 1,
-        vm_size    = "Standard_D16_v5",
+        vm_size    = "Standard_D8_v5",
         optional_parameters = [
           {
             name  = "labels"
@@ -36,7 +36,7 @@ aks_cli_config_list = [
       {
         name       = "userpool1",
         node_count = 1,
-        vm_size    = "Standard_D8ds_v5",
+        vm_size    = "Standard_D8_v5",
         optional_parameters = [
           {
             name  = "os-sku"
