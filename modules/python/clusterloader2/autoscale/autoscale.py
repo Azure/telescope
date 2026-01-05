@@ -60,19 +60,16 @@ def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, po
     cpu_request = int(cpu_request * 0.95)
     return cpu_request
 
-def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file, warmup_deployment, cl2_config_dir, os_type="linux", warmup_deployment_template="", deployment_template="", pod_cpu_request=0, pod_memory_request=""):
-    logger.info(f"CPU per node: {cpu_per_node}")
+def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file, warmup_deployment, cl2_config_dir, os_type="linux", warmup_deployment_template="", deployment_template="", pod_cpu_request=0, pod_memory_request="", cl2_config_file="config.yaml"):
     desired_node_count = 1
     if warmup_deployment in ["true", "True"]:
         warmup_deployment_for_karpeneter(cl2_config_dir, warmup_deployment_template)
         desired_node_count = 0
 
-    cpu_request = calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, pod_count, warmup_deployment, cl2_config_dir, warmup_deployment_template)
-
     logger.info(f"Total number of nodes: {node_count}, total number of pods: {pod_count}")
     logger.info(f"CPU request for each pod: {cpu_request}m")
 
-    is_complex = override_file == "ms_complex_config.yaml"
+    is_complex = cl2_config_file == "ms_complex_config.yaml"
     if not is_complex:
         pod_cpu_request = calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, pod_count, warmup_deployment, cl2_config_dir, warmup_deployment_template)
     
@@ -262,6 +259,7 @@ def main():
     parser_override.add_argument("--deployment_template", type=str, default="", help="Path to the CL2 deployment file")
     parser_override.add_argument("--pod_cpu_request", type=int, default=0, help="CPU request for each pod")
     parser_override.add_argument("--pod_memory_request", type=str, default="60Gi", help="Memory request for each pod")
+    parser_override.add_argument("--cl2_config_file", type=str, default="config.yaml", help="name of CL2 config file")
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", help="Execute scale up operation")
     parser_execute.add_argument("cl2_image", type=str, help="Name of the CL2 image")
