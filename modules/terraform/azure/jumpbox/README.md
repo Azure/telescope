@@ -33,6 +33,7 @@ This module provisions a Linux jumpbox virtual machine for accessing private AKS
 - **Sensitive:** Yes
 - **Required:** Yes
 - **Validation:** Must be a non-empty string.
+- **Note:** In the pipeline, set `ssh_key_enabled: true` to automatically generate and provision this key.
 
 ### `jumpbox_config`
 - **Description:** Configuration object for the jumpbox options.

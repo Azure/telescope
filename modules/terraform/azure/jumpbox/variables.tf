@@ -28,11 +28,11 @@ variable "ssh_public_key" {
 variable "jumpbox_config" {
   description = "Jumpbox configuration"
   type = object({
-    name              = string
-    subnet_name       = string
-    vm_size           = optional(string, "Standard_D4s_v3")
-    public_ip_name    = optional(string, null)
-    aks_name          = string
+    name           = string
+    subnet_name    = string
+    vm_size        = optional(string, "Standard_D4s_v3")
+    public_ip_name = optional(string, null)
+    aks_name       = string
   })
 }
 
