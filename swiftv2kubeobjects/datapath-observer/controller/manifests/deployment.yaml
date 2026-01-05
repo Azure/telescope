@@ -24,5 +24,7 @@ spec:
         - "--label-selector=podgroup=deployment-churn"
         - "--max-concurrent-reconciles=100"
         ports:
-        - name: http
+        - name: metrics
           containerPort: 8080
+        - name: http
+          containerPort: 8082

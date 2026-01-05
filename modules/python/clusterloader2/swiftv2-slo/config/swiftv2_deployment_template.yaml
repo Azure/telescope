@@ -27,7 +27,7 @@ spec:
         swiftv2slo: "true"
       initContainers:
       - name: datapath-reporter
-        image: acndev.azurecr.io/datapath-reporter:latest
+        image: acndev.azurecr.io/datapath-reporter:2025.12.29.02
         env:
         - name: PROBE_TARGET
           value: "{{.ProbeTarget}}"

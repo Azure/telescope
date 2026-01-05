@@ -11,30 +11,42 @@ steps:
     set -eo pipefail
     set -x
 
-    # Ensure output directory exists with proper permissions
+    # Ensure output directory exists
     mkdir -p "${OUTPUT_DIR}"
-    chmod 755 "${OUTPUT_DIR}"
 
+    # Verify controller is running
+    echo "Checking controller pods..."
+    kubectl get pods -n perf-ns -l app=datapath-controller
+    kubectl logs -n perf-ns -l app=datapath-controller --tail=20 || true
+    
     # Port forward to datapath-controller deployment
     echo "Starting port-forward to datapath-controller..."
-    kubectl port-forward -n perf-ns deployment/datapath-controller 8080:8080 &
+    kubectl port-forward -n perf-ns deployment/datapath-controller 8082:8082 &
     PF_PID=$!
     
     # Cleanup port-forward on exit
     trap "kill $PF_PID 2>/dev/null || true" EXIT
     
     # Wait for port-forward to be ready
-    sleep 3
+    sleep 5
+    
+    # Test connectivity
+    echo "Testing API connectivity..."
+    curl -v "http://localhost:8082/api/v1/time-to-start?topN=1&namespace=slo-1" || true
     
     # Query time-to-start metrics
     echo "Querying time-to-start metrics..."
-    curl -s "http://localhost:8080/api/v1/time-to-start?topN=10&namespace=slo-1" \
-      > "${OUTPUT_DIR}/datapath-time-to-start.json"
+    time_to_start_response=$(curl -s "http://localhost:8082/api/v1/time-to-start?topN=10&namespace=slo-1")
+    echo "API Response (time-to-start):"
+    echo "$time_to_start_response"
+    echo "$time_to_start_response" > "${OUTPUT_DIR}/datapath-time-to-start.json"
     
     # Query time-to-datapath-ready metrics
     echo "Querying time-to-datapath-ready metrics..."
-    curl -s "http://localhost:8080/api/v1/time-to-datapath-ready?topN=10&namespace=slo-1" \
-      > "${OUTPUT_DIR}/datapath-time-to-dp-ready.json"
+    time_to_dp_ready_response=$(curl -s "http://localhost:8082/api/v1/time-to-datapath-ready?topN=10&namespace=slo-1")
+    echo "API Response (time-to-datapath-ready):"
+    echo "$time_to_dp_ready_response"
+    echo "$time_to_dp_ready_response" > "${OUTPUT_DIR}/datapath-time-to-dp-ready.json"
     
     # Print summary
     echo "=== Time to Start Summary ==="
