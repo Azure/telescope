@@ -284,7 +284,7 @@ def main():
     args = parser.parse_args()
 
     if args.command == "override":
-        override_config_clusterloader2(args.cpu_per_node, args.node_count, args.pod_count, args.scale_up_timeout, args.scale_down_timeout, args.loop_count, args.node_label_selector, args.node_selector, args.cl2_override_file, args.warmup_deployment, args.cl2_config_dir, args.os_type, args.warmup_deployment_template, args.deployment_template,pod_cpu_request=args.pod_cpu_request, pod_memory_request=args.pod_memory_request)
+        override_config_clusterloader2(args.cpu_per_node, args.node_count, args.pod_count, args.scale_up_timeout, args.scale_down_timeout, args.loop_count, args.node_label_selector, args.node_selector, args.cl2_override_file, args.warmup_deployment, args.cl2_config_dir, args.os_type, args.warmup_deployment_template, args.deployment_template,pod_cpu_request=args.pod_cpu_request, pod_memory_request=args.pod_memory_request, cl2_config_file=args.cl2_config_file)
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider, args.cl2_config_file)
     elif args.command == "collect":
