@@ -89,14 +89,14 @@ Build with [Dockerfile](Dockerfile) using date-based versioning:
 ```bash
 # Tag format: YYYY.MM.DD.XX where XX is the version number for that day
 # Example for first build on Jan 2, 2026:
-docker build -t acndev.azurecr.io/datapath-controller:2026.01.02.01 .
-docker push acndev.azurecr.io/datapath-controller:2026.01.02.01
+docker build -t acndev.azurecr.io/datapath-controller:2026.01.05.01 .
+docker push acndev.azurecr.io/datapath-controller:2026.01.05.01
 
 # For subsequent builds on the same day, increment XX:
 # 2026.01.02.02, 2026.01.02.03, etc.
 
 # Optionally, also tag as latest for convenience:
-docker tag acndev.azurecr.io/datapath-controller:2026.01.02.01 acndev.azurecr.io/datapath-controller:latest
+docker tag acndev.azurecr.io/datapath-controller:2026.01.05.01 acndev.azurecr.io/datapath-controller:latest
 docker push acndev.azurecr.io/datapath-controller:latest
 ```
 
