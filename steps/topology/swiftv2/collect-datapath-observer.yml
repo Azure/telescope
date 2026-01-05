@@ -11,8 +11,21 @@ steps:
     set -eo pipefail
     set -x
 
-    # Ensure output directory exists
-    mkdir -p "${OUTPUT_DIR}"
+    # Ensure output directory exists and has write permissions
+    echo "Creating output directory: ${OUTPUT_DIR}"
+    mkdir -p "${OUTPUT_DIR}" || {
+      echo "##vso[task.logissue type=error;]Failed to create directory ${OUTPUT_DIR}"
+      exit 1
+    }
+    
+    # Verify directory is writable
+    if [ ! -w "${OUTPUT_DIR}" ]; then
+      echo "##vso[task.logissue type=error;]Directory ${OUTPUT_DIR} is not writable"
+      ls -ld "${OUTPUT_DIR}"
+      exit 1
+    fi
+    
+    echo "Output directory ready: ${OUTPUT_DIR}"
 
     # Verify controller is running
     echo "Checking controller pods..."
