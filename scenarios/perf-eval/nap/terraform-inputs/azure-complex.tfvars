@@ -55,7 +55,7 @@ firewall_config_list = [
             target_fqdns = ["*.azure.com", "*.azure.net",
               "*.windows.net", "*.azurecr.io", "*.ubuntu.com", "AzureKubernetesService",
               "mcr-0001.mcr-msedge.net", "*.microsoft.com",
-              "*.microsoftonline.com", "*.microsoftonline.co", "*.azureedge.net"
+              "*.microsoftonline.com", "*.microsoftonline.co", "*.azureedge.net",
             "packages.aks.azure.com"]
             protocols = [
               { port = "80", type = "Http" },
@@ -109,9 +109,9 @@ route_table_config_list = [
         next_hop_firewall_name = "nap-firewall"
       },
       {
-        name           = "firewall-internet"
+        name                         = "firewall-internet"
         address_prefix_publicip_name = "firewall-pip"
-        next_hop_type  = "Internet"
+        next_hop_type                = "Internet"
       }
     ]
     subnet_associations = [{ subnet_name = "nap-subnet-ms" }]
