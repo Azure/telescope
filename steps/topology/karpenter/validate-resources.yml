@@ -24,7 +24,7 @@ steps:
 - bash: |
     set -euo pipefail
     set -x
-    kubectl apply -f $KARPENTER_NODEPOOL_FILE
+    kubectl apply -f $KARPENTER_DIR/$KARPENTER_NODEPOOL_FILE
 
     if [ -n "$VM_SIZE" ]; then
       # Patch the On-Demand NodePool
@@ -41,7 +41,7 @@ steps:
     KARPENTER_DIR: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes
     DEFAULT_KARPENTER_FILE: karpenter_nodepool.${{ parameters.cloud }}.yml
     ${{ if eq(parameters.karpenter_nodepool_file, '') }}:
-      KARPENTER_NODEPOOL_FILE: $KARPENTER_DIR/$DEFAULT_KARPENTER_FILE
+      KARPENTER_NODEPOOL_FILE: $DEFAULT_KARPENTER_FILE
     ${{ else }}:
-      KARPENTER_NODEPOOL_FILE: $KARPENTER_DIR/${{ parameters.karpenter_nodepool_file }}
+      KARPENTER_NODEPOOL_FILE: ${{ parameters.karpenter_nodepool_file }}
   displayName: "Validate Karpenter setup"
