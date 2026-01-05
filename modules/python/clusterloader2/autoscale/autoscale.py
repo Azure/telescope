@@ -5,7 +5,7 @@ import re
 import subprocess
 
 from datetime import datetime, timezone
-from clusterloader2.utils import parse_xml_to_json, run_cl2_command
+from clusterloader2.utils import parse_xml_to_json, run_cl2_command, process_cl2_reports
 from clients.kubernetes_client import KubernetesClient
 from utils.logger_config import get_logger, setup_logging
 
@@ -60,7 +60,7 @@ def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, po
     cpu_request = int(cpu_request * 0.95)
     return cpu_request
 
-def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file, warmup_deployment, cl2_config_dir, os_type="linux", warmup_deployment_template="", deployment_template=""):
+def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file, warmup_deployment, cl2_config_dir, os_type="linux", warmup_deployment_template="", deployment_template="", pod_cpu_request=0, pod_memory_request=""):
     logger.info(f"CPU per node: {cpu_per_node}")
     desired_node_count = 1
     if warmup_deployment in ["true", "True"]:
@@ -72,26 +72,113 @@ def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up
     logger.info(f"Total number of nodes: {node_count}, total number of pods: {pod_count}")
     logger.info(f"CPU request for each pod: {cpu_request}m")
 
-    # assuming the number of surge nodes is no more than 10
+    is_complex = override_file == "ms_complex_config.yaml"
+    
     with open(override_file, 'w', encoding='utf-8') as file:
         file.write(f"CL2_DEPLOYMENT_CPU: {cpu_request}m\n")
-        file.write(f"CL2_MIN_NODE_COUNT: {node_count}\n")
-        file.write(f"CL2_MAX_NODE_COUNT: {node_count + 10}\n")
-        file.write(f"CL2_DESIRED_NODE_COUNT: {desired_node_count}\n")
+        file.write(f"CL2_DEPLOYMENT_MEMORY: {pod_memory_request}\n")
         file.write(f"CL2_DEPLOYMENT_SIZE: {pod_count}\n")
         file.write(f"CL2_SCALE_UP_TIMEOUT: {scale_up_timeout}\n")
         file.write(f"CL2_SCALE_DOWN_TIMEOUT: {scale_down_timeout}\n")
         file.write(f"CL2_LOOP_COUNT: {loop_count}\n")
-        file.write(f"CL2_NODE_LABEL_SELECTOR: {node_label_selector}\n")
+        
+        if not is_complex:
+            file.write(f"CL2_MIN_NODE_COUNT: {node_count}\n")
+            file.write(f"CL2_MAX_NODE_COUNT: {node_count + 10}\n")
+            file.write(f"CL2_DESIRED_NODE_COUNT: {desired_node_count}\n")
+            file.write(f"CL2_NODE_LABEL_SELECTOR: {node_label_selector}\n")
+        
         file.write(f"CL2_NODE_SELECTOR: \"{node_selector}\"\n")
         file.write(f"CL2_OS_TYPE: {os_type}\n")
-        if deployment_template !='':
+        
+        if deployment_template:
             file.write(f"CL2_DEPLOYMENT_TEMPLATE_PATH: {deployment_template}\n")
-
     file.close()
 
-def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider):
-    run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True)
+def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider, cl2_config_file="config.yaml"):
+    run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, cl2_config_file, overrides=True)
+
+def _build_report_template(capacity_type, pod_count, cloud_info, run_id, run_url, autoscale_type="up", cpu_per_node=None, node_count=None, data=None, is_complex=False):
+    """Build CL2 measurement template"""
+    result = {
+        "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+        "autoscale_type": autoscale_type,
+        "capacity_type": capacity_type,
+        "pod_count": pod_count,
+        "data": data if data is not None else {},
+        "cloud_info": cloud_info,
+        "run_id": run_id,
+        "run_url": run_url
+    }
+    
+    # Only add node-specific info for non-complex configs
+    if not is_complex:
+        result["cpu_per_node"] = cpu_per_node
+        result["node_count"] = node_count
+    if is_complex: # cl2 measurement
+        result["group"] = None
+        result["measurement"] = None
+        result["result"] = None
+        
+    return result
+
+def _process_test_results(testsuites, index_pattern, metric_mappings, cpu_per_node, capacity_type, node_count, pod_count, cloud_info, run_id, run_url, is_complex_config=False):
+    """Process test results and generate JSON content"""
+    summary = {}
+    
+    # Define which metrics to include in data based on config type
+    if is_complex_config:
+        data_metrics = ["wait_for_pods_seconds"]
+    else:
+        data_metrics = [
+            "wait_for_nodes_seconds",
+            "wait_for_50Perc_nodes_seconds",
+            "wait_for_70Perc_nodes_seconds",
+            "wait_for_90Perc_nodes_seconds",
+            "wait_for_99Perc_nodes_seconds",
+            "wait_for_pods_seconds"
+        ]
+    
+    # Process each loop
+    for testcase in testsuites[0]["testcases"]:
+        name = testcase["name"]
+        index = -1
+        match = index_pattern.search(name)
+        if match:
+            index = match.group()
+            if index not in summary:
+                summary[index] = {
+                    "up": { "failures": 0 },
+                    "down": { "failures": 0 }
+                }
+        else:
+            continue
+
+        failure = testcase["failure"]
+        for test_key, (category, summary_key) in metric_mappings.items():
+            if test_key in name:
+                summary[index][category][summary_key] = -1 if failure else testcase["time"]
+                summary[index][category]["failures"] += 1 if failure else 0
+                break  # Exit loop once matched
+
+    content = ""
+    for index, inner_dict in summary.items():
+        for key, value in inner_dict.items():
+            # Build data dict dynamically based on available metrics
+            data = {metric: value.get(metric) for metric in data_metrics}
+            data["autoscale_result"] = "success" if value["failures"] == 0 else "failure"
+            
+            # For complex configs, don't include cpu_per_node and node_count
+            result = _build_report_template(
+                capacity_type, pod_count, cloud_info, run_id, run_url, 
+                autoscale_type=key, 
+                cpu_per_node=cpu_per_node,
+                node_count=node_count,
+                data=data, is_complex=is_complex_config
+            )
+            content += json.dumps(result) + "\n"
+    
+    return content
 
 def collect_clusterloader2(
     cpu_per_node,
@@ -102,83 +189,51 @@ def collect_clusterloader2(
     cloud_info,
     run_id,
     run_url,
-    result_file
+    result_file,
+    cl2_config_file
 ):
     index_pattern = re.compile(r'(\d+)$')
     raw_data = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
 
     json_data = json.loads(raw_data)
     testsuites = json_data["testsuites"]
-    summary = {}
-    metric_mappings = {
-        "WaitForRunningPodsUp": ("up", "wait_for_pods_seconds"),
-        "WaitForNodesUpPerc50": ("up", "wait_for_50Perc_nodes_seconds"),
-        "WaitForNodesUpPerc70": ("up", "wait_for_70Perc_nodes_seconds"),
-        "WaitForNodesUpPerc90": ("up", "wait_for_90Perc_nodes_seconds"),
-        "WaitForNodesUpPerc99": ("up", "wait_for_99Perc_nodes_seconds"),
-        "WaitForNodesUpPerc100": ("up", "wait_for_nodes_seconds"),
-        "WaitForRunningPodsDown": ("down", "wait_for_pods_seconds"),
-        "WaitForNodesDownPerc50": ("down", "wait_for_50Perc_nodes_seconds"),
-        "WaitForNodesDownPerc70": ("down", "wait_for_70Perc_nodes_seconds"),
-        "WaitForNodesDownPerc90": ("down", "wait_for_90Perc_nodes_seconds"),
-        "WaitForNodesDownPerc99": ("down", "wait_for_99Perc_nodes_seconds"),
-        "WaitForNodesDownPerc100": ("down", "wait_for_nodes_seconds"),
-    }
+    
+    # Different metric mappings based on config file type
+    is_complex_config = "ms_complex_config" in cl2_config_file
+    
+    if is_complex_config:
+        # Metric mappings for complex config
+        metric_mappings = {
+            "WaitForRunningPodsUp": ("up", "wait_for_pods_seconds"),
+            "WaitForRunningPodsDown": ("down", "wait_for_pods_seconds"),
+        }
+    else:
+        # Metric mappings for standard config
+        metric_mappings = {
+            "WaitForRunningPodsUp": ("up", "wait_for_pods_seconds"),
+            "WaitForNodesUpPerc50": ("up", "wait_for_50Perc_nodes_seconds"),
+            "WaitForNodesUpPerc70": ("up", "wait_for_70Perc_nodes_seconds"),
+            "WaitForNodesUpPerc90": ("up", "wait_for_90Perc_nodes_seconds"),
+            "WaitForNodesUpPerc99": ("up", "wait_for_99Perc_nodes_seconds"),
+            "WaitForNodesUpPerc100": ("up", "wait_for_nodes_seconds"),
+            "WaitForRunningPodsDown": ("down", "wait_for_pods_seconds"),
+            "WaitForNodesDownPerc50": ("down", "wait_for_50Perc_nodes_seconds"),
+            "WaitForNodesDownPerc70": ("down", "wait_for_70Perc_nodes_seconds"),
+            "WaitForNodesDownPerc90": ("down", "wait_for_90Perc_nodes_seconds"),
+            "WaitForNodesDownPerc99": ("down", "wait_for_99Perc_nodes_seconds"),
+            "WaitForNodesDownPerc100": ("down", "wait_for_nodes_seconds"),
+        }
 
     if testsuites:
-        # Process each loop
-        for testcase in testsuites[0]["testcases"]:
-            name = testcase["name"]
-            index = -1
-            match = index_pattern.search(name)
-            if match:
-                index = match.group()
-                if index not in summary:
-                    summary[index] = {
-                        "up": { "failures": 0 },
-                        "down": { "failures": 0 }
-                    }
-            else:
-                continue
-
-            failure = testcase["failure"]
-            for test_key, (category, summary_key) in metric_mappings.items():
-                if test_key in name:
-                    summary[index][category][summary_key] = -1 if failure else testcase["time"]
-                    summary[index][category]["failures"] += 1 if failure else 0
-                    break  # Exit loop once matched
-
-        content = ""
-        for index, inner_dict in summary.items():
-            for key, value in inner_dict.items():
-                data = {
-                    "wait_for_nodes_seconds": value["wait_for_nodes_seconds"],
-                    "wait_for_50Perc_nodes_seconds": value["wait_for_50Perc_nodes_seconds"],
-                    "wait_for_70Perc_nodes_seconds": value["wait_for_70Perc_nodes_seconds"],
-                    "wait_for_90Perc_nodes_seconds": value["wait_for_90Perc_nodes_seconds"],
-                    "wait_for_99Perc_nodes_seconds": value["wait_for_99Perc_nodes_seconds"],
-                    "wait_for_pods_seconds": value["wait_for_pods_seconds"],
-                    "autoscale_result": "success" if value["failures"] == 0 else "failure"
-                }
-                # TODO: Expose optional parameter to include test details
-                result = {
-                    "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
-                    "autoscale_type": key,
-                    "cpu_per_node": cpu_per_node,
-                    "capacity_type": capacity_type,
-                    "node_count": node_count,
-                    "pod_count": pod_count,
-                    "data": data,
-                    # "raw_data": raw_data,
-                    "cloud_info": cloud_info,
-                    "run_id": run_id,
-                    "run_url": run_url
-                }
-                content += json.dumps(result) + "\n"
+        content = _process_test_results(testsuites, index_pattern, metric_mappings, cpu_per_node, capacity_type, node_count, pod_count, cloud_info, run_id, run_url, is_complex_config)
 
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {raw_data}")
-
+    if is_complex_config:
+        cl2_measurement = _build_report_template(capacity_type, pod_count, cloud_info, run_id, run_url, data={}, is_complex=is_complex_config)
+        cl2_result = process_cl2_reports(cl2_report_dir, cl2_measurement)
+        logger.info(f"Result, category up: {cl2_result}")
+        content += cl2_result
     os.makedirs(os.path.dirname(result_file), exist_ok=True)
     with open(result_file, 'w', encoding='utf-8') as file:
         file.write(content)
@@ -189,13 +244,13 @@ def main():
 
     # Sub-command for override_config_clusterloader2
     parser_override = subparsers.add_parser("override", help="Override CL2 config file")
-    parser_override.add_argument("cpu_per_node", type=int, help="Name of cpu cores per node")
-    parser_override.add_argument("node_count", type=int, help="Number of nodes")
-    parser_override.add_argument("pod_count", type=int, help="Number of pods")
+    parser_override.add_argument("cpu_per_node", type=int,default=0, help="Name of cpu cores per node")
+    parser_override.add_argument("node_count", type=int,default=0, help="Number of nodes")
+    parser_override.add_argument("pod_count", type=int,default=10, help="Number of pods")
     parser_override.add_argument("scale_up_timeout", type=str, help="Timeout before failing the scale up test")
     parser_override.add_argument("scale_down_timeout", type=str, help="Timeout before failing the scale down test")
     parser_override.add_argument("loop_count", type=int, help="Number of times to repeat the test")
-    parser_override.add_argument("node_label_selector", type=str, help="Node label selector")
+    parser_override.add_argument("node_label_selector", type=str, default="", help="Node label selector")
     parser_override.add_argument("node_selector", type=str, help="Node selector for the test pods")
     parser_override.add_argument("cl2_override_file", type=str, help="Path to the overrides of CL2 config file")
     parser_override.add_argument("warmup_deployment", type=str, help="Warmup deployment to get the cpu request")
@@ -203,7 +258,8 @@ def main():
     parser_override.add_argument("--os_type", type=str, choices=["linux", "windows"], default="linux", help="Operating system type for the node pools")
     parser_override.add_argument("--warmup_deployment_template", type=str, default="", help="Path to the CL2 warm up deployment file")
     parser_override.add_argument("--deployment_template", type=str, default="", help="Path to the CL2 deployment file")
-
+    parser_override.add_argument("--pod_cpu_request", type=int, default=0, help="CPU request for each pod")
+    parser_override.add_argument("--pod_memory_request", type=str, default="60Gi", help="Memory request for each pod")
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", help="Execute scale up operation")
     parser_execute.add_argument("cl2_image", type=str, help="Name of the CL2 image")
@@ -211,27 +267,28 @@ def main():
     parser_execute.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
     parser_execute.add_argument("kubeconfig", type=str, help="Path to the kubeconfig file")
     parser_execute.add_argument("provider", type=str, help="Cloud provider name")
-
+    parser_execute.add_argument("--cl2_config_file", type=str, default="config.yaml", help="Path to the CL2 config file")
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
-    parser_collect.add_argument("cpu_per_node", type=int, help="Name of cpu cores per node")
+    parser_collect.add_argument("cpu_per_node", type=int,default=0, help="Name of cpu cores per node")
     parser_collect.add_argument("capacity_type", type=str, help="Capacity type", choices=["on-demand", "spot"], default="on-demand")
-    parser_collect.add_argument("node_count", type=int, help="Number of nodes")
-    parser_collect.add_argument("pod_count", type=int, help="Number of pods")
+    parser_collect.add_argument("node_count", type=int, default=0, help="Number of nodes")
+    parser_collect.add_argument("pod_count", type=int, default=0, help="Number of pods")
     parser_collect.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
     parser_collect.add_argument("cloud_info", type=str, help="Cloud information")
     parser_collect.add_argument("run_id", type=str, help="Run ID")
     parser_collect.add_argument("run_url", type=str, help="Run URL")
     parser_collect.add_argument("result_file", type=str, help="Path to the result file")
-
+    parser_collect.add_argument("--cl2_config_file", type=str, default="config.yaml", help="Path to the CL2 config file")
+    
     args = parser.parse_args()
 
     if args.command == "override":
-        override_config_clusterloader2(args.cpu_per_node, args.node_count, args.pod_count, args.scale_up_timeout, args.scale_down_timeout, args.loop_count, args.node_label_selector, args.node_selector, args.cl2_override_file, args.warmup_deployment, args.cl2_config_dir, args.os_type, args.warmup_deployment_template, args.deployment_template)
+        override_config_clusterloader2(args.cpu_per_node, args.node_count, args.pod_count, args.scale_up_timeout, args.scale_down_timeout, args.loop_count, args.node_label_selector, args.node_selector, args.cl2_override_file, args.warmup_deployment, args.cl2_config_dir, args.os_type, args.warmup_deployment_template, args.deployment_template,pod_cpu_request=args.pod_cpu_request, pod_memory_request=args.pod_memory_request)
     elif args.command == "execute":
-        execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider)
+        execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider, args.cl2_config_file)
     elif args.command == "collect":
-        collect_clusterloader2(args.cpu_per_node, args.capacity_type, args.node_count, args.pod_count, args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file)
+        collect_clusterloader2(args.cpu_per_node, args.capacity_type, args.node_count, args.pod_count, args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file, args.cl2_config_file)
 
 if __name__ == "__main__":
     main()

@@ -31,8 +31,9 @@ stages:
           matrix:
             complex-nap:
               cpu_per_node: 2
-              node_count: 5
               pod_count: 5
+              pod_cpu_request: 2
+              pod_memory_request: "4Gi"
               scale_up_timeout: "15m"
               scale_down_timeout: "15m"
               node_label_selector: "karpenter.sh/nodepool = default"
@@ -42,6 +43,8 @@ stages:
               warmup_deployment_template: warmup_deployment.yaml
               vm_size: Standard_D2s_v4
               capacity_type: on-demand
+              cl2_override_file: "ms_complex_config.yaml"
+
           max_parallel: 1
           timeout_in_minutes: 60
           credential_type: service_connection

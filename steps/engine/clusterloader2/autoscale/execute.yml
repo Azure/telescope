@@ -13,11 +13,12 @@ steps:
     set -eo pipefail
 
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE override \
-      $CPU_PER_NODE $NODE_COUNT $POD_COUNT \
+      ${CPU_PER_NODE:-0} ${NODE_COUNT:-0} ${POD_COUNT:-0} \
       $SCALE_UP_TIMEOUT $SCALE_DOWN_TIMEOUT \
-      $LOOP_COUNT "$NODE_LABEL_SELECTOR" "$NODE_SELECTOR" ${CL2_CONFIG_DIR}/overrides.yaml ${WARMUP_DEPLOYMENT:-false} ${CL2_CONFIG_DIR} --os_type ${OS_TYPE:-linux} --warmup_deployment_template ${WARMUP_DEPLOYMENT_TEMPLATE:-""} --deployment_template ${DEPLOYMENT_TEMPLATE:-""}
+      $LOOP_COUNT "${NODE_LABEL_SELECTOR:-""}" "$NODE_SELECTOR" ${CL2_CONFIG_DIR}/overrides.yaml ${WARMUP_DEPLOYMENT:-false} ${CL2_CONFIG_DIR} --os_type ${OS_TYPE:-linux} --warmup_deployment_template ${WARMUP_DEPLOYMENT_TEMPLATE:-""} --deployment_template ${DEPLOYMENT_TEMPLATE:-""} \
+      --pod_cpu_request ${POD_CPU_REQUEST:-0} --pod_memory_request ${POD_MEMORY_REQUEST:-""}
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
-      ${CL2_IMAGE} ${CL2_CONFIG_DIR} $CL2_REPORT_DIR ${HOME}/.kube/config $CLOUD
+      ${CL2_IMAGE} ${CL2_CONFIG_DIR} $CL2_REPORT_DIR ${HOME}/.kube/config $CLOUD --cl2_config_file ${CL2_OVERRIDE_FILE}
   workingDirectory: modules/python
   env:
     ${{ if eq(parameters.cloud, 'azure') }}:
