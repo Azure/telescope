@@ -7,7 +7,6 @@ parameters:
   type: object
 - name: karpenter_nodepool_file
   type: string
-  default: ''
 
 steps:
 - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
@@ -24,6 +23,13 @@ steps:
 - bash: |
     set -euo pipefail
     set -x
+    
+    if [ -z "$KARPENTER_NODEPOOL_FILE" ]; then
+      echo "karpenter_nodepool_file parameter is null or empty. Using default."
+      KARPENTER_NODEPOOL_FILE=$DEFAULT_KARPENTER_FILE
+    fi
+    echo "Using karpenter_nodepool_file: $KARPENTER_NODEPOOL_FILE"
+    
     kubectl apply -f $KARPENTER_DIR/$KARPENTER_NODEPOOL_FILE
 
     if [ -n "$VM_SIZE" ]; then
@@ -39,9 +45,6 @@ steps:
   env:
     CLOUD: ${{ parameters.cloud }}
     KARPENTER_DIR: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes
+    KARPENTER_NODEPOOL_FILE: ${{ parameters.karpenter_nodepool_file }}
     DEFAULT_KARPENTER_FILE: karpenter_nodepool.${{ parameters.cloud }}.yml
-    ${{ if eq(parameters.karpenter_nodepool_file, '') }}:
-      KARPENTER_NODEPOOL_FILE: $DEFAULT_KARPENTER_FILE
-    ${{ else }}:
-      KARPENTER_NODEPOOL_FILE: ${{ parameters.karpenter_nodepool_file }}
   displayName: "Validate Karpenter setup"
