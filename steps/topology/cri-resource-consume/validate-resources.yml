@@ -11,14 +11,6 @@ steps:
   parameters:
     role: client
     region: ${{ parameters.regions[0] }}
-
-## This set of jobs is to configure custom desired node count before running the validation, or not if not defined.
-- template: /steps/engine/clusterloader2/large-cluster/validate.yml
-  parameters:
-    desired_nodes: variables['DESIRED_NODES']
-  condition: ne(variables['DESIRED_NODES'], '')
-
 - template: /steps/engine/clusterloader2/large-cluster/validate.yml
   parameters:
     desired_nodes: 14
-  condition: eq(variables['DESIRED_NODES'], '')
