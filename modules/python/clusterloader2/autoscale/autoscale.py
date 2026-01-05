@@ -198,7 +198,7 @@ def collect_clusterloader2(
     testsuites = json_data["testsuites"]
     
     # Different metric mappings based on config file type
-    is_complex_config = "ms_complex_config" in cl2_config_file
+    is_complex_config = "ms_complex_config.yaml" == cl2_config_file
     
     if is_complex_config:
         # Metric mappings for complex config
