@@ -1,12 +1,12 @@
 trigger: none
 schedules:
   # On-Demand Schedule with Morgan Stanley cluster config
-  - cron: "0 2 * * *"
-    displayName: "Daily at 2 AM UTC"
-    branches:
-      include:
-        - ms-nap-complex
-    always: true
+  # - cron: "0 2 * * *"
+  #   displayName: "Daily at 2 AM UTC"
+  #   branches:
+  #     include:
+  #       - ms-nap-complex
+  #   always: true
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: nap
