@@ -1,5 +1,5 @@
 trigger: none
-schedules:
+# schedules:
   # On-Demand Schedule with Morgan Stanley cluster config
   # - cron: "0 2 * * *"
   #   displayName: "Daily at 2 AM UTC"
