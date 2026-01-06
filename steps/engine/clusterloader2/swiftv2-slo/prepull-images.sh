@@ -48,11 +48,12 @@ function prepull_images_on_nodes() {
         log_info "Creating DaemonSet '$ds_name' to pull image '$img'..."
         
         # Generate DaemonSet from template
-        sed -e "s|IMAGE_PREPULL_NAME|$ds_name|g" \
-            -e "s|IMAGE_PREPULL_NAMESPACE|$prepull_ns|g" \
+        # IMPORTANT: Replace NAMESPACE before NAME to avoid substring collision
+        sed -e "s|IMAGE_PREPULL_NAMESPACE|$prepull_ns|g" \
+            -e "s|IMAGE_PREPULL_NAME|$ds_name|g" \
             -e "s|IMAGE_HASH|$img_hash|g" \
             -e "s|IMAGE_TO_PULL|$img|g" \
-            "$DAEMONSET_TEMPLATE" | kubectl apply -f - >/dev/null 2>&1
+            "$DAEMONSET_TEMPLATE" | kubectl apply -f -
         
         if [ $? -eq 0 ]; then
             log_info "  ✓ DaemonSet '$ds_name' created successfully"
