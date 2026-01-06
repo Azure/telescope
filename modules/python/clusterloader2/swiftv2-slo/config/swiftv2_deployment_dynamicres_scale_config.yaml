@@ -62,7 +62,7 @@ steps:
       - Identifier: WaitForPNIReady
         Method: WaitForGenericK8sObjects
         Params:
-          objectGroup: networking.azure.com
+          objectGroup: multitenancy.acn.azure.com
           objectVersion: v1alpha1
           objectResource: podnetworkinstances
           namespace: slo-1
