@@ -11,6 +11,15 @@ steps:
   parameters:
     role: client
     region: ${{ parameters.regions[0] }}
+- script: |
+    set -eo pipefail
+    
+    if [ -z "$CUSTOM_DESIRED_NODES" ]; then
+      echo "##vso[task.setvariable variable=DESIRED_NODES]14"
+    else
+      echo "##vso[task.setvariable variable=DESIRED_NODES]$CUSTOM_DESIRED_NODES"
+    fi
+  displayName: "Determine desired node count"
 - template: /steps/engine/clusterloader2/large-cluster/validate.yml
   parameters:
-    desired_nodes: 14
+    desired_nodes: $(DESIRED_NODES)
