@@ -9,7 +9,7 @@ parameters:
 steps:
 - script: |
     # template-expanded value (expanded before job runs)
-    echo "Template-expanded: ${{ variables['CUSTOM_DESIRED_NODES'] }}"
+    echo "Template-expanded: ${{ variables['custom_desired_nodes'] }}"
 
     # runtime macro (expanded when the step runs)
     echo "Runtime macro: $(CUSTOM_DESIRED_NODES)"
@@ -17,7 +17,7 @@ steps:
     # environment variable inside bash
     echo "Env var: $CUSTOM_DESIRED_NODES"
   displayName: "Debug: print CUSTOM_DESIRED_NODES (bash)"
-  
+
 - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
   parameters:
     role: client
