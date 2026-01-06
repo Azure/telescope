@@ -43,6 +43,6 @@ stages:
               vm_size: Standard_D2s_v4
               capacity_type: on-demand
           max_parallel: 1
-          timeout_in_minutes: 60
+          timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false
