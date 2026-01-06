@@ -28,10 +28,14 @@ def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provi
                     scrape_containerd=False, scrape_ksm=False, scrape_metrics_server=False):
     docker_client = DockerClient()
 
-    command = f"""--provider={provider} --v=2
+    command = f"""--provider={provider} --v=2 --nodes=15005
 --enable-exec-service={enable_exec_service}
 --enable-prometheus-server={enable_prometheus}
 --prometheus-scrape-kubelets={scrape_kubelets}
+--prometheus-pvc-storage-class="managed"
+--prometheus-storage-class-provisioner="kubernetes.io/azure-disk"
+--prometheus-storage-class-volume-type="StandardSSD_LRS"
+--prometheus-memory-request="2Gi"
 --kubeconfig /root/.kube/config
 --testconfig /root/perf-tests/clusterloader2/config/{cl2_config_file}
 --report-dir /root/perf-tests/clusterloader2/results
@@ -130,15 +134,23 @@ def process_cl2_reports(cl2_report_dir, template):
                     continue
                 for item in items:
                     result = template.copy()
-                    result["group"] = group_name
-                    result["measurement"] = measurement
-                    result["result"] = item
+                    # result["group"] = group_name
+                    # result["measurement"] = measurement
+                    tmp = {
+                        "measurement": measurement,
+                        "result": item
+                    }
+                    result["data"] = tmp
                     content += json.dumps(result) + "\n"
             else:
                 result = template.copy()
-                result["group"] = group_name
-                result["measurement"] = measurement
-                result["result"] = data
+                # result["group"] = group_name
+                # result["measurement"] = measurement
+                tmp = {
+                    "measurement": measurement,
+                    "result": data
+                }
+                result["data"] = tmp
                 content += json.dumps(result) + "\n"
     return content
 

@@ -5,7 +5,7 @@ import re
 import subprocess
 
 from datetime import datetime, timezone
-from clusterloader2.utils import parse_xml_to_json, run_cl2_command
+from clusterloader2.utils import parse_xml_to_json, run_cl2_command, process_cl2_reports
 from clients.kubernetes_client import KubernetesClient
 from utils.logger_config import get_logger, setup_logging
 
@@ -60,26 +60,27 @@ def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, po
     cpu_request = int(cpu_request * 0.95)
     return cpu_request
 
-def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file, warmup_deployment, cl2_config_dir, os_type="linux", warmup_deployment_template="", deployment_template=""):
-    logger.info(f"CPU per node: {cpu_per_node}")
+def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file, warmup_deployment, cl2_config_dir, os_type="linux", warmup_deployment_template="", deployment_template="", pod_cpu_request=16, pod_memory_request="60Gi"):
+    # logger.info(f"CPU per node: {cpu_per_node}")
     desired_node_count = 1
     if warmup_deployment in ["true", "True"]:
         warmup_deployment_for_karpeneter(cl2_config_dir, warmup_deployment_template)
         desired_node_count = 0
 
-    cpu_request = calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, pod_count, warmup_deployment, cl2_config_dir, warmup_deployment_template)
+    # cpu_request = calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, pod_count, warmup_deployment, cl2_config_dir, warmup_deployment_template)
 
-    logger.info(f"Total number of nodes: {node_count}, total number of pods: {pod_count}")
-    logger.info(f"CPU request for each pod: {cpu_request}m")
+    logger.info(f"Total number of pods: {pod_count}")
+    # logger.info(f"CPU request for each pod: 16cores")
 
     # assuming the number of surge nodes is no more than 10
     with open(override_file, 'w', encoding='utf-8') as file:
 #        file.write(f"CL2_DEPLOYMENT_CPU: {cpu_request}m\n")
-        file.write(f"CL2_DEPLOYMENT_CPU: 14\n")
-        file.write(f"CL2_DEPLOYMENT_MEMORY: 50Gi\n")
-        file.write(f"CL2_MIN_NODE_COUNT: {node_count}\n")
-        file.write(f"CL2_MAX_NODE_COUNT: {node_count + 10}\n")
-        file.write(f"CL2_DESIRED_NODE_COUNT: {desired_node_count}\n")
+        file.write(f"CL2_DEPLOYMENT_CPU: {pod_cpu_request}\n")
+        file.write(f"CL2_DEPLOYMENT_MEMORY: {pod_memory_request}\n")
+        if node_count:
+            file.write(f"CL2_MIN_NODE_COUNT: 10\n")
+            file.write(f"CL2_MAX_NODE_COUNT: {pod_count+100}\n")
+            file.write(f"CL2_DESIRED_NODE_COUNT: {desired_node_count}\n")
         file.write(f"CL2_DEPLOYMENT_SIZE: {pod_count}\n")
         file.write(f"CL2_SCALE_UP_TIMEOUT: {scale_up_timeout}\n")
         file.write(f"CL2_SCALE_DOWN_TIMEOUT: {scale_down_timeout}\n")
@@ -92,8 +93,20 @@ def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up
 
     file.close()
 
-def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider):
-    run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True)
+def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider, cl2_config_file="config.yaml"):
+    run_cl2_command(
+        kubeconfig,
+        cl2_image,
+        cl2_config_dir,
+        cl2_report_dir,
+        provider,
+        cl2_config_file,
+        overrides=True,
+        enable_prometheus=True,
+        scrape_ksm=True,
+        scrape_kubelets=True,
+        tear_down_prometheus=False
+    )
 
 def collect_clusterloader2(
     cpu_per_node,
@@ -107,25 +120,35 @@ def collect_clusterloader2(
     result_file
 ):
     index_pattern = re.compile(r'(\d+)$')
+    
     raw_data = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
 
     json_data = json.loads(raw_data)
     testsuites = json_data["testsuites"]
     summary = {}
-    metric_mappings = {
+    # metric_mappings = {
+    #     "WaitForRunningPodsUp": ("up", "wait_for_pods_seconds"),
+    #     "WaitForNodesUpPerc50": ("up", "wait_for_50Perc_nodes_seconds"),
+    #     "WaitForNodesUpPerc70": ("up", "wait_for_70Perc_nodes_seconds"),
+    #     "WaitForNodesUpPerc90": ("up", "wait_for_90Perc_nodes_seconds"),
+    #     "WaitForNodesUpPerc99": ("up", "wait_for_99Perc_nodes_seconds"),
+    #     "WaitForNodesUpPerc100": ("up", "wait_for_nodes_seconds"),
+    #     "WaitForRunningPodsDown": ("down", "wait_for_pods_seconds"),
+    #     "WaitForNodesDownPerc50": ("down", "wait_for_50Perc_nodes_seconds"),
+    #     "WaitForNodesDownPerc70": ("down", "wait_for_70Perc_nodes_seconds"),
+    #     "WaitForNodesDownPerc90": ("down", "wait_for_90Perc_nodes_seconds"),
+    #     "WaitForNodesDownPerc99": ("down", "wait_for_99Perc_nodes_seconds"),
+    #     "WaitForNodesDownPerc100": ("down", "wait_for_nodes_seconds"),
+    # }
+    
+
+    metric_mappings = { # reading metrics from junit.xml
         "WaitForRunningPodsUp": ("up", "wait_for_pods_seconds"),
-        "WaitForNodesUpPerc50": ("up", "wait_for_50Perc_nodes_seconds"),
-        "WaitForNodesUpPerc70": ("up", "wait_for_70Perc_nodes_seconds"),
-        "WaitForNodesUpPerc90": ("up", "wait_for_90Perc_nodes_seconds"),
-        "WaitForNodesUpPerc99": ("up", "wait_for_99Perc_nodes_seconds"),
-        "WaitForNodesUpPerc100": ("up", "wait_for_nodes_seconds"),
         "WaitForRunningPodsDown": ("down", "wait_for_pods_seconds"),
-        "WaitForNodesDownPerc50": ("down", "wait_for_50Perc_nodes_seconds"),
-        "WaitForNodesDownPerc70": ("down", "wait_for_70Perc_nodes_seconds"),
-        "WaitForNodesDownPerc90": ("down", "wait_for_90Perc_nodes_seconds"),
-        "WaitForNodesDownPerc99": ("down", "wait_for_99Perc_nodes_seconds"),
-        "WaitForNodesDownPerc100": ("down", "wait_for_nodes_seconds"),
     }
+    
+    
+
 
     if testsuites:
         # Process each loop
@@ -154,21 +177,24 @@ def collect_clusterloader2(
         for index, inner_dict in summary.items():
             for key, value in inner_dict.items():
                 data = {
-                    "wait_for_nodes_seconds": value["wait_for_nodes_seconds"],
-                    "wait_for_50Perc_nodes_seconds": value["wait_for_50Perc_nodes_seconds"],
-                    "wait_for_70Perc_nodes_seconds": value["wait_for_70Perc_nodes_seconds"],
-                    "wait_for_90Perc_nodes_seconds": value["wait_for_90Perc_nodes_seconds"],
-                    "wait_for_99Perc_nodes_seconds": value["wait_for_99Perc_nodes_seconds"],
+                    # "wait_for_nodes_seconds": value["wait_for_nodes_seconds"],
+                    # "wait_for_50Perc_nodes_seconds": value["wait_for_50Perc_nodes_seconds"],
+                    # "wait_for_70Perc_nodes_seconds": value["wait_for_70Perc_nodes_seconds"],
+                    # "wait_for_90Perc_nodes_seconds": value["wait_for_90Perc_nodes_seconds"],
+                    # "wait_for_99Perc_nodes_seconds": value["wait_for_99Perc_nodes_seconds"],
                     "wait_for_pods_seconds": value["wait_for_pods_seconds"],
                     "autoscale_result": "success" if value["failures"] == 0 else "failure"
                 }
+                logger.info(f"Before data for index {index}, category {key}: {data}")
+
+
                 # TODO: Expose optional parameter to include test details
                 result = {
                     "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
                     "autoscale_type": key,
                     "cpu_per_node": cpu_per_node,
-                    "capacity_type": capacity_type,
-                    "node_count": node_count,
+                    "capacity_type": capacity_type,                    
+                    "node_count": None, # karpenter decide how many node count
                     "pod_count": pod_count,
                     "data": data,
                     # "raw_data": raw_data,
@@ -176,7 +202,29 @@ def collect_clusterloader2(
                     "run_id": run_id,
                     "run_url": run_url
                 }
+                
+                # logger.info(data["metrics"])
+                logger.info(f"Result {index}, category {key}: {data}")
                 content += json.dumps(result) + "\n"
+
+        
+        cl2_measurement = {
+            "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+            "autoscale_type": "up",
+            "cpu_per_node": cpu_per_node,
+            "capacity_type": capacity_type,                    
+            "node_count": None, # karpenter decide how many node count
+            "pod_count": pod_count,
+            "data": {},  # Empty dict, will be filled by process_cl2_reports
+            # "raw_data": raw_data,
+            "cloud_info": cloud_info,
+            "run_id": run_id,
+            "run_url": run_url
+        }
+        cl2_result = process_cl2_reports(cl2_report_dir,cl2_measurement)
+        logger.info(f"Result, category up: {cl2_result}")
+        content += cl2_result
+        
 
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {raw_data}")
@@ -191,7 +239,7 @@ def main():
 
     # Sub-command for override_config_clusterloader2
     parser_override = subparsers.add_parser("override", help="Override CL2 config file")
-    parser_override.add_argument("cpu_per_node", type=int, help="Name of cpu cores per node")
+    parser_override.add_argument("--cpu_per_node", type=int, default=0, help="Name of cpu cores per node")
     parser_override.add_argument("node_count", type=int, help="Number of nodes")
     parser_override.add_argument("pod_count", type=int, help="Number of pods")
     parser_override.add_argument("scale_up_timeout", type=str, help="Timeout before failing the scale up test")
@@ -205,6 +253,8 @@ def main():
     parser_override.add_argument("--os_type", type=str, choices=["linux", "windows"], default="linux", help="Operating system type for the node pools")
     parser_override.add_argument("--warmup_deployment_template", type=str, default="", help="Path to the CL2 warm up deployment file")
     parser_override.add_argument("--deployment_template", type=str, default="", help="Path to the CL2 deployment file")
+    parser_override.add_argument("--pod_cpu_request", type=int, default=16, help="CPU request for each pod")
+    parser_override.add_argument("--pod_memory_request", type=str, default="60Gi", help="Memory request for each pod")
 
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", help="Execute scale up operation")
@@ -213,10 +263,11 @@ def main():
     parser_execute.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
     parser_execute.add_argument("kubeconfig", type=str, help="Path to the kubeconfig file")
     parser_execute.add_argument("provider", type=str, help="Cloud provider name")
+    parser_execute.add_argument("--cl2_config_file", type=str, default="config.yaml", help="Path to the CL2 config file")
 
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
-    parser_collect.add_argument("cpu_per_node", type=int, help="Name of cpu cores per node")
+    parser_collect.add_argument("--cpu_per_node", type=int,default=0, help="Name of cpu cores per node")
     parser_collect.add_argument("capacity_type", type=str, help="Capacity type", choices=["on-demand", "spot"], default="on-demand")
     parser_collect.add_argument("node_count", type=int, help="Number of nodes")
     parser_collect.add_argument("pod_count", type=int, help="Number of pods")
@@ -229,9 +280,9 @@ def main():
     args = parser.parse_args()
 
     if args.command == "override":
-        override_config_clusterloader2(args.cpu_per_node, args.node_count, args.pod_count, args.scale_up_timeout, args.scale_down_timeout, args.loop_count, args.node_label_selector, args.node_selector, args.cl2_override_file, args.warmup_deployment, args.cl2_config_dir, args.os_type, args.warmup_deployment_template, args.deployment_template)
+        override_config_clusterloader2(args.cpu_per_node, args.node_count, args.pod_count, args.scale_up_timeout, args.scale_down_timeout, args.loop_count, args.node_label_selector, args.node_selector, args.cl2_override_file, args.warmup_deployment, args.cl2_config_dir, args.os_type, args.warmup_deployment_template, args.deployment_template, pod_cpu_request=args.pod_cpu_request, pod_memory_request=args.pod_memory_request)
     elif args.command == "execute":
-        execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider)
+        execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider, args.cl2_config_file)
     elif args.command == "collect":
         collect_clusterloader2(args.cpu_per_node, args.capacity_type, args.node_count, args.pod_count, args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file)
 

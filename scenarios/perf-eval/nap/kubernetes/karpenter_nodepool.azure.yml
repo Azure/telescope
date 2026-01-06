@@ -37,15 +37,19 @@ spec:
         - key: karpenter.sh/capacity-type
           operator: In
           values: ["on-demand"]
-        - key: karpenter.azure.com/sku-family
+        - key: karpenter.azure.com/sku-name
           operator: In
           values:
-          - D
-        - key: karpenter.azure.com/sku-cpu
+          - "Standard_D96ds_v5" # 55k DDSv5
+          - "Standard_D96d_v5"
+          - "Standard_D96_v5" # 100k Dv5
+          - "Standard_D96s_v5"
+        - key: topology.kubernetes.io/zone
           operator: In
           values:
-          - 16
-          - 32
+          - eastus2-1
+          - eastus2-2
+          - eastus2-3
 
 # Spot NodePool
 ---
@@ -78,3 +82,56 @@ spec:
         - key: karpenter.azure.com/sku-name
           operator: In
           values: [Standard_D2_v5]
+# system-surge NodePool
+---
+apiVersion: karpenter.sh/v1
+kind: NodePool
+metadata:
+  name: system-surge
+  annotations:
+    kubernetes.io/description: "Surge capacity pool for system pod pressure"
+spec:
+  disruption:
+    budgets:
+      - nodes: "1"
+    consolidateAfter: 1m
+    consolidationPolicy: WhenEmpty
+  template:
+    metadata:
+      labels:
+        kubernetes.azure.com/ebpf-dataplane: "cilium"
+        kubernetes.azure.com/mode: "system"
+    spec:
+      expireAfter: Never
+      nodeClassRef:
+        group: karpenter.azure.com
+        kind: AKSNodeClass
+        name: default
+      requirements:
+        - key: kubernetes.io/arch
+          operator: In
+          values: ["amd64"]
+        - key: kubernetes.io/os
+          operator: In
+          values: ["linux"]
+        - key: karpenter.sh/capacity-type
+          operator: In
+          values: ["on-demand"]
+        - key: karpenter.azure.com/sku-name
+          operator: In
+          values:
+            - Standard_D16_v3
+        - key: topology.kubernetes.io/zone
+          operator: In
+          values:
+          - eastus2-1
+          - eastus2-2
+          - eastus2-3
+      startupTaints:
+        - effect: NoExecute
+          key: node.cilium.io/agent-not-ready
+          value: "true"
+      taints:
+        - effect: NoSchedule
+          key: CriticalAddonsOnly
+          value: "true"
