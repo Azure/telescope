@@ -27,7 +27,7 @@ network_config_list = [
         address_prefix = "10.224.0.0/12"
       }
     ]
-    network_security_group_name = ""
+    network_security_group_name = "nap-nsg"
     nic_public_ip_associations  = []
     nsr_rules = [
       {
