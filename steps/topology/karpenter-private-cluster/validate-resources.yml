@@ -4,7 +4,9 @@ parameters:
 - name: role
   type: string
   default: nap
-- name: region
+- name: regions
+  type: object
+- name: engine
   type: string
   default: ''
 - name: alias
@@ -14,7 +16,7 @@ parameters:
 steps:
 - bash: |
     set -eu
-    region="${{ parameters.region }}"
+    region="${{ parameters.regions[0] }}"
     echo "Get VM instance with role $ROLE and tag $RUN_ID in region $region."
     vm_id=$(az resource list --resource-type Microsoft.Compute/virtualMachines --location $region --query "[?(tags.run_id == '${RUN_ID}' && tags.jumpbox == 'true')].id" --output tsv)
     
@@ -32,7 +34,6 @@ steps:
   displayName: "Get VM Info ${{ parameters.role }}"
   env:
     ROLE: ${{ lower(parameters.role) }}
-    RUN_ID: ${{ parameters.run_id }}
 
 # Update Kubeconfig on Jumpbox
 - template: /steps/ssh/run-command.yaml
@@ -40,20 +41,13 @@ steps:
     vm_ip: $(JUMPBOX_HOST)
     command_array:
       - "cloud-init status --wait || echo 'Warning: cloud-init finished with errors, but continuing anyway...'"
-      - |
-        set -euo pipefail
-        echo 'Logging in with Managed Identity...'
-        az login --identity --output none
-        echo 'Login successful. Finding AKS cluster...'
-        aks_name=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location '${{ parameters.region }}' \
-          --query "[?(tags.run_id == '$(RUN_ID)' && tags.role == '${{ parameters.role }}')].name" --output tsv)
-        aks_rg=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location '${{ parameters.region }}' \
-          --query "[?(tags.run_id == '$(RUN_ID)' && tags.role == '${{ parameters.role }}')].resourceGroup" --output tsv)
-        if [ -z "$aks_name" ]; then echo "No AKS found with run_id=$(RUN_ID) and role=${{ parameters.role }}"; exit 1; fi
-        echo "Found AKS: $aks_name in resource group: $aks_rg"
-        az aks get-credentials -n $aks_name -g $aks_rg ${{ parameters.alias != '' && format('--context {0}', parameters.alias) || '' }} --overwrite-existing
-        echo 'Kubeconfig updated on jumpbox. Testing kubectl...'
-        kubectl get ns
+      - "az login --identity --output none "
+      - "aks_name=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location '${{ parameters.regions[0] }}' --query \"[?(tags.run_id == '$(RUN_ID)' && tags.role == '${{ parameters.role }}')].name\" --output tsv); aks_rg=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location '${{ parameters.regions[0] }}' --query \"[?(tags.run_id == '$(RUN_ID)' && tags.role == '${{ parameters.role }}')].resourceGroup\" --output tsv)"
+      - "if [ -z \"$aks_name\" ]; then echo \"No AKS found with run_id=$(RUN_ID) and role=${{ parameters.role }}\"; exit 1; fi"
+      - "echo \"Found AKS: $aks_name in resource group: $aks_rg\""
+      - "ALIAS='${{ parameters.alias }}'; az aks get-credentials -n $aks_name -g $aks_rg ${ALIAS:+--context $ALIAS} --overwrite-existing"
+      - "echo 'Kubeconfig updated on jumpbox. Testing kubectl...'"
+      - kubectl get ns
 
 - template: /steps/ssh/run-command.yaml
   parameters:
