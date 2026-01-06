@@ -96,7 +96,7 @@ def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up
 def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider, cl2_config_file="config.yaml"):
     run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, cl2_config_file, overrides=True)
 
-def _build_report_template(capacity_type, pod_count, cloud_info, run_id, run_url, autoscale_type="up", cpu_per_node=None, node_count=None, data=None, is_complex=False):
+def _build_report_template(capacity_type, pod_count, cloud_info, run_id, run_url, autoscale_type="up", cpu_per_node=None, node_count=None, data=None, is_complex=False, pod_cpu_request=0, pod_memory_request=""):
     """Build CL2 measurement template"""
     result = {
         "timestamp": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
@@ -117,10 +117,12 @@ def _build_report_template(capacity_type, pod_count, cloud_info, run_id, run_url
         result["group"] = None
         result["measurement"] = None
         result["result"] = None
+        result["pod_memory"] = pod_memory_request
+        result["pod_cpu"] = pod_cpu_request
         
     return result
 
-def _process_test_results(testsuites, index_pattern, metric_mappings, cpu_per_node, capacity_type, node_count, pod_count, cloud_info, run_id, run_url, is_complex_config=False):
+def _process_test_results(testsuites, index_pattern, metric_mappings, cpu_per_node, capacity_type, node_count, pod_count, cloud_info, run_id, run_url, is_complex_config=False, pod_cpu_request=0, pod_memory_request=""):
     """Process test results and generate JSON content"""
     summary = {}
     
@@ -172,7 +174,7 @@ def _process_test_results(testsuites, index_pattern, metric_mappings, cpu_per_no
                 autoscale_type=key, 
                 cpu_per_node=cpu_per_node,
                 node_count=node_count,
-                data=data, is_complex=is_complex_config
+                data=data, is_complex=is_complex_config, pod_cpu_request, pod_memory_request
             )
             content += json.dumps(result) + "\n"
     
@@ -188,7 +190,9 @@ def collect_clusterloader2(
     run_id,
     run_url,
     result_file,
-    cl2_config_file
+    cl2_config_file,
+    pod_cpu_request,
+    pod_memory_request
 ):
     index_pattern = re.compile(r'(\d+)$')
     raw_data = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
@@ -223,12 +227,12 @@ def collect_clusterloader2(
         }
 
     if testsuites:
-        content = _process_test_results(testsuites, index_pattern, metric_mappings, cpu_per_node, capacity_type, node_count, pod_count, cloud_info, run_id, run_url, is_complex_config)
+        content = _process_test_results(testsuites, index_pattern, metric_mappings, cpu_per_node, capacity_type, node_count, pod_count, cloud_info, run_id, run_url, is_complex_config, pod_cpu_request, pod_memory_request)
 
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {raw_data}")
     if is_complex_config:
-        cl2_measurement = _build_report_template(capacity_type, pod_count, cloud_info, run_id, run_url, data={}, is_complex=is_complex_config)
+        cl2_measurement = _build_report_template(capacity_type, pod_count, cloud_info, run_id, run_url, data={}, is_complex=is_complex_config, pod_cpu_request, pod_memory_request)
         cl2_result = process_cl2_reports(cl2_report_dir, cl2_measurement)
         logger.info(f"Result, category up: {cl2_result}")
         content += cl2_result
@@ -257,7 +261,7 @@ def main():
     parser_override.add_argument("--warmup_deployment_template", type=str, default="", help="Path to the CL2 warm up deployment file")
     parser_override.add_argument("--deployment_template", type=str, default="", help="Path to the CL2 deployment file")
     parser_override.add_argument("--pod_cpu_request", type=int, default=0, help="CPU request for each pod")
-    parser_override.add_argument("--pod_memory_request", type=str, default="60Gi", help="Memory request for each pod")
+    parser_override.add_argument("--pod_memory_request", type=str, default="", help="Memory request for each pod")
     parser_override.add_argument("--cl2_config_file", type=str, default="config.yaml", help="name of CL2 config file")
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", help="Execute scale up operation")
@@ -279,6 +283,8 @@ def main():
     parser_collect.add_argument("run_url", type=str, help="Run URL")
     parser_collect.add_argument("result_file", type=str, help="Path to the result file")
     parser_collect.add_argument("--cl2_config_file", type=str, default="config.yaml", help="Path to the CL2 config file")
+    parser_collect.add_argument("--pod_cpu_request", type=int, default=0, help="CPU request for each pod")
+    parser_collect.add_argument("--pod_memory_request", type=str, default="", help="Memory request for each pod")
     
     args = parser.parse_args()
 
@@ -287,7 +293,7 @@ def main():
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.kubeconfig, args.provider, args.cl2_config_file)
     elif args.command == "collect":
-        collect_clusterloader2(args.cpu_per_node, args.capacity_type, args.node_count, args.pod_count, args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file, args.cl2_config_file)
+        collect_clusterloader2(args.cpu_per_node, args.capacity_type, args.node_count, args.pod_count, args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url, args.result_file, args.cl2_config_file, args.pod_cpu_request, args.pod_memory_request)
 
 if __name__ == "__main__":
     main()
