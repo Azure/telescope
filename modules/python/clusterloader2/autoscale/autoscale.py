@@ -12,54 +12,6 @@ from utils.logger_config import get_logger, setup_logging
 setup_logging()
 logger = get_logger(__name__)
 
-def warmup_deployment_for_karpeneter(cl2_config_dir, warmup_deployment_template="warmup_deployment.yaml"):
-    logger.info("WarmUp Deployment Started")
-
-    deployment_file = f"{cl2_config_dir}/{warmup_deployment_template}"
-    subprocess.run(["kubectl", "apply", "-f", deployment_file], check=True)
-
-def cleanup_warmup_deployment_for_karpeneter(cl2_config_dir, warmup_deployment_template="warmup_deployment.yaml"):
-    deployment_file = f"{cl2_config_dir}/{warmup_deployment_template}"
-    subprocess.run(["kubectl", "delete", "-f", deployment_file], check=True)
-    logger.info("WarmUp Deployment Deleted")
-    try:
-        subprocess.run(["kubectl", "delete", "nodeclaims", "--all"], check=True)
-    except Exception as e:
-        logger.error(f"Error while deleting node: {e}")
-
-def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, pod_count, warmup_deployment, cl2_config_dir, warmup_deployment_template):
-    client = KubernetesClient(os.path.expanduser("~/.kube/config"))
-    timeout = 10  # 10 minutes
-    nodes = []
-
-    try:
-        nodes = client.wait_for_nodes_ready(1, timeout, label_selector=node_label_selector)
-        if len(nodes) == 0:
-            raise Exception(f"No nodes found with label selector: {node_label_selector}")
-    except Exception as e:
-        raise Exception(f"Error while getting nodes: {e}") from e
-
-    node = nodes[0]
-    allocatable_cpu = node.status.allocatable["cpu"]
-    logger.info(f"Node {node.metadata.name} has allocatable cpu of {allocatable_cpu}")
-
-    cpu_value = int(allocatable_cpu.replace("m", ""))
-    allocated_cpu, _ = client.get_daemonsets_pods_allocated_resources("kube-system", node.metadata.name)
-    logger.info(f"Node {node.metadata.name} has allocated cpu of {allocated_cpu}")
-
-    cpu_value -= allocated_cpu
-    # Remove warmup deployment cpu request from the total cpu value
-    if warmup_deployment in ["true", "True"]:
-        cpu_value -= 100
-        cleanup_warmup_deployment_for_karpeneter(cl2_config_dir, warmup_deployment_template)
-
-    # Calculate the cpu request for each pod
-    pods_per_node = pod_count // node_count
-    cpu_request = cpu_value // pods_per_node
-    # Consider 5% less CPU request for deployment pods
-    cpu_request = int(cpu_request * 0.95)
-    return cpu_request
-
 def _build_report_template(capacity_type, pod_count, cloud_info, run_id, run_url, autoscale_type="up", cpu_per_node=None, node_count=None, data=None, is_complex=False, pod_cpu_request=0, pod_memory_request=""):
     """Build CL2 measurement template"""
     result = {
@@ -167,6 +119,55 @@ def _process_test_results(testsuites, index_pattern, cpu_per_node, capacity_type
             content += json.dumps(result) + "\n"
     
     return content
+
+def warmup_deployment_for_karpeneter(cl2_config_dir, warmup_deployment_template="warmup_deployment.yaml"):
+    logger.info("WarmUp Deployment Started")
+
+    deployment_file = f"{cl2_config_dir}/{warmup_deployment_template}"
+    subprocess.run(["kubectl", "apply", "-f", deployment_file], check=True)
+
+def cleanup_warmup_deployment_for_karpeneter(cl2_config_dir, warmup_deployment_template="warmup_deployment.yaml"):
+    deployment_file = f"{cl2_config_dir}/{warmup_deployment_template}"
+    subprocess.run(["kubectl", "delete", "-f", deployment_file], check=True)
+    logger.info("WarmUp Deployment Deleted")
+    try:
+        subprocess.run(["kubectl", "delete", "nodeclaims", "--all"], check=True)
+    except Exception as e:
+        logger.error(f"Error while deleting node: {e}")
+
+def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, pod_count, warmup_deployment, cl2_config_dir, warmup_deployment_template):
+    client = KubernetesClient(os.path.expanduser("~/.kube/config"))
+    timeout = 10  # 10 minutes
+    nodes = []
+
+    try:
+        nodes = client.wait_for_nodes_ready(1, timeout, label_selector=node_label_selector)
+        if len(nodes) == 0:
+            raise Exception(f"No nodes found with label selector: {node_label_selector}")
+    except Exception as e:
+        raise Exception(f"Error while getting nodes: {e}") from e
+
+    node = nodes[0]
+    allocatable_cpu = node.status.allocatable["cpu"]
+    logger.info(f"Node {node.metadata.name} has allocatable cpu of {allocatable_cpu}")
+
+    cpu_value = int(allocatable_cpu.replace("m", ""))
+    allocated_cpu, _ = client.get_daemonsets_pods_allocated_resources("kube-system", node.metadata.name)
+    logger.info(f"Node {node.metadata.name} has allocated cpu of {allocated_cpu}")
+
+    cpu_value -= allocated_cpu
+    # Remove warmup deployment cpu request from the total cpu value
+    if warmup_deployment in ["true", "True"]:
+        cpu_value -= 100
+        cleanup_warmup_deployment_for_karpeneter(cl2_config_dir, warmup_deployment_template)
+
+    # Calculate the cpu request for each pod
+    pods_per_node = pod_count // node_count
+    cpu_request = cpu_value // pods_per_node
+    # Consider 5% less CPU request for deployment pods
+    cpu_request = int(cpu_request * 0.95)
+    return cpu_request
+
 
 def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file, warmup_deployment, cl2_config_dir, os_type="linux", warmup_deployment_template="", deployment_template="", pod_cpu_request=0, pod_memory_request="", cl2_config_file="config.yaml"):
     desired_node_count = 1
