@@ -60,42 +60,6 @@ def calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, po
     cpu_request = int(cpu_request * 0.95)
     return cpu_request
 
-def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file, warmup_deployment, cl2_config_dir, os_type="linux", warmup_deployment_template="", deployment_template="", pod_cpu_request=0, pod_memory_request="", cl2_config_file="config.yaml"):
-    desired_node_count = 1
-    if warmup_deployment in ["true", "True"]:
-        warmup_deployment_for_karpeneter(cl2_config_dir, warmup_deployment_template)
-        desired_node_count = 0
-
- 
-    logger.info(f"Overriding CL2 config file at: {cl2_config_file}")
-    is_complex = cl2_config_file == "ms_complex_config.yaml"
-    if not is_complex:
-        pod_cpu_request = calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, pod_count, warmup_deployment, cl2_config_dir, warmup_deployment_template)
-    
-    with open(override_file, 'w', encoding='utf-8') as file:
-        file.write(f"CL2_DEPLOYMENT_CPU: {pod_cpu_request}m\n")
-        file.write(f"CL2_DEPLOYMENT_MEMORY: {pod_memory_request}\n")
-        file.write(f"CL2_DEPLOYMENT_SIZE: {pod_count}\n")
-        file.write(f"CL2_SCALE_UP_TIMEOUT: {scale_up_timeout}\n")
-        file.write(f"CL2_SCALE_DOWN_TIMEOUT: {scale_down_timeout}\n")
-        file.write(f"CL2_LOOP_COUNT: {loop_count}\n")
-        
-        if not is_complex:
-            file.write(f"CL2_MIN_NODE_COUNT: {node_count}\n")
-            file.write(f"CL2_MAX_NODE_COUNT: {node_count + 10}\n")
-            file.write(f"CL2_DESIRED_NODE_COUNT: {desired_node_count}\n")
-            file.write(f"CL2_NODE_LABEL_SELECTOR: {node_label_selector}\n")
-        
-        file.write(f"CL2_NODE_SELECTOR: \"{node_selector}\"\n")
-        file.write(f"CL2_OS_TYPE: {os_type}\n")
-        
-        if deployment_template:
-            file.write(f"CL2_DEPLOYMENT_TEMPLATE_PATH: {deployment_template}\n")
-    file.close()
-
-def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider, cl2_config_file="config.yaml"):
-    run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, cl2_config_file, overrides=True)
-
 def _build_report_template(capacity_type, pod_count, cloud_info, run_id, run_url, autoscale_type="up", cpu_per_node=None, node_count=None, data=None, is_complex=False, pod_cpu_request=0, pod_memory_request=""):
     """Build CL2 measurement template"""
     result = {
@@ -122,7 +86,7 @@ def _build_report_template(capacity_type, pod_count, cloud_info, run_id, run_url
         
     return result
 
-def _process_test_results(testsuites, index_pattern, metric_mappings, cpu_per_node, capacity_type, node_count, pod_count, cloud_info, run_id, run_url, is_complex_config=False, pod_cpu_request=0, pod_memory_request=""):
+def _process_test_results(testsuites, index_pattern, cpu_per_node, capacity_type, node_count, pod_count, cloud_info, run_id, run_url, is_complex_config=False, pod_cpu_request=0, pod_memory_request=""):
     """Process test results and generate JSON content"""
     summary = {}
     
@@ -138,6 +102,30 @@ def _process_test_results(testsuites, index_pattern, metric_mappings, cpu_per_no
             "wait_for_99Perc_nodes_seconds",
             "wait_for_pods_seconds"
         ]
+    
+    # Align metric mappings based on test type complex or not complex
+    if is_complex_config:
+        # Metric mappings for complex config
+        metric_mappings = {
+            "WaitForRunningPodsUp": ("up", "wait_for_pods_seconds"),
+            "WaitForRunningPodsDown": ("down", "wait_for_pods_seconds"),
+        }
+    else:
+        # Metric mappings for standard config
+        metric_mappings = {
+            "WaitForRunningPodsUp": ("up", "wait_for_pods_seconds"),
+            "WaitForNodesUpPerc50": ("up", "wait_for_50Perc_nodes_seconds"),
+            "WaitForNodesUpPerc70": ("up", "wait_for_70Perc_nodes_seconds"),
+            "WaitForNodesUpPerc90": ("up", "wait_for_90Perc_nodes_seconds"),
+            "WaitForNodesUpPerc99": ("up", "wait_for_99Perc_nodes_seconds"),
+            "WaitForNodesUpPerc100": ("up", "wait_for_nodes_seconds"),
+            "WaitForRunningPodsDown": ("down", "wait_for_pods_seconds"),
+            "WaitForNodesDownPerc50": ("down", "wait_for_50Perc_nodes_seconds"),
+            "WaitForNodesDownPerc70": ("down", "wait_for_70Perc_nodes_seconds"),
+            "WaitForNodesDownPerc90": ("down", "wait_for_90Perc_nodes_seconds"),
+            "WaitForNodesDownPerc99": ("down", "wait_for_99Perc_nodes_seconds"),
+            "WaitForNodesDownPerc100": ("down", "wait_for_nodes_seconds"),
+        }
     
     # Process each loop
     for testcase in testsuites[0]["testcases"]:
@@ -180,6 +168,42 @@ def _process_test_results(testsuites, index_pattern, metric_mappings, cpu_per_no
     
     return content
 
+def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up_timeout, scale_down_timeout, loop_count, node_label_selector, node_selector, override_file, warmup_deployment, cl2_config_dir, os_type="linux", warmup_deployment_template="", deployment_template="", pod_cpu_request=0, pod_memory_request="", cl2_config_file="config.yaml"):
+    desired_node_count = 1
+    if warmup_deployment in ["true", "True"]:
+        warmup_deployment_for_karpeneter(cl2_config_dir, warmup_deployment_template)
+        desired_node_count = 0
+
+    is_complex = cl2_config_file == "ms_complex_config.yaml"
+    if not is_complex:
+        pod_cpu_request = calculate_cpu_request_for_clusterloader2(node_label_selector, node_count, pod_count, warmup_deployment, cl2_config_dir, warmup_deployment_template)
+        logger.info(f"Total number of nodes: {node_count}, total number of pods: {pod_count}")
+        logger.info(f"CPU request for each pod: {pod_cpu_request}m")
+    
+    with open(override_file, 'w', encoding='utf-8') as file:
+        file.write(f"CL2_DEPLOYMENT_CPU: {pod_cpu_request}m\n")
+        file.write(f"CL2_DEPLOYMENT_MEMORY: {pod_memory_request}\n")
+        file.write(f"CL2_DEPLOYMENT_SIZE: {pod_count}\n")
+        file.write(f"CL2_SCALE_UP_TIMEOUT: {scale_up_timeout}\n")
+        file.write(f"CL2_SCALE_DOWN_TIMEOUT: {scale_down_timeout}\n")
+        file.write(f"CL2_LOOP_COUNT: {loop_count}\n")
+        
+        if not is_complex:
+            file.write(f"CL2_MIN_NODE_COUNT: {node_count}\n")
+            file.write(f"CL2_MAX_NODE_COUNT: {node_count + 10}\n")
+            file.write(f"CL2_DESIRED_NODE_COUNT: {desired_node_count}\n")
+            file.write(f"CL2_NODE_LABEL_SELECTOR: {node_label_selector}\n")
+        
+        file.write(f"CL2_NODE_SELECTOR: \"{node_selector}\"\n")
+        file.write(f"CL2_OS_TYPE: {os_type}\n")
+        
+        if deployment_template:
+            file.write(f"CL2_DEPLOYMENT_TEMPLATE_PATH: {deployment_template}\n")
+    file.close()
+
+def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider, cl2_config_file="config.yaml"):
+    run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, cl2_config_file, overrides=True)
+
 def collect_clusterloader2(
     cpu_per_node,
     capacity_type,
@@ -200,37 +224,15 @@ def collect_clusterloader2(
     json_data = json.loads(raw_data)
     testsuites = json_data["testsuites"]
     
-    # Different metric mappings based on config file type
     is_complex_config = "ms_complex_config.yaml" == cl2_config_file
-    
-    if is_complex_config:
-        # Metric mappings for complex config
-        metric_mappings = {
-            "WaitForRunningPodsUp": ("up", "wait_for_pods_seconds"),
-            "WaitForRunningPodsDown": ("down", "wait_for_pods_seconds"),
-        }
-    else:
-        # Metric mappings for standard config
-        metric_mappings = {
-            "WaitForRunningPodsUp": ("up", "wait_for_pods_seconds"),
-            "WaitForNodesUpPerc50": ("up", "wait_for_50Perc_nodes_seconds"),
-            "WaitForNodesUpPerc70": ("up", "wait_for_70Perc_nodes_seconds"),
-            "WaitForNodesUpPerc90": ("up", "wait_for_90Perc_nodes_seconds"),
-            "WaitForNodesUpPerc99": ("up", "wait_for_99Perc_nodes_seconds"),
-            "WaitForNodesUpPerc100": ("up", "wait_for_nodes_seconds"),
-            "WaitForRunningPodsDown": ("down", "wait_for_pods_seconds"),
-            "WaitForNodesDownPerc50": ("down", "wait_for_50Perc_nodes_seconds"),
-            "WaitForNodesDownPerc70": ("down", "wait_for_70Perc_nodes_seconds"),
-            "WaitForNodesDownPerc90": ("down", "wait_for_90Perc_nodes_seconds"),
-            "WaitForNodesDownPerc99": ("down", "wait_for_99Perc_nodes_seconds"),
-            "WaitForNodesDownPerc100": ("down", "wait_for_nodes_seconds"),
-        }
 
     if testsuites:
-        content = _process_test_results(testsuites, index_pattern, metric_mappings, cpu_per_node, capacity_type, node_count, pod_count, cloud_info, run_id, run_url, is_complex_config, pod_cpu_request, pod_memory_request)
+        content = _process_test_results(testsuites, index_pattern, cpu_per_node, capacity_type, node_count, pod_count, cloud_info, run_id, run_url, is_complex_config, pod_cpu_request, pod_memory_request)
 
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {raw_data}")
+    
+    # if complex collect cl2 measurements
     if is_complex_config:
         cl2_measurement = _build_report_template(capacity_type, pod_count, cloud_info, run_id, run_url, data={}, is_complex=is_complex_config, pod_cpu_request=pod_cpu_request, pod_memory_request=pod_memory_request)
         cl2_result = process_cl2_reports(cl2_report_dir, cl2_measurement)
