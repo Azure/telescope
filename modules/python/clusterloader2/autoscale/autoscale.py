@@ -174,7 +174,7 @@ def _process_test_results(testsuites, index_pattern, metric_mappings, cpu_per_no
                 autoscale_type=key, 
                 cpu_per_node=cpu_per_node,
                 node_count=node_count,
-                data=data, is_complex=is_complex_config, pod_cpu_request, pod_memory_request
+                data=data, is_complex=is_complex_config, pod_cpu_request=pod_cpu_request, pod_memory_request=pod_memory_request
             )
             content += json.dumps(result) + "\n"
     
@@ -232,7 +232,7 @@ def collect_clusterloader2(
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {raw_data}")
     if is_complex_config:
-        cl2_measurement = _build_report_template(capacity_type, pod_count, cloud_info, run_id, run_url, data={}, is_complex=is_complex_config, pod_cpu_request, pod_memory_request)
+        cl2_measurement = _build_report_template(capacity_type, pod_count, cloud_info, run_id, run_url, data={}, is_complex=is_complex_config, pod_cpu_request=pod_cpu_request, pod_memory_request=pod_memory_request)
         cl2_result = process_cl2_reports(cl2_report_dir, cl2_measurement)
         logger.info(f"Result, category up: {cl2_result}")
         content += cl2_result
