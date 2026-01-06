@@ -13,4 +13,4 @@ steps:
     region: ${{ parameters.regions[0] }}
 - template: /steps/engine/clusterloader2/large-cluster/validate.yml
   parameters:
-    desired_nodes: $(DESIRED_NODES)
+    desired_nodes: 3
