@@ -222,7 +222,7 @@ stages:
           cloud: aws
           regions:
             - eu-west-1
-          registry: null
+          registry: ""
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"

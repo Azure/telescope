@@ -13,6 +13,7 @@ parameters:
   default: {}
 - name: registry
   type: string
+  default: ''
 
 steps:
 - template: /steps/topology/${{ parameters.topology }}/execute-${{ parameters.engine }}.yml@self
