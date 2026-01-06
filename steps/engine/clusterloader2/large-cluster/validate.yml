@@ -8,15 +8,6 @@ parameters:
 steps:
   - script: |
       set -eo pipefail
-      echo "Validating cluster has $CUSTOM_DESIRED_NODES nodes"
-      echo "-----"
-      echo "DESIRED_NODES: $DESIRED_NODES"
-    displayName: "Validate node count param"
-    env:
-      DESIRED_NODES: ${{ parameters.desired_nodes }}
-      
-  - script: |
-      set -eo pipefail
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE validate \
         --node_count $DESIRED_NODES \
