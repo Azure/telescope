@@ -27,7 +27,7 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
-          topology: karpenter
+          topology: karpenter-private-cluster
           matrix:
             complex-nap:
               cpu_per_node: 2
