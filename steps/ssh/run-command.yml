@@ -19,12 +19,12 @@ steps:
       fi
 
       ssh_opts=(-i "$SSH_KEY_PATH" -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null" -o "ServerAliveInterval=60" -o "ServerAliveCountMax=5")
-
       ssh_target="azureuser@${VM_IP}"
-      sshCommand="ssh ${ssh_opts[@]} ${ssh_target} ${{ command }}"
-      $sshCommand
-    displayName: "Run SSH Command: ${{ command }}"
-    condition: ne(variables['JUMPBOX_HOST'], '')
+      
+      # Use bash -c to handle multi-line commands properly
+      ssh "${ssh_opts[@]}" "${ssh_target}" "bash -c $(printf '%q' "$COMMAND")"
+    displayName: "Run SSH Command"
+    condition: and(succeeded(), ne(variables['JUMPBOX_HOST'], ''))
     env:
       VM_IP: ${{ parameters.vm_ip }}
       COMMAND: ${{ command }}

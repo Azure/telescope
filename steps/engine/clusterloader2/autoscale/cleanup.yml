@@ -11,5 +11,6 @@ steps:
   parameters:
     vm_ip: $(JUMPBOX_HOST)
     command_array:
-      - kubectl delete --all nodeclaim --ignore-not-found
-      - kubectl delete --all nodepool --ignore-not-found
+      - |
+        kubectl delete --all nodeclaim --ignore-not-found
+        kubectl delete --all nodepool --ignore-not-found

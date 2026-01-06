@@ -40,8 +40,9 @@ steps:
   parameters:
     vm_ip: $(JUMPBOX_HOST)
     command_array:
-      - "rm -rf '/tmp/telescope-run/run-$(Build.BuildId)'"
-      - "mkdir -p '/tmp/telescope-run/run-$(Build.BuildId)/modules/python/clusterloader2/autoscale/results'"
+      - |
+        rm -rf '/tmp/telescope-run/run-$(Build.BuildId)'
+        mkdir -p '/tmp/telescope-run/run-$(Build.BuildId)/modules/python/clusterloader2/autoscale/results'
 
 # 2. Upload Code and Environment
 - script: |
@@ -113,13 +114,13 @@ steps:
       - "pip3 install --user --break-system-packages -r '/tmp/telescope-run/run-$(Build.BuildId)/modules/python/requirements.txt' || pip3 install --user -r '/tmp/telescope-run/run-$(Build.BuildId)/modules/python/requirements.txt'"
       - |
         source '/tmp/telescope-run/run-$(Build.BuildId)/jumpbox-env.sh'
-        PYTHONPATH=$PYTHONPATH:$REMOTE_PYTHON_DIR python3 $PYTHON_SCRIPT_FILE override \
+        PYTHONPATH=${PYTHONPATH:-}:$REMOTE_PYTHON_DIR python3 $PYTHON_SCRIPT_FILE override \
           $CPU_PER_NODE $NODE_COUNT $POD_COUNT \
           $SCALE_UP_TIMEOUT $SCALE_DOWN_TIMEOUT \
           $LOOP_COUNT "$NODE_LABEL_SELECTOR" "$NODE_SELECTOR" "${CL2_CONFIG_DIR}/overrides.yaml" ${WARMUP_DEPLOYMENT:-false} ${CL2_CONFIG_DIR} --os_type ${OS_TYPE:-linux} --warmup_deployment_template ${WARMUP_DEPLOYMENT_TEMPLATE:-""} --deployment_template ${DEPLOYMENT_TEMPLATE:-""}
       - |
         source '/tmp/telescope-run/run-$(Build.BuildId)/jumpbox-env.sh'
-        PYTHONPATH=$PYTHONPATH:$REMOTE_PYTHON_DIR python3 $PYTHON_SCRIPT_FILE execute \
+        PYTHONPATH=${PYTHONPATH:-}:$REMOTE_PYTHON_DIR python3 $PYTHON_SCRIPT_FILE execute \
           $CL2_IMAGE $CL2_CONFIG_DIR $CL2_REPORT_DIR "$HOME/.kube/config" $CLOUD
 
 # 4. Download Results
