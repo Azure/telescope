@@ -8,10 +8,8 @@ parameters:
 steps:
   - script: |
       set -eo pipefail
-      echo "Validating cluster has $DESIRED_NODES nodes"
+      echo "Validating cluster has $CUSTOM_DESIRED_NODES nodes"
     displayName: "Validate node count param"
-    env:
-      DESIRED_NODES: ${{ parameters.desired_nodes }}
       
   - script: |
       set -eo pipefail
