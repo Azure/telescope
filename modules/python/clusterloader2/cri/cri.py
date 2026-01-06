@@ -101,6 +101,8 @@ def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig
     run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True, enable_prometheus=True,
                     tear_down_prometheus=False, scrape_kubelets=scrape_kubelets, scrape_containerd=scrape_containerd)
 
+# Note: verify_measurement only checks kubelet metrics (accessible via node proxy endpoint).
+# Containerd metrics are only available via Prometheus and cannot be verified here.
 def verify_measurement():
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
     nodes = client.get_nodes(label_selector="cri-resource-consume=true")
