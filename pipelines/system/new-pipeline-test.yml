@@ -15,7 +15,7 @@ stages:
             - westus2
           terraform_input_file_mapping:
             - westus2: "scenarios/perf-eval/k8s-node-stress/terraform-inputs/azure-ubuntu2204.tfvars"
-          topology: cri-resource-consume
+          topology: k8s-resource-pressure
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
