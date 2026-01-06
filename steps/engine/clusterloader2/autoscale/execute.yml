@@ -139,9 +139,24 @@ steps:
     remote_report_dir="/tmp/telescope-run/run-$(Build.BuildId)/modules/python/clusterloader2/autoscale/results"
     local_report_dir="$(Pipeline.Workspace)/s/modules/python/clusterloader2/autoscale/results"
     
-    echo "Downloading results..."
+    echo "=== Debug Info ==="
+    echo "Jumpbox Host: ${JUMPBOX_HOST}"
+    echo "SSH Key Path: ${SSH_KEY_PATH}"
+    echo "Remote Dir: ${remote_report_dir}"
+    echo "Local Dir: ${local_report_dir}"
+    echo ""
+    
+    echo "=== Testing network connectivity ==="
+    nc -zv -w 10 "${JUMPBOX_HOST}" 22 2>&1 || echo "nc test failed"
+    echo ""
+    
+    echo "=== Testing SSH connection ==="
+    ssh -v "${ssh_opts[@]}" "${ssh_target}" "echo 'SSH OK'; ls -la ${remote_report_dir} | head -20" || echo "SSH test failed"
+    echo ""
+    
+    echo "=== Downloading results ==="
     rm -rf "$local_report_dir"
     mkdir -p "$(dirname "$local_report_dir")"
-    scp -r "${ssh_opts[@]}" "${ssh_target}:${remote_report_dir}" "$(dirname "$local_report_dir")"
+    scp -v -r "${ssh_opts[@]}" "${ssh_target}:${remote_report_dir}" "$(dirname "$local_report_dir")"
   displayName: "Download Results from Jumpbox"
   condition: ne(variables['JUMPBOX_HOST'], '')
