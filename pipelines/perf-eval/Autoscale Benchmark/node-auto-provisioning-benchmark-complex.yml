@@ -41,7 +41,7 @@ stages:
               warmup_deployment_template: warmup_deployment.yaml
               capacity_type: on-demand
               cl2_config_file: "ms_complex_config.yaml"
-              karpenter_nodepool_file: "karpenter_complex_nodepool.azure.yaml"
+              karpenter_nodepool_file: "karpenter_complex_nodepool.azure.yml"
           max_parallel: 1
           timeout_in_minutes: 60
           credential_type: service_connection
