@@ -74,6 +74,7 @@ steps:
             max: 1
           successfulConditions:
             - status.status=Ready
+          failedConditions: []
           minDesiredObjectCount: 1
           maxFailedObjectCount: 0
           timeout: 5m
