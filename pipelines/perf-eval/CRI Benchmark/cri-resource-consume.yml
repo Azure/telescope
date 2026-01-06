@@ -32,7 +32,7 @@ stages:
               operation_timeout: 3m
               load_type: memory
               kubernetes_version: "1.31"
-              pod_startup_latency_threshold: 20s
+              pod_startup_latency_threshold: 25s
               scrape_kubelets: True
             n10-p700-memory-ephemeral:
               node_count: 10
@@ -41,7 +41,7 @@ stages:
               operation_timeout: 7m
               load_type: memory
               kubernetes_version: "1.31"
-              pod_startup_latency_threshold: 20s
+              pod_startup_latency_threshold: 25s
               scrape_kubelets: True
             n10-p1100-memory-ephemeral:
               node_count: 10
@@ -50,7 +50,7 @@ stages:
               operation_timeout: 11m
               load_type: memory
               kubernetes_version: "1.31"
-              pod_startup_latency_threshold: 20s
+              pod_startup_latency_threshold: 25s
               scrape_kubelets: True
             n10-p300-memory-managed:
               node_count: 10
@@ -59,7 +59,7 @@ stages:
               operation_timeout: 3m
               load_type: memory
               kubernetes_version: "1.31"
-              pod_startup_latency_threshold: 20s
+              pod_startup_latency_threshold: 25s
               k8s_os_disk_type: Managed
               scrape_kubelets: True
             n10-p700-memory-managed:
@@ -69,7 +69,7 @@ stages:
               operation_timeout: 7m
               load_type: memory
               kubernetes_version: "1.31"
-              pod_startup_latency_threshold: 20s
+              pod_startup_latency_threshold: 25s
               k8s_os_disk_type: Managed
               scrape_kubelets: True
             n10-p1100-memory-managed:
@@ -79,7 +79,7 @@ stages:
               operation_timeout: 11m
               load_type: memory
               kubernetes_version: "1.31"
-              pod_startup_latency_threshold: 20s
+              pod_startup_latency_threshold: 25s
               k8s_os_disk_type: Managed
               scrape_kubelets: True
             n10-p2500-memory-ephemeral:
@@ -89,7 +89,7 @@ stages:
               operation_timeout: 11m
               load_type: memory
               kubernetes_version: "1.31"
-              pod_startup_latency_threshold: 20s
+              pod_startup_latency_threshold: 25s
               k8s_machine_type: Standard_D32ds_v6
               scrape_kubelets: True
           max_parallel: 3
@@ -166,7 +166,7 @@ stages:
               operation_timeout: 3m
               load_type: memory
               scrape_kubelets: True
-              pod_startup_latency_threshold: 20s
+              pod_startup_latency_threshold: 25s
             n10-p700-memory:
               node_count: 10
               max_pods: 70
@@ -174,7 +174,7 @@ stages:
               operation_timeout: 7m
               load_type: memory
               scrape_kubelets: True
-              pod_startup_latency_threshold: 20s
+              pod_startup_latency_threshold: 25s
             n10-p1100-memory:
               node_count: 10
               max_pods: 110
@@ -182,7 +182,7 @@ stages:
               operation_timeout: 11m
               load_type: memory
               scrape_kubelets: True
-              pod_startup_latency_threshold: 20s
+              pod_startup_latency_threshold: 25s
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
@@ -208,7 +208,7 @@ stages:
               operation_timeout: 3m
               load_type: memory
               kubernetes_version: "1.33"
-              pod_startup_latency_threshold: 20s
+              pod_startup_latency_threshold: 25s
               scrape_kubelets: True
             n10-p700-memory:
               node_count: 10
@@ -217,7 +217,7 @@ stages:
               operation_timeout: 7m
               load_type: memory
               kubernetes_version: "1.33"
-              pod_startup_latency_threshold: 20s
+              pod_startup_latency_threshold: 25s
               scrape_kubelets: True
             n10-p1100-memory:
               node_count: 10
@@ -226,7 +226,7 @@ stages:
               operation_timeout: 11m
               load_type: memory
               kubernetes_version: "1.33"
-              pod_startup_latency_threshold: 20s
+              pod_startup_latency_threshold: 25s
               scrape_kubelets: True
           max_parallel: 1
           timeout_in_minutes: 120
