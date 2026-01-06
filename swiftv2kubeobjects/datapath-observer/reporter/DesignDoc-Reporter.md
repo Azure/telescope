@@ -2,13 +2,22 @@
 
 **Author:** Isaac Swamidasan  
 **Date:** Dec 17, 2025  
-**Component:** reporter (sidecar container for datapath readiness reporting)
+**Updated:** Jan 06, 2026 (Changed from sidecar to init container)  
+**Component:** reporter (init container for datapath readiness validation)
 
 See [../DesignDoc-Overall.md](../DesignDoc-Overall.md) for the complete system architecture and goals.
 
 ## Overview
 
-The reporter is a Kubernetes sidecar container that reports its start time and datapath readiness by patching its own Pod annotations. The controller consumes these annotations to calculate and aggregate performance metrics. The reporter probes the datapath once until success or timeout, then exits.
+The reporter is a Kubernetes init container that validates datapath readiness by probing a configured target before allowing main containers to start. It reports start time and datapath readiness by patching its own Pod annotations. The controller consumes these annotations to calculate and aggregate performance metrics. The reporter probes the datapath until success or timeout, then exits cleanly to allow the main containers to proceed.
+
+### Why Init Container?
+
+The reporter is designed as an init container rather than a sidecar because:
+- It performs a **one-time validation task** (datapath readiness check)
+- It completes successfully and exits (would cause CrashLoopBackOff as a sidecar)
+- It measures **true pod startup time** including datapath readiness before workload starts
+- The probe timeout adds to pod startup latency, but this is an acceptable tradeoff for accurate validation and measurement
 
 ## Responsibilities
 
@@ -66,8 +75,9 @@ The following is a generic example. For Telescope deployment refer to [swiftv2_d
   - ServiceAccount, Role (Pods get/patch), RoleBinding
   
 - **Deployment:** [manifests/deployment.yaml](manifests/deployment.yaml)
-  - Used as sidecar container in workload Pods
+  - Used as init container in workload Pods
   - Environment variables: pod name, namespace, probe target, timeout, interval
+  - Example also available in Telescope: [swiftv2_deployment_template.yaml](../../../../modules/python/clusterloader2/swiftv2-slo/config/swiftv2_deployment_template.yaml)
 
 For build instructions, see [README.md](README.md#building-the-image).
 

@@ -21,7 +21,7 @@ spec:
         kubernetes.azure.com/pod-network-instance: pni
     spec:
       serviceAccountName: reporter-sa
-      containers:
+      initContainers:
       - name: datapath-reporter
         image: acndev.azurecr.io/datapath-reporter:2026.01.05.01
         imagePullPolicy: Always

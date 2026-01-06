@@ -6,7 +6,7 @@ A system for tracking Pod startup time and datapath readiness in Kubernetes clus
 
 This system consists of two independent components:
 
-1. **[Reporter](reporter/)** - Sidecar container that measures timestamps, probes datapath once, then exits
+1. **[Reporter](reporter/)** - Init container that measures timestamps, probes datapath until success or timeout, then exits to allow main containers to start
 2. **[Controller](controller/)** - Standalone deployment that watches Pods, aggregates metrics, and serves HTTP APIs
 
 ## Quick Start
@@ -37,10 +37,11 @@ kubectl apply -f manifests/deployment.yaml
 
 ### 3. Add Reporter to Test Pods
 
-Add the reporter as a sidecar container to your test Pods:
+Add the reporter as an init container to your test Pods:
 
 ```yaml
-containers:
+serviceAccountName: reporter-sa
+initContainers:
 - name: datapath-reporter
   image: acndev.azurecr.io/datapath-reporter:latest
   env:
@@ -48,6 +49,14 @@ containers:
     value: "http://your-target.com"
   - name: PROBE_TIMEOUT
     value: "60"
+  - name: MY_POD_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.name
+  - name: MY_POD_NAMESPACE
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.namespace
 ```
 
 ### 4. Query Metrics
@@ -66,7 +75,7 @@ curl "http://localhost:8080/api/v1/time-to-datapath-ready?topN=10&namespace=perf
 ## Metrics Tracked
 
 ### Time to Start
-Time from Pod creation to sidecar container ready (workload start). Tracks:
+Time from Pod creation to init container ready (before main containers start). Tracks:
 - Percentiles (p50, p90, p99)
 - Success/failure counts
 - Worst performers
@@ -80,7 +89,7 @@ Time from Pod creation to first successful network probe. Tracks:
 ## Architecture
 
 ```
-Reporter (sidecar) → Pod annotations → Controller → DatapathResult CRD → HTTP APIs
+Reporter (initContainer) → Pod annotations → Controller → DatapathResult CRD → HTTP APIs
 ```
 
 Data is persisted in `DatapathResult` CRDs keyed by Pod UID, surviving Pod restarts and node failures.

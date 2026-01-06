@@ -37,12 +37,12 @@ Here, **datapath success** means the Pod can send/receive traffic as expected. E
 
 **Two independent components:**
 
-1. **Reporter** - Sidecar container in test Pods (measures + writes annotations)
+1. **Reporter** - Init container in test Pods (validates datapath readiness before main containers start)
 2. **Controller** - Standalone deployment (watches + aggregates + serves APIs)
 
 **Data flow:**
 ```
-Reporter (sidecar) → Pod annotations → Controller → DatapathResult CRD → HTTP APIs
+Reporter (initContainer) → Pod annotations → Controller → DatapathResult CRD → HTTP APIs
 ```
 
 **Annotations used:**
@@ -98,11 +98,12 @@ spec:
 | Aggregate metrics | | ✓ |
 | Serve HTTP APIs | | ✓ |
 
-### Reporter (Sidecar Container)
+### Reporter (Init Container)
 
 - Records start timestamp and probes external target (HTTP/HTTPS/TCP)
 - Writes timestamps to Pod annotations with idempotent patching
-- Probes datapath until success or timeout, then exits
+- Probes datapath until success or timeout, then exits to allow main containers to start
+- Adds probe timeout duration to overall pod startup latency (acceptable tradeoff for validation)
 - RBAC: `get`/`patch` on its own Pod only
 
 ### Controller (Standalone Deployment)

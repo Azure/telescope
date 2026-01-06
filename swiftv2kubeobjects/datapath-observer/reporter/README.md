@@ -1,6 +1,6 @@
 # Datapath Reporter
 
-The datapath reporter is a sidecar container that measures Pod startup time and datapath readiness, then writes the results to Pod annotations. After probing until success or timeout, the reporter exits.
+The datapath reporter is an init container that measures Pod startup time and datapath readiness, then writes the results to Pod annotations. After probing until success or timeout, the reporter exits and allows the main containers to start.
 
 ## Prerequisites
 
@@ -30,7 +30,7 @@ az aks show -g <RESOURCE_GROUP> -n <CLUSTER_NAME> --query identityProfile.kubele
 
 ## Usage
 
-Add the reporter as a sidecar container to your test Pods:
+Add the reporter as an init container to your test Pods:
 
 ```yaml
 apiVersion: v1
@@ -40,7 +40,8 @@ metadata:
   labels:
     app: perf-test
 spec:
-  containers:
+  serviceAccountName: reporter-sa
+  initContainers:
   - name: datapath-reporter
     image: acndev.azurecr.io/datapath-reporter:latest
     env:
@@ -48,8 +49,15 @@ spec:
       value: "http://example.com"
     - name: PROBE_TIMEOUT
       value: "60"
-    - name: PROBE_PROTOCOL
-      value: "http"
+    - name: MY_POD_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.name
+    - name: MY_POD_NAMESPACE
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.namespace
+  containers:
   - name: main
     image: nginx:latest
 ```
@@ -67,8 +75,10 @@ Environment variables:
 
 The reporter writes two annotations to the Pod:
 
-- `perf.github.com/azure-start-ts` - RFC3339 timestamp with millisecond precision when sidecar container started
+- `perf.github.com/azure-start-ts` - RFC3339 timestamp with millisecond precision when init container started
 - `perf.github.com/azure-dp-ready-ts` - RFC3339 timestamp with millisecond precision when first successful probe completed
+
+Note: As an init container, the reporter validates datapath readiness before the main containers start, adding the probe timeout duration to overall pod startup latency.
 
 ## Building the Image
 
