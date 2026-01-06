@@ -5,7 +5,7 @@ locals {
     "Reader"                                     = data.azurerm_resource_group.rg.id
   } : {}
 
-  public_ip_address_id = try(var.public_ips_map[var.jumpbox_config.public_ip_name], null)
+  public_ip_address_id = try(var.public_ips_map[var.jumpbox_config.public_ip_name].id, null)
   subnet_id            = try(var.subnets_map[var.jumpbox_config.subnet_name], null)
 }
 

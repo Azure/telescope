@@ -13,7 +13,7 @@ locals {
   aks_aad_enabled                   = lookup(var.json_input, "aks_aad_enabled", false)
   enable_apiserver_vnet_integration = lookup(var.json_input, "enable_apiserver_vnet_integration", false)
   public_key_path                   = lookup(var.json_input, "public_key_path", null)
-  ssh_public_key                    = local.public_key_path != "" ? file(local.public_key_path) : null
+  ssh_public_key                    = (local.public_key_path != null && fileexists(local.public_key_path)) ? file(local.public_key_path) : null
 
   tags = {
     "owner"             = var.owner
@@ -61,6 +61,8 @@ locals {
   aks_cli_config_map = { for aks in local.updated_aks_cli_config_list : aks.role => aks }
 
   key_vault_config_map = { for kv in var.key_vault_config_list : kv.name => kv }
+
+  jumpbox_config_map = { for jumpbox in var.jumpbox_config_list : jumpbox.role => jumpbox }
 }
 
 provider "azurerm" {
