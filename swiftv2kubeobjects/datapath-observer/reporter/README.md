@@ -1,6 +1,6 @@
 # Datapath Reporter
 
-The datapath reporter is an init container that measures Pod startup time and datapath readiness, then writes the results to Pod annotations.
+The datapath reporter is a sidecar container that measures Pod startup time and datapath readiness, then writes the results to Pod annotations. After probing until success or timeout, the reporter exits.
 
 ## Prerequisites
 
@@ -30,7 +30,7 @@ az aks show -g <RESOURCE_GROUP> -n <CLUSTER_NAME> --query identityProfile.kubele
 
 ## Usage
 
-Add the reporter as an init container to your test Pods:
+Add the reporter as a sidecar container to your test Pods:
 
 ```yaml
 apiVersion: v1
@@ -40,7 +40,7 @@ metadata:
   labels:
     app: perf-test
 spec:
-  initContainers:
+  containers:
   - name: datapath-reporter
     image: acndev.azurecr.io/datapath-reporter:latest
     env:
@@ -50,7 +50,6 @@ spec:
       value: "60"
     - name: PROBE_PROTOCOL
       value: "http"
-  containers:
   - name: main
     image: nginx:latest
 ```
@@ -68,7 +67,7 @@ Environment variables:
 
 The reporter writes two annotations to the Pod:
 
-- `perf.github.com/azure-start-ts` - RFC3339 timestamp with millisecond precision when init container started
+- `perf.github.com/azure-start-ts` - RFC3339 timestamp with millisecond precision when sidecar container started
 - `perf.github.com/azure-dp-ready-ts` - RFC3339 timestamp with millisecond precision when first successful probe completed
 
 ## Building the Image

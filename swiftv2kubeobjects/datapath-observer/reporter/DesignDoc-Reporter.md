@@ -2,13 +2,13 @@
 
 **Author:** Isaac Swamidasan  
 **Date:** Dec 17, 2025  
-**Component:** reporter (init container for datapath readiness reporting)
+**Component:** reporter (sidecar container for datapath readiness reporting)
 
 See [../DesignDoc-Overall.md](../DesignDoc-Overall.md) for the complete system architecture and goals.
 
 ## Overview
 
-The reporter is a Kubernetes init container that reports its start time and datapath readiness by patching its own Pod annotations. The controller consumes these annotations to calculate and aggregate performance metrics.
+The reporter is a Kubernetes sidecar container that reports its start time and datapath readiness by patching its own Pod annotations. The controller consumes these annotations to calculate and aggregate performance metrics. The reporter probes the datapath once until success or timeout, then exits.
 
 ## Responsibilities
 
@@ -66,7 +66,7 @@ The following is a generic example. For Telescope deployment refer to [swiftv2_d
   - ServiceAccount, Role (Pods get/patch), RoleBinding
   
 - **Deployment:** [manifests/deployment.yaml](manifests/deployment.yaml)
-  - Used as init container in workload Pods
+  - Used as sidecar container in workload Pods
   - Environment variables: pod name, namespace, probe target, timeout, interval
 
 For build instructions, see [README.md](README.md#building-the-image).

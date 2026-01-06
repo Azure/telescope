@@ -23,7 +23,7 @@ We need an independent system that:
   - For **time-to-start**: successful pods have non-zero `startTs` in their DatapathResult CR; failed pods have missing or zero `startTs`
   - For **time-to-datapath-ready**: successful pods have non-zero `dpReadyTs` in their DatapathResult CR; failed pods have missing or zero `dpReadyTs`
 
-Here, **datapath success** means the Pod can send/receive traffic as expected. Each Pod's reporter init container reports timestamps via annotations; the controller persists and aggregates results via the `DatapathResult` CRD.
+Here, **datapath success** means the Pod can send/receive traffic as expected. Each Pod's reporter sidecar reports timestamps via annotations; the controller persists and aggregates results via the `DatapathResult` CRD.
 
 ## Goals
 
@@ -37,12 +37,12 @@ Here, **datapath success** means the Pod can send/receive traffic as expected. E
 
 **Two independent components:**
 
-1. **Reporter** - Init container in test Pods (measures + writes annotations)
+1. **Reporter** - Sidecar container in test Pods (measures + writes annotations)
 2. **Controller** - Standalone deployment (watches + aggregates + serves APIs)
 
 **Data flow:**
 ```
-Reporter (init container) → Pod annotations → Controller → DatapathResult CRD → HTTP APIs
+Reporter (sidecar) → Pod annotations → Controller → DatapathResult CRD → HTTP APIs
 ```
 
 **Annotations used:**
@@ -98,10 +98,11 @@ spec:
 | Aggregate metrics | | ✓ |
 | Serve HTTP APIs | | ✓ |
 
-### Reporter (Init Container)
+### Reporter (Sidecar Container)
 
 - Records start timestamp and probes external target (HTTP/HTTPS/TCP)
 - Writes timestamps to Pod annotations with idempotent patching
+- Probes datapath until success or timeout, then exits
 - RBAC: `get`/`patch` on its own Pod only
 
 ### Controller (Standalone Deployment)
@@ -142,4 +143,4 @@ See the following documents for implementation specifics:
 - [controller/README.md](controller/README.md) - Controller deployment and usage guide
 - [controller/DesignDoc-Controller.md](controller/DesignDoc-Controller.md) - Controller implementation details
 - [reporter/README.md](reporter/README.md) - Reporter deployment and usage guide
-- [reporter/DesignDoc-Reporter.md](reporter/DesignDoc-Reporter.md) - Reporter init container implementation details
+- [reporter/DesignDoc-Reporter.md](reporter/DesignDoc-Reporter.md) - Reporter sidecar container implementation details

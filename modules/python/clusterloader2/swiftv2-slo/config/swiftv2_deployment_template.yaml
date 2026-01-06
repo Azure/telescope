@@ -26,9 +26,10 @@ spec:
       serviceAccountName: reporter-sa-0
       nodeSelector:
         swiftv2slo: "true"
-      initContainers:
+      containers:
       - name: datapath-reporter
         image: {{.DatapathReporterImage}}
+        imagePullPolicy: IfNotPresent
         env:
         - name: PROBE_TARGET
           value: "{{.ProbeTarget}}"
@@ -42,7 +43,6 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
-      containers:
       # Using shared acndev ACR (region-agnostic) instead of location-specific ACR
       # The acndev ACR has cache rules that automatically pull from Docker Hub
       - image: {{.NetshootImage}}
