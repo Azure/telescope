@@ -117,7 +117,7 @@ class TestClusterLoaderFunctions(unittest.TestCase):
         handle.write.assert_any_call('CL2_OS_TYPE: linux\n')
 
         mock_logger.info.assert_any_call(
-            "Total number of nodes: 100, total number of pods: 1000"
+            "Total number of nodes: 100, total number of pods: 1000, cpu per node: 2"
         )
         mock_logger.info.assert_any_call("CPU request for each pod: 1900m")
 
