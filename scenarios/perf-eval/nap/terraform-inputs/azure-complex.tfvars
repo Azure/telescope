@@ -6,10 +6,6 @@ owner          = "aks"
 
 public_ip_config_list = [
   {
-    name  = "firewall-pip"
-    count = 1
-  },
-  {
     name  = "jumpbox-pip"
     count = 1
   }
@@ -29,10 +25,6 @@ network_config_list = [
       {
         name           = "jumpbox-subnet"
         address_prefix = "10.224.0.0/12"
-      },
-      {
-        name           = "AzureFirewallSubnet"
-        address_prefix = "10.193.0.0/26"
       }
     ]
     network_security_group_name = ""
@@ -84,10 +76,6 @@ aks_cli_config_list = [
       {
         name  = "enable-workload-identity"
         value = ""
-      },
-      {
-        name  = "outbound-type"
-        value = "userDefinedRouting"
       },
       {
         name  = "enable-addons"
