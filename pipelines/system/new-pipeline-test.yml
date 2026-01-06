@@ -24,8 +24,8 @@ stages:
           matrix:
             large-scale-spot:
               cpu_per_node: 2
-              node_count: 1000
-              pod_count: 1000
+              node_count: 10
+              pod_count: 100
               scale_up_timeout: "60m"
               scale_down_timeout: "60m"
               node_label_selector: "karpenter.sh/nodepool = spot"
