@@ -262,7 +262,7 @@ def override_config_clusterloader2(
             warmup_deployment_template,
         )
         logger.info(
-            f"Total number of nodes: {node_count}, total number of pods: {pod_count}"
+            f"Total number of nodes: {node_count}, total number of pods: {pod_count}, cpu per node: {cpu_per_node}"
         )
         logger.info(f"CPU request for each pod: {pod_cpu_request}m")
 
