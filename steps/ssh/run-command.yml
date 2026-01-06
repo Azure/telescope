@@ -24,7 +24,7 @@ steps:
       # Use bash -c to handle multi-line commands properly
       ssh "${ssh_opts[@]}" "${ssh_target}" "bash -c $(printf '%q' "$COMMAND")"
     displayName: "Run SSH Command"
-    condition: and(succeeded(), ne(variables['JUMPBOX_HOST'], ''))
+    condition: ne(variables['JUMPBOX_HOST'], '')
     env:
       VM_IP: ${{ parameters.vm_ip }}
       COMMAND: ${{ command }}

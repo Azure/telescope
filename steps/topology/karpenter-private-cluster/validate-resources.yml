@@ -71,7 +71,7 @@ steps:
        exit 1
     fi
 
-    ssh_target="${JUMPBOX_USERNAME}@${JUMPBOX_HOST}"
+    ssh_target="${JUMPBOX_USERNAME:-azureuser}@${JUMPBOX_HOST}"
     ssh_opts=(-i "$SSH_KEY_PATH" -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null")
     remote_root="/tmp/telescope-$(Build.BuildId)"
     remote_nodepool_file="${remote_root}/karpenter_nodepool.yml"
