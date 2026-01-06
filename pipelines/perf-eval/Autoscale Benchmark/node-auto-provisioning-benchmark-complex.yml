@@ -30,7 +30,7 @@ stages:
           topology: karpenter
           matrix:
             complex-nap:
-              pod_count: 1000
+              pod_count: 5000
               pod_cpu_request: 16
               pod_memory_request: "60Gi"
               scale_up_timeout: "15m"
@@ -43,6 +43,6 @@ stages:
               cl2_config_file: "ms_complex_config.yaml"
               karpenter_nodepool_file: "karpenter_complex_nodepool.azure.yml"
           max_parallel: 1
-          timeout_in_minutes: 60
+          timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false
