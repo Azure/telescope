@@ -1,0 +1,18 @@
+parameters:
+- name: region
+  type: string
+- name: role
+  type: string
+
+steps:
+- script: |
+    # Make script executable and run image pre-pull
+    chmod +x $(System.DefaultWorkingDirectory)/steps/engine/clusterloader2/swiftv2-slo/prepull-images.sh
+    $(System.DefaultWorkingDirectory)/steps/engine/clusterloader2/swiftv2-slo/prepull-images.sh
+  env:
+    REGION: ${{ parameters.region }}
+    ROLE: ${{ parameters.role }}
+    RUN_ID: $(RUN_ID)
+    DATAPATH_REPORTER_IMAGE: $(DATAPATH_REPORTER_IMAGE)
+    NETSHOOT_IMAGE: $(NETSHOOT_IMAGE)
+  displayName: "Pre-pull Container Images"

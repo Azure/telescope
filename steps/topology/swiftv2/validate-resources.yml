@@ -16,6 +16,10 @@ steps:
       role: slo
       region: ${{ parameters.regions[0] }}
       enable_autoscale: "false"
+  - template: /steps/engine/clusterloader2/swiftv2-slo/prepull-images.yml
+    parameters:
+      role: slo
+      region: ${{ parameters.regions[0] }}
   - template: /steps/engine/clusterloader2/swiftv2-slo/validate.yml
     parameters:
       validation_timeout_in_minutes: 10

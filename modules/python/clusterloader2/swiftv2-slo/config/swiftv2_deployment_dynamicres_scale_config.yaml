@@ -13,6 +13,8 @@ name: deployment-churn
 {{$devicePluginEnabled := DefaultParam .CL2_DEVICE_PLUGIN false}}
 {{$probeTargetUrl := DefaultParam .CL2_PROBE_TARGET_URL "http://172.27.0.30/"}}
 {{$probeTimeout := DefaultParam .CL2_PROBE_TIMEOUT "300"}}
+{{$datapathReporterImage := DefaultParam .CL2_DATAPATH_REPORTER_IMAGE "acndev.azurecr.io/datapath-reporter:2026.01.05.01"}}
+{{$netshootImage := DefaultParam .CL2_NETSHOOT_IMAGE "acndev.azurecr.io/netshoot:latest"}}
 
 namespace:
   number: 1
@@ -108,6 +110,8 @@ steps:
               DevicePluginEnabled: {{$devicePluginEnabled}}
               ProbeTarget: {{$probeTargetUrl}}
               ProbeTimeout: {{$probeTimeout}}
+              DatapathReporterImage: {{$datapathReporterImage}}
+              NetshootImage: {{$netshootImage}}
   - name: Wait for all Deployments to be Running -{{$j}}
     measurements:
     - Identifier: WaitForControlledPodsRunning-{{$j}}

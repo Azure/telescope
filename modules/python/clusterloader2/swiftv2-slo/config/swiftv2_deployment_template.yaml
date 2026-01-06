@@ -28,7 +28,7 @@ spec:
         swiftv2slo: "true"
       initContainers:
       - name: datapath-reporter
-        image: acndev.azurecr.io/datapath-reporter:2026.01.05.01
+        image: {{.DatapathReporterImage}}
         env:
         - name: PROBE_TARGET
           value: "{{.ProbeTarget}}"
@@ -45,7 +45,7 @@ spec:
       containers:
       # Using shared acndev ACR (region-agnostic) instead of location-specific ACR
       # The acndev ACR has cache rules that automatically pull from Docker Hub
-      - image: acndev.azurecr.io/netshoot:latest
+      - image: {{.NetshootImage}}
         command: ["sleep", "infinity"]
         imagePullPolicy: IfNotPresent
         securityContext:

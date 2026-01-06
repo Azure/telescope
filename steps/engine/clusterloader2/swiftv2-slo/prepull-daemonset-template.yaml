@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: IMAGE_PREPULL_NAME
+  namespace: IMAGE_PREPULL_NAMESPACE
+spec:
+  selector:
+    matchLabels:
+      app: image-prepull
+      image-hash: IMAGE_HASH
+  template:
+    metadata:
+      labels:
+        app: image-prepull
+        image-hash: IMAGE_HASH
+    spec:
+      nodeSelector:
+        swiftv2slo: "true"
+      tolerations:
+      - key: slo
+        operator: Equal
+        value: "true"
+        effect: NoSchedule
+      initContainers:
+      - name: image-puller
+        image: IMAGE_TO_PULL
+        command: ["/bin/sh", "-c", "echo 'Image pulled successfully'"]
+        imagePullPolicy: Always
+      containers:
+      - name: sleep
+        image: busybox:latest
+        command: ["sleep", "10"]
+        resources:
+          requests:
+            cpu: 10m
+            memory: 10Mi
+          limits:
+            cpu: 10m
+            memory: 10Mi
