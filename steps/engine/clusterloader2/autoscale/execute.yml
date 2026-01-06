@@ -133,7 +133,7 @@ steps:
       exit 1
     fi
 
-    ssh_opts=(-i "$SSH_KEY_PATH" -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null")
+    ssh_opts=(-i "$SSH_KEY_PATH" -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null" -o "ServerAliveInterval=60" -o "ServerAliveCountMax=5")
     ssh_target="${JUMPBOX_USERNAME:-azureuser}@${JUMPBOX_HOST}"
     
     remote_report_dir="/tmp/telescope-run/run-$(Build.BuildId)/modules/python/clusterloader2/autoscale/results"
