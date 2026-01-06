@@ -10,7 +10,6 @@ steps:
 - template: /steps/ssh/run-command.yml
   parameters:
     vm_ip: $(JUMPBOX_HOST)
-    command_array:
-      - |
-        kubectl delete --all nodeclaim --ignore-not-found
-        kubectl delete --all nodepool --ignore-not-found
+    command: |
+      kubectl delete --all nodeclaim --ignore-not-found
+      kubectl delete --all nodepool --ignore-not-found

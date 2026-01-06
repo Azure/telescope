@@ -39,24 +39,23 @@ steps:
 - template: /steps/ssh/run-command.yml
   parameters:
     vm_ip: $(JUMPBOX_HOST)
-    command_array:
-      - "cloud-init status --wait || echo 'Warning: cloud-init finished with errors, but continuing anyway...'"
-      - "az login --identity --output none"
-      - |
-        aks_name=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location '${{ parameters.regions[0] }}' --query "[?(tags.run_id == '$(RUN_ID)' && tags.role == '${{ parameters.role }}')].name" --output tsv)
-        aks_rg=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location '${{ parameters.regions[0] }}' --query "[?(tags.run_id == '$(RUN_ID)' && tags.role == '${{ parameters.role }}')].resourceGroup" --output tsv)
-        if [ -z "$aks_name" ]; then echo "No AKS found with run_id=$(RUN_ID) and role=${{ parameters.role }}"; exit 1; fi
-        echo "Found AKS: $aks_name in resource group: $aks_rg"
-        ALIAS='${{ parameters.alias }}'
-        az aks get-credentials -n $aks_name -g $aks_rg ${ALIAS:+--context $ALIAS} --overwrite-existing
-        echo 'Kubeconfig updated on jumpbox. Testing kubectl...'
-        kubectl get ns
+    command: |
+      set -e
+      cloud-init status --wait || echo 'Warning: cloud-init finished with errors, but continuing anyway...'
+      az login --identity --output none
+      aks_name=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location '${{ parameters.regions[0] }}' --query "[?(tags.run_id == '$(RUN_ID)' && tags.role == '${{ parameters.role }}')].name" --output tsv)
+      aks_rg=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location '${{ parameters.regions[0] }}' --query "[?(tags.run_id == '$(RUN_ID)' && tags.role == '${{ parameters.role }}')].resourceGroup" --output tsv)
+      if [ -z "$aks_name" ]; then echo "No AKS found with run_id=$(RUN_ID) and role=${{ parameters.role }}"; exit 1; fi
+      echo "Found AKS: $aks_name in resource group: $aks_rg"
+      ALIAS='${{ parameters.alias }}'
+      az aks get-credentials -n $aks_name -g $aks_rg ${ALIAS:+--context $ALIAS} --overwrite-existing
+      echo 'Kubeconfig updated on jumpbox. Testing kubectl...'
+      kubectl get ns
 
 - template: /steps/ssh/run-command.yml
   parameters:
     vm_ip: $(JUMPBOX_HOST)
-    command_array:
-      - "mkdir -p '/tmp/telescope-$(Build.BuildId)'"
+    command: "mkdir -p '/tmp/telescope-$(Build.BuildId)'"
 
 - bash: |
     set -euo pipefail
@@ -85,10 +84,10 @@ steps:
 - template: /steps/ssh/run-command.yml
   parameters:
     vm_ip: $(JUMPBOX_HOST)
-    command_array:
-      - |
-        kubectl apply -f '/tmp/telescope-$(Build.BuildId)/karpenter_nodepool.yml'
-        kubectl patch nodepool default --type='json' -p="[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['$(VM_SIZE)']}]"
-        kubectl patch nodepool spot --type='json' -p="[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['$(VM_SIZE)']}]"
-        kubectl get nodepool default -o yaml
-        kubectl get nodepool spot -o yaml
+    command: |
+      set -e
+      kubectl apply -f '/tmp/telescope-$(Build.BuildId)/karpenter_nodepool.yml'
+      kubectl patch nodepool default --type='json' -p="[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['$(VM_SIZE)']}]"
+      kubectl patch nodepool spot --type='json' -p="[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['$(VM_SIZE)']}]"
+      kubectl get nodepool default -o yaml
+      kubectl get nodepool spot -o yaml

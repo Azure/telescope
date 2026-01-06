@@ -2,29 +2,27 @@ parameters:
 - name: vm_ip
   type: string
   default: ''
-- name: command_array
-  type: object
-  default:
-  - hostname
+- name: command
+  type: string
+  default: 'hostname'
 
 steps:
-- ${{ each command in parameters.command_array }}:
-  - bash: |
-      set -u
-      if [ -z "${VM_IP:-}" ]; then
-        echo "VM_IP not set, skipping SSH command"; exit 0
-      fi
-      if [ -z "${SSH_KEY_PATH:-}" ] || [ ! -f "$SSH_KEY_PATH" ]; then
-        echo "SSH_KEY_PATH not found" >&2; exit 1
-      fi
+- bash: |
+    set -u
+    if [ -z "${VM_IP:-}" ]; then
+      echo "VM_IP not set, skipping SSH command"; exit 0
+    fi
+    if [ -z "${SSH_KEY_PATH:-}" ] || [ ! -f "$SSH_KEY_PATH" ]; then
+      echo "SSH_KEY_PATH not found" >&2; exit 1
+    fi
 
-      ssh_opts=(-i "$SSH_KEY_PATH" -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null" -o "ServerAliveInterval=60" -o "ServerAliveCountMax=5")
-      ssh_target="azureuser@${VM_IP}"
-      
-      # Use bash -c to handle multi-line commands properly
-      ssh "${ssh_opts[@]}" "${ssh_target}" "bash -c $(printf '%q' "$COMMAND")"
-    displayName: "Run SSH Command"
-    condition: ne(variables['JUMPBOX_HOST'], '')
-    env:
-      VM_IP: ${{ parameters.vm_ip }}
-      COMMAND: ${{ command }}
+    ssh_opts=(-i "$SSH_KEY_PATH" -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null" -o "ServerAliveInterval=60" -o "ServerAliveCountMax=5")
+    ssh_target="azureuser@${VM_IP}"
+    
+    # Use bash -c to handle multi-line commands properly
+    ssh "${ssh_opts[@]}" "${ssh_target}" "bash -c $(printf '%q' "$COMMAND")"
+  displayName: "Run SSH Command"
+  condition: and(succeeded(), ne(variables['JUMPBOX_HOST'], ''))
+  env:
+    VM_IP: ${{ parameters.vm_ip }}
+    COMMAND: ${{ parameters.command }}
