@@ -265,7 +265,7 @@ def main():
     parser_override.add_argument("--deployment_template", type=str, default="", help="Path to the CL2 deployment file")
     parser_override.add_argument("--pod_cpu_request", type=int, help="CPU request for each pod")
     parser_override.add_argument("--pod_memory_request", type=str, help="Memory request for each pod")
-    parser_override.add_argument("--cl2_config_file", default="config.yaml", type=str, default="config.yaml", help="name of CL2 config file")
+    parser_override.add_argument("--cl2_config_file", default="config.yaml", type=str, help="name of CL2 config file")
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", help="Execute scale up operation")
     parser_execute.add_argument("cl2_image", type=str, help="Name of the CL2 image")
@@ -273,7 +273,7 @@ def main():
     parser_execute.add_argument("cl2_report_dir", type=str, help="Path to the CL2 report directory")
     parser_execute.add_argument("kubeconfig", type=str, help="Path to the kubeconfig file")
     parser_execute.add_argument("provider", type=str, help="Cloud provider name")
-    parser_execute.add_argument("--cl2_config_file", default="config.yaml", type=str, default="config.yaml", help="Path to the CL2 config file")
+    parser_execute.add_argument("--cl2_config_file", default="config.yaml", type=str, help="Path to the CL2 config file")
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
     parser_collect.add_argument("cpu_per_node", type=int, help="Name of cpu cores per node")

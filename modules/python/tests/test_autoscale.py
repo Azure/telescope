@@ -179,7 +179,10 @@ class TestClusterLoaderFunctions(unittest.TestCase):
           cloud_info="mock-cloud",
           run_id="mock-run-id",
           run_url="http://mock-run-url",
-          result_file=result_file
+          result_file=result_file,
+          cl2_config_file="config.yaml",
+          pod_cpu_request=1900,
+          pod_memory_request="2Gi"
         )
 
         self.assertTrue(os.path.exists(result_file))
@@ -210,7 +213,10 @@ class TestClusterLoaderFunctions(unittest.TestCase):
               cloud_info="mock-cloud",
               run_id="mock-run-id",
               run_url="http://mock-run-url",
-              result_file="/mock/result/file"
+              result_file="/mock/result/file",
+              cl2_config_file="config.yaml",
+              pod_cpu_request=2000,
+              pod_memory_request="2Gi"
             )
 
         self.assertIn("No testsuites found in the report", str(context.exception))
@@ -253,7 +259,8 @@ class TestClusterLoaderFunctions(unittest.TestCase):
             main()
             mock_collect.assert_called_once_with(
                 4, 'on-demand', 3, 200, 'report-dir',
-                'aws-info', 'run-123', 'http://run.url', 'results.json'
+                'aws-info', 'run-123', 'http://run.url', 'results.json',
+                'config.yaml', None, None
             )
 
 if __name__ == '__main__':
