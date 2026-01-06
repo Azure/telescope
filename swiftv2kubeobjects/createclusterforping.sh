@@ -503,4 +503,20 @@ else
     # For now, we'll just log error.
 fi
 
+# =============================================================================
+# DEPLOY DATAPATH REPORTER RBAC
+# =============================================================================
+echo "Deploying Datapath Reporter RBAC for CL2 deployments..."
+
+# Apply Reporter RBAC
+REPORTER_MANIFEST_DIR="$(dirname "$0")/datapath-observer/reporter/manifests"
+echo "Applying reporter RBAC from $REPORTER_MANIFEST_DIR..."
+
+if [ -d "$REPORTER_MANIFEST_DIR" ]; then
+    kubectl apply -f "$REPORTER_MANIFEST_DIR/rbac.yaml"
+    echo "Reporter RBAC deployed successfully"
+else
+    echo "ERROR: Reporter manifest directory $REPORTER_MANIFEST_DIR not found!"
+fi
+
 echo "Script completed successfully!"

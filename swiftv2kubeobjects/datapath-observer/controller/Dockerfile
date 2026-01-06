@@ -19,8 +19,8 @@ COPY pkg/ pkg/
 # Build the binary
 RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -a -ldflags "-s -w" -o datapath-controller main.go
 
-# mcr.microsoft.com/azurelinux/distroless/minimal:3.0
-FROM mcr.microsoft.com/azurelinux/distroless/minimal@sha256:6b78aa535a2a5107ee308b767c0f1f5055a58d0e751f9d87543bc504da6d0ed3
+# mcr.microsoft.com/azurelinux/base/core:3.0
+FROM mcr.microsoft.com/azurelinux/base/core@sha256:3d53b96f4e336a197023bda703a056eaefecc6728e9a2b0c1ef42f7dce183338
 
 WORKDIR /
 
