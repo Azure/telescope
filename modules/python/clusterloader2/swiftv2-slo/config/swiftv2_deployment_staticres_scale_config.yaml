@@ -74,21 +74,10 @@ steps:
               ReservationSize: {{$podsPerStep}}
   - name: Wait for PNI to be created and nodes to be registered -{{$j}}
     measurements:
-      - Identifier: WaitForPNIReady-{{$j}}
-        Method: WaitForGenericK8sObjects
+      - Identifier: WaitForPNI-{{$j}}
+        Method: Sleep
         Params:
-          objectGroup: multitenancy.acn.azure.com
-          objectVersion: v1alpha1
-          objectResource: podnetworkinstances
-          namespaceRange:
-            min: 1
-            max: 1
-          successfulConditions:
-            - status.status=Ready
-          failedConditions: []
-          minDesiredObjectCount: {{AddInt $j 1}}
-          maxFailedObjectCount: 0
-          timeout: 5m
+          duration: 30s
   - name: Starting Deployment Latency Measurements -{{$j}}
     measurements:
     - Identifier: WaitForControlledPodsRunning-{{$j}}
