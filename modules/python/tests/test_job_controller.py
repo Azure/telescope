@@ -30,6 +30,29 @@ class TestJobControllerBenchmark(unittest.TestCase):
             self.assertIn("CL2_OPERATION_TIMEOUT: 10m", content)
             self.assertIn("CL2_JOBS: 1000", content)
             self.assertIn("CL2_LOAD_TEST_THROUGHPUT: 50", content)
+            # Test that job_template_path default is written to config
+            self.assertIn("CL2_JOB_TEMPLATE_PATH: base/job_template.yaml", content)
+        finally:
+            os.close(fd)
+            os.remove(tmp_path)
+
+    def test_configure_clusterloader2_with_custom_job_template(self):
+        # Create a temporary file for the override file
+        fd, tmp_path = tempfile.mkstemp()
+        try:
+            benchmark = JobController(
+                node_count=3,
+                operation_timeout="10m",
+                cl2_override_file=tmp_path,
+                job_count=1000,
+                job_throughput=50,
+                job_template_path="custom/template.yaml",
+            )
+            benchmark.configure_clusterloader2()
+            with open(tmp_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            # Test that custom job_template_path is written to config
+            self.assertIn("CL2_JOB_TEMPLATE_PATH: custom/template.yaml", content)
         finally:
             os.close(fd)
             os.remove(tmp_path)
@@ -125,6 +148,14 @@ class TestJobControllerParser(unittest.TestCase):
         self.assertIn("cl2_override_file", configure_args)
         self.assertIn("job_count", configure_args)
         self.assertIn("job_throughput", configure_args)
+        self.assertIn("job_template_path", configure_args)
+
+        # Test that job_template_path has correct default value
+        job_template_path_action = next(
+            action for action in configure_parser._actions
+            if action.dest == "job_template_path"
+        )
+        self.assertEqual(job_template_path_action.default, "base/job_template.yaml")
 
         # Test that validate subparser has expected arguments
         validate_parser = subparsers_action.choices["validate"]
@@ -157,7 +188,15 @@ class TestJobControllerParser(unittest.TestCase):
         self.assertIn("test_type", collect_args)
         self.assertIn("job_count", collect_args)
         self.assertIn("job_throughput", collect_args)
+        self.assertIn("job_template_path", collect_args)
         self.assertIn("dra_enabled", collect_args)
+
+        # Test that job_template_path has correct default value in collect subparser
+        job_template_path_action = next(
+            action for action in collect_parser._actions
+            if action.dest == "job_template_path"
+        )
+        self.assertEqual(job_template_path_action.default, "base/job_template.yaml")
 
 
 if __name__ == "__main__":

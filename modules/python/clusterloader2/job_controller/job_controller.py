@@ -27,7 +27,7 @@ class JobController(ClusterLoader2Base):
     cl2_override_file: str = ""
     job_count: int = 1000
     job_throughput: int = -1
-    job_template_path: str = ""
+    job_template_path: str = "base/job_template.yaml"
     job_gpu: int = 0
     dra_enabled: bool = False
     ray_enabled: bool = False
@@ -295,7 +295,7 @@ class JobController(ClusterLoader2Base):
             "--job_throughput", type=int, default=-1, help="Job throughput"
         )
         parser.add_argument(
-            "--job_template_path", type=str, default="job_template.yaml", help="Job template path"
+            "--job_template_path", type=str, default="base/job_template.yaml", help="Job template path"
         )
         parser.add_argument(
             "--job_gpu", type=int, default=0, help="Number of GPUs per job"
@@ -399,7 +399,7 @@ class JobController(ClusterLoader2Base):
             "--job_throughput", type=int, default=-1, help="Job throughput"
         )
         parser.add_argument(
-            "--job_template_path", type=str, default="job_template.yaml", help="Job template path"
+            "--job_template_path", type=str, default="base/job_template.yaml", help="Job template path"
         )
         parser.add_argument(
             "--job_gpu", type=int, default=0, help="Number of GPUs per job"
