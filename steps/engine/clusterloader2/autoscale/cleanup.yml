@@ -7,7 +7,7 @@ steps:
   condition: and(always(), eq(variables['JUMPBOX_HOST'], ''))
 
 # Run cleanup via jumpbox (private cluster)
-- template: /steps/ssh/run-command.yaml
+- template: /steps/ssh/run-command.yml
   parameters:
     vm_ip: $(JUMPBOX_HOST)
     command_array:

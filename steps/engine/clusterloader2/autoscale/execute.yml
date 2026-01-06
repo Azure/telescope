@@ -37,7 +37,7 @@ steps:
 
 # 1. Prepare Remote Workspace
 - ${{ if ne(variables['JUMPBOX_HOST'], '') }}:
-  - template: /steps/ssh/run-command.yaml
+  - template: /steps/ssh/run-command.yml
     parameters:
       vm_ip: $(JUMPBOX_HOST)
       command_array:
@@ -107,7 +107,7 @@ steps:
 
 # 3. Execute Benchmark
 - ${{ if ne(variables['JUMPBOX_HOST'], '') }}:
-  - template: /steps/ssh/run-command.yaml
+  - template: /steps/ssh/run-command.yml
     parameters:
       vm_ip: $(JUMPBOX_HOST)
       command_array:

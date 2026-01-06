@@ -36,7 +36,7 @@ steps:
     ROLE: ${{ lower(parameters.role) }}
 
 # Update Kubeconfig on Jumpbox
-- template: /steps/ssh/run-command.yaml
+- template: /steps/ssh/run-command.yml
   parameters:
     vm_ip: $(JUMPBOX_HOST)
     command_array:
@@ -49,7 +49,7 @@ steps:
       - "echo 'Kubeconfig updated on jumpbox. Testing kubectl...'"
       - kubectl get ns
 
-- template: /steps/ssh/run-command.yaml
+- template: /steps/ssh/run-command.yml
   parameters:
     vm_ip: $(JUMPBOX_HOST)
     command_array:
@@ -79,7 +79,7 @@ steps:
   env:
     KARPENTER_NODEPOOL_FILE: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/karpenter_nodepool.${{ parameters.cloud }}.yml
 
-- template: /steps/ssh/run-command.yaml
+- template: /steps/ssh/run-command.yml
   parameters:
     vm_ip: $(JUMPBOX_HOST)
     command_array:
