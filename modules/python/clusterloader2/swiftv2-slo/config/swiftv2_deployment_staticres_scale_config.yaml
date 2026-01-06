@@ -40,6 +40,10 @@ steps:
       objectBundle:
       - basename: reporter-sa
         objectTemplatePath: reporter_rbac_template.yaml
+      - basename: reporter-role
+        objectTemplatePath: reporter_role_template.yaml
+      - basename: reporter-binding
+        objectTemplatePath: reporter_rolebinding_template.yaml
   - name: Log - steps={{$steps}}, nodes={{$nodes}}, pods/node={{$podsPerNode}}, pods/step={{$podsPerStep}}, total pods={{$total_pods}}
     measurements:
     - Identifier: Dummy
@@ -76,11 +80,12 @@ steps:
           objectGroup: multitenancy.acn.azure.com
           objectVersion: v1alpha1
           objectResource: podnetworkinstances
-          namespace: slo-1
-          fieldSelector: metadata.name=pod-network-instance-{{$j}}-0
+          namespaceRange:
+            min: 1
+            max: 1
           successfulConditions:
             - status.status=Ready
-          minDesiredObjectCount: 1
+          minDesiredObjectCount: {{AddInt $j 1}}
           maxFailedObjectCount: 0
           timeout: 5m
   - name: Starting Deployment Latency Measurements -{{$j}}
