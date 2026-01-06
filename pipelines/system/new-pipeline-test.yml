@@ -24,7 +24,7 @@ stages:
               repeats: 1
               operation_timeout: 3m
               load_type: memory
-              scrape_containerd: True
+              scrape_containerd: False
               scrape_kubelets: True
               kubernetes_version: "1.34"
               pod_startup_latency_threshold: 20s

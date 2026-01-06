@@ -17,7 +17,7 @@ steps:
         # Unweighted average - each node contributes equally regardless of pull count
         - name: AvgPerNode
           query: avg(sum by (instance) (rate(containerd_cri_image_pulling_throughput_sum{nodepool=~"userpool.*"}[%v])) / sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v])))
-        # Total number of image pulls
+        # Number of successful image pull observations
         - name: Count
           query: sum(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"})
         # Cluster level percentiles - throughput distribution across nodes
