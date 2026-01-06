@@ -30,6 +30,7 @@ stages:
               pod_startup_latency_threshold: 23s
               kubernetes_version: "1.34"
               scrape_kubelets: True
+              desired_nodes: 5
             n1-p60-memory-managed:
               custom_desired_nodes: 3
               node_count: 1
@@ -41,6 +42,7 @@ stages:
               kubernetes_version: "1.34"
               k8s_os_disk_type: Managed
               scrape_kubelets: True
+              desired_nodes: 5
             n1-p60-cpu-ephemeral:
               custom_desired_nodes: 3
               node_count: 1
@@ -51,6 +53,7 @@ stages:
               pod_startup_latency_threshold: 23s
               kubernetes_version: "1.34"
               scrape_kubelets: True
+              desired_nodes: 5
             n1-p60-cpu-managed:
               custom_desired_nodes: 3
               node_count: 1
@@ -62,6 +65,7 @@ stages:
               kubernetes_version: "1.34"
               k8s_os_disk_type: Managed
               scrape_kubelets: True
+              desired_nodes: 5
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection

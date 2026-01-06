@@ -5,6 +5,9 @@ parameters:
   type: string
 - name: regions
   type: object
+- name: desired_nodes
+  type: string
+  default: 14
 
 steps:
 - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
@@ -13,4 +16,4 @@ steps:
     region: ${{ parameters.regions[0] }}
 - template: /steps/engine/clusterloader2/large-cluster/validate.yml
   parameters:
-    desired_nodes: 14
+    desired_nodes: ${{ parameters.desired_nodes }}
