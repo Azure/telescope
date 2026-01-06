@@ -29,7 +29,7 @@ spec:
       containers:
       - name: sleep
         image: busybox:latest
-        command: ["sleep", "10"]
+        command: ["sleep", "infinity"]
         resources:
           requests:
             cpu: 10m
