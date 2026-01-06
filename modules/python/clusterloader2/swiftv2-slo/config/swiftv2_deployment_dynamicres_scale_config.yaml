@@ -38,7 +38,7 @@ steps:
       replicasPerNamespace: 1
       tuningSet: DeploymentCreateQps
       objectBundle:
-      - basename: reporter-rbac
+      - basename: reporter-sa
         objectTemplatePath: reporter_rbac_template.yaml
   - name: Log - steps={{$steps}}, nodes={{$nodes}}, pods/step={{$podsPerStep}}, pods/node={{$podsPerNode}}, total pods={{$total_pods}}
     measurements:

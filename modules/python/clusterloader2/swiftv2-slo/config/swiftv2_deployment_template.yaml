@@ -23,7 +23,7 @@ spec:
         kubernetes.azure.com/pod-network-instance: {{.pniName}}
         restart: {{.deploymentLabel}}
     spec:
-      serviceAccountName: reporter-sa
+      serviceAccountName: reporter-sa-0
       nodeSelector:
         swiftv2slo: "true"
       initContainers:
