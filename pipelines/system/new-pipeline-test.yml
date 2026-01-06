@@ -21,7 +21,6 @@ stages:
             image: "ghcr.io/azure/clusterloader2:v20250513"
           matrix:
             n1-p60-memory-ephemeral:
-              desired_nodes: 3
               node_count: 1
               max_pods: 60
               repeats: 1
