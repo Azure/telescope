@@ -15,6 +15,14 @@ Measures containerd image pulling throughput (MB/s) and network plugin operation
 | Prometheus Pool | 1 x Standard_D8s_v3 |
 | User Pool | 10 x Standard_D4s_v3 |
 
+## Test Workload
+
+| Component | Value |
+|-----------|-------|
+| Registry | Azure Container Registry (`akscritelescope.azurecr.io`) |
+| Image | `e2e-test-images/resource-consumer:1.13` |
+| Image Size | ~50MB |
+
 ## Metrics Collected
 
 ### ContainerdCriImagePullingThroughput
