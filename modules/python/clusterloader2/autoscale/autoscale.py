@@ -198,7 +198,7 @@ def override_config_clusterloader2(cpu_per_node, node_count, pod_count, scale_up
         file.write(f"CL2_NODE_SELECTOR: \"{node_selector}\"\n")
         file.write(f"CL2_OS_TYPE: {os_type}\n")
         
-        if deployment_template:
+        if deployment_template !='':
             file.write(f"CL2_DEPLOYMENT_TEMPLATE_PATH: {deployment_template}\n")
     file.close()
 
