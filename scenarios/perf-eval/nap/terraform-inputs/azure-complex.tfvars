@@ -11,6 +11,7 @@ public_ip_config_list = [
   }
 ]
 
+
 network_config_list = [
   {
     role               = "crud"
@@ -116,6 +117,7 @@ route_table_config_list = [
     subnet_associations = [{ subnet_name = "nap-subnet-ms" }]
   }
 ]
+
 
 aks_cli_config_list = [
   {
