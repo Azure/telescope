@@ -13,4 +13,7 @@ steps:
     region: ${{ parameters.regions[0] }}
 - template: /steps/engine/clusterloader2/large-cluster/validate.yml
   parameters:
-    desired_nodes: ${{ if ne(variables.CUSTOM_DESIRED_NODES, '') }}${{ variables.CUSTOM_DESIRED_NODES }}${{ else }}14${{ end }}
+    ${{ if ne(variables['CUSTOM_DESIRED_NODES'], '') }}:
+      desired_nodes: ${{ variables['CUSTOM_DESIRED_NODES'] }}
+    ${{ else }}:
+      desired_nodes: 14
