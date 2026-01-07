@@ -20,8 +20,13 @@ variable "ssh_public_key" {
   sensitive   = true
 
   validation {
-    condition     = trimspace(var.ssh_public_key) != ""
-    error_message = "ssh_public_key must be a non-empty value"
+    condition = can(
+      regex(
+        "^(ssh-rsa|ssh-ed25519|ssh-dss|ecdsa-sha2-nistp256|ecdsa-sha2-nistp384|ecdsa-sha2-nistp521) [A-Za-z0-9+/=]+( .*)?$",
+        trimspace(var.ssh_public_key)
+      )
+    )
+    error_message = "ssh_public_key must be non-empty and in a valid SSH public key format (e.g., ssh-ed25519, ssh-rsa)."
   }
 }
 
