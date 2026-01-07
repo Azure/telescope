@@ -2,7 +2,7 @@ parameters:
   - name: cloud
     type: string
     default: ""
-  - name: registry
+  - name: registry_name
     type: string
     default: ""
   - name: engine_input
@@ -15,7 +15,7 @@ steps:
   - template: /steps/cloud/${{ parameters.cloud }}/collect-cloud-info.yml
     parameters:
       region: ${{ parameters.region }}
-      registry: ${{ parameters.registry }}
+      registry_endpoint: ${{ parameters.registry_endpoint }}
   - script: |
       set -eo pipefail
 

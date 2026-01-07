@@ -3,7 +3,7 @@ parameters:
   type: string
 - name: regions
   type: object
-- name: registry
+- name: registry_endpoint
   type: string
   default: ''
 - name: topology
@@ -91,7 +91,7 @@ jobs:
       topology: ${{ parameters.topology }}
       engine: ${{ parameters.engine }}
       regions: ${{ parameters.regions }}
-      registry: ${{ parameters.registry }}
+      registry_endpoint: ${{ parameters.registry_endpoint }}
       engine_input: ${{ parameters.engine_input }}
   - template: /steps/publish-results.yml
     parameters:
@@ -99,7 +99,7 @@ jobs:
       topology: ${{ parameters.topology }}
       engine: ${{ parameters.engine }}
       regions: ${{ parameters.regions }}
-      registry: ${{ parameters.registry }}
+      registry_endpoint: ${{ parameters.registry_endpoint }}
       engine_input: ${{ parameters.engine_input }}
       credential_type: ${{ parameters.credential_type }}
   - template: /steps/cleanup-resources.yml

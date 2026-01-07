@@ -11,7 +11,7 @@ parameters:
 - name: regions
   type: object
   default: {}
-- name: registry
+- name: registry_endpoint
   type: string
   default: ''
 
@@ -19,6 +19,6 @@ steps:
 - template: /steps/topology/${{ parameters.topology }}/execute-${{ parameters.engine }}.yml@self
   parameters:
     cloud: ${{ parameters.cloud }}
-    registry: ${{ parameters.registry }}
+    registry_endpoint: ${{ parameters.registry_endpoint }}
     engine_input: ${{ parameters.engine_input }}
     regions: ${{ parameters.regions }}

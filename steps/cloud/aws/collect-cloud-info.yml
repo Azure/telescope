@@ -1,7 +1,7 @@
 parameters:
 - name: region
   type: string
-- name: registry
+- name: registry_endpoint
   type: string
   default: ''
 
