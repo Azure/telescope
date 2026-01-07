@@ -28,6 +28,5 @@ runcmd:
   - bash -c 'az aks install-cli'
   # Install Helm
   - bash -c "curl -sSfL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash"
-  # Install Python tools
-  - bash -c "pip3 install --upgrade pip --break-system-packages"
-  - bash -c "pip3 install --upgrade virtualenv --break-system-packages"
+  # Install Python tools using apt (system-managed, safer than pip --break-system-packages)
+  - bash -c "apt-get install -y python3-venv python3-virtualenv"
