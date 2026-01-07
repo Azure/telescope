@@ -66,7 +66,7 @@ This module provisions a Linux jumpbox virtual machine for accessing private AKS
 | `vm_size` | Azure VM size (default: `Standard_D4s_v3`) |
 | `subnet_name` | Name of the subnet to deploy the NIC into |
 | `public_ip_name` | Name of the public IP to associate (from `public_ips_map`) |
-| `aks_name` | Name of the AKS cluster for RBAC (optional, set to empty string to skip) |
+| `aks_name` | Name of the AKS cluster for RBAC (set to empty string to skip) |
 
 ### `public_ips_map`
 - **Description:** Map of public IP names to their objects containing id and ip_address.
@@ -74,8 +74,8 @@ This module provisions a Linux jumpbox virtual machine for accessing private AKS
 - **Required:** Yes
 
 ### `subnets_map`
-- **Description:** Map of subnet names to subnet IDs.
-- **Type:** `map(any)`
+- **Description:** Map of subnet names to their subnet resource IDs (strings).
+- **Type:** `map(string)`
 - **Default:** `{}`
 
 ## RBAC Assignments
