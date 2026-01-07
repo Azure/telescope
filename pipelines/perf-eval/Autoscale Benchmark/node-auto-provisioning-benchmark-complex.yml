@@ -27,7 +27,7 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
-          topology: karpenter-private-cluster
+          topology: karpenter
           matrix:
             complex-nap:
               cpu_per_node: 2
@@ -45,4 +45,4 @@ stages:
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
-          ssh_key_enabled: true
+          ssh_key_enabled: false

@@ -342,7 +342,6 @@ variable "aks_config_list" {
       key_vault_name = string
       network_access = optional(string, "Public")
     }), null)
-    private_cluster_enabled = optional(bool, false)
   }))
   default = []
 }
