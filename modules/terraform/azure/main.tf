@@ -193,11 +193,12 @@ module "jumpbox" {
 
   # Ensure AKS cluster is created before jumpbox tries to look it up for RBAC
   depends_on = [module.aks, module.aks-cli]
+}
 
-  lifecycle {
-    precondition {
-      condition     = local.ssh_public_key != null
-      error_message = "ssh_public_key is required when jumpbox_config_list is not empty. Please set 'public_key_path' in json_input to a valid SSH public key file path."
-    }
+# Validate ssh_public_key is provided when jumpbox is configured
+check "jumpbox_ssh_key_required" {
+  assert {
+    condition     = length(var.jumpbox_config_list) == 0 || local.ssh_public_key != null
+    error_message = "ssh_public_key is required when jumpbox_config_list is not empty. Please set 'public_key_path' in json_input to a valid SSH public key file path."
   }
 }
