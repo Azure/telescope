@@ -5,9 +5,7 @@ parameters:
     type: string
   - name: regions
     type: object
-  - name: karpenter_nodepool_file
-    type: string
-    default: ''
+    
 steps:
   - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
     parameters:
