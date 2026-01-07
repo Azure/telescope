@@ -2,7 +2,7 @@ parameters:
   - name: cloud
     type: string
     default: ""
-  - name: registry_name
+  - name: registry_endpoint
     type: string
     default: ""
   - name: engine_input
