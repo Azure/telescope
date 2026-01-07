@@ -8,6 +8,10 @@ public_ip_config_list = [
   {
     name  = "firewall-pip"
     count = 1
+  },
+  {
+    name  = "jumpbox-pip"
+    count = 1
   }
 ]
 
@@ -24,7 +28,7 @@ key_vault_config_list = [
 
 network_config_list = [
   {
-    role               = "crud"
+    role               = "nap"
     vnet_name          = "nap-vnet-ms"
     vnet_address_space = "10.192.0.0/10"
     subnet = [
@@ -35,6 +39,10 @@ network_config_list = [
       {
         name           = "AzureFirewallSubnet"
         address_prefix = "10.193.0.0/26"
+      },
+      {
+        name           = "jumpbox-subnet"
+        address_prefix = "10.224.0.0/12"
       }
     ]
     network_security_group_name = ""
