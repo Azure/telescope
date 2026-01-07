@@ -8,9 +8,9 @@ set -euo pipefail
 # Required Environment Variables:
 # - DATAPATH_REPORTER_IMAGE (optional): Reporter image to pre-pull
 # - NGINX_IMAGE (optional): Nginx image to pre-pull
-# - IMAGE_PREPULL_BATCH_SIZE (optional): Number of nodes to pre-pull on simultaneously (default: 50)
-# - IMAGE_PREPULL_BATCH_DELAY (optional): Seconds to wait between batches (default: 20)
-# - IMAGE_PREPULL_IMAGE_DELAY (optional): Seconds to wait between images within a batch (default: 10)
+# - IMAGE_PREPULL_BATCH_SIZE (optional): Number of nodes to pre-pull on simultaneously (default: 100)
+# - IMAGE_PREPULL_BATCH_DELAY (optional): Seconds to wait between batches (default: 5)
+# - IMAGE_PREPULL_IMAGE_DELAY (optional): Seconds to wait between images within a batch (default: 5)
 
 # Source required libraries
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
@@ -60,7 +60,7 @@ function show_pod_diagnostics() {
 # Uses wave-based batching to avoid overwhelming container registry
 function prepull_images_on_nodes() {
     local images_to_pull=("$@")
-    local batch_size=${IMAGE_PREPULL_BATCH_SIZE:-50}  # Default to 50 nodes per batch (safe for Standard ACR)
+    local batch_size=${IMAGE_PREPULL_BATCH_SIZE:-100}  # Default to 100 nodes per batch
     
     if [ ${#images_to_pull[@]} -eq 0 ]; then
         log_info "No images specified for pre-pulling"
@@ -128,7 +128,7 @@ function prepull_images_on_nodes() {
         
         # Process each image sequentially to avoid overwhelming registry
         local batch_ds_names=()
-        local image_delay=${IMAGE_PREPULL_IMAGE_DELAY:-10}
+        local image_delay=${IMAGE_PREPULL_IMAGE_DELAY:-5}
         local image_num=0
         
         for img in "${images_to_pull[@]}"; do
@@ -232,7 +232,7 @@ function prepull_images_on_nodes() {
         
         # Dynamic delay between batches based on failure rate
         if [ $batch_num -lt $num_batches ]; then
-            local base_delay=${IMAGE_PREPULL_BATCH_DELAY:-20}
+            local base_delay=${IMAGE_PREPULL_BATCH_DELAY:-5}
             local delay=$base_delay
             
             # Increase delay if previous batches had failures

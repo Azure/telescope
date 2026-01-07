@@ -28,7 +28,7 @@ spec:
         imagePullPolicy: Always
       containers:
       - name: sleep
-        image: busybox:latest
+        image: acndev.azurecr.io/pause:3.6
         command: ["sleep", "infinity"]
         resources:
           requests:

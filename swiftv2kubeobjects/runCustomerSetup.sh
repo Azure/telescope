@@ -185,8 +185,19 @@ export pId=$(az identity show \
   --query principalId \
   --output tsv)
 
-# Note: AcrPull permissions are granted in setup-regional-acr.sh
-# This keeps identity creation separate from ACR setup
+# Grant AcrPull permission to acndev ACR
+echo "Granting AcrPull permission to $ACR_NAME ACR..."
+if az role assignment list --assignee $pId --scope $ACR_RESOURCE_ID --role AcrPull 2>/dev/null | jq -e 'length > 0' &>/dev/null; then
+  echo "AcrPull role assignment already exists for $ACR_NAME"
+else
+  echo "Creating AcrPull role assignment for $ACR_NAME"
+  az role assignment create \
+    --assignee-object-id $pId \
+    --assignee-principal-type ServicePrincipal \
+    --role AcrPull \
+    --scope $ACR_RESOURCE_ID
+  echo "✓ AcrPull permission granted successfully"
+fi
 
 # Create control plane identity
 if az identity show --name $SHARED_CONTROL_PLANE_IDENTITY_NAME --resource-group $CUST_RG &>/dev/null; then
@@ -223,9 +234,5 @@ fi
 
 echo "Shared managed identities created successfully!"
 echo "These identities will be used by all AKS clusters created via createclusterforping.sh"
-echo ""
-echo "IMPORTANT: Run './setup-regional-acr.sh' next to:"
-echo "  1. Create regional ACR: $REGIONAL_ACR_NAME"
-echo "  2. Mirror images from source ACR"
-echo "  3. Grant ACR permissions to kubelet identity"
+echo "ACR permissions configured for $ACR_NAME"
 

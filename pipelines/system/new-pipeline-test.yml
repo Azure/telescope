@@ -23,12 +23,10 @@ variables:
   PROBE_TARGET_URL: "http://172.27.0.30/"
   PROBE_TIMEOUT: "300"
   
-  # Container images - Using dedicated regional ACR to avoid shared registry throttling
-  # Regional ACR naming: sv2perfacr<location> (e.g., sv2perfacruksouth for uksouth)
-  # Images are mirrored during one-time regional setup (setup-regional-acr.sh)
-  DATAPATH_REPORTER_IMAGE: "sv2perfacruksouth.azurecr.io/datapath-reporter:2026.01.05.01"
-  DATAPATH_CONTROLLER_IMAGE: "sv2perfacruksouth.azurecr.io/datapath-controller:2026.01.05.01"
-  NGINX_IMAGE: "sv2perfacruksouth.azurecr.io/nginx:latest"
+  # Container images - Using centralized ACR (acndev)
+  DATAPATH_REPORTER_IMAGE: "acndev.azurecr.io/datapath-reporter:2026.01.05.01"
+  DATAPATH_CONTROLLER_IMAGE: "acndev.azurecr.io/datapath-controller:2026.01.05.01"
+  NGINX_IMAGE: "acndev.azurecr.io/nginx:latest"
   
   # Image pre-pull batching configuration
   IMAGE_PREPULL_BATCH_SIZE: "100"
