@@ -92,7 +92,7 @@ def override_config_clusterloader2(
         file.write(f"CL2_SCRAPE_KUBELETS: {str(scrape_kubelets).lower()}\n")
         file.write(f"CL2_SCRAPE_CONTAINERD: {str(scrape_containerd).lower()}\n")
         if scrape_containerd:
-            file.write("CONTAINERD_SCRAPE_INTERVAL: 30s\n")
+            file.write("CONTAINERD_SCRAPE_INTERVAL: 15s\n")
         file.write(f"CL2_HOST_NETWORK: {str(host_network).lower()}\n")
 
     file.close()
