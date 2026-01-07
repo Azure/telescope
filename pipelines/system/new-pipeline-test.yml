@@ -14,7 +14,6 @@ stages:
           regions:
             - swedencentral
           registry_endpoint: acrtelescope.azurecr.io
-          reg
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"

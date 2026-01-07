@@ -24,7 +24,7 @@ steps:
     if [ -n "$acr_name" ]; then
       acr_info=$(az acr show --name $acr_name --output json \
         --query "{
-          name:name, 
+          name:name,
           registryEndpoint:'$REGISTRY_ENDPOINT',
           anonymousPullEnabled:anonymousPullEnabled,
           dataEndpointEnabled:dataEndpointEnabled,
