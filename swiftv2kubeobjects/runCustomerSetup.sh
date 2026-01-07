@@ -162,34 +162,9 @@ else
 fi
 
 # =============================================================================
-# CREATE SHARED MANAGED IDENTITIES WITH ACR ACCESS
+# CREATE SHARED MANAGED IDENTITIES
 # =============================================================================
-# PURPOSE:
-# Create managed identities that will be used by ALL AKS clusters for pulling
-# images from the shared ACR (acndev). This is a ONE-TIME SETUP.
-#
-# WHY THIS IS NECESSARY:
-# - The ACR is in a different subscription (SD_SUB) than the AKS clusters (SUBSCRIPTION)
-# - Using --attach-acr during cluster creation fails because the pipeline service
-#   principal doesn't have permission to create role assignments in the ACR subscription
-# - Error: "AuthorizationFailed: The client does not have authorization to perform
-#   action 'Microsoft.Authorization/roleAssignments/write'"
-#
-# HOW THIS SOLVES THE PROBLEM:
-# 1. This script creates identities and grants them AcrPull access to the ACR
-# 2. This script is run manually/interactively with proper permissions
-# 3. createclusterforping.sh then uses these PRE-EXISTING identities with
-#    --assign-kubelet-identity, which doesn't require role assignment permissions
-#
-# REQUIREMENTS TO RUN THIS SCRIPT:
-# - Must have permissions to create role assignments on the ACR subscription
-# - Typically run from a devbox with proper Azure credentials
-# - Only needs to be run ONCE per region (or when identities need to be recreated)
-#
-# IMPORTANT: If you see ACR pull failures in clusters, verify these identities
-# exist and have AcrPull role on the ACR before debugging cluster issues.
-# =============================================================================
-echo "Setting up shared managed identities with ACR access..."
+echo "Setting up shared managed identities..."
 
 # Create kubelet identity
 if az identity show --name $SHARED_KUBELET_IDENTITY_NAME --resource-group $CUST_RG &>/dev/null; then
@@ -210,22 +185,8 @@ export pId=$(az identity show \
   --query principalId \
   --output tsv)
 
-# Grant AcrPull permission to the shared ACR
-echo "Granting AcrPull permission to kubelet identity for ACR: $ACR_NAME"
-az account set --subscription $ACR_SUBSCRIPTION
-
-if az role assignment list --assignee $pId --scope $ACR_RESOURCE_ID --role AcrPull | jq -e 'length > 0' &>/dev/null; then
-  echo "AcrPull role assignment already exists for kubelet identity"
-else
-  echo "Creating AcrPull role assignment for kubelet identity"
-  az role assignment create \
-    --assignee-object-id $pId \
-    --assignee-principal-type ServicePrincipal \
-    --role AcrPull \
-    --scope $ACR_RESOURCE_ID
-fi
-
-az account set --subscription $CUST_SUB
+# Note: AcrPull permissions are granted in setup-regional-acr.sh
+# This keeps identity creation separate from ACR setup
 
 # Create control plane identity
 if az identity show --name $SHARED_CONTROL_PLANE_IDENTITY_NAME --resource-group $CUST_RG &>/dev/null; then
@@ -260,6 +221,11 @@ else
     --scope $kubeletIdentityScope
 fi
 
-echo "Shared managed identities with ACR access created successfully!"
+echo "Shared managed identities created successfully!"
 echo "These identities will be used by all AKS clusters created via createclusterforping.sh"
+echo ""
+echo "IMPORTANT: Run './setup-regional-acr.sh' next to:"
+echo "  1. Create regional ACR: $REGIONAL_ACR_NAME"
+echo "  2. Mirror images from source ACR"
+echo "  3. Grant ACR permissions to kubelet identity"
 

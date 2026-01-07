@@ -4,8 +4,9 @@ Here is the pipeline [link](https://dev.azure.com/akstelescope/telescope/_build?
 
 ## Pre-Requisites
 
-1. For a given region, make sure the regional customer [RG + AKS + ACR] exist. If not, run the regional customer setup script `swiftv2kubeobjects/runCustomerSetup.sh`. Further instructions on how to run the script are mentioned in the script file. This is a one time setup and the resources are preserved for 3 months.
-2. For a given region + VM-SKU, Check if the subscription has quota for the scale target.
+1. For a given region, make sure the regional customer [RG + AKS + identities] exist. If not, run the regional customer setup script `swiftv2kubeobjects/runCustomerSetup.sh`. Further instructions on how to run the script are mentioned in the script file. This is a one time setup and the resources are preserved for 3 months.
+2. For a given region, make sure the regional ACR exists with mirrored images. If not, run the regional ACR setup script `swiftv2kubeobjects/setup-regional-acr.sh`. This creates a dedicated ACR per region to avoid throttling on shared team ACR and mirrors required images.
+3. For a given region + VM-SKU, Check if the subscription has quota for the scale target.
 
 ## Pipeline variables, branches and test matrix
 
