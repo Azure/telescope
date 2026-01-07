@@ -31,12 +31,22 @@ variable "jumpbox_config" {
     role           = string
     name           = string
     vm_size        = optional(string, "Standard_D4s_v3")
-    nic_name       = string
+    subnet_name = string
+    public_ip_name = string
     aks_name       = string
   })
 }
 
-variable "nics_map" {
-  description = "Map of NIC names to their IDs"
-  type        = map(string)
+variable "public_ips_map" {
+  description = "Map of public IP names to their objects containing id and ip_address"
+  type = map(object({
+    id         = string
+    ip_address = string
+  }))
+}
+
+variable "subnets_map" {
+  description = "Map of subnet names to subnet objects"
+  type        = map(any)
+  default     = {}
 }
