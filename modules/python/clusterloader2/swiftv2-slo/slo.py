@@ -74,9 +74,27 @@ def configure_clusterloader2(
         if location:
             file.write(f"CL2_LOCATION: {location.lower()}\n")
 
-        device_plugin_env = os.environ.get("DEVICE_PLUGIN")
+        device_plugin_env = os.environ.get("CL2_DEVICE_PLUGIN")
         if device_plugin_env is not None and str(device_plugin_env).strip() != "":
             file.write(f"CL2_DEVICE_PLUGIN: {str(str2bool(device_plugin_env)).lower()}\n")
+
+        # Pass image environment variables to CL2
+        datapath_reporter_image = os.environ.get("CL2_DATAPATH_REPORTER_IMAGE")
+        if datapath_reporter_image:
+            file.write(f"CL2_DATAPATH_REPORTER_IMAGE: {datapath_reporter_image}\n")
+        
+        nginx_image = os.environ.get("CL2_NGINX_IMAGE")
+        if nginx_image:
+            file.write(f"CL2_NGINX_IMAGE: {nginx_image}\n")
+
+        # Pass probe configuration to CL2
+        probe_target_url = os.environ.get("CL2_PROBE_TARGET_URL")
+        if probe_target_url:
+            file.write(f"CL2_PROBE_TARGET_URL: {probe_target_url}\n")
+        
+        probe_timeout = os.environ.get("CL2_PROBE_TIMEOUT")
+        if probe_timeout:
+            file.write(f"CL2_PROBE_TIMEOUT: {probe_timeout}\n")
 
         if scrape_containerd:
             file.write(f"CL2_SCRAPE_CONTAINERD: {str(scrape_containerd).lower()}\n")

@@ -7,7 +7,7 @@ set -euo pipefail
 #
 # Required Environment Variables:
 # - DATAPATH_REPORTER_IMAGE (optional): Reporter image to pre-pull
-# - NETSHOOT_IMAGE (optional): Netshoot image to pre-pull
+# - NGINX_IMAGE (optional): Nginx image to pre-pull
 # - IMAGE_PREPULL_BATCH_SIZE (optional): Number of nodes to pre-pull on simultaneously (default: 100)
 
 # Source required libraries
@@ -207,9 +207,9 @@ function main() {
         log_info "  DATAPATH_REPORTER_IMAGE: $DATAPATH_REPORTER_IMAGE"
     fi
     
-    if [ -n "${NETSHOOT_IMAGE:-}" ]; then
-        images_to_prepull+=("$NETSHOOT_IMAGE")
-        log_info "  NETSHOOT_IMAGE: $NETSHOOT_IMAGE"
+    if [ -n "${NGINX_IMAGE:-}" ]; then
+        images_to_prepull+=("$NGINX_IMAGE")
+        log_info "  NGINX_IMAGE: $NGINX_IMAGE"
     fi
     
     if [ ${#images_to_prepull[@]} -eq 0 ]; then

@@ -28,7 +28,7 @@ variables:
   # Images are mirrored during one-time regional setup (setup-regional-acr.sh)
   DATAPATH_REPORTER_IMAGE: "sv2perfacruksouth.azurecr.io/datapath-reporter:2026.01.05.01"
   DATAPATH_CONTROLLER_IMAGE: "sv2perfacruksouth.azurecr.io/datapath-controller:2026.01.05.01"
-  NETSHOOT_IMAGE: "sv2perfacruksouth.azurecr.io/nginx:latest"
+  NGINX_IMAGE: "sv2perfacruksouth.azurecr.io/nginx:latest"
   
   # Image pre-pull batching configuration
   IMAGE_PREPULL_BATCH_SIZE: "100"
@@ -96,7 +96,7 @@ stages:
             probe_timeout: $(PROBE_TIMEOUT)
             datapath_reporter_image: $(DATAPATH_REPORTER_IMAGE)
             datapath_controller_image: $(DATAPATH_CONTROLLER_IMAGE)
-            netshoot_image: $(NETSHOOT_IMAGE)
+            nginx_image: $(NGINX_IMAGE)
           topology: swiftv2
           max_parallel: 1
           timeout_in_minutes: 2160
@@ -125,7 +125,7 @@ stages:
             probe_timeout: $(PROBE_TIMEOUT)
             datapath_reporter_image: $(DATAPATH_REPORTER_IMAGE)
             datapath_controller_image: $(DATAPATH_CONTROLLER_IMAGE)
-            netshoot_image: $(NETSHOOT_IMAGE)
+            nginx_image: $(NGINX_IMAGE)
           topology: swiftv2
           max_parallel: 1
           timeout_in_minutes: 2160
@@ -152,7 +152,7 @@ stages:
             probe_timeout: $(PROBE_TIMEOUT)
             datapath_reporter_image: $(DATAPATH_REPORTER_IMAGE)
             datapath_controller_image: $(DATAPATH_CONTROLLER_IMAGE)
-            netshoot_image: $(NETSHOOT_IMAGE)
+            nginx_image: $(NGINX_IMAGE)
           topology: swiftv2
           max_parallel: 1
           timeout_in_minutes: 2160
@@ -179,7 +179,7 @@ stages:
             probe_timeout: $(PROBE_TIMEOUT)
             datapath_reporter_image: $(DATAPATH_REPORTER_IMAGE)
             datapath_controller_image: $(DATAPATH_CONTROLLER_IMAGE)
-            netshoot_image: $(NETSHOOT_IMAGE)
+            nginx_image: $(NGINX_IMAGE)
           topology: swiftv2
           max_parallel: 1
           timeout_in_minutes: 2160

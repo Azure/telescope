@@ -14,5 +14,5 @@ steps:
     ROLE: ${{ parameters.role }}
     RUN_ID: $(RUN_ID)
     DATAPATH_REPORTER_IMAGE: $(DATAPATH_REPORTER_IMAGE)
-    NETSHOOT_IMAGE: $(NETSHOOT_IMAGE)
+    NGINX_IMAGE: $(NGINX_IMAGE)
   displayName: "Pre-pull Container Images"

@@ -42,6 +42,9 @@ steps:
       CL2_IMAGE: ${{ parameters.engine_input.image }}
       CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/swiftv2-slo/config
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/swiftv2-slo/results
-      CL2_DATAPATH_REPORTER_IMAGE: ${{ coalesce(parameters.engine_input.datapath_reporter_image, 'acndev.azurecr.io/datapath-reporter:2026.01.05.01') }}
-      CL2_NETSHOOT_IMAGE: ${{ coalesce(parameters.engine_input.netshoot_image, 'acndev.azurecr.io/netshoot:latest') }}
+      CL2_DATAPATH_REPORTER_IMAGE: $(DATAPATH_REPORTER_IMAGE)
+      CL2_NGINX_IMAGE: $(NGINX_IMAGE)
+      CL2_PROBE_TARGET_URL: $(PROBE_TARGET_URL)
+      CL2_PROBE_TIMEOUT: $(PROBE_TIMEOUT)
+      CL2_DEVICE_PLUGIN: $(DEVICE_PLUGIN)
     displayName: "Run Benchmark (SwiftV2)"
