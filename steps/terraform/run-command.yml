@@ -72,7 +72,7 @@ steps:
             done
             echo "Delete all the security groups before retrying"
             vpc_id=$(aws ec2 describe-vpcs --query "Vpcs[?Tags[?Key=='run_id' && Value=='$RUN_ID']].VpcId" --output text)
-            security_group_ids=$(aws ec2 describe-security-groups --filters Name=vpc-id,Values=$vpc_id --query "SecurityGroups[].GroupId" --output text)
+            security_group_ids=$(aws ec2 describe-security-groups --filters Name=vpc-id,Values=$vpc_id --query "SecurityGroups[?GroupName!='default'].GroupId" --output text)
             for security_group_id in $security_group_ids; do
               echo "Deleting Security Group: $security_group_id"
               if ! aws ec2 delete-security-group --group-id $security_group_id; then
