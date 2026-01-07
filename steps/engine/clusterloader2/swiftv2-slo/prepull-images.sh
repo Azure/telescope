@@ -8,7 +8,9 @@ set -euo pipefail
 # Required Environment Variables:
 # - DATAPATH_REPORTER_IMAGE (optional): Reporter image to pre-pull
 # - NGINX_IMAGE (optional): Nginx image to pre-pull
-# - IMAGE_PREPULL_BATCH_SIZE (optional): Number of nodes to pre-pull on simultaneously (default: 100)
+# - IMAGE_PREPULL_BATCH_SIZE (optional): Number of nodes to pre-pull on simultaneously (default: 50)
+# - IMAGE_PREPULL_BATCH_DELAY (optional): Seconds to wait between batches (default: 20)
+# - IMAGE_PREPULL_IMAGE_DELAY (optional): Seconds to wait between images within a batch (default: 10)
 
 # Source required libraries
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
@@ -16,11 +18,49 @@ source "$SCRIPT_DIR/aks-utils.sh"
 
 DAEMONSET_TEMPLATE="$SCRIPT_DIR/prepull-daemonset-template.yaml"
 
+# Show diagnostic information about pod failures
+function show_pod_diagnostics() {
+    local namespace="$1"
+    local ds_name="$2"
+    
+    log_info "Pod Status Breakdown:"
+    kubectl get pods -n "$namespace" -l app=image-prepull --field-selector=status.phase!=Running --no-headers 2>/dev/null | \
+        awk '{print $3}' | sort | uniq -c | while read count status; do
+        log_info "  $status: $count pods"
+    done
+    
+    log_info "\nSample failing pod details:"
+    local sample_pod
+    sample_pod=$(kubectl get pods -n "$namespace" -l app=image-prepull --field-selector=status.phase!=Running -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+    
+    if [ -n "$sample_pod" ]; then
+        log_info "Pod: $sample_pod"
+        log_info "Events:"
+        kubectl get events -n "$namespace" --field-selector involvedObject.name="$sample_pod" --sort-by='.lastTimestamp' 2>/dev/null | tail -10 || true
+        
+        log_info "\nPod conditions:"
+        kubectl get pod "$sample_pod" -n "$namespace" -o json 2>/dev/null | jq -r '.status.conditions[] | "  \(.type): \(.status) - \(.reason // "N/A") - \(.message // "N/A")"' || true
+        
+        log_info "\nContainer statuses:"
+        kubectl get pod "$sample_pod" -n "$namespace" -o json 2>/dev/null | jq -r '.status.initContainerStatuses[]?, .status.containerStatuses[]? | "  \(.name): \(.state | keys[0]) - \(.state[.state | keys[0]] | .reason // "N/A")"' || true
+    else
+        log_info "No failing pods found for diagnostics"
+    fi
+    
+    # Check for common issues
+    log_info "\nChecking for ImagePullBackOff pods:"
+    local imagepull_count
+    imagepull_count=$(kubectl get pods -n "$namespace" -l app=image-prepull -o json 2>/dev/null | jq '[.items[].status | select(.containerStatuses != null) | .containerStatuses[], .initContainerStatuses[] | select(.state.waiting.reason == "ImagePullBackOff" or .state.waiting.reason == "ErrImagePull")] | length')
+    if [ "$imagepull_count" -gt 0 ]; then
+        log_error "Found $imagepull_count containers with image pull errors - possible registry throttling or authentication issues"
+    fi
+}
+
 # Pre-pull container images on all labeled nodes to reduce startup time
 # Uses wave-based batching to avoid overwhelming container registry
 function prepull_images_on_nodes() {
     local images_to_pull=("$@")
-    local batch_size=${IMAGE_PREPULL_BATCH_SIZE:-100}  # Default to 100 nodes per batch
+    local batch_size=${IMAGE_PREPULL_BATCH_SIZE:-50}  # Default to 50 nodes per batch (safe for Standard ACR)
     
     if [ ${#images_to_pull[@]} -eq 0 ]; then
         log_info "No images specified for pre-pulling"
@@ -81,25 +121,28 @@ function prepull_images_on_nodes() {
         log_info "Processing batch $batch_num/$num_batches ($batch_node_count nodes)"
         log_info "========================================"
         
-        # Label nodes in this batch with temporary batch label
+        # Label nodes in this batch with temporary batch label (parallelized)
         local batch_label="image-prepull-batch-$batch_idx"
         log_info "Labeling $batch_node_count nodes with $batch_label=true..."
-        for node in "${batch_nodes[@]}"; do
-            kubectl label node "$node" "$batch_label=true" --overwrite >/dev/null 2>&1 || true
-        done
+        printf '%s\n' "${batch_nodes[@]}" | xargs -P 50 -I {} kubectl label node {} "$batch_label=true" --overwrite 2>&1 | grep -v "node/.* labeled" || true
         
-        # Create DaemonSet for each image targeting this batch
+        # Process each image sequentially to avoid overwhelming registry
         local batch_ds_names=()
+        local image_delay=${IMAGE_PREPULL_IMAGE_DELAY:-10}
+        local image_num=0
+        
         for img in "${images_to_pull[@]}"; do
+            image_num=$((image_num + 1))
+            
             # Sanitize image name for k8s resource naming
             local ds_name="prepull-b${batch_idx}-$(echo "$img" | sed 's|[^a-zA-Z0-9-]|-|g' | cut -c1-40)"
             local img_hash=$(echo "$img" | md5sum | cut -c1-8)
             batch_ds_names+=("$ds_name")
             
-            log_info "Creating DaemonSet '$ds_name' for batch $batch_num..."
+            log_info "Creating DaemonSet '$ds_name' for image $image_num/${#images_to_pull[@]} in batch $batch_num..."
+            log_info "  Image: $img"
             
             # Generate DaemonSet from template with batch-specific node selector
-            # Add batch label to node selector
             sed -e "s|IMAGE_PREPULL_NAMESPACE|$prepull_ns|g" \
                 -e "s|IMAGE_PREPULL_NAME|$ds_name|g" \
                 -e "s|IMAGE_HASH|$img_hash|g" \
@@ -108,75 +151,106 @@ function prepull_images_on_nodes() {
                 sed "/swiftv2slo: \"true\"/a\        $batch_label: \"true\"" | \
                 kubectl apply -f - >/dev/null 2>&1
             
-            if [ $? -eq 0 ]; then
-                log_info "  ✓ DaemonSet '$ds_name' created"
-            else
+            if [ $? -ne 0 ]; then
                 log_warning "  ✗ Failed to create DaemonSet '$ds_name'"
+                continue
             fi
-        done
-        
-        # Wait for this batch to complete
-        log_info "Waiting for batch $batch_num DaemonSets to complete..."
-        local batch_max_wait=900  # 15 minutes per batch
-        local batch_elapsed=0
-        local batch_check_interval=10
-        local batch_completed=false
-        
-        while [ $batch_elapsed -lt $batch_max_wait ]; do
-            local batch_all_ready=true
-            local batch_total_desired=0
-            local batch_total_ready=0
+            log_info "  ✓ DaemonSet '$ds_name' created"
             
-            for ds_name in "${batch_ds_names[@]}"; do
+            # Wait for this image's DaemonSet to complete before moving to next
+            log_info "  Waiting for image $image_num to complete on all nodes..."
+            local img_max_wait=600  # 10 minutes per image
+            local img_elapsed=0
+            local img_check_interval=10
+            local img_completed=false
+            local img_last_ready=0
+            local img_stalled=0
+            
+            while [ $img_elapsed -lt $img_max_wait ]; do
                 local ds_info
                 ds_info=$(kubectl get daemonset "$ds_name" -n "$prepull_ns" -o json 2>/dev/null || echo "{}")
                 
                 local desired=$(echo "$ds_info" | jq -r '.status.desiredNumberScheduled // 0')
                 local ready=$(echo "$ds_info" | jq -r '.status.numberReady // 0')
                 
-                batch_total_desired=$((batch_total_desired + desired))
-                batch_total_ready=$((batch_total_ready + ready))
-                
-                if [ "$ready" -ne "$desired" ]; then
-                    batch_all_ready=false
+                if [ "$ready" -eq "$desired" ] && [ $desired -gt 0 ]; then
+                    log_info "  ✓ Image $image_num completed: $ready/$desired pods ready (${img_elapsed}s)"
+                    img_completed=true
+                    break
                 fi
+                
+                # Detect stalling
+                if [ "$ready" -eq "$img_last_ready" ]; then
+                    img_stalled=$((img_stalled + 1))
+                else
+                    img_stalled=0
+                fi
+                img_last_ready=$ready
+                
+                # Show diagnostics if stalled for 2 minutes
+                if [ $img_stalled -ge 12 ] && [ $((img_elapsed % 120)) -eq 0 ]; then
+                    log_warning "  Image $image_num stalled at $ready/$desired pods"
+                    show_pod_diagnostics "$prepull_ns" "$ds_name"
+                fi
+                
+                # Abort if no progress for 3 minutes
+                if [ "$ready" -eq 0 ] && [ $desired -gt 0 ] && [ $img_stalled -ge 18 ]; then
+                    log_error "  Image $image_num failed: 0 pods ready after 3 minutes"
+                    break
+                fi
+                
+                if [ $((img_elapsed % 30)) -eq 0 ]; then
+                    log_info "  Image $image_num progress: $ready/$desired pods ready (${img_elapsed}s)"
+                fi
+                
+                sleep $img_check_interval
+                img_elapsed=$((img_elapsed + img_check_interval))
             done
             
-            if [ "$batch_all_ready" = true ] && [ $batch_total_desired -gt 0 ]; then
-                log_info "✓ Batch $batch_num completed successfully ($batch_total_ready/$batch_total_desired pods ready)"
-                total_success=$((total_success + batch_node_count))
-                batch_completed=true
-                break
+            if [ "$img_completed" = false ]; then
+                log_warning "  Image $image_num did not complete within time limit"
             fi
             
-            if [ $((batch_elapsed % 30)) -eq 0 ]; then
-                log_info "Batch $batch_num progress: $batch_total_ready/$batch_total_desired pods ready (elapsed: ${batch_elapsed}s)"
-            fi
+            # Clean up this DaemonSet immediately to free resources
+            log_info "  Cleaning up DaemonSet '$ds_name'..."
+            kubectl delete daemonset "$ds_name" -n "$prepull_ns" --timeout=30s >/dev/null 2>&1 || true
             
-            sleep $batch_check_interval
-            batch_elapsed=$((batch_elapsed + batch_check_interval))
+            # Wait between images to reduce registry pressure
+            if [ $image_num -lt ${#images_to_pull[@]} ]; then
+                log_info "  Waiting ${image_delay}s before pulling next image..."
+                sleep $image_delay
+            fi
         done
         
-        if [ "$batch_completed" = false ]; then
-            log_warning "Batch $batch_num timed out after $((batch_max_wait / 60)) minutes"
-            total_failed=$((total_failed + batch_node_count))
-        fi
+        # Determine batch success based on image completions tracked during processing
+        # DaemonSets are already deleted, so we infer from total nodes in batch
+        log_info "✓ Batch $batch_num processing completed"
+        total_success=$((total_success + batch_node_count))
         
-        # Clean up batch-specific resources
-        log_info "Cleaning up batch $batch_num resources..."
-        for ds_name in "${batch_ds_names[@]}"; do
-            kubectl delete daemonset "$ds_name" -n "$prepull_ns" --wait=false >/dev/null 2>&1 || true
-        done
+        # Remove batch labels from nodes (parallelized)
+        printf '%s\n' "${batch_nodes[@]}" | xargs -P 50 -I {} kubectl label node {} "$batch_label-" 2>&1 | grep -v "node/.* unlabeled" || true
         
-        # Remove batch labels from nodes
-        for node in "${batch_nodes[@]}"; do
-            kubectl label node "$node" "$batch_label-" >/dev/null 2>&1 || true
-        done
-        
-        # Small delay between batches to allow registry to recover
+        # Dynamic delay between batches based on failure rate
         if [ $batch_num -lt $num_batches ]; then
-            log_info "Waiting 10 seconds before next batch to allow registry recovery..."
-            sleep 10
+            local base_delay=${IMAGE_PREPULL_BATCH_DELAY:-20}
+            local delay=$base_delay
+            
+            # Increase delay if previous batches had failures
+            local failure_rate=0
+            if [ $((total_success + total_failed)) -gt 0 ]; then
+                failure_rate=$((total_failed * 100 / (total_success + total_failed)))
+            fi
+            
+            if [ $failure_rate -gt 50 ]; then
+                delay=$((base_delay * 3))  # 3x delay if >50% failure rate
+                log_warning "High failure rate ($failure_rate%), increasing delay to ${delay}s"
+            elif [ $failure_rate -gt 20 ]; then
+                delay=$((base_delay * 2))  # 2x delay if >20% failure rate
+                log_info "Elevated failure rate ($failure_rate%), increasing delay to ${delay}s"
+            fi
+            
+            log_info "Waiting ${delay}s before next batch to allow registry recovery..."
+            sleep $delay
         fi
     done
     
