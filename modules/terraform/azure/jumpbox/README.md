@@ -1,6 +1,6 @@
 # Azure Jumpbox Module
 
-This module provisions a Linux jumpbox virtual machine for accessing private AKS clusters. It supports configuration via a structured object, integration with existing subnets and public IPs, and automatic RBAC assignments.
+This module provisions a Linux jumpbox virtual machine for accessing private AKS clusters. The jumpbox uses an externally created NIC (with public IP and NSG configured via tfvars), and supports automatic RBAC assignments for AKS access.
 
 ## Features
 
@@ -8,7 +8,16 @@ This module provisions a Linux jumpbox virtual machine for accessing private AKS
 - **RBAC Integration**: Automatic role assignments for AKS cluster access.
 - **Pre-installed Tools**: Configured via cloud-init (Docker, Azure CLI, kubectl, kubelogin, Helm).
 - **SSH Access**: Configurable SSH public key.
-- **Networking**: flexible subnet and public IP association.
+- **External NIC**: Uses NIC created separately with public IP and NSG defined in tfvars.
+
+## Architecture
+
+The jumpbox module is designed to work with networking resources defined in your tfvars file:
+
+1. **Public IP** - Created via `public_ip_config_list` in tfvars
+2. **NSG (Network Security Group)** - Created via `network_config_list.network_security_group_name` with rules defined in `nsr_rules`
+3. **NIC** - Created via `network_config_list.nic_public_ip_associations` and passed to jumpbox module via `nics_map`
+4. **Jumpbox VM** - This module creates only the VM using the pre-configured NIC
 
 ## Input Variables
 
@@ -29,7 +38,7 @@ This module provisions a Linux jumpbox virtual machine for accessing private AKS
 
 ### `ssh_public_key`
 - **Description:** SSH public key authorized on the jumpbox.
-- **Type:** `string` 
+- **Type:** `string`
 - **Sensitive:** Yes
 - **Required:** Yes
 - **Validation:** Must be a non-empty string.
@@ -40,76 +49,97 @@ This module provisions a Linux jumpbox virtual machine for accessing private AKS
 - **Type:**
   ```hcl
   object({
-    name           = string
-    subnet_name    = string
-    vm_size        = optional(string, "Standard_D4s_v3")
-    public_ip_name = optional(string, null)
-    aks_name       = string
+    role     = string
+    name     = string
+    vm_size  = optional(string, "Standard_D4s_v3")
+    nic_name = string
+    aks_name = string
   })
   ```
 - **Required:** Yes
 
-### `public_ips_map`
-- **Description:** Map of public IP names to their objects (containing `id` and `ip_address`). Used to resolve `public_ip_name` from `jumpbox_config`.
-- **Type:**
-  ```hcl
-  map(object({
-    id         = string
-    ip_address = string
-  }))
-  ```
+### `nics_map`
+- **Description:** Map of NIC names to their IDs. NICs are created externally via `network_config_list.nic_public_ip_associations` in tfvars.
+- **Type:** `map(string)`
 - **Required:** Yes
-
-### `subnets_map`
-- **Description:** Map of subnet names to subnet ids. Used to resolve `subnet_name` from `jumpbox_config`.
-- **Type:** `map(any)`
-- **Default:** `{}`
 
 ## Resources Created
 
-- **azurerm_linux_virtual_machine**: The jumpbox VM ("Ubuntu 24.04 LTS").
-- **azurerm_network_interface**: NIC for the VM.
-- **azurerm_network_security_group**: NSG allowing inbound SSH (port 22).
+- **azurerm_linux_virtual_machine**: The jumpbox VM (Ubuntu 24.04 LTS).
 - **azurerm_role_assignment**: Grants the VM identity access to the AKS cluster and Resource Group.
 
 ## RBAC Role Assignments
 
 When `jumpbox_config.aks_name` is valid, the module assigns:
 
-1.  **Azure Kubernetes Service Cluster User Role** on the AKS specific cluster (allows `az aks get-credentials`).
-2.  **Reader** on the Resource Group (allows discovery of the cluster via `az resource list`).
+1. **Azure Kubernetes Service Cluster User Role** on the AKS specific cluster (allows `az aks get-credentials`).
+2. **Reader** on the Resource Group (allows discovery of the cluster via `az resource list`).
 
-## Usage Example
+## Tfvars Configuration Example
+
+The public IP, NSG, and NIC must be configured in your tfvars file. Here's a complete example:
 
 ```hcl
-module "jumpbox" {
-  source = "./modules/terraform/azure/jumpbox"
+# 1. Create Public IP for jumpbox
+public_ip_config_list = [
+  {
+    name  = "jumpbox-pip"
+    count = 1
+  }
+]
 
-  resource_group_name = azurerm_resource_group.rg.name
-  location            = "eastus"
-  ssh_public_key      = var.ssh_public_key
-  
-  jumpbox_config = {
-    name           = "my-jumpbox"
-    subnet_name    = "default"
-    vm_size        = "Standard_D4s_v3"
-    public_ip_name = "jumpbox-pip"
-    aks_name       = "my-aks-cluster"
+# 2. Configure network with NSG and NIC
+network_config_list = [
+  {
+    role               = "mycluster"
+    vnet_name          = "my-vnet"
+    vnet_address_space = "10.0.0.0/8"
+    subnet = [
+      {
+        name           = "aks-subnet"
+        address_prefix = "10.1.0.0/16"
+      },
+      {
+        name           = "jumpbox-subnet"
+        address_prefix = "10.2.0.0/16"
+      }
+    ]
+    # NSG with SSH access rule
+    network_security_group_name = "my-nsg"
+    nsr_rules = [
+      {
+        name                       = "AllowSSH"
+        priority                   = 100
+        direction                  = "Inbound"
+        access                     = "Allow"
+        protocol                   = "Tcp"
+        source_port_range          = "*"
+        destination_port_range     = "22"
+        source_address_prefix      = "*"
+        destination_address_prefix = "*"
+      }
+    ]
+    # NIC with public IP association
+    nic_public_ip_associations = [
+      {
+        nic_name              = "jumpbox-nic"
+        subnet_name           = "jumpbox-subnet"
+        ip_configuration_name = "primary"
+        public_ip_name        = "jumpbox-pip"
+        count                 = 1
+      }
+    ]
   }
+]
 
-  public_ips_map = {
-    "jumpbox-pip" = {
-        id = "/subscriptions/.../publicIPAddresses/jumpbox-pip"
-        ip_address = "20.x.x.x"
-    }
+# 3. Configure jumpbox VM
+jumpbox_config_list = [
+  {
+    role     = "mycluster"
+    name     = "my-jumpbox"
+    vm_size  = "Standard_D4s_v3"
+    nic_name = "jumpbox-nic"      # Must match nic_name in nic_public_ip_associations
+    aks_name = "my-aks-cluster"
   }
-  
-  subnets_map = {
-    "default" = "/subscriptions/.../subnets/default"
-  }
-
-  tags = {
-    Environment = "Dev"
-  }
-}
+]
 ```
