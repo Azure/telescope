@@ -13,7 +13,7 @@ locals {
   aks_aad_enabled                   = lookup(var.json_input, "aks_aad_enabled", false)
   enable_apiserver_vnet_integration = lookup(var.json_input, "enable_apiserver_vnet_integration", false)
   public_key_path                   = lookup(var.json_input, "public_key_path", null)
-  ssh_public_key                    = (local.public_key_path != null && fileexists(local.public_key_path)) ? file(local.public_key_path) : null
+  ssh_public_key                    = local.public_key_path != null ? (fileexists(local.public_key_path) ? file(local.public_key_path) : null) : null
 
   tags = merge(
     var.tags,
