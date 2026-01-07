@@ -185,8 +185,7 @@ module "jumpbox" {
   tags                = local.tags
   ssh_public_key      = local.ssh_public_key
   jumpbox_config      = each.value
-  public_ips_map      = module.public_ips.pip_ids
-  subnets_map         = local.all_subnets
+  nics_map            = try(module.virtual_network[each.value.role].nics, null)
 
   # Ensure AKS cluster is created before jumpbox tries to look it up for RBAC
   depends_on = [module.aks, module.aks-cli]

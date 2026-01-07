@@ -14,7 +14,7 @@ public_ip_config_list = [
 
 network_config_list = [
   {
-    role               = "crud"
+    role               = "nap"
     vnet_name          = "nap-vnet-ms"
     vnet_address_space = "10.192.0.0/10"
     subnet = [
@@ -28,7 +28,15 @@ network_config_list = [
       }
     ]
     network_security_group_name = "nap-nsg"
-    nic_public_ip_associations  = []
+    nic_public_ip_associations = [
+      {
+        nic_name              = "nap-jumpbox-nic"
+        subnet_name           = "jumpbox-subnet"
+        ip_configuration_name = "primary"
+        public_ip_name        = "jumpbox-pip"
+        count                 = 1
+      }
+    ]
     nsr_rules = [
       {
         name                       = "AllowSSH"
@@ -116,9 +124,8 @@ jumpbox_config_list = [
   {
     role        = "nap"
     name        = "nap-jumpbox"
-    subnet_name = "jumpbox-subnet"
     vm_size     = "Standard_D4s_v3"
-    public_ip_name = "jumpbox-pip"
+    nic_name    = "nap-jumpbox-nic"
     aks_name    = "nap-complex"
   }
 ]

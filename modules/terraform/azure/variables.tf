@@ -344,12 +344,11 @@ variable "aks_config_list" {
 variable "jumpbox_config_list" {
   description = "Configuration for jumpbox VMs"
   type = list(object({
-    role              = string
-    name              = optional(string, "Jumpbox")
-    subnet_name       = string
-    vm_size           = optional(string, "Standard_D4s_v3")
-    public_ip_name    = optional(string, null)
-    aks_name          = string
+    role     = string
+    name     = string
+    vm_size  = optional(string, "Standard_D4s_v3")
+    nic_name = string
+    aks_name = string
   }))
   default = []
 }
