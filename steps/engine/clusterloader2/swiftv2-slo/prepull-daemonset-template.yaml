@@ -29,7 +29,6 @@ spec:
       containers:
       - name: sleep
         image: acndev.azurecr.io/pause:3.6
-        command: ["sleep", "infinity"]
         resources:
           requests:
             cpu: 10m
