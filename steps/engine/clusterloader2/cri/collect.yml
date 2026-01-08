@@ -30,7 +30,7 @@ steps:
         --result_file $TEST_RESULTS_FILE \
         --scrape_kubelets ${SCRAPE_KUBELETS:-False} \
         --scrape_registry ${SCRAPE_REGISTRY:-False} \
-        --registry_info ${{REGISTRY_INFO:-""}}
+        --registry_info $REGISTRY_INFO
 
     workingDirectory: modules/python
     env:
