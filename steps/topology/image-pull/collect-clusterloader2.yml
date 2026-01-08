@@ -11,19 +11,20 @@ parameters:
 
 steps:
 - script: |
-    if [[ "$SCRAPE_REGISTRY" = "true" &&  "$cloud" = "azure" ]]; then
-      echo "Scraping registry info for $REGISTRY_ENDPOINT..."
-
+    registry_info="{}"
+    if [[ "$SCRAPE_REGISTRY" = "true" &&  "$CLOUD" = "azure" ]]; then
       az config unset defaults.location
-      acr_name=""
+
+      echo "Scraping registry info for $REGISTRY_ENDPOINT..."
+      registry_name=""
       if [ -n "$REGISTRY_ENDPOINT" ]; then
-        acr_name=$(az resource list --resource-type Microsoft.ContainerRegistry/registries \
+        registry_name=$(az resource list --resource-type Microsoft.ContainerRegistry/registries \
           --name "${REGISTRY_ENDPOINT%%.*}" \
           --query "[0].name" --output tsv)
       fi
-      acr_info="{}"
-      if [ -n "$acr_name" ]; then
-        acr_info=$(az acr show --name $acr_name --output json \
+
+      if [ -n "$registry_name" ]; then
+        registry_info=$(az acr show --name $registry_name --output json \
           --query "{
             name:name,
             registryEndpoint:'$REGISTRY_ENDPOINT',
@@ -36,9 +37,10 @@ steps:
             sku:sku
           }")
       fi
-      az config set defaults.location="$region"
+
+      az config set defaults.location="$REGION"
     else
-      echo "SCRAPE_REGISTRY is false or cloud is not azure — skipping"
+      echo "Skipping registry info scrape as SCRAPE_REGISTRY='$SCRAPE_REGISTRY' or CLOUD='$CLOUD'"
     fi
 
     echo "##vso[task.setvariable variable=registry_info;isOutput=true]$registry_info"
@@ -46,8 +48,9 @@ steps:
   workingDirectory: modules/python
   env:
     CLOUD: ${{ parameters.cloud }}
+    REGION: ${{ parameters.regions[0] }}
     RUN_URL: $(RUN_URL)
-  displayName: "Collect ACR Info"
+  displayName: "Collect Registry Info"
 - template: /steps/engine/clusterloader2/cri/collect.yml
   parameters:
     cloud: ${{ parameters.cloud }}
