@@ -40,6 +40,5 @@ steps:
     env:
       CLOUD: ${{ parameters.cloud }}
       KARPENTER_DIR: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes
-      KARPENTER_NODEPOOL_FILE: ${{ parameters.karpenter_nodepool_file }}
       DEFAULT_KARPENTER_FILE: karpenter_nodepool.${{ parameters.cloud }}.yml
     displayName: "Validate Karpenter setup"
