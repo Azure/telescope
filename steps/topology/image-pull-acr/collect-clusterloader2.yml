@@ -30,5 +30,5 @@ steps:
     cloud: ${{ parameters.cloud }}
     engine_input: ${{ parameters.engine_input }}
     region: ${{ parameters.regions[0] }}
-    registry: ${{ dependencies.collectRegistry.outputs['collectRegistry.registry_info'] }}
+    registry_info: ${{ dependencies.collectRegistry.outputs['collectRegistry.registry_info'] }}
 

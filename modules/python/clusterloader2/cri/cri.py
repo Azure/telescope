@@ -142,10 +142,16 @@ def collect_clusterloader2(
     run_id,
     run_url,
     result_file,
-    scrape_kubelets
+    scrape_kubelets,
+    scrape_acr_info=False,
+    acr_info
 ):
     if scrape_kubelets:
         verify_measurement()
+        
+    if scrape_acr_info:
+        # attach ACR info to cloud_info
+        # append acr info to cloud_info
 
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
     json_data = json.loads(details)
