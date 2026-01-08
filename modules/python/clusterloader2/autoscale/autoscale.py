@@ -7,7 +7,7 @@ import subprocess
 from datetime import datetime, timezone
 from clusterloader2.utils import parse_xml_to_json, run_cl2_command, process_cl2_reports
 from clients.kubernetes_client import KubernetesClient
-from modules.python.utils.common import str2bool
+from utils.common import str2bool
 from utils.logger_config import get_logger, setup_logging
 
 setup_logging()
