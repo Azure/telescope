@@ -231,7 +231,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             "--scale_enabled", "True", 
             "--pod_startup_latency_threshold", "10s",
             "--provider", "aws", 
-            "--registry_endpoint", "registry.k8s.io", 
+            "--registry_endpoint", "",
             "--os_type", "linux", 
             "--scrape_kubelets", "False", 
             "--host_network", "False",
@@ -240,7 +240,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
         with patch.object(sys, 'argv', test_args):
             main()
             mock_override.assert_called_once_with(
-                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "registry.k8s.io", "linux", False, False, "/tmp/override.yaml"
+                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "", "linux", False, False, "/tmp/override.yaml"
             )
 
     @patch("clusterloader2.cri.cri.override_config_clusterloader2")
@@ -257,7 +257,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             "--scale_enabled", "True", 
             "--pod_startup_latency_threshold", "10s",
             "--provider", "aws", 
-            "--registry_endpoint", "registry.k8s.io", 
+            "--registry_endpoint", "", 
             "--os_type", "linux", 
             "--scrape_kubelets", "False", 
             "--cl2_override_file", "/tmp/override.yaml"
@@ -265,7 +265,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
         with patch.object(sys, 'argv', test_args):
             main()
             mock_override.assert_called_once_with(
-                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "registry.k8s.io", "linux", False, True, "/tmp/override.yaml"
+                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "", "linux", False, True, "/tmp/override.yaml"
             )
 
     @patch("clusterloader2.cri.cri.execute_clusterloader2")

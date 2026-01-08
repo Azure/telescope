@@ -68,6 +68,7 @@ CL2_IMAGE="ghcr.io/azure/clusterloader2:v20250513"
 CL2_REPORT_DIR=$(pwd)/clusterloader2/cri/results
 CLOUD=aks # set to aws to run against aws
 SCRAPE_KUBELETS=True
+SCRAPE_REGISTRY=False # set to True to include registry details
 OS_TYPE="linux"
 HOST_NETWORK=True
 # NODE_PER_STEP=5

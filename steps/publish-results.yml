@@ -7,9 +7,6 @@ parameters:
   type: string
 - name: regions
   type: object
-- name: registry_endpoint
-  type: string
-  default: ''
 - name: engine_input
   type: object
   default: {}
@@ -21,7 +18,6 @@ steps:
   parameters:
     cloud: ${{ parameters.cloud }}
     regions: ${{ parameters.regions }}
-    registry_endpoint: ${{ parameters.registry_endpoint }}
     engine_input: ${{ parameters.engine_input }}
 
 - template: /steps/collect-telescope-metadata.yml

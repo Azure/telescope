@@ -1,9 +1,6 @@
 parameters:
 - name: region
   type: string
-- name: registry_endpoint
-  type: string
-  default: ''
 
 steps:
 - script: |

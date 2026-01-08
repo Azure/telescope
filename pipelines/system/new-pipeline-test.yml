@@ -17,7 +17,7 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
-          topology: cri-resource-consume
+          topology: image-pull
           matrix:
             n10-p300-memory-ephemeral:
               node_count: 10
@@ -27,6 +27,7 @@ stages:
               load_type: memory
               kubernetes_version: "1.31"
               scrape_kubelets: True
+              scrape_registry: True
             n10-p700-memory-ephemeral:
               node_count: 10
               max_pods: 70
@@ -35,6 +36,7 @@ stages:
               load_type: memory
               kubernetes_version: "1.31"
               scrape_kubelets: True
+              scrape_registry: True
             n10-p1100-memory-ephemeral:
               node_count: 10
               max_pods: 110
@@ -43,6 +45,7 @@ stages:
               load_type: memory
               kubernetes_version: "1.31"
               scrape_kubelets: True
+              scrape_registry: True
             n10-p300-memory-managed:
               node_count: 10
               max_pods: 30
@@ -52,6 +55,7 @@ stages:
               kubernetes_version: "1.31"
               k8s_os_disk_type: Managed
               scrape_kubelets: True
+              scrape_registry: True
             n10-p700-memory-managed:
               node_count: 10
               max_pods: 70
@@ -61,6 +65,7 @@ stages:
               kubernetes_version: "1.31"
               k8s_os_disk_type: Managed
               scrape_kubelets: True
+              scrape_registry: True
             n10-p1100-memory-managed:
               node_count: 10
               max_pods: 110
@@ -70,6 +75,7 @@ stages:
               kubernetes_version: "1.31"
               k8s_os_disk_type: Managed
               scrape_kubelets: True
+              scrape_registry: True
             n10-p2500-memory-ephemeral:
               node_count: 10
               max_pods: 250
@@ -79,6 +85,7 @@ stages:
               kubernetes_version: "1.31"
               k8s_machine_type: Standard_D32ds_v6
               scrape_kubelets: True
+              scrape_registry: True
           max_parallel: 3
           timeout_in_minutes: 120
           credential_type: service_connection
@@ -98,7 +105,7 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
-          topology: cri-resource-consume
+          topology: image-pull
           matrix:
             n10-p300-memory-1-31:
               node_count: 10
@@ -108,6 +115,7 @@ stages:
               load_type: memory
               kubernetes_version: "1.31"
               scrape_kubelets: True
+              scrape_registry: True
             n10-p700-memory-1-31:
               node_count: 10
               max_pods: 70
@@ -116,6 +124,7 @@ stages:
               load_type: memory
               kubernetes_version: "1.31"
               scrape_kubelets: True
+              scrape_registry: True
             n10-p1100-memory-1-31:
               node_count: 10
               max_pods: 110
@@ -124,6 +133,7 @@ stages:
               load_type: memory
               kubernetes_version: "1.31"
               scrape_kubelets: True
+              scrape_registry: True
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
@@ -143,7 +153,7 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
-          topology: cri-resource-consume
+          topology: image-pull
           matrix:
             n10-p300-memory:
               node_count: 10
@@ -152,6 +162,7 @@ stages:
               operation_timeout: 3m
               load_type: memory
               scrape_kubelets: True
+              scrape_registry: True
             n10-p700-memory:
               node_count: 10
               max_pods: 70
@@ -159,6 +170,7 @@ stages:
               operation_timeout: 7m
               load_type: memory
               scrape_kubelets: True
+              scrape_registry: True
             n10-p1100-memory:
               node_count: 10
               max_pods: 110
@@ -166,6 +178,7 @@ stages:
               operation_timeout: 11m
               load_type: memory
               scrape_kubelets: True
+              scrape_registry: True
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
@@ -183,7 +196,7 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
-          topology: cri-resource-consume
+          topology: image-pull
           matrix:
             n10-p300-memory:
               node_count: 10
@@ -193,6 +206,7 @@ stages:
               load_type: memory
               kubernetes_version: "1.33"
               scrape_kubelets: True
+              scrape_registry: True
             n10-p700-memory:
               node_count: 10
               max_pods: 70
@@ -201,6 +215,7 @@ stages:
               load_type: memory
               kubernetes_version: "1.33"
               scrape_kubelets: True
+              scrape_registry: True
             n10-p1100-memory:
               node_count: 10
               max_pods: 110
@@ -209,6 +224,7 @@ stages:
               load_type: memory
               kubernetes_version: "1.33"
               scrape_kubelets: True
+              scrape_registry: True
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
@@ -226,7 +242,7 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
-          topology: cri-resource-consume
+          topology: image-pull
           matrix:
             n10-p300-memory:
               node_count: 10

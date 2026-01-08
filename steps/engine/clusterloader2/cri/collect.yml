@@ -2,14 +2,14 @@ parameters:
   - name: cloud
     type: string
     default: ""
-  - name: registry_endpoint
-    type: string
-    default: ""
   - name: engine_input
     type: object
     default: {}
   - name: region
     type: string
+  - name: registry_info
+    type: string
+    default: ''
 
 steps:
   - template: /steps/cloud/${{ parameters.cloud }}/collect-cloud-info.yml
@@ -29,7 +29,9 @@ steps:
         --run_id $RUN_ID \
         --run_url $RUN_URL \
         --result_file $TEST_RESULTS_FILE \
-        --scrape_kubelets ${SCRAPE_KUBELETS:-False}
+        --scrape_kubelets ${SCRAPE_KUBELETS:-False} \
+        --scrape_registry ${SCRAPE_REGISTRY:-False}
+        
     workingDirectory: modules/python
     env:
       CLOUD: ${{ parameters.cloud }}

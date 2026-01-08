@@ -13,30 +13,6 @@ steps:
       --resource-group $RUN_ID --query "[0].name" --location $REGION  --output tsv)
     aks_info=$(az aks show --resource-group $RUN_ID --name $aks_name --output json)
 
-    az config unset defaults.location
-    acr_name=""
-    if [ -n "$REGISTRY_ENDPOINT" ]; then
-      acr_name=$(az resource list --resource-type Microsoft.ContainerRegistry/registries \
-        --name "${REGISTRY_ENDPOINT%%.*}" \
-        --query "[0].name" --output tsv)
-    fi
-    acr_info="{}"
-    if [ -n "$acr_name" ]; then
-      acr_info=$(az acr show --name $acr_name --output json \
-        --query "{
-          name:name,
-          registryEndpoint:'$REGISTRY_ENDPOINT',
-          anonymousPullEnabled:anonymousPullEnabled,
-          dataEndpointEnabled:dataEndpointEnabled,
-          encryption:encryption,
-          location:location,
-          privateEndpointConnections:privateEndpointConnections,
-          publicNetworkAccess:publicNetworkAccess,
-          sku:sku
-        }")
-    fi
-    az config set defaults.location="$REGION"
-
     cloud_info=$(jq -n \
       --arg cloud "azure" \
       --arg region "$(echo $aks_info | jq -r .location)" \
