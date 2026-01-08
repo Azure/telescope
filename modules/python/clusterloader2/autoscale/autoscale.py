@@ -74,6 +74,11 @@ def _process_test_results(
     # Define which metrics to include in data based on config type
     if is_complex_config:
         data_metrics = ["wait_for_pods_seconds"]
+        # Metric mappings for complex config
+        metric_mappings = {
+            "WaitForRunningPodsUp": ("up", "wait_for_pods_seconds"),
+            "WaitForRunningPodsDown": ("down", "wait_for_pods_seconds"),
+        }
     else:
         data_metrics = [
             "wait_for_nodes_seconds",
@@ -83,16 +88,6 @@ def _process_test_results(
             "wait_for_99Perc_nodes_seconds",
             "wait_for_pods_seconds",
         ]
-
-    # Align metric mappings based on test type complex or not complex
-    if is_complex_config:
-        # Metric mappings for complex config
-        metric_mappings = {
-            "WaitForRunningPodsUp": ("up", "wait_for_pods_seconds"),
-            "WaitForRunningPodsDown": ("down", "wait_for_pods_seconds"),
-        }
-    else:
-        # Metric mappings for standard config
         metric_mappings = {
             "WaitForRunningPodsUp": ("up", "wait_for_pods_seconds"),
             "WaitForNodesUpPerc50": ("up", "wait_for_50Perc_nodes_seconds"),
@@ -351,7 +346,7 @@ def collect_clusterloader2(
     else:
         raise Exception(f"No testsuites found in the report! Raw data: {raw_data}")
 
-    # if complex collect cl2 measurements
+    # if complex test case collect cl2 report
     if is_complex_config:
         cl2_measurement = _build_report_template(
             capacity_type,
