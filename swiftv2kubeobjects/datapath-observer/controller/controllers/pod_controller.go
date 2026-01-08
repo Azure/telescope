@@ -79,6 +79,7 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 					Namespace: pod.Namespace,
 					Name:      pod.Name,
 					UID:       string(pod.UID),
+					NodeName:  pod.Spec.NodeName,
 				},
 				Timestamps: perfv1.Timestamps{
 					CreatedAt: pod.CreationTimestamp.Format("2006-01-02T15:04:05.000Z07:00"),
@@ -101,6 +102,11 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		}
 		if hasDpReady && dpResult.Spec.Timestamps.DpReadyTs != dpReadyTsStr {
 			dpResult.Spec.Timestamps.DpReadyTs = dpReadyTsStr
+			updated = true
+		}
+		// Update NodeName if it wasn't set before but is now available
+		if pod.Spec.NodeName != "" && dpResult.Spec.PodRef.NodeName != pod.Spec.NodeName {
+			dpResult.Spec.PodRef.NodeName = pod.Spec.NodeName
 			updated = true
 		}
 
@@ -163,7 +169,7 @@ func namespaceFilter(namespace string) predicate.Predicate {
 			if e.ObjectNew.GetNamespace() != namespace {
 				return false
 			}
-			return hasRelevantAnnotationChange(e.ObjectOld, e.ObjectNew)
+			return hasRelevantChange(e.ObjectOld, e.ObjectNew)
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
 			return false
@@ -193,7 +199,7 @@ func labelSelectorFilter(selector string) predicate.Predicate {
 			if !matchLabels(e.ObjectNew.GetLabels(), selectorMap) {
 				return false
 			}
-			return hasRelevantAnnotationChange(e.ObjectOld, e.ObjectNew)
+			return hasRelevantChange(e.ObjectOld, e.ObjectNew)
 		},
 		DeleteFunc: func(e event.DeleteEvent) bool {
 			return false
@@ -213,7 +219,7 @@ func matchLabels(objLabels, selector map[string]string) bool {
 	return true
 }
 
-func hasRelevantAnnotationChange(oldObj, newObj client.Object) bool {
+func hasRelevantChange(oldObj, newObj client.Object) bool {
 	oldAnnotations := oldObj.GetAnnotations()
 	newAnnotations := newObj.GetAnnotations()
 
@@ -229,6 +235,15 @@ func hasRelevantAnnotationChange(oldObj, newObj client.Object) bool {
 	newDpReadyTs := newAnnotations["perf.github.com/azure-dp-ready-ts"]
 	if oldDpReadyTs != newDpReadyTs {
 		return true
+	}
+
+	// Check if NodeName was added or changed (pod got scheduled)
+	oldPod, oldOk := oldObj.(*corev1.Pod)
+	newPod, newOk := newObj.(*corev1.Pod)
+	if oldOk && newOk {
+		if oldPod.Spec.NodeName != newPod.Spec.NodeName {
+			return true
+		}
 	}
 
 	return false

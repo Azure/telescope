@@ -25,7 +25,6 @@ variables:
   
   # Container images - Using centralized ACR (acndev)
   DATAPATH_REPORTER_IMAGE: "acndev.azurecr.io/datapath-reporter:2026.01.05.01"
-  DATAPATH_CONTROLLER_IMAGE: "acndev.azurecr.io/datapath-controller:2026.01.05.01"
   NGINX_IMAGE: "acndev.azurecr.io/nginx:latest"
   
   # Image pre-pull batching configuration
@@ -90,11 +89,6 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250311"
-            probe_target_url: $(PROBE_TARGET_URL)
-            probe_timeout: $(PROBE_TIMEOUT)
-            datapath_reporter_image: $(DATAPATH_REPORTER_IMAGE)
-            datapath_controller_image: $(DATAPATH_CONTROLLER_IMAGE)
-            nginx_image: $(NGINX_IMAGE)
           topology: swiftv2
           max_parallel: 1
           timeout_in_minutes: 2160
@@ -119,11 +113,6 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250311"
-            probe_target_url: $(PROBE_TARGET_URL)
-            probe_timeout: $(PROBE_TIMEOUT)
-            datapath_reporter_image: $(DATAPATH_REPORTER_IMAGE)
-            datapath_controller_image: $(DATAPATH_CONTROLLER_IMAGE)
-            nginx_image: $(NGINX_IMAGE)
           topology: swiftv2
           max_parallel: 1
           timeout_in_minutes: 2160
@@ -146,11 +135,6 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250311"
-            probe_target_url: $(PROBE_TARGET_URL)
-            probe_timeout: $(PROBE_TIMEOUT)
-            datapath_reporter_image: $(DATAPATH_REPORTER_IMAGE)
-            datapath_controller_image: $(DATAPATH_CONTROLLER_IMAGE)
-            nginx_image: $(NGINX_IMAGE)
           topology: swiftv2
           max_parallel: 1
           timeout_in_minutes: 2160
@@ -173,11 +157,6 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250311"
-            probe_target_url: $(PROBE_TARGET_URL)
-            probe_timeout: $(PROBE_TIMEOUT)
-            datapath_reporter_image: $(DATAPATH_REPORTER_IMAGE)
-            datapath_controller_image: $(DATAPATH_CONTROLLER_IMAGE)
-            nginx_image: $(NGINX_IMAGE)
           topology: swiftv2
           max_parallel: 1
           timeout_in_minutes: 2160

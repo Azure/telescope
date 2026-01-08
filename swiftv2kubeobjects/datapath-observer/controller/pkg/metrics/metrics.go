@@ -25,6 +25,7 @@ type WorstPod struct {
 	Namespace string `json:"namespace"`
 	Name      string `json:"name"`
 	UID       string `json:"uid"`
+	NodeName  string `json:"nodeName,omitempty"`
 	Value     int64  `json:"value"`
 }
 
@@ -32,6 +33,7 @@ type FailedPod struct {
 	Namespace string `json:"namespace"`
 	Name      string `json:"name"`
 	UID       string `json:"uid"`
+	NodeName  string `json:"nodeName,omitempty"`
 }
 
 type MetricsCalculator struct {
@@ -88,6 +90,7 @@ func (m *MetricsCalculator) calculate(ctx context.Context, namespace string, lab
 				Namespace: item.Spec.PodRef.Namespace,
 				Name:      item.Spec.PodRef.Name,
 				UID:       item.Spec.PodRef.UID,
+				NodeName:  item.Spec.PodRef.NodeName,
 			})
 		}
 
@@ -99,6 +102,7 @@ func (m *MetricsCalculator) calculate(ctx context.Context, namespace string, lab
 				Namespace: item.Spec.PodRef.Namespace,
 				Name:      item.Spec.PodRef.Name,
 				UID:       item.Spec.PodRef.UID,
+				NodeName:  item.Spec.PodRef.NodeName,
 				Value:     val,
 			})
 		}

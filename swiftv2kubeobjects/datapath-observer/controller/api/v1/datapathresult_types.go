@@ -32,6 +32,7 @@ type PodReference struct {
 	Namespace string `json:"namespace"`
 	Name      string `json:"name"`
 	UID       string `json:"uid"`
+	NodeName  string `json:"nodeName,omitempty"`
 }
 
 type Timestamps struct {
