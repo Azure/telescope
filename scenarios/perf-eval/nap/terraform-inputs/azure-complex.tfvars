@@ -8,13 +8,17 @@ public_ip_config_list = [
   {
     name  = "firewall-pip"
     count = 1
+  },
+  {
+    name  = "jumpbox-pip"
+    count = 1
   }
 ]
 
 
 network_config_list = [
   {
-    role               = "crud"
+    role               = "nap"
     vnet_name          = "nap-vnet-ms"
     vnet_address_space = "10.192.0.0/10"
     subnet = [
@@ -25,6 +29,10 @@ network_config_list = [
       {
         name           = "AzureFirewallSubnet"
         address_prefix = "10.193.0.0/26"
+      },
+      {
+        name           = "jumpbox-subnet"
+        address_prefix = "10.224.0.0/12"
       }
     ]
     network_security_group_name = ""
@@ -187,5 +195,16 @@ aks_cli_config_list = [
         value = "cilium"
       }
     ]
+  }
+]
+
+jumpbox_config_list = [
+  {
+    role     = "nap"
+    name     = "my-jumpbox"
+    vm_size  = "Standard_D4s_v3"
+    subnet_name = "jumpbox-subnet"
+    public_ip_name = "jumpbox-pip"
+    aks_name = "nap-complex"
   }
 ]
