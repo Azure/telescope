@@ -9,7 +9,6 @@ parameters:
   type: object
   default: {}
 
-
 steps:
 - template: /steps/engine/clusterloader2/cri/collect.yml
   parameters:

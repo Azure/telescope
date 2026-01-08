@@ -100,7 +100,6 @@ stages:
           cloud: azure
           regions:
             - swedencentral
-          registry: akscritelescope
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
@@ -143,7 +142,6 @@ stages:
           cloud: azure
           regions:
             - swedencentral
-          registry: akscritelescope
           terraform_input_file_mapping:
             - swedencentral: "scenarios/perf-eval/cri-resource-consume/terraform-inputs/azure-ubuntu2404.tfvars"
           engine: clusterloader2
@@ -185,7 +183,6 @@ stages:
           cloud: azure
           regions:
             - swedencentral
-          registry: akscritelescope
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
@@ -228,7 +225,6 @@ stages:
           cloud: aws
           regions:
             - eu-west-1
-          registry: null
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
