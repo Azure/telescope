@@ -9,7 +9,7 @@ parameters:
     type: string
   - name: registry_info
     type: string
-    default: ''
+    default: ""
 
 steps:
   - template: /steps/cloud/${{ parameters.cloud }}/collect-cloud-info.yml
@@ -35,6 +35,7 @@ steps:
     workingDirectory: modules/python
     env:
       CLOUD: ${{ parameters.cloud }}
+      REGISTRY_INFO: ${{ parameters.registry_info }}
       RUN_URL: $(RUN_URL)
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/cri.py
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/results
