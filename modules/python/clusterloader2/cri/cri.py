@@ -278,7 +278,7 @@ def main():
         "--cl2_override_file", type=str, help="Path to the overrides of CL2 config file"
     )
     parser_override.add_argument(
-        "--registry_endpoint", type=str, default="akscritelescope.azurecr.io", help="Container registry endpoint"
+        "--registry_endpoint", type=str, help="Container registry endpoint"
     )
 
     # Sub-command for execute_clusterloader2
