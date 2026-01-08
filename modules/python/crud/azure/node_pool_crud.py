@@ -8,6 +8,7 @@ both direct and progressive scaling operations and handles GPU-enabled node pool
 
 import logging
 import time
+import yaml
 
 from clients.aks_client import AKSClient
 from utils.logger_config import get_logger, setup_logging
@@ -269,4 +270,119 @@ class NodePoolCRUD:
             error_msg = f"Failed to perform operations on node pool '{node_pool_name}': {str(e)}"
             logger.error(error_msg)
             errors.append(error_msg)
+            return False
+
+    def create_deployment(
+        self,
+        node_pool_name,
+        replicas=10,
+        manifest_dir=None,
+        number_of_deployments=1
+    ):
+        """
+        Create Kubernetes deployments after node pool operations.
+
+        Args:
+            node_pool_name: Name of the node pool to target
+            deployment_name: Base name for the deployments
+            namespace: Kubernetes namespace (default: "default")
+            replicas: Number of deployment replicas per deployment (default: 10)
+            manifest_dir: Directory containing Kubernetes manifest files
+            number_of_deployments: Number of deployments to create (default: 1)
+
+        Returns:
+            True if all deployment creations were successful, False otherwise
+        """
+        logger.info(f"Creating {number_of_deployments} deployment(s)")
+        logger.info(f"Target node pool: {node_pool_name}")
+        logger.info(f"Replicas per deployment: {replicas}")
+        logger.info(f"Using manifest directory: {manifest_dir}")
+
+        try:
+            # Get Kubernetes client from AKS client
+            k8s_client = self.aks_client.k8s_client
+
+            if not k8s_client:
+                logger.error("Kubernetes client not available")
+                return False
+
+            successful_deployments = 0
+
+            # Loop through number of deployments
+            for deployment_index in range(1, number_of_deployments + 1):
+                logger.info(f"Creating deployment {deployment_index}/{number_of_deployments}")
+
+                try:
+                    if manifest_dir:
+                        # Use the template path from manifest_dir
+                        template_path = f"{manifest_dir}/deployment.yml"
+                    else:
+                        # Use default template path
+                        template_path = "modules/python/crud/workload_templates/deployment.yml"
+
+                    # Generate deployment name
+                    deployment_name = f"myapp-{node_pool_name}-{deployment_index}"
+
+                    # Create deployment template using k8s_client.create_template
+                    deployment_template = k8s_client.create_template(
+                        template_path,
+                        {
+                            "DEPLOYMENT_REPLICAS": replicas,
+                            "NODE_POOL_NAME": node_pool_name,
+                            "INDEX": deployment_index
+                        }
+                    )
+
+                    # Apply the processed template
+                    k8s_client.apply_manifest_from_file(
+                        manifest_dict=yaml.safe_load_all(deployment_template)
+                    )
+
+                    logger.info(f"Applied manifest for deployment {deployment_name}")
+
+                    # Wait for deployment to be available (successful deployment verification)
+                    logger.info(f"Waiting for deployment {deployment_name} to become available...")
+                    deployment_ready = k8s_client.wait_for_condition(
+                        resource_type="deployment",
+                        wait_condition_type="available",
+                        resource_name=deployment_name,
+                        namespace="default",
+                        timeout_seconds=300  # 5 minutes timeout
+                    )
+
+                    if deployment_ready:
+                        logger.info(f"Deployment {deployment_name} is successfully available")
+
+                        # Additionally wait for pods to be ready
+                        logger.info(f"Waiting for pods of deployment {deployment_name} to be ready...")
+                        k8s_client.wait_for_pods_ready(
+                            operation_timeout_in_minutes=5,
+                            namespace="default",
+                            pod_count=replicas,
+                            label_selector=f"app=nginx-container"
+                        )
+
+                        logger.info(f"Successfully created and verified deployment {deployment_index}")
+                        successful_deployments += 1
+                    else:
+                        logger.error(f"Deployment {deployment_name} failed to become available within timeout")
+                        continue
+
+                except Exception as e:
+                    logger.error(f"Failed to create deployment {deployment_index}: {str(e)}")
+                    # Continue with next deployment instead of failing completely
+                    continue
+
+            # Check if all deployments were successful
+            if successful_deployments == number_of_deployments:
+                logger.info(f"Successfully created all {number_of_deployments} deployment(s)")
+                return True
+            if successful_deployments > 0:
+                logger.warning(f"Created {successful_deployments}/{number_of_deployments} deployment(s)")
+                return False
+            logger.error("Failed to create any deployments")
+            return False
+
+        except Exception as e:
+            logger.error(f"Failed to create deployments: {str(e)}")
             return False
