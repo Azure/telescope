@@ -7,6 +7,7 @@ import subprocess
 from datetime import datetime, timezone
 from clusterloader2.utils import parse_xml_to_json, run_cl2_command, process_cl2_reports
 from clients.kubernetes_client import KubernetesClient
+from modules.python.utils.common import str2bool
 from utils.logger_config import get_logger, setup_logging
 
 setup_logging()
@@ -295,6 +296,7 @@ def execute_clusterloader2(
     kubeconfig,
     provider,
     cl2_config_file="config.yaml",
+    enable_prometheus=False,
 ):
     run_cl2_command(
         kubeconfig,
@@ -304,6 +306,7 @@ def execute_clusterloader2(
         provider,
         cl2_config_file,
         overrides=True,
+        enable_prometheus=enable_prometheus,
     )
 
 
@@ -455,6 +458,12 @@ def main():
         default="config.yaml",
         type=str,
         help="Path to the CL2 config file",
+    )
+    parser_execute.add_argument(
+        "--enable_prometheus",
+        default="config.yaml",
+        type=str2bool,
+        help="Enable Prometheus server in CL2",
     )
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")

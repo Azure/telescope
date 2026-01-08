@@ -32,7 +32,7 @@ stages:
             complex-nap:
               pod_count: 5
               pod_cpu_request: 2
-              pod_cpu_memory: "4Gi"
+              pod_memory_request: "4Gi"
               scale_up_timeout: "15m"
               scale_down_timeout: "15m"
               node_selector: "{karpenter.sh/nodepool: default}"
@@ -42,6 +42,7 @@ stages:
               vm_size: Standard_D2s_v4
               capacity_type: on-demand
               cl2_config_file: "ms_complex_config.yaml"
+              enable_prometheus: True
           max_parallel: 1
           timeout_in_minutes: 60
           credential_type: service_connection
