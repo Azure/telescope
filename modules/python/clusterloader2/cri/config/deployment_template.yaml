@@ -71,7 +71,7 @@ spec:
       - name: resource-consumer-cpu
         imagePullPolicy: IfNotPresent
         {{if eq $OSType "windows"}}
-        image: {{REGISTRY_ENDPOINT}}/e2e-test-images/resource-consumer:1.13-windows-amd64-ltsc2022
+        image: {{$RegistryEndpoint}}/e2e-test-images/resource-consumer:1.13-windows-amd64-ltsc2022
         command:
           - /consume-cpu/consume-cpu.exe
         {{else}}
