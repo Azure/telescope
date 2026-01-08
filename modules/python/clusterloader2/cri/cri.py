@@ -143,16 +143,15 @@ def collect_clusterloader2(
     run_url,
     result_file,
     scrape_kubelets,
-    scrape_registry=False,
     registry_info=""
 ):
     if scrape_kubelets:
         verify_measurement()
 
-    if scrape_registry:
+    if registry_info:
         cloud_info = json.dumps({
             **json.loads(cloud_info or "{}"),
-            "registry": json.loads(registry_info or "{}"),
+            "registry": json.loads(registry_info),
         })
 
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
@@ -391,7 +390,6 @@ def main():
             args.run_url,
             args.result_file,
             args.scrape_kubelets,
-            args.scrape_registry,
             args.registry_info
         )
 
