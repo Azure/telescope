@@ -73,6 +73,7 @@ def execute(block_size, iodepth, method, runtime, numjobs, file_size, storage_na
         f"--iodepth={iodepth}",
         f"--runtime={runtime}",
         f"--numjobs={numjobs}",
+        "--unlink=1",
         "--ioengine=io_uring",
         "--time_based",
         "--output-format=json",
