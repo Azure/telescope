@@ -1,0 +1,34 @@
+parameters:
+- name: cloud
+  type: string
+  default: ''
+- name: engine_input
+  type: object
+  default: {}
+- name: regions
+  type: object
+  default: {}
+
+steps:
+- script: |
+    if [ "$SCRAPE_ACR" = "true" ]; then
+      echo "Scraping ACR info of $REGISTRY_ENDPOINT..."
+      registry_info="acr info for bla bla bla"
+    else
+      echo "SCRAPE_ACR is false — skipping"
+    fi
+
+    echo "##vso[task.setvariable variable=registry_info;isOutput=true]$registry_info"
+  name: collectRegistry
+  workingDirectory: modules/python
+  env:
+    CLOUD: ${{ parameters.cloud }}
+    RUN_URL: $(RUN_URL)
+  displayName: "Collect ACR Info"
+- template: /steps/engine/clusterloader2/cri/collect.yml
+  parameters:
+    cloud: ${{ parameters.cloud }}
+    engine_input: ${{ parameters.engine_input }}
+    region: ${{ parameters.regions[0] }}
+    registry: ${{ dependencies.collectRegistry.outputs['collectRegistry.registry_info'] }}
+
