@@ -3,7 +3,7 @@ locals {
 }
 
 resource "google_container_cluster" "gke" {
-  name               = trimsuffix(substr("${var.gke_config.name}-${var.run_id}", 0, 40), "-")
+  name               = "${var.gke_config.name}-${replace(var.run_id, "/^([a-zA-Z0-9]+)-.*/", "$1")}"
   network            = var.vpc_id
   subnetwork         = var.subnet_id
   min_master_version = var.gke_config.kubernetes_version

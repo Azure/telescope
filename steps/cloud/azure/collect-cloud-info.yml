@@ -1,9 +1,6 @@
 parameters:
 - name: region
   type: string
-- name: registry_endpoint
-  type: string
-  default: ''
 
 steps:
 - script: |
@@ -21,7 +18,6 @@ steps:
       --arg sku_tier "$(echo $aks_info | jq -r .sku.tier)" \
       --arg subscription "$(az account show --query id --output tsv)" \
       --arg edge_zone "$(echo $aks_info | jq -r .extendedLocation.name)" \
-      --arg registry "$(echo $acr_info | jq -c .)" \
       --arg network_profile "$(echo $aks_info | jq -r .networkProfile)" \
       --arg agentpool_profile "$(echo $aks_info | jq -r .agentPoolProfiles)" \
       '{
@@ -32,7 +28,6 @@ steps:
         sku_tier: $sku_tier,
         subscription: $subscription,
         edge_zone: $edge_zone,
-        registry: $registry,
         network_profile: $network_profile,
         agentpool_profile: $agentpool_profile
       }')
@@ -42,4 +37,3 @@ steps:
   displayName: 'Collect Cloud Info for Azure'
   env:
     REGION: ${{ parameters.region }}
-    REGISTRY_ENDPOINT: ${{ parameters.registry_endpoint }}
