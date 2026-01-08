@@ -280,16 +280,6 @@ def main():
     parser_override.add_argument(
         "--registry_endpoint", type=str, help="Container registry endpoint"
     )
-    parser_override.add_argument(
-        "--registry_info", type=str, help="Container registry information"
-    )
-    parser_override.add_argument(
-        "--scrape_registry",
-        type=str2bool,
-        choices=[True, False],
-        default=False,
-        help="Whether to scrape container registry information",
-    )
 
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser(
@@ -349,6 +339,16 @@ def main():
         choices=[True, False],
         default=False,
         help="Whether to scrape kubelets",
+    )
+    parser_collect.add_argument(
+        "--scrape_registry",
+        type=str2bool,
+        choices=[True, False],
+        default=False,
+        help="Whether to scrape container registry information",
+    )
+    parser_collect.add_argument(
+        "--registry_info", type=str, help="Container registry information scraped",
     )
 
     args = parser.parse_args()
