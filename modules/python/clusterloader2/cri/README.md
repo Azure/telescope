@@ -133,7 +133,8 @@ PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
     --run_id $RUN_ID \
     --run_url $RUN_URL \
     --result_file $TEST_RESULTS_FILE \
-    --scrape_kubelets ${SCRAPE_KUBELETS:-False}
+    --scrape_kubelets ${SCRAPE_KUBELETS:-False} \
+    --scrape_registry ${SCRAPE_REGISTRY:-False}
 ```
 
 The final result which will be used to upload to storage account will be in this file `TEST_RESULTS_FILE`

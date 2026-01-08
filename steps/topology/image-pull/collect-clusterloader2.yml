@@ -12,7 +12,7 @@ parameters:
 steps:
 - script: |
     registry_info="{}"
-    if [[ "$SCRAPE_REGISTRY" = "true" &&  "$CLOUD" = "azure" ]]; then
+    if [[ "${SCRAPE_REGISTRY,,}" == "true" && "$CLOUD" == "azure" ]]; then
       az config unset defaults.location
 
       echo "Scraping registry info for $REGISTRY_ENDPOINT..."
