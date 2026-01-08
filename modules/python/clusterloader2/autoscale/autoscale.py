@@ -456,7 +456,7 @@ def main():
     )
     parser_execute.add_argument(
         "--enable_prometheus",
-        default="config.yaml",
+        default=False,
         type=str2bool,
         help="Enable Prometheus server in CL2",
     )
@@ -524,6 +524,7 @@ def main():
             args.kubeconfig,
             args.provider,
             args.cl2_config_file,
+            args.enable_prometheus,
         )
     elif args.command == "collect":
         collect_clusterloader2(
