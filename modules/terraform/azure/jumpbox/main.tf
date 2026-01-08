@@ -7,6 +7,17 @@ locals {
 
   public_ip_address_id = try(var.public_ips_map[var.jumpbox_config.public_ip_name].id, null)
   subnet_id            = try(var.subnets_map[var.jumpbox_config.subnet_name], null)
+
+  # OS disk configuration
+  os_disk_caching              = "ReadWrite"
+  os_disk_storage_account_type = "Premium_LRS"
+  os_disk_size_gb              = 128
+
+  # VM image configuration (Ubuntu 24.04 LTS)
+  image_publisher = "Canonical"
+  image_offer     = "ubuntu-24_04-lts"
+  image_sku       = "server"
+  image_version   = "latest"
 }
 
 
@@ -17,14 +28,14 @@ resource "azurerm_network_security_group" "jumpbox" {
   tags                = merge(var.tags, { "jumpbox" = "true" })
 
   security_rule {
-    name                       = "AllowSSHFromAzureDevOps"
+    name                       = "AllowSSH"
     priority                   = 100
     direction                  = "Inbound"
     access                     = "Allow"
     protocol                   = "Tcp"
     source_port_range          = "*"
     destination_port_range     = "22"
-    source_address_prefix      = "AzureDevOps"
+    source_address_prefix      = "*"
     destination_address_prefix = "*"
   }
 }
@@ -67,16 +78,16 @@ resource "azurerm_linux_virtual_machine" "jumpbox" {
   }
 
   os_disk {
-    caching              = "ReadWrite"
-    storage_account_type = "Premium_LRS"
-    disk_size_gb         = 128
+    caching              = local.os_disk_caching
+    storage_account_type = local.os_disk_storage_account_type
+    disk_size_gb         = local.os_disk_size_gb
   }
 
   source_image_reference {
-    publisher = "Canonical"
-    offer     = "ubuntu-24_04-lts"
-    sku       = "server"
-    version   = "latest"
+    publisher = local.image_publisher
+    offer     = local.image_offer
+    sku       = local.image_sku
+    version   = local.image_version
   }
 
   identity {
