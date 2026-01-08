@@ -40,7 +40,6 @@ steps:
         CLOUD: aks
       ${{ else }}:
         CLOUD: ${{ parameters.cloud }}
-      REGISTRY: ${{ parameters.registry }}
       REGION: ${{ parameters.region }}
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/cri.py
       CL2_IMAGE: ${{ parameters.engine_input.image }}
