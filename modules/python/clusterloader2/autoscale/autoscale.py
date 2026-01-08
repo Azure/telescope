@@ -482,16 +482,16 @@ def main():
     parser_collect.add_argument("run_url", type=str, help="Run URL")
     parser_collect.add_argument("result_file", type=str, help="Path to the result file")
     parser_collect.add_argument(
-        "--cl2_config_file",
-        default="config.yaml",
-        type=str,
-        help="Path to the CL2 config file",
-    )
-    parser_collect.add_argument(
         "--pod_cpu_request", type=int, help="CPU request for each pod"
     )
     parser_collect.add_argument(
         "--pod_memory_request", type=str, help="Memory request for each pod"
+    )
+    parser_collect.add_argument(
+        "--cl2_config_file",
+        default="config.yaml",
+        type=str,
+        help="Path to the CL2 config file",
     )
 
     args = parser.parse_args()
