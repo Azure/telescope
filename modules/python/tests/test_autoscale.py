@@ -169,6 +169,7 @@ class TestClusterLoaderFunctions(unittest.TestCase):
             "aks",
             "config.yaml",
             overrides=True,
+            enable_prometheus=False,
         )
     def test_collect_clusterloader2_success(self):
         cl2_report_dir = os.path.join(
@@ -287,6 +288,7 @@ class TestClusterLoaderFunctions(unittest.TestCase):
                 'kubeconfig.yaml',
                 'aws',
                 'config.yaml',
+                False,
             )
 
     @patch('clusterloader2.autoscale.autoscale.collect_clusterloader2')
