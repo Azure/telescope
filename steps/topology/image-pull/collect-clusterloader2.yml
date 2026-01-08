@@ -43,7 +43,7 @@ steps:
       echo "Skipping registry info scrape as SCRAPE_REGISTRY='$SCRAPE_REGISTRY' or CLOUD='$CLOUD'"
     fi
 
-    echo "##vso[task.setvariable variable=REGISTRY_INFO;]$registry_info"
+    echo "##vso[task.setvariable variable=registry_info;isOutput=true]$registry_info"
   name: collectRegistry
   workingDirectory: modules/python
   env:
@@ -56,3 +56,4 @@ steps:
     cloud: ${{ parameters.cloud }}
     engine_input: ${{ parameters.engine_input }}
     region: ${{ parameters.regions[0] }}
+    registry_info: ${{ dependencies.collectRegistry.outputs['collectRegistry.registry_info'] }}
