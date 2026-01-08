@@ -27,7 +27,7 @@ steps:
 
       kubectl apply -f $KARPENTER_DIR/$KARPENTER_NODEPOOL_FILE
 
-      if [ -n "$VM_SIZE" ]; then
+      if [ -n "${VM_SIZE:-}" ]; then
         # Patch the On-Demand NodePool
         kubectl patch nodepool default --type='json' -p="[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['$VM_SIZE']}]"
 
