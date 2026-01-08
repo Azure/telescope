@@ -22,6 +22,7 @@ steps:
         --scale_enabled ${SCALE_ENABLED:-False} \
         --pod_startup_latency_threshold ${POD_STARTUP_LATENCY_THRESHOLD:-15s} \
         --provider $CLOUD \
+        --registry $REGISTRY_ENDPOINT \
         --os_type ${OS_TYPE:-linux} \
         --scrape_kubelets ${SCRAPE_KUBELETS:-False} \
         --host_network ${HOST_NETWORK:-True} \
