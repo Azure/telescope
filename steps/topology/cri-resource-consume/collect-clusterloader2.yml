@@ -8,9 +8,7 @@ parameters:
 - name: regions
   type: object
   default: {}
-- name: registry
-  type: string
-  default: ''
+
 
 steps:
 - template: /steps/engine/clusterloader2/cri/collect.yml
@@ -18,4 +16,3 @@ steps:
     cloud: ${{ parameters.cloud }}
     engine_input: ${{ parameters.engine_input }}
     region: ${{ parameters.regions[0] }}
-    registry: ${{ parameters.registry }}
