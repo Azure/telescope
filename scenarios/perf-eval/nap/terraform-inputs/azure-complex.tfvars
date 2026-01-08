@@ -27,29 +27,9 @@ network_config_list = [
         address_prefix = "10.224.0.0/12"
       }
     ]
-    network_security_group_name = "nap-nsg"
-    nic_public_ip_associations = [
-      {
-        nic_name              = "nap-jumpbox-nic"
-        subnet_name           = "jumpbox-subnet"
-        ip_configuration_name = "primary"
-        public_ip_name        = "jumpbox-pip"
-        count                 = 1
-      }
-    ]
-    nsr_rules = [
-      {
-        name                       = "AllowSSH"
-        priority                   = 100
-        direction                  = "Inbound"
-        access                     = "Allow"
-        protocol                   = "Tcp"
-        source_port_range          = "*"
-        destination_port_range     = "22"
-        source_address_prefix      = "*"
-        destination_address_prefix = "*"
-      }
-    ]
+    network_security_group_name = ""
+    nic_public_ip_associations = []
+    nsr_rules = []
   }
 ]
 
@@ -125,7 +105,8 @@ jumpbox_config_list = [
     role        = "nap"
     name        = "nap-jumpbox"
     vm_size     = "Standard_D4s_v3"
-    nic_name    = "nap-jumpbox-nic"
+    public_ip_name = "jumpbox-pip"
+    subnet_name = "jumpbox-subnet"
     aks_name    = "nap-complex"
   }
 ]

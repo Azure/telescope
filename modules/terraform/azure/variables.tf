@@ -347,7 +347,8 @@ variable "jumpbox_config_list" {
     role     = string
     name     = string
     vm_size  = optional(string, "Standard_D4s_v3")
-    nic_name = string
+    subnet_name = string
+    public_ip_name = string
     aks_name = string
   }))
   default = []
