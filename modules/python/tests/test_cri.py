@@ -60,6 +60,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             scale_enabled=False,
             pod_startup_latency_threshold="15s",
             provider="aks",
+            registry_endpoint="akscritelescope.azurecr.io",
             os_type="linux",
             scrape_kubelets=True,
             host_network=True,
@@ -86,6 +87,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
         handle.write.assert_any_call("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
         handle.write.assert_any_call("CL2_POD_STARTUP_LATENCY_THRESHOLD: 15s\n")
         handle.write.assert_any_call("CL2_PROVIDER: aks\n")
+        handle.write.assert_any_call("CL2_REGISTRY_ENDPOINT: akscritelescope.azurecr.io\n")
         handle.write.assert_any_call("CL2_OS_TYPE: linux\n")
         handle.write.assert_any_call("CL2_SCRAPE_KUBELETS: true\n")
         handle.write.assert_any_call("CL2_HOST_NETWORK: true\n")
@@ -114,6 +116,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             scale_enabled=False,
             pod_startup_latency_threshold="15s",
             provider="aks",
+            registry_endpoint="akscritelescope.azurecr.io",
             os_type="linux",
             scrape_kubelets=False,
             host_network=False,
@@ -228,6 +231,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             "--scale_enabled", "True", 
             "--pod_startup_latency_threshold", "10s",
             "--provider", "aws", 
+            "--registry_endpoint", "test registry endpoint", 
             "--os_type", "linux", 
             "--scrape_kubelets", "False", 
             "--host_network", "False",
@@ -236,7 +240,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
         with patch.object(sys, 'argv', test_args):
             main()
             mock_override.assert_called_once_with(
-                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "linux", False, False, "/tmp/override.yaml"
+                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "test registry endpoint", "linux", False, False, "/tmp/override.yaml"
             )
 
     @patch("clusterloader2.cri.cri.override_config_clusterloader2")
@@ -253,6 +257,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             "--scale_enabled", "True", 
             "--pod_startup_latency_threshold", "10s",
             "--provider", "aws", 
+            "--registry_endpoint", "test registry endpoint", 
             "--os_type", "linux", 
             "--scrape_kubelets", "False", 
             "--cl2_override_file", "/tmp/override.yaml"
@@ -260,7 +265,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
         with patch.object(sys, 'argv', test_args):
             main()
             mock_override.assert_called_once_with(
-                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "linux", False, True, "/tmp/override.yaml"
+                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "test registry endpoint", "linux", False, True, "/tmp/override.yaml"
             )
 
     @patch("clusterloader2.cri.cri.execute_clusterloader2")
@@ -294,13 +299,14 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             "--run_id", "run-123", 
             "--run_url", "https://run.url", 
             "--result_file", "/tmp/results.json", 
-            "--scrape_kubelets", "False"
+            "--scrape_kubelets", "False", 
+            "--registry_info", "test registry info"
         ]
         with patch.object(sys, 'argv', test_args):
             main()
             mock_collect.assert_called_once_with(
                 3, 100, 5, "memory", "/reports", "gcp-zone", "run-123",
-                "https://run.url", "/tmp/results.json", False
+                "https://run.url", "/tmp/results.json", False, "test registry info"
             )
 
 if __name__ == '__main__':
