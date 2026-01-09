@@ -20,7 +20,26 @@ stages:
             image: "ghcr.io/azure/clusterloader2:v20250513"
           topology: image-pull
           matrix:
-            n10-p300-memory:
+            scrape_registry_true_endpoint_specified:
+              node_count: 10
+              max_pods: 30
+              repeats: 1
+              operation_timeout: 3m
+              load_type: memory
+              scrape_kubelets: True
+              scrape_registry: True
+              registry_endpoint: acrtelescope.azurecr.io
+              pod_startup_latency_threshold: 30s
+            scrape_registry_true_endpoint_default:
+              node_count: 10
+              max_pods: 30
+              repeats: 1
+              operation_timeout: 3m
+              load_type: memory
+              scrape_kubelets: True
+              scrape_registry: True
+              pod_startup_latency_threshold: 30s
+            scrape_registry_false_endpoint_specified:
               node_count: 10
               max_pods: 30
               repeats: 1
@@ -30,77 +49,33 @@ stages:
               scrape_registry: False
               registry_endpoint: acrtelescope.azurecr.io
               pod_startup_latency_threshold: 30s
-            n10-p700-memory:
+            scrape_registry_false_endpoint_default:
               node_count: 10
-              max_pods: 70
+              max_pods: 30
               repeats: 1
-              operation_timeout: 7m
+              operation_timeout: 3m
               load_type: memory
               scrape_kubelets: True
               scrape_registry: False
-              registry_endpoint: acrtelescope.azurecr.io
               pod_startup_latency_threshold: 30s
-            n10-p1100-memory:
+            scrape_registry_default_endpoint_default:
               node_count: 10
-              max_pods: 110
+              max_pods: 30
               repeats: 1
-              operation_timeout: 11m
+              operation_timeout: 3m
               load_type: memory
               scrape_kubelets: True
-              scrape_registry: False
+              pod_startup_latency_threshold: 30s
+            scrape_registry_default_endpoint_specified:
+              node_count: 10
+              max_pods: 30
+              repeats: 1
+              operation_timeout: 3m
+              load_type: memory
+              scrape_kubelets: True
               registry_endpoint: acrtelescope.azurecr.io
               pod_startup_latency_threshold: 30s
-          max_parallel: 1
-          timeout_in_minutes: 120
-          credential_type: service_connection
-          ssh_key_enabled: false
 
-  - stage: azure_swedencentral_1_33
-    dependsOn: []
-    jobs:
-      - template: /jobs/competitive-test.yml
-        parameters:
-          cloud: azure
-          regions:
-            - swedencentral
-          engine: clusterloader2
-          engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250513"
-          topology: image-pull
-          matrix:
-            n10-p300-memory:
-              node_count: 10
-              max_pods: 30
-              repeats: 1
-              operation_timeout: 3m
-              load_type: memory
-              kubernetes_version: "1.33"
-              scrape_kubelets: True
-              scrape_registry: True
-              registry_endpoint: acrtelescope.azurecr.io
-              pod_startup_latency_threshold: 30s
-            n10-p700-memory:
-              node_count: 10
-              max_pods: 70
-              repeats: 1
-              operation_timeout: 7m
-              load_type: memory
-              kubernetes_version: "1.33"
-              scrape_kubelets: True
-              scrape_registry: True
-              registry_endpoint: acrtelescope.azurecr.io
-              pod_startup_latency_threshold: 30s
-            n10-p1100-memory:
-              node_count: 10
-              max_pods: 110
-              repeats: 1
-              operation_timeout: 11m
-              load_type: memory
-              kubernetes_version: "1.33"
-              scrape_kubelets: True
-              scrape_registry: True
-              registry_endpoint: acrtelescope.azurecr.io
-              pod_startup_latency_threshold: 30s
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
@@ -119,27 +94,11 @@ stages:
             image: "ghcr.io/azure/clusterloader2:v20250513"
           topology: image-pull
           matrix:
-            n10-p300-memory:
+            scrape_registry_default_endpoint_default:
               node_count: 10
               max_pods: 30
               repeats: 1
               operation_timeout: 3m
-              load_type: memory
-              scrape_kubelets: True
-              pod_startup_latency_threshold: 30s
-            n10-p700-memory:
-              node_count: 10
-              max_pods: 70
-              repeats: 1
-              operation_timeout: 7m
-              load_type: memory
-              scrape_kubelets: True
-              pod_startup_latency_threshold: 30s
-            n10-p1100-memory:
-              node_count: 10
-              max_pods: 110
-              repeats: 1
-              operation_timeout: 11m
               load_type: memory
               scrape_kubelets: True
               pod_startup_latency_threshold: 30s
