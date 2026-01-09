@@ -40,8 +40,8 @@ stages:
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D2s_v4
               capacity_type: on-demand
+              karpenter_nodepool_file: karpenter_complex_nodepool.azure.yml
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
