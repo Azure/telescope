@@ -292,6 +292,8 @@ def execute_clusterloader2(
     provider,
     cl2_config_file="config.yaml",
     enable_prometheus=False,
+    scrape_kubelets=False,
+    scrape_ksm=False,
 ):
     run_cl2_command(
         kubeconfig,
@@ -302,6 +304,8 @@ def execute_clusterloader2(
         cl2_config_file,
         overrides=True,
         enable_prometheus=enable_prometheus,
+        scrape_kubelets=scrape_kubelets,
+        scrape_ksm=scrape_ksm
     )
 
 
@@ -460,6 +464,18 @@ def main():
         type=str2bool,
         help="Enable Prometheus server in CL2",
     )
+    parser_execute.add_argument(
+        "--scrape_kubelets",
+        default=False,
+        type=str2bool,
+        help="Enable scraping kubelets metrics in CL2",
+    )
+    parser_execute.add_argument(
+        "--scrape_ksm",
+        default=False,
+        type=str2bool,
+        help="Enable scraping kube-state-metrics in CL2",
+    )
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
     parser_collect.add_argument(
@@ -525,6 +541,8 @@ def main():
             args.provider,
             args.cl2_config_file,
             args.enable_prometheus,
+            args.scrape_kubelets,
+            args.scrape_ksm,
         )
     elif args.command == "collect":
         collect_clusterloader2(
@@ -537,9 +555,9 @@ def main():
             args.run_id,
             args.run_url,
             args.result_file,
-            args.cl2_config_file,
             args.pod_cpu_request,
             args.pod_memory_request,
+            args.cl2_config_file,
         )
 
 

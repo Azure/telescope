@@ -43,6 +43,8 @@ stages:
               capacity_type: on-demand
               cl2_config_file: "ms_complex_config.yaml"
               enable_prometheus: True
+              scrape_kubelets: True
+              scarepe_ksm: True
           max_parallel: 1
           timeout_in_minutes: 60
           credential_type: service_connection
