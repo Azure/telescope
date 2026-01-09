@@ -19,6 +19,7 @@ steps:
         --node_count $NODE_COUNT \
         --job_throughput $JOB_THROUGHPUT \
         --job_count $JOB_COUNT \
+        --job_template_path ${JOB_TEMPLATE_PATH:-base/job_template.yaml} \
         --dra_enabled ${ENABLE_DRA:-False} \
         --ray_enabled ${ENABLE_RAY:-False} \
         --job_gpu ${JOB_GPU:-0} \
