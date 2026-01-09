@@ -2,6 +2,9 @@ scenario_type  = "perf-eval"
 scenario_name  = "stls-bootstrap-nap"
 deletion_delay = "2h"
 owner          = "aks"
+tags           = {
+  enable-stls-nap = "true"
+}
 
 aks_config_list = []
 
@@ -10,9 +13,6 @@ aks_cli_config_list = [
     role               = "nap"
     aks_name           = "nap"
     sku_tier           = "standard"
-    managed_cluster_tags = {
-      "enable-stls-nap" = "true"
-    }
     aks_custom_headers = [
       "AKSHTTPCustomFeatures=Microsoft.ContainerService/EnableSecureTLSBootstrapping"
     ]
