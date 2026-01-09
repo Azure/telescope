@@ -54,5 +54,6 @@ PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
   --result_dir $RESULT_DIR \
   --run_id $RUN_ID \
   --run_url $RUN_URL \
-  --cloud_info "$CLOUD_INFO"
+  --cloud_info "$CLOUD_INFO" \
+  --nccl_tests_version ${NCCL_TESTS_VERSION:-"amd64"}
 ```

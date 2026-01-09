@@ -158,7 +158,7 @@ def execute(
     logger.info(f"Results saved to {result_path}")
 
 
-def collect(result_dir: str, run_id: str, run_url: str, cloud_info: str) -> None:
+def collect(result_dir: str, run_id: str, run_url: str, cloud_info: str, nccl_tests_version: str = "amd64") -> None:
     """
     Collect and parse NCCL test results, saving them to a JSON file.
 
@@ -167,6 +167,7 @@ def collect(result_dir: str, run_id: str, run_url: str, cloud_info: str) -> None
         run_id: RUN_ID associated with the NCCL test run.
         run_url: URL associated with the NCCL test run.
         cloud_info: Information about the cloud environment where the test was run.
+        nccl_tests_version: NCCL tests image tag version (e.g., "amd64", "arm64", default: "amd64")
     """
     try:
         logger.info("Collecting NCCL test results...")
@@ -179,7 +180,8 @@ def collect(result_dir: str, run_id: str, run_url: str, cloud_info: str) -> None
             "operation_info": {
                 "test_type": "rdma",
                 "result": nccl_result,
-                "cloud_info": cloud_info
+                "cloud_info": cloud_info,
+                "nccl_tests_version": nccl_tests_version
             },
             "run_id": run_id,
             "run_url": run_url,
@@ -337,6 +339,13 @@ def main():
     collect_parser.add_argument("--run_id", type=str, help="Run ID")
     collect_parser.add_argument("--run_url", type=str, help="Run URL")
     collect_parser.add_argument("--cloud_info", type=str, help="Cloud information")
+    collect_parser.add_argument(
+        "--nccl_tests_version",
+        type=str,
+        required=False,
+        default="amd64",
+        help="NCCL tests image tag version (e.g., 'amd64', 'arm64', default: 'amd64')",
+    )
 
     # Parse arguments
     args = parser.parse_args()
@@ -370,6 +379,7 @@ def main():
             run_id=args.run_id,
             run_url=args.run_url,
             cloud_info=args.cloud_info,
+            nccl_tests_version=args.nccl_tests_version,
         )
     else:
         parser.print_help()
