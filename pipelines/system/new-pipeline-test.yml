@@ -2,7 +2,7 @@ trigger: none
 
 variables:
   # Hardcoded ADO pipeline variables
-  AZURE_SUBSCRIPTION_ID: "9b8218f9-902a-4d20-a65c-e98acec5362f"
+  AZURE_SUBSCRIPTION_ID: "37deca37-c375-4a14-b90a-043849bd2bf1"
   SKIP_RESOURCE_MANAGEMENT: "false"
   AZURE_SERVICE_CONNECTION: "Azure-for-Telescope-internal"
   AZURE_STORAGE_ACCOUNT_NAME: "akstelescope"
@@ -16,7 +16,7 @@ variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: swiftv2-cluster-churn-feature
   OWNER: aks
-  VM_SKU: Standard_D16_v3
+  VM_SKU: Standard_D16s_v4
   # count of swiftv2 pods/NIC per step
   PODS_PER_NODE: 7
   DEVICE_PLUGIN: "false"
@@ -97,7 +97,7 @@ stages:
           base_run_id: $(BASE_RUN_ID)
 
   - stage: dynamicres_gradual
-    condition: succeeded()
+    condition: false
     displayName: 'Dynamic Gradual'
     dependsOn: 
       - generate_base_run_id

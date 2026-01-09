@@ -22,96 +22,96 @@ parameters:
 - name: matrix
   type: object
   default:
-    pps=35_ppp=1_pods=70_nodes=10:
-      node_count: 10
-      pods_per_step: 35
-      pods_per_pni: 1
-      test_timeout: "2m"
-      test_type: Gradual_StaticRes_PPS=35_PPP=1_Pods=70_Nodes=10
-      cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-    pps=25_ppp=1_pods=700_nodes=100:
-      node_count: 100
-      pods_per_step: 25
-      pods_per_pni: 1
-      test_timeout: "2m"
-      test_type: Gradual_StaticRes_PPS=25_PPP=1_Pods=700_Nodes=100
-      cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-    pps=50_ppp=1_pods=700_nodes=100:
-      node_count: 100
+    # pps=35_ppp=1_pods=70_nodes=10:
+    #   node_count: 10
+    #   pods_per_step: 35
+    #   pods_per_pni: 1
+    #   test_timeout: "2m"
+    #   test_type: Gradual_StaticRes_PPS=35_PPP=1_Pods=70_Nodes=10
+    #   cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+    # pps=25_ppp=1_pods=700_nodes=100:
+    #   node_count: 100
+    #   pods_per_step: 25
+    #   pods_per_pni: 1
+    #   test_timeout: "2m"
+    #   test_type: Gradual_StaticRes_PPS=25_PPP=1_Pods=700_Nodes=100
+    #   cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+    # pps=50_ppp=1_pods=700_nodes=100:
+    #   node_count: 100
+    #   pods_per_step: 50
+    #   pods_per_pni: 1
+    #   test_timeout: "2m"
+    #   test_type: Gradual_StaticRes_PPS=50_PPP=1_Pods=700_Nodes=100
+    #   cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+    # pps=25_ppp=1_pods=1400_nodes=200:
+    #   node_count: 200
+    #   pods_per_step: 25
+    #   pods_per_pni: 1
+    #   test_timeout: "2m"
+    #   test_type: Gradual_StaticRes_PPS=25_PPP=1_Pods=1400_Nodes=200
+    #   cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+    # pps=50_ppp=1_pods=1400_nodes=200:
+    #   node_count: 200
+    #   pods_per_step: 50
+    #   pods_per_pni: 1
+    #   test_timeout: "2m"
+    #   test_type: Gradual_StaticRes_PPS=50_PPP=1_Pods=1400_Nodes=200
+    #   cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+    # pps=25_ppp=1_pods=2800_nodes=400:
+    #   node_count: 400
+    #   pods_per_step: 25
+    #   pods_per_pni: 1
+    #   test_timeout: "2m"
+    #   test_type: Gradual_StaticRes_PPS=25_PPP=1_Pods=2800_Nodes=400
+    #   cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+    # pps=50_ppp=1_pods=2800_nodes=400:
+    #   node_count: 400
+    #   pods_per_step: 50
+    #   pods_per_pni: 1
+    #   test_timeout: "2m"
+    #   test_type: Gradual_StaticRes_PPS=50_PPP=1_Pods=2800_Nodes=400
+    #   cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+    # pps=25_ppp=1_pods=4200_nodes=600:
+    #   node_count: 600
+    #   pods_per_step: 25
+    #   pods_per_pni: 1
+    #   test_timeout: "2m"
+    #   test_type: Gradual_StaticRes_PPS=25_PPP=1_Pods=4200_Nodes=600
+    #   cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+    # pps=50_ppp=1_pods=4200_nodes=600:
+    #   node_count: 600
+    #   pods_per_step: 50
+    #   pods_per_pni: 1
+    #   test_timeout: "2m"
+    #   test_type: Gradual_StaticRes_PPS=50_PPP=1_Pods=4200_Nodes=600
+    #   cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+    # pps=25_ppp=1_pods=5600_nodes=800:
+    #   node_count: 800
+    #   pods_per_step: 25
+    #   pods_per_pni: 1
+    #   test_timeout: "2m"
+    #   test_type: Gradual_StaticRes_PPS=25_PPP=1_Pods=5600_Nodes=800
+    #   cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+    # pps=50_ppp=1_pods=5600_nodes=800:
+    #   node_count: 800
+    #   pods_per_step: 50
+    #   pods_per_pni: 1
+    #   test_timeout: "2m"
+    #   test_type: Gradual_StaticRes_PPS=50_PPP=1_Pods=5600_Nodes=800
+    #   cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+    # pps=25_ppp=1_pods=7000_nodes=1000:
+    #   node_count: 1000
+    #   pods_per_step: 25
+    #   pods_per_pni: 1
+    #   test_timeout: "2m"
+    #   test_type: Gradual_StaticRes_PPS=25_PPP=1_Pods=7000_Nodes=1000
+    #   cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
+    pps=50_ppp=1_pods=14000_nodes=2000:
+      node_count: 2000
       pods_per_step: 50
       pods_per_pni: 1
       test_timeout: "2m"
-      test_type: Gradual_StaticRes_PPS=50_PPP=1_Pods=700_Nodes=100
-      cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-    pps=25_ppp=1_pods=1400_nodes=200:
-      node_count: 200
-      pods_per_step: 25
-      pods_per_pni: 1
-      test_timeout: "2m"
-      test_type: Gradual_StaticRes_PPS=25_PPP=1_Pods=1400_Nodes=200
-      cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-    pps=50_ppp=1_pods=1400_nodes=200:
-      node_count: 200
-      pods_per_step: 50
-      pods_per_pni: 1
-      test_timeout: "2m"
-      test_type: Gradual_StaticRes_PPS=50_PPP=1_Pods=1400_Nodes=200
-      cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-    pps=25_ppp=1_pods=2800_nodes=400:
-      node_count: 400
-      pods_per_step: 25
-      pods_per_pni: 1
-      test_timeout: "2m"
-      test_type: Gradual_StaticRes_PPS=25_PPP=1_Pods=2800_Nodes=400
-      cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-    pps=50_ppp=1_pods=2800_nodes=400:
-      node_count: 400
-      pods_per_step: 50
-      pods_per_pni: 1
-      test_timeout: "2m"
-      test_type: Gradual_StaticRes_PPS=50_PPP=1_Pods=2800_Nodes=400
-      cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-    pps=25_ppp=1_pods=4200_nodes=600:
-      node_count: 600
-      pods_per_step: 25
-      pods_per_pni: 1
-      test_timeout: "2m"
-      test_type: Gradual_StaticRes_PPS=25_PPP=1_Pods=4200_Nodes=600
-      cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-    pps=50_ppp=1_pods=4200_nodes=600:
-      node_count: 600
-      pods_per_step: 50
-      pods_per_pni: 1
-      test_timeout: "2m"
-      test_type: Gradual_StaticRes_PPS=50_PPP=1_Pods=4200_Nodes=600
-      cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-    pps=25_ppp=1_pods=5600_nodes=800:
-      node_count: 800
-      pods_per_step: 25
-      pods_per_pni: 1
-      test_timeout: "2m"
-      test_type: Gradual_StaticRes_PPS=25_PPP=1_Pods=5600_Nodes=800
-      cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-    pps=50_ppp=1_pods=5600_nodes=800:
-      node_count: 800
-      pods_per_step: 50
-      pods_per_pni: 1
-      test_timeout: "2m"
-      test_type: Gradual_StaticRes_PPS=50_PPP=1_Pods=5600_Nodes=800
-      cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-    pps=25_ppp=1_pods=7000_nodes=1000:
-      node_count: 1000
-      pods_per_step: 25
-      pods_per_pni: 1
-      test_timeout: "2m"
-      test_type: Gradual_StaticRes_PPS=25_PPP=1_Pods=7000_Nodes=1000
-      cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-    pps=50_ppp=1_pods=7000_nodes=1000:
-      node_count: 1000
-      pods_per_step: 50
-      pods_per_pni: 1
-      test_timeout: "2m"
-      test_type: Gradual_StaticRes_PPS=50_PPP=1_Pods=7000_Nodes=1000
+      test_type: Gradual_StaticRes_PPS=50_PPP=1_Pods=14000_Nodes=2000
       cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
 
 jobs:
