@@ -1,6 +1,6 @@
 locals {
   tags_list = [
-    for key, value in merge(var.tags, var.aks_cli_config.managed_cluster_tags, { "role" = var.aks_cli_config.role }) :
+    for key, value in merge(var.tags, { "role" = var.aks_cli_config.role }) :
     format("%s=%s", key, value)
   ]
 
