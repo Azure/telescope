@@ -22,47 +22,47 @@ parameters:
 - name: matrix
   type: object
   default:
-    pods=140_nodes=20:
+    ppp=0_pods=140_nodes=20:
       node_count: 20
       pods_per_step: 20  
       test_timeout: "2m"
-      test_type: Burst_DynamicRes_PPS=140_Pods=140_Nodes=20
+      test_type: Burst_DynamicRes_PPS=140_PPP=0_Pods=140_Nodes=20
       cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-    pods=350_nodes=50:
+    ppp=0_pods=350_nodes=50:
       node_count: 50
       pods_per_step: 50  
       test_timeout: "3m"
-      test_type: Burst_DynamicRes_PPS=350_Pods=350_Nodes=50
+      test_type: Burst_DynamicRes_PPS=350_PPP=0_Pods=350_Nodes=50
       cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-    pods=700_nodes=100:
+    ppp=0_pods=700_nodes=100:
       node_count: 100
       pods_per_step: 100 
       test_timeout: "4m"
-      test_type: Burst_DynamicRes_PPS=700_Pods=700_Nodes=100
+      test_type: Burst_DynamicRes_PPS=700_PPP=0_Pods=700_Nodes=100
       cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-    pods=1400_nodes=200:
+    ppp=0_pods=1400_nodes=200:
       node_count: 200
       pods_per_step: 200  
       test_timeout: "6m"
-      test_type: Burst_DynamicRes_PPS=1400_Pods=1400_Nodes=200
+      test_type: Burst_DynamicRes_PPS=1400_PPP=0_Pods=1400_Nodes=200
       cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-    pods=3500_nodes=500:
+    ppp=0_pods=3500_nodes=500:
       node_count: 500
       pods_per_step: 500  
       test_timeout: "7m"
-      test_type: Burst_DynamicRes_PPS=3500_Pods=3500_Nodes=500
+      test_type: Burst_DynamicRes_PPS=3500_PPP=0_Pods=3500_Nodes=500
       cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-    pods=5250_nodes=750:
+    ppp=0_pods=5250_nodes=750:
       node_count: 750
       pods_per_step: 750  
       test_timeout: "9m"
-      test_type: Burst_DynamicRes_PPS=5250_Pods=5250_Nodes=750
+      test_type: Burst_DynamicRes_PPS=5250_PPP=0_Pods=5250_Nodes=750
       cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
-    burst_pods=7000_nodes=1000:
+    ppp=0_burst_pods=7000_nodes=1000:
       node_count: 1000
       pods_per_step: 1000
       test_timeout: "10m"
-      test_type: Burst_DynamicRes_PPS=7000_Pods=7000_Nodes=1000
+      test_type: Burst_DynamicRes_PPS=7000_PPP=0_Pods=7000_Nodes=1000
       cl2_config_file: swiftv2_deployment_dynamicres_scale_config.yaml
 
 jobs:
