@@ -106,12 +106,12 @@ parameters:
     #   test_timeout: "2m"
     #   test_type: Gradual_StaticRes_PPS=25_PPP=1_Pods=7000_Nodes=1000
     #   cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-    pps=50_ppp=1_pods=14000_nodes=2000:
-      node_count: 2000
+    pps=50_ppp=1_pods=17500_nodes=2500:
+      node_count: 2500
       pods_per_step: 50
       pods_per_pni: 1
       test_timeout: "2m"
-      test_type: Gradual_StaticRes_PPS=50_PPP=1_Pods=14000_Nodes=2000
+      test_type: Gradual_StaticRes_PPS=50_PPP=1_Pods=17500_Nodes=2500
       cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
 
 jobs:
