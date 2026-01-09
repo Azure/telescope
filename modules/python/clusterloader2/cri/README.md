@@ -68,6 +68,7 @@ CL2_IMAGE="ghcr.io/azure/clusterloader2:v20250513"
 CL2_REPORT_DIR=$(pwd)/clusterloader2/cri/results
 CLOUD=aks # set to aws to run against aws
 SCRAPE_KUBELETS=True
+SCRAPE_REGISTRY=False # set to True to include registry details
 OS_TYPE="linux"
 HOST_NETWORK=True
 # NODE_PER_STEP=5
@@ -132,7 +133,8 @@ PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
     --run_id $RUN_ID \
     --run_url $RUN_URL \
     --result_file $TEST_RESULTS_FILE \
-    --scrape_kubelets ${SCRAPE_KUBELETS:-False}
+    --scrape_kubelets ${SCRAPE_KUBELETS:-False} \
+    --scrape_registry ${SCRAPE_REGISTRY:-False}
 ```
 
 The final result which will be used to upload to storage account will be in this file `TEST_RESULTS_FILE`

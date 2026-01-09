@@ -17,7 +17,7 @@ MEMORY_SCALE_FACTOR = 0.95 # 95% of the total allocatable memory to account for 
 def override_config_clusterloader2(
     node_count, node_per_step, max_pods, repeats, operation_timeout,
     load_type, scale_enabled, pod_startup_latency_threshold, provider,
-    os_type, scrape_kubelets, host_network, override_file):
+    registry_endpoint, os_type, scrape_kubelets, host_network, override_file):
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
     nodes = client.get_nodes(label_selector="cri-resource-consume=true")
     if len(nodes) == 0:
@@ -88,6 +88,7 @@ def override_config_clusterloader2(
         file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
         file.write(f"CL2_POD_STARTUP_LATENCY_THRESHOLD: {pod_startup_latency_threshold}\n")
         file.write(f"CL2_PROVIDER: {provider}\n")
+        file.write(f"CL2_REGISTRY_ENDPOINT: {registry_endpoint}\n")
         file.write(f"CL2_OS_TYPE: {os_type}\n")
         file.write(f"CL2_SCRAPE_KUBELETS: {str(scrape_kubelets).lower()}\n")
         file.write(f"CL2_HOST_NETWORK: {str(host_network).lower()}\n")
@@ -141,10 +142,17 @@ def collect_clusterloader2(
     run_id,
     run_url,
     result_file,
-    scrape_kubelets
+    scrape_kubelets,
+    registry_info=""
 ):
     if scrape_kubelets:
         verify_measurement()
+
+    if registry_info:
+        cloud_info = json.dumps({
+            **json.loads(cloud_info or "{}"),
+            "registry": json.loads(registry_info),
+        })
 
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
     json_data = json.loads(details)
@@ -268,6 +276,9 @@ def main():
     parser_override.add_argument(
         "--cl2_override_file", type=str, help="Path to the overrides of CL2 config file"
     )
+    parser_override.add_argument(
+        "--registry_endpoint", type=str, help="Container registry endpoint"
+    )
 
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser(
@@ -328,6 +339,16 @@ def main():
         default=False,
         help="Whether to scrape kubelets",
     )
+    parser_collect.add_argument(
+        "--scrape_registry",
+        type=str2bool,
+        choices=[True, False],
+        default=False,
+        help="Whether to scrape container registry information",
+    )
+    parser_collect.add_argument(
+        "--registry_info", type=str, help="Container registry information scraped",
+    )
 
     args = parser.parse_args()
 
@@ -342,6 +363,7 @@ def main():
             args.scale_enabled,
             args.pod_startup_latency_threshold,
             args.provider,
+            args.registry_endpoint,
             args.os_type,
             args.scrape_kubelets,
             args.host_network,
@@ -368,6 +390,7 @@ def main():
             args.run_url,
             args.result_file,
             args.scrape_kubelets,
+            args.registry_info
         )
 
 if __name__ == "__main__":

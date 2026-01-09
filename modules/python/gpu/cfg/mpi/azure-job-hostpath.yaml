@@ -21,7 +21,7 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: nccl-launcher
-              image: telescope.azurecr.io/azure/aks-rdma-infiniband/nccl-tests:latest
+              image: telescope.azurecr.io/aks-rdma-infiniband/nccl-tests:{{nccl_tests_version}}
               imagePullPolicy: IfNotPresent
               env:
                 - name: OMPI_ALLOW_RUN_AS_ROOT
@@ -37,26 +37,15 @@ spec:
                 - |
                   set -xe
                   until mpirun -np ${NUMBER_OF_PROCESSES} -x LD_LIBRARY_PATH -bind-to none /usr/bin/nvidia-smi -L 2>/dev/null; do sleep 5; done
-                  gpu_count={{slots_per_worker}}
-                  cuda_devices=$(seq -s',' 0 $((gpu_count - 1)))
-                  hcp_ports=""
-                  for i in $(seq 0 $((gpu_count - 1))); do
-                    if [ -n "$hcp_ports" ]; then
-                      hcp_ports="${hcp_ports},"
-                    fi
-                    hcp_ports="${hcp_ports}mlx5_${i}:1"
-                  done
-                  export hcp_ports
-                  echo "Detected ${gpu_count} GPUs, cuda_devices: ${cuda_devices}, hcp_ports: ${hcp_ports}"
                   mpirun \
                     -np ${NUMBER_OF_PROCESSES} \
                     -bind-to none \
-                    -x NCCL_NET_GDR_LEVEL="SYS" \
                     -x CUDA_DEVICE_ORDER=PCI_BUS_ID \
-                    -x CUDA_VISIBLE_DEVICES=${cuda_devices} \
+                    -x NCCL_NET_GDR_LEVEL=SYS \
+                    -x NCCL_IB_DISABLE=0 \
                     -x NCCL_SHM_DISABLE=1 \
-                    -x UCX_NET_DEVICES=${hcp_ports} \
-                    -x NCCL_IB_HCA=${hcp_ports} \
+                    -x NCCL_NVLS_ENABLE=1 \
+                    -x NCCL_MNNVL_ENABLE=0 \
                     /opt/nccl_tests/build/all_reduce_perf \
                       -b 8 \
                       -e 8G \
@@ -73,7 +62,7 @@ spec:
         spec:
           containers:
             - name: nccl-worker
-              image: telescope.azurecr.io/azure/aks-rdma-infiniband/nccl-tests:latest
+              image: telescope.azurecr.io/aks-rdma-infiniband/nccl-tests:{{nccl_tests_version}}
               imagePullPolicy: IfNotPresent
               resources:
                 limits:

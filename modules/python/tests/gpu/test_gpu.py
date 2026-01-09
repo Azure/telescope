@@ -520,6 +520,7 @@ class TestGPU(unittest.TestCase):
             run_id=self.test_run_id,
             run_url=self.test_run_url,
             cloud_info=self.test_cloud_info,
+            nccl_tests_version="amd64",
         )
 
         mock_parse.assert_called_once_with(f"{self.test_result_dir}/raw.log")
@@ -577,6 +578,7 @@ class TestGPU(unittest.TestCase):
             gpu_allocatable=4,
             ib_allocatable=None,
             efa_allocatable=None,
+            nccl_tests_version="amd64",
         )
 
         main()
@@ -590,6 +592,7 @@ class TestGPU(unittest.TestCase):
             gpu_allocatable=4,
             ib_allocatable=None,
             efa_allocatable=None,
+            nccl_tests_version="amd64",
         )
 
     @patch("gpu.main.collect")
@@ -606,6 +609,7 @@ class TestGPU(unittest.TestCase):
             run_id=self.test_run_id,
             run_url=self.test_run_url,
             cloud_info=self.test_cloud_info,
+            nccl_tests_version="amd64",
         )
 
         main()
@@ -615,6 +619,7 @@ class TestGPU(unittest.TestCase):
             run_id=self.test_run_id,
             run_url=self.test_run_url,
             cloud_info=self.test_cloud_info,
+            nccl_tests_version="amd64",
         )
 
     @patch("gpu.main.collect")
