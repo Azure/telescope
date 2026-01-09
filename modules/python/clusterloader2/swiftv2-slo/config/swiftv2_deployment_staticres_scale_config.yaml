@@ -2,6 +2,8 @@ name: deployment-churn
 
 {{$podsPerNode := DefaultParam .CL2_PODS_PER_NODE 1}}
 {{$podsPerStep := DefaultParam .CL2_PODS_PER_STEP 7}}
+{{$podsPerPNI := .CL2_PODS_PER_PNI}}
+{{$numPNIs := DivideInt $podsPerStep $podsPerPNI}}
 {{$nodes := DefaultParam .CL2_NODES 1000}}
 {{$total_pods := DefaultParam .CL2_TOTAL_PODS 7000}}
 {{$steps := DefaultParam .CL2_STEPS 1}}
@@ -62,24 +64,24 @@ steps:
         labelSelector: podgroup={{$groupName}}
         threshold: {{$podStartupLatencyThreshold}}
   {{range $j := Loop $steps}}
-  - name: Create PNI -{{$j}}
+  - name: Create PNIs for step {{$j}}
     phases:
-    - namespaceRange:
-        min: 1
-        max: 1
-      replicasPerNamespace: 1
-      tuningSet: DeploymentCreatePNIQps
-      objectBundle:
-      - basename: pod-network-instance-{{$j}}
-        objectTemplatePath: pni_static_template.yaml
-        templateFillMap:
-              ReservationSize: {{$podsPerStep}}
+      - namespaceRange:
+          min: 1
+          max: 1
+        replicasPerNamespace: {{$numPNIs}}
+        tuningSet: DeploymentCreateQps
+        objectBundle:
+          - basename: pod-network-instance-{{$j}}
+            objectTemplatePath: pni_static_template.yaml
+            templateFillMap:
+              ReservationSize: {{$podsPerPNI}}
   - name: Wait for PNI to be created and nodes to be registered -{{$j}}
     measurements:
       - Identifier: WaitForPNI-{{$j}}
         Method: Sleep
         Params:
-          duration: 30s
+          duration: 60s
   - name: Starting Deployment Latency Measurements -{{$j}}
     measurements:
     - Identifier: WaitForControlledPodsRunning-{{$j}}
@@ -90,24 +92,24 @@ steps:
         kind: Deployment
         labelSelector: group={{$groupName}}-{{$j}}
         operationTimeout: {{$operationTimeout}}
-  - name: Create Deployments {{$j}}
+  - name: Create Deployments for step {{$j}}
     phases:
       - namespaceRange:
           min: 1
           max: 1
-        replicasPerNamespace: 1
+        replicasPerNamespace: {{$podsPerStep}}
         tuningSet: DeploymentCreateQps
         objectBundle:
           - basename: deployment-churn-{{$j}}
-            objectTemplatePath: swiftv2_deployment_template.yaml
+            objectTemplatePath: swiftv2_deployment_single_pod_template.yaml
             templateFillMap:
-              Replicas: {{$podsPerStep}}
               Group: {{$groupName}}-{{$j}}
               PodGroup: {{$groupName}}
               CpuRequest: {{$latencyPodCpu}}m
               MemoryRequest: {{$latencyPodMemory}}M
               deploymentLabel: start
-              pniName: pod-network-instance-{{$j}}-0
+              StepIndex: {{$j}}
+              PodsPerPNI: {{$podsPerPNI}}
               Location: {{$.CL2_LOCATION}}
               DevicePluginEnabled: {{$devicePluginEnabled}}
               ProbeTarget: {{$probeTargetUrl}}

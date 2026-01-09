@@ -5,9 +5,9 @@ metadata:
   labels:
     group: {{.Group}}
     kubernetes.azure.com/pod-network: pn100
-    kubernetes.azure.com/pod-network-instance: {{.pniName}}
+    kubernetes.azure.com/pod-network-instance: pod-network-instance-{{.StepIndex}}-{{DivideInt .Index .PodsPerPNI}}
 spec:
-  replicas: {{.Replicas}}
+  replicas: 1
   selector:
     matchLabels:
       name: {{.Name}}
@@ -20,7 +20,7 @@ spec:
         group: {{.Group}}
         podgroup: {{.PodGroup}}
         kubernetes.azure.com/pod-network: pn100
-        kubernetes.azure.com/pod-network-instance: {{.pniName}}
+        kubernetes.azure.com/pod-network-instance: pod-network-instance-{{.StepIndex}}-{{DivideInt .Index .PodsPerPNI}}
         restart: {{.deploymentLabel}}
     spec:
       serviceAccountName: reporter-sa-0

@@ -46,6 +46,7 @@ def configure_clusterloader2(
     num_cnps,
     num_ccnps,
     dualstack,
+    pods_per_pni,
     override_file):
 
     steps = node_count * pods_per_node // pods_per_step if pods_per_step else 1
@@ -58,6 +59,7 @@ def configure_clusterloader2(
         file.write(f"CL2_NODES_PER_NAMESPACE: {nodes_per_namespace}\n")
         file.write(f"CL2_PODS_PER_NODE: {pods_per_node}\n")
         file.write(f"CL2_PODS_PER_STEP: {pods_per_step}\n")
+        file.write(f"CL2_PODS_PER_PNI: {pods_per_pni}\n")
         file.write(f"CL2_TOTAL_PODS: {total_pods}\n")
         file.write(f"CL2_LATENCY_POD_CPU: {cpu_request}\n")
         file.write(f"CL2_REPEATS: {repeats}\n")
@@ -162,6 +164,7 @@ def collect_clusterloader2(
     pods_per_node,
     max_pods,
     repeats,
+    pods_per_pni,
     cl2_report_dir,
     cloud_info,
     run_id,
@@ -190,6 +193,7 @@ def collect_clusterloader2(
         "cpu_per_node": cpu_per_node,
         "node_count": node_count,
         "pod_count": pod_count,
+        "pods_per_pni": pods_per_pni,
         "churn_rate": repeats,
         "status": status,
         "group": None,
@@ -256,6 +260,7 @@ def main():
     parser_configure.add_argument("num_cnps", type=int, nargs='?', default=0)
     parser_configure.add_argument("num_ccnps", type=int, nargs='?', default=0)
     parser_configure.add_argument("dualstack", type=str2bool, choices=[True, False], nargs='?', default=False)
+    parser_configure.add_argument("pods_per_pni", type=int, nargs='?', default=0)
     parser_configure.add_argument("cl2_override_file", type=str)
 
     parser_validate = subparsers.add_parser("validate", help="Validate cluster setup")
@@ -279,6 +284,7 @@ def main():
     parser_collect.add_argument("pods_per_node", type=int)
     parser_collect.add_argument("max_pods", type=int, nargs='?', default=0)
     parser_collect.add_argument("repeats", type=int)
+    parser_collect.add_argument("pods_per_pni", type=int, nargs='?', default=0)
     parser_collect.add_argument("cl2_report_dir", type=str)
     parser_collect.add_argument("cloud_info", type=str)
     parser_collect.add_argument("run_id", type=str)
@@ -298,7 +304,7 @@ def main():
                                  args.repeats, args.operation_timeout, args.provider,
                                  args.cilium_enabled, args.scrape_containerd,
                                  args.service_test, args.cnp_test, args.ccnp_test, args.ds_test,
-                                 args.num_cnps, args.num_ccnps, args.dualstack, args.cl2_override_file)
+                                 args.num_cnps, args.num_ccnps, args.dualstack, args.pods_per_pni, args.cl2_override_file)
     elif args.command == "validate":
         validate_clusterloader2(args.node_count, args.operation_timeout, args.node_label)
     elif args.command == "execute":
@@ -306,7 +312,7 @@ def main():
                                args.kubeconfig, args.provider, args.scrape_containerd)
     elif args.command == "collect":
         collect_clusterloader2(args.cpu_per_node, args.node_count, args.pods_per_step, args.pods_per_node, args.max_pods, args.repeats,
-                               args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
+                               args.pods_per_pni, args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
                                args.service_test, args.cnp_test, args.ccnp_test, args.ds_test,
                                args.result_file, args.test_type, args.start_timestamp)
 
