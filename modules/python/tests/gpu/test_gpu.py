@@ -577,6 +577,7 @@ class TestGPU(unittest.TestCase):
             gpu_allocatable=4,
             ib_allocatable=None,
             efa_allocatable=None,
+            nccl_tests_version="amd64",
         )
 
         main()
@@ -590,6 +591,7 @@ class TestGPU(unittest.TestCase):
             gpu_allocatable=4,
             ib_allocatable=None,
             efa_allocatable=None,
+            nccl_tests_version="amd64",
         )
 
     @patch("gpu.main.collect")
