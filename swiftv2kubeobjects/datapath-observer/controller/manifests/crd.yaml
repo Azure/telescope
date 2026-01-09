@@ -35,6 +35,8 @@ spec:
                     type: string
                   uid:
                     type: string
+                  nodeName:
+                    type: string
                 required:
                 - namespace
                 - name
