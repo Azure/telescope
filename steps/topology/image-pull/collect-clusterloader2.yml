@@ -11,11 +11,11 @@ parameters:
 
 steps:
 - script: |
-    registry_info="{}"
+    registry_info_str="{}"
     if [[ "${SCRAPE_REGISTRY,,}" == "true" && "$CLOUD" == "azure" ]]; then
+      echo "Scraping registry info for $REGISTRY_ENDPOINT..."
       az config unset defaults.location
 
-      echo "Scraping registry info for $REGISTRY_ENDPOINT..."
       registry_name=""
       if [ -n "$REGISTRY_ENDPOINT" ]; then
         registry_name=$(az resource list --resource-type Microsoft.ContainerRegistry/registries \
@@ -36,6 +36,8 @@ steps:
             publicNetworkAccess:publicNetworkAccess,
             sku:sku
           }")
+        registry_info_str=$(echo $registry_info | jq -c .)
+        echo "Registry info: $registry_info_str"
       fi
 
       az config set defaults.location="$REGION"
@@ -43,7 +45,6 @@ steps:
       echo "Skipping registry info scrape as SCRAPE_REGISTRY='$SCRAPE_REGISTRY' or CLOUD='$CLOUD'"
     fi
 
-    registry_info_str=$(echo $registry_info | jq -c .)
     echo "##vso[task.setvariable variable=registry_info;]$registry_info_str"
   name: collectRegistry
   workingDirectory: modules/python
