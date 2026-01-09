@@ -132,7 +132,13 @@ aks_cli_config_list = [
       node_count = 10
       vm_size    = "Standard_D16s_v5"
     }
-    extra_node_pool = []
+    extra_node_pool = [
+      {
+        name       = "prompool"
+        node_count = 5
+        vm_size    = "Standard_D16_v3"
+      }
+    ]
     optional_parameters = [
       {
         name  = "node-provisioning-mode"
