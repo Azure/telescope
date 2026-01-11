@@ -18,6 +18,7 @@ name: resource-consumer
 {{$loadType := DefaultParam .CL2_LOAD_TYPE "memory"}}
 
 {{$provider := DefaultParam .CL2_PROVIDER "aks"}}
+{{$registryEndpoint := DefaultParam .CL2_REGISTRY_ENDPOINT "akscritelescope.azure.io" }}
 {{$osType := DefaultParam .CL2_OS_TYPE "linux"}}
 {{$scrapeKubelets := DefaultParam .CL2_SCRAPE_KUBELETS false}}
 {{$scrapeContainerd := DefaultParam .CL2_SCRAPE_CONTAINERD false}}
@@ -107,6 +108,7 @@ steps:
           CPURequest: {{$cpu}}m
           LoadType: {{$loadType}}
           Provider: {{$provider}}
+          RegistryEndpoint: {{$registryEndpoint}}
           OSType: {{$osType}}
           HostNetwork: {{$hostNetwork}}
 

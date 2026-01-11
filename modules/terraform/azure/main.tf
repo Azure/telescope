@@ -13,14 +13,17 @@ locals {
   aks_aad_enabled                   = lookup(var.json_input, "aks_aad_enabled", false)
   enable_apiserver_vnet_integration = lookup(var.json_input, "enable_apiserver_vnet_integration", false)
 
-  tags = {
-    "owner"             = var.owner
-    "scenario"          = "${var.scenario_type}-${var.scenario_name}"
-    "creation_time"     = timestamp()
-    "deletion_due_time" = timeadd(timestamp(), var.deletion_delay)
-    "run_id"            = local.run_id
-    "SkipAKSCluster"    = "1"
-  }
+  tags = merge(
+    var.tags,
+    {
+      "owner"             = var.owner
+      "scenario"          = "${var.scenario_type}-${var.scenario_name}"
+      "creation_time"     = timestamp()
+      "deletion_due_time" = timeadd(timestamp(), var.deletion_delay)
+      "run_id"            = local.run_id
+      "SkipAKSCluster"    = "1"
+    }
+  )
 
   network_config_map = { for network in var.network_config_list : network.role => network }
 
