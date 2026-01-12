@@ -21,6 +21,7 @@ name: resource-consumer
 {{$registryEndpoint := DefaultParam .CL2_REGISTRY_ENDPOINT "akscritelescope.azure.io" }}
 {{$osType := DefaultParam .CL2_OS_TYPE "linux"}}
 {{$scrapeKubelets := DefaultParam .CL2_SCRAPE_KUBELETS false}}
+{{$scrapeContainerd := DefaultParam .CL2_SCRAPE_CONTAINERD false}}
 {{$hostNetwork := DefaultParam .CL2_HOST_NETWORK "true"}}
 
 namespace:
@@ -64,6 +65,13 @@ steps:
   {{if $scrapeKubelets}}
   - module:
       path: /kubelet-measurement.yaml
+      params:
+        action: start
+  {{end}}
+
+  {{if $scrapeContainerd}}
+  - module:
+      path: /containerd-measurements.yaml
       params:
         action: start
   {{end}}
@@ -139,6 +147,13 @@ steps:
   {{if $scrapeKubelets}}
   - module:
       path: /kubelet-measurement.yaml
+      params:
+        action: gather
+  {{end}}
+
+  {{if $scrapeContainerd}}
+  - module:
+      path: /containerd-measurements.yaml
       params:
         action: gather
   {{end}}
