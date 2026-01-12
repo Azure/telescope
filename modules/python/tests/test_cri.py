@@ -65,6 +65,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             scrape_kubelets=True,
             host_network=True,
             scrape_containerd=False,
+            containerd_scrape_interval="15s",
             override_file="/mock/override.yaml"
         )
 
@@ -122,6 +123,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             scrape_kubelets=False,
             host_network=False,
             scrape_containerd=False,
+            containerd_scrape_interval="15s",
             override_file="/mock/override.yaml"
         )
 
@@ -239,12 +241,13 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             "--scrape_kubelets", "False", 
             "--host_network", "False",
             "--scrape_containerd", "False",
+            "--containerd_scrape_interval", "20s",
             "--cl2_override_file", "/tmp/override.yaml"
         ]
         with patch.object(sys, 'argv', test_args):
             main()
             mock_override.assert_called_once_with(
-                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "test registry endpoint", "linux", False, False, False, "/tmp/override.yaml"
+                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "test registry endpoint", "linux", False, False, "20s", False, "/tmp/override.yaml"
             )
 
     @patch("clusterloader2.cri.cri.override_config_clusterloader2")
@@ -269,7 +272,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
         with patch.object(sys, 'argv', test_args):
             main()
             mock_override.assert_called_once_with(
-                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "test registry endpoint", "linux", False, False, True, "/tmp/override.yaml"
+                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "test registry endpoint", "linux", False, False, "15s", True, "/tmp/override.yaml"
             )
 
     @patch("clusterloader2.cri.cri.execute_clusterloader2")

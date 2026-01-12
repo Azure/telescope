@@ -17,7 +17,7 @@ MEMORY_SCALE_FACTOR = 0.95 # 95% of the total allocatable memory to account for 
 def override_config_clusterloader2(
     node_count, node_per_step, max_pods, repeats, operation_timeout,
     load_type, scale_enabled, pod_startup_latency_threshold, provider,
-    registry_endpoint, os_type, scrape_kubelets, scrape_containerd, host_network, override_file):
+    registry_endpoint, os_type, scrape_kubelets, scrape_containerd, containerd_scrape_interval, host_network, override_file):
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
     nodes = client.get_nodes(label_selector="cri-resource-consume=true")
     if len(nodes) == 0:
@@ -93,7 +93,7 @@ def override_config_clusterloader2(
         file.write(f"CL2_SCRAPE_KUBELETS: {str(scrape_kubelets).lower()}\n")
         file.write(f"CL2_SCRAPE_CONTAINERD: {str(scrape_containerd).lower()}\n")
         if scrape_containerd:
-            file.write("CONTAINERD_SCRAPE_INTERVAL: 15s\n")
+            file.write(f"CONTAINERD_SCRAPE_INTERVAL: {containerd_scrape_interval}\n")
         file.write(f"CL2_HOST_NETWORK: {str(host_network).lower()}\n")
 
     file.close()
@@ -279,6 +279,12 @@ def main():
         help="Whether to scrape containerd",
     )
     parser_override.add_argument(
+        "--containerd_scrape_interval",
+        type=str,
+        default="15s",
+        help="Containerd scrape interval (e.g., 15s, 30s)",
+    )
+    parser_override.add_argument(
         "--host_network",
         type=str2bool,
         choices=[True, False],
@@ -386,6 +392,7 @@ def main():
             args.os_type,
             args.scrape_kubelets,
             args.scrape_containerd,
+            args.containerd_scrape_interval,
             args.host_network,
             args.cl2_override_file,
         )
