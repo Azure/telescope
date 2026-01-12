@@ -1,0 +1,165 @@
+{{$deploymentTemplatePath := DefaultParam .CL2_DEPLOYMENT_TEMPLATE_PATH "deployment_template.yaml"}}
+{{$deploymentSize := DefaultParam .CL2_DEPLOYMENT_SIZE 100}}
+{{$deploymentCpu := DefaultParam .CL2_DEPLOYMENT_CPU "346m"}}
+{{$deploymentMemory := DefaultParam .CL2_DEPLOYMENT_MEMORY "100Mi"}}
+{{$nodeSelector := DefaultParam .CL2_NODE_SELECTOR  "{karpenter.sh/nodepool: default}"}}
+{{$podLabelSelector := DefaultParam .CL2_POD_LABEL_SELECTOR "app = inflate"}}
+{{$scaleUpTimeout := DefaultParam .CL2_SCALE_UP_TIMEOUT "30m"}}
+{{$scaleDownTimeout := DefaultParam .CL2_SCALE_DOWN_TIMEOUT "10m"}}
+{{$refreshInterval := DefaultParam .CL2_REFRESH_INTERVAL "5s"}}
+{{$loopCount := DefaultParam .CL2_LOOP_COUNT 1}}
+{{$coolDownTime := DefaultParam .CL2_COOLDOWN_TIME "120s"}}
+{{$osType := DefaultParam .CL2_OS_TYPE "linux"}}
+{{$countErrorMargin := MultiplyInt .CL2_DEPLOYMENT_SIZE 0.01}}
+
+name: autoscale
+namespace:
+  number: 1
+  prefix: autoscale
+  deleteStaleNamespaces: true
+  deleteAutomanagedNamespaces: true
+  enableExistingNamespaces: true
+
+tuningSets:
+- name: Uniform1qps
+  qpsLoad:
+    qps: 20
+
+steps:
+{{range $i := Loop $loopCount}}
+- name: Start Measurements {{$i}}
+  measurements:
+  - Identifier: ResourceUsageSummary
+    Method: ResourceUsageSummary
+    Params:
+      action: start
+  - Identifier: PodStartupLatency
+    Method: PodStartupLatency
+    Params:
+      action: start
+      labelSelector: {{$podLabelSelector}}
+      threshold: {{$scaleUpTimeout}}
+  - Identifier: SchedulingThroughput
+    Method: SchedulingThroughput
+    Params:
+      action: start
+      labelSelector: {{$podLabelSelector}}
+- name: Create deployment {{$i}}
+  phases:
+  - namespaceRange:
+      min: 1
+      max: 1
+    replicasPerNamespace: 1
+    tuningSet: Uniform1qps
+    objectBundle:
+    - basename: inflate
+      objectTemplatePath: {{$deploymentTemplatePath}}
+      templateFillMap:
+        Replicas: {{$deploymentSize}}
+        CPUperJob: {{$deploymentCpu}}
+        MemoryRequest: {{$deploymentMemory}}
+        NodeSelector: {{ (StructuralData $nodeSelector) }}
+        OSType: {{$osType}}
+- name: Measure nodes and pods scale up {{$i}}
+  measurements:
+  - Identifier: WaitForRunningPodsUp {{$i}}
+    Method: WaitForRunningPods
+    Params:
+      action: start
+      desiredPodCount: {{$deploymentSize}}
+      countErrorMargin: {{$countErrorMargin}}
+      labelSelector: {{$podLabelSelector}}
+      timeout: {{$scaleUpTimeout}}
+      refreshInterval: {{$refreshInterval}}
+- name: Capture Metrics After Scale Up {{$i}}
+  measurements:
+  - Identifier: ResourceMetrics{{$i}}
+    Method: GenericPrometheusQuery
+    Params:
+      action: start
+      metricName: Resource Metrics Summary
+      metricVersion: v1
+      unit: mixed
+      queries:
+      # Node Level Summary
+      - name: TotalNodes
+        query: count(kube_node_status_allocatable{resource="cpu"})
+      - name: NodeCPUAllocatable
+        query: sum(kube_node_status_allocatable{resource="cpu"})
+      - name: NodeMemoryAllocatable
+        query: sum(kube_node_status_allocatable{resource="memory"})
+      # Node CPU Usage Stats (from kubelet/cAdvisor - container metrics aggregated by node)
+      - name: NodeCPUUsageAvg
+        query: avg(sum by (instance) (rate(container_cpu_usage_seconds_total{id="/"}[2m])))
+      - name: NodeCPUUsageMax
+        query: max(sum by (instance) (rate(container_cpu_usage_seconds_total{id="/"}[2m])))
+      - name: NodeCPUUsageMin
+        query: min(sum by (instance) (rate(container_cpu_usage_seconds_total{id="/"}[2m])))
+      # Node Memory Usage Stats (from kubelet/cAdvisor - container metrics aggregated by node)
+      - name: NodeMemoryUsageAvg
+        query: avg(sum by (instance) (container_memory_working_set_bytes{id="/"}))
+      - name: NodeMemoryUsageMax
+        query: max(sum by (instance) (container_memory_working_set_bytes{id="/"}))
+      - name: NodeMemoryUsageMin
+        query: min(sum by (instance) (container_memory_working_set_bytes{id="/"}))
+      # Pod Level Summary
+      - name: TotalPods
+        query: count(kube_pod_status_phase{phase="Running"})
+      # Pod Distribution Summary
+      - name: PodsPerNodeAvg
+        query: avg(count by (node) (kube_pod_info{node!=""}))
+      - name: PodsPerNodeMax
+        query: max(count by (node) (kube_pod_info{node!=""}))
+      - name: PodsPerNodeMin
+        query: min(count by (node) (kube_pod_info{node!=""}))
+- name: Gather Measurements {{$i}}
+  measurements:
+  - Identifier: PodStartupLatency
+    Method: PodStartupLatency
+    Params:
+      action: gather
+  - Identifier: SchedulingThroughput
+    Method: SchedulingThroughput
+    Params:
+      action: gather
+  - Identifier: ResourceUsageSummary
+    Method: ResourceUsageSummary
+    Params:
+      action: gather
+  - Identifier: ResourceMetrics{{$i}}
+    Method: GenericPrometheusQuery
+    Params:
+      action: gather
+- name: WaitBeforeDelete
+  measurements:
+  - Identifier: WaitBeforeDelete
+    Method: Sleep
+    Params:
+      action: start
+      duration: {{$coolDownTime}}
+- name: Delete deployment {{$i}}
+  phases:
+  - namespaceRange:
+      min: 1
+      max: 1
+    replicasPerNamespace: 0
+    tuningSet: Uniform1qps
+    objectBundle:
+    - basename: inflate
+      objectTemplatePath: {{$deploymentTemplatePath}}
+      templateFillMap:
+        Replicas: {{$deploymentSize}}
+        CPUperJob: {{$deploymentCpu}}
+        MemoryRequest: {{$deploymentMemory}}
+        OSType: {{$osType}}
+- name: Measure nodes and pods scale down {{$i}}
+  measurements:
+  - Identifier: WaitForRunningPodsDown {{$i}}
+    Method: WaitForRunningPods
+    Params:
+      action: start
+      desiredPodCount: 0
+      labelSelector: {{$podLabelSelector}}
+      timeout: {{$scaleDownTimeout}}
+      refreshInterval: {{$refreshInterval}}
+{{end}}

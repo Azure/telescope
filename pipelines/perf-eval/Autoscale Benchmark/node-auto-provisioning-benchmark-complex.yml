@@ -30,18 +30,18 @@ stages:
           topology: karpenter
           matrix:
             complex-nap:
-              cpu_per_node: 2
-              node_count: 5
-              pod_count: 5
+              pod_count: 5000
+              pod_cpu_request: 16
+              pod_memory_request: "60Gi"
               scale_up_timeout: "15m"
               scale_down_timeout: "15m"
-              node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D2s_v4
               capacity_type: on-demand
+              cl2_config_file: "ms_complex_config.yaml"
+              karpenter_nodepool_file: "karpenter_complex_nodepool.azure.yml"
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
