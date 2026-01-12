@@ -46,6 +46,6 @@ stages:
               scrape_kubelets: True
               scarepe_ksm: True
           max_parallel: 1
-          timeout_in_minutes: 60
+          timeout_in_minutes: 180
           credential_type: service_connection
           ssh_key_enabled: false
