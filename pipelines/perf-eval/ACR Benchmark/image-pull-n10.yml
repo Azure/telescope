@@ -38,7 +38,7 @@ stages:
               registry_endpoint: acrtelescope.azurecr.io
               kubernetes_version: "1.34"
               pod_startup_latency_threshold: 20s
-              anonymous_pull: true
+              anonymous_pull: True
             image-pull-10pods-authenticated:
               node_count: 10
               max_pods: 30
@@ -52,7 +52,7 @@ stages:
               registry_endpoint: acrtelescope.azurecr.io
               kubernetes_version: "1.34"
               pod_startup_latency_threshold: 20s
-              anonymous_pull: false
+              anonymous_pull: False
           max_parallel: 1
           credential_type: service_connection
           ssh_key_enabled: false
