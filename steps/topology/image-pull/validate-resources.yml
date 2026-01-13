@@ -11,6 +11,10 @@ steps:
   parameters:
     role: client
     region: ${{ parameters.regions[0] }}
+- ${{ if eq(parameters.cloud, 'azure') }}:
+  - template: /steps/cloud/azure/authenticate-acr.yml
+    parameters:
+      region: ${{ parameters.regions[0] }}
 - template: /steps/engine/clusterloader2/large-cluster/validate.yml
   parameters:
     desired_nodes: 14

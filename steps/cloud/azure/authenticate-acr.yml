@@ -1,0 +1,52 @@
+parameters:
+- name: cloud
+  type: string
+- name: region
+  type: string
+
+step:
+  script: |
+    set -euo pipefail
+    set -x
+
+    anonymous_pull="${ANONYMOUS_PULL:-true}"
+    anonymous_pull="${anonymous_pull,,}"
+
+    acr_name=""
+    if [[ -n "$REGISTRY_ENDPOINT" ]]; then
+        acr_name=$(az resource list --resource-type Microsoft.ContainerRegistry/registries \
+          --name "${REGISTRY_ENDPOINT%%.*}" \
+          --query "[0].name" --output tsv)
+    fi
+
+    [[ -n "$acr_name" ]] || exit 0
+
+    if [[ "$anonymous_pull" == "true" ]]; then
+      anonymous_pull_enabled=$(az acr show --name $acr_name \
+        --query "anonymousPullEnabled" --output tsv)
+
+      if [[ "$anonymous_pull_enabled" == "false" ]]; then
+        echo "Enabling anonymous pull for ACR $acr_name"
+        az acr update --name $acr_name --anonymous-pull-enabled true
+      fi
+    else
+      role_assignment_mode=$(az acr show --name $acr_name \
+        --query "roleAssignmentMode" --output tsv)
+
+      if [[ "$role_assignment_mode" == "AbacRepositoryPermissions" ]]; then
+        echo "Updating role assignment mode from rbac-abac to rbac for ACR $acr_name"
+        az acr update --name $acr_name --role-assignment-mode "rbac"
+      fi
+
+      aks_name=$(az resource list --resource-type Microsoft.ContainerService/managedClusters \
+          --resource-group $RUN_ID --query "[0].name" --location $REGION  --output tsv)
+
+      [[ -n "$aks_name" ]] || { echo "No AKS cluster found in resouce group '$RUN_ID' and region '$REGION'"; exit 1; }
+
+      az aks update --name $aks_name --resource-group $RUN_ID --attach-acr $acr_name
+    fi
+
+  env:
+    RUN_ID: $(RUN_ID)
+    REGION: ${{ parameters.region }}
+  displayName: "Authenticate ACR from AKS"
