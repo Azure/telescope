@@ -14,10 +14,12 @@ logger = get_logger(__name__)
 
 MEMORY_SCALE_FACTOR = 0.95 # 95% of the total allocatable memory to account for error margin
 
+# TODO: Refactor to use a config dataclass to reduce number of arguments
+# Reference: modules/python/clusterloader2/job_controller/job_controller.py
 def override_config_clusterloader2(
     node_count, node_per_step, max_pods, repeats, operation_timeout,
     load_type, scale_enabled, pod_startup_latency_threshold, provider,
-    os_type, scrape_kubelets, host_network, override_file):
+    registry_endpoint, os_type, scrape_kubelets, scrape_containerd, containerd_scrape_interval, host_network, override_file):
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
     nodes = client.get_nodes(label_selector="cri-resource-consume=true")
     if len(nodes) == 0:
@@ -88,16 +90,22 @@ def override_config_clusterloader2(
         file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
         file.write(f"CL2_POD_STARTUP_LATENCY_THRESHOLD: {pod_startup_latency_threshold}\n")
         file.write(f"CL2_PROVIDER: {provider}\n")
+        file.write(f"CL2_REGISTRY_ENDPOINT: {registry_endpoint}\n")
         file.write(f"CL2_OS_TYPE: {os_type}\n")
         file.write(f"CL2_SCRAPE_KUBELETS: {str(scrape_kubelets).lower()}\n")
+        file.write(f"CL2_SCRAPE_CONTAINERD: {str(scrape_containerd).lower()}\n")
+        if scrape_containerd:
+            file.write(f"CONTAINERD_SCRAPE_INTERVAL: {containerd_scrape_interval}\n")
         file.write(f"CL2_HOST_NETWORK: {str(host_network).lower()}\n")
 
     file.close()
 
-def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider, scrape_kubelets):
+def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider, scrape_kubelets, scrape_containerd):
     run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True, enable_prometheus=True,
-                    tear_down_prometheus=False, scrape_kubelets=scrape_kubelets)
+                    tear_down_prometheus=False, scrape_kubelets=scrape_kubelets, scrape_containerd=scrape_containerd)
 
+# Note: verify_measurement only checks kubelet metrics (accessible via node proxy endpoint).
+# Containerd metrics are only available via Prometheus and cannot be verified here.
 def verify_measurement():
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
     nodes = client.get_nodes(label_selector="cri-resource-consume=true")
@@ -141,10 +149,17 @@ def collect_clusterloader2(
     run_id,
     run_url,
     result_file,
-    scrape_kubelets
+    scrape_kubelets,
+    registry_info=""
 ):
     if scrape_kubelets:
         verify_measurement()
+
+    if registry_info:
+        cloud_info = json.dumps({
+            **json.loads(cloud_info or "{}"),
+            "registry": json.loads(registry_info),
+        })
 
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent = 2)
     json_data = json.loads(details)
@@ -259,6 +274,19 @@ def main():
         help="Whether to scrape kubelets",
     )
     parser_override.add_argument(
+        "--scrape_containerd",
+        type=str2bool,
+        choices=[True, False],
+        default=False,
+        help="Whether to scrape containerd",
+    )
+    parser_override.add_argument(
+        "--containerd_scrape_interval",
+        type=str,
+        default="15s",
+        help="Containerd scrape interval (e.g., 15s, 30s)",
+    )
+    parser_override.add_argument(
         "--host_network",
         type=str2bool,
         choices=[True, False],
@@ -267,6 +295,9 @@ def main():
     )
     parser_override.add_argument(
         "--cl2_override_file", type=str, help="Path to the overrides of CL2 config file"
+    )
+    parser_override.add_argument(
+        "--registry_endpoint", type=str, help="Container registry endpoint"
     )
 
     # Sub-command for execute_clusterloader2
@@ -290,6 +321,13 @@ def main():
         choices=[True, False],
         default=False,
         help="Whether to scrape kubelets",
+    )
+    parser_execute.add_argument(
+        "--scrape_containerd",
+        type=str2bool,
+        choices=[True, False],
+        default=False,
+        help="Whether to scrape containerd",
     )
 
     # Sub-command for collect_clusterloader2
@@ -328,6 +366,16 @@ def main():
         default=False,
         help="Whether to scrape kubelets",
     )
+    parser_collect.add_argument(
+        "--scrape_registry",
+        type=str2bool,
+        choices=[True, False],
+        default=False,
+        help="Whether to scrape container registry information",
+    )
+    parser_collect.add_argument(
+        "--registry_info", type=str, help="Container registry information scraped",
+    )
 
     args = parser.parse_args()
 
@@ -342,8 +390,11 @@ def main():
             args.scale_enabled,
             args.pod_startup_latency_threshold,
             args.provider,
+            args.registry_endpoint,
             args.os_type,
             args.scrape_kubelets,
+            args.scrape_containerd,
+            args.containerd_scrape_interval,
             args.host_network,
             args.cl2_override_file,
         )
@@ -355,6 +406,7 @@ def main():
             args.kubeconfig,
             args.provider,
             args.scrape_kubelets,
+            args.scrape_containerd,
         )
     elif args.command == "collect":
         collect_clusterloader2(
@@ -368,6 +420,7 @@ def main():
             args.run_url,
             args.result_file,
             args.scrape_kubelets,
+            args.registry_info
         )
 
 if __name__ == "__main__":

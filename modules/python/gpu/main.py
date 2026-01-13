@@ -69,6 +69,7 @@ def execute(
     gpu_allocatable: int = 1,
     ib_allocatable: int = 1,
     efa_allocatable: int = 1,
+    nccl_tests_version: str = "amd64",
 ):
     """
     Execute nccl-tests
@@ -83,6 +84,7 @@ def execute(
         gpu_allocatable: Number of GPUs per node (default: 1)
         ib_allocatable: Number of InfiniBand resources per node (Azure only, default: 1)
         efa_allocatable: Number of EFA resources per node (AWS only, default: 1)
+        nccl_tests_version: NCCL tests image tag version (e.g., "amd64", "arm64", default: "amd64")
     """
     if gpu_node_count < 1:
         raise ValueError(f"gpu_node_count must be at least 1, got {gpu_node_count}")
@@ -104,6 +106,7 @@ def execute(
         "number_of_processes": gpu_node_count * gpu_allocatable,
         "worker_replicas": gpu_node_count,
         "gpu_allocatable": gpu_allocatable,
+        "nccl_tests_version": nccl_tests_version,
     }
 
     if provider.lower() == "azure":
@@ -155,7 +158,7 @@ def execute(
     logger.info(f"Results saved to {result_path}")
 
 
-def collect(result_dir: str, run_id: str, run_url: str, cloud_info: str) -> None:
+def collect(result_dir: str, run_id: str, run_url: str, cloud_info: str, nccl_tests_version: str = "amd64") -> None:
     """
     Collect and parse NCCL test results, saving them to a JSON file.
 
@@ -164,6 +167,7 @@ def collect(result_dir: str, run_id: str, run_url: str, cloud_info: str) -> None
         run_id: RUN_ID associated with the NCCL test run.
         run_url: URL associated with the NCCL test run.
         cloud_info: Information about the cloud environment where the test was run.
+        nccl_tests_version: NCCL tests image tag version (e.g., "amd64", "arm64", default: "amd64")
     """
     try:
         logger.info("Collecting NCCL test results...")
@@ -176,7 +180,8 @@ def collect(result_dir: str, run_id: str, run_url: str, cloud_info: str) -> None
             "operation_info": {
                 "test_type": "rdma",
                 "result": nccl_result,
-                "cloud_info": cloud_info
+                "cloud_info": cloud_info,
+                "nccl_tests_version": nccl_tests_version
             },
             "run_id": run_id,
             "run_url": run_url,
@@ -313,6 +318,13 @@ def main():
         default=1,
         help="Number of EFA resources per node (AWS only, default: 1)",
     )
+    execute_parser.add_argument(
+        "--nccl_tests_version",
+        type=str,
+        required=False,
+        default="amd64",
+        help="NCCL tests image tag version (e.g., 'amd64', 'arm64', default: 'amd64')",
+    )
 
     # Collect command to parse NCCL test results
     collect_parser = subparsers.add_parser(
@@ -327,6 +339,13 @@ def main():
     collect_parser.add_argument("--run_id", type=str, help="Run ID")
     collect_parser.add_argument("--run_url", type=str, help="Run URL")
     collect_parser.add_argument("--cloud_info", type=str, help="Cloud information")
+    collect_parser.add_argument(
+        "--nccl_tests_version",
+        type=str,
+        required=False,
+        default="amd64",
+        help="NCCL tests image tag version (e.g., 'amd64', 'arm64', default: 'amd64')",
+    )
 
     # Parse arguments
     args = parser.parse_args()
@@ -352,6 +371,7 @@ def main():
             gpu_allocatable=args.gpu_allocatable,
             ib_allocatable=args.ib_allocatable,
             efa_allocatable=args.efa_allocatable,
+            nccl_tests_version=args.nccl_tests_version,
         )
     elif args.command == "collect":
         collect(
@@ -359,6 +379,7 @@ def main():
             run_id=args.run_id,
             run_url=args.run_url,
             cloud_info=args.cloud_info,
+            nccl_tests_version=args.nccl_tests_version,
         )
     else:
         parser.print_help()

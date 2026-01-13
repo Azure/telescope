@@ -21,7 +21,7 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: nccl-launcher
-              image: public.ecr.aws/hpc-cloud/nccl-tests:latest
+              image: public.ecr.aws/hpc-cloud/nccl-tests:{{nccl_tests_version}}
               imagePullPolicy: IfNotPresent
               env:
                 - name: PATH
@@ -74,7 +74,7 @@ spec:
         spec:
           containers:
             - name: nccl-worker
-              image: public.ecr.aws/hpc-cloud/nccl-tests:latest
+              image: public.ecr.aws/hpc-cloud/nccl-tests:{{nccl_tests_version}}
               imagePullPolicy: IfNotPresent
               resources:
                 limits:
