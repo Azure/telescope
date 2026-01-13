@@ -304,6 +304,7 @@ def execute_clusterloader2(
         cl2_config_file,
         overrides=True,
         enable_prometheus=enable_prometheus,
+        tear_down_prometheus=False,
         scrape_kubelets=scrape_kubelets,
         scrape_ksm=scrape_ksm
     )
