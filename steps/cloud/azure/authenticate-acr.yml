@@ -38,10 +38,15 @@ step:
         az acr update --name $acr_name --role-assignment-mode "rbac"
       fi
 
-      aks_name=$(az resource list --resource-type Microsoft.ContainerService/managedClusters \
-          --resource-group $RUN_ID --query "[0].name" --location $REGION  --output tsv)
+      aks_name=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location $REGION \
+        --query "[?(tags.run_id == '${RUN_ID}' && tags.role == '$ROLE')].name" --output tsv
+      aks_rg=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location $region \
+        --query "[?(tags.run_id == '${RUN_ID}' && tags.role == '$ROLE')].resourceGroup" --output tsv)
 
-      [[ -n "$aks_name" ]] || { echo "No AKS cluster found in resouce group '$RUN_ID' and region '$REGION'"; exit 1; }
+      if [ -z "$aks_name" ]; then
+        echo "##vso[task.logissue type=error;] No AKS instance with role $ROLE and tag $RUN_ID found in region $region."
+        exit 1
+      fi
 
       az aks update --name $aks_name --resource-group $RUN_ID --attach-acr $acr_name
     fi
