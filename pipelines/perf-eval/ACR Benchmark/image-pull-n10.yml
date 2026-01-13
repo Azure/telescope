@@ -25,7 +25,18 @@ stages:
             image: "ghcr.io/azure/clusterloader2:v20250513"
           topology: image-pull
           matrix:
-            image-pull-10pods:
+            image-pull-10pods-anonymous:
+              node_count: 10
+              max_pods: 30
+              repeats: 1
+              operation_timeout: 3m
+              load_type: memory
+              scrape_containerd: True
+              scrape_kubelets: True
+              kubernetes_version: "1.34"
+              pod_startup_latency_threshold: 20s
+              anonymous_pull: true
+            image-pull-10pods-authenticated:
               node_count: 10
               max_pods: 30
               repeats: 1
