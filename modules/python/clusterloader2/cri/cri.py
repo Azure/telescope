@@ -14,6 +14,8 @@ logger = get_logger(__name__)
 
 MEMORY_SCALE_FACTOR = 0.95 # 95% of the total allocatable memory to account for error margin
 
+# TODO: Refactor to use a config dataclass to reduce number of arguments
+# Reference: modules/python/clusterloader2/job_controller/job_controller.py
 def override_config_clusterloader2(
     node_count, node_per_step, max_pods, repeats, operation_timeout,
     load_type, scale_enabled, pod_startup_latency_threshold, provider,
