@@ -11,42 +11,56 @@ steps:
     anonymous_pull="${anonymous_pull,,}"
 
     acr_name=""
+    acr_region=""
     if [[ -n "$REGISTRY_ENDPOINT" ]]; then
-        acr_name=$(az resource list --resource-type Microsoft.ContainerRegistry/registries \
-          --name "${REGISTRY_ENDPOINT%%.*}" \
-          --query "[0].name" --output tsv)
+        az config unset defaults.location
+
+        resource_info=$(az resource list --resource-type Microsoft.ContainerRegistry/registries \
+          --name "${REGISTRY_ENDPOINT%%.*}" --output json)
+        acr_name=$(echo "$resource_info" | jq -r '.[0].name')
+        acr_region=$(echo "$resource_info" | jq -r '.[0].location')
+
+        az config set defaults.location="$REGION"
     fi
 
     [[ -n "$acr_name" ]] || exit 0
 
-    acr_info=$(az acr show --name "$acr_name" --output json)
+    acr_info=$(az acr show --name "$acr_name" --location "$acr_region" --output json)
     anonymous_pull_enabled=$(echo "$acr_info" | jq -r '.anonymousPullEnabled')
     role_assignment_mode=$(echo "$acr_info" | jq -r '.roleAssignmentMode')
 
     if [[ "$anonymous_pull" == "true" ]]; then
       if [[ "$anonymous_pull_enabled" == "false" ]]; then
         echo "Enabling anonymous pull for ACR $acr_name"
-        az acr update --name $acr_name --anonymous-pull-enabled true
+        az acr update --name $acr_name --location $acr_region --anonymous-pull-enabled true
       fi
     else
-      if [[ "$role_assignment_mode" == "AbacRepositoryPermissions" ]]; then
-        echo "Updating role assignment mode from rbac-abac to rbac for ACR $acr_name"
-        az acr update --name $acr_name --role-assignment-mode "rbac"
+      if [[ "$anonymous_pull_enabled" == "true" ]]; then
+        echo "Enabling anonymous pull for ACR $acr_name"
+        az acr update --name $acr_name --location $acr_region --anonymous-pull-enabled false
       fi
 
-      aks_name=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location $REGION \
-        --query "[?(tags.run_id == '${RUN_ID}' && tags.role == '$ROLE')].name" --output tsv
-      aks_rg=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location $region \
-        --query "[?(tags.run_id == '${RUN_ID}' && tags.role == '$ROLE')].resourceGroup" --output tsv)
+      if [[ "$role_assignment_mode" == "AbacRepositoryPermissions" ]]; then
+        echo "Updating role assignment mode from rbac-abac to rbac for ACR $acr_name"
+        az acr update --name $acr_name  --location $acr_region --role-assignment-mode "rbac"
+      fi
+
+      aks_info=$(az resource list \
+        --resource-type Microsoft.ContainerService/managedClusters \
+        --location "$REGION" \
+        --query "[?tags.run_id=='${RUN_ID}' && tags.role=='${ROLE}']" \
+        --output json)
+
+      aks_name=$(echo "$aks_info" | jq -r '.[0].name')
+      aks_rg=$(echo "$aks_info" | jq -r '.[0].resourceGroup')
 
       if [ -z "$aks_name" ]; then
         echo "##vso[task.logissue type=error;] No AKS instance with role $ROLE and tag $RUN_ID found in region $region."
         exit 1
       fi
 
-      az aks update --name $aks_name --resource-group $RUN_ID --attach-acr $acr_name
+      az aks update --name $aks_name --resource-group $aks_rg --attach-acr $acr_name
     fi
-
   env:
     RUN_ID: $(RUN_ID)
     REGION: ${{ parameters.region }}
