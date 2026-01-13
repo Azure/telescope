@@ -1,10 +1,8 @@
 parameters:
-- name: cloud
-  type: string
 - name: region
   type: string
 
-step:
+steps:
   script: |
     set -euo pipefail
     set -x
@@ -21,18 +19,16 @@ step:
 
     [[ -n "$acr_name" ]] || exit 0
 
-    if [[ "$anonymous_pull" == "true" ]]; then
-      anonymous_pull_enabled=$(az acr show --name $acr_name \
-        --query "anonymousPullEnabled" --output tsv)
+    acr_info=$(az acr show --name "$acr_name" --output json)
+    anonymous_pull_enabled=$(echo "$acr_info" | jq -r '.anonymousPullEnabled')
+    role_assignment_mode=$(echo "$acr_info" | jq -r '.roleAssignmentMode')
 
+    if [[ "$anonymous_pull" == "true" ]]; then
       if [[ "$anonymous_pull_enabled" == "false" ]]; then
         echo "Enabling anonymous pull for ACR $acr_name"
         az acr update --name $acr_name --anonymous-pull-enabled true
       fi
     else
-      role_assignment_mode=$(az acr show --name $acr_name \
-        --query "roleAssignmentMode" --output tsv)
-
       if [[ "$role_assignment_mode" == "AbacRepositoryPermissions" ]]; then
         echo "Updating role assignment mode from rbac-abac to rbac for ACR $acr_name"
         az acr update --name $acr_name --role-assignment-mode "rbac"
