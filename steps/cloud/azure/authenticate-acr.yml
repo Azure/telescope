@@ -55,7 +55,7 @@ steps:
       aks_rg=$(echo "$aks_info" | jq -r '.[0].resourceGroup')
 
       if [ -z "$aks_name" ]; then
-        echo "##vso[task.logissue type=error;] No AKS instance with role $ROLE and tag $RUN_ID found in region $region."
+        echo "##vso[task.logissue type=error;] No AKS instance with role $ROLE and tag $RUN_ID found in region $REGION."
         exit 1
       fi
 
@@ -64,4 +64,5 @@ steps:
   env:
     RUN_ID: $(RUN_ID)
     REGION: ${{ parameters.region }}
+    ROLE: ${{ parameters.role }}
   displayName: "Authenticate with ACR from AKS"
