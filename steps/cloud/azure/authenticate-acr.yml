@@ -3,7 +3,7 @@ parameters:
   type: string
 
 steps:
-  script: |
+- script: |
     set -euo pipefail
     set -x
 
