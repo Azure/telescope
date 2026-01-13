@@ -1,6 +1,8 @@
 parameters:
 - name: region
   type: string
+- name: role
+  type: string
 
 steps:
 - script: |
@@ -34,7 +36,7 @@ steps:
       fi
     else
       if [[ "$anonymous_pull_enabled" == "true" ]]; then
-        echo "Enabling anonymous pull for ACR $acr_name"
+        echo "Disabling anonymous pull for ACR $acr_name"
         az acr update --name $acr_name --anonymous-pull-enabled false
       fi
 
