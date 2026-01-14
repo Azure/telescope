@@ -46,6 +46,12 @@ def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provi
     if overrides:
         command += " --testoverrides=/root/perf-tests/clusterloader2/config/overrides.yaml"
 
+    if enable_prometheus:
+        command += " --prometheus-pvc-storage-class=\"managed\""
+        command += " --prometheus-storage-class-provisioner=\"kubernetes.io/azure-disk\""
+        command += " --prometheus-storage-class-volume-type=\"StandardSSD_LRS\""
+        command += " --prometheus-memory-request=\"2Gi\""
+
     volumes = {
         kubeconfig: {'bind': '/root/.kube/config', 'mode': 'rw'},
         cl2_config_dir: {'bind': '/root/perf-tests/clusterloader2/config', 'mode': 'rw'},
