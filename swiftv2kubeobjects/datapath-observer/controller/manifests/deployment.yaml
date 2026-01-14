@@ -18,7 +18,7 @@ spec:
       serviceAccountName: datapath-controller
       containers:
       - name: controller
-        image: acndev.azurecr.io/datapath-controller:2026.01.13.01
+        image: acndev.azurecr.io/datapath-controller:2026.01.14.01
         args:
         - "--namespace=slo-1"
         - "--label-selector=podgroup=deployment-churn"
