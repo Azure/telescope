@@ -288,12 +288,12 @@ if [[ "${ENABLE_LOG_ANALYTICS:-false}" == "true" ]]; then
     # Create workspace in CUST_RG with RUN_ID so it persists after cluster deletion
     export LOG_ANALYTICS_WORKSPACE_NAME="${RG}"
     
-    echo "Creating Log Analytics workspace $LOG_ANALYTICS_WORKSPACE_NAME with 7-day retention"
+    echo "Creating Log Analytics workspace $LOG_ANALYTICS_WORKSPACE_NAME with 30-day retention"
     az monitor log-analytics workspace create \
         --resource-group $CUST_RG \
         --workspace-name $LOG_ANALYTICS_WORKSPACE_NAME \
         --location $LOCATION \
-        --retention-time 7 \
+        --retention-time 30 \
         --tags SkipAutoDeleteTill=$date skipGC="swift v2 perf" gc_skip="true" run_id=${RG}
     
     export LOG_ANALYTICS_WORKSPACE_ID=$(az monitor log-analytics workspace show \
