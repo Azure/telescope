@@ -238,6 +238,15 @@ create_aks_cluster() {
         k8s_version_param="--kubernetes-version ${K8S_VERSION}"
     fi
     
+    # Use Log Analytics workspace ID if it was created earlier
+    local monitoring_addon=""
+    if [[ -n "$LOG_ANALYTICS_WORKSPACE_ID" ]]; then
+        echo "Enabling Container Insights with Log Analytics workspace: $LOG_ANALYTICS_WORKSPACE_ID"
+        monitoring_addon="--enable-addons monitoring --workspace-resource-id ${LOG_ANALYTICS_WORKSPACE_ID}"
+    else
+        echo "Log Analytics monitoring disabled (workspace not created)"
+    fi
+    
     az aks create -n ${cluster_name} -g ${resource_group} \
         -s $VM_SKU -c 5 \
         --os-sku Ubuntu \
@@ -259,6 +268,7 @@ create_aks_cluster() {
         --generate-ssh-keys \
         --assign-kubelet-identity ${kubelet_identity_id} \
         --assign-identity ${control_plane_identity_id} \
+        ${monitoring_addon} \
         --yes
 } 
 
@@ -267,6 +277,37 @@ create_aks_cluster() {
 echo "Appending tags to existing RG"
 date=$(date -d "+1 week" +"%Y-%m-%d")
 az tag update --resource-id /subscriptions/${SUBSCRIPTION}/resourceGroups/${RG} --operation Merge --tags SkipAutoDeleteTill=$date skipGC="swift v2 perf" gc_skip="true" owner="ACN"
+
+# =============================================================================
+# CREATE LOG ANALYTICS WORKSPACE (if enabled)
+# =============================================================================
+if [[ "${ENABLE_LOG_ANALYTICS:-false}" == "true" ]]; then
+    echo "Creating Log Analytics workspace for run ${RG}..."
+    az account set --subscription $CUST_SUB
+    
+    # Create workspace in CUST_RG with RUN_ID so it persists after cluster deletion
+    export LOG_ANALYTICS_WORKSPACE_NAME="${RG}"
+    
+    echo "Creating Log Analytics workspace $LOG_ANALYTICS_WORKSPACE_NAME with 7-day retention"
+    az monitor log-analytics workspace create \
+        --resource-group $CUST_RG \
+        --workspace-name $LOG_ANALYTICS_WORKSPACE_NAME \
+        --location $LOCATION \
+        --retention-time 7 \
+        --tags SkipAutoDeleteTill=$date skipGC="swift v2 perf" gc_skip="true" run_id=${RG}
+    
+    export LOG_ANALYTICS_WORKSPACE_ID=$(az monitor log-analytics workspace show \
+        --resource-group $CUST_RG \
+        --workspace-name $LOG_ANALYTICS_WORKSPACE_NAME \
+        --query id \
+        --output tsv)
+    
+    echo "Log Analytics Workspace ID: $LOG_ANALYTICS_WORKSPACE_ID"
+    az account set --subscription $SUBSCRIPTION
+else
+    echo "Log Analytics workspace creation skipped (ENABLE_LOG_ANALYTICS not set to true)"
+    export LOG_ANALYTICS_WORKSPACE_ID=""
+fi
 
 NAT_GW_NAME=$CLUSTER-ng
 az network public-ip create -g $RG -n $CLUSTER-ip --allocation-method Static --ip-tags 'FirstPartyUsage=/DelegatedNetworkControllerTest' --tier Regional --version IPv4 -l $LOCATION --sku standard
@@ -442,6 +483,16 @@ export custSubnetGUID=$(az rest --method get --url "/subscriptions/${CUST_SUB}/r
 az account set --subscription $SUBSCRIPTION
 
 az aks get-credentials -n ${CLUSTER} -g ${RG} --admin
+
+# Configure Container Insights syslog collection (if enabled)
+if [[ "${ENABLE_LOG_ANALYTICS:-false}" == "true" && -n "$LOG_ANALYTICS_WORKSPACE_ID" ]]; then
+    echo "Configuring Container Insights syslog collection..."
+    kubectl apply -f swiftv2kubeobjects/container-insights-syslog-config.yaml
+    echo "Waiting for Container Insights agent to pick up configuration changes..."
+    sleep 30
+else
+    echo "Skipping Container Insights configuration (Log Analytics not enabled)"
+fi
 
 envsubst < swiftv2kubeobjects/pn.yaml | kubectl apply -f -
 

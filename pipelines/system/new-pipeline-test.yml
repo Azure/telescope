@@ -12,6 +12,8 @@ variables:
   CLEANUP_RESOURCES: "true"
   K8S_VERSION: "1.33"
   PROVISION_BUFFER_NODES: "false"
+  # Log Analytics are expensive - disable and delete after use
+  ENABLE_LOG_ANALYTICS: "false"
   # Existing scenario variables
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: swiftv2-cluster-churn-feature
