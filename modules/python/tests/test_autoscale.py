@@ -170,6 +170,9 @@ class TestClusterLoaderFunctions(unittest.TestCase):
             "config.yaml",
             overrides=True,
             enable_prometheus=False,
+            tear_down_prometheus=False,
+            scrape_kubelets=False,
+            scrape_ksm=False,
         )
     def test_collect_clusterloader2_success(self):
         cl2_report_dir = os.path.join(
@@ -289,6 +292,8 @@ class TestClusterLoaderFunctions(unittest.TestCase):
                 'aws',
                 'config.yaml',
                 False,
+                False,
+                False,
             )
 
     @patch('clusterloader2.autoscale.autoscale.collect_clusterloader2')
@@ -302,7 +307,7 @@ class TestClusterLoaderFunctions(unittest.TestCase):
             mock_collect.assert_called_once_with(
                 4, 'on-demand', 3, 200, 'report-dir',
                 'aws-info', 'run-123', 'http://run.url', 'results.json',
-                'config.yaml', None, None
+                None, None, 'config.yaml'
             )
 
 if __name__ == '__main__':
