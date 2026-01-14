@@ -180,6 +180,8 @@ class JobController(ClusterLoader2Base):
             "--install",
             "kuberay-operator",
             "kuberay/kuberay-operator",
+            "--version",
+            "1.4.2",
             "--namespace",
             "kuberay-system",
             "--create-namespace",
