@@ -449,7 +449,7 @@ def main():
         type=str,
         help="name of CL2 config file",
     )
-    parser_execute.add_argument(
+    parser_override.add_argument(
         "--enable_prometheus",
         default=False,
         type=str2bool,
