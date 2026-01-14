@@ -53,12 +53,22 @@ steps:
     echo "$time_to_dp_ready_response"
     echo "$time_to_dp_ready_response" > "${OUTPUT_DIR}/datapath-time-to-dp-ready.json"
     
+    # Query pod-health metrics
+    echo "Querying pod-health metrics..."
+    pod_health_response=$(curl -s "http://localhost:8082/api/v1/pod-health?topN=10&namespace=slo-1")
+    echo "API Response (pod-health):"
+    echo "$pod_health_response"
+    echo "$pod_health_response" > "${OUTPUT_DIR}/datapath-pod-health.json"
+    
     # Print summary
     echo "=== Time to Start Summary ==="
     cat "${OUTPUT_DIR}/datapath-time-to-start.json" | jq '{totalSuccessful, totalFailed, p50, p90, p99}'
     
     echo "=== Time to Datapath Ready Summary ==="
     cat "${OUTPUT_DIR}/datapath-time-to-dp-ready.json" | jq '{totalSuccessful, totalFailed, p50, p90, p99}'
+    
+    echo "=== Pod Health Summary ==="
+    cat "${OUTPUT_DIR}/datapath-pod-health.json" | jq '{desiredReplicas, runningPods, pendingPods, failedPods, successPct}'
     
     # Merge datapath results into results.json
     if [ -f "${RESULTS_FILE}" ]; then
@@ -77,6 +87,12 @@ steps:
       time_to_dp_ready=$(cat "${OUTPUT_DIR}/datapath-time-to-dp-ready.json")
       echo "$template" | jq --argjson data "$time_to_dp_ready" \
         '. + {group: "datapath", measurement: "TimeToDatapathReady", result: $data}' \
+        >> "${RESULTS_FILE}"
+      
+      # Add pod-health metrics
+      pod_health=$(cat "${OUTPUT_DIR}/datapath-pod-health.json")
+      echo "$template" | jq --argjson data "$pod_health" \
+        '. + {group: "datapath", measurement: "PodHealth", result: $data}' \
         >> "${RESULTS_FILE}"
       
       echo "Datapath metrics merged successfully"

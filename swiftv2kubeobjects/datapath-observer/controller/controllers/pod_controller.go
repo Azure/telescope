@@ -23,6 +23,7 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -94,6 +95,11 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	})
 
 	if err != nil {
+		// In rare cases, CreateOrUpdate can still hit race conditions with "already exists"
+		// when multiple reconcilers create simultaneously. Requeue to update on next pass.
+		if errors.IsAlreadyExists(err) {
+			return ctrl.Result{Requeue: true}, nil
+		}
 		return ctrl.Result{}, err
 	}
 
@@ -102,7 +108,9 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 
 func updateMetrics(dpResult *perfv1.DatapathResult, createdAt time.Time, startTsStr, dpReadyTsStr string) {
 	logger := log.Log.WithName("updateMetrics").WithValues("dpResult", dpResult.Name, "namespace", dpResult.Namespace)
-	if startTsStr != "" {
+	
+	// Only update startTs if not already set (capture first occurrence from initContainer)
+	if startTsStr != "" && dpResult.Spec.Timestamps.StartTs == "" {
 		dpResult.Spec.Timestamps.StartTs = startTsStr
 		startTs, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(startTsStr))
 		if err != nil {
@@ -112,7 +120,9 @@ func updateMetrics(dpResult *perfv1.DatapathResult, createdAt time.Time, startTs
 			logger.V(1).Info("Calculated LatStartMs", "createdAt", createdAt.Format(time.RFC3339Nano), "startTs", startTs.Format(time.RFC3339Nano), "latMs", dpResult.Spec.Metrics.LatStartMs)
 		}
 	}
-	if dpReadyTsStr != "" {
+	
+	// Only update dpReadyTs if not already set (capture first occurrence from initContainer)
+	if dpReadyTsStr != "" && dpResult.Spec.Timestamps.DpReadyTs == "" {
 		dpResult.Spec.Timestamps.DpReadyTs = dpReadyTsStr
 		dpReadyTs, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(dpReadyTsStr))
 		if err != nil {

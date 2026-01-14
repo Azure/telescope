@@ -89,30 +89,6 @@ Query parameters for API endpoints:
       "name": "perf-sut-abc123",
       "uid": "d6f4a8c1-e234-4567-89ab-cdef01234567",
       "value": 15678
-    },
-    {
-      "namespace": "perf-ns",
-      "name": "perf-sut-def456",
-      "uid": "f8a2b9d3-c456-7890-abcd-ef0123456789",
-      "value": 14521
-    },
-    {
-      "namespace": "perf-ns",
-      "name": "perf-sut-ghi789",
-      "uid": "a1b2c3d4-e5f6-7890-abcd-ef0123456789",
-      "value": 13892
-    },
-    {
-      "namespace": "perf-ns",
-      "name": "perf-sut-jkl012",
-      "uid": "b2c3d4e5-f6a7-8901-bcde-f01234567890",
-      "value": 13456
-    },
-    {
-      "namespace": "perf-ns",
-      "name": "perf-sut-mno345",
-      "uid": "c3d4e5f6-a7b8-9012-cdef-012345678901",
-      "value": 13001
     }
   ],
   "failedPods": [
@@ -120,11 +96,6 @@ Query parameters for API endpoints:
       "namespace": "perf-ns",
       "name": "perf-sut-failed-001",
       "uid": "f1a2b3c4-d5e6-7890-abcd-ef0123456789"
-    },
-    {
-      "namespace": "perf-ns",
-      "name": "perf-sut-failed-002",
-      "uid": "a2b3c4d5-e6f7-8901-bcde-f01234567890"
     }
   ]
 }
@@ -132,11 +103,62 @@ Query parameters for API endpoints:
 
 **Field Descriptions:**
 - `count`: Number of DatapathResult CRs with non-zero `latStartMs` (used for percentile calculations)
-- `totalSuccessful`: Number of DatapathResult CRs with non-zero `startTs` timestamp
-- `totalFailed`: Number of DatapathResult CRs with missing or zero `startTs` timestamp
-- `p50`, `p90`, `p99`: Percentiles calculated from the `count` CRs with valid `latStartMs` values
+- `totalSuccessful`: Number of DatapathResult CRs with both timestamp AND non-zero latency
+- `totalFailed`: Number of DatapathResult CRs with missing timestamp OR zero latency
+- `p50`, `p90`, `p99`: Percentiles calculated from successful measurements
 - `worstPods`: Top N pods with highest latencies (sorted descending)
-- `failedPods`: Top N pods that failed to start (missing or zero `startTs`)
+- `failedPods`: Top N pods that failed to start
+
+### GET /api/v1/time-to-datapath-ready?topN=3&namespace=perf-ns
+
+Similar structure to time-to-start but measuring datapath readiness latency.
+
+### GET /api/v1/pod-health?topN=10&namespace=slo-1&labelSelector=podgroup=deployment-churn
+
+```json
+{
+  "namespace": "slo-1",
+  "labelSelector": "podgroup=deployment-churn",
+  "desiredReplicas": 7055,
+  "runningPods": 6998,
+  "pendingPods": 2,
+  "failedPods": 55,
+  "successPct": 99.19,
+  "pendingPodList": [
+    {
+      "namespace": "slo-1",
+      "name": "deployment-churn-0-8-6d46cdc97c-abc123",
+      "uid": "e5f6a7b8-c9d0-1234-5678-9abcdef01234",
+      "nodeName": "",
+      "phase": "Pending",
+      "reason": "Unschedulable",
+      "message": "0/10 nodes available: insufficient cpu"
+    }
+  ],
+  "failedPodList": [
+    {
+      "namespace": "slo-1",
+      "name": "deployment-churn-0-5-6d46cdc97c-xyz789",
+      "uid": "d4e5f6a7-b8c9-0123-4567-89abcdef0123",
+      "nodeName": "aks-nodepool1-vmss000001",
+      "phase": "Failed",
+      "reason": "Error",
+      "message": "Back-off pulling image"
+    }
+  ]
+}
+```
+
+**Field Descriptions:**
+- `desiredReplicas`: Total number of pods matching the filter (Running + Pending + Failed)
+- `runningPods`: Count of pods in Running phase
+- `pendingPods`: Count of pods in Pending phase
+- `failedPods`: Count of pods in Failed phase
+- `successPct`: Percentage of running pods (`runningPods * 100 / desiredReplicas`)
+- `pendingPodList`: Top N pending pods with details (reason, message)
+- `failedPodList`: Top N failed pods with details (reason, message)
+
+**Note:** This API queries actual Kubernetes Pod objects, providing real-time pod health status separate from historical DatapathResult metrics.
 
 ### GET /api/v1/time-to-datapath-ready?topN=3&namespace=perf-ns
 
@@ -156,18 +178,6 @@ Query parameters for API endpoints:
       "name": "perf-sut-xyz789",
       "uid": "e5f6a7b8-c9d0-1234-5678-9abcdef01234",
       "value": 35678
-    },
-    {
-      "namespace": "perf-ns",
-      "name": "perf-sut-uvw456",
-      "uid": "d4e5f6a7-b8c9-0123-4567-89abcdef0123",
-      "value": 32145
-    },
-    {
-      "namespace": "perf-ns",
-      "name": "perf-sut-rst123",
-      "uid": "c3d4e5f6-a7b8-9012-3456-789abcdef012",
-      "value": 29876
     }
   ],
   "failedPods": [
@@ -175,16 +185,6 @@ Query parameters for API endpoints:
       "namespace": "perf-ns",
       "name": "perf-sut-dp-failed-001",
       "uid": "b1c2d3e4-f5a6-7890-bcde-f01234567890"
-    },
-    {
-      "namespace": "perf-ns",
-      "name": "perf-sut-dp-failed-002",
-      "uid": "c2d3e4f5-a6b7-8901-cdef-012345678901"
-    },
-    {
-      "namespace": "perf-ns",
-      "name": "perf-sut-dp-failed-003",
-      "uid": "d3e4f5a6-b7c8-9012-def0-123456789012"
     }
   ]
 }
@@ -192,15 +192,11 @@ Query parameters for API endpoints:
 
 **Field Descriptions:**
 - `count`: Number of DatapathResult CRs with non-zero `latDpReadyMs` (used for percentile calculations)
-- `totalSuccessful`: Number of DatapathResult CRs with non-zero `dpReadyTs` timestamp
-- `totalFailed`: Number of DatapathResult CRs with missing or zero `dpReadyTs` timestamp
-- `p50`, `p90`, `p99`: Percentiles calculated from the `count` CRs with valid `latDpReadyMs` values
+- `totalSuccessful`: Number of DatapathResult CRs with both timestamp AND non-zero latency
+- `totalFailed`: Number of DatapathResult CRs with missing timestamp OR zero latency
+- `p50`, `p90`, `p99`: Percentiles calculated from successful measurements
 - `worstPods`: Top N pods with highest latencies (sorted descending)
-- `failedPods`: Top N pods that failed to achieve datapath readiness (missing or zero `dpReadyTs`)
-
-**Note:** The `count` (used for percentiles) may differ from `totalSuccessful` because:
-- Pods may have a timestamp but zero latency (edge case)
-- The controller may not have calculated the latency yet for recently annotated pods
+- `failedPods`: Top N pods that failed to achieve datapath readiness
 
 ## Cleanup Policy
 
