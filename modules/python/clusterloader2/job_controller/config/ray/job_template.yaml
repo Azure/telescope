@@ -23,7 +23,7 @@ spec:
         effect: "NoSchedule"
       containers:
         - name: ray-submitter
-          image: rayproject/ray:2.41.0
+          image: {{.Image}}
   rayClusterSpec:
     rayVersion: '2.9.3'
     headGroupSpec:
@@ -38,7 +38,7 @@ spec:
             effect: "NoSchedule"
           containers:
             - name: ray-head
-              image: rayproject/ray:2.41.0
+              image: {{.Image}}
               ports:
                 - containerPort: 6379
                   name: gcs-server
@@ -65,10 +65,10 @@ spec:
               effect: "NoSchedule"
             containers:
               - name: ray-worker
-                image: rayproject/ray:2.41.0
+                image: {{.Image}}
                 resources:
                   limits:
-                    nvidia.com/gpu: 1
+                    nvidia.com/gpu: {{.JobGPU}}
                   requests:
-                    nvidia.com/gpu: 1
+                    nvidia.com/gpu: {{.JobGPU}}
 
