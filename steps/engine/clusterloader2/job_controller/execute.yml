@@ -21,6 +21,7 @@ steps:
         --dra_enabled ${ENABLE_DRA:-False} \
         --ray_enabled ${ENABLE_RAY:-False} \
         --job_gpu ${JOB_GPU:-0} \
+        --cl2_config_dir ${CL2_CONFIG_DIR} \
         --cl2_override_file ${CL2_CONFIG_DIR}/overrides.yaml
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
