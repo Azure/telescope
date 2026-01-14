@@ -11,7 +11,7 @@ data:
        [log_collection_settings.stdout]
           enabled = false
        [log_collection_settings.stderr]
-          enabled = false
+          enabled = true
        [log_collection_settings.env_var]
           enabled = false
        [log_collection_settings.syslog]
