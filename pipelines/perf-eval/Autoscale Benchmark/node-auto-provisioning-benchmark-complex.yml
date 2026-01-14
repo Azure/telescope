@@ -44,6 +44,7 @@ stages:
               enable_prometheus: True
               scrape_kubelets: True
               scrape_ksm: True
+              karpenter_nodepool_file: karpenter_complex_nodepool.azure.yml
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
