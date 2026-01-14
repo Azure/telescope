@@ -241,6 +241,7 @@ def override_config_clusterloader2(
     pod_cpu_request=0,
     pod_memory_request="",
     cl2_config_file="config.yaml",
+    enable_prometheus=False,
 ):
     desired_node_count = 1
     if warmup_deployment in ["true", "True"]:
@@ -269,6 +270,14 @@ def override_config_clusterloader2(
         file.write(f"CL2_SCALE_UP_TIMEOUT: {scale_up_timeout}\n")
         file.write(f"CL2_SCALE_DOWN_TIMEOUT: {scale_down_timeout}\n")
         file.write(f"CL2_LOOP_COUNT: {loop_count}\n")
+        
+        if enable_prometheus:
+            file.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
+            file.write("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 100.0\n")
+            file.write("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 100.0\n")
+            file.write("CL2_PROMETHEUS_CPU_SCALE_FACTOR: 30.0\n")
+            file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
+                
 
         if not is_complex:
             file.write(f"CL2_MIN_NODE_COUNT: {node_count}\n")
@@ -440,6 +449,12 @@ def main():
         type=str,
         help="name of CL2 config file",
     )
+    parser_execute.add_argument(
+        "--enable_prometheus",
+        default=False,
+        type=str2bool,
+        help="Enable Prometheus server in CL2",
+    )
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", help="Execute scale up operation")
     parser_execute.add_argument("cl2_image", type=str, help="Name of the CL2 image")
@@ -532,6 +547,7 @@ def main():
             pod_cpu_request=args.pod_cpu_request,
             pod_memory_request=args.pod_memory_request,
             cl2_config_file=args.cl2_config_file,
+            enable_prometheus=args.enable_prometheus,
         )
     elif args.command == "execute":
         execute_clusterloader2(
