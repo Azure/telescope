@@ -11,6 +11,16 @@ public_ip_config_list = [
   }
 ]
 
+key_vault_config_list = [
+  {
+    name = "akskms"
+    keys = [
+      {
+        key_name = "kms-nap"
+      }
+    ]
+  }
+]
 
 network_config_list = [
   {
@@ -127,6 +137,9 @@ aks_cli_config_list = [
     subnet_name           = "nap-subnet-ms"
     managed_identity_name = "nap-identity"
     kubernetes_version    = "1.33"
+    kms_key_name             = "kms-nap"
+    kms_key_vault_name       = "akskms"
+    key_vault_network_access = "Private"
     default_node_pool = {
       name       = "system"
       node_count = 10
