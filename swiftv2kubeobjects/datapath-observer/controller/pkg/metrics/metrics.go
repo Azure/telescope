@@ -22,11 +22,13 @@ type AggregatedResult struct {
 }
 
 type WorstPod struct {
-	Namespace string `json:"namespace"`
-	Name      string `json:"name"`
-	UID       string `json:"uid"`
-	NodeName  string `json:"nodeName,omitempty"`
-	Value     int64  `json:"value"`
+	Namespace  string `json:"namespace"`
+	Name       string `json:"name"`
+	UID        string `json:"uid"`
+	NodeName   string `json:"nodeName,omitempty"`
+	CreatedAt  string `json:"createdAt,omitempty"`
+	MeasuredTs string `json:"measuredTs,omitempty"`
+	Value      int64  `json:"value"`
 }
 
 type FailedPod struct {
@@ -47,6 +49,9 @@ func (m *MetricsCalculator) GetTimeToStart(ctx context.Context, namespace string
 		},
 		func(d perfv1.DatapathResult) bool {
 			return d.Spec.Timestamps.StartTs != ""
+		},
+		func(d perfv1.DatapathResult) string {
+			return d.Spec.Timestamps.StartTs
 		})
 }
 
@@ -57,10 +62,13 @@ func (m *MetricsCalculator) GetTimeToDatapathReady(ctx context.Context, namespac
 		},
 		func(d perfv1.DatapathResult) bool {
 			return d.Spec.Timestamps.DpReadyTs != ""
+		},
+		func(d perfv1.DatapathResult) string {
+			return d.Spec.Timestamps.DpReadyTs
 		})
 }
 
-func (m *MetricsCalculator) calculate(ctx context.Context, namespace string, labels map[string]string, topN int, metricName string, valueExtractor func(perfv1.DatapathResult) int64, successChecker func(perfv1.DatapathResult) bool) (*AggregatedResult, error) {
+func (m *MetricsCalculator) calculate(ctx context.Context, namespace string, labels map[string]string, topN int, metricName string, valueExtractor func(perfv1.DatapathResult) int64, successChecker func(perfv1.DatapathResult) bool, timestampExtractor func(perfv1.DatapathResult) string) (*AggregatedResult, error) {
 	var list perfv1.DatapathResultList
 	opts := []client.ListOption{}
 	if namespace != "" {
@@ -99,11 +107,13 @@ func (m *MetricsCalculator) calculate(ctx context.Context, namespace string, lab
 		if val > 0 {
 			values = append(values, val)
 			worstPods = append(worstPods, WorstPod{
-				Namespace: item.Spec.PodRef.Namespace,
-				Name:      item.Spec.PodRef.Name,
-				UID:       item.Spec.PodRef.UID,
-				NodeName:  item.Spec.PodRef.NodeName,
-				Value:     val,
+				Namespace:  item.Spec.PodRef.Namespace,
+				Name:       item.Spec.PodRef.Name,
+				UID:        item.Spec.PodRef.UID,
+				NodeName:   item.Spec.PodRef.NodeName,
+				CreatedAt:  item.Spec.Timestamps.CreatedAt,
+				MeasuredTs: timestampExtractor(item),
+				Value:      val,
 			})
 		}
 	}

@@ -82,7 +82,7 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 					NodeName:  pod.Spec.NodeName,
 				},
 				Timestamps: perfv1.Timestamps{
-					CreatedAt: pod.CreationTimestamp.Format("2006-01-02T15:04:05.000Z07:00"),
+					CreatedAt: pod.CreationTimestamp.Format(time.RFC3339Nano),
 				},
 				Labels: pod.Labels,
 			},
@@ -124,18 +124,25 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 }
 
 func updateMetrics(dpResult *perfv1.DatapathResult, createdAt time.Time, startTsStr, dpReadyTsStr string) {
+	logger := log.Log.WithName("updateMetrics").WithValues("dpResult", dpResult.Name, "namespace", dpResult.Namespace)
 	if startTsStr != "" {
 		dpResult.Spec.Timestamps.StartTs = startTsStr
-		startTs, err := time.Parse("2006-01-02T15:04:05.000Z07:00", startTsStr)
-		if err == nil {
+		startTs, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(startTsStr))
+		if err != nil {
+			logger.Error(err, "Failed to parse start timestamp", "startTsStr", startTsStr, "createdAt", createdAt.Format(time.RFC3339Nano))
+		} else {
 			dpResult.Spec.Metrics.LatStartMs = startTs.Sub(createdAt).Milliseconds()
+			logger.V(1).Info("Calculated LatStartMs", "createdAt", createdAt.Format(time.RFC3339Nano), "startTs", startTs.Format(time.RFC3339Nano), "latMs", dpResult.Spec.Metrics.LatStartMs)
 		}
 	}
 	if dpReadyTsStr != "" {
 		dpResult.Spec.Timestamps.DpReadyTs = dpReadyTsStr
-		dpReadyTs, err := time.Parse("2006-01-02T15:04:05.000Z07:00", dpReadyTsStr)
-		if err == nil {
+		dpReadyTs, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(dpReadyTsStr))
+		if err != nil {
+			logger.Error(err, "Failed to parse dpReady timestamp", "dpReadyTsStr", dpReadyTsStr, "createdAt", createdAt.Format(time.RFC3339Nano))
+		} else {
 			dpResult.Spec.Metrics.LatDpReadyMs = dpReadyTs.Sub(createdAt).Milliseconds()
+			logger.V(1).Info("Calculated LatDpReadyMs", "createdAt", createdAt.Format(time.RFC3339Nano), "dpReadyTs", dpReadyTs.Format(time.RFC3339Nano), "latMs", dpResult.Spec.Metrics.LatDpReadyMs)
 		}
 	}
 }
