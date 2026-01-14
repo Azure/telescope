@@ -34,6 +34,7 @@ locals {
   aks_cli_custom_config_path = "${path.cwd}/../../../scenarios/${var.scenario_type}/${var.scenario_name}/config/aks_custom_config.json"
 
   all_subnets    = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
+  all_nics       = merge([for network in var.network_config_list : module.virtual_network[network.role].nics]...)
   all_key_vaults = merge([for kv_name, kv in module.key_vault : { (kv_name) = kv.key_vaults }]...)
   updated_aks_config_list = length(var.aks_config_list) > 0 ? [
     for aks in var.aks_config_list : merge(
@@ -65,7 +66,7 @@ locals {
 
   key_vault_config_map = { for kv in var.key_vault_config_list : kv.name => kv }
 
-  jumpbox_config_map = { for jumpbox in var.jumpbox_config_list : jumpbox.role => jumpbox }
+  vm_config_map = { for vm in var.vm_config_list : vm.role => vm }
 }
 
 provider "azurerm" {
@@ -179,26 +180,25 @@ module "aks-cli" {
   depends_on                 = [module.route_table, module.virtual_network]
 }
 
-module "jumpbox" {
-  for_each = local.jumpbox_config_map
+module "virtual_machine" {
+  for_each = local.vm_config_map
 
-  source              = "./jumpbox"
+  source              = "./virtual-machine"
   resource_group_name = local.run_id
   location            = local.region
   tags                = local.tags
   ssh_public_key      = local.ssh_public_key
-  jumpbox_config      = each.value
-  public_ips_map      = module.public_ips.pip_ids
-  subnets_map         = local.all_subnets
+  vm_config           = each.value
+  nics_map            = local.all_nics
 
-  # Ensure AKS cluster is created before jumpbox tries to look it up for RBAC
+  # Ensure AKS cluster is created before VM tries to look it up for RBAC
   depends_on = [module.aks, module.aks-cli]
 }
 
-# Validate ssh_public_key is provided when jumpbox is configured
-check "jumpbox_ssh_key_required" {
+# Validate ssh_public_key is provided when VM is configured
+check "vm_ssh_key_required" {
   assert {
-    condition     = length(var.jumpbox_config_list) == 0 || local.ssh_public_key != null
-    error_message = "ssh_public_key is required when jumpbox_config_list is not empty. Please set 'public_key_path' in json_input to a valid SSH public key file path."
+    condition     = length(var.vm_config_list) == 0 || local.ssh_public_key != null
+    error_message = "ssh_public_key is required when vm_config_list is not empty. Please set 'ssh_key_enabled' to true."
   }
 }

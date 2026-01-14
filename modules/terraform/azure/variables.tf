@@ -346,15 +346,57 @@ variable "aks_config_list" {
   default = []
 }
 
-variable "jumpbox_config_list" {
-  description = "Configuration for jumpbox VMs"
+variable "vm_config_list" {
+  description = "Configuration for virtual machines"
   type = list(object({
-    role     = string
-    name     = string
-    vm_size  = optional(string, "Standard_D4s_v3")
-    subnet_name = string
-    public_ip_name = string
-    aks_name = string
+    # Basic VM configuration
+    role           = string
+    name           = string
+    vm_size        = optional(string, "Standard_D4s_v3")
+    admin_username = optional(string, "azureuser")
+
+    # Network configuration - use NIC name from network module
+    nic_name = string
+
+    # AKS integration (optional)
+    aks_name = optional(string, null)
+
+    # OS disk configuration
+    os_disk = optional(object({
+      caching              = optional(string, "ReadWrite")
+      storage_account_type = optional(string, "Standard_LRS")
+      disk_size_gb         = optional(number, 64)
+    }), {})
+
+    # Image configuration
+    image = optional(object({
+      publisher = optional(string, "Canonical")
+      offer     = optional(string, "ubuntu-24_04-lts")
+      sku       = optional(string, "server")
+      version   = optional(string, "latest")
+    }), {})
+
+    # NSG configuration
+    nsg = optional(object({
+      enabled = optional(bool, false)
+      rules = optional(list(object({
+        name                       = string
+        priority                   = number
+        direction                  = optional(string, "Inbound")
+        access                     = optional(string, "Allow")
+        protocol                   = optional(string, "Tcp")
+        source_port_range          = optional(string, "*")
+        destination_port_range     = string
+        source_address_prefix      = optional(string, "*")
+        destination_address_prefix = optional(string, "*")
+      })), [])
+    }), {})
+
+    # Cloud-init template file name in templates/ folder
+    cloud_init_template = optional(string, "cloud-init.tpl")
+
+    # VM-specific tags (merged with global tags)
+    vm_tags = optional(map(string), {})
   }))
   default = []
 }
