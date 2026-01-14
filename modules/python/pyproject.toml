@@ -28,7 +28,7 @@ Source = "https://github.com/Azure/telescope"
 Documentation = "https://github.com/Azure/telescope/tree/main/modules/python"
 
 [tool.setuptools]
-packages = ["iperf3", "clients", "utils", "clusterloader2", "kwok"]
+packages = ["iperf3", "clients", "utils", "clusterloader2", "kwok", "gpu"]
 
 [tool.setuptools.dynamic]
 dependencies = {file = "requirements.txt"}

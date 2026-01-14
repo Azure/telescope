@@ -40,7 +40,7 @@ class TestFio(unittest.TestCase):
         # Mock the kubernetes client methods
         mock_node = MagicMock()
         mock_node.metadata.name = "test-node-1"
-        mock_k8s_client.get_nodes.return_value = [mock_node]
+        mock_k8s_client.get_ready_nodes.return_value = [mock_node]
 
         mock_pod = MagicMock()
         mock_pod.metadata.name = "fio-pod-12345"
@@ -118,7 +118,7 @@ class TestFio(unittest.TestCase):
         result_dir = "/tmp/results"
 
         # Mock the kubernetes client methods to return no nodes
-        mock_k8s_client.get_nodes.return_value = []
+        mock_k8s_client.get_ready_nodes.return_value = []
 
         # Call the execute function and expect an exception
         with self.assertRaises(RuntimeError) as context:
@@ -134,7 +134,7 @@ class TestFio(unittest.TestCase):
                 result_dir,
             )
 
-        self.assertEqual(str(context.exception), "No nodes found with label 'fio-dedicated=true'.")
+        self.assertEqual(str(context.exception), "No ready and schedulable nodes found with label 'fio-dedicated=true'.")
 
     @patch("fio.fio.KUBERNETES_CLIENT")
     @patch("fio.fio.yaml.dump")
@@ -161,7 +161,7 @@ class TestFio(unittest.TestCase):
         # Mock the kubernetes client methods to return nodes but no pods
         mock_node = MagicMock()
         mock_node.metadata.name = "test-node-1"
-        mock_k8s_client.get_nodes.return_value = [mock_node]
+        mock_k8s_client.get_ready_nodes.return_value = [mock_node]
         mock_k8s_client.wait_for_job_completed.return_value = "fio"
         mock_k8s_client.get_pods_by_namespace.return_value = []
 
