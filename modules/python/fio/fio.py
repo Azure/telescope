@@ -56,9 +56,9 @@ def calculate_pod_startup_latency(pod):
         return None
 
 def execute(block_size, iodepth, method, runtime, numjobs, file_size, storage_name, kustomize_dir, result_dir):
-    fio_nodes = KUBERNETES_CLIENT.get_nodes(label_selector='fio-dedicated=true')
+    fio_nodes = KUBERNETES_CLIENT.get_ready_nodes(label_selector='fio-dedicated=true')
     if not fio_nodes:
-        raise RuntimeError("No nodes found with label 'fio-dedicated=true'.")
+        raise RuntimeError("No ready and schedulable nodes found with label 'fio-dedicated=true'.")
 
     logger.info(f"Found {len(fio_nodes)} fio-dedicated nodes. Creating one job per node.")
 
@@ -73,6 +73,7 @@ def execute(block_size, iodepth, method, runtime, numjobs, file_size, storage_na
         f"--iodepth={iodepth}",
         f"--runtime={runtime}",
         f"--numjobs={numjobs}",
+        "--unlink=1",
         "--ioengine=io_uring",
         "--time_based",
         "--output-format=json",
