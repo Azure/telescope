@@ -181,7 +181,7 @@ module "aks-cli" {
 }
 
 module "virtual_machine" {
-  for_each = local.vm_config_map
+  for_each = local.ssh_public_key != null ? local.vm_config_map : {}
 
   source              = "./virtual-machine"
   resource_group_name = local.run_id
@@ -193,12 +193,4 @@ module "virtual_machine" {
 
   # Ensure AKS cluster is created before VM tries to look it up for RBAC
   depends_on = [module.aks, module.aks-cli]
-}
-
-# Validate ssh_public_key is provided when VM is configured
-check "vm_ssh_key_required" {
-  assert {
-    condition     = length(var.vm_config_list) == 0 || local.ssh_public_key != null
-    error_message = "ssh_public_key is required when vm_config_list is not empty. Please set 'ssh_key_enabled' to true."
-  }
 }
