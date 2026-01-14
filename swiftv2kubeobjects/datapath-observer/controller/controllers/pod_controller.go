@@ -23,7 +23,6 @@ import (
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -59,64 +58,42 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 	}
 
 	// Check for annotations
-	startTsStr, hasStart := pod.Annotations["perf.github.com/azure-start-ts"]
-	dpReadyTsStr, hasDpReady := pod.Annotations["perf.github.com/azure-dp-ready-ts"]
+	startTsStr, _ := pod.Annotations["perf.github.com/azure-start-ts"]
+	dpReadyTsStr, _ := pod.Annotations["perf.github.com/azure-dp-ready-ts"]
 
 	dpResultName := fmt.Sprintf("dpresult-%s", pod.UID)
 
-	var dpResult perfv1.DatapathResult
-	err := r.Get(ctx, client.ObjectKey{Name: dpResultName, Namespace: pod.Namespace}, &dpResult)
+	dpResult := &perfv1.DatapathResult{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      dpResultName,
+			Namespace: pod.Namespace,
+		},
+	}
 
-	if errors.IsNotFound(err) {
-		// Create
-		dpResult = perfv1.DatapathResult{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      dpResultName,
+	// CreateOrUpdate handles both create and update in one atomic operation
+	// This avoids race conditions from concurrent reconciliations
+	_, err := ctrl.CreateOrUpdate(ctx, r.Client, dpResult, func() error {
+		// Set immutable fields only if they're empty (on create)
+		if dpResult.Spec.PodRef.UID == "" {
+			dpResult.Spec.PodRef = perfv1.PodReference{
 				Namespace: pod.Namespace,
-			},
-			Spec: perfv1.DatapathResultSpec{
-				PodRef: perfv1.PodReference{
-					Namespace: pod.Namespace,
-					Name:      pod.Name,
-					UID:       string(pod.UID),
-					NodeName:  pod.Spec.NodeName,
-				},
-				Timestamps: perfv1.Timestamps{
-					CreatedAt: pod.CreationTimestamp.Format(time.RFC3339Nano),
-				},
-				Labels: pod.Labels,
-			},
-		}
-		// Calculate metrics if annotations exist
-		updateMetrics(&dpResult, pod.CreationTimestamp.Time, startTsStr, dpReadyTsStr)
-
-		if err := r.Create(ctx, &dpResult); err != nil {
-			return ctrl.Result{}, err
-		}
-	} else if err == nil {
-		// Update
-		updated := false
-		if hasStart && dpResult.Spec.Timestamps.StartTs != startTsStr {
-			dpResult.Spec.Timestamps.StartTs = startTsStr
-			updated = true
-		}
-		if hasDpReady && dpResult.Spec.Timestamps.DpReadyTs != dpReadyTsStr {
-			dpResult.Spec.Timestamps.DpReadyTs = dpReadyTsStr
-			updated = true
-		}
-		// Update NodeName if it wasn't set before but is now available
-		if pod.Spec.NodeName != "" && dpResult.Spec.PodRef.NodeName != pod.Spec.NodeName {
-			dpResult.Spec.PodRef.NodeName = pod.Spec.NodeName
-			updated = true
-		}
-
-		if updated {
-			updateMetrics(&dpResult, pod.CreationTimestamp.Time, startTsStr, dpReadyTsStr)
-			if err := r.Update(ctx, &dpResult); err != nil {
-				return ctrl.Result{}, err
+				Name:      pod.Name,
+				UID:       string(pod.UID),
 			}
+			dpResult.Spec.Timestamps.CreatedAt = pod.CreationTimestamp.Format(time.RFC3339Nano)
+			dpResult.Spec.Labels = pod.Labels
 		}
-	} else {
+
+		// Always update mutable fields
+		dpResult.Spec.PodRef.NodeName = pod.Spec.NodeName
+
+		// Update timestamps and recalculate metrics
+		updateMetrics(dpResult, pod.CreationTimestamp.Time, startTsStr, dpReadyTsStr)
+
+		return nil
+	})
+
+	if err != nil {
 		return ctrl.Result{}, err
 	}
 
