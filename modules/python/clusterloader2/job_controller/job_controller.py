@@ -152,7 +152,8 @@ class JobController(ClusterLoader2Base):
           from "<cl2_config_dir>/ray/".
         - Waits for operator and mock-head pods to be ready.
         """
-        config_dir = os.path.join("./clusterloader2/job_controller/config", "ray")
+        logger.info("cl2 config dir: %s", self.cl2_config_dir)
+        config_dir = os.path.join(self.cl2_config_dir, "ray")
         values_file = os.path.join(config_dir, "values.yaml")
 
         # Install KubeRay operator via Helm
@@ -284,6 +285,9 @@ class JobController(ClusterLoader2Base):
             "--operation_timeout",
             type=str,
             help="Timeout before failing the scale up test",
+        )
+        parser.add_argument(
+            "--cl2_config_dir", type=str, help="Path to the CL2 config directory"
         )
         parser.add_argument(
             "--cl2_override_file",
