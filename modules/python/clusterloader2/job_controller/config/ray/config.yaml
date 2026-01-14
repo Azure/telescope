@@ -58,7 +58,7 @@ steps:
     tuningSet: Uniform{{$qps}}qps
     objectBundle:
     - basename: test
-      objectTemplatePath: job_template.yaml
+      objectTemplatePath: {{$job_template_path}}
       templateFillMap:
         Group: ray-scheduling
         Image: "rayproject/ray:2.46.0" # replace with image built from images/ray-pytorch
