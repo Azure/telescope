@@ -12,7 +12,7 @@ steps:
 - script: |
     set -eo pipefail
     # Delete conflicting master ServiceMonitor if Prometheus is enabled
-    if [ ${ENABLE_PROMETHEUS:-False} ]; then
+    if [ "$(ENABLE_PROMETHEUS)" = "True" ]; then
       echo "Prometheus enabled, removing conflicting master ServiceMonitor..."
       kubectl delete servicemonitor master -n monitoring --ignore-not-found || true
     fi
