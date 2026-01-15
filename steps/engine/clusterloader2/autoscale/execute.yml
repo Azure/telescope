@@ -16,7 +16,7 @@ steps:
       echo "Prometheus enabled, removing conflicting master ServiceMonitor..."
       kubectl delete servicemonitor master -n monitoring --ignore-not-found || true
     fi
-  displayName: "Remove conflicting ServiceMonitor"
+  displayName: "Set up for Prometheus if enabled"
 - script: |
     set -eo pipefail
     
