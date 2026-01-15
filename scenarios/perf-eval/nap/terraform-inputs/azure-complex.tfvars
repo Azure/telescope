@@ -131,14 +131,14 @@ aks_cli_config_list = [
       name       = "system"
       node_count = 10
       vm_size    = "Standard_D16s_v5"
-      os_disk_type         = "Managed"
-      node_labels          = { "prometheus" = "true" }
     }
     extra_node_pool = [
       {
         name       = "prompool"
         node_count = 5
         vm_size    = "Standard_D16_v3"
+        os_disk_type = "Managed"
+        node_labels  = { "prometheus" = "true" }
       }
     ]
     optional_parameters = [
