@@ -10,14 +10,6 @@ parameters:
 
 steps:
 - script: |
-    helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-    helm repo update
-    helm install prometheus prometheus-community/kube-prometheus-stack \
-      --namespace monitoring \
-      --create-namespace \
-      --set kubeApiServer.serviceMonitor.enabled=false
-  displayName: "Install Prometheus (with service monitor disabled)"
-- script: |
     set -eo pipefail
     
 
@@ -26,6 +18,14 @@ steps:
       $SCALE_UP_TIMEOUT $SCALE_DOWN_TIMEOUT \
       $LOOP_COUNT "${NODE_LABEL_SELECTOR:-""}" "$NODE_SELECTOR" ${CL2_CONFIG_DIR}/overrides.yaml ${WARMUP_DEPLOYMENT:-false} ${CL2_CONFIG_DIR} --os_type ${OS_TYPE:-linux} --warmup_deployment_template ${WARMUP_DEPLOYMENT_TEMPLATE:-""} --deployment_template ${DEPLOYMENT_TEMPLATE:-""} \
       --pod_cpu_request ${POD_CPU_REQUEST:-0} --pod_memory_request ${POD_MEMORY_REQUEST:-""} --cl2_config_file ${CL2_CONFIG_FILE:-config.yaml} --enable_prometheus ${ENABLE_PROMETHEUS:-False}
+    
+    # Clean up existing ServiceMonitors before Prometheus deploys to avoid conflicts
+    if [ "${ENABLE_PROMETHEUS}" = "True" ]; then
+      echo "Cleaning up existing ServiceMonitors in monitoring namespace..."
+      kubectl delete servicemonitor -n monitoring --all --ignore-not-found=true || true
+      sleep 2
+    fi
+    
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
       ${CL2_IMAGE} ${CL2_CONFIG_DIR} $CL2_REPORT_DIR ${HOME}/.kube/config $CLOUD --cl2_config_file ${CL2_CONFIG_FILE:-config.yaml} --enable_prometheus ${ENABLE_PROMETHEUS:-False} --scrape_kubelets ${SCRAPE_KUBELETS:-False} --scrape_ksm ${SCRAPE_KSM:-False}
   workingDirectory: modules/python
