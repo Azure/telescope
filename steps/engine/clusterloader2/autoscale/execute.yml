@@ -11,6 +11,15 @@ parameters:
 steps:
 - script: |
     set -eo pipefail
+    # Delete conflicting master ServiceMonitor if Prometheus is enabled
+    if [ ${ENABLE_PROMETHEUS:-False} ]; then
+      echo "Prometheus enabled, removing conflicting master ServiceMonitor..."
+      kubectl delete servicemonitor master -n monitoring --ignore-not-found || true
+    fi
+  displayName: "Remove conflicting ServiceMonitor"
+- script: |
+    set -eo pipefail
+    
 
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE override \
       ${CPU_PER_NODE:-0} ${NODE_COUNT:-0} ${POD_COUNT:-0} \
