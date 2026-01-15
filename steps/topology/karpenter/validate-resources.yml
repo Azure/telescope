@@ -20,9 +20,7 @@ steps:
       set -euo pipefail
       set -x
 
-      if [ -z "$KARPENTER_NODEPOOL_FILE" ]; then
-        KARPENTER_NODEPOOL_FILE=$DEFAULT_KARPENTER_FILE
-      fi
+      KARPENTER_NODEPOOL_FILE=${KARPENTER_NODEPOOL_FILE:-$DEFAULT_KARPENTER_FILE}
       echo "Using karpenter_nodepool_file: $KARPENTER_NODEPOOL_FILE"
 
       kubectl apply -f $KARPENTER_DIR/$KARPENTER_NODEPOOL_FILE
