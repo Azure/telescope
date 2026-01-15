@@ -31,8 +31,8 @@ The reporter is designed as an init container rather than a sidecar because:
 
 The reporter writes these annotations to its own Pod object:
 
-- `perf.github.com/azure-start-ts`: RFC3339 timestamp with millisecond precision when application workload begins
-- `perf.github.com/azure-dp-ready-ts`: RFC3339 timestamp with millisecond precision when first probe succeeds
+- `perf.github.com/azure-start-ts`: RFC3339Nano timestamp (nanosecond precision) when application workload begins
+- `perf.github.com/azure-dp-ready-ts`: RFC3339Nano timestamp (nanosecond precision) when first probe succeeds
 
 The controller reads these annotations and calculates latency metrics (time-to-start and time-to-datapath-ready) based on these timestamps and the Pod's creation time.
 

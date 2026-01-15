@@ -75,8 +75,8 @@ Environment variables:
 
 The reporter writes two annotations to the Pod:
 
-- `perf.github.com/azure-start-ts` - RFC3339 timestamp with millisecond precision when init container started
-- `perf.github.com/azure-dp-ready-ts` - RFC3339 timestamp with millisecond precision when first successful probe completed
+- `perf.github.com/azure-start-ts` - RFC3339Nano timestamp (nanosecond precision) when init container started
+- `perf.github.com/azure-dp-ready-ts` - RFC3339Nano timestamp (nanosecond precision) when first successful probe completed
 
 Note: As an init container, the reporter validates datapath readiness before the main containers start, adding the probe timeout duration to overall pod startup latency.
 

@@ -22,12 +22,14 @@ const (
 	defaultProbeTimeout  = 60 * time.Second
 	defaultProbeInterval = 2 * time.Second
 	defaultHTTPTimeout   = 3 * time.Second
+	maxRetries           = 10
+	initialRetryDelay    = 100 * time.Millisecond
 )
 
 func main() {
 	// Record start timestamp
 	startTs := time.Now().UTC()
-	log.Printf("Start timestamp: %s", startTs.Format("2006-01-02T15:04:05.000Z07:00"))
+	log.Printf("Start timestamp: %s", startTs.Format(time.RFC3339Nano))
 
 	// Get pod info from downward API
 	podName := mustEnv("MY_POD_NAME")
@@ -41,21 +43,16 @@ func main() {
 	log.Printf("Starting reporter: %s/%s", podNamespace, podName)
 	log.Printf("Probe target: %s, timeout: %v, interval: %v", probeTarget, probeTimeout, probeInterval)
 
-	// Check if annotations already exist (idempotency)
-	cfg, err := rest.InClusterConfig()
+	// Create Kubernetes client (with retries)
+	clientset, err := createClientsetWithRetry()
 	if err != nil {
-		log.Fatalf("Failed to get in-cluster config: %v", err)
+		log.Fatalf("Failed to create kubernetes client after retries: %v", err)
 	}
 
-	clientset, err := kubernetes.NewForConfig(cfg)
+	// Check existing annotations (with retries)
+	pod, err := getPodWithRetry(clientset, podNamespace, podName)
 	if err != nil {
-		log.Fatalf("Failed to create kubernetes client: %v", err)
-	}
-
-	// Check existing annotations
-	pod, err := clientset.CoreV1().Pods(podNamespace).Get(context.TODO(), podName, metav1.GetOptions{})
-	if err != nil {
-		log.Fatalf("Failed to get pod: %v", err)
+		log.Fatalf("Failed to get pod after retries: %v", err)
 	}
 
 	hasStartTs := false
@@ -73,14 +70,14 @@ func main() {
 	dpReadyTs := probeUntilSuccess(probeTarget, probeTimeout, probeInterval)
 
 	if dpReadyTs.IsZero() {
-		log.Printf("Warning: Datapath probe did not succeed within timeout %v", probeTimeout)
-	} else {
-		log.Printf("Datapath ready timestamp: %s (latency: %v)", dpReadyTs.Format("2006-01-02T15:04:05.000Z07:00"), dpReadyTs.Sub(startTs))
+		log.Fatalf("Datapath probe did not succeed within timeout %v, failing to trigger retry", probeTimeout)
 	}
 
-	// Patch pod annotations
-	if err := patchPodAnnotations(clientset, podNamespace, podName, startTs, dpReadyTs, hasStartTs); err != nil {
-		log.Fatalf("Failed to patch pod annotations: %v", err)
+	log.Printf("Datapath ready timestamp: %s (latency: %v)", dpReadyTs.Format(time.RFC3339Nano), dpReadyTs.Sub(startTs))
+
+	// Patch pod annotations (with retries)
+	if err := patchPodAnnotationsWithRetry(clientset, podNamespace, podName, startTs, dpReadyTs, hasStartTs); err != nil {
+		log.Fatalf("Failed to patch pod annotations after retries: %v", err)
 	}
 
 	log.Println("Successfully patched pod annotations")
@@ -150,16 +147,93 @@ func probeTCP(address string) bool {
 	return true
 }
 
+// createClientsetWithRetry creates a Kubernetes clientset with retry logic
+func createClientsetWithRetry() (*kubernetes.Clientset, error) {
+	var clientset *kubernetes.Clientset
+	var lastErr error
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		cfg, err := rest.InClusterConfig()
+		if err != nil {
+			lastErr = fmt.Errorf("failed to get in-cluster config: %w", err)
+			if attempt < maxRetries-1 {
+				delay := initialRetryDelay * (1 << uint(attempt))
+				log.Printf("Failed to get in-cluster config (attempt %d/%d): %v, retrying in %v", attempt+1, maxRetries, err, delay)
+				time.Sleep(delay)
+				continue
+			}
+			break
+		}
+
+		clientset, err = kubernetes.NewForConfig(cfg)
+		if err == nil {
+			return clientset, nil
+		}
+
+		lastErr = fmt.Errorf("failed to create clientset: %w", err)
+		if attempt < maxRetries-1 {
+			delay := initialRetryDelay * (1 << uint(attempt))
+			log.Printf("Failed to create kubernetes client (attempt %d/%d): %v, retrying in %v", attempt+1, maxRetries, err, delay)
+			time.Sleep(delay)
+		}
+	}
+
+	return clientset, fmt.Errorf("failed after %d attempts: %w", maxRetries, lastErr)
+}
+
+// getPodWithRetry gets a pod with exponential backoff retry logic
+func getPodWithRetry(clientset *kubernetes.Clientset, namespace, name string) (*metav1.ObjectMeta, error) {
+	var pod *metav1.ObjectMeta
+	var lastErr error
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		p, err := clientset.CoreV1().Pods(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+		if err == nil {
+			return &p.ObjectMeta, nil
+		}
+
+		lastErr = err
+		if attempt < maxRetries-1 {
+			delay := initialRetryDelay * (1 << uint(attempt)) // Exponential backoff
+			log.Printf("Failed to get pod (attempt %d/%d): %v, retrying in %v", attempt+1, maxRetries, err, delay)
+			time.Sleep(delay)
+		}
+	}
+
+	return pod, fmt.Errorf("failed after %d attempts: %w", maxRetries, lastErr)
+}
+
+// patchPodAnnotationsWithRetry patches pod annotations with retry logic
+func patchPodAnnotationsWithRetry(clientset *kubernetes.Clientset, namespace, name string, startTs, dpReadyTs time.Time, hasStartTs bool) error {
+	var lastErr error
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		err := patchPodAnnotations(clientset, namespace, name, startTs, dpReadyTs, hasStartTs)
+		if err == nil {
+			return nil
+		}
+
+		lastErr = err
+		if attempt < maxRetries-1 {
+			delay := initialRetryDelay * (1 << uint(attempt)) // Exponential backoff
+			log.Printf("Failed to patch pod (attempt %d/%d): %v, retrying in %v", attempt+1, maxRetries, err, delay)
+			time.Sleep(delay)
+		}
+	}
+
+	return fmt.Errorf("failed after %d attempts: %w", maxRetries, lastErr)
+}
+
 // patchPodAnnotations patches the pod with start and datapath ready timestamps
 func patchPodAnnotations(clientset *kubernetes.Clientset, namespace, name string, startTs, dpReadyTs time.Time, hasStartTs bool) error {
 	annotations := map[string]string{}
 
 	if !hasStartTs {
-		annotations["perf.github.com/azure-start-ts"] = startTs.Format("2006-01-02T15:04:05.000Z07:00")
+		annotations["perf.github.com/azure-start-ts"] = startTs.Format(time.RFC3339Nano)
 	}
 
 	if !dpReadyTs.IsZero() {
-		annotations["perf.github.com/azure-dp-ready-ts"] = dpReadyTs.Format("2006-01-02T15:04:05.000Z07:00")
+		annotations["perf.github.com/azure-dp-ready-ts"] = dpReadyTs.Format(time.RFC3339Nano)
 	}
 
 	patch := map[string]interface{}{

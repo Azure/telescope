@@ -46,8 +46,8 @@ Reporter (initContainer) → Pod annotations → Controller → DatapathResult C
 ```
 
 **Annotations used:**
-- `perf.github.com/azure-start-ts` - RFC3339 timestamp with millisecond precision
-- `perf.github.com/azure-dp-ready-ts` - RFC3339 timestamp with millisecond precision
+- `perf.github.com/azure-start-ts` - RFC3339Nano timestamp (nanosecond precision)
+- `perf.github.com/azure-dp-ready-ts` - RFC3339Nano timestamp (nanosecond precision)
 
 **API endpoints:**
 - `GET /api/v1/time-to-start?topN=10&namespace=<ns>&labelSelector=<k=v,...>`
