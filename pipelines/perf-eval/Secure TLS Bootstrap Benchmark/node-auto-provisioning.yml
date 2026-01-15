@@ -16,7 +16,7 @@ stages:
   - stage: azure_westus2_large
     condition: |
         or(
-          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 6:00 AM'),
+          eq(variables['Build.CronSchedule.DisplayName'], '3:00 AM Daily'),
           eq(variables['Build.Reason'], 'Manual')
         )
     dependsOn: []
