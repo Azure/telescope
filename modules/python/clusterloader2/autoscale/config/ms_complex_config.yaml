@@ -60,7 +60,7 @@ steps:
         MemoryRequest: {{$deploymentMemory}}
         NodeSelector: {{ (StructuralData $nodeSelector) }}
         OSType: {{$osType}}
-- name: Measure nodes and pods scale up {{$i}}
+- name: Measure pods scale up {{$i}}
   measurements:
   - Identifier: WaitForRunningPodsUp {{$i}}
     Method: WaitForRunningPods
@@ -152,7 +152,7 @@ steps:
         CPUperJob: {{$deploymentCpu}}
         MemoryRequest: {{$deploymentMemory}}
         OSType: {{$osType}}
-- name: Measure nodes and pods scale down {{$i}}
+- name: Measure pods scale down {{$i}}
   measurements:
   - Identifier: WaitForRunningPodsDown {{$i}}
     Method: WaitForRunningPods
