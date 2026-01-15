@@ -43,7 +43,14 @@ func main() {
 	log.Printf("Starting reporter: %s/%s", podNamespace, podName)
 	log.Printf("Probe target: %s, timeout: %v, interval: %v", probeTarget, probeTimeout, probeInterval)
 
-	// Create Kubernetes client (with retries)
+	// Start probing immediately in background to avoid K8s API overhead in datapath latency measurement
+	probeResultCh := make(chan time.Time, 1)
+	go func() {
+		dpReadyTs := probeUntilSuccess(probeTarget, probeTimeout, probeInterval)
+		probeResultCh <- dpReadyTs
+	}()
+
+	// Create Kubernetes client in parallel (with retries)
 	clientset, err := createClientsetWithRetry()
 	if err != nil {
 		log.Fatalf("Failed to create kubernetes client after retries: %v", err)
@@ -66,8 +73,8 @@ func main() {
 		}
 	}
 
-	// Probe until success
-	dpReadyTs := probeUntilSuccess(probeTarget, probeTimeout, probeInterval)
+	// Wait for probe result
+	dpReadyTs := <-probeResultCh
 
 	if dpReadyTs.IsZero() {
 		log.Fatalf("Datapath probe did not succeed within timeout %v, failing to trigger retry", probeTimeout)
