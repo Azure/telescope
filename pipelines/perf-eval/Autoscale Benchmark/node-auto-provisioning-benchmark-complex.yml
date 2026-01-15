@@ -26,7 +26,7 @@ stages:
             - eastus2: "scenarios/perf-eval/nap/terraform-inputs/azure-complex.tfvars"
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250423"
+            image: "ghcr.io/azure/clusterloader2:v20250513"
           topology: karpenter
           matrix:
             complex-nap:
