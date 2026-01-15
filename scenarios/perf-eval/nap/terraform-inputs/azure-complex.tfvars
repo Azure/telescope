@@ -158,6 +158,7 @@ aks_cli_config_list = [
         value = "overlay"
       },
       {
+        name  = "node-init-taints"
         value = "CriticalAddonsOnly=true:NoSchedule"
       },
       {
