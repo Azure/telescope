@@ -13,6 +13,7 @@ variables:
   K8S_VERSION: "1.33"
   PROVISION_BUFFER_NODES: "false"
   # Log Analytics are expensive - disable and delete after use
+  # WARNING: Enabling Log Analytics adds +1 DaemonSet pod per node - increase max_pods by 1 if enabled
   ENABLE_LOG_ANALYTICS: "false"
   # Existing scenario variables
   SCENARIO_TYPE: perf-eval
@@ -34,7 +35,8 @@ variables:
 
   # CL2 parameters
   cpu_per_node: 16
-  # max_pods = PODS_PER_NODE + default k8s system pods (5)
+  # max_pods = PODS_PER_NODE + default k8s system pods (5) + log analytics pod (1 if ENABLE_LOG_ANALYTICS=true)
+  # Current: 7 + 5 = 12 (increase to 13 if enabling Log Analytics)
   max_pods: 12
   # Common matrix parameters
   repeats: 1
