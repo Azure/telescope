@@ -269,6 +269,7 @@ class TestClusterLoaderFunctions(unittest.TestCase):
                 pod_cpu_request=None,
                 pod_memory_request=None,
                 cl2_config_file='config.yaml',
+                enable_prometheus=False,
             )
 
     @patch('clusterloader2.autoscale.autoscale.execute_clusterloader2')
