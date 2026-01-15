@@ -270,14 +270,13 @@ def override_config_clusterloader2(
         file.write(f"CL2_SCALE_UP_TIMEOUT: {scale_up_timeout}\n")
         file.write(f"CL2_SCALE_DOWN_TIMEOUT: {scale_down_timeout}\n")
         file.write(f"CL2_LOOP_COUNT: {loop_count}\n")
-        
+
         if enable_prometheus:
             file.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
             file.write("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 100.0\n")
             file.write("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 100.0\n")
             file.write("CL2_PROMETHEUS_CPU_SCALE_FACTOR: 30.0\n")
-            file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
-                
+            file.write('CL2_PROMETHEUS_NODE_SELECTOR: "prometheus: \\"true\\""\n')
 
         if not is_complex:
             file.write(f"CL2_MIN_NODE_COUNT: {node_count}\n")
@@ -315,7 +314,7 @@ def execute_clusterloader2(
         enable_prometheus=enable_prometheus,
         tear_down_prometheus=False,
         scrape_kubelets=scrape_kubelets,
-        scrape_ksm=scrape_ksm
+        scrape_ksm=scrape_ksm,
     )
 
 
