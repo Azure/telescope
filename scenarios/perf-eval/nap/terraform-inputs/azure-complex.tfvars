@@ -138,7 +138,12 @@ aks_cli_config_list = [
         node_count = 5
         auto_scaling_enabled = false
         vm_size    = "Standard_D16s_v5"
-        node_labels  = { "prometheus" = "true" }
+        optional_parameters = [
+          {
+            name  = "labels"
+            value = "prometheus=true"
+          }
+        ]
       }
     ]
     optional_parameters = [
