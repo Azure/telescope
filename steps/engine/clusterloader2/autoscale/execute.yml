@@ -16,7 +16,7 @@ steps:
       --namespace monitoring \
       --create-namespace \
       --set kubeApiServer.serviceMonitor.enabled=false
-  displayName: "Install Prometheus (with kubeApiServer disabled)"
+  displayName: "Install Prometheus (with service monitor disabled)"
 - script: |
     set -eo pipefail
     
