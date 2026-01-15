@@ -135,8 +135,7 @@ aks_cli_config_list = [
     extra_node_pool = [
       {
         name       = "prompool"
-        node_count = 5
-        auto_scaling_enabled = false
+        node_count = 1
         vm_size    = "Standard_D16_v5"
         optional_parameters = [
           {
