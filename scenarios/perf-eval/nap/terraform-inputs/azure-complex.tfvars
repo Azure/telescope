@@ -137,8 +137,7 @@ aks_cli_config_list = [
         name       = "prompool"
         node_count = 5
         auto_scaling_enabled = false
-        vm_size    = "Standard_D4ds_v5"
-        os_disk_type = "Managed"
+        vm_size    = "Standard_D16s_v5"
         node_labels  = { "prometheus" = "true" }
       }
     ]
@@ -155,10 +154,10 @@ aks_cli_config_list = [
         name  = "network-plugin-mode"
         value = "overlay"
       },
-      {
-        name  = "node-init-taints"
-        value = "CriticalAddonsOnly=true:NoSchedule"
-      },
+      # {
+      #   name  = "node-init-taints"
+      #   value = "CriticalAddonsOnly=true:NoSchedule"
+      # },
       {
         name  = "pod-cidr"
         value = "10.128.0.0/11"
