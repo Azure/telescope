@@ -41,6 +41,9 @@ module "jumpbox" {
         }
       ]
     }
+    vm_tags = {
+      jumpbox = "true"
+    }
   }
 
   nics_map = module.virtual_network["main"].nics
@@ -97,10 +100,6 @@ module "custom_vm" {
     cloud_init = {
       template_file = "cloud-init.tpl"
       vars          = {}
-    }
-
-    vm_tags = {
-      jumpbox = "true"
     }
   }
 
