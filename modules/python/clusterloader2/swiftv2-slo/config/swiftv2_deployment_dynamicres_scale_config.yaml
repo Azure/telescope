@@ -63,12 +63,40 @@ steps:
       objectBundle:
       - basename: pod-network-instance
         objectTemplatePath: pni_dynamic_template.yaml
-  - name: Wait for PNI to be created and nodes to be registered
+  - name: Deploy PNI Readiness Checker
+    phases:
+      - namespaceRange:
+          min: 1
+          max: 1
+        replicasPerNamespace: 1
+        tuningSet: DeploymentCreateQps
+        objectBundle:
+          - basename: pni-checker
+            objectTemplatePath: pni_readiness_checker_unified_template.yaml
+            templateFillMap:
+              PNIPrefix: pod-network-instance-0
+              NumPNIs: 1
+  - name: Wait for PNI Readiness Checker to Complete
     measurements:
-      - Identifier: WaitForPNI
-        Method: Sleep
+      - Identifier: WaitForPNIChecker
+        Method: WaitForRunningPods
         Params:
-          duration: 30s
+          desiredPodCount: 1
+          labelSelector: app=pni-readiness-checker
+          timeout: 11m
+  - name: Delete PNI Readiness Checker
+    phases:
+      - namespaceRange:
+          min: 1
+          max: 1
+        replicasPerNamespace: 0
+        tuningSet: DeploymentCreateQps
+        objectBundle:
+          - basename: pni-checker
+            objectTemplatePath: pni_readiness_checker_unified_template.yaml
+            templateFillMap:
+              PNIPrefix: pod-network-instance-0
+              NumPNIs: 1
   - name: Starting Pod Startup Latency Measurements
     measurements:
     - Identifier: PodStartupLatency
