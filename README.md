@@ -1,4 +1,4 @@
-[![Terraform Validation](https://github.com/Azure/telescope/actions/workflows/terraform-validation.yml/badge.svg)](https://github.com/Azure/telescope/actions/workflows/terraform-validation.yml) [![Python Validation](https://github.com/Azure/telescope/actions/workflows/python-validation.yml/badge.svg)](https://github.com/Azure/telescope/actions/workflows/python-validation.yml) [![YAML Validation](https://github.com/Azure/telescope/actions/workflows/yaml-validation.yml/badge.svg)](https://github.com/Azure/telescope/actions/workflows/yaml-validation.yml) [![Security Scan](https://github.com/Azure/telescope/actions/workflows/security-scan.yml/badge.svg)](https://github.com/Azure/telescope/actions/workflows/security-scan.yml)
+[![Terraform Validation](https://github.com/Azure/telescope/actions/workflows/terraform-validation.yml/badge.svg)](https://github.com/Azure/telescope/actions/workflows/terraform-validation.yml) [![Python Validation](https://github.com/Azure/telescope/actions/workflows/python-validation.yml/badge.svg)](https://github.com/Azure/telescope/actions/workflows/python-validation.yml) [![YAML Validation](https://github.com/Azure/telescope/actions/workflows/yaml-validation.yml/badge.svg)](https://github.com/Azure/telescope/actions/workflows/yaml-validation.yml)
 
 # Telescope
 
@@ -17,7 +17,7 @@ The currently integrated open-source testing tools are:
 1. [kperf](https://github.com/Azure/kperf/pkgs/container/kperf)
 2. [kwok](https://github.com/kubernetes-sigs/kwok)
 3. [clusterloader2](https://github.com/kubernetes/perf-tests/blob/master/clusterloader2/)
-4. [resource-comsumer](https://github.com/kubernetes/kubernetes/blob/master/test/images/resource-consumer/README.md)
+4. [resource-consumer](https://github.com/kubernetes/kubernetes/blob/master/test/images/resource-consumer/README.md)
 5. [iperf](https://github.com/esnet/iperf)
 6. [fio](https://github.com/axboe/fio)
 
