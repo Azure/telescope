@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{.Name}}
+  labels:
+    app: pni-readiness-checker
+spec:
+  serviceAccountName: reporter-sa-0
+  containers:
+  - name: pni-checker
+    image: bitnami/kubectl:latest
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        TIMEOUT=600
+        INTERVAL=5
+        ELAPSED=0
+        PNI_PREFIX="{{.PNIPrefix}}"
+        NUM_PNIS={{.NumPNIs}}
+        
+        echo "Checking readiness of $NUM_PNIS PNI(s) with prefix: $PNI_PREFIX"
+        echo "Timeout: ${TIMEOUT}s, Check interval: ${INTERVAL}s"
+        
+        while [ $ELAPSED -lt $TIMEOUT ]; do
+          # Get all PNIs in namespace and count Ready ones matching our pattern
+          ALL_PNIS=$(kubectl get podnetworkinstance -n slo-1 -o custom-columns=NAME:.metadata.name,STATUS:.status.status --no-headers 2>/dev/null || echo "")
+          
+          if [ -n "$ALL_PNIS" ]; then
+            READY_COUNT=$(echo "$ALL_PNIS" | grep "^${PNI_PREFIX}" | grep -c "Ready" || echo "0")
+            
+            echo "Progress: $READY_COUNT/$NUM_PNIS PNIs ready (elapsed: ${ELAPSED}s)"
+            echo "Current PNI status:"
+            echo "$ALL_PNIS" | grep "^${PNI_PREFIX}" || echo "No PNIs found with prefix $PNI_PREFIX"
+          else
+            echo "No PNIs found yet (elapsed: ${ELAPSED}s)"
+            READY_COUNT=0
+          fi
+          
+          if [ "$READY_COUNT" -ge "$NUM_PNIS" ]; then
+            echo "All PNIs are ready!"
+            exit 0
+          fi
+          
+          sleep $INTERVAL
+          ELAPSED=$((ELAPSED + INTERVAL))
+        done
+        
+        echo "Timeout reached after ${TIMEOUT}s - $READY_COUNT/$NUM_PNIS PNIs ready"
+        exit 1
+    resources:
+      requests:
+        cpu: 10m
+        memory: 50Mi
+      limits:
+        cpu: 100m
+        memory: 100Mi
+  restartPolicy: Never
