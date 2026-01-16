@@ -797,10 +797,10 @@ class KubernetesClient:
             # Parse YAML content (can contain multiple documents)
             manifests = list(yaml.safe_load_all(response.text))
 
-            for manifest in manifests:
-                if not manifest:  # Skip empty documents
-                    continue
+            # Validate and expand manifests (handles List kind and non-dict manifests)
+            expanded_manifests = self._expand_and_validate_manifests(manifests)
 
+            for manifest in expanded_manifests:
                 self._apply_single_manifest(manifest, namespace=namespace)
 
             logger.info("Successfully applied manifest from %s", manifest_url)
@@ -825,13 +825,13 @@ class KubernetesClient:
             # Parse YAML content (can contain multiple documents)
             manifests = list(yaml.safe_load_all(response.text))
 
+            # Validate and expand manifests (handles List kind and non-dict manifests)
+            expanded_manifests = self._expand_and_validate_manifests(manifests)
+
             # Delete manifests in reverse order (to handle dependencies)
-            manifests.reverse()
+            expanded_manifests.reverse()
 
-            for manifest in manifests:
-                if not manifest:  # Skip empty documents
-                    continue
-
+            for manifest in expanded_manifests:
                 self._delete_single_manifest(manifest, ignore_not_found=ignore_not_found, namespace=namespace)
 
             logger.info("Successfully deleted manifest from %s", manifest_url)
@@ -906,14 +906,14 @@ class KubernetesClient:
             # Load manifests from various sources
             manifests_to_apply, applied_sources = self._load_manifests_from_sources(manifest_path, manifest_dict)
 
+            # Validate and expand manifests (handles List kind and non-dict manifests)
+            manifests_to_apply = self._expand_and_validate_manifests(manifests_to_apply)
+
             # Apply all manifests
             namespace_info = f" in namespace '{namespace}'" if namespace else ""
             logger.info(f"Applying {len(manifests_to_apply)} manifest(s) from: {', '.join(applied_sources)}{namespace_info}")
 
             for i, manifest in enumerate(manifests_to_apply):
-                if not manifest:  # Skip empty documents
-                    continue
-
                 logger.info(f"Applying manifest {i+1}/{len(manifests_to_apply)}: {manifest.get('kind', 'Unknown')}/{manifest.get('metadata', {}).get('name', 'Unknown')}")
                 self._apply_single_manifest(manifest=manifest, namespace=namespace)
 
@@ -938,15 +938,15 @@ class KubernetesClient:
             # Load manifests from various sources
             manifests_to_delete, deleted_sources = self._load_manifests_from_sources(manifest_path, manifest_dict)
 
+            # Validate and expand manifests (handles List kind and non-dict manifests)
+            manifests_to_delete = self._expand_and_validate_manifests(manifests_to_delete)
+
             # Delete all manifests in reverse order (to handle dependencies)
             manifests_to_delete.reverse()
             namespace_info = f" in namespace '{namespace}'" if namespace else ""
             logger.info(f"Deleting {len(manifests_to_delete)} manifest(s) from: {', '.join(deleted_sources)}{namespace_info}")
 
             for i, manifest in enumerate(manifests_to_delete):
-                if not manifest:  # Skip empty documents
-                    continue
-
                 logger.info(f"Deleting manifest {i+1}/{len(manifests_to_delete)}: {manifest.get('kind', 'Unknown')}/{manifest.get('metadata', {}).get('name', 'Unknown')}")
                 self._delete_single_manifest(manifest=manifest, ignore_not_found=ignore_not_found, namespace=namespace)
 
@@ -1096,6 +1096,46 @@ class KubernetesClient:
                     deployment.status.replicas > 0)
 
         return False
+
+    def _expand_and_validate_manifests(self, manifests):
+        """
+        Validate and expand manifests, handling List kind and non-dict manifests.
+
+        :param manifests: List of manifests (can be dicts, lists, or scalars)
+        :return: List of valid manifest dictionaries
+        """
+        expanded = []
+        for manifest in manifests:
+            # Skip None or empty manifests
+            if not manifest:
+                continue
+
+            # Validate that manifest is a dictionary
+            if not isinstance(manifest, dict):
+                logger.warning(
+                    "Skipping non-dictionary manifest (type: %s). "
+                    "YAML documents must be mappings (dictionaries), not lists or scalars.",
+                    type(manifest).__name__
+                )
+                continue
+
+            # Handle kind: List manifests by expanding their items
+            kind = manifest.get("kind")
+            if kind == "List":
+                items = manifest.get("items", [])
+                if not isinstance(items, list):
+                    logger.warning(
+                        "Skipping List manifest with invalid 'items' field (expected list, got %s)",
+                        type(items).__name__
+                    )
+                    continue
+                logger.info("Expanding List manifest containing %d items", len(items))
+                # Recursively expand in case items contain more Lists
+                expanded.extend(self._expand_and_validate_manifests(items))
+            else:
+                expanded.append(manifest)
+
+        return expanded
 
     def _apply_single_manifest(self, manifest, namespace=None):
         """
