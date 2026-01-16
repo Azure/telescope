@@ -1263,12 +1263,187 @@ class KubernetesClient:
                 logger.warning("Unsupported resource kind: %s. Skipping...", kind)
 
         except client.rest.ApiException as e:
-            if e.status == 409:  # Resource already exists
+            if e.status == 409:  # Resource already exists, update it instead
                 resource_name = manifest.get('metadata', {}).get('name')
-                logger.info("Resource %s/%s already exists, skipping creation",
+                logger.info("Resource %s/%s already exists, updating it",
                            kind, resource_name)
+                self._update_single_manifest(manifest, namespace)
             else:
                 raise Exception(f"Error creating {kind}: {str(e)}") from e
+
+    def _update_single_manifest(self, manifest, namespace=None):
+        """
+        Update an existing Kubernetes manifest using the appropriate API client.
+        Uses strategic merge patch to update the resource.
+
+        :param manifest: Dictionary representing a Kubernetes resource
+        :param namespace: Optional namespace to override the manifest namespace
+        :return: None
+        """
+        try:
+            kind = manifest.get("kind")
+            # Use provided namespace or fall back to manifest namespace
+            namespace = namespace or manifest.get("metadata", {}).get("namespace")
+            name = manifest.get("metadata", {}).get("name")
+            logger.info("Updating manifest %s %s in namespace %s", kind, name, namespace)
+
+            if kind == "Deployment":
+                if namespace:
+                    self.app.patch_namespaced_deployment(name=name, namespace=namespace, body=manifest)
+                else:
+                    raise ValueError("Deployment requires a namespace")
+            elif kind == "DaemonSet":
+                if namespace:
+                    self.app.patch_namespaced_daemon_set(name=name, namespace=namespace, body=manifest)
+                else:
+                    raise ValueError("DaemonSet requires a namespace")
+            elif kind == "StatefulSet":
+                if namespace:
+                    self.app.patch_namespaced_stateful_set(name=name, namespace=namespace, body=manifest)
+                else:
+                    raise ValueError("StatefulSet requires a namespace")
+            elif kind == "Service":
+                if namespace:
+                    self.api.patch_namespaced_service(name=name, namespace=namespace, body=manifest)
+                else:
+                    raise ValueError("Service requires a namespace")
+            elif kind == "ConfigMap":
+                if namespace:
+                    self.api.patch_namespaced_config_map(name=name, namespace=namespace, body=manifest)
+                else:
+                    raise ValueError("ConfigMap requires a namespace")
+            elif kind == "Secret":
+                if namespace:
+                    self.api.patch_namespaced_secret(name=name, namespace=namespace, body=manifest)
+                else:
+                    raise ValueError("Secret requires a namespace")
+            elif kind == "ServiceAccount":
+                if namespace:
+                    self.api.patch_namespaced_service_account(name=name, namespace=namespace, body=manifest)
+                else:
+                    raise ValueError("ServiceAccount requires a namespace")
+            elif kind == "ClusterRole":
+                # ClusterRole is cluster-scoped
+                rbac_api = client.RbacAuthorizationV1Api()
+                rbac_api.patch_cluster_role(name=name, body=manifest)
+            elif kind == "ClusterRoleBinding":
+                # ClusterRoleBinding is cluster-scoped
+                rbac_api = client.RbacAuthorizationV1Api()
+                rbac_api.patch_cluster_role_binding(name=name, body=manifest)
+            elif kind == "Role":
+                if namespace:
+                    rbac_api = client.RbacAuthorizationV1Api()
+                    rbac_api.patch_namespaced_role(name=name, namespace=namespace, body=manifest)
+                else:
+                    raise ValueError("Role requires a namespace")
+            elif kind == "RoleBinding":
+                if namespace:
+                    rbac_api = client.RbacAuthorizationV1Api()
+                    rbac_api.patch_namespaced_role_binding(name=name, namespace=namespace, body=manifest)
+                else:
+                    raise ValueError("RoleBinding requires a namespace")
+            elif kind == "Namespace":
+                # Namespace is cluster-scoped
+                self.api.patch_namespace(name=name, body=manifest)
+            elif kind == "CustomResourceDefinition":
+                # CustomResourceDefinition is cluster-scoped
+                apiextensions_api = client.ApiextensionsV1Api()
+                apiextensions_api.patch_custom_resource_definition(name=name, body=manifest)
+            elif kind == "FlowSchema":
+                # FlowSchema is cluster-scoped (part of flow control API)
+                # Skip FlowSchemas that reference 'exempt' PriorityLevelConfiguration
+                priority_level_ref = manifest.get("spec", {}).get("priorityLevelConfiguration", {}).get("name")
+                if priority_level_ref == "exempt":
+                    logger.warning(
+                        "Skipping update of FlowSchema %s that references exempt PriorityLevelConfiguration",
+                        name
+                    )
+                    return
+                flowcontrol_api = client.FlowcontrolApiserverV1Api()
+                flowcontrol_api.patch_flow_schema(name=name, body=manifest)
+            elif kind == "Stage":
+                # Stage is a custom resource from KWOK, handle as custom resource
+                api_version = manifest.get("apiVersion", "")
+                group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+                custom_api = client.CustomObjectsApi()
+                custom_api.patch_cluster_custom_object(
+                    group=group,
+                    version=version,
+                    plural="stages",
+                    name=name,
+                    body=manifest
+                )
+            elif kind == "MPIJob":
+                # MPIJob is a custom resource from Kubeflow MPI Operator
+                api_version = manifest.get("apiVersion", "")
+                group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+                custom_api = client.CustomObjectsApi()
+                if namespace:
+                    custom_api.patch_namespaced_custom_object(
+                        group=group,
+                        version=version,
+                        namespace=namespace,
+                        plural="mpijobs",
+                        name=name,
+                        body=manifest
+                    )
+                else:
+                    raise ValueError("MPIJob requires a namespace")
+            elif kind == "NodeFeatureRule":
+                # NodeFeatureRule is a custom resource from Node Feature Discovery (NFD)
+                api_version = manifest.get("apiVersion", "")
+                group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+                custom_api = client.CustomObjectsApi()
+                # NodeFeatureRule is cluster-scoped
+                custom_api.patch_cluster_custom_object(
+                    group=group,
+                    version=version,
+                    plural="nodefeaturerules",
+                    name=name,
+                    body=manifest
+                )
+            elif kind == "NicClusterPolicy":
+                # NicClusterPolicy is a custom resource from NVIDIA Network Operator
+                api_version = manifest.get("apiVersion", "")
+                group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+                custom_api = client.CustomObjectsApi()
+                # NicClusterPolicy is cluster-scoped
+                custom_api.patch_cluster_custom_object(
+                    group=group,
+                    version=version,
+                    plural="nicclusterpolicies",
+                    name=name,
+                    body=manifest
+                )
+            elif kind == "ResourceSlice":
+                # ResourceSlice is a cluster-scoped resource for Dynamic Resource Allocation (DRA)
+                api_version = manifest.get("apiVersion", "")
+                group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+                custom_api = client.CustomObjectsApi()
+                custom_api.patch_cluster_custom_object(
+                    group=group,
+                    version=version,
+                    plural="resourceslices",
+                    name=name,
+                    body=manifest
+                )
+            elif kind == "DeviceClass":
+                # DeviceClass is a cluster-scoped resource for Dynamic Resource Allocation (DRA)
+                api_version = manifest.get("apiVersion", "")
+                group, version = api_version.split("/") if "/" in api_version else ("", api_version)
+                custom_api = client.CustomObjectsApi()
+                custom_api.patch_cluster_custom_object(
+                    group=group,
+                    version=version,
+                    plural="deviceclasses",
+                    name=name,
+                    body=manifest
+                )
+            else:
+                logger.warning("Unsupported resource kind for update: %s. Skipping...", kind)
+
+        except Exception as e:
+            raise Exception(f"Error updating {kind}: {str(e)}") from e
 
     def _delete_single_manifest(self, manifest, ignore_not_found: bool = True, namespace: Optional[str] = None):
         """

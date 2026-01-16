@@ -2723,7 +2723,8 @@ spec:
             "Unsupported resource kind: %s. Skipping...", "UnsupportedResource")
 
     @patch('kubernetes.client.CoreV1Api.create_namespace')
-    def test_apply_single_manifest_resource_already_exists(self, mock_create_namespace):
+    @patch('clients.kubernetes_client.KubernetesClient._update_single_manifest')
+    def test_apply_single_manifest_resource_already_exists(self, mock_update_single, mock_create_namespace):
         """Test _apply_single_manifest when resource already exists (409 conflict)."""
         manifest = {
             "apiVersion": "v1",
@@ -2735,15 +2736,17 @@ spec:
         api_exception = ApiException(status=409, reason="Conflict")
         mock_create_namespace.side_effect = api_exception
 
-        # Should not raise an exception, just log and continue
+        # Should not raise an exception, should call _update_single_manifest instead
         with patch('clients.kubernetes_client.logger') as mock_logger:
             # pylint: disable=protected-access
             self.client._apply_single_manifest(manifest)
             expected_calls = [
                 mock.call("Applying manifest %s %s in namespace %s", "Namespace", "existing-namespace", None),
-                mock.call("Resource %s/%s already exists, skipping creation", "Namespace", "existing-namespace")
+                mock.call("Resource %s/%s already exists, updating it", "Namespace", "existing-namespace")
             ]
             mock_logger.info.assert_has_calls(expected_calls)
+            # Verify that _update_single_manifest was called with the correct arguments
+            mock_update_single.assert_called_once_with(manifest, None)
 
     @patch('kubernetes.client.CoreV1Api.create_namespace')
     def test_apply_single_manifest_api_exception_non_409(self, mock_create_namespace):
@@ -3089,14 +3092,20 @@ spec:
         with patch.object(self.client, 'api') as mock_api:
             mock_api.create_namespaced_service.side_effect = api_exception
 
-            # Should not raise exception, just log info
+            # Should not raise exception, should call patch to update
             with patch('clients.kubernetes_client.logger') as mock_logger:
                 self.client.apply_manifest_from_file(manifest_path="/path/to/service.yaml")
 
-                # Verify info was logged about resource already existing
+                # Verify info was logged about resource being updated
                 mock_logger.info.assert_any_call(
-                    "Resource %s/%s already exists, skipping creation",
+                    "Resource %s/%s already exists, updating it",
                     "Service", "test-service"
+                )
+                # Verify patch was called to update the service
+                mock_api.patch_namespaced_service.assert_called_once_with(
+                    name="test-service",
+                    namespace="test-namespace",
+                    body=manifest_dict
                 )
 
     @patch('os.path.isfile')
