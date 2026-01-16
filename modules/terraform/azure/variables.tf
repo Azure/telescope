@@ -72,6 +72,12 @@ variable "deletion_delay" {
   default     = "2h"
 }
 
+variable "tags" {
+  description = "Optional tags to apply to all resources"
+  type        = map(string)
+  default     = {}
+}
+
 variable "public_ip_config_list" {
   description = "A list of public IP names"
   type = list(object({

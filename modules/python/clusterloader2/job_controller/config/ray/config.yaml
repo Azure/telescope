@@ -47,7 +47,7 @@ steps:
     Params:
       action: start
       labelSelector: app.kubernetes.io/created-by = kuberay-operator
-      measurmentInterval: 1s
+      measurementInterval: 1s
 
 - name: Creating RayJobs for PyTorch MNIST fine-tuning
   phases:

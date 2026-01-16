@@ -9,7 +9,7 @@ spec:
         - name: fio
           volumeMounts:
             - name: hostpath-mount
-              mountPath: /mnt/nvme-raid
+              mountPath: /mnt/data
       volumes:
         - name: hostpath-mount
           hostPath:

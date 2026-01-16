@@ -51,16 +51,20 @@ jobs:
 
       - uses: terraform-linters/setup-tflint@v4
         name: Setup TFLint
+        if: always()
 
       - name: Show version
+        if: always()
         run: tflint --version
 
       - name: Init TFLint
+        if: always()
         run: tflint --init
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Terraform Lint Check
+        if: always()
         run: tflint --recursive --config "$GITHUB_WORKSPACE/.tflint.hcl" --minimum-failure-severity=warning
 
       - name: Terraform AWS Test
