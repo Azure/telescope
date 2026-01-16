@@ -101,7 +101,7 @@ stages:
           base_run_id: $(BASE_RUN_ID)
 
   - stage: dynamicres_gradual
-    condition: succeededOrFailed()()
+    condition: succeededOrFailed()
     displayName: 'Dynamic Gradual'
     dependsOn: 
       - generate_base_run_id
