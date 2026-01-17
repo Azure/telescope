@@ -54,9 +54,9 @@ def install_network_operator(
         operation_timeout_in_minutes=5,
     )
 
-    nfd_file = f"{config_dir}/net/nfd-network-rule.yaml"
+    nfd_file = f"{config_dir}/network-operator/nfd-network-rule.yaml"
     KUBERNETES_CLIENT.apply_manifest_from_file(nfd_file)
-    nic_file = f"{config_dir}/net/nic-cluster-policy.yaml"
+    nic_file = f"{config_dir}/network-operator/nic-cluster-policy.yaml"
     KUBERNETES_CLIENT.apply_manifest_from_file(nic_file)
     execute_with_retries(
         KUBERNETES_CLIENT.wait_for_pods_ready,
