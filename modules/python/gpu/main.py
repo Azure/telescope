@@ -57,7 +57,7 @@ def configure(
             enable_nfd=gpu_enable_nfd,
         )
     if mpi_operator_version:
-        install_mpi_operator(chart_version=mpi_operator_version)
+        install_mpi_operator(chart_version=mpi_operator_version, config_dir=config_dir)
 
 
 def execute(
@@ -123,21 +123,21 @@ def execute(
             logger.info("No SR-IOV device plugin found, using hostPath for InfiniBand")
             job_type = "hostpath"
 
-        nccl_file = f"{config_dir}/mpi/azure-job-{job_type}.yaml"
+        nccl_file = f"{config_dir}/mpi-operator/azure-job-{job_type}.yaml"
         logger.info(f"Running nccl-tests with {replacements} using {nccl_file}")
         nccl_template = KUBERNETES_CLIENT.create_template(nccl_file, replacements)
         nccl_dict = yaml.safe_load(nccl_template)
         KUBERNETES_CLIENT.apply_manifest_from_file(manifest_dict=nccl_dict)
     elif provider.lower() == "aws":
         replacements["efa_allocatable"] = efa_allocatable
-        nccl_file = f"{config_dir}/mpi/{provider}-job.yaml"
+        nccl_file = f"{config_dir}/mpi-operator/{provider}-job.yaml"
 
         logger.info(f"Running nccl-tests with {replacements} using {nccl_file}")
         nccl_template = KUBERNETES_CLIENT.create_template(nccl_file, replacements)
         nccl_dict = yaml.safe_load(nccl_template)
         KUBERNETES_CLIENT.apply_manifest_from_file(manifest_dict=nccl_dict)
     else:
-        nccl_file = f"{config_dir}/mpi/{provider}-job.yaml"
+        nccl_file = f"{config_dir}/mpi-operator/{provider}-job.yaml"
 
         logger.info(f"Running nccl-tests with {replacements} using {nccl_file}")
         nccl_template = KUBERNETES_CLIENT.create_template(nccl_file, replacements)
