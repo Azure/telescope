@@ -81,28 +81,16 @@ steps:
       return 1
     }
     
-    # Force delete AKS clusters first (this should remove service association links)
+    # Force delete AKS clusters first (this blocks until deletion completes)
     echo "Deleting AKS clusters..."
     for cluster in $(az aks list -g $RUN_ID --query "[].name" -o tsv 2>/dev/null || true); do
-      echo "Force deleting AKS cluster: $cluster"
-      retry_command "az aks delete -g $RUN_ID -n $cluster --yes --no-wait" || true
+      echo "Deleting AKS cluster: $cluster (this may take several minutes for large clusters)"
+      retry_command "az aks delete -g $RUN_ID -n $cluster --yes" || true
     done
     
-    # Wait for AKS deletions to process
-    echo "Waiting for AKS clusters to be deleted..."
+    # Brief wait for managed resource group cleanup to propagate
+    echo "Waiting 60 seconds for managed resource group cleanup to propagate..."
     sleep 60
-    
-    # Check if any AKS clusters still exist and wait
-    for i in {1..10}; do
-      clusters=$(az aks list -g $RUN_ID --query "length([])" -o tsv 2>/dev/null || echo "0")
-      if [ "$clusters" = "0" ]; then
-        echo "All AKS clusters deleted"
-        break
-      else
-        echo "Still waiting for $clusters AKS cluster(s) to be deleted... (attempt $i/10)"
-        sleep 30
-      fi
-    done
     
     # Remove NAT Gateway associations from subnets
     echo "Removing NAT Gateway associations..."
@@ -155,7 +143,20 @@ steps:
     trap 'echo "Cleanup received cancellation signal but will attempt to continue"; sleep 2' SIGTERM SIGINT
     
     echo "Delete resource group $RUN_ID"
-    az group delete --name $RUN_ID --yes
+    # Use retry logic for resource group deletion as well
+    for attempt in $(seq 1 5); do
+      echo "Attempting to delete resource group: $attempt/5"
+      if az group delete --name $RUN_ID --yes; then
+        echo "Resource group deleted successfully"
+        break
+      else
+        echo "Resource group deletion failed on attempt $attempt"
+        if [ $attempt -lt 5 ]; then
+          echo "Waiting 120 seconds before retry..."
+          sleep 120
+        fi
+      fi
+    done
   displayName: "Destroy Resource Group"
   condition: and(always(), ${{ eq(parameters.cloud, 'azure') }}, eq(variables['CLEANUP_RESOURCES'], 'true'))
   continueOnError: true
