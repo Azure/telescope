@@ -27,7 +27,7 @@ variables:
   PROBE_TIMEOUT: "300"
   
   # Container images - Using centralized ACR (acndev)
-  DATAPATH_REPORTER_IMAGE: "acndev.azurecr.io/datapath-reporter:2026.01.05.01"
+  DATAPATH_REPORTER_IMAGE: "acndev.azurecr.io/datapath-reporter:2026.01.18.01"
   NGINX_IMAGE: "acndev.azurecr.io/nginx:latest"
   
   # Image pre-pull batching configuration

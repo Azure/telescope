@@ -23,7 +23,7 @@ spec:
       serviceAccountName: reporter-sa
       initContainers:
       - name: datapath-reporter
-        image: acndev.azurecr.io/datapath-reporter:2026.01.05.01
+        image: acndev.azurecr.io/datapath-reporter:2026.01.18.01
         imagePullPolicy: Always
         env:
         - name: MY_POD_NAME
