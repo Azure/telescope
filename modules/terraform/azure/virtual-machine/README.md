@@ -185,14 +185,9 @@ module "vm_no_nsg" {
 
 ## Outputs
 
-| Name | Description |
-|------|-------------|
-| vm_id | The ID of the virtual machine |
-| vm_name | The name of the virtual machine |
-| vm_principal_id | The principal ID of the VM's managed identity |
-| vm_admin_username | The admin username of the virtual machine |
-| network_security_group_id | The ID of the NSG (if created) |
+This module currently does not define any Terraform outputs.
 
+To expose values (such as VM identifiers or NSG IDs) to module consumers, add the appropriate `output` blocks in an `outputs.tf` file within this module.
 ## Templates
 
 Place your cloud-init templates in the `templates/` folder. The default template is `cloud-init.tpl`.
