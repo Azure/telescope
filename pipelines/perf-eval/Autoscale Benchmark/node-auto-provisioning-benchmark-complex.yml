@@ -26,21 +26,24 @@ stages:
             - eastus2: "scenarios/perf-eval/nap/terraform-inputs/azure-complex.tfvars"
           engine: clusterloader2
           engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250423"
+            image: "ghcr.io/azure/clusterloader2:v20250912"
           topology: karpenter
           matrix:
             complex-nap:
-              cpu_per_node: 2
-              node_count: 5
               pod_count: 5
+              pod_cpu_request: 2
+              pod_memory_request: "4Gi"
               scale_up_timeout: "15m"
               scale_down_timeout: "15m"
-              node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
               capacity_type: on-demand
+              cl2_config_file: "ms_complex_config.yaml"
+              enable_prometheus: True
+              scrape_kubelets: True
+              scrape_ksm: True
               karpenter_nodepool_file: karpenter_complex_nodepool.azure.yml
           max_parallel: 1
           timeout_in_minutes: 120
