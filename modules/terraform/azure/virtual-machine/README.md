@@ -97,10 +97,7 @@ module "custom_vm" {
       ]
     }
 
-    cloud_init = {
-      template_file = "cloud-init.tpl"
-      vars          = {}
-    }
+    cloud_init_template = "cloud-init.tpl"
   }
 
   nics_map = module.virtual_network["main"].nics
