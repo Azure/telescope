@@ -38,15 +38,8 @@ network_config_list = [
       }
     ]
     network_security_group_name = ""
-    nic_public_ip_associations = [
-      {
-        nic_name              = "jumpbox-nic"
-        subnet_name           = "jumpbox-subnet"
-        ip_configuration_name = "jumpbox-ipconfig"
-        public_ip_name        = "jumpbox-pip"
-      }
-    ]
-    nsr_rules = []
+    nic_public_ip_associations  = []
+    nsr_rules                   = []
   }
 ]
 
@@ -209,28 +202,5 @@ aks_cli_config_list = [
         value = "cilium"
       }
     ]
-  }
-]
-
-vm_config_list = [
-  {
-    role     = "nap"
-    name     = "my-jumpbox"
-    vm_size  = "Standard_D4s_v3"
-    nic_name = "jumpbox-nic"
-    aks_name = "nap-complex"
-    nsg = {
-      enabled = true
-      rules = [
-        {
-          name                   = "AllowSSH"
-          priority               = 100
-          destination_port_range = "22"
-        }
-      ]
-    }
-    vm_tags = {
-      jumpbox = "true"
-    }
   }
 ]
