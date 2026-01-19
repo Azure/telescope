@@ -57,10 +57,10 @@ resource "azurerm_linux_virtual_machine" "vm" {
   admin_username                  = var.vm_config.admin_username
   network_interface_ids           = [local.nic_id]
   disable_password_authentication = true
-  custom_data                     = base64encode(templatefile("${path.module}/templates/${var.vm_config.cloud_init_template}", {
+  custom_data = base64encode(templatefile("${path.module}/templates/${var.vm_config.cloud_init_template}", {
     admin_username = var.vm_config.admin_username
   }))
-  tags                            = local.merged_tags
+  tags = local.merged_tags
 
   admin_ssh_key {
     username   = var.vm_config.admin_username
