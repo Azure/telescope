@@ -21,7 +21,7 @@ runcmd:
   # Enable Docker (installed via apt package manager)
   - systemctl enable docker
   - systemctl start docker
-  - usermod -aG docker azureuser
+  - usermod -aG docker ${var.vm_config.admin_username}
   # Install Azure CLI via Microsoft's official apt repository with GPG verification
   - mkdir -p /etc/apt/keyrings
   - bash -c "curl -sLS https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /etc/apt/keyrings/microsoft.gpg"
