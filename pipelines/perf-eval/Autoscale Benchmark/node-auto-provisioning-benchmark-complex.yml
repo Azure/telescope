@@ -9,7 +9,7 @@ schedules:
     always: true
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: nap
+  SCENARIO_NAME: nap-complex
 
 stages:
   - stage: azure_eastus2_ondemand_complex_config
@@ -45,7 +45,6 @@ stages:
               scrape_kubelets: True
               scrape_ksm: True
               aad_enabled: "true"
-              karpenter_nodepool_file: karpenter_complex_nodepool.azure.yml
               enable_apiserver_vnet_integration: "false" # TODO: enable when hyperscale fix roll out
           max_parallel: 1
           timeout_in_minutes: 120
