@@ -71,7 +71,11 @@ variable "vm_config" {
         protocol                   = optional(string, "Tcp")
         source_port_range          = optional(string, "*")
         destination_port_range     = string
+        # WARNING: The default "*" for source_address_prefix allows traffic from any source on the internet.
+        # In production, you should provide a more restrictive CIDR or IP range instead of relying on this default.
         source_address_prefix      = optional(string, "*")
+        # NOTE: The default "*" for destination_address_prefix allows traffic to any destination.
+        # Consider narrowing this in production environments where possible.
         destination_address_prefix = optional(string, "*")
       })), [])
     }), {})
