@@ -45,7 +45,6 @@ stages:
               scrape_kubelets: True
               scrape_ksm: True
               karpenter_nodepool_file: karpenter_complex_nodepool.azure.yml
-              aad_enabled: true
               enable_apiserver_vnet_integration: "false" # TODO: enable when hyperscale fix roll out
           max_parallel: 1
           timeout_in_minutes: 120
