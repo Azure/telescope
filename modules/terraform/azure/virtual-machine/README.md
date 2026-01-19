@@ -180,7 +180,7 @@ module "vm_no_nsg" {
 
 | Attribute | Description | Default |
 |-----------|-------------|---------|
-| enabled | Whether to create NSG and associate with NIC | `true` |
+| enabled | Whether to create NSG and associate with NIC | `false` |
 | rules | List of security rules | `[]` |
 
 ## Outputs
