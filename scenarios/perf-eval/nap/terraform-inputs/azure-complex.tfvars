@@ -119,6 +119,10 @@ route_table_config_list = [
         next_hop_firewall_name = "nap-firewall"
       },
       {
+        name           = "apiserver-subnet"
+        address_prefix = "10.240.0.0/16"
+      },
+      {
         name                         = "firewall-internet"
         address_prefix_publicip_name = "firewall-pip"
         next_hop_type                = "Internet"
