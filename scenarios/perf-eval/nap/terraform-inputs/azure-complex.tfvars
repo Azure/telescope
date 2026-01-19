@@ -33,6 +33,10 @@ network_config_list = [
         address_prefix = "10.192.0.0/16"
       },
       {
+        name           = "apiserver-subnet"
+        address_prefix = "10.240.0.0/16"
+      },
+      {
         name           = "AzureFirewallSubnet"
         address_prefix = "10.193.0.0/26"
       }
@@ -117,10 +121,6 @@ route_table_config_list = [
         address_prefix         = "0.0.0.0/0"
         next_hop_type          = "VirtualAppliance"
         next_hop_firewall_name = "nap-firewall"
-      },
-      {
-        name           = "apiserver-subnet"
-        address_prefix = "10.240.0.0/16"
       },
       {
         name                         = "firewall-internet"
