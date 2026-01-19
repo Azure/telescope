@@ -30,9 +30,9 @@ stages:
           topology: karpenter
           matrix:
             complex-nap:
-              pod_count: 5
-              pod_cpu_request: 2
-              pod_memory_request: "4Gi"
+              pod_count: 5000
+              pod_cpu_request: 16
+              pod_memory_request: "60Gi"
               scale_up_timeout: "15m"
               scale_down_timeout: "15m"
               node_selector: "{karpenter.sh/nodepool: default}"
@@ -45,6 +45,8 @@ stages:
               scrape_kubelets: True
               scrape_ksm: True
               karpenter_nodepool_file: karpenter_complex_nodepool.azure.yml
+              aad_enabled: true
+              enable_apiserver_vnet_integration: "false" # TODO: enable when hyperscale fix roll out
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
