@@ -27,12 +27,3 @@ steps:
           query: quantile(0.9, sum by (instance) (rate(containerd_cri_image_pulling_throughput_sum{nodepool=~"userpool.*"}[%v])) / sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v])))
         - name: Perc99
           query: quantile(0.99, sum by (instance) (rate(containerd_cri_image_pulling_throughput_sum{nodepool=~"userpool.*"}[%v])) / sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v])))
-        # DEBUG: Count how many instances have valid rate() results
-        - name: DebugInstanceCount
-          query: count(sum by (instance) (rate(containerd_cri_image_pulling_throughput_sum{nodepool=~"userpool.*"}[%v])) / sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v])))
-        # DEBUG: Count instances with valid (non-NaN) throughput values
-        - name: DebugValidInstanceCount
-          query: count(sum by (instance) (rate(containerd_cri_image_pulling_throughput_sum{nodepool=~"userpool.*"}[%v])) / sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v])) > 0)
-        # DEBUG: Total samples collected across all instances
-        - name: DebugTotalSamples
-          query: sum(increase(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v]))
