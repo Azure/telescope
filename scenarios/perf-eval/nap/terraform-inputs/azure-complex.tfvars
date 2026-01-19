@@ -128,7 +128,6 @@ route_table_config_list = [
   }
 ]
 
-
 aks_cli_config_list = [
   {
     role                  = "nap"
@@ -147,7 +146,19 @@ aks_cli_config_list = [
       node_count = 10
       vm_size    = "Standard_D16s_v5"
     }
-    extra_node_pool = []
+    extra_node_pool = [
+      {
+        name       = "prompool"
+        node_count = 1
+        vm_size    = "Standard_D16_v5"
+        optional_parameters = [
+          {
+            name  = "labels"
+            value = "prometheus=true"
+          }
+        ]
+      }
+    ]
     optional_parameters = [
       {
         name  = "node-provisioning-mode"
