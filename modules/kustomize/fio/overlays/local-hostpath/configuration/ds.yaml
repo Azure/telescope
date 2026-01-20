@@ -59,6 +59,7 @@ spec:
         - --ipc
         - --net
         - --pid
+        - --root=/proc/1/root
         - --
         - bash
         - -exc
