@@ -36,6 +36,7 @@ steps:
       fi
 
       regional_config=$REGIONAL_CONFIG
+      PUBLIC_KEY_PATH=${SSH_PUBLIC_KEY_PATH:-}
       for REGION in $(echo "$REGIONS" | jq -r '.[]'); do
         if [ -z "$INPUT_VARIABLES" ]; then
           echo "Set input variables for region $REGION"
@@ -53,6 +54,7 @@ steps:
                 --argjson aks_custom_headers "$AKS_CUSTOM_HEADERS" \
                 --argjson aks_cli_system_node_pool "$SYSTEM_NODE_POOL" \
                 --argjson aks_cli_user_node_pool "$USER_NODE_POOL" \
+                --arg public_key_path "$PUBLIC_KEY_PATH" \
                 '{
                   run_id: $run_id,
                   region: $region,
@@ -66,7 +68,8 @@ steps:
                   enable_apiserver_vnet_integration: $enable_apiserver_vnet_integration,
                   aks_custom_headers: $aks_custom_headers,
                   aks_cli_system_node_pool: $aks_cli_system_node_pool,
-                  aks_cli_user_node_pool: $aks_cli_user_node_pool
+                  aks_cli_user_node_pool: $aks_cli_user_node_pool,
+                  public_key_path: $public_key_path
                 }' | jq 'with_entries(select(.value != null and .value != ""))')
         fi
         input_variables_str=$(echo $INPUT_VARIABLES | jq -c .)
@@ -88,3 +91,4 @@ steps:
       RUN_ID: $(RUN_ID)
       INPUT_VARIABLES: ${{ convertToJson(parameters.input_variables) }}
       DEBUG: $(System.Debug)
+      SSH_PUBLIC_KEY_PATH: $(SSH_PUBLIC_KEY_PATH)
