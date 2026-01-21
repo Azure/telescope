@@ -196,3 +196,70 @@ def parse_xml_to_json(file_path, indent=0):
     # Convert the result dictionary to JSON
     json_result = json.dumps(result, indent=indent)
     return json_result
+
+def parse_json_to_daemonset(jsonString):
+    kubelet_daemonset = r"""
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: kubelet-config-updater
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app: kubelet-config-updater
+  template:
+    metadata:
+      labels:
+        app: kubelet-config-updater
+    spec:
+      hostPID: true
+      containers:
+      - name: kubelet-config-updater
+        image: ghcr.io/containerd/busybox:1.36
+        securityContext:
+          privileged: true
+        command:
+        - /bin/sh 
+        - -c
+        - |
+          echo "Updating kubelet configuration..."
+          export CUSTOM_EVICTION_FLAGS="{custom_kubelet_flags}"
+          export kubelet_flags_eof_key="--node-ip"
+          for kvp in $CUSTOM_EVICTION_FLAGS; do
+            key=${{kvp%%=*}}
+            value=${{kvp#*=}}
+            esc_key=$(printf '%s' "${{key}}" | sed -e 's/[][\/.^$*+?{{}}()|]/\\&/g')
+            esc_value=$(printf '%s' "${{value}}" | sed -e 's/[][\/.^$*+?{{}}()|]/\\&/g')
+            echo "Processing key: ${{esc_key}} with value: ${{esc_value}}"
+            if grep -q -E "(^|[[:space:]])${{esc_key}}=[^[:space:]]+" /etc/default/kubelet; then
+              echo "Found ${{esc_key}} in /etc/default/kubelet"
+              sed -i -r -E "s/(^|[[:space:]])(${{esc_key}})=[^[:space:]]*/\1\2=${{esc_value}}/g" "/etc/default/kubelet"
+            else
+              echo "Adding ${{esc_key}}=${{esc_value}} to /etc/default/kubelet"
+              repl=$(printf ' %s=%s' "${{esc_key}}" "${{esc_value}}")
+              sed -i -r -E "s/(${kubelet_flags_eof_key}}=[^[:space:]]+)/\1${repl}}/g" "/etc/default/kubelet"
+              export kubelet_flags_eof_key="${{esc_key}}"
+            fi
+          done
+          echo "Checking Updated kubelet configuration:"
+          cat /etc/default/kubelet
+          echo "Restarting kubelet..."
+          nsenter --mount=/proc/1/ns/mnt -- systemctl restart kubelet
+          echo "Done. Sleeping indefinitely to keep the pod running."
+          sleep infinity
+        volumeMounts:
+        - name: systemd
+          mountPath: /run/systemd
+        - name: kubelet-config
+          mountPath: /etc/default
+      volumes:
+      - name: kubelet-config
+        hostPath:
+          path: /etc/default
+          type: Directory
+      - name: systemd
+        hostPath:
+          path: /run/systemd
+      restartPolicy: Always""".format(custom_kubelet_flags=jsonString)
+    return kubelet_daemonset
