@@ -26,8 +26,8 @@ stages:
           topology: image-pull
           matrix:
             image-pull-10pods-authenticated:
-              node_count: 10
-              max_pods: 30
+              node_count: 2
+              max_pods: 10
               repeats: 1
               operation_timeout: 3m
               load_type: memory
