@@ -10,7 +10,7 @@ steps:
     set -x
 
     anonymous_pull="${ANONYMOUS_PULL:-True}"
-    anonymous_pull="${anonymous_pull,,}
+    anonymous_pull="${anonymous_pull,,}"
     [[ "$anonymous_pull" == "true" ]] || exit 0
 
     acr_name=""
@@ -38,8 +38,9 @@ steps:
     if [ -z "$aks_name" ]; then
       echo "##vso[task.logissue type=error;] No AKS instance with role $ROLE and tag $RUN_ID found in region $REGION."
       exit 1
+    fi
 
-     az aks update --name $aks_name --resource-group $aks_rg --detach-acr $acr_name
+    az aks update --name $aks_name --resource-group $aks_rg --detach-acr $acr_name
   env:
     RUN_ID: $(RUN_ID)
     REGION: ${{ parameters.region }}
