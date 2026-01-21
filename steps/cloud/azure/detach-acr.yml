@@ -11,7 +11,10 @@ steps:
 
     anonymous_pull="${ANONYMOUS_PULL:-True}"
     anonymous_pull="${anonymous_pull,,}"
-    [[ "$anonymous_pull" == "true" ]] || exit 0
+    if [[ "$anonymous_pull" == "true" ]]; then
+      echo "Anonymous pull requested, skipping ACR detach."
+      exit 0
+    fi
 
     acr_name=""
     if [[ -n "$REGISTRY_ENDPOINT" ]]; then
@@ -40,6 +43,7 @@ steps:
       exit 1
     fi
 
+    echo "Detaching ACR $acr_name from AKS $aks_name in resource group $aks_rg"
     az aks update --name $aks_name --resource-group $aks_rg --detach-acr $acr_name
   env:
     RUN_ID: $(RUN_ID)
