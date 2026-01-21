@@ -9,8 +9,6 @@ VMSS_SUBNET="vmss-subnet"
 VMSS_LOCATION="westus2"
 VMSS_RG="${RG}-vmss"
 
-TENANT_ID="72f988bf-86f1-41af-91ab-2d7cd011db47"
-AAD_ADMIN_GROUP_ID="8a5603a8-2c60-49ab-bc28-a989b91e187d"
 BOOTSTRAP_SCRIPT_PATH=$1
 
 create_cluster() {
@@ -36,7 +34,7 @@ create_cluster() {
         --resource-group "${RG}" \
         --name "${CLUSTER}" \
         --location $LOCATION \
-        --kubernetes-version 1.33.0 \
+        --kubernetes-version 1.34.0 \
         --tier Standard \
         --node-count 3 \
         --nodepool-name system \
@@ -46,11 +44,7 @@ create_cluster() {
         --network-plugin none \
         --vnet-subnet-id $subnet_id \
         --enable-managed-identity \
-        --assign-identity $identity_id \
-        --enable-aad \
-        --enable-azure-rbac \
-        --aad-admin-group-object-ids $AAD_ADMIN_GROUP_ID \
-        --aad-tenant-id $TENANT_ID
+        --assign-identity $identity_id
     
     # Assign AKS RBAC Cluster Admin role to the identity at the cluster scope
     cluster_id=$(az aks show --resource-group $RG --name $CLUSTER --query id -o tsv)
@@ -160,7 +154,7 @@ update_aks_vmss() {
             type: "CustomScript",
             typeHandlerVersion: "2.1",
             settings: {
-                fileUris: ["https://raw.githubusercontent.com/Azure/telescope/refs/heads/main/modules/kustomize/stretch/setup_ipvlan.sh"],
+                fileUris: ["https://raw.githubusercontent.com/Azure/telescope/refs/heads/setup-cni/modules/kustomize/stretch/setup_ipvlan.sh"],
                 commandToExecute: "bash setup_ipvlan.sh"
             }
         }
@@ -350,7 +344,8 @@ setup_vnet_peering() {
         --allow-forwarded-traffic
 }
 
+create_cluster
 # update_aks_vmss
 # create_vm
-create_vmss $BOOTSTRAP_SCRIPT_PATH
+# create_vmss $BOOTSTRAP_SCRIPT_PATH
 # setup_vnet_peering
