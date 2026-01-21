@@ -1,6 +1,6 @@
 # cluster configuration for Morgan Stanley
 scenario_type  = "perf-eval"
-scenario_name  = "nap"
+scenario_name  = "nap-complex"
 deletion_delay = "2h"
 owner          = "aks"
 
@@ -31,6 +31,10 @@ network_config_list = [
       {
         name           = "nap-subnet-ms"
         address_prefix = "10.192.0.0/16"
+      },
+      {
+        name           = "apiserver-subnet"
+        address_prefix = "10.240.0.0/16"
       },
       {
         name           = "AzureFirewallSubnet"
@@ -136,6 +140,7 @@ aks_cli_config_list = [
     subnet_name           = "nap-subnet-ms"
     managed_identity_name = "nap-identity"
     kubernetes_version    = "1.33"
+    api_server_subnet_name = "apiserver-subnet"
     kms_config = {
       key_name       = "kms-nap"
       key_vault_name = "akskms"
@@ -212,6 +217,11 @@ aks_cli_config_list = [
         name  = "network-policy"
         value = "cilium"
       }
+      # TODO: enable private cluster after bug fix for hyperscale has been rolled out
+      # {
+      #   name  = "enable-private-cluster"
+      #   value = ""
+      # }
     ]
   }
 ]
