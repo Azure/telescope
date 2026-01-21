@@ -1,5 +1,20 @@
 trigger: none
 
+parameters:
+  - name: myObject  # Define a parameter named 'myObject'
+    type: object  # The parameter type is object
+    default:  # Default value is an object with nested properties
+      foo: FOO  # Property 'foo' with value 'FOO'
+      bar: BAR  # Property 'bar' with value 'BAR'
+      things:  # Property 'things' is a list
+      - one  
+      - two  
+      - three  
+      nested:  # Property 'nested' is an object
+        one: apple  # Property 'one' with value 'apple'
+        two: pear  # Property 'two' with value 'pear'
+        count: 3  # Property 'count' with value 3
+
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: k8s-node-stress
