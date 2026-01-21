@@ -37,6 +37,12 @@ steps:
   env:
     BUILD_REASON: $(Build.Reason)
 
+- ${{ if eq(parameters.cloud, 'azure') }}:
+  - template: /steps/cloud/azure/detach-acr.yml
+    parameters:
+      role: client
+      region: ${{ parameters.regions[0] }
+
 - ${{ if eq(variables['Build.SourceBranchName'], 'main') }}:
   - template: /steps/collect-terraform-operation-metadata.yml
     parameters:

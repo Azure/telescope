@@ -15,3 +15,8 @@ steps:
     cloud: ${{ parameters.cloud }}
     engine_input: ${{ parameters.engine_input }}
     region: ${{ parameters.regions[0] }}
+- ${{ if eq(parameters.cloud, 'azure') }}:
+  - template: /steps/cloud/azure/detach-acr.yml
+    parameters:
+      role: client
+      region: ${{ parameters.regions[0] }}
