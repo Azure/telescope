@@ -48,9 +48,6 @@ parameters:
 - name: ssh_key_enabled
   type: boolean
   default: true
-- name: wait_time_minutes
-  type: number
-  default: 0
 
 jobs:
 - job: ${{ parameters.cloud }}
