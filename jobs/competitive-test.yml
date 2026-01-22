@@ -48,6 +48,9 @@ parameters:
 - name: ssh_key_enabled
   type: boolean
   default: true
+- name: wait_time_minutes
+  type: number
+  default: 0
 
 jobs:
 - job: ${{ parameters.cloud }}
@@ -76,10 +79,6 @@ jobs:
       terraform_arguments: ${{ parameters.terraform_arguments }}
       terraform_input_varibles: ${{ parameters.terraform_input_varibles }}
       retry_attempt_count: ${{ parameters.retry_attempt_count }}
-  - script: |
-      echo "Waiting 30 minutes for cluster to stabilize after creation..."
-      sleep 1800  # 30 minutes = 1800 seconds
-    displayName: "Wait 30 minutes post-cluster creation"
   - template: /steps/validate-resources.yml
     parameters:
       cloud: ${{ parameters.cloud }}
