@@ -5,6 +5,7 @@ This bypasses containerd to isolate network vs unpack performance.
 
 import argparse
 import json
+import os
 import time
 from datetime import datetime, timezone
 
@@ -93,18 +94,16 @@ def run_diagnostic(registry: str, image: str, node_count: int, namespace: str = 
     """Deploy and run network diagnostic job."""
     client = KubernetesClient()
     
-    # Create namespace if not exists
+    # Create namespace if not exists (uses client's built-in method)
     try:
-        client.core_v1.create_namespace(
-            body={"metadata": {"name": namespace}}
-        )
-        logger.info(f"Created namespace: {namespace}")
+        client.create_namespace(namespace)
+        logger.info(f"Namespace {namespace} ready")
     except Exception:
         logger.info(f"Namespace {namespace} already exists")
     
     # Delete existing job if any
     try:
-        client.batch_v1.delete_namespaced_job(
+        client.batch.delete_namespaced_job(
             name="network-diagnostic",
             namespace=namespace,
             propagation_policy="Foreground"
@@ -126,13 +125,13 @@ def run_diagnostic(registry: str, image: str, node_count: int, namespace: str = 
     import yaml
     job_dict = yaml.safe_load(job_yaml)
     
-    client.batch_v1.create_namespaced_job(namespace=namespace, body=job_dict)
+    client.batch.create_namespaced_job(namespace=namespace, body=job_dict)
     logger.info(f"Created diagnostic job with {node_count} completions")
     
     # Wait for completion
     logger.info("Waiting for diagnostic job to complete...")
     for _ in range(60):  # 5 minute timeout
-        job = client.batch_v1.read_namespaced_job(name="network-diagnostic", namespace=namespace)
+        job = client.batch.read_namespaced_job(name="network-diagnostic", namespace=namespace)
         if job.status.succeeded == node_count:
             logger.info("Diagnostic job completed successfully")
             break
@@ -148,7 +147,7 @@ def run_diagnostic(registry: str, image: str, node_count: int, namespace: str = 
 
 def collect_results(client: KubernetesClient, namespace: str):
     """Collect and parse results from diagnostic pods."""
-    pods = client.core_v1.list_namespaced_pod(
+    pods = client.api.list_namespaced_pod(
         namespace=namespace,
         label_selector="app=network-diagnostic"
     )
@@ -156,7 +155,7 @@ def collect_results(client: KubernetesClient, namespace: str):
     results = []
     for pod in pods.items:
         try:
-            logs = client.core_v1.read_namespaced_pod_log(
+            logs = client.api.read_namespaced_pod_log(
                 name=pod.metadata.name,
                 namespace=namespace
             )
@@ -246,6 +245,7 @@ def main():
     summary = analyze_results(results)
     
     if args.output and summary:
+        os.makedirs(os.path.dirname(args.output), exist_ok=True)
         with open(args.output, "w") as f:
             json.dump(summary, f, indent=2)
         logger.info(f"Results written to {args.output}")
