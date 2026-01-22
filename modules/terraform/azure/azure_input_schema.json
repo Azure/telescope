@@ -36,9 +36,6 @@
     },
     "enable_apiserver_vnet_integration": {
       "type": "boolean"
-    },
-    "public_key_path": {
-      "type": "string"
     }
   },
   "required": [
