@@ -12,6 +12,7 @@ variable "json_input" {
     k8s_machine_type                  = optional(string, null)
     k8s_os_disk_type                  = optional(string, null)
     enable_apiserver_vnet_integration = optional(bool, false)
+    public_key_path                   = optional(string, null)
 
     aks_cli_system_node_pool = optional(object({
       name        = string
@@ -70,6 +71,12 @@ variable "deletion_delay" {
   description = "Time duration after which the resources can be deleted (e.g., '1h', '2h', '4h')"
   type        = string
   default     = "2h"
+}
+
+variable "tags" {
+  description = "Optional tags to apply to all resources"
+  type        = map(string)
+  default     = {}
 }
 
 variable "public_ip_config_list" {
@@ -135,14 +142,81 @@ variable "route_table_config_list" {
     name                          = string
     bgp_route_propagation_enabled = optional(bool, true)
     routes = list(object({
-      name                   = string
-      address_prefix         = string
-      next_hop_type          = string
-      next_hop_in_ip_address = optional(string, null)
+      name                         = string
+      address_prefix               = optional(string, null)
+      address_prefix_publicip_name = optional(string, null)
+      next_hop_type                = string
+      next_hop_in_ip_address       = optional(string, null)
+      next_hop_firewall_name       = optional(string, null)
     }))
     subnet_associations = list(object({
       subnet_name = string
     }))
+  }))
+  default = []
+}
+
+
+variable "firewall_config_list" {
+  description = "List of firewall configurations"
+  type = list(object({
+    name                  = string
+    network_role          = optional(string)
+    subnet_name           = optional(string)
+    public_ip_name        = optional(string)
+    sku_name              = optional(string, "AZFW_VNet")
+    sku_tier              = optional(string, "Standard")
+    firewall_policy_id    = optional(string)
+    threat_intel_mode     = optional(string, "Alert")
+    dns_proxy_enabled     = optional(bool, false)
+    dns_servers           = optional(list(string))
+    ip_configuration_name = optional(string, "firewall-ipconfig")
+    nat_rule_collections = optional(list(object({
+      name     = string
+      priority = number
+      action   = optional(string, "Dnat")
+      rules = list(object({
+        name                  = string
+        source_addresses      = optional(list(string))
+        source_ip_groups      = optional(list(string))
+        destination_ports     = list(string)
+        destination_addresses = list(string)
+        translated_address    = string
+        translated_port       = string
+        protocols             = list(string)
+      }))
+    })))
+    network_rule_collections = optional(list(object({
+      name     = string
+      priority = number
+      action   = string
+      rules = list(object({
+        name                  = string
+        source_addresses      = optional(list(string))
+        source_ip_groups      = optional(list(string))
+        destination_ports     = list(string)
+        destination_addresses = optional(list(string))
+        destination_fqdns     = optional(list(string))
+        destination_ip_groups = optional(list(string))
+        protocols             = list(string)
+      }))
+    })))
+    application_rule_collections = optional(list(object({
+      name     = string
+      priority = number
+      action   = string
+      rules = list(object({
+        name             = string
+        source_addresses = optional(list(string))
+        source_ip_groups = optional(list(string))
+        target_fqdns     = optional(list(string))
+        fqdn_tags        = optional(list(string))
+        protocols = optional(list(object({
+          port = string
+          type = string
+        })))
+      }))
+    })))
   }))
   default = []
 }
@@ -268,6 +342,61 @@ variable "aks_config_list" {
       key_vault_name = string
       network_access = optional(string, "Public")
     }), null)
+  }))
+  default = []
+}
+
+variable "vm_config_list" {
+  description = "Configuration for virtual machines"
+  type = list(object({
+    # Basic VM configuration
+    role           = string
+    name           = string
+    vm_size        = optional(string, "Standard_D4s_v3")
+    admin_username = optional(string, "azureuser")
+
+    # Network configuration - use NIC name from network module
+    nic_name = string
+
+    # AKS integration (optional)
+    aks_name = optional(string, null)
+
+    # OS disk configuration
+    os_disk = optional(object({
+      caching              = optional(string, "ReadWrite")
+      storage_account_type = optional(string, "Standard_LRS")
+      disk_size_gb         = optional(number, 64)
+    }), {})
+
+    # Image configuration
+    image = optional(object({
+      publisher = optional(string, "Canonical")
+      offer     = optional(string, "ubuntu-24_04-lts")
+      sku       = optional(string, "server")
+      version   = optional(string, "latest")
+    }), {})
+
+    # NSG configuration
+    nsg = optional(object({
+      enabled = optional(bool, false)
+      rules = optional(list(object({
+        name                       = string
+        priority                   = number
+        direction                  = optional(string, "Inbound")
+        access                     = optional(string, "Allow")
+        protocol                   = optional(string, "Tcp")
+        source_port_range          = optional(string, "*")
+        destination_port_range     = string
+        source_address_prefix      = optional(string, "*")
+        destination_address_prefix = optional(string, "*")
+      })), [])
+    }), {})
+
+    # Cloud-init template file name in templates/ folder
+    cloud_init_template = optional(string, "cloud-init.tpl")
+
+    # VM-specific tags (merged with global tags)
+    vm_tags = optional(map(string), {})
   }))
   default = []
 }

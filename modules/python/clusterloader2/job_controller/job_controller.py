@@ -27,7 +27,7 @@ class JobController(ClusterLoader2Base):
     cl2_override_file: str = ""
     job_count: int = 1000
     job_throughput: int = -1
-    job_template_path: str = ""
+    job_template_path: str = "base/job_template.yaml"
     job_gpu: int = 0
     dra_enabled: bool = False
     ray_enabled: bool = False
@@ -152,7 +152,8 @@ class JobController(ClusterLoader2Base):
           from "<cl2_config_dir>/ray/".
         - Waits for operator and mock-head pods to be ready.
         """
-        config_dir = os.path.join("./clusterloader2/job_controller/config", "ray")
+        logger.info("cl2 config dir: %s", self.cl2_config_dir)
+        config_dir = os.path.join(self.cl2_config_dir, "ray")
         values_file = os.path.join(config_dir, "values.yaml")
 
         # Install KubeRay operator via Helm
@@ -180,6 +181,8 @@ class JobController(ClusterLoader2Base):
             "--install",
             "kuberay-operator",
             "kuberay/kuberay-operator",
+            "--version",
+            "1.4.2",
             "--namespace",
             "kuberay-system",
             "--create-namespace",
@@ -284,6 +287,9 @@ class JobController(ClusterLoader2Base):
             help="Timeout before failing the scale up test",
         )
         parser.add_argument(
+            "--cl2_config_dir", type=str, help="Path to the CL2 config directory"
+        )
+        parser.add_argument(
             "--cl2_override_file",
             type=str,
             help="Path to the overrides of CL2 config file",
@@ -295,7 +301,7 @@ class JobController(ClusterLoader2Base):
             "--job_throughput", type=int, default=-1, help="Job throughput"
         )
         parser.add_argument(
-            "--job_template_path", type=str, default="job_template.yaml", help="Job template path"
+            "--job_template_path", type=str, default="base/job_template.yaml", help="Job template path"
         )
         parser.add_argument(
             "--job_gpu", type=int, default=0, help="Number of GPUs per job"
@@ -399,7 +405,7 @@ class JobController(ClusterLoader2Base):
             "--job_throughput", type=int, default=-1, help="Job throughput"
         )
         parser.add_argument(
-            "--job_template_path", type=str, default="job_template.yaml", help="Job template path"
+            "--job_template_path", type=str, default="base/job_template.yaml", help="Job template path"
         )
         parser.add_argument(
             "--job_gpu", type=int, default=0, help="Number of GPUs per job"
