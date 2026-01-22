@@ -11,10 +11,8 @@ variables:
   SCENARIO_NAME: telescope-sharing
 
 stages:
-  - stage: azure_eastus2_ondemand_complex_config
+  - stage: azure_eastus2
     dependsOn: []
-    variables:
-      - group: NAP-MS-Requirements
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:

@@ -7,7 +7,7 @@ aks_config_list = []
 
 aks_cli_config_list = [
   {
-    role               = "telescope-sharing"
+    role               = "nap"
     aks_name           = "tel-share"
     sku_tier           = "standard"
     kubernetes_version = "1.33"
