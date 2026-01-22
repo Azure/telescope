@@ -1,0 +1,45 @@
+trigger: none
+# schedules:
+#   - cron: "0 21 * * *"
+#     displayName: "Every day at 9:00 PM"
+#     branches:
+#       include:
+#         - main
+#     always: true
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: telescope-sharing
+
+stages:
+  - stage: azure_eastus2_ondemand_complex_config
+    dependsOn: []
+    variables:
+      - group: NAP-MS-Requirements
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250912"
+          topology: karpenter
+          matrix:
+            small-scale-spot:
+              cpu_per_node: 4
+              node_count: 10
+              pod_count: 10
+              scale_up_timeout: "15m"
+              scale_down_timeout: "15m"
+              node_label_selector: "karpenter.sh/nodepool = spot"
+              node_selector: "{karpenter.sh/nodepool: spot}"
+              loop_count: 1
+              warmup_deployment: true
+              warmup_deployment_template: warmup_deployment.yaml
+              vm_size: Standard_D4_v3
+              capacity_type: spot
+          max_parallel: 1
+          timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false
