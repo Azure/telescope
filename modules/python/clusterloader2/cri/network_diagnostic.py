@@ -48,22 +48,31 @@ spec:
           echo "TIMESTAMP=$(date -Iseconds)"
           
           REGISTRY="{registry}"
-          IMAGE="{image}"
+          REPO="{repo}"
+          TAG="{tag}"
           
           # Get token
-          TOKEN=$(curl -s "https://$REGISTRY/oauth2/token?service=$REGISTRY&scope=repository:${{IMAGE%:*}}:pull" 2>/dev/null | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
+          TOKEN=$(curl -s "https://$REGISTRY/oauth2/token?service=$REGISTRY&scope=repository:$REPO:pull" 2>/dev/null | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
+          
+          if [ -z "$TOKEN" ]; then
+            echo "ERROR=failed_to_get_token"
+            echo "DEBUG_REGISTRY=$REGISTRY"
+            echo "DEBUG_REPO=$REPO"
+            exit 1
+          fi
           
           # Get manifest and extract digest
-          MANIFEST=$(curl -s -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.docker.distribution.manifest.v2+json" "https://$REGISTRY/v2/${{IMAGE%:*}}/manifests/${{IMAGE#*:}}" 2>/dev/null)
+          MANIFEST=$(curl -s -H "Authorization: Bearer $TOKEN" -H "Accept: application/vnd.docker.distribution.manifest.v2+json" "https://$REGISTRY/v2/$REPO/manifests/$TAG" 2>/dev/null)
           DIGEST=$(echo "$MANIFEST" | grep -o '"digest":"sha256:[a-f0-9]*"' | head -1 | cut -d'"' -f4)
           
           if [ -z "$DIGEST" ]; then
             echo "ERROR=failed_to_get_digest"
+            echo "DEBUG_MANIFEST=$MANIFEST"
             exit 1
           fi
           
           # Download and measure
-          BLOB_URL="https://$REGISTRY/v2/${{IMAGE%:*}}/blobs/$DIGEST"
+          BLOB_URL="https://$REGISTRY/v2/$REPO/blobs/$DIGEST"
           RESULT=$(curl -o /dev/null -w "%{{size_download}} %{{time_total}} %{{speed_download}}" -H "Authorization: Bearer $TOKEN" -s "$BLOB_URL" 2>/dev/null)
           
           SIZE=$(echo $RESULT | cut -d' ' -f1)
@@ -113,13 +122,19 @@ def run_diagnostic(registry: str, image: str, node_count: int, namespace: str = 
     except Exception:
         pass
     
-    # Create the job
+    # Create the job - split image into repo and tag
+    if ':' in image:
+        repo, tag = image.rsplit(':', 1)
+    else:
+        repo, tag = image, 'latest'
+    
     job_yaml = DIAGNOSTIC_JOB_TEMPLATE.format(
         namespace=namespace,
         completions=node_count,
         parallelism=node_count,
         registry=registry,
-        image=image
+        repo=repo,
+        tag=tag
     )
     
     import yaml
