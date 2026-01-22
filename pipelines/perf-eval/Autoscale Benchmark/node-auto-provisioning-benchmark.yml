@@ -94,11 +94,7 @@ stages:
           ssh_key_enabled: false
 
   - stage: azure_staging_large_scale
-    condition: |
-        or(
-          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 6:00 AM'),
-          eq(variables['Build.Reason'], 'Manual')
-        )
+    condition: eq(variables['Build.Reason'], 'Manual')
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
