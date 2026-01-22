@@ -1,0 +1,123 @@
+{{$RegistryEndpoint := .RegistryEndpoint}}
+{{$TestImage := .TestImage}}
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{.Name}}
+  labels:
+    app: network-diagnostic
+    group: network-diagnostic
+spec:
+  completions: 10
+  parallelism: 10
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: network-diagnostic
+        group: network-diagnostic
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        cri-resource-consume: "true"
+      containers:
+      - name: curl-diagnostic
+        image: curlimages/curl:latest
+        imagePullPolicy: Always
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "=========================================="
+          echo "Network Diagnostic - $(hostname)"
+          echo "=========================================="
+          echo "Node: $(hostname)"
+          echo "Timestamp: $(date -Iseconds)"
+          echo ""
+
+          # Get the image manifest to find the blob digest
+          REGISTRY="{{$RegistryEndpoint}}"
+          IMAGE="{{$TestImage}}"
+          
+          echo "Registry: $REGISTRY"
+          echo "Image: $IMAGE"
+          echo ""
+
+          # First, get an anonymous token for the registry
+          echo "Step 1: Getting registry token..."
+          TOKEN=$(curl -s "https://$REGISTRY/oauth2/token?service=$REGISTRY&scope=repository:${IMAGE%:*}:pull" | grep -o '"access_token":"[^"]*"' | cut -d'"' -f4)
+          
+          if [ -z "$TOKEN" ]; then
+            echo "Warning: Could not get token, trying without auth..."
+            AUTH_HEADER=""
+          else
+            echo "Token acquired (length: ${#TOKEN})"
+            AUTH_HEADER="Authorization: Bearer $TOKEN"
+          fi
+          echo ""
+
+          # Get the manifest to find the layer blob
+          echo "Step 2: Getting image manifest..."
+          MANIFEST=$(curl -s -H "$AUTH_HEADER" \
+            -H "Accept: application/vnd.docker.distribution.manifest.v2+json" \
+            "https://$REGISTRY/v2/${IMAGE%:*}/manifests/${IMAGE#*:}")
+          
+          # Extract the first layer digest (our payload blob)
+          DIGEST=$(echo "$MANIFEST" | grep -o '"digest":"sha256:[a-f0-9]*"' | head -1 | cut -d'"' -f4)
+          
+          if [ -z "$DIGEST" ]; then
+            echo "ERROR: Could not extract digest from manifest"
+            echo "Manifest response:"
+            echo "$MANIFEST"
+            exit 1
+          fi
+          
+          echo "Layer digest: $DIGEST"
+          echo ""
+
+          # Measure raw download throughput
+          echo "Step 3: Measuring raw download throughput..."
+          BLOB_URL="https://$REGISTRY/v2/${IMAGE%:*}/blobs/$DIGEST"
+          echo "URL: $BLOB_URL"
+          echo ""
+
+          echo "--- Download Test (3 runs) ---"
+          for i in 1 2 3; do
+            echo ""
+            echo "Run $i:"
+            curl -o /dev/null -w "  Size: %{size_download} bytes\n  Time: %{time_total}s\n  Speed: %{speed_download} bytes/sec (%{speed_download} / 1048576 = MB/s)\n" \
+              -H "$AUTH_HEADER" \
+              -s "$BLOB_URL"
+            
+            # Calculate MB/s manually
+            RESULT=$(curl -o /dev/null -w "%{size_download} %{time_total}" -H "$AUTH_HEADER" -s "$BLOB_URL")
+            SIZE=$(echo $RESULT | cut -d' ' -f1)
+            TIME=$(echo $RESULT | cut -d' ' -f2)
+            if [ "$TIME" != "0" ] && [ -n "$TIME" ]; then
+              # Use awk for floating point math
+              MBPS=$(echo "$SIZE $TIME" | awk '{printf "%.2f", $1 / $2 / 1048576}')
+              echo "  Calculated: $MBPS MB/s"
+            fi
+          done
+
+          echo ""
+          echo "=========================================="
+          echo "Diagnostic complete"
+          echo "=========================================="
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 256Mi
+      tolerations:
+      - key: "cri-resource-consume"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      - key: "cri-resource-consume"
+        operator: "Equal"
+        value: "true"
+        effect: "NoExecute"

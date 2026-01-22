@@ -9,6 +9,26 @@ parameters:
     type: string
 
 steps:
+  # Optional: Run network diagnostic to measure raw ACR download throughput
+  - script: |
+      set -eo pipefail
+      if [ "${RUN_NETWORK_DIAGNOSTIC:-False}" = "True" ]; then
+        echo "Running network diagnostic..."
+        PYTHONPATH=$PYTHONPATH:$(pwd) python3 $NETWORK_DIAG_SCRIPT \
+          --registry ${REGISTRY_ENDPOINT:-"acrtelescope.azurecr.io"} \
+          --image "${TEST_IMAGE:-e2e-test-images/resource-consumer:1.13}" \
+          --node_count $NODE_COUNT \
+          --output $CL2_REPORT_DIR/network-diagnostic.json
+      else
+        echo "Network diagnostic skipped (set run_network_diagnostic: True to enable)"
+      fi
+    workingDirectory: modules/python
+    env:
+      NETWORK_DIAG_SCRIPT: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/network_diagnostic.py
+      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/results
+    displayName: "Network Diagnostic (Optional)"
+    continueOnError: true
+
   - script: |
       set -eo pipefail
 

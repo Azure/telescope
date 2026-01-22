@@ -33,6 +33,7 @@ stages:
               kubernetes_version: "1.34"
               pod_startup_latency_threshold: 60s
               anonymous_pull: False
+              run_network_diagnostic: True
             image-pull-anonymous:
               node_count: 10
               max_pods: 30
@@ -48,6 +49,7 @@ stages:
               kubernetes_version: "1.34"
               pod_startup_latency_threshold: 60s
               anonymous_pull: True
+              run_network_diagnostic: True
           max_parallel: 1
           credential_type: service_connection
           ssh_key_enabled: false
