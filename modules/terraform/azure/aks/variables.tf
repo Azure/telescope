@@ -74,10 +74,12 @@ variable "key_vaults" {
 
 variable "aks_config" {
   type = object({
-    role        = string
-    aks_name    = string
-    dns_prefix  = string
-    subnet_name = optional(string, null)
+    role         = string
+    aks_name     = string
+    dns_prefix   = string
+    subnet_name  = optional(string, null)
+    sku_tier     = string
+    support_plan = optional(string, "KubernetesOfficial")
     network_profile = optional(object({
       network_plugin      = optional(string, null)
       network_plugin_mode = optional(string, null)
@@ -88,8 +90,6 @@ variable "aks_config" {
       service_cidr        = optional(string, null)
       dns_service_ip      = optional(string, null)
     }))
-    sku_tier                        = string
-    support_plan                    = optional(string, "KubernetesOfficial")
     default_node_pool = object({
       name                         = string
       subnet_name                  = optional(string, null)
