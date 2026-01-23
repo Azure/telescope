@@ -1,12 +1,8 @@
 from xml.dom import minidom
 import json
 import os
-import docker
-from clients.docker_client import DockerClient
-from utils.logger_config import get_logger, setup_logging
 
-setup_logging()
-logger = get_logger(__name__)
+
 
 POD_STARTUP_LATENCY_FILE_PREFIX_MEASUREMENT_MAP = {
     "PodStartupLatency_PodStartupLatency_": "PodStartupLatency_PodStartupLatency",
@@ -238,7 +234,7 @@ spec:
             else
               echo "Adding ${{esc_key}}=${{esc_value}} to /etc/default/kubelet"
               repl=$(printf ' %s=%s' "${{esc_key}}" "${{esc_value}}")
-              sed -i -r -E "s/(${kubelet_flags_eof_key}}=[^[:space:]]+)/\1${repl}}/g" "/etc/default/kubelet"
+              sed -i -r -E "s/(${{kubelet_flags_eof_key}}=[^[:space:]]+)/\1${{repl}}/g" "/etc/default/kubelet"
               export kubelet_flags_eof_key="${{esc_key}}"
             fi
           done
@@ -262,4 +258,4 @@ spec:
         hostPath:
           path: /run/systemd
       restartPolicy: Always""".format(custom_kubelet_flags=flags_string)
-    return kubelet_daemonset
+    print(kubelet_daemonset)
