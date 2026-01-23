@@ -19,7 +19,10 @@ MEMORY_SCALE_FACTOR = 0.95 # 95% of the total allocatable memory to account for 
 def override_config_clusterloader2(
     node_count, node_per_step, max_pods, repeats, operation_timeout,
     load_type, scale_enabled, pod_startup_latency_threshold, provider,
-    registry_endpoint, os_type, scrape_kubelets, scrape_containerd, containerd_scrape_interval, host_network, override_file):
+    registry_endpoint, os_type, scrape_kubelets, scrape_containerd, containerd_scrape_interval, host_network, override_file, use_custom_kubelet = False):
+    if use_custom_kubelet:
+        global MEMORY_SCALE_FACTOR
+        MEMORY_SCALE_FACTOR = 1.00 # Allow full memory access for load testing
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
     nodes = client.get_nodes(label_selector="cri-resource-consume=true")
     if len(nodes) == 0:

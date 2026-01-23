@@ -1,19 +1,14 @@
 trigger: none
 
 parameters:
-  - name: myObject  # Define a parameter named 'myObject'
-    type: object  # The parameter type is object
-    default:  # Default value is an object with nested properties
-      foo: FOO  # Property 'foo' with value 'FOO'
-      bar: BAR  # Property 'bar' with value 'BAR'
-      things:  # Property 'things' is a list
-      - one  
-      - two  
-      - three  
-      nested:  # Property 'nested' is an object
-        one: apple  # Property 'one' with value 'apple'
-        two: pear  # Property 'two' with value 'pear'
-        count: 3  # Property 'count' with value 3
+  - name: use_custom_kubelet
+    displayName: "Use Custom Kubelet Flags?"
+    type: boolean
+    default: true
+  - name: custom_kubelet_config
+    displayName: "Custom Kubelet Config Object"
+    type: string
+    default:  "--eviction-hard=memory.available<200Mi,nodefs.available<10%,nodefs.inodesFree<5%,pid.available<2000 --eviction-soft=memory.available<400Mi,nodefs.available<15%,nodefs.inodesFree<10%,pid.available<3000 --eviction-soft-grace-period=memory.available=1m,nodefs.available=1m,nodefs.inodesFree=1m,pid.available=1m"
 
 variables:
   SCENARIO_TYPE: perf-eval

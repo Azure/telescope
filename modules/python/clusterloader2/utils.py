@@ -197,7 +197,7 @@ def parse_xml_to_json(file_path, indent=0):
     json_result = json.dumps(result, indent=indent)
     return json_result
 
-def parse_json_to_daemonset(jsonString):
+def add_flags_to_daemonset(flags_string):
     kubelet_daemonset = r"""
 apiVersion: apps/v1
 kind: DaemonSet
@@ -261,5 +261,5 @@ spec:
       - name: systemd
         hostPath:
           path: /run/systemd
-      restartPolicy: Always""".format(custom_kubelet_flags=jsonString)
+      restartPolicy: Always""".format(custom_kubelet_flags=flags_string)
     return kubelet_daemonset
