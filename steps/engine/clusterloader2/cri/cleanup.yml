@@ -1,0 +1,52 @@
+parameters:
+- name: region
+  type: string
+- name: role
+  type: string
+
+steps:
+- script: |
+    set -euo pipefail
+    set -x
+
+    anonymous_pull="${ANONYMOUS_PULL:-True}"
+    anonymous_pull="${anonymous_pull,,}"
+    if [[ "$anonymous_pull" == "true" ]]; then
+      echo "Anonymous pull requested, skipping ACR detach."
+      exit 0
+    fi
+
+    acr_name=""
+    if [[ -n "$REGISTRY_ENDPOINT" ]]; then
+        az config unset defaults.location
+
+        acr_name=$(az resource list --resource-type Microsoft.ContainerRegistry/registries \
+          --name "${REGISTRY_ENDPOINT%%.*}" \
+          --query "[0].name" --output tsv)
+
+        az config set defaults.location="$REGION"
+    fi
+
+    [[ -n "$acr_name" ]] || exit 0
+
+    aks_info=$(az resource list \
+      --resource-type Microsoft.ContainerService/managedClusters \
+      --location "$REGION" \
+      --query "[?tags.run_id=='${RUN_ID}' && tags.role=='${ROLE}']" \
+      --output json)
+
+    aks_name=$(echo "$aks_info" | jq -r '.[0].name')
+    aks_rg=$(echo "$aks_info" | jq -r '.[0].resourceGroup')
+
+    if [ -z "$aks_name" ]; then
+      echo "##vso[task.logissue type=error;] No AKS instance with role $ROLE and tag $RUN_ID found in region $REGION."
+      exit 1
+    fi
+
+    echo "Detaching ACR $acr_name from AKS $aks_name in resource group $aks_rg"
+    az aks update --name $aks_name --resource-group $aks_rg --detach-acr $acr_name
+  env:
+    RUN_ID: $(RUN_ID)
+    REGION: ${{ parameters.region }}
+    ROLE: ${{ parameters.role }}
+  displayName: "Detach ACR from AKS"
