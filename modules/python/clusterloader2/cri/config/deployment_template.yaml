@@ -100,3 +100,11 @@ spec:
         operator: "Equal"
         value: "true"
         effect: "NoExecute"
+      # Spread pods across nodes to ensure each node pulls the image
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            group: {{.Group}}

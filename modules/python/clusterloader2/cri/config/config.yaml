@@ -19,6 +19,7 @@ name: resource-consumer
 
 {{$provider := DefaultParam .CL2_PROVIDER "aks"}}
 {{$registryEndpoint := DefaultParam .CL2_REGISTRY_ENDPOINT "akscritelescope.azurecr.io" }}
+{{$testImage := DefaultParam .CL2_TEST_IMAGE "e2e-test-images/resource-consumer:1.13" }}
 {{$osType := DefaultParam .CL2_OS_TYPE "linux"}}
 {{$scrapeKubelets := DefaultParam .CL2_SCRAPE_KUBELETS false}}
 {{$scrapeContainerd := DefaultParam .CL2_SCRAPE_CONTAINERD false}}
@@ -109,6 +110,7 @@ steps:
           LoadType: {{$loadType}}
           Provider: {{$provider}}
           RegistryEndpoint: {{$registryEndpoint}}
+          TestImage: {{$testImage}}
           OSType: {{$osType}}
           HostNetwork: {{$hostNetwork}}
 
