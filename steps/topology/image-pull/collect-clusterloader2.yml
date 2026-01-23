@@ -59,3 +59,8 @@ steps:
     engine_input: ${{ parameters.engine_input }}
     region: ${{ parameters.regions[0] }}
     registry_info: $(registry_info)
+- ${{ if eq(parameters.cloud, 'azure') }}:
+  - template: /steps/engine/clusterloader2/cri/cleanup.yml
+    parameters:
+      role: client
+      region: ${{ parameters.regions[0] }}
