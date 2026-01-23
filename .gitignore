@@ -83,6 +83,3 @@ modules/python/clusterloader2/*/config/overrides.yaml
 
 # OSX
 .DS_Store
-
-results/
-.gitignore

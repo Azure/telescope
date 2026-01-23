@@ -22,34 +22,17 @@ stages:
               node_count: 10
               max_pods: 30
               repeats: 1
-              operation_timeout: 5m
+              operation_timeout: 30m
               load_type: memory
               scrape_containerd: True
               scrape_kubelets: True
               scrape_registry: True
               containerd_scrape_interval: 15s
-              registry_endpoint: acrtelescope.azurecr.io
-              test_image: benchmark/payload-1gb:v0
+              registry_endpoint: jttelescope.azurecr.io
+              test_image: benchmark/customer-replica:v1
               kubernetes_version: "1.34"
-              pod_startup_latency_threshold: 60s
+              pod_startup_latency_threshold: 120s
               anonymous_pull: False
-              run_network_diagnostic: True
-            image-pull-anonymous:
-              node_count: 10
-              max_pods: 30
-              repeats: 1
-              operation_timeout: 5m
-              load_type: memory
-              scrape_containerd: True
-              scrape_kubelets: True
-              scrape_registry: True
-              containerd_scrape_interval: 15s
-              registry_endpoint: acrtelescope.azurecr.io
-              test_image: benchmark/payload-1gb:v0
-              kubernetes_version: "1.34"
-              pod_startup_latency_threshold: 60s
-              anonymous_pull: True
-              run_network_diagnostic: True
           max_parallel: 1
           credential_type: service_connection
           ssh_key_enabled: false

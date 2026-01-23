@@ -27,3 +27,26 @@ steps:
           query: quantile(0.9, (sum by (instance) (rate(containerd_cri_image_pulling_throughput_sum{nodepool=~"userpool.*"}[%v])) / sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v]))) and (sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v])) > 0))
         - name: Perc99
           query: quantile(0.99, (sum by (instance) (rate(containerd_cri_image_pulling_throughput_sum{nodepool=~"userpool.*"}[%v])) / sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v]))) and (sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v])) > 0))
+
+        # ===== DEBUG METRICS =====
+        # Total data transferred (sum of all image sizes pulled, in MB)
+        - name: Debug_TotalDataMB
+          query: sum(containerd_cri_image_pulling_throughput_sum{nodepool=~"userpool.*"})
+        # Number of nodes actively pulling images
+        - name: Debug_ActiveNodes
+          query: count(sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v])) > 0)
+        # Min throughput across nodes (identify slowest node)
+        - name: Debug_MinNodeThroughput
+          query: min((sum by (instance) (rate(containerd_cri_image_pulling_throughput_sum{nodepool=~"userpool.*"}[%v])) / sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v]))) and (sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v])) > 0))
+        # Max throughput across nodes (identify fastest node)
+        - name: Debug_MaxNodeThroughput
+          query: max((sum by (instance) (rate(containerd_cri_image_pulling_throughput_sum{nodepool=~"userpool.*"}[%v])) / sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v]))) and (sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v])) > 0))
+        # Spread (max - min) to see variance across nodes
+        - name: Debug_ThroughputSpread
+          query: max((sum by (instance) (rate(containerd_cri_image_pulling_throughput_sum{nodepool=~"userpool.*"}[%v])) / sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v]))) and (sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v])) > 0)) - min((sum by (instance) (rate(containerd_cri_image_pulling_throughput_sum{nodepool=~"userpool.*"}[%v])) / sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v]))) and (sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v])) > 0))
+        # Standard deviation of per-node throughput
+        - name: Debug_ThroughputStdDev
+          query: stddev((sum by (instance) (rate(containerd_cri_image_pulling_throughput_sum{nodepool=~"userpool.*"}[%v])) / sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v]))) and (sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v])) > 0))
+        # Rate of image pulls (pulls per second across cluster)
+        - name: Debug_PullRatePerSec
+          query: sum(rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v]))
