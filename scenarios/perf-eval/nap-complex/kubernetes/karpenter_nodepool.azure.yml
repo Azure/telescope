@@ -3,10 +3,9 @@ kind: AKSNodeClass
 metadata:
   name: default
   annotations:
-    kubernetes.io/description: "General purpose AKSNodeClass for running Ubuntu2204\
-      \ nodes"
+    kubernetes.io/description: "General purpose AKSNodeClass for running Ubuntu 24.04 LTS nodes with automatic image updates"
 spec:
-  imageFamily: Ubuntu2204
+  imageFamily: Ubuntu2404
 ---
 apiVersion: karpenter.sh/v1
 kind: NodePool
@@ -19,7 +18,7 @@ spec:
     consolidationPolicy: WhenEmpty
     consolidateAfter: 1m
     budgets:
-      - nodes: "100%"
+    - nodes: "100%"
   template:
     spec:
       nodeClassRef:
@@ -28,25 +27,25 @@ spec:
         name: default
       expireAfter: Never
       requirements:
-        - key: kubernetes.io/os
-          operator: In
-          values: ["linux"]
-        - key: karpenter.sh/capacity-type
-          operator: In
-          values: ["on-demand"]
-        - key: karpenter.azure.com/sku-name
-          operator: In
-          values:
-            - "Standard_D96ds_v5"
-            - "Standard_D96d_v5"
-            - "Standard_D96_v5"
-            - "Standard_D96s_v5"
-        - key: topology.kubernetes.io/zone
-          operator: In
-          values:
-            - eastus2-1
-            - eastus2-2
-            - eastus2-3
+      - key: kubernetes.io/os
+        operator: In
+        values: [ "linux" ]
+      - key: karpenter.sh/capacity-type
+        operator: In
+        values: [ "on-demand" ]
+      - key: karpenter.azure.com/sku-name
+        operator: In
+        values:
+        - "Standard_D96ds_v5"
+        - "Standard_D96d_v5"
+        - "Standard_D96_v5"
+        - "Standard_D96s_v5"
+      - key: topology.kubernetes.io/zone
+        operator: In
+        values:
+        - eastus2-1
+        - eastus2-2
+        - eastus2-3
 ---
 apiVersion: karpenter.sh/v1
 kind: NodePool
@@ -59,24 +58,24 @@ spec:
     consolidationPolicy: WhenEmpty
     consolidateAfter: 1s
     budgets:
-      - nodes: "100%"
+    - nodes: "100%"
   template:
     spec:
       nodeClassRef:
         group: karpenter.azure.com
         kind: AKSNodeClass
         name: default
-      expireAfter: Never
+      expireAfter: 360h # 15-day rotation for spot instances
       requirements:
-        - key: kubernetes.io/os
-          operator: In
-          values: ["linux"]
-        - key: karpenter.sh/capacity-type
-          operator: In
-          values: ["spot"]
-        - key: karpenter.azure.com/sku-name
-          operator: In
-          values: [Standard_D2_v5]
+      - key: kubernetes.io/os
+        operator: In
+        values: [ "linux" ]
+      - key: karpenter.sh/capacity-type
+        operator: In
+        values: [ "spot" ]
+      - key: karpenter.azure.com/sku-name
+        operator: In
+        values: [ Standard_D2_v5 ]
 ---
 apiVersion: karpenter.sh/v1
 kind: NodePool
@@ -87,7 +86,7 @@ metadata:
 spec:
   disruption:
     budgets:
-      - nodes: "1"
+    - nodes: "1"
     consolidateAfter: 1m
     consolidationPolicy: WhenEmpty
   template:
@@ -96,36 +95,36 @@ spec:
         kubernetes.azure.com/ebpf-dataplane: "cilium"
         kubernetes.azure.com/mode: "system"
     spec:
-      expireAfter: Never
+      expireAfter: 720h # 30-day rotation cycle for system surge nodes
       nodeClassRef:
         group: karpenter.azure.com
         kind: AKSNodeClass
         name: default
       requirements:
-        - key: kubernetes.io/arch
-          operator: In
-          values: ["amd64"]
-        - key: kubernetes.io/os
-          operator: In
-          values: ["linux"]
-        - key: karpenter.sh/capacity-type
-          operator: In
-          values: ["on-demand"]
-        - key: karpenter.azure.com/sku-name
-          operator: In
-          values:
-            - Standard_D16_v3
-        - key: topology.kubernetes.io/zone
-          operator: In
-          values:
-            - eastus2-1
-            - eastus2-2
-            - eastus2-3
+      - key: kubernetes.io/arch
+        operator: In
+        values: [ "amd64" ]
+      - key: kubernetes.io/os
+        operator: In
+        values: [ "linux" ]
+      - key: karpenter.sh/capacity-type
+        operator: In
+        values: [ "on-demand" ]
+      - key: karpenter.azure.com/sku-name
+        operator: In
+        values:
+        - Standard_D16_v3
+      - key: topology.kubernetes.io/zone
+        operator: In
+        values:
+        - eastus2-1
+        - eastus2-2
+        - eastus2-3
       startupTaints:
-        - effect: NoExecute
-          key: node.cilium.io/agent-not-ready
-          value: "true"
+      - effect: NoExecute
+        key: node.cilium.io/agent-not-ready
+        value: "true"
       taints:
-        - effect: NoSchedule
-          key: CriticalAddonsOnly
-          value: "true"
+      - effect: NoSchedule
+        key: CriticalAddonsOnly
+        value: "true"
