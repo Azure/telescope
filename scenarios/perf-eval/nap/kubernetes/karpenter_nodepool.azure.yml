@@ -7,7 +7,7 @@ metadata:
   annotations:
     kubernetes.io/description: "General purpose AKSNodeClass for running Ubuntu2204 nodes"
 spec:
-  imageFamily: Ubuntu2204
+  imageFamily: Ubuntu202601.07.0
 
 # On-Demand NodePool (default)
 ---
