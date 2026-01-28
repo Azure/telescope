@@ -15,18 +15,6 @@ parameters:
   default: {}
 - name: max_parallel
   type: number
-- name: terraform_modules_dir
-  type: string
-  default: ''
-- name: terraform_input_file_mapping
-  type: object
-  default: []
-- name: terraform_arguments
-  type: string
-  default: ''
-- name: terraform_input_varibles
-  type: object
-  default: {}
 - name: test_modules_dir
   type: string
   default: ''
@@ -73,10 +61,6 @@ jobs:
     parameters:
       cloud: ${{ parameters.cloud }}
       regions: ${{ parameters.regions }}
-      terraform_modules_dir: ${{ parameters.terraform_modules_dir }}
-      terraform_input_file_mapping: ${{ parameters.terraform_input_file_mapping }}
-      terraform_arguments: ${{ parameters.terraform_arguments }}
-      terraform_input_varibles: ${{ parameters.terraform_input_varibles }}
       retry_attempt_count: ${{ parameters.retry_attempt_count }}
       credential_type: ${{ parameters.credential_type }}
       reuse_cluster: $(reuse_cluster)
@@ -105,7 +89,6 @@ jobs:
     parameters:
       cloud: ${{ parameters.cloud }}
       regions: ${{ parameters.regions }}
-      terraform_arguments: ${{ parameters.terraform_arguments }}
       retry_attempt_count: ${{ parameters.retry_attempt_count }}
       credential_type: ${{ parameters.credential_type }}
       skip_cleanup: $(skip_cleanup)
