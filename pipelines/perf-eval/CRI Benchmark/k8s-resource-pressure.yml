@@ -7,76 +7,98 @@ parameters:
     default: true
   - name: custom_kubelet_config
     displayName: "Custom Kubelet Config Object"
-    type: string
-    default:  "--eviction-hard=memory.available<200Mi,nodefs.available<10%,nodefs.inodesFree<5%,pid.available<2000 --eviction-soft=memory.available<400Mi,nodefs.available<15%,nodefs.inodesFree<10%,pid.available<3000 --eviction-soft-grace-period=memory.available=1m,nodefs.available=1m,nodefs.inodesFree=1m,pid.available=1m"
+    type: object  # The parameter type is object
+    default:  # Default value is an object with nested properties
+      eviction-hard: 
+        memory.available: "200Mi"
+        nodefs.available: "10%"
+        nodefs.inodesFree: "5%"
+        pid.available: "2000"
+      eviction-soft: 
+        memory.available: "400Mi"
+        nodefs.available: "15%"
+        nodefs.inodesFree: "10%"
+        pid.available: "3000"
+      eviction-soft-grace-period:
+        memory.available: "1m"
+        nodefs.available: "1m"
+        nodefs.inodesFree: "1m"
+        pid.available: "1m"
 
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: k8s-node-stress
+  custom_kubelet_config_json: ${{ convertToJson(parameters.custom_kubelet_config) }}
 
 stages:
   - stage: azure_westus2_stress_baseline_1_34
     dependsOn: []
     jobs:
-      - template: /jobs/competitive-test.yml
-        parameters:
-          cloud: azure
-          regions:
-            - westus2
-          terraform_input_file_mapping:
-            - westus2: "scenarios/perf-eval/k8s-node-stress/terraform-inputs/azure-ubuntu2204.tfvars"
-          topology: k8s-resource-pressure
-          engine: clusterloader2
-          engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250513"
-          matrix:
-            n1-p60-memory-ephemeral:
-              node_count: 1
-              max_pods: 60
-              repeats: 1
-              operation_timeout: 3m
-              load_type: memory
-              pod_startup_latency_threshold: 23s
-              kubernetes_version: "1.34"
-              scrape_kubelets: True
-              use_custom_kubelet: ${{ parameters.use_custom_kubelet }}
-              custom_kubelet_config: ${{ parameters.custom_kubelet_config }}
-            n1-p60-memory-managed:
-              node_count: 1
-              max_pods: 60
-              repeats: 1
-              operation_timeout: 3m
-              load_type: memory
-              pod_startup_latency_threshold: 23s
-              kubernetes_version: "1.34"
-              k8s_os_disk_type: Managed
-              scrape_kubelets: True
-              use_custom_kubelet: ${{ parameters.use_custom_kubelet }}
-              custom_kubelet_config: ${{ parameters.custom_kubelet_config }}
-            n1-p60-cpu-ephemeral:
-              node_count: 1
-              max_pods: 60
-              repeats: 1
-              operation_timeout: 3m
-              load_type: cpu
-              pod_startup_latency_threshold: 23s
-              kubernetes_version: "1.34"
-              scrape_kubelets: True
-              use_custom_kubelet: ${{ parameters.use_custom_kubelet }}
-              custom_kubelet_config: ${{ parameters.custom_kubelet_config }}
-            n1-p60-cpu-managed:
-              node_count: 1
-              max_pods: 60
-              repeats: 1
-              operation_timeout: 3m
-              load_type: cpu
-              pod_startup_latency_threshold: 23s
-              kubernetes_version: "1.34"
-              k8s_os_disk_type: Managed
-              scrape_kubelets: True
-              use_custom_kubelet: ${{ parameters.use_custom_kubelet }}
-              custom_kubelet_config: ${{ parameters.custom_kubelet_config }}
-          max_parallel: 1
-          timeout_in_minutes: 120
-          credential_type: service_connection
-          ssh_key_enabled: false
+      - script: |
+          printf '%s' "$custom_kubelet_config_json"
+        env:
+          custom_kubelet_config_json: ${{ variables.custom_kubelet_config_json }}
+        displayName: "Intro Step"
+
+      # - template: /jobs/competitive-test.yml
+      #   parameters:
+      #     cloud: azure
+      #     regions:
+      #       - westus2
+      #     terraform_input_file_mapping:
+      #       - westus2: "scenarios/perf-eval/k8s-node-stress/terraform-inputs/azure-ubuntu2204.tfvars"
+      #     topology: k8s-resource-pressure
+      #     engine: clusterloader2
+      #     engine_input:
+      #       image: "ghcr.io/azure/clusterloader2:v20250513"
+      #     matrix:
+      #       n1-p60-memory-ephemeral:
+      #         node_count: 1
+      #         max_pods: 60
+      #         repeats: 1
+      #         operation_timeout: 3m
+      #         load_type: memory
+      #         pod_startup_latency_threshold: 23s
+      #         kubernetes_version: "1.34"
+      #         scrape_kubelets: True
+      #         use_custom_kubelet: ${{ parameters.use_custom_kubelet }}
+      #         custom_kubelet_config: ${{ variables.custom_kubelet_config_json }}
+      #       n1-p60-memory-managed:
+      #         node_count: 1
+      #         max_pods: 60
+      #         repeats: 1
+      #         operation_timeout: 3m
+      #         load_type: memory
+      #         pod_startup_latency_threshold: 23s
+      #         kubernetes_version: "1.34"
+      #         k8s_os_disk_type: Managed
+      #         scrape_kubelets: True
+      #         use_custom_kubelet: ${{ parameters.use_custom_kubelet }}
+      #         custom_kubelet_config: ${{ variables.custom_kubelet_config_json }}
+      #       n1-p60-cpu-ephemeral:
+      #         node_count: 1
+      #         max_pods: 60
+      #         repeats: 1
+      #         operation_timeout: 3m
+      #         load_type: cpu
+      #         pod_startup_latency_threshold: 23s
+      #         kubernetes_version: "1.34"
+      #         scrape_kubelets: True
+      #         use_custom_kubelet: ${{ parameters.use_custom_kubelet }}
+      #         custom_kubelet_config: ${{ variables.custom_kubelet_config_json }}
+      #       n1-p60-cpu-managed:
+      #         node_count: 1
+      #         max_pods: 60
+      #         repeats: 1
+      #         operation_timeout: 3m
+      #         load_type: cpu
+      #         pod_startup_latency_threshold: 23s
+      #         kubernetes_version: "1.34"
+      #         k8s_os_disk_type: Managed
+      #         scrape_kubelets: True
+      #         use_custom_kubelet: ${{ parameters.use_custom_kubelet }}
+      #         custom_kubelet_config: ${{ variables.custom_kubelet_config_json }}
+      #     max_parallel: 1
+      #     timeout_in_minutes: 120
+      #     credential_type: service_connection
+      #     ssh_key_enabled: false
