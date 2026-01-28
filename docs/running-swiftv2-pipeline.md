@@ -78,7 +78,7 @@ The pipeline uses the following logic for cluster lifecycle management:
    - Keeps cluster after test (`skip_cleanup: true`)
 
 2. **Subsequent jobs** (`reuse_cluster: true`):
-   - Reuses existing resource group (via `shared_run_id`)
+   - Reuses existing resource group (via `BASE_RUN_ID`)
    - **Skips** `createclusterforping.sh` (cluster already exists)
    - Runs `scale-cluster.sh` to scale existing nodepools to new target size
    - Keeps or cleans up cluster based on `skip_cleanup` flag
@@ -87,26 +87,31 @@ This design avoids redundant cluster creation attempts and consolidates all node
 
 ### Result Storage and Run IDs
 
-Each matrix job generates a unique `RUN_ID` (timestamp + 5-char random suffix) used for:
+Each matrix job generates a unique `RUN_ID` (BASE_RUN_ID + job suffix) used for:
 - Blob storage filenames: `$(RUN_ID).json`
 - Individual job tracking and test result isolation
 
-When `reuse_cluster: true`, jobs also use `SHARED_RUN_ID` (equals `BASE_RUN_ID`) for:
+When `reuse_cluster: true`, jobs use `BASE_RUN_ID` for:
 - **Azure cluster discovery**: Finding existing cluster via `run_id` tag
-- Resource group name (cluster identification)
+- Resource group name (shared across all matrix jobs)
 - Azure resource tagging
 - Correlating which jobs ran on the same cluster
 
-**Results DO NOT overwrite** because each job uploads to its own unique `RUN_ID` filename. The telescope metadata now includes both `run_id` (unique per job) and `shared_run_id` (shared across jobs on same cluster) to enable correlation in Kusto queries.
+**Results DO NOT overwrite** because each job uploads to its own unique `RUN_ID` filename. The telescope metadata now includes both `run_id` (unique per job) and `base_run_id` (shared across matrix jobs) to enable correlation in Kusto queries.
 
 **How cluster discovery works:**
 1. **First job** creates cluster with tag: `run_id=<BASE_RUN_ID>`
-2. **Subsequent jobs** use `SHARED_RUN_ID` (= `BASE_RUN_ID`) to query Azure:
+2. **Subsequent jobs** check `reuse_cluster` flag and use `BASE_RUN_ID` to query Azure:
    ```bash
-   az resource list ... --query "[?(tags.run_id == '$SHARED_RUN_ID' && tags.role == 'slo')]"
+   if [ "${REUSE_CLUSTER}" = "true" ]; then
+     CLUSTER_RUN_ID="$BASE_RUN_ID"
+   else
+     CLUSTER_RUN_ID="$RUN_ID"
+   fi
+   az resource list ... --query "[?(tags.run_id == '$CLUSTER_RUN_ID' && tags.role == 'slo')]"
    ```
 3. This allows `update-kubeconfig.yml` and `scale-cluster.sh` to find the shared cluster
-4. But each job keeps unique `RUN_ID` for result uploads (prevents overwrites)
+4. Each job keeps unique `RUN_ID` for result uploads (prevents overwrites)
 
 ## Kusto
 
