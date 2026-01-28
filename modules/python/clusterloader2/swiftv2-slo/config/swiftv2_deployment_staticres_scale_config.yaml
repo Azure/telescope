@@ -62,7 +62,7 @@ steps:
       Method: PodStartupLatency
       Params:
         action: start
-        labelSelector: podgroup={{$groupName}}-job{{$jobIndex}}
+        labelSelector: podgroup={{$groupName}}
         threshold: {{$podStartupLatencyThreshold}}
   {{range $j := Loop $steps}}
   - name: Create PNIs for step {{$j}}
@@ -133,7 +133,7 @@ steps:
             objectTemplatePath: swiftv2_deployment_single_pod_template.yaml
             templateFillMap:
               Group: {{$groupName}}-job{{$jobIndex}}-{{$j}}
-              PodGroup: {{$groupName}}-job{{$jobIndex}}
+              PodGroup: {{$groupName}}
               CpuRequest: {{$latencyPodCpu}}m
               MemoryRequest: {{$latencyPodMemory}}M
               deploymentLabel: start
@@ -163,7 +163,7 @@ steps:
       Method: PodStartupLatency
       Params:
         action: gather
-        labelSelector: podgroup={{$groupName}}-job{{$jobIndex}}
+        labelSelector: podgroup={{$groupName}}
   - name: Wait for Datapath Readiness
     measurements:
     - Identifier: Dummy

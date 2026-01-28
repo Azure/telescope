@@ -114,7 +114,10 @@ create_and_verify_nodepool() {
   fi
 
   if [[ -n "$labels" ]]; then
-    nodepool_cmd+=(--labels "$labels")
+    nodepool_cmd+=(--labels)
+    # Split space-separated labels into individual array elements
+    # shellcheck disable=SC2206
+    nodepool_cmd+=($labels)
   fi
 
   if [[ -n "$taints" ]]; then
