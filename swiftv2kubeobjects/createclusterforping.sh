@@ -42,7 +42,20 @@ check_cancellation() {
     return 0
 }
 
-RG=$RUN_ID 
+# Determine resource group name based on reuse_cluster flag
+# This follows the same pattern as provision-resources.yml for resource group creation
+reuse_cluster_lower=$(echo "${REUSE_CLUSTER:-false}" | tr '[:upper:]' '[:lower:]')
+
+if [ "$reuse_cluster_lower" = "false" ] && [ -n "${BASE_RUN_ID:-}" ]; then
+    # First job in matrix: use BASE_RUN_ID so subsequent jobs can find the cluster
+    RG="$BASE_RUN_ID"
+    echo "Using resource group $RG (BASE_RUN_ID for reuse pattern)"
+else
+    # Standalone job: use unique RUN_ID
+    RG="$RUN_ID"
+    echo "Using resource group $RG (standalone job)"
+fi
+
 CLUSTER="large"
 SUBSCRIPTION=$AZURE_SUBSCRIPTION_ID
 NODEPOOLS=1
