@@ -36,7 +36,12 @@ steps:
     echo "Resources will be cleaned up by the final job in the sequence"
   displayName: "Skip Terraform Destroy (Reuse Mode)"
   condition: and(always(), eq(variables['skip_cleanup'], 'true'))
-  
+
+- script: |
+    echo "##vso[task.setvariable variable=SKIP_RESOURCE_MANAGEMENT]true"
+  displayName: "Set Skip Flag for Terraform Destroy"
+  condition: and(always(), eq(variables['skip_cleanup'], 'true'))
+
 - template: /steps/terraform/run-command.yml
   parameters:
     command: destroy
@@ -45,7 +50,6 @@ steps:
     cloud: ${{ parameters.cloud }}
     retry_attempt_count: ${{ parameters.retry_attempt_count }}
     credential_type: ${{ parameters.credential_type }}
-  condition: and(always(), eq(variables['skip_cleanup'], 'false'))
 
 - script: |
     set -eu
