@@ -48,7 +48,8 @@ steps:
     # Set shared_run_id for cluster reuse scenarios
     # If REUSE_CLUSTER is set but no SHARED_RUN_ID is provided, default to using BASE_RUN_ID
     if [ "${REUSE_CLUSTER:-false}" == "true" ]; then
-      if [ -n "${SHARED_RUN_ID:-}" ] && [ "$SHARED_RUN_ID" != " " ]; then
+      # Handle case where ADO passes unexpanded variable syntax as literal string
+      if [ -n "${SHARED_RUN_ID:-}" ] && [ "$SHARED_RUN_ID" != " " ] && [[ "$SHARED_RUN_ID" != *'$('*')'* ]]; then
         shared_run_id=$SHARED_RUN_ID
       elif [ -n "$BASE_RUN_ID" ] && [ "$BASE_RUN_ID" != " " ]; then
         # For reuse, the first job creates with BASE_RUN_ID, subsequent jobs reuse it

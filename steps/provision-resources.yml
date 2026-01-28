@@ -83,14 +83,17 @@ steps:
     
     # When reusing cluster, use the shared_run_id as the resource group name
     SHARED_RUN_ID="${{ parameters.shared_run_id }}"
-    if [ -z "$SHARED_RUN_ID" ]; then
-      echo "ERROR: reuse_cluster is true but shared_run_id is not provided"
+    
+    # Handle case where ADO passes unexpanded variable syntax as literal string
+    if [[ "$SHARED_RUN_ID" == *'$('*')'* ]] || [ -z "$SHARED_RUN_ID" ]; then
+      echo "ERROR: reuse_cluster is true but shared_run_id is not provided or unexpanded"
+      echo "Received value: $SHARED_RUN_ID"
       exit 1
     fi
     
     echo "Reusing existing resource group: $SHARED_RUN_ID"
     
-    # Set the RUN_ID to the shared one for this job
+    # Set SHARED_RUN_ID as a pipeline variable for subsequent steps
     echo "##vso[task.setvariable variable=SHARED_RUN_ID]$SHARED_RUN_ID"
     
     # Verify the resource group exists

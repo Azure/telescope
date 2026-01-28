@@ -10,10 +10,6 @@ steps:
     chmod +x $(System.DefaultWorkingDirectory)/steps/engine/clusterloader2/swiftv2-slo/prepull-images.sh
     $(System.DefaultWorkingDirectory)/steps/engine/clusterloader2/swiftv2-slo/prepull-images.sh
   env:
-    REGION: ${{ parameters.region }}
-    ROLE: ${{ parameters.role }}
-    RUN_ID: $(RUN_ID)
-    SHARED_RUN_ID: $(SHARED_RUN_ID)
     DATAPATH_REPORTER_IMAGE: $(DATAPATH_REPORTER_IMAGE)
     NGINX_IMAGE: $(NGINX_IMAGE)
   displayName: "Pre-pull Container Images"

@@ -15,7 +15,5 @@ steps:
   env:
     REGION: ${{ parameters.region }}
     ROLE: ${{ parameters.role }}
-    RUN_ID: $(RUN_ID)
-    SHARED_RUN_ID: $(SHARED_RUN_ID)
   displayName: "Scale Cluster"
 
