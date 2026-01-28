@@ -26,9 +26,6 @@ parameters:
 - name: reuse_cluster
   type: string
   default: 'false'
-- name: shared_run_id
-  type: string
-  default: ''
 
 steps:
 - template: /steps/terraform/set-working-directory.yml
@@ -81,9 +78,6 @@ steps:
 - script: |
     set -eu
     
-    # When reusing cluster, use the shared_run_id runtime variable
-    SHARED_RUN_ID='$(shared_run_id)'
-    
     # Handle case where variable is not set
     if [ -z "$SHARED_RUN_ID" ]; then
       echo "ERROR: reuse_cluster is true but shared_run_id variable is not set"
@@ -106,6 +100,7 @@ steps:
   condition: and(${{ eq(parameters.cloud, 'azure') }}, ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'), eq(variables['reuse_cluster'], 'true'))
   env:
     region: ${{ parameters.regions[0] }}
+    SHARED_RUN_ID: $(shared_run_id)
 
 - template: /steps/terraform/run-command.yml
   parameters:
