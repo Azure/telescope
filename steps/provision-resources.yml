@@ -3,20 +3,6 @@ parameters:
   type: string
 - name: regions
   type: object
-- name: terraform_modules_dir
-  type: string
-  default: ''
-- name: terraform_input_file_mapping
-  type: object
-- name: terraform_user_data_path
-  type: string
-  default: ''
-- name: terraform_arguments
-  type: string
-  default: ''
-- name: terraform_input_varibles
-  type: object
-  default: {}
 - name: retry_attempt_count
   type: number
   default: 3
@@ -28,42 +14,22 @@ parameters:
   default: 'false'
 
 steps:
-- template: /steps/terraform/set-working-directory.yml
-  parameters:
-    cloud: ${{ parameters.cloud }}
-    modules_dir: ${{ parameters.terraform_modules_dir }}
-
-- template: /steps/terraform/set-input-file.yml
-  parameters:
-    cloud: ${{ parameters.cloud }}
-    regions: ${{ parameters.regions }}
-    input_file_mapping: ${{ parameters.terraform_input_file_mapping }}
-
-- template: /steps/terraform/set-user-data-path.yml
-  parameters:
-    user_data_path: ${{ parameters.terraform_user_data_path }}
-
-- template: /steps/terraform/set-input-variables-${{ parameters.cloud }}.yml@self
-  parameters:
-    cloud: ${{ parameters.cloud }}
-    regions: ${{ parameters.regions }}
-    input_variables: ${{ parameters.terraform_input_varibles }}
 
 - script: |
-    terraform_input_file=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_FILE')
-    deletion_delay=$(grep "deletion_delay" "$terraform_input_file" | awk -F'=' '{gsub(/^[ \t]+|[ \t]+$/, "", $2); gsub(/[^0-9]/, "", $2); print $2}')
-    echo "Deletion Delay: $deletion_delay hr"
-    deletion_due_time=$(date -u -d "+${deletion_delay} hour" +'%Y-%m-%dT%H:%M:%SZ')
+    # Set deletion due time to 1 week from now
+    deletion_due_time=$(date -u -d "+1 week" +'%Y-%m-%dT%H:%M:%SZ')
     echo "Deletion Due Time: $deletion_due_time"
     echo "##vso[task.setvariable variable=DELETION_DUE_TIME]$deletion_due_time"
 
-    owner=$(grep "owner" "$terraform_input_file" | awk -F'=' '{gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' | sed 's/^"//;s/"$//')
+    # Set owner as the person running the ADO pipeline
+    owner="$BUILD_REQUESTED_FOR"
     echo "Owner: $owner"
     echo "##vso[task.setvariable variable=OWNER]$owner"
   displayName: "Get Deletion Due Time and Owner"
   condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
   env:
     region: ${{ parameters.regions[0] }}
+    BUILD_REQUESTED_FOR: $(Build.RequestedFor)
 
 - script: |
     set -eu
@@ -89,27 +55,6 @@ steps:
     region: ${{ parameters.regions[0] }}
     BASE_RUN_ID: $(BASE_RUN_ID)
     REUSE_CLUSTER: $(reuse_cluster)
-
-- template: /steps/terraform/run-command.yml
-  parameters:
-    command: version
-    retry_attempt_count: ${{ parameters.retry_attempt_count }}
-    credential_type: ${{ parameters.credential_type }}
-
-- template: /steps/terraform/run-command.yml
-  parameters:
-    command: init
-    retry_attempt_count: ${{ parameters.retry_attempt_count }}
-    credential_type: ${{ parameters.credential_type }}
-
-- template: /steps/terraform/run-command.yml
-  parameters:
-    command: apply
-    arguments: ${{ parameters.terraform_arguments }}
-    regions: ${{ parameters.regions }}
-    cloud: ${{ parameters.cloud }}
-    retry_attempt_count: ${{ parameters.retry_attempt_count }}
-    credential_type: ${{ parameters.credential_type }}
     
 - script: |
     bash swiftv2kubeobjects/runCustomerSetup.sh
