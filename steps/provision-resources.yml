@@ -74,7 +74,7 @@ steps:
     az group create --name $RUN_ID --location $region \
       --tags "run_id=$RUN_ID" "scenario=${SCENARIO_TYPE}-${SCENARIO_NAME}" "owner=${OWNER}" "creation_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "deletion_due_time=${DELETION_DUE_TIME}" "SkipAKSCluster=1"
   displayName: "Create Resource Group"
-  condition: and(${{ eq(parameters.cloud, 'azure') }}, ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'), eq('${{ parameters.reuse_cluster }}', 'false'))
+  condition: and(${{ eq(parameters.cloud, 'azure') }}, ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'), eq(variables['reuse_cluster'], 'false'))
   env:
     region: ${{ parameters.regions[0] }}
 
@@ -101,7 +101,7 @@ steps:
     
     echo "Resource group $SHARED_RUN_ID found and will be reused"
   displayName: "Set Shared Resource Group"
-  condition: and(${{ eq(parameters.cloud, 'azure') }}, ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'), eq('${{ parameters.reuse_cluster }}', 'true'))
+  condition: and(${{ eq(parameters.cloud, 'azure') }}, ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'), eq(variables['reuse_cluster'], 'true'))
   env:
     region: ${{ parameters.regions[0] }}
 
@@ -134,7 +134,7 @@ steps:
 - script: |
     bash swiftv2kubeobjects/createclusterforping.sh
   displayName: "SetupAKSMTClusterPING"
-  condition: and(eq(variables['CREATESWIFTV2PING'], 'true'), eq('${{ parameters.reuse_cluster }}', 'false'))
+  condition: and(eq(variables['CREATESWIFTV2PING'], 'true'), eq(variables['reuse_cluster'], 'false'))
   name: SetupAKSMTClusterPING
   env:
     # Ensure these pipeline variables are available as env vars to the script
