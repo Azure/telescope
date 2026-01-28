@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "nap"
-deletion_delay = "4h"
+deletion_delay = "6h"
 owner          = "aks"
 
 aks_config_list = []
