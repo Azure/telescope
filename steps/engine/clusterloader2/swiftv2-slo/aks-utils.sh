@@ -144,3 +144,133 @@ function get_vmss_name() {
         --query "[?contains(name, '${nodepool}')].name" \
         --output tsv | head -1
 }
+
+# =============================================================================
+# NODE LABELING
+# =============================================================================
+
+# Label nodes with retry mechanism for robustness
+# Usage: label_nodes_with_retry "<label_key>=<label_value>" node1 node2 node3 ...
+# Returns: 0 on success (all nodes labeled), 1 on partial/complete failure
+function label_nodes_with_retry() {
+    local label=$1
+    shift
+    local nodes=("$@")
+    local max_retries=3
+    local retry_delay=30  # seconds between retries
+    
+    if [ ${#nodes[@]} -eq 0 ]; then
+        log_warning "No nodes provided to label_nodes_with_retry"
+        return 1
+    fi
+    
+    log_info "Labeling ${#nodes[@]} node(s) with $label (max retries: $max_retries)..."
+    
+    # Attempt to label nodes with retries
+    local labeled_count=0
+    local -a failed_nodes=()
+    
+    for attempt in $(seq 1 $max_retries); do
+        local attempt_labeled=0
+        local attempt_failed=0
+        local -a newly_failed=()
+        
+        # On first attempt, try all nodes. On subsequent attempts, retry only failed nodes.
+        local -a current_nodes
+        if [ $attempt -eq 1 ]; then
+            current_nodes=("${nodes[@]}")
+        else
+            current_nodes=("${failed_nodes[@]}")
+            log_info "Retrying failed nodes (attempt $attempt/$max_retries)..."
+            sleep $retry_delay
+        fi
+        
+        for node in "${current_nodes[@]}"; do
+            if kubectl label node "$node" "$label" --overwrite >/dev/null 2>&1; then
+                attempt_labeled=$((attempt_labeled + 1))
+            else
+                attempt_failed=$((attempt_failed + 1))
+                newly_failed+=("$node")
+            fi
+        done
+        
+        # Update total labeled count
+        if [ $attempt -eq 1 ]; then
+            labeled_count=$attempt_labeled
+        else
+            # On retry, calculate how many previously failed nodes succeeded
+            local recovered=$((${#failed_nodes[@]} - ${#newly_failed[@]}))
+            labeled_count=$((labeled_count + recovered))
+        fi
+        
+        # Update failed nodes list for next retry
+        failed_nodes=("${newly_failed[@]}")
+        
+        if [ $attempt -eq 1 ]; then
+            log_info "Attempt $attempt complete: $attempt_labeled successful, $attempt_failed failed"
+        else
+            log_info "Attempt $attempt complete: recovered $((${#current_nodes[@]} - ${#newly_failed[@]})), still failing ${#newly_failed[@]}"
+        fi
+        
+        # If all nodes are labeled, we're done
+        if [ ${#failed_nodes[@]} -eq 0 ]; then
+            log_info "Successfully labeled all ${#nodes[@]} node(s) with $label"
+            return 0
+        fi
+        
+        # If this was the last attempt, log final status
+        if [ $attempt -eq $max_retries ]; then
+            log_warning "Failed to label ${#failed_nodes[@]} node(s) after $max_retries attempts"
+            log_warning "Failed nodes: ${failed_nodes[*]}"
+        fi
+    done
+    
+    local final_failed_count=${#failed_nodes[@]}
+    log_warning "Labeling completed with failures: $labeled_count successful, $final_failed_count failed (after $max_retries attempts)"
+    
+    if [ "$labeled_count" -eq 0 ]; then
+        log_error "Failed to label any nodes"
+        return 1
+    fi
+    
+    # Partial success - return failure but log success count
+    log_info "Partially successful: labeled $labeled_count/${#nodes[@]} nodes"
+    return 1
+}
+
+# Batch label nodes in parallel for performance
+# Usage: batch_label_nodes "<label_key>=<label_value>" node1 node2 node3 ...
+# Returns: 0 on success, 1 on failure
+function batch_label_nodes() {
+    local label=$1
+    shift
+    local nodes=("$@")
+    local parallelism=50
+    
+    if [ ${#nodes[@]} -eq 0 ]; then
+        log_warning "No nodes provided to batch_label_nodes"
+        return 1
+    fi
+    
+    log_info "Batch labeling ${#nodes[@]} node(s) with $label (parallelism: $parallelism)..."
+    
+    # Use xargs for parallel execution
+    local failed_count=0
+    local labeled_count=0
+    
+    for node in "${nodes[@]}"; do
+        if kubectl label node "$node" "$label" --overwrite 2>&1 | grep -q "labeled\|not found"; then
+            labeled_count=$((labeled_count + 1))
+        else
+            failed_count=$((failed_count + 1))
+        fi
+    done &
+    wait
+    
+    # Use the more robust retry-based approach instead
+    if ! label_nodes_with_retry "$label" "${nodes[@]}"; then
+        return 1
+    fi
+    
+    return 0
+}
