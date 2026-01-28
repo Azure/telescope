@@ -37,15 +37,17 @@ steps:
   displayName: "Skip Terraform Destroy (Reuse Mode)"
   condition: and(always(), eq('${{ parameters.skip_cleanup }}', 'true'))
   
-- template: /steps/terraform/run-command.yml
-  parameters:
-    command: destroy
-    arguments: ${{ parameters.terraform_arguments }}
-    regions: ${{ parameters.regions }}
-    cloud: ${{ parameters.cloud }}
-    retry_attempt_count: ${{ parameters.retry_attempt_count }}
-    credential_type: ${{ parameters.credential_type }}
-  condition: and(always(), eq('${{ parameters.skip_cleanup }}', 'false'))
+- ${{ if eq(parameters.skip_cleanup, 'false') }}:
+  - template: /steps/terraform/run-command.yml
+    parameters:
+      command: destroy
+      arguments: ${{ parameters.terraform_arguments }}
+      regions: ${{ parameters.regions }}
+      cloud: ${{ parameters.cloud }}
+      retry_attempt_count: ${{ parameters.retry_attempt_count }}
+      credential_type: ${{ parameters.credential_type }}
+    condition: always()
+
 - script: |
     set -eu
     
