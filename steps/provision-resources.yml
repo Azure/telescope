@@ -81,13 +81,12 @@ steps:
 - script: |
     set -eu
     
-    # When reusing cluster, use the shared_run_id as the resource group name
-    SHARED_RUN_ID='${{ parameters.shared_run_id }}'
+    # When reusing cluster, use the shared_run_id runtime variable
+    SHARED_RUN_ID='$(shared_run_id)'
     
-    # Handle case where ADO passes unexpanded variable syntax as literal string
-    if [[ "$SHARED_RUN_ID" == *'$('*')'* ]] || [ -z "$SHARED_RUN_ID" ]; then
-      echo "ERROR: reuse_cluster is true but shared_run_id is not provided or unexpanded"
-      echo "Received value: $SHARED_RUN_ID"
+    # Handle case where variable is not set
+    if [ -z "$SHARED_RUN_ID" ]; then
+      echo "ERROR: reuse_cluster is true but shared_run_id variable is not set"
       exit 1
     fi
     
