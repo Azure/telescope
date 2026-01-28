@@ -193,7 +193,8 @@ def parse_xml_to_json(file_path, indent=0):
     json_result = json.dumps(result, indent=indent)
     return json_result
 
-def add_flags_to_daemonset(flags_string):
+def add_flags_to_daemonset(flags_json_string):
+    kubelet_flags = parse_flags_from_json(flags_json_string)
     kubelet_daemonset = r"""
 apiVersion: apps/v1
 kind: DaemonSet
@@ -257,5 +258,29 @@ spec:
       - name: systemd
         hostPath:
           path: /run/systemd
-      restartPolicy: Always""".format(custom_kubelet_flags=flags_string)
+      restartPolicy: Always""".format(custom_kubelet_flags=kubelet_flags)
     print(kubelet_daemonset)
+
+def parse_flags_from_json(json_string):
+    kubelet_flags = ""
+    try:
+        flags_dict = json.loads(json_string)
+        for key, value in flags_dict.items():
+            if isinstance(value, dict) or isinstance(value, list):
+                if "eviction" in key:
+                    delim = "<"
+                elif "reserved" in key:
+                    delim = "="
+                else:
+                    raise ValueError(f"Unknown complex flag type for key: {key}")
+                value_str = ""
+                for key2, value2 in value.items():
+                    value_str += f"{key2}{delim}{value2},"
+            else:
+                value_str = str(value)
+            kubelet_flags += f"--{key}={value_str.rstrip(",")} "
+        kubelet_flags = kubelet_flags.strip()
+            
+    except Exception:
+        return ""
+    return kubelet_flags
