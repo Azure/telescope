@@ -45,8 +45,9 @@ steps:
     echo "Final Run ID: $run_id"
     echo "##vso[task.setvariable variable=RUN_ID]$run_id"
     
+    reuse_cluster=$(echo "${REUSE_CLUSTER:-false}" | tr '[:upper:]' '[:lower:]')
     # When reusing clusters, validate BASE_RUN_ID is set
-    if [ "${REUSE_CLUSTER:-false}" == "true" ]; then
+    if [ "$reuse_cluster" == "true" ]; then
       if [ -z "$BASE_RUN_ID" ] || [ "$BASE_RUN_ID" = " " ]; then
         echo "ERROR: REUSE_CLUSTER is true but BASE_RUN_ID is not set"
         exit 1

@@ -34,7 +34,9 @@ function find_aks_cluster() {
     
     # Use BASE_RUN_ID for cluster discovery when reusing, otherwise use RUN_ID
     local cluster_run_id
-    if [ "${REUSE_CLUSTER:-false}" = "true" ]; then
+    local reuse_cluster
+    reuse_cluster=$(echo "${REUSE_CLUSTER:-false}" | tr '[:upper:]' '[:lower:]')
+    if [ "$reuse_cluster" = "true" ]; then
         cluster_run_id="$BASE_RUN_ID"
         log_info "Reusing cluster - searching with BASE_RUN_ID: $cluster_run_id"
     else
