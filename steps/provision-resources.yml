@@ -124,3 +124,20 @@ steps:
     # Ensure these pipeline variables are available as env vars to the script
     MAX_PODS: $(max_pods)
     DEVICE_PLUGIN: $(DEVICE_PLUGIN)
+
+- script: |
+    bash swiftv2kubeobjects/ensure-nodepools.sh
+  displayName: "EnsureUserNodepools"
+  condition: eq(variables['CREATESWIFTV2PING'], 'true')
+  env:
+    REUSE_CLUSTER: $(reuse_cluster)
+    NODE_COUNT: $(node_count)
+    VM_SKU: $(vm_sku)
+    PODS_PER_NODE: $(pods_per_node)
+    PROVISION_BUFFER_NODES: $(PROVISION_BUFFER_NODES)
+    MAX_PODS: $(max_pods)
+    DEVICE_PLUGIN: $(DEVICE_PLUGIN)
+    BASE_RUN_ID: $(BASE_RUN_ID)
+    RUN_ID: $(RUN_ID)
+    REGION: ${{ parameters.regions[0] }}
+    ROLE: slo
