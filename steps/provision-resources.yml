@@ -24,8 +24,8 @@ parameters:
   type: string
   default: managed_identity
 - name: reuse_cluster
-  type: boolean
-  default: false
+  type: string
+  default: 'false'
 - name: shared_run_id
   type: string
   default: ''
