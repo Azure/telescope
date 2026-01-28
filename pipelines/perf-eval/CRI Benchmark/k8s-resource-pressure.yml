@@ -34,6 +34,9 @@ stages:
   - stage: azure_westus2_stress_baseline_1_34
     dependsOn: []
     jobs:
+    - job: test
+      displayName: "Test"
+      steps:
       - script: |
           printf '%s' "$custom_kubelet_config_json"
         env:
