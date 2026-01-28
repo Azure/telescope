@@ -50,132 +50,13 @@ NODEPOOLS=1
 # Source shared configuration
 echo "Loading shared configuration..."
 source "$(dirname "$0")/shared-config.sh"
+source "$(dirname "$0")/lib/nodepool.sh"
 
 # Get target user node count from environment variable (used only for buffer pool calculation)
 TARGET_USER_NODE_COUNT=$NODE_COUNT
 echo "Target user nodepool size for buffer calculation: $TARGET_USER_NODE_COUNT nodes"
 
-# Function to create and verify nodepool
-create_and_verify_nodepool() {
-    local cluster_name=$1
-    local nodepool_name=$2
-    local resource_group=$3
-    local initial_node_count=$4
-    local node_subnet_id=$6
-    local pod_subnet_id=$7
-    local labels=${8:-""}
-    local taints=${9:-""}
-    local extra_args=${10:-""}
-
-    echo "Creating nodepool: $nodepool_name with $initial_node_count nodes of size $VM_SKU"
-
-    # Build the nodepool creation command
-    local nodepool_cmd="az aks nodepool add --cluster-name ${cluster_name} --name ${nodepool_name} --resource-group ${resource_group}"
-    nodepool_cmd+=" --node-count ${initial_node_count} -s ${VM_SKU} --os-sku Ubuntu"
-    nodepool_cmd+=" --vnet-subnet-id ${node_subnet_id} --pod-subnet-id ${pod_subnet_id}"
-    nodepool_cmd+=" --tags fastpathenabled=true aks-nic-enable-multi-tenancy=true aks-nic-secondary-count=${PODS_PER_NODE}"
-
-    # Only apply --max-pods when the device plugin is disabled
-    # - Pipeline variables typically arrive as env vars (e.g. max_pods -> MAX_PODS)
-    # - Keep this tolerant to missing values
-    local device_plugin_raw="${DEVICE_PLUGIN}"
-    local device_plugin_lc
-    device_plugin_lc="$(echo "${device_plugin_raw}" | tr '[:upper:]' '[:lower:]')"
-    local max_pods_value="${MAX_PODS:-${max_pods}}"
-    if [[ "${device_plugin_lc}" != "true" && "${max_pods_value}" =~ ^[0-9]+$ && "${max_pods_value}" -gt 0 ]]; then
-        nodepool_cmd+=" --max-pods ${max_pods_value}"
-    fi
-    
-    # Add optional labels
-    if [[ -n "$labels" ]]; then
-        nodepool_cmd+=" --labels ${labels}"
-    fi
-    
-    # Add optional taints
-    if [[ -n "$taints" ]]; then
-        nodepool_cmd+=" --node-taints \"${taints}\""
-    fi
-    
-    # Add any extra arguments
-    if [[ -n "$extra_args" ]]; then
-        nodepool_cmd+=" ${extra_args}"
-    fi
-    
-    # Create nodepool with retry logic
-    local max_attempts=5
-    for attempt in $(seq 1 $max_attempts); do
-        # Check for cancellation before each retry
-        if ! check_cancellation; then
-            echo "ERROR: Pipeline cancelled during nodepool creation for ${nodepool_name}"
-            return 1
-        fi
-        
-        echo "Creating nodepool ${nodepool_name}: attempt $attempt/$max_attempts"
-        if eval $nodepool_cmd; then
-            echo "Nodepool ${nodepool_name} creation command succeeded"
-            break
-        else
-            echo "Nodepool ${nodepool_name} creation attempt $attempt failed"
-            if [[ $attempt -eq $max_attempts ]]; then
-                echo "ERROR: Failed to create nodepool ${nodepool_name} after $max_attempts attempts"
-                return 1
-            fi
-            sleep 15
-        fi
-    done
-    
-    # Wait for nodepool to be ready with retry logic and timeout
-    echo "Waiting for nodepool ${nodepool_name} to be ready..."
-    local timeout=900  # 15 minutes timeout for nodepool
-    local retry_interval=30  # Check every 30 seconds
-    local elapsed=0
-    
-    while [ $elapsed -lt $timeout ]; do
-        # Check for cancellation in wait loop
-        if ! check_cancellation; then
-            echo "WARNING: Pipeline cancelled while waiting for nodepool ${nodepool_name}"
-            return 1
-        fi
-        
-        local status=$(az aks nodepool show --resource-group ${resource_group} --cluster-name ${cluster_name} --name ${nodepool_name} --query "provisioningState" --output tsv 2>/dev/null || echo "QueryFailed")
-        local power_state=$(az aks nodepool show --resource-group ${resource_group} --cluster-name ${cluster_name} --name ${nodepool_name} --query "powerState.code" --output tsv 2>/dev/null || echo "QueryFailed")
-        
-        echo "Nodepool ${nodepool_name} status: $status, Power state: $power_state (elapsed: ${elapsed}s)"
-        
-        case $status in
-            "Succeeded")
-                if [[ $power_state == "Running" ]]; then
-                    echo "Nodepool ${nodepool_name} is ready and running"
-                    return 0
-                else
-                    echo "Nodepool succeeded but not in Running power state, waiting..."
-                fi
-                ;;
-            "Creating"|"Scaling"|"Upgrading")
-                echo "Nodepool ${nodepool_name} is still provisioning, waiting..."
-                ;;
-            "Failed"|"Canceled"|"Deleting"|"Deleted")
-                echo "Nodepool ${nodepool_name} is in failed state: $status. Exiting."
-                az aks nodepool show --resource-group ${resource_group} --cluster-name ${cluster_name} --name ${nodepool_name} --output table
-                return 1
-                ;;
-            "QueryFailed"|"")
-                echo "Failed to query nodepool status. This might be temporary, continuing to wait..."
-                ;;
-            *)
-                echo "Unknown nodepool status: $status. Continuing to wait..."
-                ;;
-        esac
-        
-        sleep $retry_interval
-        elapsed=$((elapsed + retry_interval))
-    done
-    
-    echo "Timeout reached waiting for nodepool ${nodepool_name} to be ready. Final status: $status"
-    echo "ERROR: Nodepool ${nodepool_name} failed to reach ready state within timeout."
-    az aks nodepool show --resource-group ${resource_group} --cluster-name ${cluster_name} --name ${nodepool_name} --output table
-    return 1
-}
+# create_and_verify_nodepool now provided by lib/nodepool.sh
 
 # Function to create AKS cluster
 create_aks_cluster() {
