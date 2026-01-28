@@ -26,6 +26,8 @@ Here is the pipeline [link](https://dev.azure.com/akstelescope/telescope/_build?
 - **`reuse_cluster`**: Whether to reuse an existing cluster (`true`) or create a new one (`false`)
 - **`skip_cleanup`**: Whether to keep the cluster after tests complete (`true`) or delete it (`false`)
 
+> ⚠️ Azure DevOps passes boolean variables to scripts as `True`/`False` strings. Normalize to lowercase before comparison in bash scripts.
+
 ### Typical pattern for gradual scale testing
 
 - **First entry**: `reuse_cluster: false`, `skip_cleanup: true` - Creates a new cluster, keeps it
@@ -103,7 +105,8 @@ When `reuse_cluster: true`, jobs use `BASE_RUN_ID` for:
 1. **First job** creates cluster with tag: `run_id=<BASE_RUN_ID>`
 2. **Subsequent jobs** check `reuse_cluster` flag and use `BASE_RUN_ID` to query Azure:
    ```bash
-   if [ "${REUSE_CLUSTER}" = "true" ]; then
+   reuse_cluster="$(echo "${REUSE_CLUSTER:-false}" | tr '[:upper:]' '[:lower:]')"
+   if [ "$reuse_cluster" = "true" ]; then
      CLUSTER_RUN_ID="$BASE_RUN_ID"
    else
      CLUSTER_RUN_ID="$RUN_ID"

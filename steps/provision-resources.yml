@@ -67,10 +67,11 @@ steps:
 
 - script: |
     set -eu
+    reuse_cluster=$(echo "${REUSE_CLUSTER:-false}" | tr '[:upper:]' '[:lower:]')
     
     # When creating a new cluster for reuse pattern, use BASE_RUN_ID as the resource group name
     # so all subsequent matrix jobs can find it. Otherwise use the unique RUN_ID.
-    if [ "${REUSE_CLUSTER:-false}" = "false" ] && [ -n "${BASE_RUN_ID:-}" ]; then
+    if [ "$reuse_cluster" = "false" ] && [ -n "${BASE_RUN_ID:-}" ]; then
       # First job in matrix: create with BASE_RUN_ID so others can reuse
       RESOURCE_GROUP_NAME="$BASE_RUN_ID"
       echo "Creating resource group $RESOURCE_GROUP_NAME (using BASE_RUN_ID for reuse pattern)"
@@ -83,7 +84,7 @@ steps:
     az group create --name "$RESOURCE_GROUP_NAME" --location $region \
       --tags "run_id=$RESOURCE_GROUP_NAME" "scenario=${SCENARIO_TYPE}-${SCENARIO_NAME}" "owner=${OWNER}" "creation_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "deletion_due_time=${DELETION_DUE_TIME}" "SkipAKSCluster=1"
   displayName: "Create Resource Group"
-  condition: and(${{ eq(parameters.cloud, 'azure') }}, ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'), eq(variables['reuse_cluster'], 'false'))
+  condition: and(${{ eq(parameters.cloud, 'azure') }}, ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'), eq(lower(variables['reuse_cluster']), 'false'))
   env:
     region: ${{ parameters.regions[0] }}
     BASE_RUN_ID: $(BASE_RUN_ID)
@@ -118,7 +119,7 @@ steps:
 - script: |
     bash swiftv2kubeobjects/createclusterforping.sh
   displayName: "SetupAKSMTClusterPING"
-  condition: and(eq(variables['CREATESWIFTV2PING'], 'true'), eq(variables['reuse_cluster'], 'false'))
+  condition: and(eq(variables['CREATESWIFTV2PING'], 'true'), eq(lower(variables['reuse_cluster']), 'false'))
   name: SetupAKSMTClusterPING
   env:
     # Ensure these pipeline variables are available as env vars to the script
