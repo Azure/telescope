@@ -183,7 +183,7 @@ def calculate_cpu_request_for_clusterloader2(
     warmup_deployment_template,
 ):
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
-    timeout = 30  # 30 minutes
+    timeout = 60  # 60 minutes
     nodes = []
 
     try:
