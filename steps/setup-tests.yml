@@ -45,29 +45,20 @@ steps:
     echo "Final Run ID: $run_id"
     echo "##vso[task.setvariable variable=RUN_ID]$run_id"
     
-    # Set shared_run_id for cluster reuse scenarios
-    # If REUSE_CLUSTER is set but no SHARED_RUN_ID is provided, default to using BASE_RUN_ID
+    # When reusing clusters, validate BASE_RUN_ID is set
     if [ "${REUSE_CLUSTER:-false}" == "true" ]; then
-      # Handle case where ADO passes unexpanded variable syntax as literal string
-      if [ -n "${SHARED_RUN_ID:-}" ] && [ "$SHARED_RUN_ID" != " " ] && [[ "$SHARED_RUN_ID" != *'$('*')'* ]]; then
-        shared_run_id=$SHARED_RUN_ID
-      elif [ -n "$BASE_RUN_ID" ] && [ "$BASE_RUN_ID" != " " ]; then
-        # For reuse, the first job creates with BASE_RUN_ID, subsequent jobs reuse it
-        shared_run_id=$BASE_RUN_ID
-      else
-        echo "ERROR: REUSE_CLUSTER is true but neither SHARED_RUN_ID nor BASE_RUN_ID is set"
+      if [ -z "$BASE_RUN_ID" ] || [ "$BASE_RUN_ID" = " " ]; then
+        echo "ERROR: REUSE_CLUSTER is true but BASE_RUN_ID is not set"
         exit 1
       fi
-      echo "Cluster reuse enabled. Shared Run ID: $shared_run_id"
-      echo "##vso[task.setvariable variable=SHARED_RUN_ID]$shared_run_id"
-      echo "Keeping unique RUN_ID ($run_id) for test result isolation"
+      echo "Cluster reuse enabled. Shared resource group name: $BASE_RUN_ID"
+      echo "This job's unique RUN_ID: $run_id (for test result isolation)"
     fi
   displayName: "Set Run ID"
   env:
     RUN_ID: ${{ parameters.run_id }}
     BASE_RUN_ID: ${{ parameters.base_run_id }}
     REUSE_CLUSTER: $(reuse_cluster)
-    SHARED_RUN_ID: $(shared_run_id)
 
 - script: |
     run_url="$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)"
