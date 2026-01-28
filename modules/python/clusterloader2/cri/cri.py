@@ -4,7 +4,7 @@ import argparse
 import math
 
 from datetime import datetime, timezone
-from clusterloader2.utils import parse_xml_to_json, run_cl2_command, get_measurement
+from clusterloader2.utils import parse_xml_to_json, run_cl2_command, get_measurement, add_flags_to_daemonset
 from clients.kubernetes_client import KubernetesClient, client as k8s_client
 from utils.logger_config import get_logger, setup_logging
 from utils.common import str2bool
@@ -19,7 +19,10 @@ MEMORY_SCALE_FACTOR = 0.95 # 95% of the total allocatable memory to account for 
 def override_config_clusterloader2(
     node_count, node_per_step, max_pods, repeats, operation_timeout,
     load_type, scale_enabled, pod_startup_latency_threshold, provider,
-    registry_endpoint, os_type, scrape_kubelets, scrape_containerd, containerd_scrape_interval, host_network, override_file):
+    registry_endpoint, os_type, scrape_kubelets, scrape_containerd, containerd_scrape_interval, host_network, override_file, use_custom_kubelet = False):
+    if use_custom_kubelet:
+        global MEMORY_SCALE_FACTOR
+        MEMORY_SCALE_FACTOR = 1.00 # Allow full memory access for load testing
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
     nodes = client.get_nodes(label_selector="cri-resource-consume=true")
     if len(nodes) == 0:
@@ -221,6 +224,9 @@ def collect_clusterloader2(
     with open(result_file, 'w', encoding='utf-8') as file:
         file.write(content)
 
+def modify_kubelet_clusterloader2(custom_kubelet_config: str):
+    add_flags_to_daemonset(custom_kubelet_config)
+
 def main():
     parser = argparse.ArgumentParser(description="CRI Kubernetes resources.")
     subparsers = parser.add_subparsers(dest="command")
@@ -377,6 +383,14 @@ def main():
         "--registry_info", type=str, help="Container registry information scraped",
     )
 
+    # Sub-command for modify-kubelet
+    parser_modify_kubelet = subparsers.add_parser(
+        "modify-kubelet", help="Add custom flags to kubelet and apply via daemonset"
+    )
+    parser_modify_kubelet.add_argument(
+        "--custom_kubelet_config", type=str, help="Custom kubelet flags in string format"
+    )
+
     args = parser.parse_args()
 
     if args.command == "override":
@@ -421,6 +435,10 @@ def main():
             args.result_file,
             args.scrape_kubelets,
             args.registry_info
+        )
+    elif args.command == "modify-kubelet":
+        modify_kubelet_clusterloader2(
+            args.custom_kubelet_config
         )
 
 if __name__ == "__main__":
