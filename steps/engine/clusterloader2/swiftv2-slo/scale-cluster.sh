@@ -637,10 +637,8 @@ function wait_for_vmss_replacement() {
 # Label a specific number of nodes with swiftv2slo=true across nodepools (batch operation)
 function label_swiftv2slo_nodes() {
     local total_nodes_to_label=$1
-    local max_retries=3
-    local retry_delay=30  # seconds between retries
 
-    log_info "Labeling $total_nodes_to_label nodes with swiftv2slo=true (max retries: $max_retries)..."
+    log_info "Labeling $total_nodes_to_label nodes with swiftv2slo=true..."
 
     # Get ready nodes from user nodepools using kubectl label selector
     local kubectl_output
@@ -685,79 +683,19 @@ function label_swiftv2slo_nodes() {
     
     log_info "Found $node_count node(s) to label (requested: $total_nodes_to_label)"
     
-    # Attempt to label nodes with retries
-    local labeled_count=0
-    local -a failed_nodes=()
-    
-    for attempt in $(seq 1 $max_retries); do
-        log_info "Labeling attempt $attempt/$max_retries..."
-        
-        local attempt_labeled=0
-        local attempt_failed=0
-        local -a newly_failed=()
-        
-        # On first attempt, try all nodes. On subsequent attempts, retry only failed nodes.
-        local -a current_nodes
-        if [ $attempt -eq 1 ]; then
-            current_nodes=("${nodes_to_label[@]}")
-        else
-            current_nodes=("${failed_nodes[@]}")
-            log_info "Retrying ${#current_nodes[@]} previously failed node(s) after ${retry_delay}s delay..."
-            sleep $retry_delay
-        fi
-        
-        for node in "${current_nodes[@]}"; do
-            if kubectl label node "$node" swiftv2slo=true --overwrite 2>/dev/null; then
-                attempt_labeled=$((attempt_labeled + 1))
-                log_info "Successfully labeled node: $node (attempt $attempt)"
-            else
-                attempt_failed=$((attempt_failed + 1))
-                newly_failed+=("$node")
-                log_warning "Failed to label node: $node (attempt $attempt/$max_retries)"
-            fi
-        done
-        
-        # Update total labeled count
-        if [ $attempt -eq 1 ]; then
-            labeled_count=$attempt_labeled
-        else
-            # Add newly successful nodes to total
-            local recovered=$((${#current_nodes[@]} - attempt_failed))
-            labeled_count=$((labeled_count + recovered))
-        fi
-        
-        # Update failed nodes list for next retry
-        failed_nodes=("${newly_failed[@]}")
-        
-        log_info "Attempt $attempt complete: $attempt_labeled successful, $attempt_failed failed"
-        
-        # If all nodes are labeled, we're done
-        if [ ${#failed_nodes[@]} -eq 0 ]; then
-            log_info "All nodes successfully labeled after $attempt attempt(s)"
-            break
-        fi
-        
-        # If this was the last attempt, log final status
-        if [ $attempt -eq $max_retries ]; then
-            log_warning "Max retries ($max_retries) reached. ${#failed_nodes[@]} node(s) still failed to label"
-            log_warning "Failed nodes: ${failed_nodes[*]}"
-        fi
-    done
-    
-    local final_failed_count=${#failed_nodes[@]}
-    log_info "Labeling complete: $labeled_count successful, $final_failed_count failed (after $max_retries attempts)"
-    
-    if [ "$labeled_count" -eq 0 ]; then
-        log_error "Failed to label any nodes"
+    # Use common utility function with retry logic from aks-utils.sh
+    if ! label_nodes_with_retry "swiftv2slo=true" "${nodes_to_label[@]}"; then
+        log_error "Failed to label all nodes with swiftv2slo=true"
         return 1
     fi
     
-    if [ "$labeled_count" -lt "$total_nodes_to_label" ]; then
-        local missing=$((total_nodes_to_label - labeled_count))
-        log_error "Only labeled $labeled_count/$total_nodes_to_label nodes ($missing nodes missing)"
+    if [ "$node_count" -lt "$total_nodes_to_label" ]; then
+        local missing=$((total_nodes_to_label - node_count))
+        log_error "Only labeled $node_count/$total_nodes_to_label nodes ($missing nodes missing)"
         return 1
     fi
     
+    log_info "Successfully labeled $node_count nodes with swiftv2slo=true"
     return 0
 }
 

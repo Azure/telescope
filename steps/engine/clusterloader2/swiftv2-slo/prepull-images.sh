@@ -18,6 +18,38 @@ source "$SCRIPT_DIR/aks-utils.sh"
 
 DAEMONSET_TEMPLATE="$SCRIPT_DIR/prepull-daemonset-template.yaml"
 
+# Calculate combined hash of all images for tracking prepull state
+function calculate_image_hash() {
+    local images=("$@")
+    local combined=""
+    for img in "${images[@]}"; do
+        combined="${combined}${img}"
+    done
+    echo "$combined" | md5sum | cut -c1-8
+}
+
+# Mark nodes as having images prepulled
+function mark_nodes_prepulled() {
+    local nodes=("$@")
+    local image_hash="$PREPULL_IMAGE_HASH"
+    local label="image-prepull-${image_hash}=true"
+    
+    if [ ${#nodes[@]} -eq 0 ]; then
+        log_warning "No nodes to mark as prepulled"
+        return 1
+    fi
+    
+    log_info "Marking ${#nodes[@]} nodes as prepulled with label ${label}..."
+    
+    # Use common utility function with retry logic
+    if ! label_nodes_with_retry "$label" "${nodes[@]}"; then
+        log_warning "Some nodes failed to be marked as prepulled, but continuing"
+        # Don't return error - partial success is acceptable for prepull tracking
+    fi
+    
+    return 0
+}
+
 # Show diagnostic information about pod failures
 function show_pod_diagnostics() {
     local namespace="$1"
@@ -78,6 +110,11 @@ function prepull_images_on_nodes() {
     done
     log_info "Using batched pre-pull strategy with batch size: $batch_size nodes"
     
+    # Calculate hash of image set for tracking
+    local PREPULL_IMAGE_HASH
+    PREPULL_IMAGE_HASH=$(calculate_image_hash "${images_to_pull[@]}")
+    local prepull_label="image-prepull-${PREPULL_IMAGE_HASH}"
+    
     # Get list of all target nodes
     log_info "Discovering nodes with label swiftv2slo=true..."
     local all_nodes
@@ -88,10 +125,44 @@ function prepull_images_on_nodes() {
         return 0
     fi
     
-    # Convert to array
-    local node_array=($all_nodes)
+    local all_nodes_array=($all_nodes)
+    log_info "Found ${#all_nodes_array[@]} total nodes with swiftv2slo=true"
+    
+    # Filter out nodes that already have images prepulled (from previous jobs when reusing cluster)
+    log_info "Checking for nodes that already have images prepulled (label: ${prepull_label})..."
+    local already_prepulled_nodes
+    already_prepulled_nodes=$(kubectl get nodes -l "swiftv2slo=true,${prepull_label}=true" -o jsonpath='{.items[*].metadata.name}' 2>/dev/null || echo "")
+    
+    if [ -n "$already_prepulled_nodes" ]; then
+        local prepulled_array=($already_prepulled_nodes)
+        log_info "Found ${#prepulled_array[@]} nodes with images already prepulled, skipping them"
+        
+        # Filter to get only new nodes
+        local node_array=()
+        for node in "${all_nodes_array[@]}"; do
+            local skip=false
+            for prepulled_node in "${prepulled_array[@]}"; do
+                if [ "$node" = "$prepulled_node" ]; then
+                    skip=true
+                    break
+                fi
+            done
+            if [ "$skip" = false ]; then
+                node_array+=("$node")
+            fi
+        done
+    else
+        log_info "No nodes found with existing prepull label, will prepull on all nodes"
+        node_array=("${all_nodes_array[@]}")
+    fi
+    
     local total_nodes=${#node_array[@]}
-    log_info "Found $total_nodes nodes to pre-pull images on"
+    if [ $total_nodes -eq 0 ]; then
+        log_info "All nodes already have images prepulled, skipping prepull operation"
+        return 0
+    fi
+    
+    log_info "Will prepull images on $total_nodes NEW nodes (skipped ${#all_nodes_array[@]} - $total_nodes already prepulled)"
     
     # Calculate number of batches
     local num_batches=$(( (total_nodes + batch_size - 1) / batch_size ))  # Ceiling division
@@ -121,10 +192,14 @@ function prepull_images_on_nodes() {
         log_info "Processing batch $batch_num/$num_batches ($batch_node_count nodes)"
         log_info "========================================"
         
-        # Label nodes in this batch with temporary batch label (parallelized)
-        local batch_label="image-prepull-batch-$batch_idx"
-        log_info "Labeling $batch_node_count nodes with $batch_label=true..."
-        printf '%s\n' "${batch_nodes[@]}" | xargs -P 50 -I {} kubectl label node {} "$batch_label=true" --overwrite 2>&1 | grep -v "node/.* labeled" || true
+        # Label nodes in this batch with temporary batch label
+        local batch_label="image-prepull-batch-$batch_idx=true"
+        log_info "Labeling $batch_node_count nodes with $batch_label..."
+        
+        # Use common utility with retry - but for batch labels we can be lenient
+        if ! label_nodes_with_retry "$batch_label" "${batch_nodes[@]}"; then
+            log_warning "Some batch label operations failed, but continuing with available nodes"
+        fi
         
         # Process each image sequentially to avoid overwhelming registry
         local batch_ds_names=()
@@ -142,13 +217,16 @@ function prepull_images_on_nodes() {
             log_info "Creating DaemonSet '$ds_name' for image $image_num/${#images_to_pull[@]} in batch $batch_num..."
             log_info "  Image: $img"
             
+            # Extract label key and value for DaemonSet selector
+            local batch_label_key="image-prepull-batch-$batch_idx"
+            
             # Generate DaemonSet from template with batch-specific node selector
             sed -e "s|IMAGE_PREPULL_NAMESPACE|$prepull_ns|g" \
                 -e "s|IMAGE_PREPULL_NAME|$ds_name|g" \
                 -e "s|IMAGE_HASH|$img_hash|g" \
                 -e "s|IMAGE_TO_PULL|$img|g" \
                 "$DAEMONSET_TEMPLATE" | \
-                sed "/swiftv2slo: \"true\"/a\        $batch_label: \"true\"" | \
+                sed "/swiftv2slo: \"true\"/a\        $batch_label_key: \"true\"" | \
                 kubectl apply -f - >/dev/null 2>&1
             
             if [ $? -ne 0 ]; then
@@ -227,8 +305,13 @@ function prepull_images_on_nodes() {
         log_info "✓ Batch $batch_num processing completed"
         total_success=$((total_success + batch_node_count))
         
-        # Remove batch labels from nodes (parallelized)
-        printf '%s\n' "${batch_nodes[@]}" | xargs -P 50 -I {} kubectl label node {} "$batch_label-" 2>&1 | grep -v "node/.* unlabeled" || true
+        # Mark nodes in this batch as having images prepulled
+        mark_nodes_prepulled "${batch_nodes[@]}"
+        
+        # Remove batch labels from nodes
+        local batch_label_key="image-prepull-batch-$batch_idx"
+        log_info "Removing temporary batch label $batch_label_key from nodes..."
+        printf '%s\n' "${batch_nodes[@]}" | xargs -P 50 -I {} kubectl label node {} "$batch_label_key-" 2>&1 | grep -v "node/.* unlabeled" || true
         
         # Dynamic delay between batches based on failure rate
         if [ $batch_num -lt $num_batches ]; then
