@@ -82,7 +82,7 @@ steps:
     set -eu
     
     # When reusing cluster, use the shared_run_id as the resource group name
-    SHARED_RUN_ID="${{ parameters.shared_run_id }}"
+    SHARED_RUN_ID='${{ parameters.shared_run_id }}'
     
     # Handle case where ADO passes unexpanded variable syntax as literal string
     if [[ "$SHARED_RUN_ID" == *'$('*')'* ]] || [ -z "$SHARED_RUN_ID" ]; then
