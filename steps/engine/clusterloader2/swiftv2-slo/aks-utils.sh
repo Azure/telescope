@@ -32,25 +32,29 @@ function find_aks_cluster() {
     local region=$1
     local role=$2
     
+    # Use SHARED_RUN_ID for cluster discovery when reusing, otherwise use RUN_ID
+    local cluster_run_id="${SHARED_RUN_ID:-$RUN_ID}"
+    
     log_info "Finding AKS cluster with role '$role' in region '$region'..."
+    log_info "Using run_id tag: $cluster_run_id"
     
     # Query for AKS cluster name matching tags
     aks_name=$(az resource list \
         --resource-type Microsoft.ContainerService/managedClusters \
         --location "$region" \
-        --query "[?(tags.run_id == '${RUN_ID}' && tags.role == '$role')].name" \
+        --query "[?(tags.run_id == '$cluster_run_id' && tags.role == '$role')].name" \
         --output tsv)
 
     # Query for AKS cluster resource group matching tags
     aks_rg=$(az resource list \
         --resource-type Microsoft.ContainerService/managedClusters \
         --location "$region" \
-        --query "[?(tags.run_id == '${RUN_ID}' && tags.role == '$role')].resourceGroup" \
+        --query "[?(tags.run_id == '$cluster_run_id' && tags.role == '$role')].resourceGroup" \
         --output tsv)
 
     # Validate cluster was found
     if [ -z "$aks_name" ]; then
-        log_error "No AKS cluster found with role '$role' and run_id '$RUN_ID' in region '$region'"
+        log_error "No AKS cluster found with role '$role' and run_id '$cluster_run_id' in region '$region'"
         exit 1
     fi
     

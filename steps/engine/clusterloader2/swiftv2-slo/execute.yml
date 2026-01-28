@@ -20,6 +20,10 @@ steps:
       set -eo pipefail
       set -x
       
+      # Get job suffix directly from System.JobId (same as in Set Run ID phase)
+      export CL2_JOB_INDEX=$(echo "$(System.JobId)" | cut -c1-5)
+      echo "Job index (from System.JobId): $CL2_JOB_INDEX"
+      
       # Add signal handler for graceful cancellation
       trap 'echo "Benchmark execution cancelled by user"; exit 143' SIGTERM SIGINT
 

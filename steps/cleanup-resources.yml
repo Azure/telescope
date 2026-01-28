@@ -13,15 +13,29 @@ parameters:
 - name: credential_type
   type: string
   default: managed_identity
+- name: skip_cleanup
+  type: boolean
+  default: false
 
 steps:
 - script: |
     echo "==================================================================="
-    echo "Starting cleanup process for Run ID: $RUN_ID"
-    echo "Cleanup will proceed even if pipeline was cancelled"
+    if [ "${{ parameters.skip_cleanup }}" == "true" ]; then
+      echo "SKIP_CLEANUP is enabled - skipping resource cleanup for this job"
+      echo "Resources will be reused by subsequent jobs"
+    else
+      echo "Starting cleanup process for Run ID: $RUN_ID"
+      echo "Cleanup will proceed even if pipeline was cancelled"
+    fi
     echo "==================================================================="
   displayName: "Cleanup Notice"
   condition: always()
+
+- script: |
+    echo "Skipping terraform destroy due to skip_cleanup=true"
+    echo "Resources will be cleaned up by the final job in the sequence"
+  displayName: "Skip Terraform Destroy (Reuse Mode)"
+  condition: and(always(), eq('${{ parameters.skip_cleanup }}', 'true'))
   
 - template: /steps/terraform/run-command.yml
   parameters:
@@ -31,6 +45,7 @@ steps:
     cloud: ${{ parameters.cloud }}
     retry_attempt_count: ${{ parameters.retry_attempt_count }}
     credential_type: ${{ parameters.credential_type }}
+  condition: and(always(), eq('${{ parameters.skip_cleanup }}', 'false'))
     
 - script: |
     set -eu
@@ -44,7 +59,7 @@ steps:
       sleep 30
     done
   displayName: "Delete SAL Ping"
-  condition: and(always(), eq(variables['CREATE_CUSTOMER_RESOURCES'], 'true'), eq(variables['CLEANUP_RESOURCES'], 'true'))
+  condition: and(always(), eq(variables['CREATE_CUSTOMER_RESOURCES'], 'true'), eq('${{ parameters.skip_cleanup }}', 'false'))
   continueOnError: true
 - script: |
     set -eu
@@ -133,8 +148,14 @@ steps:
     
     echo "Pre-cleanup completed"
   displayName: "Force Cleanup Azure Resources"
-  condition: and(always(), ${{ eq(parameters.cloud, 'azure') }}, eq(variables['CLEANUP_RESOURCES'], 'true'))
+  condition: and(always(), ${{ eq(parameters.cloud, 'azure') }}, eq('${{ parameters.skip_cleanup }}', 'false'))
   continueOnError: true
+  
+- script: |
+    echo "Skipping resource group deletion due to skip_cleanup=true"
+    echo "Resource group will be cleaned up by the final job in the sequence"
+  displayName: "Skip Resource Group Deletion (Reuse Mode)"
+  condition: and(always(), ${{ eq(parameters.cloud, 'azure') }}, eq('${{ parameters.skip_cleanup }}', 'true'))
   
 - script: |
     set -eu
@@ -158,7 +179,7 @@ steps:
       fi
     done
   displayName: "Destroy Resource Group"
-  condition: and(always(), ${{ eq(parameters.cloud, 'azure') }}, eq(variables['CLEANUP_RESOURCES'], 'true'))
+  condition: and(always(), ${{ eq(parameters.cloud, 'azure') }}, eq('${{ parameters.skip_cleanup }}', 'false'))
   continueOnError: true
 
 - ${{ if eq(variables['Build.SourceBranchName'], 'main') }}:

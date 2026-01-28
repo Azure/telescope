@@ -27,6 +27,7 @@ steps:
 
     telescope_metadata=$(jq -n \
       --arg run_id $RUN_ID \
+      --arg shared_run_id "${SHARED_RUN_ID:-}" \
       --arg run_url  $RUN_URL \
       --arg code_url  $CODE_URL \
       --arg timestamp "$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")" \
@@ -49,6 +50,7 @@ steps:
       --arg byo_resources "$SKIP_RESOURCE_MANAGEMENT" \
       '{
           run_id: $run_id,
+          shared_run_id: $shared_run_id,
           timestamp: $timestamp,
           pipeline_info: {
             run_url: $run_url,

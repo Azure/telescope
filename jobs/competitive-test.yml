@@ -79,6 +79,8 @@ jobs:
       terraform_input_varibles: ${{ parameters.terraform_input_varibles }}
       retry_attempt_count: ${{ parameters.retry_attempt_count }}
       credential_type: ${{ parameters.credential_type }}
+      reuse_cluster: $(reuse_cluster)
+      shared_run_id: $(shared_run_id)
   - template: /steps/validate-resources.yml
     parameters:
       cloud: ${{ parameters.cloud }}
@@ -107,3 +109,4 @@ jobs:
       terraform_arguments: ${{ parameters.terraform_arguments }}
       retry_attempt_count: ${{ parameters.retry_attempt_count }}
       credential_type: ${{ parameters.credential_type }}
+      skip_cleanup: $(skip_cleanup)
