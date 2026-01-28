@@ -278,7 +278,7 @@ def parse_flags_from_json(json_string):
                     value_str += f"{key2}{delim}{value2},"
             else:
                 value_str = str(value)
-            kubelet_flags += f"--{key}={value_str.rstrip(",")} "
+            kubelet_flags += f"--{key}={value_str.rstrip(',')} "
         kubelet_flags = kubelet_flags.strip()
             
     except Exception:
