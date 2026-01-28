@@ -14,8 +14,8 @@ parameters:
   type: string
   default: managed_identity
 - name: skip_cleanup
-  type: boolean
-  default: false
+  type: string
+  default: 'false'
 
 steps:
 - script: |
