@@ -32,8 +32,15 @@ function find_aks_cluster() {
     local region=$1
     local role=$2
     
-    # Use SHARED_RUN_ID for cluster discovery when reusing, otherwise use RUN_ID
-    local cluster_run_id="${SHARED_RUN_ID:-$RUN_ID}"
+    # Use BASE_RUN_ID for cluster discovery when reusing, otherwise use RUN_ID
+    local cluster_run_id
+    if [ "${REUSE_CLUSTER:-false}" = "true" ]; then
+        cluster_run_id="$BASE_RUN_ID"
+        log_info "Reusing cluster - searching with BASE_RUN_ID: $cluster_run_id"
+    else
+        cluster_run_id="$RUN_ID"
+        log_info "New cluster - searching with RUN_ID: $cluster_run_id"
+    fi
     
     log_info "Finding AKS cluster with role '$role' in region '$region'..."
     log_info "Using run_id tag: $cluster_run_id"
