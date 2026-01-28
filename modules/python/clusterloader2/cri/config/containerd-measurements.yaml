@@ -20,10 +20,10 @@ steps:
         # Number of successful image pull observations
         - name: Count
           query: sum(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"})
-        # Cluster level percentiles - throughput distribution across nodes
+        # Cluster level percentiles - throughput distribution across nodes (filtered to exclude nodes with no pulls)
         - name: Perc50
-          query: quantile(0.5, sum by (instance) (rate(containerd_cri_image_pulling_throughput_sum{nodepool=~"userpool.*"}[%v])) / sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v])))
+          query: quantile(0.5, (sum by (instance) (rate(containerd_cri_image_pulling_throughput_sum{nodepool=~"userpool.*"}[%v])) / sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v]))) and (sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v])) > 0))
         - name: Perc90
-          query: quantile(0.9, sum by (instance) (rate(containerd_cri_image_pulling_throughput_sum{nodepool=~"userpool.*"}[%v])) / sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v])))
+          query: quantile(0.9, (sum by (instance) (rate(containerd_cri_image_pulling_throughput_sum{nodepool=~"userpool.*"}[%v])) / sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v]))) and (sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v])) > 0))
         - name: Perc99
-          query: quantile(0.99, sum by (instance) (rate(containerd_cri_image_pulling_throughput_sum{nodepool=~"userpool.*"}[%v])) / sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v])))
+          query: quantile(0.99, (sum by (instance) (rate(containerd_cri_image_pulling_throughput_sum{nodepool=~"userpool.*"}[%v])) / sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v]))) and (sum by (instance) (rate(containerd_cri_image_pulling_throughput_count{nodepool=~"userpool.*"}[%v])) > 0))
