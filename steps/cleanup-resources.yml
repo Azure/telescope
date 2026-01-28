@@ -46,7 +46,6 @@ steps:
     retry_attempt_count: ${{ parameters.retry_attempt_count }}
     credential_type: ${{ parameters.credential_type }}
   condition: and(always(), eq('${{ parameters.skip_cleanup }}', 'false'))
-    
 - script: |
     set -eu
     
