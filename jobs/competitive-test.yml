@@ -21,9 +21,6 @@ parameters:
 - name: run_id
   type: string
   default: ''
-- name: base_run_id
-  type: string
-  default: ''
 - name: timeout_in_minutes
   type: number
   default: 60 # default when not specified is 60 minutes
@@ -46,6 +43,10 @@ parameters:
 jobs:
 - job: ${{ parameters.cloud }}
   dependsOn: ${{ parameters.dependsOn }}
+  variables:
+    # Runtime expression to get BASE_RUN_ID from generate_run_id job output
+    # Must be defined here (not passed through parameters) for ADO to evaluate at runtime
+    BASE_RUN_ID: $[ dependencies.generate_run_id.outputs['set_run_id.BASE_RUN_ID'] ]
   strategy:
     maxParallel: ${{ parameters.max_parallel }}
     matrix:
@@ -56,7 +57,6 @@ jobs:
     parameters:
       cloud: ${{ parameters.cloud }}
       region: ${{ parameters.regions[0] }}
-      base_run_id: ${{ parameters.base_run_id }}
       test_modules_dir: ${{ parameters.test_modules_dir }}
       retry_attempt_count: ${{ parameters.retry_attempt_count }}
       credential_type: ${{ parameters.credential_type }}
