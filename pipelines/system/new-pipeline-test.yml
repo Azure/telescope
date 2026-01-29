@@ -51,8 +51,6 @@ variables:
 stages:
   - stage: staticres_gradual
     displayName: 'Static Gradual'
-    variables:
-      BASE_RUN_ID: $[ dependencies.generate_run_id.outputs['set_run_id.BASE_RUN_ID'] ]
     jobs:
       - job: generate_run_id
         displayName: 'Generate Run ID'
@@ -73,22 +71,24 @@ stages:
           timeout_in_minutes: 2160
           credential_type: service_connection
           ssh_key_enabled: false
-          base_run_id: $(BASE_RUN_ID)
+          base_run_id: $[ dependencies.generate_run_id.outputs['set_run_id.BASE_RUN_ID'] ]
+          dependsOn:
+            - generate_run_id
       - template: /jobs/cleanup.yml
         parameters:
           cloud: azure
           regions:
             - $(LOCATION)
           credential_type: service_connection
-          base_run_id: $(BASE_RUN_ID)
+          base_run_id: $[ dependencies.generate_run_id.outputs['set_run_id.BASE_RUN_ID'] ]
+          dependsOn:
+            - azure
 
   - stage: dynamicres_gradual
     condition: succeededOrFailed()
     displayName: 'Dynamic Gradual'
     dependsOn: 
       - staticres_gradual
-    variables:
-      BASE_RUN_ID: $[ dependencies.generate_run_id.outputs['set_run_id.BASE_RUN_ID'] ]
     jobs:
       - job: generate_run_id
         displayName: 'Generate Run ID'
@@ -109,20 +109,22 @@ stages:
           timeout_in_minutes: 2160
           credential_type: service_connection
           ssh_key_enabled: false
-          base_run_id: $(BASE_RUN_ID)
+          base_run_id: $[ dependencies.generate_run_id.outputs['set_run_id.BASE_RUN_ID'] ]
+          dependsOn:
+            - generate_run_id
       - template: /jobs/cleanup.yml
         parameters:
           cloud: azure
           regions:
             - $(LOCATION)
           credential_type: service_connection
-          base_run_id: $(BASE_RUN_ID)
+          base_run_id: $[ dependencies.generate_run_id.outputs['set_run_id.BASE_RUN_ID'] ]
+          dependsOn:
+            - azure
 
   - stage: staticres_burst
     condition: false
     displayName: 'Static Burst'
-    variables:
-      BASE_RUN_ID: $[ dependencies.generate_run_id.outputs['set_run_id.BASE_RUN_ID'] ]
     jobs:
       - job: generate_run_id
         displayName: 'Generate Run ID'
@@ -143,20 +145,22 @@ stages:
           timeout_in_minutes: 2160
           credential_type: service_connection
           ssh_key_enabled: false
-          base_run_id: $(BASE_RUN_ID)
+          base_run_id: $[ dependencies.generate_run_id.outputs['set_run_id.BASE_RUN_ID'] ]
+          dependsOn:
+            - generate_run_id
       - template: /jobs/cleanup.yml
         parameters:
           cloud: azure
           regions:
             - $(LOCATION)
           credential_type: service_connection
-          base_run_id: $(BASE_RUN_ID)
+          base_run_id: $[ dependencies.generate_run_id.outputs['set_run_id.BASE_RUN_ID'] ]
+          dependsOn:
+            - azure
           
   - stage: dynamicres_burst
     condition: false
     displayName: 'Dynamic Burst'
-    variables:
-      BASE_RUN_ID: $[ dependencies.generate_run_id.outputs['set_run_id.BASE_RUN_ID'] ]
     jobs:
       - job: generate_run_id
         displayName: 'Generate Run ID'
@@ -177,11 +181,15 @@ stages:
           timeout_in_minutes: 2160
           credential_type: service_connection
           ssh_key_enabled: false
-          base_run_id: $(BASE_RUN_ID)
+          base_run_id: $[ dependencies.generate_run_id.outputs['set_run_id.BASE_RUN_ID'] ]
+          dependsOn:
+            - generate_run_id
       - template: /jobs/cleanup.yml
         parameters:
           cloud: azure
           regions:
             - $(LOCATION)
           credential_type: service_connection
-          base_run_id: $(BASE_RUN_ID)
+          base_run_id: $[ dependencies.generate_run_id.outputs['set_run_id.BASE_RUN_ID'] ]
+          dependsOn:
+            - azure
