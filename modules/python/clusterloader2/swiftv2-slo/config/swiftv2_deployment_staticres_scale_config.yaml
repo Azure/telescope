@@ -65,7 +65,7 @@ steps:
       Method: PodStartupLatency
       Params:
         action: start
-        labelSelector: podgroup={{$groupName}}
+        labelSelector: podgroup-job={{$groupName}}-job{{$jobIndex}}
         threshold: {{$podStartupLatencyThreshold}}
   {{range $j := Loop $steps}}
   - name: Create PNIs for step {{$j}}
@@ -137,6 +137,7 @@ steps:
             templateFillMap:
               Group: {{$groupName}}-job{{$jobIndex}}-{{$j}}
               PodGroup: {{$groupName}}
+              PodGroupJob: {{$groupName}}-job{{$jobIndex}}
               CpuRequest: {{$latencyPodCpu}}m
               MemoryRequest: {{$latencyPodMemory}}M
               deploymentLabel: start
@@ -166,7 +167,7 @@ steps:
       Method: PodStartupLatency
       Params:
         action: gather
-        labelSelector: podgroup={{$groupName}}
+        labelSelector: podgroup-job={{$groupName}}-job{{$jobIndex}}
   - name: Wait for Datapath Readiness
     measurements:
     - Identifier: Dummy
