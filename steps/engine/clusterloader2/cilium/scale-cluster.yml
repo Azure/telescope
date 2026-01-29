@@ -15,14 +15,22 @@ steps:
 
     region=${{ parameters.region }}
 
+    # Use RESOURCE_GROUP_NAME for cluster discovery - this is the single source of truth
+    # set by provision-resources.yml and matches the run_id tag on clusters
+    if [ -z "${RESOURCE_GROUP_NAME:-}" ]; then
+      echo "##vso[task.logissue type=error;] RESOURCE_GROUP_NAME not set. This should be set by provision-resources.yml"
+      exit 1
+    fi
+    CLUSTER_RUN_ID="$RESOURCE_GROUP_NAME"
+
     aks_name=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location $region \
-      --query "[?(tags.run_id == '${RUN_ID}' && tags.role == '$ROLE')].name" --output tsv)
+      --query "[?(tags.run_id == '${CLUSTER_RUN_ID}' && tags.role == '$ROLE')].name" --output tsv)
 
     aks_rg=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location $region \
-      --query "[?(tags.run_id == '${RUN_ID}' && tags.role == '$ROLE')].resourceGroup" --output tsv)
+      --query "[?(tags.run_id == '${CLUSTER_RUN_ID}' && tags.role == '$ROLE')].resourceGroup" --output tsv)
 
     if [ -z "$aks_name" ]; then
-        echo "##vso[task.logissue type=error;] No AKS instance with role $ROLE and tag $RUN_ID found in region $region."
+        echo "##vso[task.logissue type=error;] No AKS instance with role $ROLE and tag $CLUSTER_RUN_ID found in region $region."
         exit 1
     fi
     az aks get-credentials -n $aks_name -g $aks_rg
