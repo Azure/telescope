@@ -1,46 +1,17 @@
-# #!/bin/bash
+#!/bin/bash
 
 set -ex
 
 # =============================================================================
-# CANCELLATION HANDLING
+# COMMON LIBRARY
 # =============================================================================
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Global flag for cancellation detection
-CANCELLED=false
-
-# Signal handler for graceful shutdown
-handle_cancellation() {
-    echo "WARNING: Received cancellation signal (SIGTERM/SIGINT)"
-    CANCELLED=true
-    
-    # Give processes a moment to clean up
-    sleep 2
-    
-    echo "ERROR: Pipeline cancellation detected. Exiting gracefully..."
-    echo "Note: Any partially created resources will be cleaned up by the cleanup phase"
-    exit 143  # Standard exit code for SIGTERM
-}
+# Source common library for cancellation handling and shared functions
+source "${SCRIPT_DIR}/lib/common.sh"
 
 # Set up signal traps for cancellation
 trap handle_cancellation SIGTERM SIGINT
-
-# Check if pipeline has been cancelled
-check_cancellation() {
-    if [ "$CANCELLED" = true ]; then
-        echo "WARNING: Cancellation detected, stopping current operation..."
-        return 1
-    fi
-    
-    # Check for Azure DevOps cancellation marker file (if exists)
-    if [ -f "/tmp/pipeline_cancelled" ]; then
-        echo "WARNING: Pipeline cancellation marker detected"
-        CANCELLED=true
-        return 1
-    fi
-    
-    return 0
-}
 
 # Use RESOURCE_GROUP_NAME pipeline variable (set by provision-resources.yml)
 if [ -z "${RESOURCE_GROUP_NAME:-}" ]; then

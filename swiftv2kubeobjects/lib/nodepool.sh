@@ -1,12 +1,12 @@
 #!/bin/bash
 
 # Nodepool helper library
-# Depends on Azure CLI, jq, and optional check_cancellation function
+# Depends on Azure CLI, jq, and common.sh for cancellation handling
 
-# Provide a no-op cancellation check if caller did not define one
-if ! declare -f check_cancellation >/dev/null 2>&1; then
-  check_cancellation() { return 0; }
-fi
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source common library for check_cancellation and other shared functions
+source "${SCRIPT_DIR}/common.sh"
 
 # Check if nodepool exists
 nodepool_exists() {

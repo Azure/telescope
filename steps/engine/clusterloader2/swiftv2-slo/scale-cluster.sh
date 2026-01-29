@@ -14,6 +14,9 @@ set -euo pipefail
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 source "$SCRIPT_DIR/aks-utils.sh"
 
+# Set up signal traps for cancellation (uses handle_cancellation from common.sh)
+trap handle_cancellation SIGTERM SIGINT
+
 # Track whether kubeconfig has been initialized for this run
 KUBECONFIG_INITIALIZED=false
 
@@ -127,6 +130,11 @@ function scale_nodepool() {
     local scale_success=false
     
     while [ $scale_attempt -lt $max_scale_retries ] && [ "$scale_success" = false ]; do
+        if ! check_cancellation; then
+            log_warning "Pipeline cancelled during scale operation for nodepool '$nodepool'"
+            return 1
+        fi
+        
         scale_attempt=$((scale_attempt + 1))
         
         if [ $scale_attempt -gt 1 ]; then
@@ -380,6 +388,11 @@ function repair_failed_vms() {
     # Delete each failed instance with retry logic
     local deleted_instances=""
     for instance_id in $all_failed_instances; do
+        if ! check_cancellation; then
+            log_warning "Pipeline cancelled during VM repair"
+            return 1
+        fi
+        
         if [ -n "$instance_id" ]; then
             local retry_count=0
             local delete_success=false
@@ -536,6 +549,11 @@ function repair_unjoined_vms() {
     local deleted_instances=""
 
     for instance_id in $missing_ids; do
+        if ! check_cancellation; then
+            log_warning "Pipeline cancelled during unjoined VM repair"
+            return 1
+        fi
+        
         local retry_count=0
         local delete_success=false
 
@@ -589,6 +607,11 @@ function wait_for_vmss_replacement() {
     log_info "Waiting for $expected_replacements replacement VM instances to be provisioned..."
     
     while [ $elapsed -lt $max_wait_time ]; do
+        if ! check_cancellation; then
+            log_warning "Pipeline cancelled while waiting for VMSS replacement"
+            return 1
+        fi
+        
         # Check current instance count and their states
         local instance_info
         instance_info=$(az vmss list-instances \
@@ -750,6 +773,11 @@ function verify_node_readiness() {
     
     # Poll for node readiness
     while [ $elapsed -lt $node_readiness_timeout ]; do
+        if ! check_cancellation; then
+            log_warning "Pipeline cancelled while verifying node readiness for '$nodepool'"
+            return 1
+        fi
+        
         local nodes_json
         if ! nodes_json=$(kubectl_get_nodes_json "agentpool=$nodepool"); then
             log_warning "kubectl unavailable while verifying readiness for '$nodepool'; retrying..." >&2
@@ -992,6 +1020,11 @@ function scale_user_nodepools() {
     local scale_failures=0
     
     for nodepool in $usernodepools; do
+        if ! check_cancellation; then
+            log_warning "Pipeline cancelled before processing nodepool '$nodepool'"
+            return 1
+        fi
+        
         local pool_target=${TARGETS[$nodepool]}
         local current_nodes=${CURRENT_COUNTS[$nodepool]}
         
@@ -1076,6 +1109,11 @@ function handle_shortfall_with_vm_repair() {
 
     # Step 1: Repair failed VMs in all nodepools
     for nodepool in $usernodepools; do
+        if ! check_cancellation; then
+            log_warning "Pipeline cancelled before VM repair for nodepool '$nodepool'"
+            return 1
+        fi
+        
         log_info "--- VM repair for nodepool: '$nodepool' ---"
         
         log_info "Checking VM status for nodepool '$nodepool'..."
@@ -1107,10 +1145,19 @@ function handle_shortfall_with_vm_repair() {
     local retry_interval=120
     
     for attempt in $(seq 1 $max_retries); do
+        if ! check_cancellation; then
+            log_warning "Pipeline cancelled during node verification"
+            return 1
+        fi
+        
         log_info "Verification attempt $attempt/$max_retries (timeout: $((retry_timeout / 60)) minutes)..."
         
         local elapsed=0
         while [ $elapsed -lt $retry_timeout ]; do
+            if ! check_cancellation; then
+                log_warning "Pipeline cancelled while waiting for nodes"
+                return 1
+            fi
             local ready_nodes
             ready_nodes=$(get_total_ready_nodes "$aks_name" "$aks_rg")
             
