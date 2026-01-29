@@ -49,6 +49,7 @@ steps:
       trap 'echo "Cleanup received cancellation signal but will attempt to continue"; sleep 2' SIGTERM SIGINT
       
       export RG="$RESOURCE_GROUP_NAME"
+      export AZURE_SUBSCRIPTION_ID="$(AZURE_SUBSCRIPTION_ID)"
       export DELETE_NODEPOOLS="true"
       export DELETE_BUFFER_POOL="true"
       
@@ -74,6 +75,7 @@ steps:
       trap 'echo "Cleanup received cancellation signal but will attempt to continue"; sleep 2' SIGTERM SIGINT
       
       export RG="$RESOURCE_GROUP_NAME"
+      export AZURE_SUBSCRIPTION_ID="$(AZURE_SUBSCRIPTION_ID)"
       
       SCRIPT_PATH="$(Build.SourcesDirectory)/swiftv2kubeobjects/cleanup-azure-resources.sh"
       if [[ -f "$SCRIPT_PATH" ]]; then

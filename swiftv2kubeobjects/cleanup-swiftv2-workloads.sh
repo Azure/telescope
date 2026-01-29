@@ -39,6 +39,15 @@ if [[ -z "$RG" ]]; then
     exit 1
 fi
 
+if [[ -z "${AZURE_SUBSCRIPTION_ID:-}" ]]; then
+    echo "ERROR: AZURE_SUBSCRIPTION_ID environment variable is required"
+    exit 1
+fi
+
+# Set the Azure subscription
+echo "Setting Azure subscription to: $AZURE_SUBSCRIPTION_ID"
+az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+
 # Set up cancellation trap
 trap handle_cancellation SIGTERM SIGINT
 

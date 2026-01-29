@@ -26,6 +26,15 @@ if [[ -z "$RG" ]]; then
     exit 1
 fi
 
+if [[ -z "${AZURE_SUBSCRIPTION_ID:-}" ]]; then
+    echo "ERROR: AZURE_SUBSCRIPTION_ID environment variable is required"
+    exit 1
+fi
+
+# Set the Azure subscription
+echo "Setting Azure subscription to: $AZURE_SUBSCRIPTION_ID"
+az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+
 # Set up cancellation trap (continue cleanup even if cancelled)
 trap 'echo "Cleanup received cancellation signal but will attempt to continue"; sleep 2' SIGTERM SIGINT
 
