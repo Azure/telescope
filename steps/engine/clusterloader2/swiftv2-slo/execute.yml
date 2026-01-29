@@ -18,6 +18,23 @@ steps:
 
   - script: |
       set -eo pipefail
+      
+      # Query cluster for existing deployment-churn pods by summing deployment replicas
+      # This gives the intended count (not affected by pending/failed pods)
+      # Handles: no deployments found (returns 0), kubectl errors (falls back to 0)
+      existing_pods=$(kubectl get deployments -l podgroup=deployment-churn -A -o jsonpath='{range .items[*]}{.spec.replicas}{"\n"}{end}' 2>/dev/null | awk '{sum+=$1} END {print sum+0}' || echo "0")
+      
+      # Ensure we have a valid number, default to 0 if empty or non-numeric
+      if ! [[ "$existing_pods" =~ ^[0-9]+$ ]]; then
+        existing_pods=0
+      fi
+      
+      echo "Detected existing pods (sum of deployment replicas with label podgroup=deployment-churn): $existing_pods"
+      echo "##vso[task.setvariable variable=EXISTING_PODS]$existing_pods"
+    displayName: "Query Existing Pod Count"
+
+  - script: |
+      set -eo pipefail
       set -x
       
       # Get job suffix directly from System.JobId (same as in Set Run ID phase)

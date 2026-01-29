@@ -27,7 +27,6 @@ parameters:
       node_count: 500
       pods_per_step: 500
       pods_per_pni: 1
-      existing_pods: 0
       test_timeout: "7m"
       test_type: Burst_StaticRes_PPS=3500_PPP=1_Pods=3500_Nodes=500
       cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
@@ -35,7 +34,6 @@ parameters:
       node_count: 1000
       pods_per_step: 1000
       pods_per_pni: 1
-      existing_pods: 3500
       test_timeout: "10m"
       test_type: Burst_StaticRes_PPS=7000_PPP=1_Pods=7000_Nodes=1000
       cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
@@ -43,7 +41,6 @@ parameters:
       node_count: 1500
       pods_per_step: 1500
       pods_per_pni: 1
-      existing_pods: 7000
       test_timeout: "12m"
       test_type: Burst_StaticRes_PPS=10500_PPP=1_Pods=10500_Nodes=1500
       cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
@@ -51,7 +48,6 @@ parameters:
       node_count: 2000
       pods_per_step: 2000
       pods_per_pni: 1
-      existing_pods: 10500
       test_timeout: "15m"
       test_type: Burst_StaticRes_PPS=14000_PPP=1_Pods=14000_Nodes=2000
       cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
