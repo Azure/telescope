@@ -96,6 +96,9 @@ create_and_verify_nodepool() {
         nodepool_cmd+=" --node-taints \"${taints}\""
     fi
     
+    # Set max-surge to 1 node instead of percentage
+    nodepool_cmd+=" --max-surge 1"
+    
     # Add any extra arguments
     if [[ -n "$extra_args" ]]; then
         nodepool_cmd+=" ${extra_args}"
@@ -320,15 +323,41 @@ vnetName="net"
 vnetAddressSpaceCIDR="10.0.0.0/9"
 
 az network vnet create -n ${vnetName} -g ${RG} --address-prefixes ${vnetAddressSpaceCIDR} -l ${LOCATION}
-echo "create vnet subnet"
-vnetSubnetNameNodes="nodes"
+echo "create vnet subnets"
+
+# Pod subnet (shared across all pools)
 vnetSubnetNamePods="pods"
-vnetSubnetNodesCIDR="10.0.0.0/16"
 vnetSubnetPodsCIDR="10.1.0.0/16"
 podCIDR="10.128.0.0/9"
 natGatewayID=$(az network nat gateway list -g ${RG} | jq -r '.[].id')
-az network vnet subnet create -n ${vnetSubnetNameNodes} --vnet-name ${vnetName} --address-prefixes ${vnetSubnetNodesCIDR} --nat-gateway ${natGatewayID} --default-outbound-access false -g ${RG}
+
+# Create shared pod subnet
 az network vnet subnet create -n ${vnetSubnetNamePods} --vnet-name ${vnetName} --address-prefixes ${vnetSubnetPodsCIDR} --nat-gateway $NAT_GW_NAME --default-outbound-access false -g ${RG}
+
+# =============================================================================
+# NODE SUBNETS: Each nodepool gets its own /20 subnet (4094 IPs each)
+# Layout within 10.0.0.0/16:
+#   - 10.0.0.0/20   : system pool (nodes-system)
+#   - 10.0.16.0/20  : userpool1 (nodes-userpool1)
+#   - 10.0.32.0/20  : userpool2 (nodes-userpool2)
+#   - ... up to 10.0.128.0/20 : userpool8
+#   - 10.0.144.0/20 : buffer pool (nodes-buffer)
+# =============================================================================
+
+# Helper function to create node subnet with calculated CIDR
+create_node_subnet() {
+    local subnet_name=$1
+    local subnet_index=$2  # 0=system, 1-8=userpools, 9=buffer
+    local third_octet=$((subnet_index * 16))
+    local subnet_cidr="10.0.${third_octet}.0/20"
+    
+    echo "Creating node subnet: ${subnet_name} with CIDR: ${subnet_cidr}"
+    az network vnet subnet create -n ${subnet_name} --vnet-name ${vnetName} --address-prefixes ${subnet_cidr} --nat-gateway ${natGatewayID} --default-outbound-access false -g ${RG}
+}
+
+# Create system pool node subnet (index 0)
+vnetSubnetNameNodesSystem="nodes-system"
+create_node_subnet "${vnetSubnetNameNodesSystem}" 0
 
 # az role assignment create --assignee d0fdeb79-ee9b-464c-ae0f-ba72d307208d --role "Network Contributor" --scope /subscriptions/${SUBSCRIPTION}/resourceGroups/$RG/providers/Microsoft.Network/virtualNetworks/$vnetName
 # set az account to subnetDelegator
@@ -344,11 +373,11 @@ az account set --subscription $SUBSCRIPTION
 # create cluster
 echo "create cluster"
 vnetID=$(az network vnet list -g ${RG} | jq -r '.[].id')
-nodeSubnetID=$(az network vnet subnet list -g ${RG} --vnet-name ${vnetName} --query "[?name=='${vnetSubnetNameNodes}']" | jq -r '.[].id')
+systemNodeSubnetID=$(az network vnet subnet list -g ${RG} --vnet-name ${vnetName} --query "[?name=='${vnetSubnetNameNodesSystem}']" | jq -r '.[].id')
 podSubnetID=$(az network vnet subnet list -g ${RG} --vnet-name ${vnetName} --query "[?name=='${vnetSubnetNamePods}']" | jq -r '.[].id')
 
 # Call the function to create the cluster (ACR permissions will be automatically configured)
-create_aks_cluster "${CLUSTER}" "${RG}" "${LOCATION}" "${nodeSubnetID}" "${podSubnetID}"
+create_aks_cluster "${CLUSTER}" "${RG}" "${LOCATION}" "${systemNodeSubnetID}" "${podSubnetID}"
 
 # Wait for cluster to be ready with retry logic and timeout
 echo "Waiting for cluster to be ready..."
@@ -447,10 +476,16 @@ for i in $(seq 1 $USER_NODEPOOL_COUNT); do
     fi
     
     pool_name="userpool${i}"
+    
+    # Create dedicated node subnet for this user pool (index i corresponds to userpool number)
+    userPoolSubnetName="nodes-${pool_name}"
+    create_node_subnet "${userPoolSubnetName}" ${i}
+    userPoolNodeSubnetID=$(az network vnet subnet list -g ${RG} --vnet-name ${vnetName} --query "[?name=='${userPoolSubnetName}']" | jq -r '.[].id')
+    
     labels="slo=true testscenario=swiftv2 agentpool=${pool_name}"
     taints="slo=true:NoSchedule"
-    echo "Creating user nodepool $pool_name (1/${USER_NODEPOOL_COUNT} initial node)"
-    if ! create_and_verify_nodepool "${CLUSTER}" "${pool_name}" "${RG}" "${INITIAL_USER_NODES}" "${VM_SKU}" "${nodeSubnetID}" "${podSubnetID}" "${labels}" "${taints}"; then
+    echo "Creating user nodepool $pool_name (1/${USER_NODEPOOL_COUNT} initial node) with subnet ${userPoolSubnetName}"
+    if ! create_and_verify_nodepool "${CLUSTER}" "${pool_name}" "${RG}" "${INITIAL_USER_NODES}" "${VM_SKU}" "${userPoolNodeSubnetID}" "${podSubnetID}" "${labels}" "${taints}"; then
         echo "ERROR: Failed to create user nodepool ${pool_name}"
         exit 1
     fi
@@ -464,10 +499,17 @@ else
     # The scale-cluster.sh script will scale userpoolBuffer to handle any shortfall
 
     echo "Creating buffer nodepool with $INITIAL_USER_NODES node (will be scaled later if needed)..."
-        pool_name="userpoolBuffer"
-        labels="slo=true testscenario=swiftv2 agentpool=${pool_name}"
-        taints="slo=true:NoSchedule"
-    if ! create_and_verify_nodepool "${CLUSTER}" "${pool_name}" "${RG}" "${INITIAL_USER_NODES}" "${VM_SKU}" "${nodeSubnetID}" "${podSubnetID}" "${labels}" "${taints}"; then
+    pool_name="userpoolBuffer"
+    
+    # Create dedicated node subnet for buffer pool (index = USER_NODEPOOL_COUNT + 1 to follow user pools)
+    bufferSubnetIndex=$((USER_NODEPOOL_COUNT + 1))
+    bufferPoolSubnetName="nodes-buffer"
+    create_node_subnet "${bufferPoolSubnetName}" ${bufferSubnetIndex}
+    bufferPoolNodeSubnetID=$(az network vnet subnet list -g ${RG} --vnet-name ${vnetName} --query "[?name=='${bufferPoolSubnetName}']" | jq -r '.[].id')
+    
+    labels="slo=true testscenario=swiftv2 agentpool=${pool_name}"
+    taints="slo=true:NoSchedule"
+    if ! create_and_verify_nodepool "${CLUSTER}" "${pool_name}" "${RG}" "${INITIAL_USER_NODES}" "${VM_SKU}" "${bufferPoolNodeSubnetID}" "${podSubnetID}" "${labels}" "${taints}"; then
         echo "ERROR: Failed to create buffer nodepool"
         exit 1
     fi
