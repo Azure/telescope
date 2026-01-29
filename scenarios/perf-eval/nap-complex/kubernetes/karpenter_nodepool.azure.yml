@@ -5,7 +5,7 @@ metadata:
   annotations:
     kubernetes.io/description: "General purpose AKSNodeClass for running Ubuntu 24.04 LTS nodes with automatic image updates"
 spec:
-  imageFamily: Ubuntu2404
+  imageFamily: Ubuntu202601.07.0
 ---
 apiVersion: karpenter.sh/v1
 kind: NodePool
