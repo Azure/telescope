@@ -25,7 +25,7 @@ spec:
         
         while [ $ELAPSED -lt $TIMEOUT ]; do
           # Get all PNIs in namespace and count Ready ones matching our pattern
-          ALL_PNIS=$(kubectl get podnetworkinstance -n slo-1 -o custom-columns=NAME:.metadata.name,STATUS:.status.status --no-headers 2>/dev/null || echo "")
+          ALL_PNIS=$(kubectl get podnetworkinstance -n {{.Namespace}} -o custom-columns=NAME:.metadata.name,STATUS:.status.status --no-headers 2>/dev/null || echo "")
           
           if [ -n "$ALL_PNIS" ]; then
             READY_COUNT=$(echo "$ALL_PNIS" | grep "^${PNI_PREFIX}" | grep -c "Ready" || echo "0")

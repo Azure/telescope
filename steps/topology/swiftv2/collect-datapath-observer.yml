@@ -37,25 +37,25 @@ steps:
     
     # Test connectivity
     echo "Testing API connectivity..."
-    curl -v "http://localhost:8082/api/v1/time-to-start?topN=1&namespace=slo-1" || true
+    curl -v "http://localhost:8082/api/v1/time-to-start?topN=1&labelSelector=podgroup=deployment-churn" || true
     
     # Query time-to-start metrics
     echo "Querying time-to-start metrics..."
-    time_to_start_response=$(curl -s "http://localhost:8082/api/v1/time-to-start?topN=10&namespace=slo-1")
+    time_to_start_response=$(curl -s "http://localhost:8082/api/v1/time-to-start?topN=10&labelSelector=podgroup=deployment-churn")
     echo "API Response (time-to-start):"
     echo "$time_to_start_response"
     echo "$time_to_start_response" > "${OUTPUT_DIR}/datapath-time-to-start.json"
     
     # Query time-to-datapath-ready metrics
     echo "Querying time-to-datapath-ready metrics..."
-    time_to_dp_ready_response=$(curl -s "http://localhost:8082/api/v1/time-to-datapath-ready?topN=10&namespace=slo-1")
+    time_to_dp_ready_response=$(curl -s "http://localhost:8082/api/v1/time-to-datapath-ready?topN=10&labelSelector=podgroup=deployment-churn")
     echo "API Response (time-to-datapath-ready):"
     echo "$time_to_dp_ready_response"
     echo "$time_to_dp_ready_response" > "${OUTPUT_DIR}/datapath-time-to-dp-ready.json"
     
     # Query pod-health metrics
     echo "Querying pod-health metrics..."
-    pod_health_response=$(curl -s "http://localhost:8082/api/v1/pod-health?topN=10&namespace=slo-1")
+    pod_health_response=$(curl -s "http://localhost:8082/api/v1/pod-health?topN=10&labelSelector=podgroup=deployment-churn")
     echo "API Response (pod-health):"
     echo "$pod_health_response"
     echo "$pod_health_response" > "${OUTPUT_DIR}/datapath-pod-health.json"

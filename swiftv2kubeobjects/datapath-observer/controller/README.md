@@ -78,9 +78,11 @@ Returns:
 
 Environment variables:
 
-- `NAMESPACE` - Namespace to watch for pods (default: all namespaces)
+- `NAMESPACE` - Namespace to watch for pods (default: all namespaces if not specified)
 - `LABEL_SELECTOR` - Label selector for pods to track (default: empty, tracks all)
 - `HTTP_PORT` - Port for HTTP API server (default: 8080)
+
+**Note:** When running in a multi-job environment where namespaces are dynamically created (e.g., `slo-job0-1`, `slo-job1-1`), omit the `--namespace` flag and rely on `--label-selector` to track pods across all namespaces.
 
 ## Building the Image
 
