@@ -10,11 +10,10 @@ parameters:
 
 steps:
   - script: |
-      set -euo pipefail
+      set -eo pipefail
       set -x
 
-      PYTHONPATH=$PYTHONPATH:$(pwd)
-      export DS="$(python3 $PYTHON_SCRIPT_FILE modify-kubelet \
+      export DS="$(PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE modify-kubelet \
         --custom_kubelet_config "$CUSTOM_KUBELET_CONFIG")"
       
       printf '%s' "$DS"
@@ -29,7 +28,7 @@ steps:
     displayName: "Apply Custom Kubelet Config"
 
   - script: |
-      set -euo pipefail
+      set -eo pipefail
 
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE override \
         --node_count $NODE_COUNT \
