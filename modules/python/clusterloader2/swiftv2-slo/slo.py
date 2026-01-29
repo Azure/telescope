@@ -98,6 +98,11 @@ def configure_clusterloader2(
         if probe_timeout:
             file.write(f"CL2_PROBE_TIMEOUT: {probe_timeout}\n")
 
+        # Pass job index for unique namespace naming across parallel runs
+        job_index = os.environ.get("CL2_JOB_INDEX")
+        if job_index:
+            file.write(f"CL2_JOB_INDEX: {job_index}\n")
+
         if scrape_containerd:
             file.write(f"CL2_SCRAPE_CONTAINERD: {str(scrape_containerd).lower()}\n")
             file.write("CONTAINERD_SCRAPE_INTERVAL: 5m\n")
