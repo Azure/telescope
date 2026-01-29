@@ -43,7 +43,7 @@ stages:
               warmup_deployment_template: warmup_deployment.yaml
               capacity_type: on-demand
               aad_enabled: "true"
-              enable_apiserver_vnet_integration: "false" # TODO: enable when bug fix completed
+              enable_apiserver_vnet_integration: "true" # TODO: enable when bug fix completed
           max_parallel: 1
           timeout_in_minutes: 500
           credential_type: service_connection
