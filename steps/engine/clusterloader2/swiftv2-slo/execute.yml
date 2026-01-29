@@ -31,7 +31,7 @@ steps:
         $CPU_PER_NODE $NODE_COUNT $PODS_PER_STEP $PODS_PER_NODE ${MAX_PODS:-0} \
         $REPEATS $TEST_TIMEOUT $CLOUD $CILIUM_ENABLED ${SCRAPE_CONTAINERD:-False} \
         $SERVICE_TEST ${CNP_TEST:-False} ${CCNP_TEST:-False} ${DS_TEST:-False} \
-        ${NUM_CNPS:-0} ${NUM_CCNPS:-0} ${DUALSTACK:-False} ${PODS_PER_PNI:-0} ${CL2_CONFIG_DIR}/overrides.yaml
+        ${NUM_CNPS:-0} ${NUM_CCNPS:-0} ${DUALSTACK:-False} ${PODS_PER_PNI:-0} ${EXISTING_PODS:-0} ${CL2_CONFIG_DIR}/overrides.yaml
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
         ${CL2_IMAGE} ${CL2_CONFIG_DIR} $CL2_REPORT_DIR $CL2_CONFIG_FILE \
         ${HOME}/.kube/config $CLOUD ${SCRAPE_CONTAINERD:-False}

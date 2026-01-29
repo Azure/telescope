@@ -4,6 +4,9 @@ name: deployment-churn
 {{$podsPerStep := DefaultParam .CL2_PODS_PER_STEP 7}}
 {{$nodes := DefaultParam .CL2_NODES 1000}}
 {{$total_pods := DefaultParam .CL2_TOTAL_PODS 7000}}
+{{$existingPods := DefaultParam .CL2_EXISTING_PODS 0}}
+{{$deltaPods := SubtractInt $total_pods $existingPods}}
+{{$actualPodsPerStep := MaxInt $deltaPods 0}}
 {{$steps := DefaultParam .CL2_STEPS 1}}
 {{$latencyPodCpu := DefaultParam .CL2_LATENCY_POD_CPU 10}}
 {{$latencyPodMemory := DefaultParam .CL2_LATENCY_POD_MEMORY 50}}
@@ -47,7 +50,7 @@ steps:
         objectTemplatePath: reporter_role_template.yaml
       - basename: reporter-binding
         objectTemplatePath: reporter_rolebinding_template.yaml
-  - name: Log - job_index={{$jobIndex}}, steps={{$steps}}, nodes={{$nodes}}, pods/node={{$podsPerNode}}, pods/step={{$podsPerStep}}, total pods={{$total_pods}}
+  - name: Log - job_index={{$jobIndex}}, steps={{$steps}}, nodes={{$nodes}}, pods/node={{$podsPerNode}}, pods/step={{$podsPerStep}}, total_pods={{$total_pods}}, existing_pods={{$existingPods}}, delta_pods={{$deltaPods}}, actual_pods_per_step={{$actualPodsPerStep}}
     measurements:
     - Identifier: Dummy
       Method: Sleep
@@ -128,7 +131,7 @@ steps:
           - basename: deployment-churn-job{{$jobIndex}}-{{$j}}
             objectTemplatePath: swiftv2_deployment_template.yaml
             templateFillMap:
-              Replicas: {{$podsPerStep}}
+              Replicas: {{$actualPodsPerStep}}
               PodGroup: {{$groupName}}
               Group: {{$groupName}}-job{{$jobIndex}}-{{$j}}
               CpuRequest: {{$latencyPodCpu}}m

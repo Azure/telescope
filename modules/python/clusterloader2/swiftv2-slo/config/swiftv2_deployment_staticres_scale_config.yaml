@@ -3,9 +3,12 @@ name: deployment-churn
 {{$podsPerNode := DefaultParam .CL2_PODS_PER_NODE 1}}
 {{$podsPerStep := DefaultParam .CL2_PODS_PER_STEP 7}}
 {{$podsPerPNI := .CL2_PODS_PER_PNI}}
-{{$numPNIs := DivideInt $podsPerStep $podsPerPNI}}
 {{$nodes := DefaultParam .CL2_NODES 1000}}
 {{$total_pods := DefaultParam .CL2_TOTAL_PODS 7000}}
+{{$existingPods := DefaultParam .CL2_EXISTING_PODS 0}}
+{{$deltaPods := SubtractInt $total_pods $existingPods}}
+{{$actualPodsPerStep := MaxInt $deltaPods 0}}
+{{$numPNIs := DivideInt $actualPodsPerStep $podsPerPNI}}
 {{$steps := DefaultParam .CL2_STEPS 1}}
 {{$latencyPodCpu := DefaultParam .CL2_LATENCY_POD_CPU 10}}
 {{$latencyPodMemory := DefaultParam .CL2_LATENCY_POD_MEMORY 50}}
@@ -49,7 +52,7 @@ steps:
         objectTemplatePath: reporter_role_template.yaml
       - basename: reporter-binding
         objectTemplatePath: reporter_rolebinding_template.yaml
-  - name: Log - job_index={{$jobIndex}}, steps={{$steps}}, nodes={{$nodes}}, pods/node={{$podsPerNode}}, pods/step={{$podsPerStep}}, total pods={{$total_pods}}
+  - name: Log - job_index={{$jobIndex}}, steps={{$steps}}, nodes={{$nodes}}, pods/node={{$podsPerNode}}, pods/step={{$podsPerStep}}, total_pods={{$total_pods}}, existing_pods={{$existingPods}}, delta_pods={{$deltaPods}}, actual_pods_per_step={{$actualPodsPerStep}}
     measurements:
     - Identifier: Dummy
       Method: Sleep
@@ -126,7 +129,7 @@ steps:
       - namespaceRange:
           min: 1
           max: 1
-        replicasPerNamespace: {{$podsPerStep}}
+        replicasPerNamespace: {{$actualPodsPerStep}}
         tuningSet: DeploymentCreateQps
         objectBundle:
           - basename: deployment-churn-job{{$jobIndex}}-{{$j}}
