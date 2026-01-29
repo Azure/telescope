@@ -3,6 +3,12 @@
 # AKS Utilities Library
 # Contains common functions for AKS cluster management, logging, and nodepool operations
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
+
+# Source common library for cancellation handling and shared functions
+source "${REPO_ROOT}/swiftv2kubeobjects/lib/common.sh"
+
 # =============================================================================
 # LOGGING FUNCTIONS
 # =============================================================================

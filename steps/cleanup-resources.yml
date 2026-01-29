@@ -34,117 +34,79 @@ steps:
   displayName: "Delete SAL Ping"
   condition: and(always(), eq(variables['CREATE_CUSTOMER_RESOURCES'], 'true'))
   continueOnError: true
-- script: |
-    set -eu
-    
-    # Signal handler - still try to complete cleanup even if cancelled again
-    trap 'echo "Cleanup received cancellation signal but will attempt to continue"; sleep 2' SIGTERM SIGINT
-    
-    echo "Force cleanup Azure resources in $RESOURCE_GROUP_NAME before resource group deletion"
-    
-    # Function to retry commands with exponential backoff
-    retry_command() {
-      local max_attempts=5
-      local delay=30
-      local attempt=1
-      local command="$@"
+
+- task: AzureCLI@2
+  displayName: "Cleanup Swiftv2 Workloads"
+  condition: and(always(), ${{ eq(parameters.cloud, 'azure') }})
+  continueOnError: true
+  inputs:
+    azureSubscription: $(AZURE_SUBSCRIPTION)
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      set -eu
       
-      while [ $attempt -le $max_attempts ]; do
-        echo "Attempt $attempt/$max_attempts: $command"
-        if eval "$command"; then
-          echo "Command succeeded on attempt $attempt"
-          return 0
-        else
-          echo "Command failed on attempt $attempt"
-          if [ $attempt -lt $max_attempts ]; then
-            echo "Waiting $delay seconds before retry..."
-            sleep $delay
-            delay=$((delay * 2))  # Exponential backoff
-          fi
-          attempt=$((attempt + 1))
-        fi
-      done
+      trap 'echo "Cleanup received cancellation signal but will attempt to continue"; sleep 2' SIGTERM SIGINT
       
-      echo "Command failed after $max_attempts attempts: $command"
-      return 1
-    }
-    
-    # Force delete AKS clusters first (this blocks until deletion completes)
-    echo "Deleting AKS clusters..."
-    for cluster in $(az aks list -g $RESOURCE_GROUP_NAME --query "[].name" -o tsv 2>/dev/null || true); do
-      echo "Deleting AKS cluster: $cluster (this may take several minutes for large clusters)"
-      retry_command "az aks delete -g $RESOURCE_GROUP_NAME -n $cluster --yes" || true
-    done
-    
-    # Brief wait for managed resource group cleanup to propagate
-    echo "Waiting 60 seconds for managed resource group cleanup to propagate..."
-    sleep 60
-    
-    # Remove NAT Gateway associations from subnets
-    echo "Removing NAT Gateway associations..."
-    for vnet in $(az network vnet list -g $RESOURCE_GROUP_NAME --query "[].name" -o tsv 2>/dev/null || true); do
-      for subnet in $(az network vnet subnet list -g $RESOURCE_GROUP_NAME --vnet-name $vnet --query "[?natGateway].name" -o tsv 2>/dev/null || true); do
-        echo "Removing NAT Gateway from subnet: $vnet/$subnet"
-        retry_command "az network vnet subnet update -g $RESOURCE_GROUP_NAME --vnet-name $vnet -n $subnet --remove natGateway" || true
-      done
-    done
-    
-    # Remove NSG associations from subnets
-    echo "Removing NSG associations..."
-    for vnet in $(az network vnet list -g $RESOURCE_GROUP_NAME --query "[].name" -o tsv 2>/dev/null || true); do
-      for subnet in $(az network vnet subnet list -g $RESOURCE_GROUP_NAME --vnet-name $vnet --query "[?networkSecurityGroup].name" -o tsv 2>/dev/null || true); do
-        echo "Removing NSG from subnet: $vnet/$subnet"
-        retry_command "az network vnet subnet update -g $RESOURCE_GROUP_NAME --vnet-name $vnet -n $subnet --remove networkSecurityGroup" || true
-      done
-    done
-    
-    # Delete NAT Gateways
-    echo "Deleting NAT Gateways..."
-    for natgw in $(az network nat gateway list -g $RESOURCE_GROUP_NAME --query "[].name" -o tsv 2>/dev/null || true); do
-      echo "Deleting NAT Gateway: $natgw"
-      retry_command "az network nat gateway delete -g $RESOURCE_GROUP_NAME -n $natgw" || true
-    done
-    
-    # Delete NSGs
-    echo "Deleting Network Security Groups..."
-    for nsg in $(az network nsg list -g $RESOURCE_GROUP_NAME --query "[].name" -o tsv 2>/dev/null || true); do
-      echo "Deleting NSG: $nsg"
-      retry_command "az network nsg delete -g $RESOURCE_GROUP_NAME -n $nsg" || true
-    done
-    
-    # Delete Public IPs
-    echo "Deleting Public IP addresses..."
-    for pip in $(az network public-ip list -g $RESOURCE_GROUP_NAME --query "[].name" -o tsv 2>/dev/null || true); do
-      echo "Deleting Public IP: $pip"
-      retry_command "az network public-ip delete -g $RESOURCE_GROUP_NAME -n $pip" || true
-    done
-    
-    echo "Pre-cleanup completed"
+      export RG="$RESOURCE_GROUP_NAME"
+      export DELETE_NODEPOOLS="true"
+      export DELETE_BUFFER_POOL="true"
+      
+      SCRIPT_PATH="$(Build.SourcesDirectory)/swiftv2kubeobjects/cleanup-swiftv2-workloads.sh"
+      if [[ -f "$SCRIPT_PATH" ]]; then
+        chmod +x "$SCRIPT_PATH"
+        "$SCRIPT_PATH" || echo "Cleanup script completed with warnings"
+      else
+        echo "WARNING: Cleanup script not found at $SCRIPT_PATH"
+      fi
+
+- task: AzureCLI@2
   displayName: "Force Cleanup Azure Resources"
   condition: and(always(), ${{ eq(parameters.cloud, 'azure') }})
   continueOnError: true
-  
-- script: |
-    set -eu
-    
-    # Signal handler - still try to complete cleanup even if cancelled again
-    trap 'echo "Cleanup received cancellation signal but will attempt to continue"; sleep 2' SIGTERM SIGINT
-    
-    echo "Delete resource group $RESOURCE_GROUP_NAME"
-    # Use retry logic for resource group deletion as well
-    for attempt in $(seq 1 5); do
-      echo "Attempting to delete resource group: $attempt/5"
-      if az group delete --name $RESOURCE_GROUP_NAME --yes; then
-        echo "Resource group deleted successfully"
-        break
+  inputs:
+    azureSubscription: $(AZURE_SUBSCRIPTION)
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      set -eu
+      
+      trap 'echo "Cleanup received cancellation signal but will attempt to continue"; sleep 2' SIGTERM SIGINT
+      
+      export RG="$RESOURCE_GROUP_NAME"
+      
+      SCRIPT_PATH="$(Build.SourcesDirectory)/swiftv2kubeobjects/cleanup-azure-resources.sh"
+      if [[ -f "$SCRIPT_PATH" ]]; then
+        chmod +x "$SCRIPT_PATH"
+        "$SCRIPT_PATH" || echo "Cleanup script completed with warnings"
       else
-        echo "Resource group deletion failed on attempt $attempt"
-        if [ $attempt -lt 5 ]; then
-          echo "Waiting 120 seconds before retry..."
-          sleep 120
-        fi
+        echo "WARNING: Cleanup script not found at $SCRIPT_PATH"
       fi
-    done
+
+- task: AzureCLI@2
   displayName: "Destroy Resource Group"
   condition: and(always(), ${{ eq(parameters.cloud, 'azure') }})
   continueOnError: true
+  inputs:
+    azureSubscription: $(AZURE_SUBSCRIPTION)
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      set -eu
+      
+      trap 'echo "Cleanup received cancellation signal but will attempt to continue"; sleep 2' SIGTERM SIGINT
+      
+      echo "Delete resource group $RESOURCE_GROUP_NAME"
+      for attempt in $(seq 1 5); do
+        echo "Attempting to delete resource group: $attempt/5"
+        if az group delete --name $RESOURCE_GROUP_NAME --yes; then
+          echo "Resource group deleted successfully"
+          break
+        else
+          echo "Resource group deletion failed on attempt $attempt"
+          if [ $attempt -lt 5 ]; then
+            echo "Waiting 120 seconds before retry..."
+            sleep 120
+          fi
+        fi
+      done
