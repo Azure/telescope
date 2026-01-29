@@ -15,7 +15,7 @@ name: deployment-churn
 {{$probeTimeout := .CL2_PROBE_TIMEOUT}}
 {{$datapathReporterImage := .CL2_DATAPATH_REPORTER_IMAGE}}
 {{$nginxImage := .CL2_NGINX_IMAGE}}
-{{$jobIndex := DefaultParam .CL2_JOB_INDEX 0}}
+{{$jobIndex := .CL2_JOB_INDEX}}
 
 namespace:
   number: 1
