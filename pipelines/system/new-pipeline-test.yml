@@ -7,7 +7,7 @@ variables:
   AZURE_SERVICE_CONNECTION: "Azure-for-Telescope-internal"
   AZURE_STORAGE_ACCOUNT_NAME: "akstelescope"
   AZURE_TELESCOPE_STORAGE_ACCOUNT_NAME: "telescopedata"
-  LOCATION: "uksouth"
+  LOCATION: "canadacentral"
   CREATESWIFTV2PING: "true"
   CLEANUP_RESOURCES: "true"
   K8S_VERSION: "1.33"
