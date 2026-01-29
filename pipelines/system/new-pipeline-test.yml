@@ -50,7 +50,6 @@ variables:
 
 stages:
   - stage: staticres_gradual
-    condition: succeeded()
     displayName: 'Static Gradual'
     variables:
       BASE_RUN_ID: $[ dependencies.generate_run_id.outputs['set_run_id.BASE_RUN_ID'] ]
