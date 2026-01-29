@@ -1,8 +1,12 @@
 from xml.dom import minidom
 import json
 import os
+import docker
+from clients.docker_client import DockerClient
+from utils.logger_config import get_logger, setup_logging
 
-
+setup_logging()
+logger = get_logger(__name__)
 
 POD_STARTUP_LATENCY_FILE_PREFIX_MEASUREMENT_MAP = {
     "PodStartupLatency_PodStartupLatency_": "PodStartupLatency_PodStartupLatency",
