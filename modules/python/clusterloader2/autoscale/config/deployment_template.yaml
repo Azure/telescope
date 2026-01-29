@@ -30,8 +30,14 @@ spec:
           resources:
             requests:
               cpu: {{.CPUperJob}}
+              {{- if .MemoryRequest}}
+              memory: {{.MemoryRequest}}
+              {{- end}}
             limits:
               cpu: {{.CPUperJob}}
+              {{- if .MemoryRequest}}
+              memory: {{.MemoryRequest}}
+              {{- end}}
           {{if eq $OSType "windows"}}
           command:
           - "cmd.exe"
