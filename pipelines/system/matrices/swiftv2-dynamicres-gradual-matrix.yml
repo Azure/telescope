@@ -19,6 +19,9 @@ parameters:
   type: boolean
 - name: base_run_id
   type: string
+- name: dependsOn
+  type: object
+  default: []
 - name: matrix
   type: object
   default:
@@ -79,3 +82,4 @@ jobs:
     credential_type: ${{ parameters.credential_type }}
     ssh_key_enabled: ${{ parameters.ssh_key_enabled }}
     base_run_id: ${{ parameters.base_run_id }}
+    dependsOn: ${{ parameters.dependsOn }}

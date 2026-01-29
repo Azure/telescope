@@ -39,9 +39,13 @@ parameters:
 - name: ssh_key_enabled
   type: boolean
   default: true
+- name: dependsOn
+  type: object
+  default: []
 
 jobs:
 - job: ${{ parameters.cloud }}
+  dependsOn: ${{ parameters.dependsOn }}
   strategy:
     maxParallel: ${{ parameters.max_parallel }}
     matrix:

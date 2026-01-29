@@ -8,9 +8,13 @@ parameters:
   default: service_connection
 - name: base_run_id
   type: string
+- name: dependsOn
+  type: object
+  default: []
 
 jobs:
 - job: cleanup
+  dependsOn: ${{ parameters.dependsOn }}
   displayName: 'Cleanup Resources'
   condition: and(always(), eq(variables['CLEANUP'], 'true'))
   timeoutInMinutes: 60
