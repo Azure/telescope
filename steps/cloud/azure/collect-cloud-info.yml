@@ -5,10 +5,10 @@ parameters:
 steps:
 - script: |
     set -eu
-
+    
     aks_name=$(az resource list --resource-type Microsoft.ContainerService/managedClusters \
-      --resource-group $RUN_ID --query "[0].name" --output tsv)
-    aks_info=$(az aks show --resource-group $RUN_ID --name $aks_name --output json)
+      --resource-group $RESOURCE_GROUP_NAME --query "[0].name" --output tsv)
+    aks_info=$(az aks show --resource-group $RESOURCE_GROUP_NAME --name $aks_name --output json)
 
     cloud_info=$(jq -n \
       --arg cloud "azure" \
