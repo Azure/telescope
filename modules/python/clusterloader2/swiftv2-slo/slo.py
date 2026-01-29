@@ -50,8 +50,9 @@ def configure_clusterloader2(
     existing_pods,
     override_file):
 
-    steps = node_count * pods_per_node // pods_per_step if pods_per_step else 1
     total_pods = node_count * pods_per_node
+    delta_pods = total_pods - existing_pods
+    steps = delta_pods // pods_per_step if pods_per_step else 1
     throughput, nodes_per_namespace, cpu_request = calculate_config(cpu_per_node, node_count, max_pods, provider)
 
     with open(override_file, 'w', encoding='utf-8') as file:
