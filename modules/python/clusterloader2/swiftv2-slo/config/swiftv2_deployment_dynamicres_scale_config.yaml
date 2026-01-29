@@ -131,7 +131,7 @@ steps:
           - basename: deployment-churn-job{{$jobIndex}}-{{$j}}
             objectTemplatePath: swiftv2_deployment_template.yaml
             templateFillMap:
-              Replicas: {{$actualPodsPerStep}}
+              Replicas: {{$podsPerStep}}
               PodGroup: {{$groupName}}
               Group: {{$groupName}}-job{{$jobIndex}}-{{$j}}
               CpuRequest: {{$latencyPodCpu}}m
