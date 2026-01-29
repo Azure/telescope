@@ -21,7 +21,7 @@ name: deployment-churn
 
 namespace:
   number: 1
-  prefix: slo
+  prefix: slo-job{{$jobIndex}}
   deleteStaleNamespaces: false
   deleteAutomanagedNamespaces: false
   enableExistingNamespaces: false

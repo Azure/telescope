@@ -82,8 +82,8 @@ echo "==================================================================="
 # group={{$groupName}}-job{{$jobIndex}}-{{$j}}
 echo "Deleting deployments with label selector: podgroup=$GROUP_NAME"
 
-# Get all namespaces matching slo prefix
-for ns in $(kubectl get namespaces -o name 2>/dev/null | grep "namespace/slo" | cut -d/ -f2 || true); do
+# Get all namespaces matching slo-job prefix (slo-job0-1, slo-job1-1, etc.)
+for ns in $(kubectl get namespaces -o name 2>/dev/null | grep "namespace/slo-job" | cut -d/ -f2 || true); do
     if ! check_cancellation; then
         exit 143
     fi
@@ -110,7 +110,7 @@ done
 echo "Waiting for deployments to be fully deleted..."
 sleep 30
 
-for ns in $(kubectl get namespaces -o name 2>/dev/null | grep "namespace/slo" | cut -d/ -f2 || true); do
+for ns in $(kubectl get namespaces -o name 2>/dev/null | grep "namespace/slo-job" | cut -d/ -f2 || true); do
     remaining=$(kubectl get deployments -n "$ns" -l "podgroup=$GROUP_NAME" --no-headers 2>/dev/null | wc -l || echo "0")
     if [[ "$remaining" -gt 0 ]]; then
         echo "Waiting for $remaining deployments to terminate in namespace $ns..."
@@ -206,8 +206,8 @@ echo "Remaining nodepools:"
 az aks nodepool list --cluster-name "$CLUSTER" --resource-group "$RG" --query '[].{Name:name, Count:count, VMSize:vmSize}' -o table 2>/dev/null || echo "Unable to list nodepools"
 
 echo ""
-echo "Remaining pods in slo namespaces:"
-for ns in $(kubectl get namespaces -o name 2>/dev/null | grep "namespace/slo" | cut -d/ -f2 || true); do
+echo "Remaining pods in slo-job namespaces:"
+for ns in $(kubectl get namespaces -o name 2>/dev/null | grep "namespace/slo-job" | cut -d/ -f2 || true); do
     count=$(kubectl get pods -n "$ns" --no-headers 2>/dev/null | wc -l || echo "0")
     echo "  $ns: $count pods"
 done
