@@ -249,6 +249,7 @@ def override_config_clusterloader2(
         desired_node_count = 0
 
     is_complex = cl2_config_file == "ms_complex_config.yaml"
+    logger.info("is_complex:", is_complex)
     if not is_complex:
         pod_cpu_request = calculate_cpu_request_for_clusterloader2(
             node_label_selector,
@@ -338,7 +339,7 @@ def collect_clusterloader2(
     json_data = json.loads(raw_data)
     testsuites = json_data["testsuites"]
 
-    is_complex_config = "ms_complex_config.yaml" == cl2_config_file
+    is_complex_config = cl2_config_file == "ms_complex_config.yaml"
 
     if testsuites:
         content = _process_test_results(
@@ -571,9 +572,9 @@ def main():
             args.run_id,
             args.run_url,
             args.result_file,
+            args.cl2_config_file,
             args.pod_cpu_request,
             args.pod_memory_request,
-            args.cl2_config_file,
         )
 
 

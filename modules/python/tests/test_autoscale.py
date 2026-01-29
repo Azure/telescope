@@ -308,7 +308,7 @@ class TestClusterLoaderFunctions(unittest.TestCase):
             mock_collect.assert_called_once_with(
                 4, 'on-demand', 3, 200, 'report-dir',
                 'aws-info', 'run-123', 'http://run.url', 'results.json',
-                None, None, 'config.yaml'
+                'config.yaml', None, None
             )
 
 if __name__ == '__main__':
