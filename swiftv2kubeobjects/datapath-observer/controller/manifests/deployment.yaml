@@ -18,7 +18,7 @@ spec:
       serviceAccountName: datapath-controller
       containers:
       - name: controller
-        image: acndev.azurecr.io/datapath-controller:2026.01.18.01
+        image: acndev.azurecr.io/datapath-controller:2026.01.29.01
         args:
         - "--label-selector=podgroup=deployment-churn"
         - "--max-concurrent-reconciles=100"
