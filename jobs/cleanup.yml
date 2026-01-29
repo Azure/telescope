@@ -6,8 +6,6 @@ parameters:
 - name: credential_type
   type: string
   default: service_connection
-- name: base_run_id
-  type: string
 - name: dependsOn
   type: object
   default: []
@@ -18,6 +16,10 @@ jobs:
   displayName: 'Cleanup Resources'
   condition: and(always(), eq(variables['CLEANUP'], 'true'))
   timeoutInMinutes: 60
+  variables:
+    # Runtime expression to get BASE_RUN_ID from generate_run_id job output
+    # Must be defined here (not passed through parameters) for ADO to evaluate at runtime
+    BASE_RUN_ID: $[ dependencies.generate_run_id.outputs['set_run_id.BASE_RUN_ID'] ]
   steps:
   - script: |
       # Set RESOURCE_GROUP_NAME from BASE_RUN_ID
@@ -29,8 +31,6 @@ jobs:
       echo "Resource group to cleanup: $RESOURCE_GROUP_NAME"
       echo "##vso[task.setvariable variable=RESOURCE_GROUP_NAME]$RESOURCE_GROUP_NAME"
     displayName: "Set Resource Group Name"
-    env:
-      BASE_RUN_ID: ${{ parameters.base_run_id }}
 
   - ${{ if eq(parameters.credential_type, 'service_connection') }}:
     - task: AzureCLI@2

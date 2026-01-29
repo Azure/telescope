@@ -71,7 +71,6 @@ stages:
           timeout_in_minutes: 2160
           credential_type: service_connection
           ssh_key_enabled: false
-          base_run_id: $[ dependencies.generate_run_id.outputs['set_run_id.BASE_RUN_ID'] ]
           dependsOn:
             - generate_run_id
       - template: /jobs/cleanup.yml
@@ -80,8 +79,8 @@ stages:
           regions:
             - $(LOCATION)
           credential_type: service_connection
-          base_run_id: $[ dependencies.generate_run_id.outputs['set_run_id.BASE_RUN_ID'] ]
           dependsOn:
+            - generate_run_id
             - azure
 
   - stage: dynamicres_gradual
@@ -109,7 +108,6 @@ stages:
           timeout_in_minutes: 2160
           credential_type: service_connection
           ssh_key_enabled: false
-          base_run_id: $[ dependencies.generate_run_id.outputs['set_run_id.BASE_RUN_ID'] ]
           dependsOn:
             - generate_run_id
       - template: /jobs/cleanup.yml
@@ -118,8 +116,8 @@ stages:
           regions:
             - $(LOCATION)
           credential_type: service_connection
-          base_run_id: $[ dependencies.generate_run_id.outputs['set_run_id.BASE_RUN_ID'] ]
           dependsOn:
+            - generate_run_id
             - azure
 
   - stage: staticres_burst
@@ -145,7 +143,6 @@ stages:
           timeout_in_minutes: 2160
           credential_type: service_connection
           ssh_key_enabled: false
-          base_run_id: $[ dependencies.generate_run_id.outputs['set_run_id.BASE_RUN_ID'] ]
           dependsOn:
             - generate_run_id
       - template: /jobs/cleanup.yml
@@ -154,8 +151,8 @@ stages:
           regions:
             - $(LOCATION)
           credential_type: service_connection
-          base_run_id: $[ dependencies.generate_run_id.outputs['set_run_id.BASE_RUN_ID'] ]
           dependsOn:
+            - generate_run_id
             - azure
           
   - stage: dynamicres_burst
@@ -181,7 +178,6 @@ stages:
           timeout_in_minutes: 2160
           credential_type: service_connection
           ssh_key_enabled: false
-          base_run_id: $[ dependencies.generate_run_id.outputs['set_run_id.BASE_RUN_ID'] ]
           dependsOn:
             - generate_run_id
       - template: /jobs/cleanup.yml
@@ -190,6 +186,6 @@ stages:
           regions:
             - $(LOCATION)
           credential_type: service_connection
-          base_run_id: $[ dependencies.generate_run_id.outputs['set_run_id.BASE_RUN_ID'] ]
           dependsOn:
+            - generate_run_id
             - azure

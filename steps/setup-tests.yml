@@ -9,9 +9,6 @@ parameters:
 - name: run_id
   type: string
   default: ''
-- name: base_run_id
-  type: string
-  default: ''
 - name: retry_attempt_count
   type: number
   default: 3
@@ -63,7 +60,6 @@ steps:
   displayName: "Set Run ID"
   env:
     RUN_ID: ${{ parameters.run_id }}
-    BASE_RUN_ID: ${{ parameters.base_run_id }}
     REUSE_CLUSTER: $(reuse_cluster)
 
 - script: |

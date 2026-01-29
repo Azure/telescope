@@ -17,8 +17,6 @@ parameters:
   type: string
 - name: ssh_key_enabled
   type: boolean
-- name: base_run_id
-  type: string
 - name: dependsOn
   type: object
   default: []
@@ -88,5 +86,4 @@ jobs:
     timeout_in_minutes: ${{ parameters.timeout_in_minutes }}
     credential_type: ${{ parameters.credential_type }}
     ssh_key_enabled: ${{ parameters.ssh_key_enabled }}
-    base_run_id: ${{ parameters.base_run_id }}
     dependsOn: ${{ parameters.dependsOn }}
