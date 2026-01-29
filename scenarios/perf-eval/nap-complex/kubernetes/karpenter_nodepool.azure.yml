@@ -39,8 +39,7 @@ spec:
           values:
             - "Standard_D96ds_v5"
             - "Standard_D96d_v5"
-            - "Standard_D96_v5"
-            - "Standard_D96s_v5"
+            - "Standard_E96_v5"
         - key: topology.kubernetes.io/zone
           operator: In
           values:
