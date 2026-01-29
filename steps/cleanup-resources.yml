@@ -98,6 +98,11 @@ steps:
       
       trap 'echo "Cleanup received cancellation signal but will attempt to continue"; sleep 2' SIGTERM SIGINT
       
+      # Set the Azure subscription
+      export AZURE_SUBSCRIPTION_ID="$(AZURE_SUBSCRIPTION_ID)"
+      echo "Setting Azure subscription to: $AZURE_SUBSCRIPTION_ID"
+      az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+
       echo "Delete resource group $RESOURCE_GROUP_NAME"
       for attempt in $(seq 1 5); do
         echo "Attempting to delete resource group: $attempt/5"
