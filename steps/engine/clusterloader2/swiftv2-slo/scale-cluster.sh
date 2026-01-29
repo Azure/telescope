@@ -640,7 +640,30 @@ function label_swiftv2slo_nodes() {
 
     log_info "Labeling $total_nodes_to_label nodes with swiftv2slo=true..."
 
-    # Get ready nodes from user nodepools using kubectl label selector
+    # First, count nodes that are already labeled with swiftv2slo=true
+    local already_labeled_count=0
+    local already_labeled_output
+    if already_labeled_output=$(kubectl get nodes \
+        -l 'agentpool,agentpool!=promnodepool,swiftv2slo=true' \
+        -o json 2>&1); then
+        already_labeled_count=$(echo "$already_labeled_output" | jq -r '[.items[] |
+            select(.metadata.labels.agentpool | startswith("userpool")) |
+            select(.status.conditions[] | select(.type=="Ready" and .status=="True"))] | length' 2>/dev/null || echo "0")
+    fi
+    
+    log_info "Nodes already labeled with swiftv2slo=true: $already_labeled_count"
+    
+    # Calculate how many additional nodes need to be labeled
+    local nodes_needed=$((total_nodes_to_label - already_labeled_count))
+    
+    if [ "$nodes_needed" -le 0 ]; then
+        log_info "Already have $already_labeled_count labeled nodes (required: $total_nodes_to_label). No additional labeling needed."
+        return 0
+    fi
+    
+    log_info "Need to label $nodes_needed additional node(s) to reach target of $total_nodes_to_label"
+
+    # Get ready nodes from user nodepools that are NOT already labeled
     local kubectl_output
     if ! kubectl_output=$(kubectl get nodes \
         -l 'agentpool,agentpool!=promnodepool,!swiftv2slo' \
@@ -653,11 +676,15 @@ function label_swiftv2slo_nodes() {
     unlabeled_nodes=$(echo "$kubectl_output" | jq -r '.items[] |
             select(.metadata.labels.agentpool | startswith("userpool")) |
             select(.status.conditions[] | select(.type=="Ready" and .status=="True")) |
-            .metadata.name' | grep -v '^$' | head -n "$total_nodes_to_label")
+            .metadata.name' | grep -v '^$' | head -n "$nodes_needed")
 
-    # Check if we have any nodes
+    # Check if we have any nodes to label
     if [ -z "$unlabeled_nodes" ]; then
         log_warning "No unlabeled ready nodes found to label with swiftv2slo=true"
+        if [ "$already_labeled_count" -ge "$total_nodes_to_label" ]; then
+            return 0
+        fi
+        log_error "Insufficient nodes: have $already_labeled_count labeled, need $total_nodes_to_label"
         return 1
     fi
     
@@ -678,10 +705,13 @@ function label_swiftv2slo_nodes() {
     # Validate we have nodes to label
     if [ "$node_count" -eq 0 ]; then
         log_warning "No valid nodes to label"
+        if [ "$already_labeled_count" -ge "$total_nodes_to_label" ]; then
+            return 0
+        fi
         return 1
     fi
     
-    log_info "Found $node_count node(s) to label (requested: $total_nodes_to_label)"
+    log_info "Found $node_count unlabeled node(s) to label (need: $nodes_needed)"
     
     # Use common utility function with retry logic from aks-utils.sh
     if ! label_nodes_with_retry "swiftv2slo=true" "${nodes_to_label[@]}"; then
@@ -689,13 +719,16 @@ function label_swiftv2slo_nodes() {
         return 1
     fi
     
-    if [ "$node_count" -lt "$total_nodes_to_label" ]; then
-        local missing=$((total_nodes_to_label - node_count))
-        log_error "Only labeled $node_count/$total_nodes_to_label nodes ($missing nodes missing)"
+    # Calculate total labeled nodes (already + newly labeled)
+    local total_labeled=$((already_labeled_count + node_count))
+    
+    if [ "$total_labeled" -lt "$total_nodes_to_label" ]; then
+        local missing=$((total_nodes_to_label - total_labeled))
+        log_error "Only have $total_labeled/$total_nodes_to_label labeled nodes ($missing nodes missing)"
         return 1
     fi
     
-    log_info "Successfully labeled $node_count nodes with swiftv2slo=true"
+    log_info "Successfully labeled $node_count new nodes with swiftv2slo=true (total labeled: $total_labeled)"
     return 0
 }
 
