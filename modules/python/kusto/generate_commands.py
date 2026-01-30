@@ -5,6 +5,10 @@ import base64
 from dateutil.parser import isoparse
 
 def infer_type(value):
+    # Check if it's None
+    if value is None:
+        return "string"
+
     # Check if it's a boolean
     if isinstance(value, str) and value.lower() in ['true', 'false']:
         return "bool"
@@ -39,7 +43,7 @@ def infer_type(value):
     try:
         isoparse(value)
         return "datetime"
-    except ValueError:
+    except (ValueError, TypeError):
         pass
 
     # If none of the above, take it as string
