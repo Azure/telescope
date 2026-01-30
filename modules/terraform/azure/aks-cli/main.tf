@@ -27,6 +27,16 @@ locals {
     )
   } : null
 
+  # Disk Encryption Set for OS disk encryption with Customer-Managed Keys
+  # Reference: https://learn.microsoft.com/en-us/azure/aks/azure-disk-customer-managed-keys
+  disk_encryption_set_id = (
+    var.aks_cli_config.disk_encryption_set_name != null ?
+    try(
+      var.disk_encryption_sets[var.aks_cli_config.disk_encryption_set_name],
+      error("Specified disk_encryption_set_name '${var.aks_cli_config.disk_encryption_set_name}' does not exist in Disk Encryption Sets: ${join(", ", keys(var.disk_encryption_sets))}")
+    ) : null
+  )
+
   kubernetes_version = (
     var.aks_cli_config.kubernetes_version == null ?
     "" :
@@ -75,6 +85,17 @@ locals {
       format("--azure-keyvault-kms-key-id %s", local.key_management_service.key_vault_key_id),
       format("--azure-keyvault-kms-key-vault-network-access %s", var.aks_cli_config.key_vault_network_access)
     ])
+  )
+
+  # Disk Encryption Set parameters for OS disk encryption with Customer-Managed Keys
+  # Reference: https://learn.microsoft.com/en-us/azure/aks/azure-disk-customer-managed-keys
+  disk_encryption_parameters = (
+    local.disk_encryption_set_id == null ?
+    "" :
+    join(" ", compact([
+      format("--node-osdisk-diskencryptionset-id %s", local.disk_encryption_set_id),
+      var.aks_cli_config.node_osdisk_type != null ? format("--node-osdisk-type %s", var.aks_cli_config.node_osdisk_type) : ""
+    ]))
   )
 
   subnet_id_parameter = (local.aks_subnet_id == null ?
@@ -145,6 +166,7 @@ locals {
     local.kubernetes_version,
     local.optional_parameters,
     local.kms_parameters,
+    local.disk_encryption_parameters,
     local.subnet_id_parameter,
     local.managed_identity_parameter,
     local.api_server_vnet_integration_parameter,
