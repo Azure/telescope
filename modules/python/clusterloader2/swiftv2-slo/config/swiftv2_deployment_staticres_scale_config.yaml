@@ -8,7 +8,7 @@ name: deployment-churn
 {{$existingPods := DefaultParam .CL2_EXISTING_PODS 0}}
 {{$deltaPods := SubtractInt $total_pods $existingPods}}
 {{$actualPodsThisJob := MaxInt $deltaPods 0}}
-{{$numPNIs := DivideInt $actualPodsThisJob $podsPerPNI}}
+{{$numPNIsPerStep := DivideInt $podsPerStep $podsPerPNI}}
 {{$steps := DefaultParam .CL2_STEPS 1}}
 {{$latencyPodCpu := DefaultParam .CL2_LATENCY_POD_CPU 10}}
 {{$latencyPodMemory := DefaultParam .CL2_LATENCY_POD_MEMORY 50}}
@@ -73,7 +73,7 @@ steps:
       - namespaceRange:
           min: 1
           max: 1
-        replicasPerNamespace: {{$numPNIs}}
+        replicasPerNamespace: {{$numPNIsPerStep}}
         tuningSet: DeploymentCreateQps
         objectBundle:
           - basename: pod-network-instance-job{{$jobIndex}}-{{$j}}
@@ -92,7 +92,7 @@ steps:
             objectTemplatePath: pni_readiness_checker_unified_template.yaml
             templateFillMap:
               PNIPrefix: pod-network-instance-job{{$jobIndex}}-{{$j}}-
-              NumPNIs: {{$numPNIs}}
+              NumPNIs: {{$numPNIsPerStep}}
   - name: Wait for PNI Readiness Checker to Complete -{{$j}}
     measurements:
       - Identifier: WaitForPNIChecker-{{$j}}
@@ -113,7 +113,7 @@ steps:
             objectTemplatePath: pni_readiness_checker_unified_template.yaml
             templateFillMap:
               PNIPrefix: pod-network-instance-job{{$jobIndex}}-{{$j}}-
-              NumPNIs: {{$numPNIs}}
+              NumPNIs: {{$numPNIsPerStep}}
   - name: Starting Deployment Latency Measurements -{{$j}}
     measurements:
     - Identifier: WaitForControlledPodsRunning-{{$j}}
