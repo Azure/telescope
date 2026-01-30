@@ -123,7 +123,7 @@ spec:
         - effect: NoSchedule
           key: CriticalAddonsOnly
           value: "true"
-      # TOODO: enable when cilium is fixed
+      # TODO: enable when cilium is fixed
       # startupTaints:
       #   - effect: NoExecute
       #     key: node.cilium.io/agent-not-ready

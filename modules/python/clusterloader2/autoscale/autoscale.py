@@ -328,9 +328,9 @@ def collect_clusterloader2(
     run_id,
     run_url,
     result_file,
-    cl2_config_file,
-    pod_cpu_request,
-    pod_memory_request,
+    cl2_config_file="config.yaml",
+    pod_cpu_request="",
+    pod_memory_request="",
 ):
     index_pattern = re.compile(r"(\d+)$")
     raw_data = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent=2)
@@ -571,9 +571,9 @@ def main():
             args.run_id,
             args.run_url,
             args.result_file,
-            args.cl2_config_file,
-            args.pod_cpu_request,
-            args.pod_memory_request,
+            cl2_config_file=args.cl2_config_file,
+            pod_cpu_request=args.pod_cpu_request,
+            pod_memory_request=args.pod_memory_request,
         )
 
 
