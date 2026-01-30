@@ -17,8 +17,23 @@ key_vault_config_list = [
     keys = [
       {
         key_name = "kms-nap"
+      },
+      {
+        key_name = "disk-encryption-key"
       }
     ]
+  }
+]
+
+# Disk Encryption Set for OS disk encryption with Customer-Managed Keys
+# Reference: https://learn.microsoft.com/en-us/azure/aks/azure-disk-customer-managed-keys
+disk_encryption_set_config_list = [
+  {
+    name                      = "nap-disk-encryption-set"
+    key_vault_name            = "akskms"
+    key_name                  = "disk-encryption-key"
+    encryption_type           = "EncryptionAtRestWithCustomerKey"
+    auto_key_rotation_enabled = false
   }
 ]
 
@@ -48,92 +63,8 @@ network_config_list = [
     network_security_group_name = ""
     nic_public_ip_associations  = []
     nsr_rules                   = []
-    firewalls = [
-      {
-        name                  = "nap-firewall"
-        sku_tier              = "Standard"
-        subnet_name           = "AzureFirewallSubnet"
-        public_ip_name        = "firewall-pip"
-        threat_intel_mode     = "Alert"
-        dns_proxy_enabled     = true
-        ip_configuration_name = "nap-fw-ipconfig"
-        application_rule_collections = [
-          {
-            name     = "allow-egress"
-            priority = 100
-            action   = "Allow"
-            rules = [
-              {
-                name             = "required-services"
-                source_addresses = ["*"]
-                target_fqdns = ["*.azure.com", "*.azure.net",
-                  "*.windows.net", "*.azurecr.io", "*.ubuntu.com", "AzureKubernetesService",
-                  "mcr-0001.mcr-msedge.net", "*.microsoft.com",
-                  "*.microsoftonline.com", "*.microsoftonline.co", "*.azureedge.net",
-                "packages.aks.azure.com"]
-                protocols = [
-                  { port = "80", type = "Http" },
-                  { port = "443", type = "Https" }
-                ]
-              }
-            ]
-          }
-        ]
-        network_rule_collections = [
-          {
-            name     = "network-rules"
-            priority = 100
-            action   = "Allow"
-            rules = [
-              {
-                name                  = "imds"
-                source_addresses      = ["*"]
-                destination_addresses = ["169.254.169.254"]
-                destination_ports     = ["80"]
-                protocols             = ["Any"]
-              },
-              {
-                name                  = "dns"
-                source_addresses      = ["*"]
-                destination_addresses = ["*"]
-                destination_ports     = ["53"]
-                protocols             = ["UDP", "TCP"]
-              },
-              {
-                name                  = "azure-and-web"
-                source_addresses      = ["*"]
-                destination_addresses = ["*"]
-                destination_ports     = ["443"]
-                protocols             = ["TCP", "UDP"]
-              }
-            ]
-          }
-        ]
-      }
-    ]
-    route_tables = [
-      {
-        name                          = "nap-rt"
-        bgp_route_propagation_enabled = false
-        routes = [
-          {
-            name                   = "default-route"
-            address_prefix         = "0.0.0.0/0"
-            next_hop_type          = "VirtualAppliance"
-            next_hop_in_ip_address = "firewall:nap-firewall"
-          },
-          {
-            name           = "firewall-internet"
-            address_prefix = "publicip:firewall-pip"
-            next_hop_type  = "Internet"
-          }
-        ]
-        subnet_associations = [{ subnet_name = "nap-subnet-ms" }]
-      }
-    ]
   }
 ]
-
 aks_cli_config_list = [
   {
     role                     = "nap"
@@ -146,16 +77,18 @@ aks_cli_config_list = [
     kms_key_name             = "kms-nap"
     kms_key_vault_name       = "akskms"
     key_vault_network_access = "Private"
+    disk_encryption_set_name = "nap-disk-encryption-set"
+    node_osdisk_type         = "Ephemeral"
     default_node_pool = {
       name       = "system"
       node_count = 10
-      vm_size    = "Standard_D16s_v5"
+      vm_size    = "Standard_D16ds_v4"
     }
     extra_node_pool = [
       {
         name       = "prompool"
         node_count = 5
-        vm_size    = "Standard_D16_v3"
+        vm_size    = "Standard_D16ds_v4"
       }
     ]
     optional_parameters = [
@@ -174,10 +107,6 @@ aks_cli_config_list = [
       {
         name  = "node-init-taints"
         value = "CriticalAddonsOnly=true:NoSchedule"
-      },
-      {
-        name  = "outbound-type"
-        value = "userDefinedRouting"
       },
       {
         name  = "pod-cidr"
