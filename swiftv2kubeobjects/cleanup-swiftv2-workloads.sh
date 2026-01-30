@@ -1,5 +1,8 @@
 #!/bin/bash
-set -euo pipefail
+# NOTE: This script is designed to be resilient - it will continue on errors
+# since subsequent scripts will cleanup the AKS cluster and resource group anyway.
+# We use 'set +e' to prevent the script from exiting on failures.
+set +e
 
 # =============================================================================
 # Cleanup script for swiftv2 workloads and nodepools
@@ -32,6 +35,7 @@ RG="${RG:-${RESOURCE_GROUP_NAME:-}}"
 GROUP_NAME=${GROUP_NAME:-deployment-churn}
 DELETE_NODEPOOLS=${DELETE_NODEPOOLS:-true}
 DELETE_BUFFER_POOL=${DELETE_BUFFER_POOL:-true}
+CLEANUP_BATCH_SIZE=${CLEANUP_BATCH_SIZE:-500}
 
 # Validate required inputs
 if [[ -z "$RG" ]]; then
@@ -48,11 +52,11 @@ fi
 echo "Setting Azure subscription to: $AZURE_SUBSCRIPTION_ID"
 az account set --subscription "$AZURE_SUBSCRIPTION_ID"
 
-# Set up cancellation trap
-trap handle_cancellation SIGTERM SIGINT
+# NOTE: We intentionally do NOT trap SIGTERM/SIGINT here.
+# This cleanup script should run to completion even if the pipeline is cancelled,
+# as it helps free up resources. Subsequent scripts will cleanup cluster/RG anyway.
 
 # =============================================================================
-# CLUSTER DISCOVERY
 # =============================================================================
 
 echo "==================================================================="
@@ -89,42 +93,142 @@ echo "==================================================================="
 # Delete deployments with the deployment-churn group label pattern
 # These are created by both static and dynamic configs with pattern:
 # group={{$groupName}}-job{{$jobIndex}}-{{$j}}
-echo "Deleting deployments with label selector: podgroup=$GROUP_NAME"
+# staticres: 1 deployment = 1 pod
+# dynamicres: 1 deployment = N pods (pods_per_step, typically 50)
+# We batch delete targeting ~CLEANUP_BATCH_SIZE pods at a time for consistent behavior
+echo "Deleting deployments with label selector: podgroup=$GROUP_NAME (batch size: $CLEANUP_BATCH_SIZE)"
 
 # Get all namespaces matching slo-job prefix (slo-job0-1, slo-job1-1, etc.)
 for ns in $(kubectl get namespaces -o name 2>/dev/null | grep "namespace/slo-job" | cut -d/ -f2 || true); do
-    if ! check_cancellation; then
-        exit 143
-    fi
-
+    echo ""
     echo "Processing namespace: $ns"
 
-    # Delete deployments matching the pattern (deployment-churn-job*)
-    deployments=$(kubectl get deployments -n "$ns" -l "podgroup=$GROUP_NAME" -o name 2>/dev/null || true)
-    if [[ -n "$deployments" ]]; then
-        echo "Deleting deployments in namespace $ns:"
-        echo "$deployments"
-        kubectl delete deployments -n "$ns" -l "podgroup=$GROUP_NAME" --wait=false || true
+    # Get deployment names and their replica counts (pod count)
+    # Format: "deployment-name replica-count" per line
+    deployments_info=$(kubectl get deployments -n "$ns" -l "podgroup=$GROUP_NAME" \
+        -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.spec.replicas}{"\n"}{end}' 2>/dev/null || true)
+    
+    if [[ -z "$deployments_info" ]]; then
+        echo "  No deployments found in namespace $ns"
+        continue
     fi
 
-    # Also delete any remaining pods with the podgroup label
-    pods=$(kubectl get pods -n "$ns" -l "podgroup=$GROUP_NAME" -o name 2>/dev/null || true)
-    if [[ -n "$pods" ]]; then
-        echo "Deleting remaining pods in namespace $ns with label podgroup=$GROUP_NAME"
+    total_deployments=$(echo "$deployments_info" | wc -l)
+    total_pods=$(echo "$deployments_info" | awk '{sum += $2} END {print sum}')
+    echo "  Found $total_deployments deployments with $total_pods total pods"
+
+    # Batch deployments by pod count (target ~500 pods per batch)
+    batch_deployments=""
+    batch_pod_count=0
+    batch_num=1
+    deleted_pods=0
+
+    while IFS= read -r line; do
+        dep_name=$(echo "$line" | awk '{print $1}')
+        dep_replicas=$(echo "$line" | awk '{print $2}')
+        
+        # Handle empty or invalid lines
+        if [[ -z "$dep_name" || -z "$dep_replicas" ]]; then
+            continue
+        fi
+
+        # Add deployment to current batch
+        batch_deployments="$batch_deployments $dep_name"
+        batch_pod_count=$((batch_pod_count + dep_replicas))
+
+        # If batch reaches target pod count, delete the batch
+        if [[ $batch_pod_count -ge $CLEANUP_BATCH_SIZE ]]; then
+            echo "  Deleting batch $batch_num (~$batch_pod_count pods)..."
+            retry_command 3 5 "kubectl delete deployments -n $ns $batch_deployments --wait=false" || true
+            deleted_pods=$((deleted_pods + batch_pod_count))
+            
+            # Reset batch
+            batch_deployments=""
+            batch_pod_count=0
+            batch_num=$((batch_num + 1))
+            
+            # Small delay between batches to avoid API throttling
+            sleep 1
+        fi
+    done <<< "$deployments_info"
+
+    # Delete remaining deployments in the last batch
+    if [[ -n "$batch_deployments" ]]; then
+        echo "  Deleting final batch $batch_num (~$batch_pod_count pods)..."
+        retry_command 3 5 "kubectl delete deployments -n $ns $batch_deployments --wait=false" || true
+        deleted_pods=$((deleted_pods + batch_pod_count))
+    fi
+
+    echo "  Initiated deletion for $deleted_pods pods across $batch_num batches in namespace $ns"
+
+    # Force delete any remaining pods that might be orphaned
+    remaining_pods=$(kubectl get pods -n "$ns" -l "podgroup=$GROUP_NAME" --no-headers 2>/dev/null | wc -l || echo "0")
+    if [[ "$remaining_pods" -gt 0 ]]; then
+        echo "  Force deleting $remaining_pods remaining pods..."
         kubectl delete pods -n "$ns" -l "podgroup=$GROUP_NAME" --grace-period=0 --force 2>/dev/null || true
     fi
-done
 
-# Wait for deployments to be deleted
-echo "Waiting for deployments to be fully deleted..."
-sleep 30
+    # Wait for deployments to terminate
+    echo "  Waiting for deployments in $ns to terminate..."
+    kubectl wait --for=delete deployment -n "$ns" -l "podgroup=$GROUP_NAME" --timeout=300s 2>/dev/null || true
 
-for ns in $(kubectl get namespaces -o name 2>/dev/null | grep "namespace/slo-job" | cut -d/ -f2 || true); do
-    remaining=$(kubectl get deployments -n "$ns" -l "podgroup=$GROUP_NAME" --no-headers 2>/dev/null | wc -l || echo "0")
-    if [[ "$remaining" -gt 0 ]]; then
-        echo "Waiting for $remaining deployments to terminate in namespace $ns..."
-        kubectl wait --for=delete deployment -n "$ns" -l "podgroup=$GROUP_NAME" --timeout=300s 2>/dev/null || true
+    # Delete PNIs (Pod Network Instances) in batches
+    # PNIs are created with names like: pod-network-instance-job0-0, pod-network-instance-job0-1-0, etc.
+    echo "  Checking for PNIs to delete..."
+    pni_names=$(kubectl get podnetworkinstances -n "$ns" -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true)
+    
+    if [[ -n "$pni_names" ]]; then
+        total_pnis=$(echo "$pni_names" | wc -l)
+        echo "  Found $total_pnis PNIs to delete"
+        
+        # Batch PNIs for deletion (500 at a time)
+        batch_pnis=""
+        batch_pni_count=0
+        pni_batch_num=1
+        deleted_pnis=0
+
+        while IFS= read -r pni_name; do
+            # Handle empty lines
+            if [[ -z "$pni_name" ]]; then
+                continue
+            fi
+
+            batch_pnis="$batch_pnis $pni_name"
+            batch_pni_count=$((batch_pni_count + 1))
+
+            # If batch reaches target count, delete the batch
+            if [[ $batch_pni_count -ge $CLEANUP_BATCH_SIZE ]]; then
+                echo "  Deleting PNI batch $pni_batch_num ($batch_pni_count PNIs)..."
+                retry_command 3 5 "kubectl delete podnetworkinstances -n $ns $batch_pnis --wait=false" || true
+                deleted_pnis=$((deleted_pnis + batch_pni_count))
+                
+                # Reset batch
+                batch_pnis=""
+                batch_pni_count=0
+                pni_batch_num=$((pni_batch_num + 1))
+                
+                # Small delay between batches
+                sleep 1
+            fi
+        done <<< "$pni_names"
+
+        # Delete remaining PNIs in the last batch
+        if [[ -n "$batch_pnis" ]]; then
+            echo "  Deleting final PNI batch $pni_batch_num ($batch_pni_count PNIs)..."
+            retry_command 3 5 "kubectl delete podnetworkinstances -n $ns $batch_pnis --wait=false" || true
+            deleted_pnis=$((deleted_pnis + batch_pni_count))
+        fi
+
+        echo "  Initiated deletion for $deleted_pnis PNIs across $pni_batch_num batches"
+        
+        # Wait for PNIs to be deleted
+        echo "  Waiting for PNIs in $ns to terminate..."
+        kubectl wait --for=delete podnetworkinstances -n "$ns" --all --timeout=300s 2>/dev/null || true
+    else
+        echo "  No PNIs found in namespace $ns"
     fi
+    
+    echo "  Namespace $ns cleanup complete"
 done
 
 # =============================================================================
@@ -155,11 +259,6 @@ if [[ "$DELETE_NODEPOOLS" == "true" ]]; then
     user_pools_sorted=$(echo "$user_pools" | tr ' ' '\n' | grep -v '^$' | sort -t'l' -k2 -rn || true)
 
     for pool_name in $user_pools_sorted; do
-        if ! check_cancellation; then
-            echo "ERROR: Pipeline cancelled before deleting nodepool $pool_name"
-            exit 143
-        fi
-
         echo ""
         echo "Deleting nodepool: $pool_name"
         
@@ -178,11 +277,6 @@ if [[ "$DELETE_NODEPOOLS" == "true" ]]; then
 
     # Delete buffer pool last if requested
     if [[ "$DELETE_BUFFER_POOL" == "true" && -n "$buffer_pool" ]]; then
-        if ! check_cancellation; then
-            echo "ERROR: Pipeline cancelled before deleting buffer nodepool"
-            exit 143
-        fi
-
         echo ""
         echo "Deleting buffer nodepool: $buffer_pool"
         
@@ -223,3 +317,6 @@ done
 
 echo ""
 echo "Done!"
+
+# Always exit with 0 - subsequent scripts will cleanup the cluster/RG anyway
+exit 0

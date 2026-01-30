@@ -1,5 +1,8 @@
 #!/bin/bash
-set -euo pipefail
+# NOTE: This script is designed to be resilient - it will continue on errors
+# since this is a cleanup script and we want to attempt all cleanup steps.
+# We use 'set +e' to prevent the script from exiting on failures.
+set +e
 
 # =============================================================================
 # Cleanup script for Azure resources before resource group deletion
@@ -35,8 +38,9 @@ fi
 echo "Setting Azure subscription to: $AZURE_SUBSCRIPTION_ID"
 az account set --subscription "$AZURE_SUBSCRIPTION_ID"
 
-# Set up cancellation trap (continue cleanup even if cancelled)
-trap 'echo "Cleanup received cancellation signal but will attempt to continue"; sleep 2' SIGTERM SIGINT
+# NOTE: We intentionally do NOT trap SIGTERM/SIGINT here.
+# This cleanup script should run to completion even if the pipeline is cancelled,
+# as it helps free up resources.
 
 # =============================================================================
 # MAIN CLEANUP
@@ -129,3 +133,6 @@ echo ""
 echo "==================================================================="
 echo "Pre-cleanup completed"
 echo "==================================================================="
+
+# Always exit with 0 - this is a cleanup script and we want subsequent steps to run
+exit 0

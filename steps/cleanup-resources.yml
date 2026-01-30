@@ -21,16 +21,15 @@ steps:
   condition: always()
 
 - script: |
-    set -eu
-    
-    # Signal handler - still try to complete cleanup even if cancelled again
-    trap 'echo "Cleanup received cancellation signal but will attempt to continue"; sleep 2' SIGTERM SIGINT
+    set +e
     
     for attempt in $(seq 1 5); do
       echo "Attempting to execute subnetdelegator DELETE command: $attempt/5"
       script --return --quiet -c "az containerapp exec -n subnetdelegator-westus-u3h4j -g subnetdelegator-westus --command 'curl -X DELETE http://localhost:8080/DelegatedSubnet/%2Fsubscriptions%2F9b8218f9-902a-4d20-a65c-e98acec5362f%2FresourceGroups%2F$RESOURCE_GROUP_NAME%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2Fcustvnet%2Fsubnets%2Fscaledel'" /dev/null && break || echo "Command failed, retrying..."
       sleep 30
     done
+    
+    exit 0
   displayName: "Delete SAL Ping"
   condition: and(always(), eq(variables['CREATE_CUSTOMER_RESOURCES'], 'true'))
   continueOnError: true
@@ -44,9 +43,7 @@ steps:
     scriptType: bash
     scriptLocation: inlineScript
     inlineScript: |
-      set -eu
-      
-      trap 'echo "Cleanup received cancellation signal but will attempt to continue"; sleep 2' SIGTERM SIGINT
+      set +e
       
       export RG="$RESOURCE_GROUP_NAME"
       export AZURE_SUBSCRIPTION_ID="$(AZURE_SUBSCRIPTION_ID)"
@@ -56,10 +53,12 @@ steps:
       SCRIPT_PATH="$(Build.SourcesDirectory)/swiftv2kubeobjects/cleanup-swiftv2-workloads.sh"
       if [[ -f "$SCRIPT_PATH" ]]; then
         chmod +x "$SCRIPT_PATH"
-        "$SCRIPT_PATH" || echo "Cleanup script completed with warnings"
+        "$SCRIPT_PATH"
       else
         echo "WARNING: Cleanup script not found at $SCRIPT_PATH"
       fi
+      
+      exit 0
 
 - task: AzureCLI@2
   displayName: "Force Cleanup Azure Resources"
@@ -70,9 +69,7 @@ steps:
     scriptType: bash
     scriptLocation: inlineScript
     inlineScript: |
-      set -eu
-      
-      trap 'echo "Cleanup received cancellation signal but will attempt to continue"; sleep 2' SIGTERM SIGINT
+      set +e
       
       export RG="$RESOURCE_GROUP_NAME"
       export AZURE_SUBSCRIPTION_ID="$(AZURE_SUBSCRIPTION_ID)"
@@ -80,10 +77,12 @@ steps:
       SCRIPT_PATH="$(Build.SourcesDirectory)/swiftv2kubeobjects/cleanup-azure-resources.sh"
       if [[ -f "$SCRIPT_PATH" ]]; then
         chmod +x "$SCRIPT_PATH"
-        "$SCRIPT_PATH" || echo "Cleanup script completed with warnings"
+        "$SCRIPT_PATH"
       else
         echo "WARNING: Cleanup script not found at $SCRIPT_PATH"
       fi
+      
+      exit 0
 
 - task: AzureCLI@2
   displayName: "Destroy Resource Group"
@@ -94,9 +93,7 @@ steps:
     scriptType: bash
     scriptLocation: inlineScript
     inlineScript: |
-      set -eu
-      
-      trap 'echo "Cleanup received cancellation signal but will attempt to continue"; sleep 2' SIGTERM SIGINT
+      set +e
       
       # Set the Azure subscription
       export AZURE_SUBSCRIPTION_ID="$(AZURE_SUBSCRIPTION_ID)"
@@ -117,3 +114,5 @@ steps:
           fi
         fi
       done
+      
+      exit 0
