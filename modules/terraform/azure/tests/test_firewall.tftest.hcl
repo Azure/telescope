@@ -8,21 +8,21 @@ variables {
   deletion_delay = "2h"
   owner          = "aks"
   json_input = {
-    run_id            = "test-123"
-    region            = "eastus2"
-    public_key_path   = "/tmp/key.pub"
+    run_id          = "test-123"
+    region          = "eastus2"
+    public_key_path = "/tmp/key.pub"
   }
   # Required main variables
   resource_group_name = "test-rg"
   location            = "eastus2"
   firewall_config = {
-    name       = "nap-firewall"
-    sku_tier   = "Standard"
-    subnet_id  = "/subscriptions/sub-id/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/AzureFirewallSubnet"
+    name                 = "nap-firewall"
+    sku_tier             = "Standard"
+    subnet_id            = "/subscriptions/sub-id/resourceGroups/test-rg/providers/Microsoft.Network/virtualNetworks/test-vnet/subnets/AzureFirewallSubnet"
     public_ip_address_id = "/subscriptions/sub-id/resourceGroups/test-rg/providers/Microsoft.Network/publicIPAddresses/firewall-pip"
     threat_intel_mode    = "Alert"
     dns_proxy_enabled    = true
-    
+
     application_rule_collections = [
       {
         name     = "allow-all"
@@ -41,7 +41,7 @@ variables {
         ]
       }
     ]
-    
+
     network_rule_collections = [
       {
         name     = "allow-all"

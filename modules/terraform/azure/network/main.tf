@@ -1,14 +1,14 @@
 locals {
   nsr_rules_map                = { for rule in var.network_config.nsr_rules : rule.name => rule }
   nat_gateway_associations_map = var.network_config.nat_gateway_associations == null ? {} : { for nat in var.network_config.nat_gateway_associations : nat.nat_gateway_name => nat }
-  input_route_tables_map             = var.network_config.route_tables == null ? {} : { for rt in var.network_config.route_tables : rt.name => rt }
+  input_route_tables_map       = var.network_config.route_tables == null ? {} : { for rt in var.network_config.route_tables : rt.name => rt }
   vnet_name                    = var.network_config.vnet_name
   input_subnet_map             = { for subnet in var.network_config.subnet : subnet.name => subnet }
   subnets_map = {
     for subnet in azurerm_virtual_network.vnet.subnet :
     split("/", subnet.id)[length(split("/", subnet.id)) - 1] => subnet
   }
-  firewalls_input = var.network_config.firewalls == null ? {} : { for fw in var.network_config.firewalls : fw.name => fw }
+  firewalls_input             = var.network_config.firewalls == null ? {} : { for fw in var.network_config.firewalls : fw.name => fw }
   network_security_group_name = var.network_config.network_security_group_name
   expanded_nic_association_map = flatten([
     for nic in var.network_config.nic_public_ip_associations : [

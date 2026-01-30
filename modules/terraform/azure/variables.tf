@@ -183,7 +183,7 @@ variable "network_config_list" {
           })), [])
         }))
       })), [])
-    })),[])
+    })), [])
     route_tables = optional(list(object({
       name                          = string
       bgp_route_propagation_enabled = optional(bool, true)
@@ -196,7 +196,7 @@ variable "network_config_list" {
       subnet_associations = list(object({
         subnet_name = string
       }))
-    })),[])
+    })), [])
   }))
   default = []
 }
@@ -319,6 +319,9 @@ variable "aks_config_list" {
     kms_key_name             = optional(string, null)
     kms_key_vault_name       = optional(string, null)
     key_vault_network_access = optional(string, "Public")
+    # Disk Encryption Set configuration for OS disk encryption with Customer-Managed Keys
+    # Reference: https://learn.microsoft.com/en-us/azure/aks/azure-disk-customer-managed-keys
+    disk_encryption_set_name = optional(string, null) # Name of the Disk Encryption Set to use for OS disk encryption
   }))
   default = []
 }
@@ -326,11 +329,11 @@ variable "aks_config_list" {
 variable "jumpbox_config_list" {
   description = "Configuration for jumpbox VMs"
   type = list(object({
-    role              = string
-    name              = optional(string)
-    subnet_name       = optional(string)
-    vm_size           = optional(string, "Standard_D4s_v3")
-    aks_name          = string
+    role        = string
+    name        = optional(string)
+    subnet_name = optional(string)
+    vm_size     = optional(string, "Standard_D4s_v3")
+    aks_name    = string
   }))
   default = []
 }
@@ -375,8 +378,40 @@ variable "aks_cli_config_list" {
     kms_key_name             = optional(string, null)
     kms_key_vault_name       = optional(string, null)
     key_vault_network_access = optional(string, "Public")
-    dry_run                  = optional(bool, false) # If true, only print the command without executing it. Useful for testing.
+    # Disk Encryption Set configuration for OS disk encryption with Customer-Managed Keys
+    # Reference: https://learn.microsoft.com/en-us/azure/aks/azure-disk-customer-managed-keys
+    disk_encryption_set_name = optional(string, null) # Name of the Disk Encryption Set to use for OS disk encryption
+    node_osdisk_type         = optional(string, null) # OS disk type: "Managed" or "Ephemeral"
+    dry_run                  = optional(bool, false)  # If true, only print the command without executing it. Useful for testing.
   }))
   default = []
+}
+
+variable "disk_encryption_set_config_list" {
+  description = "List of Disk Encryption Set configurations for encrypting AKS OS/data disks with Customer-Managed Keys. Reference: https://learn.microsoft.com/en-us/azure/aks/azure-disk-customer-managed-keys"
+  type = list(object({
+    name            = string                                              # Name of the Disk Encryption Set
+    key_vault_name  = string                                              # Name of the Key Vault containing the encryption key
+    key_name        = string                                              # Name of the encryption key in the Key Vault
+    encryption_type = optional(string, "EncryptionAtRestWithCustomerKey") # Type of encryption
+    # Supported values:
+    # - EncryptionAtRestWithCustomerKey (default): Disk is encrypted with customer-managed key
+    # - EncryptionAtRestWithPlatformAndCustomerKeys: Double encryption (platform + customer key)
+    # - ConfidentialVmEncryptedWithCustomerKey: For confidential VMs
+    auto_key_rotation_enabled = optional(bool, false) # Enable automatic key rotation
+  }))
+  default = []
+
+  validation {
+    condition = alltrue([
+      for config in var.disk_encryption_set_config_list : (
+        length(config.name) >= 1 &&
+        length(config.name) <= 80 &&
+        length(config.key_vault_name) >= 1 &&
+        length(config.key_name) >= 1
+      )
+    ])
+    error_message = "Each Disk Encryption Set config must have name 1-80 characters, and key_vault_name and key_name must be specified."
+  }
 }
 
