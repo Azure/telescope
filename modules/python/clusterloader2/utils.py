@@ -199,7 +199,7 @@ def parse_xml_to_json(file_path, indent=0):
 
 def add_flags_to_daemonset(flags_json_string):
     kubelet_flags = parse_flags_from_json(flags_json_string)
-    kubelet_daemonset = r"""
+    kubelet_daemonset = rf"""
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -225,7 +225,7 @@ spec:
         - -c
         - |
           echo "Updating kubelet configuration..."
-          export CUSTOM_EVICTION_FLAGS="{custom_kubelet_flags}"
+          export CUSTOM_EVICTION_FLAGS="{kubelet_flags}"
           export kubelet_flags_eof_key="--node-ip"
           for kvp in $CUSTOM_EVICTION_FLAGS; do
             key=${{kvp%%=*}}
@@ -262,7 +262,7 @@ spec:
       - name: systemd
         hostPath:
           path: /run/systemd
-      restartPolicy: Always""".format(custom_kubelet_flags=kubelet_flags)
+      restartPolicy: Always"""
     print(kubelet_daemonset)
 
 def parse_flags_from_json(json_string):
@@ -270,7 +270,7 @@ def parse_flags_from_json(json_string):
     try:
         flags_dict = json.loads(json_string)
         for key, value in flags_dict.items():
-            if isinstance(value, dict) or isinstance(value, list):
+            if isinstance(value, (dict, list)):
                 if "eviction" in key:
                     delim = "<"
                 elif "reserved" in key:
@@ -284,7 +284,7 @@ def parse_flags_from_json(json_string):
                 value_str = str(value)
             kubelet_flags += f"--{key}={value_str.rstrip(',')} "
         kubelet_flags = kubelet_flags.strip()
-            
+
     except Exception:
         return ""
     return kubelet_flags
