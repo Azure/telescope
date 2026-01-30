@@ -16,7 +16,7 @@ steps:
       export DS="$(PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE modify-kubelet \
         --custom_kubelet_config "$CUSTOM_KUBELET_CONFIG")"
       
-      printf '%s' "$DS"
+      printf '%s' "$DS" | kubectl apply -f -
 
       kubectl get pods -A -o wide
 
