@@ -9,12 +9,12 @@ parameters:
     displayName: "Custom Kubelet Config Object"
     type: object  # The parameter type is object
     default:  # Default value is an object with nested properties
-      eviction-hard: 
+      eviction-hard:
         memory.available: "200Mi"
         nodefs.available: "10%"
         nodefs.inodesFree: "5%"
         pid.available: "2000"
-      eviction-soft: 
+      eviction-soft:
         memory.available: "400Mi"
         nodefs.available: "15%"
         nodefs.inodesFree: "10%"
