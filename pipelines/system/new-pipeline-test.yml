@@ -1,25 +1,59 @@
 trigger: none
+schedules:
+  - cron: "0 */4 * * *"
+    displayName: "Every 4 Hour"
+    branches:
+      include:
+        - main
+    always: true
 
 variables:
-  SCENARIO_TYPE: <scenario-type>
-  SCENARIO_NAME: <scenario-name>
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: image-pull-n10
 
 stages:
-  - stage: <stage-name> # format: <cloud>[_<region>]+ (e.g. azure_eastus2, aws_eastus_westus)
+  - stage: azure_westus2_image_pull
     dependsOn: []
     jobs:
-      - template: /jobs/competitive-test.yml # must keep as is
+      - template: /jobs/competitive-test.yml
         parameters:
-          cloud: <cloud> # e.g. azure, aws
-          regions: # list of regions
-            - region1 # e.g. eastus2
-          topology: <topology> # e.g. cluster-autoscaler
-          engine: <engine> # e.g. clusterloader2
-          matrix: # list of test parameters to customize the provisioned resources
-            <case-name>:
-              <key1>: <value1>
-              <key2>: <value2>
-          max_parallel: <number of concurrent jobs> # required
-          credential_type: service_connection # required
+          cloud: azure
+          regions:
+            - westus2
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+          topology: image-pull
+          matrix:
+            image-pull-10pods-authenticated:
+              node_count: 10
+              max_pods: 30
+              repeats: 1
+              operation_timeout: 3m
+              load_type: memory
+              scrape_containerd: True
+              scrape_kubelets: True
+              scrape_registry: True
+              containerd_scrape_interval: 15s
+              registry_endpoint: vlinperftest.azurecr.io
+              kubernetes_version: "1.34"
+              pod_startup_latency_threshold: 20s
+              anonymous_pull: False
+            image-pull-10pods-anonymous:
+              node_count: 10
+              max_pods: 30
+              repeats: 1
+              operation_timeout: 3m
+              load_type: memory
+              scrape_containerd: True
+              scrape_kubelets: True
+              scrape_registry: True
+              containerd_scrape_interval: 15s
+              registry_endpoint: vlinperftest.azurecr.io
+              kubernetes_version: "1.34"
+              pod_startup_latency_threshold: 20s
+              anonymous_pull: True
+          max_parallel: 1
+          credential_type: service_connection
           ssh_key_enabled: false
-          timeout_in_minutes: 60 # if not specified, default is 60
+          timeout_in_minutes: 60
