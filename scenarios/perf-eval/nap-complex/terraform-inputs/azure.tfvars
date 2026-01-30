@@ -148,6 +148,7 @@ aks_cli_config_list = [
     }
     default_node_pool = {
       name       = "system"
+      os_disk_type = "Ephemeral"
       node_count = 10
       vm_size    = "Standard_D16s_v5"
     }
@@ -155,6 +156,7 @@ aks_cli_config_list = [
       {
         name       = "prompool"
         node_count = 1
+        os_disk_type = "Ephemeral"
         vm_size    = "Standard_D16_v5"
         optional_parameters = [
           {
