@@ -70,7 +70,14 @@ firewall_config_list = [
               "*.windows.net", "*.azurecr.io", "*.ubuntu.com", "AzureKubernetesService",
               "mcr-0001.mcr-msedge.net", "*.microsoft.com",
               "*.microsoftonline.com", "*.microsoftonline.co", "*.azureedge.net",
-            "packages.aks.azure.com"]
+              "packages.aks.azure.com", "mcr.microsoft.com",
+              "*.mcr.microsoft.com",
+              "*.data.mcr.microsoft.com",
+              "*.azurecr.io",
+              "*.blob.core.windows.net",
+              "*.hcp.eastus2.azmk8s.io",
+              "management.azure.com",
+            "login.microsoftonline.com"]
             protocols = [
               { port = "80", type = "Http" },
               { port = "443", type = "Https" }
@@ -134,12 +141,12 @@ route_table_config_list = [
 
 aks_cli_config_list = [
   {
-    role                  = "nap"
-    aks_name              = "nap-complex"
-    sku_tier              = "standard"
-    subnet_name           = "nap-subnet-ms"
-    managed_identity_name = "nap-identity"
-    kubernetes_version    = "1.33"
+    role                   = "nap"
+    aks_name               = "nap-complex"
+    sku_tier               = "standard"
+    subnet_name            = "nap-subnet-ms"
+    managed_identity_name  = "nap-identity"
+    kubernetes_version     = "1.33"
     api_server_subnet_name = "apiserver-subnet"
     kms_config = {
       key_name       = "kms-nap"
@@ -147,15 +154,17 @@ aks_cli_config_list = [
       network_access = "Private"
     }
     default_node_pool = {
-      name       = "system"
-      node_count = 10
-      vm_size    = "Standard_D16s_v5"
+      name         = "system"
+      os_disk_type = "Ephemeral"
+      node_count   = 10
+      vm_size      = "Standard_D16s_v5"
     }
     extra_node_pool = [
       {
-        name       = "prompool"
-        node_count = 1
-        vm_size    = "Standard_D16_v5"
+        name         = "prompool"
+        node_count   = 1
+        os_disk_type = "Ephemeral"
+        vm_size      = "Standard_D16_v5"
         optional_parameters = [
           {
             name  = "labels"
@@ -208,15 +217,15 @@ aks_cli_config_list = [
       {
         name  = "enable-image-cleaner"
         value = ""
-      },
-      {
-        name  = "network-dataplane"
-        value = "cilium"
-      },
-      {
-        name  = "network-policy"
-        value = "cilium"
       }
+      # {
+      #   name  = "network-dataplane"
+      #   value = "cilium"
+      # },
+      # {
+      #   name  = "network-policy"
+      #   value = "cilium"
+      # }
       # TODO: enable private cluster after bug fix for hyperscale has been rolled out
       # {
       #   name  = "enable-private-cluster"
