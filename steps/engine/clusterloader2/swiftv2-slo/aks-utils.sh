@@ -250,6 +250,50 @@ function label_nodes_with_retry() {
     return 1
 }
 
+# Verify that nodes have specific labels visible to the API server
+# Useful after labeling to ensure labels have propagated before dependent operations
+# Usage: verify_node_labels <expected_count> <max_wait_seconds> <label_selector>
+# Example: verify_node_labels 100 60 "swiftv2slo=true,image-prepull-batch-0=true"
+# Returns: 0 if expected count reached, 1 if timeout
+# Sets: VERIFIED_NODE_COUNT with actual count of matching nodes
+function verify_node_labels() {
+    local expected_count=$1
+    local max_wait=${2:-60}  # Default 60 seconds
+    local label_selector=$3
+    
+    if [ -z "$label_selector" ]; then
+        log_error "verify_node_labels: label_selector is required"
+        return 1
+    fi
+    
+    log_info "Verifying node labels: expecting $expected_count nodes with selector '$label_selector'..."
+    
+    local verify_interval=5
+    local verify_elapsed=0
+    VERIFIED_NODE_COUNT=0
+    
+    while [ $verify_elapsed -lt $max_wait ]; do
+        VERIFIED_NODE_COUNT=$(kubectl get nodes -l "$label_selector" --no-headers 2>/dev/null | wc -l | tr -d ' ')
+        
+        if [ "$VERIFIED_NODE_COUNT" -ge "$expected_count" ]; then
+            log_info "  ✓ Verified: $VERIFIED_NODE_COUNT nodes match selector (expected: $expected_count)"
+            return 0
+        fi
+        
+        if [ $verify_elapsed -eq 0 ]; then
+            log_info "  Waiting for label propagation: $VERIFIED_NODE_COUNT/$expected_count visible..."
+        elif [ $((verify_elapsed % 15)) -eq 0 ]; then
+            log_info "  Label propagation progress: $VERIFIED_NODE_COUNT/$expected_count visible (${verify_elapsed}s)"
+        fi
+        
+        sleep $verify_interval
+        verify_elapsed=$((verify_elapsed + verify_interval))
+    done
+    
+    log_warning "  Label verification timeout: only $VERIFIED_NODE_COUNT/$expected_count nodes visible after ${max_wait}s"
+    return 1
+}
+
 # Batch label nodes in parallel for performance
 # Usage: batch_label_nodes "<label_key>=<label_value>" node1 node2 node3 ...
 # Returns: 0 on success, 1 on failure

@@ -194,12 +194,31 @@ function prepull_images_on_nodes() {
         
         # Label nodes in this batch with temporary batch label
         local batch_label="image-prepull-batch-$batch_idx=true"
+        local batch_label_key="image-prepull-batch-$batch_idx"
         log_info "Labeling $batch_node_count nodes with $batch_label..."
         
         # Use common utility with retry - but for batch labels we can be lenient
         if ! label_nodes_with_retry "$batch_label" "${batch_nodes[@]}"; then
             log_warning "Some batch label operations failed, but continuing with available nodes"
         fi
+        
+        # Verify batch labels are visible to the API server before creating DaemonSet
+        # This addresses race conditions where labels are accepted but not yet propagated
+        local label_selector="swiftv2slo=true,${batch_label_key}=true"
+        if ! verify_node_labels "$batch_node_count" 60 "$label_selector"; then
+            log_warning "  This may indicate nodes don't have swiftv2slo=true label. Continuing with $VERIFIED_NODE_COUNT nodes..."
+            
+            if [ "$VERIFIED_NODE_COUNT" -eq 0 ]; then
+                log_error "  No nodes have both labels - skipping this batch"
+                # Clean up batch labels before continuing
+                log_info "  Cleaning up batch labels..."
+                for node in "${batch_nodes[@]}"; do
+                    kubectl label node "$node" "${batch_label_key}-" --overwrite >/dev/null 2>&1 || true
+                done
+                continue
+            fi
+        fi
+        local verified_count=$VERIFIED_NODE_COUNT
         
         # Process each image sequentially to avoid overwhelming registry
         local batch_ds_names=()
@@ -216,9 +235,7 @@ function prepull_images_on_nodes() {
             
             log_info "Creating DaemonSet '$ds_name' for image $image_num/${#images_to_pull[@]} in batch $batch_num..."
             log_info "  Image: $img"
-            
-            # Extract label key and value for DaemonSet selector
-            local batch_label_key="image-prepull-batch-$batch_idx"
+            log_info "  Target nodes: $verified_count (with swiftv2slo=true AND $batch_label_key=true)"
             
             # Generate DaemonSet from template with batch-specific node selector
             sed -e "s|IMAGE_PREPULL_NAMESPACE|$prepull_ns|g" \
@@ -243,6 +260,7 @@ function prepull_images_on_nodes() {
             local img_completed=false
             local img_last_ready=0
             local img_stalled=0
+            local desired_mismatch_logged=false
             
             while [ $img_elapsed -lt $img_max_wait ]; do
                 local ds_info
@@ -250,6 +268,12 @@ function prepull_images_on_nodes() {
                 
                 local desired=$(echo "$ds_info" | jq -r '.status.desiredNumberScheduled // 0')
                 local ready=$(echo "$ds_info" | jq -r '.status.numberReady // 0')
+                
+                # Warn if desired doesn't match verified count (indicates label mismatch)
+                if [ "$desired_mismatch_logged" = false ] && [ "$desired" -gt 0 ] && [ "$desired" -lt "$verified_count" ]; then
+                    log_warning "  DaemonSet desired=$desired but verified_count=$verified_count - some nodes may have lost labels"
+                    desired_mismatch_logged=true
+                fi
                 
                 if [ "$ready" -eq "$desired" ] && [ $desired -gt 0 ]; then
                     log_info "  ✓ Image $image_num completed: $ready/$desired pods ready (${img_elapsed}s)"
