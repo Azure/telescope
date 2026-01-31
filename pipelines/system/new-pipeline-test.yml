@@ -3,6 +3,9 @@ trigger: none
 variables:
   # Cleanup control - set to false to keep resources after pipeline completes
   CLEANUP: "true"
+  # Slow delete - when true, runs the swiftv2 workload cleanup script for graceful deletion
+  # This is slower but ensures proper cleanup of deployments, pods, and PNIs before nodepool deletion
+  SLOW_DELETE: "false"
   
   # Hardcoded ADO pipeline variables
   AZURE_SUBSCRIPTION_ID: "37deca37-c375-4a14-b90a-043849bd2bf1"

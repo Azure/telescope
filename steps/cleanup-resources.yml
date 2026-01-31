@@ -36,7 +36,7 @@ steps:
 
 - task: AzureCLI@2
   displayName: "Cleanup Swiftv2 Workloads"
-  condition: and(always(), ${{ eq(parameters.cloud, 'azure') }})
+  condition: and(always(), ${{ eq(parameters.cloud, 'azure') }}, eq(variables['SLOW_DELETE'], 'true'))
   continueOnError: true
   inputs:
     azureSubscription: $(AZURE_SERVICE_CONNECTION)
