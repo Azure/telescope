@@ -1,0 +1,43 @@
+parameters:
+- name: prefix
+  type: string
+  default: ''
+
+steps:
+- script: |
+    set -eu
+    
+    # Generate base run ID: Initials-DDHHMMSS-prefix
+    timestamp=$(date +%d%H%M%S)
+    
+    # Extract user initials from Build.RequestedFor (e.g., "John Doe" -> "JD")
+    user_name="$BUILD_REQUESTED_FOR"
+    echo "Pipeline triggered by: $user_name"
+    
+    # Extract initials - get first letter of each word, convert to uppercase, take first 2
+    user_initials=$(echo "$user_name" | sed 's/[^A-Za-z ]//g' | awk '{for(i=1;i<=NF;i++) printf substr(toupper($i),1,1)}' | cut -c1-2)
+    
+    # Fallback if initials are empty or too short
+    if [ -z "$user_initials" ] || [ ${#user_initials} -lt 2 ]; then
+      user_initials="XX"
+    fi
+    
+    # Add optional prefix for stage identification
+    prefix="${PREFIX:-}"
+    if [ -n "$prefix" ]; then
+      base_run_id="${user_initials}-${timestamp}-${prefix}"
+    else
+      base_run_id="${user_initials}-${timestamp}"
+    fi
+    
+    echo "Generated timestamp: $timestamp"
+    echo "User initials: $user_initials"
+    echo "Generated BASE_RUN_ID: $base_run_id"
+    
+    # Set as output variable for other jobs in same stage to consume
+    echo "##vso[task.setvariable variable=BASE_RUN_ID;isOutput=true]$base_run_id"
+  name: set_run_id
+  displayName: "Generate Run ID"
+  env:
+    BUILD_REQUESTED_FOR: $(Build.RequestedFor)
+    PREFIX: ${{ parameters.prefix }}

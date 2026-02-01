@@ -3,9 +3,12 @@ name: deployment-churn
 {{$podsPerNode := DefaultParam .CL2_PODS_PER_NODE 1}}
 {{$podsPerStep := DefaultParam .CL2_PODS_PER_STEP 7}}
 {{$podsPerPNI := .CL2_PODS_PER_PNI}}
-{{$numPNIs := DivideInt $podsPerStep $podsPerPNI}}
 {{$nodes := DefaultParam .CL2_NODES 1000}}
 {{$total_pods := DefaultParam .CL2_TOTAL_PODS 7000}}
+{{$existingPods := DefaultParam .CL2_EXISTING_PODS 0}}
+{{$deltaPods := SubtractInt $total_pods $existingPods}}
+{{$actualPodsThisJob := MaxInt $deltaPods 0}}
+{{$numPNIsPerStep := DivideInt $podsPerStep $podsPerPNI}}
 {{$steps := DefaultParam .CL2_STEPS 1}}
 {{$latencyPodCpu := DefaultParam .CL2_LATENCY_POD_CPU 10}}
 {{$latencyPodMemory := DefaultParam .CL2_LATENCY_POD_MEMORY 50}}
@@ -17,10 +20,11 @@ name: deployment-churn
 {{$probeTimeout := .CL2_PROBE_TIMEOUT}}
 {{$datapathReporterImage := .CL2_DATAPATH_REPORTER_IMAGE}}
 {{$nginxImage := .CL2_NGINX_IMAGE}}
+{{$jobIndex := .CL2_JOB_INDEX}}
 
 namespace:
   number: 1
-  prefix: slo
+  prefix: slo-job{{$jobIndex}}
   deleteStaleNamespaces: false
   deleteAutomanagedNamespaces: false
   enableExistingNamespaces: false
@@ -48,7 +52,7 @@ steps:
         objectTemplatePath: reporter_role_template.yaml
       - basename: reporter-binding
         objectTemplatePath: reporter_rolebinding_template.yaml
-  - name: Log - steps={{$steps}}, nodes={{$nodes}}, pods/node={{$podsPerNode}}, pods/step={{$podsPerStep}}, total pods={{$total_pods}}
+  - name: Log - job_index={{$jobIndex}}, steps={{$steps}}, nodes={{$nodes}}, pods/node={{$podsPerNode}}, pods/step={{$podsPerStep}}, total_pods={{$total_pods}}, existing_pods={{$existingPods}}, delta_pods={{$deltaPods}}, actual_pods_this_job={{$actualPodsThisJob}}
     measurements:
     - Identifier: Dummy
       Method: Sleep
@@ -61,7 +65,7 @@ steps:
       Method: PodStartupLatency
       Params:
         action: start
-        labelSelector: podgroup={{$groupName}}
+        labelSelector: podgroup-job={{$groupName}}-job{{$jobIndex}}
         threshold: {{$podStartupLatencyThreshold}}
   {{range $j := Loop $steps}}
   - name: Create PNIs for step {{$j}}
@@ -69,10 +73,10 @@ steps:
       - namespaceRange:
           min: 1
           max: 1
-        replicasPerNamespace: {{$numPNIs}}
+        replicasPerNamespace: {{$numPNIsPerStep}}
         tuningSet: DeploymentCreateQps
         objectBundle:
-          - basename: pod-network-instance-{{$j}}
+          - basename: pod-network-instance-job{{$jobIndex}}-{{$j}}
             objectTemplatePath: pni_static_template.yaml
             templateFillMap:
               ReservationSize: {{$podsPerPNI}}
@@ -87,8 +91,8 @@ steps:
           - basename: pni-checker-{{$j}}
             objectTemplatePath: pni_readiness_checker_unified_template.yaml
             templateFillMap:
-              PNIPrefix: pod-network-instance-{{$j}}-
-              NumPNIs: {{$numPNIs}}
+              PNIPrefix: pod-network-instance-job{{$jobIndex}}-{{$j}}-
+              NumPNIs: {{$numPNIsPerStep}}
   - name: Wait for PNI Readiness Checker to Complete -{{$j}}
     measurements:
       - Identifier: WaitForPNIChecker-{{$j}}
@@ -108,8 +112,8 @@ steps:
           - basename: pni-checker-{{$j}}
             objectTemplatePath: pni_readiness_checker_unified_template.yaml
             templateFillMap:
-              PNIPrefix: pod-network-instance-{{$j}}-
-              NumPNIs: {{$numPNIs}}
+              PNIPrefix: pod-network-instance-job{{$jobIndex}}-{{$j}}-
+              NumPNIs: {{$numPNIsPerStep}}
   - name: Starting Deployment Latency Measurements -{{$j}}
     measurements:
     - Identifier: WaitForControlledPodsRunning-{{$j}}
@@ -118,7 +122,7 @@ steps:
         action: start
         apiVersion: apps/v1
         kind: Deployment
-        labelSelector: group={{$groupName}}-{{$j}}
+        labelSelector: group={{$groupName}}-job{{$jobIndex}}-{{$j}}
         operationTimeout: {{$operationTimeout}}
   - name: Create Deployments for step {{$j}}
     phases:
@@ -128,16 +132,18 @@ steps:
         replicasPerNamespace: {{$podsPerStep}}
         tuningSet: DeploymentCreateQps
         objectBundle:
-          - basename: deployment-churn-{{$j}}
+          - basename: deployment-churn-job{{$jobIndex}}-{{$j}}
             objectTemplatePath: swiftv2_deployment_single_pod_template.yaml
             templateFillMap:
-              Group: {{$groupName}}-{{$j}}
+              Group: {{$groupName}}-job{{$jobIndex}}-{{$j}}
               PodGroup: {{$groupName}}
+              PodGroupJob: {{$groupName}}-job{{$jobIndex}}
               CpuRequest: {{$latencyPodCpu}}m
               MemoryRequest: {{$latencyPodMemory}}M
               deploymentLabel: start
               StepIndex: {{$j}}
               PodsPerPNI: {{$podsPerPNI}}
+              PNIPrefix: pod-network-instance-job{{$jobIndex}}-{{$j}}
               Location: {{$.CL2_LOCATION}}
               DevicePluginEnabled: {{$devicePluginEnabled}}
               ProbeTarget: {{$probeTargetUrl}}
@@ -152,7 +158,7 @@ steps:
         action: gather
         apiVersion: apps/v1
         kind: Deployment
-        labelSelector: group={{$groupName}}-{{$j}}
+        labelSelector: group={{$groupName}}-job{{$jobIndex}}-{{$j}}
         operationTimeout: {{$operationTimeout}}
   {{end}}
   - name: Gather Pod Startup Latency Measurements
@@ -161,7 +167,7 @@ steps:
       Method: PodStartupLatency
       Params:
         action: gather
-        labelSelector: podgroup={{$groupName}}
+        labelSelector: podgroup-job={{$groupName}}-job{{$jobIndex}}
   - name: Wait for Datapath Readiness
     measurements:
     - Identifier: Dummy

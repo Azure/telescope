@@ -85,6 +85,14 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 			dpResult.Spec.Labels = pod.Labels
 		}
 
+		// Copy pod labels to metadata.labels for label selector filtering
+		if dpResult.ObjectMeta.Labels == nil {
+			dpResult.ObjectMeta.Labels = make(map[string]string)
+		}
+		for k, v := range pod.Labels {
+			dpResult.ObjectMeta.Labels[k] = v
+		}
+
 		// Always update mutable fields
 		dpResult.Spec.PodRef.NodeName = pod.Spec.NodeName
 
@@ -108,7 +116,7 @@ func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 
 func updateMetrics(dpResult *perfv1.DatapathResult, createdAt time.Time, startTsStr, dpReadyTsStr string) {
 	logger := log.Log.WithName("updateMetrics").WithValues("dpResult", dpResult.Name, "namespace", dpResult.Namespace)
-	
+
 	// Only update startTs if not already set (capture first occurrence from initContainer)
 	if startTsStr != "" && dpResult.Spec.Timestamps.StartTs == "" {
 		dpResult.Spec.Timestamps.StartTs = startTsStr
@@ -120,7 +128,7 @@ func updateMetrics(dpResult *perfv1.DatapathResult, createdAt time.Time, startTs
 			logger.V(1).Info("Calculated LatStartMs", "createdAt", createdAt.Format(time.RFC3339Nano), "startTs", startTs.Format(time.RFC3339Nano), "latMs", dpResult.Spec.Metrics.LatStartMs)
 		}
 	}
-	
+
 	// Only update dpReadyTs if not already set (capture first occurrence from initContainer)
 	if dpReadyTsStr != "" && dpResult.Spec.Timestamps.DpReadyTs == "" {
 		dpResult.Spec.Timestamps.DpReadyTs = dpReadyTsStr

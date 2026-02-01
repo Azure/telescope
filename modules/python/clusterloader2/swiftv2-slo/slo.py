@@ -47,10 +47,12 @@ def configure_clusterloader2(
     num_ccnps,
     dualstack,
     pods_per_pni,
+    existing_pods,
     override_file):
 
-    steps = node_count * pods_per_node // pods_per_step if pods_per_step else 1
     total_pods = node_count * pods_per_node
+    delta_pods = total_pods - existing_pods
+    steps = delta_pods // pods_per_step if pods_per_step else 1
     throughput, nodes_per_namespace, cpu_request = calculate_config(cpu_per_node, node_count, max_pods, provider)
 
     with open(override_file, 'w', encoding='utf-8') as file:
@@ -61,6 +63,7 @@ def configure_clusterloader2(
         file.write(f"CL2_PODS_PER_STEP: {pods_per_step}\n")
         file.write(f"CL2_PODS_PER_PNI: {pods_per_pni}\n")
         file.write(f"CL2_TOTAL_PODS: {total_pods}\n")
+        file.write(f"CL2_EXISTING_PODS: {existing_pods}\n")
         file.write(f"CL2_LATENCY_POD_CPU: {cpu_request}\n")
         file.write(f"CL2_REPEATS: {repeats}\n")
         file.write(f"CL2_STEPS: {steps}\n")
@@ -97,6 +100,11 @@ def configure_clusterloader2(
         probe_timeout = os.environ.get("CL2_PROBE_TIMEOUT")
         if probe_timeout:
             file.write(f"CL2_PROBE_TIMEOUT: {probe_timeout}\n")
+
+        # Pass job index for unique namespace naming across parallel runs
+        job_index = os.environ.get("CL2_JOB_INDEX")
+        if job_index:
+            file.write(f"CL2_JOB_INDEX: {job_index}\n")
 
         if scrape_containerd:
             file.write(f"CL2_SCRAPE_CONTAINERD: {str(scrape_containerd).lower()}\n")
@@ -261,6 +269,7 @@ def main():
     parser_configure.add_argument("num_ccnps", type=int, nargs='?', default=0)
     parser_configure.add_argument("dualstack", type=str2bool, choices=[True, False], nargs='?', default=False)
     parser_configure.add_argument("pods_per_pni", type=int, nargs='?', default=0)
+    parser_configure.add_argument("existing_pods", type=int, nargs='?', default=0)
     parser_configure.add_argument("cl2_override_file", type=str)
 
     parser_validate = subparsers.add_parser("validate", help="Validate cluster setup")
@@ -304,7 +313,8 @@ def main():
                                  args.repeats, args.operation_timeout, args.provider,
                                  args.cilium_enabled, args.scrape_containerd,
                                  args.service_test, args.cnp_test, args.ccnp_test, args.ds_test,
-                                 args.num_cnps, args.num_ccnps, args.dualstack, args.pods_per_pni, args.cl2_override_file)
+                                 args.num_cnps, args.num_ccnps, args.dualstack, args.pods_per_pni,
+                                 args.existing_pods, args.cl2_override_file)
     elif args.command == "validate":
         validate_clusterloader2(args.node_count, args.operation_timeout, args.node_label)
     elif args.command == "execute":

@@ -4,9 +4,6 @@ parameters:
   default: {}
 - name: cloud
   type: string
-- name: terraform_arguments
-  type: string
-  default: ''
 - name: retry_attempt_count
   type: number
   default: 3
@@ -17,152 +14,105 @@ parameters:
 steps:
 - script: |
     echo "==================================================================="
-    echo "Starting cleanup process for Run ID: $RUN_ID"
+    echo "Starting cleanup process for resource group: $RESOURCE_GROUP_NAME"
     echo "Cleanup will proceed even if pipeline was cancelled"
     echo "==================================================================="
   displayName: "Cleanup Notice"
   condition: always()
-  
-- template: /steps/terraform/run-command.yml
-  parameters:
-    command: destroy
-    arguments: ${{ parameters.terraform_arguments }}
-    regions: ${{ parameters.regions }}
-    cloud: ${{ parameters.cloud }}
-    retry_attempt_count: ${{ parameters.retry_attempt_count }}
-    credential_type: ${{ parameters.credential_type }}
-    
+
 - script: |
-    set -eu
-    
-    # Signal handler - still try to complete cleanup even if cancelled again
-    trap 'echo "Cleanup received cancellation signal but will attempt to continue"; sleep 2' SIGTERM SIGINT
+    set +e
     
     for attempt in $(seq 1 5); do
       echo "Attempting to execute subnetdelegator DELETE command: $attempt/5"
-      script --return --quiet -c "az containerapp exec -n subnetdelegator-westus-u3h4j -g subnetdelegator-westus --command 'curl -X DELETE http://localhost:8080/DelegatedSubnet/%2Fsubscriptions%2F9b8218f9-902a-4d20-a65c-e98acec5362f%2FresourceGroups%2F$RUN_ID%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2Fcustvnet%2Fsubnets%2Fscaledel'" /dev/null && break || echo "Command failed, retrying..."
+      script --return --quiet -c "az containerapp exec -n subnetdelegator-westus-u3h4j -g subnetdelegator-westus --command 'curl -X DELETE http://localhost:8080/DelegatedSubnet/%2Fsubscriptions%2F9b8218f9-902a-4d20-a65c-e98acec5362f%2FresourceGroups%2F$RESOURCE_GROUP_NAME%2Fproviders%2FMicrosoft.Network%2FvirtualNetworks%2Fcustvnet%2Fsubnets%2Fscaledel'" /dev/null && break || echo "Command failed, retrying..."
       sleep 30
     done
+    
+    exit 0
   displayName: "Delete SAL Ping"
-  condition: and(always(), eq(variables['CREATE_CUSTOMER_RESOURCES'], 'true'), eq(variables['CLEANUP_RESOURCES'], 'true'))
-  continueOnError: true
-- script: |
-    set -eu
-    
-    # Signal handler - still try to complete cleanup even if cancelled again
-    trap 'echo "Cleanup received cancellation signal but will attempt to continue"; sleep 2' SIGTERM SIGINT
-    
-    echo "Force cleanup Azure resources in $RUN_ID before resource group deletion"
-    
-    # Function to retry commands with exponential backoff
-    retry_command() {
-      local max_attempts=5
-      local delay=30
-      local attempt=1
-      local command="$@"
-      
-      while [ $attempt -le $max_attempts ]; do
-        echo "Attempt $attempt/$max_attempts: $command"
-        if eval "$command"; then
-          echo "Command succeeded on attempt $attempt"
-          return 0
-        else
-          echo "Command failed on attempt $attempt"
-          if [ $attempt -lt $max_attempts ]; then
-            echo "Waiting $delay seconds before retry..."
-            sleep $delay
-            delay=$((delay * 2))  # Exponential backoff
-          fi
-          attempt=$((attempt + 1))
-        fi
-      done
-      
-      echo "Command failed after $max_attempts attempts: $command"
-      return 1
-    }
-    
-    # Force delete AKS clusters first (this blocks until deletion completes)
-    echo "Deleting AKS clusters..."
-    for cluster in $(az aks list -g $RUN_ID --query "[].name" -o tsv 2>/dev/null || true); do
-      echo "Deleting AKS cluster: $cluster (this may take several minutes for large clusters)"
-      retry_command "az aks delete -g $RUN_ID -n $cluster --yes" || true
-    done
-    
-    # Brief wait for managed resource group cleanup to propagate
-    echo "Waiting 60 seconds for managed resource group cleanup to propagate..."
-    sleep 60
-    
-    # Remove NAT Gateway associations from subnets
-    echo "Removing NAT Gateway associations..."
-    for vnet in $(az network vnet list -g $RUN_ID --query "[].name" -o tsv 2>/dev/null || true); do
-      for subnet in $(az network vnet subnet list -g $RUN_ID --vnet-name $vnet --query "[?natGateway].name" -o tsv 2>/dev/null || true); do
-        echo "Removing NAT Gateway from subnet: $vnet/$subnet"
-        retry_command "az network vnet subnet update -g $RUN_ID --vnet-name $vnet -n $subnet --remove natGateway" || true
-      done
-    done
-    
-    # Remove NSG associations from subnets
-    echo "Removing NSG associations..."
-    for vnet in $(az network vnet list -g $RUN_ID --query "[].name" -o tsv 2>/dev/null || true); do
-      for subnet in $(az network vnet subnet list -g $RUN_ID --vnet-name $vnet --query "[?networkSecurityGroup].name" -o tsv 2>/dev/null || true); do
-        echo "Removing NSG from subnet: $vnet/$subnet"
-        retry_command "az network vnet subnet update -g $RUN_ID --vnet-name $vnet -n $subnet --remove networkSecurityGroup" || true
-      done
-    done
-    
-    # Delete NAT Gateways
-    echo "Deleting NAT Gateways..."
-    for natgw in $(az network nat gateway list -g $RUN_ID --query "[].name" -o tsv 2>/dev/null || true); do
-      echo "Deleting NAT Gateway: $natgw"
-      retry_command "az network nat gateway delete -g $RUN_ID -n $natgw" || true
-    done
-    
-    # Delete NSGs
-    echo "Deleting Network Security Groups..."
-    for nsg in $(az network nsg list -g $RUN_ID --query "[].name" -o tsv 2>/dev/null || true); do
-      echo "Deleting NSG: $nsg"
-      retry_command "az network nsg delete -g $RUN_ID -n $nsg" || true
-    done
-    
-    # Delete Public IPs
-    echo "Deleting Public IP addresses..."
-    for pip in $(az network public-ip list -g $RUN_ID --query "[].name" -o tsv 2>/dev/null || true); do
-      echo "Deleting Public IP: $pip"
-      retry_command "az network public-ip delete -g $RUN_ID -n $pip" || true
-    done
-    
-    echo "Pre-cleanup completed"
-  displayName: "Force Cleanup Azure Resources"
-  condition: and(always(), ${{ eq(parameters.cloud, 'azure') }}, eq(variables['CLEANUP_RESOURCES'], 'true'))
-  continueOnError: true
-  
-- script: |
-    set -eu
-    
-    # Signal handler - still try to complete cleanup even if cancelled again
-    trap 'echo "Cleanup received cancellation signal but will attempt to continue"; sleep 2' SIGTERM SIGINT
-    
-    echo "Delete resource group $RUN_ID"
-    # Use retry logic for resource group deletion as well
-    for attempt in $(seq 1 5); do
-      echo "Attempting to delete resource group: $attempt/5"
-      if az group delete --name $RUN_ID --yes; then
-        echo "Resource group deleted successfully"
-        break
-      else
-        echo "Resource group deletion failed on attempt $attempt"
-        if [ $attempt -lt 5 ]; then
-          echo "Waiting 120 seconds before retry..."
-          sleep 120
-        fi
-      fi
-    done
-  displayName: "Destroy Resource Group"
-  condition: and(always(), ${{ eq(parameters.cloud, 'azure') }}, eq(variables['CLEANUP_RESOURCES'], 'true'))
+  condition: and(always(), eq(variables['CREATE_CUSTOMER_RESOURCES'], 'true'))
   continueOnError: true
 
-- ${{ if eq(variables['Build.SourceBranchName'], 'main') }}:
-  - template: /steps/collect-terraform-operation-metadata.yml
-    parameters:
-      cloud: ${{ parameters.cloud }}
-      credential_type: ${{ parameters.credential_type }}
+- task: AzureCLI@2
+  displayName: "Cleanup Swiftv2 Workloads"
+  condition: and(always(), ${{ eq(parameters.cloud, 'azure') }}, eq(variables['SLOW_DELETE'], 'true'))
+  continueOnError: true
+  inputs:
+    azureSubscription: $(AZURE_SERVICE_CONNECTION)
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      set +e
+      
+      export RG="$RESOURCE_GROUP_NAME"
+      export AZURE_SUBSCRIPTION_ID="$(AZURE_SUBSCRIPTION_ID)"
+      export DELETE_NODEPOOLS="true"
+      export DELETE_BUFFER_POOL="true"
+      
+      SCRIPT_PATH="$(Build.SourcesDirectory)/swiftv2kubeobjects/cleanup-swiftv2-workloads.sh"
+      if [[ -f "$SCRIPT_PATH" ]]; then
+        chmod +x "$SCRIPT_PATH"
+        "$SCRIPT_PATH"
+      else
+        echo "WARNING: Cleanup script not found at $SCRIPT_PATH"
+      fi
+      
+      exit 0
+
+- task: AzureCLI@2
+  displayName: "Force Cleanup Azure Resources"
+  condition: and(always(), ${{ eq(parameters.cloud, 'azure') }})
+  continueOnError: true
+  inputs:
+    azureSubscription: $(AZURE_SERVICE_CONNECTION)
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      set +e
+      
+      export RG="$RESOURCE_GROUP_NAME"
+      export AZURE_SUBSCRIPTION_ID="$(AZURE_SUBSCRIPTION_ID)"
+      
+      SCRIPT_PATH="$(Build.SourcesDirectory)/swiftv2kubeobjects/cleanup-azure-resources.sh"
+      if [[ -f "$SCRIPT_PATH" ]]; then
+        chmod +x "$SCRIPT_PATH"
+        "$SCRIPT_PATH"
+      else
+        echo "WARNING: Cleanup script not found at $SCRIPT_PATH"
+      fi
+      
+      exit 0
+
+- task: AzureCLI@2
+  displayName: "Destroy Resource Group"
+  condition: and(always(), ${{ eq(parameters.cloud, 'azure') }})
+  continueOnError: true
+  inputs:
+    azureSubscription: $(AZURE_SERVICE_CONNECTION)
+    scriptType: bash
+    scriptLocation: inlineScript
+    inlineScript: |
+      set +e
+      
+      # Set the Azure subscription
+      export AZURE_SUBSCRIPTION_ID="$(AZURE_SUBSCRIPTION_ID)"
+      echo "Setting Azure subscription to: $AZURE_SUBSCRIPTION_ID"
+      az account set --subscription "$AZURE_SUBSCRIPTION_ID"
+
+      echo "Delete resource group $RESOURCE_GROUP_NAME"
+      for attempt in $(seq 1 5); do
+        echo "Attempting to delete resource group: $attempt/5"
+        if az group delete --name $RESOURCE_GROUP_NAME --yes; then
+          echo "Resource group deleted successfully"
+          break
+        else
+          echo "Resource group deletion failed on attempt $attempt"
+          if [ $attempt -lt 5 ]; then
+            echo "Waiting 120 seconds before retry..."
+            sleep 120
+          fi
+        fi
+      done
+      
+      exit 0

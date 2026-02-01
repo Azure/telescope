@@ -4,8 +4,9 @@ metadata:
   name: {{.Name}}
   labels:
     group: {{.Group}}
+    podgroup: {{.PodGroup}}
     kubernetes.azure.com/pod-network: pn100
-    kubernetes.azure.com/pod-network-instance: pod-network-instance-{{.StepIndex}}-{{DivideInt .Index .PodsPerPNI}}
+    kubernetes.azure.com/pod-network-instance: {{.PNIPrefix}}-{{DivideInt .Index .PodsPerPNI}}
 spec:
   replicas: 1
   selector:
@@ -19,8 +20,9 @@ spec:
         name: {{.Name}}
         group: {{.Group}}
         podgroup: {{.PodGroup}}
+        podgroup-job: {{.PodGroupJob}}
         kubernetes.azure.com/pod-network: pn100
-        kubernetes.azure.com/pod-network-instance: pod-network-instance-{{.StepIndex}}-{{DivideInt .Index .PodsPerPNI}}
+        kubernetes.azure.com/pod-network-instance: {{.PNIPrefix}}-{{DivideInt .Index .PodsPerPNI}}
         restart: {{.deploymentLabel}}
     spec:
       serviceAccountName: reporter-sa-0

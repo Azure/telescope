@@ -9,9 +9,6 @@ parameters:
 - name: run_id
   type: string
   default: ''
-- name: base_run_id
-  type: string
-  default: ''
 - name: retry_attempt_count
   type: number
   default: 3
@@ -44,10 +41,26 @@ steps:
     fi
     echo "Final Run ID: $run_id"
     echo "##vso[task.setvariable variable=RUN_ID]$run_id"
+    
+    # Also export BASE_RUN_ID as pipeline variable for subsequent steps
+    if [ -n "$BASE_RUN_ID" ] && [ "$BASE_RUN_ID" != " " ]; then
+      echo "##vso[task.setvariable variable=BASE_RUN_ID]$BASE_RUN_ID"
+    fi
+    
+    reuse_cluster=$(echo "${REUSE_CLUSTER:-false}" | tr '[:upper:]' '[:lower:]')
+    # When reusing clusters, validate BASE_RUN_ID is set
+    if [ "$reuse_cluster" == "true" ]; then
+      if [ -z "$BASE_RUN_ID" ] || [ "$BASE_RUN_ID" = " " ]; then
+        echo "ERROR: REUSE_CLUSTER is true but BASE_RUN_ID is not set"
+        exit 1
+      fi
+      echo "Cluster reuse enabled. Shared resource group name: $BASE_RUN_ID"
+      echo "This job's unique RUN_ID: $run_id (for test result isolation)"
+    fi
   displayName: "Set Run ID"
   env:
     RUN_ID: ${{ parameters.run_id }}
-    BASE_RUN_ID: ${{ parameters.base_run_id }}
+    REUSE_CLUSTER: $(reuse_cluster)
 
 - script: |
     run_url="$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)"
