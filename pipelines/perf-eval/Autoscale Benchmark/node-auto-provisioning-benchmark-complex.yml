@@ -25,7 +25,7 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250912"
-          topology: karpenter
+          topology: karpenter-private-cluster
           matrix:
             complex-nap:
               pod_count: 5000
