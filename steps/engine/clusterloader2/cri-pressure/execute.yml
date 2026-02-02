@@ -17,7 +17,6 @@ steps:
         --custom_kubelet_config "$CUSTOM_KUBELET_CONFIG")"
 
       printf '%s' "$DS" | kubectl apply -f -
-      kubectl rollout status ds/kubelet-config-updater -n kube-system --timeout=10m
 
       kubectl get pods -A -o wide
 
