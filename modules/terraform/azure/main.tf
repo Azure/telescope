@@ -36,6 +36,7 @@ locals {
   all_subnets    = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
   all_nics       = merge([for network in var.network_config_list : module.virtual_network[network.role].nics]...)
   all_key_vaults = merge([for kv_name, kv in module.key_vault : { (kv_name) = kv.key_vaults }]...)
+  all_disk_encryption_sets = merge([for des_name, des in module.disk_encryption_set : { (des_name) = des.disk_encryption_set_id }]...)
   updated_aks_config_list = length(var.aks_config_list) > 0 ? [
     for aks in var.aks_config_list : merge(
       aks,
@@ -67,12 +68,14 @@ locals {
   key_vault_config_map = { for kv in var.key_vault_config_list : kv.name => kv }
 
   vm_config_map = { for vm in var.vm_config_list : vm.role => vm }
+
+  disk_encryption_set_config_map = { for des in var.disk_encryption_set_config_list : des.name => des }
 }
 
 provider "azurerm" {
   features {
     key_vault {
-      purge_soft_delete_on_destroy    = true
+      purge_soft_delete_on_destroy    = false
       recover_soft_deleted_key_vaults = false
     }
   }
@@ -144,6 +147,19 @@ module "key_vault" {
   tags                = local.tags
 }
 
+module "disk_encryption_set" {
+  for_each = local.disk_encryption_set_config_map
+
+  source                     = "./disk-encryption-set"
+  resource_group_name        = local.run_id
+  location                   = local.region
+  disk_encryption_set_config = each.value
+  key_vaults                 = local.all_key_vaults
+  tags                       = local.tags
+
+  depends_on = [module.key_vault]
+}
+
 module "aks" {
   for_each = local.aks_config_map
 
@@ -177,7 +193,8 @@ module "aks-cli" {
   aks_cli_custom_config_path = local.aks_cli_custom_config_path
   key_vaults                 = local.all_key_vaults
   aks_aad_enabled            = local.aks_aad_enabled
-  depends_on                 = [module.route_table, module.virtual_network]
+  disk_encryption_sets       = local.all_disk_encryption_sets
+  depends_on                 = [module.route_table, module.virtual_network, module.disk_encryption_set]
 }
 
 module "virtual_machine" {

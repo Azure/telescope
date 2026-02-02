@@ -26,6 +26,15 @@ locals {
     "Key Vault Crypto User"                    = local.key_management_service.key_vault_id
   } : {}
 
+
+  # Disk Encryption Set for OS disk encryption with Customer-Managed Keys
+  disk_encryption_set_id = (
+    var.aks_config.disk_encryption_set_name != null ?
+    try(
+      var.disk_encryption_sets[var.aks_config.disk_encryption_set_name],
+      error("Specified disk_encryption_set_name '${var.aks_config.disk_encryption_set_name}' does not exist in Disk Encryption Sets: ${join(", ", keys(var.disk_encryption_sets))}")
+    ) : null
+  )
 }
 data "azurerm_client_config" "current" {}
 
@@ -50,6 +59,9 @@ resource "azurerm_kubernetes_cluster" "aks" {
   )
   sku_tier     = var.aks_config.sku_tier
   support_plan = var.aks_config.support_plan
+
+  # Disk Encryption Set for OS disk encryption with Customer-Managed Keys
+  disk_encryption_set_id = local.disk_encryption_set_id
 
   # Wait for KMS role assignment to propagate
   depends_on = [
