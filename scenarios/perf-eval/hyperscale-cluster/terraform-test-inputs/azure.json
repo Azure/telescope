@@ -1,0 +1,18 @@
+{
+    "run_id": "123456789",
+    "region": "uksouth",
+    "aks_cli_system_node_pool": {
+        "name": "default",
+        "node_count": 2,
+        "vm_size": "Standard_D8s_v3",
+        "vm_set_type": "VirtualMachineScaleSets"
+    },
+    "aks_cli_user_node_pool": [
+        {
+            "name": "userpool",
+            "node_count": 1,
+            "vm_size": "Standard_D8s_v3",
+            "vm_set_type": "VirtualMachineScaleSets"
+        }
+    ]
+}
