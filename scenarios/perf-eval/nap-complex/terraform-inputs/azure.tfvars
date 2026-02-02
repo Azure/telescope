@@ -43,30 +43,15 @@ network_config_list = [
       {
         name           = "jumpbox-subnet"
         address_prefix = "10.224.0.0/12"
-      }
-    ]
-    network_security_group_name = "test"
-    nic_public_ip_associations  = [
+      },
       {
-        nic_name              = "jumpbox-nic"
-        subnet_name           = "jumpbox-subnet"
-        ip_configuration_name = "jumpbox-ipconfig"
-        public_ip_name        = "jumpbox-pip"
+        name           = "AzureFirewallSubnet"
+        address_prefix = "10.193.0.0/26"
       }
     ]
-    nsr_rules = [
-      {
-        name                       = "AllowSSH"
-        priority                   = 100
-        direction                  = "Inbound"
-        access                     = "Allow"
-        protocol                   = "Tcp"
-        source_port_range          = "*"
-        destination_port_range     = "22"
-        source_address_prefix      = "*"
-        destination_address_prefix = "*"
-      }
-    ]
+    network_security_group_name = ""
+    nic_public_ip_associations  = []
+    nsr_rules = []
   }
 ]
 
@@ -270,6 +255,10 @@ aks_cli_config_list = [
       {
         name  = "enable-oidc-issuer"
         value = ""
+      },
+      {
+        name  = "outbound-type"
+        value = "userDefinedRouting"
       },
       {
         name  = "enable-workload-identity"
