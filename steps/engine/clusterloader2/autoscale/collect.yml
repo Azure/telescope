@@ -15,8 +15,8 @@ steps:
 - script: |
     set -eo pipefail
 
-    PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect $CPU_PER_NODE ${CAPACITY_TYPE:-on-demand} $NODE_COUNT $POD_COUNT \
-      $CL2_REPORT_DIR "$CLOUD_INFO" $RUN_ID $RUN_URL $TEST_RESULTS_FILE
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect ${CPU_PER_NODE:-0} ${CAPACITY_TYPE:-on-demand} ${NODE_COUNT:-0} ${POD_COUNT:-0} \
+      $CL2_REPORT_DIR "$CLOUD_INFO" $RUN_ID $RUN_URL $TEST_RESULTS_FILE --cl2_config_file ${CL2_CONFIG_FILE:-config.yaml} --pod_cpu_request ${POD_CPU_REQUEST:-0} --pod_memory_request ${POD_MEMORY_REQUEST:-""}
   workingDirectory: modules/python
   env:
     CLOUD: ${{ parameters.cloud }}
