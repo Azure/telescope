@@ -314,3 +314,14 @@ resource "azurerm_role_assignment" "kubelet_des_reader" {
   role_definition_name = "Reader"
   principal_id         = data.azurerm_kubernetes_cluster.aks.kubelet_identity[0].object_id
 }
+
+# Grant cluster identity (user-assigned managed identity) Reader access to Disk Encryption Set
+# Required for AKS control plane to read DES when creating VMs with encrypted OS disks
+# The kubelet identity alone is not sufficient - the cluster identity also needs this permission
+resource "azurerm_role_assignment" "cluster_identity_des_reader" {
+  count = var.aks_cli_config.disk_encryption_set_name != null && var.aks_cli_config.managed_identity_name != null ? 1 : 0
+
+  scope                = local.disk_encryption_set_id
+  role_definition_name = "Reader"
+  principal_id         = azurerm_user_assigned_identity.userassignedidentity[0].principal_id
+}
