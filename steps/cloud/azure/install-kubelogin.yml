@@ -16,7 +16,41 @@ steps:
 
     echo "Installing kubelogin if not present..."
     if ! command -v kubelogin &> /dev/null; then
-      az aks install-cli
+      # Install kubelogin directly from GitHub releases to avoid dl.k8s.io timeout issues
+      # Use retry logic with exponential backoff
+      download_with_retry() {
+        local url=$1
+        local output=$2
+        local max_attempts=3
+        local attempt=1
+        local wait_time=5
+        
+        while [ $attempt -le $max_attempts ]; do
+          echo "Download attempt $attempt of $max_attempts: $url"
+          if curl -sL --retry 3 --retry-delay 5 --max-time 120 "$url" -o "$output"; then
+            return 0
+          fi
+          echo "Attempt $attempt failed, waiting ${wait_time}s before retry..."
+          sleep $wait_time
+          wait_time=$((wait_time * 2))
+          attempt=$((attempt + 1))
+        done
+        return 1
+      }
+
+      KUBELOGIN_VERSION=$(curl -sL --retry 3 --retry-delay 5 https://api.github.com/repos/Azure/kubelogin/releases/latest | jq -r '.tag_name')
+      if [ -z "$KUBELOGIN_VERSION" ] || [ "$KUBELOGIN_VERSION" = "null" ]; then
+        echo "Failed to get latest version, using fallback version"
+        KUBELOGIN_VERSION="v0.2.14"
+      fi
+      echo "Installing kubelogin version: $KUBELOGIN_VERSION"
+      
+      download_with_retry "https://github.com/Azure/kubelogin/releases/download/${KUBELOGIN_VERSION}/kubelogin-linux-amd64.zip" "kubelogin-linux-amd64.zip"
+      unzip -o kubelogin-linux-amd64.zip -d kubelogin-extracted
+      sudo mv kubelogin-extracted/bin/linux_amd64/kubelogin /usr/local/bin/kubelogin
+      sudo chmod +x /usr/local/bin/kubelogin
+      rm -rf kubelogin-linux-amd64.zip kubelogin-extracted
+      echo "kubelogin installed: $(kubelogin --version)"
     fi
 
     echo "Converting kubeconfig for Azure CLI authentication..."
