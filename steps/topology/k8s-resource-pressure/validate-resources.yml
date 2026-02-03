@@ -16,3 +16,4 @@ steps:
     desired_nodes: 3
 
 # apply daemonset here before running benchmark 
+kubectl apply -f /scenario/k8s-resource-pressure/daemonset/cri-resource-consumer-daemonset.yml
