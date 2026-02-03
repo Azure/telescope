@@ -218,19 +218,7 @@ aks_cli_config_list = [
         name  = "enable-image-cleaner"
         value = ""
       }
-      # {
-      #   name  = "network-dataplane"
-      #   value = "cilium"
-      # },
-      # {
-      #   name  = "network-policy"
-      #   value = "cilium"
-      # }
-      # TODO: enable private cluster after bug fix for hyperscale has been rolled out
-      # {
-      #   name  = "enable-private-cluster"
-      #   value = ""
-      # }
+      # TODO: enable private cluster+ jumpbox , enable cilium once it is fixed
     ]
   }
 ]

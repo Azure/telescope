@@ -45,9 +45,9 @@ def _build_report_template(
         result["cpu_per_node"] = cpu_per_node
         result["node_count"] = node_count
     if is_complex:  # cl2 measurement
-        result["group"] = None
-        result["measurement"] = None
-        result["result"] = None
+        result["group"] = ""
+        result["measurement"] = ""
+        result["result"] = ""
         result["pod_memory"] = pod_memory_request
         result["pod_cpu"] = pod_cpu_request
 
