@@ -42,6 +42,20 @@ schedules:
       include:
         - main
     always: true
+  # Azure Staging Small Scale Schedule
+  - cron: "0 9 * * *"
+    displayName: "Azure Staging Small Scale Daily"
+    branches:
+      include:
+        - main
+    always: true
+  # Azure Staging Large Scale Schedule
+  - cron: "0 12 * * *"
+    displayName: "Azure Staging Large Scale Daily"
+    branches:
+      include:
+        - main
+    always: true
 
 variables:
   SCENARIO_TYPE: perf-eval
@@ -49,7 +63,11 @@ variables:
 
 stages:
   - stage: azure_staging_small_scale
-    condition: eq(variables['Build.Reason'], 'Manual')
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], 'Azure Staging Small Scale Daily'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -94,7 +112,11 @@ stages:
           ssh_key_enabled: false
 
   - stage: azure_staging_large_scale
-    condition: eq(variables['Build.Reason'], 'Manual')
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], 'Azure Staging Large Scale Daily'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
