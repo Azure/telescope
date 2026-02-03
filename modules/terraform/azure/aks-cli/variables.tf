@@ -60,7 +60,7 @@ variable "aks_cli_config" {
       node_count   = number
       vm_size      = string
       vm_set_type  = optional(string, "VirtualMachineScaleSets")
-      os_disk_type = optional(string, null)
+      os_disk_type = optional(string, "Managed")
     }), null)
     extra_node_pool = optional(
       list(object({
@@ -68,7 +68,7 @@ variable "aks_cli_config" {
         node_count   = number
         vm_size      = string
         vm_set_type  = optional(string, "VirtualMachineScaleSets")
-        os_disk_type = optional(string, null)
+        os_disk_type = optional(string, "Managed")
         optional_parameters = optional(list(object({ # Refer to https://learn.microsoft.com/en-us/cli/azure/aks/nodepool?view=azure-cli-latest#az-aks-nodepool-add(aks-preview) for available parameters
           name  = string
           value = string

@@ -424,7 +424,7 @@ variable "aks_cli_config_list" {
       node_count   = number
       vm_size      = string
       vm_set_type  = optional(string, "VirtualMachineScaleSets")
-      os_disk_type = optional(string, null)
+      os_disk_type = optional(string, "Managed")
     }), null)
     extra_node_pool = optional(
       list(object({
@@ -432,7 +432,7 @@ variable "aks_cli_config_list" {
         node_count   = number
         vm_size      = string
         vm_set_type  = optional(string, "VirtualMachineScaleSets")
-        os_disk_type = optional(string, null)
+        os_disk_type = optional(string, "Managed")
         optional_parameters = optional(list(object({
           name  = string
           value = string

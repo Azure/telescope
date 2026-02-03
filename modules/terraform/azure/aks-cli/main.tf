@@ -132,7 +132,7 @@ locals {
       "--node-count", var.aks_cli_config.default_node_pool.node_count,
       "--node-vm-size", var.aks_cli_config.default_node_pool.vm_size,
       "--vm-set-type", var.aks_cli_config.default_node_pool.vm_set_type,
-      var.aks_cli_config.default_node_pool.os_disk_type != null ? "--node-osdisk-type ${var.aks_cli_config.default_node_pool.os_disk_type}" : ""
+      "--node-osdisk-type", var.aks_cli_config.default_node_pool.os_disk_type,
     ]
   )
 
@@ -259,7 +259,7 @@ resource "terraform_data" "aks_nodepool_cli" {
       "--node-count", each.value.node_count,
       "--node-vm-size", each.value.vm_size,
       "--vm-set-type", each.value.vm_set_type,
-      each.value.os_disk_type != null ? "--node-osdisk-type ${each.value.os_disk_type}" : "",
+      "--node-osdisk-type", each.value.os_disk_type,
       local.aks_custom_headers_flags,
       length(each.value.optional_parameters) == 0 ?
       "" :
