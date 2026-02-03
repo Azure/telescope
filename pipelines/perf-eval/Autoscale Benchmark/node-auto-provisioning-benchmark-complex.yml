@@ -28,9 +28,6 @@ stages:
           topology: karpenter-private-cluster
           matrix:
             complex-nap:
-              pod_count: 5000
-              pod_cpu_request: 16
-              pod_memory_request: "60Gi"
               scale_up_timeout: "900s" # 15 minutes
               scale_down_timeout: "900s"
               node_selector: "{karpenter.sh/nodepool: default}"
