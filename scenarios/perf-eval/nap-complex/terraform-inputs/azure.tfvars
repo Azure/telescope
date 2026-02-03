@@ -50,7 +50,15 @@ network_config_list = [
       }
     ]
     network_security_group_name = ""
-    nic_public_ip_associations  = []
+    nic_public_ip_associations = [
+      {
+        nic_name              = "jumpbox-nic"
+        subnet_name           = "jumpbox-subnet"
+        ip_configuration_name = "jumpbox-ipconfig"
+        public_ip_name        = "jumpbox-pip"
+        count                 = 1
+      }
+    ]
     nsr_rules = []
   }
 ]
