@@ -218,7 +218,7 @@ aks_cli_config_list = [
         name  = "enable-image-cleaner"
         value = ""
       }
-      # TODO: enable private cluster+ jumpbox , enable cilium once it is fixed
+      # TODO: enable private cluster + jumpbox , enable cilium once it is fixed
     ]
   }
 ]
