@@ -50,8 +50,8 @@ schedules:
         - main
     always: true
   # Azure Staging Large Scale Schedule
-  - cron: "0 12 * * *"
-    displayName: "Azure Staging Large Scale Daily"
+  - cron: "0 12 * * 2,4"
+    displayName: "Azure Staging Large Scale Tuesday and Thursday"
     branches:
       include:
         - main
@@ -114,7 +114,7 @@ stages:
   - stage: azure_staging_large_scale
     condition: |
         or(
-          eq(variables['Build.CronSchedule.DisplayName'], 'Azure Staging Large Scale Daily'),
+          eq(variables['Build.CronSchedule.DisplayName'], 'Azure Staging Large Scale Tuesday and Thursday'),
           eq(variables['Build.Reason'], 'Manual')
         )
     dependsOn: []
