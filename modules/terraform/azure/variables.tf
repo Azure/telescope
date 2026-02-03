@@ -19,6 +19,7 @@ variable "json_input" {
       node_count   = number
       vm_size      = string
       vm_set_type  = string
+      os_disk_type = optional(string, null)
     }))
     aks_cli_user_node_pool = optional(
       list(object({
@@ -26,6 +27,7 @@ variable "json_input" {
         node_count   = number
         vm_size      = string
         vm_set_type  = string
+        os_disk_type = optional(string, null)
         optional_parameters = optional(list(object({
           name  = string
           value = string
