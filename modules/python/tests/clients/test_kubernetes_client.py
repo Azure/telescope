@@ -6024,6 +6024,264 @@ spec:
         self.assertEqual(result.metadata.annotations["description"], "Test configuration")
         self.assertEqual(result.data["database.url"], "mysql://localhost:3306/testdb")
 
+    # pylint: disable=protected-access
+    def test_expand_and_validate_manifests_with_valid_dict(self):
+        """Test _expand_and_validate_manifests with valid dictionary manifest."""
+        manifests = [
+            {
+                'apiVersion': 'v1',
+                'kind': 'Namespace',
+                'metadata': {'name': 'test-namespace'}
+            }
+        ]
+
+        result = self.client._expand_and_validate_manifests(manifests)
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]['kind'], 'Namespace')
+        self.assertEqual(result[0]['metadata']['name'], 'test-namespace')
+
+    # pylint: disable=protected-access
+    def test_expand_and_validate_manifests_with_list_kind(self):
+        """Test _expand_and_validate_manifests with kind: List manifest."""
+        manifests = [
+            {
+                'apiVersion': 'v1',
+                'kind': 'List',
+                'items': [
+                    {
+                        'apiVersion': 'v1',
+                        'kind': 'Namespace',
+                        'metadata': {'name': 'test-ns-1'}
+                    },
+                    {
+                        'apiVersion': 'v1',
+                        'kind': 'Service',
+                        'metadata': {'name': 'test-service', 'namespace': 'default'}
+                    }
+                ]
+            }
+        ]
+
+        result = self.client._expand_and_validate_manifests(manifests)
+
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0]['kind'], 'Namespace')
+        self.assertEqual(result[0]['metadata']['name'], 'test-ns-1')
+        self.assertEqual(result[1]['kind'], 'Service')
+        self.assertEqual(result[1]['metadata']['name'], 'test-service')
+
+    # pylint: disable=protected-access
+    def test_expand_and_validate_manifests_with_nested_list_kind(self):
+        """Test _expand_and_validate_manifests with nested kind: List manifests."""
+        manifests = [
+            {
+                'apiVersion': 'v1',
+                'kind': 'List',
+                'items': [
+                    {
+                        'apiVersion': 'v1',
+                        'kind': 'Namespace',
+                        'metadata': {'name': 'test-ns-1'}
+                    },
+                    {
+                        'apiVersion': 'v1',
+                        'kind': 'List',
+                        'items': [
+                            {
+                                'apiVersion': 'v1',
+                                'kind': 'ConfigMap',
+                                'metadata': {'name': 'test-cm', 'namespace': 'default'}
+                            },
+                            {
+                                'apiVersion': 'v1',
+                                'kind': 'Secret',
+                                'metadata': {'name': 'test-secret', 'namespace': 'default'}
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+
+        result = self.client._expand_and_validate_manifests(manifests)
+
+        self.assertEqual(len(result), 3)
+        self.assertEqual(result[0]['kind'], 'Namespace')
+        self.assertEqual(result[1]['kind'], 'ConfigMap')
+        self.assertEqual(result[2]['kind'], 'Secret')
+
+    # pylint: disable=protected-access
+    def test_expand_and_validate_manifests_with_non_dict_list(self):
+        """Test _expand_and_validate_manifests with list (not dict) manifest - should be skipped."""
+        manifests = [
+            ['item1', 'item2', 'item3'],
+            {
+                'apiVersion': 'v1',
+                'kind': 'Namespace',
+                'metadata': {'name': 'test-namespace'}
+            }
+        ]
+
+        with self.assertLogs('clients.kubernetes_client', level='WARNING') as log:
+            result = self.client._expand_and_validate_manifests(manifests)
+
+        # Only the valid dict should be returned
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]['kind'], 'Namespace')
+
+        # Check warning was logged
+        self.assertTrue(any('Skipping non-dictionary manifest' in message for message in log.output))
+        self.assertTrue(any('list' in message for message in log.output))
+
+    # pylint: disable=protected-access
+    def test_expand_and_validate_manifests_with_scalar(self):
+        """Test _expand_and_validate_manifests with scalar manifest - should be skipped."""
+        manifests = [
+            'just a string',
+            42,
+            {
+                'apiVersion': 'v1',
+                'kind': 'Namespace',
+                'metadata': {'name': 'test-namespace'}
+            }
+        ]
+
+        with self.assertLogs('clients.kubernetes_client', level='WARNING') as log:
+            result = self.client._expand_and_validate_manifests(manifests)
+
+        # Only the valid dict should be returned
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]['kind'], 'Namespace')
+
+        # Check warnings were logged for both scalar values
+        warning_messages = [msg for msg in log.output if 'Skipping non-dictionary manifest' in msg]
+        self.assertEqual(len(warning_messages), 2)
+
+    # pylint: disable=protected-access
+    def test_expand_and_validate_manifests_with_none_and_empty(self):
+        """Test _expand_and_validate_manifests with None and empty manifests - should be skipped."""
+        manifests = [
+            None,
+            {},
+            {
+                'apiVersion': 'v1',
+                'kind': 'Namespace',
+                'metadata': {'name': 'test-namespace'}
+            },
+            None
+        ]
+
+        result = self.client._expand_and_validate_manifests(manifests)
+
+        # Both None and empty dict are skipped, only valid Namespace is kept
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]['kind'], 'Namespace')
+
+    # pylint: disable=protected-access
+    def test_expand_and_validate_manifests_with_list_kind_invalid_items(self):
+        """Test _expand_and_validate_manifests with kind: List but invalid items field."""
+        manifests = [
+            {
+                'apiVersion': 'v1',
+                'kind': 'List',
+                'items': 'not-a-list'  # Invalid: should be a list
+            }
+        ]
+
+        with self.assertLogs('clients.kubernetes_client', level='WARNING') as log:
+            result = self.client._expand_and_validate_manifests(manifests)
+
+        # No items should be returned since items field is invalid
+        self.assertEqual(len(result), 0)
+
+        # Check warning was logged
+        self.assertTrue(any('invalid' in message.lower() and 'items' in message for message in log.output))
+
+    # pylint: disable=protected-access
+    def test_expand_and_validate_manifests_with_list_kind_missing_items(self):
+        """Test _expand_and_validate_manifests with kind: List but missing items field."""
+        manifests = [
+            {
+                'apiVersion': 'v1',
+                'kind': 'List'
+                # items field is missing
+            }
+        ]
+
+        result = self.client._expand_and_validate_manifests(manifests)
+
+        # No items should be returned since items field is missing (defaults to [])
+        self.assertEqual(len(result), 0)
+
+    @patch('requests.get')
+    @patch('clients.kubernetes_client.KubernetesClient._apply_single_manifest')
+    def test_apply_manifest_from_url_with_list_kind(self, mock_apply_single, mock_requests_get):
+        """Test apply_manifest_from_url with kind: List manifest."""
+        mock_response = MagicMock()
+        mock_response.text = """
+apiVersion: v1
+kind: List
+items:
+  - apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: test-namespace
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: test-config
+      namespace: test-namespace
+    data:
+      key: value
+"""
+        mock_response.raise_for_status.return_value = None
+        mock_requests_get.return_value = mock_response
+
+        self.client.apply_manifest_from_url("https://example.com/list-manifest.yaml")
+
+        # Verify both items from the List were applied
+        self.assertEqual(mock_apply_single.call_count, 2)
+
+        # Check first item (Namespace)
+        first_manifest = mock_apply_single.call_args_list[0][0][0]
+        self.assertEqual(first_manifest['kind'], 'Namespace')
+        self.assertEqual(first_manifest['metadata']['name'], 'test-namespace')
+
+        # Check second item (ConfigMap)
+        second_manifest = mock_apply_single.call_args_list[1][0][0]
+        self.assertEqual(second_manifest['kind'], 'ConfigMap')
+        self.assertEqual(second_manifest['metadata']['name'], 'test-config')
+
+    @patch('requests.get')
+    @patch('clients.kubernetes_client.KubernetesClient._apply_single_manifest')
+    def test_apply_manifest_from_url_with_non_dict_manifest(self, mock_apply_single, mock_requests_get):
+        """Test apply_manifest_from_url with non-dict YAML document - should be skipped."""
+        mock_response = MagicMock()
+        mock_response.text = """
+- item1
+- item2
+- item3
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: test-namespace
+"""
+        mock_response.raise_for_status.return_value = None
+        mock_requests_get.return_value = mock_response
+
+        with self.assertLogs('clients.kubernetes_client', level='WARNING') as log:
+            self.client.apply_manifest_from_url("https://example.com/mixed-manifest.yaml")
+
+        # Only the valid Namespace should be applied
+        self.assertEqual(mock_apply_single.call_count, 1)
+        applied_manifest = mock_apply_single.call_args[0][0]
+        self.assertEqual(applied_manifest['kind'], 'Namespace')
+
+        # Check warning was logged
+        self.assertTrue(any('Skipping non-dictionary manifest' in message for message in log.output))
+
 
 if __name__ == '__main__':
     unittest.main()
