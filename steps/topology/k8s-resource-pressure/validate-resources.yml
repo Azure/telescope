@@ -14,3 +14,5 @@ steps:
 - template: /steps/engine/clusterloader2/large-cluster/validate.yml
   parameters:
     desired_nodes: 3
+
+# apply daemonset here before running benchmark 
