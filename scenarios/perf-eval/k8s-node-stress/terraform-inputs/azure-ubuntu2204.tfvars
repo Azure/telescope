@@ -39,10 +39,6 @@ aks_cli_config_list = [
             value = "Ubuntu2204"
           },
           {
-            name  = "kubelet-config"
-            value = "./linux-kubelet-config.yaml"
-          },
-          {
             name  = "node-taints"
             value = "cri-resource-consume=true:NoSchedule,cri-resource-consume=true:NoExecute"
           },
