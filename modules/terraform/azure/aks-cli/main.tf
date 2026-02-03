@@ -295,3 +295,22 @@ resource "azurerm_role_assignment" "aks_identity_kms_roles" {
   role_definition_name = each.key
   principal_id         = azurerm_user_assigned_identity.userassignedidentity[0].principal_id
 }
+
+# Fetch AKS cluster to get kubelet identity for NAP/Karpenter role assignments
+data "azurerm_kubernetes_cluster" "aks" {
+  depends_on = [terraform_data.aks_cli]
+
+  name                = var.aks_cli_config.aks_name
+  resource_group_name = var.resource_group_name
+}
+
+# Grant kubelet identity Reader access to Disk Encryption Set
+# Required for NAP/Karpenter to create VMs with encrypted OS disks
+# Error without this: "LinkedAuthorizationFailed" - does not have permission to perform 'Microsoft.Compute/diskEncryptionSets/read'
+resource "azurerm_role_assignment" "kubelet_des_reader" {
+  count = var.aks_cli_config.disk_encryption_set_name != null ? 1 : 0
+
+  scope                = local.disk_encryption_set_id
+  role_definition_name = "Reader"
+  principal_id         = data.azurerm_kubernetes_cluster.aks.kubelet_identity[0].object_id
+}
