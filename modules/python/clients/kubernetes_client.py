@@ -1102,51 +1102,31 @@ class KubernetesClient:
         Apply a single Kubernetes manifest using the appropriate API client.
 
         :param manifest: Dictionary representing a Kubernetes resource
-        :param namespace: Optional namespace to override the manifest namespace
+        :param namespace: Optional namespace to override the manifest namespace.
+                         Defaults to 'default' for namespaced resources if not specified.
         :return: None
         """
         try:
             kind = manifest.get("kind")
-            # Use provided namespace or fall back to manifest namespace
-            namespace = namespace or manifest.get("metadata", {}).get("namespace")
+            # Use provided namespace or fall back to manifest namespace, then to "default"
+            namespace = namespace or manifest.get("metadata", {}).get("namespace") or "default"
             name = manifest.get("metadata", {}).get("name")
             logger.info("Applying manifest %s %s in namespace %s", kind, name, namespace)
 
             if kind == "Deployment":
-                if namespace:
-                    self.app.create_namespaced_deployment(namespace=namespace, body=manifest)
-                else:
-                    raise ValueError("Deployment requires a namespace")
+                self.app.create_namespaced_deployment(namespace=namespace, body=manifest)
             elif kind == "DaemonSet":
-                if namespace:
-                    self.app.create_namespaced_daemon_set(namespace=namespace, body=manifest)
-                else:
-                    raise ValueError("DaemonSet requires a namespace")
+                self.app.create_namespaced_daemon_set(namespace=namespace, body=manifest)
             elif kind == "StatefulSet":
-                if namespace:
-                    self.app.create_namespaced_stateful_set(namespace=namespace, body=manifest)
-                else:
-                    raise ValueError("StatefulSet requires a namespace")
+                self.app.create_namespaced_stateful_set(namespace=namespace, body=manifest)
             elif kind == "Service":
-                if namespace:
-                    self.api.create_namespaced_service(namespace=namespace, body=manifest)
-                else:
-                    raise ValueError("Service requires a namespace")
+                self.api.create_namespaced_service(namespace=namespace, body=manifest)
             elif kind == "ConfigMap":
-                if namespace:
-                    self.api.create_namespaced_config_map(namespace=namespace, body=manifest)
-                else:
-                    raise ValueError("ConfigMap requires a namespace")
+                self.api.create_namespaced_config_map(namespace=namespace, body=manifest)
             elif kind == "Secret":
-                if namespace:
-                    self.api.create_namespaced_secret(namespace=namespace, body=manifest)
-                else:
-                    raise ValueError("Secret requires a namespace")
+                self.api.create_namespaced_secret(namespace=namespace, body=manifest)
             elif kind == "ServiceAccount":
-                if namespace:
-                    self.api.create_namespaced_service_account(namespace=namespace, body=manifest)
-                else:
-                    raise ValueError("ServiceAccount requires a namespace")
+                self.api.create_namespaced_service_account(namespace=namespace, body=manifest)
             elif kind == "ClusterRole":
                 # ClusterRole is cluster-scoped
                 rbac_api = client.RbacAuthorizationV1Api()
@@ -1156,17 +1136,11 @@ class KubernetesClient:
                 rbac_api = client.RbacAuthorizationV1Api()
                 rbac_api.create_cluster_role_binding(body=manifest)
             elif kind == "Role":
-                if namespace:
-                    rbac_api = client.RbacAuthorizationV1Api()
-                    rbac_api.create_namespaced_role(namespace=namespace, body=manifest)
-                else:
-                    raise ValueError("Role requires a namespace")
+                rbac_api = client.RbacAuthorizationV1Api()
+                rbac_api.create_namespaced_role(namespace=namespace, body=manifest)
             elif kind == "RoleBinding":
-                if namespace:
-                    rbac_api = client.RbacAuthorizationV1Api()
-                    rbac_api.create_namespaced_role_binding(namespace=namespace, body=manifest)
-                else:
-                    raise ValueError("RoleBinding requires a namespace")
+                rbac_api = client.RbacAuthorizationV1Api()
+                rbac_api.create_namespaced_role_binding(namespace=namespace, body=manifest)
             elif kind == "Namespace":
                 # Namespace is cluster-scoped
                 self.api.create_namespace(body=manifest)
@@ -1203,16 +1177,13 @@ class KubernetesClient:
                 api_version = manifest.get("apiVersion", "")
                 group, version = api_version.split("/") if "/" in api_version else ("", api_version)
                 custom_api = client.CustomObjectsApi()
-                if namespace:
-                    custom_api.create_namespaced_custom_object(
-                        group=group,
-                        version=version,
-                        namespace=namespace,
-                        plural="mpijobs",
-                        body=manifest
-                    )
-                else:
-                    raise ValueError("MPIJob requires a namespace")
+                custom_api.create_namespaced_custom_object(
+                    group=group,
+                    version=version,
+                    namespace=namespace,
+                    plural="mpijobs",
+                    body=manifest
+                )
             elif kind == "NodeFeatureRule":
                 # NodeFeatureRule is a custom resource from Node Feature Discovery (NFD)
                 api_version = manifest.get("apiVersion", "")

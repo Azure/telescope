@@ -2522,8 +2522,9 @@ spec:
         mock_create_deployment.assert_called_once_with(
             namespace="test-namespace", body=manifest)
 
-    def test_apply_single_manifest_deployment_no_namespace(self):
-        """Test _apply_single_manifest with Deployment missing namespace."""
+    @patch('kubernetes.client.AppsV1Api.create_namespaced_deployment')
+    def test_apply_single_manifest_deployment_no_namespace(self, mock_create_deployment):
+        """Test _apply_single_manifest with Deployment missing namespace uses 'default'."""
         manifest = {
             "apiVersion": "apps/v1",
             "kind": "Deployment",
@@ -2531,11 +2532,12 @@ spec:
             "spec": {}
         }
 
-        with self.assertRaises(ValueError) as context:
-            # pylint: disable=protected-access
-            self.client._apply_single_manifest(manifest)
+        # pylint: disable=protected-access
+        self.client._apply_single_manifest(manifest)
 
-        self.assertEqual(str(context.exception), "Deployment requires a namespace")
+        # Should use "default" namespace when none is specified
+        mock_create_deployment.assert_called_once_with(
+            namespace="default", body=manifest)
 
     @patch('kubernetes.client.AppsV1Api.create_namespaced_daemon_set')
     def test_apply_single_manifest_daemonset(self, mock_create_daemonset):
@@ -2567,8 +2569,9 @@ spec:
         mock_create_statefulset.assert_called_once_with(
             namespace="test-namespace", body=manifest)
 
-    def test_apply_single_manifest_statefulset_no_namespace(self):
-        """Test _apply_single_manifest with StatefulSet missing namespace."""
+    @patch('kubernetes.client.AppsV1Api.create_namespaced_stateful_set')
+    def test_apply_single_manifest_statefulset_no_namespace(self, mock_create_statefulset):
+        """Test _apply_single_manifest with StatefulSet missing namespace uses 'default'."""
         manifest = {
             "apiVersion": "apps/v1",
             "kind": "StatefulSet",
@@ -2576,11 +2579,12 @@ spec:
             "spec": {}
         }
 
-        with self.assertRaises(ValueError) as context:
-            # pylint: disable=protected-access
-            self.client._apply_single_manifest(manifest)
+        # pylint: disable=protected-access
+        self.client._apply_single_manifest(manifest)
 
-        self.assertEqual(str(context.exception), "StatefulSet requires a namespace")
+        # Should use "default" namespace when none is specified
+        mock_create_statefulset.assert_called_once_with(
+            namespace="default", body=manifest)
 
     @patch('kubernetes.client.CoreV1Api.create_namespaced_service')
     def test_apply_single_manifest_service(self, mock_create_service):
@@ -2654,8 +2658,9 @@ spec:
             body=manifest
         )
 
-    def test_apply_single_manifest_mpi_job_no_namespace(self):
-        """Test _apply_single_manifest with MPIJob missing namespace."""
+    @patch('kubernetes.client.CustomObjectsApi.create_namespaced_custom_object')
+    def test_apply_single_manifest_mpi_job_no_namespace(self, mock_create_custom_object):
+        """Test _apply_single_manifest with MPIJob missing namespace uses 'default'."""
         manifest = {
             "apiVersion": "kubeflow.org/v2beta1",
             "kind": "MPIJob",
@@ -2663,11 +2668,17 @@ spec:
             "spec": {}
         }
 
-        with self.assertRaises(ValueError) as context:
-            # pylint: disable=protected-access
-            self.client._apply_single_manifest(manifest)
+        # pylint: disable=protected-access
+        self.client._apply_single_manifest(manifest)
 
-        self.assertEqual(str(context.exception), "MPIJob requires a namespace")
+        # Should use "default" namespace when none is specified
+        mock_create_custom_object.assert_called_once_with(
+            group="kubeflow.org",
+            version="v2beta1",
+            namespace="default",
+            plural="mpijobs",
+            body=manifest
+        )
 
     @patch('kubernetes.client.CustomObjectsApi.create_cluster_custom_object')
     def test_apply_single_manifest_node_feature_rule(self, mock_create_custom_object):
@@ -2741,12 +2752,12 @@ spec:
             # pylint: disable=protected-access
             self.client._apply_single_manifest(manifest)
             expected_calls = [
-                mock.call("Applying manifest %s %s in namespace %s", "Namespace", "existing-namespace", None),
+                mock.call("Applying manifest %s %s in namespace %s", "Namespace", "existing-namespace", "default"),
                 mock.call("Resource %s/%s already exists, updating it", "Namespace", "existing-namespace")
             ]
             mock_logger.info.assert_has_calls(expected_calls)
             # Verify that _update_single_manifest was called with the correct arguments
-            mock_update_single.assert_called_once_with(manifest, None)
+            mock_update_single.assert_called_once_with(manifest, "default")
 
     @patch('kubernetes.client.CoreV1Api.create_namespace')
     def test_apply_single_manifest_api_exception_non_409(self, mock_create_namespace):
@@ -3691,11 +3702,12 @@ spec:
             mock_api.create_namespaced_service.assert_called_once()
             mock_api.create_namespaced_config_map.assert_called_once()
 
+    @patch('kubernetes.client.AppsV1Api.create_namespaced_deployment')
     @patch('os.path.isfile')
     @patch('yaml.safe_load_all')
     @patch('builtins.open', new_callable=mock_open)
-    def test_apply_manifest_from_file_deployment_missing_namespace_error(self, _mock_open_file, mock_yaml_load, mock_isfile):
-        """Test apply_manifest_from_file with deployment manifest missing namespace - should raise error"""
+    def test_apply_manifest_from_file_deployment_missing_namespace_error(self, _mock_open_file, mock_yaml_load, mock_isfile, mock_create_deployment):
+        """Test apply_manifest_from_file with deployment manifest missing namespace uses 'default'"""
         # Mock file existence check
         mock_isfile.return_value = True
 
@@ -3710,17 +3722,18 @@ spec:
 
         mock_yaml_load.return_value = [manifest_dict]
 
-        # Should raise ValueError for missing namespace
-        with self.assertRaises(ValueError) as context:
-            self.client.apply_manifest_from_file(manifest_path="/path/to/deployment.yaml")
+        # Should use "default" namespace when none is specified
+        self.client.apply_manifest_from_file(manifest_path="/path/to/deployment.yaml")
 
-        self.assertIn("Deployment requires a namespace", str(context.exception))
+        mock_create_deployment.assert_called_once_with(
+            namespace="default", body=manifest_dict)
 
+    @patch('kubernetes.client.CoreV1Api.create_namespaced_service')
     @patch('os.path.isfile')
     @patch('yaml.safe_load_all')
     @patch('builtins.open', new_callable=mock_open)
-    def test_apply_manifest_from_file_service_missing_namespace_error(self, _mock_open_file, mock_yaml_load, mock_isfile):
-        """Test apply_manifest_from_file with service manifest missing namespace - should raise error"""
+    def test_apply_manifest_from_file_service_missing_namespace_error(self, _mock_open_file, mock_yaml_load, mock_isfile, mock_create_service):
+        """Test apply_manifest_from_file with service manifest missing namespace uses 'default'"""
         # Mock file existence check
         mock_isfile.return_value = True
 
@@ -3735,17 +3748,18 @@ spec:
 
         mock_yaml_load.return_value = [manifest_dict]
 
-        # Should raise ValueError for missing namespace
-        with self.assertRaises(ValueError) as context:
-            self.client.apply_manifest_from_file(manifest_path="/path/to/service.yaml")
+        # Should use "default" namespace when none is specified
+        self.client.apply_manifest_from_file(manifest_path="/path/to/service.yaml")
 
-        self.assertIn("Service requires a namespace", str(context.exception))
+        mock_create_service.assert_called_once_with(
+            namespace="default", body=manifest_dict)
 
+    @patch('kubernetes.client.AppsV1Api.create_namespaced_stateful_set')
     @patch('os.path.isfile')
     @patch('yaml.safe_load_all')
     @patch('builtins.open', new_callable=mock_open)
-    def test_apply_manifest_from_file_statefulset_missing_namespace_error(self, _mock_open_file, mock_yaml_load, mock_isfile):
-        """Test apply_manifest_from_file with StatefulSet manifest missing namespace - should raise error"""
+    def test_apply_manifest_from_file_statefulset_missing_namespace_error(self, _mock_open_file, mock_yaml_load, mock_isfile, mock_create_statefulset):
+        """Test apply_manifest_from_file with StatefulSet manifest missing namespace uses 'default'"""
         # Mock file existence check
         mock_isfile.return_value = True
 
@@ -3760,17 +3774,18 @@ spec:
 
         mock_yaml_load.return_value = [manifest_dict]
 
-        # Should raise ValueError for missing namespace
-        with self.assertRaises(ValueError) as context:
-            self.client.apply_manifest_from_file(manifest_path="/path/to/statefulset.yaml")
+        # Should use "default" namespace when none is specified
+        self.client.apply_manifest_from_file(manifest_path="/path/to/statefulset.yaml")
 
-        self.assertIn("StatefulSet requires a namespace", str(context.exception))
+        mock_create_statefulset.assert_called_once_with(
+            namespace="default", body=manifest_dict)
 
+    @patch('kubernetes.client.CoreV1Api.create_namespaced_config_map')
     @patch('os.path.isfile')
     @patch('yaml.safe_load_all')
     @patch('builtins.open', new_callable=mock_open)
-    def test_apply_manifest_from_file_configmap_missing_namespace_error(self, _mock_open_file, mock_yaml_load, mock_isfile):
-        """Test apply_manifest_from_file with ConfigMap manifest missing namespace - should raise error"""
+    def test_apply_manifest_from_file_configmap_missing_namespace_error(self, _mock_open_file, mock_yaml_load, mock_isfile, mock_create_configmap):
+        """Test apply_manifest_from_file with ConfigMap manifest missing namespace uses 'default'"""
         # Mock file existence check
         mock_isfile.return_value = True
 
@@ -3785,11 +3800,11 @@ spec:
 
         mock_yaml_load.return_value = [manifest_dict]
 
-        # Should raise ValueError for missing namespace
-        with self.assertRaises(ValueError) as context:
-            self.client.apply_manifest_from_file(manifest_path="/path/to/configmap.yaml")
+        # Should use "default" namespace when none is specified
+        self.client.apply_manifest_from_file(manifest_path="/path/to/configmap.yaml")
 
-        self.assertIn("ConfigMap requires a namespace", str(context.exception))
+        mock_create_configmap.assert_called_once_with(
+            namespace="default", body=manifest_dict)
 
     @patch('os.path.isfile')
     @patch('builtins.open', new_callable=mock_open)
@@ -4763,7 +4778,7 @@ spec:
             )
 
     def test_apply_single_manifest_no_namespace_anywhere_raises_error(self):
-        """Test _apply_single_manifest raises error when no namespace is provided anywhere."""
+        """Test _apply_single_manifest uses 'default' when no namespace is provided anywhere."""
         # Deployment manifest without namespace
         manifest_dict = {
             "apiVersion": "apps/v1",
@@ -4775,12 +4790,19 @@ spec:
             "spec": {"replicas": 1}
         }
 
-        # Call _apply_single_manifest without namespace parameter
-        with self.assertRaises(ValueError) as context:
+        # Mock the app API client
+        with patch.object(self.client, 'app') as mock_app:
+            mock_app.create_namespaced_deployment.return_value = None
+
+            # Call _apply_single_manifest without namespace parameter
             # pylint: disable=protected-access
             self.client._apply_single_manifest(manifest_dict, namespace=None)
 
-        self.assertIn("Deployment requires a namespace", str(context.exception))
+            # Verify deployment was created with "default" namespace
+            mock_app.create_namespaced_deployment.assert_called_once_with(
+                namespace="default",
+                body=manifest_dict
+            )
 
     # Tests for delete_manifest_from_file with namespace override functionality
     @patch('os.path.isfile')
