@@ -6024,6 +6024,7 @@ spec:
         self.assertEqual(result.metadata.annotations["description"], "Test configuration")
         self.assertEqual(result.data["database.url"], "mysql://localhost:3306/testdb")
 
+    # pylint: disable=protected-access
     def test_expand_and_validate_manifests_with_valid_dict(self):
         """Test _expand_and_validate_manifests with valid dictionary manifest."""
         manifests = [
@@ -6040,6 +6041,7 @@ spec:
         self.assertEqual(result[0]['kind'], 'Namespace')
         self.assertEqual(result[0]['metadata']['name'], 'test-namespace')
 
+    # pylint: disable=protected-access
     def test_expand_and_validate_manifests_with_list_kind(self):
         """Test _expand_and_validate_manifests with kind: List manifest."""
         manifests = [
@@ -6069,6 +6071,7 @@ spec:
         self.assertEqual(result[1]['kind'], 'Service')
         self.assertEqual(result[1]['metadata']['name'], 'test-service')
 
+    # pylint: disable=protected-access
     def test_expand_and_validate_manifests_with_nested_list_kind(self):
         """Test _expand_and_validate_manifests with nested kind: List manifests."""
         manifests = [
@@ -6108,6 +6111,7 @@ spec:
         self.assertEqual(result[1]['kind'], 'ConfigMap')
         self.assertEqual(result[2]['kind'], 'Secret')
 
+    # pylint: disable=protected-access
     def test_expand_and_validate_manifests_with_non_dict_list(self):
         """Test _expand_and_validate_manifests with list (not dict) manifest - should be skipped."""
         manifests = [
@@ -6130,6 +6134,7 @@ spec:
         self.assertTrue(any('Skipping non-dictionary manifest' in message for message in log.output))
         self.assertTrue(any('list' in message for message in log.output))
 
+    # pylint: disable=protected-access
     def test_expand_and_validate_manifests_with_scalar(self):
         """Test _expand_and_validate_manifests with scalar manifest - should be skipped."""
         manifests = [
@@ -6153,6 +6158,7 @@ spec:
         warning_messages = [msg for msg in log.output if 'Skipping non-dictionary manifest' in msg]
         self.assertEqual(len(warning_messages), 2)
 
+    # pylint: disable=protected-access
     def test_expand_and_validate_manifests_with_none_and_empty(self):
         """Test _expand_and_validate_manifests with None and empty manifests - should be skipped."""
         manifests = [
@@ -6172,6 +6178,7 @@ spec:
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]['kind'], 'Namespace')
 
+    # pylint: disable=protected-access
     def test_expand_and_validate_manifests_with_list_kind_invalid_items(self):
         """Test _expand_and_validate_manifests with kind: List but invalid items field."""
         manifests = [
@@ -6191,6 +6198,7 @@ spec:
         # Check warning was logged
         self.assertTrue(any('invalid' in message.lower() and 'items' in message for message in log.output))
 
+    # pylint: disable=protected-access
     def test_expand_and_validate_manifests_with_list_kind_missing_items(self):
         """Test _expand_and_validate_manifests with kind: List but missing items field."""
         manifests = [
