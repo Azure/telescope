@@ -1,5 +1,3 @@
-data "azurerm_client_config" "current" {}
-
 # Disk Encryption Set for Azure managed disks with Customer-Managed Keys
 # Reference: https://learn.microsoft.com/en-us/azure/aks/azure-disk-customer-managed-keys
 resource "azurerm_disk_encryption_set" "des" {
