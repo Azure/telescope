@@ -216,18 +216,25 @@ class TestGPU(unittest.TestCase):
         self.assertEqual(_mock_execute_with_retries.call_count, 4)
 
     @patch("gpu.pkg.mpi.execute_with_retries")
-    @patch("gpu.pkg.mpi.KUBERNETES_CLIENT")
+    @patch("gpu.pkg.mpi.install_operator")
     def test_install_mpi_operator_success(
-        self, mock_k8s_client, _mock_execute_with_retries
+        self, mock_install, _mock_execute_with_retries
     ):
         """Test successful MPI operator installation."""
-        mock_k8s_client.apply_manifest_from_url.return_value = None
         _mock_execute_with_retries.return_value = None
 
-        install_mpi_operator(chart_version=self.test_chart_version)
+        install_mpi_operator(
+            chart_version=self.test_chart_version, config_dir=self.test_config_dir
+        )
 
-        expected_url = f"https://raw.githubusercontent.com/kubeflow/mpi-operator/{self.test_chart_version}/deploy/v2beta1/mpi-operator.yaml"
-        mock_k8s_client.apply_manifest_from_url.assert_called_once_with(expected_url)
+        mock_install.assert_called_once_with(
+            chart_version=self.test_chart_version,
+            operator_name="mpi-operator",
+            config_dir=self.test_config_dir,
+            namespace="mpi-operator",
+            repo_name="v3io-stable",
+            repo_url="https://v3io.github.io/helm-charts/stable",
+        )
         # Verify execute_with_retries is called once for the wait operation
         _mock_execute_with_retries.assert_called_once()
 
@@ -285,7 +292,9 @@ class TestGPU(unittest.TestCase):
             install_driver=True,
             enable_nfd=False,
         )
-        mock_mpi.assert_called_once_with(chart_version=self.test_chart_version)
+        mock_mpi.assert_called_once_with(
+            chart_version=self.test_chart_version, config_dir=self.test_config_dir
+        )
 
     @patch("gpu.main.install_efa_operator")
     @patch("gpu.main.install_mpi_operator")
@@ -338,7 +347,9 @@ class TestGPU(unittest.TestCase):
             chart_version=self.test_chart_version, config_dir=self.test_config_dir
         )
         mock_gpu.assert_not_called()
-        mock_mpi.assert_called_once_with(chart_version=self.test_chart_version)
+        mock_mpi.assert_called_once_with(
+            chart_version=self.test_chart_version, config_dir=self.test_config_dir
+        )
 
     @patch("gpu.main.install_efa_operator")
     @patch("gpu.main.install_mpi_operator")
