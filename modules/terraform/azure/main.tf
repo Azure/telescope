@@ -163,22 +163,23 @@ module "disk_encryption_set" {
 module "aks" {
   for_each = local.aks_config_map
 
-  source              = "./aks"
-  resource_group_name = local.run_id
-  location            = local.region
-  aks_config          = each.value
-  tags                = local.tags
-  subnet_id           = try(local.all_subnets[each.value.subnet_name], null)
-  vnet_id             = try(module.virtual_network[each.value.role].vnet_id, null)
-  subnets             = try(local.all_subnets, null)
-  k8s_machine_type    = local.k8s_machine_type
-  k8s_os_disk_type    = local.k8s_os_disk_type
-  network_dataplane   = local.aks_network_dataplane
-  network_policy      = local.aks_network_policy
-  dns_zones           = try(module.dns_zones.dns_zone_ids, null)
-  aks_aad_enabled     = local.aks_aad_enabled
-  key_vaults          = local.all_key_vaults
-  depends_on          = [module.route_table, module.virtual_network]
+  source               = "./aks"
+  resource_group_name  = local.run_id
+  location             = local.region
+  aks_config           = each.value
+  tags                 = local.tags
+  subnet_id            = try(local.all_subnets[each.value.subnet_name], null)
+  vnet_id              = try(module.virtual_network[each.value.role].vnet_id, null)
+  subnets              = try(local.all_subnets, null)
+  k8s_machine_type     = local.k8s_machine_type
+  k8s_os_disk_type     = local.k8s_os_disk_type
+  network_dataplane    = local.aks_network_dataplane
+  network_policy       = local.aks_network_policy
+  dns_zones            = try(module.dns_zones.dns_zone_ids, null)
+  aks_aad_enabled      = local.aks_aad_enabled
+  key_vaults           = local.all_key_vaults
+  disk_encryption_sets = local.all_disk_encryption_sets
+  depends_on           = [module.route_table, module.virtual_network, module.disk_encryption_set]
 }
 
 module "aks-cli" {
