@@ -37,7 +37,7 @@ variables:
   cpu_per_node: 16
   # max_pods = PODS_PER_NODE + default k8s system pods (5) + log analytics pod (1 if ENABLE_LOG_ANALYTICS=true)
   # Current: 7 + 5 = 12 (increase to 13 if enabling Log Analytics)
-  max_pods: 12
+  max_pods: 13
   # Common matrix parameters
   repeats: 1
   node_label: "swiftv2slo=true"
