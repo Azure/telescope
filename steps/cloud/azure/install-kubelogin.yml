@@ -18,20 +18,35 @@ steps:
     if ! command -v kubelogin &> /dev/null; then
       max_retries=3
       retry_delay=30
+      install_success=false
 
       for i in $(seq 1 $max_retries); do
         if az aks install-cli; then
-          echo "Successfully installed kubelogin"
+          echo "Successfully installed via az aks install-cli"
+          install_success=true
           break
         fi
-        if [ $i -eq $max_retries ]; then
-          echo "Failed to install after $max_retries attempts"
-          exit 1
+        if [ $i -lt $max_retries ]; then
+          echo "Attempt $i failed, retrying in ${retry_delay}s..."
+          sleep $retry_delay
+          retry_delay=$((retry_delay * 2))
         fi
-        echo "Attempt $i failed, retrying in ${retry_delay}s..."
-        sleep $retry_delay
-        retry_delay=$((retry_delay * 2))
       done
+
+      # Fallback to direct GitHub download if az aks install-cli failed
+      if [ "$install_success" = false ]; then
+        echo "az aks install-cli failed after $max_retries attempts, falling back to GitHub download..."
+        
+        VERSION=$(curl -sL https://api.github.com/repos/Azure/kubelogin/releases/latest | jq -r '.tag_name')
+        echo "Downloading kubelogin $VERSION from GitHub..."
+        
+        curl -LO "https://github.com/Azure/kubelogin/releases/download/${VERSION}/kubelogin-linux-amd64.zip"
+        unzip -o kubelogin-linux-amd64.zip
+        sudo mv bin/linux_amd64/kubelogin /usr/local/bin/
+        rm -rf kubelogin-linux-amd64.zip bin/
+        
+        echo "Successfully installed kubelogin $VERSION from GitHub"
+      fi
     fi
 
     echo "Converting kubeconfig for Azure CLI authentication..."
