@@ -16,7 +16,22 @@ steps:
 
     echo "Installing kubelogin if not present..."
     if ! command -v kubelogin &> /dev/null; then
-      az aks install-cli
+      max_retries=3
+      retry_delay=30
+
+      for i in $(seq 1 $max_retries); do
+        if az aks install-cli; then
+          echo "Successfully installed kubelogin"
+          break
+        fi
+        if [ $i -eq $max_retries ]; then
+          echo "Failed to install after $max_retries attempts"
+          exit 1
+        fi
+        echo "Attempt $i failed, retrying in ${retry_delay}s..."
+        sleep $retry_delay
+        retry_delay=$((retry_delay * 2))
+      done
     fi
 
     echo "Converting kubeconfig for Azure CLI authentication..."
