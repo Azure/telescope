@@ -25,15 +25,15 @@ key_vault_config_list = [
   }
 ]
 
-#disk_encryption_set_config_list = [
-#  {
-#    name                      = "nap-disk-encryption-set"
-#    key_vault_name            = "akskms"
-#    key_name                  = "disk-encryption-key"
-#    encryption_type           = "EncryptionAtRestWithCustomerKey"
-#    auto_key_rotation_enabled = false
-#  }
-#]
+disk_encryption_set_config_list = [
+  {
+    name                      = "nap-disk-encryption-set"
+    key_vault_name            = "akskms"
+    key_name                  = "disk-encryption-key"
+    encryption_type           = "EncryptionAtRestWithCustomerKey"
+    auto_key_rotation_enabled = false
+  }
+]
 
 network_config_list = [
   {
@@ -70,10 +70,10 @@ aks_cli_config_list = [
       key_vault_name = "akskms"
       network_access = "Private"
     }
-#    disk_encryption_set_name = "nap-disk-encryption-set"
+    disk_encryption_set_name = "nap-disk-encryption-set"
     default_node_pool = {
       name         = "system"
-#      os_disk_type = "Ephemeral"
+      os_disk_type = "Ephemeral"
       node_count   = 10
       vm_size      = "Standard_D16ds_v5"
     }
