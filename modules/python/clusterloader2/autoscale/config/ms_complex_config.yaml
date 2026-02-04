@@ -17,7 +17,7 @@ namespace:
   number: 1
   prefix: autoscale
   deleteStaleNamespaces: true
-  deleteAutomanagedNamespaces: false  # Keep namespace and pods after test
+  deleteAutomanagedNamespaces: true
   enableExistingNamespaces: true
 
 tuningSets:
