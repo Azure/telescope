@@ -26,7 +26,9 @@ stages:
               credential_type: service_connection
           - script: |
               set -e
-              pip3 install -r requirements.txt
+              python3 -m venv .venv
+              source .venv/bin/activate
+              pip install -r requirements.txt
             displayName: "Install Dependencies"
             workingDirectory: modules/python
           - template: /steps/cloud/aws/capacity-reservation.yml

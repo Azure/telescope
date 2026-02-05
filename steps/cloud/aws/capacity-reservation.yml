@@ -17,6 +17,8 @@ steps:
 - script: |
     set -eo pipefail
 
+    source .venv/bin/activate
+
     ARGS=(
       "$PYTHON_SCRIPT_FILE"
       --region "$REGION"
