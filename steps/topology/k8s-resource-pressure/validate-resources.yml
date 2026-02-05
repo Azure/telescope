@@ -21,9 +21,8 @@ steps:
     flags_string=$(echo "$CUSTOM_EVICTION_FLAGS" | jq -r '
       def format_value(k; v):
         if (v|type) == "object" then
-          (if (k|test("eviction")) then "<"
-          elif (k|test("reserved")) then "="
-          else error("Unknown complex flag type for key: " + k) end) as $delim
+          (if (k == "eviction-hard") or (k == "eviction-soft") then "<"
+          else "=" end) as $delim
           | (v | to_entries | map(.key + $delim + (.value|tostring)) | join(","))
         elif (v|type) == "array" then
           (v | map(tostring) | join(","))
