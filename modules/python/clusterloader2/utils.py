@@ -196,4 +196,3 @@ def parse_xml_to_json(file_path, indent=0):
     # Convert the result dictionary to JSON
     json_result = json.dumps(result, indent=indent)
     return json_result
-
