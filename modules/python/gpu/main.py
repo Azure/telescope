@@ -93,7 +93,7 @@ def execute(
 
     try:
         subprocess.run(
-            ["kubectl", "delete", "mpijob", "nccl-tests", "-n", "default", "--ignore-not-found=true"],
+            ["kubectl", "delete", "mpijob", "nccl-tests", "-n", "mpi-operator", "--ignore-not-found=true"],
             check=True,
             capture_output=True,
             text=True
@@ -123,21 +123,21 @@ def execute(
             logger.info("No SR-IOV device plugin found, using hostPath for InfiniBand")
             job_type = "hostpath"
 
-        nccl_file = f"{config_dir}/mpi/azure-job-{job_type}.yaml"
+        nccl_file = f"{config_dir}/mpi-operator/azure-job-{job_type}.yaml"
         logger.info(f"Running nccl-tests with {replacements} using {nccl_file}")
         nccl_template = KUBERNETES_CLIENT.create_template(nccl_file, replacements)
         nccl_dict = yaml.safe_load(nccl_template)
         KUBERNETES_CLIENT.apply_manifest_from_file(manifest_dict=nccl_dict)
     elif provider.lower() == "aws":
         replacements["efa_allocatable"] = efa_allocatable
-        nccl_file = f"{config_dir}/mpi/{provider}-job.yaml"
+        nccl_file = f"{config_dir}/mpi-operator/{provider}-job.yaml"
 
         logger.info(f"Running nccl-tests with {replacements} using {nccl_file}")
         nccl_template = KUBERNETES_CLIENT.create_template(nccl_file, replacements)
         nccl_dict = yaml.safe_load(nccl_template)
         KUBERNETES_CLIENT.apply_manifest_from_file(manifest_dict=nccl_dict)
     else:
-        nccl_file = f"{config_dir}/mpi/{provider}-job.yaml"
+        nccl_file = f"{config_dir}/mpi-operator/{provider}-job.yaml"
 
         logger.info(f"Running nccl-tests with {replacements} using {nccl_file}")
         nccl_template = KUBERNETES_CLIENT.create_template(nccl_file, replacements)
@@ -147,9 +147,10 @@ def execute(
         KUBERNETES_CLIENT.wait_for_pods_completed,
         label_selector="component=launcher",
         pod_count=1,
+        namespace="mpi-operator",
     )
     pod_name = pods[0].metadata.name
-    raw_logs = KUBERNETES_CLIENT.get_pod_logs(pod_name)
+    raw_logs = KUBERNETES_CLIENT.get_pod_logs(pod_name, namespace="mpi-operator")
     logs = raw_logs.decode("utf-8")
     logger.info(f"Getting logs for pod {pod_name}:\n{logs}")
     result_path = f"{result_dir}/raw.log"

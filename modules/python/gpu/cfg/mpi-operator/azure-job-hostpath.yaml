@@ -1,7 +1,7 @@
 apiVersion: kubeflow.org/v2beta1
 kind: MPIJob
 metadata:
-  namespace: default
+  namespace: mpi-operator
   name: nccl-tests
   labels:
     app: nccl-tests
@@ -40,8 +40,12 @@ spec:
                   mpirun \
                     -np ${NUMBER_OF_PROCESSES} \
                     -bind-to none \
-                    -x NCCL_NET_GDR_LEVEL="SYS" \
                     -x CUDA_DEVICE_ORDER=PCI_BUS_ID \
+                    -x NCCL_NET_GDR_LEVEL=SYS \
+                    -x NCCL_IB_DISABLE=0 \
+                    -x NCCL_SHM_DISABLE=1 \
+                    -x NCCL_NVLS_ENABLE=1 \
+                    -x NCCL_MNNVL_ENABLE=0 \
                     /opt/nccl_tests/build/all_reduce_perf \
                       -b 8 \
                       -e 8G \
@@ -63,18 +67,19 @@ spec:
               resources:
                 limits:
                   nvidia.com/gpu: {{gpu_allocatable}}
-                  rdma/ib: {{ib_allocatable}}
                 requests:
                   nvidia.com/gpu: {{gpu_allocatable}}
-                  rdma/ib: {{ib_allocatable}}
               securityContext:
-                capabilities:
-                  add:
-                    - "IPC_LOCK"
+                privileged: true
               volumeMounts:
                 - name: shmem
                   mountPath: /dev/shm
+                - name: infiniband
+                  mountPath: /dev/infiniband
           volumes:
             - name: shmem
               hostPath:
                 path: /dev/shm
+            - name: infiniband
+              hostPath:
+                path: /dev/infiniband
