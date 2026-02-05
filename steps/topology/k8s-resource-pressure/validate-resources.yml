@@ -32,7 +32,7 @@ steps:
         end;
 
       to_entries
-      | map("--" + .key + "=" + (format_value(.key; .value)))
+      | map("--" + .key + "='" + (format_value(.key; .value)) + "'")
       | join(" ")
       ')
 
