@@ -36,7 +36,7 @@ steps:
       | join(" ")
       ')
 
-    printf '%s' "$flags_string" > "/steps/topology/k8s-resource-pressure/kubelet_flags.txt"
+    printf '%s' "$flags_string" > "kubelet_flags.txt"
 
     helm upgrade --install kubelet-config-updater ./steps/topology/k8s-resource-pressure/chart \
       --namespace kube-system --create-namespace \
