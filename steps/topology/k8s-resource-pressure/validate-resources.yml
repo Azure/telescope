@@ -40,6 +40,8 @@ steps:
       --namespace kube-system --create-namespace \
       --set kubeletFlags="$flags_string"
 
+    sleep 5
+
     kubectl get pods -A -o wide
 
   env:
