@@ -4,7 +4,7 @@ import argparse
 import math
 
 from datetime import datetime, timezone
-from clusterloader2.utils import parse_xml_to_json, run_cl2_command, get_measurement, add_flags_to_daemonset
+from clusterloader2.utils import parse_xml_to_json, run_cl2_command, get_measurement
 from clients.kubernetes_client import KubernetesClient, client as k8s_client
 from utils.logger_config import get_logger, setup_logging
 from utils.common import str2bool
@@ -381,14 +381,6 @@ def main():
         "--registry_info", type=str, help="Container registry information scraped",
     )
 
-    # Sub-command for modify-kubelet
-    parser_modify_kubelet = subparsers.add_parser(
-        "modify-kubelet", help="Add custom flags to kubelet and apply via daemonset"
-    )
-    parser_modify_kubelet.add_argument(
-        "--custom_kubelet_config", type=str, help="Custom kubelet flags in string format"
-    )
-
     args = parser.parse_args()
 
     if args.command == "override":
@@ -433,10 +425,6 @@ def main():
             args.result_file,
             args.scrape_kubelets,
             args.registry_info
-        )
-    elif args.command == "modify-kubelet":
-        modify_kubelet_clusterloader2(
-            args.custom_kubelet_config
         )
 
 if __name__ == "__main__":
