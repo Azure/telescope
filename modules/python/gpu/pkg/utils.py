@@ -265,12 +265,22 @@ def create_topology_configmap(
 
         # Create ConfigMap
         configmap_name = "nvidia-topology"
+        namespace = "mpi-operator"
+
+        # Delete existing ConfigMap if it exists
+        try:
+            v1_api.delete_namespaced_config_map(name=configmap_name, namespace=namespace)
+            logger.info(f"Deleted existing ConfigMap '{configmap_name}'")
+        except client.ApiException as e:
+            if e.status != 404:
+                logger.warning(f"Error deleting ConfigMap: {e}")
+
         logger.info(f"Creating ConfigMap from content:\n{topology_content}")
         configmap = client.V1ConfigMap(
             metadata=client.V1ObjectMeta(name=configmap_name),
             data={"topo.xml": topology_content},
         )
-        v1_api.create_namespaced_config_map(namespace="default", body=configmap)
+        v1_api.create_namespaced_config_map(namespace=namespace, body=configmap)
         logger.info(f"ConfigMap '{configmap_name}' created successfully")
 
     except requests.RequestException as e:

@@ -57,7 +57,7 @@ def configure(
             enable_nfd=gpu_enable_nfd,
         )
     if mpi_operator_version:
-        install_mpi_operator(chart_version=mpi_operator_version, config_dir=config_dir)
+        install_mpi_operator(chart_version=mpi_operator_version)
 
 
 def execute(
@@ -93,7 +93,7 @@ def execute(
 
     try:
         subprocess.run(
-            ["kubectl", "delete", "mpijob", "nccl-tests", "-n", "default", "--ignore-not-found=true"],
+            ["kubectl", "delete", "mpijob", "nccl-tests", "-n", "mpi-operator", "--ignore-not-found=true"],
             check=True,
             capture_output=True,
             text=True
@@ -147,9 +147,10 @@ def execute(
         KUBERNETES_CLIENT.wait_for_pods_completed,
         label_selector="component=launcher",
         pod_count=1,
+        namespace="mpi-operator",
     )
     pod_name = pods[0].metadata.name
-    raw_logs = KUBERNETES_CLIENT.get_pod_logs(pod_name)
+    raw_logs = KUBERNETES_CLIENT.get_pod_logs(pod_name, namespace="mpi-operator")
     logs = raw_logs.decode("utf-8")
     logger.info(f"Getting logs for pod {pod_name}:\n{logs}")
     result_path = f"{result_dir}/raw.log"
