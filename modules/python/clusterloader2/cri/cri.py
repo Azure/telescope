@@ -222,9 +222,6 @@ def collect_clusterloader2(
     with open(result_file, 'w', encoding='utf-8') as file:
         file.write(content)
 
-def modify_kubelet_clusterloader2(custom_kubelet_config: str):
-    add_flags_to_daemonset(custom_kubelet_config)
-
 def main():
     parser = argparse.ArgumentParser(description="CRI Kubernetes resources.")
     subparsers = parser.add_subparsers(dest="command")
