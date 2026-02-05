@@ -38,7 +38,7 @@ steps:
 
     helm upgrade --install kubelet-config-updater ./steps/topology/k8s-resource-pressure/chart \
       --namespace kube-system --create-namespace \
-      --set kubeletFlags=$flags_string
+      --set kubeletFlags="$flags_string"
   env:
     CUSTOM_EVICTION_FLAGS: $(CUSTOM_KUBELET_CONFIG)
     
