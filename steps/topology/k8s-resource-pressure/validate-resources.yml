@@ -32,13 +32,15 @@ steps:
         end;
 
       to_entries
-      | map("--" + .key + "='" + (format_value(.key; .value)) + "'")
+      | map("--" + .key + "=" + (format_value(.key; .value)))
       | join(" ")
       ')
 
+    printf '%s' "$flags_string" > "/steps/topology/k8s-resource-pressure/kubelet_flags.txt"
+
     helm upgrade --install kubelet-config-updater ./steps/topology/k8s-resource-pressure/chart \
       --namespace kube-system --create-namespace \
-      --set kubeletFlags="$flags_string"
+      --set-file kubeletFlags="kubelet_flags.txt"
 
     sleep 5
 
