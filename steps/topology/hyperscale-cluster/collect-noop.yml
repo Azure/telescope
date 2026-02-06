@@ -1,0 +1,15 @@
+parameters:
+- name: cloud
+  type: string
+- name: regions
+  type: object
+  default: {}
+- name: engine_input
+  type: object
+  default: {}
+
+steps:
+- script: |
+    echo "No additional metrics to collect for provision engine."
+    echo "Terraform operation metadata contains cluster readiness time."
+  displayName: 'Collect Provision Metrics (No-op)'

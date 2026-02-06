@@ -1,0 +1,16 @@
+parameters:
+- name: cloud
+  type: string
+  default: ''
+- name: engine_input
+  type: object
+  default: {}
+- name: regions
+  type: object
+  default: {}
+
+steps:
+- script: |
+    echo "Cluster provisioned successfully. Skipping test execution."
+    echo "Cluster readiness time is captured in terraform operation metadata."
+  displayName: 'Verify Cluster Provisioning Complete'
