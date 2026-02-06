@@ -17,8 +17,23 @@ key_vault_config_list = [
     keys = [
       {
         key_name = "kms-nap"
+      },
+      {
+        key_name = "disk-encryption-key"
       }
     ]
+  }
+]
+
+# Disk Encryption Set for OS disk encryption with Customer-Managed Keys
+# Reference: https://learn.microsoft.com/en-us/azure/aks/azure-disk-customer-managed-keys
+disk_encryption_set_config_list = [
+  {
+    name                      = "nap-disk-encryption-set"
+    key_vault_name            = "akskms"
+    key_name                  = "disk-encryption-key"
+    encryption_type           = "EncryptionAtRestWithCustomerKey"
+    auto_key_rotation_enabled = false
   }
 ]
 
@@ -153,6 +168,8 @@ aks_cli_config_list = [
       key_vault_name = "akskms"
       network_access = "Private"
     }
+    # Disk Encryption Set for OS disk encryption with Customer-Managed Keys
+    disk_encryption_set_name = "nap-disk-encryption-set"
     default_node_pool = {
       name         = "system"
       os_disk_type = "Ephemeral"
