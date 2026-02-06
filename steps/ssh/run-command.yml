@@ -5,6 +5,9 @@ parameters:
 - name: command
   type: string
   default: 'hostname'
+- name: condition
+  type: string
+  default: 'succeeded()'
 
 steps:
 - bash: |
@@ -22,7 +25,7 @@ steps:
     # Use bash -c to handle multi-line commands properly
     ssh "${ssh_opts[@]}" "${ssh_target}" "bash -c $(printf '%q' "$COMMAND")"
   displayName: "Run SSH Command"
-  condition: succeeded()
+  condition: ${{ parameters.condition }}
   env:
     VM_IP: ${{ parameters.vm_ip }}
     COMMAND: ${{ parameters.command }}
