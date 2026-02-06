@@ -297,7 +297,10 @@ resource "azurerm_role_assignment" "aks_identity_kms_roles" {
 }
 
 # Fetch AKS cluster to get kubelet identity for NAP/Karpenter role assignments
+# Only fetch when disk encryption is configured and not in dry_run mode
 data "azurerm_kubernetes_cluster" "aks" {
+  count = var.aks_cli_config.disk_encryption_set_name != null && !var.aks_cli_config.dry_run ? 1 : 0
+
   depends_on = [terraform_data.aks_cli]
 
   name                = var.aks_cli_config.aks_name
@@ -308,11 +311,11 @@ data "azurerm_kubernetes_cluster" "aks" {
 # Required for NAP/Karpenter to create VMs with encrypted OS disks
 # Error without this: "LinkedAuthorizationFailed" - does not have permission to perform 'Microsoft.Compute/diskEncryptionSets/read'
 resource "azurerm_role_assignment" "kubelet_des_reader" {
-  count = var.aks_cli_config.disk_encryption_set_name != null ? 1 : 0
+  count = var.aks_cli_config.disk_encryption_set_name != null && !var.aks_cli_config.dry_run ? 1 : 0
 
   scope                = local.disk_encryption_set_id
   role_definition_name = "Reader"
-  principal_id         = data.azurerm_kubernetes_cluster.aks.kubelet_identity[0].object_id
+  principal_id         = data.azurerm_kubernetes_cluster.aks[0].kubelet_identity[0].object_id
 }
 
 # Grant cluster identity Reader access to Disk Encryption Set
@@ -320,9 +323,9 @@ resource "azurerm_role_assignment" "kubelet_des_reader" {
 # The kubelet identity alone is not sufficient - the cluster identity also needs this permission
 # Supports both user-assigned and system-assigned managed identities
 resource "azurerm_role_assignment" "cluster_identity_des_reader" {
-  count = var.aks_cli_config.disk_encryption_set_name != null ? 1 : 0
+  count = var.aks_cli_config.disk_encryption_set_name != null && !var.aks_cli_config.dry_run ? 1 : 0
 
   scope                = local.disk_encryption_set_id
   role_definition_name = "Reader"
-  principal_id         = var.aks_cli_config.managed_identity_name != null ? azurerm_user_assigned_identity.userassignedidentity[0].principal_id : data.azurerm_kubernetes_cluster.aks.identity[0].principal_id
+  principal_id         = var.aks_cli_config.managed_identity_name != null ? azurerm_user_assigned_identity.userassignedidentity[0].principal_id : data.azurerm_kubernetes_cluster.aks[0].identity[0].principal_id
 }
