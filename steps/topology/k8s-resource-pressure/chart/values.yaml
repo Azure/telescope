@@ -1,0 +1,3 @@
+# Provide a single string with kubelet flags to add, example:
+# "--eviction-hard=memory.available<100Mi --system-reserved=cpu=100m,memory=200Mi"
+kubeletFlags: ""
