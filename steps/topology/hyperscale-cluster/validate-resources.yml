@@ -1,0 +1,56 @@
+parameters:
+- name: cloud
+  type: string
+- name: engine
+  type: string
+- name: regions
+  type: object
+
+steps:
+- template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
+  parameters:
+    role: client
+    region: ${{ parameters.regions[0] }}
+
+- script: |
+    echo "Checking API server GOMAXPROCS (max CPU cores available)..."
+    GOMAXPROCS_LINE=$(kubectl get --raw /metrics | grep '^go_sched_gomaxprocs_threads')
+    echo "Raw metric line:"
+    echo "$GOMAXPROCS_LINE"
+    GOMAXPROCS=$(echo "$GOMAXPROCS_LINE" | awk '{print $2}')
+    echo "API server GOMAXPROCS: $GOMAXPROCS"
+    if [ -z "$GOMAXPROCS" ]; then
+      echo "##vso[task.logissue type=warning]Could not retrieve GOMAXPROCS metric"
+    else
+      echo "##vso[task.setvariable variable=API_SERVER_CORES]$GOMAXPROCS"
+      echo "API server can use up to $GOMAXPROCS CPU cores"
+    fi
+
+    # Compare with expected cores based on CCP tier
+    CCP_TIER="$(ccp_tier)"
+    echo "CCP Tier: $CCP_TIER"
+
+    # Skip comparison for H2 tier
+    if [ "$CCP_TIER" = "H2" ]; then
+      echo "Skipping GOMAXPROCS comparison for tier H2"
+      exit 0
+    fi
+
+    case "$CCP_TIER" in
+      H4) EXPECTED_CORES=25 ;;
+      H8) EXPECTED_CORES=54 ;;
+      *)  EXPECTED_CORES="" ;;
+    esac
+
+    if [ -n "$EXPECTED_CORES" ] && [ -n "$GOMAXPROCS" ]; then
+      if [ "$GOMAXPROCS" -ne "$EXPECTED_CORES" ]; then
+      echo "##vso[task.logissue type=error]GOMAXPROCS mismatch: expected $EXPECTED_CORES, got $GOMAXPROCS for tier $CCP_TIER"
+      exit 1
+      else
+      echo "GOMAXPROCS matches expected cores $EXPECTED_CORES for tier $CCP_TIER"
+      fi
+    else
+      echo "##vso[task.logissue type=error]Could not compare: EXPECTED_CORES=${EXPECTED_CORES:-unset}, GOMAXPROCS=${GOMAXPROCS:-unset}"
+      exit 1
+    fi
+  displayName: 'Validate API Server CPU Cores'
