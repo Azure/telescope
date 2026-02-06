@@ -87,7 +87,12 @@ steps:
     command: |
       set -e
       kubectl apply -f '/tmp/telescope-$(Build.BuildId)/karpenter_nodepool.yml'
-      kubectl patch nodepool default --type='json' -p="[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['$(VM_SIZE)']}]"
-      kubectl patch nodepool spot --type='json' -p="[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['$(VM_SIZE)']}]"
+      if [ -n "$(VM_SIZE)" ]; then
+        echo "Patching nodepools with VM_SIZE=$(VM_SIZE)"
+        kubectl patch nodepool default --type='json' -p="[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['$(VM_SIZE)']}]"
+        kubectl patch nodepool spot --type='json' -p="[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['$(VM_SIZE)']}]"
+      else
+        echo "VM_SIZE is not set, skipping nodepool patch"
+      fi
       kubectl get nodepool default -o yaml
       kubectl get nodepool spot -o yaml
