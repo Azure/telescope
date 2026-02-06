@@ -157,14 +157,14 @@ aks_cli_config_list = [
       name         = "system"
       os_disk_type = "Ephemeral"
       node_count   = 10
-      vm_size      = "Standard_D16s_v5"
+      vm_size      = "Standard_D16ds_v5"
     }
     extra_node_pool = [
       {
         name         = "prompool"
         node_count   = 1
         os_disk_type = "Ephemeral"
-        vm_size      = "Standard_D16_v5"
+        vm_size      = "Standard_D16ds_v5"
         optional_parameters = [
           {
             name  = "labels"
