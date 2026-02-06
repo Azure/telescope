@@ -33,9 +33,10 @@ locals {
 
   aks_cli_custom_config_path = "${path.cwd}/../../../scenarios/${var.scenario_type}/${var.scenario_name}/config/aks_custom_config.json"
 
-  all_subnets    = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
-  all_nics       = merge([for network in var.network_config_list : module.virtual_network[network.role].nics]...)
-  all_key_vaults = merge([for kv_name, kv in module.key_vault : { (kv_name) = kv.key_vaults }]...)
+  all_subnets              = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
+  all_nics                 = merge([for network in var.network_config_list : module.virtual_network[network.role].nics]...)
+  all_key_vaults           = merge([for kv_name, kv in module.key_vault : { (kv_name) = kv.key_vaults }]...)
+  all_disk_encryption_sets = merge([for des_name, des in module.disk_encryption_set : { (des_name) = des.disk_encryption_set_id }]...)
   updated_aks_config_list = length(var.aks_config_list) > 0 ? [
     for aks in var.aks_config_list : merge(
       aks,
@@ -67,12 +68,14 @@ locals {
   key_vault_config_map = { for kv in var.key_vault_config_list : kv.name => kv }
 
   vm_config_map = { for vm in var.vm_config_list : vm.role => vm }
+
+  disk_encryption_set_config_map = { for des in var.disk_encryption_set_config_list : des.name => des }
 }
 
 provider "azurerm" {
   features {
     key_vault {
-      purge_soft_delete_on_destroy    = true
+      purge_soft_delete_on_destroy    = false
       recover_soft_deleted_key_vaults = false
     }
   }
@@ -144,25 +147,39 @@ module "key_vault" {
   tags                = local.tags
 }
 
+module "disk_encryption_set" {
+  for_each = local.disk_encryption_set_config_map
+
+  source                     = "./disk-encryption-set"
+  resource_group_name        = local.run_id
+  location                   = local.region
+  disk_encryption_set_config = each.value
+  key_vaults                 = local.all_key_vaults
+  tags                       = local.tags
+
+  depends_on = [module.key_vault]
+}
+
 module "aks" {
   for_each = local.aks_config_map
 
-  source              = "./aks"
-  resource_group_name = local.run_id
-  location            = local.region
-  aks_config          = each.value
-  tags                = local.tags
-  subnet_id           = try(local.all_subnets[each.value.subnet_name], null)
-  vnet_id             = try(module.virtual_network[each.value.role].vnet_id, null)
-  subnets             = try(local.all_subnets, null)
-  k8s_machine_type    = local.k8s_machine_type
-  k8s_os_disk_type    = local.k8s_os_disk_type
-  network_dataplane   = local.aks_network_dataplane
-  network_policy      = local.aks_network_policy
-  dns_zones           = try(module.dns_zones.dns_zone_ids, null)
-  aks_aad_enabled     = local.aks_aad_enabled
-  key_vaults          = local.all_key_vaults
-  depends_on          = [module.route_table, module.virtual_network]
+  source               = "./aks"
+  resource_group_name  = local.run_id
+  location             = local.region
+  aks_config           = each.value
+  tags                 = local.tags
+  subnet_id            = try(local.all_subnets[each.value.subnet_name], null)
+  vnet_id              = try(module.virtual_network[each.value.role].vnet_id, null)
+  subnets              = try(local.all_subnets, null)
+  k8s_machine_type     = local.k8s_machine_type
+  k8s_os_disk_type     = local.k8s_os_disk_type
+  network_dataplane    = local.aks_network_dataplane
+  network_policy       = local.aks_network_policy
+  dns_zones            = try(module.dns_zones.dns_zone_ids, null)
+  aks_aad_enabled      = local.aks_aad_enabled
+  key_vaults           = local.all_key_vaults
+  disk_encryption_sets = local.all_disk_encryption_sets
+  depends_on           = [module.route_table, module.virtual_network, module.disk_encryption_set]
 }
 
 module "aks-cli" {
@@ -177,7 +194,8 @@ module "aks-cli" {
   aks_cli_custom_config_path = local.aks_cli_custom_config_path
   key_vaults                 = local.all_key_vaults
   aks_aad_enabled            = local.aks_aad_enabled
-  depends_on                 = [module.route_table, module.virtual_network]
+  disk_encryption_sets       = local.all_disk_encryption_sets
+  depends_on                 = [module.route_table, module.virtual_network, module.disk_encryption_set]
 }
 
 module "virtual_machine" {

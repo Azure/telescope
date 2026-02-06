@@ -26,6 +26,16 @@ locals {
     )
   } : null
 
+  # Disk Encryption Set for OS disk encryption with Customer-Managed Keys
+  # Reference: https://learn.microsoft.com/en-us/azure/aks/azure-disk-customer-managed-keys
+  disk_encryption_set_id = (
+    var.aks_cli_config.disk_encryption_set_name != null ?
+    try(
+      var.disk_encryption_sets[var.aks_cli_config.disk_encryption_set_name],
+      error("Specified disk_encryption_set_name '${var.aks_cli_config.disk_encryption_set_name}' does not exist in Disk Encryption Sets: ${join(", ", keys(var.disk_encryption_sets))}")
+    ) : null
+  )
+
   kubernetes_version = (
     var.aks_cli_config.kubernetes_version == null ?
     "" :
@@ -81,6 +91,12 @@ locals {
     "Key Vault Crypto User"                    = local.key_management_service.key_vault_id
   } : {}
 
+  # Disk Encryption Set parameters for OS disk encryption with Customer-Managed Keys
+  disk_encryption_parameters = (
+    local.disk_encryption_set_id == null ?
+    "" :
+    format("--node-osdisk-diskencryptionset-id %s", local.disk_encryption_set_id)
+  )
 
   subnet_id_parameter = (local.aks_subnet_id == null ?
     "" :
@@ -151,6 +167,7 @@ locals {
     local.kubernetes_version,
     local.optional_parameters,
     local.kms_parameters,
+    local.disk_encryption_parameters,
     local.subnet_id_parameter,
     local.managed_identity_parameter,
     local.api_server_vnet_integration_parameter,
@@ -277,4 +294,32 @@ resource "azurerm_role_assignment" "aks_identity_kms_roles" {
   scope                = each.value
   role_definition_name = each.key
   principal_id         = azurerm_user_assigned_identity.userassignedidentity[0].principal_id
+}
+
+# Fetch AKS cluster to get identities for DES role assignments
+data "azurerm_kubernetes_cluster" "aks" {
+  count = var.aks_cli_config.disk_encryption_set_name != null && !var.aks_cli_config.dry_run ? 1 : 0
+
+  depends_on = [terraform_data.aks_cli]
+
+  name                = var.aks_cli_config.aks_name
+  resource_group_name = var.resource_group_name
+}
+
+# Grant Reader access to Disk Encryption Set for kubelet identity
+resource "azurerm_role_assignment" "des_reader_kubelet" {
+  count = var.aks_cli_config.disk_encryption_set_name != null && !var.aks_cli_config.dry_run ? 1 : 0
+
+  scope                = local.disk_encryption_set_id
+  role_definition_name = "Reader"
+  principal_id         = data.azurerm_kubernetes_cluster.aks[0].kubelet_identity[0].object_id
+}
+
+# Grant Reader access to Disk Encryption Set for cluster identity
+resource "azurerm_role_assignment" "des_reader_cluster" {
+  count = var.aks_cli_config.disk_encryption_set_name != null && !var.aks_cli_config.dry_run ? 1 : 0
+
+  scope                = local.disk_encryption_set_id
+  role_definition_name = "Reader"
+  principal_id         = var.aks_cli_config.managed_identity_name != null ? azurerm_user_assigned_identity.userassignedidentity[0].principal_id : data.azurerm_kubernetes_cluster.aks[0].identity[0].principal_id
 }
