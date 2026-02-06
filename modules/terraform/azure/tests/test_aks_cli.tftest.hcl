@@ -1,5 +1,12 @@
 mock_provider "azurerm" {
   source = "./tests"
+
+  mock_data "azurerm_client_config" {
+    defaults = {
+      tenant_id       = "00000000-0000-0000-0000-000000000000"
+      subscription_id = "12345678-1234-1234-1234-123456789012"
+    }
+  }
 }
 
 variables {
@@ -80,5 +87,33 @@ run "test_aws_cli_automatic" {
       replace(module.aks-cli["client"].aks_cli_command, "/\\s+/", " ") # normalize whitespace for comparison
     )) > 0
     error_message = "Actual: ${replace(module.aks-cli["client"].aks_cli_command, "/\\s+/", " ")}"
+  }
+}
+
+# Test case: Verify AKS CLI command does NOT include --node-osdisk-diskencryptionset-id when disk_encryption_set_name is null
+run "test_aks_cli_without_disk_encryption_set" {
+
+  command = apply
+
+  variables {
+    aks_cli_config_list = [
+      {
+        role                          = "client"
+        aks_name                      = "test-no-des"
+        sku_tier                      = "Standard"
+        use_aks_preview_cli_extension = true
+        default_node_pool = {
+          name       = "default"
+          node_count = 2
+          vm_size    = "Standard_D2s_v3"
+        }
+        dry_run = true
+      }
+    ]
+  }
+
+  assert {
+    condition     = !can(regex("--node-osdisk-diskencryptionset-id", module.aks-cli["client"].aks_cli_command))
+    error_message = "AKS CLI command should NOT include --node-osdisk-diskencryptionset-id when disk_encryption_set_name is not provided"
   }
 }
