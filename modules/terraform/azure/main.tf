@@ -33,9 +33,9 @@ locals {
 
   aks_cli_custom_config_path = "${path.cwd}/../../../scenarios/${var.scenario_type}/${var.scenario_name}/config/aks_custom_config.json"
 
-  all_subnets    = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
-  all_nics       = merge([for network in var.network_config_list : module.virtual_network[network.role].nics]...)
-  all_key_vaults = merge([for kv_name, kv in module.key_vault : { (kv_name) = kv.key_vaults }]...)
+  all_subnets              = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
+  all_nics                 = merge([for network in var.network_config_list : module.virtual_network[network.role].nics]...)
+  all_key_vaults           = merge([for kv_name, kv in module.key_vault : { (kv_name) = kv.key_vaults }]...)
   all_disk_encryption_sets = merge([for des_name, des in module.disk_encryption_set : { (des_name) = des.disk_encryption_set_id }]...)
   updated_aks_config_list = length(var.aks_config_list) > 0 ? [
     for aks in var.aks_config_list : merge(

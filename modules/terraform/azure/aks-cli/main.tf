@@ -296,8 +296,7 @@ resource "azurerm_role_assignment" "aks_identity_kms_roles" {
   principal_id         = azurerm_user_assigned_identity.userassignedidentity[0].principal_id
 }
 
-# Fetch AKS cluster to get kubelet identity for NAP/Karpenter role assignments
-# Only fetch when disk encryption is configured and not in dry_run mode
+# Fetch AKS cluster to get identities for DES role assignments
 data "azurerm_kubernetes_cluster" "aks" {
   count = var.aks_cli_config.disk_encryption_set_name != null && !var.aks_cli_config.dry_run ? 1 : 0
 
@@ -307,10 +306,8 @@ data "azurerm_kubernetes_cluster" "aks" {
   resource_group_name = var.resource_group_name
 }
 
-# Grant kubelet identity Reader access to Disk Encryption Set
-# Required for NAP/Karpenter to create VMs with encrypted OS disks
-# Error without this: "LinkedAuthorizationFailed" - does not have permission to perform 'Microsoft.Compute/diskEncryptionSets/read'
-resource "azurerm_role_assignment" "kubelet_des_reader" {
+# Grant Reader access to Disk Encryption Set for kubelet identity
+resource "azurerm_role_assignment" "des_reader_kubelet" {
   count = var.aks_cli_config.disk_encryption_set_name != null && !var.aks_cli_config.dry_run ? 1 : 0
 
   scope                = local.disk_encryption_set_id
@@ -318,11 +315,8 @@ resource "azurerm_role_assignment" "kubelet_des_reader" {
   principal_id         = data.azurerm_kubernetes_cluster.aks[0].kubelet_identity[0].object_id
 }
 
-# Grant cluster identity Reader access to Disk Encryption Set
-# Required for AKS control plane to read DES when creating VMs with encrypted OS disks
-# The kubelet identity alone is not sufficient - the cluster identity also needs this permission
-# Supports both user-assigned and system-assigned managed identities
-resource "azurerm_role_assignment" "cluster_identity_des_reader" {
+# Grant Reader access to Disk Encryption Set for cluster identity
+resource "azurerm_role_assignment" "des_reader_cluster" {
   count = var.aks_cli_config.disk_encryption_set_name != null && !var.aks_cli_config.dry_run ? 1 : 0
 
   scope                = local.disk_encryption_set_id
