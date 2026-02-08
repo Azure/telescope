@@ -86,6 +86,8 @@ firewall_config_list = [
               { port = "443", type = "Https" }
             ]
           }
+        ]
+      }
     ]
     network_rule_collections = [
       {
