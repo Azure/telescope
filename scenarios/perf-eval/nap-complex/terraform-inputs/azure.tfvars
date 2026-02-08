@@ -82,11 +82,18 @@ firewall_config_list = [
               { port = "80", type = "Http" },
               { port = "443", type = "Https" }
             ]
-          },
+          }
+        ]
+      },
+       {
+        name     = "allow-egress-fqdns"
+        priority = 110
+        action   = "Allow"
+        rules = [
           {
-            name             = "required-services-fqdn-tags"
+            name             = "required-services"
             source_addresses = ["*"]
-            fqdn_tags       = ["AzureContainerRegistry", "AzureKubernetesService","MicrosoftContainerRegistry","AzureLocal"]
+            fqdn_tags       = ["AzureCloud", "AzureKeyVault", "AzureContainerRegistry", "AzureKubernetesService","microsoftContainerRegistry"]
             protocols = [
               { port = "80", type = "Http" },
               { port = "443", type = "Https" }
