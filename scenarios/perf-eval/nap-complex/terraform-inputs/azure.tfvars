@@ -85,7 +85,7 @@ firewall_config_list = [
           }
         ]
       },
-       {
+      {
         name     = "allow-egress-fqdns"
         priority = 110
         action   = "Allow"
