@@ -130,36 +130,36 @@ steps:
     Method: GenericPrometheusQuery
     Params:
       action: gather
-- name: WaitBeforeDelete
-  measurements:
-  - Identifier: WaitBeforeDelete
-    Method: Sleep
-    Params:
-      action: start
-      duration: {{$coolDownTime}}
-- name: Delete deployment {{$i}}
-  phases:
-  - namespaceRange:
-      min: 1
-      max: 1
-    replicasPerNamespace: 0
-    tuningSet: Uniform1qps
-    objectBundle:
-    - basename: inflate
-      objectTemplatePath: {{$deploymentTemplatePath}}
-      templateFillMap:
-        Replicas: {{$deploymentSize}}
-        CPUperJob: {{$deploymentCpu}}
-        MemoryRequest: {{$deploymentMemory}}
-        OSType: {{$osType}}
-- name: Measure pods scale down {{$i}}
-  measurements:
-  - Identifier: WaitForRunningPodsDown {{$i}}
-    Method: WaitForRunningPods
-    Params:
-      action: start
-      desiredPodCount: 0
-      labelSelector: {{$podLabelSelector}}
-      timeout: {{$scaleDownTimeout}}
-      refreshInterval: {{$refreshInterval}}
+# - name: WaitBeforeDelete
+#   measurements:
+#   - Identifier: WaitBeforeDelete
+#     Method: Sleep
+#     Params:
+#       action: start
+#       duration: {{$coolDownTime}}
+# - name: Delete deployment {{$i}}
+#   phases:
+#   - namespaceRange:
+#       min: 1
+#       max: 1
+#     replicasPerNamespace: 0
+#     tuningSet: Uniform1qps
+#     objectBundle:
+#     - basename: inflate
+#       objectTemplatePath: {{$deploymentTemplatePath}}
+#       templateFillMap:
+#         Replicas: {{$deploymentSize}}
+#         CPUperJob: {{$deploymentCpu}}
+#         MemoryRequest: {{$deploymentMemory}}
+#         OSType: {{$osType}}
+# - name: Measure pods scale down {{$i}}
+#   measurements:
+#   - Identifier: WaitForRunningPodsDown {{$i}}
+#     Method: WaitForRunningPods
+#     Params:
+#       action: start
+#       desiredPodCount: 0
+#       labelSelector: {{$podLabelSelector}}
+#       timeout: {{$scaleDownTimeout}}
+#       refreshInterval: {{$refreshInterval}}
 {{end}}
