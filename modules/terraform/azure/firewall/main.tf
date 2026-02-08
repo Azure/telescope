@@ -129,7 +129,7 @@ resource "azurerm_firewall_application_rule_collection" "application_rules" {
       fqdn_tags        = lookup(rule.value, "fqdn_tags", null)
 
       dynamic "protocol" {
-        for_each = lookup(rule.value, "protocols", [])
+        for_each = rule.value.protocols != null ? rule.value.protocols : []
         content {
           port = protocol.value.port
           type = protocol.value.type
