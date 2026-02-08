@@ -73,6 +73,8 @@ firewall_config_list = [
               "packages.aks.azure.com", "mcr.microsoft.com",
               "*.mcr.microsoft.com",
               "*.data.mcr.microsoft.com",
+              "MicrosoftContainerRegistry",
+              "AzureContainerRegistry",
               "*.azurecr.io",
               "*.blob.core.windows.net",
               "*.hcp.eastus2.azmk8s.io",
