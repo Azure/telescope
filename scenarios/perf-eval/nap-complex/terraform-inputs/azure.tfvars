@@ -65,7 +65,7 @@ firewall_config_list = [
         rules = [
           {
             name             = "required-services"
-            source_addresses = ["*"]
+            source_addresses = ["10.128.0.0/11"]
             target_fqdns = ["*.azure.com", "*.azure.net",
               "*.windows.net", "*.azurecr.io", "*.ubuntu.com", "AzureKubernetesService",
               "mcr-0001.mcr-msedge.net", "*.microsoft.com",
@@ -97,21 +97,21 @@ firewall_config_list = [
         rules = [
           {
             name                  = "imds"
-            source_addresses      = ["*"]
+            source_addresses      = ["10.128.0.0/11"]
             destination_addresses = ["169.254.169.254"]
             destination_ports     = ["80"]
             protocols             = ["Any"]
           },
           {
             name                  = "dns"
-            source_addresses      = ["*"]
+            source_addresses      = ["10.128.0.0/11"]
             destination_addresses = ["*"]
             destination_ports     = ["53"]
             protocols             = ["UDP", "TCP"]
           },
           {
             name                  = "azure-and-web"
-            source_addresses      = ["*"]
+            source_addresses      = ["10.128.0.0/11"]
             destination_addresses = ["*"]
             destination_ports     = ["443"]
             protocols             = ["TCP", "UDP"]
