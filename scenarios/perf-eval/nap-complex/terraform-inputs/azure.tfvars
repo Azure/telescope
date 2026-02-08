@@ -84,6 +84,15 @@ firewall_config_list = [
               { port = "80", type = "Http" },
               { port = "443", type = "Https" }
             ]
+          },
+           {
+            name             = "required-services"
+            source_addresses = ["*"]
+            fqdn_tags = ["AzureContainerRegistry", "AzureKubernetesService","MicrosoftContainerRegistry"]
+            protocols = [
+              { port = "80", type = "Http" },
+              { port = "443", type = "Https" }
+            ]
           }
         ]
       }
