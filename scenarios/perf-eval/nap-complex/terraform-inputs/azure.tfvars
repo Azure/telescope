@@ -66,7 +66,7 @@ firewall_config_list = [
           {
             name             = "required-services"
             source_addresses = ["*"]
-            fqdn_tags       = ["AzureContainerRegistry", "AzureKubernetesService","MicrosoftContainerRegistry"]
+            fqdn_tags       = ["AzureContainerRegistry", "AzureKubernetesService","MicrosoftContainerRegistry","AzureLocal"]
             target_fqdns = ["*.azure.com", "*.azure.net",
               "*.windows.net", "*.azurecr.io", "*.ubuntu.com",
               "mcr-0001.mcr-msedge.net", "*.microsoft.com",
