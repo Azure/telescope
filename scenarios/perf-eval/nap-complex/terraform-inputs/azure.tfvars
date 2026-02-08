@@ -94,10 +94,6 @@ firewall_config_list = [
             name             = "required-services"
             source_addresses = ["*"]
             fqdn_tags       = ["AzureCloud", "AzureKeyVault", "AzureContainerRegistry", "AzureKubernetesService","microsoftContainerRegistry"]
-            protocols = [
-              { port = "80", type = "Http" },
-              { port = "443", type = "Https" }
-            ]
           }
         ]
       }
