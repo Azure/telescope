@@ -95,7 +95,7 @@ resource "azurerm_firewall_network_rule_collection" "network_rules" {
       destination_addresses = lookup(rule.value, "destination_addresses", null)
       destination_fqdns     = lookup(rule.value, "destination_fqdns", null)
       destination_ip_groups = lookup(rule.value, "destination_ip_groups", null)
-      protocols             = rule.value.protocols
+      protocols             = rule.value.protocols != null ? rule.value.protocols : []
     }
   }
 }
@@ -128,13 +128,13 @@ resource "azurerm_firewall_application_rule_collection" "application_rules" {
       target_fqdns     = lookup(rule.value, "target_fqdns", null)
       fqdn_tags        = lookup(rule.value, "fqdn_tags", null)
 
-      dynamic "protocol" {
-        for_each = lookup(rule.value, "protocols", [])
-        content {
-          port = protocol.value.port
-          type = protocol.value.type
+        dynamic "protocol" {
+          for_each = rule.value.protocols != null ? rule.value.protocols : []
+          content {
+            port = protocol.value.port
+            type = protocol.value.type
+          }
         }
-      }
     }
   }
 }
