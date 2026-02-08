@@ -71,12 +71,13 @@ firewall_config_list = [
               "mcr-0001.mcr-msedge.net", "*.microsoft.com",
               "*.microsoftonline.com", "*.microsoftonline.co", "*.azureedge.net",
               "packages.aks.azure.com", "mcr.microsoft.com",
+              "*.azmk8s.io",
+              "*.k8s.io",
+              "mcr.microsoft.com",
               "*.mcr.microsoft.com",
               "*.data.mcr.microsoft.com",
-              "MicrosoftContainerRegistry",
-              "AzureContainerRegistry",
               "*.azurecr.io",
-              "*.blob.core.windows.net",
+              "*.blob.core.windows.net", "*.blob.storage.azure.net",
               "*.hcp.eastus2.azmk8s.io",
               "management.azure.com",
             "login.microsoftonline.com"]
@@ -85,24 +86,6 @@ firewall_config_list = [
               { port = "443", type = "Https" }
             ]
           }
-        ]
-      },
-      {
-        name     = "allow-egress-fqdn"
-        priority = 110
-        action   = "Allow"
-        rules = [
-          {
-            name             = "required-services-fqdn"
-            source_addresses = ["*"]
-            fqdn_tags       = ["AzureKubernetesService", "MicrosoftContainerRegistry", "AzureContainerRegistry","AzureCloud"]
-            protocols = [
-              { port = "80", type = "Http" },
-              { port = "443", type = "Https" }
-            ]
-          }
-        ]
-      },
     ]
     network_rule_collections = [
       {
