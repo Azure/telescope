@@ -118,6 +118,10 @@ spec:
             - eastus2-1
             - eastus2-2
             - eastus2-3
+      startupTaints:
+        - effect: NoExecute
+          key: node.cilium.io/agent-not-ready
+          value: "true"
       taints:
         - effect: NoSchedule
           key: CriticalAddonsOnly
