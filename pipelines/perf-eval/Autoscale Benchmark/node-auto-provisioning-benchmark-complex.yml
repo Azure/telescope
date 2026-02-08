@@ -28,7 +28,7 @@ stages:
           topology: karpenter
           matrix:
             complex-nap:
-              pod_count: 100
+              pod_count: 500
               pod_cpu_request: 16
               pod_memory_request: "60Gi"
               scale_up_timeout: "900s" # 15 minutes
