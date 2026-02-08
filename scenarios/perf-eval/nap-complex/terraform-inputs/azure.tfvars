@@ -66,7 +66,6 @@ firewall_config_list = [
           {
             name             = "required-services"
             source_addresses = ["*"]
-            fqdn_tags       = ["AzureContainerRegistry", "AzureKubernetesService","MicrosoftContainerRegistry","AzureLocal"]
             target_fqdns = ["*.azure.com", "*.azure.net",
               "*.windows.net", "*.azurecr.io", "*.ubuntu.com",
               "mcr-0001.mcr-msedge.net", "*.microsoft.com",
@@ -79,6 +78,15 @@ firewall_config_list = [
               "*.hcp.eastus2.azmk8s.io",
               "management.azure.com",
             "login.microsoftonline.com"]
+            protocols = [
+              { port = "80", type = "Http" },
+              { port = "443", type = "Https" }
+            ]
+          },
+          {
+            name             = "required-services-fqdn-tags"
+            source_addresses = ["*"]
+            fqdn_tags       = ["AzureContainerRegistry", "AzureKubernetesService","MicrosoftContainerRegistry","AzureLocal"]
             protocols = [
               { port = "80", type = "Http" },
               { port = "443", type = "Https" }
