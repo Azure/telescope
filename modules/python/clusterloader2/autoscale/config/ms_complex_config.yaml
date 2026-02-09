@@ -16,8 +16,8 @@ name: autoscale
 namespace:
   number: 1
   prefix: autoscale
-  deleteStaleNamespaces: true
-  deleteAutomanagedNamespaces: true
+  deleteStaleNamespaces: false
+  deleteAutomanagedNamespaces: false
   enableExistingNamespaces: true
 
 tuningSets:
