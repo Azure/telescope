@@ -12,14 +12,14 @@ variables:
   SCENARIO_NAME: image-pull-n10
 
 stages:
-  - stage: azure_westus2_image_pull
+  - stage: azure_australiaeast_image_pull
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
-            - westus2
+            - australiaeast
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
