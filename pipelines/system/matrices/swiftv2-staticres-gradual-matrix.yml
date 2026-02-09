@@ -23,7 +23,7 @@ parameters:
   type: object
   default:
     pps=25_ppp=1_pods=14000_nodes=2000:
-      node_count: 2000
+      node_count: 3000
       pods_per_step: 25
       pods_per_pni: 1
       test_timeout: "2m"
