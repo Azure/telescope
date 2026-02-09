@@ -1,6 +1,7 @@
 steps:
-- script: |
-    kubectl delete --all nodeclaim --ignore-not-found
-    kubectl delete --all nodepool --ignore-not-found
-  displayName: "Delete NodeClaim and NodePool"
-  condition: always()
+  - script: |
+      # kubectl delete --all nodeclaim --ignore-not-found
+      # kubectl delete --all nodepool --ignore-not-found
+      echo "skip node claim and node pool cleanup for now, as we are going to use separate cluster for each test, and the cluster will be deleted after test, which will clean up the node claim and node pool as well"
+    displayName: "Delete NodeClaim and NodePool"
+    condition: always()
