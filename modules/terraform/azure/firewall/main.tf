@@ -29,6 +29,7 @@ resource "azurerm_firewall" "firewall" {
     subnet_id            = each.value.subnet_id
     public_ip_address_id = each.value.public_ip_address_id
   }
+  
 
 }
 
