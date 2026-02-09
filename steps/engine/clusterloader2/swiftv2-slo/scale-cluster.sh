@@ -14,6 +14,9 @@ set -euo pipefail
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 source "$SCRIPT_DIR/aks-utils.sh"
 
+# Set up signal traps for cancellation (uses handle_cancellation from common.sh)
+trap handle_cancellation SIGTERM SIGINT
+
 # Track whether kubeconfig has been initialized for this run
 KUBECONFIG_INITIALIZED=false
 
@@ -127,6 +130,11 @@ function scale_nodepool() {
     local scale_success=false
     
     while [ $scale_attempt -lt $max_scale_retries ] && [ "$scale_success" = false ]; do
+        if ! check_cancellation; then
+            log_warning "Pipeline cancelled during scale operation for nodepool '$nodepool'"
+            return 1
+        fi
+        
         scale_attempt=$((scale_attempt + 1))
         
         if [ $scale_attempt -gt 1 ]; then
@@ -380,6 +388,11 @@ function repair_failed_vms() {
     # Delete each failed instance with retry logic
     local deleted_instances=""
     for instance_id in $all_failed_instances; do
+        if ! check_cancellation; then
+            log_warning "Pipeline cancelled during VM repair"
+            return 1
+        fi
+        
         if [ -n "$instance_id" ]; then
             local retry_count=0
             local delete_success=false
@@ -536,6 +549,11 @@ function repair_unjoined_vms() {
     local deleted_instances=""
 
     for instance_id in $missing_ids; do
+        if ! check_cancellation; then
+            log_warning "Pipeline cancelled during unjoined VM repair"
+            return 1
+        fi
+        
         local retry_count=0
         local delete_success=false
 
@@ -589,6 +607,11 @@ function wait_for_vmss_replacement() {
     log_info "Waiting for $expected_replacements replacement VM instances to be provisioned..."
     
     while [ $elapsed -lt $max_wait_time ]; do
+        if ! check_cancellation; then
+            log_warning "Pipeline cancelled while waiting for VMSS replacement"
+            return 1
+        fi
+        
         # Check current instance count and their states
         local instance_info
         instance_info=$(az vmss list-instances \
@@ -637,12 +660,33 @@ function wait_for_vmss_replacement() {
 # Label a specific number of nodes with swiftv2slo=true across nodepools (batch operation)
 function label_swiftv2slo_nodes() {
     local total_nodes_to_label=$1
-    local max_retries=3
-    local retry_delay=30  # seconds between retries
 
-    log_info "Labeling $total_nodes_to_label nodes with swiftv2slo=true (max retries: $max_retries)..."
+    log_info "Labeling $total_nodes_to_label nodes with swiftv2slo=true..."
 
-    # Get ready nodes from user nodepools using kubectl label selector
+    # First, count nodes that are already labeled with swiftv2slo=true
+    local already_labeled_count=0
+    local already_labeled_output
+    if already_labeled_output=$(kubectl get nodes \
+        -l 'agentpool,agentpool!=promnodepool,swiftv2slo=true' \
+        -o json 2>&1); then
+        already_labeled_count=$(echo "$already_labeled_output" | jq -r '[.items[] |
+            select(.metadata.labels.agentpool | startswith("userpool")) |
+            select(.status.conditions[] | select(.type=="Ready" and .status=="True"))] | length' 2>/dev/null || echo "0")
+    fi
+    
+    log_info "Nodes already labeled with swiftv2slo=true: $already_labeled_count"
+    
+    # Calculate how many additional nodes need to be labeled
+    local nodes_needed=$((total_nodes_to_label - already_labeled_count))
+    
+    if [ "$nodes_needed" -le 0 ]; then
+        log_info "Already have $already_labeled_count labeled nodes (required: $total_nodes_to_label). No additional labeling needed."
+        return 0
+    fi
+    
+    log_info "Need to label $nodes_needed additional node(s) to reach target of $total_nodes_to_label"
+
+    # Get ready nodes from user nodepools that are NOT already labeled
     local kubectl_output
     if ! kubectl_output=$(kubectl get nodes \
         -l 'agentpool,agentpool!=promnodepool,!swiftv2slo' \
@@ -655,11 +699,15 @@ function label_swiftv2slo_nodes() {
     unlabeled_nodes=$(echo "$kubectl_output" | jq -r '.items[] |
             select(.metadata.labels.agentpool | startswith("userpool")) |
             select(.status.conditions[] | select(.type=="Ready" and .status=="True")) |
-            .metadata.name' | grep -v '^$' | head -n "$total_nodes_to_label")
+            .metadata.name' | grep -v '^$' | head -n "$nodes_needed")
 
-    # Check if we have any nodes
+    # Check if we have any nodes to label
     if [ -z "$unlabeled_nodes" ]; then
         log_warning "No unlabeled ready nodes found to label with swiftv2slo=true"
+        if [ "$already_labeled_count" -ge "$total_nodes_to_label" ]; then
+            return 0
+        fi
+        log_error "Insufficient nodes: have $already_labeled_count labeled, need $total_nodes_to_label"
         return 1
     fi
     
@@ -680,84 +728,30 @@ function label_swiftv2slo_nodes() {
     # Validate we have nodes to label
     if [ "$node_count" -eq 0 ]; then
         log_warning "No valid nodes to label"
+        if [ "$already_labeled_count" -ge "$total_nodes_to_label" ]; then
+            return 0
+        fi
         return 1
     fi
     
-    log_info "Found $node_count node(s) to label (requested: $total_nodes_to_label)"
+    log_info "Found $node_count unlabeled node(s) to label (need: $nodes_needed)"
     
-    # Attempt to label nodes with retries
-    local labeled_count=0
-    local -a failed_nodes=()
-    
-    for attempt in $(seq 1 $max_retries); do
-        log_info "Labeling attempt $attempt/$max_retries..."
-        
-        local attempt_labeled=0
-        local attempt_failed=0
-        local -a newly_failed=()
-        
-        # On first attempt, try all nodes. On subsequent attempts, retry only failed nodes.
-        local -a current_nodes
-        if [ $attempt -eq 1 ]; then
-            current_nodes=("${nodes_to_label[@]}")
-        else
-            current_nodes=("${failed_nodes[@]}")
-            log_info "Retrying ${#current_nodes[@]} previously failed node(s) after ${retry_delay}s delay..."
-            sleep $retry_delay
-        fi
-        
-        for node in "${current_nodes[@]}"; do
-            if kubectl label node "$node" swiftv2slo=true --overwrite 2>/dev/null; then
-                attempt_labeled=$((attempt_labeled + 1))
-                log_info "Successfully labeled node: $node (attempt $attempt)"
-            else
-                attempt_failed=$((attempt_failed + 1))
-                newly_failed+=("$node")
-                log_warning "Failed to label node: $node (attempt $attempt/$max_retries)"
-            fi
-        done
-        
-        # Update total labeled count
-        if [ $attempt -eq 1 ]; then
-            labeled_count=$attempt_labeled
-        else
-            # Add newly successful nodes to total
-            local recovered=$((${#current_nodes[@]} - attempt_failed))
-            labeled_count=$((labeled_count + recovered))
-        fi
-        
-        # Update failed nodes list for next retry
-        failed_nodes=("${newly_failed[@]}")
-        
-        log_info "Attempt $attempt complete: $attempt_labeled successful, $attempt_failed failed"
-        
-        # If all nodes are labeled, we're done
-        if [ ${#failed_nodes[@]} -eq 0 ]; then
-            log_info "All nodes successfully labeled after $attempt attempt(s)"
-            break
-        fi
-        
-        # If this was the last attempt, log final status
-        if [ $attempt -eq $max_retries ]; then
-            log_warning "Max retries ($max_retries) reached. ${#failed_nodes[@]} node(s) still failed to label"
-            log_warning "Failed nodes: ${failed_nodes[*]}"
-        fi
-    done
-    
-    local final_failed_count=${#failed_nodes[@]}
-    log_info "Labeling complete: $labeled_count successful, $final_failed_count failed (after $max_retries attempts)"
-    
-    if [ "$labeled_count" -eq 0 ]; then
-        log_error "Failed to label any nodes"
+    # Use common utility function with retry logic from aks-utils.sh
+    if ! label_nodes_with_retry "swiftv2slo=true" "${nodes_to_label[@]}"; then
+        log_error "Failed to label all nodes with swiftv2slo=true"
         return 1
     fi
     
-    if [ "$labeled_count" -lt "$total_nodes_to_label" ]; then
-        local missing=$((total_nodes_to_label - labeled_count))
-        log_error "Only labeled $labeled_count/$total_nodes_to_label nodes ($missing nodes missing)"
+    # Calculate total labeled nodes (already + newly labeled)
+    local total_labeled=$((already_labeled_count + node_count))
+    
+    if [ "$total_labeled" -lt "$total_nodes_to_label" ]; then
+        local missing=$((total_nodes_to_label - total_labeled))
+        log_error "Only have $total_labeled/$total_nodes_to_label labeled nodes ($missing nodes missing)"
         return 1
     fi
     
+    log_info "Successfully labeled $node_count new nodes with swiftv2slo=true (total labeled: $total_labeled)"
     return 0
 }
 
@@ -779,6 +773,11 @@ function verify_node_readiness() {
     
     # Poll for node readiness
     while [ $elapsed -lt $node_readiness_timeout ]; do
+        if ! check_cancellation; then
+            log_warning "Pipeline cancelled while verifying node readiness for '$nodepool'"
+            return 1
+        fi
+        
         local nodes_json
         if ! nodes_json=$(kubectl_get_nodes_json "agentpool=$nodepool"); then
             log_warning "kubectl unavailable while verifying readiness for '$nodepool'; retrying..." >&2
@@ -1021,6 +1020,11 @@ function scale_user_nodepools() {
     local scale_failures=0
     
     for nodepool in $usernodepools; do
+        if ! check_cancellation; then
+            log_warning "Pipeline cancelled before processing nodepool '$nodepool'"
+            return 1
+        fi
+        
         local pool_target=${TARGETS[$nodepool]}
         local current_nodes=${CURRENT_COUNTS[$nodepool]}
         
@@ -1105,6 +1109,11 @@ function handle_shortfall_with_vm_repair() {
 
     # Step 1: Repair failed VMs in all nodepools
     for nodepool in $usernodepools; do
+        if ! check_cancellation; then
+            log_warning "Pipeline cancelled before VM repair for nodepool '$nodepool'"
+            return 1
+        fi
+        
         log_info "--- VM repair for nodepool: '$nodepool' ---"
         
         log_info "Checking VM status for nodepool '$nodepool'..."
@@ -1136,10 +1145,19 @@ function handle_shortfall_with_vm_repair() {
     local retry_interval=120
     
     for attempt in $(seq 1 $max_retries); do
+        if ! check_cancellation; then
+            log_warning "Pipeline cancelled during node verification"
+            return 1
+        fi
+        
         log_info "Verification attempt $attempt/$max_retries (timeout: $((retry_timeout / 60)) minutes)..."
         
         local elapsed=0
         while [ $elapsed -lt $retry_timeout ]; do
+            if ! check_cancellation; then
+                log_warning "Pipeline cancelled while waiting for nodes"
+                return 1
+            fi
             local ready_nodes
             ready_nodes=$(get_total_ready_nodes "$aks_name" "$aks_rg")
             

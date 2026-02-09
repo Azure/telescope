@@ -1,0 +1,50 @@
+parameters:
+- name: cloud
+  type: string
+- name: regions
+  type: object
+- name: credential_type
+  type: string
+  default: service_connection
+- name: dependsOn
+  type: object
+  default: []
+
+jobs:
+- job: cleanup
+  dependsOn: ${{ parameters.dependsOn }}
+  displayName: 'Cleanup Resources'
+  condition: and(always(), eq(variables['CLEANUP'], 'true'))
+  timeoutInMinutes: 60
+  variables:
+    # Runtime expression to get BASE_RUN_ID from generate_run_id job output
+    # Must be defined here (not passed through parameters) for ADO to evaluate at runtime
+    BASE_RUN_ID: $[ dependencies.generate_run_id.outputs['set_run_id.BASE_RUN_ID'] ]
+  steps:
+  - script: |
+      # Set RESOURCE_GROUP_NAME from BASE_RUN_ID
+      if [ -z "${BASE_RUN_ID:-}" ]; then
+        echo "ERROR: BASE_RUN_ID not set"
+        exit 1
+      fi
+      RESOURCE_GROUP_NAME="$BASE_RUN_ID"
+      echo "Resource group to cleanup: $RESOURCE_GROUP_NAME"
+      echo "##vso[task.setvariable variable=RESOURCE_GROUP_NAME]$RESOURCE_GROUP_NAME"
+    displayName: "Set Resource Group Name"
+
+  - ${{ if eq(parameters.credential_type, 'service_connection') }}:
+    - task: AzureCLI@2
+      displayName: "Azure Login (Service Connection)"
+      inputs:
+        azureSubscription: $(AZURE_SERVICE_CONNECTION)
+        scriptType: bash
+        scriptLocation: inlineScript
+        addSpnToEnvironment: true
+        inlineScript: |
+          echo "Logged in via service connection"
+
+  - template: /steps/cleanup-resources.yml
+    parameters:
+      cloud: ${{ parameters.cloud }}
+      regions: ${{ parameters.regions }}
+      credential_type: ${{ parameters.credential_type }}

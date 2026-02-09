@@ -4,6 +4,7 @@ metadata:
   name: {{.Name}}
   labels:
     group: {{.Group}}
+    podgroup: {{.PodGroup}}
     kubernetes.azure.com/pod-network: pn100
     kubernetes.azure.com/pod-network-instance: {{.pniName}}
 spec:
@@ -19,6 +20,7 @@ spec:
         name: {{.Name}}
         group: {{.Group}}
         podgroup: {{.PodGroup}}
+        podgroup-job: {{.PodGroupJob}}
         kubernetes.azure.com/pod-network: pn100
         kubernetes.azure.com/pod-network-instance: {{.pniName}}
         restart: {{.deploymentLabel}}
