@@ -7,9 +7,9 @@ variables:
   AZURE_SERVICE_CONNECTION: "Azure-for-Telescope-internal"
   AZURE_STORAGE_ACCOUNT_NAME: "akstelescope"
   AZURE_TELESCOPE_STORAGE_ACCOUNT_NAME: "telescopedata"
-  LOCATION: "uksouth"
+  LOCATION: "canadacentral"
   CREATESWIFTV2PING: "true"
-  CLEANUP_RESOURCES: "true"
+  CLEANUP_RESOURCES: "false"
   K8S_VERSION: "1.33"
   PROVISION_BUFFER_NODES: "false"
   # Log Analytics are expensive - disable and delete after use
@@ -37,7 +37,7 @@ variables:
   cpu_per_node: 16
   # max_pods = PODS_PER_NODE + default k8s system pods (5) + log analytics pod (1 if ENABLE_LOG_ANALYTICS=true)
   # Current: 7 + 5 = 12 (increase to 13 if enabling Log Analytics)
-  max_pods: 12
+  max_pods: 13
   # Common matrix parameters
   repeats: 1
   node_label: "swiftv2slo=true"
@@ -101,7 +101,7 @@ stages:
           base_run_id: $(BASE_RUN_ID)
 
   - stage: dynamicres_gradual
-    condition: succeededOrFailed()
+    condition: false
     displayName: 'Dynamic Gradual'
     dependsOn: 
       - generate_base_run_id

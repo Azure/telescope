@@ -22,54 +22,12 @@ parameters:
 - name: matrix
   type: object
   default:
-    pps=35_ppp=1_pods=70_nodes=10:
-      node_count: 10
-      pods_per_step: 35
-      pods_per_pni: 1
-      test_timeout: "2m"
-      test_type: Gradual_StaticRes_PPS=35_PPP=1_Pods=70_Nodes=10
-      cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-    pps=50_ppp=1_pods=3500_nodes=500:
-      node_count: 500
-      pods_per_step: 50
-      pods_per_pni: 1
-      test_timeout: "2m"
-      test_type: Gradual_StaticRes_PPS=50_PPP=1_Pods=3500_Nodes=500
-      cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-    pps=50_ppp=1_pods=7000_nodes=1000:
-      node_count: 1000
-      pods_per_step: 50
-      pods_per_pni: 1
-      test_timeout: "2m"
-      test_type: Gradual_StaticRes_PPS=50_PPP=1_Pods=7000_Nodes=1000
-      cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-    pps=50_ppp=1_pods=14000_nodes=2000:
-      node_count: 2000
-      pods_per_step: 50
-      pods_per_pni: 1
-      test_timeout: "2m"
-      test_type: Gradual_StaticRes_PPS=50_PPP=1_Pods=14000_Nodes=2000
-      cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-    pps=50_ppp=1_pods=17500_nodes=2500:
-      node_count: 2500
-      pods_per_step: 50
-      pods_per_pni: 1
-      test_timeout: "2m"
-      test_type: Gradual_StaticRes_PPS=50_PPP=1_Pods=17500_Nodes=2500
-      cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-    pps=50_ppp=1_pods=21000_nodes=3000:
+    pps=25_ppp=1_pods=14000_nodes=2000:
       node_count: 3000
-      pods_per_step: 50
+      pods_per_step: 25
       pods_per_pni: 1
       test_timeout: "2m"
-      test_type: Gradual_StaticRes_PPS=50_PPP=1_Pods=21000_Nodes=3000
-      cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
-    pps=50_ppp=1_pods=35000_nodes=5000:
-      node_count: 5000
-      pods_per_step: 50
-      pods_per_pni: 1
-      test_timeout: "2m"
-      test_type: Gradual_StaticRes_PPS=50_PPP=1_Pods=35000_Nodes=5000
+      test_type: Gradual_StaticRes_PPS=25_PPP=1_Pods=14000_Nodes=2000
       cl2_config_file: swiftv2_deployment_staticres_scale_config.yaml
 
 jobs:
