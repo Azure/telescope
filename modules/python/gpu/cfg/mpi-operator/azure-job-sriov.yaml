@@ -1,7 +1,7 @@
 apiVersion: kubeflow.org/v2beta1
 kind: MPIJob
 metadata:
-  namespace: default
+  namespace: mpi-operator
   name: nccl-tests
   labels:
     app: nccl-tests
@@ -41,7 +41,6 @@ spec:
                     -np ${NUMBER_OF_PROCESSES} \
                     -bind-to none \
                     -x NCCL_NET_GDR_LEVEL="SYS" \
-                    -x NCCL_TOPO_FILE=/opt/nvidia-topology/topo.xml \
                     -x CUDA_DEVICE_ORDER=PCI_BUS_ID \
                     /opt/nccl_tests/build/all_reduce_perf \
                       -b 8 \
@@ -75,15 +74,7 @@ spec:
               volumeMounts:
                 - name: shmem
                   mountPath: /dev/shm
-                - name: nvidia-topology
-                  mountPath: /opt/nvidia-topology
           volumes:
             - name: shmem
               hostPath:
                 path: /dev/shm
-            - name: nvidia-topology
-              configMap:
-                name: nvidia-topology
-                items:
-                  - key: topo.xml
-                    path: topo.xml

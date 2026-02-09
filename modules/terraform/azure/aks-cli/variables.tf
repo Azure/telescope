@@ -56,17 +56,19 @@ variable "aks_cli_config" {
     api_server_subnet_name            = optional(string, false)
     enable_apiserver_vnet_integration = optional(bool, false)
     default_node_pool = optional(object({
-      name        = string
-      node_count  = number
-      vm_size     = string
-      vm_set_type = optional(string, "VirtualMachineScaleSets")
+      name         = string
+      node_count   = number
+      vm_size      = string
+      vm_set_type  = optional(string, "VirtualMachineScaleSets")
+      os_disk_type = optional(string, "Managed")
     }), null)
     extra_node_pool = optional(
       list(object({
-        name        = string
-        node_count  = number
-        vm_size     = string
-        vm_set_type = optional(string, "VirtualMachineScaleSets")
+        name         = string
+        node_count   = number
+        vm_size      = string
+        vm_set_type  = optional(string, "VirtualMachineScaleSets")
+        os_disk_type = optional(string, "Managed")
         optional_parameters = optional(list(object({ # Refer to https://learn.microsoft.com/en-us/cli/azure/aks/nodepool?view=azure-cli-latest#az-aks-nodepool-add(aks-preview) for available parameters
           name  = string
           value = string

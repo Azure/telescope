@@ -21,13 +21,13 @@ def install_mpi_operator(
     Install MPI Operator using Helm
 
     Args:
-        chart_version: Specific chart version to install
+        chart_version: Specific chart version to install (e.g., "0.5.0")
     """
     mpi_file = f"https://raw.githubusercontent.com/kubeflow/mpi-operator/{chart_version}/deploy/v2beta1/mpi-operator.yaml"
     KUBERNETES_CLIENT.apply_manifest_from_url(mpi_file)
     execute_with_retries(
         KUBERNETES_CLIENT.wait_for_pods_ready,
-        label_selector="app.kubernetes.io/name=mpi-operator",
+        label_selector="app=mpi-operator",
         namespace="mpi-operator",
         operation_timeout_in_minutes=5,
     )

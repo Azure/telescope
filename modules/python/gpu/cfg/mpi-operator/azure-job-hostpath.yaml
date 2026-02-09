@@ -1,7 +1,7 @@
 apiVersion: kubeflow.org/v2beta1
 kind: MPIJob
 metadata:
-  namespace: default
+  namespace: mpi-operator
   name: nccl-tests
   labels:
     app: nccl-tests
@@ -21,19 +21,9 @@ spec:
           restartPolicy: OnFailure
           containers:
             - name: nccl-launcher
-              image: public.ecr.aws/hpc-cloud/nccl-tests:{{nccl_tests_version}}
+              image: telescope.azurecr.io/aks-rdma-infiniband/nccl-tests:{{nccl_tests_version}}
               imagePullPolicy: IfNotPresent
               env:
-                - name: PATH
-                  value: $PATH:/opt/amazon/efa/bin:/usr/bin
-                - name: LD_LIBRARY_PATH
-                  value: /opt/amazon/openmpi/lib:/opt/nccl/build/lib:/opt/amazon/efa/lib:/opt/aws-ofi-nccl/install/lib:/usr/local/nvidia/lib:$LD_LIBRARY_PATH
-                - name: NCCL_BUFFSIZE
-                  value: "8388608"
-                - name: NCCL_P2P_NET_CHUNKSIZE
-                  value: "524288"
-                - name: NCCL_TUNER_PLUGIN
-                  value: /opt/aws-ofi-nccl/install/lib/libnccl-ofi-tuner.so
                 - name: OMPI_ALLOW_RUN_AS_ROOT
                   value: "1"
                 - name: OMPI_ALLOW_RUN_AS_ROOT_CONFIRM
@@ -45,27 +35,25 @@ spec:
                 - -c
               args:
                 - |
-                  /opt/amazon/openmpi/bin/mpirun \
+                  set -xe
+                  until mpirun -np ${NUMBER_OF_PROCESSES} -x LD_LIBRARY_PATH -bind-to none /usr/bin/nvidia-smi -L 2>/dev/null; do sleep 5; done
+                  mpirun \
                     -np ${NUMBER_OF_PROCESSES} \
                     -bind-to none \
-                    -x PATH \
-                    -x LD_LIBRARY_PATH \
-                    -x NCCL_BUFFSIZE \
-                    -x NCCL_P2P_NET_CHUNKSIZE \
-                    -x NCCL_TUNER_PLUGIN \
-                    -x FI_EFA_USE_DEVICE_RDMA=1 \
-                    -x RDMAV_FORK_SAFE=1 \
-                    --mca pml ^cm,ucx \
-                    --mca btl tcp,self \
-                    --mca btl_tcp_if_exclude lo,docker0,veth_def_agent \
-                    /opt/nccl-tests/build/all_reduce_perf \
+                    -x CUDA_DEVICE_ORDER=PCI_BUS_ID \
+                    -x NCCL_NET_GDR_LEVEL=SYS \
+                    -x NCCL_IB_DISABLE=0 \
+                    -x NCCL_SHM_DISABLE=1 \
+                    -x NCCL_NVLS_ENABLE=1 \
+                    -x NCCL_MNNVL_ENABLE=0 \
+                    /opt/nccl_tests/build/all_reduce_perf \
                       -b 8 \
                       -e 8G \
                       -f 2 \
                       -g 1 \
                       -n 40
     Worker:
-      replicas: {{replicas}}
+      replicas: {{worker_replicas}}
       template:
         metadata:
           labels:
@@ -74,19 +62,24 @@ spec:
         spec:
           containers:
             - name: nccl-worker
-              image: public.ecr.aws/hpc-cloud/nccl-tests:{{nccl_tests_version}}
+              image: telescope.azurecr.io/aks-rdma-infiniband/nccl-tests:{{nccl_tests_version}}
               imagePullPolicy: IfNotPresent
               resources:
                 limits:
                   nvidia.com/gpu: {{gpu_allocatable}}
-                  vpc.amazonaws.com/efa: {{efa_allocatable}}
                 requests:
                   nvidia.com/gpu: {{gpu_allocatable}}
-                  vpc.amazonaws.com/efa: {{efa_allocatable}}
+              securityContext:
+                privileged: true
               volumeMounts:
                 - name: shmem
                   mountPath: /dev/shm
+                - name: infiniband
+                  mountPath: /dev/infiniband
           volumes:
             - name: shmem
               hostPath:
                 path: /dev/shm
+            - name: infiniband
+              hostPath:
+                path: /dev/infiniband

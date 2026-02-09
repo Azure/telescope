@@ -15,17 +15,19 @@ variable "json_input" {
     public_key_path                   = optional(string, null)
 
     aks_cli_system_node_pool = optional(object({
-      name        = string
-      node_count  = number
-      vm_size     = string
-      vm_set_type = string
+      name         = string
+      node_count   = number
+      vm_size      = string
+      vm_set_type  = string
+      os_disk_type = optional(string, "Managed")
     }))
     aks_cli_user_node_pool = optional(
       list(object({
-        name        = string
-        node_count  = number
-        vm_size     = string
-        vm_set_type = string
+        name         = string
+        node_count   = number
+        vm_size      = string
+        vm_set_type  = string
+        os_disk_type = optional(string, "Managed")
         optional_parameters = optional(list(object({
           name  = string
           value = string
@@ -418,17 +420,19 @@ variable "aks_cli_config_list" {
     enable_apiserver_vnet_integration = optional(bool, false)
 
     default_node_pool = optional(object({
-      name        = string
-      node_count  = number
-      vm_size     = string
-      vm_set_type = optional(string, "VirtualMachineScaleSets")
+      name         = string
+      node_count   = number
+      vm_size      = string
+      vm_set_type  = optional(string, "VirtualMachineScaleSets")
+      os_disk_type = optional(string, "Managed")
     }), null)
     extra_node_pool = optional(
       list(object({
-        name        = string
-        node_count  = number
-        vm_size     = string
-        vm_set_type = optional(string, "VirtualMachineScaleSets")
+        name         = string
+        node_count   = number
+        vm_size      = string
+        vm_set_type  = optional(string, "VirtualMachineScaleSets")
+        os_disk_type = optional(string, "Managed")
         optional_parameters = optional(list(object({
           name  = string
           value = string

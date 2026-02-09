@@ -39,8 +39,6 @@ spec:
           values:
             - "Standard_D96ds_v5"
             - "Standard_D96d_v5"
-            - "Standard_D96_v5"
-            - "Standard_D96s_v5"
         - key: topology.kubernetes.io/zone
           operator: In
           values:
@@ -76,7 +74,7 @@ spec:
           values: ["spot"]
         - key: karpenter.azure.com/sku-name
           operator: In
-          values: [Standard_D2_v5]
+          values: [Standard_D16s_v5]
 ---
 apiVersion: karpenter.sh/v1
 kind: NodePool
@@ -114,18 +112,15 @@ spec:
         - key: karpenter.azure.com/sku-name
           operator: In
           values:
-            - Standard_D16_v3
+            - Standard_D16s_v5
         - key: topology.kubernetes.io/zone
           operator: In
           values:
             - eastus2-1
             - eastus2-2
             - eastus2-3
-      startupTaints:
-        - effect: NoExecute
-          key: node.cilium.io/agent-not-ready
-          value: "true"
       taints:
         - effect: NoSchedule
           key: CriticalAddonsOnly
           value: "true"
+# TODO: enable cilium when it is fixed
