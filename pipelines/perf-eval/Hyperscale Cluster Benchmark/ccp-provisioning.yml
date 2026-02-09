@@ -14,7 +14,7 @@ variables:
   SCENARIO_NAME: hyperscale-cluster
 
 stages:
-  - stage: azure_H2 # 16 cores
+  - stage: azure_baseline # default ccp control plan
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -25,12 +25,12 @@ stages:
           topology: hyperscale-cluster
           engine: noop # This pipeline only measures cluster provisioning time so no specific benchmark engine is needed
           matrix:
-            H2_tier:
-              ccp_tier: "H2"
+            baseline:
+              ccp_tier: "baseline"
           max_parallel: 1
           credential_type: service_connection
           ssh_key_enabled: false
-          timeout_in_minutes: 180
+          timeout_in_minutes: 60
 
   - stage: azure_H4 # 32 cores
     dependsOn: []
@@ -48,7 +48,7 @@ stages:
           max_parallel: 1
           credential_type: service_connection
           ssh_key_enabled: false
-          timeout_in_minutes: 180
+          timeout_in_minutes: 60
 
   - stage: azure_H8 # 64 cores
     dependsOn: []
@@ -66,4 +66,4 @@ stages:
           max_parallel: 1
           credential_type: service_connection
           ssh_key_enabled: false
-          timeout_in_minutes: 180
+          timeout_in_minutes: 60

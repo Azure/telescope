@@ -27,30 +27,43 @@ steps:
     fi
 
     # Compare with expected cores based on CCP tier
-    CCP_TIER="$(ccp_tier)"
     echo "CCP Tier: $CCP_TIER"
 
-    # Skip comparison for H2 tier
-    if [ "$CCP_TIER" = "H2" ]; then
-      echo "Skipping GOMAXPROCS comparison for tier H2"
-      exit 0
+    if [ -z "$GOMAXPROCS" ]; then
+      echo "##vso[task.logissue type=error]GOMAXPROCS is not set, cannot validate"
+      exit 1
     fi
 
+    # Baseline: GOMAXPROCS should be less than 15
+    if [ "$CCP_TIER" = "baseline" ]; then
+      if [ "$GOMAXPROCS" -lt 15 ]; then
+        echo "GOMAXPROCS ($GOMAXPROCS) is less than 15 as expected for baseline tier"
+        exit 0
+      else
+        echo "##vso[task.logissue type=error]GOMAXPROCS mismatch: expected less than 15, got $GOMAXPROCS for baseline tier"
+        exit 1
+      fi
+    fi
+
+    # H* tiers: compare with expected values
     case "$CCP_TIER" in
+      H2) EXPECTED_CORES=15 ;;
       H4) EXPECTED_CORES=25 ;;
       H8) EXPECTED_CORES=54 ;;
       *)  EXPECTED_CORES="" ;;
     esac
 
-    if [ -n "$EXPECTED_CORES" ] && [ -n "$GOMAXPROCS" ]; then
+    if [ -n "$EXPECTED_CORES" ]; then
       if [ "$GOMAXPROCS" -ne "$EXPECTED_CORES" ]; then
-      echo "##vso[task.logissue type=error]GOMAXPROCS mismatch: expected $EXPECTED_CORES, got $GOMAXPROCS for tier $CCP_TIER"
-      exit 1
+        echo "##vso[task.logissue type=error]GOMAXPROCS mismatch: expected $EXPECTED_CORES, got $GOMAXPROCS for tier $CCP_TIER"
+        exit 1
       else
-      echo "GOMAXPROCS matches expected cores $EXPECTED_CORES for tier $CCP_TIER"
+        echo "GOMAXPROCS matches expected cores $EXPECTED_CORES for tier $CCP_TIER"
       fi
     else
-      echo "##vso[task.logissue type=error]Could not compare: EXPECTED_CORES=${EXPECTED_CORES:-unset}, GOMAXPROCS=${GOMAXPROCS:-unset}"
+      echo "##vso[task.logissue type=error]Unknown CCP tier: $CCP_TIER"
       exit 1
     fi
   displayName: 'Validate API Server CPU Cores'
+  env:
+    CCP_TIER: $(ccp_tier)
