@@ -3,7 +3,13 @@ locals {
   resolved_firewall_config_map = {
     for fw in var.firewall_config_list : fw.name => merge(fw, {
       subnet_id            = try(var.subnets_map[fw.subnet_name], null)
-      public_ip_address_id = try(var.public_ips_map[fw.public_ip_name].id, null)
+      # When count > 1, public IPs are named {name}-1, {name}-2, etc.
+      # When count == 1, the public IP uses the base name as-is.
+      public_ip_address_id = fw.public_ip_count > 1 ? try(var.public_ips_map["${fw.public_ip_name}-1"].id, null) : try(var.public_ips_map[fw.public_ip_name].id, null)
+      additional_public_ip_ids = fw.public_ip_count > 1 ? [
+        for i in range(2, fw.public_ip_count + 1) :
+        try(var.public_ips_map["${fw.public_ip_name}-${i}"].id, null)
+      ] : []
     })
   }
 
@@ -28,6 +34,14 @@ resource "azurerm_firewall" "firewall" {
     name                 = each.value.ip_configuration_name
     subnet_id            = each.value.subnet_id
     public_ip_address_id = each.value.public_ip_address_id
+  }
+
+  dynamic "ip_configuration" {
+    for_each = each.value.additional_public_ip_ids
+    content {
+      name                 = "${each.value.ip_configuration_name}-${ip_configuration.key + 2}"
+      public_ip_address_id = ip_configuration.value
+    }
   }
   
 

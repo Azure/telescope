@@ -1,13 +1,13 @@
 # cluster configuration for Morgan Stanley
 scenario_type  = "perf-eval"
 scenario_name  = "nap-complex"
-deletion_delay = "48h"
+deletion_delay = "1h"
 owner          = "aks"
 
 public_ip_config_list = [
   {
     name  = "firewall-pip"
-    count = 1
+    count = 3
   }
 ]
 
@@ -54,6 +54,7 @@ firewall_config_list = [
     sku_tier              = "Standard"
     subnet_name           = "AzureFirewallSubnet"
     public_ip_name        = "firewall-pip"
+    public_ip_count       = 3
     threat_intel_mode     = "Alert"
     dns_proxy_enabled     = true
     ip_configuration_name = "nap-fw-ipconfig"
