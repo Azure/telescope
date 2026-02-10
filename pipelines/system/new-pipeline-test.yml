@@ -1,4 +1,11 @@
 trigger: none
+schedules:
+  - cron: "0 */4 * * *"
+    displayName: "Every 4 Hour"
+    branches:
+      include:
+        - main
+    always: true
 
 variables:
   SCENARIO_TYPE: perf-eval
@@ -20,7 +27,7 @@ stages:
           matrix:
             image-pull-10pods-anonymous:
               node_count: 1000
-              max_pods: 3000
+              max_pods: 10
               repeats: 1
               operation_timeout: 5m
               load_type: memory
@@ -28,9 +35,9 @@ stages:
               scrape_kubelets: False
               scrape_registry: True
               containerd_scrape_interval: 30s
-              registry_endpoint: vlinperftestdf.azurecr-test.io
+              registry_endpoint: acrperftestaue.azurecr-test.io
               kubernetes_version: "1.34"
-              pod_startup_latency_threshold: 60s
+              pod_startup_latency_threshold: 1m
               anonymous_pull: True
           max_parallel: 1
           credential_type: service_connection

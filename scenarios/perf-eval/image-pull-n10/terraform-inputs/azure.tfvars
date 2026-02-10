@@ -23,7 +23,7 @@ network_config_list = [
 aks_config_list = [
   {
     role        = "client"
-    aks_name    = "img-pull-1000-5gb-v3"
+    aks_name    = "img-pull-1000-5gb-v4"
     dns_prefix  = "imgpull"
     subnet_name = "imgpull-vnet"
     sku_tier    = "Standard"
@@ -47,7 +47,7 @@ aks_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D4ds_v5"
+        vm_size              = "Standard_D8ds_v5"
         os_disk_type         = "Managed"
         node_labels          = { "prometheus" = "true" }
       },
