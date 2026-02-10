@@ -1,5 +1,13 @@
 trigger: none
 
+schedules:
+  - cron: "0 5 * * *"
+    displayName: "Nightly run at 9 PM PST"
+    branches:
+      include:
+        - shreyash/singularityscaletest
+    always: true
+
 variables:
   # Cleanup control - set to false to keep resources after pipeline completes
   CLEANUP: "true"
@@ -13,7 +21,7 @@ variables:
   AZURE_SERVICE_CONNECTION: "Azure-for-Telescope-internal"
   AZURE_STORAGE_ACCOUNT_NAME: "akstelescope"
   AZURE_TELESCOPE_STORAGE_ACCOUNT_NAME: "telescopedata"
-  LOCATION: "uksouth"
+  LOCATION: "canadacentral"
   CREATESWIFTV2PING: "true"
   K8S_VERSION: "1.33"
   PROVISION_BUFFER_NODES: "false"
@@ -87,7 +95,7 @@ stages:
             - azure
 
   - stage: dynamicres_gradual
-    condition: succeededOrFailed()
+    condition: false
     displayName: 'Dynamic Gradual'
     dependsOn: 
       - staticres_gradual
