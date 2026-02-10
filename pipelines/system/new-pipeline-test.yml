@@ -26,18 +26,18 @@ stages:
           topology: image-pull
           matrix:
             image-pull-10pods-anonymous:
-              node_count: 10
-              max_pods: 30
+              node_count: 1000
+              max_pods: 3000
               repeats: 1
-              operation_timeout: 3m
+              operation_timeout: 5m
               load_type: memory
               scrape_containerd: True
               scrape_kubelets: True
               scrape_registry: True
               containerd_scrape_interval: 15s
-              registry_endpoint: vlinperftestdfaue.azurecr-test.io
+              registry_endpoint: vlinperftestdf.azurecr-test.io
               kubernetes_version: "1.34"
-              pod_startup_latency_threshold: 20s
+              pod_startup_latency_threshold: 60s
               anonymous_pull: True
           max_parallel: 1
           credential_type: service_connection
