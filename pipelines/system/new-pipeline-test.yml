@@ -26,7 +26,7 @@ stages:
           topology: image-pull
           matrix:
             image-pull-10pods-anonymous:
-              node_count: 1000
+              node_count: 10
               max_pods: 10
               repeats: 1
               operation_timeout: 5m
