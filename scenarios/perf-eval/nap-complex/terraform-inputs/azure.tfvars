@@ -229,6 +229,10 @@ aks_cli_config_list = [
       {
         name  = "enable-image-cleaner"
         value = ""
+      },
+      {
+        name  = "enable-apiserver-vnet-integration"
+        value = ""
       }
       # TODO: enable private cluster + jumpbox , enable cilium once it is fixed
     ]
