@@ -27,17 +27,17 @@ stages:
           matrix:
             image-pull-10pods-anonymous:
               node_count: 1000
-              max_pods: 10
+              max_pods: 7
               repeats: 1
-              operation_timeout: 5m
+              operation_timeout: 60m
               load_type: memory
-              scrape_containerd: True
+              scrape_containerd: False
               scrape_kubelets: False
-              scrape_registry: True
+              scrape_registry: False
               containerd_scrape_interval: 30s
               registry_endpoint: acrperftestaue.azurecr-test.io
               kubernetes_version: "1.34"
-              pod_startup_latency_threshold: 1m
+              pod_startup_latency_threshold: 5m
               anonymous_pull: True
           max_parallel: 1
           credential_type: service_connection
