@@ -141,14 +141,13 @@ network_config_list = [
 
 aks_cli_config_list = [
   {
-    role                              = "nap"
-    aks_name                          = "nap-complex"
-    sku_tier                          = "standard"
-    subnet_name                       = "nap-subnet-ms"
-    managed_identity_name             = "nap-identity"
-    kubernetes_version                = "1.33"
-    api_server_subnet_name            = "apiserver-subnet"
-    enable_apiserver_vnet_integration = true
+    role                   = "nap"
+    aks_name               = "nap-complex"
+    sku_tier               = "standard"
+    subnet_name            = "nap-subnet-ms"
+    managed_identity_name  = "nap-identity"
+    kubernetes_version     = "1.33"
+    api_server_subnet_name = "apiserver-subnet"
     kms_config = {
       key_name       = "kms-nap"
       key_vault_name = "akskms"
