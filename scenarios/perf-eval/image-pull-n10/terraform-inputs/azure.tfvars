@@ -23,7 +23,7 @@ network_config_list = [
 aks_config_list = [
   {
     role        = "client"
-    aks_name    = "img-pull-10-5gb-v7"
+    aks_name    = "img-pull-1000-4gb-v8"
     dns_prefix  = "imgpull"
     subnet_name = "imgpull-vnet"
     sku_tier    = "Standard"
@@ -54,7 +54,7 @@ aks_config_list = [
       },
       {
         name                 = "userpool"
-        node_count           = 10
+        node_count           = 1000
         auto_scaling_enabled = false
         vm_size              = "Standard_D4ds_v5"
         os_disk_type         = "Managed"
