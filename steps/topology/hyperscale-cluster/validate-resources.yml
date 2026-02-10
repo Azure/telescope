@@ -1,0 +1,69 @@
+parameters:
+- name: cloud
+  type: string
+- name: engine
+  type: string
+- name: regions
+  type: object
+
+steps:
+- template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
+  parameters:
+    role: client
+    region: ${{ parameters.regions[0] }}
+
+- script: |
+    echo "Checking API server GOMAXPROCS (max CPU cores available)..."
+    GOMAXPROCS_LINE=$(kubectl get --raw /metrics | grep '^go_sched_gomaxprocs_threads')
+    echo "Raw metric line:"
+    echo "$GOMAXPROCS_LINE"
+    GOMAXPROCS=$(echo "$GOMAXPROCS_LINE" | awk '{print $2}')
+    echo "API server GOMAXPROCS: $GOMAXPROCS"
+    if [ -z "$GOMAXPROCS" ]; then
+      echo "##vso[task.logissue type=warning]Could not retrieve GOMAXPROCS metric"
+    else
+      echo "##vso[task.setvariable variable=API_SERVER_CORES]$GOMAXPROCS"
+      echo "API server can use up to $GOMAXPROCS CPU cores"
+    fi
+
+    # Compare with expected cores based on CCP tier
+    echo "CCP Tier: $CCP_TIER"
+
+    if [ -z "$GOMAXPROCS" ]; then
+      echo "##vso[task.logissue type=error]GOMAXPROCS is not set, cannot validate"
+      exit 1
+    fi
+
+    # Baseline: GOMAXPROCS should be less than 15
+    if [ "$CCP_TIER" = "baseline" ]; then
+      if [ "$GOMAXPROCS" -lt 15 ]; then
+        echo "GOMAXPROCS ($GOMAXPROCS) is less than 15 as expected for baseline tier"
+        exit 0
+      else
+        echo "##vso[task.logissue type=error]GOMAXPROCS mismatch: expected less than 15, got $GOMAXPROCS for baseline tier"
+        exit 1
+      fi
+    fi
+
+    # H* tiers: compare with expected values
+    case "$CCP_TIER" in
+      H2) EXPECTED_CORES=15 ;;
+      H4) EXPECTED_CORES=25 ;;
+      H8) EXPECTED_CORES=54 ;;
+      *)  EXPECTED_CORES="" ;;
+    esac
+
+    if [ -n "$EXPECTED_CORES" ]; then
+      if [ "$GOMAXPROCS" -ne "$EXPECTED_CORES" ]; then
+        echo "##vso[task.logissue type=error]GOMAXPROCS mismatch: expected $EXPECTED_CORES, got $GOMAXPROCS for tier $CCP_TIER"
+        exit 1
+      else
+        echo "GOMAXPROCS matches expected cores $EXPECTED_CORES for tier $CCP_TIER"
+      fi
+    else
+      echo "##vso[task.logissue type=error]Unknown CCP tier: $CCP_TIER"
+      exit 1
+    fi
+  displayName: 'Validate API Server CPU Cores'
+  env:
+    CCP_TIER: $(ccp_tier)

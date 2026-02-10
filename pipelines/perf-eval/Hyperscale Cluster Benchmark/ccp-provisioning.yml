@@ -1,0 +1,69 @@
+trigger: none
+
+schedules:
+  - cron: "0 0,6,12,18 * * *"
+    displayName: "Run 4 times daily"
+    branches:
+      include:
+        - main
+    always: true
+    batch: false
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: hyperscale-cluster
+
+stages:
+  - stage: azure_baseline # default ccp control plan
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - australiaeast
+          topology: hyperscale-cluster
+          engine: noop # This pipeline only measures cluster provisioning time so no specific benchmark engine is needed
+          matrix:
+            baseline:
+              ccp_tier: "baseline"
+          max_parallel: 1
+          credential_type: service_connection
+          ssh_key_enabled: false
+          timeout_in_minutes: 60
+
+  - stage: azure_H4 # 32 cores
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - uksouth
+          topology: hyperscale-cluster
+          engine: noop # This pipeline only measures cluster provisioning time so no specific benchmark engine is needed
+          matrix:
+            H4_tier:
+              ccp_tier: "H4"
+          max_parallel: 1
+          credential_type: service_connection
+          ssh_key_enabled: false
+          timeout_in_minutes: 60
+
+  - stage: azure_H8 # 64 cores
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - northeurope
+          topology: hyperscale-cluster
+          engine: noop
+          matrix:
+            H8_tier:
+              ccp_tier: "H8"
+          max_parallel: 1
+          credential_type: service_connection
+          ssh_key_enabled: false
+          timeout_in_minutes: 60
