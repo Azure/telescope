@@ -33,7 +33,7 @@ spec:
       - name: resource-consumer-memory
         imagePullPolicy: IfNotPresent
         {{if eq $OSType "windows"}}
-        image: {{$RegistryEndpoint}}/acrperftest5gb:latest-windows-amd64-ltsc2022
+        image: {{$RegistryEndpoint}}/pytorch/pytorch:latest-windows-amd64-ltsc2022
         command:
           - testlimit.exe
         args:
@@ -47,9 +47,9 @@ spec:
           - "1"
         {{else}}
           {{if eq $Provider "aks"}}
-        image: {{$RegistryEndpoint}}/acrperftest5gb:latest
+        image: {{$RegistryEndpoint}}/acrperpytorch/pytorchftest5gb:latest
           {{else}}
-        image: registry.k8s.io/acrperftest5gb:latest
+        image: registry.k8s.io/pytorch/pytorch:latest
           {{end}}
         command:
           - stress
@@ -71,14 +71,14 @@ spec:
       - name: resource-consumer-cpu
         imagePullPolicy: IfNotPresent
         {{if eq $OSType "windows"}}
-        image: {{$RegistryEndpoint}}/acrperftest5gb:latest-windows-amd64-ltsc2022
+        image: {{$RegistryEndpoint}}/pytorch/pytorch:latest-windows-amd64-ltsc2022
         command:
           - /consume-cpu/consume-cpu.exe
         {{else}}
           {{if eq $Provider "aks"}}
-        image: {{$RegistryEndpoint}}/acrperftest5gb:latest
+        image: {{$RegistryEndpoint}}/pytorch/pytorch:latest
           {{else}}
-        image: registry.k8s.io/acrperftest5gb:latest
+        image: registry.k8s.io/pytorch/pytorch:latest
           {{end}}
         command:
           - /consume-cpu/consume-cpu
