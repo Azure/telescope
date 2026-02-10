@@ -1,11 +1,4 @@
 trigger: none
-schedules:
-  - cron: "0 */4 * * *"
-    displayName: "Every 4 Hour"
-    branches:
-      include:
-        - main
-    always: true
 
 variables:
   SCENARIO_TYPE: perf-eval
