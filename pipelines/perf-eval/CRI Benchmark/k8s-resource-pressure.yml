@@ -5,24 +5,10 @@ parameters:
     displayName: "Use Custom Kubelet Flags?"
     type: boolean
     default: true
-  - name: custom_kubelet_config
-    displayName: "Custom Kubelet Config Object"
-    type: object  # The parameter type is object
-    default:  # Default value is an object with nested properties
-      eviction-hard:
-        memory.available: "200Mi"
-        pid.available: "2000"
-      eviction-soft:
-        memory.available: "400Mi"
-        pid.available: "3000"
-      eviction-soft-grace-period:
-        memory.available: "1m"
-        pid.available: "1m"
 
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: k8s-node-stress
-  custom_kubelet_config_json: ${{ convertToJson(parameters.custom_kubelet_config) }}
 
 stages:
   - stage: azure_westus2_stress_baseline_1_34
