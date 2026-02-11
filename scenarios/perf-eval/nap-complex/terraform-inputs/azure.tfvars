@@ -41,25 +41,13 @@ network_config_list = [
         address_prefix = "10.240.0.0/16"
       },
       {
-        name           = "jumpbox-subnet"
-        address_prefix = "10.224.0.0/12"
-      },
-      {
         name           = "AzureFirewallSubnet"
         address_prefix = "10.193.0.0/26"
       }
     ]
     network_security_group_name = ""
-    nic_public_ip_associations = [
-      {
-        nic_name              = "jumpbox-nic"
-        subnet_name           = "jumpbox-subnet"
-        ip_configuration_name = "jumpbox-ipconfig"
-        public_ip_name        = "jumpbox-pip"
-        count                 = 1
-      }
-    ]
-    nsr_rules = []
+    nic_public_ip_associations  = []
+    nsr_rules                   = []
   }
 ]
 
@@ -265,12 +253,12 @@ aks_cli_config_list = [
         value = ""
       },
       {
-        name  = "outbound-type"
-        value = "userDefinedRouting"
-      },
-      {
         name  = "enable-workload-identity"
         value = ""
+      },
+      {
+        name  = "outbound-type"
+        value = "userDefinedRouting"
       },
       {
         name  = "enable-addons"
@@ -286,28 +274,5 @@ aks_cli_config_list = [
       }
       # TODO: enable private cluster + jumpbox , enable cilium once it is fixed
     ]
-  }
-]
-
-vm_config_list = [
-  {
-    role     = "nap"
-    name     = "my-jumpbox"
-    vm_size  = "Standard_D4s_v3"
-    nic_name = "jumpbox-nic"
-    aks_name = "nap-complex"
-    nsg = {
-      enabled = true
-      rules = [
-        {
-          name                   = "AllowSSH"
-          priority               = 100
-          destination_port_range = "22"
-        }
-      ]
-    }
-    vm_tags = {
-      jumpbox = "true"
-    }
   }
 ]

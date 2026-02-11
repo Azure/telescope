@@ -25,9 +25,12 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250912"
-          topology: karpenter-private-cluster
+          topology: karpenter
           matrix:
             complex-nap:
+              pod_count: 5000
+              pod_cpu_request: 16
+              pod_memory_request: "60Gi"
               scale_up_timeout: "900s" # 15 minutes
               scale_down_timeout: "900s"
               node_selector: "{karpenter.sh/nodepool: default}"
@@ -43,4 +46,4 @@ stages:
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
-          ssh_key_enabled: true
+          ssh_key_enabled: false
