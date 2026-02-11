@@ -1,0 +1,24 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: hubble-metrics
+  namespace: monitoring
+spec:
+  # Hubble metrics are exposed by cilium-agent pods on port 9965.
+  # This PodMonitor scrapes Hubble metrics from cilium-agent.
+  selector:
+    matchLabels:
+      k8s-app: cilium
+  namespaceSelector:
+    matchNames:
+    - kube-system
+  podMetricsEndpoints:
+  - interval: 30s
+    honorLabels: true
+    path: /metrics
+    relabelings:
+    - sourceLabels: [__address__]
+      action: replace
+      targetLabel: __address__
+      regex: (.+?)(\:\d+)?
+      replacement: $1:9965

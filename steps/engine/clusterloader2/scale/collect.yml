@@ -1,0 +1,47 @@
+parameters:
+- name: cloud
+  type: string
+  default: ''
+- name: engine_input
+  type: object
+  default: {}
+- name: region
+  type: string
+
+steps:
+- template: /steps/cloud/${{ parameters.cloud }}/collect-cloud-info.yml
+  parameters:
+    region: ${{ parameters.region }}
+- script: |
+    set -x
+    set -eo pipefail
+
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
+    --cl2_report_dir ${CL2_REPORT_DIR:-0} \
+    --cloud_info "${CLOUD_INFO:-""}" \
+    --run_id $RUN_ID \
+    --run_url $RUN_URL \
+    --result_file $TEST_RESULTS_FILE \
+    --start_timestamp $START_TIME \
+    --observability_tool ${OBSERVABILITY_TOOL:-""} \
+    --repository ${REPOSITORY:-""} \
+    --repository_ref ${REPOSITORY_REF:-""} \
+    --fortio-servers-per-deployment $FORTIO_SERVERS_PER_DEPLOYMENT \
+    --fortio-clients-per-deployment $FORTIO_CLIENTS_PER_DEPLOYMENT \
+    --fortio-client-queries-per-second $FORTIO_CLIENT_QUERIES_PER_SECOND \
+    --fortio-client-connections $FORTIO_CLIENT_CONNECTIONS \
+    --fortio-namespaces $FORTIO_NAMESPACES \
+    --fortio-deployments-per-namespace $FORTIO_DEPLOYMENTS_PER_NAMESPACE \
+    --network-policies-per-namespace $NETWORK_POLICIES_PER_NAMESPACE \
+    --generate-retina-network-flow-logs ${GENERATE_RETINA_NETWORK_FLOW_LOGS:-False} \
+    --label_traffic_pods ${LABEL_TRAFFIC_PODS:-False} \
+    --trigger_reason ${TRIGGER_REASON:-""}
+  workingDirectory: modules/python
+  env:
+    CLOUD: ${{ parameters.cloud }}
+    RUN_URL: $(RUN_URL)
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/scale/scale.py
+    CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/scale/results
+    REPOSITORY: ${{ parameters.engine_input.repository }}
+    REPOSITORY_REF: ${{ parameters.engine_input.ref }}
+  displayName: "Collect Results"

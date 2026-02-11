@@ -1,0 +1,86 @@
+{{$action := .action}} # start, gather
+
+# Feature gates
+{{$podStartupLatencyThreshold := DefaultParam .CL2_POD_STARTUP_LATENCY_THRESHOLD "15s"}}
+{{$ENABLE_VIOLATIONS_FOR_API_CALL_PROMETHEUS_SIMPLE := DefaultParam .CL2_ENABLE_VIOLATIONS_FOR_API_CALL_PROMETHEUS_SIMPLE true}}
+{{$PROMETHEUS_SCRAPE_KUBE_PROXY := DefaultParam .PROMETHEUS_SCRAPE_KUBE_PROXY true}}
+{{$NETWORK_LATENCY_THRESHOLD := DefaultParam .CL2_NETWORK_LATENCY_THRESHOLD "0s"}}
+{{$ENABLE_IN_CLUSTER_NETWORK_LATENCY := DefaultParam .CL2_ENABLE_IN_CLUSTER_NETWORK_LATENCY true}}
+
+{{$suffix := DefaultParam .suffix ""}}
+
+steps:
+  - name: {{$action}} Additional Measurements
+    measurements:
+      - Identifier: APIResponsivenessPrometheus{{$suffix}}
+        Method: APIResponsivenessPrometheus
+        Params:
+          action: {{$action}}
+          enableViolations: {{$ENABLE_VIOLATIONS_FOR_API_CALL_PROMETHEUS_SIMPLE}}
+          useSimpleLatencyQuery: true
+      - Identifier: PodStartupLatency{{$suffix}}
+        Method: PodStartupLatency
+        Params:
+          action: {{$action}}
+          labelSelector: group = {{.group}}
+          threshold: {{$podStartupLatencyThreshold}}
+      - Identifier: ApiserverAvgCPUUsage{{$suffix}}
+        Method: GenericPrometheusQuery
+        Params:
+          action: {{$action}}
+          metricName: Apiserver Average CPU Usage {{$suffix}}
+          metricVersion: v1
+          unit: cpu
+          enableViolations: true
+          queries:
+          - name: Perc99
+            query: quantile(0.99, avg_over_time(rate(process_cpu_seconds_total{endpoint="apiserver"}[1m])[%v:]))
+          - name: Perc90
+            query: quantile(0.90, avg_over_time(rate(process_cpu_seconds_total{endpoint="apiserver"}[1m])[%v:]))
+          - name: Perc50
+            query: quantile(0.50, avg_over_time(rate(process_cpu_seconds_total{endpoint="apiserver"}[1m])[%v:]))
+      - Identifier: ApiserverMaxCPUUsage{{$suffix}}
+        Method: GenericPrometheusQuery
+        Params:
+          action: {{$action}}
+          metricName: Apiserver Max CPU Usage {{$suffix}}
+          metricVersion: v1
+          unit: cpu
+          enableViolations: true
+          queries:
+          - name: Perc99
+            query: quantile(0.99, max_over_time(rate(process_cpu_seconds_total{endpoint="apiserver"}[1m])[%v:]))
+          - name: Perc90
+            query: quantile(0.90, max_over_time(rate(process_cpu_seconds_total{endpoint="apiserver"}[1m])[%v:]))
+          - name: Perc50
+            query: quantile(0.50, max_over_time(rate(process_cpu_seconds_total{endpoint="apiserver"}[1m])[%v:]))
+      - Identifier: ApiserverAvgMemUsage{{$suffix}}
+        Method: GenericPrometheusQuery
+        Params:
+          action: {{$action}}
+          metricName: Apiserver Average Memory Usage {{$suffix}}
+          metricVersion: v1
+          unit: MB
+          enableViolations: true
+          queries:
+          - name: Perc99
+            query: quantile(0.99, avg_over_time(process_resident_memory_bytes{endpoint="apiserver"}[%v:]) / 1024 / 1024)
+          - name: Perc90
+            query: quantile(0.90, avg_over_time(process_resident_memory_bytes{endpoint="apiserver"}[%v:]) / 1024 / 1024)
+          - name: Perc50
+            query: quantile(0.5, avg_over_time(process_resident_memory_bytes{endpoint="apiserver"}[%v:]) / 1024 / 1024)
+      - Identifier: ApiserverMaxMemUsage{{$suffix}}
+        Method: GenericPrometheusQuery
+        Params:
+          action: {{$action}}
+          metricName: Apiserver Max Memory Usage {{$suffix}}
+          metricVersion: v1
+          unit: MB
+          enableViolations: true
+          queries:
+          - name: Perc99
+            query: quantile(0.99, max_over_time(process_resident_memory_bytes{endpoint="apiserver"}[%v:]) / 1024 / 1024)
+          - name: Perc90
+            query: quantile(0.90, max_over_time(process_resident_memory_bytes{endpoint="apiserver"}[%v:]) / 1024 / 1024)
+          - name: Perc50
+            query: quantile(0.5, max_over_time(process_resident_memory_bytes{endpoint="apiserver"}[%v:]) / 1024 / 1024)
