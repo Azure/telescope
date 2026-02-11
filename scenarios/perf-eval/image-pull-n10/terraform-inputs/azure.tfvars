@@ -47,9 +47,8 @@ aks_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8ds_v5"
+        vm_size              = "Standard_D64_v3"
         os_disk_type         = "Managed"
-        os_disk_size_gb      = 50
         node_labels          = { "prometheus" = "true" }
       },
       {

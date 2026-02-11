@@ -84,7 +84,7 @@ def override_config_clusterloader2(
         file.write(f"CL2_LOAD_TYPE: {load_type}\n")
         file.write(f"CL2_SCALE_ENABLED: {str(scale_enabled).lower()}\n")
         file.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
-        file.write("CL2_PROMETHEUS_CPU_SCALE_FACTOR: 15.0\n")
+        file.write("CL2_PROMETHEUS_CPU_SCALE_FACTOR: 30.0\n")
         file.write("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 30.0\n")
         file.write("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 30.0\n")
         file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
@@ -101,7 +101,7 @@ def override_config_clusterloader2(
     file.close()
 
 def execute_clusterloader2(cl2_image, cl2_config_dir, cl2_report_dir, kubeconfig, provider, scrape_kubelets, scrape_containerd):
-    run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True, enable_prometheus=False,
+    run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, overrides=True, enable_prometheus=True,
                     tear_down_prometheus=False, scrape_kubelets=scrape_kubelets, scrape_containerd=scrape_containerd)
 
 # Note: verify_measurement only checks kubelet metrics (accessible via node proxy endpoint).
