@@ -98,3 +98,39 @@ stages:
           timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false
+
+  - stage: azure_westus2_5k_staging
+    condition: eq(variables['Build.Reason'], 'Manual')
+    dependsOn: []
+    variables:
+      - group: NAP-5K-Config
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - westus2
+          terraform_input_file_mapping:
+            - westus2: "scenarios/perf-eval/nap/terraform-inputs/azure-5k.tfvars"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250423"
+          topology: karpenter
+          matrix:
+            5k-staging:
+              cpu_per_node: 2
+              node_count: 5000
+              pod_count: 5000
+              scale_up_timeout: "150m"
+              scale_down_timeout: "150m"
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 1
+              warmup_deployment: true
+              warmup_deployment_template: warmup_deployment.yaml
+              vm_size: Standard_DS2_v2
+              capacity_type: on-demand
+          max_parallel: 1
+          timeout_in_minutes: 500
+          credential_type: service_connection
+          ssh_key_enabled: false
