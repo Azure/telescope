@@ -20,7 +20,7 @@ stages:
           matrix:
             image-pull-10pods-custom:
               node_count: 10
-              max_pods: 30
+              max_pods: 26
               repeats: 1
               operation_timeout: 30m
               load_type: memory
