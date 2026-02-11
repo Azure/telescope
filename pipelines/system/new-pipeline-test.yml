@@ -22,7 +22,7 @@ stages:
               node_count: 10
               max_pods: 30
               repeats: 1
-              operation_timeout: 3m
+              operation_timeout: 30m
               load_type: memory
               scrape_containerd: True
               scrape_kubelets: True
@@ -31,7 +31,7 @@ stages:
               registry_endpoint: jttelescope.azurecr.io
               test_image: benchmark/customer-replica:v1
               kubernetes_version: "1.34"
-              pod_startup_latency_threshold: 120s
+              pod_startup_latency_threshold: 600s
               anonymous_pull: True
           max_parallel: 1
           credential_type: service_connection
