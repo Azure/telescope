@@ -22,6 +22,8 @@ stages:
           cloud: azure
           regions:
             - australiaeast
+          terraform_input_file_mapping:
+            - australiaeast: "scenarios/perf-eval/ccp-provisioning/terraform-inputs/azure-baseline.tfvars"
           topology: hyperscale-cluster
           engine: noop # This pipeline only measures cluster provisioning time so no specific benchmark engine is needed
           matrix:

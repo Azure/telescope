@@ -22,6 +22,8 @@ stages:
           cloud: azure
           regions:
             - swedencentral
+          terraform_input_file_mapping:
+            - swedencentral: "scenarios/perf-eval/ccp-provisioning/terraform-inputs/azure-H4.tfvars"
           topology: hyperscale-cluster
           engine: noop # This pipeline only measures cluster provisioning time so no specific benchmark engine is needed
           matrix:
