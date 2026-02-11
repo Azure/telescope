@@ -29,11 +29,11 @@ stages:
               node_count: 1000
               max_pods: 7
               repeats: 1
-              operation_timeout: 60m
+              operation_timeout: 120m
               load_type: memory
-              scrape_containerd: False
+              scrape_containerd: True
               scrape_kubelets: False
-              scrape_registry: False
+              scrape_registry: True
               containerd_scrape_interval: 30s
               registry_endpoint: acrperftestaue.azurecr-test.io
               kubernetes_version: "1.34"
@@ -42,4 +42,4 @@ stages:
           max_parallel: 1
           credential_type: service_connection
           ssh_key_enabled: false
-          timeout_in_minutes: 60
+          timeout_in_minutes: 120
