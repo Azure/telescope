@@ -5,6 +5,7 @@
 {{$LoadType := DefaultParam .LoadType "memory"}}
 {{$Provider := DefaultParam .Provider "aks"}}
 {{$RegistryEndpoint := DefaultParam .RegistryEndpoint "akscritelescope.azurecr.io"}}
+{{$TestImage := DefaultParam .TestImage "e2e-test-images/resource-consumer:1.13"}}
 {{$OSType := DefaultParam .OSType "linux"}}
 {{$HostNetwork := DefaultParam .HostNetwork "true"}}
 
@@ -47,10 +48,11 @@ spec:
           - "1"
         {{else}}
           {{if eq $Provider "aks"}}
-        image: {{$RegistryEndpoint}}/e2e-test-images/resource-consumer:1.13
+        image: {{$RegistryEndpoint}}/{{$TestImage}}
           {{else}}
         image: registry.k8s.io/e2e-test-images/resource-consumer:1.13
           {{end}}
+          {{if eq $TestImage "e2e-test-images/resource-consumer:1.13"}}
         command:
           - stress
         args:
@@ -62,6 +64,7 @@ spec:
           - "0"
           - --timeout
           - "3600"
+          {{end}}
         {{end}}
         resources:
           requests:
