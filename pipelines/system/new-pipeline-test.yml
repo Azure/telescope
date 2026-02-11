@@ -29,7 +29,7 @@ stages:
               node_count: 1000
               max_pods: 7
               repeats: 1
-              operation_timeout: 120m
+              operation_timeout: 80m
               load_type: memory
               scrape_containerd: True
               scrape_kubelets: False
