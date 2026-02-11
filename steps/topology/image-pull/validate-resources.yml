@@ -19,4 +19,4 @@ steps:
 - template: /steps/engine/clusterloader2/large-cluster/validate.yml
   parameters:
     desired_nodes: 1004
-    validation_timeout_in_minutes: 60
+    validation_timeout_in_minutes: 30

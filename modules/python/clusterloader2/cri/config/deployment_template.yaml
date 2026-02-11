@@ -52,15 +52,8 @@ spec:
         image: registry.k8s.io/pytorch/pytorch:latest
           {{end}}
         command:
-          - stress
+          - sleep
         args:
-          - --vm
-          - "1"
-          - --vm-bytes
-          - {{$Memory}}
-          - --vm-hang
-          - "0"
-          - --timeout
           - "3600"
         {{end}}
         resources:
@@ -81,11 +74,10 @@ spec:
         image: registry.k8s.io/pytorch/pytorch:latest
           {{end}}
         command:
-          - /consume-cpu/consume-cpu
+          - sleep
         {{end}}
         args:
-          - --duration-sec=3600
-          - {{$CPU}}
+          - "3600"
         resources:
           requests:
             cpu: {{$CPURequest}}
