@@ -13,7 +13,7 @@ steps:
 
 - script: |
     set -eo pipefail
-    echo "Installing kubelogin (fast method)..."
+    echo "Installing kubelogin..."
 
     if ! command -v kubelogin >/dev/null 2>&1; then
       az storage blob download \
