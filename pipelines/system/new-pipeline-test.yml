@@ -33,7 +33,7 @@ stages:
               load_type: memory
               scrape_containerd: True
               scrape_kubelets: False
-              scrape_registry: True
+              scrape_registry: False
               containerd_scrape_interval: 30s
               registry_endpoint: acrperftestaue.azurecr-test.io
               kubernetes_version: "1.34"

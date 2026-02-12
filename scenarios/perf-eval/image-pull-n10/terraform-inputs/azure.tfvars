@@ -23,7 +23,7 @@ network_config_list = [
 aks_config_list = [
   {
     role        = "client"
-    aks_name    = "acr-1000n-v15"
+    aks_name    = "acr-1000n-v16"
     dns_prefix  = "imgpull"
     subnet_name = "imgpull-vnet"
     sku_tier    = "Standard"
