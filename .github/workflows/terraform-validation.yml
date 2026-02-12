@@ -200,10 +200,25 @@ jobs:
           # Longest Azure region name: 18 (e.g., australiasoutheast)
           MAX_AKS_NAME_LENGTH=40
 
-          aks_names=$(grep -oP 'aks_name\s*=\s*"\K[^"]+' "$TERRAFORM_INPUT_FILE" || true)
-          if [ -z "$aks_names" ]; then
+          # Check if file is readable first
+          if [ ! -r "$TERRAFORM_INPUT_FILE" ]; then
+            echo "::error::Cannot read file: $TERRAFORM_INPUT_FILE"
+            exit 1
+          fi
+
+          # Run grep and capture exit code
+          aks_names=$(grep -oP 'aks_name\s*=\s*"\K[^"]+' "$TERRAFORM_INPUT_FILE") || grep_exit_code=$?
+          
+          # Exit code 1 means no matches found (skip validation)
+          if [ "${grep_exit_code:-0}" -eq 1 ]; then
             echo "No aks_name found in $TERRAFORM_INPUT_FILE, skipping validation."
             exit 0
+          fi
+          
+          # Any other non-zero exit code is a real error
+          if [ "${grep_exit_code:-0}" -ne 0 ]; then
+            echo "::error::grep failed with exit code ${grep_exit_code}"
+            exit 1
           fi
 
           failed=false
