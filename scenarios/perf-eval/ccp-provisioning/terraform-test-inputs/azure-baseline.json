@@ -1,6 +1,6 @@
 {
-    "run_id": "123456789",
-    "region": "uksouth",
+    "run_id": "12345-abcdef01-2345-6789-abcd-ef0123456789",
+    "region": "australiaeast",
     "aks_cli_system_node_pool": {
         "name": "default",
         "node_count": 1,
