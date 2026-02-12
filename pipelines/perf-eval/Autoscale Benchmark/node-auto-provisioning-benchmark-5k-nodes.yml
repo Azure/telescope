@@ -102,8 +102,6 @@ stages:
   - stage: azure_westus2_5k_staging
     condition: eq(variables['Build.Reason'], 'Manual')
     dependsOn: []
-    variables:
-      - group: NAP-5K-Config
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
