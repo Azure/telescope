@@ -13,22 +13,43 @@ steps:
 
 - script: |
     set -eo pipefail
+    echo "Installing kubelogin (fast method)..."
 
-    echo "Installing kubelogin if not present..."
-    if ! command -v kubelogin &> /dev/null; then
+    if ! command -v kubelogin >/dev/null 2>&1; then
       az storage blob download \
-        --account-name $STORAGE_ACCOUNT_NAME \
+        --account-name "$STORAGE_ACCOUNT_NAME" \
         --container-name pkg \
-        --name kubelogin \
+        --name kubelogin-linux-amd64 \
         --file /tmp/kubelogin \
         --auth-mode login
       sudo mv /tmp/kubelogin /usr/local/bin/kubelogin
       sudo chmod +x /usr/local/bin/kubelogin
     fi
+    if ! command -v kubectl >/dev/null 2>&1; then
+      az storage blob download \
+        --account-name "$STORAGE_ACCOUNT_NAME" \
+        --container-name pkg \
+        --name kubectl-linux-amd64 \
+        --file /tmp/kubectl \
+        --auth-mode login
+      sudo mv /tmp/kubectl /usr/local/bin/kubectl
+      sudo chmod +x /usr/local/bin/kubectl
+    fi
+
+    
+
+    echo "Verify version..."
+    kubelogin --version
+    kubectl version --client
 
     echo "Converting kubeconfig for Azure CLI authentication..."
-    kubelogin convert-kubeconfig -l azurecli -v 99
+    kubelogin convert-kubeconfig \
+      -l azurecli \
+      --kubeconfig /home/AzDevOps/.kube/config \
+      -v 5
+
     kubectl config view --kubeconfig /home/AzDevOps/.kube/config
+    
   displayName: 'Install kubelogin and convert kubeconfig'
   env:
     STORAGE_ACCOUNT_NAME: $(AZURE_TELESCOPE_STORAGE_ACCOUNT_NAME)
