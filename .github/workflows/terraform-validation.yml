@@ -206,17 +206,22 @@ jobs:
             exit 1
           fi
 
-          # Run grep and capture exit code
-          aks_names=$(grep -oP 'aks_name\s*=\s*"\K[^"]+' "$TERRAFORM_INPUT_FILE") || grep_exit_code=$?
+          # Run grep and capture exit code explicitly
+          set +e
+          aks_names=$(grep -oP 'aks_name\s*=\s*"\K[^"]+' "$TERRAFORM_INPUT_FILE")
+          grep_exit_code=$?
+          set -e
           
-          # Exit code 1 means no matches found (skip validation)
-          if [ "${grep_exit_code:-0}" -eq 1 ]; then
+          # Handle grep exit codes
+          if [ "$grep_exit_code" -eq 0 ]; then
+            # Matches found, proceed with validation
+            :
+          elif [ "$grep_exit_code" -eq 1 ]; then
+            # No matches found, skip validation
             echo "No aks_name found in $TERRAFORM_INPUT_FILE, skipping validation."
             exit 0
-          fi
-          
-          # Any other non-zero exit code is a real error
-          if [ "${grep_exit_code:-0}" -ne 0 ]; then
+          else
+            # Real error (e.g., grep syntax error)
             echo "::error::grep failed with exit code ${grep_exit_code}"
             exit 1
           fi
