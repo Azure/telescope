@@ -214,7 +214,7 @@ jobs:
           
           # Handle grep exit codes
           if [ "$grep_exit_code" -eq 0 ]; then
-            # Matches found, proceed with validation
+            # Matches found, proceed with validation below
             :
           elif [ "$grep_exit_code" -eq 1 ]; then
             # No matches found, skip validation
