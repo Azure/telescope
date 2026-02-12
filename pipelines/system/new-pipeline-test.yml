@@ -31,6 +31,7 @@ stages:
               repeats: 1
               operation_timeout: 80m
               load_type: memory
+              memory_request_override: "1000Mi"
               scrape_containerd: True
               scrape_kubelets: False
               scrape_registry: False
