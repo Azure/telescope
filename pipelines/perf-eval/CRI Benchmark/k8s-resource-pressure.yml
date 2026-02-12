@@ -32,7 +32,7 @@ stages:
           matrix:
             n1-p60-memory-ephemeral:
               node_count: 1
-              max_pods: 60
+              max_pods: 30 # match with kubelet setting
               repeats: 1
               operation_timeout: 3m
               load_type: memory
