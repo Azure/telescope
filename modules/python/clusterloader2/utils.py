@@ -90,8 +90,9 @@ def get_measurement(file_path):
             group_name = file_name.split("_")[1]
             return file_prefix, group_name
     if file_name.startswith(PROM_QUERY_PREFIX):
-        group_name = file_name.split("_")[1]
-        measurement_name = file_name.split("_")[0][len(PROM_QUERY_PREFIX)+1:]
+        parts = file_name.split("_")
+        measurement_name = parts[1]  # e.g., CiliumAvgCPUUsage
+        group_name = parts[2]  # e.g., scale-test
         return measurement_name, group_name
     if file_name.startswith(JOB_LIFECYCLE_LATENCY_PREFIX):
         group_name = file_name.split("_")[1]
