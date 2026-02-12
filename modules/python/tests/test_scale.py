@@ -3,7 +3,7 @@ import os
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from clusterloader2.scale.scale import (
     configure_clusterloader2,
