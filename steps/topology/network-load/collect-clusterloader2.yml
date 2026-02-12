@@ -16,8 +16,4 @@ steps:
     engine_input: ${{ parameters.engine_input }}
     region: ${{ parameters.regions[0] }}
 
-- script: |
-    run_id=$(Build.BuildId)-$(System.JobId)
-    echo "Run ID: $run_id"
-    echo "##vso[task.setvariable variable=RUN_ID]$run_id"
-  displayName: "Set unique Run ID before publish"
+- template: /steps/set-run-id.yml
