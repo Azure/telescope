@@ -5,6 +5,10 @@ parameters:
     displayName: "Use Custom Kubelet Flags?"
     type: boolean
     default: true
+  - name: custom_kubelet_config
+    displayName: "Custom Kubelet Config (JSON String)"
+    type: string  # The parameter type is string
+    default: ""
 
 variables:
   SCENARIO_TYPE: perf-eval
@@ -36,7 +40,7 @@ stages:
               kubernetes_version: "1.34"
               scrape_kubelets: True
               use_custom_kubelet: ${{ parameters.use_custom_kubelet }}
-              custom_kubelet_config: ${{ variables.custom_kubelet_config_json }}
+              custom_kubelet_config: ${{ parameters.custom_kubelet_config }}
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
