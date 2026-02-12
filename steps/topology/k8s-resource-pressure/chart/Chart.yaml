@@ -1,0 +1,6 @@
+apiVersion: v2
+name: kubelet-config-updater
+description: Deploy a DaemonSet to update kubelet flags on nodes
+type: application
+version: 0.1.0
+appVersion: "1.0"
