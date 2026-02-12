@@ -36,8 +36,6 @@ steps:
         sudo chmod +x /usr/local/bin/kubectl
       fi
 
-
-
       echo "Verify version..."
       kubelogin --version
       kubectl version --client
