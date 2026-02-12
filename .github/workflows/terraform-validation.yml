@@ -192,6 +192,33 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Validate AKS Name Length
+        if: ${{ matrix.cloud == 'azure' }}
+        run: |
+          # Node resource group name (max len 80) follows the pattern: MC_{run_id}_{aks_name}_{region}
+          # Max run_id length: 8-digit BuildId + "-" + 8-char JobId = 17
+          # Longest Azure region name: 18 (e.g., australiasoutheast)
+          MAX_AKS_NAME_LENGTH=40
+
+          aks_names=$(grep -oP 'aks_name\s*=\s*"\K[^"]+' "$TERRAFORM_INPUT_FILE" || true)
+          if [ -z "$aks_names" ]; then
+            echo "No aks_name found in $TERRAFORM_INPUT_FILE, skipping validation."
+            exit 0
+          fi
+
+          failed=false
+          while IFS= read -r name; do
+            length=${#name}
+            if [ "$length" -gt "$MAX_AKS_NAME_LENGTH" ]; then
+              echo "::error::aks_name '$name' is $length characters, exceeding the max allowed length of $MAX_AKS_NAME_LENGTH."
+              failed=true
+            fi
+          done <<< "$aks_names"
+
+          if [ "$failed" = true ]; then
+            exit 1
+          fi
+
       - name: Terraform Init
         working-directory: ${{ env.TERRAFORM_MODULES_DIR }}
         run: terraform init
