@@ -18,4 +18,5 @@ steps:
       region: ${{ parameters.regions[0] }}
 - template: /steps/engine/clusterloader2/large-cluster/validate.yml
   parameters:
-    desired_nodes: 14
+    desired_nodes: $(desired_nodes)
+    operation_timeout_in_minutes: 20
