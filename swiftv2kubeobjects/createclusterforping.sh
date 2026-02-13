@@ -308,8 +308,8 @@ for i in $(seq 1 $USER_NODEPOOL_COUNT); do
     pool_name="userpool${i}"
     labels="slo=true testscenario=swiftv2 agentpool=${pool_name}"
     taints="slo=true:NoSchedule"
-    echo "Creating user nodepool $pool_name (1/${USER_NODEPOOL_COUNT} initial node)"
-    if ! create_and_verify_nodepool "${CLUSTER}" "${pool_name}" "${RG}" "${INITIAL_USER_NODES}" "${VM_SKU}" "${nodeSubnetID}" "${podSubnetID}" "${labels}" "${taints}"; then
+    echo "Creating user nodepool $pool_name (1/${USER_NODEPOOL_COUNT} initial node) in availability zones 3 4"
+    if ! create_and_verify_nodepool "${CLUSTER}" "${pool_name}" "${RG}" "${INITIAL_USER_NODES}" "${VM_SKU}" "${nodeSubnetID}" "${podSubnetID}" "${labels}" "${taints}" "--zones 3 4"; then
         echo "ERROR: Failed to create user nodepool ${pool_name}"
         exit 1
     fi
