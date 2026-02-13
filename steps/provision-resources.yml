@@ -69,6 +69,40 @@ steps:
   env:
     region: ${{ parameters.regions[0] }}
 
+- script: |
+    set -eo pipefail
+    echo "Checking AdvancedNetworkingFlowLogsPreview feature flag status..."
+    
+    feature_state=$(az feature show --namespace "Microsoft.ContainerService" --name "AdvancedNetworkingFlowLogsPreview" --query "properties.state" -o tsv 2>/dev/null || echo "NotRegistered")
+    
+    if [ "$feature_state" == "Registered" ]; then
+      echo "✓ AdvancedNetworkingFlowLogsPreview feature flag is already registered."
+    else
+      echo "Feature flag state: $feature_state"
+      echo "Registering AdvancedNetworkingFlowLogsPreview feature flag..."
+      az feature register --namespace "Microsoft.ContainerService" --name "AdvancedNetworkingFlowLogsPreview"
+      
+      echo "Waiting for feature flag registration to complete (this may take a few minutes)..."
+      for i in {1..30}; do
+        sleep 20
+        feature_state=$(az feature show --namespace "Microsoft.ContainerService" --name "AdvancedNetworkingFlowLogsPreview" --query "properties.state" -o tsv)
+        echo "Attempt $i: Feature state is '$feature_state'"
+        if [ "$feature_state" == "Registered" ]; then
+          echo "✓ Feature flag registered successfully!"
+          break
+        fi
+      done
+      
+      if [ "$feature_state" != "Registered" ]; then
+        echo "##[warning]Feature flag not yet registered after waiting. Continuing anyway..."
+      fi
+      
+      echo "Refreshing Microsoft.ContainerService provider..."
+      az provider register --namespace "Microsoft.ContainerService"
+    fi
+  displayName: "Register AdvancedNetworkingFlowLogsPreview feature flag"
+  condition: and(${{ eq(parameters.cloud, 'azure') }}, ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'))
+
 - template: /steps/terraform/run-command.yml
   parameters:
     command: version
