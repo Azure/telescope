@@ -25,8 +25,19 @@ key_vault_config_list = [
     keys = [
       {
         key_name = "kms-nap"
+      },
+      {
+        key_name = "des-nap"
       }
     ]
+  }
+]
+
+disk_encryption_set_config_list = [
+  {
+    name           = "nap-des"
+    key_vault_name = "akskms"
+    key_name       = "des-nap"
   }
 ]
 
@@ -223,6 +234,7 @@ aks_cli_config_list = [
       key_vault_name = "akskms"
       network_access = "Private"
     }
+    disk_encryption_set_name = "nap-des"
     default_node_pool = {
       name         = "system"
       os_disk_type = "Ephemeral"
@@ -286,6 +298,10 @@ aks_cli_config_list = [
       },
       {
         name  = "enable-image-cleaner"
+        value = ""
+      },
+      {
+        name  = "enable-private-cluster"
         value = ""
       }
       # TODO: enable private cluster + jumpbox , enable cilium once it is fixed
