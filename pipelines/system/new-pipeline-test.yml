@@ -1,8 +1,8 @@
 trigger: none
 
 variables:
-  SCENARIO_TYPE: <scenario-type>
-  SCENARIO_NAME: <scenario-name>
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: image-pull-n1000
 
 stages:
   - stage: azure_australiaeast_image_pull
