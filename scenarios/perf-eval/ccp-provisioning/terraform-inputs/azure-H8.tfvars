@@ -7,7 +7,7 @@ aks_cli_config_list = [
   {
     role               = "client"
     aks_name           = "ccp-provisioning-H8"
-    sku_tier           = "standard"
+    sku_tier           = "free"
     kubernetes_version = "1.33"
     default_node_pool = {
       name       = "default"
