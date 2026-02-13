@@ -17,10 +17,8 @@ name: scale-test
 {{$fortioNamespaces := DefaultParam .CL2_FORTIO_NAMESPACES 1}}
 {{$fortioDeploymentsPerNamespace := DefaultParam .CL2_FORTIO_DEPLOYMENTS_PER_NAMESPACE 1}}
 
-{{$labelTrafficPods := DefaultParam .CL2_LABEL_TRAFFIC_PODS false}}
-
-# Retina Network Flow Log config
-{{$createRetinaNetworkFlowLogs := DefaultParam .CL2_GENERATE_RETINA_NETWORK_FLOW_LOGS false}}
+# Container Network Log config
+{{$createContainerNetworkLogs := DefaultParam .CL2_GENERATE_CONTAINER_NETWORK_LOGS false}}
 
 
 namespace:
@@ -71,8 +69,7 @@ steps:
       params:
         action: start
         group: {{$groupName}}
-        createRetinaNetworkFlowLogs: {{$createRetinaNetworkFlowLogs}}
-        labelTrafficPods: {{$labelTrafficPods}}
+        createContainerNetworkLogs: {{$createContainerNetworkLogs}}
 
   - module:
       path: /modules/hubble.yaml

@@ -22,7 +22,7 @@ steps:
           apiVersion: apps/v1
           kind: DaemonSet
           labelSelector: app.kubernetes.io/name = node-exporter
-          operationTimeout: 5m
+          operationTimeout: 10m
   - name: {{.actionName}} Node Exporter Service Monitor
     phases:
       - namespaceList:
