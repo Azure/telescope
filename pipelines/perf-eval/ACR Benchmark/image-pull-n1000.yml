@@ -37,4 +37,4 @@ stages:
           max_parallel: 1
           credential_type: service_connection
           ssh_key_enabled: false
-          timeout_in_minutes: 100m
+          timeout_in_minutes: 100

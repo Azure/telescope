@@ -23,3 +23,4 @@ stages:
           credential_type: service_connection # required
           ssh_key_enabled: false
           timeout_in_minutes: 60 # if not specified, default is 60
+          

@@ -77,8 +77,8 @@ def override_config_clusterloader2(
         )
 
     logger.info(
-    f"CPU request for each pod: {cpu_request}m, memory request for each pod: {memory_request}, "
-    f"total pod per node: {pod_count}, os_type: {os_type}"
+        f"CPU request for each pod: {cpu_request}m, memory request for each pod: {memory_request}, "
+        f"total pod per node: {pod_count}, os_type: {os_type}"
     )
 
     # Calculate the number of steps to scale up
