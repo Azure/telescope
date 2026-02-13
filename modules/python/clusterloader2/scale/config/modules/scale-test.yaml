@@ -20,8 +20,8 @@ name: scale-test
 # Network Policies
 {{$networkPoliciesPerNamespace := DefaultParam .CL2_NETWORK_POLICIES_PER_NAMESPACE 0}}
 
-# Retina Network Flow Log config
-{{$createRetinaNetworkFlowLogs := DefaultParam .createRetinaNetworkFlowLogs false}}
+# Container Network Log config
+{{$createContainerNetworkLogs := DefaultParam .createContainerNetworkLogs false}}
 
 steps:
   - module:
@@ -66,10 +66,9 @@ steps:
         fortioClientReplicas: {{$fortioClientReplicas}}
         fortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
         fortioClientConnections: {{$fortioClientConnections}}
-        createRetinaNetworkFlowLogs: {{$createRetinaNetworkFlowLogs}}
+        createContainerNetworkLogs: {{$createContainerNetworkLogs}}
         deploymentLabel: start
         networkPoliciesPerNamespace: {{$networkPoliciesPerNamespace}}
-        labelTrafficPods: {{.labelTrafficPods}}
 
   - module:
       path: /modules/measurements/control-plane.yaml

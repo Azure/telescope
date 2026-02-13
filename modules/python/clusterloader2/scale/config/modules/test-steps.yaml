@@ -10,21 +10,21 @@
 {{$fortioClientReplicas := .fortioClientReplicas}}
 {{$fortioClientQueriesPerSecond := .fortioClientQueriesPerSecond}}
 {{$fortioClientConnections := .fortioClientConnections}}
-{{$CpuRequest := .CpuRequest}}
-{{$MemoryRequest := .MemoryRequest}}
-{{$createRetinaNetworkFlowLogs := .createRetinaNetworkFlowLogs}}
+{{$CpuRequest := DefaultParam .CpuRequest "5m"}}
+{{$MemoryRequest := DefaultParam .MemoryRequest "20Mi"}}
+{{$createContainerNetworkLogs := .createContainerNetworkLogs}}
 
 steps:
-{{if $createRetinaNetworkFlowLogs}}
-- name: Create Retina Network Flow Log
+{{if $createContainerNetworkLogs}}
+- name: Create Container Network Log
   phases:
   - namespaceList:
     - ""
     replicasPerNamespace: 1
     tuningSet: {{$tuningSet}}
     objectBundle:
-    - basename: retina-network-flow-log
-      objectTemplatePath: modules/pfl/retinanetworkflowlog.yaml
+    - basename: container-network-log
+      objectTemplatePath: modules/pfl/containernetworklog.yaml
       templateFillMap:
         Group: {{.Group}}
         namespaces: {{$namespaces}}
@@ -130,56 +130,6 @@ steps:
       action: gather
       refreshInterval: 15s
 
-{{if .labelTrafficPods}}
-
-- name: Starting measurement for 'label traffic clients'
-  measurements:
-  - Method: WaitForControlledPodsRunning
-    Instances:
-    - Identifier: WaitForClientPodsRunning
-      Params:
-        apiVersion: apps/v1
-        kind: Deployment
-        labelSelector: role = load
-    Params:
-      action: start
-      checkIfPodsAreUpdated: true
-      labelSelector: group = {{.Group}}
-      operationTimeout: {{$operationTimeout}}
-      apiVersion: apps/v1
-
-- name: 'add label to client pods in deployment'
-  phases:
-  - namespaceRange:
-      min: 1
-      max: {{$namespaces}}
-    replicasPerNamespace: {{$fortioDeploymentsPerNamespace}}
-    tuningSet: {{$tuningSet}}
-    objectBundle:
-      - basename: fortio-client
-        objectTemplatePath: modules/fortio/client-deployment.yaml
-        templateFillMap:
-          Replicas: {{$fortioClientReplicas}}
-          Group: {{.Group}}
-          deploymentLabel: {{.deploymentLabel}}
-          uniqueLabel: "uniqueLabel"
-          CpuRequest: {{$CpuRequest}}
-          MemoryRequest: {{$MemoryRequest}}
-          FortioClientConnections: {{$fortioClientConnections}}
-          FortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
-          FortioServerServiceBasename: fortio-server
-
-- name: Waiting for 'label traffic clients' to be completed
-  measurements:
-  - Method: WaitForControlledPodsRunning
-    Instances:
-    - Identifier: WaitForClientPodsRunning
-    Params:
-      action: gather
-      refreshInterval: 15s
-
-{{end}}
-
 - name: 'create {{$networkPoliciesPerNamespace}} network policies per namespace'
   phases:
   - namespaceRange:
@@ -190,101 +140,6 @@ steps:
     objectBundle:
       - basename: scale-test-policy
         objectTemplatePath: modules/networkpolicy-template.yaml
-
-{{if .labelTrafficPods}}
-
-- name: Starting measurement for 'remove labels from traffic clients'
-  measurements:
-  - Method: WaitForControlledPodsRunning
-    Instances:
-    - Identifier: WaitForClientPodsRunning
-      Params:
-        apiVersion: apps/v1
-        kind: Deployment
-        labelSelector: role = load
-    Params:
-      action: start
-      checkIfPodsAreUpdated: true
-      labelSelector: group = {{.Group}}
-      operationTimeout: {{$operationTimeout}}
-      apiVersion: apps/v1
-
-- name: 'remove label from client pods in deployment'
-  phases:
-  - namespaceRange:
-      min: 1
-      max: {{$namespaces}}
-    replicasPerNamespace: {{$fortioDeploymentsPerNamespace}}
-    tuningSet: {{$tuningSet}}
-    objectBundle:
-      - basename: fortio-client
-        objectTemplatePath: modules/fortio/client-deployment.yaml
-        templateFillMap:
-          Replicas: {{$fortioClientReplicas}}
-          Group: {{.Group}}
-          deploymentLabel: {{.deploymentLabel}}
-          CpuRequest: {{$CpuRequest}}
-          MemoryRequest: {{$MemoryRequest}}
-          FortioClientConnections: {{$fortioClientConnections}}
-          FortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
-          FortioServerServiceBasename: fortio-server
-
-- name: Waiting for 'remove labels from traffic clients' to be completed
-  measurements:
-  - Method: WaitForControlledPodsRunning
-    Instances:
-    - Identifier: WaitForClientPodsRunning
-    Params:
-      action: gather
-      refreshInterval: 15s
-
-- name: Starting measurement for 're-add labels to traffic clients'
-  measurements:
-  - Method: WaitForControlledPodsRunning
-    Instances:
-    - Identifier: WaitForClientPodsRunning
-      Params:
-        apiVersion: apps/v1
-        kind: Deployment
-        labelSelector: role = load
-    Params:
-      action: start
-      checkIfPodsAreUpdated: true
-      labelSelector: group = {{.Group}}
-      operationTimeout: {{$operationTimeout}}
-      apiVersion: apps/v1
-
-- name: 're-add label to client pods in deployment'
-  phases:
-  - namespaceRange:
-      min: 1
-      max: {{$namespaces}}
-    replicasPerNamespace: {{$fortioDeploymentsPerNamespace}}
-    tuningSet: {{$tuningSet}}
-    objectBundle:
-      - basename: fortio-client
-        objectTemplatePath: modules/fortio/client-deployment.yaml
-        templateFillMap:
-          Replicas: {{$fortioClientReplicas}}
-          Group: {{.Group}}
-          deploymentLabel: {{.deploymentLabel}}
-          uniqueLabel: "uniqueLabel"
-          CpuRequest: {{$CpuRequest}}
-          MemoryRequest: {{$MemoryRequest}}
-          FortioClientConnections: {{$fortioClientConnections}}
-          FortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
-          FortioServerServiceBasename: fortio-server
-
-- name: Waiting for 're-add labels to traffic clients' to be completed
-  measurements:
-  - Method: WaitForControlledPodsRunning
-    Instances:
-    - Identifier: WaitForClientPodsRunning
-    Params:
-      action: gather
-      refreshInterval: 15s
-
-{{end}}
 
 - name: Wait to get metrics
   measurements:
@@ -353,17 +208,17 @@ steps:
           FortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
           FortioServerServiceBasename: fortio-server
 
-{{if $createRetinaNetworkFlowLogs}}
-# Delete retina network flow log
-- name: Delete Retina Network Flow Log
+{{if $createContainerNetworkLogs}}
+# Delete container network log
+- name: Delete Container Network Log
   phases:
   - namespaceList:
     - ""
     replicasPerNamespace: 0
     tuningSet: {{$tuningSet}}
     objectBundle:
-    - basename: retina-network-flow-log
-      objectTemplatePath: modules/pfl/retinanetworkflowlog.yaml
+    - basename: container-network-log
+      objectTemplatePath: modules/pfl/containernetworklog.yaml
       templateFillMap:
         Group: {{.Group}}
         namespaces: {{$namespaces}}

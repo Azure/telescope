@@ -32,7 +32,7 @@ class TestConfigureScale(unittest.TestCase):
                 fortio_namespaces=1,
                 fortio_deployments_per_namespace=1000,
                 network_policies_per_namespace=100,
-                generate_retina_network_flow_logs=False,
+                generate_container_network_logs=False,
                 label_traffic_pods=False,
                 override_file=tmp_path,
             )
@@ -56,13 +56,13 @@ class TestConfigureScale(unittest.TestCase):
 
             # Assert network policies and flags
             self.assertIn("CL2_NETWORK_POLICIES_PER_NAMESPACE: 100", content)
-            self.assertIn("CL2_GENERATE_RETINA_NETWORK_FLOW_LOGS: False", content)
+            self.assertIn("CL2_GENERATE_CONTAINER_NETWORK_LOGS: False", content)
             self.assertIn("CL2_LABEL_TRAFFIC_PODS: False", content)
         finally:
             os.remove(tmp_path)
 
-    def test_configuration_with_retina_flow_logs(self):
-        """Test configuration with Retina flow logs enabled"""
+    def test_configuration_with_container_network_logs(self):
+        """Test configuration with Container Network Logs enabled"""
         with tempfile.NamedTemporaryFile(
             delete=False, mode="w+", encoding="utf-8"
         ) as tmp:
@@ -77,7 +77,7 @@ class TestConfigureScale(unittest.TestCase):
                 fortio_namespaces=5,
                 fortio_deployments_per_namespace=100,
                 network_policies_per_namespace=50,
-                generate_retina_network_flow_logs=True,
+                generate_container_network_logs=True,
                 label_traffic_pods=True,
                 override_file=tmp_path,
             )
@@ -85,7 +85,7 @@ class TestConfigureScale(unittest.TestCase):
             with open(tmp_path, "r", encoding="utf-8") as f:
                 content = f.read()
 
-            self.assertIn("CL2_GENERATE_RETINA_NETWORK_FLOW_LOGS: True", content)
+            self.assertIn("CL2_GENERATE_CONTAINER_NETWORK_LOGS: True", content)
             self.assertIn("CL2_LABEL_TRAFFIC_PODS: True", content)
         finally:
             os.remove(tmp_path)
@@ -153,7 +153,7 @@ class TestCollectScale(unittest.TestCase):
                 fortio_namespaces=1,
                 fortio_deployments_per_namespace=1000,
                 network_policies_per_namespace=100,
-                generate_retina_network_flow_logs=True,
+                generate_container_network_logs=True,
                 label_traffic_pods=False,
                 trigger_reason="Manual",
             )
@@ -239,7 +239,7 @@ class TestMainArgumentParsing(unittest.TestCase):
             "--fortio-namespaces", "1",
             "--fortio-deployments-per-namespace", "1000",
             "--network-policies-per-namespace", "100",
-            "--generate-retina-network-flow-logs", "True",
+            "--generate-container-network-logs", "True",
             "--label_traffic_pods", "False",
             "--cl2_override_file", "/tmp/overrides.yaml",
         ]
