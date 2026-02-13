@@ -49,11 +49,13 @@ network_config_list = [
 
 firewall_config_list = [
   {
-    name                  = "nap-firewall"
-    network_role          = "crud"
-    sku_tier              = "Standard"
-    subnet_name           = "AzureFirewallSubnet"
-    public_ip_names       = ["firewall-pip-1", "firewall-pip-2", "firewall-pip-3", "firewall-pip-4", "firewall-pip-5", "firewall-pip-6", "firewall-pip-7", "firewall-pip-8", "firewall-pip-9", "firewall-pip-10"]
+    name         = "nap-firewall"
+    network_role = "crud"
+    sku_tier     = "Standard"
+    subnet_name  = "AzureFirewallSubnet"
+    public_ip_names = ["firewall-pip-1", "firewall-pip-2", "firewall-pip-3",
+      "firewall-pip-4", "firewall-pip-5", "firewall-pip-6",
+    "firewall-pip-7", "firewall-pip-8", "firewall-pip-9", "firewall-pip-10"]
     threat_intel_mode     = "Alert"
     dns_proxy_enabled     = true
     ip_configuration_name = "nap-fw-ipconfig"
