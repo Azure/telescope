@@ -20,7 +20,7 @@ def override_config_clusterloader2(
     registry_endpoint, os_type, scrape_kubelets, scrape_containerd, containerd_scrape_interval, host_network, override_file, use_custom_kubelet = False):
     MEMORY_SCALE_FACTOR = 0.95 # 95% of the total allocatable memory to account for error margin
     if use_custom_kubelet:
-        MEMORY_SCALE_FACTOR = 1.00 # Allow full memory access for load testing
+        MEMORY_SCALE_FACTOR = 1.20 # Allow over full memory access for load testing
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
     nodes = client.get_nodes(label_selector="cri-resource-consume=true")
     if len(nodes) == 0:
