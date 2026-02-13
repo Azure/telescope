@@ -4,7 +4,6 @@ variable "firewall_config_list" {
     name                  = string
     network_role          = optional(string)
     subnet_name           = optional(string)
-    public_ip_name        = optional(string)
     public_ip_names       = optional(list(string), [])
     sku_name              = optional(string, "AZFW_VNet")
     sku_tier              = optional(string, "Standard")

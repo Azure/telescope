@@ -32,9 +32,7 @@ module "firewall" {
       name                   = "main-firewall"
       network_role           = "hub"
       subnet_name            = "firewall-subnet"
-      public_ip_name         = "firewall-pip"
-      # Or use public_ip_names for multiple PIPs:
-      # public_ip_names        = ["firewall-pip-1", "firewall-pip-2"]
+      public_ip_names        = ["firewall-pip"]
       sku_tier               = "Standard"
       threat_intel_mode      = "Alert"
       dns_proxy_enabled      = false
@@ -121,8 +119,7 @@ module "firewall" {
   name                     = string              # Firewall name
   network_role             = optional(string)    # Network role identifier
   subnet_name              = optional(string)    # Subnet name (resolved via subnets_map)
-  public_ip_name           = optional(string)    # Public IP name (resolved via public_ips_map)
-  public_ip_names          = optional(list)      # Multiple public IP names (resolved via public_ips_map), overrides public_ip_name
+  public_ip_names          = optional(list)      # Public IP names (resolved via public_ips_map)
   sku_name                 = optional(string)    # Default: "AZFW_VNet"
   sku_tier                 = optional(string)    # Default: "Standard"
   firewall_policy_id       = optional(string)    # Attach firewall policy

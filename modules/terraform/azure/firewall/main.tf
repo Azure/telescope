@@ -1,12 +1,8 @@
 locals {
-  # Build the effective list of public IP names for each firewall.
-  # If public_ip_names is provided, use it; otherwise fall back to the single public_ip_name.
+  # Resolve subnet and public IP references for each firewall config.
   resolved_firewall_config_map = {
     for fw in var.firewall_config_list : fw.name => merge(fw, {
       subnet_id = try(var.subnets_map[fw.subnet_name], null)
-      effective_public_ip_names = length(fw.public_ip_names) > 0 ? fw.public_ip_names : (
-        fw.public_ip_name != null ? [fw.public_ip_name] : []
-      )
     })
   }
 
@@ -28,7 +24,7 @@ resource "azurerm_firewall" "firewall" {
   tags                = var.tags
 
   dynamic "ip_configuration" {
-    for_each = { for idx, pip_name in each.value.effective_public_ip_names : pip_name => {
+    for_each = { for idx, pip_name in each.value.public_ip_names : pip_name => {
       name                 = idx == 0 ? each.value.ip_configuration_name : "${each.value.ip_configuration_name}-${idx + 1}"
       subnet_id            = idx == 0 ? each.value.subnet_id : null # only the first ip_configuration gets the subnet
       public_ip_address_id = try(var.public_ips_map[pip_name].id, null)
