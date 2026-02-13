@@ -2,8 +2,8 @@
 AWS EKS Node Group CRUD Operations Module.
 
 This module provides a cloud-agnostic NodePoolCRUD class for Amazon Elastic Kubernetes Service (EKS)
-node groups, including create, scale (up/down), and delete operations. It supports
-both direct and progressive scaling operations and handles GPU-enabled node groups.
+node groups, including create, scale (up/down), and delete operations.
+It supports both direct and progressive scaling operations and handles GPU-enabled node groups.
 """
 
 import logging
