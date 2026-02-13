@@ -1,13 +1,5 @@
 trigger: none
 
-schedules:
-  - cron: "0 5 * * *"
-    displayName: "Nightly run at 9 PM PST"
-    branches:
-      include:
-        - shreyash/singularityscaletest
-    always: true
-
 variables:
   # Cleanup control - set to false to keep resources after pipeline completes
   CLEANUP: "true"
