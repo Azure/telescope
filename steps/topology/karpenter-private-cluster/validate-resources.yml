@@ -44,6 +44,8 @@ steps:
       aks_rg=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location '${{ parameters.regions[0] }}' --query "[?(tags.run_id == '$(RUN_ID)' && tags.role == '${{ parameters.role }}')].resourceGroup" --output tsv)
       if [ -z "$aks_name" ]; then echo "No AKS found with run_id=$(RUN_ID) and role=${{ parameters.role }}"; exit 1; fi
       echo "Found AKS: $aks_name in resource group: $aks_rg"
+      az aks get-credentials -n "$aks_name" -g "$aks_rg" --overwrite-existing
+      kubelogin convert-kubeconfig -l msi
       echo 'Kubeconfig updated on jumpbox. Testing kubectl...'
       kubectl get ns
 
