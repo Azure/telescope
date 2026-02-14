@@ -289,9 +289,17 @@ aks_cli_config_list = [
         value = ""
       },
       {
-        name  = "enable-addons"
-        value = "azure-keyvault-secrets-provider"
+        name  = "disable-disk-driver"
+        value = ""
       },
+      {
+        name  = "disable-file-driver"
+        value = ""
+      },
+#      {
+#        name  = "enable-addons"
+#        value = "azure-keyvault-secrets-provider"
+#      },
       {
         name  = "enable-keda"
         value = ""
