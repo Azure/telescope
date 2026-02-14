@@ -96,9 +96,9 @@ steps:
       pip3 install --user --break-system-packages -r '/tmp/telescope-run/run-$(Build.BuildId)/modules/python/requirements.txt' || pip3 install --user -r '/tmp/telescope-run/run-$(Build.BuildId)/modules/python/requirements.txt'
       source '/tmp/telescope-run/run-$(Build.BuildId)/jumpbox-env.sh'
       PYTHONPATH=${PYTHONPATH:-}:$REMOTE_PYTHON_DIR python3 $PYTHON_SCRIPT_FILE override \
-        $CPU_PER_NODE $NODE_COUNT $POD_COUNT \
+        ${CPU_PER_NODE:-0} ${NODE_COUNT:-0} ${POD_COUNT:-0} \
         $SCALE_UP_TIMEOUT $SCALE_DOWN_TIMEOUT \
-        $LOOP_COUNT "$NODE_LABEL_SELECTOR" "$NODE_SELECTOR" "${CL2_CONFIG_DIR}/overrides.yaml" ${WARMUP_DEPLOYMENT:-false} ${CL2_CONFIG_DIR} --os_type ${OS_TYPE:-linux} --warmup_deployment_template ${WARMUP_DEPLOYMENT_TEMPLATE:-""} --deployment_template ${DEPLOYMENT_TEMPLATE:-""} \
+        $LOOP_COUNT "${NODE_LABEL_SELECTOR:-""}" "$NODE_SELECTOR" "${CL2_CONFIG_DIR}/overrides.yaml" ${WARMUP_DEPLOYMENT:-false} ${CL2_CONFIG_DIR} --os_type ${OS_TYPE:-linux} --warmup_deployment_template ${WARMUP_DEPLOYMENT_TEMPLATE:-""} --deployment_template ${DEPLOYMENT_TEMPLATE:-""} \
         --pod_cpu_request ${POD_CPU_REQUEST:-0} --pod_memory_request ${POD_MEMORY_REQUEST:-""} --cl2_config_file ${CL2_CONFIG_FILE:-config.yaml} --enable_prometheus ${ENABLE_PROMETHEUS:-False}
 
       # Note: cluster loader2 newest image is conflicted with service monitors and prometheus
