@@ -12,10 +12,6 @@ public_ip_config_list = [
   {
     name  = "jumpbox-pip"
     count = 1
-  },
-  {
-    name  = "jumpbox-pip"
-    count = 1
   }
 ]
 
@@ -33,13 +29,13 @@ key_vault_config_list = [
   }
 ]
 
-disk_encryption_set_config_list = [
-  {
-    name           = "nap-des"
-    key_vault_name = "akskms"
-    key_name       = "des-nap"
-  }
-]
+#disk_encryption_set_config_list = [
+#  {
+#    name           = "nap-des"
+#    key_vault_name = "akskms"
+#    key_name       = "des-nap"
+#  }
+#]
 
 network_config_list = [
   {
@@ -234,7 +230,7 @@ aks_cli_config_list = [
       key_vault_name = "akskms"
       network_access = "Private"
     }
-    disk_encryption_set_name = "nap-des"
+    #disk_encryption_set_name = "nap-des"
     default_node_pool = {
       name         = "system"
       os_disk_type = "Ephemeral"
