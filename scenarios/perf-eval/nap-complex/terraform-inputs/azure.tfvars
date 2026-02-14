@@ -12,10 +12,6 @@ public_ip_config_list = [
   {
     name  = "jumpbox-pip"
     count = 1
-  },
-  {
-    name  = "jumpbox-pip"
-    count = 1
   }
 ]
 
