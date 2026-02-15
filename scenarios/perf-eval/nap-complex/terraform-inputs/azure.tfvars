@@ -8,7 +8,6 @@ public_ip_config_list = [
   {
     name  = "firewall-pip"
     count = 10
-
   },
   {
     name  = "jumpbox-pip"
