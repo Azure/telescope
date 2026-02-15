@@ -308,7 +308,7 @@ aks_cli_config_list = [
         name  = "enable-private-cluster"
         value = ""
       }
-      # TODO: enable private cluster + jumpbox , enable cilium once it is fixed
+      # TODO: enable cilium once it is fixed
     ]
   }
 ]
