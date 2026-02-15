@@ -42,7 +42,7 @@ stages:
               enable_prometheus: True
               scrape_kubelets: True
               scrape_ksm: True
-              enable_apiserver_vnet_integration: "true" # TODO: enable when hyperscale fix roll out
+              enable_apiserver_vnet_integration: "true"
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
