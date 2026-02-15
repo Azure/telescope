@@ -8,6 +8,10 @@ public_ip_config_list = [
   {
     name  = "firewall-pip"
     count = 10
+  },
+  {
+    name  = "jumpbox-pip"
+    count = 1
   }
 ]
 
@@ -17,8 +21,19 @@ key_vault_config_list = [
     keys = [
       {
         key_name = "kms-nap"
+      },
+      {
+        key_name = "des-nap"
       }
     ]
+  }
+]
+
+disk_encryption_set_config_list = [
+  {
+    name           = "nap-des"
+    key_vault_name = "akskms"
+    key_name       = "des-nap"
   }
 ]
 
@@ -37,13 +52,25 @@ network_config_list = [
         address_prefix = "10.240.0.0/16"
       },
       {
+        name           = "jumpbox-subnet"
+        address_prefix = "10.224.0.0/12"
+      },
+      {
         name           = "AzureFirewallSubnet"
         address_prefix = "10.193.0.0/26"
       }
     ]
     network_security_group_name = ""
-    nic_public_ip_associations  = []
-    nsr_rules                   = []
+    nic_public_ip_associations = [
+      {
+        nic_name              = "jumpbox-nic"
+        subnet_name           = "jumpbox-subnet"
+        ip_configuration_name = "jumpbox-ipconfig"
+        public_ip_name        = "jumpbox-pip"
+        count                 = 1
+      }
+    ]
+    nsr_rules = []
   }
 ]
 
@@ -203,6 +230,7 @@ aks_cli_config_list = [
       key_vault_name = "akskms"
       network_access = "Private"
     }
+    disk_encryption_set_name = "nap-des"
     default_node_pool = {
       name         = "system"
       os_disk_type = "Ephemeral"
@@ -249,17 +277,25 @@ aks_cli_config_list = [
         value = ""
       },
       {
-        name  = "enable-workload-identity"
-        value = ""
-      },
-      {
         name  = "outbound-type"
         value = "userDefinedRouting"
       },
       {
-        name  = "enable-addons"
-        value = "azure-keyvault-secrets-provider"
+        name  = "enable-workload-identity"
+        value = ""
       },
+      {
+        name  = "disable-disk-driver"
+        value = ""
+      },
+      {
+        name  = "disable-file-driver"
+        value = ""
+      },
+#      {
+#        name  = "enable-addons"
+#        value = "azure-keyvault-secrets-provider"
+#      },
       {
         name  = "enable-keda"
         value = ""
@@ -267,8 +303,35 @@ aks_cli_config_list = [
       {
         name  = "enable-image-cleaner"
         value = ""
+      },
+      {
+        name  = "enable-private-cluster"
+        value = ""
       }
-      # TODO: enable private cluster + jumpbox , enable cilium once it is fixed
+      # TODO: enable cilium once it is fixed
     ]
+  }
+]
+
+vm_config_list = [
+  {
+    role     = "nap"
+    name     = "my-jumpbox"
+    vm_size  = "Standard_D4s_v3"
+    nic_name = "jumpbox-nic"
+    aks_name = "nap-complex"
+    nsg = {
+      enabled = true
+      rules = [
+        {
+          name                   = "AllowSSH"
+          priority               = 100
+          destination_port_range = "22"
+        }
+      ]
+    }
+    vm_tags = {
+      jumpbox = "true"
+    }
   }
 ]
