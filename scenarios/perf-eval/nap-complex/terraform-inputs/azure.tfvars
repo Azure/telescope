@@ -7,7 +7,7 @@ owner          = "aks"
 public_ip_config_list = [
   {
     name  = "firewall-pip"
-    count = 10
+    count = 1
   },
   {
     name  = "jumpbox-pip"
@@ -163,54 +163,54 @@ route_table_config_list = [
       },
       {
         name                         = "firewall-internet-1"
-        address_prefix_publicip_name = "firewall-pip-1"
-        next_hop_type                = "Internet"
-      },
-      {
-        name                         = "firewall-internet-2"
-        address_prefix_publicip_name = "firewall-pip-2"
-        next_hop_type                = "Internet"
-      },
-      {
-        name                         = "firewall-internet-3"
-        address_prefix_publicip_name = "firewall-pip-3"
-        next_hop_type                = "Internet"
-      },
-      {
-        name                         = "firewall-internet-4"
-        address_prefix_publicip_name = "firewall-pip-4"
-        next_hop_type                = "Internet"
-      },
-      {
-        name                         = "firewall-internet-5"
-        address_prefix_publicip_name = "firewall-pip-5"
-        next_hop_type                = "Internet"
-      },
-      {
-        name                         = "firewall-internet-6"
-        address_prefix_publicip_name = "firewall-pip-6"
-        next_hop_type                = "Internet"
-      },
-      {
-        name                         = "firewall-internet-7"
-        address_prefix_publicip_name = "firewall-pip-7"
-        next_hop_type                = "Internet"
-      },
-      {
-        name                         = "firewall-internet-8"
-        address_prefix_publicip_name = "firewall-pip-8"
-        next_hop_type                = "Internet"
-      },
-      {
-        name                         = "firewall-internet-9"
-        address_prefix_publicip_name = "firewall-pip-9"
-        next_hop_type                = "Internet"
-      },
-      {
-        name                         = "firewall-internet-10"
-        address_prefix_publicip_name = "firewall-pip-10"
+        address_prefix_publicip_name = "firewall-pip"
         next_hop_type                = "Internet"
       }
+      # {
+      #   name                         = "firewall-internet-2"
+      #   address_prefix_publicip_name = "firewall-pip-2"
+      #   next_hop_type                = "Internet"
+      # },
+      # {
+      #   name                         = "firewall-internet-3"
+      #   address_prefix_publicip_name = "firewall-pip-3"
+      #   next_hop_type                = "Internet"
+      # },
+      # {
+      #   name                         = "firewall-internet-4"
+      #   address_prefix_publicip_name = "firewall-pip-4"
+      #   next_hop_type                = "Internet"
+      # },
+      # {
+      #   name                         = "firewall-internet-5"
+      #   address_prefix_publicip_name = "firewall-pip-5"
+      #   next_hop_type                = "Internet"
+      # },
+      # {
+      #   name                         = "firewall-internet-6"
+      #   address_prefix_publicip_name = "firewall-pip-6"
+      #   next_hop_type                = "Internet"
+      # },
+      # {
+      #   name                         = "firewall-internet-7"
+      #   address_prefix_publicip_name = "firewall-pip-7"
+      #   next_hop_type                = "Internet"
+      # },
+      # {
+      #   name                         = "firewall-internet-8"
+      #   address_prefix_publicip_name = "firewall-pip-8"
+      #   next_hop_type                = "Internet"
+      # },
+      # {
+      #   name                         = "firewall-internet-9"
+      #   address_prefix_publicip_name = "firewall-pip-9"
+      #   next_hop_type                = "Internet"
+      # },
+      # {
+      #   name                         = "firewall-internet-10"
+      #   address_prefix_publicip_name = "firewall-pip-10"
+      #   next_hop_type                = "Internet"
+      # }
     ]
     subnet_associations = [{ subnet_name = "nap-subnet-ms" }]
   }
