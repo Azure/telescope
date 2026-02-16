@@ -1,12 +1,12 @@
 scenario_type  = "perf-eval"
-scenario_name  = "hyperscale-cluster"
+scenario_name  = "ccp-provisioning-H2"
 deletion_delay = "2h"
 owner          = "aks"
 
 aks_cli_config_list = [
   {
     role               = "client"
-    aks_name           = "hyperscale-cluster"
+    aks_name           = "ccp-provisioning-H2"
     sku_tier           = "standard"
     kubernetes_version = "1.33"
     default_node_pool = {

@@ -18,17 +18,9 @@ parameters:
   type: boolean
 
 steps:
-- script: |
-    if [ -n "$RUN_ID" ]; then
-      run_id=$RUN_ID
-    else
-      run_id=$(Build.BuildId)-$(System.JobId)
-    fi
-    echo "Run ID: $run_id"
-    echo "##vso[task.setvariable variable=RUN_ID]$run_id"
-  displayName: "Set Run ID"
-  env:
-    RUN_ID: ${{ parameters.run_id }}
+- template: /steps/set-run-id.yml
+  parameters:
+    run_id: ${{ parameters.run_id }}
 
 - script: |
     run_url="$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)"

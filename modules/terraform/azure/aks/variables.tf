@@ -72,6 +72,12 @@ variable "key_vaults" {
   default     = {}
 }
 
+variable "disk_encryption_sets" {
+  description = "Map of Disk Encryption Set names to their IDs for OS/data disk encryption. Reference: https://learn.microsoft.com/en-us/azure/aks/azure-disk-customer-managed-keys"
+  type        = map(string)
+  default     = {}
+}
+
 variable "aks_config" {
   type = object({
     role         = string
@@ -163,6 +169,8 @@ variable "aks_config" {
       key_vault_name = string
       network_access = optional(string, "Public")
     }), null)
+    # Disk Encryption Set configuration for OS disk encryption with Customer-Managed Keys
+    disk_encryption_set_name = optional(string, null) # Name of the Disk Encryption Set to use for OS disk encryption
   })
 
   validation {
