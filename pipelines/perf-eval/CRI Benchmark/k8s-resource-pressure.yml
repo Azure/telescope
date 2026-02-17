@@ -49,6 +49,7 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
+          run_id: ${{ variables.CUSTOM_RUN_ID }}
           matrix:
             n1-p60-memory-ephemeral:
               node_count: 1
