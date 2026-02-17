@@ -86,7 +86,7 @@ Operations supported by this module:
 - Create a new pipeline from the existing YAML file in Azure DevOps or GitHub
 - Create new variables for the pipeline
 - Attach/Link existing Variable Groups to the pipeline
-- Authroize the pipeline to use the existing Service Connections listed in the tfvars file
+- Authorize the pipeline to use the existing Service Connections listed in the tfvars file
 - Authorize the pipeline to use the agent pool
 
 ### Usage
