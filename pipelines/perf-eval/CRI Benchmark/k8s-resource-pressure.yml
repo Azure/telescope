@@ -13,10 +13,15 @@ parameters:
     displayName: "Custom Kubelet Config (JSON String)"
     type: string  # The parameter type is string
     default: ""
+  - name: custom_metadata
+    displayName: "Custom Metadata for Test Run"
+    type: string
+    default: ""
 
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: k8s-node-stress
+  CUSTOM_RUN_ID: "${{ parameters.os_sku }}-${{ parameters.custom_metadata }}-$(Build.BuildId)"
 
 stages:
   - stage: azure_westus2_stress_baseline_1_34
