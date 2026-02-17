@@ -23,6 +23,7 @@ steps:
         --pod_startup_latency_threshold ${POD_STARTUP_LATENCY_THRESHOLD:-15s} \
         --provider $CLOUD \
         --registry_endpoint ${REGISTRY_ENDPOINT:-"akscritelescope.azurecr.io"} \
+        --test_image ${TEST_IMAGE:-"e2e-test-images/resource-consumer:1.13"} \
         --os_type ${OS_TYPE:-linux} \
         --scrape_kubelets ${SCRAPE_KUBELETS:-False} \
         --scrape_containerd ${SCRAPE_CONTAINERD:-False} \
