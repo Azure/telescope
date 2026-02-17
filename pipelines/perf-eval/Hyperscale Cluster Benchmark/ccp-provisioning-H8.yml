@@ -1,0 +1,35 @@
+trigger: none
+
+schedules:
+  - cron: "0 * * * *"
+    displayName: "Run every hour"
+    branches:
+      include:
+        - main
+    always: true
+    batch: false
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: ccp-provisioning-H8
+
+stages:
+  - stage: azure_H8 # 64 cores
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - northeurope
+          terraform_input_file_mapping:
+            - northeurope: "scenarios/perf-eval/ccp-provisioning/terraform-inputs/azure-H8.tfvars"
+          topology: hyperscale-cluster
+          engine: noop # This pipeline only measures cluster provisioning time so no specific benchmark engine is needed
+          matrix:
+            H8_tier:
+              ccp_tier: "H8"
+          max_parallel: 1
+          credential_type: service_connection
+          ssh_key_enabled: false
+          timeout_in_minutes: 60

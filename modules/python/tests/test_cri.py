@@ -61,6 +61,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             pod_startup_latency_threshold="15s",
             provider="aks",
             registry_endpoint="akscritelescope.azurecr.io",
+            test_image="e2e-test-images/resource-consumer:1.13",
             os_type="linux",
             scrape_kubelets=True,
             host_network=True,
@@ -119,6 +120,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
             pod_startup_latency_threshold="15s",
             provider="aks",
             registry_endpoint="akscritelescope.azurecr.io",
+            test_image="e2e-test-images/resource-consumer:1.13",
             os_type="linux",
             scrape_kubelets=False,
             host_network=False,
@@ -247,7 +249,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
         with patch.object(sys, 'argv', test_args):
             main()
             mock_override.assert_called_once_with(
-                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "test registry endpoint", "linux", False, False, "20s", False, "/tmp/override.yaml"
+                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "test registry endpoint", "e2e-test-images/resource-consumer:1.13", "linux", False, False, "20s", False, "/tmp/override.yaml"
             )
 
     @patch("clusterloader2.cri.cri.override_config_clusterloader2")
@@ -272,7 +274,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
         with patch.object(sys, 'argv', test_args):
             main()
             mock_override.assert_called_once_with(
-                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "test registry endpoint", "linux", False, False, "15s", True, "/tmp/override.yaml"
+                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "test registry endpoint", "e2e-test-images/resource-consumer:1.13", "linux", False, False, "15s", True, "/tmp/override.yaml"
             )
 
     @patch("clusterloader2.cri.cri.execute_clusterloader2")
