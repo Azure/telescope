@@ -2,7 +2,7 @@ trigger: none
 
 variables:
   # Cleanup control - set to false to keep resources after pipeline completes
-  CLEANUP: "true"
+  CLEANUP: "false"
   # Slow delete - when true, runs the swiftv2 workload cleanup script for graceful deletion
   # This is slower but ensures proper cleanup of deployments, pods, and PNIs before nodepool deletion
   SLOW_DELETE: "false"
