@@ -29,6 +29,7 @@ steps:
         --scrape_containerd ${SCRAPE_CONTAINERD:-False} \
         --containerd_scrape_interval ${CONTAINERD_SCRAPE_INTERVAL:-15s} \
         --host_network ${HOST_NETWORK:-True} \
+        ${MEMORY_REQUEST_OVERRIDE:+--memory_request_override "$MEMORY_REQUEST_OVERRIDE"} \
         --cl2_override_file ${CL2_CONFIG_DIR}/overrides.yaml
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
         --cl2_image ${CL2_IMAGE} \

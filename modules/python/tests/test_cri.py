@@ -249,7 +249,7 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
         with patch.object(sys, 'argv', test_args):
             main()
             mock_override.assert_called_once_with(
-                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "test registry endpoint", "e2e-test-images/resource-consumer:1.13", "linux", False, False, "20s", False, "/tmp/override.yaml"
+                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "test registry endpoint", "e2e-test-images/resource-consumer:1.13", "linux", False, False, "20s", False, "/tmp/override.yaml", None
             )
 
     @patch("clusterloader2.cri.cri.override_config_clusterloader2")
@@ -274,7 +274,35 @@ class TestCRIClusterLoaderFunctions(unittest.TestCase):
         with patch.object(sys, 'argv', test_args):
             main()
             mock_override.assert_called_once_with(
-                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "test registry endpoint", "e2e-test-images/resource-consumer:1.13", "linux", False, False, "15s", True, "/tmp/override.yaml"
+                5, 1, 110, 3, "2m", "cpu", True, "10s", "aws", "test registry endpoint", "e2e-test-images/resource-consumer:1.13", "linux", False, False, "15s", True, "/tmp/override.yaml", None
+            )
+
+    @patch("clusterloader2.cri.cri.override_config_clusterloader2")
+    def test_override_command_with_memory_request_override(self, mock_override):
+        test_args = [
+            "main.py", "override",
+            "--node_count", "1000",
+            "--node_per_step", "1000",
+            "--max_pods", "7",
+            "--repeats", "1",
+            "--operation_timeout", "60m",
+            "--load_type", "memory",
+            "--scale_enabled", "False",
+            "--pod_startup_latency_threshold", "10m",
+            "--provider", "aks",
+            "--registry_endpoint", "acrperftestaue.azurecr-test.io",
+            "--os_type", "linux",
+            "--scrape_kubelets", "False",
+            "--scrape_containerd", "True",
+            "--containerd_scrape_interval", "30s",
+            "--host_network", "True",
+            "--cl2_override_file", "/tmp/override.yaml",
+            "--memory_request_override", "1000Mi"
+        ]
+        with patch.object(sys, 'argv', test_args):
+            main()
+            mock_override.assert_called_once_with(
+                1000, 1000, 7, 1, "60m", "memory", False, "10m", "aks", "acrperftestaue.azurecr-test.io", "e2e-test-images/resource-consumer:1.13", "linux", False, True, "30s", True, "/tmp/override.yaml", "1000Mi"
             )
 
     @patch("clusterloader2.cri.cri.execute_clusterloader2")

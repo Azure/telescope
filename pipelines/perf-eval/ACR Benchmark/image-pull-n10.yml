@@ -26,6 +26,7 @@ stages:
           topology: image-pull
           matrix:
             image-pull-10pods-authenticated:
+              desired_nodes: 14
               node_count: 10
               max_pods: 26
               repeats: 1
@@ -41,6 +42,7 @@ stages:
               pod_startup_latency_threshold: 600s
               anonymous_pull: False
             image-pull-10pods-anonymous:
+              desired_nodes: 14
               node_count: 10
               max_pods: 26
               repeats: 1
