@@ -97,7 +97,7 @@ firewall_config_list = [
             source_addresses = ["*"]
             target_fqdns = ["*.azure.com", "*.azure.net",
               "*.windows.net", "*.azurecr.io", "*.ubuntu.com", "AzureKubernetesService",
-              "mcr-0001.mcr-msedge.net", "*.microsoft.com",
+              "mcr-0001.mcr-msedge.net", "*.microsoft.com", "mcr.microsoft.com", "*.mcr.microsoft.com",
               "*.microsoftonline.com", "*.microsoftonline.co", "*.azureedge.net",
               "packages.aks.azure.com", "mcr.microsoft.com",
               "*.azmk8s.io",
