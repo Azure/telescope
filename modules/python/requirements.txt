@@ -12,3 +12,5 @@ coverage==7.6.12
 semver==3.0.4
 requests==2.32.4
 pyyaml==6.0.2
+pyOpenSSL>=23.2.0
+cryptography>=42,<43
