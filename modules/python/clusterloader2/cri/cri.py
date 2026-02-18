@@ -318,14 +318,17 @@ def main():
         "--registry_endpoint", type=str, help="Container registry endpoint"
     )
     parser_override.add_argument(
-<<<<<<< HEAD
         "--test_image",
         type=str,
         default="e2e-test-images/resource-consumer:1.13",
         help="Test image to pull (relative to registry endpoint)"
-=======
-        "--memory_request_override", type=str, default=None, help="Override memory request per pod (e.g., 100Mi, 1Gi, 500Ki)"
->>>>>>> f0f10720 (1000n acr image pull)
+    )
+
+    parser_override.add_argument(
+        "--memory_request_override",
+        type=str,
+        default=None,
+        help="Override memory request per pod (e.g., 100Mi, 1Gi, 500Ki)"
     )
 
     # Sub-command for execute_clusterloader2
