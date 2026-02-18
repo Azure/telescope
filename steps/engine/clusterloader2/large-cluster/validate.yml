@@ -1,6 +1,6 @@
 parameters:
   - name: desired_nodes
-    type: number
+    type: string
   - name: validation_timeout_in_minutes
     type: number
     default: 10
