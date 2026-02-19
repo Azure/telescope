@@ -40,6 +40,9 @@ spec:
           
           if [ "$READY_COUNT" -ge "$NUM_PNIS" ]; then
             echo "All PNIs are ready!"
+            touch /tmp/ready
+            # Keep pod running so CL2 can detect readiness via probe
+            sleep 60
             exit 0
           fi
           
@@ -49,6 +52,13 @@ spec:
         
         echo "Timeout reached after ${TIMEOUT}s - $READY_COUNT/$NUM_PNIS PNIs ready"
         exit 1
+    readinessProbe:
+      exec:
+        command:
+          - cat
+          - /tmp/ready
+      initialDelaySeconds: 5
+      periodSeconds: 5
     resources:
       requests:
         cpu: 10m
