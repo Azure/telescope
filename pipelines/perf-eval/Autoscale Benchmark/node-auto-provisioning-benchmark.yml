@@ -345,6 +345,38 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
+  - stage: azure_eastus2_large_scale
+    condition: eq(variables['Build.Reason'], 'Manual')
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250423"
+          topology: karpenter
+          matrix:
+            large-scale-on-demand:
+              cpu_per_node: 2
+              node_count: 1000
+              pod_count: 1000
+              scale_up_timeout: "60m"
+              scale_down_timeout: "60m"
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 1
+              warmup_deployment: true
+              warmup_deployment_template: warmup_deployment.yaml
+              vm_size: Standard_D2s_v5
+              capacity_type: on-demand
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false
+
   - stage: azure_intv2_large_scale
     condition: eq(variables['Build.Reason'], 'Manual')
     dependsOn: []
