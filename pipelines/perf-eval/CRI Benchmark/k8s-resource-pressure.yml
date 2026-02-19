@@ -53,13 +53,16 @@ stages:
           matrix:
             n1-p60-memory-ephemeral:
               node_count: 1
-              max_pods: 30 # match with kubelet setting
+              max_pods: 60 # match with kubelet setting
               repeats: 1
               operation_timeout: 3m
               load_type: memory
               pod_startup_latency_threshold: 23s
               kubernetes_version: "1.34"
               scrape_kubelets: True
+              scrape_containerd: True
+              scrape_ksm: True
+              scrape_metrics_server: True
               use_custom_kubelet: ${{ parameters.use_custom_kubelet }}
               custom_kubelet_config: ${{ parameters.custom_kubelet_config }}
           max_parallel: 1
