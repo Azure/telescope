@@ -304,10 +304,10 @@ aks_cli_config_list = [
         name  = "disable-file-driver"
         value = ""
       },
-      #      {
-      #        name  = "enable-addons"
-      #        value = "azure-keyvault-secrets-provider"
-      #      },
+      {
+        name  = "enable-addons"
+        value = "azure-keyvault-secrets-provider"
+      },
       {
         name  = "enable-keda"
         value = ""

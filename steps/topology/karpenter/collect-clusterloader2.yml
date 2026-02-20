@@ -15,4 +15,4 @@ steps:
       cloud: ${{ parameters.cloud }}
       engine_input: ${{ parameters.engine_input }}
       region: ${{ parameters.regions[0] }}
-# - template: /steps/engine/clusterloader2/autoscale/cleanup.yml
+  - template: /steps/engine/clusterloader2/autoscale/cleanup.yml
