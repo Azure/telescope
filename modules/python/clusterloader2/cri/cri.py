@@ -19,7 +19,7 @@ MEMORY_SCALE_FACTOR = 0.95 # 95% of the total allocatable memory to account for 
 def override_config_clusterloader2(
     node_count, node_per_step, max_pods, repeats, operation_timeout,
     load_type, scale_enabled, pod_startup_latency_threshold, provider,
-    registry_endpoint, os_type, scrape_kubelets, scrape_containerd, containerd_scrape_interval, host_network, override_file):
+    registry_endpoint, test_image, os_type, scrape_kubelets, scrape_containerd, containerd_scrape_interval, host_network, override_file, memory_request_override=None):
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
     nodes = client.get_nodes(label_selector="cri-resource-consume=true")
     if len(nodes) == 0:
@@ -53,12 +53,29 @@ def override_config_clusterloader2(
     logger.info(f"Node {node.metadata.name} has {daemonset_count} daemonset pods")
     pod_count = max_pods - daemonset_count
     cpu_request = cpu_value // pod_count
-    memory_request_in_ki = math.ceil(memory_value * MEMORY_SCALE_FACTOR // pod_count)
-    memory_request_in_k = int(memory_request_in_ki // 1.024)
-    memory_request_in_m = int(memory_request_in_k // 1000)
-    memory_request = (
-        memory_request_in_m if os_type == "windows" else memory_request_in_k
-    )
+
+    # Use override if provided, otherwise calculate
+    if memory_request_override:
+        if memory_request_override.endswith("Mi"):
+            memory_request_in_ki = int(memory_request_override.replace("Mi", "")) * 1024
+        elif memory_request_override.endswith("Gi"):
+            memory_request_in_ki = int(memory_request_override.replace("Gi", "")) * 1024 * 1024
+        elif memory_request_override.endswith("Ki"):
+            memory_request_in_ki = int(memory_request_override.replace("Ki", ""))
+        else:
+            memory_request_in_ki = int(memory_request_override)
+        memory_request_in_k = int(memory_request_in_ki // 1.024)
+        memory_request_in_m = int(memory_request_in_k // 1000)
+        memory_request = memory_request_in_m if os_type == "windows" else memory_request_in_k
+        logger.info(f"Using memory request override: {memory_request_override}")
+    else:
+        memory_request_in_ki = math.ceil(memory_value * MEMORY_SCALE_FACTOR // pod_count)
+        memory_request_in_k = int(memory_request_in_ki // 1.024)
+        memory_request_in_m = int(memory_request_in_k // 1000)
+        memory_request = (
+            memory_request_in_m if os_type == "windows" else memory_request_in_k
+        )
+
     logger.info(
         f"CPU request for each pod: {cpu_request}m, memory request for each pod: {memory_request}, "
         f"total pod per node: {pod_count}, os_type: {os_type}"
@@ -91,6 +108,7 @@ def override_config_clusterloader2(
         file.write(f"CL2_POD_STARTUP_LATENCY_THRESHOLD: {pod_startup_latency_threshold}\n")
         file.write(f"CL2_PROVIDER: {provider}\n")
         file.write(f"CL2_REGISTRY_ENDPOINT: {registry_endpoint}\n")
+        file.write(f"CL2_TEST_IMAGE: {test_image}\n")
         file.write(f"CL2_OS_TYPE: {os_type}\n")
         file.write(f"CL2_SCRAPE_KUBELETS: {str(scrape_kubelets).lower()}\n")
         file.write(f"CL2_SCRAPE_CONTAINERD: {str(scrape_containerd).lower()}\n")
@@ -299,6 +317,19 @@ def main():
     parser_override.add_argument(
         "--registry_endpoint", type=str, help="Container registry endpoint"
     )
+    parser_override.add_argument(
+        "--test_image",
+        type=str,
+        default="e2e-test-images/resource-consumer:1.13",
+        help="Test image to pull (relative to registry endpoint)"
+    )
+
+    parser_override.add_argument(
+        "--memory_request_override",
+        type=str,
+        default=None,
+        help="Override memory request per pod (e.g., 100Mi, 1Gi, 500Ki)"
+    )
 
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser(
@@ -391,12 +422,14 @@ def main():
             args.pod_startup_latency_threshold,
             args.provider,
             args.registry_endpoint,
+            args.test_image,
             args.os_type,
             args.scrape_kubelets,
             args.scrape_containerd,
             args.containerd_scrape_interval,
             args.host_network,
             args.cl2_override_file,
+            args.memory_request_override,
         )
     elif args.command == "execute":
         execute_clusterloader2(

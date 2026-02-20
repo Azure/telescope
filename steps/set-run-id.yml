@@ -1,0 +1,18 @@
+parameters:
+- name: run_id
+  type: string
+  default: ''
+
+steps:
+- script: |
+    if [ -n "$RUN_ID" ]; then
+      run_id=$RUN_ID
+    else
+      job_id="$(System.JobId)"
+      run_id=$(Build.BuildId)-${job_id:0:8}
+    fi
+    echo "Run ID: $run_id"
+    echo "##vso[task.setvariable variable=RUN_ID]$run_id"
+  displayName: "Set Run ID"
+  env:
+    RUN_ID: ${{ parameters.run_id }}

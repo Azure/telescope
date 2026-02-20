@@ -25,7 +25,7 @@ stages:
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250912"
-          topology: karpenter
+          topology: karpenter-private-cluster
           matrix:
             complex-nap:
               pod_count: 5000
@@ -42,8 +42,8 @@ stages:
               enable_prometheus: True
               scrape_kubelets: True
               scrape_ksm: True
-              enable_apiserver_vnet_integration: "true" # TODO: enable when hyperscale fix roll out
+              enable_apiserver_vnet_integration: "true"
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
-          ssh_key_enabled: false
+          ssh_key_enabled: true

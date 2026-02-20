@@ -165,7 +165,7 @@ variable "firewall_config_list" {
     name                  = string
     network_role          = optional(string)
     subnet_name           = optional(string)
-    public_ip_name        = optional(string)
+    public_ip_names       = optional(list(string), [])
     sku_name              = optional(string, "AZFW_VNet")
     sku_tier              = optional(string, "Standard")
     firewall_policy_id    = optional(string)
@@ -344,6 +344,8 @@ variable "aks_config_list" {
       key_vault_name = string
       network_access = optional(string, "Public")
     }), null)
+    # Disk Encryption Set configuration for OS disk encryption with Customer-Managed Keys
+    disk_encryption_set_name = optional(string, null) # Name of the Disk Encryption Set to use for OS disk encryption
   }))
   default = []
 }
@@ -448,7 +450,37 @@ variable "aks_cli_config_list" {
       network_access = optional(string, "Public")
     }), null)
     dry_run = optional(bool, false) # If true, only print the command without executing it. Useful for testing.
+    # Disk Encryption Set configuration for OS disk encryption with Customer-Managed Keys
+    disk_encryption_set_name = optional(string, null) # Name of the Disk Encryption Set to use for OS disk encryption
   }))
   default = []
+}
+
+variable "disk_encryption_set_config_list" {
+  description = "List of Disk Encryption Set configurations for encrypting AKS OS/data disks with Customer-Managed Keys. Reference: https://learn.microsoft.com/en-us/azure/aks/azure-disk-customer-managed-keys"
+  type = list(object({
+    name            = string                                              # Name of the Disk Encryption Set
+    key_vault_name  = string                                              # Name of the Key Vault containing the encryption key
+    key_name        = string                                              # Name of the encryption key in the Key Vault
+    encryption_type = optional(string, "EncryptionAtRestWithCustomerKey") # Type of encryption
+    # Supported values:
+    # - EncryptionAtRestWithCustomerKey (default): Disk is encrypted with customer-managed key
+    # - EncryptionAtRestWithPlatformAndCustomerKeys: Double encryption (platform + customer key)
+    # - ConfidentialVmEncryptedWithCustomerKey: For confidential VMs
+    auto_key_rotation_enabled = optional(bool, false) # Enable automatic key rotation
+  }))
+  default = []
+
+  validation {
+    condition = alltrue([
+      for config in var.disk_encryption_set_config_list : (
+        length(config.name) >= 1 &&
+        length(config.name) <= 80 &&
+        length(config.key_vault_name) >= 1 &&
+        length(config.key_name) >= 1
+      )
+    ])
+    error_message = "Each Disk Encryption Set config must have name 1-80 characters, and key_vault_name and key_name must be specified."
+  }
 }
 

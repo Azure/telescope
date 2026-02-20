@@ -1,0 +1,40 @@
+trigger: none
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: image-pull-n1000
+
+stages:
+  - stage: azure_australiaeast_image_pull
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - australiaeast
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+          topology: image-pull
+          matrix:
+            image-pull-1000nodes-anonymous:
+              desired_nodes: 1004
+              node_count: 1000
+              max_pods: 7
+              repeats: 1
+              operation_timeout: 60m
+              load_type: memory
+              memory_request_override: "1000Mi"
+              scrape_containerd: True
+              scrape_kubelets: False
+              scrape_registry: False
+              containerd_scrape_interval: 30s
+              registry_endpoint: acrperftestaue.azurecr-test.io
+              kubernetes_version: "1.34"
+              pod_startup_latency_threshold: 10m
+              anonymous_pull: True
+          max_parallel: 1
+          credential_type: service_connection
+          ssh_key_enabled: false
+          timeout_in_minutes: 100
