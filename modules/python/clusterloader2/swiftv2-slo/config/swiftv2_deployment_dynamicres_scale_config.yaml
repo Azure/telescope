@@ -87,7 +87,7 @@ steps:
         Params:
           desiredPodCount: 1
           labelSelector: app=pni-readiness-checker
-          timeout: 11m
+          timeout: 5m
   - name: Delete PNI Readiness Checker
     phases:
       - namespaceRange:
