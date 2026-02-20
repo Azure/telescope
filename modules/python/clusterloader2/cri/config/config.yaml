@@ -59,6 +59,11 @@ steps:
           kind: Deployment
           labelSelector: group = resource-consumer
           operationTimeout: {{$operationTimeout}}
+      - Identifier: SchedulingThroughput
+        Method: SchedulingThroughput
+        Params:
+          action: start
+          labelSelector: group = resource-consumer
 
 {{range $i := Loop $repeats}}
 
@@ -75,6 +80,11 @@ steps:
       params:
         action: start
   {{end}}
+
+  - module:
+      path: /node-measurements.yaml
+      params:
+        action: start
 
   {{range $j := Loop $steps}}
   - name: Create deployment {{$j}}
@@ -158,6 +168,11 @@ steps:
         action: gather
   {{end}}
 
+  - module:
+      path: /node-measurements.yaml
+      params:
+        action: gather
+
   {{range $j := Loop $steps}}
   - name: Deleting deployments {{$j}}
     phases:
@@ -187,5 +202,9 @@ steps:
           action: gather
       - Identifier: PodStartupLatency
         Method: PodStartupLatency
+        Params:
+          action: gather
+      - Identifier: SchedulingThroughput
+        Method: SchedulingThroughput
         Params:
           action: gather
