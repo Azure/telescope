@@ -28,10 +28,11 @@ variable "network_config" {
     vnet_name          = string
     vnet_address_space = string
     subnet = list(object({
-      name                         = string
-      address_prefix               = string
-      service_endpoints            = optional(list(string))
-      pls_network_policies_enabled = optional(bool)
+      name                                      = string
+      address_prefix                            = string
+      service_endpoints                         = optional(list(string))
+      pls_network_policies_enabled              = optional(bool)
+      private_endpoint_network_policies_enabled = optional(bool)
       delegations = optional(list(object({
         name                       = string
         service_delegation_name    = string

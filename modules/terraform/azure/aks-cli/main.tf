@@ -4,6 +4,8 @@ locals {
     format("%s=%s", key, value)
   ]
 
+  acr_pull_scopes = distinct(concat(var.acr_pull_scopes, var.acr_contributor_scopes))
+
   extra_pool_map = {
     for pool in var.aks_cli_config.extra_node_pool :
     pool.name => pool
@@ -114,6 +116,19 @@ locals {
     )
   )
 
+  kubelet_identity_parameter = (length(local.acr_pull_scopes) == 0 ?
+    "" :
+    format(
+      "%s %s",
+      "--assign-kubelet-identity", azurerm_user_assigned_identity.kubelet_identity[0].id,
+    )
+  )
+
+  bootstrap_parameters = join(" ", compact([
+    var.bootstrap_artifact_source != null ? format("--bootstrap-artifact-source %s", var.bootstrap_artifact_source) : null,
+    var.bootstrap_container_registry_resource_id != null ? format("--bootstrap-container-registry-resource-id %s", var.bootstrap_container_registry_resource_id) : null,
+  ]))
+
 
   api_server_vnet_integration_parameter = (var.aks_cli_config.enable_apiserver_vnet_integration && local.api_server_subnet_id != null ?
     format(
@@ -165,11 +180,13 @@ locals {
     local.custom_configurations,
     "--no-ssh-key",
     local.kubernetes_version,
+    local.bootstrap_parameters,
     local.optional_parameters,
     local.kms_parameters,
     local.disk_encryption_parameters,
     local.subnet_id_parameter,
     local.managed_identity_parameter,
+    local.kubelet_identity_parameter,
     local.api_server_vnet_integration_parameter,
     local.aad_parameter,
   ], local.default_node_pool_parameters))
@@ -194,6 +211,14 @@ resource "azurerm_user_assigned_identity" "userassignedidentity" {
   tags                = var.tags
 }
 
+resource "azurerm_user_assigned_identity" "kubelet_identity" {
+  count               = length(local.acr_pull_scopes) == 0 ? 0 : 1
+  location            = var.location
+  name                = "${var.aks_cli_config.aks_name}-kubelet-identity"
+  resource_group_name = var.resource_group_name
+  tags                = var.tags
+}
+
 resource "azurerm_role_assignment" "network_contributor" {
   count                = var.aks_cli_config.managed_identity_name != null && var.aks_cli_config.subnet_name != null ? 1 : 0
   role_definition_name = "Network Contributor"
@@ -206,6 +231,24 @@ resource "azurerm_role_assignment" "network_contributor_api_server_subnet" {
 
   role_definition_name = "Network Contributor"
   scope                = local.api_server_subnet_id
+  principal_id         = azurerm_user_assigned_identity.userassignedidentity[0].principal_id
+}
+
+# Grant AcrPull access to ACR for kubelet identity (node identity) BEFORE cluster creation.
+resource "azurerm_role_assignment" "acr_pull_kubelet" {
+  for_each = (!var.aks_cli_config.dry_run && length(local.acr_pull_scopes) > 0) ? toset(local.acr_pull_scopes) : toset([])
+
+  scope                = each.value
+  role_definition_name = "AcrPull"
+  principal_id         = azurerm_user_assigned_identity.kubelet_identity[0].principal_id
+}
+
+# If the cluster uses a user-assigned identity, it must be able to assign/use the kubelet identity.
+resource "azurerm_role_assignment" "managed_identity_operator_kubelet" {
+  count = (!var.aks_cli_config.dry_run && length(local.acr_pull_scopes) > 0 && var.aks_cli_config.managed_identity_name != null) ? 1 : 0
+
+  scope                = azurerm_user_assigned_identity.kubelet_identity[0].id
+  role_definition_name = "Managed Identity Operator"
   principal_id         = azurerm_user_assigned_identity.userassignedidentity[0].principal_id
 }
 
@@ -239,7 +282,9 @@ resource "terraform_data" "aks_cli" {
     terraform_data.enable_aks_cli_preview_extension,
     azurerm_role_assignment.network_contributor,
     azurerm_role_assignment.network_contributor_api_server_subnet,
-    azurerm_role_assignment.aks_identity_kms_roles
+    azurerm_role_assignment.aks_identity_kms_roles,
+    azurerm_role_assignment.acr_pull_kubelet,
+    azurerm_role_assignment.managed_identity_operator_kubelet
   ]
 
   input = {

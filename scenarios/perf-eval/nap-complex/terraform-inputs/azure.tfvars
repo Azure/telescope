@@ -48,6 +48,12 @@ network_config_list = [
         address_prefix = "10.192.0.0/16"
       },
       {
+        name           = "nap-private-endpoints"
+        address_prefix = "10.193.1.0/24"
+        # Required for Azure Private Endpoints (ACR Private Link)
+        private_endpoint_network_policies_enabled = false
+      },
+      {
         name           = "apiserver-subnet"
         address_prefix = "10.240.0.0/16"
       },
@@ -146,6 +152,35 @@ firewall_config_list = [
             protocols             = ["TCP", "UDP"]
           }
         ]
+      }
+    ]
+  }
+]
+
+# Optional Azure Container Registry with Private Link (Private Endpoint)
+# NOTE: ACR Private Link requires Premium SKU.
+acr_config_list = [
+  {
+    # If omitted, Terraform will generate a name based on scenario + run_id.
+    # name = "<globally-unique-acr-name>"
+    sku                           = "Premium"
+    admin_enabled                 = false
+    public_network_access_enabled = false
+
+    private_endpoint = {
+      subnet_name = "nap-private-endpoints"
+    }
+
+    acrpull_aks_cli_roles = ["nap"]
+
+    # Artifact cache (pull-through cache) rules.
+    # Mirrors:
+    #   az acr cache create -n aks-managed-mcr -r ${REGISTRY_NAME} -g ${RESOURCE_GROUP} --source-repo "mcr.microsoft.com/*" --target-repo "aks-managed-repository/*"
+    cache_rules = [
+      {
+        name              = "aks-managed-mcr"
+        source_repository = "mcr.microsoft.com/*"
+        target_repository = "aks-managed-repository/*"
       }
     ]
   }

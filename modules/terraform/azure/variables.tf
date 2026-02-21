@@ -231,6 +231,63 @@ variable "dns_zones" {
   default = []
 }
 
+variable "acr_config_list" {
+  description = "Optional list of Azure Container Registries (ACR) to create. Each entry can also enable a Private Endpoint + Private DNS integration (Private Link)."
+  type = list(object({
+    # If null, a name is generated from scenario + run_id. Must be globally unique, 5-50 chars, alphanumeric, start with a letter.
+    name                          = optional(string, null)
+    sku                           = optional(string, "Premium")
+    admin_enabled                 = optional(bool, false)
+    public_network_access_enabled = optional(bool, true)
+
+    private_endpoint = optional(object({
+      # Subnet name in the scenario VNet where the Private Endpoint NIC will be created.
+      subnet_name = string
+      # Optionally override the private DNS zone name for ACR.
+      private_dns_zone_name = optional(string, "privatelink.azurecr.io")
+    }), null)
+
+    # Optional: grant AcrPull on this ACR to the AKS kubelet identity for the specified aks-cli roles.
+    # Example: ["nap"] to allow the nap cluster nodes to pull from this ACR.
+    acrpull_aks_cli_roles = optional(list(string), [])
+
+    # Optional: create ACR artifact cache rules (pull-through cache).
+    # Each rule maps a target repository inside ACR to a source repository in an upstream registry.
+    # Example (no auth): source_repository = "mcr.microsoft.com/hello-world", target_repository = "mcr/hello-world"
+    cache_rules = optional(list(object({
+      name                       = string
+      source_repository          = string
+      target_repository          = string
+      credential_set_resource_id = optional(string, null)
+    })), [])
+
+    # Backward-compatible alias (previously used to grant access to the cluster identity).
+    # If set, it is treated the same as acrpull_aks_cli_roles.
+    contributor_aks_cli_roles = optional(list(string), [])
+  }))
+  default = []
+
+  validation {
+    condition = alltrue([
+      for acr in var.acr_config_list : (
+        try(acr.private_endpoint, null) == null || lower(try(acr.sku, "Premium")) == "premium"
+      )
+    ])
+    error_message = "ACR Private Link (private_endpoint) requires a Premium ACR SKU."
+  }
+
+  validation {
+    condition = alltrue(flatten([
+      for acr in var.acr_config_list : [
+        for rule in try(acr.cache_rules, []) : (
+          length(rule.name) >= 5 && length(rule.name) <= 50 && can(regex("^[a-zA-Z0-9-]*$", rule.name))
+        )
+      ]
+    ]))
+    error_message = "Each ACR cache rule name must be 5-50 characters and match ^[a-zA-Z0-9-]*$."
+  }
+}
+
 variable "key_vault_config_list" {
   description = "List of Key Vault configurations for AKS KMS encryption. Each configuration specifies a Key Vault and its encryption keys to be created."
   type = list(object({

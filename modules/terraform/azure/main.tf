@@ -29,6 +29,12 @@ locals {
 
   network_config_map = { for network in var.network_config_list : network.role => network }
 
+  subnet_to_network_role = merge([
+    for network in var.network_config_list : {
+      for subnet in network.subnet : subnet.name => network.role
+    }
+  ]...)
+
   route_table_config_map = { for rt in var.route_table_config_list : rt.name => rt }
 
   aks_cli_custom_config_path = "${path.cwd}/../../../scenarios/${var.scenario_type}/${var.scenario_name}/config/aks_custom_config.json"
@@ -70,6 +76,43 @@ locals {
   vm_config_map = { for vm in var.vm_config_list : vm.role => vm }
 
   disk_encryption_set_config_map = { for des in var.disk_encryption_set_config_list : des.name => des }
+
+  acr_config_map            = { for i, acr in var.acr_config_list : tostring(i) => acr }
+  acr_private_dns_zone_name = length(var.acr_config_list) > 0 ? try(var.acr_config_list[0].private_endpoint.private_dns_zone_name, "privatelink.azurecr.io") : "privatelink.azurecr.io"
+  acr_private_dns_enabled   = length([for acr in var.acr_config_list : acr if try(acr.private_endpoint != null, false)]) > 0
+
+  acr_private_dns_vnet_roles = distinct([
+    for acr in var.acr_config_list : local.subnet_to_network_role[acr.private_endpoint.subnet_name]
+    if try(acr.private_endpoint != null, false)
+  ])
+
+  # Terraform doesn't have regexreplace(); replace() supports regex when pattern is wrapped in /.../
+  acr_default_name_prefix = substr(replace(lower("acr${var.scenario_name}${local.run_id}"), "/[^0-9a-z]/", ""), 0, 45)
+
+  acr_cache_rule_map = length(var.acr_config_list) > 0 ? merge([
+    for acr_key, acr in local.acr_config_map : {
+      for rule in try(acr.cache_rules, []) : "${acr_key}/${rule.name}" => {
+        acr_key                    = acr_key
+        name                       = rule.name
+        source_repository          = rule.source_repository
+        target_repository          = rule.target_repository
+        credential_set_resource_id = try(rule.credential_set_resource_id, null)
+      }
+    }
+  ]...) : {}
+
+  aks_cli_acr_pull_scopes_map = {
+    for role, _cfg in local.aks_cli_config_map : role => distinct(flatten([
+      for acr_key, acr in local.acr_config_map : contains(
+        distinct(concat(try(acr.acrpull_aks_cli_roles, []), try(acr.contributor_aks_cli_roles, []))),
+        role
+      ) ? [azurerm_container_registry.acr[acr_key].id] : []
+    ]))
+  }
+
+  aks_cli_bootstrap_container_registry_resource_id_map = {
+    for role, scopes in local.aks_cli_acr_pull_scopes_map : role => try(scopes[0], null)
+  }
 }
 
 provider "azurerm" {
@@ -79,6 +122,10 @@ provider "azurerm" {
       recover_soft_deleted_key_vaults = false
     }
   }
+}
+
+provider "azapi" {
+  skip_provider_registration = true
 }
 
 module "public_ips" {
@@ -98,6 +145,83 @@ module "virtual_network" {
   location            = local.region
   public_ips          = module.public_ips.pip_ids
   tags                = local.tags
+}
+
+resource "azurerm_container_registry" "acr" {
+  for_each = local.acr_config_map
+
+  name                          = each.value.name != null ? each.value.name : substr("${local.acr_default_name_prefix}${each.key}", 0, 50)
+  resource_group_name           = local.run_id
+  location                      = local.region
+  sku                           = each.value.sku
+  admin_enabled                 = each.value.admin_enabled
+  public_network_access_enabled = each.value.public_network_access_enabled
+  tags                          = local.tags
+}
+
+resource "azurerm_private_dns_zone" "acr" {
+  count = local.acr_private_dns_enabled ? 1 : 0
+
+  name                = local.acr_private_dns_zone_name
+  resource_group_name = local.run_id
+  tags                = local.tags
+}
+
+resource "azurerm_private_dns_zone_virtual_network_link" "acr" {
+  for_each = local.acr_private_dns_enabled ? { for role in local.acr_private_dns_vnet_roles : role => role } : {}
+
+  name                  = "acr-dns-link-${each.key}"
+  resource_group_name   = local.run_id
+  private_dns_zone_name = azurerm_private_dns_zone.acr[0].name
+  virtual_network_id    = module.virtual_network[each.key].vnet_id
+  registration_enabled  = false
+  tags                  = local.tags
+
+  depends_on = [module.virtual_network, azurerm_private_dns_zone.acr]
+}
+
+resource "azurerm_private_endpoint" "acr" {
+  for_each = { for k, acr in local.acr_config_map : k => acr if try(acr.private_endpoint != null, false) }
+
+  name                = "acr-pe-${each.key}"
+  location            = local.region
+  resource_group_name = local.run_id
+  subnet_id           = local.all_subnets[each.value.private_endpoint.subnet_name]
+  tags                = local.tags
+
+  private_service_connection {
+    name                           = "acr-psc-${each.key}"
+    private_connection_resource_id = azurerm_container_registry.acr[each.key].id
+    subresource_names              = ["registry"]
+    is_manual_connection           = false
+  }
+
+  private_dns_zone_group {
+    name                 = "acr-dns-${each.key}"
+    private_dns_zone_ids = [azurerm_private_dns_zone.acr[0].id]
+  }
+
+  depends_on = [module.virtual_network, azurerm_private_dns_zone_virtual_network_link.acr]
+}
+
+resource "azapi_resource" "acr_cache_rule" {
+  for_each = local.acr_cache_rule_map
+
+  type      = "Microsoft.ContainerRegistry/registries/cacheRules@2023-07-01"
+  name      = each.value.name
+  parent_id = azurerm_container_registry.acr[each.value.acr_key].id
+
+  body = {
+    properties = merge(
+      {
+        sourceRepository = each.value.source_repository
+        targetRepository = each.value.target_repository
+      },
+      each.value.credential_set_resource_id != null ? { credentialSetResourceId = each.value.credential_set_resource_id } : {}
+    )
+  }
+
+  depends_on = [azurerm_container_registry.acr]
 }
 
 module "dns_zones" {
@@ -194,8 +318,23 @@ module "aks-cli" {
   aks_cli_custom_config_path = local.aks_cli_custom_config_path
   key_vaults                 = local.all_key_vaults
   aks_aad_enabled            = local.aks_aad_enabled
-  disk_encryption_sets       = local.all_disk_encryption_sets
-  depends_on                 = [module.route_table, module.virtual_network, module.disk_encryption_set]
+
+  acr_pull_scopes = local.aks_cli_acr_pull_scopes_map[each.key]
+
+  # For network isolated clusters (BYO ACR), pass the registry resource ID into az aks create.
+  bootstrap_artifact_source                = local.aks_cli_bootstrap_container_registry_resource_id_map[each.key] != null ? "Cache" : null
+  bootstrap_container_registry_resource_id = local.aks_cli_bootstrap_container_registry_resource_id_map[each.key]
+
+  disk_encryption_sets = local.all_disk_encryption_sets
+  depends_on = [
+    module.route_table,
+    module.virtual_network,
+    module.disk_encryption_set,
+    azurerm_container_registry.acr,
+    azapi_resource.acr_cache_rule,
+    azurerm_private_endpoint.acr,
+    azurerm_private_dns_zone_virtual_network_link.acr,
+  ]
 }
 
 module "virtual_machine" {
