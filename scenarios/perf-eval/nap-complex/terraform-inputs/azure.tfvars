@@ -7,7 +7,7 @@ owner          = "aks"
 public_ip_config_list = [
   {
     name  = "firewall-pip"
-    count = 10
+    count = 1
   },
   {
     name  = "jumpbox-pip"
