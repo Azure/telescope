@@ -89,6 +89,24 @@ locals {
   # Terraform doesn't have regexreplace(); replace() supports regex when pattern is wrapped in /.../
   acr_default_name_prefix = substr(replace(lower("acr${var.scenario_name}${local.run_id}"), "/[^0-9a-z]/", ""), 0, 45)
 
+  # Compute ACR names/IDs from inputs so they are known at plan time.
+  # We avoid depending on resource attributes here because downstream modules
+  # need stable values for count/for_each.
+  acr_name_map = {
+    for acr_key, acr in local.acr_config_map :
+    acr_key => (acr.name != null ? acr.name : substr("${local.acr_default_name_prefix}${acr_key}", 0, 50))
+  }
+
+  acr_id_map = {
+    for acr_key, acr_name in local.acr_name_map :
+    acr_key => format(
+      "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.ContainerRegistry/registries/%s",
+      data.azurerm_client_config.current.subscription_id,
+      local.run_id,
+      acr_name
+    )
+  }
+
   acr_cache_rule_map = length(var.acr_config_list) > 0 ? merge([
     for acr_key, acr in local.acr_config_map : {
       for rule in try(acr.cache_rules, []) : "${acr_key}/${rule.name}" => {
@@ -106,7 +124,7 @@ locals {
       for acr_key, acr in local.acr_config_map : contains(
         distinct(concat(try(acr.acrpull_aks_cli_roles, []), try(acr.contributor_aks_cli_roles, []))),
         role
-      ) ? [azurerm_container_registry.acr[acr_key].id] : []
+      ) ? [local.acr_id_map[acr_key]] : []
     ]))
   }
 
@@ -114,6 +132,8 @@ locals {
     for role, scopes in local.aks_cli_acr_pull_scopes_map : role => try(scopes[0], null)
   }
 }
+
+data "azurerm_client_config" "current" {}
 
 provider "azurerm" {
   features {
