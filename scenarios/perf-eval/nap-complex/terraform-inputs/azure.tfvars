@@ -324,10 +324,6 @@ aks_cli_config_list = [
         value = "userDefinedRouting"
       },
       {
-        name  = "bootstrap-artifact-source"
-        value = "Cache"
-      },
-      {
         name  = "enable-workload-identity"
         value = ""
       },
