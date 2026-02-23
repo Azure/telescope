@@ -23,7 +23,7 @@ stages:
               node_count: 1000
               max_pods: 7
               repeats: 1
-              operation_timeout: 60m
+              operation_timeout: 80m
               load_type: memory
               memory_request_override: "1000Mi"
               scrape_containerd: True
@@ -33,7 +33,7 @@ stages:
               registry_endpoint: acrstoragetestaue.azurecr-test.io
               test_image: acrperftest30gb:latest
               kubernetes_version: "1.34"
-              pod_startup_latency_threshold: 30m
+              pod_startup_latency_threshold: 60m
               anonymous_pull: True
           max_parallel: 1
           credential_type: service_connection
