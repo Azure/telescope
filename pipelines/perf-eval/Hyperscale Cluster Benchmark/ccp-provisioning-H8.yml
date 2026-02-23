@@ -21,7 +21,7 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - northeurope
+            - westus2
           terraform_input_file_mapping:
             - westus2: "scenarios/perf-eval/ccp-provisioning/terraform-inputs/azure-H8.tfvars"
           topology: hyperscale-cluster
