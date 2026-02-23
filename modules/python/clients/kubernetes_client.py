@@ -249,7 +249,7 @@ class KubernetesClient:
         """
         ready_nodes = []
         ready_node_count = 0
-        timeout = time.time() + (operation_timeout_in_minutes * 60)
+        timeout = time.time() + (operation_timeout_in_minutes * 600)
         logger.info(f"Validating {node_count} nodes with label {label_selector} are ready.")
         while time.time() < timeout:
             ready_nodes = self.get_ready_nodes(label_selector=label_selector)
