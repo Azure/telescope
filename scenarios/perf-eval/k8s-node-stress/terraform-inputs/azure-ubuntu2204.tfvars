@@ -44,7 +44,7 @@ aks_cli_config_list = [
           },
           {
             name  = "labels"
-            value = "cri-resource-consume=true,node-role.kubernetes.io/control-plane=true"
+            value = "cri-resource-consume=true node-role.kubernetes.io/control-plane=true"
           },
           {
             name  = "aks-custom-headers"
