@@ -62,7 +62,7 @@ steps:
       --set hostNetwork=true \
       --set hostPID=true \
       --set args[0]="--collector.pressure" \
-      --set nodeSelector."cri-resource-consume"="true" \
+      --set nodeSelector.cri-resource-consume="true" \
       --set tolerations[0].key="cri-resource-consume" \
       --set tolerations[0].operator="Equal" \
       --set tolerations[0].value="true" \
