@@ -1,0 +1,202 @@
+{{$action := .action}} # start, gather
+
+{{$suffix := DefaultParam .suffix ""}}
+
+steps:
+  - name: {{$action}} Additional Retina Measurements
+    measurements:
+    - Identifier: RetinaAvgCPUUsage{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Retina Average CPU Usage {{$suffix}}
+        metricVersion: v1
+        unit: cpu
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, avg_over_time(rate(container_cpu_usage_seconds_total{container="retina"}[1m])[%v:]))
+        - name: Perc90
+          query: quantile(0.90, avg_over_time(rate(container_cpu_usage_seconds_total{container="retina"}[1m])[%v:]))
+        - name: Perc50
+          query: quantile(0.50, avg_over_time(rate(container_cpu_usage_seconds_total{container="retina"}[1m])[%v:]))
+    - Identifier: RetinaMaxCPUUsage{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Retina Max CPU Usage {{$suffix}}
+        metricVersion: v1
+        unit: cpu
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, max_over_time(rate(container_cpu_usage_seconds_total{container="retina"}[1m])[%v:]))
+        - name: Perc90
+          query: quantile(0.90, max_over_time(rate(container_cpu_usage_seconds_total{container="retina"}[1m])[%v:]))
+        - name: Perc50
+          query: quantile(0.50, max_over_time(rate(container_cpu_usage_seconds_total{container="retina"}[1m])[%v:]))
+    - Identifier: RetinaAvgMemUsage{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Retina Avg Memory Usage {{$suffix}}
+        metricVersion: v1
+        unit: MB
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, avg_over_time(container_memory_usage_bytes{container="retina"}[%v:]) / 1024 / 1024)
+        - name: Perc90
+          query: quantile(0.90, avg_over_time(container_memory_usage_bytes{container="retina"}[%v:]) / 1024 / 1024)
+        - name: Perc50
+          query: quantile(0.5, avg_over_time(container_memory_usage_bytes{container="retina"}[%v:]) / 1024 / 1024)
+    - Identifier: RetinaMaxMemUsage{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Retina Max Memory Usage{{$suffix}}
+        metricVersion: v1
+        unit: MB
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, max_over_time(container_memory_usage_bytes{container="retina"}[%v:]) / 1024 / 1024)
+        - name: Perc90
+          query: quantile(0.90, max_over_time(container_memory_usage_bytes{container="retina"}[%v:]) / 1024 / 1024)
+        - name: Perc50
+          query: quantile(0.5, max_over_time(container_memory_usage_bytes{container="retina"}[%v:]) / 1024 / 1024)
+    - Identifier: RetinaOperatorAvgCPUUsage{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Retina Operator Avg CPU Usage {{$suffix}}
+        metricVersion: v1
+        unit: cpu
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, avg_over_time(rate(container_cpu_usage_seconds_total{container="retina-operator"}[1m])[%v:]))
+        - name: Perc90
+          query: quantile(0.90, avg_over_time(rate(container_cpu_usage_seconds_total{container="retina-operator"}[1m])[%v:]))
+        - name: Perc50
+          query: quantile(0.50, avg_over_time(rate(container_cpu_usage_seconds_total{container="retina-operator"}[1m])[%v:]))
+    - Identifier: RetinaOperatorMaxCPUUsage{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Retina Operator Max CPU Usage {{$suffix}}
+        metricVersion: v1
+        unit: cpu
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, max_over_time(rate(container_cpu_usage_seconds_total{container="retina-operator"}[1m])[%v:]))
+        - name: Perc90
+          query: quantile(0.90, max_over_time(rate(container_cpu_usage_seconds_total{container="retina-operator"}[1m])[%v:]))
+        - name: Perc50
+          query: quantile(0.50, max_over_time(rate(container_cpu_usage_seconds_total{container="retina-operator"}[1m])[%v:]))
+    - Identifier: RetinaOperatorMaxMemUsage{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Retina Operator Max Memory Usage {{$suffix}}
+        metricVersion: v1
+        unit: MB
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, max_over_time(container_memory_usage_bytes{container="retina-operator"}[%v:]) / 1024 / 1024)
+        - name: Perc90
+          query: quantile(0.90, max_over_time(container_memory_usage_bytes{container="retina-operator"}[%v:]) / 1024 / 1024)
+        - name: Perc50
+          query: quantile(0.5, max_over_time(container_memory_usage_bytes{container="retina-operator"}[%v:]) / 1024 / 1024)
+    - Identifier: RetinaOperatorAvgMemUsage{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Retina Operator Avg Memory Usage {{$suffix}}
+        metricVersion: v1
+        unit: MB
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, avg_over_time(container_memory_usage_bytes{container="retina-operator"}[%v:]) / 1024 / 1024)
+        - name: Perc90
+          query: quantile(0.90, avg_over_time(container_memory_usage_bytes{container="retina-operator"}[%v:]) / 1024 / 1024)
+        - name: Perc50
+          query: quantile(0.5, avg_over_time(container_memory_usage_bytes{container="retina-operator"}[%v:]) / 1024 / 1024)
+    - Identifier: RetinaContainerFsAvgWrittenBytes{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Retina Container FS Average Written Bytes {{$suffix}}
+        metricVersion: v1
+        unit: bytes
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, avg_over_time(rate(container_fs_writes_bytes_total{container="retina"}[1m])[%v:]))
+        - name: Perc90
+          query: quantile(0.90, avg_over_time(rate(container_fs_writes_bytes_total{container="retina"}[1m])[%v:]))
+        - name: Perc50
+          query: quantile(0.50, avg_over_time(rate(container_fs_writes_bytes_total{container="retina"}[1m])[%v:]))
+    - Identifier: RetinaContainerFsMaxWrittenBytes{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Retina Container FS Max Written Bytes {{$suffix}}
+        metricVersion: v1
+        unit: bytes
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, max_over_time(rate(container_fs_writes_bytes_total{container="retina"}[1m])[%v:]))
+        - name: Perc90
+          query: quantile(0.90, max_over_time(rate(container_fs_writes_bytes_total{container="retina"}[1m])[%v:]))
+        - name: Perc50
+          query: quantile(0.50, max_over_time(rate(container_fs_writes_bytes_total{container="retina"}[1m])[%v:]))
+    - Identifier: RetinaContainerFsAvgWriteLatency{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Retina Container FS Average Write Latency {{$suffix}}
+        metricVersion: v1
+        unit: s
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, avg_over_time((rate(container_fs_write_seconds_total{container="retina"}[1m]) / rate(container_fs_write_seconds_total{container="retina"}[1m]))[%v:]))
+        - name: Perc90
+          query: quantile(0.90, avg_over_time((rate(container_fs_write_seconds_total{container="retina"}[1m]) / rate(container_fs_write_seconds_total{container="retina"}[1m]))[%v:]))
+        - name: Perc50
+          query: quantile(0.50, avg_over_time((rate(container_fs_write_seconds_total{container="retina"}[1m]) / rate(container_fs_write_seconds_total{container="retina"}[1m]))[%v:]))
+    - Identifier: RetinaContainerFsMaxWriteLatency{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Retina Container FS Max Write Latency {{$suffix}}
+        metricVersion: v1
+        unit: s
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, max_over_time((rate(container_fs_write_seconds_total{container="retina"}[1m]) / rate(container_fs_write_seconds_total{container="retina"}[1m]))[%v:]))
+        - name: Perc90
+          query: quantile(0.90, max_over_time((rate(container_fs_write_seconds_total{container="retina"}[1m]) / rate(container_fs_write_seconds_total{container="retina"}[1m]))[%v:]))
+        - name: Perc50
+          query: quantile(0.50, max_over_time((rate(container_fs_write_seconds_total{container="retina"}[1m]) / rate(container_fs_write_seconds_total{container="retina"}[1m]))[%v:]))
+    - Identifier: RetinaContainerRestarts{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Retina Container Restarts {{$suffix}}
+        metricVersion: v1
+        unit: s
+        enableViolations: true
+        queries:
+        - name: Perc99
+          query: quantile(0.99, max_over_time(increase(kube_pod_container_status_restarts_total{container="retina"}[%v])[%v:]))
+        - name: Perc90
+          query: quantile(0.90, max_over_time(increase(kube_pod_container_status_restarts_total{container="retina"}[%v])[%v:]))
+        - name: Perc50
+          query: quantile(0.50, max_over_time(increase(kube_pod_container_status_restarts_total{container="retina"}[%v])[%v:]))

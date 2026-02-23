@@ -1,0 +1,24 @@
+{{$namespaces := .namespaces}}
+apiVersion: acn.azure.com/v1alpha1
+kind: RetinaNetworkFlowLog
+metadata:
+  name: test
+spec:
+  includefilters: # List of filters
+    {{range $i := Loop $namespaces}}
+    - name: filter-{{ AddInt $i 1 }} # Filter name
+      from:
+        namespacedPod:
+          - scale-test-{{ AddInt $i 1 }}/fortio-client-
+      to:
+        namespacedPod:
+          - scale-test-{{ AddInt $i 1 }}/fortio-server-
+      protocol:
+        - tcp
+        - dns
+        - udp
+      verdict:
+        - forwarded
+        - dropped
+    {{end}}
+
