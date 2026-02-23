@@ -17,6 +17,7 @@ NETWORK_METRIC_PREFIXES = ["APIResponsivenessPrometheus",
                            "InClusterNetworkLatency", "NetworkProgrammingLatency"]
 PROM_QUERY_PREFIX = "GenericPrometheusQuery"
 RESOURCE_USAGE_SUMMARY_PREFIX = "ResourceUsageSummary"
+NODE_METRIC_SUMMARY_PREFIX = "NodeResourceMetrics"
 NETWORK_POLICY_SOAK_MEASUREMENT_PREFIX = "NetworkPolicySoakMeasurement"
 JOB_LIFECYCLE_LATENCY_PREFIX = "JobLifecycleLatency"
 SCHEDULING_THROUGHPUT_PROMETHEUS_PREFIX = "SchedulingThroughputPrometheus"
@@ -108,6 +109,9 @@ def get_measurement(file_path):
     if file_name.startswith(SCHEDULING_THROUGHPUT_PREFIX):
         group_name = file_name.split("_")[1]
         return SCHEDULING_THROUGHPUT_PREFIX, group_name
+    if file_name.startswith(NODE_METRIC_SUMMARY_PREFIX):
+        group_name = file_name.split("_")[1]
+        return NODE_METRIC_SUMMARY_PREFIX, group_name
     return None, None
 
 def process_cl2_reports(cl2_report_dir, template):

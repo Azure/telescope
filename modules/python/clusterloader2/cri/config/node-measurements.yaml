@@ -1,23 +1,29 @@
 {{$action := .action}} # start, gather
 
 steps:
-  - name: {{$action}} Node Resource Measurements
+  - name: {{$action}} NodeResourceMeasurements
     measurements:
     - Identifier: ResourceMetrics
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Resource Metrics Summary
+        metricName: NodeResourceMetrics
         metricVersion: v1
         unit: mixed
         queries:
         # Node Level Summary
+        - name: NodeInfo
+          query: count(kube_node_info)
         - name: TotalNodes
           query: count(kube_node_status_allocatable{resource="cpu"})
         - name: NodeCPUAllocatable
           query: sum(kube_node_status_allocatable{resource="cpu"})
         - name: NodeMemoryAllocatable
           query: sum(kube_node_status_allocatable{resource="memory"})
+        - name: NodesReady
+          query: count(kube_node_status_condition{condition="Ready",status="true"})
+        - name: NodePressureStatus
+          query: count(kube_node_status_condition{condition="MemoryPressure", status="true"})
         # Node CPU Usage Stats (from kubelet/cAdvisor - container metrics aggregated by node)
         - name: NodeCPUUsageAvg
           query: avg(sum by (instance) (rate(container_cpu_usage_seconds_total{id="/"}[2m])))
@@ -25,6 +31,8 @@ steps:
           query: max(sum by (instance) (rate(container_cpu_usage_seconds_total{id="/"}[2m])))
         - name: NodeCPUUsageMin
           query: min(sum by (instance) (rate(container_cpu_usage_seconds_total{id="/"}[2m])))
+        - name: NodeCPURequestsTotal
+          query: sum(kube_pod_container_resource_requests{resource="cpu"})
         # Node Memory Usage Stats (from kubelet/cAdvisor - container metrics aggregated by node)
         - name: NodeMemoryUsageAvg
           query: avg(sum by (instance) (container_memory_working_set_bytes{id="/"}))
@@ -32,6 +40,10 @@ steps:
           query: max(sum by (instance) (container_memory_working_set_bytes{id="/"}))
         - name: NodeMemoryUsageMin
           query: min(sum by (instance) (container_memory_working_set_bytes{id="/"}))
+        - name: NodeMemoryRequestsTotal
+          query: sum(kube_pod_container_resource_requests{resource="memory"})
+        - name: NodeMemoryCommitment
+          query: sum(kube_pod_container_resource_limits{resource="memory"}) - sum(kube_node_status_capacity{resource="memory"})
         # Pod Level Summary
         - name: TotalPods
           query: count(kube_pod_status_phase{phase="Running"})
@@ -42,3 +54,29 @@ steps:
           query: max(count by (node) (kube_pod_info{node!=""}))
         - name: PodsPerNodeMin
           query: min(count by (node) (kube_pod_info{node!=""}))
+        # Container Level Summary
+        - name: ContainerRuntimes
+          query: count by (container_runtime_version) (kube_node_info)
+        - name: ContainerMemoryFailures
+          query: sum(increase(container_memory_failcnt[5m]))
+        - name: ContainersNearMemoryLimit
+          query: count(container_memory_working_set_bytes / container_spec_memory_limit_bytes > 0.8)
+        # PSI Metrics (requires node_exporter with PSI enabled)
+        - name: MemoryPSISome10s
+          query: avg(node_pressure_memory_some_avg10)
+        - name: MemoryPSISome60s  
+          query: avg(node_pressure_memory_some_avg60)
+        - name: MemoryPSISome300s
+          query: avg(node_pressure_memory_some_avg300)
+        - name: MemoryPSIFull10s
+          query: avg(node_pressure_memory_full_avg10)
+        # Node Memory Utilization
+        - name: NodeMemoryUtilizationAvg
+          query: avg((1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100)
+        - name: NodeMemoryUtilizationMax
+          query: max((1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100)
+        # Memory Pressure Indicators
+        - name: OOMKillsTotal
+          query: sum(increase(node_vmstat_oom_kill[5m]))
+        - name: MajorPageFaultsRate
+          query: avg(rate(node_vmstat_pgmajfault[2m]))

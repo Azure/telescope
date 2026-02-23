@@ -215,6 +215,12 @@ def collect_clusterloader2(
                     template["percentile"] = "dataItems"
                     template["data"] = item
                     content += json.dumps(template) + "\n"
+            else:
+                result = template.copy()
+                result["group"] = group_name
+                result["measurement"] = measurement
+                result["data"] = data
+                content += json.dumps(result) + "\n"
 
     os.makedirs(os.path.dirname(result_file), exist_ok=True)
     with open(result_file, 'w', encoding='utf-8') as file:

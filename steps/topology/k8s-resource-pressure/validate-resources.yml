@@ -49,3 +49,18 @@ steps:
     CUSTOM_EVICTION_FLAGS: $(CUSTOM_KUBELET_CONFIG)
     
   displayName: "Validate Kubelet Custom Config Applied"
+
+- script: |
+    # Deploy node-exporter via helm
+    helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+    helm repo update
+    
+    # Deploy to all nodes (including userpool)
+    helm install node-exporter prometheus-community/prometheus-node-exporter \
+      --namespace monitoring \
+      --create-namespace \
+      --set hostNetwork=true \
+      --set hostPID=true \
+      --set args[0]="--collector.pressure" \
+      --wait
+  displayName: "Deploy node-exporter for PSI metrics"
