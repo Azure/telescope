@@ -50,26 +50,26 @@ steps:
     
   displayName: "Validate Kubelet Custom Config Applied"
 
-- script: |
-    # Deploy node-exporter via helm
-    helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-    helm repo update
+# - script: |
+#     # Deploy node-exporter via helm
+#     helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+#     helm repo update
     
-    # Deploy to test nodes only (matching resource-consumer placement)
-    helm install node-exporter oci://ghcr.io/prometheus-community/charts/prometheus-node-exporter \
-      --namespace monitoring \
-      --create-namespace \
-      --set hostNetwork=true \
-      --set hostPID=true \
-      --set args[0]="--collector.pressure" \
-      --set-string nodeSelector.cri-resource-consume="true" \
-      --set tolerations[0].key="cri-resource-consume" \
-      --set tolerations[0].operator="Equal" \
-      --set-string tolerations[0].value="true" \
-      --set tolerations[0].effect="NoSchedule" \
-      --set tolerations[1].key="cri-resource-consume" \
-      --set tolerations[1].operator="Equal" \
-      --set-string tolerations[1].value="true" \
-      --set tolerations[1].effect="NoExecute" \
-      --wait
-  displayName: "Deploy node-exporter for PSI metrics"
+#     # Deploy to test nodes only (matching resource-consumer placement)
+#     helm install node-exporter oci://ghcr.io/prometheus-community/charts/prometheus-node-exporter \
+#       --namespace monitoring \
+#       --create-namespace \
+#       --set hostNetwork=true \
+#       --set hostPID=true \
+#       --set args[0]="--collector.pressure" \
+#       --set-string nodeSelector.cri-resource-consume="true" \
+#       --set tolerations[0].key="cri-resource-consume" \
+#       --set tolerations[0].operator="Equal" \
+#       --set-string tolerations[0].value="true" \
+#       --set tolerations[0].effect="NoSchedule" \
+#       --set tolerations[1].key="cri-resource-consume" \
+#       --set tolerations[1].operator="Equal" \
+#       --set-string tolerations[1].value="true" \
+#       --set tolerations[1].effect="NoExecute" \
+#       --wait
+#   displayName: "Deploy node-exporter for PSI metrics"
