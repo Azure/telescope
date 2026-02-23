@@ -7,7 +7,7 @@ aks_cli_config_list = [
   {
     role               = "slo"
     aks_name           = "telescope-acns-scale-test"
-    kubernetes_version = "1.33"
+    kubernetes_version = "1.34"
     sku_tier           = "Standard"
 
     optional_parameters = [
