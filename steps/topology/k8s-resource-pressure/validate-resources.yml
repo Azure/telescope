@@ -62,14 +62,14 @@ steps:
       --set hostNetwork=true \
       --set hostPID=true \
       --set args[0]="--collector.pressure" \
-      --set nodeSelector.cri-resource-consume="'true'" \
+      --set-string nodeSelector.cri-resource-consume="true" \
       --set tolerations[0].key="cri-resource-consume" \
       --set tolerations[0].operator="Equal" \
-      --set tolerations[0].value="'true'" \
+      --set-string tolerations[0].value="true" \
       --set tolerations[0].effect="NoSchedule" \
       --set tolerations[1].key="cri-resource-consume" \
       --set tolerations[1].operator="Equal" \
-      --set tolerations[1].value="'true'" \
+      --set-string tolerations[1].value="true" \
       --set tolerations[1].effect="NoExecute" \
       --wait
   displayName: "Deploy node-exporter for PSI metrics"
