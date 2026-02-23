@@ -56,7 +56,7 @@ steps:
     helm repo update
     
     # Deploy to all nodes (including userpool)
-    helm install node-exporter prometheus-community/prometheus-node-exporter \
+    helm install node-exporter oci://ghcr.io/prometheus-community/charts/prometheus-node-exporter \
       --namespace monitoring \
       --create-namespace \
       --set hostNetwork=true \
