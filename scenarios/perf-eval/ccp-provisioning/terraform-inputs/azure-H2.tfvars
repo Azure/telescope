@@ -8,10 +8,13 @@ aks_cli_config_list = [
     role               = "client"
     aks_name           = "ccp-provisioning-H2"
     sku_tier           = "standard"
+    aks_custom_headers = [
+      "EtcdServersOverrides=hyperscale"
+    ]
     kubernetes_version = "1.33"
     default_node_pool = {
       name       = "default"
-      node_count = 1
+      node_count = 3
       vm_size    = "Standard_D8s_v3"
     }
     optional_parameters = [
