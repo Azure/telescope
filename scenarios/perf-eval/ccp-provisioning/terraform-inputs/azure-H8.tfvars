@@ -9,7 +9,7 @@ aks_cli_config_list = [
     aks_name           = "ccp-provisioning-H8"
     sku_tier           = "standard"
     aks_custom_headers = [
-      "EtcdServersOverrides=hyperscale"
+      "AKSHTTPCustomFeatures=Microsoft.ContainerService/ControlPlaneScalingProfilePreview,EtcdServersOverrides=hyperscale"
     ]
     kubernetes_version = "1.33"
     default_node_pool = {
