@@ -19,6 +19,18 @@ aks_cli_config_list = [
     }
     optional_parameters = [
       {
+        name  = "enable-hyperscale"
+        value = ""
+      },
+      {
+        name  = "hyperscale-size"
+        value = "H2"
+      },
+      {
+        name  = "uptime-sla"
+        value = ""
+      },
+      {
         name  = "network-plugin"
         value = "azure"
       },
