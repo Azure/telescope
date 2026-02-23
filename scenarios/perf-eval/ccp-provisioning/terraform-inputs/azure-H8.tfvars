@@ -11,6 +11,8 @@ aks_cli_config_list = [
     aks_custom_headers = [
       "AKSHTTPCustomFeatures=Microsoft.ContainerService/ControlPlaneScalingProfilePreview,EtcdServersOverrides=hyperscale"
     ]
+    use_aks_preview_cli_extension = true
+    use_aks_preview_private_build = true
     kubernetes_version = "1.33"
     default_node_pool = {
       name       = "default"
@@ -28,6 +30,10 @@ aks_cli_config_list = [
       },
       {
         name  = "uptime-sla"
+        value = ""
+      },
+      {
+        name  = "enable_aks_cli_preview_extension"
         value = ""
       },
       {
