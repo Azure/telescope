@@ -23,7 +23,7 @@ steps:
         - name: NodesReady
           query: count(kube_node_status_condition{condition="Ready",status="true"})
         - name: NodePressureStatus
-          query: count(kube_node_status_condition{condition="MemoryPressure", status="true"})
+          query: kube_node_status_condition{condition="MemoryPressure", status="true"}
         # Node CPU Usage Stats (from kubelet/cAdvisor - container metrics aggregated by node)
         - name: NodeCPUUsageAvg
           query: avg(sum by (instance) (rate(container_cpu_usage_seconds_total{id="/"}[2m])))
