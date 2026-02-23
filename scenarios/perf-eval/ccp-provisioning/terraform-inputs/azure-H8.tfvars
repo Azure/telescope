@@ -24,7 +24,7 @@ aks_cli_config_list = [
       },
       {
         name  = "hyperscale-size"
-        value = "H2"
+        value = "H8"
       },
       {
         name  = "uptime-sla"
