@@ -15,7 +15,7 @@ parameters:
 steps:
 - script: |
     echo "Waiting 20 minutes before starting test execution..."
-    sleep 1200  # 20 minutes = 1200 seconds
+    sleep 1  # 20 minutes = 1200 seconds
     echo "Wait period completed, proceeding with tests"
   displayName: "Pre-test wait period"
 - template: /steps/topology/${{ parameters.topology }}/execute-${{ parameters.engine }}.yml@self
