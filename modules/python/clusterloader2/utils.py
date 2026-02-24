@@ -38,7 +38,6 @@ def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provi
 --report-dir /root/perf-tests/clusterloader2/results
 --tear-down-prometheus-server={tear_down_prometheus}
 --prometheus-scrape-kube-state-metrics={scrape_ksm}
---prometheus-scrape-node-exporter={scrape_node_exporter}
 --prometheus-scrape-metrics-server={scrape_metrics_server}"""
 
     if scrape_containerd:

@@ -1,7 +1,7 @@
 {{$action := .action}} # start, gather
 
 steps:
-  - name: {{$action}} NodeResourceMeasurements
+  - name: {{$action}} Node Resource Measurements
     measurements:
     - Identifier: ResourceMetrics
       Method: GenericPrometheusQuery
@@ -61,22 +61,3 @@ steps:
           query: sum(increase(container_memory_failcnt[5m]))
         - name: ContainersNearMemoryLimit
           query: count(container_memory_working_set_bytes / container_spec_memory_limit_bytes > 0.8)
-        # PSI Metrics (requires node_exporter with PSI enabled)
-        - name: MemoryPSISome10s
-          query: avg(node_pressure_memory_some_avg10)
-        - name: MemoryPSISome60s  
-          query: avg(node_pressure_memory_some_avg60)
-        - name: MemoryPSISome300s
-          query: avg(node_pressure_memory_some_avg300)
-        - name: MemoryPSIFull10s
-          query: avg(node_pressure_memory_full_avg10)
-        # Node Memory Utilization
-        - name: NodeMemoryUtilizationAvg
-          query: avg((1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100)
-        - name: NodeMemoryUtilizationMax
-          query: max((1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100)
-        # Memory Pressure Indicators
-        - name: OOMKillsTotal
-          query: sum(increase(node_vmstat_oom_kill[5m]))
-        - name: MajorPageFaultsRate
-          query: avg(rate(node_vmstat_pgmajfault[2m]))
