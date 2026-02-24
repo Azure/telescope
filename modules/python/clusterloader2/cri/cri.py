@@ -18,7 +18,7 @@ def override_config_clusterloader2(
     node_count, node_per_step, max_pods, repeats, operation_timeout,
     load_type, scale_enabled, pod_startup_latency_threshold, provider,
     registry_endpoint, os_type, scrape_kubelets, scrape_containerd, containerd_scrape_interval, host_network, override_file, use_custom_kubelet = False):
-    MEMORY_SCALE_FACTOR = 1.2
+    MEMORY_SCALE_FACTOR = 1.0
     client = KubernetesClient(os.path.expanduser("~/.kube/config"))
     nodes = client.get_nodes(label_selector="cri-resource-consume=true")
     if len(nodes) == 0:
@@ -138,6 +138,27 @@ def verify_measurement():
         except k8s_client.ApiException as e:
             logger.error(f"Error fetching metrics: {e}")
 
+def parse_psi_report(file_path):
+    with open(file_path, 'r', encoding='utf-8') as file:
+        logger.info(f"Processing PSI metrics Report")
+
+        psi_template = {
+            "some_avg10": None,
+            "some_avg60": None,
+            "some_avg300": None,
+            "some_total": None,
+            "full_avg10": None,
+            "full_avg60": None,
+            "full_avg300": None,
+            "full_total": None,
+        }
+
+        psi_data = json.loads(file.read())
+        for key in psi_template.keys():
+            scope, metric = key.split("_")
+            psi_template[key] = sum(psi_data[scope][metric]) / len(psi_data[scope][metric]) if len(psi_data[scope][metric]) > 0 else None
+        return psi_template
+
 def collect_clusterloader2(
     node_count,
     max_pods,
@@ -189,6 +210,9 @@ def collect_clusterloader2(
     for f in os.listdir(cl2_report_dir):
         file_path = os.path.join(cl2_report_dir, f)
         with open(file_path, 'r', encoding='utf-8') as file:
+            if file_path.endswith("psi.json"):
+                content += json.dumps(parse_psi_report(file_path)) + "\n"
+                continue
             measurement, group_name = get_measurement(file_path)
             if not measurement:
                 continue
