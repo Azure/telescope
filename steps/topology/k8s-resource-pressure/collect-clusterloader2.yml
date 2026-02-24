@@ -11,11 +11,9 @@ parameters:
 
 steps:
 - script: |
-    kubectl get pods -A -o wide
     echo "Copying PSI data from DaemonSet pods..."
-    POD=$(kubectl get pods -n kube-system -l app=psi-reader -o name |  cut -d'/' -f2)
-    kubectl cp "kube-system/$POD:/app/config/psi.json" "$(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/psi.json"
-    ls -l "$(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/psi.json"
+    POD=$(kubectl get pods -n kube-system -l app=psi-reader -o name | cut -d'/' -f2)
+    kubectl cp "kube-system/$POD:/app/config/psi.json" $(Build.ArtifactStagingDirectory)/psi.json
     echo "PSI data copied successfully"
   displayName: 'Copy PSI data from DaemonSet'
 - task: PublishPipelineArtifact@1
