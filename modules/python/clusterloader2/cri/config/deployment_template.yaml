@@ -52,12 +52,10 @@ spec:
           {{else}}
         image: registry.k8s.io/e2e-test-images/resource-consumer:1.13
           {{end}}
-          {{if eq $TestImage "e2e-test-images/resource-consumer:1.13"}}
         command:
           - sleep
         args:
           - "3600"
-          {{end}}
         {{end}}
         resources:
           requests:
