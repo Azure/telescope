@@ -16,25 +16,17 @@ spec:
     spec:
       hostPID: true
       nodeSelector:
-        cri-resource-consume: "true"
-      tolerations:
-      - key: cri-resource-consume
-        operator: "Equal"
-        value: "true"
-        effect: "NoSchedule"
-      - key: cri-resource-consume
-        operator: "Equal"
-        value: "true"
-        effect: "NoExecute"
+        agentpool: "testnode2"
       containers:
       - name: psi-reader
-        image: ghcr.io/containerd/busybox:1.36
+        image: alpine:latest
         securityContext:
           privileged: true
         command:
         - /bin/sh
         - -c
         - |
+          apk add --no-cache jq
           echo "Starting PSI JSON reader..."
           
           if [ -f /app/config/psi.json ]; then
@@ -67,7 +59,7 @@ spec:
               else
                 key=${metric%%=*}
                 value=${metric#*=}
-                jq --arg scope "$scope" --arg key "$key" --arg value "$value" '.[$scope].[$key] |= . + [$value]' /app/config/psi.json > psi.json.tmp && mv psi.json.tmp /app/config/psi.json
+                jq --arg scope "$scope" --arg key "$key" --arg value "$value" '.[$scope][$key] |= . + [$value]' /app/config/psi.json > psi.json.tmp && mv psi.json.tmp /app/config/psi.json
               fi
             done
             echo "Finished reading PSI Data, sleeping for 15 seconds..."
