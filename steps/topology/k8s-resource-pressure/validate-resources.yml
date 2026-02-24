@@ -45,6 +45,8 @@ steps:
 
     kubectl get pods -A -o wide
 
+    kubectl apply -f ./steps/topology/k8s-resource-pressure/psi-reader-daemonset.yml
+
   env:
     CUSTOM_EVICTION_FLAGS: $(CUSTOM_KUBELET_CONFIG)
     

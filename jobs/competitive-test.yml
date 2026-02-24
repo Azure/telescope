@@ -82,31 +82,31 @@ jobs:
       regions: ${{ parameters.regions }}
       topology: ${{ parameters.topology }}
       engine: ${{ parameters.engine }}
-  - template: /steps/execute-tests.yml
-    parameters:
-      cloud: ${{ parameters.cloud }}
-      topology: ${{ parameters.topology }}
-      engine: ${{ parameters.engine }}
-      regions: ${{ parameters.regions }}
-      engine_input: ${{ parameters.engine_input }}
-  - template: /steps/publish-results.yml
-    parameters:
-      cloud: ${{ parameters.cloud }}
-      topology: ${{ parameters.topology }}
-      engine: ${{ parameters.engine }}
-      regions: ${{ parameters.regions }}
-      engine_input: ${{ parameters.engine_input }}
-      credential_type: ${{ parameters.credential_type }}
-  - task: PublishPipelineArtifact@1
-    inputs:
-      targetPath: '$(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/config'
-      artifactName: 'config-${{ parameters.cloud }}-${{ parameters.regions[0] }}-${{ parameters.run_id }}'
-    displayName: "Publish Test Config"
-  - task: PublishPipelineArtifact@1
-    inputs:
-      targetPath: '$(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/results'
-      artifactName: 'cri-results-${{ parameters.cloud }}-${{ parameters.regions[0] }}-${{ parameters.run_id }}'
-    displayName: "Publish CRI Benchmark Results"
+  # - template: /steps/execute-tests.yml
+  #   parameters:
+  #     cloud: ${{ parameters.cloud }}
+  #     topology: ${{ parameters.topology }}
+  #     engine: ${{ parameters.engine }}
+  #     regions: ${{ parameters.regions }}
+  #     engine_input: ${{ parameters.engine_input }}
+  # - template: /steps/publish-results.yml
+  #   parameters:
+  #     cloud: ${{ parameters.cloud }}
+  #     topology: ${{ parameters.topology }}
+  #     engine: ${{ parameters.engine }}
+  #     regions: ${{ parameters.regions }}
+  #     engine_input: ${{ parameters.engine_input }}
+  #     credential_type: ${{ parameters.credential_type }}
+  # - task: PublishPipelineArtifact@1
+  #   inputs:
+  #     targetPath: '$(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/config'
+  #     artifactName: 'config-${{ parameters.cloud }}-${{ parameters.regions[0] }}-${{ parameters.run_id }}'
+  #   displayName: "Publish Test Config"
+  # - task: PublishPipelineArtifact@1
+  #   inputs:
+  #     targetPath: '$(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/results'
+  #     artifactName: 'cri-results-${{ parameters.cloud }}-${{ parameters.regions[0] }}-${{ parameters.run_id }}'
+  #   displayName: "Publish CRI Benchmark Results"
   - template: /steps/cleanup-resources.yml
     parameters:
       cloud: ${{ parameters.cloud }}
