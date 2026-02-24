@@ -11,6 +11,7 @@ parameters:
 
 steps:
 - script: |
+    kubectl get pods -A -o wide
     echo "Copying PSI data from DaemonSet pods..."
     POD=$(kubectl get pods -n kube-system -l app=psi-reader -o name | head -1)
     kubectl cp "$POD:/app/config/psi.json" $(Build.ArtifactStagingDirectory)/psi.json
