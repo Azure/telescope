@@ -35,21 +35,43 @@ spec:
         - /bin/sh
         - -c
         - |
-          echo "Starting PSI JSON updater on node: $(hostname)"
-          echo "PSI JSON file location: /app/config/psi.json"
+          echo "Starting PSI JSON reader..."
           
+          if [ -f /app/config/psi.json ]; then
+            rm -f /app/config/psi.json
+          fi
+
+          echo "Creating initial PSI JSON file..."
+          jq -n '{
+            "some": {
+              "avg10": [],
+              "avg60": [],
+              "avg300": [],
+              "total": []
+            },
+            "full": {
+              "avg10": [],
+              "avg60": [],
+              "avg300": [],
+              "total": []
+            }
+          }' > /app/config/psi.json
+          echo "Created PSI JSON file"
+
           while true; do
             psi=$(cat /proc/pressure/memory)
+            echo "Reading PSI Data"
             for metric in $psi; do
-              if [[ $metric == "some"]]; then
+              if [ $metric == "some" ] || [ $metric == "full" ]; then
                 scope=$metric
               else
                 key=${metric%%=*}
                 value=${metric#*=}
-                jq '.$scope.$key += $value' --arg scope "$scope" --arg key "$key" --arg value "$value" /app/config/psi.json
+                jq --arg scope "$scope" --arg key "$key" --arg value "$value" '.[$scope].[$key] |= . + [$value]' /app/config/psi.json > psi.json.tmp && mv psi.json.tmp /app/config/psi.json
               fi
             done
-            sleep 10
+            echo "Finished reading PSI Data, sleeping for 15 seconds..."
+            sleep 15
           done
         volumeMounts:
         - name: proc

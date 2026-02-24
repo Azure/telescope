@@ -10,8 +10,29 @@ parameters:
   default: {}
 
 steps:
+- script: |
+    echo "Copying PSI data from DaemonSet pods..."
+    POD=$(kubectl get pods -n kube-system -l app=psi-reader -o name | head -1)
+    kubectl cp "$POD:/app/config/psi.json" $(Build.ArtifactStagingDirectory)/psi.json
+    echo "PSI data copied successfully"
+  displayName: 'Copy PSI data from DaemonSet'
+- task: PublishPipelineArtifact@1
+  inputs:
+    targetPath: '$(Build.ArtifactStagingDirectory)/psi.json'
+    artifactName: 'psi-data'
+  displayName: "Publish PSI Data Artifact"
 - template: /steps/engine/clusterloader2/cri/collect.yml
   parameters:
     cloud: ${{ parameters.cloud }}
     engine_input: ${{ parameters.engine_input }}
     region: ${{ parameters.regions[0] }}
+- task: PublishPipelineArtifact@1
+  inputs:
+    targetPath: '$(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/config'
+    artifactName: 'config-${{ parameters.cloud }}-${{ parameters.run_id }}'
+  displayName: "Publish Test Config"
+- task: PublishPipelineArtifact@1
+  inputs:
+    targetPath: '$(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/results'
+    artifactName: 'cri-results-${{ parameters.cloud }}-${{ parameters.run_id }}'
+  displayName: "Publish CRI Benchmark Results"

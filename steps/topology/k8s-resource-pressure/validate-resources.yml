@@ -45,9 +45,18 @@ steps:
 
     kubectl get pods -A -o wide
 
-    kubectl apply -f ./steps/topology/k8s-resource-pressure/psi-reader-daemonset.yml
-
   env:
     CUSTOM_EVICTION_FLAGS: $(CUSTOM_KUBELET_CONFIG)
     
   displayName: "Validate Kubelet Custom Config Applied"
+
+- bash: |
+    set -euo pipefail
+    set -x
+
+    kubectl apply -f ./steps/topology/k8s-resource-pressure/psi-reader-daemonset.yml
+
+    sleep 5
+    kubectl get pods -A -o wide
+
+  displayName: "Start PSI Reader"
