@@ -18,8 +18,10 @@ steps:
           query: count(kube_node_status_allocatable{resource="cpu"})
         - name: NodeCPUAllocatable
           query: sum(kube_node_status_allocatable{resource="cpu"})
-        - name: NodeMemoryAllocatable
-          query: sum(kube_node_status_allocatable{resource="memory"})
+        - name: NodeMemoryAllocatableGiB
+          query: sum(kube_node_status_allocatable{resource="memory"}) / 1073741824
+        - name: NodeMemoryCapacityGiB
+          query: sum(kube_node_status_capacity{resource="memory"}) / 1073741824
         - name: NodesReady
           query: count(kube_node_status_condition{condition="Ready",status="true"})
         - name: NodePressureStatus
@@ -34,16 +36,16 @@ steps:
         - name: NodeCPURequestsTotal
           query: sum(kube_pod_container_resource_requests{resource="cpu"})
         # Node Memory Usage Stats (from kubelet/cAdvisor - container metrics aggregated by node)
-        - name: NodeMemoryUsageAvg
-          query: avg(sum by (instance) (container_memory_working_set_bytes{id="/"}))
-        - name: NodeMemoryUsageMax
-          query: max(sum by (instance) (container_memory_working_set_bytes{id="/"}))
-        - name: NodeMemoryUsageMin
-          query: min(sum by (instance) (container_memory_working_set_bytes{id="/"}))
-        - name: NodeMemoryRequestsTotal
-          query: sum(kube_pod_container_resource_requests{resource="memory"})
-        - name: NodeMemoryCommitment
-          query: sum(kube_pod_container_resource_limits{resource="memory"}) - sum(kube_node_status_capacity{resource="memory"})
+        - name: NodeMemoryUsageAvgGiB
+          query: avg(sum by (instance) (container_memory_working_set_bytes{id="/"})) / 1073741824
+        - name: NodeMemoryUsageMaxGiB
+          query: max(sum by (instance) (container_memory_working_set_bytes{id="/"})) / 1073741824
+        - name: NodeMemoryUsageMinGiB
+          query: min(sum by (instance) (container_memory_working_set_bytes{id="/"})) / 1073741824
+        - name: NodeMemoryRequestsTotalGiB
+          query: sum(kube_pod_container_resource_requests{resource="memory"}) / 1073741824
+        - name: NodeMemoryCommitmentGiB
+          query: (sum(kube_pod_container_resource_limits{resource="memory"}) - sum(kube_node_status_allocatable{resource="memory"})) / 1073741824
         # Pod Level Summary
         - name: TotalPods
           query: count(kube_pod_status_phase{phase="Running"})
@@ -54,6 +56,12 @@ steps:
           query: max(count by (node) (kube_pod_info{node!=""}))
         - name: PodsPerNodeMin
           query: min(count by (node) (kube_pod_info{node!=""}))
+        - name: PodMemoryRequestToAllocatableRatio
+          query: sum(kube_pod_container_resource_requests{resource="memory"}) / sum(kube_node_status_allocatable{resource="memory"})
+        - name: PodMemoryUsageToAllocatableRatio
+          query: sum(container_memory_working_set_bytes{id="/"}) / sum(kube_node_status_allocatable{resource="memory"})
+        - name: PodMemoryUsageToLimitsRatio
+          query: sum(container_memory_working_set_bytes{id="/"}) / sum(kube_pod_container_resource_limits{resource="memory"})
         # Container Level Summary
         - name: ContainerRuntimes
           query: count by (container_runtime_version) (kube_node_info)
