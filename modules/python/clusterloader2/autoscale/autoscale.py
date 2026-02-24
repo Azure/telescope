@@ -218,8 +218,8 @@ def calculate_cpu_request_for_clusterloader2(
     # Calculate the cpu request for each pod
     pods_per_node = pod_count // node_count
     cpu_request = cpu_value // pods_per_node
-    # Consider 5% less CPU request for deployment pods
-    cpu_request = int(cpu_request * 0.95)
+    # Consider 15% less CPU request for deployment pods
+    cpu_request = int(cpu_request * 0.85)
     return cpu_request
 
 
