@@ -58,15 +58,17 @@ network_config_list = [
         address_prefix = "10.240.0.0/16"
       },
       {
-        name           = "jumpbox-subnet"
-        address_prefix = "10.224.0.0/12"
+        name = "jumpbox-subnet"
+        # 27 usable IPs, enough for jumpbox machines
+        address_prefix = "10.224.0.0/27"
       },
       {
         name           = "AzureFirewallSubnet"
         address_prefix = "10.193.0.0/26"
       }
     ]
-    network_security_group_name = ""
+    network_security_group_name         = "nap-jumpbox-subnet-nsg"
+    network_security_group_subnet_names = ["jumpbox-subnet"]
     nic_public_ip_associations = [
       {
         nic_name              = "jumpbox-nic"
@@ -76,7 +78,19 @@ network_config_list = [
         count                 = 1
       }
     ]
-    nsr_rules = []
+    nsr_rules = [
+      {
+        name                       = "AllowSSH"
+        priority                   = 100
+        direction                  = "Inbound"
+        access                     = "Allow"
+        protocol                   = "Tcp"
+        source_port_range          = "*"
+        destination_port_range     = "22"
+        source_address_prefix      = "*"
+        destination_address_prefix = "*"
+      }
+    ]
   }
 ]
 
@@ -364,14 +378,7 @@ vm_config_list = [
     nic_name = "jumpbox-nic"
     aks_name = "nap-complex"
     nsg = {
-      enabled = true
-      rules = [
-        {
-          name                   = "AllowSSH"
-          priority               = 100
-          destination_port_range = "22"
-        }
-      ]
+      enabled = false
     }
     vm_tags = {
       jumpbox = "true"

@@ -110,7 +110,8 @@ variable "network_config_list" {
         service_delegation_actions = list(string)
       })))
     }))
-    network_security_group_name = string
+    network_security_group_name         = string
+    network_security_group_subnet_names = optional(list(string), null)
     nic_public_ip_associations = list(object({
       nic_name              = string
       subnet_name           = string

@@ -1,10 +1,11 @@
 locals {
-  nsr_rules_map                = { for rule in var.network_config.nsr_rules : rule.name => rule }
-  nat_gateway_associations_map = var.network_config.nat_gateway_associations == null ? {} : { for nat in var.network_config.nat_gateway_associations : nat.nat_gateway_name => nat }
-  vnet_name                    = var.network_config.vnet_name
-  input_subnet_map             = { for subnet in var.network_config.subnet : subnet.name => subnet }
-  subnets_map                  = { for name, subnet in azurerm_subnet.subnet : name => subnet }
-  network_security_group_name  = var.network_config.network_security_group_name
+  nsr_rules_map                       = { for rule in var.network_config.nsr_rules : rule.name => rule }
+  nat_gateway_associations_map        = var.network_config.nat_gateway_associations == null ? {} : { for nat in var.network_config.nat_gateway_associations : nat.nat_gateway_name => nat }
+  vnet_name                           = var.network_config.vnet_name
+  input_subnet_map                    = { for subnet in var.network_config.subnet : subnet.name => subnet }
+  subnets_map                         = { for name, subnet in azurerm_subnet.subnet : name => subnet }
+  network_security_group_name         = var.network_config.network_security_group_name
+  network_security_group_subnet_names = var.network_config.network_security_group_subnet_names
   expanded_nic_association_map = flatten([
     for nic in var.network_config.nic_public_ip_associations : [
       for i in range(var.nic_count_override > 0 ? var.nic_count_override : nic.count) : {
@@ -17,6 +18,12 @@ locals {
   ])
   nic_association_map = { for nic in local.expanded_nic_association_map : nic.nic_name => nic }
   tags                = merge(var.tags, { "role" = var.network_config.role })
+
+  nsg_association_subnets = local.network_security_group_name != "" ? (
+    local.network_security_group_subnet_names != null && length(local.network_security_group_subnet_names) > 0 ?
+    { for name, subnet in azurerm_subnet.subnet : name => subnet if contains(local.network_security_group_subnet_names, name) } :
+    azurerm_subnet.subnet
+  ) : {}
 }
 
 resource "azurerm_virtual_network" "vnet" {
@@ -52,7 +59,7 @@ resource "azurerm_subnet" "subnet" {
 }
 
 resource "azurerm_subnet_network_security_group_association" "subnet_nsg" {
-  for_each = local.network_security_group_name != "" ? azurerm_subnet.subnet : {}
+  for_each = local.nsg_association_subnets
 
   subnet_id                 = each.value.id
   network_security_group_id = azurerm_network_security_group.nsg[0].id
