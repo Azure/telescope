@@ -67,6 +67,10 @@ jobs:
       retry_attempt_count: ${{ parameters.retry_attempt_count }}
       credential_type: ${{ parameters.credential_type }}
       ssh_key_enabled: ${{ parameters.ssh_key_enabled }}
+  - template: /steps/extract-job-parameters.yml
+    parameters:
+      cloud: ${{ parameters.cloud }}
+      matrix: ${{ parameters.matrix }}
   - template: /steps/provision-resources.yml
     parameters:
       cloud: ${{ parameters.cloud }}

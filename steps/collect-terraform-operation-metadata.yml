@@ -15,6 +15,7 @@ steps:
   workingDirectory: modules/python/terraform
   env:
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/terraform/extract_terraform_operation_metadata.py
+    JOB_TAGS: $(JOB_TAGS)
 
 - template: /steps/cloud/azure/upload-storage-account.yml
   parameters:
