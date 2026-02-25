@@ -16,8 +16,13 @@ steps:
       mkdir -p $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/results
       chmod 755 $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/results
 
+      kubectl get nodes -o wide
+
+      $NODE_TO_MEASURE=$(kubectl get nodes | grep userpool | cut -d" " -f1)
+
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE override \
         --node_count $NODE_COUNT \
+        --node_to_measure $NODE_TO_MEASURE \
         --node_per_step ${NODE_PER_STEP:-$NODE_COUNT} \
         --max_pods $MAX_PODS \
         --repeats $REPEATS \
