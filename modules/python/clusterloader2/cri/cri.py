@@ -139,11 +139,14 @@ def verify_measurement():
         except k8s_client.ApiException as e:
             logger.error(f"Error fetching metrics: {e}")
 
-def parse_psi_report(file_path):
+def parse_psi_report(file_path, template):
     with open(file_path, 'r', encoding='utf-8') as file:
         logger.info(f"Processing PSI metrics Report")
 
-        psi_template = {
+        template["group"] = "self"
+        template["measurement"] = "PSI"
+
+        psi_data = {
             "some_avg10": None,
             "some_avg60": None,
             "some_avg300": None,
@@ -155,10 +158,11 @@ def parse_psi_report(file_path):
         }
 
         psi_data = json.loads(file.read())
-        for key in psi_template.keys():
+        for key in psi_data.keys():
             scope, metric = key.split("_")
-            psi_template[key] = sum(psi_data[scope][metric]) / len(psi_data[scope][metric]) if len(psi_data[scope][metric]) > 0 else None
-        return psi_template
+            psi_data[key] = sum(psi_data[scope][metric]) / len(psi_data[scope][metric]) if len(psi_data[scope][metric]) > 0 else None
+        template["data"] = psi_data
+        return template
 
 def collect_clusterloader2(
     node_count,
@@ -212,7 +216,7 @@ def collect_clusterloader2(
         file_path = os.path.join(cl2_report_dir, f)
         with open(file_path, 'r', encoding='utf-8') as file:
             if file_path.endswith("psi.json"):
-                content += json.dumps(parse_psi_report(file_path)) + "\n"
+                content += json.dumps(parse_psi_report(file_path, template)) + "\n"
                 continue
             measurement, group_name = get_measurement(file_path)
             if not measurement:

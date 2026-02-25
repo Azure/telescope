@@ -37,5 +37,5 @@ steps:
       REGISTRY_INFO: ${{ parameters.registry_info }}
       RUN_URL: $(RUN_URL)
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/cri.py
-      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/results/cl2_report
+      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/results
     displayName: "Collect Results"
