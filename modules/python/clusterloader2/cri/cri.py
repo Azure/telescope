@@ -160,7 +160,8 @@ def parse_psi_report(file_path, template):
         psi_data = json.loads(file.read())
         for key in psi_data_template.keys():
             scope, metric = key.split("_")
-            psi_data_template[key] = sum(psi_data[scope][metric]) / len(psi_data[scope][metric]) if len(psi_data[scope][metric]) > 0 else None
+            data_arr = [float(x) for x in psi_data[scope][metric]]
+            psi_data_template[key] = sum(data_arr) / len(data_arr) if len(data_arr) > 0 else None
         template["data"] = psi_data_template
         return template
 
