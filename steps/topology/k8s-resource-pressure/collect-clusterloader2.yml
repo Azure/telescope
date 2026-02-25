@@ -13,7 +13,7 @@ steps:
 - script: |
     echo "Copying PSI data from DaemonSet pods..."
     POD=$(kubectl get pods -n kube-system -l app=psi-reader -o name | cut -d'/' -f2)
-    kubectl cp "kube-system/$POD:/app/config/psi.json" $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/results/psi/psi.json
+    kubectl cp "kube-system/$POD:/app/config/psi.json" $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/results/psi.json
     echo "PSI data copied successfully"
   displayName: 'Copy PSI data from DaemonSet'
 - template: /steps/engine/clusterloader2/cri/collect.yml
