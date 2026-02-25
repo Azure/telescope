@@ -12,6 +12,10 @@ steps:
   - script: |
       set -eo pipefail
 
+      # Create and set permissions on results directory BEFORE Docker runs
+      mkdir -p $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/results
+      chmod 755 $(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/results
+
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE override \
         --node_count $NODE_COUNT \
         --node_per_step ${NODE_PER_STEP:-$NODE_COUNT} \

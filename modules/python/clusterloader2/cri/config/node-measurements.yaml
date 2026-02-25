@@ -1,4 +1,5 @@
 {{$action := .action}} # start, gather
+{{$node := .node}}
 
 steps:
   - name: {{$action}} Node Resource Measurements
@@ -13,53 +14,53 @@ steps:
         queries:
         # Node Level Summary
         - name: NodeInfo
-          query: count(kube_node_info{label_cri_resource_consume="true"})
+          query: count(kube_node_info{node = {{$node}}})
         - name: TotalNodes
-          query: count(kube_node_status_allocatable{resource="cpu", label_cri_resource_consume="true"})
+          query: count(kube_node_status_allocatable{resource="cpu", node = {{$node}}})
         - name: NodeCPUAllocatable
-          query: sum(kube_node_status_allocatable{resource="cpu", label_cri_resource_consume="true"})
+          query: sum(kube_node_status_allocatable{resource="cpu", node = {{$node}}})
         - name: NodeMemoryAllocatableGiB
-          query: sum(kube_node_status_allocatable{resource="memory", label_cri_resource_consume="true"}) / 1073741824
+          query: sum(kube_node_status_allocatable{resource="memory", node = {{$node}}}) / 1073741824
         - name: NodeMemoryCapacityGiB
-          query: sum(kube_node_status_capacity{resource="memory", label_cri_resource_consume="true"}) / 1073741824
+          query: sum(kube_node_status_capacity{resource="memory", node = {{$node}}}) / 1073741824
         - name: NodesReady
-          query: count(kube_node_status_condition{condition="Ready",status="true", label_cri_resource_consume="true"})
+          query: count(kube_node_status_condition{condition="Ready",status="true", node = {{$node}}})
         - name: NodePressureStatus
-          query: kube_node_status_condition{condition="MemoryPressure", status="true", label_cri_resource_consume="true"}
+          query: kube_node_status_condition{condition="MemoryPressure", status="true", node = {{$node}}}
         # Node CPU Usage Stats (from kubelet/cAdvisor - container metrics aggregated by node)
         - name: NodeCPUUsageAvg
-          query: avg(sum by (instance) (rate(container_cpu_usage_seconds_total{id="/"}[2m]) and on(instance) kube_node_info{label_cri_resource_consume="true"}))
+          query: avg(sum by (instance) (rate(container_cpu_usage_seconds_total{id="/"}[2m]) and on(instance) kube_node_info{node = {{$node}}}))
         - name: NodeCPUUsageMax
-          query: max(sum by (instance) (rate(container_cpu_usage_seconds_total{id="/"}[2m]) and on(instance) kube_node_info{label_cri_resource_consume="true"}))
+          query: max(sum by (instance) (rate(container_cpu_usage_seconds_total{id="/"}[2m]) and on(instance) kube_node_info{node = {{$node}}}))
         - name: NodeCPUUsageMin
-          query: min(sum by (instance) (rate(container_cpu_usage_seconds_total{id="/"}[2m]) and on(instance) kube_node_info{label_cri_resource_consume="true"}))
+          query: min(sum by (instance) (rate(container_cpu_usage_seconds_total{id="/"}[2m]) and on(instance) kube_node_info{node = {{$node}}}))
         - name: NodeCPURequestsTotal
           query: sum(kube_pod_container_resource_requests{resource="cpu"})
         # Node Memory Usage Stats (from kubelet/cAdvisor - container metrics aggregated by node)
         - name: NodeMemoryUsageAvgGiB
-          query: avg(sum by (instance) (container_memory_working_set_bytes{id="/"} and on(instance) kube_node_info{label_cri_resource_consume="true"})) / 1073741824
+          query: avg(sum by (instance) (container_memory_working_set_bytes{id="/"} and on(instance) kube_node_info{node = {{$node}}})) / 1073741824
         - name: NodeMemoryUsageMaxGiB
-          query: max(sum by (instance) (container_memory_working_set_bytes{id="/"} and on(instance) kube_node_info{label_cri_resource_consume="true"})) / 1073741824
+          query: max(sum by (instance) (container_memory_working_set_bytes{id="/"} and on(instance) kube_node_info{node = {{$node}}})) / 1073741824
         - name: NodeMemoryUsageMinGiB
-          query: min(sum by (instance) (container_memory_working_set_bytes{id="/"} and on(instance) kube_node_info{label_cri_resource_consume="true"})) / 1073741824
+          query: min(sum by (instance) (container_memory_working_set_bytes{id="/"} and on(instance) kube_node_info{node = {{$node}}})) / 1073741824
         - name: NodeMemoryRequestsTotalGiB
-          query: sum(kube_pod_container_resource_requests{resource="memory", label_cri_resource_consume="true"}) / 1073741824
+          query: sum(kube_pod_container_resource_requests{resource="memory", node = {{$node}}}) / 1073741824
         - name: NodeMemoryCommitmentGiB
-          query: (sum(kube_pod_container_resource_limits{resource="memory", label_cri_resource_consume="true"}) - sum(kube_node_status_allocatable{resource="memory", label_cri_resource_consume="true"})) / 1073741824
+          query: (sum(kube_pod_container_resource_limits{resource="memory", node = {{$node}}}) - sum(kube_node_status_allocatable{resource="memory", node = {{$node}}})) / 1073741824
         # Pod Level Summary
         - name: TotalPods
-          query: count(kube_pod_status_phase{phase="Running"} * on(node) group_left kube_node_info{label_cri_resource_consume="true"})
+          query: count(kube_pod_status_phase{phase="Running"} * on(node) group_left kube_node_info{node = {{$node}}})
         # Pod Distribution Summary
         - name: PodMemoryRequestToAllocatableRatio
-          query: sum(kube_pod_container_resource_requests{resource="memory", label_cri_resource_consume="true"}) / sum(kube_node_status_allocatable{resource="memory", label_cri_resource_consume="true"})
+          query: sum(kube_pod_container_resource_requests{resource="memory", node = {{$node}}}) / sum(kube_node_status_allocatable{resource="memory", node = {{$node}}})
         - name: PodMemoryUsageToAllocatableRatio
-          query: sum(container_memory_working_set_bytes{id="/"} and on(instance) kube_node_info{label_cri_resource_consume="true"}) / sum(kube_node_status_allocatable{resource="memory", label_cri_resource_consume="true"})
+          query: sum(container_memory_working_set_bytes{id="/"} and on(instance) kube_node_info{node = {{$node}}}) / sum(kube_node_status_allocatable{resource="memory", node = {{$node}}})
         - name: PodMemoryUsageToLimitsRatio
-          query: sum(container_memory_working_set_bytes{id="/"} and on(instance) kube_node_info{label_cri_resource_consume="true"}) / sum(kube_pod_container_resource_limits{resource="memory", label_cri_resource_consume="true"})
+          query: sum(container_memory_working_set_bytes{id="/"} and on(instance) kube_node_info{node = {{$node}}}) / sum(kube_pod_container_resource_limits{resource="memory", node = {{$node}}})
         # Container Level Summary
         - name: ContainerRuntimes
-          query: count by (container_runtime_version) (kube_node_info{label_cri_resource_consume="true"})
+          query: count by (container_runtime_version) (kube_node_info{node = {{$node}}})
         - name: ContainerMemoryFailures
-          query: sum(increase(container_memory_failcnt[5m]) and on(instance) kube_node_info{label_cri_resource_consume="true"})
+          query: sum(increase(container_memory_failcnt[5m]) and on(instance) kube_node_info{node = {{$node}}})
         - name: ContainersNearMemoryLimit
-          query: count((container_memory_working_set_bytes / container_spec_memory_limit_bytes > 0.8) and on(instance) kube_node_info{label_cri_resource_consume="true"})
+          query: count((container_memory_working_set_bytes / container_spec_memory_limit_bytes > 0.8) and on(instance) kube_node_info{node = {{$node}}})

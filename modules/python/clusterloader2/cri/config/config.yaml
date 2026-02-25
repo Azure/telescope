@@ -9,6 +9,7 @@ name: resource-consumer
 {{$steps := DefaultParam .CL2_STEPS 1}}
 {{$nodePerStep := DefaultParam .CL2_NODE_PER_STEP 1}}
 {{$totalNodes := MultiplyInt $nodePerStep $steps}}
+{{$nodeToMeasure := DefaultParam .CL2_NODE_TO_MEASURE ""}}
 {{$replicas := MultiplyInt $deploymentSize $totalNodes}}
 {{$scaleReplicas := MultiplyInt $deploymentSize $nodePerStep}}
 {{$scaleEnabled := DefaultParam .CL2_SCALE_ENABLED false}}
@@ -85,6 +86,7 @@ steps:
       path: /node-measurements.yaml
       params:
         action: start
+        node: {{$nodeToMeasure}}
 
   {{range $j := Loop $steps}}
   - name: Create deployment {{$j}}
@@ -172,6 +174,7 @@ steps:
       path: /node-measurements.yaml
       params:
         action: gather
+        node: {{$nodeToMeasure}}
 
   {{range $j := Loop $steps}}
   - name: Deleting deployments {{$j}}

@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 # TODO: Refactor to use a config dataclass to reduce number of arguments
 # Reference: modules/python/clusterloader2/job_controller/job_controller.py
 def override_config_clusterloader2(
-    node_count, node_per_step, max_pods, repeats, operation_timeout,
+    node_count, node_to_measure, node_per_step, max_pods, repeats, operation_timeout,
     load_type, scale_enabled, pod_startup_latency_threshold, provider,
     registry_endpoint, os_type, scrape_kubelets, scrape_containerd, containerd_scrape_interval, host_network, override_file, use_custom_kubelet = False):
     MEMORY_SCALE_FACTOR = 1.0
@@ -79,6 +79,7 @@ def override_config_clusterloader2(
         file.write(f"CL2_NODE_COUNT: {node_count}\n")
         file.write(f"CL2_NODE_PER_STEP: {node_per_step}\n")
         file.write(f"CL2_STEPS: {steps}\n")
+        file.write(f"CL2_NODE_TO_MEASURE: {node_to_measure}\n")
         file.write(f"CL2_OPERATION_TIMEOUT: {operation_timeout}\n")
         file.write(f"CL2_LOAD_TYPE: {load_type}\n")
         file.write(f"CL2_SCALE_ENABLED: {str(scale_enabled).lower()}\n")
@@ -258,6 +259,9 @@ def main():
     parser_override = subparsers.add_parser("override", help="Override CL2 config file")
     parser_override.add_argument("--node_count", type=int, help="Number of nodes")
     parser_override.add_argument(
+        "--node_to_measure", type=str, default="", help="Name of the node to gather detailed measurements from"
+    )
+    parser_override.add_argument(
         "--node_per_step", type=int, help="Number of nodes to scale per step"
     )
     parser_override.add_argument(
@@ -411,6 +415,7 @@ def main():
     if args.command == "override":
         override_config_clusterloader2(
             args.node_count,
+            args.node_to_measure,
             args.node_per_step,
             args.max_pods,
             args.repeats,

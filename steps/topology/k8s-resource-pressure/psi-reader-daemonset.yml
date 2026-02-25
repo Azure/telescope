@@ -89,6 +89,6 @@ spec:
           type: Directory
       - name: psi-config
         hostPath:
-          path: /root/perf-tests/clusterloader2/results
+          path: /tmp/telescope-psi-data
           type: DirectoryOrCreate
       restartPolicy: Always
