@@ -33,10 +33,11 @@ steps:
         terraform_input_file=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_FILE')
         terraform_input_variables=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_VARIABLES')
 
+        # SKIP_RESOURCE_DELETION is a global flag — skip destroy for all regions and exit the loop
         if [[ "${{ parameters.skip_resource_deletion }}" == "true" && "$BUILD_REASON" == "Manual" && "${{ parameters.command }}" == "destroy" ]]; then
           echo "##vso[task.logissue type=warning;] SKIP_RESOURCE_DELETION is true. Skipping terraform destroy. Please delete resource manually:
     terraform ${{ parameters.command }} --auto-approve ${{ parameters.arguments }} -var-file $terraform_input_file -var json_input=\"$terraform_input_variables\""
-          continue
+          break
         fi
 
         set +e
