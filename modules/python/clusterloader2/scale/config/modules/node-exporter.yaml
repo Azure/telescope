@@ -22,7 +22,34 @@ steps:
           apiVersion: apps/v1
           kind: DaemonSet
           labelSelector: app.kubernetes.io/name = node-exporter
-          operationTimeout: 10m
+          operationTimeout: 20m
+  - name: {{.actionName}} Node Exporter Service Account
+    phases:
+      - namespaceList:
+        - "monitoring"
+        replicasPerNamespace: {{$replicasPerNamespace}}
+        tuningSet: Sequence
+        objectBundle:
+          - objectTemplatePath: "modules/node-exporter/serviceaccount.yaml"
+            basename: node-exporter
+  - name: {{.actionName}} Node Exporter Cluster Role
+    phases:
+      - namespaceList:
+        - ""
+        replicasPerNamespace: {{$replicasPerNamespace}}
+        tuningSet: Sequence
+        objectBundle:
+          - objectTemplatePath: "modules/node-exporter/clusterrole.yaml"
+            basename: node-exporter
+  - name: {{.actionName}} Node Exporter Cluster Role Binding
+    phases:
+      - namespaceList:
+        - ""
+        replicasPerNamespace: {{$replicasPerNamespace}}
+        tuningSet: Sequence
+        objectBundle:
+          - objectTemplatePath: "modules/node-exporter/clusterrolebinding.yaml"
+            basename: node-exporter
   - name: {{.actionName}} Node Exporter Service Monitor
     phases:
       - namespaceList:
@@ -33,33 +60,6 @@ steps:
           - objectTemplatePath: "modules/node-exporter/servicemonitor.yaml"
             basename: node-exporter
             interval: 15s
-  - name: {{.actionName}} Node Exporter Service Account
-    phases:
-      - namespaceList:
-        - "monitoring"
-        replicasPerNamespace: {{$replicasPerNamespace}}
-        tuningSet: {{$tuningSet}}
-        objectBundle:
-          - objectTemplatePath: "modules/node-exporter/serviceaccount.yaml"
-            basename: node-exporter
-  - name: {{.actionName}} Node Exporter Cluster Role
-    phases:
-      - namespaceList:
-        - ""
-        replicasPerNamespace: {{$replicasPerNamespace}}
-        tuningSet: {{$tuningSet}}
-        objectBundle:
-          - objectTemplatePath: "modules/node-exporter/clusterrole.yaml"
-            basename: node-exporter
-  - name: {{.actionName}} Node Exporter Cluster Role Binding
-    phases:
-      - namespaceList:
-        - ""
-        replicasPerNamespace: {{$replicasPerNamespace}}
-        tuningSet: {{$tuningSet}}
-        objectBundle:
-          - objectTemplatePath: "modules/node-exporter/clusterrolebinding.yaml"
-            basename: node-exporter
   - name: {{.actionName}} Node Exporter Daemonset
     phases:
       - namespaceList:
