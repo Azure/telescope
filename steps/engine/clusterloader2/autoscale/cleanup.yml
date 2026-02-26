@@ -1,17 +1,20 @@
 steps:
-# Run cleanup locally when no jumpbox (public cluster)
-- script: |
-    kubectl delete --all nodeclaim --ignore-not-found
-    kubectl delete --all nodepool --ignore-not-found
-  displayName: "Delete NodeClaim and NodePool"
-  condition: and(always(), eq(variables['JUMPBOX_HOST'], ''))
+  # Run cleanup locally when no jumpbox (public cluster)
+  - script: |
+      kubectl delete --all nodeclaim --ignore-not-found
+      kubectl delete --all nodepool --ignore-not-found
+    displayName: "Delete NodeClaim and NodePool"
+    condition: and(always(), eq(variables['JUMPBOX_HOST'], ''))
 
-# Run cleanup via jumpbox (private cluster)
-- ${{ if ne(variables['JUMPBOX_HOST'], '') }}:
-  - template: /steps/ssh/run-command.yml
-    parameters:
-      vm_ip: $(JUMPBOX_HOST)
-      condition: always()
-      command: |
-        kubectl delete --all nodeclaim --ignore-not-found
-        kubectl delete --all nodepool --ignore-not-found
+  # Run cleanup via jumpbox (private cluster)
+  - ${{ if ne(variables['JUMPBOX_HOST'], '') }}:
+      - template: /steps/ssh/run-command.yml
+        parameters:
+          vm_ip: $(JUMPBOX_HOST)
+          vm_id: $(JUMPBOX_VM_ID)
+          bastion_name: $(BASTION_NAME)
+          bastion_resource_group: $(BASTION_RESOURCE_GROUP)
+          condition: always()
+          command: |
+            kubectl delete --all nodeclaim --ignore-not-found
+            kubectl delete --all nodepool --ignore-not-found

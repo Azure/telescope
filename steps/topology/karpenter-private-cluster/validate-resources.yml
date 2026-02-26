@@ -23,11 +23,24 @@ steps:
     fi
 
     echo "VM ID: $vm_id"
+    echo "##vso[task.setvariable variable=JUMPBOX_VM_ID;]${vm_id}"
     vm_public_ip=$(az vm list-ip-addresses --ids $vm_id --query '[].virtualMachine.network.publicIpAddresses[0].ipAddress' -o tsv)
     echo "Public IP Address: $vm_public_ip"
 
     # Set Public IP as JUMPBOX_HOST directly as requested
     echo "##vso[task.setvariable variable=JUMPBOX_HOST;]${vm_public_ip}"
+
+    # Optional: discover Azure Bastion for tunneled SSH/SCP over 443
+    bastion_name=$(az resource list -g "${RUN_ID}" --resource-type Microsoft.Network/bastionHosts --query "[?(tags.run_id == '${RUN_ID}')].name | [0]" -o tsv)
+    if [ -n "${bastion_name}" ]; then
+      echo "Found Bastion: ${bastion_name}"
+      echo "##vso[task.setvariable variable=BASTION_NAME;]${bastion_name}"
+      echo "##vso[task.setvariable variable=BASTION_RESOURCE_GROUP;]${RUN_ID}"
+    else
+      echo "No Bastion found; will try direct SSH (may fail if port 22 blocked)."
+      echo "##vso[task.setvariable variable=BASTION_NAME;]"
+      echo "##vso[task.setvariable variable=BASTION_RESOURCE_GROUP;]"
+    fi
   displayName: "Get VM Info ${{ parameters.role }}"
   env:
     ROLE: ${{ lower(parameters.role) }}
@@ -36,6 +49,9 @@ steps:
 - template: /steps/ssh/run-command.yml
   parameters:
     vm_ip: $(JUMPBOX_HOST)
+    vm_id: $(JUMPBOX_VM_ID)
+    bastion_name: $(BASTION_NAME)
+    bastion_resource_group: $(BASTION_RESOURCE_GROUP)
     command: |
       set -e
       cloud-init status --wait || echo 'Warning: cloud-init finished with errors, but continuing anyway...'
@@ -52,6 +68,9 @@ steps:
 - template: /steps/ssh/run-command.yml
   parameters:
     vm_ip: $(JUMPBOX_HOST)
+    vm_id: $(JUMPBOX_VM_ID)
+    bastion_name: $(BASTION_NAME)
+    bastion_resource_group: $(BASTION_RESOURCE_GROUP)
     command: "mkdir -p '/tmp/telescope-$(Build.BuildId)'"
 
 - bash: |
@@ -62,25 +81,61 @@ steps:
       exit 1
     fi
 
-    if [ -z "${JUMPBOX_HOST:-}" ]; then
-       echo "JUMPBOX_HOST is not set." >&2
-       exit 1
+    use_bastion=false
+    if [ -n "${BASTION_NAME:-}" ] && [ -n "${BASTION_RESOURCE_GROUP:-}" ] && [ -n "${JUMPBOX_VM_ID:-}" ]; then
+      use_bastion=true
     fi
 
-    ssh_target="${JUMPBOX_USERNAME:-azureuser}@${JUMPBOX_HOST}"
     ssh_opts=(-i "$SSH_KEY_PATH" -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null")
+    local_port="2222"
+    if [ "${use_bastion}" = "true" ]; then
+      echo "Starting Bastion tunnel for SCP..."
+      az network bastion tunnel \
+        --name "$BASTION_NAME" \
+        --resource-group "$BASTION_RESOURCE_GROUP" \
+        --target-resource-id "$JUMPBOX_VM_ID" \
+        --resource-port 22 \
+        --port "$local_port" \
+        >/tmp/bastion-tunnel-scp-$$.log 2>&1 &
+      tunnel_pid=$!
+      trap 'kill ${tunnel_pid} 2>/dev/null || true' EXIT
+
+      for i in $(seq 1 30); do
+        if timeout 1 bash -c "</dev/tcp/127.0.0.1/${local_port}" >/dev/null 2>&1; then
+          break
+        fi
+        sleep 1
+      done
+
+      ssh_target="${JUMPBOX_USERNAME:-azureuser}@127.0.0.1"
+      scp_opts=("${ssh_opts[@]}" -P "$local_port")
+    else
+      if [ -z "${JUMPBOX_HOST:-}" ]; then
+         echo "JUMPBOX_HOST is not set." >&2
+         exit 1
+      fi
+      ssh_target="${JUMPBOX_USERNAME:-azureuser}@${JUMPBOX_HOST}"
+      scp_opts=("${ssh_opts[@]}")
+    fi
     remote_root="/tmp/telescope-$(Build.BuildId)"
     remote_nodepool_file="${remote_root}/karpenter_nodepool.yml"
 
-    echo "Uploading nodepool file to jumpbox ${JUMPBOX_HOST}..."
-    scp "${ssh_opts[@]}" "$KARPENTER_NODEPOOL_FILE" "${ssh_target}:${remote_nodepool_file}"
+    echo "Uploading nodepool file to jumpbox..."
+    scp "${scp_opts[@]}" "$KARPENTER_NODEPOOL_FILE" "${ssh_target}:${remote_nodepool_file}"
   displayName: "Upload Karpenter config to Jumpbox"
   env:
     KARPENTER_NODEPOOL_FILE: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/karpenter_nodepool.${{ parameters.cloud }}.yml
+    JUMPBOX_HOST: $(JUMPBOX_HOST)
+    JUMPBOX_VM_ID: $(JUMPBOX_VM_ID)
+    BASTION_NAME: $(BASTION_NAME)
+    BASTION_RESOURCE_GROUP: $(BASTION_RESOURCE_GROUP)
 
 - template: /steps/ssh/run-command.yml
   parameters:
     vm_ip: $(JUMPBOX_HOST)
+    vm_id: $(JUMPBOX_VM_ID)
+    bastion_name: $(BASTION_NAME)
+    bastion_resource_group: $(BASTION_RESOURCE_GROUP)
     command: |
       set -e
       kubectl apply -f '/tmp/telescope-$(Build.BuildId)/karpenter_nodepool.yml'

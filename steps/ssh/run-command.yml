@@ -2,6 +2,18 @@ parameters:
 - name: vm_ip
   type: string
   default: ''
+- name: vm_id
+  type: string
+  default: ''
+- name: bastion_name
+  type: string
+  default: ''
+- name: bastion_resource_group
+  type: string
+  default: ''
+- name: bastion_local_port
+  type: number
+  default: 2222
 - name: command
   type: string
   default: 'hostname'
@@ -12,7 +24,14 @@ parameters:
 steps:
 - bash: |
     set -u
-    if [ -z "${VM_IP:-}" ]; then
+    # When Bastion vars are present, tunnel SSH over 443 via Azure Bastion.
+    # Otherwise fall back to direct SSH to VM public IP.
+    use_bastion=false
+    if [ -n "${BASTION_NAME:-}" ] && [ -n "${BASTION_RESOURCE_GROUP:-}" ] && [ -n "${VM_ID:-}" ]; then
+      use_bastion=true
+    fi
+
+    if [ "${use_bastion}" = "false" ] && [ -z "${VM_IP:-}" ]; then
       echo "VM_IP not set, skipping SSH command"; exit 0
     fi
     if [ -z "${SSH_KEY_PATH:-}" ] || [ ! -f "$SSH_KEY_PATH" ]; then
@@ -20,7 +39,39 @@ steps:
     fi
 
     ssh_opts=(-i "$SSH_KEY_PATH" -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null" -o "ServerAliveInterval=60" -o "ServerAliveCountMax=5")
-    ssh_target="${JUMPBOX_USERNAME:-azureuser}@${VM_IP}"
+
+    if [ "${use_bastion}" = "true" ]; then
+      local_port="${BASTION_LOCAL_PORT:-2222}"
+
+      if ! command -v az >/dev/null 2>&1; then
+        echo "Azure CLI (az) is required for Bastion tunneling" >&2
+        exit 1
+      fi
+
+      echo "Starting Bastion tunnel: ${BASTION_NAME} -> ${VM_ID} (localhost:${local_port})"
+      az network bastion tunnel \
+        --name "$BASTION_NAME" \
+        --resource-group "$BASTION_RESOURCE_GROUP" \
+        --target-resource-id "$VM_ID" \
+        --resource-port 22 \
+        --port "$local_port" \
+        >/tmp/bastion-tunnel-$$.log 2>&1 &
+      tunnel_pid=$!
+      trap 'kill ${tunnel_pid} 2>/dev/null || true' EXIT
+
+      # Wait briefly for the local tunnel port to open.
+      for i in $(seq 1 30); do
+        if timeout 1 bash -c "</dev/tcp/127.0.0.1/${local_port}" >/dev/null 2>&1; then
+          break
+        fi
+        sleep 1
+      done
+
+      ssh_opts+=( -p "${local_port}" )
+      ssh_target="${JUMPBOX_USERNAME:-azureuser}@127.0.0.1"
+    else
+      ssh_target="${JUMPBOX_USERNAME:-azureuser}@${VM_IP}"
+    fi
 
     # Use bash -c to handle multi-line commands properly
     ssh "${ssh_opts[@]}" "${ssh_target}" "bash -c $(printf '%q' "$COMMAND")"
@@ -28,4 +79,8 @@ steps:
   condition: ${{ parameters.condition }}
   env:
     VM_IP: ${{ parameters.vm_ip }}
+    VM_ID: ${{ parameters.vm_id }}
+    BASTION_NAME: ${{ parameters.bastion_name }}
+    BASTION_RESOURCE_GROUP: ${{ parameters.bastion_resource_group }}
+    BASTION_LOCAL_PORT: ${{ parameters.bastion_local_port }}
     COMMAND: ${{ parameters.command }}

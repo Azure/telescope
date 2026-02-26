@@ -52,8 +52,14 @@ network_config_list = [
         address_prefix = "10.240.0.0/16"
       },
       {
-        name           = "jumpbox-subnet"
-        address_prefix = "10.224.0.0/12"
+        name = "jumpbox-subnet"
+        // Dedicated subnet for jumpbox (can be smaller than /16, e.g., /27)
+        address_prefix = "10.224.0.0/27"
+      },
+      {
+        name = "AzureBastionSubnet"
+        # Dedicated subnet required by Azure Bastion (/27 or larger)
+        address_prefix = "10.224.0.32/27"
       },
       {
         name           = "AzureFirewallSubnet"
@@ -292,10 +298,10 @@ aks_cli_config_list = [
         name  = "disable-file-driver"
         value = ""
       },
-#      {
-#        name  = "enable-addons"
-#        value = "azure-keyvault-secrets-provider"
-#      },
+      {
+        name  = "enable-addons"
+        value = "azure-keyvault-secrets-provider"
+      },
       {
         name  = "enable-keda"
         value = ""
