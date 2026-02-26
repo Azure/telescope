@@ -8,6 +8,7 @@ metadata:
   name: {{.Name}}
   namespace: monitoring
 spec:
+  minReadySeconds: 0
   selector:
     matchLabels:
       app.kubernetes.io/component: exporter

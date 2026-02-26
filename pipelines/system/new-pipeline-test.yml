@@ -4,7 +4,7 @@ variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: cnl-azurecni-overlay-cilium
   OWNER: aks
-  OBSERVABILITY_TOOL: cnl
+  OBSERVABILITY_TOOL: acns
 
 stages:
   - stage: azure_eastus2 # format: <cloud>[_<region>]+ (e.g. azure_eastus2, aws_eastus_westus)
@@ -24,16 +24,17 @@ stages:
             cnl:
               network_policies_per_namespace: 10
               cl2_config_file: config.yaml
-              # fortio variables
-              fortio_servers_per_deployment: 2
-              fortio_clients_per_deployment: 2
-              fortio_client_queries_per_second: 100
-              fortio_client_connections: 5
+              # fortio variables - Scaled down 100x from 1000 nodes: 300 traffic pods (30 pods/node)
+              fortio_servers_per_deployment: 15
+              fortio_clients_per_deployment: 15
+              fortio_client_queries_per_second: 1500
+              fortio_client_connections: 1500
               fortio_namespaces: 1
               fortio_deployments_per_namespace: 10
               generate_container_network_logs: true
+              label_traffic_pods: false
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
-          timeout_in_minutes: 120
+          timeout_in_minutes: 180
           credential_type: service_connection
           ssh_key_enabled: false
