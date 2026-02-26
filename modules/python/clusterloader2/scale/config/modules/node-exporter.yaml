@@ -4,6 +4,10 @@
 {{$tuningSet := DefaultParam .tuningSet "DeploymentCreateQps"}}
 # interval
 {{$interval := DefaultParam .interval "15s"}}
+# operation timeout
+{{$operationTimeout := DefaultParam .CL2_NODE_EXPORTER_OPERATION_TIMEOUT "30m"}}
+# enable validation
+{{$enableValidation := DefaultParam .CL2_NODE_EXPORTER_ENABLE_VALIDATION true}}
 {{ $replicasPerNamespace := 1 }}
 
 {{if eq .actionName "create"}}
@@ -13,6 +17,7 @@
 {{end}} 
 
 steps:
+{{if $enableValidation}}
   - name: Start measurements
     measurements:
       - Identifier: WaitForNodeExporterPodsRunning
@@ -22,7 +27,9 @@ steps:
           apiVersion: apps/v1
           kind: DaemonSet
           labelSelector: app.kubernetes.io/name = node-exporter
-          operationTimeout: 20m
+          operationTimeout: {{$operationTimeout}}
+          checkIfPodsAreUpdated: false
+{{end}}
   - name: {{.actionName}} Node Exporter Service Account
     phases:
       - namespaceList:
@@ -87,9 +94,11 @@ steps:
         objectBundle:
           - objectTemplatePath: "modules/node-exporter/service.yaml"
             basename: node-exporter
+{{if $enableValidation}}
   - name: Wait for pods to be running
     measurements:
       - Identifier: WaitForNodeExporterPodsRunning
         Method: WaitForControlledPodsRunning
         Params:
           action: gather
+{{end}}

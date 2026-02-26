@@ -12,7 +12,7 @@ variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: azurecni-overlay-cilium-cnl
   OWNER: aks
-  OBSERVABILITY_TOOL: cnl
+  OBSERVABILITY_TOOL: acns
 
 stages:
   - stage: azure_eastus2 # format: <cloud>[_<region>]+ (e.g. azure_eastus2, aws_eastus_westus)

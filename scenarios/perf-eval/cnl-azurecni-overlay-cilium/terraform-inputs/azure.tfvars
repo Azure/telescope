@@ -5,10 +5,11 @@ owner          = "aks"
 
 aks_cli_config_list = [
   {
-    role               = "slo"
-    aks_name           = "telescope-acns-scale-test"
-    kubernetes_version = "1.34"
-    sku_tier           = "Standard"
+    role                          = "slo"
+    aks_name                      = "telescope-acns-scale-test"
+    kubernetes_version            = "1.34"
+    sku_tier                      = "Standard"
+    use_aks_preview_cli_extension = true
 
     optional_parameters = [
       {
@@ -29,10 +30,22 @@ aks_cli_config_list = [
       },
       {
         name  = "pod-cidr"
-        value = "192.168.0.0/16"
+        value = "100.64.0.0/10"
       },
       {
         name  = "enable-acns"
+        value = ""
+      },
+      {
+        name  = "enable-container-network-logs"
+        value = ""
+      },
+      {
+        name  = "enable-addons"
+        value = "monitoring"
+      },
+      {
+        name  = "enable-high-log-scale-mode"
         value = ""
       },
       {
