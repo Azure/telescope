@@ -65,6 +65,19 @@ locals {
 
   aks_cli_config_map = { for aks in local.updated_aks_cli_config_list : aks.role => aks }
 
+  updated_aks_rest_config_list = length(var.aks_rest_config_list) > 0 ? [
+    for aks in var.aks_rest_config_list : merge(
+      aks,
+      {
+        sku_tier           = local.aks_sku_tier != null ? local.aks_sku_tier : aks.sku_tier
+        kubernetes_version = local.aks_kubernetes_version != null ? local.aks_kubernetes_version : aks.kubernetes_version
+        custom_headers     = length(local.aks_custom_headers) > 0 ? local.aks_custom_headers : aks.custom_headers
+      }
+    )
+  ] : []
+
+  aks_rest_config_map = { for aks in local.updated_aks_rest_config_list : aks.role => aks }
+
   key_vault_config_map = { for kv in var.key_vault_config_list : kv.name => kv }
 
   vm_config_map = { for vm in var.vm_config_list : vm.role => vm }
@@ -198,6 +211,20 @@ module "aks-cli" {
   depends_on                 = [module.route_table, module.virtual_network, module.disk_encryption_set]
 }
 
+module "aks-rest" {
+  for_each = local.aks_rest_config_map
+
+  source               = "./aks-rest"
+  resource_group_name  = local.run_id
+  location             = local.region
+  aks_rest_config      = each.value
+  tags                 = local.tags
+  subnets_map          = local.all_subnets
+  key_vaults           = local.all_key_vaults
+  disk_encryption_sets = local.all_disk_encryption_sets
+  depends_on           = [module.route_table, module.virtual_network, module.disk_encryption_set]
+}
+
 module "virtual_machine" {
   for_each = local.ssh_public_key != null ? local.vm_config_map : {}
 
@@ -210,5 +237,5 @@ module "virtual_machine" {
   nics_map            = local.all_nics
 
   # Ensure AKS cluster is created before VM tries to look it up for RBAC
-  depends_on = [module.aks, module.aks-cli]
+  depends_on = [module.aks, module.aks-cli, module.aks-rest]
 }

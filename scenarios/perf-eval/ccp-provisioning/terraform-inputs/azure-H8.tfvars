@@ -3,29 +3,23 @@ scenario_name  = "ccp-provisioning-H8"
 deletion_delay = "2h"
 owner          = "aks"
 
-aks_cli_config_list = [
+aks_rest_config_list = [
   {
-    role               = "client"
-    aks_name           = "ccp-provisioning-H8"
-    sku_tier           = "standard"
-    aks_custom_headers = [
-      "EtcdServersOverrides=hyperscale"
-    ]
-    kubernetes_version = "1.33"
+    role                       = "client"
+    aks_name                   = "ccp-provisioning-H8"
+    sku_tier                   = "Standard"
+    sku_name                   = "Base"
+    api_version                = "2026-01-02-preview"
+    control_plane_scaling_size = "H8"
+    kubernetes_version         = "1.33"
+    network_plugin             = "azure"
+    network_plugin_mode        = "overlay"
     default_node_pool = {
-      name       = "default"
+      name       = "systempool"
+      mode       = "System"
       node_count = 3
-      vm_size    = "Standard_D8s_v3"
+      vm_size    = "Standard_D2s_v5"
+      os_type    = "Linux"
     }
-    optional_parameters = [
-      {
-        name  = "network-plugin"
-        value = "azure"
-      },
-      {
-        name  = "network-plugin-mode"
-        value = "overlay"
-      }
-    ]
   }
 ]

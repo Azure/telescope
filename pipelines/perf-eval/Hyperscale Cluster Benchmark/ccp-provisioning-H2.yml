@@ -21,9 +21,9 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - uksouth
+            - westus2
           terraform_input_file_mapping:
-            - uksouth: "scenarios/perf-eval/ccp-provisioning/terraform-inputs/azure-H2.tfvars"
+            - westus2: "scenarios/perf-eval/ccp-provisioning/terraform-inputs/azure-H2.tfvars"
           topology: hyperscale-cluster
           engine: noop # This pipeline only measures cluster provisioning time so no specific benchmark engine is needed
           matrix:
