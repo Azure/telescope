@@ -3,7 +3,7 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = ">= 4.42.0, != 4.42.0, < 5.0.0"
+      version = "<= 4.42.0"
     }
 
     # Used for ARM child resources not yet supported by AzureRM (e.g., ACR artifact cache rules).

@@ -203,6 +203,14 @@ locals {
 
 data "azurerm_client_config" "current" {}
 
+locals {
+  resource_group_id = format(
+    "/subscriptions/%s/resourceGroups/%s",
+    data.azurerm_client_config.current.subscription_id,
+    var.resource_group_name
+  )
+}
+
 resource "azurerm_user_assigned_identity" "userassignedidentity" {
   count               = var.aks_cli_config.managed_identity_name == null ? 0 : 1
   location            = var.location
@@ -341,14 +349,32 @@ resource "azurerm_role_assignment" "aks_identity_kms_roles" {
   principal_id         = azurerm_user_assigned_identity.userassignedidentity[0].principal_id
 }
 
-# Fetch AKS cluster to get identities for DES role assignments
-data "azurerm_kubernetes_cluster" "aks" {
+data "azapi_resource" "aks" {
   count = var.aks_cli_config.disk_encryption_set_name != null && !var.aks_cli_config.dry_run ? 1 : 0
 
   depends_on = [terraform_data.aks_cli]
 
-  name                = var.aks_cli_config.aks_name
-  resource_group_name = var.resource_group_name
+  type      = "Microsoft.ContainerService/managedClusters@2024-10-01"
+  name      = var.aks_cli_config.aks_name
+  parent_id = local.resource_group_id
+
+  # Keep the payload small but sufficient for DES role assignments.
+  response_export_values = [
+    "identity",
+    "properties.identityProfile",
+  ]
+}
+
+locals {
+  aks_identity_for_des = (var.aks_cli_config.disk_encryption_set_name != null && !var.aks_cli_config.dry_run) ? jsondecode(data.azapi_resource.aks[0].output) : null
+
+  aks_kubelet_object_id = try(
+    local.aks_identity_for_des.properties.identityProfile.kubeletidentity.objectId,
+    local.aks_identity_for_des.properties.identityProfile.kubeletIdentity.objectId,
+    null
+  )
+
+  aks_system_assigned_principal_id = try(local.aks_identity_for_des.identity.principalId, null)
 }
 
 # Grant Reader access to Disk Encryption Set for kubelet identity
@@ -357,7 +383,7 @@ resource "azurerm_role_assignment" "des_reader_kubelet" {
 
   scope                = local.disk_encryption_set_id
   role_definition_name = "Reader"
-  principal_id         = data.azurerm_kubernetes_cluster.aks[0].kubelet_identity[0].object_id
+  principal_id         = local.aks_kubelet_object_id != null ? local.aks_kubelet_object_id : error("Unable to determine AKS kubelet identity objectId via azapi; cannot grant DES Reader role.")
 }
 
 # Grant Reader access to Disk Encryption Set for cluster identity
@@ -366,5 +392,7 @@ resource "azurerm_role_assignment" "des_reader_cluster" {
 
   scope                = local.disk_encryption_set_id
   role_definition_name = "Reader"
-  principal_id         = var.aks_cli_config.managed_identity_name != null ? azurerm_user_assigned_identity.userassignedidentity[0].principal_id : data.azurerm_kubernetes_cluster.aks[0].identity[0].principal_id
+  principal_id = var.aks_cli_config.managed_identity_name != null ? azurerm_user_assigned_identity.userassignedidentity[0].principal_id : (
+    local.aks_system_assigned_principal_id != null ? local.aks_system_assigned_principal_id : error("Unable to determine AKS system-assigned identity principalId via azapi; cannot grant DES Reader role.")
+  )
 }
