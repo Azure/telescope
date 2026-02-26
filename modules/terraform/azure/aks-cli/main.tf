@@ -366,7 +366,7 @@ data "azapi_resource" "aks" {
 }
 
 locals {
-  aks_identity_for_des = (var.aks_cli_config.disk_encryption_set_name != null && !var.aks_cli_config.dry_run) ? jsondecode(data.azapi_resource.aks[0].output) : null
+  aks_identity_for_des = (var.aks_cli_config.disk_encryption_set_name != null && !var.aks_cli_config.dry_run) ? data.azapi_resource.aks[0].output : null
 
   aks_kubelet_object_id = try(
     local.aks_identity_for_des.properties.identityProfile.kubeletidentity.objectId,
