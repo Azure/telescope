@@ -63,6 +63,11 @@ network_config_list = [
         address_prefix = "10.224.0.0/27"
       },
       {
+        name = "AzureBastionSubnet"
+        # Dedicated subnet required by Azure Bastion (/27 or larger)
+        address_prefix = "10.224.0.32/27"
+      },
+      {
         name           = "AzureFirewallSubnet"
         address_prefix = "10.193.0.0/26"
       }

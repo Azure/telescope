@@ -11,6 +11,9 @@ steps:
       - template: /steps/ssh/run-command.yml
         parameters:
           vm_ip: $(JUMPBOX_HOST)
+          vm_id: $(JUMPBOX_VM_ID)
+          bastion_name: $(BASTION_NAME)
+          bastion_resource_group: $(BASTION_RESOURCE_GROUP)
           condition: always()
           command: |
             kubectl delete --all nodeclaim --ignore-not-found
