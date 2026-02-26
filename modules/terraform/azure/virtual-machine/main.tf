@@ -1,8 +1,22 @@
+data "azurerm_client_config" "current" {}
+
 locals {
+  resource_group_id = format(
+    "/subscriptions/%s/resourceGroups/%s",
+    data.azurerm_client_config.current.subscription_id,
+    var.resource_group_name
+  )
+
+  aks_cluster_id = (var.vm_config.aks_name != null && var.vm_config.aks_name != "") ? format(
+    "%s/providers/Microsoft.ContainerService/managedClusters/%s",
+    local.resource_group_id,
+    var.vm_config.aks_name
+  ) : null
+
   # Role assignments for AKS integration
-  vm_role_assignments = (var.vm_config.aks_name != null && var.vm_config.aks_name != "") ? {
-    "Azure Kubernetes Service Cluster User Role" = data.azurerm_kubernetes_cluster.aks[0].id
-    "Reader"                                     = data.azurerm_resource_group.rg.id
+  vm_role_assignments = local.aks_cluster_id != null ? {
+    "Azure Kubernetes Service Cluster User Role" = local.aks_cluster_id
+    "Reader"                                     = local.resource_group_id
   } : {}
 
   # Tags - merge global tags with VM-specific tags
@@ -83,22 +97,6 @@ resource "azurerm_linux_virtual_machine" "vm" {
   identity {
     type = "SystemAssigned"
   }
-}
-
-# =============================================================================
-# Data Sources
-# =============================================================================
-
-# Get AKS cluster by name and resource group (optional)
-data "azurerm_kubernetes_cluster" "aks" {
-  count               = (var.vm_config.aks_name != null && var.vm_config.aks_name != "") ? 1 : 0
-  name                = var.vm_config.aks_name
-  resource_group_name = var.resource_group_name
-}
-
-# Get resource group for RBAC
-data "azurerm_resource_group" "rg" {
-  name = var.resource_group_name
 }
 
 # =============================================================================
