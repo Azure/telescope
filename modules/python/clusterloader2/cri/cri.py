@@ -147,21 +147,22 @@ def parse_psi_report(file_path, template):
         template["measurement"] = "PSI"
 
         psi_data_template = {
-            "some_avg10": None,
-            "some_avg60": None,
-            "some_avg300": None,
-            "some_total": None,
-            "full_avg10": None,
-            "full_avg60": None,
-            "full_avg300": None,
-            "full_total": None,
+            "some_avg10": {"avg": None, "max": None},
+            "some_avg60": {"avg": None, "max": None},
+            "some_avg300": {"avg": None, "max": None},
+            "some_total": {"avg": None, "max": None},
+            "full_avg10": {"avg": None, "max": None},
+            "full_avg60": {"avg": None, "max": None},
+            "full_avg300": {"avg": None, "max": None},
+            "full_total": {"avg": None, "max": None},
         }
 
         psi_data = json.loads(file.read())
         for key in psi_data_template.keys():
             scope, metric = key.split("_")
-            data_arr = [float(x) for x in psi_data[scope][metric]]
-            psi_data_template[key] = sum(data_arr) / len(data_arr) if len(data_arr) > 0 else None
+            data_arr = [val for val in map(float, psi_data[scope][metric]) if val > 0] # get all non-zero
+            psi_data_template[key]["avg"] = sum(data_arr) / len(data_arr) if len(data_arr) > 0 else None
+            psi_data_template[key]["max"] = max(data_arr) if len(data_arr) > 0 else None
         template["data"] = psi_data_template
         return template
 
