@@ -78,15 +78,15 @@ variables {
 }
 
 run "aks_cli_des_identity_profile_camel" {
-  command = apply
+  command = plan
 
   assert {
-    condition     = module.aks-cli["client"].des_reader_kubelet_principal_id == "00000000-0000-0000-0000-000000000222"
+    condition     = module.aks-cli["client"].des_kubelet_object_id == "00000000-0000-0000-0000-000000000222"
     error_message = "Expected kubelet identity principalId to match azapi mock output"
   }
 
   assert {
-    condition     = module.aks-cli["client"].des_reader_cluster_principal_id == "00000000-0000-0000-0000-000000000111"
+    condition     = module.aks-cli["client"].des_cluster_principal_id == "00000000-0000-0000-0000-000000000111"
     error_message = "Expected cluster identity principalId to match azapi mock output"
   }
 }
