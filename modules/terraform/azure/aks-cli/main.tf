@@ -182,6 +182,36 @@ locals {
     "-n", var.aks_cli_config.aks_name,
     "--yes",
   ])
+
+  # Build az rest commands for AKS REST API calls
+  aks_rest_config_map = {
+    for config in var.aks_rest_config_list :
+    config.aks_name => config
+  }
+
+  # Local to build headers string for az rest command
+  aks_rest_commands = {
+    for name, config in local.aks_rest_config_map :
+    name => {
+      command = join(" ", concat([
+        "az",
+        "rest",
+        "--method", config.method,
+        "--url", format(
+          "\"/subscriptions/{subscriptionId}/resourceGroups/%s/providers/Microsoft.ContainerService/managedClusters/%s?api-version=%s\"",
+          var.resource_group_name,
+          config.aks_name,
+          config.api_version
+        ),
+        length(config.headers) > 0 ? concat(
+          ["--headers"],
+          [join(" ", [for key, value in config.headers : format("%s=%s", key, value)])],
+        ) : [],
+        config.body != null ? ["--body", format("@%s", config.body)] : [],
+      ]))
+      dry_run = config.dry_run
+    }
+  }
 }
 
 data "azurerm_client_config" "current" {}
@@ -285,6 +315,15 @@ resource "terraform_data" "aks_nodepool_cli" {
         format("--%s %s", param.name, param.value)
       ]),
     ])
+  }
+}
+
+# Execute az rest commands for AKS REST API calls
+resource "terraform_data" "aks_rest_cli" {
+  for_each = local.aks_rest_commands
+
+  provisioner "local-exec" {
+    command = each.value.dry_run ? "echo '${each.value.command}'" : each.value.command
   }
 }
 
