@@ -16,5 +16,6 @@ aks_rest_config_list = [
       "Content-Type" = "application/json"
     }
     body = "scenarios/perf-eval/ccp-provisioning/kubernetes/azure-H2-body.json"
+    # az rest --method PUT --url "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroup}/providers/Microsoft.ContainerService/managedClusters/{clusterName}?api-version=2026-01-02-preview" --headers "Content-Type=application/json" --body @scenarios/perf-eval/ccp-provisioning/kubernetes/azure-H2-body.json
   }
 ]

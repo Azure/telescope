@@ -95,3 +95,20 @@ variable "aks_cli_config" {
   })
 }
 
+variable "aks_rest_config_list" {
+  description = "List of AKS REST API configurations for direct REST API calls"
+  type = list(object({
+    role           = string
+    aks_name       = string
+    sku_tier       = string
+    sku_name       = optional(string, null)
+    kubernetes_version = optional(string, null)
+    method         = string                    # HTTP method (GET, PUT, POST, PATCH, DELETE)
+    api_version    = string                    # API version for the REST call
+    headers        = optional(map(string), {}) # Custom headers for the REST call
+    body           = optional(string, null)    # Path to JSON body file for the REST call
+    dry_run        = optional(bool, false)     # If true, only print the command without executing it
+  }))
+  default = []
+}
+
