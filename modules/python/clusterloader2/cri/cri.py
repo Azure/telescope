@@ -161,8 +161,8 @@ def parse_psi_report(file_path, template):
         for key in psi_data_template.keys():
             scope, metric = key.split("_")
             data_arr = [val for val in map(float, psi_data[scope][metric]) if val > 0] # get all non-zero
-            psi_data_template[key]["avg"] = sum(data_arr) / len(data_arr) if len(data_arr) > 0 else None
-            psi_data_template[key]["max"] = max(data_arr) if len(data_arr) > 0 else None
+            psi_data_template[key]["avg"] = sum(data_arr) / len(data_arr) if len(data_arr) > 0 else 0
+            psi_data_template[key]["max"] = max(data_arr) if len(data_arr) > 0 else 0
         template["data"] = psi_data_template
         return template
 
