@@ -17,10 +17,10 @@ override_resource {
   target = module.disk_encryption_set["des-1"].azurerm_disk_encryption_set.des[0]
   values = {
     id = "/subscriptions/12345678-1234-1234-1234-123456789012/resourceGroups/123456789/providers/Microsoft.Compute/diskEncryptionSets/des-1"
-    identity = [{
+    identity = {
       principal_id = "00000000-0000-0000-0000-000000000555"
       tenant_id    = "00000000-0000-0000-0000-000000000000"
       type         = "SystemAssigned"
-    }]
+    }
   }
 }
