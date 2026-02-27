@@ -77,7 +77,7 @@ variables {
 }
 
 run "aks_cli_des_identity_profile_camel" {
-  command = plan
+  command = apply
 
   assert {
     condition     = module.aks-cli["client"].des_reader_kubelet_principal_id == "00000000-0000-0000-0000-000000000222"
