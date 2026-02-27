@@ -25,7 +25,7 @@ steps:
           query: changes(kube_node_status_condition{condition="MemoryPressure", status="true", node = "{{$node}}"}[5m])
         # Node Memory Usage Stats (from kubelet/cAdvisor - container metrics aggregated by node)
         - name: NodeMemoryUsageTotalGiB
-          query: sum(container_memory_working_set_bytes{node = "{{$node}}"}) / 1073741824
+          query: sum(container_memory_working_set_bytes{instance="{{$node}}"}) / 1073741824
         - name: NodeMemoryRequestsTotalGiB
           query: sum(kube_pod_container_resource_requests{resource="memory", node = "{{$node}}"}) / 1073741824
         - name: NodeMemoryCommitmentGiB
@@ -33,13 +33,13 @@ steps:
         - name: NodeMemoryRequestToAllocatableRatio
           query: sum(kube_pod_container_resource_requests{resource="memory", node = "{{$node}}"}) / sum(kube_node_status_allocatable{resource="memory", node = "{{$node}}"})
         - name: NodeMemoryUsageToAllocatableRatio
-          query: sum(container_memory_working_set_bytes{node = "{{$node}}"}) / sum(kube_node_status_allocatable{resource="memory", node = "{{$node}}"})
+          query: sum(container_memory_working_set_bytes{instance="{{$node}}"}) / sum(kube_node_status_allocatable{resource="memory", node = "{{$node}}"})
         - name: NodeMemoryUsageToLimitsRatio
-          query: sum(container_memory_working_set_bytes{node = "{{$node}}"}) / sum(kube_pod_container_resource_limits{resource="memory", node = "{{$node}}"})
+          query: sum(container_memory_working_set_bytes{instance="{{$node}}"}) / sum(kube_pod_container_resource_limits{resource="memory", node = "{{$node}}"})
         # Container Level Summary
         - name: ContainerRuntimes
           query: count(container_runtime_version{node = "{{$node}}"})
         - name: ContainerMemoryFailures
           query: increase(container_memory_failcnt{node = "{{$node}}"}[5m])
         - name: ContainersNearMemoryLimit
-          query: count((container_memory_working_set_bytes{node = "{{$node}}"} / container_spec_memory_limit_bytes{node = "{{$node}}"} > 0.8))
+          query: count((container_memory_working_set_bytes{instance="{{$node}}"} / container_spec_memory_limit_bytes{instance="{{$node}}"} > 0.8))
