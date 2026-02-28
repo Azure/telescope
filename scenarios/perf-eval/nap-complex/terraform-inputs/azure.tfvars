@@ -333,6 +333,9 @@ vm_config_list = [
           name                   = "AllowSSH"
           priority               = 100
           destination_port_range = "22"
+          # Azure Bastion is deployed in AzureBastionSubnet (10.224.0.32/27).
+          # Allow SSH only from that subnet; do not open 22 to the internet.
+          source_address_prefix = "10.224.0.32/27"
         }
       ]
     }

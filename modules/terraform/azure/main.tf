@@ -105,7 +105,8 @@ module "virtual_network" {
 #
 # If a network config includes a subnet named "AzureBastionSubnet", we deploy an
 # Azure Bastion Host into that VNet. Pipeline steps can then SSH/SCP to the
-# jumpbox through a Bastion tunnel over 443, without requiring inbound port 22.
+# jumpbox through a Bastion tunnel over 443, without requiring inbound port 22
+# from the public internet.
 # =============================================================================
 
 locals {
