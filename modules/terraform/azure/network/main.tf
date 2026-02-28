@@ -16,7 +16,7 @@ locals {
         ip_configuration_name = nic.ip_configuration_name
         public_ip_name = (
           try(nic.public_ip_name, null) != null && try(nic.public_ip_name, "") != ""
-        ) ? (
+          ) ? (
           (var.nic_count_override > 0 ? var.nic_count_override : nic.count) > 1
           ? "${nic.public_ip_name}-${i + 1}"
           : nic.public_ip_name
