@@ -4,10 +4,10 @@ steps:
       kubectl delete --all nodeclaim --ignore-not-found
       kubectl delete --all nodepool --ignore-not-found
     displayName: "Delete NodeClaim and NodePool"
-    condition: and(always(), eq(variables['JUMPBOX_HOST'], ''))
+    condition: and(always(), eq(variables['JUMPBOX_VM_ID'], ''))
 
   # Run cleanup via jumpbox (private cluster)
-  - ${{ if ne(variables['JUMPBOX_HOST'], '') }}:
+  - ${{ if ne(variables['JUMPBOX_VM_ID'], '') }}:
       - template: /steps/ssh/run-command.yml
         parameters:
           vm_ip: $(JUMPBOX_HOST)

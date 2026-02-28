@@ -25,10 +25,17 @@ steps:
       echo "VM ID: $vm_id"
       echo "##vso[task.setvariable variable=JUMPBOX_VM_ID;]${vm_id}"
       vm_public_ip=$(az vm list-ip-addresses --ids $vm_id --query '[].virtualMachine.network.publicIpAddresses[0].ipAddress' -o tsv)
-      echo "Public IP Address: $vm_public_ip"
+      vm_private_ip=$(az vm list-ip-addresses --ids $vm_id --query '[].virtualMachine.network.privateIpAddresses[0]' -o tsv)
+      echo "Public IP Address: ${vm_public_ip:-}" 
+      echo "Private IP Address: ${vm_private_ip:-}"
 
-      # Set Public IP as JUMPBOX_HOST directly as requested
-      echo "##vso[task.setvariable variable=JUMPBOX_HOST;]${vm_public_ip}"
+      # Prefer public IP if present; otherwise fall back to private IP.
+      # When using Azure Bastion, SSH/SCP will tunnel to localhost:<port> and only VM_ID is required.
+      jumpbox_host="${vm_public_ip:-}"
+      if [ -z "${jumpbox_host}" ]; then
+        jumpbox_host="${vm_private_ip:-}"
+      fi
+      echo "##vso[task.setvariable variable=JUMPBOX_HOST;]${jumpbox_host}"
 
       # Optional: discover Azure Bastion for tunneled SSH/SCP over 443
       bastion_name=$(az resource list -g "${RUN_ID}" --resource-type Microsoft.Network/bastionHosts --query "[?(tags.run_id == '${RUN_ID}')].name | [0]" -o tsv)
@@ -37,6 +44,10 @@ steps:
         echo "##vso[task.setvariable variable=BASTION_NAME;]${bastion_name}"
         echo "##vso[task.setvariable variable=BASTION_RESOURCE_GROUP;]${RUN_ID}"
       else
+        if [ -z "${vm_public_ip:-}" ]; then
+          echo "##vso[task.logissue type=error;] No Bastion found and jumpbox has no public IP; cannot reach jumpbox from pipeline agent."
+          exit 1
+        fi
         echo "No Bastion found; will try direct SSH (may fail if port 22 blocked)."
         echo "##vso[task.setvariable variable=BASTION_NAME;]"
         echo "##vso[task.setvariable variable=BASTION_RESOURCE_GROUP;]"

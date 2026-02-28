@@ -18,7 +18,7 @@ steps:
       bastion_name: $(BASTION_NAME)
       bastion_resource_group: $(BASTION_RESOURCE_GROUP)
       bastion_local_port: 2222
-      condition: ne(variables['JUMPBOX_HOST'], '')
+      condition: ne(variables['JUMPBOX_VM_ID'], '')
 
   # 1. Prepare Remote Workspace
   - template: /steps/ssh/run-command.yml
@@ -123,7 +123,7 @@ steps:
       scp "${scp_opts[@]}" "$env_file" "${ssh_target}:${remote_root}/jumpbox-env.sh"
       rm -f "$env_file" "$tar_archive"
     displayName: "Upload Code and Env to Jumpbox"
-    condition: ne(variables['JUMPBOX_HOST'], '')
+    condition: ne(variables['JUMPBOX_VM_ID'], '')
     env:
       ${{ if eq(parameters.cloud, 'azure') }}:
         CLOUD: aks
@@ -239,7 +239,7 @@ steps:
       mkdir -p "$(dirname "$local_report_dir")"
       scp -v -r "${scp_opts[@]}" "${ssh_target}:${remote_report_dir}" "$(dirname "$local_report_dir")"
     displayName: "Download Results from Jumpbox"
-    condition: ne(variables['JUMPBOX_HOST'], '')
+    condition: ne(variables['JUMPBOX_VM_ID'], '')
     env:
       JUMPBOX_HOST: $(JUMPBOX_HOST)
       JUMPBOX_VM_ID: $(JUMPBOX_VM_ID)
