@@ -8,10 +8,6 @@ public_ip_config_list = [
   {
     name  = "firewall-pip"
     count = 10
-  },
-  {
-    name  = "jumpbox-pip"
-    count = 1
   }
 ]
 
@@ -72,7 +68,6 @@ network_config_list = [
         nic_name              = "jumpbox-nic"
         subnet_name           = "jumpbox-subnet"
         ip_configuration_name = "jumpbox-ipconfig"
-        public_ip_name        = "jumpbox-pip"
         count                 = 1
       }
     ]
