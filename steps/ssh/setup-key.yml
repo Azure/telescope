@@ -1,31 +1,39 @@
 parameters:
-- name: cloud
-  type: string
+  - name: cloud
+    type: string
 
 steps:
-- bash: |
-    set -eu
+  - bash: |
+      set -eu
 
-    ssh_key_path="$(Pipeline.Workspace)/s/modules/terraform/$CLOUD/private_key.pem"
-    public_key_path="$(Pipeline.Workspace)/s/modules/terraform/$CLOUD/private_key.pem.pub"
-    ssh-keygen -t rsa -b 2048 -f $ssh_key_path -N "" > /dev/null 2>&1
-    chmod 600 $ssh_key_path
+      ssh_key_path="$(Pipeline.Workspace)/s/modules/terraform/$CLOUD/private_key.pem"
+      public_key_path="$(Pipeline.Workspace)/s/modules/terraform/$CLOUD/private_key.pem.pub"
 
-    echo "SSH Key Path: $ssh_key_path"
-    echo "##vso[task.setvariable variable=SSH_KEY_PATH;]$ssh_key_path"
-    echo "Public Key Path: $public_key_path"
-    echo "##vso[task.setvariable variable=SSH_PUBLIC_KEY_PATH;]$public_key_path"
-  displayName: "Generate SSH Key"
-  env:
-    CLOUD: ${{ parameters.cloud }}
+      rm -f "$ssh_key_path" "$public_key_path"
 
-- bash: |
-    set -eu
+      # Prefer ed25519 to avoid RSA signature algorithm negotiation issues.
+      if ssh-keygen -t ed25519 -a 64 -f "$ssh_key_path" -N "" -q; then
+        :
+      else
+        ssh-keygen -t rsa -b 2048 -f "$ssh_key_path" -N "" > /dev/null 2>&1
+      fi
+      chmod 600 $ssh_key_path
 
-    echo "get private key from key vault $AZURE_SSH_KEY_VAULT"
-    az keyvault secret download --id $AZURE_SSH_KEY_VAULT --file $SSH_KEY_PATH
-    chmod 600 $SSH_KEY_PATH
-    cat $SSH_KEY_PATH
-    echo "##vso[task.setvariable variable=SSH_KEY_PATH;]${SSH_KEY_PATH}"
-  displayName: "Download SSH Key"
-  condition: eq(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
+      echo "SSH Key Path: $ssh_key_path"
+      echo "##vso[task.setvariable variable=SSH_KEY_PATH;]$ssh_key_path"
+      echo "Public Key Path: $public_key_path"
+      echo "##vso[task.setvariable variable=SSH_PUBLIC_KEY_PATH;]$public_key_path"
+    displayName: "Generate SSH Key"
+    env:
+      CLOUD: ${{ parameters.cloud }}
+
+  - bash: |
+      set -eu
+
+      echo "get private key from key vault $AZURE_SSH_KEY_VAULT"
+      az keyvault secret download --id $AZURE_SSH_KEY_VAULT --file $SSH_KEY_PATH
+      chmod 600 $SSH_KEY_PATH
+      cat $SSH_KEY_PATH
+      echo "##vso[task.setvariable variable=SSH_KEY_PATH;]${SSH_KEY_PATH}"
+    displayName: "Download SSH Key"
+    condition: eq(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
