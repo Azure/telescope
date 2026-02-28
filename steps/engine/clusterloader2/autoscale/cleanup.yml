@@ -18,3 +18,7 @@ steps:
           command: |
             kubectl delete --all nodeclaim --ignore-not-found
             kubectl delete --all nodepool --ignore-not-found
+
+  - template: /steps/ssh/stop-bastion-tunnel.yml
+    parameters:
+      condition: always()
