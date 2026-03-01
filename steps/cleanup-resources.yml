@@ -25,9 +25,9 @@ steps:
     set -eu
 
     if [[ "${SKIP_RESOURCE_DELETION:-false}" == "true" && "$BUILD_REASON" == "Manual" ]]; then
-      echo "##vso[task.logissue type=error;] SKIP_RESOURCE_DELETION is set. Please delete resource group manually.
+      echo "##vso[task.logissue type=warning;] SKIP_RESOURCE_DELETION is set. Skipping resource group deletion. Please delete manually:
     az group delete --name $RUN_ID --yes"
-      exit 1
+      exit 0
     fi
 
     echo "Delete resource group $RUN_ID"
