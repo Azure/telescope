@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s \"https://artifacthub.io/api/v1/packages/search?org=kcl&limit=60\")",
+      "Bash(curl -s \"https://api.github.com/orgs/kcl-lang/repos?per_page=100\")",
+      "Bash(curl -s \"https://raw.githubusercontent.com/Azure/kcl-azure-pipelines/main/ap/steps/steps.k\")",
+      "Read(//home/yaolei/repos/kcl-azure-pipelines/ap/steps/**)"
+    ]
+  }
+}

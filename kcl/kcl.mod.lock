@@ -1,0 +1,5 @@
+[dependencies]
+  [dependencies.telescope]
+    name = "telescope"
+    full_name = "telescope_0.0.1"
+    version = "0.0.1"
