@@ -183,12 +183,12 @@ locals {
     "--yes",
   ])
 
-  # Inject tags and location into the REST API body
-  # Decodes the user-provided JSON body, merges in tags, and re-encodes it
+  # Load REST API body from JSON file and inject tags
+  # Reads the JSON file, merges in tags, and re-encodes it
   rest_body_with_tags = var.aks_cli_config.rest_call_config != null ? (
-    var.aks_cli_config.rest_call_config.body != null ? replace(
+    var.aks_cli_config.rest_call_config.body_json_path != null ? replace(
       jsonencode(merge(
-        jsondecode(replace(var.aks_cli_config.rest_call_config.body, "$${location}", var.location)),
+        jsondecode(file(var.aks_cli_config.rest_call_config.body_json_path)),
         { tags = merge(var.tags, { "role" = var.aks_cli_config.role }) }
       )),
       "'", "'\\''"

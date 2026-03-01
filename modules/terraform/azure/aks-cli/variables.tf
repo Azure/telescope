@@ -97,7 +97,7 @@ variable "aks_cli_config" {
       method      = string                     # HTTP method: GET, PUT, POST, PATCH, DELETE
       api_version = string                     # Azure API version, e.g. "2024-01-01"
       headers     = optional(list(string), []) # List of "key=value" strings, e.g. ["Content-Type=application/json"]
-      body        = optional(string, null)     # JSON string for the request body
+      body_json_path = optional(string, null)       # Path to a JSON file for the request body
     }), null)
     dry_run = optional(bool, false) # If true, only print the command without executing it. Useful for testing.
     # Disk Encryption Set configuration for OS disk encryption with Customer-Managed Keys
