@@ -1,10 +1,18 @@
 trigger: none
 
 parameters:
+  - name: vm_size
+    displayName: "VM Size for Azure"
+    type: string
+    default: "Standard_D4s_v3"
   - name: os_sku
     displayName: "OS SKU for Azure"
     type: string
     default: "Ubuntu2204"
+  - name: max_pods
+    displayName: "Max Pods per Node"
+    type: number
+    default: 60
   - name: use_custom_kubelet
     displayName: "Use Custom Kubelet Flags?"
     type: boolean
@@ -33,9 +41,11 @@ stages:
         steps:
           - script: |
               sed -i "/name[[:space:]]*=[[:space:]]*\"os-sku\"/,+2s/value[[:space:]]*=[[:space:]]*\"[^\"]*/value = \"$new_os_sku/g" $(pwd)/scenarios/perf-eval/k8s-node-stress/terraform-inputs/azure-ubuntu2204.tfvars
+              sed -i "/name[[:space:]]*=[[:space:]]*\"userpool1\"/,+2s/vm_size[[:space:]]*=[[:space:]]*\"[^\"]*/vm_size = \"$new_vm_size/g" $(pwd)/scenarios/perf-eval/k8s-node-stress/terraform-inputs/azure-ubuntu2204.tfvars
               cat $(pwd)/scenarios/perf-eval/k8s-node-stress/terraform-inputs/azure-ubuntu2204.tfvars
             env:
               new_os_sku: ${{ parameters.os_sku }}
+              new_vm_size: ${{ parameters.vm_size }}
             displayName: "Set SKU"
 
       - template: /jobs/competitive-test.yml
@@ -53,7 +63,7 @@ stages:
           matrix:
             n1-p60-memory-ephemeral:
               node_count: 1
-              max_pods: 60 # match with kubelet setting
+              max_pods: ${{ parameters.max_pods }}
               repeats: 1
               operation_timeout: 3m
               load_type: memory
