@@ -1,0 +1,71 @@
+parameters:
+  - name: bastion_name
+    type: string
+    default: ""
+  - name: bastion_resource_group
+    type: string
+    default: ""
+  - name: vm_id
+    type: string
+    default: ""
+  - name: bastion_local_port
+    type: number
+    default: 2222
+  - name: condition
+    type: string
+    default: "succeeded()"
+
+steps:
+  - bash: |
+      set -euo pipefail
+
+      if [ -z "${BASTION_NAME:-}" ] || [ -z "${BASTION_RESOURCE_GROUP:-}" ] || [ -z "${VM_ID:-}" ]; then
+        echo "Bastion tunnel not requested (missing vars)."
+        exit 0
+      fi
+
+      if ! command -v az >/dev/null 2>&1; then
+        echo "Azure CLI (az) is required for Bastion tunneling" >&2
+        exit 1
+      fi
+
+      local_port="${BASTION_LOCAL_PORT:-2222}"
+
+      if timeout 1 bash -c "</dev/tcp/127.0.0.1/${local_port}" >/dev/null 2>&1; then
+        echo "Reusing existing tunnel on localhost:${local_port}"
+        echo "##vso[task.setvariable variable=BASTION_TUNNEL_PORT;]${local_port}"
+        exit 0
+      fi
+
+      echo "Starting Bastion tunnel: ${BASTION_NAME} -> ${VM_ID} (localhost:${local_port})"
+      az network bastion tunnel \
+        --name "$BASTION_NAME" \
+        --resource-group "$BASTION_RESOURCE_GROUP" \
+        --target-resource-id "$VM_ID" \
+        --resource-port 22 \
+        --port "$local_port" \
+        >/tmp/bastion-tunnel-${local_port}-$$.log 2>&1 &
+      tunnel_pid=$!
+
+      echo "##vso[task.setvariable variable=BASTION_TUNNEL_PORT;]${local_port}"
+      echo "##vso[task.setvariable variable=BASTION_TUNNEL_PID;]${tunnel_pid}"
+
+      for i in $(seq 1 30); do
+        if timeout 1 bash -c "</dev/tcp/127.0.0.1/${local_port}" >/dev/null 2>&1; then
+          echo "Bastion tunnel is ready (localhost:${local_port})"
+          exit 0
+        fi
+        sleep 1
+      done
+
+      echo "Bastion tunnel did not become ready in time" >&2
+      echo "Last 100 lines of tunnel log:" >&2
+      tail -n 100 "/tmp/bastion-tunnel-${local_port}-$$.log" >&2 || true
+      exit 1
+    displayName: "Start Bastion Tunnel"
+    condition: ${{ parameters.condition }}
+    env:
+      BASTION_NAME: ${{ parameters.bastion_name }}
+      BASTION_RESOURCE_GROUP: ${{ parameters.bastion_resource_group }}
+      VM_ID: ${{ parameters.vm_id }}
+      BASTION_LOCAL_PORT: ${{ parameters.bastion_local_port }}

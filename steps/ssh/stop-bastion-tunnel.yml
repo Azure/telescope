@@ -1,0 +1,32 @@
+parameters:
+  - name: condition
+    type: string
+    default: "always()"
+
+steps:
+  - bash: |
+      set -euo pipefail
+
+      pid="${BASTION_TUNNEL_PID:-}"
+      port="${BASTION_TUNNEL_PORT:-}"
+
+      if [ -z "$pid" ]; then
+        echo "No Bastion tunnel PID set; nothing to stop."
+        exit 0
+      fi
+
+      if kill -0 "$pid" >/dev/null 2>&1; then
+        echo "Stopping Bastion tunnel (pid=${pid}${port:+, port=${port}})"
+        kill "$pid" >/dev/null 2>&1 || true
+        for i in $(seq 1 10); do
+          if ! kill -0 "$pid" >/dev/null 2>&1; then
+            exit 0
+          fi
+          sleep 1
+        done
+        kill -9 "$pid" >/dev/null 2>&1 || true
+      else
+        echo "Bastion tunnel PID is not running: ${pid}"
+      fi
+    displayName: "Stop Bastion Tunnel"
+    condition: ${{ parameters.condition }}

@@ -43,8 +43,9 @@ variable "network_config" {
       nic_name              = string
       subnet_name           = string
       ip_configuration_name = string
-      public_ip_name        = string
-      count                 = optional(number, 1)
+      # Optional: when omitted or null, the NIC will be created without a public IP.
+      public_ip_name = optional(string)
+      count          = optional(number, 1)
     }))
     nsr_rules = list(object({
       name                       = string

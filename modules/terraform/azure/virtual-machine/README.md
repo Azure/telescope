@@ -16,6 +16,9 @@ This module creates a configurable Linux virtual machine in Azure with support f
 
 ### Basic Usage (Jumpbox-like VM)
 
+If you are using **Azure Bastion**, you typically should **not** allow SSH (TCP/22) from `*` (the internet).
+Instead, allow SSH only from the **AzureBastionSubnet** address range (the subnet you deploy Bastion into).
+
 ```hcl
 module "jumpbox" {
   source = "./modules/terraform/azure/virtual-machine"
@@ -38,6 +41,9 @@ module "jumpbox" {
           name                   = "AllowSSH"
           priority               = 100
           destination_port_range = "22"
+          # For Azure Bastion, restrict this to the AzureBastionSubnet CIDR.
+          # For example: "10.0.10.0/27".
+          source_address_prefix  = "<AzureBastionSubnet-CIDR>"
         }
       ]
     }
@@ -88,6 +94,8 @@ module "custom_vm" {
           name                   = "AllowSSH"
           priority               = 100
           destination_port_range = "22"
+          # Avoid "*" in real deployments; use AzureBastionSubnet CIDR (Bastion) or your corporate IP range.
+          source_address_prefix  = "<restricted-source-cidr>"
         },
         {
           name                   = "AllowHTTPS"

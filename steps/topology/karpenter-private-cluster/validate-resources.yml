@@ -1,95 +1,176 @@
 parameters:
-- name: cloud
-  type: string
-- name: role
-  type: string
-  default: nap
-- name: regions
-  type: object
-- name: engine
-  type: string
-  default: ''
+  - name: cloud
+    type: string
+  - name: role
+    type: string
+    default: nap
+  - name: regions
+    type: object
+  - name: engine
+    type: string
+    default: ""
 
 steps:
-- bash: |
-    set -eu
-    region="${{ parameters.regions[0] }}"
-    echo "Get VM instance with role $ROLE and tag $RUN_ID in region $region."
-    vm_id=$(az resource list --resource-type Microsoft.Compute/virtualMachines --location $region --query "[?(tags.run_id == '${RUN_ID}' && tags.jumpbox == 'true')].id" --output tsv)
+  - bash: |
+      set -eu
+      region="${{ parameters.regions[0] }}"
+      echo "Get VM instance with role $ROLE and tag $RUN_ID in region $region."
+      vm_id=$(az resource list --resource-type Microsoft.Compute/virtualMachines --location $region --query "[?(tags.run_id == '${RUN_ID}' && tags.jumpbox == 'true')].id" --output tsv)
 
-    if [ -z "$vm_id" ]; then
-      echo "##vso[task.logissue type=error;] VM instance with $ROLE role and tag $RUN_ID not found in region $region."
-      exit 1
-    fi
-
-    echo "VM ID: $vm_id"
-    vm_public_ip=$(az vm list-ip-addresses --ids $vm_id --query '[].virtualMachine.network.publicIpAddresses[0].ipAddress' -o tsv)
-    echo "Public IP Address: $vm_public_ip"
-
-    # Set Public IP as JUMPBOX_HOST directly as requested
-    echo "##vso[task.setvariable variable=JUMPBOX_HOST;]${vm_public_ip}"
-  displayName: "Get VM Info ${{ parameters.role }}"
-  env:
-    ROLE: ${{ lower(parameters.role) }}
-
-# Update Kubeconfig on Jumpbox
-- template: /steps/ssh/run-command.yml
-  parameters:
-    vm_ip: $(JUMPBOX_HOST)
-    command: |
-      set -e
-      cloud-init status --wait || echo 'Warning: cloud-init finished with errors, but continuing anyway...'
-      az login --identity --output none
-      aks_name=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location '${{ parameters.regions[0] }}' --query "[?(tags.run_id == '$(RUN_ID)' && tags.role == '${{ parameters.role }}')].name" --output tsv)
-      aks_rg=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location '${{ parameters.regions[0] }}' --query "[?(tags.run_id == '$(RUN_ID)' && tags.role == '${{ parameters.role }}')].resourceGroup" --output tsv)
-      if [ -z "$aks_name" ]; then echo "No AKS found with run_id=$(RUN_ID) and role=${{ parameters.role }}"; exit 1; fi
-      echo "Found AKS: $aks_name in resource group: $aks_rg"
-      az aks get-credentials -n "$aks_name" -g "$aks_rg" --overwrite-existing
-      kubelogin convert-kubeconfig -l msi
-      echo 'Kubeconfig updated on jumpbox. Testing kubectl...'
-      kubectl get ns
-
-- template: /steps/ssh/run-command.yml
-  parameters:
-    vm_ip: $(JUMPBOX_HOST)
-    command: "mkdir -p '/tmp/telescope-$(Build.BuildId)'"
-
-- bash: |
-    set -euo pipefail
-
-    if [ -z "${SSH_KEY_PATH:-}" ] || [ ! -f "$SSH_KEY_PATH" ]; then
-      echo "SSH_KEY_PATH is not set or file not found: ${SSH_KEY_PATH:-'(not set)'}" >&2
-      exit 1
-    fi
-
-    if [ -z "${JUMPBOX_HOST:-}" ]; then
-       echo "JUMPBOX_HOST is not set." >&2
-       exit 1
-    fi
-
-    ssh_target="${JUMPBOX_USERNAME:-azureuser}@${JUMPBOX_HOST}"
-    ssh_opts=(-i "$SSH_KEY_PATH" -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null")
-    remote_root="/tmp/telescope-$(Build.BuildId)"
-    remote_nodepool_file="${remote_root}/karpenter_nodepool.yml"
-
-    echo "Uploading nodepool file to jumpbox ${JUMPBOX_HOST}..."
-    scp "${ssh_opts[@]}" "$KARPENTER_NODEPOOL_FILE" "${ssh_target}:${remote_nodepool_file}"
-  displayName: "Upload Karpenter config to Jumpbox"
-  env:
-    KARPENTER_NODEPOOL_FILE: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/karpenter_nodepool.${{ parameters.cloud }}.yml
-
-- template: /steps/ssh/run-command.yml
-  parameters:
-    vm_ip: $(JUMPBOX_HOST)
-    command: |
-      set -e
-      kubectl apply -f '/tmp/telescope-$(Build.BuildId)/karpenter_nodepool.yml'
-      if [ -n "$(VM_SIZE)" ]; then
-        echo "Patching nodepools with VM_SIZE=$(VM_SIZE)"
-        kubectl patch nodepool default --type='json' -p="[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['$(VM_SIZE)']}]"
-        kubectl patch nodepool spot --type='json' -p="[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['$(VM_SIZE)']}]"
-      else
-        echo "VM_SIZE is not set, skipping nodepool patch"
+      if [ -z "$vm_id" ]; then
+        echo "##vso[task.logissue type=error;] VM instance with $ROLE role and tag $RUN_ID not found in region $region."
+        exit 1
       fi
-      kubectl get nodepool default -o yaml
-      kubectl get nodepool spot -o yaml
+
+      echo "VM ID: $vm_id"
+      echo "##vso[task.setvariable variable=JUMPBOX_VM_ID;]${vm_id}"
+      vm_public_ip=$(az vm list-ip-addresses --ids $vm_id --query '[].virtualMachine.network.publicIpAddresses[0].ipAddress' -o tsv)
+      vm_private_ip=$(az vm list-ip-addresses --ids $vm_id --query '[].virtualMachine.network.privateIpAddresses[0]' -o tsv)
+      echo "Public IP Address: ${vm_public_ip:-}" 
+      echo "Private IP Address: ${vm_private_ip:-}"
+
+      # Prefer public IP if present; otherwise fall back to private IP.
+      # When using Azure Bastion, SSH/SCP will tunnel to localhost:<port> and only VM_ID is required.
+      jumpbox_host="${vm_public_ip:-}"
+      if [ -z "${jumpbox_host}" ]; then
+        jumpbox_host="${vm_private_ip:-}"
+      fi
+      echo "##vso[task.setvariable variable=JUMPBOX_HOST;]${jumpbox_host}"
+
+      # Optional: discover Azure Bastion for tunneled SSH/SCP over 443
+      bastion_name=$(az resource list -g "${RUN_ID}" --resource-type Microsoft.Network/bastionHosts --query "[?(tags.run_id == '${RUN_ID}')].name | [0]" -o tsv)
+      if [ -n "${bastion_name}" ]; then
+        echo "Found Bastion: ${bastion_name}"
+        echo "##vso[task.setvariable variable=BASTION_NAME;]${bastion_name}"
+        echo "##vso[task.setvariable variable=BASTION_RESOURCE_GROUP;]${RUN_ID}"
+      else
+        if [ -z "${vm_public_ip:-}" ]; then
+          echo "##vso[task.logissue type=error;] No Bastion found and jumpbox has no public IP; cannot reach jumpbox from pipeline agent."
+          exit 1
+        fi
+        echo "No Bastion found; will try direct SSH (may fail if port 22 blocked)."
+        echo "##vso[task.setvariable variable=BASTION_NAME;]"
+        echo "##vso[task.setvariable variable=BASTION_RESOURCE_GROUP;]"
+      fi
+    displayName: "Get VM Info ${{ parameters.role }}"
+    env:
+      ROLE: ${{ lower(parameters.role) }}
+
+  # Start a shared Bastion tunnel (optional) so subsequent SSH/SCP steps can reuse it.
+  - template: /steps/ssh/start-bastion-tunnel.yml
+    parameters:
+      vm_id: $(JUMPBOX_VM_ID)
+      bastion_name: $(BASTION_NAME)
+      bastion_resource_group: $(BASTION_RESOURCE_GROUP)
+      bastion_local_port: 2222
+      condition: succeeded()
+
+  # Update Kubeconfig on Jumpbox
+  - template: /steps/ssh/run-command.yml
+    parameters:
+      vm_ip: $(JUMPBOX_HOST)
+      vm_id: $(JUMPBOX_VM_ID)
+      bastion_name: $(BASTION_NAME)
+      bastion_resource_group: $(BASTION_RESOURCE_GROUP)
+      command: |
+        set -e
+        cloud-init status --wait || echo 'Warning: cloud-init finished with errors, but continuing anyway...'
+        az login --identity --output none
+        aks_name=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location '${{ parameters.regions[0] }}' --query "[?(tags.run_id == '$(RUN_ID)' && tags.role == '${{ parameters.role }}')].name" --output tsv)
+        aks_rg=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location '${{ parameters.regions[0] }}' --query "[?(tags.run_id == '$(RUN_ID)' && tags.role == '${{ parameters.role }}')].resourceGroup" --output tsv)
+        if [ -z "$aks_name" ]; then echo "No AKS found with run_id=$(RUN_ID) and role=${{ parameters.role }}"; exit 1; fi
+        echo "Found AKS: $aks_name in resource group: $aks_rg"
+        az aks get-credentials -n "$aks_name" -g "$aks_rg" --overwrite-existing
+        kubelogin convert-kubeconfig -l msi
+        echo 'Kubeconfig updated on jumpbox. Testing kubectl...'
+        kubectl get ns
+
+  - template: /steps/ssh/run-command.yml
+    parameters:
+      vm_ip: $(JUMPBOX_HOST)
+      vm_id: $(JUMPBOX_VM_ID)
+      bastion_name: $(BASTION_NAME)
+      bastion_resource_group: $(BASTION_RESOURCE_GROUP)
+      command: "mkdir -p '/tmp/telescope-$(Build.BuildId)'"
+
+  - bash: |
+      set -euo pipefail
+
+      if [ -z "${SSH_KEY_PATH:-}" ] || [ ! -f "$SSH_KEY_PATH" ]; then
+        echo "SSH_KEY_PATH is not set or file not found: ${SSH_KEY_PATH:-'(not set)'}" >&2
+        exit 1
+      fi
+
+      use_bastion=false
+      if [ -n "${BASTION_NAME:-}" ] && [ -n "${BASTION_RESOURCE_GROUP:-}" ] && [ -n "${JUMPBOX_VM_ID:-}" ]; then
+        use_bastion=true
+      fi
+
+      ssh_opts=(-i "$SSH_KEY_PATH" -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null")
+      local_port="${BASTION_TUNNEL_PORT:-2222}"
+      if [ "${use_bastion}" = "true" ]; then
+        # Prefer a shared tunnel if one was started earlier in the job.
+        if [ -n "${BASTION_TUNNEL_PORT:-}" ] && timeout 1 bash -c "</dev/tcp/127.0.0.1/${local_port}" >/dev/null 2>&1; then
+          echo "Reusing existing Bastion tunnel on localhost:${local_port}"
+        else
+          echo "Starting Bastion tunnel for SCP..."
+          az network bastion tunnel \
+            --name "$BASTION_NAME" \
+            --resource-group "$BASTION_RESOURCE_GROUP" \
+            --target-resource-id "$JUMPBOX_VM_ID" \
+            --resource-port 22 \
+            --port "$local_port" \
+            >/tmp/bastion-tunnel-scp-$$.log 2>&1 &
+          tunnel_pid=$!
+          trap 'kill ${tunnel_pid} 2>/dev/null || true' EXIT
+        fi
+
+        for i in $(seq 1 30); do
+          if timeout 1 bash -c "</dev/tcp/127.0.0.1/${local_port}" >/dev/null 2>&1; then
+            break
+          fi
+          sleep 1
+        done
+
+        ssh_target="${JUMPBOX_USERNAME:-azureuser}@127.0.0.1"
+        scp_opts=("${ssh_opts[@]}" -P "$local_port")
+      else
+        if [ -z "${JUMPBOX_HOST:-}" ]; then
+           echo "JUMPBOX_HOST is not set." >&2
+           exit 1
+        fi
+        ssh_target="${JUMPBOX_USERNAME:-azureuser}@${JUMPBOX_HOST}"
+        scp_opts=("${ssh_opts[@]}")
+      fi
+      remote_root="/tmp/telescope-$(Build.BuildId)"
+      remote_nodepool_file="${remote_root}/karpenter_nodepool.yml"
+
+      echo "Uploading nodepool file to jumpbox..."
+      scp "${scp_opts[@]}" "$KARPENTER_NODEPOOL_FILE" "${ssh_target}:${remote_nodepool_file}"
+    displayName: "Upload Karpenter config to Jumpbox"
+    env:
+      KARPENTER_NODEPOOL_FILE: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/karpenter_nodepool.${{ parameters.cloud }}.yml
+      JUMPBOX_HOST: $(JUMPBOX_HOST)
+      JUMPBOX_VM_ID: $(JUMPBOX_VM_ID)
+      BASTION_NAME: $(BASTION_NAME)
+      BASTION_RESOURCE_GROUP: $(BASTION_RESOURCE_GROUP)
+      BASTION_TUNNEL_PORT: $(BASTION_TUNNEL_PORT)
+
+  - template: /steps/ssh/run-command.yml
+    parameters:
+      vm_ip: $(JUMPBOX_HOST)
+      vm_id: $(JUMPBOX_VM_ID)
+      bastion_name: $(BASTION_NAME)
+      bastion_resource_group: $(BASTION_RESOURCE_GROUP)
+      command: |
+        set -e
+        kubectl apply -f '/tmp/telescope-$(Build.BuildId)/karpenter_nodepool.yml'
+        if [ -n "$(VM_SIZE)" ]; then
+          echo "Patching nodepools with VM_SIZE=$(VM_SIZE)"
+          kubectl patch nodepool default --type='json' -p="[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['$(VM_SIZE)']}]"
+          kubectl patch nodepool spot --type='json' -p="[{'op': 'replace', 'path': '/spec/template/spec/requirements/2/values', 'value': ['$(VM_SIZE)']}]"
+        else
+          echo "VM_SIZE is not set, skipping nodepool patch"
+        fi
+        kubectl get nodepool default -o yaml
+        kubectl get nodepool spot -o yaml
