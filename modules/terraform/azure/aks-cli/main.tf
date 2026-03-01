@@ -184,12 +184,15 @@ locals {
   ])
 
   # Inject tags and location into the REST API body
-  rest_body_with_tags = var.aks_cli_config.rest_call_config != null && var.aks_cli_config.rest_call_config.body != null ? replace(
-    jsonencode(merge(
-      jsondecode(replace(var.aks_cli_config.rest_call_config.body, "$${location}", var.location)),
-      { tags = merge(var.tags, { "role" = var.aks_cli_config.role }) }
-    )),
-    "'", "'\\''"
+  # Decodes the user-provided JSON body, merges in tags, and re-encodes it
+  rest_body_with_tags = var.aks_cli_config.rest_call_config != null ? (
+    var.aks_cli_config.rest_call_config.body != null ? replace(
+      jsonencode(merge(
+        jsondecode(replace(var.aks_cli_config.rest_call_config.body, "$${location}", var.location)),
+        { tags = merge(var.tags, { "role" = var.aks_cli_config.role }) }
+      )),
+      "'", "'\\''"
+    ) : null
   ) : null
 
   # Build az rest command string for the REST call config
