@@ -182,6 +182,26 @@ locals {
     "-n", var.aks_cli_config.aks_name,
     "--yes",
   ])
+
+  # Build az rest command string for the REST call config
+  # URI is auto-built from subscription, resource group, aks_name, and api_version
+  # After the REST call, wait for the cluster to be created using `az aks wait --created`
+  aks_rest_put_command = var.aks_cli_config.rest_call_config != null ? join(" && ", [
+    join(" ", concat(
+      [
+        "az", "rest",
+        "--method", var.aks_cli_config.rest_call_config.method,
+        "--uri", "\"/subscriptions/${data.azurerm_client_config.current.subscription_id}/resourceGroups/${var.resource_group_name}/providers/Microsoft.ContainerService/managedClusters/${var.aks_cli_config.aks_name}?api-version=${var.aks_cli_config.rest_call_config.api_version}\"",
+      ],
+      length(var.aks_cli_config.rest_call_config.headers) > 0 ? ["--headers", join(" ", [for h in var.aks_cli_config.rest_call_config.headers : "\"${h}\""])] : [],
+      var.aks_cli_config.rest_call_config.body != null ? ["--body", "'${replace(var.aks_cli_config.rest_call_config.body, "$${location}", var.location)}'"] : []
+    )),
+    join(" ", [
+      "az", "aks", "wait", "--created",
+      "-g", var.resource_group_name,
+      "-n", var.aks_cli_config.aks_name,
+    ])
+  ]) : null
 }
 
 data "azurerm_client_config" "current" {}
@@ -251,7 +271,12 @@ resource "terraform_data" "aks_cli" {
   ]
 
   input = {
-    aks_cli_command         = var.aks_cli_config.dry_run ? "echo '${local.aks_cli_command}'" : local.aks_cli_command,
+    # When use_az_rest is true, use the REST command instead of az aks create
+    aks_cli_command = var.aks_cli_config.use_az_rest ? (
+      var.aks_cli_config.dry_run ? "echo '${local.aks_rest_put_command}'" : local.aks_rest_put_command
+    ) : (
+      var.aks_cli_config.dry_run ? "echo '${local.aks_cli_command}'" : local.aks_cli_command
+    ),
     aks_cli_destroy_command = var.aks_cli_config.dry_run ? "echo '${local.aks_cli_destroy_command}'" : local.aks_cli_destroy_command
   }
 
@@ -295,6 +320,7 @@ resource "terraform_data" "aks_nodepool_cli" {
     ])
   }
 }
+
 
 # Grant AKS identity KMS-related Key Vault roles
 resource "azurerm_role_assignment" "aks_identity_kms_roles" {

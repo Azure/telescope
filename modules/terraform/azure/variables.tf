@@ -449,6 +449,15 @@ variable "aks_cli_config_list" {
       key_vault_name = string
       network_access = optional(string, "Public")
     }), null)
+    # When true, use `az rest` (rest_call_config) instead of `az aks create` to provision the cluster
+    use_az_rest = optional(bool, false)
+    # URI is auto-built: /subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.ContainerService/managedClusters/{aks_name}?api-version={api_version}
+    rest_call_config = optional(object({
+      method      = string                     # HTTP method: GET, PUT, POST, PATCH, DELETE
+      api_version = string                     # Azure API version, e.g. "2024-01-01"
+      headers     = optional(list(string), []) # List of "key=value" strings, e.g. ["Content-Type=application/json"]
+      body        = optional(string, null)     # JSON string for the request body
+    }), null)
     dry_run = optional(bool, false) # If true, only print the command without executing it. Useful for testing.
     # Disk Encryption Set configuration for OS disk encryption with Customer-Managed Keys
     disk_encryption_set_name = optional(string, null) # Name of the Disk Encryption Set to use for OS disk encryption
