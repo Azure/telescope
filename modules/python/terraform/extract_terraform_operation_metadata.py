@@ -33,6 +33,26 @@ def parse_module_path(full_path):
 
     return module_name, submodule_path, resource_name
 
+def get_job_tags():
+    """Read job_tags from the JOB_TAGS environment variable.
+
+    The JOB_TAGS variable is set by the set-job-tags.yml pipeline step as a JSON string
+    containing the current matrix entry's key-value pairs.
+
+    Returns:
+        str or None: The job tags as a JSON string, or None if not available.
+    """
+    job_tags_str = os.getenv("JOB_TAGS", "")
+    if not job_tags_str or job_tags_str == "{}":
+        return None
+
+    try:
+        json.loads(job_tags_str)  # validate it's valid JSON
+        return job_tags_str
+    except json.JSONDecodeError as e:
+        print(f"[WARNING] Failed to parse JOB_TAGS: {e}")
+        return None
+
 def process_terraform_logs(log_path, _command_type, _scenario_type, _scenario_name):
     log_file = os.path.join(log_path, f"terraform_{_command_type}.log")
     run_id = os.getenv("RUN_ID", "")
@@ -41,6 +61,8 @@ def process_terraform_logs(log_path, _command_type, _scenario_type, _scenario_na
     if not os.path.isfile(log_file):
         print(f"[WARNING] Log file not found: {log_file}")
         return results
+
+    job_tags = get_job_tags()
 
     try:
         with open(log_file, "r", encoding='utf-8') as f:
@@ -51,7 +73,7 @@ def process_terraform_logs(log_path, _command_type, _scenario_type, _scenario_na
                     seconds = time_to_seconds(time_str)
                     module, submodule, resource = parse_module_path(full_path)
 
-                    results.append({
+                    result = {
                         "timestamp": datetime.datetime.now().isoformat(),
                         "run_id": run_id,
                         "scenario_type": _scenario_type,
@@ -61,7 +83,12 @@ def process_terraform_logs(log_path, _command_type, _scenario_type, _scenario_na
                         "resource_name": resource,
                         "action": _command_type,
                         "time_taken_seconds": seconds
-                    })
+                    }
+
+                    if job_tags is not None:
+                        result["job_tags"] = job_tags
+
+                    results.append(result)
     except Exception as e:
         print(f"[ERROR] Failed to process log file '{log_file}': {e}")
 
