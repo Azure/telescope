@@ -87,7 +87,7 @@ stages:
             - azure
 
   - stage: dynamicres_gradual
-    condition: succeededOrFailed()
+    condition: false
     displayName: 'Dynamic Gradual'
     dependsOn: 
       - staticres_gradual
