@@ -183,6 +183,15 @@ locals {
     "--yes",
   ])
 
+  # Inject tags and location into the REST API body
+  rest_body_with_tags = var.aks_cli_config.rest_call_config != null && var.aks_cli_config.rest_call_config.body != null ? replace(
+    jsonencode(merge(
+      jsondecode(replace(var.aks_cli_config.rest_call_config.body, "$${location}", var.location)),
+      { tags = merge(var.tags, { "role" = var.aks_cli_config.role }) }
+    )),
+    "'", "'\\''"
+  ) : null
+
   # Build az rest command string for the REST call config
   # URI is auto-built from subscription, resource group, aks_name, and api_version
   # After the REST call, wait for the cluster to be created using `az aks wait --created`
@@ -194,7 +203,7 @@ locals {
         "--uri", "\"/subscriptions/${data.azurerm_client_config.current.subscription_id}/resourceGroups/${var.resource_group_name}/providers/Microsoft.ContainerService/managedClusters/${var.aks_cli_config.aks_name}?api-version=${var.aks_cli_config.rest_call_config.api_version}\"",
       ],
       length(var.aks_cli_config.rest_call_config.headers) > 0 ? ["--headers", join(" ", [for h in var.aks_cli_config.rest_call_config.headers : "\"${h}\""])] : [],
-      var.aks_cli_config.rest_call_config.body != null ? ["--body", "'${replace(var.aks_cli_config.rest_call_config.body, "$${location}", var.location)}'"] : []
+      local.rest_body_with_tags != null ? ["--body", "'${local.rest_body_with_tags}'"] : []
     )),
     join(" ", [
       "az", "aks", "wait", "--created",
