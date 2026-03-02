@@ -42,7 +42,6 @@ steps:
 
       if [ "${use_bastion}" = "true" ]; then
         local_port="${BASTION_TUNNEL_PORT:-${BASTION_LOCAL_PORT:-2222}}"
-        owns_tunnel=false
 
         if ! command -v az >/dev/null 2>&1; then
           echo "Azure CLI (az) is required for Bastion tunneling" >&2
@@ -62,7 +61,6 @@ steps:
             --port "$local_port" \
             >/tmp/bastion-tunnel-$$.log 2>&1 &
           tunnel_pid=$!
-          owns_tunnel=true
           trap 'kill ${tunnel_pid} 2>/dev/null || true' EXIT
         fi
 
