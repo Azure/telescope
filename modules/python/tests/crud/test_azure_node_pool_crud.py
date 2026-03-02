@@ -252,6 +252,42 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
 
         # Verify time.sleep was NOT called (no operations after create)
         mock_time.sleep.assert_not_called()
+
+    @mock.patch("crud.azure.node_pool_crud.time")
+    def test_all_scale_up_fails_continues(self, mock_time):
+        """Test that all() continues to scale down and delete when scale up fails"""
+        # Setup - create succeeds, scale_up fails, scale_down and delete succeed
+        self.node_pool_crud.create_node_pool = mock.MagicMock(return_value=True)
+        self.node_pool_crud.scale_node_pool = mock.MagicMock(
+            side_effect=[False, True]  # scale_up fails, scale_down succeeds
+        )
+        self.node_pool_crud.delete_node_pool = mock.MagicMock(return_value=True)
+
+        # Execute
+        result = self.node_pool_crud.all(
+            node_pool_name="test-pool",
+            vm_size="Standard_DS2_v2",
+            node_count=1,
+            target_count=3,
+            progressive=True,
+            scale_step_size=1,
+        )
+
+        # Verify - should return False (scale_up failed)
+        self.assertFalse(result)
+
+        # Verify create was called once
+        self.node_pool_crud.create_node_pool.assert_called_once()
+
+        # Verify scale was called TWICE (scale_up failed, but scale_down still called)
+        self.assertEqual(self.node_pool_crud.scale_node_pool.call_count, 2)
+
+        # Verify delete was still called (cleanup continues despite scale_up failure)
+        self.node_pool_crud.delete_node_pool.assert_called_once()
+
+        # Verify time.sleep was called 3 times (between all operations)
+        self.assertEqual(mock_time.sleep.call_count, 3)
+
     def test_create_deployment_success(self):
         """Test successful deployment creation"""
         # Setup
