@@ -418,6 +418,46 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
             "Error during 'create_pod' operation: Test error"
         )
 
+    @mock.patch("crud.main.logger")
+    @mock.patch("crud.main.AzureNodePoolCRUD")
+    def test_handle_workload_operations_partial_success(self, mock_azure_crud, mock_logger):
+        """Test handle_workload_operations when deployment returns partial success (False).
+
+        The create_deployment method returns False when some deployments succeed but
+        not all of them (partial success). This tests that handle_workload_operations
+        correctly treats this as a failure and returns exit code 1.
+        """
+        # Setup - simulate a partial success scenario where create_deployment
+        # returns False (e.g., 2 out of 3 deployments succeeded)
+        mock_args = mock.MagicMock()
+        mock_args.command = "create_pod"
+        mock_args.node_pool_name = "test-nodepool"
+        mock_args.deployment_name = "test-deployment"
+        mock_args.namespace = "default"
+        mock_args.replicas = 5
+        mock_args.manifest_dir = "/path/to/manifests"
+        mock_args.number_of_deployments = 3  # Requesting 3 deployments
+
+        # Configure mock to return False (partial success - some deployments
+        # succeeded but not all, which is still considered a failure)
+        mock_azure_crud.create_deployment.return_value = False
+
+        # Execute
+        result = handle_workload_operations(mock_azure_crud, mock_args)
+
+        # Verify
+        self.assertEqual(result, 1)  # 1 means failure (partial success is still failure)
+        mock_azure_crud.create_deployment.assert_called_once_with(
+            node_pool_name="test-nodepool",
+            deployment_name="test-deployment",
+            namespace="default",
+            replicas=5,
+            manifest_dir="/path/to/manifests",
+            number_of_deployments=3
+        )
+        # Verify the error was logged for the failed operation
+        mock_logger.error.assert_called_with("Operation 'create_pod' failed")
+
 
 class TestCollectBenchmarkResults(unittest.TestCase):
     """Tests for the collect_benchmark_results function"""
