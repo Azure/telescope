@@ -46,11 +46,11 @@ stages:
         engine: clusterloader2
         engine_input:
           image: "ghcr.io/azure/clusterloader2:v20250513"
+        os_sku: ${{ parameters.os_sku }}
+        vm_size: ${{ parameters.vm_size }}
         run_id: ${{ variables.CUSTOM_RUN_ID }}
         matrix:
           n1-p60-memory-ephemeral:
-            os_sku: ${{ parameters.os_sku }}
-            vm_size: ${{ parameters.vm_size }}
             node_count: 1
             max_pods: ${{ parameters.max_pods }}
             repeats: 1
