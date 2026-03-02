@@ -222,6 +222,36 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
         # Check time.sleep was called 3 times (between operations)
         self.assertEqual(mock_time.sleep.call_count, 3)
 
+    @mock.patch("crud.azure.node_pool_crud.time")
+    def test_all_create_returns_false_early_exit(self, mock_time):
+        """Test that all() exits early when create returns False"""
+        # Setup - mock create to fail
+        self.node_pool_crud.create_node_pool = mock.MagicMock(return_value=False)
+        self.node_pool_crud.scale_node_pool = mock.MagicMock(return_value=True)
+        self.node_pool_crud.delete_node_pool = mock.MagicMock(return_value=True)
+
+        # Execute
+        result = self.node_pool_crud.all(
+            node_pool_name="test-pool",
+            vm_size="Standard_DS2_v2",
+            node_count=1,
+            target_count=3,
+            progressive=True,
+            scale_step_size=1,
+        )
+
+        # Verify - should return False
+        self.assertFalse(result)
+
+        # Verify create was called once
+        self.node_pool_crud.create_node_pool.assert_called_once()
+
+        # Verify scale and delete were NOT called (early exit)
+        self.node_pool_crud.scale_node_pool.assert_not_called()
+        self.node_pool_crud.delete_node_pool.assert_not_called()
+
+        # Verify time.sleep was NOT called (no operations after create)
+        mock_time.sleep.assert_not_called()
     def test_create_deployment_success(self):
         """Test successful deployment creation"""
         # Setup
