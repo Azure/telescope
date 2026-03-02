@@ -274,8 +274,17 @@ resource "terraform_data" "enable_aks_cli_preview_extension" {
   }
 }
 
+resource "terraform_data" "az_cloud_update" {
+  count = var.aks_cli_config.endpoint_resource_manager != null ? 1 : 0
+
+  provisioner "local-exec" {
+    command = "az cloud update --endpoint-resource-manager ${var.aks_cli_config.endpoint_resource_manager}"
+  }
+}
+
 resource "terraform_data" "aks_cli" {
   depends_on = [
+    terraform_data.az_cloud_update,
     terraform_data.enable_aks_cli_preview_extension,
     azurerm_role_assignment.network_contributor,
     azurerm_role_assignment.network_contributor_api_server_subnet,
