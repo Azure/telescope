@@ -146,6 +146,41 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
             gpu_node_pool=False,
         )
 
+    @mock.patch("crud.main.logger")
+    @mock.patch("crud.main.AzureNodePoolCRUD")
+    def test_handle_node_pool_operation_scale_fails_returns_error(
+        self, mock_azure_crud, mock_logger
+    ):
+        """Test handle_node_pool_operation when scale up fails but continues execution.
+
+        This test verifies that when scale_node_pool returns False (e.g., some nodes
+        failed to scale but the operation completed), the function correctly returns
+        exit code 1 to indicate failure while allowing the calling code to continue.
+        """
+        # Setup - progressive scaling where operation fails
+        mock_args = mock.MagicMock()
+        mock_args.command = "scale"
+        mock_args.node_pool_name = "test-np"
+        mock_args.target_count = 10
+        mock_args.scale_step_size = 2  # Progressive scaling
+        mock_args.gpu_node_pool = False
+
+        # Configure mock to return False (scale failed but didn't raise exception)
+        mock_azure_crud.scale_node_pool.return_value = False
+
+        # Execute
+        result = handle_node_pool_operation(mock_azure_crud, mock_args)
+
+        # Verify - operation failed but returned gracefully (no exception)
+        self.assertEqual(result, 1)  # 1 means failure
+        mock_azure_crud.scale_node_pool.assert_called_once_with(
+            node_pool_name="test-np",
+            node_count=10,
+            progressive=True,
+            scale_step_size=2,
+            gpu_node_pool=False,
+        )
+
     @mock.patch("crud.main.AzureNodePoolCRUD")
     def test_handle_node_pool_operation_delete(self, mock_azure_crud):
         """Test handle_node_pool_operation for delete command"""
