@@ -40,8 +40,8 @@ stages:
         timeoutInMinutes: 5
         steps:
           - script: |
-              sed -i "/name[[:space:]]*=[[:space:]]*\"os-sku\"/,+2s/value[[:space:]]*=[[:space:]]*\"[^\"]*/value = \"$new_os_sku/g" $(pwd)/scenarios/perf-eval/k8s-node-stress/terraform-inputs/azure-ubuntu2204.tfvars
-              sed -i "/name[[:space:]]*=[[:space:]]*\"userpool1\"/,+2s/vm_size[[:space:]]*=[[:space:]]*\"[^\"]*/vm_size = \"$new_vm_size/g" $(pwd)/scenarios/perf-eval/k8s-node-stress/terraform-inputs/azure-ubuntu2204.tfvars
+              sed -i "/name[[:space:]]*=[[:space:]]*\"os-sku\"/,+2s/value[[:space:]]*=[[:space:]]*\"[^\"]*/value = \"$new_os_sku/g" $(Pipeline.Workspace)/s/scenarios/perf-eval/k8s-node-stress/terraform-inputs/azure-ubuntu2204.tfvars
+              sed -i "/name[[:space:]]*=[[:space:]]*\"userpool1\"/,+2s/vm_size[[:space:]]*=[[:space:]]*\"[^\"]*/vm_size = \"$new_vm_size/g" $(Pipeline.Workspace)/s/scenarios/perf-eval/k8s-node-stress/terraform-inputs/azure-ubuntu2204.tfvars
               cat $(pwd)/scenarios/perf-eval/k8s-node-stress/terraform-inputs/azure-ubuntu2204.tfvars
             env:
               new_os_sku: ${{ parameters.os_sku }}
