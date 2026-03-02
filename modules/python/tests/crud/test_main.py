@@ -458,6 +458,41 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         # Verify the error was logged for the failed operation
         mock_logger.error.assert_called_with("Operation 'create_pod' failed")
 
+    @mock.patch("crud.main.AzureNodePoolCRUD")
+    def test_handle_workload_operations_multiple_deployments_success(self, mock_azure_crud):
+        """Test handle_workload_operations with multiple deployments all succeeding.
+
+        This test verifies that when create_deployment is called with multiple
+        deployments (number_of_deployments > 1) and all deployments succeed,
+        the function returns success (exit code 0).
+        """
+        # Setup - configure for multiple deployments
+        mock_args = mock.MagicMock()
+        mock_args.command = "create_pod"
+        mock_args.node_pool_name = "test-nodepool"
+        mock_args.deployment_name = "test-deployment"
+        mock_args.namespace = "default"
+        mock_args.replicas = 10
+        mock_args.manifest_dir = "/path/to/manifests"
+        mock_args.number_of_deployments = 5  # Multiple deployments
+
+        # Configure mock to return True (all deployments succeeded)
+        mock_azure_crud.create_deployment.return_value = True
+
+        # Execute
+        result = handle_workload_operations(mock_azure_crud, mock_args)
+
+        # Verify
+        self.assertEqual(result, 0)  # 0 means success
+        mock_azure_crud.create_deployment.assert_called_once_with(
+            node_pool_name="test-nodepool",
+            deployment_name="test-deployment",
+            namespace="default",
+            replicas=10,
+            manifest_dir="/path/to/manifests",
+            number_of_deployments=5
+        )
+
 
 class TestCollectBenchmarkResults(unittest.TestCase):
     """Tests for the collect_benchmark_results function"""
