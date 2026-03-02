@@ -456,6 +456,49 @@ variable "aks_cli_config_list" {
   default = []
 }
 
+variable "arm_endpoint" {
+  description = "Custom Azure Resource Manager endpoint URL for the AzAPI provider"
+  type        = string
+  default     = "https://management.azure.com"
+}
+
+variable "azapi_config_list" {
+  description = "List of AKS cluster configurations to create via Azure REST API (AzAPI provider)"
+  type = list(object({
+    role        = string
+    aks_name    = string
+    dns_prefix  = string
+    api_version = optional(string, "2026-01-02-preview")
+
+    sku = optional(object({
+      name = optional(string, "Base")
+      tier = optional(string, "Standard")
+    }), {})
+
+    identity_type = optional(string, "SystemAssigned")
+
+    kubernetes_version = optional(string, null)
+
+    network_profile = optional(object({
+      network_plugin      = optional(string, "azure")
+      network_plugin_mode = optional(string, "overlay")
+    }), {})
+
+    default_node_pool = object({
+      name    = optional(string, "systempool1")
+      count   = optional(number, 3)
+      vm_size = optional(string, "Standard_D2s_v5")
+      os_type = optional(string, "Linux")
+      mode    = optional(string, "System")
+    })
+
+    control_plane_scaling_profile = optional(object({
+      scaling_size = string
+    }), null)
+  }))
+  default = []
+}
+
 variable "disk_encryption_set_config_list" {
   description = "List of Disk Encryption Set configurations for encrypting AKS OS/data disks with Customer-Managed Keys. Reference: https://learn.microsoft.com/en-us/azure/aks/azure-disk-customer-managed-keys"
   type = list(object({
