@@ -228,5 +228,5 @@ module "virtual_machine" {
   nics_map            = local.all_nics
 
   # Ensure AKS cluster is created before VM tries to look it up for RBAC
-  depends_on = [module.aks, module.aks-cli]
+  depends_on = [module.aks, module.aks-cli, module.azapi]
 }
