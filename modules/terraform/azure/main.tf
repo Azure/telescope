@@ -198,6 +198,7 @@ module "azapi" {
   location            = local.region
   azapi_config        = each.value
   tags                = local.tags
+  depends_on          = [module.route_table, module.virtual_network, module.disk_encryption_set]
 }
 
 module "aks-cli" {
