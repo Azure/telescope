@@ -1,0 +1,50 @@
+trigger: none
+
+schedules:
+  - cron: "0 3 * * *"
+    displayName: Daily 3am CNL observability test
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: azurecni-overlay-cilium-cnl
+  OWNER: aks
+  OBSERVABILITY_TOOL: cnl
+
+stages:
+  - stage: azure_eastus2 # format: <cloud>[_<region>]+ (e.g. azure_eastus2, aws_eastus_westus)
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml # must keep as is
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+          topology: observability
+          matrix:
+            cnl:
+              traffic_deployment_count: 1000
+              traffic_replica_count: 15
+              network_policies_per_namespace: 1000
+              cl2_config_file: config.yaml
+              # fortio variables
+              fortio_servers_per_deployment: 15
+              fortio_clients_per_deployment: 15
+              fortio_client_queries_per_second: 1500
+              fortio_client_connections: 50
+              fortio_namespaces: 1
+              fortio_deployments_per_namespace: 1000
+              generate_container_network_logs: true
+              label_traffic_pods: false
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false

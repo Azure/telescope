@@ -1,0 +1,21 @@
+# NetworkPolicy for API/etcd object scale testing.
+# Uses dummy labels to create policy objects without affecting actual traffic.
+# Purpose: measure API server, etcd, and controller load from policy churn.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: scale-test-policy
+spec:
+  egress:
+  - {}
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          dummy-label: dummy-value-{{.Index}}
+  podSelector:
+    matchLabels:
+      dummy-selector: dummy-value-{{.Index}}
+  policyTypes:
+  - Egress
+  - Ingress

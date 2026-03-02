@@ -1,0 +1,89 @@
+{{$CpuRequest := DefaultParam .CpuRequest "5m"}}
+{{$MemoryRequest := DefaultParam .MemoryRequest "20Mi"}}
+{{$Image := DefaultParam .Image "acnpublic.azurecr.io/fortio"}}
+{{$FortioClientQueriesPerSecond := .FortioClientQueriesPerSecond}}
+{{$FortioClientConnections := .FortioClientConnections}}
+{{$uniqueLabel := DefaultParam .uniqueLabel ""}}
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.Name}}
+  labels:
+    group: {{.Group}}
+    app: fortio
+    role: load
+spec:
+  replicas: {{.Replicas}}
+  selector:
+    matchLabels:
+      name: {{.Name}}
+      app: fortio
+      role: load
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      annotations:
+        retina.sh: observe
+      labels:
+        name: {{.Name}}
+        group: {{.Group}}
+        app: fortio
+        role: load
+        restart: {{.deploymentLabel}}
+        {{if ne $uniqueLabel ""}}
+        uniqueLabelPerDeployment: "{{$uniqueLabel}}{{.Index}}"
+        {{end}}
+    spec:
+      nodeSelector:
+        scale-test: "true"
+      containers:
+      - name: fortio
+        image: {{$Image}}
+        imagePullPolicy: IfNotPresent
+        args:
+          [
+            "load",
+            "-nocatchup",
+            "-uniform",
+            "-sequential-warmup",
+            "-jitter",
+            "-udp-timeout",
+            "1500ms",
+            "-timeout",
+            "60s",
+            "-connection-reuse",
+            "{{$FortioClientConnections}}:{{$FortioClientConnections}}",
+            "-c",
+            "{{$FortioClientConnections}}",
+            "-qps",
+            "{{$FortioClientQueriesPerSecond}}",
+            "-t",
+            "0",
+            "http://{{.FortioServerServiceBasename}}-{{.Index}}:8080"
+          ]
+        ports:
+          - containerPort: 8078 # tcp echo
+          - containerPort: 8079 # grpc echo
+          - containerPort: 8080 # main serving port
+          - containerPort: 8081 # redirection to https port
+        resources:
+          requests:
+            cpu: {{$CpuRequest}}
+            memory: {{$MemoryRequest}}
+      # Add not-ready/unreachable tolerations for 15 minutes so that node
+      # failure doesn't trigger pod deletion.
+      tolerations:
+      - key: "node.kubernetes.io/not-ready"
+        operator: "Exists"
+        effect: "NoExecute"
+        tolerationSeconds: 900
+      - key: "node.kubernetes.io/unreachable"
+        operator: "Exists"
+        effect: "NoExecute"
+        tolerationSeconds: 900
+      - key: "scale-test"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"

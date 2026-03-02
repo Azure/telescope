@@ -1,0 +1,107 @@
+parameters:
+  - name: cloud
+    type: string
+    default: ""
+  - name: engine_input
+    type: object
+    default: {}
+  - name: region
+    type: string
+  - name: install
+    type: boolean
+    default: false
+  - name: repository
+    type: string
+    default: ""
+  - name: makeargs
+    type: string
+    default: ""
+  - name: ref
+    type: string
+    default: "main"
+
+steps:
+  - script: |
+      echo "Set the start time for test execution"
+      startTimestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+      echo "Start: $startTimestamp"
+      echo "##vso[task.setvariable variable=START_TIME]$startTimestamp"
+    displayName: set up timestamp variable
+
+  - ${{ if parameters.install }}:
+      - script: |
+          set -eo pipefail
+          if [ -z "$REPOSITORY" ]; then
+            echo "##vso[task.logissue type=error]install=true but repository parameter is empty. Please provide a valid repository URL."
+            exit 1
+          fi
+          if [ -z "$MAKEARGS" ]; then
+            echo "##vso[task.logissue type=error]install=true but makeargs parameter is empty. Please provide make target(s) (e.g., 'helm-install')."
+            exit 1
+          fi
+        env:
+          REPOSITORY: ${{ parameters.repository }}
+          MAKEARGS: ${{ parameters.makeargs }}
+        displayName: Validate install parameters
+
+      - script: |
+          set -eo pipefail
+          git clone ${{ parameters.repository }} retina --no-checkout
+          cd retina
+          git fetch --depth 1 origin ${{ parameters.ref }}
+          git checkout FETCH_HEAD
+        displayName: Clone Retina OSS Repo
+
+      - script: |
+          set -eo pipefail
+          cd retina
+          make ${{ parameters.makeargs }}
+        displayName: Install Retina
+
+  - script: |
+      set -eo pipefail
+
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
+        --fortio-servers-per-deployment $FORTIO_SERVERS_PER_DEPLOYMENT \
+        --fortio-clients-per-deployment $FORTIO_CLIENTS_PER_DEPLOYMENT \
+        --fortio-client-queries-per-second $FORTIO_CLIENT_QUERIES_PER_SECOND \
+        --fortio-client-connections $FORTIO_CLIENT_CONNECTIONS \
+        --fortio-namespaces $FORTIO_NAMESPACES \
+        --fortio-deployments-per-namespace $FORTIO_DEPLOYMENTS_PER_NAMESPACE \
+        --network-policies-per-namespace $NETWORK_POLICIES_PER_NAMESPACE \
+        --generate-container-network-logs ${GENERATE_CONTAINER_NETWORK_LOGS:-False} \
+        --label_traffic_pods ${LABEL_TRAFFIC_PODS:-False} \
+        --cl2_override_file ${CL2_CONFIG_DIR}/overrides.yaml
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
+        --cl2-image "${CL2_IMAGE}" \
+        --cl2-config-dir "${CL2_CONFIG_DIR}" \
+        --cl2-report-dir "${CL2_REPORT_DIR}" \
+        --cl2-config-file "${CL2_CONFIG_FILE}" \
+        --kubeconfig "${HOME}/.kube/config" \
+        --provider "${CLOUD}" \
+        --scrape-containerd ${SCRAPE_CONTAINERD:-False}
+    workingDirectory: modules/python
+    env:
+      ${{ if eq(parameters.cloud, 'azure') }}:
+        CLOUD: aks
+      ${{ else }}:
+        CLOUD: ${{ parameters.cloud }}
+      REGION: ${{ parameters.region }}
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/scale/scale.py
+      CL2_IMAGE: ${{ parameters.engine_input.image }}
+      CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/scale/config
+      CL2_CONFIG_FILE: config.yaml
+      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/scale/results
+    displayName: "Run Benchmark"
+
+  - ${{ if parameters.install }}:
+      - script: |
+          set -eo pipefail
+          if [ -d "retina" ]; then
+            cd retina
+            make helm-uninstall
+          else
+            echo "Retina directory does not exist, skipping uninstall"
+          fi
+        condition: always()
+        displayName: Uninstall Helm Chart
