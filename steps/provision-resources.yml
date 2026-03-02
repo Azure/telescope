@@ -85,4 +85,4 @@ steps:
     arguments: ${{ parameters.terraform_arguments }}
     regions: ${{ parameters.regions }}
     cloud: ${{ parameters.cloud }}
-    retry_attempt_count: ${{ parameters.retry_attempt_count }}
+    retry_attempt_count: 0

@@ -1,0 +1,31 @@
+{
+  "location": "westus2",
+  "identity": {
+    "type": "SystemAssigned"
+  },
+  "sku": {
+    "name": "Base",
+    "tier": "Standard"
+  },
+  "properties": {
+    "kubernetesVersion": "1.33.0",
+    "dnsPrefix": "ccp-provisioning-H2-test",
+    "agentPoolProfiles": [
+      {
+        "name": "nodepool1",
+        "count": 3,
+        "vmSize": "Standard_DS2_v2",
+        "osType": "Linux",
+        "mode": "System"
+      }
+    ],
+    "networkProfile": {
+      "networkPlugin": "azure",
+      "networkPluginMode": "overlay",
+      "podCidr": "10.244.0.0/16"
+    },
+    "controlPlaneScalingProfile": {
+      "scalingSize": "H2"
+    }
+  }
+}

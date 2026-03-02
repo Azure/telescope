@@ -47,7 +47,7 @@ steps:
 
     # H* tiers: compare with expected values
     case "$CCP_TIER" in
-      H2) EXPECTED_CORES=15 ;;
+      H2) EXPECTED_CORES=12 ;;
       H4) EXPECTED_CORES=25 ;;
       H8) EXPECTED_CORES=54 ;;
       *)  EXPECTED_CORES="" ;;

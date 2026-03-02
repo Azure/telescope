@@ -8,24 +8,13 @@ aks_cli_config_list = [
     role               = "client"
     aks_name           = "ccp-provisioning-H2"
     sku_tier           = "standard"
-    aks_custom_headers = [
-      "EtcdServersOverrides=hyperscale"
-    ]
     kubernetes_version = "1.33"
-    default_node_pool = {
-      name       = "default"
-      node_count = 3
-      vm_size    = "Standard_D8s_v3"
+    use_az_rest              = true
+    endpoint_resource_manager = "https://westus2.management.azure.com"
+    rest_call_config = {
+      method         = "PUT"
+      api_version    = "2026-01-02-preview"
+      body_json_path = "../../../scenarios/perf-eval/ccp-provisioning/config/aks-rest-body-H2.json"
     }
-    optional_parameters = [
-      {
-        name  = "network-plugin"
-        value = "azure"
-      },
-      {
-        name  = "network-plugin-mode"
-        value = "overlay"
-      }
-    ]
   }
 ]

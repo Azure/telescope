@@ -182,6 +182,38 @@ locals {
     "-n", var.aks_cli_config.aks_name,
     "--yes",
   ])
+
+  # Load REST API body from JSON file and inject tags
+  # Reads the JSON file, merges in tags, and re-encodes it
+  rest_body_with_tags = var.aks_cli_config.rest_call_config != null ? (
+    var.aks_cli_config.rest_call_config.body_json_path != null ? replace(
+      jsonencode(merge(
+        jsondecode(file(var.aks_cli_config.rest_call_config.body_json_path)),
+        { tags = merge(var.tags, { "role" = var.aks_cli_config.role }) }
+      )),
+      "'", "'\\''"
+    ) : null
+  ) : null
+
+  # Build az rest command string for the REST call config
+  # URI is auto-built from subscription, resource group, aks_name, and api_version
+  # After the REST call, wait for the cluster to be created using `az aks wait --created`
+  aks_rest_put_command = var.aks_cli_config.rest_call_config != null ? join(" && ", [
+    join(" ", concat(
+      [
+        "az", "rest",
+        "--method", var.aks_cli_config.rest_call_config.method,
+        "--uri", "\"/subscriptions/${data.azurerm_client_config.current.subscription_id}/resourceGroups/${var.resource_group_name}/providers/Microsoft.ContainerService/managedClusters/${var.aks_cli_config.aks_name}?api-version=${var.aks_cli_config.rest_call_config.api_version}\"",
+      ],
+      length(var.aks_cli_config.rest_call_config.headers) > 0 ? ["--headers", join(" ", [for h in var.aks_cli_config.rest_call_config.headers : "\"${h}\""])] : [],
+      local.rest_body_with_tags != null ? ["--body", "'${local.rest_body_with_tags}'"] : []
+    )),
+    join(" ", [
+      "az", "aks", "wait", "--created",
+      "-g", var.resource_group_name,
+      "-n", var.aks_cli_config.aks_name,
+    ])
+  ]) : null
 }
 
 data "azurerm_client_config" "current" {}
@@ -242,8 +274,17 @@ resource "terraform_data" "enable_aks_cli_preview_extension" {
   }
 }
 
+resource "terraform_data" "az_cloud_update" {
+  count = var.aks_cli_config.endpoint_resource_manager != null ? 1 : 0
+
+  provisioner "local-exec" {
+    command = "az cloud update --endpoint-resource-manager ${var.aks_cli_config.endpoint_resource_manager}"
+  }
+}
+
 resource "terraform_data" "aks_cli" {
   depends_on = [
+    terraform_data.az_cloud_update,
     terraform_data.enable_aks_cli_preview_extension,
     azurerm_role_assignment.network_contributor,
     azurerm_role_assignment.network_contributor_api_server_subnet,
@@ -251,7 +292,12 @@ resource "terraform_data" "aks_cli" {
   ]
 
   input = {
-    aks_cli_command         = var.aks_cli_config.dry_run ? "echo '${local.aks_cli_command}'" : local.aks_cli_command,
+    # When use_az_rest is true, use the REST command instead of az aks create
+    aks_cli_command = var.aks_cli_config.use_az_rest ? (
+      var.aks_cli_config.dry_run ? "echo '${local.aks_rest_put_command}'" : local.aks_rest_put_command
+    ) : (
+      var.aks_cli_config.dry_run ? "echo '${local.aks_cli_command}'" : local.aks_cli_command
+    ),
     aks_cli_destroy_command = var.aks_cli_config.dry_run ? "echo '${local.aks_cli_destroy_command}'" : local.aks_cli_destroy_command
   }
 
@@ -295,6 +341,7 @@ resource "terraform_data" "aks_nodepool_cli" {
     ])
   }
 }
+
 
 # Grant AKS identity KMS-related Key Vault roles
 resource "azurerm_role_assignment" "aks_identity_kms_roles" {
