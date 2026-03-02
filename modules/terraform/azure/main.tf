@@ -65,6 +65,8 @@ locals {
 
   aks_cli_config_map = { for aks in local.updated_aks_cli_config_list : aks.role => aks }
 
+  azapi_config_map = { for c in var.azapi_config_list : c.aks_name => c }
+
   key_vault_config_map = { for kv in var.key_vault_config_list : kv.name => kv }
 
   vm_config_map = { for vm in var.vm_config_list : vm.role => vm }
@@ -79,6 +81,12 @@ provider "azurerm" {
       recover_soft_deleted_key_vaults = false
     }
   }
+}
+
+provider "azapi" {
+  endpoint = [{
+    resource_manager_endpoint = var.arm_endpoint
+  }]
 }
 
 module "public_ips" {
@@ -182,6 +190,17 @@ module "aks" {
   depends_on           = [module.route_table, module.virtual_network, module.disk_encryption_set]
 }
 
+module "azapi" {
+  for_each = local.azapi_config_map
+
+  source              = "./azapi"
+  resource_group_name = local.run_id
+  location            = local.region
+  azapi_config        = each.value
+  tags                = local.tags
+  depends_on          = [module.route_table, module.virtual_network, module.disk_encryption_set]
+}
+
 module "aks-cli" {
   for_each = local.aks_cli_config_map
 
@@ -210,5 +229,5 @@ module "virtual_machine" {
   nics_map            = local.all_nics
 
   # Ensure AKS cluster is created before VM tries to look it up for RBAC
-  depends_on = [module.aks, module.aks-cli]
+  depends_on = [module.aks, module.aks-cli, module.azapi]
 }
