@@ -11,7 +11,6 @@ output = ap.Pipeline {
         job.Job {
             job = "deploy_to_azure"
             displayName = "Deploy to Azure"
-            pool = "ubuntu-latest"
 
             steps = azure.Login(
                 "Azure-for-Telescope-internal",
