@@ -1,8 +1,3 @@
-output "aks_cluster_fqdn" {
-  description = "FQDN of the created AKS cluster"
-  value       = azapi_resource.aks_cluster.output.properties.fqdn
-}
-
 output "resource_name" {
   description = "The name of the created AKS cluster"
   value       = azapi_resource.aks_cluster.name
