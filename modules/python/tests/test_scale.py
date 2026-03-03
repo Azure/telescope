@@ -45,6 +45,8 @@ class TestConfigureScale(unittest.TestCase):
             self.assertIn("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 100.0", content)
             self.assertIn("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true", content)
             self.assertIn("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true", content)
+            self.assertIn("CL2_NODE_EXPORTER_OPERATION_TIMEOUT: 60m", content)
+            self.assertIn("CL2_NODE_EXPORTER_ENABLE_VALIDATION: false", content)
 
             # Assert Fortio config
             self.assertIn("CL2_FORTIO_SERVERS_PER_DEPLOYMENT: 15", content)
