@@ -37,7 +37,6 @@ steps:
   env:
     BUILD_REASON: $(Build.Reason)
 
-- ${{ if eq(variables['Build.SourceBranchName'], 'main') }}:
-  - template: /steps/collect-terraform-operation-metadata.yml
-    parameters:
-      cloud: ${{ parameters.cloud }}
+- template: /steps/collect-terraform-operation-metadata.yml
+  parameters:
+    cloud: ${{ parameters.cloud }}
