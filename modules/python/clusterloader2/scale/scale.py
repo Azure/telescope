@@ -27,6 +27,8 @@ def configure_clusterloader2(
         file.write("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true\n")
         file.write("CL2_PROMETHEUS_NODE_SELECTOR: \"prometheus: \\\"true\\\"\"\n")
         file.write("CL2_POD_STARTUP_LATENCY_THRESHOLD: 3m\n")
+        file.write("CL2_NODE_EXPORTER_OPERATION_TIMEOUT: 60m\n")
+        file.write("CL2_NODE_EXPORTER_ENABLE_VALIDATION: false\n")
         file.write(f"CL2_LABEL_TRAFFIC_PODS: {label_traffic_pods}\n")
 
         # topology config
