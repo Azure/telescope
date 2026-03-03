@@ -112,7 +112,7 @@ steps:
       local_port="${BASTION_TUNNEL_PORT:-2222}"
       if [ "${use_bastion}" = "true" ]; then
         # Prefer a shared tunnel if one was started earlier in the job.
-        if [ -n "${BASTION_TUNNEL_PORT:-}" ] && timeout 1 bash -c "</dev/tcp/127.0.0.1/${local_port}" >/dev/null 2>&1; then
+        if [ -n "${BASTION_TUNNEL_PORT:-}" ] && timeout 2 nc -z 127.0.0.1 ${local_port} >/dev/null 2>&1; then
           echo "Reusing existing Bastion tunnel on localhost:${local_port}"
         else
           echo "Starting Bastion tunnel for SCP..."
@@ -128,7 +128,7 @@ steps:
         fi
 
         for i in $(seq 1 30); do
-          if timeout 1 bash -c "</dev/tcp/127.0.0.1/${local_port}" >/dev/null 2>&1; then
+          if timeout 1 nc -z 127.0.0.1 ${local_port} >/dev/null 2>&1; then
             break
           fi
           sleep 1
