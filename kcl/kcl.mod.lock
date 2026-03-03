@@ -1,5 +1,7 @@
 [dependencies]
-  [dependencies.telescope]
-    name = "telescope"
-    full_name = "telescope_0.0.1"
-    version = "0.0.1"
+  [dependencies.azure_pipelines]
+    name = "azure_pipelines"
+    full_name = "azure_pipelines_0.1.0"
+    version = "0.1.0"
+    url = "https://github.com/Azure/kcl-azure-pipelines/"
+    commit = "1b5d809"

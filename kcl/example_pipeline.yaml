@@ -1,0 +1,20 @@
+name: Example Pipeline
+trigger:
+- main
+- develop
+jobs:
+- job: deploy_to_azure
+  displayName: Deploy to Azure
+  pool: ubuntu-latest
+  steps:
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |2
+
+        az account set --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248"
+        az config set defaults.location="eastus"
+        az account show
+    displayName: Login to Azure
