@@ -20,6 +20,8 @@ name: scale-test
 # Container Network Log config
 {{$createContainerNetworkLogs := DefaultParam .CL2_GENERATE_CONTAINER_NETWORK_LOGS false}}
 
+# Container Network Metric config
+{{$createContainerNetworkMetricsFiltering := DefaultParam .CL2_GENERATE_CONTAINER_NETWORK_METRICS_FILTERING false}}
 
 namespace:
   number: {{$namespaces}}
@@ -70,6 +72,7 @@ steps:
         action: start
         group: {{$groupName}}
         createContainerNetworkLogs: {{$createContainerNetworkLogs}}
+        createContainerNetworkMetricsFiltering: {{$createContainerNetworkMetricsFiltering}}
 
   - module:
       path: /modules/hubble.yaml

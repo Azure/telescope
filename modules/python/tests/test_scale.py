@@ -33,6 +33,7 @@ class TestConfigureScale(unittest.TestCase):
                 fortio_deployments_per_namespace=1000,
                 network_policies_per_namespace=100,
                 generate_container_network_logs=False,
+                generate_container_network_metrics_filtering=False,
                 label_traffic_pods=False,
                 override_file=tmp_path,
             )
@@ -59,6 +60,7 @@ class TestConfigureScale(unittest.TestCase):
             # Assert network policies and flags
             self.assertIn("CL2_NETWORK_POLICIES_PER_NAMESPACE: 100", content)
             self.assertIn("CL2_GENERATE_CONTAINER_NETWORK_LOGS: False", content)
+            self.assertIn("CL2_GENERATE_CONTAINER_NETWORK_METRICS_FILTERING: False", content)
             self.assertIn("CL2_LABEL_TRAFFIC_PODS: False", content)
         finally:
             os.remove(tmp_path)
@@ -80,6 +82,7 @@ class TestConfigureScale(unittest.TestCase):
                 fortio_deployments_per_namespace=100,
                 network_policies_per_namespace=50,
                 generate_container_network_logs=True,
+                generate_container_network_metrics_filtering=False,
                 label_traffic_pods=True,
                 override_file=tmp_path,
             )
@@ -88,7 +91,39 @@ class TestConfigureScale(unittest.TestCase):
                 content = f.read()
 
             self.assertIn("CL2_GENERATE_CONTAINER_NETWORK_LOGS: True", content)
+            self.assertIn("CL2_GENERATE_CONTAINER_NETWORK_METRICS_FILTERING: False", content)
             self.assertIn("CL2_LABEL_TRAFFIC_PODS: True", content)
+        finally:
+            os.remove(tmp_path)
+
+    def test_configuration_with_container_network_metrics_filtering(self):
+        """Test configuration with Container Network Metrics Filtering enabled"""
+        with tempfile.NamedTemporaryFile(
+            delete=False, mode="w+", encoding="utf-8"
+        ) as tmp:
+            tmp_path = tmp.name
+
+        try:
+            configure_clusterloader2(
+                fortio_servers_per_deployment=15,
+                fortio_clients_per_deployment=15,
+                fortio_client_queries_per_second=1500,
+                fortio_client_connections=50,
+                fortio_namespaces=1,
+                fortio_deployments_per_namespace=1000,
+                network_policies_per_namespace=1000,
+                generate_container_network_logs=False,
+                generate_container_network_metrics_filtering=True,
+                label_traffic_pods=False,
+                override_file=tmp_path,
+            )
+
+            with open(tmp_path, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            self.assertIn("CL2_GENERATE_CONTAINER_NETWORK_LOGS: False", content)
+            self.assertIn("CL2_GENERATE_CONTAINER_NETWORK_METRICS_FILTERING: True", content)
+            self.assertIn("CL2_LABEL_TRAFFIC_PODS: False", content)
         finally:
             os.remove(tmp_path)
 
@@ -242,6 +277,7 @@ class TestMainArgumentParsing(unittest.TestCase):
             "--fortio-deployments-per-namespace", "1000",
             "--network-policies-per-namespace", "100",
             "--generate-container-network-logs", "True",
+            "--generate-container-network-metrics-filtering", "False",
             "--label_traffic_pods", "False",
             "--cl2_override_file", "/tmp/overrides.yaml",
         ]
@@ -250,7 +286,7 @@ class TestMainArgumentParsing(unittest.TestCase):
             main()
 
         mock_configure.assert_called_once_with(
-            15, 15, 1500, 50, 1, 1000, 100, True, False, "/tmp/overrides.yaml"
+            15, 15, 1500, 50, 1, 1000, 100, True, False, False, "/tmp/overrides.yaml"
         )
 
     @patch("clusterloader2.scale.scale.execute_clusterloader2")

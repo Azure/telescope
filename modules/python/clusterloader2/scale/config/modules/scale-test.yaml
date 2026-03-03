@@ -23,6 +23,9 @@ name: scale-test
 # Container Network Log config
 {{$createContainerNetworkLogs := DefaultParam .createContainerNetworkLogs false}}
 
+# Container Network Metric config
+{{$createContainerNetworkMetricsFiltering := DefaultParam .createContainerNetworkMetricsFiltering false}}
+
 steps:
   - module:
       path: /modules/measurements/control-plane.yaml
@@ -67,6 +70,7 @@ steps:
         fortioClientQueriesPerSecond: {{$fortioClientQueriesPerSecond}}
         fortioClientConnections: {{$fortioClientConnections}}
         createContainerNetworkLogs: {{$createContainerNetworkLogs}}
+        createContainerNetworkMetricsFiltering: {{$createContainerNetworkMetricsFiltering}}
         deploymentLabel: start
         networkPoliciesPerNamespace: {{$networkPoliciesPerNamespace}}
 

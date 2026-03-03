@@ -13,6 +13,7 @@
 {{$CpuRequest := DefaultParam .CpuRequest "5m"}}
 {{$MemoryRequest := DefaultParam .MemoryRequest "20Mi"}}
 {{$createContainerNetworkLogs := .createContainerNetworkLogs}}
+{{$createContainerNetworkMetricsFiltering := .createContainerNetworkMetricsFiltering}}
 
 steps:
 {{if $createContainerNetworkLogs}}
@@ -25,6 +26,21 @@ steps:
     objectBundle:
     - basename: container-network-log
       objectTemplatePath: modules/pfl/containernetworklog.yaml
+      templateFillMap:
+        Group: {{.Group}}
+        namespaces: {{$namespaces}}
+{{end}}
+
+{{if $createContainerNetworkMetricsFiltering}}
+- name: Create Container Network Metric
+  phases:
+  - namespaceList:
+    - ""
+    replicasPerNamespace: 1
+    tuningSet: {{$tuningSet}}
+    objectBundle:
+    - basename: container-network-metric
+      objectTemplatePath: modules/retina_crd/containernetworkmetric.yaml
       templateFillMap:
         Group: {{.Group}}
         namespaces: {{$namespaces}}
@@ -219,6 +235,22 @@ steps:
     objectBundle:
     - basename: container-network-log
       objectTemplatePath: modules/pfl/containernetworklog.yaml
+      templateFillMap:
+        Group: {{.Group}}
+        namespaces: {{$namespaces}}
+{{end}}
+
+{{if $createContainerNetworkMetricsFiltering}}
+# Delete container network metric
+- name: Delete Container Network Metric
+  phases:
+  - namespaceList:
+    - ""
+    replicasPerNamespace: 0
+    tuningSet: {{$tuningSet}}
+    objectBundle:
+    - basename: container-network-metric
+      objectTemplatePath: modules/retina_crd/containernetworkmetric.yaml
       templateFillMap:
         Group: {{.Group}}
         namespaces: {{$namespaces}}

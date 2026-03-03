@@ -45,3 +45,29 @@ steps:
       echo "ContainerNetworkLog CRD is available!"
       kubectl get crd containernetworklogs.acn.azure.com
     displayName: "Wait for ContainerNetworkLog CRD"
+
+  - script: |
+      set -eo pipefail
+      echo "Waiting for ContainerNetworkMetric CRD to be available..."
+      timeout=300  # 5 minutes timeout
+      interval=10
+      elapsed=0
+
+      while ! kubectl get crd containernetworkmetrics.acn.azure.com &>/dev/null; do
+        if [ $elapsed -ge $timeout ]; then
+          echo "##vso[task.logissue type=error]Timeout waiting for ContainerNetworkMetric CRD."
+          echo ""
+          echo "The ContainerNetworkMetric CRD requires ACNS to be enabled on the cluster."
+          echo ""
+          echo "Available CRDs:"
+          kubectl get crd | grep -E "acn|cilium|network" || true
+          exit 1
+        fi
+        echo "ContainerNetworkMetric CRD not found yet. Retrying in ${interval}s... (${elapsed}s elapsed)"
+        sleep $interval
+        elapsed=$((elapsed + interval))
+      done
+
+      echo "ContainerNetworkMetric CRD is available!"
+      kubectl get crd containernetworkmetrics.acn.azure.com
+    displayName: "Wait for ContainerNetworkMetric CRD"

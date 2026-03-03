@@ -34,6 +34,7 @@ steps:
     --fortio-deployments-per-namespace $FORTIO_DEPLOYMENTS_PER_NAMESPACE \
     --network-policies-per-namespace $NETWORK_POLICIES_PER_NAMESPACE \
     --generate-container-network-logs ${GENERATE_CONTAINER_NETWORK_LOGS:-False} \
+    --generate-container-network-metrics-filtering ${GENERATE_CONTAINER_NETWORK_METRICS_FILTERING:-False} \
     --label_traffic_pods ${LABEL_TRAFFIC_PODS:-False} \
     --trigger_reason ${TRIGGER_REASON:-""}
   workingDirectory: modules/python
