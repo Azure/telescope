@@ -119,13 +119,13 @@ run "azapi_empty_config" {
   command = plan
 
   variables {
-    owner               = "test"
-    scenario_type       = "perf-eval"
-    scenario_name       = "test-azapi"
-    network_config_list = []
-    aks_config_list     = []
-    aks_cli_config_list = []
-    azapi_config_list   = []
+    owner                           = "test"
+    scenario_type                   = "perf-eval"
+    scenario_name                   = "test-azapi"
+    network_config_list             = []
+    aks_config_list                 = []
+    aks_cli_config_list             = []
+    azapi_config_list               = []
     public_ip_config_list           = []
     dns_zones                       = []
     disk_encryption_set_config_list = []

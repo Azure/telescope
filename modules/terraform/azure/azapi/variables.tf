@@ -20,7 +20,7 @@ variable "azapi_config" {
     role        = string
     aks_name    = string
     dns_prefix  = string
-    api_version = optional(string, "2026-01-02-preview")
+    api_version = optional(string, "2025-10-01")
 
     sku = optional(object({
       name = optional(string, "Base")
