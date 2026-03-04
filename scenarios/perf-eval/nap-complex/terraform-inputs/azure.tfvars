@@ -297,6 +297,14 @@ aks_cli_config_list = [
         value = "azure"
       },
       {
+        name  = "network-policy"
+        value = "cillium"
+      },
+      {
+        name  = "network-dataplane"
+        value = "cilium"
+      },
+      {
         name  = "network-plugin-mode"
         value = "overlay"
       },
@@ -344,7 +352,6 @@ aks_cli_config_list = [
         name  = "enable-private-cluster"
         value = ""
       }
-      # TODO: enable cilium once it is fixed
     ]
   }
 ]
