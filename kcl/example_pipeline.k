@@ -3,17 +3,22 @@ import azure_pipelines.ap.jobs.job
 import lib.const
 import lib.steps.azure
 
-createClusterScript = """SUBSCRIPTION_ID="b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
-RG="telescope-v2-test"
-CLUSTER="stg-H2-yaolei"
-LOCATION="westus2"
+SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+RESOURCE_GROUP = "telescope-v2-test"
+LOCATION = "westus2"
+CLUSTER = "stg-H2-yaolei"
 
+createResourceGroupScript = """
+az group create --name "${RESOURCE_GROUP}" --location "${LOCATION}" --subscription "${SUBSCRIPTION_ID}"
+"""
+
+createClusterScript = """
 az cloud update --endpoint-resource-manager https://eastus2euap.management.azure.com/
 az rest \\
   --method put \\
-  --uri "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RG/providers/Microsoft.ContainerService/managedClusters/$CLUSTER?api-version=2026-01-02-preview" \\
+  --uri "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.ContainerService/managedClusters/${CLUSTER}?api-version=2026-01-02-preview" \\
   --body "{
-    \\"location\\": \\"$LOCATION\\",
+    \\"location\\": \\"${LOCATION}\\",
     \\"identity\\": { \\"type\\": \\"SystemAssigned\\" },
     \\"sku\\": {
       \\"name\\": \\"Base\\",
@@ -28,7 +33,7 @@ az rest \\
     \\"properties\\": {
       \\"controlPlaneScalingProfile\\": {\\"scalingSize\\": \\"H2\\"},
       \\"kubernetesVersion\\": \\"1.33.0\\",
-      \\"dnsPrefix\\": \\"$(CLUSTER)-dns\\",
+      \\"dnsPrefix\\": \\"${CLUSTER}-dns\\",
       \\"agentPoolProfiles\\": [
         {
           \\"name\\": \\"systempool\\",
@@ -69,10 +74,17 @@ output = ap.Pipeline {
             steps = [
                 azure.Login(
                     const.DEFAULT_SERVICE_CONNECTION,
-                    "b8ceb4e5-f05b-4562-a9f5-14acb1f24219",
-                    "westus2"
+                    SUBSCRIPTION_ID,
+                    LOCATION
                 ),
-                azure.AzCli(const.DEFAULT_SERVICE_CONNECTION,"Create cluster", createClusterScript)
+                azure.AzCli(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    "Create resource group",
+                    createResourceGroupScript),
+                azure.AzCli(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    "Create cluster",
+                    createClusterScript)
             ]
         }
     ]

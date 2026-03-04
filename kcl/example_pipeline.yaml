@@ -22,18 +22,23 @@ jobs:
       azureSubscription: Azure-for-Telescope-internal
       scriptType: bash
       scriptLocation: inlineScript
-      inlineScript: |
-        SUBSCRIPTION_ID="b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
-        RG="telescope-v2-test"
-        CLUSTER="stg-H2-yaolei"
-        LOCATION="westus2"
+      inlineScript: |2
+
+        az group create --name "telescope-v2-test" --location "westus2" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+    displayName: Create resource group
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |2
 
         az cloud update --endpoint-resource-manager https://eastus2euap.management.azure.com/
         az rest \
           --method put \
-          --uri "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$RG/providers/Microsoft.ContainerService/managedClusters/$CLUSTER?api-version=2026-01-02-preview" \
+          --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/telescope-v2-test/providers/Microsoft.ContainerService/managedClusters/stg-H2-yaolei?api-version=2026-01-02-preview" \
           --body "{
-            \"location\": \"$LOCATION\",
+            \"location\": \"westus2\",
             \"identity\": { \"type\": \"SystemAssigned\" },
             \"sku\": {
               \"name\": \"Base\",
@@ -48,7 +53,7 @@ jobs:
             \"properties\": {
               \"controlPlaneScalingProfile\": {\"scalingSize\": \"H2\"},
               \"kubernetesVersion\": \"1.33.0\",
-              \"dnsPrefix\": \"$(CLUSTER)-dns\",
+              \"dnsPrefix\": \"stg-H2-yaolei-dns\",
               \"agentPoolProfiles\": [
                 {
                   \"name\": \"systempool\",
