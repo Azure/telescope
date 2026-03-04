@@ -1,7 +1,7 @@
 name: Example Pipeline
+pool: AKS-Telescope-Ubuntu-EastUS2
 trigger:
-- main
-- develop
+- v2
 jobs:
 - job: deploy_to_azure
   displayName: Deploy to Azure

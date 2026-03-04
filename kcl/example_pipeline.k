@@ -5,7 +5,8 @@ import lib.steps.azure
 output = ap.Pipeline {
     name = "Example Pipeline"
 
-    trigger =  ["main", "develop"]
+    trigger =  ["v2"]
+    pool = "AKS-Telescope-Ubuntu-EastUS2"
 
     jobs = [
         job.Job {
