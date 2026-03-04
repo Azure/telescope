@@ -97,7 +97,7 @@ def get_measurement(file_path):
             remainder = file_name[len(PROM_QUERY_PREFIX) + 1:]
         else:
             return None, None
-        
+
         # Format: <measurement>_<group>_<timestamp>.json
         # Split on underscore to extract parts
         parts = remainder.split("_")
@@ -111,7 +111,7 @@ def get_measurement(file_path):
                     # Measurement is everything before the group
                     measurement_name = "_".join(parts[:i - 1]).rstrip("_")
                     return measurement_name, group_name
-        
+
         return None, None
     if file_name.startswith(JOB_LIFECYCLE_LATENCY_PREFIX):
         group_name = file_name.split("_")[1]
