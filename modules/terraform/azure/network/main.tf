@@ -14,7 +14,13 @@ locals {
         nic_name              = (var.nic_count_override > 0 ? var.nic_count_override : nic.count) > 1 ? "${nic.nic_name}-${i + 1}" : nic.nic_name
         subnet_name           = nic.subnet_name
         ip_configuration_name = nic.ip_configuration_name
-        public_ip_name        = (var.nic_count_override > 0 ? var.nic_count_override : nic.count) > 1 ? "${nic.public_ip_name}-${i + 1}" : nic.public_ip_name
+        public_ip_name = (
+          try(nic.public_ip_name, null) != null && try(nic.public_ip_name, "") != ""
+          ) ? (
+          (var.nic_count_override > 0 ? var.nic_count_override : nic.count) > 1
+          ? "${nic.public_ip_name}-${i + 1}"
+          : nic.public_ip_name
+        ) : null
       }
     ]
   ])
@@ -77,7 +83,7 @@ resource "azurerm_network_interface" "nic" {
     name                          = each.value.ip_configuration_name
     subnet_id                     = local.subnets_map[each.value.subnet_name].id
     private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = each.value.public_ip_name != null ? var.public_ips[each.value.public_ip_name].id : null
+    public_ip_address_id          = (each.value.public_ip_name != null && each.value.public_ip_name != "") ? var.public_ips[each.value.public_ip_name].id : null
   }
 }
 
