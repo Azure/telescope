@@ -8,6 +8,7 @@ jobs:
   steps:
   - task: AzureCLI@2
     inputs:
+      azureSubscription: Azure-for-Telescope-internal
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |

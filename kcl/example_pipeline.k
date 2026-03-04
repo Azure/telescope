@@ -16,6 +16,7 @@ output = ap.Pipeline {
 
             steps = [
                 azure.Login(
+                    const.DEFAULT_SERVICE_CONNECTION
                     "b8ceb4e5-f05b-4562-a9f5-14acb1f24219",
                     "westus2"
                )

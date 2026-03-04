@@ -1,0 +1,14 @@
+import azure_pipelines.ap.steps
+
+AzCli = lambda serviceConnection: str, name: str, script: str -> steps.Step {
+    steps.Task {
+        task = "AzureCLI@2"
+        inputs = {
+            azureSubscription = serviceConnection,
+            scriptType = "bash"
+            scriptLocation = "inlineScript"
+            inlineScript = script
+        }
+        displayName = name
+    }
+}
