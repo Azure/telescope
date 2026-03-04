@@ -100,6 +100,52 @@ module "virtual_network" {
   tags                = local.tags
 }
 
+# =============================================================================
+# Azure Bastion (optional)
+#
+# If a network config includes a subnet named "AzureBastionSubnet", we deploy an
+# Azure Bastion Host into that VNet. Pipeline steps can then SSH/SCP to the
+# jumpbox through a Bastion tunnel over 443, without requiring inbound port 22
+# from the public internet.
+# =============================================================================
+
+locals {
+  bastion_network_roles = {
+    for role, network in local.network_config_map : role => network
+    if contains([for subnet in network.subnet : subnet.name], "AzureBastionSubnet")
+  }
+}
+
+resource "azurerm_public_ip" "bastion" {
+  for_each = local.bastion_network_roles
+
+  name                = "bastion-pip-${each.key}"
+  location            = local.region
+  resource_group_name = local.run_id
+  allocation_method   = "Static"
+  sku                 = "Standard"
+  tags                = local.tags
+}
+
+resource "azurerm_bastion_host" "bastion" {
+  for_each = local.bastion_network_roles
+
+  name                = "bastion-${each.key}"
+  location            = local.region
+  resource_group_name = local.run_id
+  sku                 = "Standard"
+  tunneling_enabled   = true
+  tags                = local.tags
+
+  ip_configuration {
+    name                 = "ipconfig"
+    subnet_id            = module.virtual_network[each.key].subnets["AzureBastionSubnet"]
+    public_ip_address_id = azurerm_public_ip.bastion[each.key].id
+  }
+
+  depends_on = [module.virtual_network]
+}
+
 module "dns_zones" {
 
   source              = "./dns-zone"

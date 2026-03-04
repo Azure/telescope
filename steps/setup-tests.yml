@@ -1,90 +1,90 @@
 parameters:
-- name: cloud
-  type: string
-- name: region
-  type: string
-- name: test_modules_dir
-  type: string
-  default: ''
-- name: run_id
-  type: string
-  default: ''
-- name: retry_attempt_count
-  type: number
-  default: 3
-- name: credential_type
-  type: string
-- name: ssh_key_enabled
-  type: boolean
+  - name: cloud
+    type: string
+  - name: region
+    type: string
+  - name: test_modules_dir
+    type: string
+    default: ""
+  - name: run_id
+    type: string
+    default: ""
+  - name: retry_attempt_count
+    type: number
+    default: 3
+  - name: credential_type
+    type: string
+  - name: ssh_key_enabled
+    type: boolean
 
 steps:
-- template: /steps/set-run-id.yml
-  parameters:
-    run_id: ${{ parameters.run_id }}
-
-- script: |
-    run_url="$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)"
-    echo "Run URL: $run_url"
-    echo "##vso[task.setvariable variable=RUN_URL]$run_url"
-
-    code_url="$(Build.Repository.Uri)/commit/$(Build.SourceVersion)"
-    echo "Code URL: $code_url"
-    echo "##vso[task.setvariable variable=CODE_URL]$code_url"
-  displayName: "Set Run URL & Code URL"
-
-- script: |
-    test_results_directory=$(Pipeline.Workspace)/s/$(RUN_ID)
-    mkdir -p $test_results_directory
-    echo "Test Results directory: $test_results_directory"
-    echo "##vso[task.setvariable variable=TEST_RESULTS_DIR]$test_results_directory"
-
-    test_results_file=$test_results_directory/results.json
-
-    echo "Test Results file: $test_results_file"
-    echo "##vso[task.setvariable variable=TEST_RESULTS_FILE]$test_results_file"
-  displayName: 'Set Test Results Directory'
-
-- script: |
-    python3 --version && pip3 --version
-    jq --version
-    kubectl version --client
-    az version
-    aws --version
-    helm version
-  displayName: "Check Dependencies"
-
-- script: |
-    set -e
-    echo "Install Python dependencies"
-    # Constrain pip to versions below 24 due to compatibility issues with some packages and breaking changes introduced in pip 24.
-    pip3 install --upgrade "pip<24"
-    pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
-
-    echo "Install Ubuntu packages"
-    # Recover from interrupted or broken package installations. The '|| true' ensures the script continues even if dpkg returns a non-zero exit code.
-    sudo dpkg --configure -a || true
-    sudo apt-get update
-    sudo apt-get -y install bc
-  displayName: "Install Dependencies"
-
-- template: /steps/cloud/${{ parameters.cloud }}/login.yml
-  parameters:
-    region: ${{ parameters.region }}
-    credential_type: ${{ parameters.credential_type }}
-
-- script: |
-    if [ -n "${TEST_MODULES_DIR}" ]; then
-      test_modules_directory=$(Pipeline.Workspace)/s/${TEST_MODULES_DIR}
-    else
-      test_modules_directory=$(Pipeline.Workspace)/s/modules/bash
-    fi
-    echo "Script modules directory: $test_modules_directory"
-    echo "##vso[task.setvariable variable=TEST_MODULES_DIR]$test_modules_directory"
-  displayName: 'Set Script Module Directory'
-  env:
-    TEST_MODULES_DIR: ${{ parameters.test_modules_dir }}
-
-- ${{ if eq(parameters.ssh_key_enabled, true) }}:
-  - template: /steps/ssh/setup-key.yml
+  - template: /steps/set-run-id.yml
     parameters:
-      cloud: ${{ parameters.cloud }}
+      run_id: ${{ parameters.run_id }}
+
+  - script: |
+      run_url="$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)"
+      echo "Run URL: $run_url"
+      echo "##vso[task.setvariable variable=RUN_URL]$run_url"
+
+      code_url="$(Build.Repository.Uri)/commit/$(Build.SourceVersion)"
+      echo "Code URL: $code_url"
+      echo "##vso[task.setvariable variable=CODE_URL]$code_url"
+    displayName: "Set Run URL & Code URL"
+
+  - script: |
+      test_results_directory=$(Pipeline.Workspace)/s/$(RUN_ID)
+      mkdir -p $test_results_directory
+      echo "Test Results directory: $test_results_directory"
+      echo "##vso[task.setvariable variable=TEST_RESULTS_DIR]$test_results_directory"
+
+      test_results_file=$test_results_directory/results.json
+
+      echo "Test Results file: $test_results_file"
+      echo "##vso[task.setvariable variable=TEST_RESULTS_FILE]$test_results_file"
+    displayName: "Set Test Results Directory"
+
+  - script: |
+      python3 --version && pip3 --version
+      jq --version
+      kubectl version --client
+      az version
+      aws --version
+      helm version
+    displayName: "Check Dependencies"
+
+  - script: |
+      set -e
+      echo "Install Python dependencies"
+      # Constrain pip to versions below 24 due to compatibility issues with some packages and breaking changes introduced in pip 24.
+      pip3 install --upgrade "pip<24"
+      pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
+
+      echo "Install Ubuntu packages"
+      # Recover from interrupted or broken package installations. The '|| true' ensures the script continues even if dpkg returns a non-zero exit code.
+      sudo dpkg --configure -a || true
+      sudo apt-get update
+      sudo apt-get -y install bc netcat
+    displayName: "Install Dependencies"
+
+  - template: /steps/cloud/${{ parameters.cloud }}/login.yml
+    parameters:
+      region: ${{ parameters.region }}
+      credential_type: ${{ parameters.credential_type }}
+
+  - script: |
+      if [ -n "${TEST_MODULES_DIR}" ]; then
+        test_modules_directory=$(Pipeline.Workspace)/s/${TEST_MODULES_DIR}
+      else
+        test_modules_directory=$(Pipeline.Workspace)/s/modules/bash
+      fi
+      echo "Script modules directory: $test_modules_directory"
+      echo "##vso[task.setvariable variable=TEST_MODULES_DIR]$test_modules_directory"
+    displayName: "Set Script Module Directory"
+    env:
+      TEST_MODULES_DIR: ${{ parameters.test_modules_dir }}
+
+  - ${{ if eq(parameters.ssh_key_enabled, true) }}:
+      - template: /steps/ssh/setup-key.yml
+        parameters:
+          cloud: ${{ parameters.cloud }}
