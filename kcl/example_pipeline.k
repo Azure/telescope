@@ -39,7 +39,7 @@ az rest \\
           \\"name\\": \\"systempool\\",
           \\"mode\\": \\"System\\",
           \\"count\\": 3,
-          \\"vmSize\\": \\"Standard_D16S_v6\\",
+          \\"vmSize\\": \\"Standard_D8S_v4\\",
           \\"osType\\": \\"Linux\\"
         }
       ],
