@@ -179,7 +179,9 @@ network_config_list = [
         protocol                   = "<protocol>"           # Protocol - Options: "Tcp", "Udp", "Icmp", "*"
         source_port_range          = "<src-port>"          # Source port - e.g., "*", "80", "80-90"
         destination_port_range     = "<dest-port>"         # Destination port - e.g., "22", "443", "80-90"
-        source_address_prefix      = "<src-address>"       # Source address - e.g., "*", "10.0.0.0/16", "192.168.1.100"
+        # NOTE: If using Azure Bastion for SSH, do NOT use "*" here for port 22.
+        # Use the AzureBastionSubnet CIDR as the source_address_prefix instead.
+        source_address_prefix      = "<src-address>"       # Source address - e.g., "10.0.10.0/27", "10.0.0.0/16", "192.168.1.100"
         destination_address_prefix = "<dest-address>"      # Destination address - e.g., "*", "10.0.0.0/16", "VirtualNetwork"
       }
     ]

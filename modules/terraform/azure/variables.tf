@@ -115,8 +115,9 @@ variable "network_config_list" {
       nic_name              = string
       subnet_name           = string
       ip_configuration_name = string
-      public_ip_name        = string
-      count                 = optional(number, 1)
+      # Optional: when omitted or empty, the NIC will be created without a public IP.
+      public_ip_name = optional(string)
+      count          = optional(number, 1)
     }))
     nsr_rules = list(object({
       name                       = string
@@ -165,7 +166,7 @@ variable "firewall_config_list" {
     name                  = string
     network_role          = optional(string)
     subnet_name           = optional(string)
-    public_ip_name        = optional(string)
+    public_ip_names       = optional(list(string), [])
     sku_name              = optional(string, "AZFW_VNet")
     sku_tier              = optional(string, "Standard")
     firewall_policy_id    = optional(string)
@@ -452,6 +453,49 @@ variable "aks_cli_config_list" {
     dry_run = optional(bool, false) # If true, only print the command without executing it. Useful for testing.
     # Disk Encryption Set configuration for OS disk encryption with Customer-Managed Keys
     disk_encryption_set_name = optional(string, null) # Name of the Disk Encryption Set to use for OS disk encryption
+  }))
+  default = []
+}
+
+variable "arm_endpoint" {
+  description = "Custom Azure Resource Manager endpoint URL for the AzAPI provider"
+  type        = string
+  default     = "https://management.azure.com"
+}
+
+variable "azapi_config_list" {
+  description = "List of AKS cluster configurations to create via Azure REST API (AzAPI provider)"
+  type = list(object({
+    role        = string
+    aks_name    = string
+    dns_prefix  = string
+    api_version = optional(string, "2026-01-02-preview")
+
+    sku = optional(object({
+      name = optional(string, "Base")
+      tier = optional(string, "Standard")
+    }), {})
+
+    identity_type = optional(string, "SystemAssigned")
+
+    kubernetes_version = optional(string, null)
+
+    network_profile = optional(object({
+      network_plugin      = optional(string, "azure")
+      network_plugin_mode = optional(string, "overlay")
+    }), {})
+
+    default_node_pool = object({
+      name    = optional(string, "systempool1")
+      count   = optional(number, 3)
+      vm_size = optional(string, "Standard_D2s_v5")
+      os_type = optional(string, "Linux")
+      mode    = optional(string, "System")
+    })
+
+    control_plane_scaling_profile = optional(object({
+      scaling_size = string
+    }), null)
   }))
   default = []
 }

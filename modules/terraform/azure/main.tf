@@ -65,6 +65,8 @@ locals {
 
   aks_cli_config_map = { for aks in local.updated_aks_cli_config_list : aks.role => aks }
 
+  azapi_config_map = { for c in var.azapi_config_list : c.aks_name => c }
+
   key_vault_config_map = { for kv in var.key_vault_config_list : kv.name => kv }
 
   vm_config_map = { for vm in var.vm_config_list : vm.role => vm }
@@ -79,6 +81,12 @@ provider "azurerm" {
       recover_soft_deleted_key_vaults = false
     }
   }
+}
+
+provider "azapi" {
+  endpoint = [{
+    resource_manager_endpoint = var.arm_endpoint
+  }]
 }
 
 module "public_ips" {
@@ -98,6 +106,52 @@ module "virtual_network" {
   location            = local.region
   public_ips          = module.public_ips.pip_ids
   tags                = local.tags
+}
+
+# =============================================================================
+# Azure Bastion (optional)
+#
+# If a network config includes a subnet named "AzureBastionSubnet", we deploy an
+# Azure Bastion Host into that VNet. Pipeline steps can then SSH/SCP to the
+# jumpbox through a Bastion tunnel over 443, without requiring inbound port 22
+# from the public internet.
+# =============================================================================
+
+locals {
+  bastion_network_roles = {
+    for role, network in local.network_config_map : role => network
+    if contains([for subnet in network.subnet : subnet.name], "AzureBastionSubnet")
+  }
+}
+
+resource "azurerm_public_ip" "bastion" {
+  for_each = local.bastion_network_roles
+
+  name                = "bastion-pip-${each.key}"
+  location            = local.region
+  resource_group_name = local.run_id
+  allocation_method   = "Static"
+  sku                 = "Standard"
+  tags                = local.tags
+}
+
+resource "azurerm_bastion_host" "bastion" {
+  for_each = local.bastion_network_roles
+
+  name                = "bastion-${each.key}"
+  location            = local.region
+  resource_group_name = local.run_id
+  sku                 = "Standard"
+  tunneling_enabled   = true
+  tags                = local.tags
+
+  ip_configuration {
+    name                 = "ipconfig"
+    subnet_id            = module.virtual_network[each.key].subnets["AzureBastionSubnet"]
+    public_ip_address_id = azurerm_public_ip.bastion[each.key].id
+  }
+
+  depends_on = [module.virtual_network]
 }
 
 module "dns_zones" {
@@ -182,6 +236,17 @@ module "aks" {
   depends_on           = [module.route_table, module.virtual_network, module.disk_encryption_set]
 }
 
+module "azapi" {
+  for_each = local.azapi_config_map
+
+  source              = "./azapi"
+  resource_group_name = local.run_id
+  location            = local.region
+  azapi_config        = each.value
+  tags                = local.tags
+  depends_on          = [module.route_table, module.virtual_network, module.disk_encryption_set]
+}
+
 module "aks-cli" {
   for_each = local.aks_cli_config_map
 
@@ -210,5 +275,5 @@ module "virtual_machine" {
   nics_map            = local.all_nics
 
   # Ensure AKS cluster is created before VM tries to look it up for RBAC
-  depends_on = [module.aks, module.aks-cli]
+  depends_on = [module.aks, module.aks-cli, module.azapi]
 }
