@@ -4,14 +4,7 @@ locals {
   acr_private_dns_enabled   = length([for acr in var.acr_config_list : acr if try(acr.private_endpoint != null, false)]) > 0
 
   acr_private_dns_vnet_roles = distinct([
-    for acr in var.acr_config_list : lookup(
-      var.subnet_to_network_role,
-      acr.private_endpoint.subnet_name,
-      error(format(
-        "Unknown subnet name for ACR private_endpoint.subnet_name: %s. Must match a subnet name in network_config_list[*].subnet[*].name.",
-        acr.private_endpoint.subnet_name
-      ))
-    )
+    for acr in var.acr_config_list : var.subnet_to_network_role[acr.private_endpoint.subnet_name]
     if try(acr.private_endpoint != null, false)
   ])
 
@@ -87,7 +80,7 @@ resource "azurerm_private_dns_zone_virtual_network_link" "acr" {
   name                  = "acr-dns-link-${each.key}"
   resource_group_name   = var.resource_group_name
   private_dns_zone_name = azurerm_private_dns_zone.acr[0].name
-  virtual_network_id    = lookup(var.vnet_ids_by_role, each.key, error(format("Unknown network role for ACR private DNS link: %s", each.key)))
+  virtual_network_id    = var.vnet_ids_by_role[each.key]
   registration_enabled  = false
   tags                  = var.tags
 }
@@ -98,15 +91,8 @@ resource "azurerm_private_endpoint" "acr" {
   name                = "acr-pe-${each.key}"
   location            = var.location
   resource_group_name = var.resource_group_name
-  subnet_id = lookup(
-    var.subnet_ids_by_name,
-    each.value.private_endpoint.subnet_name,
-    error(format(
-      "Unknown subnet name for ACR private_endpoint.subnet_name: %s. Must match a subnet name in network_config_list[*].subnet[*].name.",
-      each.value.private_endpoint.subnet_name
-    ))
-  )
-  tags = var.tags
+  subnet_id           = var.subnet_ids_by_name[each.value.private_endpoint.subnet_name]
+  tags                = var.tags
 
   private_service_connection {
     name                           = "acr-psc-${each.key}"
