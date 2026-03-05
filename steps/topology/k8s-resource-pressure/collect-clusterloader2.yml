@@ -24,10 +24,10 @@ steps:
 - task: PublishPipelineArtifact@1
   inputs:
     targetPath: '$(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/config'
-    artifactName: 'cri-config-${{ parameters.cloud }}'
+    artifactName: 'cri-config-$(System.JobName)'
   displayName: "Publish Test Config"
 - task: PublishPipelineArtifact@1
   inputs:
     targetPath: '$(Pipeline.Workspace)/s/modules/python/clusterloader2/cri/results'
-    artifactName: 'cri-results-${{ parameters.cloud }}'
+    artifactName: 'cri-results-$(System.JobName)'
   displayName: "Publish CRI Benchmark Results"
