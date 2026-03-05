@@ -27,7 +27,7 @@ stages:
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
             install: false
-          topology: observability
+          topology: network-scale
           matrix:
             cnl:
               traffic_deployment_count: 1000

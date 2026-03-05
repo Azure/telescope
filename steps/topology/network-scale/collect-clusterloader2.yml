@@ -11,7 +11,7 @@ parameters:
 
 steps:
 - template: /steps/set-run-id.yml
-- template: /steps/engine/clusterloader2/scale/collect.yml
+- template: /steps/engine/clusterloader2/network-scale/collect.yml
   parameters:
     cloud: ${{ parameters.cloud }}
     engine_input: ${{ parameters.engine_input }}
