@@ -90,9 +90,29 @@ def get_measurement(file_path):
             group_name = file_name.split("_")[1]
             return file_prefix, group_name
     if file_name.startswith(PROM_QUERY_PREFIX):
-        group_name = file_name.split("_")[1]
-        measurement_name = file_name.split("_")[0][len(PROM_QUERY_PREFIX)+1:]
-        return measurement_name, group_name
+        # Remove "GenericPrometheusQuery " or "GenericPrometheusQuery_" prefix
+        if file_name.startswith(PROM_QUERY_PREFIX + " "):
+            remainder = file_name[len(PROM_QUERY_PREFIX) + 1:]
+        elif file_name.startswith(PROM_QUERY_PREFIX + "_"):
+            remainder = file_name[len(PROM_QUERY_PREFIX) + 1:]
+        else:
+            return None, None
+
+        # Format: <measurement>_<group>_<timestamp>.json
+        # Split on underscore to extract parts
+        parts = remainder.split("_")
+        if len(parts) >= 2:
+            # Find where the group starts (it's the part before the timestamp)
+            # Timestamp format: 2026-02-25T13:51:31Z.json (contains 'T' and 'Z')
+            for i in range(len(parts) - 1, 0, -1):
+                if 'T' in parts[i]:
+                    # Found timestamp, group is parts[i-1]
+                    group_name = parts[i - 1]
+                    # Measurement is everything before the group
+                    measurement_name = "_".join(parts[:i - 1]).rstrip("_")
+                    return measurement_name, group_name
+
+        return None, None
     if file_name.startswith(JOB_LIFECYCLE_LATENCY_PREFIX):
         group_name = file_name.split("_")[1]
         return JOB_LIFECYCLE_LATENCY_PREFIX, group_name
