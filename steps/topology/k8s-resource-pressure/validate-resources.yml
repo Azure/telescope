@@ -14,34 +14,37 @@ steps:
 - template: /steps/engine/clusterloader2/large-cluster/validate.yml
   parameters:
     desired_nodes: 3
-- bash: |
+- script: |
     set -euo pipefail
     set -x
 
-    flags_string=$(echo "$CUSTOM_EVICTION_FLAGS" | jq -r '
-      def format_value(k; v):
-        if (v|type) == "object" then
-          (if (k == "eviction-hard") or (k == "eviction-soft") then "<"
-          else "=" end) as $delim
-          | (v | to_entries | map(.key + $delim + (.value|tostring)) | join(","))
-        elif (v|type) == "array" then
-          (v | map(tostring) | join(","))
-        else
-          (v | tostring)
-        end;
+    if [ $USE_CUSTOM_KUBELET = "True" ]; then
+      echo "Applying custom kubelet configuration via Helm chart..."
+      flags_string=$(echo "$CUSTOM_EVICTION_FLAGS" | jq -r '
+        def format_value(k; v):
+          if (v|type) == "object" then
+            (if (k == "eviction-hard") or (k == "eviction-soft") then "<"
+            else "=" end) as $delim
+            | (v | to_entries | map(.key + $delim + (.value|tostring)) | join(","))
+          elif (v|type) == "array" then
+            (v | map(tostring) | join(","))
+          else
+            (v | tostring)
+          end;
 
-      to_entries
-      | map("--" + .key + "=" + (format_value(.key; .value)))
-      | join(" ")
-      ')
+        to_entries
+        | map("--" + .key + "=" + (format_value(.key; .value)))
+        | join(" ")
+        ')
 
-    printf '%s' "$flags_string" > "kubelet_flags.txt"
+      printf '%s' "$flags_string" > "kubelet_flags.txt"
 
-    helm upgrade --install kubelet-config-updater ./steps/topology/k8s-resource-pressure/chart \
-      --namespace kube-system --create-namespace \
-      --set-file kubeletFlags="kubelet_flags.txt"
+      helm upgrade --install kubelet-config-updater ./steps/topology/k8s-resource-pressure/chart \
+        --namespace kube-system --create-namespace \
+        --set-file kubeletFlags="kubelet_flags.txt"
 
-    sleep 5
+      sleep 5
+    fi
 
     kubectl get pods -A -o wide
 
@@ -50,7 +53,7 @@ steps:
     
   displayName: "Validate Kubelet Custom Config Applied"
 
-- bash: |
+- script: |
     set -euo pipefail
     set -x
 

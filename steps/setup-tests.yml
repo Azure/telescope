@@ -20,7 +20,7 @@ parameters:
 steps:
 - script: |
     if [ -n "$RUN_ID" ]; then
-      run_id=$RUN_ID
+      run_id=$RUN_ID-$MATRIX_KEY
     else
       run_id=$(Build.BuildId)-$(System.JobId)
     fi
