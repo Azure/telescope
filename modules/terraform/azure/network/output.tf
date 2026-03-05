@@ -8,7 +8,7 @@ output "nics" {
 }
 
 output "subnets" {
-  description = "Map of subnet names to subnet objects"
+  description = "Map of subnet names to subnet IDs"
   value       = { for name, subnet in azurerm_subnet.subnet : name => subnet.id }
 }
 
