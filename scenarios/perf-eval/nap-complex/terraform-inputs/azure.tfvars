@@ -298,7 +298,7 @@ aks_cli_config_list = [
       },
       {
         name  = "network-policy"
-        value = "cillium"
+        value = "cilium"
       },
       {
         name  = "network-dataplane"
