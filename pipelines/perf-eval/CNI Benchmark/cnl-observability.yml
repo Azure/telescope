@@ -10,7 +10,7 @@ schedules:
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: azurecni-overlay-cilium-cnl
+  SCENARIO_NAME: cnl-azurecni-overlay-cilium
   OWNER: aks
   OBSERVABILITY_TOOL: acns
 
