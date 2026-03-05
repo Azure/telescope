@@ -9,10 +9,6 @@ RESOURCE_GROUP = "telescope-v2-test"
 LOCATION = "westus2"
 CLUSTER = "stg-H2-yaolei"
 
-createResourceGroupScript = """
-az group create --name "${RESOURCE_GROUP}" --location "${LOCATION}" --subscription "${SUBSCRIPTION_ID}"
-"""
-
 requestBody = util.escapeStr("""
 {
     "location": "${LOCATION}",
@@ -81,10 +77,12 @@ output = ap.Pipeline {
                     SUBSCRIPTION_ID,
                     LOCATION
                 ),
-                azure.AzCli(
+                azure.CreateResourceGroup(
                     const.DEFAULT_SERVICE_CONNECTION,
-                    "Create resource group",
-                    createResourceGroupScript),
+                    RESOURCE_GROUP,
+                    LOCATION,
+                    SUBSCRIPTION_ID
+                ),
                 azure.AzCli(
                     const.DEFAULT_SERVICE_CONNECTION,
                     "Create cluster",
