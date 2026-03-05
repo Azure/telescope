@@ -40,8 +40,8 @@ steps:
   env:
     CLOUD: ${{ parameters.cloud }}
     RUN_URL: $(RUN_URL)
-    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/scale/scale.py
-    CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/scale/results
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/network-scale/scale.py
+    CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/network-scale/results
     REPOSITORY: ${{ parameters.engine_input.repository }}
     REPOSITORY_REF: ${{ parameters.engine_input.ref }}
   displayName: "Collect Results"

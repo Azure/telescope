@@ -1,19 +1,33 @@
 import json
+import importlib.util
 import os
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
-from clusterloader2.scale.scale import (
-    configure_clusterloader2,
-    execute_clusterloader2,
-    collect_clusterloader2,
-    main,
+MODULE_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "clusterloader2"
+    / "network-scale"
+    / "scale.py"
 )
+MODULE_SPEC = importlib.util.spec_from_file_location(
+    "clusterloader2_network_scale", MODULE_PATH
+)
+if MODULE_SPEC is None or MODULE_SPEC.loader is None:
+    raise ImportError(f"Unable to load module from {MODULE_PATH}")
+network_scale_module = importlib.util.module_from_spec(MODULE_SPEC)
+MODULE_SPEC.loader.exec_module(network_scale_module)
+
+configure_clusterloader2 = network_scale_module.configure_clusterloader2
+execute_clusterloader2 = network_scale_module.execute_clusterloader2
+collect_clusterloader2 = network_scale_module.collect_clusterloader2
+main = network_scale_module.main
 
 
-class TestConfigureScale(unittest.TestCase):
+class TestConfigureNetworkScale(unittest.TestCase):
     """Test cases for configure_clusterloader2 function"""
 
     def test_basic_configuration(self):
@@ -93,10 +107,10 @@ class TestConfigureScale(unittest.TestCase):
             os.remove(tmp_path)
 
 
-class TestExecuteScale(unittest.TestCase):
+class TestExecuteNetworkScale(unittest.TestCase):
     """Test cases for execute_clusterloader2 function"""
 
-    @patch("clusterloader2.scale.scale.run_cl2_command")
+    @patch.object(network_scale_module, "run_cl2_command")
     def test_execute_calls_run_cl2_command(self, mock_run_cl2):
         """Test that execute_clusterloader2 calls run_cl2_command with correct params"""
         execute_clusterloader2(
@@ -126,13 +140,13 @@ class TestExecuteScale(unittest.TestCase):
         )
 
 
-class TestCollectScale(unittest.TestCase):
+class TestCollectNetworkScale(unittest.TestCase):
     """Test cases for collect_clusterloader2 function"""
 
     def test_collect_creates_result_file(self):
         """Test that collect_clusterloader2 creates result file with correct structure"""
         cl2_report_dir = os.path.join(
-            os.path.dirname(__file__), "mock_data", "scale", "report"
+            os.path.dirname(__file__), "mock_data", "network-scale", "report"
         )
         result_file = tempfile.mktemp(suffix=".jsonl")
 
@@ -186,7 +200,7 @@ class TestCollectScale(unittest.TestCase):
     def test_collect_calculates_traffic_pods(self):
         """Test that traffic_pods is calculated correctly"""
         cl2_report_dir = os.path.join(
-            os.path.dirname(__file__), "mock_data", "scale", "report"
+            os.path.dirname(__file__), "mock_data", "network-scale", "report"
         )
         result_file = tempfile.mktemp(suffix=".jsonl")
 
@@ -228,11 +242,11 @@ class TestCollectScale(unittest.TestCase):
 class TestMainArgumentParsing(unittest.TestCase):
     """Test cases for main() argument parsing"""
 
-    @patch("clusterloader2.scale.scale.configure_clusterloader2")
+    @patch.object(network_scale_module, "configure_clusterloader2")
     def test_configure_command_parsing(self, mock_configure):
         """Test that configure command parses arguments correctly"""
         test_args = [
-            "scale.py",
+            "network-scale/scale.py",
             "configure",
             "--fortio-servers-per-deployment", "15",
             "--fortio-clients-per-deployment", "15",
@@ -253,11 +267,11 @@ class TestMainArgumentParsing(unittest.TestCase):
             15, 15, 1500, 50, 1, 1000, 100, True, False, "/tmp/overrides.yaml"
         )
 
-    @patch("clusterloader2.scale.scale.execute_clusterloader2")
+    @patch.object(network_scale_module, "execute_clusterloader2")
     def test_execute_command_parsing(self, mock_execute):
         """Test that execute command parses arguments correctly"""
         test_args = [
-            "scale.py",
+            "network-scale/scale.py",
             "execute",
             "--cl2-image", "ghcr.io/azure/clusterloader2:v20250513",
             "--cl2-config-dir", "/path/to/config",
