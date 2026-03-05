@@ -360,5 +360,31 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
         # Verify
         self.assertFalse(result)
 
+    def test_create_deployment_partial_success(self):
+        """Test deployment creation when some deployments succeed and others fail"""
+        # Setup
+        mock_k8s_client = mock.MagicMock()
+        self.mock_aks_client.k8s_client = mock_k8s_client
+
+        # Simulate: deployment 1 succeeds, deployment 2 fails, deployment 3 succeeds
+        # wait_for_condition returns True/False for each deployment
+        mock_k8s_client.wait_for_condition.side_effect = [True, False, True]
+
+        # Execute - request 3 deployments
+        result = self.node_pool_crud.create_deployment(
+            node_pool_name="test-pool",
+            number_of_deployments=3,
+            replicas=5
+        )
+
+        # Verify - should return False (not all deployments succeeded)
+        self.assertFalse(result)
+
+        # Verify wait_for_condition was called 3 times (once per deployment)
+        self.assertEqual(mock_k8s_client.wait_for_condition.call_count, 3)
+
+        # Verify create_template was called 3 times (attempted all deployments)
+        self.assertEqual(mock_k8s_client.create_template.call_count, 3)
+
 if __name__ == "__main__":
     unittest.main()
