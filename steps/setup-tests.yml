@@ -20,7 +20,12 @@ parameters:
 steps:
 - script: |
     if [ -n "$RUN_ID" ]; then
-      run_id=$RUN_ID-$MATRIX_KEY-$(Build.BuildId)
+      scope=$(echo "$MATRIX_KEY" | cut -d '-' -f1)
+      if [ $scope = "baseline" ]; then
+        run_id=$MATRIX_KEY-$(Build.BuildId)
+      else
+        run_id=$RUN_ID-$MATRIX_KEY-$(Build.BuildId)
+      fi
     else
       run_id=$(Build.BuildId)-$(System.JobId)
     fi
