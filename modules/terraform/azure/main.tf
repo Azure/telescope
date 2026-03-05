@@ -117,6 +117,11 @@ module "virtual_network" {
 module "acr" {
   source = "./acr"
 
+  providers = {
+    azurerm = azurerm
+    azapi   = azapi
+  }
+
   acr_config_list        = var.acr_config_list
   resource_group_name    = local.run_id
   location               = local.region
