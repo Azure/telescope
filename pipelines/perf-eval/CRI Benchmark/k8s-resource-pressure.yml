@@ -20,16 +20,16 @@ variables:
   CUSTOM_RUN_ID: "${{ parameters.custom_metadata }}"
 
 stages:
-  - stage: westus3_stress
+  - stage: swedencentral_stress
     dependsOn: []
     jobs:
     - template: /jobs/competitive-test.yml
       parameters:
         cloud: azure
         regions:
-          - westus3
+          - swedencentral
         terraform_input_file_mapping:
-          - westus3: "scenarios/perf-eval/k8s-node-stress/terraform-inputs/azure-ubuntu2204.tfvars"
+          - swedencentral: "scenarios/perf-eval/k8s-node-stress/terraform-inputs/azure.tfvars"
         topology: k8s-resource-pressure
         engine: clusterloader2
         engine_input:

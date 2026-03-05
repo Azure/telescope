@@ -67,9 +67,9 @@ jobs:
   condition: or(eq(variables['Build.Reason'], 'Manual'), and(eq(variables['Build.Reason'], 'Schedule'), eq(variables['Build.SourceBranchName'], 'main')))
   steps:
   - script: |
-      sed -i "/name[[:space:]]*=[[:space:]]*\"os-sku\"/,+2s/value[[:space:]]*=[[:space:]]*\"[^\"]*/value = \"$OS_SKU/g" $(Pipeline.Workspace)/s/scenarios/perf-eval/k8s-node-stress/terraform-inputs/azure-ubuntu2204.tfvars
-      sed -i "/name[[:space:]]*=[[:space:]]*\"userpool1\"/,+2s/vm_size[[:space:]]*=[[:space:]]*\"[^\"]*/vm_size = \"$VM_SIZE/g" $(Pipeline.Workspace)/s/scenarios/perf-eval/k8s-node-stress/terraform-inputs/azure-ubuntu2204.tfvars
-      cat $(pwd)/scenarios/perf-eval/k8s-node-stress/terraform-inputs/azure-ubuntu2204.tfvars
+      sed -i "/name[[:space:]]*=[[:space:]]*\"os-sku\"/,+2s/value[[:space:]]*=[[:space:]]*\"[^\"]*/value = \"$OS_SKU/g" $(Pipeline.Workspace)/s/scenarios/perf-eval/k8s-node-stress/terraform-inputs/azure.tfvars
+      sed -i "/name[[:space:]]*=[[:space:]]*\"userpool1\"/,+2s/vm_size[[:space:]]*=[[:space:]]*\"[^\"]*/vm_size = \"$VM_SIZE/g" $(Pipeline.Workspace)/s/scenarios/perf-eval/k8s-node-stress/terraform-inputs/azure.tfvars
+      cat $(pwd)/scenarios/perf-eval/k8s-node-stress/terraform-inputs/azure.tfvars
     displayName: "Set TF Overrides"
   - template: /steps/setup-tests.yml
     parameters:
