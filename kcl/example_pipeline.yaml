@@ -37,7 +37,8 @@ jobs:
         az rest \
           --method put \
           --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/telescope-v2-test/providers/Microsoft.ContainerService/managedClusters/stg-H2-yaolei?api-version=2026-01-02-preview" \
-          --body "{
+          --body "
+        {
             \"location\": \"westus2\",
             \"identity\": { \"type\": \"SystemAssigned\" },
             \"sku\": {

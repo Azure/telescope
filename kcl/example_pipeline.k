@@ -2,6 +2,7 @@ import azure_pipelines.ap
 import azure_pipelines.ap.jobs.job
 import lib.const
 import lib.steps.azure
+import lib.util
 
 SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 RESOURCE_GROUP = "telescope-v2-test"
@@ -12,52 +13,55 @@ createResourceGroupScript = """
 az group create --name "${RESOURCE_GROUP}" --location "${LOCATION}" --subscription "${SUBSCRIPTION_ID}"
 """
 
+requestBody = util.escapeStr("""
+{
+    "location": "${LOCATION}",
+    "identity": { "type": "SystemAssigned" },
+    "sku": {
+      "name": "Base",
+      "tier": "Standard"
+    },
+    "tags": {
+      "exempted_by_qi": "36609072",
+      "SkipAKSCluster": "true",
+      "SkipASMAzSecPackAutoConfig": "true",
+      "SkipLinuxAzSecPack": "true"
+    },
+    "properties": {
+      "controlPlaneScalingProfile": {"scalingSize": "H2"},
+      "kubernetesVersion": "1.33.0",
+      "dnsPrefix": "${CLUSTER}-dns",
+      "agentPoolProfiles": [
+        {
+          "name": "systempool",
+          "mode": "System",
+          "count": 3,
+          "vmSize": "Standard_D8S_v4",
+          "osType": "Linux"
+        }
+      ],
+    "networkProfile": {
+       "networkPlugin": "azure",
+       "networkPluginMode": "overlay",
+       "podCidr": "10.64.0.0/10",
+       "serviceCidr": "10.0.0.0/16",
+       "dnsServiceIP": "10.0.0.10",
+       "outboundType": "managedNATGateway",
+       "natGatewayProfile": {
+          "managedOutboundIPProfile": {
+            "count": 10
+          }
+        }
+      }
+    }
+  }""")
+
 createClusterScript = """
 az cloud update --endpoint-resource-manager https://eastus2euap.management.azure.com/
 az rest \\
   --method put \\
   --uri "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.ContainerService/managedClusters/${CLUSTER}?api-version=2026-01-02-preview" \\
-  --body "{
-    \\"location\\": \\"${LOCATION}\\",
-    \\"identity\\": { \\"type\\": \\"SystemAssigned\\" },
-    \\"sku\\": {
-      \\"name\\": \\"Base\\",
-      \\"tier\\": \\"Standard\\"
-    },
-    \\"tags\\": {
-      \\"exempted_by_qi\\": \\"36609072\\",
-      \\"SkipAKSCluster\\": \\"true\\",
-      \\"SkipASMAzSecPackAutoConfig\\": \\"true\\",
-      \\"SkipLinuxAzSecPack\\": \\"true\\"
-    },
-    \\"properties\\": {
-      \\"controlPlaneScalingProfile\\": {\\"scalingSize\\": \\"H2\\"},
-      \\"kubernetesVersion\\": \\"1.33.0\\",
-      \\"dnsPrefix\\": \\"${CLUSTER}-dns\\",
-      \\"agentPoolProfiles\\": [
-        {
-          \\"name\\": \\"systempool\\",
-          \\"mode\\": \\"System\\",
-          \\"count\\": 3,
-          \\"vmSize\\": \\"Standard_D8S_v4\\",
-          \\"osType\\": \\"Linux\\"
-        }
-      ],
-    \\"networkProfile\\": {
-       \\"networkPlugin\\": \\"azure\\",
-       \\"networkPluginMode\\": \\"overlay\\",
-       \\"podCidr\\": \\"10.64.0.0/10\\",
-       \\"serviceCidr\\": \\"10.0.0.0/16\\",
-       \\"dnsServiceIP\\": \\"10.0.0.10\\",
-       \\"outboundType\\": \\"managedNATGateway\\",
-       \\"natGatewayProfile\\": {
-          \\"managedOutboundIPProfile\\": {
-            \\"count\\": 10
-          }
-        }
-      }
-    }
-  }"
+  --body "${requestBody}"
 """
 
 output = ap.Pipeline {
