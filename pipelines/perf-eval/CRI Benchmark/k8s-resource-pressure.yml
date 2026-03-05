@@ -46,8 +46,6 @@ stages:
         engine: clusterloader2
         engine_input:
           image: "ghcr.io/azure/clusterloader2:v20250513"
-        os_sku: ${{ parameters.os_sku }}
-        vm_size: ${{ parameters.vm_size }}
         run_id: ${{ variables.CUSTOM_RUN_ID }}
         matrix:
           n1-p60-memory-ephemeral:
@@ -64,6 +62,8 @@ stages:
             scrape_metrics_server: True
             use_custom_kubelet: ${{ parameters.use_custom_kubelet }}
             custom_kubelet_config: ${{ parameters.custom_kubelet_config }}
+            os_sku: ${{ parameters.os_sku }}
+            vm_size: ${{ parameters.vm_size }}
         max_parallel: 1
         timeout_in_minutes: 120
         credential_type: service_connection
