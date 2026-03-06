@@ -53,12 +53,6 @@ variable "acr_pull_scopes_map" {
   default     = {}
 }
 
-variable "acr_contributor_scopes" {
-  description = "DEPRECATED: use acr_pull_scopes_map. Retained for backward compatibility."
-  type        = list(string)
-  default     = []
-}
-
 variable "enable_kubelet_identity" {
   description = "Whether to create and assign a user-assigned kubelet identity (and grant it ACR pull access when acr_pull_scopes are provided). Set false to disable kubelet identity entirely."
   type        = bool
