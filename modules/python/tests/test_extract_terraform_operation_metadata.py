@@ -1,11 +1,13 @@
 import unittest
 import os
+import json
 from unittest.mock import patch, mock_open
 
 from terraform.extract_terraform_operation_metadata import (
   time_to_seconds,
   parse_module_path,
   process_terraform_logs,
+  get_job_tags,
 )
 
 class TestExtractTerraformOperationMetadata(unittest.TestCase):
@@ -168,6 +170,96 @@ class TestExtractTerraformOperationMetadata(unittest.TestCase):
         self.assertEqual(results, [])
         mock_open_file.assert_called_once_with('/fake/path/terraform_apply.log', 'r', encoding='utf-8')
         mock_isfile.assert_called_once_with("/fake/path/terraform_apply.log")
+
+    # --- get_job_tags tests ---
+
+    @patch.dict(os.environ, {
+        "JOB_TAGS": '{"node_count": 10, "max_pods": 30, "kubernetes_version": "1.31"}'
+    }, clear=False)
+    def test_get_job_tags_with_valid_json(self):
+        job_tags = get_job_tags()
+        self.assertIsNotNone(job_tags)
+        parsed = json.loads(job_tags)
+        self.assertEqual(parsed["node_count"], 10)
+        self.assertEqual(parsed["max_pods"], 30)
+        self.assertEqual(parsed["kubernetes_version"], "1.31")
+
+    @patch.dict(os.environ, {
+        "JOB_TAGS": "invalid json"
+    }, clear=False)
+    def test_get_job_tags_with_invalid_json(self):
+        job_tags = get_job_tags()
+        self.assertIsNone(job_tags)
+
+    @patch.dict(os.environ, {
+        "JOB_TAGS": "{}"
+    }, clear=False)
+    def test_get_job_tags_with_empty_object(self):
+        job_tags = get_job_tags()
+        self.assertIsNone(job_tags)
+
+    @patch.dict(os.environ, {
+        "JOB_TAGS": ""
+    }, clear=False)
+    def test_get_job_tags_with_empty_string(self):
+        job_tags = get_job_tags()
+        self.assertIsNone(job_tags)
+
+    def test_get_job_tags_with_no_env_var(self):
+        saved = os.environ.pop("JOB_TAGS", None)
+        try:
+            job_tags = get_job_tags()
+            self.assertIsNone(job_tags)
+        finally:
+            if saved is not None:
+                os.environ["JOB_TAGS"] = saved
+
+    # --- process_terraform_logs with job_tags integration tests ---
+
+    @patch("os.path.isfile", return_value=True)
+    @patch("builtins.open", new_callable=mock_open, read_data="module.aks.cluster: Creation complete after 1m30s\n")
+    @patch.dict(os.environ, {
+        "RUN_ID": "test-run-123",
+        "JOB_TAGS": '{"node_count": 10, "max_pods": 30}'
+    }, clear=False)
+    def test_process_terraform_logs_with_job_tags(self, mock_open_file, mock_isfile):
+        results = process_terraform_logs(
+          log_path="/fake/path",
+          _command_type="apply",
+          _scenario_type="perf-eval",
+          _scenario_name="cri-resource-consume",
+        )
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["run_id"], "test-run-123")
+        self.assertEqual(results[0]["module_name"], "aks")
+        self.assertEqual(results[0]["resource_name"], "cluster")
+        self.assertEqual(results[0]["action"], "apply")
+        self.assertEqual(results[0]["time_taken_seconds"], 90)
+        self.assertIn("job_tags", results[0])
+        parsed_tags = json.loads(results[0]["job_tags"])
+        self.assertEqual(parsed_tags["node_count"], 10)
+        self.assertEqual(parsed_tags["max_pods"], 30)
+
+    @patch("os.path.isfile", return_value=True)
+    @patch("builtins.open", new_callable=mock_open, read_data="module.aks.cluster: Creation complete after 1m30s\n")
+    def test_process_terraform_logs_without_job_tags(self, mock_open_file, mock_isfile):
+        saved = os.environ.pop("JOB_TAGS", None)
+        try:
+            os.environ["RUN_ID"] = "test-run-456"
+            results = process_terraform_logs(
+              log_path="/fake/path",
+              _command_type="apply",
+              _scenario_type="perf-eval",
+              _scenario_name="test-scenario",
+            )
+
+            self.assertEqual(len(results), 1)
+            self.assertEqual(results[0]["run_id"], "test-run-456")
+            self.assertNotIn("job_tags", results[0])
+        finally:
+            if saved is not None:
+                os.environ["JOB_TAGS"] = saved
 
 if __name__ == "__main__":
     unittest.main()

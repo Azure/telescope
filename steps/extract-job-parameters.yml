@@ -1,0 +1,30 @@
+parameters:
+- name: cloud
+  type: string
+- name: matrix
+  type: object
+  default: {}
+
+steps:
+- script: |
+    set -eo pipefail
+
+    FULL_MATRIX='${{ convertToJson(parameters.matrix) }}'
+    CLOUD="${{ parameters.cloud }}"
+    JOB_NAME="$(Agent.JobName)"
+
+    # Agent.JobName format: "{cloud} {matrix_key}" e.g. "azure n10-p300-memory"
+    PREFIX="${CLOUD} "
+    if [[ "$JOB_NAME" == "${PREFIX}"* ]]; then
+      MATRIX_KEY="${JOB_NAME#${PREFIX}}"
+      JOB_TAGS=$(echo "$FULL_MATRIX" | jq --arg key "$MATRIX_KEY" '.[$key] // empty' -c)
+    fi
+
+    if [ -z "$JOB_TAGS" ]; then
+      echo "No job tags found, setting empty object"
+      JOB_TAGS="{}"
+    fi
+
+    echo "Job Tags: $JOB_TAGS"
+    echo "##vso[task.setvariable variable=JOB_TAGS]$JOB_TAGS"
+  displayName: "Extract Job Parameters"
