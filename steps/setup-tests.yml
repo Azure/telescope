@@ -21,7 +21,7 @@ steps:
 - script: |
     if [ -n "$RUN_ID" ]; then
       scope=$(echo "$MATRIX_KEY" | cut -d '-' -f1)
-      if [ $scope = "baseline" ]; then
+      if [ $scope = "base" ]; then
         run_id=$MATRIX_KEY-$(Build.BuildId)
       else
         run_id=$RUN_ID-$MATRIX_KEY-$(Build.BuildId)
