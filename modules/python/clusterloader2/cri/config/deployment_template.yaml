@@ -47,19 +47,19 @@ spec:
           - "1"
         {{else}}
           {{if eq $Provider "aks"}}
-        image: polinux/stress-ng:latest
+        image: {{$RegistryEndpoint}}/e2e-test-images/resource-consumer:1.13
           {{else}}
         image: registry.k8s.io/e2e-test-images/resource-consumer:1.13
           {{end}}
         command:
-          - stress-ng
+          - stress
         args:
           - --vm
           - "1"
           - --vm-bytes
-          - "1000M"
-          - --vm-ramp
-          - "3145728"
+          - "500M"
+          - --vm-hang
+          - "5"
           - --timeout
           - "3600"
         {{end}}
