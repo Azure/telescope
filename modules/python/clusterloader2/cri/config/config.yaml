@@ -52,15 +52,6 @@ steps:
         Params:
           action: start
           labelSelector: group = resource-consumer
-      - Identifier: WaitForRunningLatencyDeployments
-        Method: WaitForControlledPodsRunning
-        Params:
-          action: start
-          checkIfPodsAreUpdated: true
-          apiVersion: apps/v1
-          kind: Deployment
-          labelSelector: group = resource-consumer
-          operationTimeout: {{$operationTimeout}}
       - Identifier: SchedulingThroughput
         Method: SchedulingThroughput
         Params:
@@ -125,36 +116,12 @@ steps:
           OSType: {{$osType}}
           HostNetwork: {{$hostNetwork}}
 
-  - name: Waiting for latency pods to be running
-    measurements:
-      - Identifier: WaitForRunningLatencyDeployments
-        Method: WaitForControlledPodsRunning
-        Params:
-          action: gather
-
   - name: Wait for resource consumption
     measurements:
       - Identifier: Sleep
         Method: Sleep
         Params:
           duration: 1m
-
-  - name: Wait for nodes to be ready
-    measurements:
-      - Identifier: ConfirmNodeCount
-        Method: WaitForNodes
-        Params:
-          action: start
-        {{if $scaleEnabled}}
-          minDesiredNodeCount: {{MultiplyInt (AddInt (MultiplyInt $nodePerStep (AddInt $j 1)) 1) 0.8}}
-          maxDesiredNodeCount: {{AddInt $totalNodes 1}}
-        {{else}}
-          minDesiredNodeCount: {{MultiplyInt $totalNodes 0.8}}
-          maxDesiredNodeCount: {{$totalNodes}}
-        {{end}}
-          labelSelector: cri-resource-consume = true
-          timeout: 1m
-          refreshInterval: 5s
   {{end}}
 
   {{if $scrapeKubelets}}
@@ -188,13 +155,6 @@ steps:
         objectBundle:
           - basename: resource-consumer-{{$j}}
             objectTemplatePath: deployment_template.yaml
-
-  - name: Waiting for latency pods to be deleted
-    measurements:
-      - Identifier: WaitForRunningLatencyDeployments
-        Method: WaitForControlledPodsRunning
-        Params:
-          action: gather
   {{end}}
 {{end}}
 
