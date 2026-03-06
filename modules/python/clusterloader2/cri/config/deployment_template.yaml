@@ -57,9 +57,9 @@ spec:
           - --vm
           - "1"
           - --vm-bytes
-          - "500M"
+          - {{$Memory}}
           - --vm-hang
-          - "5"
+          - "10"
           - --timeout
           - "3600"
         {{end}}
