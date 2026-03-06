@@ -4,7 +4,17 @@ locals {
     format("%s=%s", key, value)
   ]
 
-  acr_pull_scopes = distinct(concat(var.acr_pull_scopes, var.acr_contributor_scopes))
+  # If scopes contain unknown values (e.g., ACR IDs created in the same apply),
+  # Terraform can't determine `distinct()` results at plan time. Keep all scopes
+  # and key any `for_each` off list indices instead of values.
+  acr_pull_scopes_all = concat(var.acr_pull_scopes, var.acr_contributor_scopes)
+
+  kubelet_identity_enabled = length(var.acr_pull_scopes) + length(var.acr_contributor_scopes) > 0
+
+  acr_pull_scopes_for_each = (!var.aks_cli_config.dry_run && local.kubelet_identity_enabled) ? {
+    for idx, scope in local.acr_pull_scopes_all :
+    tostring(idx) => scope
+  } : {}
 
   extra_pool_map = {
     for pool in var.aks_cli_config.extra_node_pool :
@@ -52,6 +62,7 @@ locals {
     null :
     try(var.subnets_map[var.aks_cli_config.subnet_name], null)
   )
+
   api_server_subnet_id = (
     var.aks_cli_config.api_server_subnet_name == null ?
     null :
@@ -116,7 +127,7 @@ locals {
     )
   )
 
-  kubelet_identity_parameter = (length(local.acr_pull_scopes) == 0 ?
+  kubelet_identity_parameter = (!local.kubelet_identity_enabled ?
     "" :
     format(
       "%s %s",
@@ -220,7 +231,7 @@ resource "azurerm_user_assigned_identity" "userassignedidentity" {
 }
 
 resource "azurerm_user_assigned_identity" "kubelet_identity" {
-  count               = length(local.acr_pull_scopes) == 0 ? 0 : 1
+  count               = local.kubelet_identity_enabled ? 1 : 0
   location            = var.location
   name                = "${var.aks_cli_config.aks_name}-kubelet-identity"
   resource_group_name = var.resource_group_name
@@ -244,7 +255,7 @@ resource "azurerm_role_assignment" "network_contributor_api_server_subnet" {
 
 # Grant AcrPull access to ACR for kubelet identity (node identity) BEFORE cluster creation.
 resource "azurerm_role_assignment" "acr_pull_kubelet" {
-  for_each = (!var.aks_cli_config.dry_run && length(local.acr_pull_scopes) > 0) ? toset(local.acr_pull_scopes) : toset([])
+  for_each = local.acr_pull_scopes_for_each
 
   scope                = each.value
   role_definition_name = "AcrPull"
@@ -253,7 +264,7 @@ resource "azurerm_role_assignment" "acr_pull_kubelet" {
 
 # If the cluster uses a user-assigned identity, it must be able to assign/use the kubelet identity.
 resource "azurerm_role_assignment" "managed_identity_operator_kubelet" {
-  count = (!var.aks_cli_config.dry_run && length(local.acr_pull_scopes) > 0 && var.aks_cli_config.managed_identity_name != null) ? 1 : 0
+  count = (!var.aks_cli_config.dry_run && local.kubelet_identity_enabled && var.aks_cli_config.managed_identity_name != null) ? 1 : 0
 
   scope                = azurerm_user_assigned_identity.kubelet_identity[0].id
   role_definition_name = "Managed Identity Operator"
