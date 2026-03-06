@@ -9,7 +9,7 @@ locals {
   # and key any `for_each` off list indices instead of values.
   acr_pull_scopes_all = concat(var.acr_pull_scopes, var.acr_contributor_scopes)
 
-  kubelet_identity_enabled = length(var.acr_pull_scopes) + length(var.acr_contributor_scopes) > 0
+  kubelet_identity_enabled = length(local.acr_pull_scopes_all) > 0
 
   acr_pull_scopes_for_each = (!var.aks_cli_config.dry_run && local.kubelet_identity_enabled) ? {
     for idx, scope in local.acr_pull_scopes_all :
@@ -231,7 +231,7 @@ resource "azurerm_user_assigned_identity" "userassignedidentity" {
 }
 
 resource "azurerm_user_assigned_identity" "kubelet_identity" {
-  count               = local.kubelet_identity_enabled ? 1 : 0
+  count               = (!var.aks_cli_config.dry_run && local.kubelet_identity_enabled) ? 1 : 0
   location            = var.location
   name                = "${var.aks_cli_config.aks_name}-kubelet-identity"
   resource_group_name = var.resource_group_name
