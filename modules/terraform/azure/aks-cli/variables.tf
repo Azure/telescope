@@ -59,6 +59,12 @@ variable "acr_contributor_scopes" {
   default     = []
 }
 
+variable "enable_kubelet_identity" {
+  description = "Whether to create and assign a user-assigned kubelet identity (and grant it ACR pull access when acr_pull_scopes are provided). Set false to disable kubelet identity entirely."
+  type        = bool
+  default     = true
+}
+
 variable "bootstrap_artifact_source" {
   description = "Optional value for --bootstrap-artifact-source (for example, Cache or Direct). If null, the flag is omitted."
   type        = string

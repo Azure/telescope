@@ -3,6 +3,19 @@ locals {
   acr_private_dns_zone_name = length(var.acr_config_list) > 0 ? try(var.acr_config_list[0].private_endpoint.private_dns_zone_name, "privatelink.azurecr.io") : "privatelink.azurecr.io"
   acr_private_dns_enabled   = length([for acr in var.acr_config_list : acr if try(acr.private_endpoint != null, false)]) > 0
 
+  # Plan-known switch for whether an aks-cli role needs a kubelet identity / AcrPull grants.
+  # This is intentionally computed only from input configuration (acr_config_list), not from
+  # any resource IDs, to keep downstream `count`/`for_each` stable during planning.
+  acr_pull_enabled_by_aks_cli_role = {
+    for role in var.aks_cli_roles : role => length([
+      for acr in var.acr_config_list : 1
+      if contains(
+        concat(try(acr.acrpull_aks_cli_roles, []), try(acr.contributor_aks_cli_roles, [])),
+        role
+      )
+    ]) > 0
+  }
+
   acr_private_dns_vnet_roles = distinct([
     for acr in var.acr_config_list : var.subnet_to_network_role[acr.private_endpoint.subnet_name]
     if try(acr.private_endpoint != null, false)

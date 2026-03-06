@@ -289,6 +289,8 @@ module "aks-cli" {
   key_vaults                 = local.all_key_vaults
   aks_aad_enabled            = local.aks_aad_enabled
 
+  enable_kubelet_identity = lookup(module.acr.acr_pull_enabled_by_aks_cli_role, each.key, false)
+
   acr_pull_scopes = lookup(module.acr.acr_pull_scopes_by_aks_cli_role, each.key, [])
 
   # For network isolated clusters (BYO ACR), pass the registry resource ID into az aks create.

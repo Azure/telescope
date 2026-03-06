@@ -4,14 +4,9 @@ locals {
     format("%s=%s", key, value)
   ]
 
-  # If scopes contain unknown values (e.g., ACR IDs created in the same apply),
-  # Terraform can't determine `distinct()` results at plan time. Keep all scopes
-  # and key any `for_each` off list indices instead of values.
   acr_pull_scopes_all = concat(var.acr_pull_scopes, var.acr_contributor_scopes)
 
-  kubelet_identity_enabled = length(local.acr_pull_scopes_all) > 0
-
-  acr_pull_scopes_for_each = (!var.aks_cli_config.dry_run && local.kubelet_identity_enabled) ? {
+  acr_pull_scopes_for_each = (!var.aks_cli_config.dry_run && var.enable_kubelet_identity) ? {
     for idx, scope in local.acr_pull_scopes_all :
     tostring(idx) => scope
   } : {}
@@ -127,12 +122,10 @@ locals {
     )
   )
 
-  kubelet_identity_parameter = (!local.kubelet_identity_enabled ?
-    "" :
-    format(
-      "%s %s",
-      "--assign-kubelet-identity", azurerm_user_assigned_identity.kubelet_identity[0].id,
-    )
+  kubelet_identity_parameter = (!var.enable_kubelet_identity || var.aks_cli_config.dry_run) ? "" : format(
+    "%s %s",
+    "--assign-kubelet-identity",
+    azurerm_user_assigned_identity.kubelet_identity[0].id,
   )
 
   bootstrap_parameters = join(" ", compact([
@@ -231,7 +224,7 @@ resource "azurerm_user_assigned_identity" "userassignedidentity" {
 }
 
 resource "azurerm_user_assigned_identity" "kubelet_identity" {
-  count               = (!var.aks_cli_config.dry_run && local.kubelet_identity_enabled) ? 1 : 0
+  count               = (!var.aks_cli_config.dry_run && var.enable_kubelet_identity) ? 1 : 0
   location            = var.location
   name                = "${var.aks_cli_config.aks_name}-kubelet-identity"
   resource_group_name = var.resource_group_name
@@ -264,7 +257,7 @@ resource "azurerm_role_assignment" "acr_pull_kubelet" {
 
 # If the cluster uses a user-assigned identity, it must be able to assign/use the kubelet identity.
 resource "azurerm_role_assignment" "managed_identity_operator_kubelet" {
-  count = (!var.aks_cli_config.dry_run && local.kubelet_identity_enabled && var.aks_cli_config.managed_identity_name != null) ? 1 : 0
+  count = (!var.aks_cli_config.dry_run && var.enable_kubelet_identity && var.aks_cli_config.managed_identity_name != null) ? 1 : 0
 
   scope                = azurerm_user_assigned_identity.kubelet_identity[0].id
   role_definition_name = "Managed Identity Operator"
