@@ -51,17 +51,24 @@ locals {
     }
   ]...) : {}
 
-  acr_pull_scopes_by_aks_cli_role = {
-    for role in var.aks_cli_roles : role => distinct(flatten([
-      for acr_key, acr in local.acr_config_map : contains(
-        distinct(concat(try(acr.acrpull_aks_cli_roles, []), try(acr.contributor_aks_cli_roles, []))),
+  # Plan-stable map form of ACR pull scopes, keyed by the ACR config map key.
+  # Using stable keys avoids Terraform "Invalid for_each argument" when the list length
+  # of scopes is unknown at plan time.
+  acr_pull_scopes_map_by_aks_cli_role = {
+    for role in var.aks_cli_roles : role => {
+      for acr_key, acr in local.acr_config_map :
+      acr_key => local.acr_id_map[acr_key]
+      if contains(
+        concat(try(acr.acrpull_aks_cli_roles, []), try(acr.contributor_aks_cli_roles, [])),
         role
-      ) ? [local.acr_id_map[acr_key]] : []
-    ]))
+      )
+    }
   }
 
   bootstrap_container_registry_resource_id_by_aks_cli_role = {
-    for role, scopes in local.acr_pull_scopes_by_aks_cli_role : role => try(scopes[0], null)
+    for role, scopes_map in local.acr_pull_scopes_map_by_aks_cli_role : role => (
+      length(scopes_map) > 0 ? scopes_map[sort(keys(scopes_map))[0]] : null
+    )
   }
 }
 

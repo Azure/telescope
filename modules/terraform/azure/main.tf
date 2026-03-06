@@ -291,7 +291,7 @@ module "aks-cli" {
 
   enable_kubelet_identity = lookup(module.acr.acr_pull_enabled_by_aks_cli_role, each.key, false)
 
-  acr_pull_scopes = lookup(module.acr.acr_pull_scopes_by_aks_cli_role, each.key, [])
+  acr_pull_scopes_map = lookup(module.acr.acr_pull_scopes_map_by_aks_cli_role, each.key, {})
 
   # For network isolated clusters (BYO ACR), pass the registry resource ID into az aks create.
   bootstrap_artifact_source                = lookup(module.acr.bootstrap_container_registry_resource_id_by_aks_cli_role, each.key, null) != null ? "Cache" : null

@@ -4,12 +4,7 @@ locals {
     format("%s=%s", key, value)
   ]
 
-  acr_pull_scopes_all = concat(var.acr_pull_scopes, var.acr_contributor_scopes)
-
-  acr_pull_scopes_for_each = (!var.aks_cli_config.dry_run && var.enable_kubelet_identity) ? {
-    for idx, scope in local.acr_pull_scopes_all :
-    tostring(idx) => scope
-  } : {}
+  acr_pull_scopes_for_each = (!var.aks_cli_config.dry_run && var.enable_kubelet_identity) ? var.acr_pull_scopes_map : {}
 
   extra_pool_map = {
     for pool in var.aks_cli_config.extra_node_pool :

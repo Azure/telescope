@@ -47,14 +47,14 @@ variable "aks_aad_enabled" {
   default     = false
 }
 
-variable "acr_pull_scopes" {
-  description = "List of Azure resource IDs (scopes) to grant the AKS kubelet identity AcrPull access to (for example, an ACR resource ID)."
-  type        = list(string)
-  default     = []
+variable "acr_pull_scopes_map" {
+  description = "Map of stable keys to Azure resource IDs (scopes) to grant the AKS kubelet identity AcrPull access to. Prefer this over acr_pull_scopes to keep for_each keys plan-stable."
+  type        = map(string)
+  default     = {}
 }
 
 variable "acr_contributor_scopes" {
-  description = "DEPRECATED: use acr_pull_scopes. Retained for backward compatibility."
+  description = "DEPRECATED: use acr_pull_scopes_map. Retained for backward compatibility."
   type        = list(string)
   default     = []
 }
