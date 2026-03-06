@@ -4,8 +4,18 @@ import sys
 import os
 import datetime
 
-# Regex to extract: full module path and time
-PATTERN = re.compile(r"(module\.[^:]+): (?:Creation|Destruction) complete after (\d+h\d+m\d+s|\d+h\d+s|\d+m\d+s|\d+s)")
+# Regex to extract: full module path and time from completion lines
+COMPLETE_PATTERN = re.compile(r"(module\.[^:]+): (?:Creation|Destruction) complete after (\d+h\d+m\d+s|\d+h\d+s|\d+m\d+s|\d+s)")
+
+# Regex to extract: full module path from initial "Creating"/"Destroying" lines
+# e.g. module.azapi["ccp-provisioning-H4"].azapi_resource.aks_cluster: Creating...
+# e.g. module.azapi["ccp-provisioning-H4"].azapi_resource.aks_cluster: Destroying
+START_PATTERN = re.compile(r"(module\.[^:]+): (?:Creating|Destroying)")
+
+# Regex to extract: elapsed time from "Still creating/destroying..." lines
+# e.g. module.azapi[...].azapi_resource.aks_cluster: Still creating... [29m51s elapsed]
+# or:  module.azapi[...].azapi_resource.aks_cluster: Still destroying... 00m40s elapsed]
+ELAPSED_PATTERN = re.compile(r"Still (?:creating|destroying)\.\.\. \[?(\d+h\d+m\d+s|\d+h\d+s|\d+m\d+s|\d+s) elapsed\]")
 
 def time_to_seconds(time_str):
     try:
@@ -33,6 +43,23 @@ def parse_module_path(full_path):
 
     return module_name, submodule_path, resource_name
 
+def build_result(full_path, time_str, run_id, _command_type, _scenario_type, _scenario_name, completed):
+    seconds = time_to_seconds(time_str)
+    module, submodule, resource = parse_module_path(full_path)
+
+    return {
+        "timestamp": datetime.datetime.now().isoformat(),
+        "run_id": run_id,
+        "scenario_type": _scenario_type,
+        "scenario_name": _scenario_name,
+        "module_name": module,
+        "submodule_name": submodule,
+        "resource_name": resource,
+        "action": _command_type,
+        "time_taken_seconds": seconds,
+        "result": {"success": completed}
+    }
+
 def process_terraform_logs(log_path, _command_type, _scenario_type, _scenario_name):
     log_file = os.path.join(log_path, f"terraform_{_command_type}.log")
     run_id = os.getenv("RUN_ID", "")
@@ -43,25 +70,31 @@ def process_terraform_logs(log_path, _command_type, _scenario_type, _scenario_na
         return results
 
     try:
+        full_path = None
+        last_elapsed_time_str = None
+        completed = False
+
         with open(log_file, "r", encoding='utf-8') as f:
             for line in f:
-                match = PATTERN.search(line)
+                match = COMPLETE_PATTERN.search(line)
                 if match:
                     full_path, time_str = match.groups()
-                    seconds = time_to_seconds(time_str)
-                    module, submodule, resource = parse_module_path(full_path)
+                    completed = True
+                    results.append(build_result(full_path, time_str, run_id, _command_type, _scenario_type, _scenario_name, True))
+                    break
 
-                    results.append({
-                        "timestamp": datetime.datetime.now().isoformat(),
-                        "run_id": run_id,
-                        "scenario_type": _scenario_type,
-                        "scenario_name": _scenario_name,
-                        "module_name": module,
-                        "submodule_name": submodule,
-                        "resource_name": resource,
-                        "action": _command_type,
-                        "time_taken_seconds": seconds
-                    })
+                if not full_path:
+                    start_match = START_PATTERN.search(line)
+                    if start_match:
+                        full_path = start_match.group(1)
+
+                elapsed_match = ELAPSED_PATTERN.search(line)
+                if elapsed_match:
+                    last_elapsed_time_str = elapsed_match.group(1)
+
+        # If the action never completed, use the last elapsed time as fallback
+        if not completed and full_path and last_elapsed_time_str:
+            results.append(build_result(full_path, last_elapsed_time_str, run_id, _command_type, _scenario_type, _scenario_name, False))
     except Exception as e:
         print(f"[ERROR] Failed to process log file '{log_file}': {e}")
 
