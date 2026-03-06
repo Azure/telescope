@@ -50,7 +50,7 @@ def override_config_clusterloader2(
     # Calculate request cpu and memory for each pod
     daemonset_count = client.get_daemonsets_pods_count("kube-system", node.metadata.name)
     logger.info(f"Node {node.metadata.name} has {daemonset_count} daemonset pods")
-    pod_count = max_pods - daemonset_count
+    pod_count = max_pods
     cpu_request = cpu_value // pod_count
     memory_request_in_ki = math.ceil(memory_value * MEMORY_SCALE_FACTOR // pod_count)
     memory_request_in_k = int(memory_request_in_ki // 1.024)

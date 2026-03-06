@@ -36,8 +36,8 @@ stages:
           image: "ghcr.io/azure/clusterloader2:v20250513"
         run_id: ${{ variables.CUSTOM_RUN_ID }}
         matrix:
-          baseline-u2204-d4v5:
-            matrix_key: baseline-u2204-d4v5
+          base-100-u2204-d4v5:
+            matrix_key: base-100-u2204-d4v5
             node_count: 1
             max_pods: ${{ parameters.max_pods }}
             repeats: 1
@@ -52,8 +52,8 @@ stages:
             use_custom_kubelet: false
             os_sku: Ubuntu2204
             vm_size: Standard_D4_v5
-          baseline-u2204-d8v5:
-            matrix_key: baseline-u2204-d8v5
+          base-100-u2204-d8v5:
+            matrix_key: base-100-u2204-d8v5
             node_count: 1
             max_pods: ${{ parameters.max_pods }}
             repeats: 1
@@ -68,8 +68,8 @@ stages:
             use_custom_kubelet: false
             os_sku: Ubuntu2204
             vm_size: Standard_D8_v5
-          baseline-u2204-d16v5:
-            matrix_key: baseline-u2204-d16v5
+          base-100-u2204-d16v5:
+            matrix_key: base-100-u2204-d16v5
             node_count: 1
             max_pods: ${{ parameters.max_pods }}
             repeats: 1
@@ -84,8 +84,8 @@ stages:
             use_custom_kubelet: false
             os_sku: Ubuntu2204
             vm_size: Standard_D16_v5
-          baseline-u2404-d4v5:
-            matrix_key: baseline-u2404-d4v5
+          base-100-u2404-d4v5:
+            matrix_key: base-100-u2404-d4v5
             node_count: 1
             max_pods: ${{ parameters.max_pods }}
             repeats: 1
@@ -100,8 +100,8 @@ stages:
             use_custom_kubelet: false
             os_sku: Ubuntu2404
             vm_size: Standard_D4_v5
-          baseline-u2404-d8v5:
-            matrix_key: baseline-u2404-d8v5
+          base-100-u2404-d8v5:
+            matrix_key: base-100-u2404-d8v5
             node_count: 1
             max_pods: ${{ parameters.max_pods }}
             repeats: 1
@@ -116,8 +116,8 @@ stages:
             use_custom_kubelet: false
             os_sku: Ubuntu2404
             vm_size: Standard_D8_v5
-          baseline-u2404-d16v5:
-            matrix_key: baseline-u2404-d16v5
+          base-100-u2404-d16v5:
+            matrix_key: base-100-u2404-d16v5
             node_count: 1
             max_pods: ${{ parameters.max_pods }}
             repeats: 1
