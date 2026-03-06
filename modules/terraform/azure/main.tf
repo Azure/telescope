@@ -29,6 +29,12 @@ locals {
 
   network_config_map = { for network in var.network_config_list : network.role => network }
 
+  subnet_to_network_role = merge([
+    for network in var.network_config_list : {
+      for subnet in network.subnet : subnet.name => network.role
+    }
+  ]...)
+
   route_table_config_map = { for rt in var.route_table_config_list : rt.name => rt }
 
   aks_cli_custom_config_path = "${path.cwd}/../../../scenarios/${var.scenario_type}/${var.scenario_name}/config/aks_custom_config.json"
@@ -108,6 +114,28 @@ module "virtual_network" {
   tags                = local.tags
 }
 
+module "acr" {
+  source = "./acr"
+
+  providers = {
+    azurerm = azurerm
+    azapi   = azapi
+  }
+
+  acr_config_list        = var.acr_config_list
+  resource_group_name    = local.run_id
+  location               = local.region
+  tags                   = local.tags
+  scenario_name          = var.scenario_name
+  run_id                 = local.run_id
+  subnet_ids_by_name     = local.all_subnets
+  vnet_ids_by_role       = { for role in keys(local.network_config_map) : role => module.virtual_network[role].vnet_id }
+  subnet_to_network_role = local.subnet_to_network_role
+  aks_cli_roles          = keys(local.aks_cli_config_map)
+
+  depends_on = [module.virtual_network]
+}
+
 # =============================================================================
 # Azure Bastion (optional)
 #
@@ -153,6 +181,7 @@ resource "azurerm_bastion_host" "bastion" {
 
   depends_on = [module.virtual_network]
 }
+
 
 module "dns_zones" {
 
@@ -259,8 +288,22 @@ module "aks-cli" {
   aks_cli_custom_config_path = local.aks_cli_custom_config_path
   key_vaults                 = local.all_key_vaults
   aks_aad_enabled            = local.aks_aad_enabled
-  disk_encryption_sets       = local.all_disk_encryption_sets
-  depends_on                 = [module.route_table, module.virtual_network, module.disk_encryption_set]
+
+  enable_kubelet_identity = lookup(module.acr.acr_pull_enabled_by_aks_cli_role, each.key, false)
+
+  acr_pull_scopes_map = lookup(module.acr.acr_pull_scopes_map_by_aks_cli_role, each.key, {})
+
+  # For network isolated clusters (BYO ACR), pass the registry resource ID into az aks create.
+  bootstrap_artifact_source                = lookup(module.acr.bootstrap_container_registry_resource_id_by_aks_cli_role, each.key, null) != null ? "Cache" : null
+  bootstrap_container_registry_resource_id = lookup(module.acr.bootstrap_container_registry_resource_id_by_aks_cli_role, each.key, null)
+
+  disk_encryption_sets = local.all_disk_encryption_sets
+  depends_on = [
+    module.route_table,
+    module.virtual_network,
+    module.disk_encryption_set,
+    module.acr,
+  ]
 }
 
 module "virtual_machine" {

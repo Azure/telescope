@@ -47,6 +47,30 @@ variable "aks_aad_enabled" {
   default     = false
 }
 
+variable "acr_pull_scopes_map" {
+  description = "Map of stable keys to Azure resource IDs (scopes) to grant the AKS kubelet identity AcrPull access to. Prefer this over acr_pull_scopes to keep for_each keys plan-stable."
+  type        = map(string)
+  default     = {}
+}
+
+variable "enable_kubelet_identity" {
+  description = "Whether to create and assign a user-assigned kubelet identity (and grant it ACR pull access when acr_pull_scopes are provided). Set false to disable kubelet identity entirely."
+  type        = bool
+  default     = true
+}
+
+variable "bootstrap_artifact_source" {
+  description = "Optional value for --bootstrap-artifact-source (for example, Cache or Direct). If null, the flag is omitted."
+  type        = string
+  default     = null
+}
+
+variable "bootstrap_container_registry_resource_id" {
+  description = "Optional ACR resource ID to pass to --bootstrap-container-registry-resource-id. If null, the flag is omitted."
+  type        = string
+  default     = null
+}
+
 variable "aks_cli_config" {
   type = object({
     role                              = string
