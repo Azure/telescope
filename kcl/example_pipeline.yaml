@@ -80,3 +80,30 @@ jobs:
             }
           }"
     displayName: Create cluster
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |2
+
+        while true; do
+          STATE=$(az aks show \
+            --name "stg-H2-yaolei" \
+            --resource-group "telescope-v2-test" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --query "provisioningState" \
+            --output tsv)
+          echo "Cluster provisioning state: $STATE"
+          if [ "$STATE" = "Succeeded" ]; then
+            echo "Cluster is ready."
+            break
+          elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+            echo "Cluster failed with state: $STATE."
+            exit 1
+          else
+            echo "Provisioning state: $STATE. Retry in 30 seconds"
+          fi
+          sleep 30
+        done
+    displayName: Wait for cluster to succeed

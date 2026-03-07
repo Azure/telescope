@@ -86,7 +86,12 @@ output = ap.Pipeline {
                 azure.AzCli(
                     const.DEFAULT_SERVICE_CONNECTION,
                     "Create cluster",
-                    createClusterScript)
+                    createClusterScript),
+                azure.WaitForClusterSucceeded(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    CLUSTER,
+                    RESOURCE_GROUP,
+                    SUBSCRIPTION_ID)
             ]
         }
     ]
