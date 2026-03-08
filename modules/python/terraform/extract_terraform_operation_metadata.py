@@ -61,6 +61,12 @@ def build_result(full_path, time_str, run_id, _command_type, _scenario_type, _sc
     }
 
 def process_terraform_logs(log_path, _command_type, _scenario_type, _scenario_name):
+    """Process terraform log file and collect operation metadata for each run.
+    A single log file may contain multiple runs of the same module when failures
+    trigger retries. Each run starts with a "Creating..."/"Destroying..." line.
+    We collect data for all runs: successful runs use the completion time, and
+    failed runs use the last reported elapsed time as a fallback.
+    """
     log_file = os.path.join(log_path, f"terraform_{_command_type}.log")
     run_id = os.getenv("RUN_ID", "")
     results = []
@@ -70,31 +76,37 @@ def process_terraform_logs(log_path, _command_type, _scenario_type, _scenario_na
         return results
 
     try:
-        full_path = None
-        last_elapsed_time_str = None
-        completed = False
+        current_full_path = None
+        current_elapsed_time_str = None
+        current_completed = False
 
         with open(log_file, "r", encoding='utf-8') as f:
             for line in f:
+                start_match = START_PATTERN.search(line)
+                if start_match:
+                    # A new run is starting; flush the previous run if it was incomplete
+                    if current_full_path and not current_completed and current_elapsed_time_str:
+                        results.append(build_result(current_full_path, current_elapsed_time_str, run_id, _command_type, _scenario_type, _scenario_name, False))
+
+                    current_full_path = start_match.group(1)
+                    current_elapsed_time_str = None
+                    current_completed = False
+                    continue
+
                 match = COMPLETE_PATTERN.search(line)
                 if match:
                     full_path, time_str = match.groups()
-                    completed = True
+                    current_completed = True
                     results.append(build_result(full_path, time_str, run_id, _command_type, _scenario_type, _scenario_name, True))
-                    break
-
-                if not full_path:
-                    start_match = START_PATTERN.search(line)
-                    if start_match:
-                        full_path = start_match.group(1)
+                    continue
 
                 elapsed_match = ELAPSED_PATTERN.search(line)
                 if elapsed_match:
-                    last_elapsed_time_str = elapsed_match.group(1)
+                    current_elapsed_time_str = elapsed_match.group(1)
 
-        # If the action never completed, use the last elapsed time as fallback
-        if not completed and full_path and last_elapsed_time_str:
-            results.append(build_result(full_path, last_elapsed_time_str, run_id, _command_type, _scenario_type, _scenario_name, False))
+        # Flush the last run if it was incomplete
+        if current_full_path and not current_completed and current_elapsed_time_str:
+            results.append(build_result(current_full_path, current_elapsed_time_str, run_id, _command_type, _scenario_type, _scenario_name, False))
     except Exception as e:
         print(f"[ERROR] Failed to process log file '{log_file}': {e}")
 

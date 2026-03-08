@@ -169,5 +169,52 @@ class TestExtractTerraformOperationMetadata(unittest.TestCase):
         mock_open_file.assert_called_once_with('/fake/path/terraform_apply.log', 'r', encoding='utf-8')
         mock_isfile.assert_called_once_with("/fake/path/terraform_apply.log")
 
+    @patch("os.path.isfile", return_value=True)
+    @patch("builtins.open", new_callable=mock_open, read_data=(
+        "module.azapi[\"ccp\"].azapi_resource.aks_cluster: Creating...\n"
+        "module.azapi[\"ccp\"].azapi_resource.aks_cluster: Still creating... [10m0s elapsed]\n"
+        "module.azapi[\"ccp\"].azapi_resource.aks_cluster: Still creating... 20m0s elapsed]\n"
+        "│ Error: Failed to create/update resource\n"
+        "module.azapi[\"ccp\"].azapi_resource.aks_cluster: Creating...\n"
+        "module.azapi[\"ccp\"].azapi_resource.aks_cluster: Still creating... [15m0s elapsed]\n"
+        "module.azapi[\"ccp\"].azapi_resource.aks_cluster: Still creating... 25m30s elapsed]\n"
+        "module.azapi[\"ccp\"].azapi_resource.aks_cluster: Creating...\n"
+        "module.azapi[\"ccp\"].azapi_resource.aks_cluster: Still creating... [5m0s elapsed]\n"
+        "module.azapi[\"ccp\"].azapi_resource.aks_cluster: Still creating... 30m45s elapsed]\n"
+        "module.azapi[\"ccp\"].azapi_resource.aks_cluster: Creation complete after 30m55s [id=/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/57202-578c08a2/providers/Microsoft.ContainerService/managedClusters/ccp-provisioning-H4]\n"
+    ))
+    def test_process_terraform_logs_with_failed_run_and_retries(self, mock_open_file, mock_isfile):
+        os.environ["RUN_ID"] = "9988776655"
+
+        results = process_terraform_logs(
+          log_path="/fake/path",
+          _command_type="apply",
+          _scenario_type="perf-eval",
+          _scenario_name="test_scenario_name",
+        )
+
+        self.assertEqual(len(results), 3)
+
+        # First failed run - last elapsed was 20m0s = 1200s
+        self.assertEqual(results[0]["module_name"], "azapi[\"ccp\"]")
+        self.assertEqual(results[0]["resource_name"], "aks_cluster")
+        self.assertEqual(results[0]["time_taken_seconds"], 1200)
+        self.assertEqual(results[0]["result"], {"success": False})
+
+        # Second failed run (retry 1) - last elapsed was 25m30s = 1530s
+        self.assertEqual(results[1]["module_name"], "azapi[\"ccp\"]")
+        self.assertEqual(results[1]["resource_name"], "aks_cluster")
+        self.assertEqual(results[1]["time_taken_seconds"], 1530)
+        self.assertEqual(results[1]["result"], {"success": False})
+
+        # Third failed run (retry 2) - last elapsed was 30m45s = 1845s
+        self.assertEqual(results[2]["module_name"], "azapi[\"ccp\"]")
+        self.assertEqual(results[2]["resource_name"], "aks_cluster")
+        self.assertEqual(results[2]["time_taken_seconds"], 1855)
+        self.assertEqual(results[2]["result"], {"success": True})
+
+        mock_open_file.assert_called_once_with('/fake/path/terraform_apply.log', 'r', encoding='utf-8')
+        mock_isfile.assert_called_once_with("/fake/path/terraform_apply.log")
+
 if __name__ == "__main__":
     unittest.main()
