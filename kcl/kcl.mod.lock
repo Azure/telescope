@@ -4,4 +4,4 @@
     full_name = "azure_pipelines_0.1.0"
     version = "0.1.0"
     url = "https://github.com/Azure/kcl-azure-pipelines/"
-    commit = "4782018"
+    commit = "53deea0"

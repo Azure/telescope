@@ -8,6 +8,7 @@ SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 RESOURCE_GROUP = "telescope-v2-test"
 LOCATION = "westus2"
 CLUSTER = "stg-H2-yaolei"
+CL2_POOL = "cl2pool"
 
 requestBody = util.escapeStr("""
 {
@@ -92,14 +93,20 @@ output = ap.Pipeline {
                     CLUSTER,
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID),
-                azure.CreateAgentPool(
+                azure.CreateNodePool(
                     const.DEFAULT_SERVICE_CONNECTION,
                     CLUSTER,
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID,
-                    "cl2pool",
+                    CL2_POOL,
                     "Standard_D8S_v4",
                     1),
+                azure.WaitForNodePoolSucceeded(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    CLUSTER,
+                    RESOURCE_GROUP,
+                    SUBSCRIPTION_ID,
+                    CL2_POOL),
                 azure.GetCredentials(
                     const.DEFAULT_SERVICE_CONNECTION,
                     CLUSTER,

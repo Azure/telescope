@@ -1,6 +1,6 @@
 import azure_pipelines.ap.steps
 
-CreateAgentPool = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, poolName: str, vmSize: str, count: int -> steps.Step {
+CreateNodePool = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, poolName: str, vmSize: str, count: int -> steps.Step {
     script = """
 az aks nodepool add \\
   --cluster-name "${cluster}" \\
@@ -11,5 +11,5 @@ az aks nodepool add \\
   --node-vm-size "${vmSize}" \\
   --mode User
 """
-    AzCli(serviceConnection, "Create agent pool ${poolName}", script)
+    AzCli(serviceConnection, "Create node pool ${poolName}", script)
 }
