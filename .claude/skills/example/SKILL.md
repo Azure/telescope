@@ -1,6 +1,6 @@
 # Generate example pipeline YAML file
 
-In the `kcl` folder, run the following command.
+In the `kcl/example_pipeline` folder, run the following command.
 ```bash
-kcl run example_pipeline.k -S output -o example_pipeline.yaml
+kcl run pipeline.k -S output -o pipeline.yaml
 ```

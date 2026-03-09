@@ -107,3 +107,60 @@ jobs:
           sleep 30
         done
     displayName: Wait for cluster to succeed
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |2
+
+        az aks nodepool add \
+          --cluster-name "stg-H2-yaolei" \
+          --resource-group "telescope-v2-test" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --name "cl2pool" \
+          --node-count 1 \
+          --node-vm-size "Standard_D8S_v4" \
+          --mode User
+    displayName: Create node pool cl2pool
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |2
+
+        while true; do
+          STATE=$(az aks nodepool show \
+            --cluster-name "stg-H2-yaolei" \
+            --resource-group "telescope-v2-test" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --name "cl2pool" \
+            --query "provisioningState" \
+            --output tsv)
+          echo "Node pool provisioning state: $STATE"
+          if [ "$STATE" = "Succeeded" ]; then
+            echo "Node pool is ready."
+            break
+          elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+            echo "Node pool failed with state: $STATE."
+            exit 1
+          else
+            echo "Provisioning state: $STATE. Retry in 30 seconds"
+          fi
+          sleep 30
+        done
+    displayName: Wait for node pool cl2pool to succeed
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |2
+
+        az aks get-credentials \
+          --name "stg-H2-yaolei" \
+          --resource-group "telescope-v2-test" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --overwrite-existing
+    displayName: Get credentials for stg-H2-yaolei
