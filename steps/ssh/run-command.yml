@@ -5,6 +5,9 @@ parameters:
   - name: vm_id
     type: string
     default: ""
+  - name: vm_ssh_port
+    type: number
+    default: 22
   - name: bastion_name
     type: string
     default: ""
@@ -75,6 +78,10 @@ steps:
         ssh_opts+=( -p "${local_port}" )
         ssh_target="${JUMPBOX_USERNAME:-azureuser}@127.0.0.1"
       else
+        # Always force port 22 (or explicitly configured port) for direct SSH.
+        # This prevents accidental reuse of a Bastion local port (e.g. 2222)
+        # via user/agent ssh config.
+        ssh_opts+=( -p "${VM_SSH_PORT:-22}" )
         ssh_target="${JUMPBOX_USERNAME:-azureuser}@${VM_IP}"
       fi
 
@@ -85,6 +92,7 @@ steps:
     env:
       VM_IP: ${{ parameters.vm_ip }}
       VM_ID: ${{ parameters.vm_id }}
+      VM_SSH_PORT: ${{ parameters.vm_ssh_port }}
       BASTION_NAME: ${{ parameters.bastion_name }}
       BASTION_RESOURCE_GROUP: ${{ parameters.bastion_resource_group }}
       BASTION_LOCAL_PORT: ${{ parameters.bastion_local_port }}
