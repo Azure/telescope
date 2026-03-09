@@ -56,7 +56,7 @@ variable "acr_pull_scopes_map" {
 variable "enable_kubelet_identity" {
   description = "Whether to create and assign a user-assigned kubelet identity (and grant it ACR pull access when acr_pull_scopes are provided). Set false to disable kubelet identity entirely."
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "bootstrap_artifact_source" {
