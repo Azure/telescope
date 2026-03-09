@@ -91,6 +91,11 @@ output = ap.Pipeline {
                     const.DEFAULT_SERVICE_CONNECTION,
                     CLUSTER,
                     RESOURCE_GROUP,
+                    SUBSCRIPTION_ID),
+                azure.GetCredentials(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    CLUSTER,
+                    RESOURCE_GROUP,
                     SUBSCRIPTION_ID)
             ]
         }
