@@ -2,11 +2,11 @@ import azure_pipelines.ap
 import azure_pipelines.ap.jobs.job
 import lib.const
 import lib.steps.azure
-import lib.steps.install_kcl
+import lib.steps.common
 import lib.util
 
 SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
-RESOURCE_GROUP = "telescope-v2-test"
+RESOURCE_GROUP = "$RESOURCE_GROUP"
 LOCATION = "westus2"
 CLUSTER = "stg-H2-yaolei"
 CL2_POOL = "cl2pool"
@@ -78,7 +78,8 @@ output = ap.Pipeline {
             displayName = "Benchmarking"
 
             steps = [
-                install_kcl.InstallKcl(),
+                common.SetRunId(),
+                common.InstallKcl(),
                 azure.Login(
                     const.DEFAULT_SERVICE_CONNECTION,
                     SUBSCRIPTION_ID,

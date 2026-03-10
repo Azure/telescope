@@ -6,6 +6,18 @@ jobs:
 - job: benchmarking
   displayName: Benchmarking
   steps:
+  - bash: |-
+      if [ -n "$RUN_ID" ]; then
+        RUN_ID=$RUN_ID
+      else
+        job_id="$(System.JobId)"
+        RUN_ID=$(Build.BuildId)-${job_id:0:8}
+      fi
+      echo "Run ID: $RUN_ID"
+      echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
+    displayName: Set Run ID
+    env:
+      RUN_ID: $RUN_ID
   - bash: wget -q https://kcl-lang.io/script/install-cli.sh -O - | /bin/bash
     displayName: Install KCL
   - task: AzureCLI@2
@@ -26,8 +38,8 @@ jobs:
       scriptLocation: inlineScript
       inlineScript: |2
 
-        az group create --name "telescope-v2-test" --location "westus2" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
-    displayName: Create resource group telescope-v2-test in westus2 (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+        az group create --name "$RESOURCE_GROUP" --location "westus2" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+    displayName: Create resource group $RESOURCE_GROUP in westus2 (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -38,7 +50,7 @@ jobs:
         az cloud update --endpoint-resource-manager https://eastus2euap.management.azure.com/
         az rest \
           --method put \
-          --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/telescope-v2-test/providers/Microsoft.ContainerService/managedClusters/stg-H2-yaolei?api-version=2026-01-02-preview" \
+          --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.ContainerService/managedClusters/stg-H2-yaolei?api-version=2026-01-02-preview" \
           --body "
         {
             \"location\": \"westus2\",
@@ -92,7 +104,7 @@ jobs:
         while true; do
           STATE=$(az aks show \
             --name "stg-H2-yaolei" \
-            --resource-group "telescope-v2-test" \
+            --resource-group "$RESOURCE_GROUP" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --query "provisioningState" \
             --output tsv)
@@ -118,7 +130,7 @@ jobs:
 
         az aks nodepool add \
           --cluster-name "stg-H2-yaolei" \
-          --resource-group "telescope-v2-test" \
+          --resource-group "$RESOURCE_GROUP" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --name "cl2pool" \
           --node-count 1 \
@@ -136,7 +148,7 @@ jobs:
         while true; do
           STATE=$(az aks nodepool show \
             --cluster-name "stg-H2-yaolei" \
-            --resource-group "telescope-v2-test" \
+            --resource-group "$RESOURCE_GROUP" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --name "cl2pool" \
             --query "provisioningState" \
@@ -163,7 +175,7 @@ jobs:
 
         az aks get-credentials \
           --name "stg-H2-yaolei" \
-          --resource-group "telescope-v2-test" \
+          --resource-group "$RESOURCE_GROUP" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --overwrite-existing
     displayName: Get credentials for stg-H2-yaolei
