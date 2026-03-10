@@ -5,7 +5,7 @@ image = option("image")
 testConfig = option("testConfig")
 namespace = option("namespace", default="default")
 nodePool = option("nodePool")
-taint = option("taint", default="")
+taintPrefix = option("taintPrefix", default="")
 
 output = batch.Job {
     metadata.name = "cl2"
@@ -16,10 +16,10 @@ output = batch.Job {
             "agentpool" = nodePool
         }
         tolerations = [corev1.Toleration {
-            key = taint
+            key = taintPrefix
             operator = "Exists"
             effect = "NoSchedule"
-        }] if taint else []
+        }] if taintPrefix else []
         containers = [corev1.Container {
             name = "cl2"
             image = image

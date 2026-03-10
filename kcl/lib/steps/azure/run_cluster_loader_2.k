@@ -1,6 +1,6 @@
 import azure_pipelines.ap.steps
 
-RunClusterLoader2 = lambda serviceConnection: str, image: str, testConfig: str, namespace: str, nodePool: str, taint: str = "" -> steps.Step {
+RunClusterLoader2 = lambda serviceConnection: str, image: str, testConfig: str, namespace: str, nodePool: str, taintPrefix: str = "" -> steps.Step {
     script = """
 kubectl create namespace "${namespace}" || true
 kcl run example_pipeline/cluster_loader_2_job.k \\
@@ -8,7 +8,7 @@ kcl run example_pipeline/cluster_loader_2_job.k \\
   -D testConfig="${testConfig}" \\
   -D namespace="${namespace}" \\
   -D nodePool="${nodePool}" \\
-  -D taint="${taint}" \\
+  -D taintPrefix="${taintPrefix}" \\
   -S output | kubectl apply -f -
 kubectl wait job/cl2 \\
   --for=condition=complete \\

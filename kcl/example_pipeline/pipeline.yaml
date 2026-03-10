@@ -3,8 +3,8 @@ pool: AKS-Telescope-Ubuntu-EastUS2
 trigger:
 - v2
 jobs:
-- job: deploy_to_azure
-  displayName: Deploy to Azure
+- job: benchmarking
+  displayName: Benchmarking
   steps:
   - task: AzureCLI@2
     inputs:
@@ -122,7 +122,7 @@ jobs:
           --node-count 1 \
           --node-vm-size "Standard_D8S_v4" \
           --mode User \
-          --node-taints cl2pool:noschedule
+          --node-taints cl2pool:NoSchedule
     displayName: Create node pool cl2pool
   - task: AzureCLI@2
     inputs:
@@ -178,7 +178,7 @@ jobs:
           -D testConfig="testing/load/config.yaml" \
           -D namespace="clusterloader2" \
           -D nodePool="cl2pool" \
-          -D taint="cl2pool" \
+          -D taintPrefix="cl2pool" \
           -S output | kubectl apply -f -
         kubectl wait job/cl2 \
           --for=condition=complete \

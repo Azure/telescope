@@ -9,7 +9,7 @@ RESOURCE_GROUP = "telescope-v2-test"
 LOCATION = "westus2"
 CLUSTER = "stg-H2-yaolei"
 CL2_POOL = "cl2pool"
-CL2_TAINT = "cl2pool"
+CL2_TAINT_PREFIX = "cl2pool"
 CL2_IMAGE = "ghcr.io/azure/clusterloader2:v20250513"
 CL2_TEST_CONFIG = "testing/load/config.yaml"
 CL2_NAMESPACE = "clusterloader2"
@@ -73,8 +73,8 @@ output = ap.Pipeline {
 
     jobs = [
         job.Job {
-            job = "deploy_to_azure"
-            displayName = "Deploy to Azure"
+            job = "benchmarking"
+            displayName = "Benchmarking"
 
             steps = [
                 azure.Login(
@@ -105,7 +105,7 @@ output = ap.Pipeline {
                     CL2_POOL,
                     "Standard_D8S_v4",
                     1,
-                    "${CL2_TAINT}:noschedule"),
+                    CL2_TAINT_PREFIX),
                 azure.WaitForNodePoolSucceeded(
                     const.DEFAULT_SERVICE_CONNECTION,
                     CLUSTER,
@@ -123,7 +123,7 @@ output = ap.Pipeline {
                     CL2_TEST_CONFIG,
                     CL2_NAMESPACE,
                     CL2_POOL,
-                    CL2_TAINT)
+                    CL2_TAINT_PREFIX)
             ]
         }
     ]

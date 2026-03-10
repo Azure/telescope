@@ -1,7 +1,7 @@
 import azure_pipelines.ap.steps
 
-CreateNodePool = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, poolName: str, vmSize: str, count: int, taint: str = "" -> steps.Step {
-    taintFlag = "--node-taints ${taint}" if taint else ""
+CreateNodePool = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, poolName: str, vmSize: str, count: int, taintPrefix: str = "" -> steps.Step {
+    taintFlag = "--node-taints ${taintPrefix}:NoSchedule" if taintPrefix else ""
     script = """
 az aks nodepool add \\
   --cluster-name "${cluster}" \\
