@@ -43,7 +43,7 @@ def parse_module_path(full_path):
 
     return module_name, submodule_path, resource_name
 
-def build_result(full_path, time_str, run_id, _command_type, _scenario_type, _scenario_name, completed):
+def build_result(full_path, time_str, run_id, _command_type, _scenario_type, _scenario_name, completed, timed_out):
     seconds = time_to_seconds(time_str)
     module, submodule, resource = parse_module_path(full_path)
 
@@ -57,7 +57,7 @@ def build_result(full_path, time_str, run_id, _command_type, _scenario_type, _sc
         "resource_name": resource,
         "action": _command_type,
         "time_taken_seconds": seconds,
-        "result": {"success": completed}
+        "result": {"success": completed, "timed_out": timed_out}
     }
 
 def process_terraform_logs(log_path, _command_type, _scenario_type, _scenario_name):
@@ -79,6 +79,7 @@ def process_terraform_logs(log_path, _command_type, _scenario_type, _scenario_na
         current_full_path = None
         current_elapsed_time_str = None
         current_completed = False
+        current_timed_out = False
 
         with open(log_file, "r", encoding='utf-8') as f:
             for line in f:
@@ -86,27 +87,32 @@ def process_terraform_logs(log_path, _command_type, _scenario_type, _scenario_na
                 if start_match:
                     # A new run is starting; flush the previous run if it was incomplete
                     if current_full_path and not current_completed and current_elapsed_time_str:
-                        results.append(build_result(current_full_path, current_elapsed_time_str, run_id, _command_type, _scenario_type, _scenario_name, False))
+                        results.append(build_result(current_full_path, current_elapsed_time_str, run_id, _command_type, _scenario_type, _scenario_name, False, current_timed_out))
 
                     current_full_path = start_match.group(1)
                     current_elapsed_time_str = None
                     current_completed = False
+                    current_timed_out = False
                     continue
 
                 match = COMPLETE_PATTERN.search(line)
                 if match:
                     full_path, time_str = match.groups()
                     current_completed = True
-                    results.append(build_result(full_path, time_str, run_id, _command_type, _scenario_type, _scenario_name, True))
+                    results.append(build_result(full_path, time_str, run_id, _command_type, _scenario_type, _scenario_name, True, False))
                     continue
 
                 elapsed_match = ELAPSED_PATTERN.search(line)
                 if elapsed_match:
                     current_elapsed_time_str = elapsed_match.group(1)
+                    continue
+
+                if "context deadline exceeded" in line:
+                    current_timed_out = True
 
         # Flush the last run if it was incomplete
         if current_full_path and not current_completed and current_elapsed_time_str:
-            results.append(build_result(current_full_path, current_elapsed_time_str, run_id, _command_type, _scenario_type, _scenario_name, False))
+            results.append(build_result(current_full_path, current_elapsed_time_str, run_id, _command_type, _scenario_type, _scenario_name, False, current_timed_out))
     except Exception as e:
         print(f"[ERROR] Failed to process log file '{log_file}': {e}")
 
