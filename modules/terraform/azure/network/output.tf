@@ -9,7 +9,7 @@ output "nics" {
 
 output "subnets" {
   description = "Map of subnet names to subnet IDs"
-  value       = { for name, subnet in azurerm_subnet.subnet : name => subnet.id }
+  value       = { for subnet in azurerm_virtual_network.vnet.subnet : subnet.name => subnet.id }
 }
 
 output "vnet_id" {
