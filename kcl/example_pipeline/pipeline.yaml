@@ -6,6 +6,8 @@ jobs:
 - job: benchmarking
   displayName: Benchmarking
   steps:
+  - bash: wget -q https://kcl-lang.io/script/install-cli.sh -O - | /bin/bash
+    displayName: Install KCL
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal

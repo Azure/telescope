@@ -2,6 +2,7 @@ import azure_pipelines.ap
 import azure_pipelines.ap.jobs.job
 import lib.const
 import lib.steps.azure
+import lib.steps.install_kcl
 import lib.util
 
 SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
@@ -77,6 +78,7 @@ output = ap.Pipeline {
             displayName = "Benchmarking"
 
             steps = [
+                install_kcl.InstallKcl(),
                 azure.Login(
                     const.DEFAULT_SERVICE_CONNECTION,
                     SUBSCRIPTION_ID,
