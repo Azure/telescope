@@ -62,4 +62,8 @@ resource "azapi_resource" "aks_cluster" {
   response_export_values = [
     "properties.fqdn"
   ]
+
+  timeouts {
+    create = "10m"
+  }
 }
