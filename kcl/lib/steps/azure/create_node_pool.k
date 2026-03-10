@@ -1,6 +1,7 @@
 import azure_pipelines.ap.steps
 
-CreateNodePool = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, poolName: str, vmSize: str, count: int -> steps.Step {
+CreateNodePool = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, poolName: str, vmSize: str, count: int, taint: str = "" -> steps.Step {
+    taintFlag = "--node-taints ${taint}" if taint else ""
     script = """
 az aks nodepool add \\
   --cluster-name "${cluster}" \\
@@ -9,7 +10,8 @@ az aks nodepool add \\
   --name "${poolName}" \\
   --node-count ${count} \\
   --node-vm-size "${vmSize}" \\
-  --mode User
+  --mode User \\
+  ${taintFlag}
 """
     AzCli(serviceConnection, "Create node pool ${poolName}", script)
 }

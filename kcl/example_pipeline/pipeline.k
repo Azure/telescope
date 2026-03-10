@@ -9,6 +9,10 @@ RESOURCE_GROUP = "telescope-v2-test"
 LOCATION = "westus2"
 CLUSTER = "stg-H2-yaolei"
 CL2_POOL = "cl2pool"
+CL2_TAINT = "cl2pool"
+CL2_IMAGE = "ghcr.io/azure/clusterloader2:v20250513"
+CL2_TEST_CONFIG = "testing/load/config.yaml"
+CL2_NAMESPACE = "clusterloader2"
 
 requestBody = util.escapeStr("""
 {
@@ -100,7 +104,8 @@ output = ap.Pipeline {
                     SUBSCRIPTION_ID,
                     CL2_POOL,
                     "Standard_D8S_v4",
-                    1),
+                    1,
+                    "${CL2_TAINT}:noschedule"),
                 azure.WaitForNodePoolSucceeded(
                     const.DEFAULT_SERVICE_CONNECTION,
                     CLUSTER,
@@ -111,7 +116,14 @@ output = ap.Pipeline {
                     const.DEFAULT_SERVICE_CONNECTION,
                     CLUSTER,
                     RESOURCE_GROUP,
-                    SUBSCRIPTION_ID)
+                    SUBSCRIPTION_ID),
+                azure.RunClusterLoader2(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    CL2_IMAGE,
+                    CL2_TEST_CONFIG,
+                    CL2_NAMESPACE,
+                    CL2_POOL,
+                    CL2_TAINT)
             ]
         }
     ]
