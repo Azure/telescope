@@ -3,11 +3,8 @@ locals {
   nat_gateway_associations_map = var.network_config.nat_gateway_associations == null ? {} : { for nat in var.network_config.nat_gateway_associations : nat.nat_gateway_name => nat }
   vnet_name                    = var.network_config.vnet_name
   input_subnet_map             = { for subnet in var.network_config.subnet : subnet.name => subnet }
-  subnets_map = {
-    for subnet in azurerm_virtual_network.vnet.subnet :
-    split("/", subnet.id)[length(split("/", subnet.id)) - 1] => subnet
-  }
-  network_security_group_name = var.network_config.network_security_group_name
+  subnets_map                  = { for subnet in azurerm_virtual_network.vnet.subnet : subnet.name => subnet }
+  network_security_group_name  = var.network_config.network_security_group_name
   expanded_nic_association_map = flatten([
     for nic in var.network_config.nic_public_ip_associations : [
       for i in range(var.nic_count_override > 0 ? var.nic_count_override : nic.count) : {
@@ -37,11 +34,17 @@ resource "azurerm_virtual_network" "vnet" {
 
   dynamic "subnet" {
     for_each = local.input_subnet_map
+
     content {
       name                                          = subnet.value.name
       address_prefixes                              = [subnet.value.address_prefix]
       service_endpoints                             = subnet.value.service_endpoints != null ? subnet.value.service_endpoints : []
       private_link_service_network_policies_enabled = subnet.value.pls_network_policies_enabled != null ? subnet.value.pls_network_policies_enabled : true
+
+      private_endpoint_network_policies = subnet.value.private_endpoint_network_policies_enabled == null ? null : (
+        subnet.value.private_endpoint_network_policies_enabled ? "Enabled" : "Disabled"
+      )
+
       dynamic "delegation" {
         for_each = subnet.value.delegations != null ? subnet.value.delegations : []
         content {
