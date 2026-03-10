@@ -122,7 +122,7 @@ jobs:
           --node-count 1 \
           --node-vm-size "Standard_D8S_v4" \
           --mode User \
-          --node-taints cl2pool:NoSchedule
+          --node-taints cl2pool=true:NoSchedule
     displayName: Create node pool cl2pool
   - task: AzureCLI@2
     inputs:
