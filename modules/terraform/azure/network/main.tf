@@ -30,6 +30,7 @@ resource "azurerm_virtual_network" "vnet" {
   address_space       = [var.network_config.vnet_address_space]
   location            = var.location
   resource_group_name = var.resource_group_name
+  tags                = local.tags
 
   dynamic "subnet" {
     for_each = local.input_subnet_map
@@ -37,7 +38,6 @@ resource "azurerm_virtual_network" "vnet" {
     content {
       name                                          = subnet.value.name
       address_prefixes                              = [subnet.value.address_prefix]
-      security_group                                = local.network_security_group_name != "" ? azurerm_network_security_group.nsg[0].id : null
       service_endpoints                             = subnet.value.service_endpoints != null ? subnet.value.service_endpoints : []
       private_link_service_network_policies_enabled = subnet.value.pls_network_policies_enabled != null ? subnet.value.pls_network_policies_enabled : true
 
@@ -55,10 +55,14 @@ resource "azurerm_virtual_network" "vnet" {
           }
         }
       }
+      security_group = local.network_security_group_name != "" ? azurerm_network_security_group.nsg[0].id : null
     }
   }
 
-  tags = local.tags
+  depends_on = [
+    azurerm_network_security_group.nsg,
+    module.nsr
+  ]
 }
 
 resource "azurerm_network_security_group" "nsg" {
