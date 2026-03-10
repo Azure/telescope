@@ -1,0 +1,47 @@
+parameters:
+  - name: cloud
+    type: string
+  - name: engine
+    type: string
+  - name: regions
+    type: object
+
+steps:
+  - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
+    parameters:
+      role: slo
+      region: ${{ parameters.regions[0] }}
+  - template: /steps/engine/clusterloader2/large-cluster/validate.yml
+    parameters:
+      desired_nodes: 16
+      validation_timeout_in_minutes: 60
+  - script: |
+      set -eo pipefail
+      echo "Waiting for ContainerNetworkLog CRD to be available..."
+      timeout=300  # 5 minutes timeout
+      interval=10
+      elapsed=0
+
+      # Debug: Show available acn.azure.com CRDs
+      echo "Checking for ACNS-related CRDs..."
+      kubectl get crd | grep -E "acn\.azure\.com|cilium" || echo "No ACNS/Cilium CRDs found yet"
+
+      while ! kubectl get crd containernetworklogs.acn.azure.com &>/dev/null; do
+        if [ $elapsed -ge $timeout ]; then
+          echo "##vso[task.logissue type=error]Timeout waiting for ContainerNetworkLog CRD."
+          echo ""
+          echo "The ContainerNetworkLog CRD requires the AdvancedNetworkingFlowLogsPreview feature flag"
+          echo "to be registered BEFORE cluster creation."
+          echo ""
+          echo "Available CRDs:"
+          kubectl get crd | grep -E "acn|cilium|network" || true
+          exit 1
+        fi
+        echo "ContainerNetworkLog CRD not found yet. Retrying in ${interval}s... (${elapsed}s elapsed)"
+        sleep $interval
+        elapsed=$((elapsed + interval))
+      done
+
+      echo "ContainerNetworkLog CRD is available!"
+      kubectl get crd containernetworklogs.acn.azure.com
+    displayName: "Wait for ContainerNetworkLog CRD"
