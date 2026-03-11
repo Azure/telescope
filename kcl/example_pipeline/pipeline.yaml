@@ -182,7 +182,7 @@ jobs:
       inlineScript: |2
 
         kubectl create namespace "clusterloader2" || true
-        kcl run example_pipeline/cluster_loader_2_job.k \
+        kcl run $(Pipeline.Workspace)/s/kcl/lib/steps/azure/cluster_loader_2_job.k \
           -D image="ghcr.io/azure/clusterloader2:v20250513" \
           -D testConfig="testing/load/config.yaml" \
           -D namespace="clusterloader2" \
