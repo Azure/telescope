@@ -189,3 +189,13 @@ jobs:
           --namespace="clusterloader2" || \
           (kubectl logs job/cl2 --namespace="clusterloader2"; exit 1)
     displayName: Run cluster loader 2
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |2
+
+        az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+    condition: always()
+    displayName: Delete resource group $(RUN_ID) (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)

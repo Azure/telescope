@@ -122,7 +122,11 @@ output = ap.Pipeline {
                 k8s.RunClusterLoader2(
                     const.DEFAULT_SERVICE_CONNECTION,
                     CL2_NAMESPACE,
-                    manifest = "kcl/example_pipeline/cl2.yaml")
+                    manifest = "kcl/example_pipeline/cl2.yaml"),
+                azure.DeleteResourceGroup(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    RESOURCE_GROUP,
+                    SUBSCRIPTION_ID)
             ]
         }
     ]
