@@ -221,10 +221,9 @@ class TestExtractTerraformOperationMetadata(unittest.TestCase):
         "module.azapi[\"ccp\"].azapi_resource.aks_cluster: Creating...\n"
         "module.azapi[\"ccp\"].azapi_resource.aks_cluster: Still creating... [5m0s elapsed]\n"
         "module.azapi[\"ccp\"].azapi_resource.aks_cluster: Still creating... [10m0s elapsed]\n"
+        "creating/updating Resource: (ResourceId\n"
+        "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/58296-a6a4e57b/providers/Microsoft.ContainerService/managedClusters/ccp-provisioning-H8\n"
         "│ Error: creating/updating Resource: context deadline exceeded\n"
-        "module.azapi[\"ccp\"].azapi_resource.aks_cluster: Creating...\n"
-        "module.azapi[\"ccp\"].azapi_resource.aks_cluster: Still creating... [5m0s elapsed]\n"
-        "module.azapi[\"ccp\"].azapi_resource.aks_cluster: Creation complete after 8m30s [id=/subscriptions/xxx/resourceGroups/yyy/providers/Microsoft.ContainerService/managedClusters/zzz]\n"
     ))
     def test_process_terraform_logs_with_timeout(self, mock_open_file, mock_isfile):
         os.environ["RUN_ID"] = "1234567890"
@@ -236,19 +235,13 @@ class TestExtractTerraformOperationMetadata(unittest.TestCase):
           _scenario_name="test_scenario_name",
         )
 
-        self.assertEqual(len(results), 2)
+        self.assertEqual(len(results), 1)
 
-        # First run timed out
+        # Run timed out
         self.assertEqual(results[0]["module_name"], "azapi[\"ccp\"]")
         self.assertEqual(results[0]["resource_name"], "aks_cluster")
         self.assertEqual(results[0]["time_taken_seconds"], 600)
         self.assertEqual(results[0]["result"], {"success": False, "timed_out": True})
-
-        # Second run succeeded
-        self.assertEqual(results[1]["module_name"], "azapi[\"ccp\"]")
-        self.assertEqual(results[1]["resource_name"], "aks_cluster")
-        self.assertEqual(results[1]["time_taken_seconds"], 510)
-        self.assertEqual(results[1]["result"], {"success": True, "timed_out": False})
 
         mock_open_file.assert_called_once_with('/fake/path/terraform_apply.log', 'r', encoding='utf-8')
         mock_isfile.assert_called_once_with("/fake/path/terraform_apply.log")

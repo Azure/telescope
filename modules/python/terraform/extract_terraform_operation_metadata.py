@@ -83,6 +83,10 @@ def process_terraform_logs(log_path, _command_type, _scenario_type, _scenario_na
 
         with open(log_file, "r", encoding='utf-8') as f:
             for line in f:
+                # Check for timeout on every line before any continue statements
+                if "context deadline exceeded" in line:
+                    current_timed_out = True
+
                 start_match = START_PATTERN.search(line)
                 if start_match:
                     # A new run is starting; flush the previous run if it was incomplete
@@ -106,9 +110,6 @@ def process_terraform_logs(log_path, _command_type, _scenario_type, _scenario_na
                 if elapsed_match:
                     current_elapsed_time_str = elapsed_match.group(1)
                     continue
-
-                if "context deadline exceeded" in line:
-                    current_timed_out = True
 
         # Flush the last run if it was incomplete
         if current_full_path and not current_completed and current_elapsed_time_str:

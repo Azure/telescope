@@ -64,6 +64,6 @@ resource "azapi_resource" "aks_cluster" {
   ]
 
   timeouts {
-    create = "10m"
+    create = "5m"
   }
 }
