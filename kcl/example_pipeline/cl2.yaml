@@ -30,11 +30,11 @@ spec:
       containers:
       - args:
         - '--provider=aks'
-        - '--kubeconfig=/root/.kube/config'
+        - '--run-from-cluster=true'
         - '--v=2'
         - '--testoverrides=/override/override.yaml'
         - '--testconfig=testing/load/config.yaml'
-        - '--report-dir='
+        - '--k8s-clients-number=500'
         image: ghcr.io/azure/clusterloader2:v20260220
         name: cl2
         resources:
