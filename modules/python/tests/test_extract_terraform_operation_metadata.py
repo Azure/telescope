@@ -222,10 +222,13 @@ class TestExtractTerraformOperationMetadata(unittest.TestCase):
         "module.azapi[\"ccp\"].azapi_resource.aks_cluster: Still creating... [5m0s elapsed]\n"
         "module.azapi[\"ccp\"].azapi_resource.aks_cluster: Still creating... [10m0s elapsed]\n"
         "creating/updating Resource: (ResourceId\n"
-        "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/58296-a6a4e57b/providers/Microsoft.ContainerService/managedClusters/ccp-provisioning-H8\n"
+        "/subscriptions/b8ceb4e5/resourceGroups/58296/providers/Microsoft.ContainerService/managedClusters/ccp-H8\n"
         "│ Error: creating/updating Resource: context deadline exceeded\n"
+        "module.azapi[\"ccp\"].azapi_resource.aks_cluster: Creating...\n"
+        "module.azapi[\"ccp\"].azapi_resource.aks_cluster: Still creating... [5m0s elapsed]\n"
+        "module.azapi[\"ccp\"].azapi_resource.aks_cluster: Creation complete after 8m30s [id=/subscriptions/b8ceb4e5/resourceGroups/58296/providers/Microsoft.ContainerService/managedClusters/ccp-H8]\n"
     ))
-    def test_process_terraform_logs_with_timeout(self, mock_open_file, mock_isfile):
+    def test_process_terraform_logs_with_timeout_and_retry(self, mock_open_file, mock_isfile):
         os.environ["RUN_ID"] = "1234567890"
 
         results = process_terraform_logs(
@@ -235,13 +238,70 @@ class TestExtractTerraformOperationMetadata(unittest.TestCase):
           _scenario_name="test_scenario_name",
         )
 
-        self.assertEqual(len(results), 1)
+        self.assertEqual(len(results), 2)
 
-        # Run timed out
+        # First run timed out
         self.assertEqual(results[0]["module_name"], "azapi[\"ccp\"]")
         self.assertEqual(results[0]["resource_name"], "aks_cluster")
         self.assertEqual(results[0]["time_taken_seconds"], 600)
         self.assertEqual(results[0]["result"], {"success": False, "timed_out": True})
+
+        # Retry succeeded
+        self.assertEqual(results[1]["module_name"], "azapi[\"ccp\"]")
+        self.assertEqual(results[1]["resource_name"], "aks_cluster")
+        self.assertEqual(results[1]["time_taken_seconds"], 510)
+        self.assertEqual(results[1]["result"], {"success": True, "timed_out": False})
+
+        mock_open_file.assert_called_once_with('/fake/path/terraform_apply.log', 'r', encoding='utf-8')
+        mock_isfile.assert_called_once_with("/fake/path/terraform_apply.log")
+
+    @patch("os.path.isfile", return_value=True)
+    @patch("builtins.open", new_callable=mock_open, read_data=(
+        "module.azapi[\"ccp\"].azapi_resource.aks_cluster: Creating...\n"
+        "module.azapi[\"ccp\"].azapi_resource.aks_cluster: Still creating... [5m0s elapsed]\n"
+        "module.azapi[\"ccp\"].azapi_resource.aks_cluster: Still creating... [10m0s elapsed]\n"
+        "│ Error: Failed to create/update resource\n"
+        "module.azapi[\"ccp\"].azapi_resource.aks_cluster: Creating...\n"
+        "module.azapi[\"ccp\"].azapi_resource.aks_cluster: Still creating... [5m0s elapsed]\n"
+        "module.azapi[\"ccp\"].azapi_resource.aks_cluster: Still creating... [10m0s elapsed]\n"
+        "│ Error: creating/updating Resource: context deadline exceeded\n"
+        "module.azapi[\"ccp\"].azapi_resource.aks_cluster: Creating...\n"
+        "module.azapi[\"ccp\"].azapi_resource.aks_cluster: Still creating... [5m0s elapsed]\n"
+        "module.azapi[\"ccp\"].azapi_resource.aks_cluster: Still creating... [10m0s elapsed]\n"
+        "│ Error: creating/updating Resource: context deadline exceeded\n"
+    ))
+    def test_process_terraform_logs_with_all_retries_failed(self, mock_open_file, mock_isfile):
+        os.environ["RUN_ID"] = "1112223334"
+
+        results = process_terraform_logs(
+          log_path="/fake/path",
+          _command_type="apply",
+          _scenario_type="perf-eval",
+          _scenario_name="test_scenario_name",
+        )
+
+        self.assertEqual(len(results), 3)
+
+        # First run failed with a non-timeout error
+        self.assertEqual(results[0]["run_id"], "1112223334")
+        self.assertEqual(results[0]["module_name"], "azapi[\"ccp\"]")
+        self.assertEqual(results[0]["resource_name"], "aks_cluster")
+        self.assertEqual(results[0]["time_taken_seconds"], 600)
+        self.assertEqual(results[0]["result"], {"success": False, "timed_out": False})
+
+        # Second run timed out
+        self.assertEqual(results[1]["run_id"], "1112223334")
+        self.assertEqual(results[1]["module_name"], "azapi[\"ccp\"]")
+        self.assertEqual(results[1]["resource_name"], "aks_cluster")
+        self.assertEqual(results[1]["time_taken_seconds"], 600)
+        self.assertEqual(results[1]["result"], {"success": False, "timed_out": True})
+
+        # Third run timed out
+        self.assertEqual(results[2]["run_id"], "1112223334")
+        self.assertEqual(results[2]["module_name"], "azapi[\"ccp\"]")
+        self.assertEqual(results[2]["resource_name"], "aks_cluster")
+        self.assertEqual(results[2]["time_taken_seconds"], 600)
+        self.assertEqual(results[2]["result"], {"success": False, "timed_out": True})
 
         mock_open_file.assert_called_once_with('/fake/path/terraform_apply.log', 'r', encoding='utf-8')
         mock_isfile.assert_called_once_with("/fake/path/terraform_apply.log")
