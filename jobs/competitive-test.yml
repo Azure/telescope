@@ -48,14 +48,6 @@ parameters:
 - name: ssh_key_enabled
   type: boolean
   default: true
-- name: os_sku
-  displayName: "OS SKU for Azure Tests"
-  type: string
-  default: "Ubuntu2204"
-- name: vm_size
-  displayName: "VM Size for Azure Tests"
-  type: string
-  default: "Standard_D8_v5"
 
 jobs:
 - job: ${{ parameters.cloud }}
