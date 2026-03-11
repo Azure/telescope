@@ -6,7 +6,7 @@ import lib.steps.common
 import lib.util
 
 SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
-RESOURCE_GROUP = "$RESOURCE_GROUP"
+RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "westus2"
 CLUSTER = "stg-H2-yaolei"
 CL2_POOL = "cl2pool"
