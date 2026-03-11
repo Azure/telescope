@@ -17,7 +17,6 @@ output = batch.Job {
         }
         tolerations = [corev1.Toleration {
             key = taintPrefix
-            value = "true"
             operator = "Exists"
             effect = "NoSchedule"
         }] if taintPrefix else []
