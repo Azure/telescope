@@ -83,6 +83,8 @@ def process_terraform_logs(log_path, _command_type, _scenario_type, _scenario_na
 
         with open(log_file, "r", encoding='utf-8') as f:
             for line in f:
+                print(f"[DEBUG] line={repr(line)}, contains_deadline={'context deadline exceeded' in line}")
+
                 # Check for timeout on every line before any continue statements
                 if "context deadline exceeded" in line:
                     current_timed_out = True
