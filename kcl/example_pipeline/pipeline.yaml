@@ -55,7 +55,6 @@ jobs:
               \"tier\": \"Standard\"
             },
             \"tags\": {
-              \"exempted_by_qi\": \"36609072\",
               \"SkipAKSCluster\": \"true\",
               \"SkipASMAzSecPackAutoConfig\": \"true\",
               \"SkipLinuxAzSecPack\": \"true\"
@@ -68,9 +67,10 @@ jobs:
                 {
                   \"name\": \"systempool\",
                   \"mode\": \"System\",
-                  \"count\": 3,
+                  \"count\": 30,
                   \"vmSize\": \"Standard_D8S_v4\",
-                  \"osType\": \"Linux\"
+                  \"osType\": \"Linux\",
+                  \"maxPods\": 250
                 }
               ],
             \"networkProfile\": {
@@ -128,7 +128,7 @@ jobs:
           --resource-group "$(RUN_ID)" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --name "cl2pool" \
-          --node-count 1 \
+          --node-count 4 \
           --node-vm-size "Standard_D8S_v4" \
           --mode User \
           --node-taints cl2pool=true:NoSchedule
@@ -182,19 +182,10 @@ jobs:
       inlineScript: |2
 
         kubectl create namespace "clusterloader2" || true
-        kcl run $(Pipeline.Workspace)/s/kcl/lib/steps/azure/cluster_loader_2_job.k \
-          -D image="ghcr.io/azure/clusterloader2:v20250513" \
-          -D testConfig="testing/load/config.yaml" \
-          -D namespace="clusterloader2" \
-          -D nodePool="cl2pool" \
-          -D taintPrefix="cl2pool" \
-          -S output \
-          -o cl2.yaml
-        cat cl2.yaml
-        kubectl apply -f cl2.yaml
+        kubectl apply -f $(Pipeline.Workspace)/s/kcl/example_pipeline/cl2.yaml
         kubectl wait job/cl2 \
           --for=condition=complete \
-          --timeout=3600s \
+          --timeout=24h \
           --namespace="clusterloader2" || \
           (kubectl logs job/cl2 --namespace="clusterloader2"; exit 1)
     displayName: Run cluster loader 2

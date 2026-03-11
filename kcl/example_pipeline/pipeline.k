@@ -3,6 +3,7 @@ import azure_pipelines.ap.jobs.job
 import lib.const
 import lib.steps.azure
 import lib.steps.common
+import lib.steps.k8s
 import lib.util
 
 SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
@@ -11,8 +12,6 @@ LOCATION = "westus2"
 CLUSTER = "stg-H2-yaolei"
 CL2_POOL = "cl2pool"
 CL2_TAINT_PREFIX = "cl2pool"
-CL2_IMAGE = "ghcr.io/azure/clusterloader2:v20250513"
-CL2_TEST_CONFIG = "testing/load/config.yaml"
 CL2_NAMESPACE = "clusterloader2"
 
 requestBody = util.escapeStr("""
@@ -24,7 +23,6 @@ requestBody = util.escapeStr("""
       "tier": "Standard"
     },
     "tags": {
-      "exempted_by_qi": "36609072",
       "SkipAKSCluster": "true",
       "SkipASMAzSecPackAutoConfig": "true",
       "SkipLinuxAzSecPack": "true"
@@ -37,9 +35,10 @@ requestBody = util.escapeStr("""
         {
           "name": "systempool",
           "mode": "System",
-          "count": 3,
+          "count": 30,
           "vmSize": "Standard_D8S_v4",
-          "osType": "Linux"
+          "osType": "Linux",
+          "maxPods": 250
         }
       ],
     "networkProfile": {
@@ -107,7 +106,7 @@ output = ap.Pipeline {
                     SUBSCRIPTION_ID,
                     CL2_POOL,
                     "Standard_D8S_v4",
-                    1,
+                    4,
                     CL2_TAINT_PREFIX),
                 azure.WaitForNodePoolSucceeded(
                     const.DEFAULT_SERVICE_CONNECTION,
@@ -120,13 +119,10 @@ output = ap.Pipeline {
                     CLUSTER,
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID),
-                azure.RunClusterLoader2(
+                k8s.RunClusterLoader2(
                     const.DEFAULT_SERVICE_CONNECTION,
-                    CL2_IMAGE,
-                    CL2_TEST_CONFIG,
                     CL2_NAMESPACE,
-                    CL2_POOL,
-                    CL2_TAINT_PREFIX)
+                    manifest = "kcl/example_pipeline/cl2.yaml")
             ]
         }
     ]

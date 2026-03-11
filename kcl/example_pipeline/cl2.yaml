@@ -1,0 +1,57 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cl2-override
+  namespace: clusterloader2
+data:
+  override.yaml: |
+    NODES: 30
+    PODS_PER_NODE: 50
+    BIG_GROUP_SIZE: 8
+    MEDIUM_GROUP_SIZE: 8
+    SMALL_GROUP_SIZE: 4
+    SMALL_STATEFUL_SETS_PER_NAMESPACE: 0
+    MEDIUM_STATEFUL_SETS_PER_NAMESPACE: 0
+    CL2_RATE_LIMIT_POD_CREATION: false
+    CL2_ENABLE_PVS: false
+    CL2_ENABLE_CLUSTER_OOMS_TRACKER: false
+    CL2_DEFAULT_QPS: 5000
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cl2
+  namespace: clusterloader2
+spec:
+  completions: 4
+  parallelism: 4
+  template:
+    spec:
+      containers:
+      - args:
+        - '--provider=aks'
+        - '--kubeconfig=/root/.kube/config'
+        - '--v=2'
+        - '--testoverrides=/override/override.yaml'
+        - '--testconfig=testing/load/config.yaml'
+        - '--report-dir='
+        image: ghcr.io/azure/clusterloader2:v20260220
+        name: cl2
+        resources:
+          requests:
+            cpu: '6'
+            memory: '24Gi'
+        volumeMounts:
+        - mountPath: /override
+          name: cl2-override
+      nodeSelector:
+        agentpool: cl2pool
+      restartPolicy: Never
+      tolerations:
+      - effect: NoSchedule
+        key: cl2pool
+        operator: Exists
+      volumes:
+      - configMap:
+          name: cl2-override
+        name: cl2-override

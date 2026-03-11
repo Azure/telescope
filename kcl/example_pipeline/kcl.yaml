@@ -1,9 +1,0 @@
-kcl_options:
-  - key: image
-    value: "ghcr.io/azure/clusterloader2:v20250513"
-  - key: testConfig
-    value: "testing/load/config.yaml"
-  - key: namespace
-    value: "clusterloader2"
-  - key: nodePool
-    value: "cl2pool"
