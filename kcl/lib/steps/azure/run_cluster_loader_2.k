@@ -9,7 +9,10 @@ kcl run $(Pipeline.Workspace)/s/kcl/lib/steps/azure/cluster_loader_2_job.k \\
   -D namespace="${namespace}" \\
   -D nodePool="${nodePool}" \\
   -D taintPrefix="${taintPrefix}" \\
-  -S output | kubectl apply -f -
+  -S output \\
+  -o cl2.yaml
+cat cl2.yaml
+kubectl apply -f cl2.yaml
 kubectl wait job/cl2 \\
   --for=condition=complete \\
   --timeout=3600s \\

@@ -188,7 +188,10 @@ jobs:
           -D namespace="clusterloader2" \
           -D nodePool="cl2pool" \
           -D taintPrefix="cl2pool" \
-          -S output | kubectl apply -f -
+          -S output \
+          -o cl2.yaml
+        cat cl2.yaml
+        kubectl apply -f cl2.yaml
         kubectl wait job/cl2 \
           --for=condition=complete \
           --timeout=3600s \
