@@ -4,11 +4,18 @@ SetRunId = lambda -> steps.Step {
     steps.Bash {
         bash = """
 set -exo pipefail
-job_id="$(System.JobId)"
-RUN_ID=$(Build.BuildId)-\${job_id:0:8}
-echo "Run ID: $RUN_ID"
+if [ -n "$RUN_ID" ]; then
+  echo "Using provided Run ID: $RUN_ID"
+else
+  job_id="$(System.JobId)"
+  RUN_ID=$(Build.BuildId)-\${job_id:0:8}
+  echo "Run ID: $RUN_ID"
+fi
 echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
 """
         displayName = "Set Run ID"
+        env = {
+            RUN_ID = "\${{ parameters.run_id }}"
+        }
     }
 }

@@ -72,6 +72,15 @@ output = ap.Pipeline {
     trigger =  ["v2"]
     pool = const.DEFAULT_POOL
 
+    parameters = [
+        ap.Parameter {
+            name = "run_id"
+            displayName = "Run ID (leave empty to auto-generate)"
+            type = "string"
+            default = ""
+        }
+    ]
+
     jobs = [
         job.Job {
             job = "benchmarking"
