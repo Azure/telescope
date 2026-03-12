@@ -7,7 +7,7 @@ AzCli = lambda serviceConnection: str, name: str, script: str, condition: str = 
             azureSubscription = serviceConnection,
             scriptType = "bash"
             scriptLocation = "inlineScript"
-            inlineScript = script
+            inlineScript = "set -exo pipefail\n" + script
         }
         displayName = name
         condition = condition
