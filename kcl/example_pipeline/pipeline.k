@@ -124,7 +124,7 @@ output = ap.Pipeline {
                 k8s.CreateKwokNodes(
                   KWOK_NODE_COUNT, 
                   {
-                    "node-manifest-path": "kcl/example_pipeline/kwok-node.yaml"
+                    "node-manifest-path": "$(Pipeline.Workspace)/s/kcl/example_pipeline/kwok-node.yaml"
                   }),
                 k8s.RunClusterLoader2(
                     const.DEFAULT_SERVICE_CONNECTION,
