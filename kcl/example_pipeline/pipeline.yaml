@@ -176,6 +176,9 @@ jobs:
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --overwrite-existing
     displayName: Get credentials for stg-H2-yaolei
+  - script: "\nset -exo pipefail\nexport PYTHONPATH=$PYTHONPATH:$(pwd)\npython3 kwok/kwok.py   --action create   --node-count 100   \npython3 kwok/kwok.py   --action validate   --node-count 100"
+    workingDirectory: modules/python
+    displayName: Create and Validate KWOK Nodes
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal

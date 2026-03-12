@@ -13,6 +13,7 @@ CLUSTER = "stg-H2-yaolei"
 CL2_POOL = "cl2pool"
 CL2_TAINT_PREFIX = "cl2pool"
 CL2_NAMESPACE = "clusterloader2"
+KWOK_NODE_COUNT = 100
 
 requestBody = util.escapeStr("""
 {
@@ -119,6 +120,7 @@ output = ap.Pipeline {
                     CLUSTER,
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID),
+                k8s.CreateKwokNodes(KWOK_NODE_COUNT),
                 k8s.RunClusterLoader2(
                     const.DEFAULT_SERVICE_CONNECTION,
                     CL2_NAMESPACE,
