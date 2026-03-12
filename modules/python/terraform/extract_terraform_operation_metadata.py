@@ -4,8 +4,18 @@ import sys
 import os
 import datetime
 
-# Regex to extract: full module path and time
-PATTERN = re.compile(r"(module\.[^:]+): (?:Creation|Destruction) complete after (\d+h\d+m\d+s|\d+h\d+s|\d+m\d+s|\d+s)")
+# Regex to extract: full module path and time from completion lines
+COMPLETE_PATTERN = re.compile(r"(module\.[^:]+): (?:Creation|Destruction) complete after (\d+h\d+m\d+s|\d+h\d+s|\d+m\d+s|\d+s)")
+
+# Regex to extract: full module path from initial "Creating"/"Destroying" lines
+# e.g. module.azapi["ccp-provisioning-H4"].azapi_resource.aks_cluster: Creating...
+# e.g. module.azapi["ccp-provisioning-H4"].azapi_resource.aks_cluster: Destroying
+START_PATTERN = re.compile(r"(module\.[^:]+): (?:Creating|Destroying)")
+
+# Regex to extract: elapsed time from "Still creating/destroying..." lines
+# e.g. module.azapi[...].azapi_resource.aks_cluster: Still creating... [29m51s elapsed]
+# or:  module.azapi[...].azapi_resource.aks_cluster: Still destroying... 00m40s elapsed]
+ELAPSED_PATTERN = re.compile(r"Still (?:creating|destroying)\.\.\. \[?(\d+h\d+m\d+s|\d+h\d+s|\d+m\d+s|\d+s) elapsed\]")
 
 def time_to_seconds(time_str):
     try:
@@ -33,7 +43,30 @@ def parse_module_path(full_path):
 
     return module_name, submodule_path, resource_name
 
+def build_result(full_path, time_str, run_id, _command_type, _scenario_type, _scenario_name, completed, timed_out):
+    seconds = time_to_seconds(time_str)
+    module, submodule, resource = parse_module_path(full_path)
+
+    return {
+        "timestamp": datetime.datetime.now().isoformat(),
+        "run_id": run_id,
+        "scenario_type": _scenario_type,
+        "scenario_name": _scenario_name,
+        "module_name": module,
+        "submodule_name": submodule,
+        "resource_name": resource,
+        "action": _command_type,
+        "time_taken_seconds": seconds,
+        "result": {"success": completed, "timed_out": timed_out}
+    }
+
 def process_terraform_logs(log_path, _command_type, _scenario_type, _scenario_name):
+    """Process terraform log file and collect operation metadata for each run.
+    A single log file may contain multiple runs of the same module when failures
+    trigger retries. Each run starts with a "Creating..."/"Destroying..." line.
+    We collect data for all runs: successful runs use the completion time, and
+    failed runs use the last reported elapsed time as a fallback.
+    """
     log_file = os.path.join(log_path, f"terraform_{_command_type}.log")
     run_id = os.getenv("RUN_ID", "")
     results = []
@@ -43,25 +76,44 @@ def process_terraform_logs(log_path, _command_type, _scenario_type, _scenario_na
         return results
 
     try:
+        current_full_path = None
+        current_elapsed_time_str = None
+        current_completed = False
+        current_timed_out = False
+
         with open(log_file, "r", encoding='utf-8') as f:
             for line in f:
-                match = PATTERN.search(line)
+                # Check for timeout on every line before any continue statements
+                if "context deadline exceeded" in line:
+                    current_timed_out = True
+
+                start_match = START_PATTERN.search(line)
+                if start_match:
+                    # A new run is starting; flush the previous run if it was incomplete
+                    if current_full_path and not current_completed and current_elapsed_time_str:
+                        results.append(build_result(current_full_path, current_elapsed_time_str, run_id, _command_type, _scenario_type, _scenario_name, False, current_timed_out))
+
+                    current_full_path = start_match.group(1)
+                    current_elapsed_time_str = None
+                    current_completed = False
+                    current_timed_out = False
+                    continue
+
+                match = COMPLETE_PATTERN.search(line)
                 if match:
                     full_path, time_str = match.groups()
-                    seconds = time_to_seconds(time_str)
-                    module, submodule, resource = parse_module_path(full_path)
+                    current_completed = True
+                    results.append(build_result(full_path, time_str, run_id, _command_type, _scenario_type, _scenario_name, True, False))
+                    continue
 
-                    results.append({
-                        "timestamp": datetime.datetime.now().isoformat(),
-                        "run_id": run_id,
-                        "scenario_type": _scenario_type,
-                        "scenario_name": _scenario_name,
-                        "module_name": module,
-                        "submodule_name": submodule,
-                        "resource_name": resource,
-                        "action": _command_type,
-                        "time_taken_seconds": seconds
-                    })
+                elapsed_match = ELAPSED_PATTERN.search(line)
+                if elapsed_match:
+                    current_elapsed_time_str = elapsed_match.group(1)
+                    continue
+
+        # Flush the last run if it was incomplete
+        if current_full_path and not current_completed and current_elapsed_time_str:
+            results.append(build_result(current_full_path, current_elapsed_time_str, run_id, _command_type, _scenario_type, _scenario_name, False, current_timed_out))
     except Exception as e:
         print(f"[ERROR] Failed to process log file '{log_file}': {e}")
 
