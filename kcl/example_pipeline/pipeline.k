@@ -76,6 +76,7 @@ output = ap.Pipeline {
         job.Job {
             job = "benchmarking"
             displayName = "Benchmarking"
+            timeoutInMinutes = 120
 
             steps = [
                 common.SetRunId(),
@@ -120,7 +121,11 @@ output = ap.Pipeline {
                     CLUSTER,
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID),
-                k8s.CreateKwokNodes(KWOK_NODE_COUNT),
+                k8s.CreateKwokNodes(
+                  KWOK_NODE_COUNT, 
+                  {
+                    "node-manifest-path": "kcl/example_pipeline/kwok-node.yaml"
+                  }),
                 k8s.RunClusterLoader2(
                     const.DEFAULT_SERVICE_CONNECTION,
                     CL2_NAMESPACE,

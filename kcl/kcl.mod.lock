@@ -4,7 +4,7 @@
     full_name = "azure_pipelines_0.1.0"
     version = "0.1.0"
     url = "https://github.com/Azure/kcl-azure-pipelines/"
-    commit = "53deea0"
+    commit = "4e9da98"
   [dependencies.k8s]
     name = "k8s"
     full_name = "k8s_1.32.4"

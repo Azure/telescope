@@ -16,6 +16,7 @@ data:
     CL2_ENABLE_PVS: false
     CL2_ENABLE_CLUSTER_OOMS_TRACKER: false
     CL2_DEFAULT_QPS: 5000
+    CL2_RUN_ON_ARM_NODES: true # This is a hack to allow Cl2 to run on Kwok nodes
 ---
 apiVersion: batch/v1
 kind: Job
