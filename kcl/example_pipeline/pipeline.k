@@ -78,7 +78,7 @@ output = ap.Pipeline {
 
             steps = [
                 common.SetRunId(),
-                common.InstallKcl(),
+                common.InstallPythonDependencies(),
                 azure.Login(
                     const.DEFAULT_SERVICE_CONNECTION,
                     SUBSCRIPTION_ID,

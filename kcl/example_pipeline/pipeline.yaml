@@ -13,8 +13,10 @@ jobs:
       echo "Run ID: $RUN_ID"
       echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
     displayName: Set Run ID
-  - bash: wget -q https://kcl-lang.io/script/install-cli.sh -O - | /bin/bash
-    displayName: Install KCL
+  - bash: |-
+      pip3 install --upgrade "pip<24"
+      pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
+    displayName: Install Python dependencies
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
