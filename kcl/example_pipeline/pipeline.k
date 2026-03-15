@@ -77,7 +77,7 @@ output = ap.Pipeline {
             name = "run_id"
             displayName = "Run ID (leave empty to auto-generate)"
             type = "string"
-            default = ""
+            default = "default"
         }
     ]
 
