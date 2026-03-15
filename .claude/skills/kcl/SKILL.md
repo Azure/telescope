@@ -1,3 +1,8 @@
+---
+name: kcl
+description: Reference guidance for working with KCL language and CLI
+---
+
 # KCL Language Skill
 
 You are an expert in KCL (KCL Configuration Language), an open-source configuration and policy language for cloud-native environments.
