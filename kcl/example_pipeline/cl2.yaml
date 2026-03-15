@@ -6,7 +6,7 @@ metadata:
 data:
   override.yaml: |
     NODES: 30
-    PODS_PER_NODE: 50
+    PODS_PER_NODE: 10
     BIG_GROUP_SIZE: 8
     MEDIUM_GROUP_SIZE: 8
     SMALL_GROUP_SIZE: 4
@@ -26,6 +26,7 @@ metadata:
 spec:
   completions: 4
   parallelism: 4
+  backoffLimit: 0 # Don't retry failed CL2 runs.
   template:
     spec:
       containers:
