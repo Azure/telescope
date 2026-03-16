@@ -10,6 +10,8 @@ from clients.kubernetes_client import KubernetesClient
 from utils.common import str2bool
 from utils.logger_config import get_logger, setup_logging
 
+CPU_SCALE_FACTOR = 0.85
+
 setup_logging()
 logger = get_logger(__name__)
 
@@ -219,7 +221,7 @@ def calculate_cpu_request_for_clusterloader2(
     pods_per_node = pod_count // node_count
     cpu_request = cpu_value // pods_per_node
     # Consider 15% less CPU request for deployment pods
-    cpu_request = int(cpu_request * 0.85)
+    cpu_request = int(cpu_request * CPU_SCALE_FACTOR)
     return cpu_request
 
 
