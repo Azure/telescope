@@ -117,7 +117,7 @@ output = ap.Pipeline {
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID,
                     CL2_POOL,
-                    "Standard_D8S_v4",
+                    "Standard_D8_v3",
                     4,
                     CL2_TAINT_PREFIX),
                 azure.WaitForNodePoolSucceeded(
