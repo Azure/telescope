@@ -150,7 +150,7 @@ jobs:
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --name "cl2pool" \
           --node-count 4 \
-          --node-vm-size "Standard_D8S_v4" \
+          --node-vm-size "Standard_D8_v3" \
           --mode User \
           --node-taints cl2pool=true:NoSchedule
     displayName: Create node pool cl2pool
