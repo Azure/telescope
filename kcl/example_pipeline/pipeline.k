@@ -9,11 +9,23 @@ import lib.util
 SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "westus2"
-CLUSTER = "stg-H2-yaolei"
-CL2_POOL = "cl2pool"
-CL2_TAINT_PREFIX = "cl2pool"
-CL2_NAMESPACE = "clusterloader2"
+CLUSTER = "stg-H2-hyperscale-apiserver-seats"
 KWOK_NODE_COUNT = 100
+CL2_IMAGE = "ghcr.io/azure/clusterloader2:v20260220"
+
+cl2OverrideContent = """\
+NODES: 30
+PODS_PER_NODE: 10
+BIG_GROUP_SIZE: 8
+MEDIUM_GROUP_SIZE: 8
+SMALL_GROUP_SIZE: 4
+SMALL_STATEFUL_SETS_PER_NAMESPACE: 0
+MEDIUM_STATEFUL_SETS_PER_NAMESPACE: 0
+CL2_RATE_LIMIT_POD_CREATION: false
+CL2_ENABLE_PVS: false
+CL2_ENABLE_CLUSTER_OOMS_TRACKER: false
+CL2_DEFAULT_QPS: 5000
+CL2_RUN_ON_ARM_NODES: true"""
 
 requestBody = util.escapeStr("""
 {
@@ -110,21 +122,6 @@ output = ap.Pipeline {
                     CLUSTER,
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID),
-                azure.CreateNodePool(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    CLUSTER,
-                    RESOURCE_GROUP,
-                    SUBSCRIPTION_ID,
-                    CL2_POOL,
-                    "Standard_D8S_v4",
-                    4,
-                    CL2_TAINT_PREFIX),
-                azure.WaitForNodePoolSucceeded(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    CLUSTER,
-                    RESOURCE_GROUP,
-                    SUBSCRIPTION_ID,
-                    CL2_POOL),
                 azure.GetCredentials(
                     const.DEFAULT_SERVICE_CONNECTION,
                     CLUSTER,
@@ -135,7 +132,7 @@ output = ap.Pipeline {
                   {
                     "node-manifest-path": "$(Pipeline.Workspace)/s/kcl/example_pipeline/kwok-node.yaml"
                   }),
-                k8s.RunClusterLoader2(
+                k8s.RunClusterLoader2Local(
                     const.DEFAULT_SERVICE_CONNECTION,
                     CL2_NAMESPACE,
                     manifest = "kcl/example_pipeline/cl2.yaml"),
