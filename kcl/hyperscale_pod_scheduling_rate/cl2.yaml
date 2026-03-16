@@ -1,0 +1,137 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cl2-config
+  namespace: clusterloader2
+data:
+  config.yaml: |
+    # Minimal config that runs only the scheduler-throughput module.
+    # Use overrides.yaml or --override flags to supply required parameters.
+
+    # BEGIN scheduler-throughput section
+
+    {{$totalSchedulerThroughputPods := DefaultParam .CL2_SCHEDULER_THROUGHPUT_TOTAL_PODS (MaxInt 1000 .Nodes)}}
+    {{$schedulerThroughputPodsPerDeployment := DefaultParam .CL2_SCHEDULER_THROUGHPUT_PODS_PER_DEPLOYMENT $totalSchedulerThroughputPods}}
+    {{$schedulerThroughputNamespaces := DivideInt $totalSchedulerThroughputPods $schedulerThroughputPodsPerDeployment}}
+    # END scheduler-throughput section
+
+    {{$defaultQps := DefaultParam .CL2_DEFAULT_QPS (IfThenElse (le .Nodes 500) 10 100)}}
+    {{$registry := DefaultParam .CL2_LATENCY_POD_REGISTRY "registry.k8s.io"}}
+    {{$latencyPodImage := DefaultParam .CL2_LATENCY_POD_IMAGE (Concat $registry "/pause:3.9")}}
+
+    name: scheduler-throughput-only
+    namespace:
+      number: {{$schedulerThroughputNamespaces}}
+    tuningSets:
+    - name: default
+      globalQPSLoad:
+        qps: {{$defaultQps}}
+        burst: 1
+
+    steps:
+    # BEGIN scheduler throughput
+    - module:
+        path: modules/scheduler-throughput/config.yaml
+        params:
+          action: create
+          namespaces: 0
+          replicasPerNamespace: 1
+          schedulerThroughputNamespaces: {{$schedulerThroughputNamespaces}}
+          schedulerThroughputPodsPerDeployment: {{$schedulerThroughputPodsPerDeployment}}
+          deploymentImage: {{$latencyPodImage}}
+
+    - module:
+        path: modules/scheduler-throughput/config.yaml
+        params:
+          action: delete
+          namespaces: 0
+          replicasPerNamespace: 0
+          schedulerThroughputNamespaces: {{$schedulerThroughputNamespaces}}
+          schedulerThroughputPodsPerDeployment: {{$schedulerThroughputPodsPerDeployment}}
+    # END scheduler throughput
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cl2-override
+  namespace: clusterloader2
+data:
+  override.yaml: |
+    Nodes: 8000
+    CL2_SCHEDULER_THROUGHPUT_TOTAL_PODS: 200000
+    CL2_SCHEDULER_THROUGHPUT_PODS_PER_DEPLOYMENT: 1000
+    CL2_DEFAULT_QPS: 2
+    CL2_RUN_ON_ARM_NODES: true # This is a hack to allow Cl2 to run on Kwok nodes
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cl2
+  namespace: clusterloader2
+spec:
+  completions: 4
+  parallelism: 4
+  backoffLimit: 0 # Don't retry failed CL2 runs.
+  template:
+    spec:
+      containers:
+      - args:
+        - '--provider=aks'
+        - '--run-from-cluster=true'
+        - '--v=2'
+        - '--testoverrides=/override/override.yaml'
+        - '--testconfig=/config/config.yaml'
+        image: ghcr.io/azure/clusterloader2:v20260220
+        name: cl2
+        resources:
+          requests:
+            cpu: '6'
+            memory: '24Gi'
+        volumeMounts:
+        - mountPath: /override
+          name: cl2-override
+        - mountPath: /config
+          name: cl2-config
+      nodeSelector:
+        agentpool: cl2pool
+      restartPolicy: Never
+      serviceAccountName: cl2
+      tolerations:
+      - effect: NoSchedule
+        key: cl2pool
+        operator: Exists
+      volumes:
+      - configMap:
+          name: cl2-override
+        name: cl2-override
+      - configMap:
+          name: cl2-config
+        name: cl2-config
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cl2
+  namespace: clusterloader2
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cl2
+rules:
+- apiGroups: ["*"]
+  resources: ["*"]
+  verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cl2
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cl2
+subjects:
+- kind: ServiceAccount
+  name: cl2
+  namespace: clusterloader2

@@ -1,0 +1,44 @@
+# Minimal config that runs only the scheduler-throughput module.
+# Use overrides.yaml or --override flags to supply required parameters.
+
+# BEGIN scheduler-throughput section
+
+{{$totalSchedulerThroughputPods := DefaultParam .CL2_SCHEDULER_THROUGHPUT_TOTAL_PODS (MaxInt 1000 .Nodes)}}
+{{$schedulerThroughputPodsPerDeployment := DefaultParam .CL2_SCHEDULER_THROUGHPUT_PODS_PER_DEPLOYMENT $totalSchedulerThroughputPods}}
+{{$schedulerThroughputNamespaces := DivideInt $totalSchedulerThroughputPods $schedulerThroughputPodsPerDeployment}}
+# END scheduler-throughput section
+
+{{$defaultQps := DefaultParam .CL2_DEFAULT_QPS (IfThenElse (le .Nodes 500) 10 100)}}
+{{$registry := DefaultParam .CL2_LATENCY_POD_REGISTRY "registry.k8s.io"}}
+{{$latencyPodImage := DefaultParam .CL2_LATENCY_POD_IMAGE (Concat $registry "/pause:3.9")}}
+
+name: scheduler-throughput-only
+namespace:
+  number: {{$schedulerThroughputNamespaces}}
+tuningSets:
+- name: default
+  globalQPSLoad:
+    qps: {{$defaultQps}}
+    burst: 1
+
+steps:
+# BEGIN scheduler throughput
+- module:
+    path: modules/scheduler-throughput/config.yaml
+    params:
+      action: create
+      namespaces: 0
+      replicasPerNamespace: 1
+      schedulerThroughputNamespaces: {{$schedulerThroughputNamespaces}}
+      schedulerThroughputPodsPerDeployment: {{$schedulerThroughputPodsPerDeployment}}
+      deploymentImage: {{$latencyPodImage}}
+
+- module:
+    path: modules/scheduler-throughput/config.yaml
+    params:
+      action: delete
+      namespaces: 0
+      replicasPerNamespace: 0
+      schedulerThroughputNamespaces: {{$schedulerThroughputNamespaces}}
+      schedulerThroughputPodsPerDeployment: {{$schedulerThroughputPodsPerDeployment}}
+# END scheduler throughput
