@@ -49,6 +49,7 @@ steps:
           clusterOOMsTrackerEnabled: true
           clusterOOMsIgnoredProcesses: ""
           enableRestartCountCheck: true
+          labelSelector: group = resource-consumer
       - Identifier: PodStartupLatency
         Method: PodStartupLatency
         Params:
@@ -171,10 +172,6 @@ steps:
         Method: TestMetrics
         Params:
           action: gather
-          systemPodMetricsEnabled: true
-          clusterOOMsTrackerEnabled: true
-          clusterOOMsIgnoredProcesses: ""
-          enableRestartCountCheck: true
       - Identifier: ResourceUsageSummary
         Method: ResourceUsageSummary
         Params:
