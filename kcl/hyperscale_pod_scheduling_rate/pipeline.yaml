@@ -1,4 +1,4 @@
-name: Example Pipeline
+name: H8 Pod Scheduling Rate Benchmark
 pool: AKS-Telescope-Ubuntu-EastUS2
 trigger:
 - v2
