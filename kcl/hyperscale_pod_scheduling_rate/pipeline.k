@@ -68,7 +68,7 @@ az rest \\
 """
 
 output = ap.Pipeline {
-    name = "Example Pipeline"
+    name = "H8 Pod Scheduling Rate Benchmark"
 
     trigger =  ["v2"]
     pool = const.DEFAULT_POOL
