@@ -41,6 +41,14 @@ tuningSets:
 steps:
   - name: Start measurements
     measurements:
+      - Identifier: TestMetrics
+        Method: TestMetrics
+        Params:
+          action: start
+          systemPodMetricsEnabled: true
+          clusterOOMsTrackerEnabled: true
+          clusterOOMsIgnoredProcesses: ""
+          enableRestartCountCheck: true
       - Identifier: PodStartupLatency
         Method: PodStartupLatency
         Params:
@@ -159,6 +167,14 @@ steps:
 
   - name: Collect measurements
     measurements:
+      - Identifier: TestMetrics
+        Method: TestMetrics
+        Params:
+          action: gather
+          systemPodMetricsEnabled: true
+          clusterOOMsTrackerEnabled: true
+          clusterOOMsIgnoredProcesses: ""
+          enableRestartCountCheck: true
       - Identifier: ResourceUsageSummary
         Method: ResourceUsageSummary
         Params:
