@@ -172,6 +172,9 @@ steps:
         Method: TestMetrics
         Params:
           action: gather
+          systemPodMetricsEnabled: true
+          clusterOOMsTrackerEnabled: true
+          enableRestartCountCheck: true
       - Identifier: ResourceUsageSummary
         Method: ResourceUsageSummary
         Params:
