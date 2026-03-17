@@ -55,6 +55,7 @@ steps:
         Params:
           action: start
           labelSelector: group = resource-consumer
+          threshold: "60s"
       - Identifier: ResourceUsageSummary
         Method: ResourceUsageSummary
         Params:
