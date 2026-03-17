@@ -36,15 +36,15 @@ steps:
     # Poll until the resource group is fully deleted or timeout after 20 minutes
     TIMEOUT=1200
     INTERVAL=30
-    ELAPSED=0
-    while [ $ELAPSED -lt $TIMEOUT ]; do
+    WAIT_TIME=0
+    while [ $WAIT_TIME -lt $TIMEOUT ]; do
       if ! az group show --name "$RUN_ID" &>/dev/null; then
         echo "Resource group $RUN_ID deleted successfully."
         exit 0
       fi
-      echo "Resource group $RUN_ID still exists. Waiting... ($ELAPSED/$TIMEOUT seconds elapsed)"
+      echo "Resource group $RUN_ID still exists. Waiting... ($WAIT_TIME/$TIMEOUT seconds elapsed)"
       sleep $INTERVAL
-      ELAPSED=$((ELAPSED + INTERVAL))
+      WAIT_TIME=$((WAIT_TIME + INTERVAL))
     done
 
     echo "##vso[task.logissue type=error;] Resource group $RUN_ID was not deleted within $TIMEOUT seconds."

@@ -15,7 +15,7 @@ START_PATTERN = re.compile(r"(module\.[^:]+): (?:Creating|Destroying)")
 # Regex to extract: elapsed time from "Still creating/destroying..." lines
 # e.g. module.azapi[...].azapi_resource.aks_cluster: Still creating... [29m51s elapsed]
 # or:  module.azapi[...].azapi_resource.aks_cluster: Still destroying... 00m40s elapsed]
-ELAPSED_PATTERN = re.compile(r"Still (?:creating|destroying).*?(\d+h\d+m\d+s|\d+h\d+s|\d+m\d+s|\d+s) elapsed")
+ELAPSED_PATTERN = re.compile(r"Still (?:creating|destroying)\.\.\..*?(\d+h\d+m\d+s|\d+h\d+s|\d+m\d+s|\d+s)\s+elapsed\]")
 
 def time_to_seconds(time_str):
     try:
