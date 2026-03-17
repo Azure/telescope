@@ -144,7 +144,7 @@ stages:
           topology: karpenter
           matrix:
             extra-small-scale-on-demand:
-              cpu_per_node: 4
+              cpu_per_node: 2
               node_count: 1
               pod_count: 10
               scale_up_timeout: "5m"
@@ -157,7 +157,7 @@ stages:
               vm_size: Standard_D2ds_v5
               capacity_type: on-demand
             extra-small-scale-spot:
-              cpu_per_node: 4
+              cpu_per_node: 2
               node_count: 1
               pod_count: 10
               scale_up_timeout: "5m"
