@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 import requests
+import yaml
 
 from clients.kubernetes_client import KubernetesClient
 from utils.retries import execute_with_retries
@@ -15,6 +16,12 @@ class KWOK(ABC):
     kwok_repo: str = "kubernetes-sigs/kwok"
     kwok_release: str = None
     enable_metrics: bool = False
+    kwok_config_path: str = "kwok/config/kwok-config.yaml"
+    controller_deploy_template: str = "kwok/config/kwok-controller-group-deploy.yaml"
+    node_selector_key: str = "kwok"
+    node_selector_value: str = "true"
+    toleration_key: str = "kwok"
+    toleration_value: str = "true"
     k8s_client: KubernetesClient = KubernetesClient()
 
     def fetch_latest_release(self):
@@ -52,18 +59,89 @@ class KWOK(ABC):
                 metrics_usage_url
             )
 
+    def apply_kwok_manifests_for_group(self, kwok_release, enable_metrics, controller_index):
+        """Apply KWOK CRDs/stages once, then create a per-group controller deployment.
+
+        Instead of patching the single upstream kwok-controller, this creates a
+        dedicated kwok-controller-<index> deployment that uses CLI flags to
+        manage only nodes labeled kwok-controller-group=<index>.
+        """
+        kwok_yaml_url = (f"https://github.com/{self.kwok_repo}/releases/"
+                         f"download/{kwok_release}/kwok.yaml")
+        stage_fast_yaml_url = (f"https://github.com/{self.kwok_repo}/releases/"
+                              f"download/{kwok_release}/stage-fast.yaml")
+        # Apply upstream CRDs and stages (idempotent)
+        execute_with_retries(
+            self.k8s_client.apply_manifest_from_url,
+            kwok_yaml_url
+        )
+        execute_with_retries(
+            self.k8s_client.apply_manifest_from_url,
+            stage_fast_yaml_url
+        )
+
+        # Replace the upstream configmap with our custom config
+        self._replace_config_map()
+
+        # Scale down the upstream controller — our per-group deployments take over
+        print("Scaling down upstream kwok-controller to 0 replicas")
+        self.k8s_client.get_app_client().patch_namespaced_deployment_scale(
+            name="kwok-controller",
+            namespace="kube-system",
+            body={"spec": {"replicas": 0}}
+        )
+
+        # Create per-group Deployment (label selector passed via CLI flag)
+        self._create_group_deployment(controller_index)
+
+        if enable_metrics:
+            metrics_usage_url = (f"https://github.com/{self.kwok_repo}/releases/"
+                               f"download/{kwok_release}/metrics-usage.yaml")
+            execute_with_retries(
+                self.k8s_client.apply_manifest_from_url,
+                metrics_usage_url
+            )
+
+    def _create_group_deployment(self, controller_index):
+        """Create a per-group kwok-controller deployment from template."""
+        # Get image from the upstream kwok-controller deployment
+        base_deployment = self.k8s_client.get_deployment("kwok-controller", "kube-system")
+        if not base_deployment:
+            raise RuntimeError("Upstream kwok-controller deployment not found. "
+                             "Ensure kwok.yaml was applied first.")
+
+        group_label = f"kwok-controller-group={controller_index}"
+        replacements = {
+            "controller_index": str(controller_index),
+            "controller_image": base_deployment.spec.template.spec.containers[0].image,
+            "node_label_selector": group_label,
+            "node_selector_key": self.node_selector_key,
+            "node_selector_value": self.node_selector_value,
+            "toleration_key": self.toleration_key,
+            "toleration_value": self.toleration_value,
+        }
+        rendered = self.k8s_client.create_template(
+            self.controller_deploy_template, replacements)
+
+        print(f"Creating Deployment 'kwok-controller-{controller_index}' "
+              f"with --manage-nodes-with-label-selector={group_label}")
+        execute_with_retries(
+            self.k8s_client.apply_manifest_from_file,
+            manifest_dict=yaml.safe_load(rendered)
+        )
+
     def _replace_config_map(self):
         """Replace KWOK configuration configmap."""
         # Delete the configmap if it exists, then verify deletion
         execute_with_retries(
             self.k8s_client.delete_manifest_from_file,
-            "kwok/config/kwok-config.yaml",
+            self.kwok_config_path,
         )
         execute_with_retries(self._assert_config_map_absent)
         # Re-apply the configmap manifest
         execute_with_retries(
             self.k8s_client.apply_manifest_from_file,
-            "kwok/config/kwok-config.yaml"
+            self.kwok_config_path
         )
 
     def _assert_config_map_absent(self):
@@ -74,10 +152,10 @@ class KWOK(ABC):
 
     def _patch_deployment(self):
         """Patch kwok-controller deployment with node selector and toleration"""
-        node_selector = {"kwok": "true"}
+        node_selector = {self.node_selector_key: self.node_selector_value}
         tolerations = [{
-            "key": "kwok",
-            "value": "true",
+            "key": self.toleration_key,
+            "value": self.toleration_value,
             "effect": "NoSchedule"
         }]
         execute_with_retries(
@@ -111,13 +189,29 @@ class Node(KWOK):
     node_pods: str = "110"
     node_gpu: str = "0"
     enable_dra: bool = False
+    group: bool = False
+    nodes_per_controller: int = 100
+
+    def _num_groups(self):
+        """Calculate the number of controller groups needed."""
+        return (self.node_count + self.nodes_per_controller - 1) // self.nodes_per_controller
 
     def create(self):
         try:
             self.kwok_release = self.kwok_release or self.fetch_latest_release()
             print(f"Using KWOK_RELEASE={self.kwok_release}")
 
-            self.apply_kwok_manifests(self.kwok_release, self.enable_metrics)
+            if self.group:
+                num_groups = self._num_groups()
+                print(f"Grouped mode: {self.node_count} nodes across "
+                      f"{num_groups} controller(s), {self.nodes_per_controller} nodes each")
+                # Apply upstream manifests + create per-group deployments
+                for g in range(num_groups):
+                    self.apply_kwok_manifests_for_group(
+                        self.kwok_release, self.enable_metrics, g)
+            else:
+                # Legacy single-controller mode
+                self.apply_kwok_manifests(self.kwok_release, self.enable_metrics)
 
             # Apply DRA manifests once if enabled
             if self.enable_dra:
@@ -127,6 +221,8 @@ class Node(KWOK):
                 )
 
             for i in range(self.node_count):
+                # In grouped mode, figure out which group this node belongs to
+                group_index = i // self.nodes_per_controller if self.group else -1
                 node_name = f"kwok-node-{i}"
                 replacements = {
                     "node_name": node_name,
@@ -139,6 +235,11 @@ class Node(KWOK):
                 kwok_template = self.k8s_client.create_template(
                     self.node_manifest_path, replacements
                 )
+
+                # Add controller group label if using grouped mode
+                if self.group:
+                    kwok_template = self._add_group_label(kwok_template, group_index)
+
                 execute_with_retries(
                     self.k8s_client.create_node,
                     kwok_template,
@@ -167,46 +268,66 @@ class Node(KWOK):
         except Exception as e:
             raise RuntimeError(f"Failed to create nodes: {e}") from e
 
+    def _add_group_label(self, template_str, group_index):
+        """Add kwok-controller-group label to a node template."""
+        node_obj = yaml.safe_load(template_str)
+        if "labels" not in node_obj.get("metadata", {}):
+            node_obj["metadata"]["labels"] = {}
+        node_obj["metadata"]["labels"]["kwok-controller-group"] = str(group_index)
+        return yaml.dump(node_obj, default_flow_style=False)
+
     def validate(self):
         execute_with_retries(
             self._validate_config_map,
         )
 
-        execute_with_retries(
-            self._validate_kwok_controller,
-        )
+        if self.group:
+            for g in range(self._num_groups()):
+                execute_with_retries(
+                    self._validate_kwok_controller, g
+                )
+        else:
+            execute_with_retries(
+                self._validate_kwok_controller,
+            )
 
         execute_with_retries(
             self._validate_kwok_nodes
         )
 
     def _validate_config_map(self):
-        "Validate that kwok configmap exists"
+        """Validate that kwok configmap exists"""
+        cm_name = "kwok"
         config_map = self.k8s_client.get_config_map(
-            "kwok",
+            cm_name,
             "kube-system"
         )
         if not config_map:
-            raise RuntimeError("kwok config map not found in kube-system namespace")
+            raise RuntimeError(f"{cm_name} config map not found in kube-system namespace")
 
-    def _validate_kwok_controller(self):
+    def _validate_kwok_controller(self, group_index=None):
         """Validate that kwok-controller deployment is running with 1 available replica."""
+        if group_index is not None:
+            deploy_name = f"kwok-controller-{group_index}"
+        else:
+            deploy_name = "kwok-controller"
+
         deployment = self.k8s_client.get_deployment(
-            "kwok-controller",
+            deploy_name,
             "kube-system"
         )
 
         if not deployment:
-            raise RuntimeError("kwok-controller deployment not found in kube-system namespace")
+            raise RuntimeError(f"{deploy_name} deployment not found in kube-system namespace")
 
         available_replicas = deployment.status.available_replicas or 0
         if available_replicas != 1:
             raise RuntimeError(
-                f"kwok-controller deployment validation failed: "
+                f"{deploy_name} deployment validation failed: "
                 f"Expected 1 available replica, but found {available_replicas}"
             )
 
-        print("kwok-controller deployment is running with 1 available replica.")
+        print(f"{deploy_name} deployment is running with 1 available replica.")
 
 
     def _validate_kwok_nodes(self):
@@ -370,6 +491,54 @@ def main():
         help="Enable Dynamic Resource Allocation (DRA).",
     )
     parser.add_argument(
+        "--group",
+        action="store_true",
+        help="Enable grouped mode: automatically split nodes across multiple controllers, "
+             "each managing at most --nodes-per-controller nodes.",
+    )
+    parser.add_argument(
+        "--nodes-per-controller",
+        type=int,
+        default=100,
+        help="Number of virtual nodes per controller group (default: 100).",
+    )
+    parser.add_argument(
+        "--kwok-config-path",
+        type=str,
+        default="kwok/config/kwok-config.yaml",
+        help="Path to KWOK controller configuration YAML (default: kwok/config/kwok-config.yaml).",
+    )
+    parser.add_argument(
+        "--controller-deploy-template",
+        type=str,
+        default="kwok/config/kwok-controller-group-deploy.yaml",
+        help="Path to per-group Deployment template (default: kwok/config/kwok-controller-group-deploy.yaml).",
+    )
+    parser.add_argument(
+        "--node-selector-key",
+        type=str,
+        default="kwok",
+        help="Node selector key for controller pod affinity (default: kwok).",
+    )
+    parser.add_argument(
+        "--node-selector-value",
+        type=str,
+        default="true",
+        help="Node selector value for controller pod affinity (default: true).",
+    )
+    parser.add_argument(
+        "--toleration-key",
+        type=str,
+        default="kwok",
+        help="Toleration key for controller pod scheduling (default: kwok).",
+    )
+    parser.add_argument(
+        "--toleration-value",
+        type=str,
+        default="true",
+        help="Toleration value for controller pod scheduling (default: true).",
+    )
+    parser.add_argument(
         "--action",
         choices=["create", "validate", "tear_down"],
         required=True,
@@ -388,6 +557,14 @@ def main():
         kwok_release=args.kwok_release,
         enable_metrics=args.enable_metrics,
         enable_dra=args.enable_dra,
+        group=args.group,
+        nodes_per_controller=args.nodes_per_controller,
+        kwok_config_path=args.kwok_config_path,
+        controller_deploy_template=args.controller_deploy_template,
+        node_selector_key=args.node_selector_key,
+        node_selector_value=args.node_selector_value,
+        toleration_key=args.toleration_key,
+        toleration_value=args.toleration_value,
     )
     if args.action == "create":
         node.create()
