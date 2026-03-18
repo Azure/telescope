@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kwok-controller-{{controller_index}}
+  namespace: kube-system
+  labels:
+    app: kwok-controller-{{controller_index}}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kwok-controller-{{controller_index}}
+  template:
+    metadata:
+      labels:
+        app: kwok-controller-{{controller_index}}
+    spec:
+      containers:
+      - name: kwok-controller
+        image: {{controller_image}}
+        args:
+        - --manage-nodes-with-label-selector={{node_label_selector}}
+        - --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake
+        volumeMounts:
+        - name: kwok-config
+          mountPath: /root/.kwok/kwok.yaml
+          subPath: kwok.yaml
+      volumes:
+      - name: kwok-config
+        configMap:
+          name: kwok
+      nodeSelector:
+        {{node_selector_key}}: "{{node_selector_value}}"
+      tolerations:
+      - key: {{toleration_key}}
+        value: "{{toleration_value}}"
+        effect: NoSchedule
+      serviceAccountName: kwok-controller
