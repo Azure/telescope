@@ -15,7 +15,8 @@ python3 ${KWOK_SCRIPT} \
   ${extraArgs}
 python3 ${KWOK_SCRIPT} \
   --action validate \
-  --node-count ${nodeCount}"""
+  --node-count ${nodeCount} \
+  ${extraArgs}"""
         workingDirectory = "modules/python"
         displayName = "Create and Validate KWOK Nodes"
     }
