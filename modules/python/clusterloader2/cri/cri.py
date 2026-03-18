@@ -74,7 +74,7 @@ def override_config_clusterloader2(
         file.write(f"CL2_DEPLOYMENT_SIZE: {pod_count}\n")
         file.write(f"CL2_RESOURCE_CONSUME_MEMORY: {memory_request}\n")
         file.write(f"CL2_RESOURCE_CONSUME_MEMORY_KI: {memory_request_in_ki}Ki\n")
-        file.write(f"CL2_TEST_RESOURCE_CONSUME_MEMORY_KI: {4*memory_request_in_ki}Ki\n")
+        file.write(f"CL2_TEST_RESOURCE_CONSUME_MEMORY_KI: {5*memory_request_in_ki}Ki\n")
         file.write(f"CL2_RESOURCE_CONSUME_CPU: {cpu_request}\n")
         file.write(f"CL2_REPEATS: {repeats}\n")
         file.write(f"CL2_NODE_COUNT: {node_count}\n")
