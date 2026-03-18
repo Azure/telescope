@@ -54,7 +54,7 @@ spec:
               "avg300": [],
               "total": []
             },
-            "oom_kill_count": []
+            "oom_kill_count": 0
           }' > /app/config/psi.json
 
           while true; do
@@ -69,7 +69,7 @@ spec:
               fi
             done
             oom_kill_count=$(grep oom_kill /proc/vmstat | awk '{print $2}')
-            jq --arg oom_kill_count "$oom_kill_count" '.oom_kill_count |= . + [$oom_kill_count]' /app/config/psi.json > psi.json.tmp && mv psi.json.tmp /app/config/psi.json
+            jq --arg oom_kill_count "$oom_kill_count" '.oom_kill_count = ($oom_kill_count | tonumber)' /app/config/psi.json > psi.json.tmp && mv psi.json.tmp /app/config/psi.json
             sleep 1
           done
         volumeMounts:
