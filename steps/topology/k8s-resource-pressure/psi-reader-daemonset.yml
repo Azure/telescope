@@ -72,6 +72,8 @@ spec:
             },
             "sys_oom_kill": 0,
             "pod_oom_kill": 0,
+            sys_pgscan: 0,
+            pod_pgscan: 0
           }' > /app/config/psi.json
 
           while true; do
@@ -100,6 +102,10 @@ spec:
             sys_oom_kill=$(grep oom_kill /sys/fs/cgroup/system.slice/memory.events | awk '{print $2}')
             pod_oom_kill=$(grep oom_kill /sys/fs/cgroup/kubepods.slice/memory.events | awk '{print $2}')
             jq --arg sys_oom_kill "$sys_oom_kill" --arg pod_oom_kill "$pod_oom_kill" '.sys_oom_kill = ($sys_oom_kill | tonumber) | .pod_oom_kill = ($pod_oom_kill | tonumber)' /app/config/psi.json > psi.json.tmp && mv psi.json.tmp /app/config/psi.json
+
+            sys_pgscan=$(grep pgscan /sys/fs/cgroup/system.slice/memory.events | awk '{print $2}')
+            pod_pgscan=$(grep pgscan /sys/fs/cgroup/kubepods.slice/memory.events | awk '{print $2}')
+            jq --arg sys_pgscan "$sys_pgscan" --arg pod_pgscan "$pod_pgscan" '.sys_pgscan = ($sys_pgscan | tonumber) | .pod_pgscan = ($pod_pgscan | tonumber)' /app/config/psi.json > psi.json.tmp && mv psi.json.tmp /app/config/psi.json
             
             sleep 1
           done
