@@ -19,8 +19,25 @@ spec:
       - name: kwok-controller
         image: {{controller_image}}
         args:
+        - --config=/root/.kwok/kwok.yaml
+        - --node-ip=$(POD_IP)
+        - --manage-all-nodes=false
         - --manage-nodes-with-label-selector={{node_label_selector}}
         - --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake
+        - --server-address=0.0.0.0:10247
+        - --node-lease-duration-seconds=60
+        env:
+        - name: KUBE_API_QPS
+          value: "500"
+        - name: KUBE_API_BURST
+          value: "1000"
+        resources:
+          limits:
+            cpu: "3"
+            memory: "32Gi"
+          requests:
+            cpu: "2"
+            memory: "5Gi"
         volumeMounts:
         - name: kwok-config
           mountPath: /root/.kwok/kwok.yaml

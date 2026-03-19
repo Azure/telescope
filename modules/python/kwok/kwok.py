@@ -22,6 +22,14 @@ class KWOK(ABC):
     node_selector_value: str = "true"
     toleration_key: str = "kwok"
     toleration_value: str = "true"
+    node_lease_parallelism: int = 4
+    pod_play_stage_parallelism: int = 64
+    node_play_stage_parallelism: int = 4
+    cidr: str = "10.0.0.1/24"
+    node_ip: str = None
+    node_lease_duration_seconds: int = 40
+    kube_connection_qps: float = None
+    kube_connection_burst: int = None
     k8s_client: KubernetesClient = KubernetesClient()
 
     def fetch_latest_release(self):
@@ -59,13 +67,8 @@ class KWOK(ABC):
                 metrics_usage_url
             )
 
-    def apply_kwok_manifests_for_group(self, kwok_release, enable_metrics, controller_index):
-        """Apply KWOK CRDs/stages once, then create a per-group controller deployment.
-
-        Instead of patching the single upstream kwok-controller, this creates a
-        dedicated kwok-controller-<index> deployment that uses CLI flags to
-        manage only nodes labeled kwok-controller-group=<index>.
-        """
+    def setup_kwok_for_groups(self, kwok_release, enable_metrics):
+        """One-time setup: apply CRDs/stages, replace configmap, extract image, delete upstream controller."""
         kwok_yaml_url = (f"https://github.com/{self.kwok_repo}/releases/"
                          f"download/{kwok_release}/kwok.yaml")
         stage_fast_yaml_url = (f"https://github.com/{self.kwok_repo}/releases/"
@@ -83,16 +86,19 @@ class KWOK(ABC):
         # Replace the upstream configmap with our custom config
         self._replace_config_map()
 
-        # Scale down the upstream controller — our per-group deployments take over
-        print("Scaling down upstream kwok-controller to 0 replicas")
-        self.k8s_client.get_app_client().patch_namespaced_deployment_scale(
+        # Extract image from upstream controller before deleting it
+        base_deployment = self.k8s_client.get_deployment("kwok-controller", "kube-system")
+        if not base_deployment:
+            raise RuntimeError("Upstream kwok-controller deployment not found. "
+                             "Ensure kwok.yaml was applied first.")
+        controller_image = base_deployment.spec.template.spec.containers[0].image
+
+        # Delete the upstream controller — our per-group deployments take over
+        print("Deleting upstream kwok-controller deployment")
+        self.k8s_client.get_app_client().delete_namespaced_deployment(
             name="kwok-controller",
             namespace="kube-system",
-            body={"spec": {"replicas": 0}}
         )
-
-        # Create per-group Deployment (label selector passed via CLI flag)
-        self._create_group_deployment(controller_index)
 
         if enable_metrics:
             metrics_usage_url = (f"https://github.com/{self.kwok_repo}/releases/"
@@ -102,18 +108,14 @@ class KWOK(ABC):
                 metrics_usage_url
             )
 
-    def _create_group_deployment(self, controller_index):
-        """Create a per-group kwok-controller deployment from template."""
-        # Get image from the upstream kwok-controller deployment
-        base_deployment = self.k8s_client.get_deployment("kwok-controller", "kube-system")
-        if not base_deployment:
-            raise RuntimeError("Upstream kwok-controller deployment not found. "
-                             "Ensure kwok.yaml was applied first.")
+        return controller_image
 
+    def _create_group_deployment(self, controller_index, controller_image):
+        """Create a per-group kwok-controller deployment from template."""
         group_label = f"kwok-controller-group={controller_index}"
         replacements = {
             "controller_index": str(controller_index),
-            "controller_image": base_deployment.spec.template.spec.containers[0].image,
+            "controller_image": controller_image,
             "node_label_selector": group_label,
             "node_selector_key": self.node_selector_key,
             "node_selector_value": self.node_selector_value,
@@ -132,16 +134,37 @@ class KWOK(ABC):
 
     def _replace_config_map(self):
         """Replace KWOK configuration configmap."""
+        replacements = {
+            "node_lease_parallelism": str(self.node_lease_parallelism),
+            "pod_play_stage_parallelism": str(self.pod_play_stage_parallelism),
+            "node_play_stage_parallelism": str(self.node_play_stage_parallelism),
+            "cidr": self.cidr,
+            "node_lease_duration_seconds": str(self.node_lease_duration_seconds),
+        }
+        rendered = self.k8s_client.create_template(
+            self.kwok_config_path, replacements)
+        rendered_manifest = yaml.safe_load(rendered)
+
+        # Add optional fields only when explicitly set
+        kwok_yaml = yaml.safe_load(rendered_manifest["data"]["kwok.yaml"])
+        if self.node_ip is not None:
+            kwok_yaml["options"]["nodeIP"] = self.node_ip
+        if self.kube_connection_qps is not None:
+            kwok_yaml["options"]["kubeConnectionQPS"] = self.kube_connection_qps
+        if self.kube_connection_burst is not None:
+            kwok_yaml["options"]["kubeConnectionBurst"] = self.kube_connection_burst
+        rendered_manifest["data"]["kwok.yaml"] = yaml.dump(kwok_yaml, default_flow_style=False)
+
         # Delete the configmap if it exists, then verify deletion
         execute_with_retries(
             self.k8s_client.delete_manifest_from_file,
             self.kwok_config_path,
         )
         execute_with_retries(self._assert_config_map_absent)
-        # Re-apply the configmap manifest
+        # Re-apply the configmap manifest with rendered values
         execute_with_retries(
             self.k8s_client.apply_manifest_from_file,
-            self.kwok_config_path
+            manifest_dict=rendered_manifest
         )
 
     def _assert_config_map_absent(self):
@@ -205,10 +228,12 @@ class Node(KWOK):
                 num_groups = self._num_groups()
                 print(f"Grouped mode: {self.node_count} nodes across "
                       f"{num_groups} controller(s), {self.nodes_per_controller} nodes each")
-                # Apply upstream manifests + create per-group deployments
+                # One-time setup: CRDs, configmap, extract image, delete upstream
+                controller_image = self.setup_kwok_for_groups(
+                    self.kwok_release, self.enable_metrics)
+                # Create per-group deployments
                 for g in range(num_groups):
-                    self.apply_kwok_manifests_for_group(
-                        self.kwok_release, self.enable_metrics, g)
+                    self._create_group_deployment(g, controller_image)
             else:
                 # Legacy single-controller mode
                 self.apply_kwok_manifests(self.kwok_release, self.enable_metrics)
@@ -539,6 +564,54 @@ def main():
         help="Toleration value for controller pod scheduling (default: true).",
     )
     parser.add_argument(
+        "--node-lease-parallelism",
+        type=int,
+        default=4,
+        help="KWOK nodeLeaseParallelism (default: 4).",
+    )
+    parser.add_argument(
+        "--pod-play-stage-parallelism",
+        type=int,
+        default=64,
+        help="KWOK podPlayStageParallelism (default: 64).",
+    )
+    parser.add_argument(
+        "--node-play-stage-parallelism",
+        type=int,
+        default=4,
+        help="KWOK nodePlayStageParallelism (default: 4).",
+    )
+    parser.add_argument(
+        "--cidr",
+        type=str,
+        default="10.0.0.1/24",
+        help="KWOK CIDR for simulated nodes (default: 10.0.0.1/24).",
+    )
+    parser.add_argument(
+        "--node-ip",
+        type=str,
+        default=None,
+        help="KWOK nodeIP for simulated nodes (default: not set).",
+    )
+    parser.add_argument(
+        "--node-lease-duration-seconds",
+        type=int,
+        default=40,
+        help="KWOK nodeLeaseDurationSeconds (default: 40).",
+    )
+    parser.add_argument(
+        "--kube-connection-qps",
+        type=float,
+        default=None,
+        help="KWOK kubeConnectionQPS (default: not set).",
+    )
+    parser.add_argument(
+        "--kube-connection-burst",
+        type=int,
+        default=None,
+        help="KWOK kubeConnectionBurst (default: not set).",
+    )
+    parser.add_argument(
         "--action",
         choices=["create", "validate", "tear_down"],
         required=True,
@@ -565,6 +638,14 @@ def main():
         node_selector_value=args.node_selector_value,
         toleration_key=args.toleration_key,
         toleration_value=args.toleration_value,
+        node_lease_parallelism=args.node_lease_parallelism,
+        pod_play_stage_parallelism=args.pod_play_stage_parallelism,
+        node_play_stage_parallelism=args.node_play_stage_parallelism,
+        cidr=args.cidr,
+        node_ip=args.node_ip,
+        node_lease_duration_seconds=args.node_lease_duration_seconds,
+        kube_connection_qps=args.kube_connection_qps,
+        kube_connection_burst=args.kube_connection_burst,
     )
     if args.action == "create":
         node.create()

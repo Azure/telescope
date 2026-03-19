@@ -10,14 +10,14 @@ SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "westus2"
 CLUSTER = "stg-H2-hyperscale-apiserver-seats"
-KWOK_NODE_COUNT = 100
+KWOK_NODE_COUNT = 200
 KWOK_NODES_PER_CONTROLLER = 100
 KWOK_POOL = "kwokpool"
 KWOK_POOL_VM_SIZE = "Standard_D8S_v4"
 CL2_IMAGE = "ghcr.io/azure/clusterloader2:v20260220"
 
 cl2OverrideContent = """\
-NODES: 30
+NODES: 200
 PODS_PER_NODE: 10
 BIG_GROUP_SIZE: 8
 MEDIUM_GROUP_SIZE: 8
@@ -156,11 +156,20 @@ output = ap.Pipeline {
                     "node-selector-value": "true"
                     "toleration-key": "kwok"
                     "toleration-value": "true"
+                    "node-lease-parallelism": "200"
+                    "pod-play-stage-parallelism": "100"
+                    "node-play-stage-parallelism": "100"
+                    "cidr": "100.64.0.0/10"
+                    "node-ip": "100.64.0.1"
+                    "node-lease-duration-seconds": "40"
+                    "kube-connection-qps": "500.0"
+                    "kube-connection-burst": "1000"
                   }),
                 k8s.RunClusterLoader2Local(
                     const.DEFAULT_SERVICE_CONNECTION,
                     CL2_IMAGE,
                     cl2OverrideContent,
+                    provider = "ks",
                     extraArgs = "--k8s-clients-number=500"),
                 azure.DeleteResourceGroup(
                     const.DEFAULT_SERVICE_CONNECTION,
