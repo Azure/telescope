@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
 import requests
+import yaml
 
 from clients.kubernetes_client import KubernetesClient
 from utils.retries import execute_with_retries
@@ -105,12 +106,14 @@ class KWOK(ABC):
 class Node(KWOK):
     """KWOK Node implementation for creating and managing virtual Kubernetes nodes."""
     node_manifest_path: str = "kwok/config/kwok-node.yaml"
+    controller_manifest_path: str = "kwok/config/kwok-controller.yaml"
     node_count: int = 1
     node_cpu: str = "32"
     node_memory: str = "256Gi"
     node_pods: str = "110"
     node_gpu: str = "0"
     enable_dra: bool = False
+    nodes_per_group: int = 100
 
     def create(self):
         try:
@@ -311,6 +314,74 @@ class Node(KWOK):
         print(f"Node {node.metadata.name} Allocatable: {allocatable}")
         print(f"Node {node.metadata.name} Capacity: {capacity}")
 
+    def create_partitioned_controllers(self):
+        """Create one KWOK controller Deployment per node group.
+
+        Partitions nodes into groups of `nodes_per_group`. Each group gets its own
+        kwok-controller deployment that manages only nodes labeled with its partition.
+        """
+        total_groups = self.node_count // self.nodes_per_group
+        if self.node_count % self.nodes_per_group:
+            total_groups += 1
+
+        print(
+            f"Creating {total_groups} KWOK controller deployment(s) "
+            f"for {self.node_count} nodes ({self.nodes_per_group} nodes/group)."
+        )
+
+        for group_id in range(total_groups):
+            manifest = self._build_controller_deployment(group_id)
+            execute_with_retries(
+                self.k8s_client.apply_manifest_from_file,
+                manifest_path=self.controller_manifest_path,
+                manifest_dict=manifest,
+            )
+
+        print(f"Successfully created {total_groups} KWOK controller deployment(s).")
+
+    def _build_controller_deployment(self, group_id: int) -> dict:
+        """Render the controller Deployment template for a single partition."""
+        partition_label = f"group-{group_id}"
+        replacements = {
+            "controller_name": f"kwok-controller-{partition_label}",
+            "partition_label": partition_label,
+            "image": f"registry.k8s.io/kwok/kwok:{self.kwok_release}",
+        }
+        template = self.k8s_client.create_template(self.controller_manifest_path, replacements)
+        return yaml.safe_load(template)
+
+    def generate(self):
+        """Print node and controller manifests to stdout without applying to the cluster."""
+        self.kwok_release = self.kwok_release or self.fetch_latest_release()
+
+        total_groups = self.node_count // self.nodes_per_group
+        if self.node_count % self.nodes_per_group:
+            total_groups += 1
+
+        for group_id in range(total_groups):
+            manifest = self._build_controller_deployment(group_id)
+            print("---")
+            print(yaml.dump(manifest, default_flow_style=False), end="")
+
+        for i in range(self.node_count):
+            node_name = f"kwok-node-{i}"
+            group_id = i // self.nodes_per_group
+            replacements = {
+                "node_name": node_name,
+                "node_ip": self._generate_node_ip(i),
+                "node_cpu": self.node_cpu,
+                "node_memory": self.node_memory,
+                "node_pods": self.node_pods,
+                "node_gpu": self.node_gpu,
+            }
+            node_yaml = self.k8s_client.create_template(self.node_manifest_path, replacements)
+            node_dict = yaml.safe_load(node_yaml)
+            node_dict.setdefault("metadata", {}).setdefault("labels", {})[
+                "kwok-partition"
+            ] = f"group-{group_id}"
+            print("---")
+            print(yaml.dump(node_dict, default_flow_style=False), end="")
+
 
 def main():
     """Main function to handle command-line arguments and execute KWOK operations."""
@@ -370,10 +441,16 @@ def main():
         help="Enable Dynamic Resource Allocation (DRA).",
     )
     parser.add_argument(
+        "--nodes-per-group",
+        type=int,
+        default=100,
+        help="Number of nodes per KWOK controller partition (default: 100).",
+    )
+    parser.add_argument(
         "--action",
-        choices=["create", "validate", "tear_down"],
+        choices=["create", "validate", "tear_down", "generate"],
         required=True,
-        help="Action to perform: create, validate, or tear_down.",
+        help="Action to perform: create, validate, tear_down, or generate (print manifests to stdout).",
     )
 
     args = parser.parse_args()
@@ -388,6 +465,7 @@ def main():
         kwok_release=args.kwok_release,
         enable_metrics=args.enable_metrics,
         enable_dra=args.enable_dra,
+        nodes_per_group=args.nodes_per_group,
     )
     if args.action == "create":
         node.create()
@@ -395,6 +473,8 @@ def main():
         node.validate()
     elif args.action == "tear_down":
         node.tear_down()
+    elif args.action == "generate":
+        node.generate()
 
 
 if __name__ == "__main__":

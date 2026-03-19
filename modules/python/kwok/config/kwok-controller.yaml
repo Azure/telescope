@@ -1,0 +1,105 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{controller_name}}
+  namespace: kube-system
+  labels:
+    app: {{controller_name}}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{controller_name}}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+  template:
+    metadata:
+      labels:
+        app: {{controller_name}}
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: agentpool
+                operator: In
+                values:
+                - "kwokpool"
+      serviceAccountName: kwok-controller
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      containers:
+      - name: kwok-controller
+        image: {{image}}
+        imagePullPolicy: IfNotPresent
+        args:
+        - --config=/root/.kwok/kwok.yaml
+        - --node-ip=$(POD_IP)
+        - --manage-all-nodes=false
+        - --manage-nodes-with-label-selector=kwok-partition={{partition_label}}
+        - --server-address=0.0.0.0:10247
+        - --node-lease-duration-seconds=60
+        env:
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: status.podIP
+        - name: HOST_IP
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: status.hostIP
+        - name: KUBE_API_QPS
+          value: "500"
+        - name: KUBE_API_BURST
+          value: "1000"
+        resources:
+          requests:
+            cpu: "4"
+            memory: 5Gi
+          limits:
+            cpu: "6"
+            memory: 32Gi
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 10247
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 60
+          failureThreshold: 10
+          successThreshold: 1
+          timeoutSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 10247
+            scheme: HTTP
+          initialDelaySeconds: 2
+          periodSeconds: 20
+          failureThreshold: 5
+          successThreshold: 1
+          timeoutSeconds: 2
+        startupProbe:
+          httpGet:
+            path: /healthz
+            port: 10247
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 2
+          failureThreshold: 30
+        volumeMounts:
+        - name: kwok-config
+          mountPath: /root/.kwok/kwok.yaml
+          subPath: kwok.yaml
+          readOnly: true
+      volumes:
+      - name: kwok-config
+        configMap:
+          name: kwok
+          defaultMode: 420
