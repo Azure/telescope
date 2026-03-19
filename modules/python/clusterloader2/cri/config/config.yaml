@@ -133,6 +133,50 @@ steps:
           duration: 1m
   {{end}}
 
+  {{range $j := Loop $steps}}
+  - name: Create deployment {{$j}}
+    phases:
+    - namespaceRange:
+          min: 1
+          max: 1
+      replicasPerNamespace: 1
+      tuningSet: Uniform1qps
+      objectBundle:
+      - basename: resource-consumer-{{$j}}
+        objectTemplatePath: deployment_template.yaml
+        templateFillMap:
+      {{if $scaleEnabled}}
+        {{if eq $j 0}}
+          Replicas: {{AddInt $scaleReplicas $deploymentSize}}
+        {{else}}
+          Replicas: {{$scaleReplicas}}
+        {{end}}
+      {{else}}
+          Replicas: {{$replicas}}
+      {{end}}
+          Group: resource-consumer
+          {{if eq $osType "windows"}}
+          Memory: {{$memory}}
+          {{else}}
+          Memory: {{$testMemoryKi}}K
+          {{end}}
+          CPU: --millicores={{$cpu}}
+          MemoryRequest: {{$memoryKi}}
+          CPURequest: {{$cpu}}m
+          LoadType: {{$loadType}}
+          Provider: {{$provider}}
+          RegistryEndpoint: {{$registryEndpoint}}
+          OSType: {{$osType}}
+          HostNetwork: {{$hostNetwork}}
+
+  - name: Wait for resource consumption
+    measurements:
+      - Identifier: Sleep
+        Method: Sleep
+        Params:
+          duration: 30s
+  {{end}}
+
   {{if $scrapeKubelets}}
   - module:
       path: /kubelet-measurement.yaml

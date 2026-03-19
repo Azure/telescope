@@ -42,34 +42,65 @@ spec:
           fi
 
           jq -n '{
-            "some": {
-              "avg10": [],
-              "avg60": [],
-              "avg300": [],
-              "total": []
+            "system": {
+              "some": {
+                "avg10": [],
+                "avg60": [],
+                "avg300": [],
+                "total": []
+              },
+              "full": {
+                "avg10": [],
+                "avg60": [],
+                "avg300": [],
+                "total": []
+              },
             },
-            "full": {
-              "avg10": [],
-              "avg60": [],
-              "avg300": [],
-              "total": []
+            "pod": {
+              "some": {
+                "avg10": [],
+                "avg60": [],
+                "avg300": [],
+                "total": []
+              },
+              "full": {
+                "avg10": [],
+                "avg60": [],
+                "avg300": [],
+                "total": []
+              },
             },
-            "oom_kill_count": 0
+            "sys_oom_kill": 0,
+            "pod_oom_kill": 0,
           }' > /app/config/psi.json
 
           while true; do
-            psi=$(cat /proc/pressure/memory)
-            for metric in $psi; do
+            sys_psi=$(cat /sys/fs/cgroup/system.slice/memory.pressure)
+            for metric in $sys_psi; do
               if [ $metric == "some" ] || [ $metric == "full" ]; then
                 scope=$metric
               else
                 key=${metric%%=*}
                 value=${metric#*=}
-                jq --arg scope "$scope" --arg key "$key" --arg value "$value" '.[$scope][$key] |= . + [$value]' /app/config/psi.json > psi.json.tmp && mv psi.json.tmp /app/config/psi.json
+                jq --arg scope "$scope" --arg key "$key" --arg value "$value" '.system[$scope][$key] |= . + [$value]' /app/config/psi.json > psi.json.tmp && mv psi.json.tmp /app/config/psi.json
               fi
             done
-            oom_kill_count=$(grep oom_kill /proc/vmstat | awk '{print $2}')
-            jq --arg oom_kill_count "$oom_kill_count" '.oom_kill_count = ($oom_kill_count | tonumber)' /app/config/psi.json > psi.json.tmp && mv psi.json.tmp /app/config/psi.json
+
+            pod_psi=$(cat /sys/fs/cgroup/kubepods.slice/memory.pressure)
+            for metric in $pod_psi; do
+              if [ $metric == "some" ] || [ $metric == "full" ]; then
+                scope=$metric
+              else
+                key=${metric%%=*}
+                value=${metric#*=}
+                jq --arg scope "$scope" --arg key "$key" --arg value "$value" '.pod[$scope][$key] |= . + [$value]' /app/config/psi.json > psi.json.tmp && mv psi.json.tmp /app/config/psi.json
+              fi
+            done
+
+            sys_oom_kill=$(grep oom_kill /sys/fs/cgroup/system.slice/memory.events | awk '{print $2}')
+            pod_oom_kill=$(grep oom_kill /sys/fs/cgroup/kubepods.slice/memory.events | awk '{print $2}')
+            jq --arg sys_oom_kill "$sys_oom_kill" --arg pod_oom_kill "$pod_oom_kill" '.sys_oom_kill = ($sys_oom_kill | tonumber) | .pod_oom_kill = ($pod_oom_kill | tonumber)' /app/config/psi.json > psi.json.tmp && mv psi.json.tmp /app/config/psi.json
+            
             sleep 1
           done
         volumeMounts:
