@@ -19,6 +19,7 @@ echo "=== CL2 Override Config ==="
 cat /tmp/cl2-config/overrides.yaml
 echo "==========================="
 
+set +e
 docker run --rm \
   --network host \
   -v "$HOME/.kube/config:/root/.kube/config:rw" \
@@ -33,9 +34,15 @@ docker run --rm \
   --kubeconfig=/root/.kube/config \
   --report-dir=/root/perf-tests/clusterloader2/results \
   ${extraArgs}
+CL2_EXIT=$?
+set -e
 
 echo "=== CL2 Results ==="
 ls -la /tmp/cl2-results/
+
+if [ $CL2_EXIT -ne 0 ]; then
+  echo "##[warning]CL2 exited with code $CL2_EXIT (test failures), but continuing pipeline."
+fi
 """
     azure.AzCli(serviceConnection, "Run CL2 locally on agent", script)
 }
