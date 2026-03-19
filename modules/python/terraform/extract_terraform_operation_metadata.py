@@ -15,7 +15,7 @@ START_PATTERN = re.compile(r"(module\.[^:]+): (?:Creating|Destroying)")
 # Regex to extract: elapsed time from "Still creating/destroying..." lines
 # e.g. module.azapi[...].azapi_resource.aks_cluster: Still creating... [29m51s elapsed]
 # or:  module.azapi[...].azapi_resource.aks_cluster: Still destroying... 00m40s elapsed]
-ELAPSED_PATTERN = re.compile(r"Still (?:creating|destroying)\.\.\. \[?(\d+h\d+m\d+s|\d+h\d+s|\d+m\d+s|\d+s) elapsed\]")
+ELAPSED_PATTERN = re.compile(r"Still (?:creating|destroying)\.\.\..*?(\d+h\d+m\d+s|\d+h\d+s|\d+m\d+s|\d+s)\s+elapsed\]")
 
 def time_to_seconds(time_str):
     try:
@@ -90,8 +90,8 @@ def process_terraform_logs(log_path, _command_type, _scenario_type, _scenario_na
                 start_match = START_PATTERN.search(line)
                 if start_match:
                     # A new run is starting; flush the previous run if it was incomplete
-                    if current_full_path and not current_completed and current_elapsed_time_str:
-                        results.append(build_result(current_full_path, current_elapsed_time_str, run_id, _command_type, _scenario_type, _scenario_name, False, current_timed_out))
+                    if current_full_path and not current_completed:
+                        results.append(build_result(current_full_path, current_elapsed_time_str or "0s", run_id, _command_type, _scenario_type, _scenario_name, False, current_timed_out))
 
                     current_full_path = start_match.group(1)
                     current_elapsed_time_str = None
@@ -112,8 +112,8 @@ def process_terraform_logs(log_path, _command_type, _scenario_type, _scenario_na
                     continue
 
         # Flush the last run if it was incomplete
-        if current_full_path and not current_completed and current_elapsed_time_str:
-            results.append(build_result(current_full_path, current_elapsed_time_str, run_id, _command_type, _scenario_type, _scenario_name, False, current_timed_out))
+        if current_full_path and not current_completed:
+            results.append(build_result(current_full_path, current_elapsed_time_str or "0s", run_id, _command_type, _scenario_type, _scenario_name, False, current_timed_out))
     except Exception as e:
         print(f"[ERROR] Failed to process log file '{log_file}': {e}")
 

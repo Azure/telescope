@@ -306,5 +306,150 @@ class TestExtractTerraformOperationMetadata(unittest.TestCase):
         mock_open_file.assert_called_once_with('/fake/path/terraform_apply.log', 'r', encoding='utf-8')
         mock_isfile.assert_called_once_with("/fake/path/terraform_apply.log")
 
+    @patch("os.path.isfile", return_value=True)
+    @patch("builtins.open", new_callable=mock_open, read_data=(
+        'module.azapi["ccp-provisioning-H2"].azapi_resource.aks_cluster: Destroying... [id=/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/59393-51f48219/providers/Microsoft.ContainerService/managedClusters/ccp-provisioning-H2]\n'
+        'module.azapi["ccp-provisioning-H2"].azapi_resource.aks_cluster: Still destroying... [id=/subscriptions/b8ceb4e5-f05b-4562-a9f5-...ce/managedClusters/ccp-provisioning-H2, 00m10s elapsed]\n'
+    ))
+    def test_process_terraform_logs_still_destroying_with_id_prefix(self, mock_open_file, mock_isfile):
+        """Verify metadata record is created when 'Still destroying' line contains id= prefix before elapsed time."""
+        os.environ["RUN_ID"] = "4455667788"
+
+        results = process_terraform_logs(
+          log_path="/fake/path",
+          _command_type="destroy",
+          _scenario_type="ccp",
+          _scenario_name="provisioning",
+        )
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["run_id"], "4455667788")
+        self.assertEqual(results[0]["module_name"], 'azapi["ccp-provisioning-H2"]')
+        self.assertEqual(results[0]["submodule_name"], "azapi_resource")
+        self.assertEqual(results[0]["resource_name"], "aks_cluster")
+        self.assertEqual(results[0]["action"], "destroy")
+        self.assertEqual(results[0]["time_taken_seconds"], 10)
+        self.assertEqual(results[0]["result"], {"success": False, "timed_out": False})
+        mock_open_file.assert_called_once_with('/fake/path/terraform_destroy.log', 'r', encoding='utf-8')
+        mock_isfile.assert_called_once_with("/fake/path/terraform_destroy.log")
+
+    @patch("os.path.isfile", return_value=True)
+    @patch("builtins.open", new_callable=mock_open, read_data=(
+        'module.azapi["ccp-provisioning-H2"].azapi_resource.aks_cluster: Creating... [id=/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/59393-51f48219/providers/Microsoft.ContainerService/managedClusters/ccp-provisioning-H2]\n'
+        'module.azapi["ccp-provisioning-H2"].azapi_resource.aks_cluster: Still creating... [id=/subscriptions/b8ceb4e5-f05b-4562-a9f5-...ce/managedClusters/ccp-provisioning-H2, 10m0s elapsed]\n'
+        'module.azapi["ccp-provisioning-H2"].azapi_resource.aks_cluster: Still creating... [id=/subscriptions/b8ceb4e5-f05b-4562-a9f5-...ce/managedClusters/ccp-provisioning-H2, 20m0s elapsed]\n'
+        'module.azapi["ccp-provisioning-H2"].azapi_resource.aks_cluster: Creation complete after 25m30s [id=/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/59393-51f48219/providers/Microsoft.ContainerService/managedClusters/ccp-provisioning-H2]\n'
+    ))
+    def test_process_terraform_logs_still_creating_with_id_prefix_then_complete(self, mock_open_file, mock_isfile):
+        """Verify that 'Still creating' lines with id= prefix are parsed and final completion record is used."""
+        os.environ["RUN_ID"] = "5566778899"
+
+        results = process_terraform_logs(
+          log_path="/fake/path",
+          _command_type="apply",
+          _scenario_type="ccp",
+          _scenario_name="provisioning",
+        )
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["run_id"], "5566778899")
+        self.assertEqual(results[0]["module_name"], 'azapi["ccp-provisioning-H2"]')
+        self.assertEqual(results[0]["submodule_name"], "azapi_resource")
+        self.assertEqual(results[0]["resource_name"], "aks_cluster")
+        self.assertEqual(results[0]["action"], "apply")
+        self.assertEqual(results[0]["time_taken_seconds"], 1530)
+        self.assertEqual(results[0]["result"], {"success": True, "timed_out": False})
+        mock_open_file.assert_called_once_with('/fake/path/terraform_apply.log', 'r', encoding='utf-8')
+        mock_isfile.assert_called_once_with("/fake/path/terraform_apply.log")
+
+    @patch("os.path.isfile", return_value=True)
+    @patch("builtins.open", new_callable=mock_open, read_data=(
+        'module.azapi["ccp"].azapi_resource.aks_cluster: Destroying... [id=/subscriptions/b8ceb4e5/resourceGroups/59393/providers/Microsoft.ContainerService/managedClusters/ccp-H2]\n'
+        '│ Error: deleting Resource: unexpected status 409\n'
+    ))
+    def test_process_terraform_logs_failure_without_elapsed_line(self, mock_open_file, mock_isfile):
+        """Verify a failure record with 0s elapsed is created when there is no 'Still destroying' line."""
+        os.environ["RUN_ID"] = "6677889900"
+
+        results = process_terraform_logs(
+          log_path="/fake/path",
+          _command_type="destroy",
+          _scenario_type="ccp",
+          _scenario_name="provisioning",
+        )
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["run_id"], "6677889900")
+        self.assertEqual(results[0]["module_name"], 'azapi["ccp"]')
+        self.assertEqual(results[0]["submodule_name"], "azapi_resource")
+        self.assertEqual(results[0]["resource_name"], "aks_cluster")
+        self.assertEqual(results[0]["action"], "destroy")
+        self.assertEqual(results[0]["time_taken_seconds"], 0)
+        self.assertEqual(results[0]["result"], {"success": False, "timed_out": False})
+        mock_open_file.assert_called_once_with('/fake/path/terraform_destroy.log', 'r', encoding='utf-8')
+        mock_isfile.assert_called_once_with("/fake/path/terraform_destroy.log")
+
+    @patch("os.path.isfile", return_value=True)
+    @patch("builtins.open", new_callable=mock_open, read_data=(
+        'module.azapi["ccp"].azapi_resource.aks_cluster: Creating...\n'
+        '│ Error: creating Resource: context deadline exceeded\n'
+    ))
+    def test_process_terraform_logs_timeout_without_elapsed_line(self, mock_open_file, mock_isfile):
+        """Verify a failure record with timed_out=True and 0s elapsed is created when timeout occurs without elapsed lines."""
+        os.environ["RUN_ID"] = "7788990011"
+
+        results = process_terraform_logs(
+          log_path="/fake/path",
+          _command_type="apply",
+          _scenario_type="ccp",
+          _scenario_name="provisioning",
+        )
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["run_id"], "7788990011")
+        self.assertEqual(results[0]["module_name"], 'azapi["ccp"]')
+        self.assertEqual(results[0]["resource_name"], "aks_cluster")
+        self.assertEqual(results[0]["action"], "apply")
+        self.assertEqual(results[0]["time_taken_seconds"], 0)
+        self.assertEqual(results[0]["result"], {"success": False, "timed_out": True})
+        mock_open_file.assert_called_once_with('/fake/path/terraform_apply.log', 'r', encoding='utf-8')
+        mock_isfile.assert_called_once_with("/fake/path/terraform_apply.log")
+
+    @patch("os.path.isfile", return_value=True)
+    @patch("builtins.open", new_callable=mock_open, read_data=(
+        'module.azapi["ccp"].azapi_resource.aks_cluster: Creating...\n'
+        '│ Error: creating Resource: unexpected status 409\n'
+        'module.azapi["ccp"].azapi_resource.aks_cluster: Creating...\n'
+        'module.azapi["ccp"].azapi_resource.aks_cluster: Still creating... [5m0s elapsed]\n'
+        'module.azapi["ccp"].azapi_resource.aks_cluster: Creation complete after 8m30s [id=/subscriptions/b8ceb4e5/resourceGroups/59393/providers/Microsoft.ContainerService/managedClusters/ccp-H2]\n'
+    ))
+    def test_process_terraform_logs_retry_after_immediate_failure(self, mock_open_file, mock_isfile):
+        """Verify first run records 0s failure when it fails immediately, and retry succeeds normally."""
+        os.environ["RUN_ID"] = "8899001122"
+
+        results = process_terraform_logs(
+          log_path="/fake/path",
+          _command_type="apply",
+          _scenario_type="ccp",
+          _scenario_name="provisioning",
+        )
+
+        self.assertEqual(len(results), 2)
+
+        # First run failed immediately - no elapsed time
+        self.assertEqual(results[0]["module_name"], 'azapi["ccp"]')
+        self.assertEqual(results[0]["resource_name"], "aks_cluster")
+        self.assertEqual(results[0]["time_taken_seconds"], 0)
+        self.assertEqual(results[0]["result"], {"success": False, "timed_out": False})
+
+        # Retry succeeded
+        self.assertEqual(results[1]["module_name"], 'azapi["ccp"]')
+        self.assertEqual(results[1]["resource_name"], "aks_cluster")
+        self.assertEqual(results[1]["time_taken_seconds"], 510)
+        self.assertEqual(results[1]["result"], {"success": True, "timed_out": False})
+
+        mock_open_file.assert_called_once_with('/fake/path/terraform_apply.log', 'r', encoding='utf-8')
+        mock_isfile.assert_called_once_with("/fake/path/terraform_apply.log")
+
 if __name__ == "__main__":
     unittest.main()

@@ -11,7 +11,8 @@ from clusterloader2.autoscale.autoscale import (
     override_config_clusterloader2,
     execute_clusterloader2,
     collect_clusterloader2,
-    main
+    main,
+    CPU_SCALE_FACTOR,
 )
 from kubernetes.client.models import (
     V1Node, V1NodeStatus, V1NodeCondition, V1NodeSpec, V1ObjectMeta, V1Pod, V1PodSpec
@@ -67,8 +68,8 @@ class TestClusterLoaderFunctions(unittest.TestCase):
         without_warmup_cpu_request = calculate_cpu_request_for_clusterloader2('{"autoscaler": "true"}', 1, 1, 'false', '/mock/path', 'warmup_deployment.yaml')
 
         # Assert the CPU request calculation
-        self.assertEqual(with_warmup_cpu_request, 1800*0.95)  # 2000m - 100m (allocated) - 100m (warmup)
-        self.assertEqual(without_warmup_cpu_request, 1900*0.95) # 2000m - 100m (allocated)
+        self.assertEqual(with_warmup_cpu_request, int(1800 * CPU_SCALE_FACTOR))  # 2000m - 100m (allocated) - 100m (warmup)
+        self.assertEqual(without_warmup_cpu_request, int(1900 * CPU_SCALE_FACTOR)) # 2000m - 100m (allocated)
 
         # Assert cleanup is called
         mock_cleanup.assert_called_once_with('/mock/path', 'warmup_deployment.yaml')
