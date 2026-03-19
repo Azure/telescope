@@ -147,24 +147,8 @@ def parse_psi_report(file_path, template):
         template["group"] = "self"
         template["measurement"] = "PSI"
 
-        psi_data_template = {
-            "some_avg10": {"avg": None, "max": None},
-            "some_avg60": {"avg": None, "max": None},
-            "some_avg300": {"avg": None, "max": None},
-            "some_total": {"avg": None, "max": None},
-            "full_avg10": {"avg": None, "max": None},
-            "full_avg60": {"avg": None, "max": None},
-            "full_avg300": {"avg": None, "max": None},
-            "full_total": {"avg": None, "max": None},
-        }
-
         psi_data = json.loads(file.read())
-        for key in psi_data_template.keys():
-            scope, metric = key.split("_")
-            data_arr = [val for val in map(float, psi_data[scope][metric]) if val > 0] # get all non-zero
-            psi_data_template[key]["avg"] = sum(data_arr) / len(data_arr) if len(data_arr) > 0 else 0
-            psi_data_template[key]["max"] = max(data_arr) if len(data_arr) > 0 else 0
-        template["data"] = psi_data_template
+        template["data"] = psi_data
         return template
 
 def collect_clusterloader2(
