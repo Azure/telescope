@@ -14,7 +14,7 @@ NODE_COUNT = 10000
 KWOK_NODES_PER_CONTROLLER = 100
 KWOK_POOL = "kwokpool"
 KWOK_POOL_VM_SIZE = "Standard_D8S_v4"
-KWOK_POOL_COUNT = 10
+KWOK_POOL_COUNT = 25
 CL2_IMAGE = "ghcr.io/azure/clusterloader2:v20260220"
 
 cl2OverrideContent = """\
