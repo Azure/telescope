@@ -19,7 +19,7 @@ CL2_IMAGE = "ghcr.io/azure/clusterloader2:v20260220"
 
 cl2OverrideContent = """\
 NODES: ${NODE_COUNT}
-PODS_PER_NODE: 10
+PODS_PER_NODE: 100
 BIG_GROUP_SIZE: 8
 MEDIUM_GROUP_SIZE: 8
 SMALL_GROUP_SIZE: 4
@@ -31,7 +31,7 @@ CL2_BIG_JOBS_PER_NAMESPACE: 0
 CL2_RATE_LIMIT_POD_CREATION: false
 CL2_ENABLE_PVS: false
 CL2_ENABLE_CLUSTER_OOMS_TRACKER: false
-CL2_DEFAULT_QPS: 50
+CL2_DEFAULT_QPS: 2000
 CL2_RUN_ON_ARM_NODES: true"""
 
 requestBody = util.escapeStr("""
@@ -48,14 +48,14 @@ requestBody = util.escapeStr("""
       "SkipLinuxAzSecPack": "true"
     },
     "properties": {
-      "controlPlaneScalingProfile": {"scalingSize": "H2"},
+      "controlPlaneScalingProfile": {"scalingSize": "H4"},
       "kubernetesVersion": "1.33.0",
       "dnsPrefix": "${CLUSTER}-dns",
       "agentPoolProfiles": [
         {
           "name": "systempool",
           "mode": "System",
-          "count": 30,
+          "count": 3,
           "vmSize": "Standard_D8S_v4",
           "osType": "Linux",
           "maxPods": 250
