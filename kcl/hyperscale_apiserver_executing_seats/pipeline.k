@@ -10,20 +10,24 @@ SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "westus2"
 CLUSTER = "stg-H2-hyperscale-apiserver-seats"
-KWOK_NODE_COUNT = 200
+NODE_COUNT = 10000
 KWOK_NODES_PER_CONTROLLER = 100
 KWOK_POOL = "kwokpool"
 KWOK_POOL_VM_SIZE = "Standard_D8S_v4"
+KWOK_POOL_COUNT = 10
 CL2_IMAGE = "ghcr.io/azure/clusterloader2:v20260220"
 
 cl2OverrideContent = """\
-NODES: 200
+NODES: ${NODE_COUNT}
 PODS_PER_NODE: 10
 BIG_GROUP_SIZE: 8
 MEDIUM_GROUP_SIZE: 8
 SMALL_GROUP_SIZE: 4
 SMALL_STATEFUL_SETS_PER_NAMESPACE: 0
 MEDIUM_STATEFUL_SETS_PER_NAMESPACE: 0
+CL2_SMALL_JOBS_PER_NAMESPACE: 0
+CL2_MEDIUM_JOBS_PER_NAMESPACE: 0
+CL2_BIG_JOBS_PER_NAMESPACE: 0
 CL2_RATE_LIMIT_POD_CREATION: false
 CL2_ENABLE_PVS: false
 CL2_ENABLE_CLUSTER_OOMS_TRACKER: false
@@ -137,7 +141,7 @@ output = ap.Pipeline {
                     SUBSCRIPTION_ID,
                     KWOK_POOL,
                     KWOK_POOL_VM_SIZE,
-                    1,
+                    KWOK_POOL_COUNT,
                     "kwok",
                     "kwok=true"),
                 azure.WaitForNodePoolSucceeded(
@@ -147,7 +151,7 @@ output = ap.Pipeline {
                     SUBSCRIPTION_ID,
                     KWOK_POOL),
                 k8s.CreateKwokNodes(
-                  KWOK_NODE_COUNT,
+                  NODE_COUNT,
                   {
                     "node-manifest-path": "$(Pipeline.Workspace)/s/kcl/hyperscale_apiserver_executing_seats/kwok-node.yaml"
                     "group": ""
