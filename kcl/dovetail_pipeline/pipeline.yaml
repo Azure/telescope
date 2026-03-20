@@ -1,0 +1,326 @@
+name: Dovetail Benchmark
+pool: AKS-Telescope-Ubuntu-EastUS2
+trigger:
+- v2
+parameters:
+- name: run_id
+  displayName: Run ID (leave empty to auto-generate)
+  type: string
+  default: default
+- name: skip_cleanup
+  displayName: Skip resource cleanup
+  type: boolean
+  default: 'false'
+- name: existing_cluster_resource_group
+  displayName: Existing cluster resource group (leave as none to create new)
+  type: string
+  default: none
+- name: existing_cluster_name
+  displayName: Existing cluster name (leave as none to create new)
+  type: string
+  default: none
+jobs:
+- job: bootstrap
+  displayName: Bootstrap
+  timeoutInMinutes: 10
+  steps:
+  - bash: |2
+
+      set -exo pipefail
+
+      # Resolve RUN_ID
+      if [ -n "$PARAM_RUN_ID" ] && [ "$PARAM_RUN_ID" != "default" ]; then
+        RUN_ID="$PARAM_RUN_ID"
+        echo "Using provided Run ID: $RUN_ID"
+      else
+        job_id="$(System.JobId)"
+        RUN_ID=$(Build.BuildId)-${job_id:0:8}
+        echo "Generated Run ID: $RUN_ID"
+      fi
+
+      # Resolve CLUSTER
+      if [ -n "$PARAM_EXISTING_CLUSTER" ] && [ "$PARAM_EXISTING_CLUSTER" != "none" ]; then
+        CLUSTER="$PARAM_EXISTING_CLUSTER"
+        echo "Using existing cluster: $CLUSTER"
+      else
+        CLUSTER="$DEFAULT_CLUSTER"
+        echo "Using default cluster: $CLUSTER"
+      fi
+
+      # Resolve RESOURCE_GROUP
+      if [ -n "$PARAM_EXISTING_RG" ] && [ "$PARAM_EXISTING_RG" != "none" ]; then
+        RESOURCE_GROUP="$PARAM_EXISTING_RG"
+        echo "Using existing resource group: $RESOURCE_GROUP"
+      else
+        RESOURCE_GROUP="$RUN_ID"
+        echo "Using RUN_ID as resource group: $RESOURCE_GROUP"
+      fi
+
+      echo "##vso[task.setvariable variable=RUN_ID;isOutput=true]$RUN_ID"
+      echo "##vso[task.setvariable variable=CLUSTER;isOutput=true]$CLUSTER"
+      echo "##vso[task.setvariable variable=RESOURCE_GROUP;isOutput=true]$RESOURCE_GROUP"
+    displayName: Bootstrap - resolve RUN_ID, CLUSTER, RESOURCE_GROUP
+    env:
+      PARAM_RUN_ID: ${{ parameters.run_id }}
+      PARAM_EXISTING_CLUSTER: ${{ parameters.existing_cluster_name }}
+      PARAM_EXISTING_RG: ${{ parameters.existing_cluster_resource_group }}
+      DEFAULT_CLUSTER: dovetail-testing
+    name: resolve
+- job: setup
+  displayName: Cluster Setup
+  dependsOn: bootstrap
+  condition: and(succeeded(), not(ne('${{ parameters.existing_cluster_name }}', 'none')))
+  timeoutInMinutes: 1440
+  variables:
+    CLUSTER: $[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]
+    RESOURCE_GROUP: $[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]
+  steps:
+  - bash: |-
+      set -exo pipefail
+      pip3 install --upgrade "pip<24"
+      pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
+    displayName: Install Python dependencies
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+        az config set defaults.location="westus2"
+        az account show
+    displayName: Login to Azure
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az group create --name "$(RESOURCE_GROUP)" --location "westus2" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+    displayName: Create resource group $(RESOURCE_GROUP) in westus2 (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az cloud update --endpoint-resource-manager https://eastus2euap.management.azure.com/
+        az rest \
+          --method put \
+          --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RESOURCE_GROUP)/providers/Microsoft.ContainerService/managedClusters/$(CLUSTER)?api-version=2026-01-02-preview" \
+          --body "
+        {
+            \"location\": \"westus2\",
+            \"identity\": { \"type\": \"SystemAssigned\" },
+            \"sku\": {
+              \"name\": \"Base\",
+              \"tier\": \"Standard\"
+            },
+            \"tags\": {
+              \"SkipAKSCluster\": \"true\",
+              \"SkipASMAzSecPackAutoConfig\": \"true\",
+              \"SkipLinuxAzSecPack\": \"true\"
+            },
+            \"properties\": {
+              \"controlPlaneScalingProfile\": {\"scalingSize\": \"H2\"},
+              \"kubernetesVersion\": \"1.33.0\",
+              \"dnsPrefix\": \"$(CLUSTER)-dns\",
+              \"agentPoolProfiles\": [
+                {
+                  \"name\": \"systempool\",
+                  \"mode\": \"System\",
+                  \"count\": 3,
+                  \"vmSize\": \"Standard_D2_v4\",
+                  \"osType\": \"Linux\",
+                  \"maxPods\": 50
+                }
+              ],
+            \"networkProfile\": {
+               \"networkPlugin\": \"azure\",
+               \"networkPluginMode\": \"overlay\",
+               \"podCidr\": \"10.64.0.0/10\",
+               \"serviceCidr\": \"10.0.0.0/16\",
+               \"dnsServiceIP\": \"10.0.0.10\",
+               \"outboundType\": \"managedNATGateway\",
+               \"natGatewayProfile\": {
+                  \"managedOutboundIPProfile\": {
+                    \"count\": 10
+                  }
+                }
+              }
+            }
+          }"
+    displayName: Create cluster
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        while true; do
+          STATE=$(az aks show \
+            --name "$(CLUSTER)" \
+            --resource-group "$(RESOURCE_GROUP)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --query "provisioningState" \
+            --output tsv)
+          echo "Cluster provisioning state: $STATE"
+          if [ "$STATE" = "Succeeded" ]; then
+            echo "Cluster is ready."
+            break
+          elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+            echo "Cluster failed with state: $STATE."
+            exit 1
+          else
+            echo "Provisioning state: $STATE. Retry in 30 seconds"
+          fi
+          sleep 30
+        done
+    displayName: Wait for cluster to succeed
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: "set -exo pipefail\n\naz aks nodepool add \\\n  --cluster-name \"$(CLUSTER)\" \\\n  --resource-group \"$(RESOURCE_GROUP)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"workerpool\" \\\n  --node-count 4 \\\n  --node-vm-size \"Standard_D8S_v4\" \\\n  --mode User \\\n  \n"
+    displayName: Create node pool workerpool
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        while true; do
+          STATE=$(az aks nodepool show \
+            --cluster-name "$(CLUSTER)" \
+            --resource-group "$(RESOURCE_GROUP)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --name "workerpool" \
+            --query "provisioningState" \
+            --output tsv)
+          echo "Node pool provisioning state: $STATE"
+          if [ "$STATE" = "Succeeded" ]; then
+            echo "Node pool is ready."
+            break
+          elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+            echo "Node pool failed with state: $STATE."
+            exit 1
+          else
+            echo "Provisioning state: $STATE. Retry in 30 seconds"
+          fi
+          sleep 30
+        done
+    displayName: Wait for node pool workerpool to succeed
+- job: benchmark
+  displayName: Benchmark
+  dependsOn:
+  - bootstrap
+  - setup
+  condition: or(succeeded(), ne('${{ parameters.existing_cluster_name }}', 'none'))
+  timeoutInMinutes: 1440
+  variables:
+    CLUSTER: $[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]
+    RESOURCE_GROUP: $[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]
+  steps:
+  - bash: |-
+      set -exo pipefail
+      pip3 install --upgrade "pip<24"
+      pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
+    displayName: Install Python dependencies
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+        az config set defaults.location="westus2"
+        az account show
+    displayName: Login to Azure
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks get-credentials \
+          --name "$(CLUSTER)" \
+          --resource-group "$(RESOURCE_GROUP)" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --overwrite-existing
+    displayName: Get credentials for $(CLUSTER)
+  - script: |2
+
+      set -euo pipefail
+      set -x
+
+      temp_dir=$(mktemp -p /tmp -d kperfinstall.XXXX)
+      docker pull ghcr.io/liyu-ma/kperf:hyperscale-etcd
+      docker run --rm -v $temp_dir:/install-dir \
+        ghcr.io/liyu-ma/kperf:hyperscale-etcd bash -c "set -x; install /kperf /runkperf /install-dir"
+
+      sudo install $temp_dir/kperf $temp_dir/runkperf /usr/local/bin
+      rm -rf $temp_dir
+      docker rmi ghcr.io/liyu-ma/kperf:hyperscale-etcd
+    displayName: Install runkperf binary
+  - script: |2
+
+      set -euo pipefail
+      set -x
+
+      runkperf data configmap \
+        --namespace kperf-configmap-data \
+        add my-configmaps-500m \
+        --qps 400 \
+        --burst 400 \
+        --total 5000 \
+        --size 100000 \
+        --group-size 50
+    displayName: Run kperf data configmap ingest
+- job: cleanup
+  displayName: Cleanup
+  dependsOn:
+  - bootstrap
+  - benchmark
+  condition: and(always(), not(ne('${{ parameters.existing_cluster_name }}', 'none')), ne('${{ parameters.skip_cleanup }}', 'true'))
+  timeoutInMinutes: 60
+  variables:
+    RESOURCE_GROUP: $[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]
+  steps:
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+        az config set defaults.location="westus2"
+        az account show
+    displayName: Login to Azure
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az group delete --name "$(RESOURCE_GROUP)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+    condition: always()
+    displayName: Delete resource group $(RESOURCE_GROUP) (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
