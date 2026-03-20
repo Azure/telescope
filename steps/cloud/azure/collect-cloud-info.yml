@@ -14,7 +14,7 @@ steps:
       --arg cloud "azure" \
       --arg region "$(echo $aks_info | jq -r .location)" \
       --arg fqdn "$(echo $aks_info | jq -r .fqdn)" \
-      --arg private_fqdn "$(echo $aks_info | jq -r .privateFqdn)" \
+      --arg private_fqdn "$(echo $aks_info | jq -r '.privateFqdn // empty')" \
       --arg k8s_version "$(echo $aks_info | jq -r .currentKubernetesVersion)" \
       --arg sku_tier "$(echo $aks_info | jq -r .sku.tier)" \
       --arg subscription "$(az account show --query id --output tsv)" \
