@@ -57,9 +57,9 @@ steps:
     set -euo pipefail
     set -x
 
-    kubectl apply -f ./steps/topology/k8s-resource-pressure/psi-reader-daemonset.yml
+    kubectl apply -f ./steps/topology/k8s-resource-pressure/node-reader-daemonset.yml
 
     sleep 5
     kubectl get pods -A -o wide
 
-  displayName: "Start PSI Reader"
+  displayName: "Start Node Reader"

@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-reader
+  namespace: kube-system
+  labels:
+    app: node-reader
+spec:
+  selector:
+    matchLabels:
+      app: node-reader
+  template:
+    metadata:
+      labels:
+        app: node-reader
+    spec:
+      hostPID: true
+      nodeSelector:
+        cri-resource-consume: "true"
+      tolerations:
+      - key: cri-resource-consume
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      - key: cri-resource-consume
+        operator: "Equal"
+        value: "true"
+        effect: "NoExecute"
+      containers:
+      - name: node-reader
+        image: alpine:latest
+        securityContext:
+          privileged: true
+        command:
+        - /bin/sh
+        - -c
+        - |
+          apk add --no-cache jq
+          
+          if [ -f /app/config/node_reader.json ]; then
+            rm -f /app/config/node_reader.json
+          fi
+
+          jq -n '{
+            "sys_oom_kill": 0,
+            "pod_oom_kill": 0,
+            "sys_pgscan": 0,
+            "pod_pgscan": 0
+          }' > /app/config/node_reader.json
+
+          while true; do
+            sys_oom_kill=$(grep -w oom_kill /sys/fs/cgroup/system.slice/memory.events | awk '{print $2}')
+            pod_oom_kill=$(grep -w oom_kill /sys/fs/cgroup/kubepods.slice/memory.events | awk '{print $2}')
+            jq --arg sys_oom_kill "$sys_oom_kill" --arg pod_oom_kill "$pod_oom_kill" '.sys_oom_kill = ($sys_oom_kill | tonumber) | .pod_oom_kill = ($pod_oom_kill | tonumber)' /app/config/node_reader.json > node_reader.json.tmp && mv node_reader.json.tmp /app/config/node_reader.json
+
+            sys_pgscan=$(grep -w pgscan /sys/fs/cgroup/system.slice/memory.stat | awk '{print $2}')
+            pod_pgscan=$(grep -w pgscan /sys/fs/cgroup/kubepods.slice/memory.stat | awk '{print $2}')
+            jq --arg sys_pgscan "$sys_pgscan" --arg pod_pgscan "$pod_pgscan" '.sys_pgscan = ($sys_pgscan | tonumber) | .pod_pgscan = ($pod_pgscan | tonumber)' /app/config/node_reader.json > node_reader.json.tmp && mv node_reader.json.tmp /app/config/node_reader.json
+            
+            sleep 1
+          done
+        volumeMounts:
+        - name: proc
+          mountPath: /proc
+          readOnly: true
+        - name: systemd
+          mountPath: /run/systemd
+          readOnly: true
+        - name: node_reader-config
+          mountPath: /app/config
+      volumes:
+      - name: proc
+        hostPath:
+          path: /proc
+          type: Directory
+      - name: systemd
+        hostPath:
+          path: /run/systemd
+          type: Directory
+      - name: node_reader-config
+        hostPath:
+          path: /tmp/telescope-node_reader-data
+          type: DirectoryOrCreate
+      restartPolicy: Always
