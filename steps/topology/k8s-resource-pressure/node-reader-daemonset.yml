@@ -48,6 +48,8 @@ spec:
             "pod_pgscan": 0
           }' > /app/config/node_reader.json
 
+          mem_cap=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+
           while true; do
             sys_oom_kill=$(grep -w oom_kill /sys/fs/cgroup/system.slice/memory.events | awk '{print $2}')
             pod_oom_kill=$(grep -w oom_kill /sys/fs/cgroup/kubepods.slice/memory.events | awk '{print $2}')
@@ -55,7 +57,7 @@ spec:
 
             sys_pgscan=$(grep -w pgscan /sys/fs/cgroup/system.slice/memory.stat | awk '{print $2}')
             pod_pgscan=$(grep -w pgscan /sys/fs/cgroup/kubepods.slice/memory.stat | awk '{print $2}')
-            jq --arg sys_pgscan "$sys_pgscan" --arg pod_pgscan "$pod_pgscan" '.sys_pgscan = ($sys_pgscan | tonumber) | .pod_pgscan = ($pod_pgscan | tonumber)' /app/config/node_reader.json > node_reader.json.tmp && mv node_reader.json.tmp /app/config/node_reader.json
+            jq --argjson sys_pgscan "$sys_pgscan" --argjson pod_pgscan "$pod_pgscan" --argjson mem_cap "$mem_cap" '.sys_pgscan = ($sys_pgscan/$mem_cap) | .pod_pgscan = ($pod_pgscan/$mem_cap)' /app/config/node_reader.json > node_reader.json.tmp && mv node_reader.json.tmp /app/config/node_reader.json
             
             sleep 1
           done
