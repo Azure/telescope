@@ -27,7 +27,7 @@ MEDIUM_STATEFUL_SETS_PER_NAMESPACE: 0
 CL2_RATE_LIMIT_POD_CREATION: false
 CL2_ENABLE_PVS: false
 CL2_ENABLE_CLUSTER_OOMS_TRACKER: false
-CL2_DEFAULT_QPS: 5000
+CL2_DEFAULT_QPS: 50
 CL2_RUN_ON_ARM_NODES: true"""
 
 requestBody = util.escapeStr("""
@@ -161,7 +161,7 @@ output = ap.Pipeline {
                     "node-play-stage-parallelism": "100"
                     "cidr": "100.64.0.0/10"
                     "node-ip": "100.64.0.1"
-                    "node-lease-duration-seconds": "40"
+                    "node-lease-duration-seconds": "100"
                     "kube-connection-qps": "500.0"
                     "kube-connection-burst": "1000"
                   }),
