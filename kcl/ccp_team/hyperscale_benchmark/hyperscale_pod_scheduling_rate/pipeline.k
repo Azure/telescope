@@ -13,7 +13,7 @@ CLUSTER = "stg-H2-hyperscale-pod-scheduling-rate"
 NODE_COUNT = 8000
 KWOK_NODES_PER_CONTROLLER = 100
 KWOK_POOL = "kwokpool"
-KWOK_POOL_VM_SIZE = "Standard_D8_v4"
+KWOK_POOL_VM_SIZE = "Standard_D8_v3"
 KWOK_POOL_COUNT = 50
 CL2_IMAGE = "ghcr.io/azure/clusterloader2:v20260220"
 
