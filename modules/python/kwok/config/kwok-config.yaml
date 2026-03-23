@@ -15,16 +15,16 @@ data:
       enableContentionProfiling: false
       enablePodsOnNodeSyncListPager: false
       enablePodsOnNodeSyncStreamWatch: true
-      nodeLeaseParallelism: 4
-      podPlayStageParallelism: 64
-      nodePlayStageParallelism: 4
+      nodeLeaseParallelism: {{node_lease_parallelism}}
+      podPlayStageParallelism: {{pod_play_stage_parallelism}}
+      nodePlayStageParallelism: {{node_play_stage_parallelism}}
       nodePort: 10247
-      cidr: 10.0.0.1/24
+      cidr: {{cidr}}
       manageAllNodes: false
       manageNodesWithAnnotationSelector: 'kwok.x-k8s.io/node=fake'
       manageNodesWithLabelSelector: ''
       manageSingleNode: ''
-      nodeLeaseDurationSeconds: 40
+      nodeLeaseDurationSeconds: {{node_lease_duration_seconds}}
       enableCRDs:
       - Stage
       - Metric

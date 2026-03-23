@@ -10,21 +10,28 @@ SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "westus2"
 CLUSTER = "stg-H2-hyperscale-apiserver-seats"
-KWOK_NODE_COUNT = 100
+NODE_COUNT = 10000
+KWOK_NODES_PER_CONTROLLER = 100
+KWOK_POOL = "kwokpool"
+KWOK_POOL_VM_SIZE = "Standard_D8S_v4"
+KWOK_POOL_COUNT = 25
 CL2_IMAGE = "ghcr.io/azure/clusterloader2:v20260220"
 
 cl2OverrideContent = """\
-NODES: 30
-PODS_PER_NODE: 10
+NODES: ${NODE_COUNT}
+PODS_PER_NODE: 100
 BIG_GROUP_SIZE: 8
 MEDIUM_GROUP_SIZE: 8
 SMALL_GROUP_SIZE: 4
 SMALL_STATEFUL_SETS_PER_NAMESPACE: 0
 MEDIUM_STATEFUL_SETS_PER_NAMESPACE: 0
+CL2_SMALL_JOBS_PER_NAMESPACE: 0
+CL2_MEDIUM_JOBS_PER_NAMESPACE: 0
+CL2_BIG_JOBS_PER_NAMESPACE: 0
 CL2_RATE_LIMIT_POD_CREATION: false
 CL2_ENABLE_PVS: false
 CL2_ENABLE_CLUSTER_OOMS_TRACKER: false
-CL2_DEFAULT_QPS: 5000
+CL2_DEFAULT_QPS: 2000
 CL2_RUN_ON_ARM_NODES: true"""
 
 requestBody = util.escapeStr("""
@@ -41,14 +48,14 @@ requestBody = util.escapeStr("""
       "SkipLinuxAzSecPack": "true"
     },
     "properties": {
-      "controlPlaneScalingProfile": {"scalingSize": "H2"},
+      "controlPlaneScalingProfile": {"scalingSize": "H4"},
       "kubernetesVersion": "1.33.0",
       "dnsPrefix": "${CLUSTER}-dns",
       "agentPoolProfiles": [
         {
           "name": "systempool",
           "mode": "System",
-          "count": 30,
+          "count": 3,
           "vmSize": "Standard_D8S_v4",
           "osType": "Linux",
           "maxPods": 250
@@ -79,7 +86,7 @@ az rest \\
 """
 
 output = ap.Pipeline {
-    name = "Example Pipeline"
+    name = "Hyperscale API Server Executing Seats"
 
     trigger =  ["v2"]
     pool = const.DEFAULT_POOL
@@ -127,18 +134,47 @@ output = ap.Pipeline {
                     CLUSTER,
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID),
+                azure.CreateNodePool(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    CLUSTER,
+                    RESOURCE_GROUP,
+                    SUBSCRIPTION_ID,
+                    KWOK_POOL,
+                    KWOK_POOL_VM_SIZE,
+                    KWOK_POOL_COUNT,
+                    "kwok",
+                    "kwok=true"),
+                azure.WaitForNodePoolSucceeded(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    CLUSTER,
+                    RESOURCE_GROUP,
+                    SUBSCRIPTION_ID,
+                    KWOK_POOL),
                 k8s.CreateKwokNodes(
-                  KWOK_NODE_COUNT, 
+                  NODE_COUNT,
                   {
-                    "node-manifest-path": "$(Pipeline.Workspace)/s/kcl/example_pipeline/kwok-node.yaml"
+                    "node-manifest-path": "$(Pipeline.Workspace)/s/kcl/hyperscale_apiserver_executing_seats/kwok-node.yaml"
+                    "group": ""
+                    "nodes-per-controller": "${KWOK_NODES_PER_CONTROLLER}"
+                    "node-selector-key": "kwok"
+                    "node-selector-value": "true"
+                    "toleration-key": "kwok"
+                    "toleration-value": "true"
+                    "node-lease-parallelism": "200"
+                    "pod-play-stage-parallelism": "100"
+                    "node-play-stage-parallelism": "100"
+                    "cidr": "100.64.0.0/10"
+                    "node-ip": "100.64.0.1"
+                    "node-lease-duration-seconds": "100"
+                    "kube-connection-qps": "500.0"
+                    "kube-connection-burst": "1000"
                   }),
                 k8s.RunClusterLoader2Local(
                     const.DEFAULT_SERVICE_CONNECTION,
-                    CL2_NAMESPACE,
-                    manifest = "kcl/example_pipeline/cl2.yaml"),
-                k8s.PrintCl2PodLogs(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    CL2_NAMESPACE),
+                    CL2_IMAGE,
+                    cl2OverrideContent,
+                    provider = "ks",
+                    extraArgs = "--k8s-clients-number=500"),
                 azure.DeleteResourceGroup(
                     const.DEFAULT_SERVICE_CONNECTION,
                     RESOURCE_GROUP,
