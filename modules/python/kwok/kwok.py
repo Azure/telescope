@@ -309,11 +309,13 @@ class Node(KWOK):
         if self.group:
             for g in range(self._num_groups()):
                 execute_with_retries(
-                    self._validate_kwok_controller, g
+                    self._validate_kwok_controller, g,
+                    max_retries=10, backoff_time=30
                 )
         else:
             execute_with_retries(
                 self._validate_kwok_controller,
+                max_retries=10, backoff_time=30
             )
 
         execute_with_retries(

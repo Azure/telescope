@@ -1,4 +1,4 @@
-name: Hyperscale API Server Executing Seats
+name: Hyperscale Pod Scheduling rate
 pool: AKS-Telescope-Ubuntu-EastUS2
 trigger:
 - v2
