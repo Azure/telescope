@@ -163,7 +163,7 @@ jobs:
           --resource-group "$(RUN_ID)" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --name "kwokpool" \
-          --node-count 25 \
+          --node-count 35 \
           --node-vm-size "Standard_D8S_v4" \
           --mode User \
           --node-taints kwok=true:NoSchedule \
