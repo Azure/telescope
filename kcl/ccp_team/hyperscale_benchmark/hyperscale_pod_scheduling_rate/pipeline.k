@@ -16,14 +16,7 @@ KWOK_POOL = "kwokpool"
 KWOK_POOL_VM_SIZE = "Standard_D8_v3"
 KWOK_POOL_COUNT = 50
 CL2_IMAGE = "ghcr.io/azure/clusterloader2:v20260220"
-
-TOTAL_PODS = 800000
-cl2OverrideContent = """\
-NODES: ${NODE_COUNT}
-CL2_SCHEDULER_THROUGHPUT_TOTAL_PODS: ${TOTAL_PODS}
-CL2_SCHEDULER_THROUGHPUT_PODS_PER_DEPLOYMENT: 1000
-CL2_DEFAULT_QPS: 2
-CL2_RUN_ON_ARM_NODES: true"""
+CL2_NAMESPACE = "cl2"
 
 requestBody = util.escapeStr("""
 {
@@ -160,13 +153,10 @@ output = ap.Pipeline {
                     "kube-connection-qps": "500.0"
                     "kube-connection-burst": "1000"
                   }),
-                k8s.RunClusterLoader2Local(
+                k8s.RunClusterLoader2(
                     const.DEFAULT_SERVICE_CONNECTION,
-                    CL2_IMAGE,
-                    cl2OverrideContent,
-                    testConfig = "kcl/ccp_team/hyperscale_benchmark/hyperscale_pod_scheduling_rate/cl2.yaml",
-                    provider = "ks",
-                    extraArgs = "--k8s-clients-number=200"),
+                    CL2_NAMESPACE,
+                    manifest = "kcl/ccp_team/hyperscale_benchmark/hyperscale_pod_scheduling_rate/cl2.yaml"),
                 azure.DeleteResourceGroup(
                     const.DEFAULT_SERVICE_CONNECTION,
                     RESOURCE_GROUP,
