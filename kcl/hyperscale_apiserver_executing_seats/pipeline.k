@@ -168,6 +168,7 @@ output = ap.Pipeline {
                     "node-lease-duration-seconds": "100"
                     "kube-connection-qps": "500.0"
                     "kube-connection-burst": "1000"
+                    "node-create-interval-seconds": "0.05"
                   }),
                 k8s.RunClusterLoader2Local(
                     const.DEFAULT_SERVICE_CONNECTION,

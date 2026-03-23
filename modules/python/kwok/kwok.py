@@ -1,5 +1,6 @@
 """KWOK (Kubernetes WithOut Kubelet) - Virtual Node/Pod Simulator."""
 import argparse
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
@@ -214,6 +215,9 @@ class Node(KWOK):
     enable_dra: bool = False
     group: bool = False
     nodes_per_controller: int = 100
+    node_create_interval_seconds: float = 0.0
+    controller_ready_timeout_seconds: int = 900
+    controller_ready_poll_interval_seconds: int = 5
 
     def _num_groups(self):
         """Calculate the number of controller groups needed."""
@@ -234,9 +238,11 @@ class Node(KWOK):
                 # Create per-group deployments
                 for g in range(num_groups):
                     self._create_group_deployment(g, controller_image)
+                self._wait_for_controllers_ready(num_groups)
             else:
                 # Legacy single-controller mode
                 self.apply_kwok_manifests(self.kwok_release, self.enable_metrics)
+                self._wait_for_controllers_ready(1)
 
             # Apply DRA manifests once if enabled
             if self.enable_dra:
@@ -270,6 +276,9 @@ class Node(KWOK):
                     kwok_template,
                 )
 
+                if self.node_create_interval_seconds > 0 and i < self.node_count - 1:
+                    time.sleep(self.node_create_interval_seconds)
+
                 # Apply resource slice for each node if DRA is enabled
                 if self.enable_dra:
                     resource_slice_name = f"kwok-resource-slice-{i}"
@@ -292,6 +301,43 @@ class Node(KWOK):
             print(f"Successfully created {self.node_count} virtual nodes.")
         except Exception as e:
             raise RuntimeError(f"Failed to create nodes: {e}") from e
+
+    def _wait_for_controllers_ready(self, expected_count):
+        """Wait until expected kwok-controller deployment(s) are available."""
+        if self.group:
+            controller_names = [f"kwok-controller-{g}" for g in range(expected_count)]
+        else:
+            controller_names = ["kwok-controller"]
+
+        deadline = time.time() + self.controller_ready_timeout_seconds
+        last_not_ready = []
+
+        while time.time() < deadline:
+            not_ready = []
+            for name in controller_names:
+                deployment = self.k8s_client.get_deployment(name, "kube-system")
+                if not deployment:
+                    not_ready.append(f"{name}:not-found")
+                    continue
+
+                available_replicas = deployment.status.available_replicas or 0
+                if available_replicas < 1:
+                    not_ready.append(f"{name}:available={available_replicas}")
+
+            if not not_ready:
+                print(f"All {len(controller_names)} KWOK controller deployment(s) are ready.")
+                return
+
+            if not_ready != last_not_ready:
+                print(f"Waiting for KWOK controller readiness: {', '.join(not_ready)}")
+                last_not_ready = not_ready
+
+            time.sleep(self.controller_ready_poll_interval_seconds)
+
+        raise RuntimeError(
+            "Timed out waiting for KWOK controller readiness. "
+            f"Last status: {', '.join(last_not_ready) if last_not_ready else 'unknown'}"
+        )
 
     def _add_group_label(self, template_str, group_index):
         """Add kwok-controller-group label to a node template."""
@@ -612,6 +658,24 @@ def main():
         help="KWOK kubeConnectionBurst (default: not set).",
     )
     parser.add_argument(
+        "--node-create-interval-seconds",
+        type=float,
+        default=0.0,
+        help="Sleep interval between node create requests (default: 0, disabled).",
+    )
+    parser.add_argument(
+        "--controller-ready-timeout-seconds",
+        type=int,
+        default=900,
+        help="Timeout to wait for KWOK controller deployment(s) ready (default: 900).",
+    )
+    parser.add_argument(
+        "--controller-ready-poll-interval-seconds",
+        type=int,
+        default=5,
+        help="Polling interval while waiting for controller readiness (default: 5).",
+    )
+    parser.add_argument(
         "--action",
         choices=["create", "validate", "tear_down"],
         required=True,
@@ -646,6 +710,9 @@ def main():
         node_lease_duration_seconds=args.node_lease_duration_seconds,
         kube_connection_qps=args.kube_connection_qps,
         kube_connection_burst=args.kube_connection_burst,
+        node_create_interval_seconds=args.node_create_interval_seconds,
+        controller_ready_timeout_seconds=args.controller_ready_timeout_seconds,
+        controller_ready_poll_interval_seconds=args.controller_ready_poll_interval_seconds,
     )
     if args.action == "create":
         node.create()
