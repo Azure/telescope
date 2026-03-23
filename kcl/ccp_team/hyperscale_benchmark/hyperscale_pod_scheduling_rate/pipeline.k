@@ -9,12 +9,21 @@ import lib.util
 SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "westus2"
-CLUSTER = "stg-H8-pod-benchmark"
-CL2_POOL = "cl2pool"
-CL2_TAINT_PREFIX = "cl2pool"
-CL2_NAMESPACE = "clusterloader2"
-KWOK_NODE_COUNT = 8000
-SCENARIO_NAME = "hyperscale_pod_scheduling_rate"
+CLUSTER = "stg-H2-hyperscale-apiserver-seats"
+NODE_COUNT = 8000
+KWOK_NODES_PER_CONTROLLER = 100
+KWOK_POOL = "kwokpool"
+KWOK_POOL_VM_SIZE = "Standard_D8S_v4"
+KWOK_POOL_COUNT = 25
+CL2_IMAGE = "ghcr.io/azure/clusterloader2:v20260220"
+
+TOTAL_PODS = 800000
+cl2OverrideContent = """\
+NODES: ${NODE_COUNT}
+CL2_SCHEDULER_THROUGHPUT_TOTAL_PODS: ${TOTAL_PODS}
+CL2_SCHEDULER_THROUGHPUT_PODS_PER_DEPLOYMENT: 1000
+CL2_DEFAULT_QPS: 2
+CL2_RUN_ON_ARM_NODES: true"""
 
 requestBody = util.escapeStr("""
 {
@@ -30,15 +39,15 @@ requestBody = util.escapeStr("""
       "SkipLinuxAzSecPack": "true"
     },
     "properties": {
-      "controlPlaneScalingProfile": {"scalingSize": "H8"},
+      "controlPlaneScalingProfile": {"scalingSize": "H4"},
       "kubernetesVersion": "1.33.0",
       "dnsPrefix": "${CLUSTER}-dns",
       "agentPoolProfiles": [
         {
           "name": "systempool",
           "mode": "System",
-          "count": 30,
-          "vmSize": "Standard_D8_v3",
+          "count": 3,
+          "vmSize": "Standard_D8S_v4",
           "osType": "Linux",
           "maxPods": 250
         }
@@ -68,7 +77,7 @@ az rest \\
 """
 
 output = ap.Pipeline {
-    name = "H8 Pod Scheduling Rate Benchmark"
+    name = "Hyperscale API Server Executing Seats"
 
     trigger =  ["v2"]
     pool = const.DEFAULT_POOL
