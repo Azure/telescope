@@ -10,11 +10,11 @@ SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "westus2"
 CLUSTER = "stg-H2-hyperscale-apiserver-seats"
-NODE_COUNT = 10000
+NODE_COUNT = 8000
 KWOK_NODES_PER_CONTROLLER = 100
 KWOK_POOL = "kwokpool"
-KWOK_POOL_VM_SIZE = "Standard_D8S_v4"
-KWOK_POOL_COUNT = 35
+KWOK_POOL_VM_SIZE = "Standard_D8_v3"
+KWOK_POOL_COUNT = 30
 CL2_IMAGE = "ghcr.io/azure/clusterloader2:v20260220"
 
 cl2OverrideContent = """\
