@@ -164,6 +164,7 @@ output = ap.Pipeline {
                     const.DEFAULT_SERVICE_CONNECTION,
                     CL2_IMAGE,
                     cl2OverrideContent,
+                    testConfig = "kcl/ccp_team/hyperscale_benchmark/hyperscale_pod_scheduling_rate/cl2.yaml",
                     provider = "ks",
                     extraArgs = "--k8s-clients-number=200"),
                 azure.DeleteResourceGroup(
