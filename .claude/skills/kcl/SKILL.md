@@ -20,4 +20,5 @@ You are an expert in KCL (KCL Configuration Language), an open-source configurat
 [cli overview](https://www.kcl-lang.io/docs/tools/cli/kcl/overview)
 
 # Requirements
-- imports should be sorted
+- imports should be sorted.
+- import the folder instead of individual files when possible.

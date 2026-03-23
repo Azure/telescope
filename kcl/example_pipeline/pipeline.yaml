@@ -262,6 +262,29 @@ jobs:
       azureSubscription: Azure-for-Telescope-internal
       scriptType: bash
       scriptLocation: inlineScript
+      inlineScript: "set -exo pipefail\n\nTIMESTAMP=$(date -u +\"%Y-%m-%dT%H:%M:%SZ\")\nSTATUS=\"succeeded\"\n\n# Check if any cl2 pod failed\nFAILED=$(kubectl get pods --namespace=\"clusterloader2\" -l job-name=cl2 -o jsonpath='{range .items[*]}{.status.phase}{\"\\n\"}{end}' | grep -c \"^Failed$\" || true)\nif [ \"$FAILED\" -gt 0 ]; then\n  STATUS=\"failed\"\nfi\n\ncat > /tmp/run-result.json << EOF\n\n{\n  \"timestamp\": \"${TIMESTAMP}\",\n  \"run_id\": \"$(RUN_ID)\",\n  \"run_url\": \"$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)\",\n  \"pipeline\": \"$(Build.DefinitionName)\",\n  \"result\": {\n    \"cl2_status\": \"${STATUS}\", \n    \"region\": \"westus2\"\n  }\n}\nEOF\ncat /tmp/run-result.json\n"
+    displayName: Collect cl2 pods status
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az storage blob upload \
+          --account-name "telescopev2" \
+          --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
+          --container-name "aks" \
+          --name "$(RUN_ID)/run-result.json" \
+          --file /tmp/run-result.json \
+          --auth-mode key
+    displayName: Upload result to storage account
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
 

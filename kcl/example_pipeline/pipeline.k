@@ -15,6 +15,10 @@ CL2_TAINT_PREFIX = "cl2pool"
 CL2_NAMESPACE = "clusterloader2"
 KWOK_NODE_COUNT = 100
 
+STORAGE_SUBSCRIPTION_ID = "137f0351-8235-42a6-ac7a-6b46be2d21c7"
+STORAGE_ACCOUNT = "telescopev2"
+STORAGE_CONTAINER = "aks"
+
 requestBody = util.escapeStr("""
 {
     "location": "${LOCATION}",
@@ -65,6 +69,11 @@ az rest \\
   --uri "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.ContainerService/managedClusters/${CLUSTER}?api-version=2026-01-02-preview" \\
   --body "${requestBody}"
 """
+
+cl2ResultJson = """{
+    "cl2_status": "\${STATUS}", 
+    "region": "${LOCATION}"
+  }"""
 
 output = ap.Pipeline {
     name = "Example Pipeline"
@@ -142,6 +151,29 @@ output = ap.Pipeline {
                 k8s.PrintCl2PodLogs(
                     const.DEFAULT_SERVICE_CONNECTION,
                     CL2_NAMESPACE),
+                azure.AzCli(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    "Collect cl2 pods status",
+                    """
+TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+STATUS="succeeded"
+
+# Check if any cl2 pod failed
+FAILED=$(kubectl get pods --namespace="${CL2_NAMESPACE}" -l job-name=cl2 -o jsonpath='{range .items[*]}{.status.phase}{"\\n"}{end}' | grep -c "^Failed$" || true)
+if [ "$FAILED" -gt 0 ]; then
+  STATUS="failed"
+fi
+
+cat > /tmp/run-result.json << EOF
+${util.formatResult(cl2ResultJson)}
+EOF
+cat /tmp/run-result.json
+"""),
+                common.UploadResult(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    STORAGE_ACCOUNT,
+                    STORAGE_SUBSCRIPTION_ID,
+                    STORAGE_CONTAINER),
                 azure.DeleteResourceGroup(
                     const.DEFAULT_SERVICE_CONNECTION,
                     RESOURCE_GROUP,
