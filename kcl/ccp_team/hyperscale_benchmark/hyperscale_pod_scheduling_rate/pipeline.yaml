@@ -164,7 +164,7 @@ jobs:
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --name "kwokpool" \
           --node-count 50 \
-          --node-vm-size "Standard_D8_v4" \
+          --node-vm-size "Standard_D8_v3" \
           --mode User \
           --node-taints kwok=true:NoSchedule \
           --labels kwok=true
