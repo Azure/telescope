@@ -111,35 +111,52 @@ output = ap.Pipeline {
                     CLUSTER,
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID),
-                azure.CreateNodePool(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    CLUSTER,
-                    RESOURCE_GROUP,
-                    SUBSCRIPTION_ID,
-                    CL2_POOL,
-                    "Standard_D8_v3",
-                    4,
-                    CL2_TAINT_PREFIX),
-                azure.WaitForNodePoolSucceeded(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    CLUSTER,
-                    RESOURCE_GROUP,
-                    SUBSCRIPTION_ID,
-                    CL2_POOL),
                 azure.GetCredentials(
                     const.DEFAULT_SERVICE_CONNECTION,
                     CLUSTER,
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID),
-                k8s.CreateKwokNodes(
-                  KWOK_NODE_COUNT, 
-                  {
-                    "node-manifest-path": "$(Pipeline.Workspace)/s/kcl/${SCENARIO_NAME}/kwok-node.yaml"
-                  }),
-                k8s.RunClusterLoader2(
+                azure.CreateNodePool(
                     const.DEFAULT_SERVICE_CONNECTION,
-                    CL2_NAMESPACE,
-                    manifest = "kcl/${SCENARIO_NAME}/cl2.yaml"),
+                    CLUSTER,
+                    RESOURCE_GROUP,
+                    SUBSCRIPTION_ID,
+                    KWOK_POOL,
+                    KWOK_POOL_VM_SIZE,
+                    KWOK_POOL_COUNT,
+                    "kwok",
+                    "kwok=true"),
+                azure.WaitForNodePoolSucceeded(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    CLUSTER,
+                    RESOURCE_GROUP,
+                    SUBSCRIPTION_ID,
+                    KWOK_POOL),
+                k8s.CreateKwokNodes(
+                  NODE_COUNT,
+                  {
+                    "node-manifest-path": "$(Pipeline.Workspace)/s/kcl/hyperscale_apiserver_executing_seats/kwok-node.yaml"
+                    "group": ""
+                    "nodes-per-controller": "${KWOK_NODES_PER_CONTROLLER}"
+                    "node-selector-key": "kwok"
+                    "node-selector-value": "true"
+                    "toleration-key": "kwok"
+                    "toleration-value": "true"
+                    "node-lease-parallelism": "200"
+                    "pod-play-stage-parallelism": "100"
+                    "node-play-stage-parallelism": "100"
+                    "cidr": "100.64.0.0/10"
+                    "node-ip": "100.64.0.1"
+                    "node-lease-duration-seconds": "100"
+                    "kube-connection-qps": "500.0"
+                    "kube-connection-burst": "1000"
+                  }),
+                k8s.RunClusterLoader2Local(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    CL2_IMAGE,
+                    cl2OverrideContent,
+                    provider = "ks",
+                    extraArgs = "--k8s-clients-number=200"),
                 azure.DeleteResourceGroup(
                     const.DEFAULT_SERVICE_CONNECTION,
                     RESOURCE_GROUP,
