@@ -16,7 +16,7 @@ KWOK_POOL = "kwokpool"
 KWOK_POOL_VM_SIZE = "Standard_D8_v3"
 KWOK_POOL_COUNT = 50
 CL2_IMAGE = "ghcr.io/azure/clusterloader2:v20260220"
-CL2_NAMESPACE = "cl2"
+CL2_NAMESPACE = "clusterloader2"
 
 requestBody = util.escapeStr("""
 {
@@ -153,6 +153,10 @@ output = ap.Pipeline {
                     "kube-connection-qps": "500.0"
                     "kube-connection-burst": "1000"
                   }),
+                azure.AzCli(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    "Apply CL2 config",
+                    "kubectl create namespace clusterloader2 || true\nkubectl apply -f $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_benchmark/hyperscale_pod_scheduling_rate/cl2-config.yaml"),
                 k8s.RunClusterLoader2(
                     const.DEFAULT_SERVICE_CONNECTION,
                     CL2_NAMESPACE,
