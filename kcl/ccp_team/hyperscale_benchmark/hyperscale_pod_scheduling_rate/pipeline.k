@@ -77,7 +77,7 @@ az rest \\
 """
 
 output = ap.Pipeline {
-    name = "Hyperscale API Server Executing Seats"
+    name = "Hyperscale Pod Scheduling Rate"
 
     trigger =  ["v2"]
     pool = const.DEFAULT_POOL

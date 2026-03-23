@@ -1,4 +1,4 @@
-name: Hyperscale API Server Executing Seats
+name: Hyperscale Pod Scheduling Rate
 pool: AKS-Telescope-Ubuntu-EastUS2
 trigger:
 - v2
@@ -164,7 +164,7 @@ jobs:
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --name "kwokpool" \
           --node-count 50 \
-          --node-vm-size "Standard_D8S_v4" \
+          --node-vm-size "Standard_D8_v4" \
           --mode User \
           --node-taints kwok=true:NoSchedule \
           --labels kwok=true
