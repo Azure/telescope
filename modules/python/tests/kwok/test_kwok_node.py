@@ -1,7 +1,7 @@
 """Tests for KWOK node functionality."""
 import os
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 # Mock kubernetes config before importing
 with patch('kubernetes.config.load_kube_config'):
@@ -121,6 +121,92 @@ class TestNodeIntegration(unittest.TestCase):
             )
         except Exception as exc:  # pylint: disable=broad-exception-caught
             self.fail(f"Node creation failed: {exc}")
+
+    @patch("kwok.kwok.Node.apply_kwok_manifests")
+    @patch("kwok.kwok.Node._wait_for_controllers_ready")
+    @patch("kwok.kwok.Node._create_group_deployment")
+    @patch("kwok.kwok.Node._add_group_label")
+    @patch("kwok.kwok.Node.setup_kwok_for_groups")
+    def test_create_nodes_grouped_mode(
+        self,
+        mock_setup_groups,
+        mock_add_group_label,
+        mock_create_group_deployment,
+        mock_wait_for_controllers_ready,
+        mock_apply,
+    ):
+        """Test grouped mode creates per-group controllers and labels node templates."""
+        grouped_node = Node(
+            node_count=5,
+            kwok_release="v0.7.0",
+            enable_metrics=False,
+            node_manifest_path=self.node.node_manifest_path,
+            k8s_client=self.mock_k8s_client,
+            group=True,
+            nodes_per_controller=2,
+        )
+
+        mock_setup_groups.return_value = "registry.k8s.io/kwok/kwok:v0.7.0"
+        self.mock_k8s_client.create_template.side_effect = [
+            f"node-template-{i}" for i in range(grouped_node.node_count)
+        ]
+        self.mock_k8s_client.create_node.return_value = None
+        mock_add_group_label.side_effect = (
+            lambda template_str, group_index: f"{template_str}|group={group_index}"
+        )
+
+        grouped_node.create()
+
+        mock_apply.assert_not_called()
+        mock_setup_groups.assert_called_once_with(
+            grouped_node.kwok_release,
+            grouped_node.enable_metrics,
+        )
+        mock_create_group_deployment.assert_has_calls([
+            call(0, "registry.k8s.io/kwok/kwok:v0.7.0"),
+            call(1, "registry.k8s.io/kwok/kwok:v0.7.0"),
+            call(2, "registry.k8s.io/kwok/kwok:v0.7.0"),
+        ])
+        self.assertEqual(mock_create_group_deployment.call_count, 3)
+        mock_wait_for_controllers_ready.assert_called_once_with(3)
+        mock_add_group_label.assert_has_calls([
+            call("node-template-0", 0),
+            call("node-template-1", 0),
+            call("node-template-2", 1),
+            call("node-template-3", 1),
+            call("node-template-4", 2),
+        ])
+        self.assertEqual(
+            self.mock_k8s_client.create_node.call_args_list,
+            [
+                call("node-template-0|group=0"),
+                call("node-template-1|group=0"),
+                call("node-template-2|group=1"),
+                call("node-template-3|group=1"),
+                call("node-template-4|group=2"),
+            ],
+        )
+
+    @patch("kwok.kwok.Node._replace_config_map")
+    def test_setup_kwok_for_groups_deletes_upstream_with_delete_options(self, mock_replace_config_map):
+        """Test grouped setup deletes the upstream controller with delete options."""
+        mock_deployment = MagicMock()
+        mock_deployment.spec.template.spec.containers = [MagicMock(image="controller-image")]
+        self.mock_k8s_client.get_deployment.return_value = mock_deployment
+
+        mock_app_client = MagicMock()
+        self.mock_k8s_client.get_app_client.return_value = mock_app_client
+
+        controller_image = self.node.setup_kwok_for_groups("v0.7.0", enable_metrics=False)
+
+        self.assertEqual(controller_image, "controller-image")
+        mock_replace_config_map.assert_called_once()
+        mock_app_client.delete_namespaced_deployment.assert_called_once()
+
+        _, kwargs = mock_app_client.delete_namespaced_deployment.call_args
+        self.assertEqual(kwargs["name"], "kwok-controller")
+        self.assertEqual(kwargs["namespace"], "kube-system")
+        self.assertEqual(kwargs["body"].propagation_policy, "Foreground")
 
     def test_tear_down_nodes(self):
         """

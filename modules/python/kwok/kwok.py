@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 import requests
 import yaml
+from kubernetes import client
 
 from clients.kubernetes_client import KubernetesClient
 from utils.retries import execute_with_retries
@@ -99,6 +100,7 @@ class KWOK(ABC):
         self.k8s_client.get_app_client().delete_namespaced_deployment(
             name="kwok-controller",
             namespace="kube-system",
+            body=client.V1DeleteOptions(propagation_policy="Foreground"),
         )
 
         if enable_metrics:
@@ -483,6 +485,7 @@ class Node(KWOK):
                     self.k8s_client.get_app_client().delete_namespaced_deployment(
                         name=deploy_name,
                         namespace="kube-system",
+                        body=client.V1DeleteOptions(propagation_policy="Foreground"),
                     )
                 except Exception as e:
                     print(f"Warning: Could not delete deployment {deploy_name}: {e}")

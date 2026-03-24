@@ -27,6 +27,10 @@ spec:
         - --server-address=0.0.0.0:10247
         - --node-lease-duration-seconds={{node_lease_duration_seconds}}
         env:
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
         - name: KUBE_API_QPS
           value: "500"
         - name: KUBE_API_BURST
