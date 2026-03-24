@@ -74,6 +74,11 @@ class TestNodeIntegration(unittest.TestCase):
         self.mock_k8s_client.create_node.return_value = None
         self.mock_k8s_client.create_resource_slice.return_value = None
 
+        # Mock get_deployment so _wait_for_controllers_ready succeeds
+        mock_deployment = MagicMock()
+        mock_deployment.status.available_replicas = 1
+        self.mock_k8s_client.get_deployment.return_value = mock_deployment
+
         try:
             self.node.create()
             print("Nodes created successfully.")
