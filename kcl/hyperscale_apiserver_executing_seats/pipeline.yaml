@@ -225,9 +225,9 @@ jobs:
         cat > /tmp/cl2-config/overrides.yaml << 'OVERRIDE_EOF'
         NODES: 8000
         PODS_PER_NODE: 100
-        BIG_GROUP_SIZE: 8
-        MEDIUM_GROUP_SIZE: 8
-        SMALL_GROUP_SIZE: 4
+        BIG_GROUP_SIZE: 800
+        MEDIUM_GROUP_SIZE: 800
+        SMALL_GROUP_SIZE: 400
         SMALL_STATEFUL_SETS_PER_NAMESPACE: 0
         MEDIUM_STATEFUL_SETS_PER_NAMESPACE: 0
         CL2_SMALL_JOBS_PER_NAMESPACE: 0
