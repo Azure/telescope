@@ -25,7 +25,7 @@ spec:
         - --manage-nodes-with-label-selector={{node_label_selector}}
         - --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake
         - --server-address=0.0.0.0:10247
-        - --node-lease-duration-seconds=60
+        - --node-lease-duration-seconds={{node_lease_duration_seconds}}
         env:
         - name: KUBE_API_QPS
           value: "500"
