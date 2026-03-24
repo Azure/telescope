@@ -3,7 +3,6 @@ scenario_name  = "ccp-provisioning-H8"
 deletion_delay = "2h"
 owner          = "aks"
 
-arm_endpoint = "https://eastus2euap.management.azure.com"
 
 azapi_config_list = [
   {
@@ -16,7 +15,7 @@ azapi_config_list = [
     default_node_pool = {
       name    = "systempool1"
       count   = 3
-      vm_size = "Standard_D2s_v5"
+      vm_size = "Standard_D2s_v3"
     }
 
     network_profile = {
