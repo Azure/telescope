@@ -468,6 +468,21 @@ class Node(KWOK):
 
         print(f"Successfully deleted {self.node_count} nodes.")
 
+        # Clean up per-group controller deployments created in grouped mode
+        if self.group:
+            num_groups = self._num_groups()
+            for g in range(num_groups):
+                deploy_name = f"kwok-controller-{g}"
+                print(f"Deleting grouped controller deployment: {deploy_name}")
+                try:
+                    self.k8s_client.get_app_client().delete_namespaced_deployment(
+                        name=deploy_name,
+                        namespace="kube-system",
+                    )
+                except Exception as e:
+                    print(f"Warning: Could not delete deployment {deploy_name}: {e}")
+            print(f"Successfully deleted {num_groups} grouped controller deployment(s).")
+
     def _validate_node_status(self, node):
         conditions = (
             node.status.conditions if node.status and node.status.conditions else []
