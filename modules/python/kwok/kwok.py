@@ -221,6 +221,11 @@ class Node(KWOK):
 
     def _num_groups(self):
         """Calculate the number of controller groups needed."""
+        if self.nodes_per_controller < 1:
+            raise ValueError(
+                f"Invalid nodes_per_controller={self.nodes_per_controller}. "
+                "nodes_per_controller must be at least 1."
+            )
         return (self.node_count + self.nodes_per_controller - 1) // self.nodes_per_controller
 
     def create(self):
