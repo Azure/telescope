@@ -17,7 +17,8 @@ KWOK_POOL_VM_SIZE = "Standard_D8_v3"
 KWOK_POOL_COUNT = 50
 CL2_IMAGE = "ghcr.io/azure/clusterloader2:v20260220"
 CL2_NAMESPACE = "clusterloader2"
-
+CL2_POOL = "cl2pool"
+CL2_TAINT_PREFIX = "cl2pool"
 requestBody = util.escapeStr("""
 {
     "location": "${LOCATION}",
@@ -113,6 +114,21 @@ output = ap.Pipeline {
                     CLUSTER,
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID),
+                azure.CreateNodePool(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    CLUSTER,
+                    RESOURCE_GROUP,
+                    SUBSCRIPTION_ID,
+                    CL2_POOL,
+                    "Standard_D8S_v4",
+                    4,
+                    CL2_TAINT_PREFIX),
+                azure.WaitForNodePoolSucceeded(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    CLUSTER,
+                    RESOURCE_GROUP,
+                    SUBSCRIPTION_ID,
+                    CL2_POOL),
                 azure.GetCredentials(
                     const.DEFAULT_SERVICE_CONNECTION,
                     CLUSTER,
@@ -161,6 +177,9 @@ output = ap.Pipeline {
                     const.DEFAULT_SERVICE_CONNECTION,
                     CL2_NAMESPACE,
                     manifest = "kcl/ccp_team/hyperscale_benchmark/hyperscale_pod_scheduling_rate/cl2.yaml"),
+                k8s.PrintCl2PodLogs(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    CL2_NAMESPACE),
                 azure.DeleteResourceGroup(
                     const.DEFAULT_SERVICE_CONNECTION,
                     RESOURCE_GROUP,
