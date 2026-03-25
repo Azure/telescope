@@ -154,6 +154,7 @@ stages:
               loop_count: 20
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
+              karpenter_cooldown: 900 #seconds
               vm_size: Standard_D2ds_v5
               capacity_type: on-demand
             extra-small-scale-spot:
@@ -164,6 +165,7 @@ stages:
               scale_down_timeout: "5m"
               node_label_selector: "karpenter.sh/nodepool = spot"
               node_selector: "{karpenter.sh/nodepool: spot}"
+              karpenter_cooldown: 900 #seconds
               loop_count: 20
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
@@ -178,6 +180,7 @@ stages:
               node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 5
+              karpenter_cooldown: 900 #seconds
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
               vm_size: Standard_D4_v5
@@ -192,6 +195,7 @@ stages:
               node_selector: "{karpenter.sh/nodepool: spot}"
               loop_count: 5
               warmup_deployment: true
+              karpenter_cooldown: 900 #seconds
               warmup_deployment_template: warmup_deployment.yaml
               vm_size: Standard_D4_v5
               capacity_type: spot
