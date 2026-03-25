@@ -9,7 +9,8 @@ import lib.util
 SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "westus2"
-CLUSTER = "stg-H2-hyperscale-apiserver-seats"
+CONTROL_PLANE_SCALING_SIZE = "H4"
+CLUSTER = "stg-${CONTROL_PLANE_SCALING_SIZE}-hyperscale-apiserver-seats"
 NODE_COUNT = 8000
 KWOK_NODES_PER_CONTROLLER = 100
 KWOK_POOL = "kwokpool"
@@ -19,7 +20,7 @@ CL2_IMAGE = "ghcr.io/azure/clusterloader2:v20260220"
 
 cl2OverrideContent = """\
 NODES: ${NODE_COUNT}
-PODS_PER_NODE: 100
+PODS_PER_NODE: 180
 BIG_GROUP_SIZE: 800
 MEDIUM_GROUP_SIZE: 800
 SMALL_GROUP_SIZE: 400
@@ -48,7 +49,7 @@ requestBody = util.escapeStr("""
       "SkipLinuxAzSecPack": "true"
     },
     "properties": {
-      "controlPlaneScalingProfile": {"scalingSize": "H4"},
+      "controlPlaneScalingProfile": {"scalingSize": "${CONTROL_PLANE_SCALING_SIZE}"},
       "kubernetesVersion": "1.33.0",
       "dnsPrefix": "${CLUSTER}-dns",
       "agentPoolProfiles": [

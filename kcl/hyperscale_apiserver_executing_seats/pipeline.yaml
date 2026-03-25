@@ -64,7 +64,7 @@ jobs:
         az cloud update --endpoint-resource-manager https://eastus2euap.management.azure.com/
         az rest \
           --method put \
-          --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/stg-H2-hyperscale-apiserver-seats?api-version=2026-01-02-preview" \
+          --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/stg-H4-hyperscale-apiserver-seats?api-version=2026-01-02-preview" \
           --body "
         {
             \"location\": \"westus2\",
@@ -81,7 +81,7 @@ jobs:
             \"properties\": {
               \"controlPlaneScalingProfile\": {\"scalingSize\": \"H4\"},
               \"kubernetesVersion\": \"1.33.0\",
-              \"dnsPrefix\": \"stg-H2-hyperscale-apiserver-seats-dns\",
+              \"dnsPrefix\": \"stg-H4-hyperscale-apiserver-seats-dns\",
               \"agentPoolProfiles\": [
                 {
                   \"name\": \"systempool\",
@@ -118,7 +118,7 @@ jobs:
 
         while true; do
           STATE=$(az aks show \
-            --name "stg-H2-hyperscale-apiserver-seats" \
+            --name "stg-H4-hyperscale-apiserver-seats" \
             --resource-group "$(RUN_ID)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --query "provisioningState" \
@@ -145,11 +145,11 @@ jobs:
         set -exo pipefail
 
         az aks get-credentials \
-          --name "stg-H2-hyperscale-apiserver-seats" \
+          --name "stg-H4-hyperscale-apiserver-seats" \
           --resource-group "$(RUN_ID)" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --overwrite-existing
-    displayName: Get credentials for stg-H2-hyperscale-apiserver-seats
+    displayName: Get credentials for stg-H4-hyperscale-apiserver-seats
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -159,7 +159,7 @@ jobs:
         set -exo pipefail
 
         az aks nodepool add \
-          --cluster-name "stg-H2-hyperscale-apiserver-seats" \
+          --cluster-name "stg-H4-hyperscale-apiserver-seats" \
           --resource-group "$(RUN_ID)" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --name "kwokpool" \
@@ -179,7 +179,7 @@ jobs:
 
         while true; do
           STATE=$(az aks nodepool show \
-            --cluster-name "stg-H2-hyperscale-apiserver-seats" \
+            --cluster-name "stg-H4-hyperscale-apiserver-seats" \
             --resource-group "$(RUN_ID)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --name "kwokpool" \
@@ -224,7 +224,7 @@ jobs:
 
         cat > /tmp/cl2-config/overrides.yaml << 'OVERRIDE_EOF'
         NODES: 8000
-        PODS_PER_NODE: 100
+        PODS_PER_NODE: 180
         BIG_GROUP_SIZE: 800
         MEDIUM_GROUP_SIZE: 800
         SMALL_GROUP_SIZE: 400
