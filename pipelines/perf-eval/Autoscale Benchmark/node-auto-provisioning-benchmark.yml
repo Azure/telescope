@@ -242,6 +242,7 @@ stages:
               warmup_deployment_template: warmup_deployment.yaml
               vm_size: Standard_D4_v3
               capacity_type: spot
+              karpenter_cooldown: 900 #seconds
           max_parallel: 1
           timeout_in_minutes: 560
           credential_type: service_connection

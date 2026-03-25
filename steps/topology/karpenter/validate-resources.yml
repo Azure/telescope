@@ -35,6 +35,7 @@ steps:
 
       kubectl get nodepool default -o yaml
       kubectl get nodepool spot -o yaml
+      sleep ${KARPENTER_COOLDOWN:-60}
     env:
       CLOUD: ${{ parameters.cloud }}
       KARPENTER_DIR: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes
