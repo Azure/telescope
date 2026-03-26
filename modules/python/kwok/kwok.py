@@ -19,7 +19,7 @@ CONTROLLER_READY_POLL_INTERVAL_SECONDS = 5
 NODE_LEASE_PARALLELISM = 4
 POD_PLAY_STAGE_PARALLELISM = 64
 NODE_PLAY_STAGE_PARALLELISM = 4
-DEFAULT_NODE_SELECTOR = "kwok=true"
+DEFAULT_NODE_SELECTOR = ""
 DEFAULT_TOLERATION = "kwok=true"
 DEFAULT_CIDR = "10.0.0.1/24"
 DEFAULT_NODE_IP = None
@@ -210,17 +210,20 @@ class KWOK(ABC):
         )
 
         pod_spec = deployment.spec.template.spec
-        node_selector_key, node_selector_value = self._parse_key_value(
-            self.node_selector,
-            "node_selector",
-        )
+        selector_setting = (self.node_selector or "").strip()
+        if selector_setting:
+            node_selector_key, node_selector_value = self._parse_key_value(
+                selector_setting,
+                "node_selector",
+            )
         toleration_key, toleration_value = self._parse_key_value(
             self.toleration,
             "toleration",
         )
-        node_selector = dict(pod_spec.node_selector or {})
-        node_selector[node_selector_key] = node_selector_value
-        pod_spec.node_selector = node_selector
+        if selector_setting:
+            node_selector = dict(pod_spec.node_selector or {})
+            node_selector[node_selector_key] = node_selector_value
+            pod_spec.node_selector = node_selector
         pod_spec.tolerations = [
             client.V1Toleration(
                 key=toleration_key,
@@ -654,7 +657,7 @@ def main():
         "--node-selector",
         type=str,
         default=DEFAULT_NODE_SELECTOR,
-        help="Node selector for controller pod affinity in key=value form (default: kwok=true).",
+        help="Optional node selector for controller pod affinity in key=value form (default: empty).",
     )
     parser.add_argument(
         "--node-lease-duration-seconds",
