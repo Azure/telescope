@@ -272,7 +272,7 @@ resource "terraform_data" "enable_aks_cli_preview_extension" {
     EOT
       ) : (
       <<EOT
-      az extension add -n aks-preview --version 19.0.0b5
+      az extension add -n aks-preview --version 19.0.0b27
       az version
     EOT
     )
