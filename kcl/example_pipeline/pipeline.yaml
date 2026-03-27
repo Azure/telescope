@@ -136,6 +136,7 @@ jobs:
           sleep 30
         done
     displayName: Wait for cluster to succeed
+    timeoutInMinutes: 60
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -183,6 +184,7 @@ jobs:
           sleep 30
         done
     displayName: Wait for node pool cl2pool to succeed
+    timeoutInMinutes: 30
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
