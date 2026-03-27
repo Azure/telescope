@@ -28,7 +28,7 @@ Source = "https://github.com/Azure/telescope"
 Documentation = "https://github.com/Azure/telescope/tree/main/modules/python"
 
 [tool.setuptools]
-packages = ["kwok"]
+packages = ["clients", "kwok", "utils"]
 
 [tool.setuptools.dynamic]
 dependencies = {file = "requirements.txt"}
