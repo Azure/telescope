@@ -243,13 +243,11 @@ class KWOK(ABC):
         """Create a kwok-controller deployment scoped to a controller shard."""
         deployment = self._build_controller_deployment(base_deployment, controller_index)
         deployment_name = deployment.metadata.name
-        controller_selector = f"kwok-controller-group={controller_index}"
         manifest_dict = client.ApiClient().sanitize_for_serialization(deployment)
         manifest_dict["apiVersion"] = manifest_dict.get("apiVersion", "apps/v1")
         manifest_dict["kind"] = manifest_dict.get("kind", "Deployment")
 
-        print(f"Creating Deployment '{deployment_name}' "
-              f"with --manage-nodes-with-label-selector={controller_selector}")
+        print(f"Creating Deployment '{deployment_name}'")
         execute_with_retries(
             self.k8s_client.apply_manifest_from_file,
             manifest_dict=manifest_dict,
