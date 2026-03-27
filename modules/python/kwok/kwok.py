@@ -61,6 +61,8 @@ class KWOK(ABC):
 
     def _bootstrap_kwok(self, kwok_release, enable_metrics):
         """Apply the shared KWOK bootstrap manifests and replace the configmap."""
+        # TODO(xinwei): Refactor bootstrap flow to fetch/patch source kwok.yaml first,
+        # then apply manifests, instead of mutating a Deployment read from apiserver.
         kwok_yaml_url = (f"https://github.com/{self.kwok_repo}/releases/"
                          f"download/{kwok_release}/kwok.yaml")
         stage_fast_yaml_url = (f"https://github.com/{self.kwok_repo}/releases/"
@@ -123,9 +125,8 @@ class KWOK(ABC):
 
         return key, value
 
-    def _prepare_controller_deployment_base(self, kwok_release, enable_metrics):
-        """Bootstrap KWOK, copy the upstream controller deployment, then remove it."""
-        self._bootstrap_kwok(kwok_release, enable_metrics)
+    def _copy_and_remove_upstream_controller_deployment(self):
+        """Copy the upstream kwok-controller deployment and then remove it."""
         base_deployment = self.k8s_client.get_deployment("kwok-controller", "kube-system")
         if not base_deployment:
             raise RuntimeError("Upstream kwok-controller deployment not found. "
@@ -146,6 +147,10 @@ class KWOK(ABC):
         deployment = deepcopy(base_deployment)
         deployment_name = self._controller_name(controller_index)
         controller_selector = f"kwok-controller-group={controller_index}"
+
+        # TODO(xinwei): Refactor to avoid mutating a deployment read from kube-apiserver.
+        # Prefer patching kwok.yaml before _bootstrap_kwok so controllers are created
+        # from the desired manifest directly.
 
         deployment.metadata.name = deployment_name
         deployment.metadata.resource_version = None
@@ -330,12 +335,12 @@ class Node(KWOK):
             self.kwok_release = self.kwok_release or self.fetch_latest_release()
             print(f"Using KWOK_RELEASE={self.kwok_release}")
 
+            self._bootstrap_kwok(self.kwok_release, self.enable_metrics)
+
             controller_count = self._controller_count()
             print(f"Using {controller_count} controller(s) for {self.node_count} nodes, "
                   f"{self.nodes_per_controller} nodes each")
-            controller_deployment_base = self._prepare_controller_deployment_base(
-                self.kwok_release, self.enable_metrics
-            )
+            controller_deployment_base = self._copy_and_remove_upstream_controller_deployment()
             for controller_index in range(controller_count):
                 self._create_controller_deployment(controller_index, controller_deployment_base)
             self._wait_for_controllers_ready()
