@@ -1,0 +1,33 @@
+trigger: none
+
+schedules:
+  - cron: "0 15 * * *"
+    displayName: "Daily HOBO Automatic"
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: hobo-automatic
+
+stages:
+  - stage: azure_australiaeast_hobo_automatic
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - australiaeast
+          engine: aks-store-demo
+          engine_input:
+            wait_duration_seconds: 300
+          topology: cluster-automatic
+          matrix:
+            hobo-automatic: {}
+          max_parallel: 1
+          timeout_in_minutes: 90
+          credential_type: service_connection
+          ssh_key_enabled: false
