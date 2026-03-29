@@ -31,7 +31,7 @@ data:
     steps:
     # BEGIN scheduler throughput
     - module:
-        path: /root/perf-tests/clusterloader2/testing/load/modules/scheduler-throughput/config.yaml
+        path: modules/scheduler-throughput/config.yaml
         params:
           action: create
           namespaces: 0
@@ -41,7 +41,7 @@ data:
           deploymentImage: {{$latencyPodImage}}
 
     - module:
-        path: /root/perf-tests/clusterloader2/testing/load/modules/scheduler-throughput/config.yaml
+        path: modules/scheduler-throughput/config.yaml
         params:
           action: delete
           namespaces: 0
