@@ -45,6 +45,16 @@ steps:
   displayName: 'Set Test Results Directory'
 
 - script: |
+    sudo apt-get update
+    sudo apt-get install -y python3-pip
+    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+    chmod +x kubectl && sudo mv kubectl /usr/local/bin/
+    curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+    pip3 install awscli
+    curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+  displayName: "Install Dependencies"
+
+- script: |
     python3 --version && pip3 --version
     jq --version
     kubectl version --client
