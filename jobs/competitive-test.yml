@@ -51,8 +51,6 @@ parameters:
 
 jobs:
 - job: ${{ parameters.cloud }}
-  pool:
-    vmImage: ubuntu-22.04
   strategy:
     maxParallel: ${{ parameters.max_parallel }}
     matrix:
