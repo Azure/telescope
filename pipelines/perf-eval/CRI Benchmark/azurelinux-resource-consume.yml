@@ -12,14 +12,14 @@ variables:
   SCENARIO_NAME: azurelinux-resource-consume
 
 stages:
-  - stage: azurelinux_v3_eastus2
+  - stage: azurelinux_v3_southcentralus
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - southcentralus
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
@@ -51,16 +51,16 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: azure_osguard_eastus2
+  - stage: azure_osguard_southcentralus
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - southcentralus
           terraform_input_file_mapping:
-            - eastus2: "scenarios/perf-eval/azurelinux-resource-consume/terraform-inputs/azure-osguard.tfvars"
+            - southcentralus: "scenarios/perf-eval/azurelinux-resource-consume/terraform-inputs/azure-osguard.tfvars"
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
