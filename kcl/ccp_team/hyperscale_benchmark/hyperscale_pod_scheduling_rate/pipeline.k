@@ -177,13 +177,21 @@ output = ap.Pipeline {
                     const.DEFAULT_SERVICE_CONNECTION,
                     CL2_NAMESPACE,
                     manifest = "kcl/ccp_team/hyperscale_benchmark/hyperscale_pod_scheduling_rate/cl2.yaml"),
-                k8s.PrintCl2PodLogs(
+                azure.AzCli(
                     const.DEFAULT_SERVICE_CONNECTION,
-                    CL2_NAMESPACE),
-                azure.DeleteResourceGroup(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    RESOURCE_GROUP,
-                    SUBSCRIPTION_ID)
+                    "Print cl2 pod logs",
+                    """
+for pod in $(kubectl get pods --namespace="${CL2_NAMESPACE}" -l job-name=cl2 -o jsonpath='{.items[*].metadata.name}'); do
+  echo "===== Init container logs for pod: $pod ====="
+  kubectl logs --namespace="${CL2_NAMESPACE}" "$pod" -c list-modules || true
+  echo "===== Logs for pod: $pod ====="
+  kubectl logs --namespace="${CL2_NAMESPACE}" "$pod" || true
+done
+"""),
+                # azure.DeleteResourceGroup(
+                #     const.DEFAULT_SERVICE_CONNECTION,
+                #     RESOURCE_GROUP,
+                #     SUBSCRIPTION_ID)
             ]
         }
     ]

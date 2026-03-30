@@ -300,18 +300,9 @@ jobs:
         set -exo pipefail
 
         for pod in $(kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o jsonpath='{.items[*].metadata.name}'); do
+          echo "===== Init container logs for pod: $pod ====="
+          kubectl logs --namespace="clusterloader2" "$pod" -c list-modules || true
           echo "===== Logs for pod: $pod ====="
           kubectl logs --namespace="clusterloader2" "$pod" || true
         done
     displayName: Print cl2 pod logs
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
-    condition: always()
-    displayName: Delete resource group $(RUN_ID) (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
