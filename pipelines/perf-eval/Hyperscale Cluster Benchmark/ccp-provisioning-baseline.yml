@@ -1,8 +1,8 @@
 trigger: none
 
 schedules:
-  - cron: "0 * * * *"
-    displayName: "Run every hour"
+  - cron: "0 */6 * * *"
+    displayName: "Run every 6 hours"
     branches:
       include:
         - main
