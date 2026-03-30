@@ -22,6 +22,10 @@ spec:
   backoffLimit: 0 # Don't retry failed CL2 runs.
   template:
     spec:
+      initContainers:
+      - name: list-modules
+        image: ghcr.io/azure/clusterloader2:v20260220
+        command: ["find", "/root/perf-tests/clusterloader2/testing/load/modules", "-type", "f"]
       containers:
       - args:
         - '--provider=aks'
