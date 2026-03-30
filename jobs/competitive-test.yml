@@ -51,6 +51,7 @@ parameters:
 
 jobs:
 - job: ${{ parameters.cloud }}
+  pool: AKS-Telescope-Ubuntu-EastUS2
   strategy:
     maxParallel: ${{ parameters.max_parallel }}
     matrix:
