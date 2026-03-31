@@ -1,10 +1,10 @@
 [dependencies]
   [dependencies.azure_pipelines]
     name = "azure_pipelines"
-    full_name = "azure_pipelines_0.1.0"
-    version = "0.1.0"
-    url = "https://github.com/Azure/kcl-azure-pipelines/"
-    commit = "4e9da98"
+    full_name = "azure_pipelines_1.0.0"
+    version = "1.0.0"
+    url = "https://github.com/Azure/kcl-azure-pipelines"
+    git_tag = "1.0.0"
   [dependencies.k8s]
     name = "k8s"
     full_name = "k8s_1.32.4"

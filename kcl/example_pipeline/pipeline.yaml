@@ -141,18 +141,7 @@ jobs:
       azureSubscription: Azure-for-Telescope-internal
       scriptType: bash
       scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        az aks nodepool add \
-          --cluster-name "stg-H2-yaolei" \
-          --resource-group "$(RUN_ID)" \
-          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-          --name "cl2pool" \
-          --node-count 4 \
-          --node-vm-size "Standard_D8S_v4" \
-          --mode User \
-          --node-taints cl2pool=true:NoSchedule
+      inlineScript: "set -exo pipefail\n\naz aks nodepool add \\\n  --cluster-name \"stg-H2-yaolei\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"cl2pool\" \\\n  --node-count 4 \\\n  --node-vm-size \"Standard_D8S_v4\" \\\n  --mode User \\\n  --node-taints cl2pool=true:NoSchedule \\\n  \n"
     displayName: Create node pool cl2pool
   - task: AzureCLI@2
     inputs:
@@ -202,7 +191,7 @@ jobs:
       set -exo pipefail
       export PYTHONPATH=$PYTHONPATH:$(pwd)
       python3 kwok/kwok.py   --action create   --node-count 100   --node-manifest-path $(Pipeline.Workspace)/s/kcl/example_pipeline/kwok-node.yaml
-      python3 kwok/kwok.py   --action validate   --node-count 100
+      python3 kwok/kwok.py   --action validate   --node-count 100   --node-manifest-path $(Pipeline.Workspace)/s/kcl/example_pipeline/kwok-node.yaml
     workingDirectory: modules/python
     displayName: Create and Validate KWOK Nodes
   - task: AzureCLI@2
