@@ -55,6 +55,10 @@ aks_cli_config_list = [
       {
         name  = "zones"
         value = "1 2 3"
+      },
+      {
+        name  = "load-balancer-managed-outbound-ip-count"
+        value = "20"
       }
     ]
 
