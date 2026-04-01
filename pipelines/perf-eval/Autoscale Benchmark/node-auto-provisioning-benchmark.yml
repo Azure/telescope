@@ -183,7 +183,7 @@ stages:
               karpenter_cooldown: 900 #seconds
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D4_v4
+              vm_size: Standard_D4ds_v4
               capacity_type: on-demand
             small-scale-spot:
               cpu_per_node: 4
