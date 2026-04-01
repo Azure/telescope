@@ -280,7 +280,7 @@ stages:
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D2ds_v4
+              vm_size: Standard_D2ds_v5
               capacity_type: on-demand
             medium-scale--spot:
               cpu_per_node: 2
@@ -329,7 +329,7 @@ stages:
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D2ds_v4
+              vm_size: Standard_D2ds_v5
               capacity_type: on-demand
             large-scale-spot:
               cpu_per_node: 2
