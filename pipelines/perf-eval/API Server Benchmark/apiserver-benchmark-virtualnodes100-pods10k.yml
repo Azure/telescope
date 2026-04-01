@@ -58,14 +58,14 @@ stages:
           timeout_in_minutes: 360
           credential_type: service_connection
           ssh_key_enabled: false
-  - stage: azure_eastus2
+  - stage: azure_uksouth
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - uksouth
           engine: kperf
           topology: kperf
           matrix:
@@ -87,7 +87,7 @@ stages:
           timeout_in_minutes: 760
           credential_type: service_connection
           ssh_key_enabled: false
-  - stage: azure_eastus2_lower_max_inflight
+  - stage: azure_uksouth_lower_max_inflight
     dependsOn: []
     variables:
       - group: API-Server-Lower-Max-Inflight
@@ -96,7 +96,7 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - uksouth
           engine: kperf
           topology: kperf
           matrix:
@@ -118,7 +118,7 @@ stages:
           timeout_in_minutes: 760
           credential_type: service_connection
           ssh_key_enabled: false
-  - stage: azure_eastus2_higher_cpu_cores
+  - stage: azure_uksouth_higher_cpu_cores
     dependsOn: []
     variables:
       - group: API-Server-Higher-CPU-Cores
@@ -127,7 +127,7 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - uksouth
           engine: kperf
           topology: kperf
           matrix:
