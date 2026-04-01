@@ -280,6 +280,7 @@ stages:
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
+              karpenter_cooldown: 900 #seconds
               vm_size: Standard_D2ds_v4
               capacity_type: on-demand
             medium-scale--spot:
@@ -293,6 +294,7 @@ stages:
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
+              karpenter_cooldown: 900 #seconds
               vm_size: Standard_D2ds_v4
               capacity_type: spot
           max_parallel: 1
@@ -329,6 +331,7 @@ stages:
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
+              karpenter_cooldown: 900 #seconds
               vm_size: Standard_D2ds_v4
               capacity_type: on-demand
             large-scale-spot:
@@ -342,6 +345,7 @@ stages:
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
+              karpenter_cooldown: 900 #seconds
               vm_size: Standard_D2ds_v4
               capacity_type: spot
           max_parallel: 1
@@ -425,6 +429,7 @@ stages:
               loop_count: 20
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
+              karpenter_cooldown: 900 #seconds
               vm_size: m5.xlarge
               capacity_type: on-demand
             extra-small-scale-spot:
@@ -438,6 +443,7 @@ stages:
               loop_count: 20
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
+              karpenter_cooldown: 900 #seconds
               vm_size: m5.xlarge
               capacity_type: spot
             small-scale-on-demand:
@@ -451,6 +457,7 @@ stages:
               loop_count: 5
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
+              karpenter_cooldown: 900 #seconds
               vm_size: m5.xlarge
               capacity_type: on-demand
             small-scale-spot:
@@ -464,6 +471,7 @@ stages:
               loop_count: 5
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
+              karpenter_cooldown: 900 #seconds
               vm_size: m5.xlarge
               capacity_type: spot
           max_parallel: 1
@@ -500,6 +508,7 @@ stages:
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
+              karpenter_cooldown: 900 #seconds
               vm_size: m5.large
               capacity_type: on-demand
             medium-scale-spot:
@@ -513,6 +522,7 @@ stages:
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
+              karpenter_cooldown: 900 #seconds
               vm_size: m5.large
               capacity_type: spot
           max_parallel: 1
@@ -549,6 +559,7 @@ stages:
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
+              karpenter_cooldown: 900 #seconds
               vm_size: m5.large
               capacity_type: on-demand
             large-scale-spot:
@@ -562,6 +573,7 @@ stages:
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
+              karpenter_cooldown: 900 #seconds
               vm_size: m5.large
               capacity_type: spot
           max_parallel: 1
