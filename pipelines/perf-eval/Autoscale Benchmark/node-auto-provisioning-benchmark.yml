@@ -147,8 +147,8 @@ stages:
               cpu_per_node: 2
               node_count: 1
               pod_count: 10
-              scale_up_timeout: "5m"
-              scale_down_timeout: "5m"
+              scale_up_timeout: "15m"
+              scale_down_timeout: "15m"
               node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 20
@@ -161,8 +161,8 @@ stages:
               cpu_per_node: 2
               node_count: 1
               pod_count: 10
-              scale_up_timeout: "5m"
-              scale_down_timeout: "5m"
+              scale_up_timeout: "15m"
+              scale_down_timeout: "15m"
               node_label_selector: "karpenter.sh/nodepool = spot"
               node_selector: "{karpenter.sh/nodepool: spot}"
               karpenter_cooldown: 900 #seconds
@@ -422,8 +422,8 @@ stages:
               cpu_per_node: 4
               node_count: 1
               pod_count: 10
-              scale_up_timeout: "5m"
-              scale_down_timeout: "5m"
+              scale_up_timeout: "15m"
+              scale_down_timeout: "15m"
               node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 20
@@ -436,8 +436,8 @@ stages:
               cpu_per_node: 4
               node_count: 1
               pod_count: 10
-              scale_up_timeout: "5m"
-              scale_down_timeout: "5m"
+              scale_up_timeout: "15m"
+              scale_down_timeout: "15m"
               node_label_selector: "karpenter.sh/nodepool = spot"
               node_selector: "{karpenter.sh/nodepool: spot}"
               loop_count: 20
