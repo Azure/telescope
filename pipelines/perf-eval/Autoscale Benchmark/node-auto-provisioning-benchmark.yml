@@ -1,41 +1,41 @@
 trigger: none
 schedules:
-  Azure Small Scale(10) Schedule
+  # Azure Small Scale(10) Schedule
   - cron: "0 3 * * *"
     displayName: "3:00 AM Daily"
     branches:
       include:
         - main
     always: true
-  Aws Small Scale(10) Schedule
+  # Aws Small Scale(10) Schedule
   - cron: "0 0 * * 2,6"
     displayName: "3:00 AM on Tuesday and Saturday"
     branches:
       include:
         - main
     always: true
-  Azure Medium Scale(500) Schedule
+  # Azure Medium Scale(500) Schedule
   - cron: "0 6 * * *"
     displayName: "Every day at 6:00 AM"
     branches:
       include:
         - main
     always: true
-  Azure Large Scale(1000) Schedule
+  # Azure Large Scale(1000) Schedule
   - cron: "0 0 * * *"
     displayName: "Every day at 12:00 AM"
     branches:
       include:
         - main
     always: true
-  Aws Medium Scale(500) Schedule
+  # Aws Medium Scale(500) Schedule
   - cron: "0 6 * * 1"
     displayName: "6:00 AM on Monday"
     branches:
       include:
         - main
     always: true
-  Aws Large Scale(1000) Schedule
+  # Aws Large Scale(1000) Schedule
   - cron: "0 0 1,15 * *"
     displayName: "Every 15 days at 12 AM"
     branches:
