@@ -12,14 +12,14 @@ variables:
   SCENARIO_NAME: image-pull-n10
 
 stages:
-  - stage: azure_eastus2_image_pull
+  - stage: azure_eastasia_image_pull
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - eastasia
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
