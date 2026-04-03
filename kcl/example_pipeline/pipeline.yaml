@@ -1,5 +1,5 @@
 name: Example Pipeline
-pool: AKS-Telescope-Ubuntu-EastUS2
+pool: AKS-Telescope-Airlock
 trigger:
 - v2
 parameters:
