@@ -74,11 +74,13 @@ stages:
               disable_warmup: "true"
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
+              vc_affinity: "node.kubernetes.io/instance-type=Standard_D8_v5,m4.2xlarge,n1-standard-8"
             podsize-20k-exempt:
               kubernetes_version: "1.33.0"
               disable_warmup: "true"
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
+              vc_affinity: "node.kubernetes.io/instance-type=Standard_D8_v5,m4.2xlarge,n1-standard-8"
           engine_input:
             runner_image: ghcr.io/azure/kperf:0.3.4
             benchmark_subcmd: node100_pod10k
@@ -105,11 +107,13 @@ stages:
               disable_warmup: "true"
               flowcontrol: "workload-low:1000"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
+              vc_affinity: "node.kubernetes.io/instance-type=Standard_D8_v5,m4.2xlarge,n1-standard-8"
             podsize-20k-exempt:
               kubernetes_version: "1.33.0"
               disable_warmup: "true"
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
+              vc_affinity: "node.kubernetes.io/instance-type=Standard_D8_v5,m4.2xlarge,n1-standard-8"
           engine_input:
             runner_image: ghcr.io/azure/kperf:0.3.4
             benchmark_subcmd: node100_pod10k
@@ -137,12 +141,14 @@ stages:
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
               disable_warmup: "false"
               warmup_subcmd_args: "--total 48000 --core-warmup-ready-threshold=16"
+              vc_affinity: "node.kubernetes.io/instance-type=Standard_D8_v5,m4.2xlarge,n1-standard-8"
             podsize-20k-exempt:
               kubernetes_version: "1.33.0"
               disable_warmup: "false"
               flowcontrol: "exempt:5"
               extra_benchmark_subcmd_args: "--padding-bytes=16384"
               warmup_subcmd_args: "--total 48000 --core-warmup-ready-threshold=16"
+              vc_affinity: "node.kubernetes.io/instance-type=Standard_D8_v5,m4.2xlarge,n1-standard-8"
           engine_input:
             runner_image: ghcr.io/azure/kperf:0.3.4
             benchmark_subcmd: node100_pod10k
