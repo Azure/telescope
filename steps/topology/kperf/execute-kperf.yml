@@ -18,4 +18,5 @@ steps:
     extra_benchmark_subcmd_args: $(extra_benchmark_subcmd_args) # should be defined by matrix
     disable_warmup: $(disable_warmup) # should be defined by matrix
     vc_affinity: $(vc_affinity) # should be defined by matrix
+    rg_affinity: $(rg_affinity) # should be defined by matrix
     region: ${{ parameters.regions[0] }}

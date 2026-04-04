@@ -14,6 +14,9 @@ parameters:
 - name: vc_affinity
   type: string
   default: ""
+- name: rg_affinity
+  type: string
+  default: ""
 - name: disable_warmup
   type: string
   default: "false"
@@ -87,6 +90,7 @@ steps:
       --runner-image="${RUNNER_IMAGE}" \
       --runner-flowcontrol="${FLOWCONTROL}" \
       ${VC_AFFINITY:+--vc-affinity=${VC_AFFINITY}} \
+      ${RG_AFFINITY:+--rg-affinity=${RG_AFFINITY}} \
       --result $(TEST_RESULTS_DIR)/tmp_results.json \
       ${BENCHMARK_SUBCMD} ${BENCHMARK_SUBCMD_ARGS} ${EXTRA_BENCHMARK_SUBCMD_ARGS}
 
@@ -99,4 +103,5 @@ steps:
     EXTRA_BENCHMARK_SUBCMD_ARGS: ${{ parameters.extra_benchmark_subcmd_args }}
     FLOWCONTROL: ${{ parameters.flowcontrol }}
     VC_AFFINITY: ${{ parameters.vc_affinity }}
+    RG_AFFINITY: ${{ parameters.rg_affinity }}
   displayName: "Run Benchmark"
