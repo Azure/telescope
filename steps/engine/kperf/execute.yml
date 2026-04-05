@@ -64,12 +64,14 @@ steps:
     sudo -E $(command -v runkperf) -v 3 ${cmd_name} \
       --kubeconfig ~/.kube/config \
       --runner-image ${RUNNER_IMAGE} ${is_eks} \
+      ${VC_AFFINITY:+--vc-affinity=${VC_AFFINITY}} \
       ${WARMUP_SUBCMD_ARGS}
   env:
     CLOUD: ${{ parameters.cloud }}
     RUNNER_IMAGE: ${{ parameters.engine_input.runner_image }}
     DISABLE_WARMUP: ${{ parameters.disable_warmup }}
     WARMUP_SUBCMD_ARGS: ${{ parameters.warmup_subcmd_args }}
+    VC_AFFINITY: ${{ parameters.vc_affinity }}
   displayName: "Warmup"
 - script: |
     set -euo pipefail
