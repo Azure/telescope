@@ -90,10 +90,18 @@ locals {
     ]))
   )
 
-  aks_kms_role_assignments = var.aks_cli_config.managed_identity_name != null && local.key_management_service != null ? {
-    "Key Vault Crypto Service Encryption User" = local.key_management_service.key_vault_key_resource_id
-    "Key Vault Crypto User"                    = local.key_management_service.key_vault_id
-  } : {}
+  aks_kms_role_assignments = var.aks_cli_config.managed_identity_name != null && local.key_management_service != null ? merge(
+    {
+      "Key Vault Crypto Service Encryption User" = local.key_management_service.key_vault_key_resource_id
+      "Key Vault Crypto User"                    = local.key_management_service.key_vault_id
+    },
+    # When KMS uses a private endpoint, the AKS identity must be able to approve
+    # the private endpoint connection on the Key Vault (PrivateEndpointConnectionsApproval/action).
+    # Key Vault Contributor includes that action.
+    var.aks_cli_config.kms_config.network_access == "Private" ? {
+      "Key Vault Contributor" = local.key_management_service.key_vault_id
+    } : {}
+  ) : {}
 
   # Disk Encryption Set parameters for OS disk encryption with Customer-Managed Keys
   disk_encryption_parameters = (
