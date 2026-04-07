@@ -125,7 +125,7 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: azure_eastus2_small_scale
+  - stage: azure_australiaeast_small_scale
     condition: |
         or(
           eq(variables['Build.CronSchedule.DisplayName'], '3:00 AM Daily'),
@@ -137,7 +137,7 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - australiaeast
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
@@ -147,29 +147,29 @@ stages:
               cpu_per_node: 2
               node_count: 1
               pod_count: 10
-              scale_up_timeout: "5m"
-              scale_down_timeout: "5m"
+              scale_up_timeout: "15m"
+              scale_down_timeout: "15m"
               node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 20
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
               karpenter_cooldown: 900 #seconds
-              vm_size: Standard_D2ds_v5
+              vm_size: Standard_D2ds_v4
               capacity_type: on-demand
             extra-small-scale-spot:
               cpu_per_node: 2
               node_count: 1
               pod_count: 10
-              scale_up_timeout: "5m"
-              scale_down_timeout: "5m"
+              scale_up_timeout: "15m"
+              scale_down_timeout: "15m"
               node_label_selector: "karpenter.sh/nodepool = spot"
               node_selector: "{karpenter.sh/nodepool: spot}"
               karpenter_cooldown: 900 #seconds
               loop_count: 20
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D2ds_v5
+              vm_size: Standard_D2ds_v4
               capacity_type: spot
             small-scale-on-demand:
               cpu_per_node: 4
@@ -183,7 +183,7 @@ stages:
               karpenter_cooldown: 900 #seconds
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D4_v5
+              vm_size: Standard_D4ds_v4
               capacity_type: on-demand
             small-scale-spot:
               cpu_per_node: 4
@@ -197,7 +197,7 @@ stages:
               warmup_deployment: true
               karpenter_cooldown: 900 #seconds
               warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D4_v5
+              vm_size: Standard_D4ds_v4
               capacity_type: spot
           max_parallel: 1
           timeout_in_minutes: 560
@@ -280,6 +280,7 @@ stages:
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
+              karpenter_cooldown: 900 #seconds
               vm_size: Standard_D2ds_v4
               capacity_type: on-demand
             medium-scale--spot:
@@ -293,6 +294,7 @@ stages:
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
+              karpenter_cooldown: 900 #seconds
               vm_size: Standard_D2ds_v4
               capacity_type: spot
           max_parallel: 1
@@ -329,6 +331,7 @@ stages:
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
+              karpenter_cooldown: 900 #seconds
               vm_size: Standard_D2ds_v4
               capacity_type: on-demand
             large-scale-spot:
@@ -342,6 +345,7 @@ stages:
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
+              karpenter_cooldown: 900 #seconds
               vm_size: Standard_D2ds_v4
               capacity_type: spot
           max_parallel: 1
@@ -396,7 +400,7 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: aws_eastus2_small_scale
+  - stage: aws_apsoutheast2_small_scale
     condition: |
       or(
         eq(variables['Build.CronSchedule.DisplayName'], '3:00 AM on Tuesday and Saturday'),
@@ -408,7 +412,7 @@ stages:
         parameters:
           cloud: aws
           regions:
-            - us-east-2
+            - ap-southeast-2
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
@@ -418,26 +422,28 @@ stages:
               cpu_per_node: 4
               node_count: 1
               pod_count: 10
-              scale_up_timeout: "5m"
-              scale_down_timeout: "5m"
+              scale_up_timeout: "15m"
+              scale_down_timeout: "15m"
               node_label_selector: "karpenter.sh/nodepool = default"
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 20
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
+              karpenter_cooldown: 900 #seconds
               vm_size: m5.xlarge
               capacity_type: on-demand
             extra-small-scale-spot:
               cpu_per_node: 4
               node_count: 1
               pod_count: 10
-              scale_up_timeout: "5m"
-              scale_down_timeout: "5m"
+              scale_up_timeout: "15m"
+              scale_down_timeout: "15m"
               node_label_selector: "karpenter.sh/nodepool = spot"
               node_selector: "{karpenter.sh/nodepool: spot}"
               loop_count: 20
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
+              karpenter_cooldown: 900 #seconds
               vm_size: m5.xlarge
               capacity_type: spot
             small-scale-on-demand:
@@ -451,6 +457,7 @@ stages:
               loop_count: 5
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
+              karpenter_cooldown: 900 #seconds
               vm_size: m5.xlarge
               capacity_type: on-demand
             small-scale-spot:
@@ -464,6 +471,7 @@ stages:
               loop_count: 5
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
+              karpenter_cooldown: 900 #seconds
               vm_size: m5.xlarge
               capacity_type: spot
           max_parallel: 1
@@ -500,6 +508,7 @@ stages:
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
+              karpenter_cooldown: 900 #seconds
               vm_size: m5.large
               capacity_type: on-demand
             medium-scale-spot:
@@ -513,6 +522,7 @@ stages:
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
+              karpenter_cooldown: 900 #seconds
               vm_size: m5.large
               capacity_type: spot
           max_parallel: 1
@@ -549,6 +559,7 @@ stages:
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
+              karpenter_cooldown: 900 #seconds
               vm_size: m5.large
               capacity_type: on-demand
             large-scale-spot:
@@ -562,6 +573,7 @@ stages:
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
+              karpenter_cooldown: 900 #seconds
               vm_size: m5.large
               capacity_type: spot
           max_parallel: 1
