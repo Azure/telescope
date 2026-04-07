@@ -82,11 +82,12 @@ locals {
   kms_parameters = (
     local.key_management_service == null || var.aks_cli_config.managed_identity_name == null ?
     "" :
-    join(" ", [
+    join(" ", compact([
       "--enable-azure-keyvault-kms",
       format("--azure-keyvault-kms-key-id %s", local.key_management_service.key_vault_key_id),
-      format("--azure-keyvault-kms-key-vault-network-access %s", var.aks_cli_config.kms_config.network_access)
-    ])
+      format("--azure-keyvault-kms-key-vault-network-access %s", var.aks_cli_config.kms_config.network_access),
+      var.aks_cli_config.kms_config.network_access == "Private" ? format("--azure-keyvault-kms-key-vault-resource-id %s", local.key_management_service.key_vault_id) : null
+    ]))
   )
 
   aks_kms_role_assignments = var.aks_cli_config.managed_identity_name != null && local.key_management_service != null ? {
