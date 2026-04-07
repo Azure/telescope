@@ -11,6 +11,7 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: hobo-automatic
+  TAG: 2.0.0
 
 stages:
   - stage: azure_australiaeast_hobo_automatic
