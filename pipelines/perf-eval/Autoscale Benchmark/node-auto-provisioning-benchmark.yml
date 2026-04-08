@@ -65,7 +65,7 @@ stages:
             small-scale-on-demand:
               cpu_per_node: 4
               node_count: 10
-              pod_count: 100
+              pod_count: 10
               scale_up_timeout: "15m"
               scale_down_timeout: "15m"
               node_label_selector: "karpenter.sh/nodepool = default"
@@ -73,21 +73,8 @@ stages:
               loop_count: 5
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D4_v5
+              vm_size: Standard_D2_v3
               capacity_type: on-demand
-            small-scale-spot:
-              cpu_per_node: 4
-              node_count: 10
-              pod_count: 100
-              scale_up_timeout: "15m"
-              scale_down_timeout: "15m"
-              node_label_selector: "karpenter.sh/nodepool = spot"
-              node_selector: "{karpenter.sh/nodepool: spot}"
-              loop_count: 5
-              warmup_deployment: true
-              warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D4_v5
-              capacity_type: spot
           max_parallel: 1
           timeout_in_minutes: 560
           credential_type: service_connection
