@@ -22,9 +22,9 @@ stages:
           cloud: azure
           regions:
             - australiaeast
-          engine: aks-store-demo
+          engine: clusterloader2
           engine_input:
-            wait_duration_seconds: 300
+            image: "ghcr.io/azure/clusterloader2:v20250912"
           topology: cluster-automatic
           matrix:
             hobo-automatic: {}
