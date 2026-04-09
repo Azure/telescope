@@ -99,8 +99,6 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-
-stages:
   - stage: azure_staging_5k_ondemand
     condition: eq(variables['Build.Reason'], 'Manual')
     dependsOn: []
