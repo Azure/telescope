@@ -7,14 +7,14 @@ variables:
   OBSERVABILITY_TOOL: acns
 
 stages:
-  - stage: azure_southcentralus # format: <cloud>[_<region>]+ (e.g. azure_eastus2, aws_eastus_westus)
+  - stage: azure_eastus # format: <cloud>[_<region>]+ (e.g. azure_eastus2, aws_eastus_westus)
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml # must keep as is
         parameters:
           cloud: azure
           regions:
-            - southcentralus
+            - eastus
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
