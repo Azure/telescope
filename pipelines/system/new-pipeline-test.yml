@@ -7,14 +7,14 @@ variables:
   OBSERVABILITY_TOOL: acns
 
 stages:
-  - stage: azure_eastus2 # format: <cloud>[_<region>]+ (e.g. azure_eastus2, aws_eastus_westus)
+  - stage: azure_eastus # format: <cloud>[_<region>]+ (e.g. azure_eastus2, aws_eastus_westus)
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml # must keep as is
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - eastus
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
@@ -22,17 +22,17 @@ stages:
           topology: observability
           matrix:
             cnl:
-              traffic_deployment_count: 500
+              traffic_deployment_count: 100
               traffic_replica_count: 15
-              network_policies_per_namespace: 500
+              network_policies_per_namespace: 100
               cl2_config_file: config.yaml
               # fortio variables
               fortio_servers_per_deployment: 15
               fortio_clients_per_deployment: 15
-              fortio_client_queries_per_second: 750
-              fortio_client_connections: 750
+              fortio_client_queries_per_second: 150
+              fortio_client_connections: 150
               fortio_namespaces: 1
-              fortio_deployments_per_namespace: 500
+              fortio_deployments_per_namespace: 100
               generate_container_network_logs: true
               generate_container_network_metrics_filtering: true
               label_traffic_pods: false
