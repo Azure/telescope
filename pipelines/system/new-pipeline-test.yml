@@ -34,6 +34,7 @@ stages:
               fortio_namespaces: 1
               fortio_deployments_per_namespace: 1000
               generate_container_network_logs: true
+              generate_container_network_metrics_filtering: true
               label_traffic_pods: false
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
