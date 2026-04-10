@@ -17,4 +17,5 @@ steps:
     flowcontrol: $(flowcontrol) # should be defined by matrix
     extra_benchmark_subcmd_args: $(extra_benchmark_subcmd_args) # should be defined by matrix
     disable_warmup: $(disable_warmup) # should be defined by matrix
+    warmup_subcmd_args: $(warmup_subcmd_args) # should be defined by matrix
     region: ${{ parameters.regions[0] }}
