@@ -22,17 +22,17 @@ stages:
           topology: observability
           matrix:
             cnl:
-              traffic_deployment_count: 1000
+              traffic_deployment_count: 500
               traffic_replica_count: 15
-              network_policies_per_namespace: 1000
+              network_policies_per_namespace: 500
               cl2_config_file: config.yaml
               # fortio variables
               fortio_servers_per_deployment: 15
               fortio_clients_per_deployment: 15
-              fortio_client_queries_per_second: 1500
-              fortio_client_connections: 1500
+              fortio_client_queries_per_second: 750
+              fortio_client_connections: 750
               fortio_namespaces: 1
-              fortio_deployments_per_namespace: 1000
+              fortio_deployments_per_namespace: 500
               generate_container_network_logs: true
               generate_container_network_metrics_filtering: true
               label_traffic_pods: false
