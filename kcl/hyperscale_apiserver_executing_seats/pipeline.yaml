@@ -1,5 +1,5 @@
 name: Hyperscale API Server Executing Seats
-pool: AKS-Telescope-Ubuntu-EastUS2
+pool: AKS-Telescope-Airlock
 trigger:
 - v2
 parameters:
