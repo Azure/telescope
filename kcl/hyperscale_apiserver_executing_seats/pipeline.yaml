@@ -162,6 +162,53 @@ jobs:
           --cluster-name "stg-H4-hyperscale-apiserver-seats" \
           --resource-group "$(RUN_ID)" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --name "cl2pool" \
+          --node-count 4 \
+          --node-vm-size "Standard_D8S_v4" \
+          --mode User \
+          --node-taints cl2pool=true:NoSchedule
+    displayName: Create node pool cl2pool
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        while true; do
+          STATE=$(az aks nodepool show \
+            --cluster-name "stg-H4-hyperscale-apiserver-seats" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --name "cl2pool" \
+            --query "provisioningState" \
+            --output tsv)
+          echo "Node pool provisioning state: $STATE"
+          if [ "$STATE" = "Succeeded" ]; then
+            echo "Node pool is ready."
+            break
+          elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+            echo "Node pool failed with state: $STATE."
+            exit 1
+          else
+            echo "Provisioning state: $STATE. Retry in 30 seconds"
+          fi
+          sleep 30
+        done
+    displayName: Wait for node pool cl2pool to succeed
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks nodepool add \
+          --cluster-name "stg-H4-hyperscale-apiserver-seats" \
+          --resource-group "$(RUN_ID)" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --name "kwokpool" \
           --node-count 30 \
           --node-vm-size "Standard_D8_v3" \
@@ -214,48 +261,50 @@ jobs:
       inlineScript: |
         set -exo pipefail
 
-        if ! command -v docker &>/dev/null; then
-          echo "##[error]Docker is not installed on this agent. Please use an agent pool with Docker pre-installed."
-          exit 1
-        fi
-        echo "Docker found: $(docker --version)"
+        kubectl create namespace "clusterloader2" || true
+        kubectl apply -f $(Pipeline.Workspace)/s/kcl/hyperscale_apiserver_executing_seats/cl2.yaml
+        # Wait
+        while true; do
+          phases="$(kubectl get pods --namespace="clusterloader2" -o jsonpath='{range .items[*]}{.status.phase}{"\\n"}{end}')"
+          total=0
+          terminal=0
 
-        mkdir -p /tmp/cl2-config /tmp/cl2-results
+          if [ -n "$phases" ]; then
+            while IFS= read -r phase; do
+              if [ -z "$phase" ]; then
+                continue
+              fi
 
-        cat > /tmp/cl2-config/overrides.yaml << 'OVERRIDE_EOF'
-        NODES: 8000
-        PODS_PER_NODE: 180
-        BIG_GROUP_SIZE: 800
-        MEDIUM_GROUP_SIZE: 800
-        SMALL_GROUP_SIZE: 400
-        SMALL_STATEFUL_SETS_PER_NAMESPACE: 0
-        MEDIUM_STATEFUL_SETS_PER_NAMESPACE: 0
-        CL2_SMALL_JOBS_PER_NAMESPACE: 0
-        CL2_MEDIUM_JOBS_PER_NAMESPACE: 0
-        CL2_BIG_JOBS_PER_NAMESPACE: 0
-        CL2_RATE_LIMIT_POD_CREATION: false
-        CL2_ENABLE_PVS: false
-        CL2_ENABLE_CLUSTER_OOMS_TRACKER: false
-        CL2_DEFAULT_QPS: 2000
-        CL2_RUN_ON_ARM_NODES: true
-        OVERRIDE_EOF
+              total=$((total + 1))
+              if [ "$phase" = "Succeeded" ] || [ "$phase" = "Failed" ]; then
+                terminal=$((terminal + 1))
+              fi
+            done <<< "$phases"
+          fi
 
-        echo "=== CL2 Override Config ==="
-        cat /tmp/cl2-config/overrides.yaml
-        echo "==========================="
+          if [ "$total" -gt 0 ] && [ "$terminal" -eq "$total" ]; then
+            echo "All cl2 pods reached terminal state (Succeeded or Failed)"
+            kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o wide
 
-        set +e
-        docker run --rm   --network host   -v "$HOME/.kube/config:/root/.kube/config:rw"   -v "$HOME/.azure:/root/.azure:rw"   -v "/tmp/cl2-config:/root/perf-tests/clusterloader2/config:rw"   -v "/tmp/cl2-results:/root/perf-tests/clusterloader2/results:rw"   ghcr.io/azure/clusterloader2:v20260220   --provider=ks   --v=2   --testoverrides=/root/perf-tests/clusterloader2/config/overrides.yaml   --testconfig=testing/load/config.yaml   --kubeconfig=/root/.kube/config   --report-dir=/root/perf-tests/clusterloader2/results   --k8s-clients-number=500
-        CL2_EXIT=$?
-        set -e
+            break
+          fi
 
-        echo "=== CL2 Results ==="
-        ls -la /tmp/cl2-results/
+          sleep 30
+        done
+    displayName: Run cluster loader 2
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
 
-        if [ $CL2_EXIT -ne 0 ]; then
-          echo "##[warning]CL2 exited with code $CL2_EXIT (test failures), but continuing pipeline."
-        fi
-    displayName: Run CL2 locally on agent
+        for pod in $(kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o jsonpath='{.items[*].metadata.name}'); do
+          echo "===== Logs for pod: $pod ====="
+          kubectl logs --namespace="clusterloader2" "$pod" || true
+        done
+    displayName: Print cl2 pod logs
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal

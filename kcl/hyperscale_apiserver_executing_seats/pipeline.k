@@ -13,6 +13,11 @@ CONTROL_PLANE_SCALING_SIZE = "H4"
 CLUSTER = "stg-${CONTROL_PLANE_SCALING_SIZE}-hyperscale-apiserver-seats"
 NODE_COUNT = 8000
 KWOK_NODES_PER_CONTROLLER = 100
+CL2_NAMESPACE = "clusterloader2"
+CL2_MANIFEST = "kcl/hyperscale_apiserver_executing_seats/cl2.yaml"
+CL2_POOL = "cl2pool"
+CL2_POOL_VM_SIZE = "Standard_D8S_v4"
+CL2_POOL_COUNT = 4
 KWOK_POOL = "kwokpool"
 KWOK_POOL_VM_SIZE = "Standard_D8_v3"
 KWOK_POOL_COUNT = 30
@@ -136,6 +141,21 @@ output = ap.Pipeline {
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID),
                 azure.CreateNodePool(
+                  const.DEFAULT_SERVICE_CONNECTION,
+                  CLUSTER,
+                  RESOURCE_GROUP,
+                  SUBSCRIPTION_ID,
+                  CL2_POOL,
+                  CL2_POOL_VM_SIZE,
+                  CL2_POOL_COUNT,
+                  CL2_POOL),
+                azure.WaitForNodePoolSucceeded(
+                  const.DEFAULT_SERVICE_CONNECTION,
+                  CLUSTER,
+                  RESOURCE_GROUP,
+                  SUBSCRIPTION_ID,
+                  CL2_POOL),
+                azure.CreateNodePool(
                     const.DEFAULT_SERVICE_CONNECTION,
                     CLUSTER,
                     RESOURCE_GROUP,
@@ -171,12 +191,13 @@ output = ap.Pipeline {
                     "kube-connection-burst": "1000"
                     "node-create-interval-seconds": "0.05"
                   }),
-                k8s.RunClusterLoader2Local(
+                  k8s.RunClusterLoader2(
                     const.DEFAULT_SERVICE_CONNECTION,
-                    CL2_IMAGE,
-                    cl2OverrideContent,
-                    provider = "ks",
-                    extraArgs = "--k8s-clients-number=500"),
+                    CL2_NAMESPACE,
+                    manifest = CL2_MANIFEST),
+                  k8s.PrintCl2PodLogs(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    CL2_NAMESPACE),
                 azure.DeleteResourceGroup(
                     const.DEFAULT_SERVICE_CONNECTION,
                     RESOURCE_GROUP,
