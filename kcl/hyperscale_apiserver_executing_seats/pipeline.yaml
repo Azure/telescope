@@ -155,18 +155,7 @@ jobs:
       azureSubscription: Azure-for-Telescope-internal
       scriptType: bash
       scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        az aks nodepool add \
-          --cluster-name "stg-H4-hyperscale-apiserver-seats" \
-          --resource-group "$(RUN_ID)" \
-          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-          --name "cl2pool" \
-          --node-count 4 \
-          --node-vm-size "Standard_D8S_v4" \
-          --mode User \
-          --node-taints cl2pool=true:NoSchedule
+      inlineScript: "set -exo pipefail\n\naz aks nodepool add \\\n  --cluster-name \"stg-H4-hyperscale-apiserver-seats\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"cl2pool\" \\\n  --node-count 4 \\\n  --node-vm-size \"Standard_D16S_v4\" \\\n  --mode User \\\n  --node-taints cl2pool=true:NoSchedule \\\n  \n"
     displayName: Create node pool cl2pool
   - task: AzureCLI@2
     inputs:
@@ -265,7 +254,7 @@ jobs:
         kubectl apply -f $(Pipeline.Workspace)/s/kcl/hyperscale_apiserver_executing_seats/cl2.yaml
         # Wait
         while true; do
-          phases="$(kubectl get pods --namespace="clusterloader2" -o jsonpath='{range .items[*]}{.status.phase}{"\\n"}{end}')"
+          phases="$(kubectl get pods --namespace="clusterloader2" -o jsonpath='{range .items[*]}{.status.phase}{"\n"}{end}')"
           total=0
           terminal=0
 
