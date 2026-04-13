@@ -1,5 +1,7 @@
 trigger: none
 
+pool: AKS-Telescope-Airlock
+
 schedules:
   - cron: "0 3 * * *"
     displayName: Daily 3am CNL observability test
