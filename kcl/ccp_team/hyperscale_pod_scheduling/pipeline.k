@@ -155,18 +155,8 @@ output = ap.Pipeline {
                   {
                     "node-manifest-path": "$(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml"
                     "nodes-per-controller": "${KWOK_NODES_PER_CONTROLLER}"
-                    "node-selector-key": "kwok"
-                    "node-selector-value": "true"
-                    "toleration-key": "kwok"
-                    "toleration-value": "true"
-                    "node-lease-parallelism": "200"
-                    "pod-play-stage-parallelism": "100"
-                    "node-play-stage-parallelism": "100"
-                    "cidr": "100.64.0.0/10"
-                    "node-ip": "100.64.0.1"
+                    "node-selector": "kwok=true"
                     "node-lease-duration-seconds": "100"
-                    "kube-connection-qps": "500.0"
-                    "kube-connection-burst": "1000"
                   }),
                 azure.AzCli(
                     const.DEFAULT_SERVICE_CONNECTION,
