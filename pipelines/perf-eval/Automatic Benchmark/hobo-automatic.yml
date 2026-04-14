@@ -33,7 +33,7 @@ stages:
               pod_count: 1
               scale_up_timeout: "30m"
               scale_down_timeout: "30m"
-              node_label_selector: "karpenter.sh/nodepool = default"
+              node_label_selector: "karpenter.sh/nodepool=default"
               node_selector: "{karpenter.sh/nodepool: default}"
               loop_count: 1
               warmup_deployment: true
