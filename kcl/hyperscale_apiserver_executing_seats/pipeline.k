@@ -158,21 +158,9 @@ output = ap.Pipeline {
                   NODE_COUNT,
                   {
                     "node-manifest-path": "$(Pipeline.Workspace)/s/kcl/hyperscale_apiserver_executing_seats/kwok-node.yaml"
-                    "group": ""
                     "nodes-per-controller": "${KWOK_NODES_PER_CONTROLLER}"
-                    "node-selector-key": "kwok"
-                    "node-selector-value": "true"
-                    "toleration-key": "kwok"
-                    "toleration-value": "true"
-                    "node-lease-parallelism": "200"
-                    "pod-play-stage-parallelism": "100"
-                    "node-play-stage-parallelism": "100"
-                    "cidr": "100.64.0.0/10"
-                    "node-ip": "100.64.0.1"
+                    "node-selector": "kwok=true"
                     "node-lease-duration-seconds": "60"
-                    "kube-connection-qps": "500.0"
-                    "kube-connection-burst": "1000"
-                    "node-create-interval-seconds": "0.15"
                   }),
                   k8s.RunClusterLoader2(
                     const.DEFAULT_SERVICE_CONNECTION,
