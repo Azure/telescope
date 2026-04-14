@@ -123,6 +123,6 @@ aks_cli_config_list = [
         ]
       }
     ]
-    kubernetes_version = "1.32"
+    kubernetes_version = "1.35"
   }
 ]
