@@ -159,7 +159,8 @@ output = ap.Pipeline {
                     "nodes-per-controller": "${KWOK_NODES_PER_CONTROLLER}"
                     "node-selector": "kwok=true"
                     "node-lease-duration-seconds": "60"
-                  }),
+                  },
+                  continueOnError = True),
                   k8s.RunClusterLoader2(
                     const.DEFAULT_SERVICE_CONNECTION,
                     CL2_NAMESPACE,

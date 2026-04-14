@@ -1,5 +1,8 @@
 import logging
 
+
+DEFAULT_LOG_LEVEL = logging.WARNING
+
 class AzureDevOpsFormatter(logging.Formatter):
     VSO_FORMATS = {
         'ERROR': '##vso[task.logissue type=error;]',
@@ -26,9 +29,9 @@ def setup_logging():
     )
     handler = logging.StreamHandler()
     handler.setFormatter(formatter)
-    handler.setLevel(logging.INFO)
+    handler.setLevel(DEFAULT_LOG_LEVEL)
     root_logger.addHandler(handler)
-    root_logger.setLevel(logging.INFO)
+    root_logger.setLevel(DEFAULT_LOG_LEVEL)
     return root_logger
 
 def get_logger(name):
