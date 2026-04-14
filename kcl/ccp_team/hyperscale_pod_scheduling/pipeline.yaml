@@ -199,7 +199,7 @@ jobs:
           --resource-group "$(RUN_ID)" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --name "kwokpool" \
-          --node-count 10 \
+          --node-count 20 \
           --node-vm-size "Standard_D8_v3" \
           --mode User \
           --node-taints kwok=true:NoSchedule \
@@ -238,8 +238,8 @@ jobs:
 
       set -exo pipefail
       export PYTHONPATH=$PYTHONPATH:$(pwd)
-      python3 kwok/kwok.py   --action create   --node-count 10   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml --nodes-per-controller 10 --node-selector kwok=true --node-lease-duration-seconds 100
-      python3 kwok/kwok.py   --action validate   --node-count 10   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml --nodes-per-controller 10 --node-selector kwok=true --node-lease-duration-seconds 100
+      python3 kwok/kwok.py   --action create   --node-count 2000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100
+      python3 kwok/kwok.py   --action validate   --node-count 2000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100
     workingDirectory: modules/python
     displayName: Create and Validate KWOK Nodes
   - task: AzureCLI@2
