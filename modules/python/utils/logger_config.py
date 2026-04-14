@@ -26,9 +26,9 @@ def setup_logging():
     )
     handler = logging.StreamHandler()
     handler.setFormatter(formatter)
-    handler.setLevel(logging.WARNING)
+    handler.setLevel(logging.INFO)
     root_logger.addHandler(handler)
-    root_logger.setLevel(logging.WARNING)
+    root_logger.setLevel(logging.INFO)
     return root_logger
 
 def get_logger(name):

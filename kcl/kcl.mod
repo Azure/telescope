@@ -4,5 +4,5 @@ edition = "v0.12.3"
 version = "0.0.1"
 
 [dependencies]
-azure_pipelines = { git = "https://github.com/Azure/kcl-azure-pipelines/", version = "1.0.0" }
+azure_pipelines = { git = "https://github.com/Azure/kcl-azure-pipelines", tag = "1.0.0", version = "1.0.0" }
 k8s = "1.32.4"
