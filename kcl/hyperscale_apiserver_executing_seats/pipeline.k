@@ -11,7 +11,7 @@ RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "westus2"
 CONTROL_PLANE_SCALING_SIZE = "H8"
 CLUSTER = "stg-${CONTROL_PLANE_SCALING_SIZE}-hyperscale-apiserver-seats"
-NODE_COUNT = 12000
+NODE_COUNT = 15000
 KWOK_NODES_PER_CONTROLLER = 100
 CL2_NAMESPACE = "clusterloader2"
 CL2_MANIFEST = "kcl/hyperscale_apiserver_executing_seats/cl2.yaml"
@@ -20,7 +20,7 @@ CL2_POOL_VM_SIZE = "Standard_D16S_v4"
 CL2_POOL_COUNT = 2
 KWOK_POOL = "kwokpool"
 KWOK_POOL_VM_SIZE = "Standard_D8_v3"
-KWOK_POOL_COUNT = 50
+KWOK_POOL_COUNT = 60
 CL2_IMAGE = "ghcr.io/azure/clusterloader2:v20260220"
 
 requestBody = util.escapeStr("""
@@ -93,7 +93,7 @@ output = ap.Pipeline {
         job.Job {
             job = "benchmarking"
             displayName = "Benchmarking"
-            timeoutInMinutes = 1440
+            timeoutInMinutes = 300
 
             steps = [
                 common.SetRunId(),
@@ -164,14 +164,14 @@ output = ap.Pipeline {
                     "node-selector-value": "true"
                     "toleration-key": "kwok"
                     "toleration-value": "true"
-                    "node-lease-parallelism": "100"
-                    "pod-play-stage-parallelism": "70"
-                    "node-play-stage-parallelism": "70"
+                    "node-lease-parallelism": "200"
+                    "pod-play-stage-parallelism": "100"
+                    "node-play-stage-parallelism": "100"
                     "cidr": "100.64.0.0/10"
                     "node-ip": "100.64.0.1"
-                    "node-lease-duration-seconds": "100"
-                    "kube-connection-qps": "200.0"
-                    "kube-connection-burst": "500"
+                    "node-lease-duration-seconds": "60"
+                    "kube-connection-qps": "500.0"
+                    "kube-connection-burst": "1000"
                     "node-create-interval-seconds": "0.15"
                   }),
                   k8s.RunClusterLoader2(
