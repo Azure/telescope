@@ -12,12 +12,12 @@ This guide covers how to manually run Terraform for GCP. All commands should be 
 
 ## Define Variables
 
-Set environment variables for a specific test scenario. In this guide, we'll use `perf-eval/apiserver-vn10pod100` scenario as the example and set the following variables:
+Set environment variables for a specific test scenario. In this guide, we'll use `perf-eval/apiserver-vn100pod3k` scenario as the example and set the following variables:
 
 Run the following commands from the root of the repository:
 ```bash
 SCENARIO_TYPE=perf-eval
-SCENARIO_NAME=apiserver-vn10pod100
+SCENARIO_NAME=apiserver-vn100pod3k
 RUN_ID=$(date +%s)
 CLOUD=gcp
 REGION="us-east1"
