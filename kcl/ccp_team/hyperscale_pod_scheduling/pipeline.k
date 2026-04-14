@@ -153,7 +153,7 @@ output = ap.Pipeline {
                 k8s.CreateKwokNodes(
                   NODE_COUNT,
                   {
-                    "node-manifest-path": "$(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_benchmark/hyperscale_pod_scheduling_rate/kwok-node.yaml"
+                    "node-manifest-path": "$(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml"
                     "group": ""
                     "nodes-per-controller": "${KWOK_NODES_PER_CONTROLLER}"
                     "node-selector-key": "kwok"
@@ -172,11 +172,11 @@ output = ap.Pipeline {
                 azure.AzCli(
                     const.DEFAULT_SERVICE_CONNECTION,
                     "Apply CL2 config",
-                    "kubectl create namespace clusterloader2 || true\nkubectl apply -f $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_benchmark/hyperscale_pod_scheduling_rate/cl2-config.yaml"),
+                    "kubectl create namespace clusterloader2 || true\nkubectl apply -f $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/cl2-config.yaml"),
                 k8s.RunClusterLoader2(
                     const.DEFAULT_SERVICE_CONNECTION,
                     CL2_NAMESPACE,
-                    manifest = "kcl/ccp_team/hyperscale_benchmark/hyperscale_pod_scheduling_rate/cl2.yaml"),
+                    manifest = "kcl/ccp_team/hyperscale_pod_scheduling/cl2.yaml"),
                 azure.AzCli(
                     const.DEFAULT_SERVICE_CONNECTION,
                     "Print cl2 pod logs",
