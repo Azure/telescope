@@ -154,7 +154,6 @@ output = ap.Pipeline {
                   NODE_COUNT,
                   {
                     "node-manifest-path": "$(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml"
-                    "group": ""
                     "nodes-per-controller": "${KWOK_NODES_PER_CONTROLLER}"
                     "node-selector-key": "kwok"
                     "node-selector-value": "true"
