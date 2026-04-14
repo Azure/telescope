@@ -2,6 +2,7 @@
 import argparse
 import time
 from abc import ABC, abstractmethod
+from copy import deepcopy
 from dataclasses import dataclass
 
 import requests
@@ -9,6 +10,20 @@ import yaml
 
 from clients.kubernetes_client import KubernetesClient
 from utils.retries import execute_with_retries
+
+
+NODE_CREATE_INTERVAL_SECONDS = 0.05
+CONTROLLER_READY_TIMEOUT_SECONDS = 900
+CONTROLLER_READY_POLL_INTERVAL_SECONDS = 5
+NODE_LEASE_PARALLELISM = 4
+POD_PLAY_STAGE_PARALLELISM = 64
+NODE_PLAY_STAGE_PARALLELISM = 4
+DEFAULT_NODE_SELECTOR = ""
+DEFAULT_TOLERATION = "kwok=true"
+DEFAULT_CIDR = "10.0.0.1/24"
+DEFAULT_NODE_IP = None
+DEFAULT_KUBE_CONNECTION_QPS = None
+DEFAULT_KUBE_CONNECTION_BURST = None
 
 
 @dataclass
@@ -33,6 +48,11 @@ class KWOK(ABC):
     kube_connection_burst: int = None
     k8s_client: KubernetesClient = KubernetesClient()
 
+    @staticmethod
+    def _controller_name(controller_index):
+        """Build a deterministic controller deployment name."""
+        return f"kwok-controller-{controller_index}"
+
     def fetch_latest_release(self):
         """Fetch the latest KWOK release version from GitHub."""
         response = requests.get(
@@ -41,11 +61,10 @@ class KWOK(ABC):
         response.raise_for_status()
         return response.json().get("tag_name")
 
-    # Setting up the KWOK environment and simulating the pod/node emulation
-    # If `enable_metrics` is True, it also applies an additional metrics usage YAML file
-    # to simulate resource usage for nodes, pods, and containers.
-    def apply_kwok_manifests(self, kwok_release, enable_metrics):
-        """Apply KWOK manifests to set up the environment and enable metrics if requested."""
+    def _bootstrap_kwok(self, kwok_release, enable_metrics):
+        """Apply the shared KWOK bootstrap manifests and replace the configmap."""
+        # TODO(xinwei): Refactor bootstrap flow to fetch/patch source kwok.yaml first,
+        # then apply manifests, instead of mutating a Deployment read from apiserver.
         kwok_yaml_url = (f"https://github.com/{self.kwok_repo}/releases/"
                          f"download/{kwok_release}/kwok.yaml")
         stage_fast_yaml_url = (f"https://github.com/{self.kwok_repo}/releases/"
@@ -59,7 +78,6 @@ class KWOK(ABC):
             stage_fast_yaml_url
         )
         self._replace_config_map()
-        self._patch_deployment()
         if enable_metrics:
             metrics_usage_url = (f"https://github.com/{self.kwok_repo}/releases/"
                                f"download/{kwok_release}/metrics-usage.yaml")
@@ -261,7 +279,8 @@ class Node(KWOK):
                     "node_cpu": self.node_cpu,
                     "node_memory": self.node_memory,
                     "node_pods": self.node_pods,
-                    "node_gpu": self.node_gpu
+                    "node_gpu": self.node_gpu,
+                    "controller_group": str(controller_index),
                 }
                 kwok_template = self.k8s_client.create_template(
                     self.node_manifest_path, replacements
@@ -467,6 +486,19 @@ class Node(KWOK):
                     print(f"Warning: Could not delete resource slice {resource_slice_name}: {e}")
 
         print(f"Successfully deleted {self.node_count} nodes.")
+
+        for controller_index in range(self._controller_count()):
+            deploy_name = self._controller_name(controller_index)
+            print(f"Deleting controller deployment: {deploy_name}")
+            try:
+                self.k8s_client.get_app_client().delete_namespaced_deployment(
+                    name=deploy_name,
+                    namespace="kube-system",
+                    body=client.V1DeleteOptions(propagation_policy="Foreground"),
+                )
+            except Exception as e:
+                print(f"Warning: Could not delete deployment {deploy_name}: {e}")
+        print(f"Successfully deleted {self._controller_count()} controller deployment(s).")
 
     def _validate_node_status(self, node):
         conditions = (
