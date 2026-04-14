@@ -78,8 +78,6 @@ output = ap.Pipeline {
     name = "Hyperscale API Server Executing Seats"
 
     trigger =  ["v2"]
-    pool = const.DEFAULT_POOL
-
     parameters = [
         ap.Parameter {
             name = "run_id"
