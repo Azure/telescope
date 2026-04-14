@@ -61,14 +61,14 @@ aks_cli_config_list = [
       name                 = "default"
       node_count           = 5
       auto_scaling_enabled = false
-      vm_size              = "Standard_D4_v3"
+      vm_size              = "Standard_D4s_v5"
     }
     extra_node_pool = [
       {
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D64_v3"
+        vm_size              = "Standard_D16s_v5"
         optional_parameters = [
           {
             name  = "labels"
@@ -81,7 +81,7 @@ aks_cli_config_list = [
         node_count           = 1000
         auto_scaling_enabled = false
         max_pods             = 250
-        vm_size              = "Standard_D4_v3"
+        vm_size              = "Standard_D4s_v5"
         optional_parameters = [
           {
             name  = "labels"
