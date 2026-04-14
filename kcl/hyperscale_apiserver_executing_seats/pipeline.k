@@ -9,7 +9,7 @@ import lib.util
 SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "westus2"
-CONTROL_PLANE_SCALING_SIZE = "H4"
+CONTROL_PLANE_SCALING_SIZE = "H8"
 CLUSTER = "stg-${CONTROL_PLANE_SCALING_SIZE}-hyperscale-apiserver-seats"
 NODE_COUNT = 12000
 KWOK_NODES_PER_CONTROLLER = 100
@@ -164,15 +164,15 @@ output = ap.Pipeline {
                     "node-selector-value": "true"
                     "toleration-key": "kwok"
                     "toleration-value": "true"
-                    "node-lease-parallelism": "200"
-                    "pod-play-stage-parallelism": "100"
-                    "node-play-stage-parallelism": "100"
+                    "node-lease-parallelism": "100"
+                    "pod-play-stage-parallelism": "70"
+                    "node-play-stage-parallelism": "70"
                     "cidr": "100.64.0.0/10"
                     "node-ip": "100.64.0.1"
                     "node-lease-duration-seconds": "100"
-                    "kube-connection-qps": "500.0"
-                    "kube-connection-burst": "1000"
-                    "node-create-interval-seconds": "0.05"
+                    "kube-connection-qps": "200.0"
+                    "kube-connection-burst": "500"
+                    "node-create-interval-seconds": "0.15"
                   }),
                   k8s.RunClusterLoader2(
                     const.DEFAULT_SERVICE_CONNECTION,
