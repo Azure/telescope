@@ -14,7 +14,6 @@ metadata:
     kubernetes.io/role: agent
     node-role.kubernetes.io/agent: ""
     type: kwok
-    kwok-controller-group: "{{controller_group}}"
 spec:
   providerID: "kwok://{{node_name}}"
   unschedulable: false

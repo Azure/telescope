@@ -157,8 +157,7 @@ output = ap.Pipeline {
                     "nodes-per-controller": "${KWOK_NODES_PER_CONTROLLER}"
                     "node-selector": "kwok=true"
                     "node-lease-duration-seconds": "100"
-                  },
-                  continueOnError = True),
+                  }),
                 azure.AzCli(
                     const.DEFAULT_SERVICE_CONNECTION,
                     "Apply CL2 config",
