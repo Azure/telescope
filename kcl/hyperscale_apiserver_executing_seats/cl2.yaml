@@ -7,9 +7,9 @@ data:
   override.yaml: |
     NODES: 15000
     PODS_PER_NODE: 180
-    BIG_GROUP_SIZE: 800
-    MEDIUM_GROUP_SIZE: 800
-    SMALL_GROUP_SIZE: 400
+    BIG_GROUP_SIZE: 80
+    MEDIUM_GROUP_SIZE: 80
+    SMALL_GROUP_SIZE: 40
     SMALL_STATEFUL_SETS_PER_NAMESPACE: 0
     MEDIUM_STATEFUL_SETS_PER_NAMESPACE: 0
     CL2_SMALL_JOBS_PER_NAMESPACE: 0
@@ -18,7 +18,7 @@ data:
     CL2_RATE_LIMIT_POD_CREATION: false
     CL2_ENABLE_PVS: false
     CL2_ENABLE_CLUSTER_OOMS_TRACKER: false
-    CL2_DEFAULT_QPS: 3000
+    CL2_DEFAULT_QPS: 4000
     CL2_RUN_ON_ARM_NODES: true
 ---
 apiVersion: batch/v1
@@ -27,8 +27,8 @@ metadata:
   name: cl2
   namespace: clusterloader2
 spec:
-  completions: 1
-  parallelism: 1
+  completions: 3
+  parallelism: 3
   backoffLimit: 0
   template:
     spec:
