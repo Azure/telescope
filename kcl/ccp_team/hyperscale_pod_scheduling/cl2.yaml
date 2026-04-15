@@ -45,6 +45,9 @@ spec:
         - mountPath: /root/perf-tests/clusterloader2/testing/load/cl2-config.yaml
           name: cl2-config
           subPath: config.yaml
+        - mountPath: /root/perf-tests/clusterloader2/testing/load/simple-deployment.yaml
+          name: cl2-simple-deployment
+          subPath: simple-deployment.yaml
       nodeSelector:
         agentpool: cl2pool
       restartPolicy: Never
@@ -60,6 +63,81 @@ spec:
       - configMap:
           name: cl2-config
         name: cl2-config
+      - configMap:
+          name: cl2-simple-deployment
+        name: cl2-simple-deployment
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cl2-simple-deployment
+  namespace: clusterloader2
+data:
+  simple-deployment.yaml: |
+    {{$HostNetworkMode := DefaultParam .CL2_USE_HOST_NETWORK_PODS false}}
+    # Keep the CpuRequest/MemoryRequest request equal percentage of 1-core, 4GB node.
+    # For now we're setting it to 0.5%.
+    {{$CpuRequest := DefaultParam .CpuRequest "5m"}}
+    {{$EnvVar := DefaultParam .EnvVar "a"}}
+    {{$MemoryRequest := DefaultParam .MemoryRequest "20M"}}
+    {{$Image := DefaultParam .Image "registry.k8s.io/pause:3.9"}}
+    {{$RUN_ON_ARM_NODES := DefaultParam .CL2_RUN_ON_ARM_NODES false}}
+
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: {{.Name}}
+      labels:
+        group: {{.Group}}
+    spec:
+      replicas: {{.Replicas}}
+      selector:
+        matchLabels:
+          name: {{.Name}}
+      template:
+        metadata:
+          labels:
+            name: {{.Name}}
+            group: {{.Group}}
+    {{if .SvcName}}
+            svc: {{.SvcName}}-{{.Index}}
+    {{end}}
+        spec:
+          hostNetwork: {{$HostNetworkMode}}
+          containers:
+          - env:
+            - name: ENV_VAR
+              value: {{$EnvVar}}
+            image: {{$Image}}
+            imagePullPolicy: IfNotPresent
+            name: {{.Name}}
+            ports:
+            resources:
+              requests:
+                cpu: {{$CpuRequest}}
+                memory: {{$MemoryRequest}}
+          # Add not-ready/unreachable tolerations for 15 minutes so that node
+          # failure doesn't trigger pod deletion.
+          nodeSelector:
+            "kwok.x-k8s.io/node": "fake"
+          tolerations:
+          - key: "node.kubernetes.io/not-ready"
+            operator: "Exists"
+            effect: "NoExecute"
+            tolerationSeconds: 900
+          - key: "node.kubernetes.io/unreachable"
+            operator: "Exists"
+            effect: "NoExecute"
+            tolerationSeconds: 900
+          - key: "kwok.x-k8s.io/node"
+            operator: "Exists"
+            effect: "NoSchedule"
+          {{if $RUN_ON_ARM_NODES}}
+          - key: "kubernetes.io/arch"
+            operator: Equal
+            value: arm64
+            effect: NoSchedule
+          {{end}}
 ---
 apiVersion: v1
 kind: ServiceAccount
