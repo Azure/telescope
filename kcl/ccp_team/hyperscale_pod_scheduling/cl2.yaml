@@ -45,7 +45,7 @@ spec:
         - mountPath: /root/perf-tests/clusterloader2/testing/load/cl2-config.yaml
           name: cl2-config
           subPath: config.yaml
-        - mountPath: /root/perf-tests/clusterloader2/testing/load/modules/simple-deployment.yaml
+        - mountPath: /root/perf-tests/clusterloader2/testing/load/simple-deployment.yaml
           name: cl2-simple-deployment
           subPath: simple-deployment.yaml
       nodeSelector:
