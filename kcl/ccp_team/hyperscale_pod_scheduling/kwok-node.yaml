@@ -13,6 +13,7 @@ metadata:
     kubernetes.io/os: linux
     kubernetes.io/role: agent
     node-role.kubernetes.io/agent: ""
+    kwok-controller-group: "{{controller_group}}"
     type: kwok
 spec:
   providerID: "kwok://{{node_name}}"
