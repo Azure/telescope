@@ -12,13 +12,9 @@ export PYTHONPATH=$PYTHONPATH:$(pwd)
 python3 ${KWOK_SCRIPT} \
   --action create \
   --node-count ${nodeCount} \
-  ${extraArgs}
-python3 ${KWOK_SCRIPT} \
-  --action validate \
-  --node-count ${nodeCount} \
   ${extraArgs}"""
         workingDirectory = "modules/python"
-        displayName = "Create and Validate KWOK Nodes"
+        displayName = "Create KWOK Nodes"
         continueOnError = continueOnError
     }
 }

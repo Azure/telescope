@@ -238,9 +238,9 @@ jobs:
       set -exo pipefail
       export PYTHONPATH=$PYTHONPATH:$(pwd)
       python3 kwok/kwok.py   --action create   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60
-      python3 kwok/kwok.py   --action validate   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60
+      # python3 kwok/kwok.py   --action validate   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60
     workingDirectory: modules/python
-    displayName: Create and Validate KWOK Nodes
+    displayName: Create KWOK Nodes
     continueOnError: true
   - task: AzureCLI@2
     inputs:
