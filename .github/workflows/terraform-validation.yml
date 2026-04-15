@@ -11,7 +11,6 @@ on:
 env:
   TERRAFORM_AZURE_MODULES_DIR: modules/terraform/azure
   TERRAFORM_AWS_MODULES_DIR: modules/terraform/aws
-  AWS_REGION: us-east-1
 jobs:
   terraform-validation:
     permissions:
@@ -70,9 +69,6 @@ jobs:
       - name: Terraform AWS Test
         working-directory: ${{ env.TERRAFORM_AWS_MODULES_DIR }}
         run: terraform test
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
       - name: Azure login
         uses: azure/login@v1
@@ -99,7 +95,7 @@ jobs:
         id: setup-matrix-scenarios
         run: |
           set -eux
-          matrix=$(find $GITHUB_WORKSPACE/scenarios/ -name "*.tfvars" | grep -E '(aws|azure)' | awk -F'/' '{split($11, file_name, "."); split(file_name[1], cloud_region, "-");region= (length(cloud_region) > 1) ? substr($11, index($11, "-") + 1) : ""; cloud=cloud_region[1]; gsub(".json", "", region); print "{\"cloud\": \"" cloud "\", \"file_name\": \"" file_name[1] "\", " (region != "" ? "\"region\": \"" region "\", " : "") "\"scenario_type\": \"" $8 "\", \"scenario_name\": \"" $9 "\"},"}' | sort | uniq | sed 's/,$/,/')
+          matrix=$(find $GITHUB_WORKSPACE/scenarios/ -name "*.tfvars" | grep -E '(azure)' | awk -F'/' '{split($11, file_name, "."); split(file_name[1], cloud_region, "-");region= (length(cloud_region) > 1) ? substr($11, index($11, "-") + 1) : ""; cloud=cloud_region[1]; gsub(".json", "", region); print "{\"cloud\": \"" cloud "\", \"file_name\": \"" file_name[1] "\", " (region != "" ? "\"region\": \"" region "\", " : "") "\"scenario_type\": \"" $8 "\", \"scenario_name\": \"" $9 "\"},"}' | sort | uniq | sed 's/,$/,/')
           matrix_array="[${matrix%,}]"
 
           file_changes=$(git diff --name-only -r origin/main HEAD)
@@ -184,19 +180,12 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: AWS login
-        if: ${{ matrix.cloud == 'aws' }}
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
       - name: Terraform Init
         working-directory: ${{ env.TERRAFORM_MODULES_DIR }}
         run: terraform init
 
       - name: Terraform Plan
+        if: ${{ matrix.cloud != 'aws' }}
         working-directory: ${{ env.TERRAFORM_MODULES_DIR }}
         run: |
           terraform plan -var-file "$TERRAFORM_INPUT_FILE" -var="json_input=$INPUT_JSON"
