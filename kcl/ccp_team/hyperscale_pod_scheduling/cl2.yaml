@@ -5,7 +5,7 @@ metadata:
   namespace: clusterloader2
 data:
   override.yaml: |
-    Nodes: 8000
+    Nodes: 2000
     CL2_SCHEDULER_THROUGHPUT_TOTAL_PODS: 200000
     CL2_SCHEDULER_THROUGHPUT_PODS_PER_DEPLOYMENT: 1000
     CL2_DEFAULT_QPS: 2

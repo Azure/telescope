@@ -14,13 +14,14 @@ metadata:
     kubernetes.io/role: agent
     node-role.kubernetes.io/agent: ""
     kwok-controller-group: "{{controller_group}}"
+    kwok.x-k8s.io/node: "fake"
     type: kwok
 spec:
   providerID: "kwok://{{node_name}}"
   unschedulable: false
   taints: # Avoid scheduling actual running pods to fake Node
     - effect: NoSchedule
-      key: kubernetes.io/arch 
+      key: kubernetes.io/arch
       value: arm64 # This is a hack to allow Cl2 pods to run on Kwok nodes.
 status:
   addresses:

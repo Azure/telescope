@@ -176,11 +176,11 @@ for pod in $(kubectl get pods --namespace="${CL2_NAMESPACE}" -l job-name=cl2 -o 
   echo "===== Logs for pod: $pod ====="
   kubectl logs --namespace="${CL2_NAMESPACE}" "$pod" || true
 done
-"""),
-                azure.DeleteResourceGroup(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    RESOURCE_GROUP,
-                    SUBSCRIPTION_ID)
+""")
+                # azure.DeleteResourceGroup(
+                #     const.DEFAULT_SERVICE_CONNECTION,
+                #     RESOURCE_GROUP,
+                #     SUBSCRIPTION_ID)
             ]
         }
     ]
