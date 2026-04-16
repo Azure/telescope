@@ -16,8 +16,6 @@ from utils.retries import execute_with_retries
 NODE_CREATE_INTERVAL_SECONDS = 0.05
 CONTROLLER_READY_TIMEOUT_SECONDS = 900
 CONTROLLER_READY_POLL_INTERVAL_SECONDS = 5
-NODE_READY_TIMEOUT_SECONDS = 600
-NODE_READY_POLL_INTERVAL_SECONDS = 5
 NODE_LEASE_PARALLELISM = 4
 POD_PLAY_STAGE_PARALLELISM = 64
 NODE_PLAY_STAGE_PARALLELISM = 4
@@ -433,53 +431,6 @@ class Node(KWOK):
             f"Last status: {', '.join(last_not_ready) if last_not_ready else 'unknown'}"
         )
 
-    def _wait_for_nodes_ready(self):
-        """Wait until all expected KWOK nodes have Ready=True status."""
-        deadline = time.time() + NODE_READY_TIMEOUT_SECONDS
-        last_not_ready = []
-
-        while time.time() < deadline:
-            all_nodes = self.k8s_client.get_nodes()
-            kwok_nodes = [
-                node
-                for node in all_nodes
-                if node.metadata.annotations
-                and node.metadata.annotations.get("kwok.x-k8s.io/node") == "fake"
-            ]
-
-            if len(kwok_nodes) < self.node_count:
-                not_ready = [f"Expected {self.node_count} nodes, found {len(kwok_nodes)}"]
-                if not_ready != last_not_ready:
-                    print(f"Waiting for KWOK nodes: {not_ready[0]}")
-                    last_not_ready = not_ready
-                time.sleep(NODE_READY_POLL_INTERVAL_SECONDS)
-                continue
-
-            not_ready = []
-            for node in kwok_nodes:
-                conditions = (
-                    node.status.conditions if node.status and node.status.conditions else []
-                )
-                ready_condition = next((c for c in conditions if c.type == "Ready"), None)
-                if not ready_condition or ready_condition.status != "True":
-                    status = ready_condition.status if ready_condition else "No condition"
-                    not_ready.append(f"{node.metadata.name}:{status}")
-
-            if not not_ready:
-                print(f"All {self.node_count} KWOK node(s) are Ready.")
-                return
-
-            if not_ready != last_not_ready:
-                print(f"Waiting for KWOK nodes to become Ready: {', '.join(not_ready)}")
-                last_not_ready = not_ready
-
-            time.sleep(NODE_READY_POLL_INTERVAL_SECONDS)
-
-        raise RuntimeError(
-            "Timed out waiting for KWOK nodes to become Ready. "
-            f"Last status: {', '.join(last_not_ready) if last_not_ready else 'unknown'}"
-        )
-
     def validate(self):
         execute_with_retries(
             self._validate_config_map,
@@ -490,7 +441,6 @@ class Node(KWOK):
                 self._validate_kwok_controller, controller_index
             )
 
-        self._wait_for_nodes_ready()
         execute_with_retries(
             self._validate_kwok_nodes
         )
