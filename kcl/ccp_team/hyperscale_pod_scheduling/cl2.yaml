@@ -103,7 +103,7 @@ data:
         Params:
           action: start
           labelSelector: group = scheduler-throughput
-          threshold: 1h
+          threshold: 2h
       - Identifier: WaitForSchedulerThroughputDeployments
         Method: WaitForControlledPodsRunning
         Params:
@@ -112,7 +112,7 @@ data:
           apiVersion: apps/v1
           kind: Deployment
           labelSelector: group = scheduler-throughput
-          operationTimeout: 60m
+          operationTimeout: 120m
       - Identifier: SchedulingThroughput
         Method: SchedulingThroughput
         Params:
