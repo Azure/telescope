@@ -48,6 +48,9 @@ spec:
         - mountPath: /root/perf-tests/clusterloader2/testing/load/simple-deployment.yaml
           name: cl2-simple-deployment
           subPath: simple-deployment.yaml
+        - mountPath: /root/perf-tests/clusterloader2/testing/load/modules/scheduler-throughput.yaml
+          name: cl2-scheduler-throughput
+          subPath: scheduler-throughput.yaml
       nodeSelector:
         agentpool: cl2pool
       restartPolicy: Never
@@ -66,6 +69,91 @@ spec:
       - configMap:
           name: cl2-simple-deployment
         name: cl2-simple-deployment
+      - configMap:
+          name: cl2-scheduler-throughput
+        name: cl2-scheduler-throughput
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cl2-scheduler-throughput
+  namespace: clusterloader2
+data:
+  scheduler-throughput.yaml: |
+    ## Input params
+    # Valid actions: "create", "delete"
+    {{$action := .action}}
+    {{$namespaces := .namespaces}}
+    {{$replicasPerNamespace := .replicasPerNamespace}}
+    {{$schedulerThroughputNamespaces := .schedulerThroughputNamespaces}}
+    {{$schedulerThroughputPodsPerDeployment := .schedulerThroughputPodsPerDeployment}}
+    ## Derivative variables
+    {{$is_creating := (eq .action "create")}}
+    ## CL2 params
+    {{$SCHEDULER_THROUGHPUT_THRESHOLD := DefaultParam .CL2_SCHEDULER_THROUGHPUT_THRESHOLD 100}}
+    {{$CHECK_IF_PODS_ARE_UPDATED := DefaultParam .CL2_CHECK_IF_PODS_ARE_UPDATED true}}
+    {{$deploymentImage := DefaultParam .deploymentImage "registry.k8s.io/pause:3.9"}}
+
+    steps:
+    {{if $is_creating}}
+    - name: Creating scheduler throughput measurements
+      measurements:
+      - Identifier: HighThroughputPodStartupLatency
+        Method: PodStartupLatency
+        Params:
+          action: start
+          labelSelector: group = scheduler-throughput
+          threshold: 1h
+      - Identifier: WaitForSchedulerThroughputDeployments
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: start
+          checkIfPodsAreUpdated: {{$CHECK_IF_PODS_ARE_UPDATED}}
+          apiVersion: apps/v1
+          kind: Deployment
+          labelSelector: group = scheduler-throughput
+          operationTimeout: 60m
+      - Identifier: SchedulingThroughput
+        Method: SchedulingThroughput
+        Params:
+          action: start
+          labelSelector: group = scheduler-throughput
+          measurmentInterval: 1s
+    {{end}}
+    - name: {{$action}} scheduler throughput pods
+      phases:
+      - namespaceRange:
+          min: {{AddInt $namespaces 1}}
+          max: {{AddInt $namespaces $schedulerThroughputNamespaces}}
+        replicasPerNamespace: {{$replicasPerNamespace}}
+        tuningSet: default
+        objectBundle:
+        - basename: scheduler-throughput-deployment
+          objectTemplatePath: simple-deployment.yaml
+          templateFillMap:
+            Replicas: {{$schedulerThroughputPodsPerDeployment}}
+            Group: scheduler-throughput
+            Image: {{$deploymentImage}}
+    - name: Waiting for scheduler throughput pods to be {{$action}}d
+      measurements:
+      - Identifier: WaitForSchedulerThroughputDeployments
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+    {{if $is_creating}}
+    - name: Collecting scheduler throughput measurements
+      measurements:
+      - Identifier: HighThroughputPodStartupLatency
+        Method: PodStartupLatency
+        Params:
+          action: gather
+      - Identifier: SchedulingThroughput
+        Method: SchedulingThroughput
+        Params:
+          action: gather
+          enableViolations: true
+          threshold: {{$SCHEDULER_THROUGHPUT_THRESHOLD}}
+    {{end}}
 ---
 apiVersion: v1
 kind: ConfigMap
