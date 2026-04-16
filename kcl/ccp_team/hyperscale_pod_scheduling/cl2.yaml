@@ -17,8 +17,8 @@ metadata:
   name: cl2
   namespace: clusterloader2
 spec:
-  completions: 4
-  parallelism: 4
+  completions: 1
+  parallelism: 1
   backoffLimit: 0 # Don't retry failed CL2 runs.
   template:
     spec:
