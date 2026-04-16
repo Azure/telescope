@@ -8,7 +8,7 @@ import lib.util
 
 SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 RESOURCE_GROUP = "$(RUN_ID)"
-LOCATION = "westus2"
+LOCATION = "southeastasia"
 CLUSTER = "stg-H2-hyperscale-pod-scheduling-rate"
 NODE_COUNT = 2000
 KWOK_NODES_PER_CONTROLLER = 100

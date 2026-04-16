@@ -40,7 +40,7 @@ jobs:
         set -exo pipefail
 
         az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
-        az config set defaults.location="westus2"
+        az config set defaults.location="southeastasia"
         az account show
     displayName: Login to Azure
   - task: AzureCLI@2
@@ -51,8 +51,8 @@ jobs:
       inlineScript: |
         set -exo pipefail
 
-        az group create --name "$(RUN_ID)" --location "westus2" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
-    displayName: Create resource group $(RUN_ID) in westus2 (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+        az group create --name "$(RUN_ID)" --location "southeastasia" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+    displayName: Create resource group $(RUN_ID) in southeastasia (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -67,7 +67,7 @@ jobs:
           --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/stg-H2-hyperscale-pod-scheduling-rate?api-version=2026-01-02-preview" \
           --body "
         {
-            \"location\": \"westus2\",
+            \"location\": \"southeastasia\",
             \"identity\": { \"type\": \"SystemAssigned\" },
             \"sku\": {
               \"name\": \"Base\",
@@ -306,3 +306,14 @@ jobs:
           kubectl logs --namespace="clusterloader2" "$pod" || true
         done
     displayName: Print cl2 pod logs
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+    condition: always()
+    displayName: Delete resource group $(RUN_ID) (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
