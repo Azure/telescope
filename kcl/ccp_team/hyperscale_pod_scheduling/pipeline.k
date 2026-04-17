@@ -157,7 +157,6 @@ output = ap.Pipeline {
                     "nodes-per-controller": "${KWOK_NODES_PER_CONTROLLER}"
                     "node-selector": "kwok=true"
                     "node-lease-duration-seconds": "100"
-                    "pod-play-stage-parallelism": "500"
                   }),
                 azure.AzCli(
                     const.DEFAULT_SERVICE_CONNECTION,

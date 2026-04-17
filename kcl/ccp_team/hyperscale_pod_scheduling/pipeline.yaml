@@ -238,8 +238,8 @@ jobs:
 
       set -exo pipefail
       export PYTHONPATH=$PYTHONPATH:$(pwd)
-      python3 kwok/kwok.py   --action create   --node-count 2000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100 --pod-play-stage-parallelism 500
-      python3 kwok/kwok.py   --action validate   --node-count 2000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100 --pod-play-stage-parallelism 500
+      python3 kwok/kwok.py   --action create   --node-count 2000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100
+      python3 kwok/kwok.py   --action validate   --node-count 2000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100
     workingDirectory: modules/python
     displayName: Create and Validate KWOK Nodes
   - task: AzureCLI@2
@@ -296,15 +296,7 @@ jobs:
       azureSubscription: Azure-for-Telescope-internal
       scriptType: bash
       scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        for pod in $(kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o jsonpath='{.items[*].metadata.name}'); do
-          echo "===== Init container logs for pod: $pod ====="
-          kubectl logs --namespace="clusterloader2" "$pod" -c list-modules || true
-          echo "===== Logs for pod: $pod ====="
-          kubectl logs --namespace="clusterloader2" "$pod" || true
-        done
+      inlineScript: "set -exo pipefail\n\n                for pod in $(kubectl get pods --namespace=\"clusterloader2\" -l job-name=cl2 -o jsonpath='{.items[*].metadata.name}'); do\n                  echo \"===== Init container logs for pod: $pod =====\"\n                  kubectl logs --namespace=\"clusterloader2\" \"$pod\" -c list-modules || true\n                  echo \"===== Logs for pod: $pod =====\"\n                  kubectl logs --namespace=\"clusterloader2\" \"$pod\" || true\n                done\n                "
     displayName: Print cl2 pod logs
   - task: AzureCLI@2
     inputs:
