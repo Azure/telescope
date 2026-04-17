@@ -669,12 +669,6 @@ def main():
         help="KWOK nodeLeaseDurationSeconds (default: 40).",
     )
     parser.add_argument(
-        "--pod-play-stage-parallelism",
-        type=int,
-        default=POD_PLAY_STAGE_PARALLELISM,
-        help=f"KWOK podPlayStageParallelism (default: {POD_PLAY_STAGE_PARALLELISM}).",
-    )
-    parser.add_argument(
         "--action",
         choices=["create", "validate", "tear_down"],
         required=True,
@@ -696,7 +690,6 @@ def main():
         nodes_per_controller=args.nodes_per_controller,
         node_selector=args.node_selector,
         node_lease_duration_seconds=args.node_lease_duration_seconds,
-        pod_play_stage_parallelism=args.pod_play_stage_parallelism,
     )
     if args.action == "create":
         node.create()
