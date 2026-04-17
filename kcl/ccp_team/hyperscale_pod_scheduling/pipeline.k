@@ -171,13 +171,13 @@ output = ap.Pipeline {
                     const.DEFAULT_SERVICE_CONNECTION,
                     "Print cl2 pod logs",
                     """
-for pod in $(kubectl get pods --namespace="${CL2_NAMESPACE}" -l job-name=cl2 -o jsonpath='{.items[*].metadata.name}'); do
-  echo "===== Init container logs for pod: $pod ====="
-  kubectl logs --namespace="${CL2_NAMESPACE}" "$pod" -c list-modules || true
-  echo "===== Logs for pod: $pod ====="
-  kubectl logs --namespace="${CL2_NAMESPACE}" "$pod" || true
-done
-"""),
+                for pod in $(kubectl get pods --namespace="${CL2_NAMESPACE}" -l job-name=cl2 -o jsonpath='{.items[*].metadata.name}'); do
+                  echo "===== Init container logs for pod: $pod ====="
+                  kubectl logs --namespace="${CL2_NAMESPACE}" "$pod" -c list-modules || true
+                  echo "===== Logs for pod: $pod ====="
+                  kubectl logs --namespace="${CL2_NAMESPACE}" "$pod" || true
+                done
+                """),
                 azure.DeleteResourceGroup(
                     const.DEFAULT_SERVICE_CONNECTION,
                     RESOURCE_GROUP,
