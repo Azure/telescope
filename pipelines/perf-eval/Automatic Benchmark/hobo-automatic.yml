@@ -1,0 +1,47 @@
+trigger: none
+
+schedules:
+  - cron: "0 15 * * *"
+    displayName: "Daily HOBO Automatic"
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: hobo-automatic
+  TAG: 2.0.0
+
+stages:
+  - stage: azure_australiaeast_hobo_automatic
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - australiaeast
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250912"
+          topology: cluster-automatic
+          matrix:
+            hobo-automatic:
+              cpu_per_node: 4
+              node_count: 1
+              pod_count: 1
+              scale_up_timeout: "30m"
+              scale_down_timeout: "30m"
+              node_label_selector: "karpenter.sh/nodepool=default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 1
+              warmup_deployment: true
+              vm_size: Standard_D4ds_v5
+              capacity_type: on-demand
+              warmup_deployment_template: automatic/warmup_deployment.yaml
+              deployment_template: automatic/deployment_template.yaml
+          max_parallel: 1
+          timeout_in_minutes: 90
+          credential_type: service_connection
+          ssh_key_enabled: false
