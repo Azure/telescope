@@ -1,3 +1,7 @@
+mock_provider "aws" {
+  source = "./tests"
+}
+
 variables {
   scenario_type  = "perf-eval"
   scenario_name  = "launch_template_test"
