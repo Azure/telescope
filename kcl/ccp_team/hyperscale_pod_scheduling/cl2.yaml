@@ -5,8 +5,8 @@ metadata:
   namespace: clusterloader2
 data:
   override.yaml: |
-    Nodes: 2000
-    CL2_SCHEDULER_THROUGHPUT_TOTAL_PODS: 200000
+    Nodes: 8000
+    CL2_SCHEDULER_THROUGHPUT_TOTAL_PODS: 800000
     CL2_SCHEDULER_THROUGHPUT_PODS_PER_DEPLOYMENT: 1000
     CL2_DEFAULT_QPS: 2
     CL2_RUN_ON_ARM_NODES: true # This is a hack to allow Cl2 to run on Kwok nodes
