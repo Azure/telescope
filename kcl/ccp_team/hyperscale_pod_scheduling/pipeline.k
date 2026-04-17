@@ -9,12 +9,12 @@ import lib.util
 SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "southeastasia"
-CLUSTER = "stg-H4-hyperscale-pod-scheduling-rate"
-NODE_COUNT = 4000
+CLUSTER = "stg-H8-hyperscale-pod-scheduling-rate"
+NODE_COUNT = 8000
 KWOK_NODES_PER_CONTROLLER = 100
 KWOK_POOL = "kwokpool"
 KWOK_POOL_VM_SIZE = "Standard_D8_v3"
-KWOK_POOL_COUNT = 40
+KWOK_POOL_COUNT = 60
 CL2_IMAGE = "ghcr.io/azure/clusterloader2:v20260220"
 CL2_NAMESPACE = "clusterloader2"
 CL2_POOL = "cl2pool"
@@ -33,7 +33,7 @@ requestBody = util.escapeStr("""
       "SkipLinuxAzSecPack": "true"
     },
     "properties": {
-      "controlPlaneScalingProfile": {"scalingSize": "H4"},
+      "controlPlaneScalingProfile": {"scalingSize": "H8"},
       "kubernetesVersion": "1.33.0",
       "dnsPrefix": "${CLUSTER}-dns",
       "agentPoolProfiles": [
