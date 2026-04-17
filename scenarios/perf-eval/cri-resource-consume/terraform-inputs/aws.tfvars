@@ -118,5 +118,5 @@ eks_config_list = [{
       name = "kube-proxy"
     }
   ]
-  kubernetes_version = "1.32"
+  kubernetes_version = "1.35"
 }]

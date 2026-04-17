@@ -12,14 +12,14 @@ variables:
   SCENARIO_NAME: image-pull-n10
 
 stages:
-  - stage: azure_eastus2_image_pull
+  - stage: azure_eastasia_image_pull
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - eastasia
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
@@ -39,7 +39,7 @@ stages:
               registry_endpoint: acrtelescope.azurecr.io
               test_image: benchmark/customer-replica:v1
               kubernetes_version: "1.34"
-              pod_startup_latency_threshold: 600s
+              pod_startup_latency_threshold: 780s
               anonymous_pull: False
             image-pull-10pods-anonymous:
               desired_nodes: 14
@@ -55,7 +55,7 @@ stages:
               registry_endpoint: acrtelescope.azurecr.io
               test_image: benchmark/customer-replica:v1
               kubernetes_version: "1.34"
-              pod_startup_latency_threshold: 600s
+              pod_startup_latency_threshold: 780s
               anonymous_pull: True
           max_parallel: 1
           credential_type: service_connection

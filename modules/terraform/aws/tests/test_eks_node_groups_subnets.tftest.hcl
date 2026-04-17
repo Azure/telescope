@@ -1,3 +1,7 @@
+mock_provider "aws" {
+  source = "./tests"
+}
+
 variables {
   scenario_type  = "perf-eval"
   scenario_name  = "my_scenario"
@@ -83,9 +87,6 @@ variables {
   }]
 }
 
-mock_provider "aws" {
-  source = "./tests"
-}
 
 override_data {
   target = module.eks["eks_name"].data.aws_subnets.subnets

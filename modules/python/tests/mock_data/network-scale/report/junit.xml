@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="ClusterLoaderV2" tests="10" failures="0" errors="0" time="300.000">
+    <testcase name="scale-test overall" classname="ClusterLoaderV2" time="299.9"></testcase>
+    <testcase name="scale-test: [step: 01] start measurements" classname="ClusterLoaderV2" time="0.1"></testcase>
+    <testcase name="scale-test: [step: 02] deploy fortio" classname="ClusterLoaderV2" time="100.0"></testcase>
+    <testcase name="scale-test: [step: 03] gather measurements" classname="ClusterLoaderV2" time="100.0"></testcase>
+</testsuite>

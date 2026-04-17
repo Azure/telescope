@@ -82,17 +82,26 @@ locals {
   kms_parameters = (
     local.key_management_service == null || var.aks_cli_config.managed_identity_name == null ?
     "" :
-    join(" ", [
+    join(" ", compact([
       "--enable-azure-keyvault-kms",
       format("--azure-keyvault-kms-key-id %s", local.key_management_service.key_vault_key_id),
-      format("--azure-keyvault-kms-key-vault-network-access %s", var.aks_cli_config.kms_config.network_access)
-    ])
+      format("--azure-keyvault-kms-key-vault-network-access %s", var.aks_cli_config.kms_config.network_access),
+      var.aks_cli_config.kms_config.network_access == "Private" ? format("--azure-keyvault-kms-key-vault-resource-id %s", local.key_management_service.key_vault_id) : null
+    ]))
   )
 
-  aks_kms_role_assignments = var.aks_cli_config.managed_identity_name != null && local.key_management_service != null ? {
-    "Key Vault Crypto Service Encryption User" = local.key_management_service.key_vault_key_resource_id
-    "Key Vault Crypto User"                    = local.key_management_service.key_vault_id
-  } : {}
+  aks_kms_role_assignments = var.aks_cli_config.managed_identity_name != null && local.key_management_service != null ? merge(
+    {
+      "Key Vault Crypto Service Encryption User" = local.key_management_service.key_vault_key_resource_id
+      "Key Vault Crypto User"                    = local.key_management_service.key_vault_id
+    },
+    # When KMS uses a private endpoint, the AKS identity must be able to approve
+    # the private endpoint connection on the Key Vault (PrivateEndpointConnectionsApproval/action).
+    # Key Vault Contributor includes that action.
+    var.aks_cli_config.kms_config.network_access == "Private" ? {
+      "Key Vault Contributor" = local.key_management_service.key_vault_id
+    } : {}
+  ) : {}
 
   # Disk Encryption Set parameters for OS disk encryption with Customer-Managed Keys
   disk_encryption_parameters = (
@@ -272,7 +281,7 @@ resource "terraform_data" "enable_aks_cli_preview_extension" {
     EOT
       ) : (
       <<EOT
-      az extension add -n aks-preview --version 19.0.0b5
+      az extension add -n aks-preview --version 19.0.0b27
       az version
     EOT
     )
