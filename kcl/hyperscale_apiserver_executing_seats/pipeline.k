@@ -15,6 +15,7 @@ NODE_COUNT = 15000
 KWOK_NODES_PER_CONTROLLER = 100
 CL2_NAMESPACE = "clusterloader2"
 CL2_MANIFEST = "kcl/hyperscale_apiserver_executing_seats/cl2.yaml"
+CL2_TESTCONFIG_MANIFEST = "kcl/hyperscale_apiserver_executing_seats/cl2-testconfig.yaml"
 CL2_POOL = "cl2pool"
 CL2_POOL_VM_SIZE = "Standard_D16S_v4"
 CL2_POOL_COUNT = 3
@@ -164,7 +165,8 @@ output = ap.Pipeline {
                   k8s.RunClusterLoader2(
                     const.DEFAULT_SERVICE_CONNECTION,
                     CL2_NAMESPACE,
-                    manifest = CL2_MANIFEST),
+                    manifest = CL2_MANIFEST,
+                    preManifest = CL2_TESTCONFIG_MANIFEST),
                   k8s.PrintCl2PodLogs(
                     const.DEFAULT_SERVICE_CONNECTION,
                     CL2_NAMESPACE),

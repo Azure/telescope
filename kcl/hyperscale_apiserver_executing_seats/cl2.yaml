@@ -38,7 +38,7 @@ spec:
         - '--run-from-cluster=true'
         - '--v=2'
         - '--testoverrides=/override/override.yaml'
-        - '--testconfig=testing/load/config.yaml'
+        - '--testconfig=/testconfig/config.yaml'
         - '--k8s-clients-number=500'
         image: ghcr.io/azure/clusterloader2:v20260220
         name: cl2
@@ -49,6 +49,8 @@ spec:
         volumeMounts:
         - mountPath: /override
           name: cl2-override
+        - mountPath: /testconfig
+          name: cl2-testconfig
       nodeSelector:
         agentpool: cl2pool
       restartPolicy: Never
@@ -61,6 +63,9 @@ spec:
       - configMap:
           name: cl2-override
         name: cl2-override
+      - configMap:
+          name: cl2-testconfig
+        name: cl2-testconfig
 ---
 apiVersion: v1
 kind: ServiceAccount

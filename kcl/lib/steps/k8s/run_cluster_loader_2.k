@@ -1,10 +1,11 @@
 import azure_pipelines.ap.steps
 import lib.steps.azure
 
-RunClusterLoader2 = lambda serviceConnection: str, namespace: str, manifest: str -> steps.Step {
+RunClusterLoader2 = lambda serviceConnection: str, namespace: str, manifest: str, preManifest: str = "" -> steps.Step {
+    preApply = "kubectl apply -f $(Pipeline.Workspace)/s/${preManifest}\n" if preManifest else ""
     script = """
 kubectl create namespace "${namespace}" || true
-kubectl apply -f $(Pipeline.Workspace)/s/${manifest}
+${preApply}kubectl apply -f $(Pipeline.Workspace)/s/${manifest}
 # Wait
 while true; do
   phases="$(kubectl get pods --namespace="${namespace}" -o jsonpath='{range .items[*]}{.status.phase}{"\\n"}{end}')"

@@ -250,6 +250,7 @@ jobs:
         set -exo pipefail
 
         kubectl create namespace "clusterloader2" || true
+        kubectl apply -f $(Pipeline.Workspace)/s/kcl/hyperscale_apiserver_executing_seats/cl2-testconfig.yaml
         kubectl apply -f $(Pipeline.Workspace)/s/kcl/hyperscale_apiserver_executing_seats/cl2.yaml
         # Wait
         while true; do
