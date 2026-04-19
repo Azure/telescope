@@ -6,7 +6,7 @@ metadata:
 data:
   override.yaml: |
     NODES: 15000
-    PODS_PER_NODE: 180
+    PODS_PER_NODE: 220
     BIG_GROUP_SIZE: 800
     MEDIUM_GROUP_SIZE: 800
     SMALL_GROUP_SIZE: 400
@@ -27,8 +27,8 @@ metadata:
   name: cl2
   namespace: clusterloader2
 spec:
-  completions: 4
-  parallelism: 4
+  completions: 1
+  parallelism: 1
   backoffLimit: 0
   template:
     spec:
