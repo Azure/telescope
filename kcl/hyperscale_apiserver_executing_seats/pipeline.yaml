@@ -9,7 +9,7 @@ parameters:
 jobs:
 - job: benchmarking
   displayName: Benchmarking
-  timeoutInMinutes: 300
+  timeoutInMinutes: 600
   steps:
   - bash: |2
 

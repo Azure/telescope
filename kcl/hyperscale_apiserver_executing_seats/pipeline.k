@@ -92,7 +92,7 @@ output = ap.Pipeline {
         job.Job {
             job = "benchmarking"
             displayName = "Benchmarking"
-            timeoutInMinutes = 300
+            timeoutInMinutes = 600
 
             steps = [
                 common.SetRunId(),
