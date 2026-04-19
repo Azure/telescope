@@ -28,7 +28,6 @@ data:
     {{$ENABLE_CHAOSMONKEY := DefaultParam .ENABLE_CHAOSMONKEY false}}
     {{$ENABLE_API_AVAILABILITY_MEASUREMENT := DefaultParam .CL2_ENABLE_API_AVAILABILITY_MEASUREMENT false}}
     {{$ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST := DefaultParam .CL2_ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST false}}
-    {{$ENABLE_INFORMER_LATENCY_TEST := DefaultParam .CL2_ENABLE_INFORMER_LATENCY_TEST false}}
     {{$RANDOM_SCALE_FACTOR := 0.5}}
     #Variables
     {{$namespaces := DivideInt .Nodes $NODES_PER_NAMESPACE}}
@@ -141,13 +140,6 @@ data:
     {{end}}
     {{end}}
 
-    {{if $ENABLE_INFORMER_LATENCY_TEST}}
-    - module:
-        path: modules/informer/config.yaml
-        params:
-          action: "create"
-    {{end}}
-
     {{if $ENABLE_NETWORK_POLICY_ENFORCEMENT_LATENCY_TEST}}
     - module:
         path: modules/network-policy/net-policy-enforcement-latency.yaml
@@ -165,10 +157,10 @@ data:
           - basename: daemonset-priorityclass
             objectTemplatePath: daemonset-priorityclass.yaml
 
-    # Moved from reconcile-objects/config.yaml to mitigate https://github.com/kubernetes/kubernetes/issues/96635.
-    # TODO(https://github.com/kubernetes/perf-tests/issues/1823): Merge back to reconcile-objects/config.yaml once the k/k bug is fixed.
+    # Moved from reconcile-objects.yaml to mitigate https://github.com/kubernetes/kubernetes/issues/96635.
+    # TODO(https://github.com/kubernetes/perf-tests/issues/1823): Merge back to reconcile-objects.yaml once the k/k bug is fixed.
     - module:
-        path: /modules/configmaps-secrets/config.yaml
+        path: /modules/configmaps-secrets.yaml
         params:
           actionName: create
           tuningSet: default
@@ -178,7 +170,7 @@ data:
           smallDeploymentsPerNamespace: {{$smallDeploymentsPerNamespace}}
 
     - module:
-        path: /modules/reconcile-objects/config.yaml
+        path: /modules/reconcile-objects.yaml
         params:
           actionName: "create"
           namespaces: {{$namespaces}}
@@ -230,7 +222,7 @@ data:
     {{if not $IS_SMALL_CLUSTER}}
     # BEGIN scheduler throughput
     - module:
-        path: modules/scheduler-throughput/config.yaml
+        path: modules/scheduler-throughput.yaml
         params:
           action: create
           namespaces: {{$namespaces}}
@@ -286,7 +278,7 @@ data:
 
     {{if not $IS_SMALL_CLUSTER}}
     - module:
-        path: modules/scheduler-throughput/config.yaml
+        path: modules/scheduler-throughput.yaml
         params:
           action: delete
           namespaces: {{$namespaces}}
@@ -327,7 +319,7 @@ data:
     {{end}}
 
     - module:
-        path: /modules/reconcile-objects/config.yaml
+        path: /modules/reconcile-objects.yaml
         params:
           actionName: "scale and update"
           namespaces: {{$namespaces}}
@@ -373,7 +365,7 @@ data:
     {{end}}
 
     - module:
-        path: /modules/reconcile-objects/config.yaml
+        path: /modules/reconcile-objects.yaml
         params:
           actionName: "delete"
           namespaces: {{$namespaces}}
@@ -419,7 +411,7 @@ data:
     {{end}}
 
     - module:
-        path: /modules/configmaps-secrets/config.yaml
+        path: /modules/configmaps-secrets.yaml
         params:
           actionName: delete
           tuningSet: default
@@ -437,13 +429,6 @@ data:
               objectTemplatePath: daemonset-priorityclass.yaml
 
     {{end}} # not EXIT_AFTER_EXEC
-
-    {{if $ENABLE_INFORMER_LATENCY_TEST}}
-    - module:
-        path: modules/informer/config.yaml
-        params:
-          action: "delete"
-    {{end}}
 
     - module:
         path: /modules/measurements.yaml
@@ -465,5 +450,4 @@ data:
         params:
           complete: true
           testType: "policy-creation"
-    {{end}}
-
+    {{end}
