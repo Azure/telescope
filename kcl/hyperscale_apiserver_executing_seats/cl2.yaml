@@ -27,8 +27,8 @@ metadata:
   name: cl2
   namespace: clusterloader2
 spec:
-  completions: 1
-  parallelism: 1
+  completions: 8
+  parallelism: 8
   backoffLimit: 0
   template:
     spec:
