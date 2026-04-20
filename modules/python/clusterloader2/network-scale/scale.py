@@ -53,13 +53,15 @@ def execute_clusterloader2(
     cl2_config_file,
     kubeconfig,
     provider,
-    scrape_containerd
+    scrape_containerd,
+    prometheus_ready_timeout=None
 ):
     run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider,
                     cl2_config_file=cl2_config_file, overrides=True, enable_prometheus=True,
                     scrape_containerd=scrape_containerd, tear_down_prometheus=True,
                     scrape_kubelets=True, scrape_ksm=True,
-                    scrape_metrics_server=True)
+                    scrape_metrics_server=True,
+                    prometheus_ready_timeout=prometheus_ready_timeout)
 
 
 def collect_clusterloader2(
@@ -165,6 +167,8 @@ def main():
     parser_execute.add_argument("--provider", type=str, required=True, help="Cloud provider name")
     parser_execute.add_argument("--scrape-containerd", type=str2bool, choices=[True, False], default=False,
                                 help="Whether to scrape containerd metrics. Must be either True or False")
+    parser_execute.add_argument("--prometheus-ready-timeout", type=str, default=None,
+                                help="Timeout for Prometheus stack to become healthy (e.g. 30m). Defaults to CL2 built-in timeout.")
 
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
@@ -206,7 +210,8 @@ def main():
                                  )
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.cl2_config_file,
-                               args.kubeconfig, args.provider, args.scrape_containerd)
+                               args.kubeconfig, args.provider, args.scrape_containerd,
+                               args.prometheus_ready_timeout)
     elif args.command == "collect":
         collect_clusterloader2(args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
                                args.result_file, args.test_type, args.start_timestamp,

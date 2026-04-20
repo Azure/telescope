@@ -25,7 +25,8 @@ SCHEDULING_THROUGHPUT_PREFIX = "SchedulingThroughput"
 
 def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, cl2_config_file="config.yaml", overrides=False, enable_prometheus=False, tear_down_prometheus=True,
                     enable_exec_service=False, scrape_kubelets=False,
-                    scrape_containerd=False, scrape_ksm=False, scrape_metrics_server=False):
+                    scrape_containerd=False, scrape_ksm=False, scrape_metrics_server=False,
+                    prometheus_ready_timeout=None):
     docker_client = DockerClient()
 
     command = f"""--provider={provider} --v=2
@@ -41,6 +42,9 @@ def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provi
 
     if scrape_containerd:
         command += f" --prometheus-scrape-containerd={scrape_containerd}"
+
+    if prometheus_ready_timeout:
+        command += f" --prometheus-ready-timeout={prometheus_ready_timeout}"
 
     if overrides:
         command += " --testoverrides=/root/perf-tests/clusterloader2/config/overrides.yaml"

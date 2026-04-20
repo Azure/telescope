@@ -79,7 +79,8 @@ steps:
         --cl2-config-file "${CL2_CONFIG_FILE}" \
         --kubeconfig "${HOME}/.kube/config" \
         --provider "${CLOUD}" \
-        --scrape-containerd ${SCRAPE_CONTAINERD:-False}
+        --scrape-containerd ${SCRAPE_CONTAINERD:-False} \
+        ${PROMETHEUS_READY_TIMEOUT:+--prometheus-ready-timeout $PROMETHEUS_READY_TIMEOUT}
     workingDirectory: modules/python
     env:
       ${{ if eq(parameters.cloud, 'azure') }}:
