@@ -1,3 +1,42 @@
+apiVersion: flowcontrol.apiserver.k8s.io/v1
+kind: PriorityLevelConfiguration
+metadata:
+  name: cl2-high
+spec:
+  type: Limited
+  limited:
+    nominalConcurrencyShares: 2000
+    lendablePercent: 0
+    limitResponse:
+      type: Queue
+      queuing:
+        queues: 512
+        handSize: 6
+        queueLengthLimit: 1000
+---
+apiVersion: flowcontrol.apiserver.k8s.io/v1
+kind: FlowSchema
+metadata:
+  name: cl2-sa
+spec:
+  matchingPrecedence: 100
+  priorityLevelConfiguration:
+    name: cl2-high
+  rules:
+  - subjects:
+    - kind: ServiceAccount
+      serviceAccount:
+        name: cl2
+        namespace: clusterloader2
+    resourceRules:
+    - apiGroups: ["*"]
+      resources: ["*"]
+      verbs: ["*"]
+      namespaces: ["*"]
+    nonResourceRules:
+    - nonResourceURLs: ["*"]
+      verbs: ["*"]
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -27,8 +66,8 @@ metadata:
   name: cl2
   namespace: clusterloader2
 spec:
-  completions: 8
-  parallelism: 8
+  completions: 4
+  parallelism: 4
   backoffLimit: 0
   template:
     spec:
