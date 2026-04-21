@@ -192,10 +192,16 @@ def deploy_vmsingle(kubeconfig: str, namespace: str) -> None:
 
 def deploy_vmagent(kubeconfig: str, namespace: str, dp_api_server: str) -> None:
     log.info("Deploying VMAgent in %s (SD via %s)...", namespace, dp_api_server)
+    scrape_replacements = {
+        "__NAMESPACE__": namespace,
+        "__DP_API_SERVER__": dp_api_server,
+    }
+    scrape_manifest = render_template(MANIFEST_DIR / "scrape-config.yaml", scrape_replacements)
+    kubectl_apply(kubeconfig, scrape_manifest)
+
     replacements = {
         "__NAMESPACE__": namespace,
         "__VMAGENT_IMAGE__": VMAGENT_IMAGE,
-        "__DP_API_SERVER__": dp_api_server,
     }
     manifest = render_template(MANIFEST_DIR / "vmagent.yaml", replacements)
     kubectl_apply(kubeconfig, manifest)

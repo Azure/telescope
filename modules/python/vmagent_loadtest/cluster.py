@@ -8,9 +8,12 @@ from .utils import retry, run
 
 
 def az_login(msi_client_id: str, subscription_id: str) -> None:
-    """Login to Azure with MSI and set subscription."""
-    log.info("Logging in to Azure (MSI: %s)...", msi_client_id)
-    run(["az", "login", "--identity", "--client-id", msi_client_id])
+    """Login to Azure and set subscription."""
+    if msi_client_id:
+        log.info("Logging in to Azure (MSI: %s)...", msi_client_id)
+        run(["az", "login", "--identity", "--client-id", msi_client_id])
+    else:
+        log.info("Skipping MSI login (local mode), using existing az session")
     run(["az", "account", "set", "-s", subscription_id])
     log.info("Azure login OK, subscription: %s", subscription_id)
 

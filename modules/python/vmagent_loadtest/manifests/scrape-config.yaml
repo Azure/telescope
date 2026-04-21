@@ -1,0 +1,258 @@
+# VMAgent scrape configuration — deployed as ConfigMap "vmagent-config"
+#
+# Template variables:
+#   __NAMESPACE__        — test namespace
+#   __DP_API_SERVER__    — DP cluster API server URL (for kubernetes_sd_configs)
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vmagent-config
+  namespace: __NAMESPACE__
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 30s
+      scrape_timeout: 10s
+
+    scrape_configs:
+      # ================================================================
+      # Fake exporter jobs (role: pod in fake-exporter namespace)
+      # These simulate N nodes by running N replicas of each role.
+      # ================================================================
+      - job_name: fake-nodeexp
+        stream_parse: true
+        proxy_url: "http://localhost:8080"
+        kubernetes_sd_configs:
+          - role: pod
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+            namespaces:
+              names: ["fake-exporter"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: fake-nodeexp
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_ip]
+            target_label: __address__
+            replacement: $1:19100
+          - source_labels: [__address__]
+            target_label: instance
+
+      - job_name: fake-cadvisor
+        stream_parse: true
+        proxy_url: "http://localhost:8080"
+        kubernetes_sd_configs:
+          - role: pod
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+            namespaces:
+              names: ["fake-exporter"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: fake-cadvisor
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_ip]
+            target_label: __address__
+            replacement: $1:19101
+          - source_labels: [__address__]
+            target_label: instance
+
+      - job_name: fake-kubelet
+        stream_parse: true
+        proxy_url: "http://localhost:8080"
+        kubernetes_sd_configs:
+          - role: pod
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+            namespaces:
+              names: ["fake-exporter"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: fake-kubelet
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_ip]
+            target_label: __address__
+            replacement: $1:10250
+          - source_labels: [__address__]
+            target_label: instance
+
+      - job_name: fake-kubeproxy
+        stream_parse: true
+        proxy_url: "http://localhost:8080"
+        kubernetes_sd_configs:
+          - role: pod
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+            namespaces:
+              names: ["fake-exporter"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: fake-kubeproxy
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_ip]
+            target_label: __address__
+            replacement: $1:10256
+          - source_labels: [__address__]
+            target_label: instance
+
+      # ================================================================
+      # Real target jobs (role: node — kubelet, cadvisor, kube-proxy, azure-cns)
+      # These scrape actual endpoints on DP cluster nodes via HTTPS/HTTP.
+      # ================================================================
+      - job_name: real-kubelet
+        stream_parse: true
+        proxy_url: "http://localhost:8080"
+        scheme: https
+        metrics_path: /metrics
+        authorization:
+          type: Bearer
+          credentials_file: /var/run/secrets/kubelet/token
+        tls_config:
+          insecure_skip_verify: true
+        kubernetes_sd_configs:
+          - role: node
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_node_address_InternalIP]
+            target_label: __address__
+            replacement: $1:10250
+          - source_labels: [__address__]
+            target_label: instance
+
+      - job_name: real-cadvisor
+        stream_parse: true
+        proxy_url: "http://localhost:8080"
+        scheme: https
+        metrics_path: /metrics/cadvisor
+        authorization:
+          type: Bearer
+          credentials_file: /var/run/secrets/kubelet/token
+        tls_config:
+          insecure_skip_verify: true
+        kubernetes_sd_configs:
+          - role: node
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_node_address_InternalIP]
+            target_label: __address__
+            replacement: $1:10250
+          - source_labels: [__address__]
+            target_label: instance
+
+      - job_name: real-kubeproxy
+        stream_parse: true
+        proxy_url: "http://localhost:8080"
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+          - role: node
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_node_address_InternalIP]
+            target_label: __address__
+            replacement: $1:10249
+          - source_labels: [__address__]
+            target_label: instance
+
+      - job_name: real-azure-cns
+        stream_parse: true
+        proxy_url: "http://localhost:8080"
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+          - role: node
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_node_address_InternalIP]
+            target_label: __address__
+            replacement: $1:10092
+          - source_labels: [__address__]
+            target_label: instance
+
+      # ================================================================
+      # DaemonSet targets (role: node — localdns, NPD, azuredisk-node)
+      # These scrape daemon processes running on each DP node via HTTP.
+      # Matches production scrape configs from KCL manifests.
+      # ================================================================
+      - job_name: localdns
+        stream_parse: true
+        proxy_url: "http://localhost:8080"
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+          - role: node
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_node_address_InternalIP]
+            target_label: __address__
+            replacement: $1:9253
+          - source_labels: [__address__]
+            target_label: instance
+
+      - job_name: node-problem-detector
+        stream_parse: true
+        proxy_url: "http://localhost:8080"
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+          - role: node
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_node_address_InternalIP]
+            target_label: __address__
+            replacement: $1:20257
+          - source_labels: [__address__]
+            target_label: instance
+          - source_labels: [__meta_kubernetes_node_label_agentpool]
+            target_label: nodepool
+
+      - job_name: csi-azuredisk-node
+        stream_parse: true
+        proxy_url: "http://localhost:8080"
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+          - role: pod
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+            namespaces:
+              names: ["kube-system"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: csi-azuredisk-node.*
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_container_name]
+            regex: azuredisk
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_container_port_name]
+            regex: metrics
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_ip, __meta_kubernetes_pod_container_port_number]
+            separator: ":"
+            target_label: __address__
+          - source_labels: [__address__]
+            target_label: instance

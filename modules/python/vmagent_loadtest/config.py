@@ -1,11 +1,11 @@
-"""Constants and shared configuration for the VMAgent load test."""
+"""Constants and shared configuration for the fake control plane load test."""
 
 import logging
 from pathlib import Path
 
 MODULE_DIR = Path(__file__).resolve().parent
 MANIFEST_DIR = MODULE_DIR / "manifests"
-FAKE_EXPORTER_DIR = MANIFEST_DIR  # fake-exporter manifest lives alongside others
+FAKE_EXPORTER_DIR = MANIFEST_DIR
 
 KONN_SERVER_IMAGE = "mcr.microsoft.com/oss/v2/kubernetes/apiserver-network-proxy/server:v0.32.1-3"
 KONN_AGENT_IMAGE = "mcr.microsoft.com/oss/v2/kubernetes/apiserver-network-proxy/agent:v0.32.1-3"
@@ -28,6 +28,17 @@ REAL_TARGET_ROLES = [
     ("real-cadvisor",   "/metrics/cadvisor", 10250, "https"),
     ("real-kubeproxy",  "/metrics",          10249, "http"),
     ("real-azure-cns", "/metrics",          10092, "http"),
+]
+
+# DaemonSet target roles scraped via node role: (job_name, port)
+DAEMONSET_TARGET_ROLES = [
+    ("localdns",               9253),
+    ("node-problem-detector", 20257),
+]
+
+# DaemonSet target roles scraped via pod role: (job_name, namespace)
+DAEMONSET_POD_TARGET_ROLES = [
+    ("csi-azuredisk-node", "kube-system"),
 ]
 KUBELET_SA_NAME = "kubelet-scraper"
 

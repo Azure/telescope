@@ -94,8 +94,8 @@ def main() -> None:
 
     # --- Cluster lifecycle modes ---
     if args.create_clusters or args.delete_clusters:
-        if not args.msi_client_id or not args.subscription_id:
-            parser.error("--msi-client-id and --subscription-id are required for cluster operations")
+        if not args.subscription_id:
+            parser.error("--subscription-id is required for cluster operations")
         az_login(args.msi_client_id, args.subscription_id)
 
         if args.delete_clusters:

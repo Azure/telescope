@@ -114,7 +114,7 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
     pprof_results = collect_pprof(cp_kubeconfig, dp_kubeconfig, namespace, work_dir, label=f"tier{tier}")
 
     # 12. Evaluate pass/fail
-    pass_fail = evaluate_pass_fail(measurements)
+    pass_fail = evaluate_pass_fail(measurements, expected_targets=total_targets)
     if pass_fail["overall"]:
         log.info("RESULT: PASS")
     else:

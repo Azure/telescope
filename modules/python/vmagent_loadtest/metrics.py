@@ -426,7 +426,9 @@ def collect_metrics(cp_kubeconfig: str, dp_kubeconfig: str,
     return measurements
 
 
-def evaluate_pass_fail(measurements: dict) -> dict:
+def evaluate_pass_fail(measurements: dict, expected_targets: int = 0) -> dict:
+    scrape_up = measurements.get("scrape_targets_up", 0)
+    scrape_total = measurements.get("scrape_targets_total", 0)
     scrape_rate = measurements.get("scrape_success_rate", 0)
     oom_events = measurements.get("oom_events", 0)
     oom_killed = measurements.get("pod_oom_killed", 0)
@@ -435,7 +437,10 @@ def evaluate_pass_fail(measurements: dict) -> dict:
     rw_errors = measurements.get("vmsingle_http_errors_total", 0)
     rw_rows = measurements.get("vmsingle_rows_inserted", 0)
 
-    scrape_pass = scrape_rate >= 0.99
+    if expected_targets > 0:
+        scrape_pass = scrape_up >= expected_targets
+    else:
+        scrape_pass = scrape_rate >= 0.99
     oom_pass = (oom_events + oom_killed) == 0
     restarts_pass = restarts == 0
     dial_pass = dial_mean < 2.0
@@ -444,7 +449,7 @@ def evaluate_pass_fail(measurements: dict) -> dict:
     overall = scrape_pass and oom_pass and restarts_pass and dial_pass and rw_errors_pass and rw_rows_pass
 
     return {
-        "scrape_success_rate": {"threshold": 0.99, "actual": scrape_rate, "pass": scrape_pass},
+        "scrape_targets": {"expected": expected_targets, "up": scrape_up, "total_discovered": scrape_total, "rate": scrape_rate, "pass": scrape_pass},
         "oom_events": {"threshold": 0, "actual": oom_events + oom_killed, "pass": oom_pass},
         "pod_restarts": {"threshold": 0, "actual": restarts, "pass": restarts_pass},
         "konn_dial_mean_seconds": {"threshold": 2.0, "actual": dial_mean, "pass": dial_pass},
