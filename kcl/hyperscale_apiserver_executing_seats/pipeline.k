@@ -17,8 +17,8 @@ CL2_NAMESPACE = "clusterloader2"
 CL2_MANIFEST = "kcl/hyperscale_apiserver_executing_seats/cl2.yaml"
 CL2_TESTCONFIG_MANIFEST = "kcl/hyperscale_apiserver_executing_seats/cl2-testconfig.yaml"
 CL2_POOL = "cl2pool"
-CL2_POOL_VM_SIZE = "Standard_D16S_v4"
-CL2_POOL_COUNT = 10
+CL2_POOL_VM_SIZE = "Standard_D32S_v4"
+CL2_POOL_COUNT = 1
 KWOK_POOL = "kwokpool"
 KWOK_POOL_VM_SIZE = "Standard_D8_v3"
 KWOK_POOL_COUNT = 60
@@ -159,7 +159,7 @@ output = ap.Pipeline {
                     "node-manifest-path": "$(Pipeline.Workspace)/s/kcl/hyperscale_apiserver_executing_seats/kwok-node.yaml"
                     "nodes-per-controller": "${KWOK_NODES_PER_CONTROLLER}"
                     "node-selector": "kwok=true"
-                    "node-lease-duration-seconds": "60"
+                    "node-lease-duration-seconds": "100"
                   },
                   continueOnError = True),
                   k8s.RunClusterLoader2(
