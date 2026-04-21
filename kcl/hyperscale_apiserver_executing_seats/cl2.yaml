@@ -7,9 +7,9 @@ data:
   override.yaml: |
     NODES: 12000
     PODS_PER_NODE: 200
-    BIG_GROUP_SIZE: 800
-    MEDIUM_GROUP_SIZE: 800
-    SMALL_GROUP_SIZE: 600
+    BIG_GROUP_SIZE: 8
+    MEDIUM_GROUP_SIZE: 8
+    SMALL_GROUP_SIZE: 6
     SMALL_STATEFUL_SETS_PER_NAMESPACE: 0
     MEDIUM_STATEFUL_SETS_PER_NAMESPACE: 0
     CL2_SMALL_JOBS_PER_NAMESPACE: 0
@@ -39,7 +39,7 @@ spec:
         - '--v=2'
         - '--testoverrides=/override/override.yaml'
         - '--testconfig=testing/load/config.yaml'
-        - '--k8s-clients-number=500'
+        - '--k8s-clients-number=1000'
         image: ghcr.io/azure/clusterloader2:v20260220
         name: cl2
         resources:
