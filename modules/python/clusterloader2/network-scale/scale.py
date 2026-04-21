@@ -165,6 +165,7 @@ def main():
     parser_execute.add_argument("--provider", type=str, required=True, help="Cloud provider name")
     parser_execute.add_argument("--scrape-containerd", type=str2bool, choices=[True, False], default=False,
                                 help="Whether to scrape containerd metrics. Must be either True or False")
+
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
     parser_collect.add_argument("--cl2_report_dir", type=str, help="Path to the CL2 report directory")
