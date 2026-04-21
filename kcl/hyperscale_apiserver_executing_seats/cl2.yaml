@@ -5,8 +5,8 @@ metadata:
   namespace: clusterloader2
 data:
   override.yaml: |
-    NODES: 15000
-    PODS_PER_NODE: 50
+    NODES: 12000
+    PODS_PER_NODE: 100
     BIG_GROUP_SIZE: 1
     MEDIUM_GROUP_SIZE: 1
     SMALL_GROUP_SIZE: 1
@@ -18,7 +18,7 @@ data:
     CL2_RATE_LIMIT_POD_CREATION: false
     CL2_ENABLE_PVS: false
     CL2_ENABLE_CLUSTER_OOMS_TRACKER: false
-    CL2_DEFAULT_QPS: 7000
+    CL2_DEFAULT_QPS: 4000
     CL2_RUN_ON_ARM_NODES: true
 ---
 apiVersion: batch/v1
@@ -27,8 +27,8 @@ metadata:
   name: cl2
   namespace: clusterloader2
 spec:
-  completions: 16
-  parallelism: 16
+  completions: 1
+  parallelism: 1
   backoffLimit: 0
   template:
     spec:

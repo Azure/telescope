@@ -6,9 +6,9 @@ metadata:
     node.alpha.kubernetes.io/ttl: "0"
     kwok.x-k8s.io/node: fake
   labels:
-    beta.kubernetes.io/arch: amd64
+    beta.kubernetes.io/arch: arm64
     beta.kubernetes.io/os: linux
-    kubernetes.io/arch: amd64
+    kubernetes.io/arch: arm64
     kubernetes.io/hostname: {{node_name}}
     kubernetes.io/os: linux
     kubernetes.io/role: agent
@@ -23,9 +23,6 @@ spec:
       key: kubernetes.io/arch 
       value: arm64 # This is a hack to allow Cl2 pods to run on Kwok nodes.
 status:
-  addresses:
-    - type: InternalIP
-      address: {{node_ip}}
   allocatable:
     cpu: {{node_cpu}}
     memory: {{node_memory}}
@@ -42,7 +39,7 @@ status:
       reason: "KubeletReady"
       message: "kubelet is posting ready status"
   nodeInfo:
-    architecture: amd64
+    architecture: arm64
     bootID: ""
     containerRuntimeVersion: ""
     kernelVersion: ""
