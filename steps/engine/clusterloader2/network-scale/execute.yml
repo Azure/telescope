@@ -80,7 +80,7 @@ steps:
         --kubeconfig "${HOME}/.kube/config" \
         --provider "${CLOUD}" \
         --scrape-containerd ${SCRAPE_CONTAINERD:-False} \
-        ${PROMETHEUS_READY_TIMEOUT:+--prometheus-ready-timeout $PROMETHEUS_READY_TIMEOUT}
+        --scrape-kube-proxy ${SCRAPE_KUBE_PROXY:-True}
     workingDirectory: modules/python
     env:
       ${{ if eq(parameters.cloud, 'azure') }}:
