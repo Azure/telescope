@@ -1,0 +1,63 @@
+parameters:
+- name: cloud
+  type: string
+  default: ''
+- name: engine_input
+  type: object
+  default: {}
+- name: regions
+  type: object
+  default: {}
+
+steps:
+- script: |
+    set -euo pipefail
+
+    region=${{ parameters.regions[0] }}
+
+    # Resolve CP cluster kubeconfig
+    CP_AKS=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location $region \
+      --query "[?(tags.run_id == '${RUN_ID}' && tags.role == 'cp')].name" --output tsv)
+    CP_RG=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location $region \
+      --query "[?(tags.run_id == '${RUN_ID}' && tags.role == 'cp')].resourceGroup" --output tsv)
+
+    # Resolve DP cluster kubeconfig
+    DP_AKS=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location $region \
+      --query "[?(tags.run_id == '${RUN_ID}' && tags.role == 'dp')].name" --output tsv)
+    DP_RG=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location $region \
+      --query "[?(tags.run_id == '${RUN_ID}' && tags.role == 'dp')].resourceGroup" --output tsv)
+
+    echo "CP cluster: $CP_AKS (RG: $CP_RG)"
+    echo "DP cluster: $DP_AKS (RG: $DP_RG)"
+
+    # Get dedicated kubeconfigs for each cluster
+    mkdir -p $(Pipeline.Workspace)/kubeconfigs
+    az aks get-credentials -n "$CP_AKS" -g "$CP_RG" --file $(Pipeline.Workspace)/kubeconfigs/cp.kubeconfig --overwrite-existing
+    az aks get-credentials -n "$DP_AKS" -g "$DP_RG" --file $(Pipeline.Workspace)/kubeconfigs/dp.kubeconfig --overwrite-existing
+
+    # Read matrix variables with defaults
+    TIERS="${TIERS:-150,500,1000}"
+    SOAK_MINUTES="${SOAK_MINUTES:-10}"
+    REAL_TARGETS="${REAL_TARGETS:-false}"
+    RUN_LABEL="${RUN_LABEL:-}"
+
+    EXTRA_ARGS="--resource-group $DP_RG --dp-cluster-name $DP_AKS"
+    if [[ "$REAL_TARGETS" == "true" ]]; then
+      EXTRA_ARGS="$EXTRA_ARGS --real-targets"
+    fi
+    if [[ -n "$RUN_LABEL" ]]; then
+      EXTRA_ARGS="$EXTRA_ARGS --run-label $RUN_LABEL"
+    fi
+
+    python3 modules/python/vmagent_loadtest/main.py \
+      --cp-kubeconfig $(Pipeline.Workspace)/kubeconfigs/cp.kubeconfig \
+      --dp-kubeconfig $(Pipeline.Workspace)/kubeconfigs/dp.kubeconfig \
+      --tiers "$TIERS" \
+      --warm-up-minutes "$SOAK_MINUTES" \
+      $EXTRA_ARGS
+  displayName: "Execute VMAgent load test"
+  env:
+    TIERS: $(TIERS)
+    SOAK_MINUTES: $(SOAK_MINUTES)
+    REAL_TARGETS: $(REAL_TARGETS)
+    RUN_LABEL: $(RUN_LABEL)

@@ -1,0 +1,481 @@
+# VMAgent — deployed on the "control plane" cluster (same namespace as konnectivity-server)
+# Scrapes targets on the dataplane via konnectivity-server proxy tunnel.
+#
+# Architecture:
+#   VMAgent  →  vmagent-proxy (HTTP/HTTPS→CONNECT adapter, localhost:8080)
+#            →  konnectivity-server:8083 (mTLS CONNECT tunnel)
+#            →  konnectivity-agent (on dataplane)
+#            →  fake-exporter pods OR real kubelet/cadvisor/kube-proxy
+#
+# Target discovery uses kubernetes_sd_configs against the DP cluster API server.
+# Fake exporter jobs use role: pod (namespace: fake-exporter).
+# Real target jobs use role: node.
+# Jobs with no matching targets are simply idle.
+#
+# Template variables:
+#   __NAMESPACE__        — test namespace
+#   __VMAGENT_IMAGE__    — VMAgent image
+#   __DP_API_SERVER__    — DP cluster API server URL (for kubernetes_sd_configs)
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vmagent-config
+  namespace: __NAMESPACE__
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 30s
+      scrape_timeout: 10s
+
+    scrape_configs:
+      # ---- Fake exporter jobs (role: pod in fake-exporter namespace) ----
+      - job_name: fake-nodeexp
+        stream_parse: true
+        proxy_url: "http://localhost:8080"
+        kubernetes_sd_configs:
+          - role: pod
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+            namespaces:
+              names: ["fake-exporter"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: fake-nodeexp
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_ip]
+            target_label: __address__
+            replacement: $1:19100
+          - source_labels: [__address__]
+            target_label: instance
+
+      - job_name: fake-cadvisor
+        stream_parse: true
+        proxy_url: "http://localhost:8080"
+        kubernetes_sd_configs:
+          - role: pod
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+            namespaces:
+              names: ["fake-exporter"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: fake-cadvisor
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_ip]
+            target_label: __address__
+            replacement: $1:19101
+          - source_labels: [__address__]
+            target_label: instance
+
+      - job_name: fake-kubelet
+        stream_parse: true
+        proxy_url: "http://localhost:8080"
+        kubernetes_sd_configs:
+          - role: pod
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+            namespaces:
+              names: ["fake-exporter"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: fake-kubelet
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_ip]
+            target_label: __address__
+            replacement: $1:10250
+          - source_labels: [__address__]
+            target_label: instance
+
+      - job_name: fake-kubeproxy
+        stream_parse: true
+        proxy_url: "http://localhost:8080"
+        kubernetes_sd_configs:
+          - role: pod
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+            namespaces:
+              names: ["fake-exporter"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: fake-kubeproxy
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_ip]
+            target_label: __address__
+            replacement: $1:10256
+          - source_labels: [__address__]
+            target_label: instance
+
+      # ---- Real target jobs (role: node) ----
+      - job_name: real-kubelet
+        stream_parse: true
+        proxy_url: "http://localhost:8080"
+        scheme: https
+        metrics_path: /metrics
+        authorization:
+          type: Bearer
+          credentials_file: /var/run/secrets/kubelet/token
+        tls_config:
+          insecure_skip_verify: true
+        kubernetes_sd_configs:
+          - role: node
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_node_address_InternalIP]
+            target_label: __address__
+            replacement: $1:10250
+          - source_labels: [__address__]
+            target_label: instance
+
+      - job_name: real-cadvisor
+        stream_parse: true
+        proxy_url: "http://localhost:8080"
+        scheme: https
+        metrics_path: /metrics/cadvisor
+        authorization:
+          type: Bearer
+          credentials_file: /var/run/secrets/kubelet/token
+        tls_config:
+          insecure_skip_verify: true
+        kubernetes_sd_configs:
+          - role: node
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_node_address_InternalIP]
+            target_label: __address__
+            replacement: $1:10250
+          - source_labels: [__address__]
+            target_label: instance
+
+      - job_name: real-kubeproxy
+        stream_parse: true
+        proxy_url: "http://localhost:8080"
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+          - role: node
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_node_address_InternalIP]
+            target_label: __address__
+            replacement: $1:10249
+          - source_labels: [__address__]
+            target_label: instance
+
+      - job_name: real-azure-cns
+        stream_parse: true
+        proxy_url: "http://localhost:8080"
+        metrics_path: /metrics
+        kubernetes_sd_configs:
+          - role: node
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_node_address_InternalIP]
+            target_label: __address__
+            replacement: $1:10092
+          - source_labels: [__address__]
+            target_label: instance
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vmagent-proxy-script
+  namespace: __NAMESPACE__
+data:
+  # Lightweight HTTP/HTTPS→CONNECT proxy for konnectivity-server.
+  # Handles two modes:
+  #   do_GET  — plain HTTP targets (fake-exporters, kube-proxy)
+  #   do_CONNECT — HTTPS targets (real kubelet/cadvisor); bidirectional byte relay
+  proxy.py: |
+    #!/usr/bin/env python3
+    """vmagent-proxy: HTTP/HTTPS → CONNECT adapter for konnectivity-server."""
+    import http.server, http.client, socket, ssl, sys, threading, io, select
+
+    PROXY_ADDR = ("konnectivity-server", 8083)
+    CERT_DIR = "/certs"
+    LISTEN_PORT = 8080
+
+    def make_ssl_context():
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+        ctx.load_cert_chain(f"{CERT_DIR}/client.crt", f"{CERT_DIR}/client.key")
+        ctx.load_verify_locations(f"{CERT_DIR}/ca.crt")
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE  # self-signed certs in test
+        return ctx
+
+    ssl_ctx = make_ssl_context()
+
+    class ProxyHandler(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):
+            # Extract target host:port from the absolute-form URL
+            # VMAgent sends: GET http://10.0.0.5:9090/metrics HTTP/1.1
+            if self.path.startswith("http://"):
+                from urllib.parse import urlparse
+                u = urlparse(self.path)
+                target_host = u.hostname
+                target_port = u.port or 80
+                path = u.path or "/"
+            else:
+                target_host = self.headers.get("Host", "").split(":")[0]
+                target_port = 9090
+                path = self.path
+
+            target = f"{target_host}:{target_port}"
+            try:
+                # 1. Open mTLS connection to konnectivity-server
+                raw = socket.create_connection(PROXY_ADDR, timeout=10)
+                conn = ssl_ctx.wrap_socket(raw, server_hostname="konnectivity-server")
+
+                # 2. Send CONNECT to create tunnel
+                connect_req = f"CONNECT {target} HTTP/1.1\r\nHost: {target}\r\n\r\n"
+                conn.sendall(connect_req.encode())
+
+                # 3. Read CONNECT response
+                resp_data = b""
+                while b"\r\n\r\n" not in resp_data:
+                    chunk = conn.recv(4096)
+                    if not chunk:
+                        raise ConnectionError("konnectivity-server closed connection")
+                    resp_data += chunk
+
+                status_line = resp_data.split(b"\r\n")[0].decode()
+                if "200" not in status_line:
+                    raise ConnectionError(f"CONNECT failed: {status_line}")
+
+                # 4. Send the actual GET through the tunnel
+                get_req = f"GET {path} HTTP/1.1\r\nHost: {target}\r\nConnection: close\r\n\r\n"
+                conn.sendall(get_req.encode())
+
+                # 5. Parse response using http.client (handles chunked encoding)
+                resp = http.client.HTTPResponse(conn)
+                resp.begin()
+                body = resp.read()
+
+                # 6. Forward decoded response to VMAgent
+                self.send_response(resp.status)
+                for key, val in resp.getheaders():
+                    if key.lower() not in ("transfer-encoding", "connection"):
+                        self.send_header(key, val)
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                resp.close()
+                conn.close()
+
+            except Exception as e:
+                self.send_response(502)
+                self.send_header("Content-Type", "text/plain")
+                msg = f"proxy error: {e}".encode()
+                self.send_header("Content-Length", str(len(msg)))
+                self.end_headers()
+                self.wfile.write(msg)
+
+        def do_CONNECT(self):
+            """Handle HTTPS proxy: tunnel raw bytes through konnectivity."""
+            target = self.path  # host:port
+            try:
+                # 1. Open mTLS connection to konnectivity-server
+                raw = socket.create_connection(PROXY_ADDR, timeout=10)
+                conn = ssl_ctx.wrap_socket(raw, server_hostname="konnectivity-server")
+
+                # 2. Send CONNECT to konnectivity to create tunnel to target
+                connect_req = f"CONNECT {target} HTTP/1.1\r\nHost: {target}\r\n\r\n"
+                conn.sendall(connect_req.encode())
+
+                # 3. Read CONNECT response from konnectivity
+                resp_data = b""
+                while b"\r\n\r\n" not in resp_data:
+                    chunk = conn.recv(4096)
+                    if not chunk:
+                        raise ConnectionError("konnectivity-server closed connection")
+                    resp_data += chunk
+
+                status_line = resp_data.split(b"\r\n")[0].decode()
+                if "200" not in status_line:
+                    raise ConnectionError(f"CONNECT failed: {status_line}")
+
+                # 4. Tell VMAgent the tunnel is established
+                self.send_response(200, "Connection Established")
+                self.end_headers()
+
+                # 5. Bidirectional relay: VMAgent ←→ konnectivity tunnel
+                client_sock = self.connection
+                tunnel_sock = conn
+                sockets = [client_sock, tunnel_sock]
+                while True:
+                    readable, _, errored = select.select(sockets, [], sockets, 30)
+                    if errored:
+                        break
+                    for s in readable:
+                        data = s.recv(65536)
+                        if not data:
+                            sockets = []  # break outer loop
+                            break
+                        if s is client_sock:
+                            tunnel_sock.sendall(data)
+                        else:
+                            client_sock.sendall(data)
+                    if not sockets:
+                        break
+
+                conn.close()
+
+            except Exception as e:
+                try:
+                    self.send_response(502)
+                    self.send_header("Content-Type", "text/plain")
+                    msg = f"CONNECT proxy error: {e}".encode()
+                    self.send_header("Content-Length", str(len(msg)))
+                    self.end_headers()
+                    self.wfile.write(msg)
+                except Exception:
+                    pass
+
+        def log_message(self, fmt, *args):
+            pass  # suppress per-request logging
+
+    class ThreadedServer(http.server.HTTPServer):
+        allow_reuse_address = True
+        daemon_threads = True
+        def process_request(self, request, client_address):
+            t = threading.Thread(target=self.process_request_thread, args=(request, client_address))
+            t.daemon = True
+            t.start()
+        def process_request_thread(self, request, client_address):
+            try:
+                self.finish_request(request, client_address)
+            except Exception:
+                self.handle_error(request, client_address)
+            finally:
+                self.shutdown_request(request)
+
+    print(f"vmagent-proxy listening on :{LISTEN_PORT}, forwarding CONNECT to {PROXY_ADDR}", flush=True)
+    ThreadedServer(("", LISTEN_PORT), ProxyHandler).serve_forever()
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: vmagent
+  namespace: __NAMESPACE__
+  labels:
+    app: vmagent
+spec:
+  replicas: 1
+  serviceName: vmagent
+  selector:
+    matchLabels:
+      app: vmagent
+  template:
+    metadata:
+      labels:
+        app: vmagent
+    spec:
+      containers:
+        # VMAgent — scrapes targets through the proxy sidecar
+        - name: vmagent
+          image: __VMAGENT_IMAGE__
+          args:
+            - -promscrape.config=/config/prometheus.yml
+            - -httpListenAddr=:8429
+            - -promscrape.suppressDuplicateScrapeTargetErrors
+            - -promscrape.noStaleMarkers=true
+            - -promscrape.config.strictParse=true
+            - -promscrape.maxScrapeSize=33554432
+            - -remoteWrite.url=http://vmsingle:8428/api/v1/write
+            - -remoteWrite.flushInterval=30s
+            - -remoteWrite.sendTimeout=10s
+            - -remoteWrite.maxDiskUsagePerURL=1073741824
+            - -remoteWrite.rateLimit=524288
+            - -remoteWrite.maxBlockSize=524288
+            - -remoteWrite.tmpDataPath=/tmp/vmagent-remotewrite-data
+            - -remoteWrite.dropSamplesOnOverload=true
+          ports:
+            - name: http
+              containerPort: 8429
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: kubelet-token
+              mountPath: /var/run/secrets/kubelet
+              readOnly: true
+
+        # vmagent-proxy sidecar — converts VMAgent HTTP/HTTPS to CONNECT
+        # through mTLS tunnel to konnectivity-server
+        - name: vmagent-proxy
+          image: python:3.11-alpine
+          command: ["python3", "/scripts/proxy.py"]
+          ports:
+            - name: proxy
+              containerPort: 8080
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          volumeMounts:
+            - name: certs
+              mountPath: /certs
+              readOnly: true
+            - name: proxy-script
+              mountPath: /scripts
+              readOnly: true
+
+      volumes:
+        - name: config
+          configMap:
+            name: vmagent-config
+        - name: certs
+          secret:
+            secretName: konnectivity-certs
+        - name: proxy-script
+          configMap:
+            name: vmagent-proxy-script
+        - name: kubelet-token
+          secret:
+            secretName: kubelet-scrape-token
+            optional: true
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vmagent
+  namespace: __NAMESPACE__
+  labels:
+    app: vmagent
+spec:
+  clusterIP: None
+  selector:
+    app: vmagent
+  ports:
+    - name: http
+      port: 8429
+      targetPort: 8429

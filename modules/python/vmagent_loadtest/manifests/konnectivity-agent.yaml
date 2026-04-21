@@ -1,0 +1,79 @@
+# Konnectivity Agent — deployed on the "dataplane" cluster
+# One deployment per test namespace, agents connect to the server LB on the control plane.
+#
+# Template variables:
+#   __NAMESPACE__        — test namespace (e.g., loadtest-150)
+#   __AGENT_IMAGE__      — konnectivity agent image
+#   __SERVER_HOST__      — konnectivity server LB IP or hostname
+#   __SERVER_PORT__      — konnectivity server agent port (8081)
+#   __AGENT_REPLICAS__   — number of agent pods (simulates N nodes)
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: __NAMESPACE__
+  labels:
+    loadtest: "true"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: konnectivity-agent
+  namespace: __NAMESPACE__
+  labels:
+    app: konnectivity-agent
+spec:
+  replicas: __AGENT_REPLICAS__
+  selector:
+    matchLabels:
+      app: konnectivity-agent
+  template:
+    metadata:
+      labels:
+        app: konnectivity-agent
+    spec:
+      containers:
+        - name: konnectivity-agent
+          image: __AGENT_IMAGE__
+          command:
+            - /proxy-agent
+          args:
+            - --proxy-server-host=__SERVER_HOST__
+            - --proxy-server-port=__SERVER_PORT__
+            - --health-server-port=8082
+            - --agent-identifiers=default-route=true
+            - --ca-cert=/certs/ca.crt
+            - --agent-cert=/certs/client.crt
+            - --agent-key=/certs/client.key
+            - --keepalive-time=30s
+            - --sync-forever=true
+            - --enable-profiling
+            - --admin-bind-address=0.0.0.0
+            - --admin-server-port=8094
+            - -v=2
+          ports:
+            - name: health
+              containerPort: 8082
+            - name: admin
+              containerPort: 8094
+          livenessProbe:
+            httpGet:
+              path: /ready
+              port: 8082
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          volumeMounts:
+            - name: certs
+              mountPath: /certs
+              readOnly: true
+      volumes:
+        - name: certs
+          secret:
+            secretName: konnectivity-certs

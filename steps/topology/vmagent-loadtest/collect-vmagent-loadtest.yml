@@ -1,0 +1,38 @@
+parameters:
+- name: cloud
+  type: string
+  default: ''
+- name: engine_input
+  type: object
+  default: {}
+- name: regions
+  type: object
+  default: {}
+
+steps:
+- script: |
+    set -euo pipefail
+
+    WORK_DIR=$(ls -td /tmp/fake-cp-loadtest.* 2>/dev/null | head -1)
+    if [[ -z "$WORK_DIR" ]]; then
+      echo "##vso[task.logissue type=warning;]No test results found in /tmp/fake-cp-loadtest.*"
+      exit 0
+    fi
+
+    # Copy results to telescope's expected output directory
+    mkdir -p $(Pipeline.Workspace)/results
+    if [[ -d "${WORK_DIR}/results" ]]; then
+      cp -r "${WORK_DIR}/results"/. $(Pipeline.Workspace)/results/
+    fi
+    if [[ -d "${WORK_DIR}/pprof" ]]; then
+      cp -r "${WORK_DIR}/pprof" $(Pipeline.Workspace)/results/pprof
+    fi
+
+    echo "Collected results from ${WORK_DIR}:"
+    ls -lR $(Pipeline.Workspace)/results/
+  displayName: "Collect VMAgent load test results"
+
+- publish: $(Pipeline.Workspace)/results
+  artifact: vmagent-loadtest-results-$(System.JobName)
+  displayName: "Publish VMAgent results"
+  condition: always()

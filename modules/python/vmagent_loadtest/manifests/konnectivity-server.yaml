@@ -1,0 +1,105 @@
+# Konnectivity Server — deployed on the "control plane" cluster
+# One per test namespace, with a LoadBalancer service for agent connectivity.
+#
+# Template variables (replaced by orchestration script):
+#   __NAMESPACE__       — test namespace (e.g., loadtest-150)
+#   __SERVER_IMAGE__    — konnectivity server image
+#   __SERVER_COUNT__    — number of server replicas
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: __NAMESPACE__
+  labels:
+    loadtest: "true"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: konnectivity-server
+  namespace: __NAMESPACE__
+  labels:
+    app: konnectivity-server
+spec:
+  replicas: __SERVER_COUNT__
+  selector:
+    matchLabels:
+      app: konnectivity-server
+  template:
+    metadata:
+      labels:
+        app: konnectivity-server
+    spec:
+      containers:
+        - name: konnectivity-server
+          image: __SERVER_IMAGE__
+          command:
+            - /proxy-server
+          args:
+            - --mode=http-connect
+            - --server-count=__SERVER_COUNT__
+            - --agent-port=8081
+            - --server-port=8083
+            - --health-port=8082
+            - --server-ca-cert=/certs/ca.crt
+            - --server-cert=/certs/server.crt
+            - --server-key=/certs/server.key
+            - --cluster-cert=/certs/server.crt
+            - --cluster-key=/certs/server.key
+            - --proxy-strategies=default,destHost,defaultRoute
+            - --keepalive-time=30s
+            - --enable-profiling
+            - --admin-port=8095
+            - --v=2
+          ports:
+            - name: agent
+              containerPort: 8081
+            - name: health
+              containerPort: 8082
+            - name: tunnel
+              containerPort: 8083
+            - name: metrics
+              containerPort: 8095
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8082
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          volumeMounts:
+            - name: certs
+              mountPath: /certs
+              readOnly: true
+      volumes:
+        - name: certs
+          secret:
+            secretName: konnectivity-certs
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: konnectivity-server
+  namespace: __NAMESPACE__
+  labels:
+    app: konnectivity-server
+spec:
+  type: LoadBalancer
+  selector:
+    app: konnectivity-server
+  ports:
+    - name: agent
+      port: 8081
+      targetPort: 8081
+    - name: tunnel
+      port: 8083
+      targetPort: 8083
+    - name: metrics
+      port: 8095
+      targetPort: 8095

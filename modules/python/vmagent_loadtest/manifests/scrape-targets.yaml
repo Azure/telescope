@@ -1,0 +1,256 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: fake-exporter
+  labels:
+    loadtest: "true"
+---
+# ── RBAC: allow any service account to discover pods ──────────
+# vmagent runs in the CCP namespace with an unknown SA.
+# This grants all SAs read access to fake-exporter namespace
+# for pod/service/endpoint discovery. Safe for a test namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: fake-exporter-discovery
+  namespace: fake-exporter
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "endpoints"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: fake-exporter-discovery
+  namespace: fake-exporter
+subjects:
+  - kind: Group
+    name: system:serviceaccounts
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: fake-exporter-discovery
+  apiGroup: rbac.authorization.k8s.io
+---
+# ── fake-nodeexp ──────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: fake-nodeexp-headless
+  namespace: fake-exporter
+spec:
+  clusterIP: None
+  selector:
+    app: fake-nodeexp
+  ports:
+    - name: metrics
+      port: 19100
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: fake-nodeexp
+  namespace: fake-exporter
+spec:
+  serviceName: fake-nodeexp-headless
+  replicas: __REPLICAS__
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: fake-nodeexp
+  template:
+    metadata:
+      labels:
+        app: fake-nodeexp
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "19100"
+        prometheus.io/path: "/metrics"
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: fake-exporter
+          image: __EXPORTER_IMAGE__
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 19100
+          env:
+            - name: PORT
+              value: "19100"
+            - name: PROFILE
+              value: "__PROFILE__"
+          resources:
+            requests:
+              cpu: "5m"
+              memory: "16Mi"
+            limits:
+              cpu: "50m"
+              memory: "64Mi"
+---
+# ── fake-kubelet ──────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: fake-kubelet-headless
+  namespace: fake-exporter
+spec:
+  clusterIP: None
+  selector:
+    app: fake-kubelet
+  ports:
+    - name: metrics
+      port: 10250
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: fake-kubelet
+  namespace: fake-exporter
+spec:
+  serviceName: fake-kubelet-headless
+  replicas: __REPLICAS__
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: fake-kubelet
+  template:
+    metadata:
+      labels:
+        app: fake-kubelet
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "10250"
+        prometheus.io/path: "/metrics"
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: fake-exporter
+          image: __EXPORTER_IMAGE__
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 10250
+          env:
+            - name: PORT
+              value: "10250"
+            - name: PROFILE
+              value: "__PROFILE__"
+          resources:
+            requests:
+              cpu: "5m"
+              memory: "16Mi"
+            limits:
+              cpu: "50m"
+              memory: "64Mi"
+---
+# ── fake-cadvisor ─────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: fake-cadvisor-headless
+  namespace: fake-exporter
+spec:
+  clusterIP: None
+  selector:
+    app: fake-cadvisor
+  ports:
+    - name: metrics
+      port: 19101
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: fake-cadvisor
+  namespace: fake-exporter
+spec:
+  serviceName: fake-cadvisor-headless
+  replicas: __REPLICAS__
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: fake-cadvisor
+  template:
+    metadata:
+      labels:
+        app: fake-cadvisor
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "19101"
+        prometheus.io/path: "/metrics"
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: fake-exporter
+          image: __EXPORTER_IMAGE__
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 19101
+          env:
+            - name: PORT
+              value: "19101"
+            - name: SERIES
+              value: "50"
+            - name: PROFILE
+              value: "__PROFILE__"
+          resources:
+            requests:
+              cpu: "5m"
+              memory: "16Mi"
+            limits:
+              cpu: "50m"
+              memory: "64Mi"
+---
+# ── fake-kubeproxy ────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: fake-kubeproxy-headless
+  namespace: fake-exporter
+spec:
+  clusterIP: None
+  selector:
+    app: fake-kubeproxy
+  ports:
+    - name: metrics
+      port: 10256
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: fake-kubeproxy
+  namespace: fake-exporter
+spec:
+  serviceName: fake-kubeproxy-headless
+  replicas: __REPLICAS__
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: fake-kubeproxy
+  template:
+    metadata:
+      labels:
+        app: fake-kubeproxy
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "10256"
+        prometheus.io/path: "/metrics"
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: fake-exporter
+          image: __EXPORTER_IMAGE__
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 10256
+          env:
+            - name: PORT
+              value: "10256"
+            - name: PROFILE
+              value: "__PROFILE__"
+          resources:
+            requests:
+              cpu: "5m"
+              memory: "16Mi"
+            limits:
+              cpu: "50m"
+              memory: "64Mi"

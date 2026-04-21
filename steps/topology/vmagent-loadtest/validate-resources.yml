@@ -1,0 +1,29 @@
+parameters:
+- name: cloud
+  type: string
+- name: engine
+  type: string
+- name: regions
+  type: object
+
+steps:
+- template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
+  parameters:
+    role: cp
+    region: ${{ parameters.regions[0] }}
+    alias: cp
+
+- template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
+  parameters:
+    role: dp
+    region: ${{ parameters.regions[0] }}
+    alias: dp
+
+- script: |
+    set -euo pipefail
+    echo "Validating CP cluster..."
+    kubectl --context cp get nodes -o wide
+    echo "Validating DP cluster..."
+    kubectl --context dp get nodes -o wide
+    echo "Both clusters are accessible."
+  displayName: "Validate CP + DP clusters"
