@@ -79,8 +79,7 @@ steps:
         --cl2-config-file "${CL2_CONFIG_FILE}" \
         --kubeconfig "${HOME}/.kube/config" \
         --provider "${CLOUD}" \
-        --scrape-containerd ${SCRAPE_CONTAINERD:-False} \
-        --scrape-kube-proxy ${SCRAPE_KUBE_PROXY:-True}
+        --scrape-containerd ${SCRAPE_CONTAINERD:-False}
     workingDirectory: modules/python
     env:
       ${{ if eq(parameters.cloud, 'azure') }}:

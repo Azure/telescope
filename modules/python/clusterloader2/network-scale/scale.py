@@ -53,15 +53,13 @@ def execute_clusterloader2(
     cl2_config_file,
     kubeconfig,
     provider,
-    scrape_containerd,
-    scrape_kube_proxy=True
+    scrape_containerd
 ):
     run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider,
                     cl2_config_file=cl2_config_file, overrides=True, enable_prometheus=True,
                     scrape_containerd=scrape_containerd, tear_down_prometheus=True,
                     scrape_kubelets=True, scrape_ksm=True,
-                    scrape_metrics_server=True,
-                    scrape_kube_proxy=scrape_kube_proxy)
+                    scrape_metrics_server=True)
 
 
 def collect_clusterloader2(
@@ -167,9 +165,6 @@ def main():
     parser_execute.add_argument("--provider", type=str, required=True, help="Cloud provider name")
     parser_execute.add_argument("--scrape-containerd", type=str2bool, choices=[True, False], default=False,
                                 help="Whether to scrape containerd metrics. Must be either True or False")
-    parser_execute.add_argument("--scrape-kube-proxy", type=str2bool, choices=[True, False], default=True,
-                                help="Whether to scrape kube-proxy metrics. Set to False for Cilium-based clusters where kube-proxy is not deployed.")
-
     # Sub-command for collect_clusterloader2
     parser_collect = subparsers.add_parser("collect", help="Collect scale up data")
     parser_collect.add_argument("--cl2_report_dir", type=str, help="Path to the CL2 report directory")
@@ -210,8 +205,7 @@ def main():
                                  )
     elif args.command == "execute":
         execute_clusterloader2(args.cl2_image, args.cl2_config_dir, args.cl2_report_dir, args.cl2_config_file,
-                               args.kubeconfig, args.provider, args.scrape_containerd,
-                               args.scrape_kube_proxy)
+                               args.kubeconfig, args.provider, args.scrape_containerd)
     elif args.command == "collect":
         collect_clusterloader2(args.cl2_report_dir, args.cloud_info, args.run_id, args.run_url,
                                args.result_file, args.test_type, args.start_timestamp,

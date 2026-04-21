@@ -36,7 +36,6 @@ stages:
               traffic_replica_count: 15
               network_policies_per_namespace: 1000
               cl2_config_file: config.yaml
-              scrape_kube_proxy: false
               # fortio variables
               fortio_servers_per_deployment: 15
               fortio_clients_per_deployment: 15
