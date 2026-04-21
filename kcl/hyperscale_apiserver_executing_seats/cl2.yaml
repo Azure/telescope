@@ -57,7 +57,7 @@ data:
     CL2_RATE_LIMIT_POD_CREATION: false
     CL2_ENABLE_PVS: false
     CL2_ENABLE_CLUSTER_OOMS_TRACKER: false
-    CL2_DEFAULT_QPS: 4000
+    CL2_DEFAULT_QPS: 5000
     CL2_RUN_ON_ARM_NODES: true
 ---
 apiVersion: batch/v1

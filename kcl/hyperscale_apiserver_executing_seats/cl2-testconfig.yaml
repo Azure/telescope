@@ -104,7 +104,7 @@ data:
     - name: default
       globalQPSLoad:
         qps: {{$defaultQps}}
-        burst: 5000
+        burst: 8000
     - name: RandomizedSaturationTimeLimited
       RandomizedTimeLimitedLoad:
         timeLimit: {{$saturationTime}}s
