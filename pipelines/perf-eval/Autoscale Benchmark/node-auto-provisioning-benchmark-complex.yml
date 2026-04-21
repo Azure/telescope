@@ -65,6 +65,8 @@ stages:
           cloud: azure
           regions:
             - canadacentral
+          input_file_mapping:
+            canadacentral: scenarios/perf-eval/nap-complex/terraform-inputs/azure-canadacentral.tfvars
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250912"
