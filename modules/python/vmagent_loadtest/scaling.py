@@ -1,5 +1,6 @@
 """AKS node scaling helpers."""
 
+import json
 import time
 
 from .config import log
@@ -10,6 +11,19 @@ from .utils import kubectl, retry, run
 def scale_dp_nodepool(resource_group: str, cluster_name: str, nodepool: str,
                       node_count: int, timeout_minutes: int = 30) -> None:
     """Scale the DP cluster nodepool to the desired node count via az CLI."""
+    # Check current count to avoid "same count" error
+    result = run([
+        "az", "aks", "nodepool", "show",
+        "--resource-group", resource_group,
+        "--cluster-name", cluster_name,
+        "--name", nodepool,
+        "-o", "json",
+    ], check=False)
+    if result.returncode == 0:
+        current = json.loads(result.stdout).get("count", 0)
+        if current == node_count:
+            log.info("Nodepool '%s' already at %d nodes, skipping scale.", nodepool, node_count)
+            return
     log.info("Scaling DP nodepool '%s' to %d nodes...", nodepool, node_count)
     run([
         "az", "aks", "nodepool", "scale",
