@@ -25,6 +25,7 @@ DEFAULT_CIDR = "100.64.0.0/10"
 DEFAULT_NODE_IP = "100.64.0.1"
 DEFAULT_KUBE_CONNECTION_QPS = None
 DEFAULT_KUBE_CONNECTION_BURST = None
+DEFAULT_NODE_PORT = 10247
 
 
 @dataclass
@@ -176,6 +177,8 @@ class KWOK(ABC):
 
         controller_container = deployment.spec.template.spec.containers[0]
         self._upsert_container_arg(controller_container, "--node-ip", "$(POD_IP)")
+        self._upsert_container_arg(controller_container, "--node-port", str(DEFAULT_NODE_PORT))
+        self._upsert_container_arg(controller_container, "--server-address", f"0.0.0.0:{DEFAULT_NODE_PORT}")
         self._upsert_container_arg(controller_container, "--manage-all-nodes", "false")
         self._upsert_container_arg(
             controller_container,
