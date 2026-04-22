@@ -10,7 +10,6 @@ aks_cli_config_list = [
     role               = "nap"
     aks_name           = "nap"
     sku_tier           = "standard"
-    kubernetes_version = "1.33"
     default_node_pool = {
       name       = "system"
       node_count = 5
