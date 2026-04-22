@@ -1,7 +1,4 @@
-# cluster configuration for Morgan Stanley - canadacentral
-# Differences from azure.tfvars:
-#   - No Bastion host (bastionHosts API 2025-09-01 not yet supported in canadacentral)
-#   - No ACR private link (privatelink.azurecr.io DNS zone already exists in the subscription)
+# cluster configuration for Morgan Stanley
 scenario_type  = "perf-eval"
 scenario_name  = "nap-complex"
 deletion_delay = "2h"
@@ -57,13 +54,30 @@ network_config_list = [
         address_prefix = "10.240.0.0/16"
       },
       {
+        name = "jumpbox-subnet"
+        // Dedicated subnet for jumpbox (can be smaller than /16, e.g., /27)
+        address_prefix = "10.224.0.0/27"
+      },
+      {
+        name = "AzureBastionSubnet"
+        # Dedicated subnet required by Azure Bastion (/27 or larger)
+        address_prefix = "10.224.0.32/27"
+      },
+      {
         name           = "AzureFirewallSubnet"
         address_prefix = "10.193.0.0/26"
       }
     ]
     network_security_group_name = ""
-    nic_public_ip_associations  = []
-    nsr_rules                   = []
+    nic_public_ip_associations = [
+      {
+        nic_name              = "jumpbox-nic"
+        subnet_name           = "jumpbox-subnet"
+        ip_configuration_name = "jumpbox-ipconfig"
+        count                 = 1
+      }
+    ]
+    nsr_rules = []
   }
 ]
 
@@ -144,15 +158,25 @@ firewall_config_list = [
   }
 ]
 
-# ACR without private link - privatelink.azurecr.io DNS zone already exists in the subscription
+# Optional Azure Container Registry with Private Link (Private Endpoint)
+# NOTE: ACR Private Link requires Premium SKU.
 acr_config_list = [
   {
+    # If omitted, Terraform will generate a name based on scenario + run_id.
+    # name = "<globally-unique-acr-name>"
     sku                           = "Premium"
     admin_enabled                 = false
-    public_network_access_enabled = true
+    public_network_access_enabled = false
+
+    private_endpoint = {
+      subnet_name = "nap-private-endpoints"
+    }
 
     acrpull_aks_cli_roles = ["nap"]
 
+    # Artifact cache (pull-through cache) rules.
+    # Mirrors:
+    #   az acr cache create -n aks-managed-mcr -r ${REGISTRY_NAME} -g ${RESOURCE_GROUP} --source-repo "mcr.microsoft.com/*" --target-repo "aks-managed-repository/*"
     cache_rules = [
       {
         name              = "aks-managed-mcr"
@@ -162,7 +186,6 @@ acr_config_list = [
     ]
   }
 ]
-
 route_table_config_list = [
   {
     name                          = "nap-rt"
@@ -333,4 +356,28 @@ aks_cli_config_list = [
   }
 ]
 
-vm_config_list = []
+vm_config_list = [
+  {
+    role     = "nap"
+    name     = "my-jumpbox"
+    vm_size  = "Standard_D4s_v3"
+    nic_name = "jumpbox-nic"
+    aks_name = "nap-complex"
+    nsg = {
+      enabled = true
+      rules = [
+        {
+          name                   = "AllowSSH"
+          priority               = 100
+          destination_port_range = "22"
+          # Azure Bastion is deployed in AzureBastionSubnet (10.224.0.32/27).
+          # Allow SSH only from that subnet; do not open 22 to the internet.
+          source_address_prefix = "10.224.0.32/27"
+        }
+      ]
+    }
+    vm_tags = {
+      jumpbox = "true"
+    }
+  }
+]
