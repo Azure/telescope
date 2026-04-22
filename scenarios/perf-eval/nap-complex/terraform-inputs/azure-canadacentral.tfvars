@@ -1,4 +1,7 @@
-# cluster configuration for Morgan Stanley
+# cluster configuration for Morgan Stanley - canadacentral
+# Differences from azure.tfvars:
+#   - No Bastion host (bastionHosts API 2025-09-01 not yet supported in canadacentral)
+#   - No ACR private link (privatelink.azurecr.io DNS zone already exists in the subscription)
 scenario_type  = "perf-eval"
 scenario_name  = "nap-complex"
 deletion_delay = "2h"
@@ -8,6 +11,10 @@ public_ip_config_list = [
   {
     name  = "firewall-pip"
     count = 10
+  },
+  {
+    name  = "jumpbox-pip"
+    count = 1
   }
 ]
 
@@ -74,6 +81,7 @@ network_config_list = [
         nic_name              = "jumpbox-nic"
         subnet_name           = "jumpbox-subnet"
         ip_configuration_name = "jumpbox-ipconfig"
+        public_ip_name        = "jumpbox-pip"
         count                 = 1
       }
     ]
@@ -158,19 +166,12 @@ firewall_config_list = [
   }
 ]
 
-# Optional Azure Container Registry with Private Link (Private Endpoint)
-# NOTE: ACR Private Link requires Premium SKU.
+# ACR without private link - privatelink.azurecr.io DNS zone already exists in the subscription
 acr_config_list = [
   {
-    # If omitted, Terraform will generate a name based on scenario + run_id.
-    # name = "<globally-unique-acr-name>"
     sku                           = "Premium"
     admin_enabled                 = false
-    public_network_access_enabled = false
-
-    private_endpoint = {
-      subnet_name = "nap-private-endpoints"
-    }
+    public_network_access_enabled = true
 
     acrpull_aks_cli_roles = ["nap"]
 
@@ -370,9 +371,8 @@ vm_config_list = [
           name                   = "AllowSSH"
           priority               = 100
           destination_port_range = "22"
-          # Azure Bastion is deployed in AzureBastionSubnet (10.224.0.32/27).
-          # Allow SSH only from that subnet; do not open 22 to the internet.
-          source_address_prefix = "10.224.0.32/27"
+          # No Bastion in canadacentral; allow SSH from any source (pipeline agent).
+          source_address_prefix = "*"
         }
       ]
     }
