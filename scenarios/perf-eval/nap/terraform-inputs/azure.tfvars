@@ -5,11 +5,30 @@ owner          = "aks"
 
 aks_config_list = []
 
+network_config_list = [
+  {
+    role               = "crud"
+    vnet_name          = "nap-vnet"
+    vnet_address_space = "10.192.0.0/10"
+    subnet = [
+      {
+        name           = "nap-subnet"
+        address_prefix = "10.192.0.0/16"
+      }
+    ]
+    network_security_group_name = ""
+    nic_public_ip_associations  = []
+    nsr_rules                   = []
+  }
+]
+
 aks_cli_config_list = [
   {
-    role               = "nap"
-    aks_name           = "nap"
-    sku_tier           = "standard"
+    role                  = "nap"
+    aks_name              = "nap"
+    sku_tier              = "standard"
+    subnet_name           = "nap-subnet"
+    managed_identity_name = "nap-identity"
     default_node_pool = {
       name       = "system"
       node_count = 5
@@ -26,16 +45,8 @@ aks_cli_config_list = [
         value = "azure"
       },
       {
-        name  = "network-plugin-mode"
-        value = "overlay"
-      },
-      {
         name  = "node-init-taints"
         value = "CriticalAddonsOnly=true:NoSchedule"
-      },
-      {
-        name  = "pod-cidr"
-        value = "10.128.0.0/11"
       }
     ]
   }
