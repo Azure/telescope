@@ -1,6 +1,7 @@
 """Constants and shared configuration for the fake control plane load test."""
 
 import logging
+import os
 from pathlib import Path
 
 MODULE_DIR = Path(__file__).resolve().parent
@@ -11,7 +12,9 @@ KONN_SERVER_IMAGE = "mcr.microsoft.com/oss/v2/kubernetes/apiserver-network-proxy
 KONN_AGENT_IMAGE = "mcr.microsoft.com/oss/v2/kubernetes/apiserver-network-proxy/agent:v0.32.1-3"
 VMAGENT_IMAGE = "mcr.microsoft.com/oss/v2/victoriametrics/vmagent:v1.127.0-1"
 VMSINGLE_IMAGE = "victoriametrics/victoria-metrics:v1.117.0"
-FAKE_EXPORTER_IMAGE = "cuongcr.azurecr.io/fake-exporter:latest"
+FAKE_EXPORTER_IMAGE = os.environ.get(
+    "FAKE_EXPORTER_IMAGE", "cuongcr.azurecr.io/fake-exporter:latest"
+)
 
 # Fake exporter roles: (statefulset_name, app_label, port)
 FAKE_EXPORTER_ROLES = [

@@ -110,7 +110,10 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
     # 11. Collect metrics
     measurements = collect_metrics(cp_kubeconfig, dp_kubeconfig, namespace, tier, work_dir)
 
-    # 11b. Collect pprof profiles from konn-server, konn-agent, and vmagent
+    # 11b. Brief pause to let port-forward ports fully release before pprof
+    time.sleep(5)
+
+    # 11c. Collect pprof profiles from konn-server, konn-agent, and vmagent
     pprof_results = collect_pprof(cp_kubeconfig, dp_kubeconfig, namespace, work_dir, label=f"tier{tier}")
 
     # 12. Evaluate pass/fail

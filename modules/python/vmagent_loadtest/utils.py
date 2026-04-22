@@ -77,9 +77,16 @@ class PortForward:
 
     def __enter__(self):
         self.proc = subprocess.Popen(
-            self.cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+            self.cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
-        time.sleep(2)  # wait for port-forward to establish
+        # Wait for port-forward to establish, verifying the process is alive
+        time.sleep(3)
+        if self.proc.poll() is not None:
+            _, stderr = self.proc.communicate()
+            raise RuntimeError(
+                f"port-forward exited immediately (rc={self.proc.returncode}): "
+                f"{stderr.decode(errors='replace').strip()}"
+            )
         return self
 
     def __exit__(self, *exc):

@@ -36,6 +36,63 @@ def extract_prom_sum(metrics_text: str, pattern: str) -> float:
     return total
 
 
+def extract_histogram_percentiles(metrics_text: str, metric_name: str,
+                                   percentiles: tuple = (0.5, 0.9, 0.99)) -> dict:
+    """Extract percentiles from a Prometheus histogram using bucket boundaries.
+
+    Returns dict with p50, p90, p99 (or whatever percentiles are requested),
+    plus sum, count, and mean.
+    """
+    result = {"sum": 0.0, "count": 0.0, "mean": 0.0}
+    for p in percentiles:
+        result[f"p{int(p*100)}"] = None
+
+    buckets = []  # list of (le, count)
+    for line in metrics_text.split("\n"):
+        line = line.strip()
+        if line.startswith("#") or not line:
+            continue
+        if line.startswith(f"{metric_name}_bucket"):
+            le_match = re.search(r'le="([^"]+)"', line)
+            val_parts = line.rsplit(None, 1)
+            if le_match and len(val_parts) >= 2:
+                try:
+                    le = float(le_match.group(1)) if le_match.group(1) != "+Inf" else float("inf")
+                    count = float(val_parts[-1])
+                    buckets.append((le, count))
+                except ValueError:
+                    pass
+        elif line.startswith(f"{metric_name}_sum"):
+            parts = line.rsplit(None, 1)
+            if len(parts) >= 2:
+                try:
+                    result["sum"] = float(parts[-1])
+                except ValueError:
+                    pass
+        elif line.startswith(f"{metric_name}_count"):
+            parts = line.rsplit(None, 1)
+            if len(parts) >= 2:
+                try:
+                    result["count"] = float(parts[-1])
+                except ValueError:
+                    pass
+
+    if result["count"] > 0:
+        result["mean"] = round(result["sum"] / result["count"], 6)
+
+    if buckets:
+        buckets.sort(key=lambda x: x[0])
+        total = buckets[-1][1] if buckets else 0
+        for p in percentiles:
+            threshold = total * p
+            for le, count in buckets:
+                if count >= threshold and le != float("inf"):
+                    result[f"p{int(p*100)}"] = le
+                    break
+
+    return result
+
+
 def count_pods(kubeconfig: str, namespace: str, label: str) -> int:
     result = kubectl(kubeconfig, "-n", namespace, "get", "pods",
                      "-l", label, "--no-headers", check=False)
@@ -104,10 +161,34 @@ def sample_resource_usage(cp_kubeconfig: str, dp_kubeconfig: str,
     return sample
 
 
+def _classify_targets(active: list[dict]) -> tuple[list[dict], list[dict]]:
+    """Split active targets into (load_test_targets, infra_targets).
+
+    Load-test targets are the fake-exporter or real-target jobs.
+    Infrastructure targets (konnectivity-server, konnectivity-agent,
+    vmagent-self, vmsingle) are tracked separately so they don't skew
+    the scrape success rate.
+    """
+    infra_jobs = {"konnectivity-server", "konnectivity-agent", "vmagent-self", "vmsingle"}
+    load, infra = [], []
+    for t in active:
+        job = t.get("labels", {}).get("job", "")
+        if job in infra_jobs:
+            infra.append(t)
+        else:
+            load.append(t)
+    return load, infra
+
+
 def wait_for_targets(cp_kubeconfig: str, dp_kubeconfig: str, namespace: str,
                      expected: int, timeout_minutes: int,
                      poll_interval: int = 5) -> tuple[int, int, list[dict]]:
     """Wait for scrape targets and sample resource usage each cycle.
+
+    Only load-test targets (fake-exporter / real-target jobs) are counted
+    towards the ``expected`` threshold.  Infrastructure self-monitoring
+    targets are excluded so they don't inflate the total or lower the
+    scrape success rate.
 
     Returns (up, total, resource_samples).
     """
@@ -120,8 +201,9 @@ def wait_for_targets(cp_kubeconfig: str, dp_kubeconfig: str, namespace: str,
                 resp = retry_request(f"{pf.url}/api/v1/targets")
                 data = resp.json()
                 active = data.get("data", {}).get("activeTargets", [])
-                up = sum(1 for t in active if t.get("health") == "up")
-                total = len(active)
+                load_targets, _infra = _classify_targets(active)
+                up = sum(1 for t in load_targets if t.get("health") == "up")
+                total = len(load_targets)
         except Exception as e:
             log.warning("Target poll failed: %s — will retry", e)
 
@@ -164,8 +246,11 @@ def collect_metrics(cp_kubeconfig: str, dp_kubeconfig: str,
             targets_resp = retry_request(f"{pf.url}/api/v1/targets")
             targets_data = targets_resp.json()
             active = targets_data.get("data", {}).get("activeTargets", [])
-            scrape_up = sum(1 for t in active if t.get("health") == "up")
-            scrape_total = len(active)
+            load_targets, infra_targets = _classify_targets(active)
+            scrape_up = sum(1 for t in load_targets if t.get("health") == "up")
+            scrape_total = len(load_targets)
+            infra_up = sum(1 for t in infra_targets if t.get("health") == "up")
+            infra_total = len(infra_targets)
 
             raw_dir = work_dir / "raw" / namespace
             raw_dir.mkdir(parents=True, exist_ok=True)
@@ -174,11 +259,19 @@ def collect_metrics(cp_kubeconfig: str, dp_kubeconfig: str,
         log.warning("Failed to collect VMAgent targets: %s", e)
         scrape_up = 0
         scrape_total = 0
+        infra_up = 0
+        infra_total = 0
 
     measurements["scrape_targets_up"] = scrape_up
     measurements["scrape_targets_total"] = scrape_total
     measurements["scrape_success_rate"] = (
         round(scrape_up / scrape_total, 4) if scrape_total > 0 else 0.0
+    )
+    # Infrastructure targets tracked separately (not in pass/fail)
+    measurements["infra_targets_up"] = infra_up
+    measurements["infra_targets_total"] = infra_total
+    measurements["infra_success_rate"] = (
+        round(infra_up / infra_total, 4) if infra_total > 0 else 0.0
     )
 
     # --- VMAgent self-metrics ---
@@ -290,6 +383,43 @@ def collect_metrics(cp_kubeconfig: str, dp_kubeconfig: str,
                 round(fw_sum / fw_count, 6) if fw_count > 0 else 0.0
             )
 
+            # --- Histogram percentiles (p50/p90/p99) ---
+            dial_hist = extract_histogram_percentiles(
+                konn_metrics, "konnectivity_network_proxy_server_dial_duration_seconds")
+            measurements["konn_server_dial_p50_seconds"] = dial_hist["p50"]
+            measurements["konn_server_dial_p90_seconds"] = dial_hist["p90"]
+            measurements["konn_server_dial_p99_seconds"] = dial_hist["p99"]
+
+            fw_hist = extract_histogram_percentiles(
+                konn_metrics, "konnectivity_network_proxy_server_frontend_write_duration_seconds")
+            measurements["konn_server_frontend_write_p50_seconds"] = fw_hist["p50"]
+            measurements["konn_server_frontend_write_p90_seconds"] = fw_hist["p90"]
+            measurements["konn_server_frontend_write_p99_seconds"] = fw_hist["p99"]
+
+            endpoint_hist = extract_histogram_percentiles(
+                konn_metrics, "konnectivity_network_proxy_server_endpoint_dial_duration_seconds")
+            measurements["konn_server_endpoint_dial_p50_seconds"] = endpoint_hist["p50"]
+            measurements["konn_server_endpoint_dial_p90_seconds"] = endpoint_hist["p90"]
+            measurements["konn_server_endpoint_dial_p99_seconds"] = endpoint_hist["p99"]
+            measurements["konn_server_endpoint_dial_mean_seconds"] = endpoint_hist["mean"]
+            measurements["konn_server_endpoint_dial_count"] = endpoint_hist["count"]
+
+            # --- Byte counters ---
+            measurements["konn_server_frontend_write_bytes_total"] = extract_prom_value(
+                konn_metrics, r"^konnectivity_network_proxy_server_frontend_write_bytes_total\s")
+            measurements["konn_server_frontend_read_bytes_total"] = extract_prom_value(
+                konn_metrics, r"^konnectivity_network_proxy_server_frontend_read_bytes_total\s")
+
+            # --- Dial failures ---
+            measurements["konn_server_dial_failure_count"] = extract_prom_value(
+                konn_metrics, r"^konnectivity_network_proxy_server_dial_failure_count\s")
+
+            # --- Process CPU (for rate calculation across tiers) ---
+            measurements["konn_server_process_cpu_seconds_total"] = extract_prom_value(
+                konn_metrics, r"^process_cpu_seconds_total\s")
+            measurements["konn_server_resident_memory_bytes"] = extract_prom_value(
+                konn_metrics, r"^process_resident_memory_bytes\s")
+
     except Exception as e:
         log.warning("Failed to collect konnectivity-server metrics: %s", e)
         for key in ["konn_server_goroutines", "konn_server_dial_count",
@@ -301,7 +431,63 @@ def collect_metrics(cp_kubeconfig: str, dp_kubeconfig: str,
                     "konn_server_data_from_agent", "konn_server_data_to_agent",
                     "konn_server_close_req_total", "konn_server_close_rsp_total",
                     "konn_server_stream_errors_total", "konn_server_frontend_write_count",
-                    "konn_server_frontend_write_mean_seconds"]:
+                    "konn_server_frontend_write_mean_seconds",
+                    "konn_server_dial_p50_seconds", "konn_server_dial_p90_seconds",
+                    "konn_server_dial_p99_seconds",
+                    "konn_server_frontend_write_p50_seconds",
+                    "konn_server_frontend_write_p90_seconds",
+                    "konn_server_frontend_write_p99_seconds",
+                    "konn_server_endpoint_dial_p50_seconds",
+                    "konn_server_endpoint_dial_p90_seconds",
+                    "konn_server_endpoint_dial_p99_seconds",
+                    "konn_server_endpoint_dial_mean_seconds",
+                    "konn_server_endpoint_dial_count",
+                    "konn_server_frontend_write_bytes_total",
+                    "konn_server_frontend_read_bytes_total",
+                    "konn_server_dial_failure_count",
+                    "konn_server_process_cpu_seconds_total",
+                    "konn_server_resident_memory_bytes"]:
+            measurements.setdefault(key, 0)
+
+    # --- Konnectivity agent metrics (port 8094, sample first pod) ---
+    try:
+        with PortForward(dp_kubeconfig, namespace, "deployment/konnectivity-agent", 8094, 18094) as pf:
+            agent_resp = retry_request(f"{pf.url}/metrics")
+            agent_metrics = agent_resp.text
+
+            raw_dir = work_dir / "raw" / namespace
+            raw_dir.mkdir(parents=True, exist_ok=True)
+            (raw_dir / "konn_agent_metrics.txt").write_text(agent_metrics)
+
+            measurements["konn_agent_goroutines"] = extract_prom_value(
+                agent_metrics, r"^go_goroutines\s")
+            measurements["konn_agent_open_server_connections"] = extract_prom_value(
+                agent_metrics, r"^konnectivity_network_proxy_agent_open_server_connections\s")
+            measurements["konn_agent_open_endpoint_connections"] = extract_prom_value(
+                agent_metrics, r"^konnectivity_network_proxy_agent_open_endpoint_connections\s")
+            measurements["konn_agent_server_connection_failures"] = extract_prom_value(
+                agent_metrics, r"^konnectivity_network_proxy_agent_server_connection_failure_count\s")
+            measurements["konn_agent_endpoint_dial_failures"] = extract_prom_value(
+                agent_metrics, r"^konnectivity_network_proxy_agent_endpoint_dial_failure_count\s")
+            measurements["konn_agent_stream_packets_total"] = extract_prom_sum(
+                agent_metrics, r"^konnectivity_network_proxy_agent_stream_packets_total\{")
+            measurements["konn_agent_stream_errors_total"] = extract_prom_sum(
+                agent_metrics, r"^konnectivity_network_proxy_agent_stream_errors_total\{")
+            measurements["konn_agent_process_cpu_seconds_total"] = extract_prom_value(
+                agent_metrics, r"^process_cpu_seconds_total\s")
+            measurements["konn_agent_resident_memory_bytes"] = extract_prom_value(
+                agent_metrics, r"^process_resident_memory_bytes\s")
+
+    except Exception as e:
+        log.warning("Failed to collect konnectivity-agent metrics: %s", e)
+        for key in ["konn_agent_goroutines", "konn_agent_open_server_connections",
+                    "konn_agent_open_endpoint_connections",
+                    "konn_agent_server_connection_failures",
+                    "konn_agent_endpoint_dial_failures",
+                    "konn_agent_stream_packets_total",
+                    "konn_agent_stream_errors_total",
+                    "konn_agent_process_cpu_seconds_total",
+                    "konn_agent_resident_memory_bytes"]:
             measurements.setdefault(key, 0)
 
     # --- Resource usage (final snapshot) ---
@@ -407,6 +593,68 @@ def collect_metrics(cp_kubeconfig: str, dp_kubeconfig: str,
                     "vmsingle_series_up_count"]:
             measurements.setdefault(key, 0)
 
+    # --- Infrastructure time-series from vmsingle (from self-monitoring scrape jobs) ---
+    try:
+        with PortForward(cp_kubeconfig, namespace, "deployment/vmsingle", 8428, 18428) as pf:
+            def _query_instant(q: str):
+                """Run PromQL instant query, return first scalar or None."""
+                try:
+                    r = retry_request(f"{pf.url}/api/v1/query", params={"query": q})
+                    results = r.json().get("data", {}).get("result", [])
+                    if results:
+                        return float(results[0].get("value", [0, None])[1])
+                except Exception:
+                    pass
+                return None
+
+            # Konn-server CPU rate (from self-monitoring job)
+            measurements["konn_server_cpu_rate"] = _query_instant(
+                'rate(process_cpu_seconds_total{job="konnectivity-server"}[2m])')
+
+            # Konn-server dial rate (dials per second over last 2m)
+            measurements["konn_server_dial_rate"] = _query_instant(
+                'rate(konnectivity_network_proxy_server_dial_duration_seconds_count{job="konnectivity-server"}[2m])')
+
+            # Konn-server stream packet rate
+            measurements["konn_server_stream_packet_rate"] = _query_instant(
+                'sum(rate(konnectivity_network_proxy_server_stream_packets_total{job="konnectivity-server"}[2m]))')
+
+            # Konn-server frontend write rate
+            measurements["konn_server_frontend_write_rate"] = _query_instant(
+                'rate(konnectivity_network_proxy_server_frontend_write_duration_seconds_count{job="konnectivity-server"}[2m])')
+
+            # Konn-server byte throughput rate (bytes/sec)
+            measurements["konn_server_write_bytes_rate"] = _query_instant(
+                'rate(konnectivity_network_proxy_server_frontend_write_bytes_total{job="konnectivity-server"}[2m])')
+            measurements["konn_server_read_bytes_rate"] = _query_instant(
+                'rate(konnectivity_network_proxy_server_frontend_read_bytes_total{job="konnectivity-server"}[2m])')
+
+            # VMAgent scrape duration (average over last 2m)
+            measurements["vmagent_scrape_duration_mean"] = _query_instant(
+                'avg(scrape_duration_seconds{job=~"fake-.*|real-.*"})')
+            measurements["vmagent_scrape_samples_rate"] = _query_instant(
+                'sum(rate(scrape_samples_scraped{job=~"fake-.*|real-.*"}[2m]))')
+
+            # Konn-agent aggregate metrics (across all agent pods)
+            measurements["konn_agent_total_server_connections"] = _query_instant(
+                'sum(konnectivity_network_proxy_agent_open_server_connections{job="konnectivity-agent"})')
+            measurements["konn_agent_total_endpoint_connections"] = _query_instant(
+                'sum(konnectivity_network_proxy_agent_open_endpoint_connections{job="konnectivity-agent"})')
+            measurements["konn_agent_total_stream_packet_rate"] = _query_instant(
+                'sum(rate(konnectivity_network_proxy_agent_stream_packets_total{job="konnectivity-agent"}[2m]))')
+            measurements["konn_agent_total_stream_errors"] = _query_instant(
+                'sum(konnectivity_network_proxy_agent_stream_errors_total{job="konnectivity-agent"})')
+            measurements["konn_agent_cpu_rate"] = _query_instant(
+                'sum(rate(process_cpu_seconds_total{job="konnectivity-agent"}[2m]))')
+
+            log.info("  infra time-series: konn_cpu_rate=%s dial_rate=%s stream_pkt_rate=%s agent_conns=%s",
+                     measurements.get("konn_server_cpu_rate"),
+                     measurements.get("konn_server_dial_rate"),
+                     measurements.get("konn_server_stream_packet_rate"),
+                     measurements.get("konn_agent_total_server_connections"))
+    except Exception as e:
+        log.debug("Failed to query infrastructure time-series from vmsingle: %s", e)
+
     log.info("  scrape=%d/%d (%.4f), konn_dial_mean=%.6fs, oom=%d, restarts=%d, rw_rows=%.0f, rw_series_up=%d",
              scrape_up, scrape_total, measurements["scrape_success_rate"],
              measurements.get("konn_server_dial_mean_seconds", 0),
@@ -436,7 +684,14 @@ def evaluate_pass_fail(measurements: dict, expected_targets: int = 0) -> dict:
     dial_mean = measurements.get("konn_server_dial_mean_seconds", 0)
     rw_errors = measurements.get("vmsingle_http_errors_total", 0)
     rw_rows = measurements.get("vmsingle_rows_inserted", 0)
+    dial_failures = measurements.get("konn_server_dial_failure_count", 0)
+    stream_errors = measurements.get("konn_server_stream_errors_total", 0)
+    stream_packets = measurements.get("konn_server_stream_packets_total", 0)
+    agent_dial_failures = measurements.get("konn_agent_endpoint_dial_failures", 0)
 
+    # If expected_targets is set, pass when up >= expected (other SD-discovered
+    # targets like DaemonSet services may not be running on the test cluster).
+    # Otherwise fall back to the overall up/total rate.
     if expected_targets > 0:
         scrape_pass = scrape_up >= expected_targets
     else:
@@ -446,13 +701,30 @@ def evaluate_pass_fail(measurements: dict, expected_targets: int = 0) -> dict:
     dial_pass = dial_mean < 2.0
     rw_errors_pass = rw_errors == 0
     rw_rows_pass = rw_rows > 0
-    overall = scrape_pass and oom_pass and restarts_pass and dial_pass and rw_errors_pass and rw_rows_pass
+    dial_failures_pass = dial_failures == 0
+    # Stream errors are normal connection lifecycle events (close/reset).
+    # Use error *rate* (errors / packets) instead of absolute count;
+    # a rate above 10% indicates a real problem.
+    stream_error_rate = stream_errors / stream_packets if stream_packets > 0 else 0.0
+    stream_errors_pass = stream_error_rate < 0.10
+    agent_dial_pass = agent_dial_failures == 0
+    overall = (scrape_pass and oom_pass and restarts_pass and dial_pass
+               and rw_errors_pass and rw_rows_pass and dial_failures_pass
+               and stream_errors_pass and agent_dial_pass)
 
     return {
-        "scrape_targets": {"expected": expected_targets, "up": scrape_up, "total_discovered": scrape_total, "rate": scrape_rate, "pass": scrape_pass},
+        "scrape_targets": {
+            "expected": expected_targets, "up": scrape_up,
+            "total_discovered": scrape_total, "rate": scrape_rate, "pass": scrape_pass,
+        },
         "oom_events": {"threshold": 0, "actual": oom_events + oom_killed, "pass": oom_pass},
         "pod_restarts": {"threshold": 0, "actual": restarts, "pass": restarts_pass},
         "konn_dial_mean_seconds": {"threshold": 2.0, "actual": dial_mean, "pass": dial_pass},
+        "konn_dial_failures": {"threshold": 0, "actual": dial_failures, "pass": dial_failures_pass},
+        "konn_stream_error_rate": {"threshold": "<10%", "actual": round(stream_error_rate, 4),
+                                   "detail": f"{stream_errors:.0f}/{stream_packets:.0f} packets",
+                                   "pass": stream_errors_pass},
+        "konn_agent_dial_failures": {"threshold": 0, "actual": agent_dial_failures, "pass": agent_dial_pass},
         "remote_write_errors": {"threshold": 0, "actual": rw_errors, "pass": rw_errors_pass},
         "remote_write_rows_inserted": {"threshold": ">0", "actual": rw_rows, "pass": rw_rows_pass},
         "overall": overall,
@@ -549,23 +821,32 @@ def _collect_component_pprof(kubeconfig: str, namespace: str, resource: str,
     }
     collected = {}
     timeout = cpu_seconds + 15
-    local_port = remote_port + 10000  # avoid collisions
-    try:
-        with PortForward(kubeconfig, namespace, resource, remote_port, local_port) as pf:
-            for name, path in profiles.items():
-                filename = f"{prefix}-{name}-{label}.pb.gz"
-                filepath = pprof_dir / filename
-                try:
-                    import requests as _req
-                    resp = _req.get(f"{pf.url}{path}", timeout=timeout)
-                    resp.raise_for_status()
-                    filepath.write_bytes(resp.content)
-                    collected[name] = str(filepath)
-                    log.info("  %s/%s: %s (%d bytes)", prefix, name, filepath, len(resp.content))
-                except Exception as e:
-                    log.warning("  %s/%s: FAILED — %s", prefix, name, e)
-    except Exception as e:
-        log.warning("pprof collection failed for %s (port-forward): %s", prefix, e)
+    local_port = remote_port + 20000  # offset 20000 to avoid collision with metrics ports (18xxx)
+    max_retries = 3
+    for attempt in range(1, max_retries + 1):
+        try:
+            with PortForward(kubeconfig, namespace, resource, remote_port, local_port) as pf:
+                for name, path in profiles.items():
+                    filename = f"{prefix}-{name}-{label}.pb.gz"
+                    filepath = pprof_dir / filename
+                    try:
+                        import requests as _req
+                        resp = _req.get(f"{pf.url}{path}", timeout=timeout)
+                        resp.raise_for_status()
+                        filepath.write_bytes(resp.content)
+                        collected[name] = str(filepath)
+                        log.info("  %s/%s: %s (%d bytes)", prefix, name, filepath, len(resp.content))
+                    except Exception as e:
+                        log.warning("  %s/%s: FAILED — %s", prefix, name, e)
+            break  # success — stop retrying
+        except Exception as e:
+            if attempt < max_retries:
+                log.warning("pprof port-forward failed for %s (attempt %d/%d): %s — retrying in 5s",
+                            prefix, attempt, max_retries, e)
+                time.sleep(5)
+                local_port += 1  # try next port on retry
+            else:
+                log.warning("pprof collection failed for %s after %d attempts: %s", prefix, max_retries, e)
     return collected
 
 

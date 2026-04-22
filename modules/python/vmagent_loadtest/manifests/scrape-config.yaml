@@ -256,3 +256,48 @@ data:
             target_label: __address__
           - source_labels: [__address__]
             target_label: instance
+
+      # ================================================================
+      # Infrastructure self-monitoring jobs (local to CP, no proxy)
+      # These scrape the control-plane infrastructure components directly.
+      # ================================================================
+      - job_name: konnectivity-server
+        scrape_interval: 15s
+        metrics_path: /metrics
+        static_configs:
+          - targets: ["konnectivity-server:8095"]
+
+      - job_name: vmagent-self
+        scrape_interval: 15s
+        metrics_path: /metrics
+        static_configs:
+          - targets: ["localhost:8429"]
+
+      - job_name: vmsingle
+        scrape_interval: 15s
+        metrics_path: /metrics
+        static_configs:
+          - targets: ["vmsingle:8428"]
+
+      # ---- Konnectivity agent metrics (on DP cluster, needs proxy tunnel) ----
+      - job_name: konnectivity-agent
+        scrape_interval: 15s
+        metrics_path: /metrics
+        proxy_url: "http://localhost:8080"
+        kubernetes_sd_configs:
+          - role: pod
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+            namespaces:
+              names: ["__NAMESPACE__"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: konnectivity-agent
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_ip]
+            target_label: __address__
+            replacement: $1:8094
+          - source_labels: [__address__]
+            target_label: instance
