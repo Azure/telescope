@@ -49,13 +49,78 @@ steps:
       EXTRA_ARGS="$EXTRA_ARGS --run-label $RUN_LABEL"
     fi
 
-    python3 modules/python/vmagent_loadtest/main.py \
-      --cp-kubeconfig $(Pipeline.Workspace)/kubeconfigs/cp.kubeconfig \
-      --dp-kubeconfig $(Pipeline.Workspace)/kubeconfigs/dp.kubeconfig \
-      --tiers "$TIERS" \
-      --warm-up-minutes "$SOAK_MINUTES" \
-      $EXTRA_ARGS
-  displayName: "Execute VMAgent load test"
+    # Save common args for per-tier steps
+    echo "$EXTRA_ARGS" > $(Pipeline.Workspace)/kubeconfigs/extra_args.txt
+    echo "$SOAK_MINUTES" > $(Pipeline.Workspace)/kubeconfigs/soak_minutes.txt
+
+    # Run each tier individually: execute → collect → cleanup → next tier
+    IFS=',' read -ra TIER_LIST <<< "$TIERS"
+    for TIER in "${TIER_LIST[@]}"; do
+      TIER=$(echo "$TIER" | xargs)  # trim whitespace
+      echo ""
+      echo "######################################################################"
+      echo "# TIER $TIER — execute"
+      echo "######################################################################"
+
+      python3 modules/python/vmagent_loadtest/main.py \
+        --cp-kubeconfig $(Pipeline.Workspace)/kubeconfigs/cp.kubeconfig \
+        --dp-kubeconfig $(Pipeline.Workspace)/kubeconfigs/dp.kubeconfig \
+        --tiers "$TIER" \
+        --warm-up-minutes "$SOAK_MINUTES" \
+        $EXTRA_ARGS
+
+      echo ""
+      echo "######################################################################"
+      echo "# TIER $TIER — collect results"
+      echo "######################################################################"
+
+      WORK_DIR=$(ls -td /tmp/fake-cp-loadtest.* 2>/dev/null | head -1)
+      if [[ -n "$WORK_DIR" && -d "${WORK_DIR}/results" ]]; then
+        mkdir -p $(Pipeline.Workspace)/results
+        cp -v "${WORK_DIR}/results"/*.json $(Pipeline.Workspace)/results/ 2>/dev/null || true
+        if [[ -d "${WORK_DIR}/pprof" ]]; then
+          mkdir -p $(Pipeline.Workspace)/results/pprof
+          cp -rv "${WORK_DIR}/pprof"/. $(Pipeline.Workspace)/results/pprof/ 2>/dev/null || true
+        fi
+        echo "Tier $TIER results collected."
+        ls -l $(Pipeline.Workspace)/results/
+      else
+        echo "##vso[task.logissue type=warning;]No results found for tier $TIER"
+      fi
+
+      echo ""
+      echo "######################################################################"
+      echo "# TIER $TIER — cleanup namespace"
+      echo "######################################################################"
+
+      NS_PREFIX="loadtest-"
+      if [[ -n "$RUN_LABEL" ]]; then
+        NS_PREFIX="loadtest-${RUN_LABEL}-"
+      fi
+      NS="${NS_PREFIX}${TIER}"
+
+      kubectl --kubeconfig $(Pipeline.Workspace)/kubeconfigs/cp.kubeconfig delete ns "$NS" --wait=false --ignore-not-found=true || true
+      kubectl --kubeconfig $(Pipeline.Workspace)/kubeconfigs/dp.kubeconfig delete ns "$NS" --wait=false --ignore-not-found=true || true
+
+      # Wait for namespace termination (max 120s)
+      for i in $(seq 1 24); do
+        CP_GONE=$(kubectl --kubeconfig $(Pipeline.Workspace)/kubeconfigs/cp.kubeconfig get ns "$NS" 2>&1 && echo "no" || echo "yes")
+        DP_GONE=$(kubectl --kubeconfig $(Pipeline.Workspace)/kubeconfigs/dp.kubeconfig get ns "$NS" 2>&1 && echo "no" || echo "yes")
+        if [[ "$CP_GONE" == "yes" && "$DP_GONE" == "yes" ]]; then
+          echo "Namespace $NS deleted on both clusters."
+          break
+        fi
+        echo "  waiting for $NS to terminate... ($i/24)"
+        sleep 5
+      done
+
+      echo "Tier $TIER complete."
+    done
+
+    echo ""
+    echo "All tiers complete. Results:"
+    ls -lR $(Pipeline.Workspace)/results/ 2>/dev/null || echo "No results."
+  displayName: "Execute VMAgent load test (per-tier loop)"
   env:
     TIERS: $(TIERS)
     SOAK_MINUTES: $(SOAK_MINUTES)

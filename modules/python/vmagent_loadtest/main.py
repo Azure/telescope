@@ -131,7 +131,7 @@ def main() -> None:
     run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
 
     log.info("=" * 60)
-    log.info("Fake Control Plane Load Test")
+    log.info("Vmagent Load Test")
     log.info("  Tiers:    %s", tiers)
     log.info("  Warm-up:  %dm per tier", args.warm_up_minutes)
     log.info("  CP:       %s", args.cp_kubeconfig)
@@ -198,6 +198,12 @@ def main() -> None:
 
         if result:
             all_results.append(result)
+
+        # Clean up this tier's namespaces before moving to the next one
+        # to free CP/DP resources (konnectivity, vmagent, vmsingle).
+        if len(tiers) > 1:
+            cleanup_tier(args.cp_kubeconfig, args.dp_kubeconfig, tier,
+                         run_label=args.run_label)
 
     log.info("")
     log.info("=" * 60)

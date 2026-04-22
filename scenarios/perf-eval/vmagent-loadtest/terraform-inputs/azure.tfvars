@@ -16,7 +16,7 @@ aks_config_list = [
     }
     default_node_pool = {
       name                         = "default"
-      node_count                   = 5
+      node_count                   = 2
       auto_scaling_enabled         = false
       vm_size                      = "Standard_D4_v3"
       os_disk_type                 = "Managed"
@@ -24,7 +24,16 @@ aks_config_list = [
       temporary_name_for_rotation  = "defaulttmp"
       max_pods                     = 250
     }
-    extra_node_pool = []
+    extra_node_pool = [
+      {
+        name                = "controlplane"
+        node_count          = 3
+        auto_scaling_enabled = false
+        vm_size             = "Standard_D4_v3"
+        os_disk_type        = "Managed"
+        max_pods            = 250
+      }
+    ]
   },
   {
     role        = "dp"
@@ -38,7 +47,7 @@ aks_config_list = [
     }
     default_node_pool = {
       name                         = "nodepool1"
-      node_count                   = 10
+      node_count                   = 2
       auto_scaling_enabled         = false
       vm_size                      = "Standard_D2_v3"
       os_disk_type                 = "Managed"
@@ -46,6 +55,15 @@ aks_config_list = [
       temporary_name_for_rotation  = "defaulttmp"
       max_pods                     = 250
     }
-    extra_node_pool = []
+    extra_node_pool = [
+      {
+        name                = "dataplane"
+        node_count          = 1
+        auto_scaling_enabled = false
+        vm_size             = "Standard_D2_v3"
+        os_disk_type        = "Managed"
+        max_pods            = 250
+      }
+    ]
   }
 ]

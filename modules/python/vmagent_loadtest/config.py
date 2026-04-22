@@ -46,9 +46,15 @@ DAEMONSET_POD_TARGET_ROLES = [
 KUBELET_SA_NAME = "kubelet-scraper"
 
 # Default AKS nodepool name
-DEFAULT_NODEPOOL = "nodepool1"
+DEFAULT_NODEPOOL = "dataplane"
 
 # Max usable pods per node (AKS default max-pods=250, minus ~10 system pods)
 PODS_PER_NODE = 240
+
+# CPU requests (millicores) for scaling calculations
+AGENT_CPU_REQUEST = 10      # konnectivity-agent
+EXPORTER_CPU_REQUEST = 5    # each fake-exporter role
+SYSTEM_CPU_PER_NODE = 200   # kube-system overhead per node
+NODE_ALLOCATABLE_CPU = 1900 # Standard_D2_v3 allocatable
 
 log = logging.getLogger("loadtest")

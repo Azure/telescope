@@ -3,14 +3,17 @@
 import json
 import math
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .certs import create_cert_secret, generate_certs
 
 from .config import (
-    DEFAULT_NODEPOOL, FAKE_EXPORTER_ROLES, KONN_AGENT_IMAGE,
-    KONN_SERVER_IMAGE, PODS_PER_NODE, REAL_TARGET_ROLES, VMAGENT_IMAGE,
+    AGENT_CPU_REQUEST, DEFAULT_NODEPOOL, EXPORTER_CPU_REQUEST,
+    FAKE_EXPORTER_ROLES, KONN_AGENT_IMAGE,
+    KONN_SERVER_IMAGE, NODE_ALLOCATABLE_CPU, PODS_PER_NODE,
+    REAL_TARGET_ROLES, SYSTEM_CPU_PER_NODE, VMAGENT_IMAGE,
     VMSINGLE_IMAGE, log,
 )
 from .deploy import (
@@ -50,10 +53,16 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
         total_targets = tier * len(FAKE_EXPORTER_ROLES)
         # pods per tier: 4 exporter roles × tier replicas + tier konn-agents
         pods_needed = tier * (len(FAKE_EXPORTER_ROLES) + 1)
-        nodes_needed = math.ceil(pods_needed / PODS_PER_NODE)
+        nodes_by_pods = math.ceil(pods_needed / PODS_PER_NODE)
+        # CPU requests: exporters + agents + system overhead
+        total_cpu = (tier * len(FAKE_EXPORTER_ROLES) * EXPORTER_CPU_REQUEST
+                     + tier * AGENT_CPU_REQUEST)
+        usable_cpu_per_node = NODE_ALLOCATABLE_CPU - SYSTEM_CPU_PER_NODE
+        nodes_by_cpu = math.ceil(total_cpu / usable_cpu_per_node)
+        nodes_needed = max(nodes_by_pods, nodes_by_cpu)
         if resource_group and dp_cluster_name:
-            log.info("Tier %d needs %d pods → scaling DP to %d nodes",
-                     tier, pods_needed, nodes_needed)
+            log.info("Tier %d needs %d pods (→%d nodes) / %dm CPU (→%d nodes) → scaling DP to %d nodes",
+                     tier, pods_needed, nodes_by_pods, total_cpu, nodes_by_cpu, nodes_needed)
             scale_dp_nodepool(resource_group, dp_cluster_name, nodepool, nodes_needed)
             wait_for_nodes_ready(dp_kubeconfig, expected=nodes_needed, timeout_minutes=30)
         log.info("")
@@ -155,22 +164,27 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
     return result
 
 
+def _wait_ns_gone(kubeconfig: str, namespace: str, timeout: int = 300) -> None:
+    """Delete namespace and wait for it to disappear."""
+    kubectl(kubeconfig, "delete", "ns", namespace, "--wait=false", check=False)
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        result = kubectl(kubeconfig, "get", "ns", namespace, check=False)
+        if result.returncode != 0:
+            return
+        time.sleep(5)
+    log.warning("Namespace %s still terminating after %ds", namespace, timeout)
+
+
 def cleanup_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
                  run_label: str = "") -> None:
-    """Clean up a single tier's namespaces before retrying."""
+    """Clean up a single tier's namespaces (CP + DP in parallel)."""
     ns_prefix = f"loadtest-{run_label}-" if run_label else "loadtest-"
     namespace = f"{ns_prefix}{tier}"
     log.info("Cleaning up tier %d namespace: %s", tier, namespace)
-    for kubeconfig, label in [(cp_kubeconfig, "CP"), (dp_kubeconfig, "DP")]:
-        kubectl(kubeconfig, "delete", "ns", namespace, "--wait=true",
-                "--timeout=120s", check=False)
-    # Wait for namespace termination
-    for kubeconfig in [cp_kubeconfig, dp_kubeconfig]:
-        for _ in range(60):
-            result = kubectl(kubeconfig, "get", "ns", namespace, check=False)
-            if result.returncode != 0:
-                break
-            time.sleep(5)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        pool.submit(_wait_ns_gone, cp_kubeconfig, namespace)
+        pool.submit(_wait_ns_gone, dp_kubeconfig, namespace)
     log.info("Tier %d cleanup complete.", tier)
 
 
