@@ -45,7 +45,7 @@ spec:
         resources:
           requests:
             cpu: '6'
-            memory: '24Gi'
+            memory: '32Gi'
         volumeMounts:
         - mountPath: /override
           name: cl2-override
