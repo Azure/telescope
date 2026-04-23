@@ -171,7 +171,7 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
     }
 
     label_suffix = f"-{run_label}" if run_label else ""
-    results_file = results_dir / f"fake-cp-loadtest-{run_id}{label_suffix}-{tier}.json"
+    results_file = results_dir / f"vmagent-loadtest-{run_id}{label_suffix}-{tier}.json"
     results_file.write_text(json.dumps(result, indent=2))
     log.info("Tier %d results: %s", tier, results_file)
 

@@ -30,6 +30,12 @@ steps:
     echo "CP cluster: $CP_AKS (RG: $CP_RG)"
     echo "DP cluster: $DP_AKS (RG: $DP_RG)"
 
+    # Expose cluster details for result tagging in later steps.
+    echo "##vso[task.setvariable variable=CP_AKS_NAME]$CP_AKS"
+    echo "##vso[task.setvariable variable=CP_AKS_RG]$CP_RG"
+    echo "##vso[task.setvariable variable=DP_AKS_NAME]$DP_AKS"
+    echo "##vso[task.setvariable variable=DP_AKS_RG]$DP_RG"
+
     # Get dedicated kubeconfigs for each cluster
     mkdir -p $(Pipeline.Workspace)/kubeconfigs
     az aks get-credentials -n "$CP_AKS" -g "$CP_RG" --file $(Pipeline.Workspace)/kubeconfigs/cp.kubeconfig --overwrite-existing
@@ -76,22 +82,22 @@ steps:
 
       WORK_DIR=$(ls -td /tmp/fake-cp-loadtest.* 2>/dev/null | head -1)
       if [[ -n "$WORK_DIR" && -d "${WORK_DIR}/results" ]]; then
-        mkdir -p $(Pipeline.Workspace)/results
-        cp -v "${WORK_DIR}/results"/*.json $(Pipeline.Workspace)/results/ 2>/dev/null || true
+        mkdir -p "$(TEST_RESULTS_DIR)"
+        cp -v "${WORK_DIR}/results"/*.json "$(TEST_RESULTS_DIR)/" 2>/dev/null || true
         if [[ -d "${WORK_DIR}/pprof" ]]; then
-          mkdir -p $(Pipeline.Workspace)/results/pprof
-          cp -rv "${WORK_DIR}/pprof"/. $(Pipeline.Workspace)/results/pprof/ 2>/dev/null || true
+          mkdir -p "$(TEST_RESULTS_DIR)/pprof"
+          cp -rv "${WORK_DIR}/pprof"/. "$(TEST_RESULTS_DIR)/pprof/" 2>/dev/null || true
         fi
         if [[ -d "${WORK_DIR}/raw" ]]; then
-          mkdir -p $(Pipeline.Workspace)/results/raw
-          cp -rv "${WORK_DIR}/raw"/. $(Pipeline.Workspace)/results/raw/ 2>/dev/null || true
+          mkdir -p "$(TEST_RESULTS_DIR)/raw"
+          cp -rv "${WORK_DIR}/raw"/. "$(TEST_RESULTS_DIR)/raw/" 2>/dev/null || true
         fi
         if [[ -d "${WORK_DIR}/diagnostics" ]]; then
-          mkdir -p $(Pipeline.Workspace)/results/diagnostics
-          cp -rv "${WORK_DIR}/diagnostics"/. $(Pipeline.Workspace)/results/diagnostics/ 2>/dev/null || true
+          mkdir -p "$(TEST_RESULTS_DIR)/diagnostics"
+          cp -rv "${WORK_DIR}/diagnostics"/. "$(TEST_RESULTS_DIR)/diagnostics/" 2>/dev/null || true
         fi
         echo "Tier $TIER results collected."
-        ls -l $(Pipeline.Workspace)/results/
+        ls -l "$(TEST_RESULTS_DIR)/"
       else
         echo "##vso[task.logissue type=warning;]No results found for tier $TIER"
       fi
@@ -127,7 +133,7 @@ steps:
 
     echo ""
     echo "All tiers complete. Results:"
-    ls -lR $(Pipeline.Workspace)/results/ 2>/dev/null || echo "No results."
+    ls -lR "$(TEST_RESULTS_DIR)/" 2>/dev/null || echo "No results."
   displayName: "Execute VMAgent load test (per-tier loop)"
   env:
     TIERS: $(TIERS)

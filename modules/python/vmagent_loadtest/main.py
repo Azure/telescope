@@ -192,7 +192,7 @@ def main() -> None:
                         "error": str(e),
                         "attempts": attempt,
                     }
-                    err_file = results_dir / f"fake-cp-loadtest-{run_id}-{tier}.json"
+                    err_file = results_dir / f"vmagent-loadtest-{run_id}-{tier}.json"
                     err_file.write_text(json.dumps(result, indent=2))
                     failed_tiers.append(tier)
 
