@@ -5,6 +5,8 @@ from abc import ABC, abstractmethod
 from copy import deepcopy
 from dataclasses import dataclass
 
+import json
+
 import requests
 import yaml
 from kubernetes import client
@@ -89,7 +91,7 @@ class KWOK(ABC):
             raise RuntimeError("Controller Deployment not found in kwok.yaml.")
 
         controller_deployment = client.ApiClient().deserialize(
-            type("Resp", (), {"data": yaml.dump(controller_manifest)})(),
+            type("Resp", (), {"data": json.dumps(controller_manifest)})(),
             "V1Deployment",
         )
 

@@ -1,4 +1,5 @@
 """Tests for KWOK node functionality."""
+import json
 import os
 import unittest
 from unittest.mock import MagicMock, call, patch
@@ -446,6 +447,29 @@ class TestNodeIntegration(unittest.TestCase):
         except Exception as exc:  # pylint: disable=broad-exception-caught
             self.fail(f"Node deletion failed: {exc}")
 
+
+
+class TestDeploymentDeserialization(unittest.TestCase):
+    """Verify that a YAML-parsed deployment dict deserializes into V1Deployment."""
+
+    def test_deserialize_controller_manifest(self):
+        manifest = client.ApiClient().sanitize_for_serialization(
+            make_base_controller_deployment()
+        )
+        deployment = client.ApiClient().deserialize(
+            type("Resp", (), {"data": json.dumps(manifest)})(),
+            "V1Deployment",
+        )
+        self.assertIsInstance(deployment, client.V1Deployment)
+        self.assertEqual(deployment.metadata.name, "kwok-controller")
+        self.assertEqual(
+            deployment.spec.template.spec.containers[0].image,
+            "registry.k8s.io/kwok/kwok:v0.7.0",
+        )
+        self.assertEqual(
+            deployment.spec.template.spec.containers[0].args,
+            ["--config=/root/.kwok/kwok.yaml", "--server-address=0.0.0.0:10247"],
+        )
 
 
 class TestNodeValidation(unittest.TestCase):
