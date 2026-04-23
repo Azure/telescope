@@ -16,6 +16,7 @@ steps:
         echo "##vso[task.setvariable variable=AWS_ACCESS_KEY_ID;issecret=true]$AWS_ACCESS_KEY_ID"
         echo "##vso[task.setvariable variable=AWS_SECRET_ACCESS_KEY;issecret=true]$AWS_SECRET_ACCESS_KEY"
         if [ -n "${AWS_SESSION_TOKEN:-}" ]; then
+          echo "Session token found (${AWS_SESSION_TOKEN:0:4}...); setting AWS_SESSION_TOKEN variable"
           echo "##vso[task.setvariable variable=AWS_SESSION_TOKEN;issecret=true]$AWS_SESSION_TOKEN"
         fi
     displayName: 'Get login credentials'
