@@ -27,8 +27,12 @@ steps:
     aws configure set aws_access_key_id "$AWS_ACCESS_KEY"
     aws configure set aws_secret_access_key "$AWS_SECRET_KEY"
     # ADO passes the literal string '$(AWS_SESSION_TOKEN)' when the pipeline variable is undefined
+    if [ "${AWS_SESSION:-}" = '$(AWS_SESSION_TOKEN)' ]; then
+      echo "AWS_SESSION contains unresolved ADO variable literal; treating as empty"
+      AWS_SESSION=""
+    fi
     if [ -n "${AWS_SESSION:-}" ]; then
-      echo "Session token found; configuring aws_session_token"
+      echo "Session token found (${AWS_SESSION:0:4}...); configuring aws_session_token"
       aws configure set aws_session_token "$AWS_SESSION"
     else
       echo "No session token; clearing aws_session_token"
