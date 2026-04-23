@@ -34,9 +34,6 @@ steps:
     if [ -n "${AWS_SESSION:-}" ]; then
       echo "Session token found (${AWS_SESSION:0:4}...); configuring aws_session_token"
       aws configure set aws_session_token "$AWS_SESSION"
-    else
-      echo "No session token; clearing aws_session_token"
-      aws configure set aws_session_token ""
     fi
     aws configure set default.region "$REGION"
     aws configure list
