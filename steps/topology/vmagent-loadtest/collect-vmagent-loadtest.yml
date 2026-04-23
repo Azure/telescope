@@ -27,6 +27,12 @@ steps:
     if [[ -d "${WORK_DIR}/pprof" ]]; then
       cp -r "${WORK_DIR}/pprof" $(Pipeline.Workspace)/results/pprof
     fi
+    if [[ -d "${WORK_DIR}/raw" ]]; then
+      cp -r "${WORK_DIR}/raw" $(Pipeline.Workspace)/results/raw
+    fi
+    if [[ -d "${WORK_DIR}/diagnostics" ]]; then
+      cp -r "${WORK_DIR}/diagnostics" $(Pipeline.Workspace)/results/diagnostics
+    fi
 
     echo "Collected results from ${WORK_DIR}:"
     ls -lR $(Pipeline.Workspace)/results/

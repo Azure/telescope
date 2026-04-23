@@ -903,3 +903,95 @@ def collect_pprof(cp_kubeconfig: str, dp_kubeconfig: str,
         all_results[comp_name] = {"files": collected, "analysis": analysis}
 
     return all_results
+
+
+def collect_diagnostics(cp_kubeconfig: str, dp_kubeconfig: str,
+                       namespace: str, work_dir: Path,
+                       include_fake_exporters: bool = True) -> dict:
+    """Collect container logs, events, and pod descriptions for RCA.
+
+    Saves artifacts under ``work_dir / "diagnostics" / namespace /``
+    with ``cp/`` and ``dp/`` subdirectories.
+
+    Returns:
+        Summary dict with collected file counts per cluster.
+    """
+    diag_dir = work_dir / "diagnostics" / namespace
+    summary: dict = {"cp": {}, "dp": {}}
+
+    clusters = [
+        ("cp", cp_kubeconfig, [namespace]),
+        ("dp", dp_kubeconfig, [namespace]),
+    ]
+    if include_fake_exporters:
+        clusters[1] = ("dp", dp_kubeconfig, [namespace, FAKE_EXPORTER_NS])
+
+    for cluster_label, kubeconfig, namespaces in clusters:
+        cluster_dir = diag_dir / cluster_label
+        cluster_dir.mkdir(parents=True, exist_ok=True)
+        files_collected = 0
+
+        for ns in namespaces:
+            ns_dir = cluster_dir / ns
+            ns_dir.mkdir(parents=True, exist_ok=True)
+
+            # Kubernetes events
+            try:
+                result = kubectl(kubeconfig, "-n", ns, "get", "events",
+                                 "--sort-by=.lastTimestamp", check=False)
+                (ns_dir / "events.txt").write_text(result.stdout or "")
+                files_collected += 1
+            except Exception as e:
+                log.debug("Failed to collect events from %s/%s: %s", cluster_label, ns, e)
+
+            # Pod descriptions
+            try:
+                result = kubectl(kubeconfig, "-n", ns, "describe", "pods", check=False)
+                (ns_dir / "pods-describe.txt").write_text(result.stdout or "")
+                files_collected += 1
+            except Exception as e:
+                log.debug("Failed to describe pods in %s/%s: %s", cluster_label, ns, e)
+
+            # Per-pod container logs
+            try:
+                result = kubectl(kubeconfig, "-n", ns, "get", "pods",
+                                 "-o", "jsonpath={range .items[*]}"
+                                 "{.metadata.name},{.status.phase},"
+                                 "{range .spec.containers[*]}{.name}{\" \"}{end}"
+                                 "{\"\\n\"}{end}",
+                                 check=False)
+                for line in result.stdout.strip().split("\n"):
+                    parts = line.strip().split(",")
+                    if len(parts) < 3 or not parts[0]:
+                        continue
+                    pod_name = parts[0]
+                    containers = parts[2].strip().split()
+                    for container in containers:
+                        if not container:
+                            continue
+                        try:
+                            lr = kubectl(kubeconfig, "-n", ns, "logs", pod_name,
+                                         "-c", container, "--tail=1000", check=False)
+                            if lr.stdout and lr.stdout.strip():
+                                (ns_dir / f"{pod_name}_{container}.log").write_text(lr.stdout)
+                                files_collected += 1
+                        except Exception:
+                            pass
+                        # Previous (crashed) container logs
+                        try:
+                            lr = kubectl(kubeconfig, "-n", ns, "logs", pod_name,
+                                         "-c", container, "--previous", "--tail=500", check=False)
+                            if lr.returncode == 0 and lr.stdout and lr.stdout.strip():
+                                (ns_dir / f"{pod_name}_{container}.previous.log").write_text(lr.stdout)
+                                files_collected += 1
+                        except Exception:
+                            pass
+            except Exception as e:
+                log.debug("Failed to collect logs from %s/%s: %s", cluster_label, ns, e)
+
+        summary[cluster_label] = {"files_collected": files_collected, "dir": str(cluster_dir)}
+
+    log.info("Diagnostics collected: cp=%d dp=%d files",
+             summary["cp"].get("files_collected", 0),
+             summary["dp"].get("files_collected", 0))
+    return summary

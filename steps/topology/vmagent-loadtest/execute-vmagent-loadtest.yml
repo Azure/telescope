@@ -82,6 +82,14 @@ steps:
           mkdir -p $(Pipeline.Workspace)/results/pprof
           cp -rv "${WORK_DIR}/pprof"/. $(Pipeline.Workspace)/results/pprof/ 2>/dev/null || true
         fi
+        if [[ -d "${WORK_DIR}/raw" ]]; then
+          mkdir -p $(Pipeline.Workspace)/results/raw
+          cp -rv "${WORK_DIR}/raw"/. $(Pipeline.Workspace)/results/raw/ 2>/dev/null || true
+        fi
+        if [[ -d "${WORK_DIR}/diagnostics" ]]; then
+          mkdir -p $(Pipeline.Workspace)/results/diagnostics
+          cp -rv "${WORK_DIR}/diagnostics"/. $(Pipeline.Workspace)/results/diagnostics/ 2>/dev/null || true
+        fi
         echo "Tier $TIER results collected."
         ls -l $(Pipeline.Workspace)/results/
       else

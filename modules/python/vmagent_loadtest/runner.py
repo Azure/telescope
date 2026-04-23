@@ -22,7 +22,7 @@ from .deploy import (
     ensure_namespace, get_dp_api_server, get_node_ips, get_server_lb_ip,
     rollout_restart, setup_dp_access,
 )
-from .metrics import collect_metrics, collect_pprof, evaluate_pass_fail, wait_for_targets
+from .metrics import collect_diagnostics, collect_metrics, collect_pprof, evaluate_pass_fail, wait_for_targets
 from .scaling import scale_dp_nodepool, wait_for_nodes_ready
 from .utils import kubectl
 
@@ -117,20 +117,33 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
     log.info("Target readiness check complete.")
 
     # 11. Collect metrics
-    measurements = collect_metrics(cp_kubeconfig, dp_kubeconfig, namespace, tier, work_dir)
+    measurements = {}
+    pprof_results = {}
+    diagnostics = {}
+    pass_fail = {}
+    try:
+        measurements = collect_metrics(cp_kubeconfig, dp_kubeconfig, namespace, tier, work_dir)
 
-    # 11b. Brief pause to let port-forward ports fully release before pprof
-    time.sleep(5)
+        # 11b. Brief pause to let port-forward ports fully release before pprof
+        time.sleep(5)
 
-    # 11c. Collect pprof profiles from konn-server, konn-agent, and vmagent
-    pprof_results = collect_pprof(cp_kubeconfig, dp_kubeconfig, namespace, work_dir, label=f"tier{tier}")
+        # 11c. Collect pprof profiles from konn-server, konn-agent, and vmagent
+        pprof_results = collect_pprof(cp_kubeconfig, dp_kubeconfig, namespace, work_dir, label=f"tier{tier}")
 
-    # 12. Evaluate pass/fail
-    pass_fail = evaluate_pass_fail(measurements, expected_targets=total_targets)
-    if pass_fail["overall"]:
-        log.info("RESULT: PASS")
-    else:
-        log.info("RESULT: FAIL")
+        # 12. Evaluate pass/fail
+        pass_fail = evaluate_pass_fail(measurements, expected_targets=total_targets)
+        if pass_fail["overall"]:
+            log.info("RESULT: PASS")
+        else:
+            log.info("RESULT: FAIL")
+    finally:
+        # Always collect diagnostics (logs, events, pod descriptions) for RCA
+        try:
+            diagnostics = collect_diagnostics(
+                cp_kubeconfig, dp_kubeconfig, namespace, work_dir,
+                include_fake_exporters=not real_targets)
+        except Exception as e:
+            log.warning("Diagnostics collection failed: %s", e)
 
     # 13. Write results
     results_dir.mkdir(parents=True, exist_ok=True)
@@ -151,8 +164,9 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
         "measurements": measurements,
         "resource_samples": resource_samples,
         "pprof": pprof_results,
+        "diagnostics": diagnostics,
         "pass_criteria": pass_fail,
-        "pass": pass_fail["overall"],
+        "pass": pass_fail.get("overall", False),
         "status": "completed",
     }
 
@@ -160,6 +174,17 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
     results_file = results_dir / f"fake-cp-loadtest-{run_id}{label_suffix}-{tier}.json"
     results_file.write_text(json.dumps(result, indent=2))
     log.info("Tier %d results: %s", tier, results_file)
+
+    # Export resource_samples as standalone CSV for easier analysis
+    if resource_samples:
+        import csv
+        csv_file = results_dir / f"resource-usage-tier{tier}.csv"
+        fieldnames = sorted({k for s in resource_samples for k in s.keys()})
+        with open(csv_file, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(resource_samples)
+        log.info("Resource usage CSV: %s", csv_file)
 
     return result
 
