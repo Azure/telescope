@@ -23,6 +23,8 @@ debug/
 # *.p12
 *.[Pp]12
 
+
+*.pyc
 # *.pvk
 *.[Pp][Vv][Kk]
 

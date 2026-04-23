@@ -1,12 +1,12 @@
 trigger: none
 
-schedules:
-  - cron: "0 6 * * 1"
-    displayName: "6:00 AM Weekly (Monday)"
-    branches:
-      include:
-        - main
-    always: true
+# schedules:
+#   - cron: "0 6 * * 1"
+#     displayName: "6:00 AM Weekly (Monday)"
+#     branches:
+#       include:
+#         - main
+#     always: true
 
 variables:
   SCENARIO_TYPE: perf-eval
@@ -23,14 +23,14 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - eastus
+            - westus2
           terraform_input_file_mapping:
-            - eastus: "scenarios/perf-eval/vmagent-loadtest/terraform-inputs/azure.tfvars"
+            - westus2: "scenarios/perf-eval/vmagent-loadtest/terraform-inputs/azure.tfvars"
           topology: vmagent-loadtest
           engine: vmagent-loadtest
           matrix:
             small_fake:
-              TIERS: "150,500"
+              TIERS: "10,50,100"
               SOAK_MINUTES: 10
               REAL_TARGETS: "false"
               RUN_LABEL: "small-fake"
@@ -49,14 +49,14 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - eastus
+            - westus2
           terraform_input_file_mapping:
-            - eastus: "scenarios/perf-eval/vmagent-loadtest/terraform-inputs/azure.tfvars"
+            - westus2: "scenarios/perf-eval/vmagent-loadtest/terraform-inputs/azure.tfvars"
           topology: vmagent-loadtest
           engine: vmagent-loadtest
           matrix:
             large_fake:
-              TIERS: "150,500,1000,2000"
+              TIERS: "150,300,500,1000"
               SOAK_MINUTES: 10
               REAL_TARGETS: "false"
               RUN_LABEL: "large-fake"
@@ -75,14 +75,14 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - eastus
+            - westus2
           terraform_input_file_mapping:
-            - eastus: "scenarios/perf-eval/vmagent-loadtest/terraform-inputs/azure.tfvars"
+            - westus2: "scenarios/perf-eval/vmagent-loadtest/terraform-inputs/azure.tfvars"
           topology: vmagent-loadtest
           engine: vmagent-loadtest
           matrix:
             real_targets:
-              TIERS: "10,50,100"
+              TIERS: "50,150,300"
               SOAK_MINUTES: 15
               REAL_TARGETS: "true"
               RUN_LABEL: "real-targets"

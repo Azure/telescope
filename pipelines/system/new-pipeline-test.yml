@@ -49,7 +49,7 @@ stages:
           engine: vmagent-loadtest
           matrix:
             large_fake:
-              TIERS: "10,50,100"
+              TIERS: "150,300,500,1000"
               SOAK_MINUTES: 10
               REAL_TARGETS: "false"
               RUN_LABEL: "large-fake"
@@ -75,7 +75,7 @@ stages:
           engine: vmagent-loadtest
           matrix:
             real_targets:
-              TIERS: "10,50,100"
+              TIERS: "50,150,300"
               SOAK_MINUTES: 15
               REAL_TARGETS: "true"
               RUN_LABEL: "real-targets"
