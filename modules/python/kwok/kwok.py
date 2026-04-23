@@ -70,11 +70,26 @@ class KWOK(ABC):
         stage_fast_yaml_url = (f"https://github.com/{self.kwok_repo}/releases/"
                               f"download/{kwok_release}/stage-fast.yaml")
 
-        # Fetch the controller Deployment manifest from kwok.yaml.
+        # Fetch kwok.yaml and apply everything except the Deployment.
         response = execute_with_retries(requests.get, kwok_yaml_url, timeout=30)
         response.raise_for_status()
+        controller_manifest = None
+        for doc in yaml.safe_load_all(response.text):
+            if not doc:
+                continue
+            if doc.get("kind") == "Deployment":
+                controller_manifest = doc
+            else:
+                execute_with_retries(
+                    self.k8s_client.apply_manifest_from_file,
+                    manifest_dict=doc,
+                )
+
+        if controller_manifest is None:
+            raise RuntimeError("Controller Deployment not found in kwok.yaml.")
+
         controller_deployment = client.ApiClient().deserialize(
-            type("Resp", (), {"data": response.text})(),
+            type("Resp", (), {"data": yaml.dump(controller_manifest)})(),
             "V1Deployment",
         )
 
