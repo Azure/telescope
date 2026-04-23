@@ -108,7 +108,11 @@ def retry_request(url: str, retries: int = 3, backoff: float = 3.0,
     """GET with retries for transient connection errors (RemoteDisconnected, etc)."""
     for attempt in range(1, retries + 1):
         try:
-            resp = requests.get(url, timeout=timeout, **kwargs)
+            # Port-forward calls must bypass proxy env vars; otherwise localhost
+            # requests may be sent to an HTTP proxy and fail with connection refused.
+            with requests.Session() as session:
+                session.trust_env = False
+                resp = session.get(url, timeout=timeout, **kwargs)
             resp.raise_for_status()
             return resp
         except (requests.ConnectionError, RemoteDisconnected) as e:
