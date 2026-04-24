@@ -85,6 +85,28 @@ def deploy_konnectivity_agents(kubeconfig: str, namespace: str, server_host: str
     log.info("Konnectivity agents ready in %s", namespace)
 
 
+def _check_image_pull(kubeconfig: str, namespace: str, label_selector: str,
+                      timeout: int = 60, interval: int = 5) -> None:
+    """Poll pods for ImagePullBackOff/ErrImagePull and fail fast instead of waiting for rollout timeout."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        time.sleep(interval)
+        result = kubectl(kubeconfig, "-n", namespace, "get", "pods",
+                         "-l", label_selector, "-o", "json", check=False)
+        if result.returncode != 0:
+            continue
+        pods = json.loads(result.stdout)
+        for pod in pods.get("items", []):
+            for cs in pod.get("status", {}).get("containerStatuses", []):
+                waiting = cs.get("state", {}).get("waiting", {})
+                reason = waiting.get("reason", "")
+                if reason in ("ImagePullBackOff", "ErrImagePull"):
+                    msg = waiting.get("message", reason)
+                    raise RuntimeError(
+                        f"Image pull failed for pod {pod['metadata']['name']}: {msg}"
+                    )
+
+
 @retry(max_attempts=3, backoff=10.0)
 def deploy_fake_exporters(kubeconfig: str, replicas: int, profile: str = "default") -> None:
     total = replicas * len(FAKE_EXPORTER_ROLES)
@@ -96,7 +118,8 @@ def deploy_fake_exporters(kubeconfig: str, replicas: int, profile: str = "defaul
         "__PROFILE__": profile,
     })
     kubectl_apply(kubeconfig, manifest)
-    for sts_name, _, _ in FAKE_EXPORTER_ROLES:
+    for sts_name, app_label, _ in FAKE_EXPORTER_ROLES:
+        _check_image_pull(kubeconfig, FAKE_EXPORTER_NS, f"app={app_label}")
         kubectl(kubeconfig, "-n", FAKE_EXPORTER_NS, "rollout", "status",
                 f"statefulset/{sts_name}", "--timeout=600s")
     log.info("Fake exporters ready: %d total pods", total)

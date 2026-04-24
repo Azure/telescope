@@ -13,7 +13,7 @@ KONN_AGENT_IMAGE = "mcr.microsoft.com/oss/v2/kubernetes/apiserver-network-proxy/
 VMAGENT_IMAGE = "mcr.microsoft.com/oss/v2/victoriametrics/vmagent:v1.127.0-1"
 VMSINGLE_IMAGE = "victoriametrics/victoria-metrics:v1.117.0"
 FAKE_EXPORTER_IMAGE = os.environ.get(
-    "FAKE_EXPORTER_IMAGE", "cuongcr.azurecr.io/fake-exporter:latest"
+    "FAKE_EXPORTER_IMAGE", "fakexporter.azurecr.io/fake-exporter:latest"
 )
 
 # Fake exporter roles: (statefulset_name, app_label, port)
