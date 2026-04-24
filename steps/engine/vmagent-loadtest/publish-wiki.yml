@@ -1,0 +1,149 @@
+# Publishes real-vs-fake comparison reports to an Azure DevOps wiki.
+# Creates one sub-page per tier under: {wiki_parent_path}/Build {BuildId}/
+#
+# Auth: Default $(System.AccessToken) works within the same ADO org.
+#       For cross-org wikis, pass wiki_token: $(YOUR_PAT_VAR) where
+#       YOUR_PAT_VAR is a secret variable with "Wiki Read & Write" scope.
+
+parameters:
+- name: wiki_org
+  type: string
+  default: 'https://dev.azure.com/msazure'
+- name: wiki_project
+  type: string
+  default: 'CloudNativeCompute'
+- name: wiki_id
+  type: string
+  default: 'PersonalPlayground'
+- name: wiki_parent_path
+  type: string
+  default: '/Sumanth/Vmagent Load Testing'
+- name: wiki_branch
+  type: string
+  default: 'main'
+- name: wiki_token
+  type: string
+  default: '$(System.AccessToken)'
+
+steps:
+- script: |
+    set -euo pipefail
+
+    REPORT_DIR="$(Pipeline.Workspace)/comparison-reports"
+    BUILD_ID="$(Build.BuildId)"
+    BUILD_URL="https://dev.azure.com/akstelescope/telescope/_build/results?buildId=${BUILD_ID}&view=results"
+    BRANCH="$(Build.SourceBranchName)"
+    API_BASE="${WIKI_ORG}/${WIKI_PROJECT}/_apis/wiki/wikis/${WIKI_ID}/pages"
+
+    # Create or update a single wiki page via REST API.
+    publish_page() {
+      local page_path="$1" content_file="$2"
+      local encoded_path
+      encoded_path=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=''))" "$page_path")
+
+      local url="${API_BASE}?path=${encoded_path}&api-version=7.1&versionDescriptor.version=${WIKI_BRANCH}&versionDescriptor.versionType=branch"
+
+      # Build JSON body safely with Python to handle special chars
+      python3 -c "
+import json, sys
+with open(sys.argv[1]) as f:
+    content = f.read()
+with open('/tmp/wiki-body.json', 'w') as out:
+    json.dump({'content': content}, out)
+" "$content_file"
+
+      # Try create (no If-Match header)
+      local http_code
+      http_code=$(curl -s -o /tmp/wiki-resp.json -w "%{http_code}" \
+        -X PUT \
+        -H "Authorization: Bearer ${WIKI_TOKEN}" \
+        -H "Content-Type: application/json" \
+        "$url" \
+        --data-binary @/tmp/wiki-body.json)
+
+      if [[ "$http_code" =~ ^20[01]$ ]]; then
+        echo "Created: $page_path"
+        return 0
+      fi
+
+      if [[ "$http_code" == "409" ]]; then
+        # Page exists — get ETag, then update
+        local etag
+        etag=$(curl -s -D /tmp/wiki-headers -o /dev/null \
+          -H "Authorization: Bearer ${WIKI_TOKEN}" \
+          "${API_BASE}?path=${encoded_path}&api-version=7.1&versionDescriptor.version=${WIKI_BRANCH}&versionDescriptor.versionType=branch" \
+          && grep -i "^etag:" /tmp/wiki-headers | tr -d '\r' | sed 's/^[eE][tT][aA][gG]: *//')
+
+        http_code=$(curl -s -o /tmp/wiki-resp.json -w "%{http_code}" \
+          -X PUT \
+          -H "Authorization: Bearer ${WIKI_TOKEN}" \
+          -H "Content-Type: application/json" \
+          -H "If-Match: ${etag}" \
+          "$url" \
+          --data-binary @/tmp/wiki-body.json)
+
+        if [[ "$http_code" =~ ^20[01]$ ]]; then
+          echo "Updated: $page_path"
+          return 0
+        fi
+      fi
+
+      echo "##vso[task.logissue type=warning]Failed to publish: $page_path (HTTP $http_code)"
+      cat /tmp/wiki-resp.json 2>/dev/null || true
+      return 1
+    }
+
+    # --- Find tier comparison reports ---
+    shopt -s nullglob
+    REPORTS=("$REPORT_DIR"/real-vs-fake-tier-*.md)
+    if [[ ${#REPORTS[@]} -eq 0 ]]; then
+      echo "##vso[task.logissue type=warning]No real-vs-fake reports found — skipping wiki publish"
+      exit 0
+    fi
+
+    echo "Found ${#REPORTS[@]} tier comparison report(s)"
+    BUILD_PAGE="${PARENT_PATH}/Build ${BUILD_ID}"
+
+    # --- Create build index page ---
+    INDEX=$(mktemp)
+    {
+      echo "# Build ${BUILD_ID} — Comparison Analysis"
+      echo ""
+      echo "**Pipeline**: [Build ${BUILD_ID}](${BUILD_URL})"
+      echo "**Date**: $(date -u +%Y-%m-%d)"
+      echo "**Branch**: ${BRANCH}"
+      echo ""
+      echo "## Tier Comparisons"
+      echo ""
+      for R in "${REPORTS[@]}"; do
+        T=$(basename "$R" .md | grep -oP '\d+$')
+        echo "- [Tier ${T}](Build-${BUILD_ID}/Tier-${T})"
+      done
+    } > "$INDEX"
+
+    publish_page "$BUILD_PAGE" "$INDEX"
+    rm -f "$INDEX"
+
+    # --- Publish each tier report ---
+    FAILURES=0
+    for REPORT in "${REPORTS[@]}"; do
+      TIER=$(basename "$REPORT" .md | grep -oP '\d+$')
+      if ! publish_page "${BUILD_PAGE}/Tier ${TIER}" "$REPORT"; then
+        ((FAILURES++))
+      fi
+    done
+
+    if [[ $FAILURES -gt 0 ]]; then
+      echo "##vso[task.logissue type=warning]${FAILURES} page(s) failed to publish"
+    else
+      echo "All ${#REPORTS[@]} tier comparison(s) published to wiki"
+    fi
+  displayName: "Publish comparison reports to wiki"
+  env:
+    WIKI_TOKEN: ${{ parameters.wiki_token }}
+    WIKI_ORG: ${{ parameters.wiki_org }}
+    WIKI_PROJECT: ${{ parameters.wiki_project }}
+    WIKI_ID: ${{ parameters.wiki_id }}
+    WIKI_BRANCH: ${{ parameters.wiki_branch }}
+    PARENT_PATH: ${{ parameters.wiki_parent_path }}
+  condition: and(succeeded(), ne(variables['SKIP_WIKI_PUBLISH'], 'true'))

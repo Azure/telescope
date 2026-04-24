@@ -52,3 +52,6 @@ stages:
           parameters:
             fake_artifact: "vmagent-loadtest-results-azure small_fake"
             real_artifact: "vmagent-loadtest-results-azure real_targets"
+        - template: /steps/engine/vmagent-loadtest/publish-wiki.yml
+          parameters:
+            wiki_token: $(WIKI_PAT)
