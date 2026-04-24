@@ -44,13 +44,13 @@ steps:
       local url="${API_BASE}?path=${encoded_path}&api-version=7.1&versionDescriptor.version=${WIKI_BRANCH}&versionDescriptor.versionType=branch"
 
       # Build JSON body safely with Python to handle special chars
-      python3 -c "
-import json, sys
-with open(sys.argv[1]) as f:
-    content = f.read()
-with open('/tmp/wiki-body.json', 'w') as out:
-    json.dump({'content': content}, out)
-" "$content_file"
+      python3 - "$content_file" <<'PYEOF'
+    import json, sys
+    with open(sys.argv[1]) as f:
+        md = f.read()
+    with open('/tmp/wiki-body.json', 'w') as out:
+        json.dump({'content': md}, out)
+    PYEOF
 
       # Try create (no If-Match header)
       local http_code
