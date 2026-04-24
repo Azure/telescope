@@ -114,7 +114,7 @@ firewall_config_list = [
               "*.data.mcr.microsoft.com",
               "*.azurecr.io",
               "*.blob.core.windows.net", "*.blob.storage.azure.net",
-              "*.hcp.eastus2.azmk8s.io",
+              "*.hcp.canadacentral.azmk8s.io",
               "management.azure.com",
             "login.microsoftonline.com"]
             protocols = [
