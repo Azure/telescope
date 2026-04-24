@@ -37,9 +37,10 @@ spec:
         - key: karpenter.azure.com/sku-name
           operator: In
           values:
-            - "Standard_D96ds_v4"
-            - "Standard_D96_v3"
-            - "Standard_D96_v4"
+            - "Standard_D64_v3"
+            - "Standard_D64_v4"
+            - "Standard_D64ds_v4"
+            - "Standard_D64ds_v5"
         - key: topology.kubernetes.io/zone
           operator: In
           values:
