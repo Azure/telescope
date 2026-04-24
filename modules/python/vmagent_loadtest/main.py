@@ -149,7 +149,7 @@ def main() -> None:
 
         tier = int(args.tiers.split(",")[0]) if args.tiers else 10
         run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
-        work_dir = Path(tempfile.mkdtemp(prefix="comparison-test."))
+        work_dir = Path(tempfile.mkdtemp(prefix="fake-cp-loadtest."))
         results_dir = work_dir / "results"
         results_dir.mkdir(parents=True, exist_ok=True)
         log.info("=" * 60)
