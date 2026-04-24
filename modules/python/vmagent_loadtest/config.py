@@ -42,6 +42,7 @@ DAEMONSET_TARGET_ROLES = [
 # DaemonSet target roles scraped via pod role: (job_name, namespace)
 DAEMONSET_POD_TARGET_ROLES = [
     ("csi-azuredisk-node", "kube-system"),
+    ("kube-state-metrics", "kube-system"),
 ]
 KUBELET_SA_NAME = "kubelet-scraper"
 
