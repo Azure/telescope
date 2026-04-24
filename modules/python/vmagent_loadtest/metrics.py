@@ -449,37 +449,41 @@ def collect_metrics(cp_kubeconfig: str, dp_kubeconfig: str,
                     "konn_server_resident_memory_bytes"]:
             measurements.setdefault(key, 0)
 
-    # --- Konnectivity agent metrics (port 8094, sample first pod) ---
+    # --- Konnectivity agent metrics (via vmsingle — DP port-forward unreliable) ---
     try:
-        with PortForward(dp_kubeconfig, namespace, "deployment/konnectivity-agent", 8094, 18094) as pf:
-            agent_resp = retry_request(f"{pf.url}/metrics")
-            agent_metrics = agent_resp.text
+        with PortForward(cp_kubeconfig, namespace, "deployment/vmsingle", 8428, 18428) as pf:
+            vm_url = f"{pf.url}/api/v1/query"
 
-            raw_dir = work_dir / "raw" / namespace
-            raw_dir.mkdir(parents=True, exist_ok=True)
-            (raw_dir / "konn_agent_metrics.txt").write_text(agent_metrics)
-
-            measurements["konn_agent_goroutines"] = extract_prom_value(
-                agent_metrics, r"^go_goroutines\s")
-            measurements["konn_agent_open_server_connections"] = extract_prom_value(
-                agent_metrics, r"^konnectivity_network_proxy_agent_open_server_connections\s")
-            measurements["konn_agent_open_endpoint_connections"] = extract_prom_value(
-                agent_metrics, r"^konnectivity_network_proxy_agent_open_endpoint_connections\s")
-            measurements["konn_agent_server_connection_failures"] = extract_prom_value(
-                agent_metrics, r"^konnectivity_network_proxy_agent_server_connection_failure_count\s")
-            measurements["konn_agent_endpoint_dial_failures"] = extract_prom_value(
-                agent_metrics, r"^konnectivity_network_proxy_agent_endpoint_dial_failure_count\s")
-            measurements["konn_agent_stream_packets_total"] = extract_prom_sum(
-                agent_metrics, r"^konnectivity_network_proxy_agent_stream_packets_total\{")
-            measurements["konn_agent_stream_errors_total"] = extract_prom_sum(
-                agent_metrics, r"^konnectivity_network_proxy_agent_stream_errors_total\{")
-            measurements["konn_agent_process_cpu_seconds_total"] = extract_prom_value(
-                agent_metrics, r"^process_cpu_seconds_total\s")
-            measurements["konn_agent_resident_memory_bytes"] = extract_prom_value(
-                agent_metrics, r"^process_resident_memory_bytes\s")
+            agent_queries = {
+                "konn_agent_goroutines":
+                    'sum(go_goroutines{job="konnectivity-agent"})',
+                "konn_agent_open_server_connections":
+                    'sum(konnectivity_network_proxy_agent_open_server_connections{job="konnectivity-agent"})',
+                "konn_agent_open_endpoint_connections":
+                    'sum(konnectivity_network_proxy_agent_open_endpoint_connections{job="konnectivity-agent"})',
+                "konn_agent_server_connection_failures":
+                    'sum(konnectivity_network_proxy_agent_server_connection_failure_count{job="konnectivity-agent"})',
+                "konn_agent_endpoint_dial_failures":
+                    'sum(konnectivity_network_proxy_agent_endpoint_dial_failure_count{job="konnectivity-agent"})',
+                "konn_agent_stream_packets_total":
+                    'sum(konnectivity_network_proxy_agent_stream_packets_total{job="konnectivity-agent"})',
+                "konn_agent_stream_errors_total":
+                    'sum(konnectivity_network_proxy_agent_stream_errors_total{job="konnectivity-agent"})',
+                "konn_agent_process_cpu_seconds_total":
+                    'sum(process_cpu_seconds_total{job="konnectivity-agent"})',
+                "konn_agent_resident_memory_bytes":
+                    'sum(process_resident_memory_bytes{job="konnectivity-agent"})',
+            }
+            for key, query in agent_queries.items():
+                try:
+                    resp = retry_request(vm_url, params={"query": query})
+                    result = resp.json().get("data", {}).get("result", [])
+                    measurements[key] = float(result[0]["value"][1]) if result else 0
+                except Exception:
+                    measurements[key] = 0
 
     except Exception as e:
-        log.warning("Failed to collect konnectivity-agent metrics: %s", e)
+        log.warning("Failed to collect konnectivity-agent metrics from vmsingle: %s", e)
         for key in ["konn_agent_goroutines", "konn_agent_open_server_connections",
                     "konn_agent_open_endpoint_connections",
                     "konn_agent_server_connection_failures",
