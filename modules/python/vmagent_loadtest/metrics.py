@@ -180,21 +180,51 @@ def _classify_targets(active: list[dict]) -> tuple[list[dict], list[dict]]:
     return load, infra
 
 
+def _log_target_summary(active: list[dict]) -> None:
+    """Log discovered targets grouped by job name."""
+    from collections import defaultdict
+    by_job: dict[str, list[str]] = defaultdict(list)
+    for t in active:
+        job = t.get("labels", {}).get("job", "unknown")
+        health = t.get("health", "?")
+        addr = t.get("labels", {}).get("instance", t.get("scrapeUrl", "?"))
+        by_job[job].append(f"{addr}({health})")
+    log.info("  --- Discovered targets by job ---")
+    for job in sorted(by_job):
+        targets = by_job[job]
+        up_count = sum(1 for t in targets if "(up)" in t)
+        # Show addresses for small groups, just counts for large ones
+        if len(targets) <= 5:
+            log.info("    %s [%d/%d]: %s", job, up_count, len(targets), ", ".join(targets))
+        else:
+            down = [t for t in targets if "(up)" not in t]
+            down_str = f" — down: {', '.join(down[:5])}" if down else ""
+            log.info("    %s [%d/%d]%s", job, up_count, len(targets), down_str)
+
+
 def wait_for_targets(cp_kubeconfig: str, dp_kubeconfig: str, namespace: str,
                      expected: int, timeout_minutes: int,
-                     poll_interval: int = 5) -> tuple[int, int, list[dict]]:
-    """Wait for scrape targets and sample resource usage each cycle.
+                     poll_interval: int = 5,
+                     stable_rounds: int = 3) -> tuple[int, int, list[dict]]:
+    """Wait for all discovered scrape targets to be healthy.
 
-    Only load-test targets (fake-exporter / real-target jobs) are counted
-    towards the ``expected`` threshold.  Infrastructure self-monitoring
-    targets are excluded so they don't inflate the total or lower the
-    scrape success rate.
+    Instead of requiring a pre-calculated target count, this waits until
+    all discovered load-test targets report ``health == "up"`` and the
+    count has been stable for ``stable_rounds`` consecutive polls.
+
+    The ``expected`` parameter is used only as a minimum floor — if fewer
+    targets are discovered, we keep waiting.  Infrastructure targets
+    (konnectivity-server, konnectivity-agent, vmagent-self, vmsingle)
+    are excluded from the count.
 
     Returns (up, total, resource_samples).
     """
     deadline = time.time() + timeout_minutes * 60
     up, total = 0, 0
+    active = []
     resource_samples: list[dict] = []
+    consecutive_stable = 0
+    prev_up, prev_total = 0, 0
     while time.time() < deadline:
         try:
             with PortForward(cp_kubeconfig, namespace, "vmagent-0", 8429, 18429) as pf:
@@ -215,14 +245,24 @@ def wait_for_targets(cp_kubeconfig: str, dp_kubeconfig: str, namespace: str,
         except Exception as e:
             log.debug("Resource sample failed: %s", e)
 
-        log.info("  targets: %d/%d up (need %d)", up, total, expected)
-        if up >= expected:
+        # Check stability: all discovered targets up, count unchanged, meets minimum
+        if total > 0 and up == total and up == prev_up and total == prev_total and up >= expected:
+            consecutive_stable += 1
+        else:
+            consecutive_stable = 0
+        prev_up, prev_total = up, total
+
+        log.info("  targets: %d/%d up (min %d, stable %d/%d)",
+                 up, total, expected, consecutive_stable, stable_rounds)
+        if consecutive_stable >= stable_rounds:
+            _log_target_summary(active)
             return up, total, resource_samples
         remaining = deadline - time.time()
         if remaining <= 0:
             break
         time.sleep(min(poll_interval, remaining))
     log.warning("Timed out waiting for targets: %d/%d up after %dm", up, total, timeout_minutes)
+    _log_target_summary(active)
     return up, total, resource_samples
 
 
@@ -928,7 +968,11 @@ def collect_diagnostics(cp_kubeconfig: str, dp_kubeconfig: str,
         ("dp", dp_kubeconfig, [namespace]),
     ]
     if include_fake_exporters:
+        # Only collect events/describe for fake-exporter ns, skip per-pod logs
         clusters[1] = ("dp", dp_kubeconfig, [namespace, FAKE_EXPORTER_NS])
+
+    # Namespaces where per-pod logs are worth collecting (skip fake-exporters)
+    log_namespaces = {namespace}
 
     for cluster_label, kubeconfig, namespaces in clusters:
         cluster_dir = diag_dir / cluster_label
@@ -956,7 +1000,14 @@ def collect_diagnostics(cp_kubeconfig: str, dp_kubeconfig: str,
             except Exception as e:
                 log.debug("Failed to describe pods in %s/%s: %s", cluster_label, ns, e)
 
-            # Per-pod container logs
+            # Per-pod container logs (skip for large stateless namespaces like fake-exporter)
+            if ns not in log_namespaces:
+                log.info("Skipping per-pod logs for %s/%s (%d pods — stateless workload)",
+                         cluster_label, ns,
+                         len([l for l in (kubectl(kubeconfig, "-n", ns, "get", "pods",
+                              "-o", "jsonpath={range .items[*]}{.metadata.name}{\"\\n\"}{end}",
+                              check=False).stdout or "").strip().split("\n") if l.strip()]))
+                continue
             try:
                 result = kubectl(kubeconfig, "-n", ns, "get", "pods",
                                  "-o", "jsonpath={range .items[*]}"
@@ -964,12 +1015,17 @@ def collect_diagnostics(cp_kubeconfig: str, dp_kubeconfig: str,
                                  "{range .spec.containers[*]}{.name}{\" \"}{end}"
                                  "{\"\\n\"}{end}",
                                  check=False)
-                for line in result.stdout.strip().split("\n"):
+                pod_lines = [l for l in result.stdout.strip().split("\n") if l.strip()]
+                total_pods = len(pod_lines)
+                for i, line in enumerate(pod_lines, 1):
                     parts = line.strip().split(",")
                     if len(parts) < 3 or not parts[0]:
                         continue
                     pod_name = parts[0]
                     containers = parts[2].strip().split()
+                    if i % 10 == 0 or i == total_pods:
+                        log.info("  Collecting logs: %s/%s [%d/%d pods]",
+                                 cluster_label, ns, i, total_pods)
                     for container in containers:
                         if not container:
                             continue

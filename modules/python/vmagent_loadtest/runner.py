@@ -43,14 +43,16 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
             wait_for_nodes_ready(dp_kubeconfig, expected=tier, timeout_minutes=30)
 
         node_ips = get_node_ips(dp_kubeconfig)
-        total_targets = len(node_ips) * len(REAL_TARGET_ROLES)
+        dp_nodes = len(node_ips)
+        min_targets = dp_nodes * len(REAL_TARGET_ROLES)
         log.info("")
         log.info("=" * 60)
-        log.info("TIER: %d nodes (real targets) — %d nodes × %d roles = %d targets",
-                 tier, len(node_ips), len(REAL_TARGET_ROLES), total_targets)
+        log.info("TIER: %d nodes (real targets) — min %d targets (%d nodes × %d roles)",
+                 tier, min_targets, dp_nodes, len(REAL_TARGET_ROLES))
+        log.info("  (DaemonSet targets will be auto-discovered)")
         log.info("=" * 60)
     else:
-        total_targets = tier * len(FAKE_EXPORTER_ROLES)
+        min_targets = tier * len(FAKE_EXPORTER_ROLES)
         # pods per tier: 4 exporter roles × tier replicas + tier konn-agents
         pods_needed = tier * (len(FAKE_EXPORTER_ROLES) + 1)
         nodes_by_pods = math.ceil(pods_needed / PODS_PER_NODE)
@@ -67,8 +69,9 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
             wait_for_nodes_ready(dp_kubeconfig, expected=nodes_needed, timeout_minutes=30)
         log.info("")
         log.info("=" * 60)
-        log.info("TIER: %d replicas × %d roles = %d targets (%d pods, %d nodes)",
-                 tier, len(FAKE_EXPORTER_ROLES), total_targets, pods_needed, nodes_needed)
+        log.info("TIER: %d replicas × %d roles = min %d targets (%d pods, %d nodes)",
+                 tier, len(FAKE_EXPORTER_ROLES), min_targets, pods_needed, nodes_needed)
+        log.info("  (DaemonSet targets will be auto-discovered)")
         log.info("=" * 60)
 
     # 1. Create namespaces
@@ -110,10 +113,10 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
     deploy_vmagent(cp_kubeconfig, namespace, dp_api_server)
 
     # 10. Wait for targets to come up (polls every 30s, samples resource usage)
-    log.info("Waiting for %d targets (timeout %dm)...", total_targets, warm_up_minutes)
+    log.info("Waiting for targets (min %d, timeout %dm)...", min_targets, warm_up_minutes)
     _up, _total, resource_samples = wait_for_targets(
         cp_kubeconfig, dp_kubeconfig, namespace,
-        expected=total_targets, timeout_minutes=warm_up_minutes)
+        expected=min_targets, timeout_minutes=warm_up_minutes)
     log.info("Target readiness check complete.")
 
     # 11. Collect metrics
@@ -131,7 +134,7 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
         pprof_results = collect_pprof(cp_kubeconfig, dp_kubeconfig, namespace, work_dir, label=f"tier{tier}")
 
         # 12. Evaluate pass/fail
-        pass_fail = evaluate_pass_fail(measurements, expected_targets=total_targets)
+        pass_fail = evaluate_pass_fail(measurements, expected_targets=min_targets)
         if pass_fail["overall"]:
             log.info("RESULT: PASS")
         else:
