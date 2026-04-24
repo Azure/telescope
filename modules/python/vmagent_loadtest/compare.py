@@ -1,15 +1,22 @@
 #!/usr/bin/env python3
 """
-compare.py — Compare real-node vs fake-exporter (node-exporter) load test results.
+compare.py — Compare load test results.
 
-Reads two result JSON files (one from --real-targets mode, one from fake mode)
-and produces a side-by-side markdown comparison report.
+Two comparison modes:
+  1. Real vs Fake (fidelity): Compare real-node and fake-exporter results at the
+     same tier to measure how well the fake exporter simulates real workloads.
+  2. Cross-tier (scaling): Compare results across different load tiers (e.g.
+     10, 25, 50, 100 nodes) to see how metrics scale with load.
 
 Usage:
-  python3 -m vmagent_loadtest.compare \
-    --real results/fake-cp-loadtest-...-real-10.json \
-    --fake results/fake-cp-loadtest-...-fake-10.json \
-    [--output comparison-report.md]
+  # Real vs Fake comparison
+  python3 -m vmagent_loadtest.compare real-vs-fake \
+    --real results/...-real-10.json \
+    --fake results/...-fake-10.json
+
+  # Cross-tier scaling comparison
+  python3 -m vmagent_loadtest.compare cross-tier \
+    results/...-10.json results/...-25.json results/...-50.json
 """
 
 import argparse
@@ -54,8 +61,8 @@ def _pct_diff(real_val, fake_val) -> str:
     return f"{sign}{diff:.1f}%"
 
 
-def compare(real: dict, fake: dict) -> str:
-    """Generate markdown comparison report."""
+def compare_real_vs_fake(real: dict, fake: dict) -> str:
+    """Generate markdown comparison report: real nodes vs fake exporter."""
     rm = real.get("measurements", {})
     fm = fake.get("measurements", {})
 
@@ -283,31 +290,169 @@ def compare(real: dict, fake: dict) -> str:
     return "\n".join(lines)
 
 
+# ---------------------------------------------------------------------------
+# Cross-tier (scaling) comparison
+# ---------------------------------------------------------------------------
+
+# Key metrics to track across tiers
+_SCALING_METRICS = [
+    ("scrape_targets_up", "Targets Up", ""),
+    ("scrape_targets_total", "Targets Total", ""),
+    ("scrape_success_rate", "Scrape Success Rate", ""),
+    ("vmagent_scrape_duration_mean_seconds", "VMAgent Scrape Mean", "s"),
+    ("vmagent_samples_scraped", "Samples Scraped", ""),
+    ("vmagent_samples_post_relabeling", "Samples Post-Relabeling", ""),
+    ("vmagent_goroutines", "VMAgent Goroutines", ""),
+    ("vmagent_resident_memory_bytes", "VMAgent RSS", "bytes"),
+    ("vmagent_cpu", "VMAgent CPU (top)", ""),
+    ("vmagent_memory", "VMAgent Mem (top)", ""),
+    ("konn_server_dial_mean_seconds", "Konn Dial Mean", "s"),
+    ("konn_server_dial_p50_seconds", "Konn Dial P50", "s"),
+    ("konn_server_dial_p90_seconds", "Konn Dial P90", "s"),
+    ("konn_server_dial_p99_seconds", "Konn Dial P99", "s"),
+    ("konn_server_dial_count", "Konn Dial Count", ""),
+    ("konn_server_dial_failure_count", "Konn Dial Failures", ""),
+    ("konn_server_goroutines", "Konn Server Goroutines", ""),
+    ("konn_server_established_connections", "Konn Established Conns", ""),
+    ("konn_server_stream_packets_total", "Konn Stream Packets", ""),
+    ("konn_server_stream_errors_total", "Konn Stream Errors", ""),
+    ("konn_server_resident_memory_bytes", "Konn Server RSS", "bytes"),
+    ("konn_server_cpu", "Konn Server CPU (top)", ""),
+    ("konn_server_memory", "Konn Server Mem (top)", ""),
+    ("konn_agent_goroutines", "Konn Agent Goroutines", ""),
+    ("konn_agent_resident_memory_bytes", "Konn Agent RSS", "bytes"),
+    ("vmsingle_rows_inserted", "VMSingle Rows Inserted", ""),
+    ("vmsingle_series_created", "VMSingle Series Created", ""),
+    ("pod_restarts_total", "Pod Restarts", ""),
+    ("oom_events", "OOM Events", ""),
+]
+
+
+def compare_cross_tier(results: list[dict]) -> str:
+    """Generate markdown report comparing metrics across load tiers."""
+    results = sorted(results, key=lambda r: r.get("tier", 0))
+
+    lines = []
+    mode = results[0].get("mode", "unknown") if results else "unknown"
+    tiers = [r.get("tier", "?") for r in results]
+    lines.append(f"# Cross-Tier Scaling Report ({mode})")
+    lines.append("")
+    lines.append(f"- **Mode**: {mode}")
+    lines.append(f"- **Tiers**: {tiers}")
+    lines.append(f"- **Run ID**: {results[0].get('run_id', '?')}" if results else "")
+    lines.append("")
+
+    # Pass/fail summary
+    lines.append("## Pass/Fail Summary")
+    lines.append("")
+    lines.append("| Tier | Status | Pass |")
+    lines.append("|------|--------|------|")
+    for r in results:
+        status = r.get("status", "?")
+        passed = r.get("pass")
+        lines.append(f"| {r.get('tier', '?')} | {status} | "
+                     f"{'✅' if passed else '❌' if passed is not None else 'N/A'} |")
+    lines.append("")
+
+    # Metrics table: one column per tier
+    lines.append("## Metrics by Tier")
+    lines.append("")
+    header = "| Metric | " + " | ".join(str(t) for t in tiers) + " |"
+    sep = "|--------|" + "|".join("------" for _ in tiers) + "|"
+    lines.append(header)
+    lines.append(sep)
+
+    for key, label, unit in _SCALING_METRICS:
+        vals = []
+        for r in results:
+            m = r.get("measurements", {})
+            v = m.get(key)
+            vals.append(_fmt(v, unit))
+        lines.append(f"| {label} | " + " | ".join(vals) + " |")
+    lines.append("")
+
+    # Growth analysis: compare each tier to the first
+    if len(results) >= 2:
+        lines.append("## Growth vs Baseline (tier={})".format(tiers[0]))
+        lines.append("")
+        header = "| Metric | " + " | ".join(str(t) for t in tiers[1:]) + " |"
+        sep = "|--------|" + "|".join("------" for _ in tiers[1:]) + "|"
+        lines.append(header)
+        lines.append(sep)
+
+        base_m = results[0].get("measurements", {})
+        for key, label, unit in _SCALING_METRICS:
+            base_val = base_m.get(key)
+            diffs = []
+            for r in results[1:]:
+                v = r.get("measurements", {}).get(key)
+                diffs.append(_pct_diff(base_val, v))
+            lines.append(f"| {label} | " + " | ".join(diffs) + " |")
+        lines.append("")
+
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Unified entry point
+# ---------------------------------------------------------------------------
+
+def compare(a: dict, b: dict) -> str:
+    """Convenience wrapper — compare two results (real vs fake)."""
+    return compare_real_vs_fake(a, b)
+
+
 def main():
     parser = argparse.ArgumentParser(
-        description="Compare real-node vs fake-exporter load test results")
-    parser.add_argument("--real", required=True,
-                        help="Path to real-targets result JSON")
-    parser.add_argument("--fake", required=True,
-                        help="Path to fake-exporter result JSON")
-    parser.add_argument("--output", "-o", default="",
-                        help="Output markdown file (default: stdout)")
+        description="Compare load test results")
+    sub = parser.add_subparsers(dest="mode", required=True)
+
+    # --- real-vs-fake subcommand ---
+    rvf = sub.add_parser("real-vs-fake",
+                         help="Compare real-node vs fake-exporter results at the same tier")
+    rvf.add_argument("--real", required=True,
+                     help="Path to real-targets result JSON")
+    rvf.add_argument("--fake", required=True,
+                     help="Path to fake-exporter result JSON")
+    rvf.add_argument("--output", "-o", default="",
+                     help="Output markdown file (default: stdout)")
+
+    # --- cross-tier subcommand ---
+    ct = sub.add_parser("cross-tier",
+                        help="Compare results across different load tiers")
+    ct.add_argument("results", nargs="+",
+                    help="Paths to tier result JSON files (e.g. tier10.json tier25.json ...)")
+    ct.add_argument("--output", "-o", default="",
+                    help="Output markdown file (default: stdout)")
+
     args = parser.parse_args()
 
-    real_path = Path(args.real)
-    fake_path = Path(args.fake)
+    if args.mode == "real-vs-fake":
+        real_path = Path(args.real)
+        fake_path = Path(args.fake)
+        if not real_path.exists():
+            print(f"Error: {real_path} not found", file=sys.stderr)
+            sys.exit(1)
+        if not fake_path.exists():
+            print(f"Error: {fake_path} not found", file=sys.stderr)
+            sys.exit(1)
+        real = json.loads(real_path.read_text())
+        fake = json.loads(fake_path.read_text())
+        report = compare_real_vs_fake(real, fake)
 
-    if not real_path.exists():
-        print(f"Error: {real_path} not found", file=sys.stderr)
-        sys.exit(1)
-    if not fake_path.exists():
-        print(f"Error: {fake_path} not found", file=sys.stderr)
-        sys.exit(1)
-
-    real = json.loads(real_path.read_text())
-    fake = json.loads(fake_path.read_text())
-
-    report = compare(real, fake)
+    elif args.mode == "cross-tier":
+        results = []
+        for p in args.results:
+            path = Path(p)
+            if not path.exists():
+                print(f"Error: {path} not found", file=sys.stderr)
+                sys.exit(1)
+            results.append(json.loads(path.read_text()))
+        if len(results) < 2:
+            print("Error: need at least 2 result files for cross-tier comparison",
+                  file=sys.stderr)
+            sys.exit(1)
+        report = compare_cross_tier(results)
 
     if args.output:
         out = Path(args.output)

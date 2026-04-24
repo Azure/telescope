@@ -29,7 +29,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from vmagent_loadtest.cluster import az_login, create_clusters, delete_resource_group
-from vmagent_loadtest.compare import compare
+from vmagent_loadtest.compare import compare_real_vs_fake, compare_cross_tier
 from vmagent_loadtest.config import DEFAULT_NODEPOOL, log
 from vmagent_loadtest.runner import cleanup, cleanup_tier, run_single_tier
 
@@ -86,9 +86,11 @@ def main() -> None:
     parser.add_argument("--run-label", default="",
                         help="Label prefix for namespaces (avoids collisions in parallel runs)")
     parser.add_argument("--compare", action="store_true",
-                        help="Run both real and fake modes for tier=10, then produce comparison report")
+                        help="Run both real and fake modes for the first tier, then produce a real-vs-fake fidelity report")
     parser.add_argument("--compare-results", nargs=2, metavar=("REAL_JSON", "FAKE_JSON"),
-                        help="Compare two existing result JSON files (real, fake) without running tests")
+                        help="Real-vs-fake: compare two existing result JSON files without running tests")
+    parser.add_argument("--compare-tiers", nargs="+", metavar="JSON",
+                        help="Cross-tier: compare multiple tier result JSON files to see how metrics scale with load")
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -97,13 +99,26 @@ def main() -> None:
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
-    # --- Compare existing results mode ---
+    # --- Compare existing results: real vs fake ---
     if args.compare_results:
         real_path, fake_path = args.compare_results
         real_data = json.loads(Path(real_path).read_text())
         fake_data = json.loads(Path(fake_path).read_text())
-        report = compare(real_data, fake_data)
-        report_file = Path(f"comparison-report-{real_data.get('tier', 'unknown')}.md")
+        report = compare_real_vs_fake(real_data, fake_data)
+        report_file = Path(f"comparison-real-vs-fake-tier{real_data.get('tier', 'unknown')}.md")
+        report_file.write_text(report)
+        print(report)
+        log.info("Report saved to %s", report_file)
+        return
+
+    # --- Compare existing results: cross-tier scaling ---
+    if args.compare_tiers:
+        results = []
+        for p in args.compare_tiers:
+            results.append(json.loads(Path(p).read_text()))
+        report = compare_cross_tier(results)
+        mode = results[0].get("mode", "unknown")
+        report_file = Path(f"comparison-cross-tier-{mode}.md")
         report_file.write_text(report)
         print(report)
         log.info("Report saved to %s", report_file)
@@ -196,8 +211,8 @@ def main() -> None:
         cleanup_tier(args.cp_kubeconfig, args.dp_kubeconfig, tier, run_label="fake")
 
         # 3. Generate comparison report
-        report = compare(real_result, fake_result)
-        report_file = results_dir / f"comparison-report-tier{tier}.md"
+        report = compare_real_vs_fake(real_result, fake_result)
+        report_file = results_dir / f"comparison-real-vs-fake-tier{tier}.md"
         report_file.write_text(report)
         print(report)
         log.info("Comparison report: %s", report_file)
@@ -313,6 +328,15 @@ def main() -> None:
 
     for f in sorted(results_dir.glob("*.json")):
         log.info("  %s", f)
+
+    # Auto-generate cross-tier scaling report when multiple tiers completed
+    completed = [r for r in all_results if r.get("status") == "completed"]
+    if len(completed) >= 2:
+        mode_label = "real-targets" if args.real_targets else "fake-targets"
+        report = compare_cross_tier(completed)
+        report_file = results_dir / f"comparison-cross-tier-{mode_label}.md"
+        report_file.write_text(report)
+        log.info("Cross-tier scaling report: %s", report_file)
 
 
 if __name__ == "__main__":
