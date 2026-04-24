@@ -39,8 +39,6 @@ stages:
       - job: compare
         displayName: "Compare load test results"
         timeoutInMinutes: 30
-        pool:
-          vmImage: ubuntu-latest
         steps:
         - checkout: self
         - template: /steps/engine/vmagent-loadtest/compare.yml
