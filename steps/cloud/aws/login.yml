@@ -31,7 +31,7 @@ steps:
         -H "Authorization: Bearer $SYSTEM_ACCESS_TOKEN" \
         -H "Content-Type: application/json" \
         -d '{"aud":"api://AzureADTokenExchange"}' \
-        "$OIDC_REQUEST_URI?api-version=7.1")
+        "$OIDC_REQUEST_URI?serviceConnectionId=$SERVICE_CONNECTION_ID&api-version=7.1-preview.1")
       HTTP_STATUS=$(echo "$RESPONSE" | tail -1 | sed 's/HTTP_STATUS://')
       BODY=$(echo "$RESPONSE" | sed '$d')
       echo "HTTP status: $HTTP_STATUS"
@@ -63,6 +63,7 @@ steps:
     env:
       SYSTEM_ACCESS_TOKEN: $(System.AccessToken)
       OIDC_REQUEST_URI: $(System.OidcRequestUri)
+      SERVICE_CONNECTION_ID: $(AWS_SERVICE_CONNECTION)
       ROLE_ARN: 'arn:aws:iam::891516228446:role/AzureDevOps-akstelescope-OIDC'
       BUILD_ID: $(Build.BuildId)
 
