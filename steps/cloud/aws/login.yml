@@ -6,7 +6,7 @@ parameters:
   type: string
 - name: role_arn
   type: string
-  default: ''
+  default: 'arn:aws:iam::891516228446:role/AzureDevOps-akstelescope-OIDC'
 
 steps:
 - ${{ if eq(parameters.credential_type, 'service_connection') }}:
