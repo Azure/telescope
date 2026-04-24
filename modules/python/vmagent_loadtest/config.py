@@ -11,7 +11,7 @@ FAKE_EXPORTER_DIR = MANIFEST_DIR
 KONN_SERVER_IMAGE = "mcr.microsoft.com/oss/v2/kubernetes/apiserver-network-proxy/server:v0.32.1-3"
 KONN_AGENT_IMAGE = "mcr.microsoft.com/oss/v2/kubernetes/apiserver-network-proxy/agent:v0.32.1-3"
 VMAGENT_IMAGE = "mcr.microsoft.com/oss/v2/victoriametrics/vmagent:v1.127.0-1"
-VMSINGLE_IMAGE = "victoriametrics/victoria-metrics:v1.117.0"
+VMSINGLE_IMAGE = "mcr.microsoft.com/oss/v2/victoriametrics/victoria-metrics:v1.125.1-7"
 FAKE_EXPORTER_IMAGE = os.environ.get(
     "FAKE_EXPORTER_IMAGE", "fakexporter.azurecr.io/fake-exporter:latest"
 )

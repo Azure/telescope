@@ -9,7 +9,7 @@ import yaml
 from .config import (
     FAKE_EXPORTER_DIR, FAKE_EXPORTER_IMAGE, FAKE_EXPORTER_NS,
     FAKE_EXPORTER_ROLES, KONN_AGENT_IMAGE, KONN_SERVER_IMAGE,
-    KUBELET_SA_NAME, MANIFEST_DIR, VMAGENT_IMAGE,
+    KUBELET_SA_NAME, MANIFEST_DIR, VMAGENT_IMAGE, VMSINGLE_IMAGE,
     log,
 )
 from .utils import kubectl, kubectl_apply, render_template, retry, run
@@ -206,6 +206,7 @@ def deploy_vmsingle(kubeconfig: str, namespace: str) -> None:
     log.info("Deploying vmsingle receiver in %s...", namespace)
     manifest = render_template(MANIFEST_DIR / "vmsingle.yaml", {
         "__NAMESPACE__": namespace,
+        "__VMSINGLE_IMAGE__": VMSINGLE_IMAGE,
     })
     kubectl_apply(kubeconfig, manifest)
     kubectl(kubeconfig, "-n", namespace, "rollout", "status",

@@ -241,7 +241,7 @@ spec:
         # vmagent-proxy sidecar — converts VMAgent HTTP/HTTPS to CONNECT
         # through mTLS tunnel to konnectivity-server
         - name: vmagent-proxy
-          image: python:3.11-alpine
+          image: mcr.microsoft.com/azurelinux/distroless/python:3.12
           command: ["python3", "/scripts/proxy.py"]
           ports:
             - name: proxy
