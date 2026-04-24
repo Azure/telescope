@@ -85,26 +85,58 @@ def deploy_konnectivity_agents(kubeconfig: str, namespace: str, server_host: str
     log.info("Konnectivity agents ready in %s", namespace)
 
 
-def _check_image_pull(kubeconfig: str, namespace: str, label_selector: str,
-                      timeout: int = 60, interval: int = 5) -> None:
-    """Poll pods for ImagePullBackOff/ErrImagePull and fail fast instead of waiting for rollout timeout."""
+def _wait_statefulsets_ready(kubeconfig: str, namespace: str,
+                              statefulsets: list[tuple[str, str, str]],
+                              timeout: int = 600, interval: int = 10) -> None:
+    """Wait for multiple StatefulSets in parallel with progress logging and image-pull checks."""
     deadline = time.time() + timeout
-    while time.time() < deadline:
+
+    while True:
+        all_ready = True
+        status_parts = []
+
+        for sts_name, app_label, _ in statefulsets:
+            # Image-pull check: scan pods for fatal pull errors
+            pod_result = kubectl(kubeconfig, "-n", namespace, "get", "pods",
+                                 "-l", f"app={app_label}", "-o", "json", check=False)
+            if pod_result.returncode == 0:
+                pods = json.loads(pod_result.stdout)
+                for pod in pods.get("items", []):
+                    for cs in pod.get("status", {}).get("containerStatuses", []):
+                        waiting = cs.get("state", {}).get("waiting", {})
+                        reason = waiting.get("reason", "")
+                        if reason in ("ImagePullBackOff", "ErrImagePull"):
+                            raise RuntimeError(
+                                f"Image pull failed for {pod['metadata']['name']}: "
+                                f"{waiting.get('message', reason)}")
+
+            # Rollout progress
+            result = kubectl(kubeconfig, "-n", namespace, "get", f"statefulset/{sts_name}",
+                             "-o", "jsonpath={.status.readyReplicas},{.spec.replicas}",
+                             check=False)
+            if result.returncode != 0:
+                status_parts.append(f"{sts_name}: 0/?")
+                all_ready = False
+                continue
+
+            parts = result.stdout.strip().split(",")
+            ready = int(parts[0]) if parts[0] else 0
+            desired = int(parts[1]) if len(parts) > 1 and parts[1] else 0
+            status_parts.append(f"{sts_name}: {ready}/{desired}")
+            if ready < desired:
+                all_ready = False
+
+        log.info("  Rollout progress: %s", " | ".join(status_parts))
+
+        if all_ready:
+            return
+
+        if time.time() > deadline:
+            raise RuntimeError(
+                f"Timed out waiting for StatefulSets in {namespace}: "
+                + " | ".join(status_parts))
+
         time.sleep(interval)
-        result = kubectl(kubeconfig, "-n", namespace, "get", "pods",
-                         "-l", label_selector, "-o", "json", check=False)
-        if result.returncode != 0:
-            continue
-        pods = json.loads(result.stdout)
-        for pod in pods.get("items", []):
-            for cs in pod.get("status", {}).get("containerStatuses", []):
-                waiting = cs.get("state", {}).get("waiting", {})
-                reason = waiting.get("reason", "")
-                if reason in ("ImagePullBackOff", "ErrImagePull"):
-                    msg = waiting.get("message", reason)
-                    raise RuntimeError(
-                        f"Image pull failed for pod {pod['metadata']['name']}: {msg}"
-                    )
 
 
 @retry(max_attempts=3, backoff=10.0)
@@ -118,10 +150,7 @@ def deploy_fake_exporters(kubeconfig: str, replicas: int, profile: str = "defaul
         "__PROFILE__": profile,
     })
     kubectl_apply(kubeconfig, manifest)
-    for sts_name, app_label, _ in FAKE_EXPORTER_ROLES:
-        _check_image_pull(kubeconfig, FAKE_EXPORTER_NS, f"app={app_label}")
-        kubectl(kubeconfig, "-n", FAKE_EXPORTER_NS, "rollout", "status",
-                f"statefulset/{sts_name}", "--timeout=600s")
+    _wait_statefulsets_ready(kubeconfig, FAKE_EXPORTER_NS, FAKE_EXPORTER_ROLES)
     log.info("Fake exporters ready: %d total pods", total)
 
 
