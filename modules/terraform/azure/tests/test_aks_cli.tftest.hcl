@@ -40,7 +40,7 @@ variables {
 
 # This test case verifies the AKS CLI command generation when no optional parameters are provided.
 # It ensures that the generated command matches the expected format and includes all required parameters.
-run "test_aws_cli2" {
+run "test_aks_cli2" {
 
   command = apply
 
@@ -54,7 +54,7 @@ run "test_aws_cli2" {
   }
 }
 
-run "test_aws_cli_automatic" {
+run "test_aks_cli_automatic" {
 
   command = apply
 
