@@ -52,6 +52,7 @@ steps:
       if [[ -n "$WORK_DIR" && -d "${WORK_DIR}/results" ]]; then
         mkdir -p "$(TEST_RESULTS_DIR)"
         cp -v "${WORK_DIR}/results"/*.json "$(TEST_RESULTS_DIR)/" 2>/dev/null || true
+        cp -v "${WORK_DIR}/results"/*.md "$(TEST_RESULTS_DIR)/" 2>/dev/null || true
         if [[ -d "${WORK_DIR}/pprof" ]]; then
           mkdir -p "$(TEST_RESULTS_DIR)/pprof"
           cp -rv "${WORK_DIR}/pprof"/. "$(TEST_RESULTS_DIR)/pprof/" 2>/dev/null || true
