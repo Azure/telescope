@@ -27,3 +27,34 @@ steps:
     kubectl --context dp get nodes -o wide
     echo "Both clusters are accessible."
   displayName: "Validate CP + DP clusters"
+
+# Expose cluster names, resource groups, and dedicated kubeconfig files
+# so that the execute and collect steps can use them without re-discovery.
+- script: |
+    set -euo pipefail
+
+    region=${{ parameters.regions[0] }}
+
+    CP_AKS=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location $region \
+      --query "[?(tags.run_id == '${RUN_ID}' && tags.role == 'cp')].name" --output tsv)
+    CP_RG=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location $region \
+      --query "[?(tags.run_id == '${RUN_ID}' && tags.role == 'cp')].resourceGroup" --output tsv)
+
+    DP_AKS=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location $region \
+      --query "[?(tags.run_id == '${RUN_ID}' && tags.role == 'dp')].name" --output tsv)
+    DP_RG=$(az resource list --resource-type Microsoft.ContainerService/managedClusters --location $region \
+      --query "[?(tags.run_id == '${RUN_ID}' && tags.role == 'dp')].resourceGroup" --output tsv)
+
+    echo "CP cluster: $CP_AKS (RG: $CP_RG)"
+    echo "DP cluster: $DP_AKS (RG: $DP_RG)"
+
+    echo "##vso[task.setvariable variable=CP_AKS_NAME]$CP_AKS"
+    echo "##vso[task.setvariable variable=CP_AKS_RG]$CP_RG"
+    echo "##vso[task.setvariable variable=DP_AKS_NAME]$DP_AKS"
+    echo "##vso[task.setvariable variable=DP_AKS_RG]$DP_RG"
+
+    # Write dedicated kubeconfig files from the already-populated default config.
+    mkdir -p $(Pipeline.Workspace)/kubeconfigs
+    kubectl config view --context cp --minify --flatten > $(Pipeline.Workspace)/kubeconfigs/cp.kubeconfig
+    kubectl config view --context dp --minify --flatten > $(Pipeline.Workspace)/kubeconfigs/dp.kubeconfig
+  displayName: "Export cluster variables and kubeconfigs"

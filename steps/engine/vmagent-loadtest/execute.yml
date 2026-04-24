@@ -1,0 +1,109 @@
+parameters:
+- name: cp_kubeconfig
+  type: string
+- name: dp_kubeconfig
+  type: string
+- name: dp_resource_group
+  type: string
+- name: dp_cluster_name
+  type: string
+
+steps:
+- script: |
+    set -euo pipefail
+
+    CP_KUBECONFIG="${{ parameters.cp_kubeconfig }}"
+    DP_KUBECONFIG="${{ parameters.dp_kubeconfig }}"
+
+    TIERS="${TIERS:-150,500,1000}"
+    SOAK_MINUTES="${SOAK_MINUTES:-10}"
+    REAL_TARGETS="${REAL_TARGETS:-false}"
+    RUN_LABEL="${RUN_LABEL:-}"
+
+    EXTRA_ARGS="--resource-group ${{ parameters.dp_resource_group }} --dp-cluster-name ${{ parameters.dp_cluster_name }}"
+    if [[ "$REAL_TARGETS" == "true" ]]; then
+      EXTRA_ARGS="$EXTRA_ARGS --real-targets"
+    fi
+    if [[ -n "$RUN_LABEL" ]]; then
+      EXTRA_ARGS="$EXTRA_ARGS --run-label $RUN_LABEL"
+    fi
+
+    IFS=',' read -ra TIER_LIST <<< "$TIERS"
+    for TIER in "${TIER_LIST[@]}"; do
+      TIER=$(echo "$TIER" | xargs)
+      echo ""
+      echo "######################################################################"
+      echo "# TIER $TIER — execute"
+      echo "######################################################################"
+
+      python3 modules/python/vmagent_loadtest/main.py \
+        --cp-kubeconfig "$CP_KUBECONFIG" \
+        --dp-kubeconfig "$DP_KUBECONFIG" \
+        --tiers "$TIER" \
+        --warm-up-minutes "$SOAK_MINUTES" \
+        $EXTRA_ARGS
+
+      echo ""
+      echo "######################################################################"
+      echo "# TIER $TIER — collect results"
+      echo "######################################################################"
+
+      WORK_DIR=$(ls -td /tmp/fake-cp-loadtest.* 2>/dev/null | head -1)
+      if [[ -n "$WORK_DIR" && -d "${WORK_DIR}/results" ]]; then
+        mkdir -p "$(TEST_RESULTS_DIR)"
+        cp -v "${WORK_DIR}/results"/*.json "$(TEST_RESULTS_DIR)/" 2>/dev/null || true
+        if [[ -d "${WORK_DIR}/pprof" ]]; then
+          mkdir -p "$(TEST_RESULTS_DIR)/pprof"
+          cp -rv "${WORK_DIR}/pprof"/. "$(TEST_RESULTS_DIR)/pprof/" 2>/dev/null || true
+        fi
+        if [[ -d "${WORK_DIR}/raw" ]]; then
+          mkdir -p "$(TEST_RESULTS_DIR)/raw"
+          cp -rv "${WORK_DIR}/raw"/. "$(TEST_RESULTS_DIR)/raw/" 2>/dev/null || true
+        fi
+        if [[ -d "${WORK_DIR}/diagnostics" ]]; then
+          mkdir -p "$(TEST_RESULTS_DIR)/diagnostics"
+          cp -rv "${WORK_DIR}/diagnostics"/. "$(TEST_RESULTS_DIR)/diagnostics/" 2>/dev/null || true
+        fi
+        echo "Tier $TIER results collected."
+        ls -l "$(TEST_RESULTS_DIR)/"
+      else
+        echo "##vso[task.logissue type=warning;]No results found for tier $TIER"
+      fi
+
+      echo ""
+      echo "######################################################################"
+      echo "# TIER $TIER — cleanup namespace"
+      echo "######################################################################"
+
+      NS_PREFIX="loadtest-"
+      if [[ -n "$RUN_LABEL" ]]; then
+        NS_PREFIX="loadtest-${RUN_LABEL}-"
+      fi
+      NS="${NS_PREFIX}${TIER}"
+
+      kubectl --kubeconfig "$CP_KUBECONFIG" delete ns "$NS" --wait=false --ignore-not-found=true || true
+      kubectl --kubeconfig "$DP_KUBECONFIG" delete ns "$NS" --wait=false --ignore-not-found=true || true
+
+      for i in $(seq 1 24); do
+        CP_GONE=$(kubectl --kubeconfig "$CP_KUBECONFIG" get ns "$NS" 2>&1 && echo "no" || echo "yes")
+        DP_GONE=$(kubectl --kubeconfig "$DP_KUBECONFIG" get ns "$NS" 2>&1 && echo "no" || echo "yes")
+        if [[ "$CP_GONE" == "yes" && "$DP_GONE" == "yes" ]]; then
+          echo "Namespace $NS deleted on both clusters."
+          break
+        fi
+        echo "  waiting for $NS to terminate... ($i/24)"
+        sleep 5
+      done
+
+      echo "Tier $TIER complete."
+    done
+
+    echo ""
+    echo "All tiers complete. Results:"
+    ls -lR "$(TEST_RESULTS_DIR)/" 2>/dev/null || echo "No results."
+  displayName: "Execute VMAgent load test (per-tier loop)"
+  env:
+    TIERS: $(TIERS)
+    SOAK_MINUTES: $(SOAK_MINUTES)
+    REAL_TARGETS: $(REAL_TARGETS)
+    RUN_LABEL: $(RUN_LABEL)

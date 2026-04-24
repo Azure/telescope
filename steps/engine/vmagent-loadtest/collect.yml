@@ -1,0 +1,125 @@
+parameters:
+- name: cloud
+  type: string
+- name: regions
+  type: object
+
+steps:
+- script: |
+    set -euo pipefail
+
+    RESULTS_DIR="$(TEST_RESULTS_DIR)"
+    mkdir -p "$RESULTS_DIR"
+
+    # Backfill from the latest temp work dir only when results were not already copied.
+    if ! ls "$RESULTS_DIR"/vmagent-loadtest-*.json >/dev/null 2>&1 && ! ls "$RESULTS_DIR"/fake-cp-loadtest-*.json >/dev/null 2>&1; then
+      WORK_DIR=$(ls -td /tmp/fake-cp-loadtest.* 2>/dev/null | head -1 || true)
+      if [[ -z "$WORK_DIR" ]]; then
+        echo "##vso[task.logissue type=warning;]No test results found in $(TEST_RESULTS_DIR) or /tmp/fake-cp-loadtest.*"
+      else
+        if [[ -d "${WORK_DIR}/results" ]]; then
+          cp -r "${WORK_DIR}/results"/. "$RESULTS_DIR"/
+        fi
+        if [[ -d "${WORK_DIR}/pprof" ]]; then
+          mkdir -p "$RESULTS_DIR/pprof"
+          cp -r "${WORK_DIR}/pprof"/. "$RESULTS_DIR/pprof/"
+        fi
+        if [[ -d "${WORK_DIR}/raw" ]]; then
+          mkdir -p "$RESULTS_DIR/raw"
+          cp -r "${WORK_DIR}/raw"/. "$RESULTS_DIR/raw/"
+        fi
+        if [[ -d "${WORK_DIR}/diagnostics" ]]; then
+          mkdir -p "$RESULTS_DIR/diagnostics"
+          cp -r "${WORK_DIR}/diagnostics"/. "$RESULTS_DIR/diagnostics/"
+        fi
+      fi
+    fi
+
+    shopt -s nullglob
+    tier_files=("$RESULTS_DIR"/vmagent-loadtest-*.json)
+    if [[ ${#tier_files[@]} -eq 0 ]]; then
+      tier_files=("$RESULTS_DIR"/fake-cp-loadtest-*.json)
+    fi
+
+    if [[ ${#tier_files[@]} -gt 0 ]]; then
+      : > "$(TEST_RESULTS_FILE)"
+      cluster_info=$(jq -n -c \
+        --arg cp_aks "${CP_AKS_NAME:-}" \
+        --arg cp_rg "${CP_AKS_RG:-}" \
+        --arg dp_aks "${DP_AKS_NAME:-}" \
+        --arg dp_rg "${DP_AKS_RG:-}" \
+        '{cp_aks: $cp_aks, cp_rg: $cp_rg, dp_aks: $dp_aks, dp_rg: $dp_rg}')
+
+      subscription_id=$(az account show --query id --output tsv 2>/dev/null || true)
+      base_cloud_info=$(jq -n -c \
+        --arg cloud "${{ parameters.cloud }}" \
+        --arg region "${{ parameters.regions[0] }}" \
+        --arg subscription "${subscription_id:-}" \
+        '{cloud: $cloud, region: $region, subscription: $subscription}')
+
+      cp_cluster_details='{}'
+      if [[ -n "${CP_AKS_NAME:-}" && -n "${CP_AKS_RG:-}" ]]; then
+        cp_cluster_details=$(az aks show --resource-group "${CP_AKS_RG}" --name "${CP_AKS_NAME}" --output json 2>/dev/null \
+          | jq -c '{
+              name: .name,
+              resource_group: .resourceGroup,
+              location: .location,
+              fqdn: .fqdn,
+              private_fqdn: (.privateFqdn // ""),
+              k8s_version: .currentKubernetesVersion,
+              sku_tier: .sku.tier,
+              network_profile: .networkProfile,
+              agentpool_profile: .agentPoolProfiles
+            }' || echo '{}')
+      fi
+
+      dp_cluster_details='{}'
+      if [[ -n "${DP_AKS_NAME:-}" && -n "${DP_AKS_RG:-}" ]]; then
+        dp_cluster_details=$(az aks show --resource-group "${DP_AKS_RG}" --name "${DP_AKS_NAME}" --output json 2>/dev/null \
+          | jq -c '{
+              name: .name,
+              resource_group: .resourceGroup,
+              location: .location,
+              fqdn: .fqdn,
+              private_fqdn: (.privateFqdn // ""),
+              k8s_version: .currentKubernetesVersion,
+              sku_tier: .sku.tier,
+              network_profile: .networkProfile,
+              agentpool_profile: .agentPoolProfiles
+            }' || echo '{}')
+      fi
+
+      combined_cloud_info=$(jq -n -c \
+        --argjson base "$base_cloud_info" \
+        --argjson cp "$cp_cluster_details" \
+        --argjson dp "$dp_cluster_details" \
+        '$base + {clusters: {cp: $cp, dp: $dp}}')
+
+      for f in "${tier_files[@]}"; do
+        jq -c \
+          --argjson combined_cloud_info "$combined_cloud_info" \
+          --arg cluster_info "$cluster_info" \
+          'def as_obj: if type == "object" then . else {} end;
+           .
+           + {cloud_info: ((if has("cloud_info") then (.cloud_info | as_obj) else {} end) + $combined_cloud_info)}
+           + {cluster_info: ((if has("cluster_info") then (.cluster_info | as_obj) else {} end) + ($cluster_info | fromjson))}' "$f" >> "$(TEST_RESULTS_FILE)"
+      done
+      echo "Combined all tier results into $(TEST_RESULTS_FILE)"
+      wc -l "$(TEST_RESULTS_FILE)"
+    else
+      echo "##vso[task.logissue type=warning;]No tier JSON files found to combine into $(TEST_RESULTS_FILE)."
+    fi
+
+    echo "Collected results directory:"
+    ls -lR "$RESULTS_DIR"
+  displayName: "Collect VMAgent load test results"
+  env:
+    CP_AKS_NAME: $(CP_AKS_NAME)
+    CP_AKS_RG: $(CP_AKS_RG)
+    DP_AKS_NAME: $(DP_AKS_NAME)
+    DP_AKS_RG: $(DP_AKS_RG)
+
+- publish: $(TEST_RESULTS_DIR)
+  artifact: vmagent-loadtest-results-$(System.JobName)
+  displayName: "Publish VMAgent results"
+  condition: always()

@@ -6,10 +6,7 @@ variables:
   SCENARIO_NAME: vmagent-loadtest
 
 stages:
-  ############################################################################
-  # Small scale — fake exporters (150, 500 targets)
-  ############################################################################
-  - stage: azure_eastus_small_fake
+  - stage: azure_vmagent_loadtest
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -17,69 +14,20 @@ stages:
           cloud: azure
           regions:
             - westus2
-          terraform_input_file_mapping:
-            - westus2: "scenarios/perf-eval/vmagent-loadtest/terraform-inputs/azure.tfvars"
           topology: vmagent-loadtest
           engine: vmagent-loadtest
           matrix:
             small_fake:
-              TIERS: "10,50,100"
+              TIERS: "50,100,150,300"
               SOAK_MINUTES: 10
               REAL_TARGETS: "false"
               RUN_LABEL: "small-fake"
-          max_parallel: 1
-          timeout_in_minutes: 240
-          credential_type: service_connection
-          ssh_key_enabled: false
-
-  ############################################################################
-  # Large scale — fake exporters (150, 500, 1000, 2000 targets)
-  ############################################################################
-  - stage: azure_eastus_large_fake
-    dependsOn: []
-    jobs:
-      - template: /jobs/competitive-test.yml
-        parameters:
-          cloud: azure
-          regions:
-            - westus2
-          terraform_input_file_mapping:
-            - westus2: "scenarios/perf-eval/vmagent-loadtest/terraform-inputs/azure.tfvars"
-          topology: vmagent-loadtest
-          engine: vmagent-loadtest
-          matrix:
-            large_fake:
-              TIERS: "150,300,500,1000"
-              SOAK_MINUTES: 10
-              REAL_TARGETS: "false"
-              RUN_LABEL: "large-fake"
-          max_parallel: 1
-          timeout_in_minutes: 360
-          credential_type: service_connection
-          ssh_key_enabled: false
-
-  ############################################################################
-  # Real targets — scrape actual kubelet/cadvisor/kube-proxy/azure-cns
-  ############################################################################
-  - stage: azure_eastus_real_targets
-    dependsOn: []
-    jobs:
-      - template: /jobs/competitive-test.yml
-        parameters:
-          cloud: azure
-          regions:
-            - westus2
-          terraform_input_file_mapping:
-            - westus2: "scenarios/perf-eval/vmagent-loadtest/terraform-inputs/azure.tfvars"
-          topology: vmagent-loadtest
-          engine: vmagent-loadtest
-          matrix:
             real_targets:
-              TIERS: "50,150,300"
+              TIERS: "50,100,150,300"
               SOAK_MINUTES: 15
               REAL_TARGETS: "true"
               RUN_LABEL: "real-targets"
-          max_parallel: 1
-          timeout_in_minutes: 300
+          max_parallel: 3
+          timeout_in_minutes: 360
           credential_type: service_connection
           ssh_key_enabled: false

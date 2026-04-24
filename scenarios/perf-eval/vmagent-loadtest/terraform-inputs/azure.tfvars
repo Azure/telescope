@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "vmagent-loadtest"
-deletion_delay = "6h"
+deletion_delay = "2h"
 owner          = "aks"
 
 aks_config_list = [
