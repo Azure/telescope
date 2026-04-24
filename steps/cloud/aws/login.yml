@@ -25,11 +25,21 @@ steps:
   - bash: |
       set -eu
       echo "Requesting OIDC token from Azure DevOps..."
-      OIDC_TOKEN=$(curl -sf \
+      echo "OIDC_REQUEST_URI: ${OIDC_REQUEST_URI:-<not set>}"
+      echo "SYSTEM_ACCESS_TOKEN length: ${#SYSTEM_ACCESS_TOKEN}"
+      RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
         -H "Authorization: Bearer $SYSTEM_ACCESS_TOKEN" \
         -H "Content-Type: application/json" \
         -d '{"aud":"api://AzureADTokenExchange"}' \
-        "$OIDC_REQUEST_URI" | jq -r '.oidcToken')
+        "$OIDC_REQUEST_URI")
+      HTTP_STATUS=$(echo "$RESPONSE" | tail -1 | sed 's/HTTP_STATUS://')
+      BODY=$(echo "$RESPONSE" | sed '$d')
+      echo "HTTP status: $HTTP_STATUS"
+      if [ "$HTTP_STATUS" != "200" ]; then
+        echo "##[error]OIDC token request failed (HTTP $HTTP_STATUS): $BODY"
+        exit 1
+      fi
+      OIDC_TOKEN=$(echo "$BODY" | jq -r '.oidcToken')
 
       if [ -z "$OIDC_TOKEN" ] || [ "$OIDC_TOKEN" = "null" ]; then
         echo "##[error]Failed to obtain OIDC token from Azure DevOps"
