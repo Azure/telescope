@@ -4,6 +4,9 @@ parameters:
   default: us-east-1
 - name: credential_type
   type: string
+- name: role_arn
+  type: string
+  default: ''
 
 steps:
 - ${{ if eq(parameters.credential_type, 'service_connection') }}:
@@ -20,6 +23,41 @@ steps:
           echo "##vso[task.setvariable variable=AWS_SESSION_TOKEN;issecret=true]$AWS_SESSION_TOKEN"
         fi
     displayName: 'Get login credentials'
+
+- ${{ if eq(parameters.credential_type, 'oidc_manual') }}:
+  - bash: |
+      set -eu
+      echo "Requesting OIDC token from Azure DevOps..."
+      OIDC_TOKEN=$(curl -sf \
+        -H "Authorization: Bearer $SYSTEM_ACCESS_TOKEN" \
+        -H "Content-Type: application/json" \
+        -d '{"aud":"api://AzureADTokenExchange"}' \
+        "$OIDC_REQUEST_URI" | jq -r '.oidcToken')
+
+      if [ -z "$OIDC_TOKEN" ] || [ "$OIDC_TOKEN" = "null" ]; then
+        echo "##[error]Failed to obtain OIDC token from Azure DevOps"
+        exit 1
+      fi
+      echo "OIDC token obtained successfully"
+
+      echo "Assuming AWS role via OIDC..."
+      CREDS=$(aws sts assume-role-with-web-identity \
+        --role-arn "$ROLE_ARN" \
+        --role-session-name "ado-$BUILD_ID" \
+        --web-identity-token "$OIDC_TOKEN" \
+        --duration-seconds 3600 \
+        --output json)
+
+      echo "##vso[task.setvariable variable=AWS_ACCESS_KEY_ID;issecret=true]$(echo "$CREDS" | jq -r '.Credentials.AccessKeyId')"
+      echo "##vso[task.setvariable variable=AWS_SECRET_ACCESS_KEY;issecret=true]$(echo "$CREDS" | jq -r '.Credentials.SecretAccessKey')"
+      echo "##vso[task.setvariable variable=AWS_SESSION_TOKEN;issecret=true]$(echo "$CREDS" | jq -r '.Credentials.SessionToken')"
+      echo "AWS credentials obtained via OIDC (expires: $(echo "$CREDS" | jq -r '.Credentials.Expiration'))"
+    displayName: 'Get AWS credentials via OIDC'
+    env:
+      SYSTEM_ACCESS_TOKEN: $(System.AccessToken)
+      OIDC_REQUEST_URI: $(System.OidcRequestUri)
+      ROLE_ARN: ${{ parameters.role_arn }}
+      BUILD_ID: $(Build.BuildId)
 
 - bash: |
     set -eu
