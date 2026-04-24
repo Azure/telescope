@@ -12,10 +12,10 @@ steps:
     mkdir -p "$RESULTS_DIR"
 
     # Backfill from the latest temp work dir only when results were not already copied.
-    if ! ls "$RESULTS_DIR"/vmagent-loadtest-*.json >/dev/null 2>&1 && ! ls "$RESULTS_DIR"/fake-cp-loadtest-*.json >/dev/null 2>&1; then
-      WORK_DIR=$(ls -td /tmp/fake-cp-loadtest.* 2>/dev/null | head -1 || true)
+    if ! ls "$RESULTS_DIR"/vmagent-loadtest-*.json >/dev/null 2>&1; then
+      WORK_DIR=$(ls -td /tmp/vmagent-loadtest.* 2>/dev/null | head -1 || true)
       if [[ -z "$WORK_DIR" ]]; then
-        echo "##vso[task.logissue type=warning;]No test results found in $(TEST_RESULTS_DIR) or /tmp/fake-cp-loadtest.*"
+        echo "##vso[task.logissue type=warning;]No test results found in $(TEST_RESULTS_DIR) or /tmp/vmagent-loadtest.*"
       else
         if [[ -d "${WORK_DIR}/results" ]]; then
           cp -r "${WORK_DIR}/results"/. "$RESULTS_DIR"/
@@ -37,9 +37,6 @@ steps:
 
     shopt -s nullglob
     tier_files=("$RESULTS_DIR"/vmagent-loadtest-*.json)
-    if [[ ${#tier_files[@]} -eq 0 ]]; then
-      tier_files=("$RESULTS_DIR"/fake-cp-loadtest-*.json)
-    fi
 
     if [[ ${#tier_files[@]} -gt 0 ]]; then
       : > "$(TEST_RESULTS_FILE)"

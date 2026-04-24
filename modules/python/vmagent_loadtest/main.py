@@ -164,7 +164,7 @@ def main() -> None:
 
         tier = int(args.tiers.split(",")[0]) if args.tiers else 10
         run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
-        work_dir = Path(tempfile.mkdtemp(prefix="fake-cp-loadtest."))
+        work_dir = Path(tempfile.mkdtemp(prefix="vmagent-loadtest."))
         results_dir = work_dir / "results"
         results_dir.mkdir(parents=True, exist_ok=True)
         log.info("=" * 60)
@@ -240,7 +240,7 @@ def main() -> None:
         log.info("  Tiers are DP node counts: %s", tiers)
     log.info("=" * 60)
 
-    work_dir = Path(tempfile.mkdtemp(prefix="fake-cp-loadtest."))
+    work_dir = Path(tempfile.mkdtemp(prefix="vmagent-loadtest."))
     results_dir = work_dir / "results"
     results_dir.mkdir(parents=True, exist_ok=True)
     log.info("Work dir: %s", work_dir)

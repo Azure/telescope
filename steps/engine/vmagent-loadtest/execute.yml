@@ -48,7 +48,7 @@ steps:
       echo "# TIER $TIER — collect results"
       echo "######################################################################"
 
-      WORK_DIR=$(ls -td /tmp/fake-cp-loadtest.* 2>/dev/null | head -1)
+      WORK_DIR=$(ls -td /tmp/vmagent-loadtest.* 2>/dev/null | head -1)
       if [[ -n "$WORK_DIR" && -d "${WORK_DIR}/results" ]]; then
         mkdir -p "$(TEST_RESULTS_DIR)"
         cp -v "${WORK_DIR}/results"/*.json "$(TEST_RESULTS_DIR)/" 2>/dev/null || true
