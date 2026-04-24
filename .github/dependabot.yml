@@ -8,10 +8,10 @@ updates:
     schedule:
       interval: "daily"
     assignees:
-      - sumanthreddy29
+      - liyu-ma
     reviewers:
-      - sumanthreddy29
-      - alyssa1303
-      - anson627
+      - liyu-ma
+      - vittoriasalim
+      - xinWeiWei24
     open-pull-requests-limit: 10
     target-branch: "main"
