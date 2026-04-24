@@ -4,9 +4,6 @@ parameters:
   default: us-east-1
 - name: credential_type
   type: string
-- name: role_arn
-  type: string
-  default: 'arn:aws:iam::891516228446:role/AzureDevOps-akstelescope-OIDC'
 
 steps:
 - ${{ if eq(parameters.credential_type, 'service_connection') }}:
@@ -56,7 +53,7 @@ steps:
     env:
       SYSTEM_ACCESS_TOKEN: $(System.AccessToken)
       OIDC_REQUEST_URI: $(System.OidcRequestUri)
-      ROLE_ARN: ${{ parameters.role_arn }}
+      ROLE_ARN: 'arn:aws:iam::891516228446:role/AzureDevOps-akstelescope-OIDC'
       BUILD_ID: $(Build.BuildId)
 
 - bash: |

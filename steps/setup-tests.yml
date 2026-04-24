@@ -14,9 +14,6 @@ parameters:
     default: 3
   - name: credential_type
     type: string
-  - name: role_arn
-    type: string
-    default: ''
   - name: ssh_key_enabled
     type: boolean
 
@@ -74,7 +71,6 @@ steps:
     parameters:
       region: ${{ parameters.region }}
       credential_type: ${{ parameters.credential_type }}
-      role_arn: ${{ parameters.role_arn }}
 
   - script: |
       if [ -n "${TEST_MODULES_DIR}" ]; then
