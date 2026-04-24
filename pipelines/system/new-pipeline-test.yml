@@ -31,3 +31,19 @@ stages:
           timeout_in_minutes: 360
           credential_type: service_connection
           ssh_key_enabled: false
+
+  - stage: compare_results
+    dependsOn: azure_vmagent_loadtest
+    condition: succeededOrFailed()
+    jobs:
+      - job: compare
+        displayName: "Compare load test results"
+        timeoutInMinutes: 30
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+        - checkout: self
+        - template: /steps/engine/vmagent-loadtest/compare.yml
+          parameters:
+            fake_artifact: "vmagent-loadtest-results-azure small_fake"
+            real_artifact: "vmagent-loadtest-results-azure real_targets"

@@ -1,0 +1,108 @@
+parameters:
+- name: fake_artifact
+  type: string
+  default: 'vmagent-loadtest-results-small_fake'
+- name: real_artifact
+  type: string
+  default: 'vmagent-loadtest-results-real_targets'
+
+steps:
+- task: DownloadPipelineArtifact@2
+  displayName: "Download fake-exporter results"
+  inputs:
+    artifact: ${{ parameters.fake_artifact }}
+    path: $(Pipeline.Workspace)/fake-results
+  condition: always()
+
+- task: DownloadPipelineArtifact@2
+  displayName: "Download real-targets results"
+  inputs:
+    artifact: ${{ parameters.real_artifact }}
+    path: $(Pipeline.Workspace)/real-results
+  condition: always()
+
+- script: |
+    set -euo pipefail
+
+    FAKE_DIR="$(Pipeline.Workspace)/fake-results"
+    REAL_DIR="$(Pipeline.Workspace)/real-results"
+    REPORT_DIR="$(Pipeline.Workspace)/comparison-reports"
+    mkdir -p "$REPORT_DIR"
+
+    echo "=== Fake-exporter results ==="
+    ls -lR "$FAKE_DIR" 2>/dev/null || echo "No fake results"
+    echo ""
+    echo "=== Real-targets results ==="
+    ls -lR "$REAL_DIR" 2>/dev/null || echo "No real results"
+    echo ""
+
+    # ---------------------------------------------------------------
+    # 1. Cross-tier scaling: one report per mode (fake, real)
+    # ---------------------------------------------------------------
+    shopt -s nullglob
+
+    FAKE_JSONS=("$FAKE_DIR"/vmagent-loadtest-*.json)
+    if [[ ${#FAKE_JSONS[@]} -ge 2 ]]; then
+      echo "### Cross-tier report: fake-exporter (${#FAKE_JSONS[@]} tiers)"
+      python3 -m vmagent_loadtest.compare cross-tier \
+        "${FAKE_JSONS[@]}" \
+        -o "$REPORT_DIR/cross-tier-fake.md"
+      cat "$REPORT_DIR/cross-tier-fake.md"
+    else
+      echo "##vso[task.logissue type=warning;]Skipping fake cross-tier: need ≥2 tier files, got ${#FAKE_JSONS[@]}"
+    fi
+    echo ""
+
+    REAL_JSONS=("$REAL_DIR"/vmagent-loadtest-*.json)
+    if [[ ${#REAL_JSONS[@]} -ge 2 ]]; then
+      echo "### Cross-tier report: real-targets (${#REAL_JSONS[@]} tiers)"
+      python3 -m vmagent_loadtest.compare cross-tier \
+        "${REAL_JSONS[@]}" \
+        -o "$REPORT_DIR/cross-tier-real.md"
+      cat "$REPORT_DIR/cross-tier-real.md"
+    else
+      echo "##vso[task.logissue type=warning;]Skipping real cross-tier: need ≥2 tier files, got ${#REAL_JSONS[@]}"
+    fi
+    echo ""
+
+    # ---------------------------------------------------------------
+    # 2. Real vs Fake: match tier files by tier number
+    # ---------------------------------------------------------------
+    for FAKE_FILE in "${FAKE_JSONS[@]}"; do
+      # Extract tier number from filename (e.g. vmagent-loadtest-small-fake-50.json → 50)
+      TIER=$(basename "$FAKE_FILE" .json | grep -oP '\d+$' || true)
+      if [[ -z "$TIER" ]]; then
+        continue
+      fi
+
+      # Find matching real file for same tier
+      REAL_FILE=""
+      for RF in "${REAL_JSONS[@]}"; do
+        RT=$(basename "$RF" .json | grep -oP '\d+$' || true)
+        if [[ "$RT" == "$TIER" ]]; then
+          REAL_FILE="$RF"
+          break
+        fi
+      done
+
+      if [[ -n "$REAL_FILE" ]]; then
+        echo "### Real vs Fake @ tier $TIER"
+        python3 -m vmagent_loadtest.compare real-vs-fake \
+          --real "$REAL_FILE" \
+          --fake "$FAKE_FILE" \
+          -o "$REPORT_DIR/real-vs-fake-tier-${TIER}.md"
+        cat "$REPORT_DIR/real-vs-fake-tier-${TIER}.md"
+        echo ""
+      fi
+    done
+
+    echo ""
+    echo "=== Comparison reports ==="
+    ls -l "$REPORT_DIR/"
+  displayName: "Compare VMAgent load test results"
+  workingDirectory: modules/python
+
+- publish: $(Pipeline.Workspace)/comparison-reports
+  artifact: vmagent-loadtest-comparison-reports
+  displayName: "Publish comparison reports"
+  condition: always()
