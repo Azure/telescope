@@ -29,6 +29,7 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from vmagent_loadtest.cluster import az_login, create_clusters, delete_resource_group
+from vmagent_loadtest.compare import compare
 from vmagent_loadtest.config import DEFAULT_NODEPOOL, log
 from vmagent_loadtest.runner import cleanup, cleanup_tier, run_single_tier
 
@@ -84,6 +85,10 @@ def main() -> None:
                         help="Max retries per tier on failure (default: 2)")
     parser.add_argument("--run-label", default="",
                         help="Label prefix for namespaces (avoids collisions in parallel runs)")
+    parser.add_argument("--compare", action="store_true",
+                        help="Run both real and fake modes for tier=10, then produce comparison report")
+    parser.add_argument("--compare-results", nargs=2, metavar=("REAL_JSON", "FAKE_JSON"),
+                        help="Compare two existing result JSON files (real, fake) without running tests")
     args = parser.parse_args()
 
     logging.basicConfig(
@@ -91,6 +96,18 @@ def main() -> None:
         format="[%(asctime)s] %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
+
+    # --- Compare existing results mode ---
+    if args.compare_results:
+        real_path, fake_path = args.compare_results
+        real_data = json.loads(Path(real_path).read_text())
+        fake_data = json.loads(Path(fake_path).read_text())
+        report = compare(real_data, fake_data)
+        report_file = Path(f"comparison-report-{real_data.get('tier', 'unknown')}.md")
+        report_file.write_text(report)
+        print(report)
+        log.info("Report saved to %s", report_file)
+        return
 
     # --- Cluster lifecycle modes ---
     if args.create_clusters or args.delete_clusters:
@@ -122,6 +139,70 @@ def main() -> None:
             print(f"CP_KUBECONFIG={cp_kc}")
             print(f"DP_KUBECONFIG={dp_kc}")
             return
+
+    # --- Compare mode: run real + fake for tier=10, then compare ---
+    if args.compare:
+        if not args.cp_kubeconfig or not args.dp_kubeconfig:
+            parser.error("--cp-kubeconfig and --dp-kubeconfig are required for --compare")
+        if not args.resource_group or not args.dp_cluster_name:
+            parser.error("--resource-group and --dp-cluster-name are required for --compare (node scaling)")
+
+        tier = int(args.tiers.split(",")[0]) if args.tiers else 10
+        run_id = datetime.now().strftime("%Y%m%d-%H%M%S")
+        work_dir = Path(tempfile.mkdtemp(prefix="comparison-test."))
+        results_dir = work_dir / "results"
+        results_dir.mkdir(parents=True, exist_ok=True)
+        log.info("=" * 60)
+        log.info("COMPARISON MODE: real vs fake @ tier=%d", tier)
+        log.info("  Work dir: %s", work_dir)
+        log.info("=" * 60)
+
+        # 1. Run real-targets test
+        log.info("")
+        log.info(">>> Phase 1: REAL TARGETS (tier=%d)", tier)
+        real_result = run_single_tier(
+            cp_kubeconfig=args.cp_kubeconfig,
+            dp_kubeconfig=args.dp_kubeconfig,
+            tier=tier,
+            warm_up_minutes=args.warm_up_minutes,
+            work_dir=work_dir,
+            results_dir=results_dir,
+            run_id=run_id,
+            real_targets=True,
+            resource_group=args.resource_group,
+            dp_cluster_name=args.dp_cluster_name,
+            nodepool=args.nodepool_name,
+            run_label="real",
+        )
+        cleanup_tier(args.cp_kubeconfig, args.dp_kubeconfig, tier, run_label="real")
+
+        # 2. Run fake-exporter test
+        log.info("")
+        log.info(">>> Phase 2: FAKE EXPORTER (tier=%d)", tier)
+        fake_result = run_single_tier(
+            cp_kubeconfig=args.cp_kubeconfig,
+            dp_kubeconfig=args.dp_kubeconfig,
+            tier=tier,
+            warm_up_minutes=args.warm_up_minutes,
+            work_dir=work_dir,
+            results_dir=results_dir,
+            run_id=run_id,
+            real_targets=False,
+            resource_group=args.resource_group,
+            dp_cluster_name=args.dp_cluster_name,
+            nodepool=args.nodepool_name,
+            run_label="fake",
+        )
+        cleanup_tier(args.cp_kubeconfig, args.dp_kubeconfig, tier, run_label="fake")
+
+        # 3. Generate comparison report
+        report = compare(real_result, fake_result)
+        report_file = results_dir / f"comparison-report-tier{tier}.md"
+        report_file.write_text(report)
+        print(report)
+        log.info("Comparison report: %s", report_file)
+        log.info("All results: %s", results_dir)
+        return
 
     # --- Test run mode ---
     if not args.cp_kubeconfig or not args.dp_kubeconfig:
