@@ -195,7 +195,6 @@ data:
       # ================================================================
       - job_name: localdns
         stream_parse: true
-        proxy_url: "http://localhost:8080"
         scheme: https
         authorization:
           type: Bearer
@@ -224,7 +223,6 @@ data:
 
       - job_name: node-problem-detector
         stream_parse: true
-        proxy_url: "http://localhost:8080"
         scheme: https
         authorization:
           type: Bearer
