@@ -1,5 +1,5 @@
 name: Hyperscale Etcd Benchmarking
-pool: AKS-Telescope-Airlock
+pool: AKS-Telescope-Ubuntu-EastUS2
 trigger:
 - v2
 parameters:
@@ -292,7 +292,6 @@ jobs:
       sudo install $temp_dir/kperf $temp_dir/runkperf /usr/local/bin
       rm -rf $temp_dir
       docker rmi ghcr.io/liyu-ma/kperf:hyperscale-etcd
-    condition: null
     displayName: Install runkperf binary
   - script: |2
 
@@ -334,7 +333,6 @@ jobs:
       done
 
       echo "Ingest complete: $completed configmaps created."
-    condition: null
     displayName: Ingest configmap data (${{ parameters.ingest_configmap_gib }} GiB)
 - job: ingest_events
   displayName: Ingest Events (${{ parameters.ingest_events_gib }} GiB)
@@ -380,7 +378,6 @@ jobs:
       sudo install $temp_dir/kperf $temp_dir/runkperf /usr/local/bin
       rm -rf $temp_dir
       docker rmi ghcr.io/liyu-ma/kperf:hyperscale-etcd
-    condition: null
     displayName: Install runkperf binary
   - script: |2
 
@@ -422,7 +419,6 @@ jobs:
       done
 
       echo "Ingest complete: $completed events created."
-    condition: null
     displayName: Ingest event data (${{ parameters.ingest_events_gib }} GiB)
 - job: ingest_secrets
   displayName: Ingest Secrets (${{ parameters.ingest_secrets_gib }} GiB)
@@ -468,7 +464,6 @@ jobs:
       sudo install $temp_dir/kperf $temp_dir/runkperf /usr/local/bin
       rm -rf $temp_dir
       docker rmi ghcr.io/liyu-ma/kperf:hyperscale-etcd
-    condition: null
     displayName: Install runkperf binary
   - script: |2
 
@@ -510,7 +505,6 @@ jobs:
       done
 
       echo "Ingest complete: $completed secrets created."
-    condition: null
     displayName: Ingest secret data (${{ parameters.ingest_secrets_gib }} GiB)
 - job: report
   displayName: Report ASI Dashboard URLs

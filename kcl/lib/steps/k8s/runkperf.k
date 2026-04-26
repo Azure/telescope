@@ -7,7 +7,7 @@ DEFAULT_SIZE = 524288  # 0.5MB per object
 DEFAULT_GROUP_SIZE = 80
 DEFAULT_BATCH_SIZE = 2000  # Internal batch size, not configurable by caller
 
-InstallRunkperf = lambda runnerImage: str, condition: str = None -> steps.Step {
+InstallRunkperf = lambda runnerImage: str, condition: str = "" -> steps.Step {
     steps.Script {
         script = """
 set -euo pipefail
@@ -23,7 +23,8 @@ rm -rf $temp_dir
 docker rmi ${runnerImage}
 """
         displayName = "Install runkperf binary"
-        condition = condition
+        if condition:
+            condition = condition
     }
 }
 
@@ -32,7 +33,7 @@ docker rmi ${runnerImage}
 # local in-memory counter stays accurate since each successful batch represents a known
 # quantity. This avoids using kubectl get to count existing objects, which would OOM
 # the pipeline agent by fetching full object bodies.
-RunKperfDataIngest = lambda dataType: str, namespace: str, name: str, total: str | int, displayName: str = None, qps: int = DEFAULT_QPS, burst: int = DEFAULT_BURST, size: int = DEFAULT_SIZE, groupSize: int = DEFAULT_GROUP_SIZE, condition: str = None -> steps.Step {
+RunKperfDataIngest = lambda dataType: str, namespace: str, name: str, total: str | int, displayName: str = None, qps: int = DEFAULT_QPS, burst: int = DEFAULT_BURST, size: int = DEFAULT_SIZE, groupSize: int = DEFAULT_GROUP_SIZE, condition: str = "" -> steps.Step {
     _batchSize = DEFAULT_BATCH_SIZE
     _displayName = displayName or "Ingest ${dataType} data"
     steps.Script {
@@ -77,6 +78,7 @@ done
 echo "Ingest complete: $completed ${dataType}s created."
 """
         displayName = _displayName
-        condition = condition
+        if condition:
+            condition = condition
     }
 }
