@@ -1,5 +1,5 @@
 name: Hyperscale Etcd Benchmarking
-pool: Azure-for-Telescope-Airlock
+pool: AKS-Telescope-Airlock
 trigger:
 - v2
 parameters:
