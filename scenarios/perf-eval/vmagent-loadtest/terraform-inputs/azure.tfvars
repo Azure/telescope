@@ -44,7 +44,7 @@ aks_config_list = [
     network_profile = {
       network_plugin      = "azure"
       network_plugin_mode = "overlay"
-      pod_cidr            = "10.128.0.0/9"
+      pod_cidr            = "172.16.0.0/12"
     }
     default_node_pool = {
       name                         = "nodepool1"
