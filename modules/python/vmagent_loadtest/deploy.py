@@ -14,6 +14,8 @@ from .config import (
 )
 from .utils import kubectl, kubectl_apply, render_template, retry, run
 
+from urllib.parse import urlparse
+
 
 def ensure_namespace(kubeconfig: str, namespace: str) -> None:
     for _ in range(60):
@@ -248,6 +250,7 @@ def deploy_vmagent(kubeconfig: str, namespace: str, dp_api_server: str) -> None:
     scrape_replacements = {
         "__NAMESPACE__": namespace,
         "__DP_API_SERVER__": dp_api_server,
+        "__DP_API_SERVER_HOST__": urlparse(dp_api_server).netloc or dp_api_server,
     }
     scrape_manifest = render_template(MANIFEST_DIR / "scrape-config.yaml", scrape_replacements)
     kubectl_apply(kubeconfig, scrape_manifest)

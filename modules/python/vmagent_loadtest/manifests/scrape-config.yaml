@@ -196,7 +196,12 @@ data:
       - job_name: localdns
         stream_parse: true
         proxy_url: "http://localhost:8080"
-        metrics_path: /metrics
+        scheme: https
+        authorization:
+          type: Bearer
+          credentials_file: /var/run/secrets/kubelet/token
+        tls_config:
+          insecure_skip_verify: true
         kubernetes_sd_configs:
           - role: node
             api_server: "__DP_API_SERVER__"
@@ -204,16 +209,28 @@ data:
             tls_config:
               insecure_skip_verify: true
         relabel_configs:
+          - source_labels: [__meta_kubernetes_node_label_kubernetes_azure_com_localdns_state]
+            action: keep
+            regex: enabled
+          - target_label: __address__
+            replacement: "__DP_API_SERVER_HOST__"
+          - source_labels: [__meta_kubernetes_node_name]
+            regex: (.+)
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/${1}:9253/proxy/metrics
           - source_labels: [__meta_kubernetes_node_address_InternalIP]
-            target_label: __address__
-            replacement: $1:9253
-          - source_labels: [__address__]
             target_label: instance
+            replacement: $1:9253
 
       - job_name: node-problem-detector
         stream_parse: true
         proxy_url: "http://localhost:8080"
-        metrics_path: /metrics
+        scheme: https
+        authorization:
+          type: Bearer
+          credentials_file: /var/run/secrets/kubelet/token
+        tls_config:
+          insecure_skip_verify: true
         kubernetes_sd_configs:
           - role: node
             api_server: "__DP_API_SERVER__"
@@ -221,11 +238,18 @@ data:
             tls_config:
               insecure_skip_verify: true
         relabel_configs:
+          - source_labels: [__meta_kubernetes_node_label_kubernetes_io_os]
+            action: keep
+            regex: linux
+          - target_label: __address__
+            replacement: "__DP_API_SERVER_HOST__"
+          - source_labels: [__meta_kubernetes_node_name]
+            regex: (.+)
+            target_label: __metrics_path__
+            replacement: /api/v1/nodes/${1}:20257/proxy/metrics
           - source_labels: [__meta_kubernetes_node_address_InternalIP]
-            target_label: __address__
-            replacement: $1:20257
-          - source_labels: [__address__]
             target_label: instance
+            replacement: $1:20257
           - source_labels: [__meta_kubernetes_node_label_agentpool]
             target_label: nodepool
 

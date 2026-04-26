@@ -50,6 +50,7 @@ spec:
             - --keepalive-time=30s
             - --enable-profiling
             - --admin-port=8095
+            - --admin-bind-address=0.0.0.0
             - --v=2
           ports:
             - name: agent
