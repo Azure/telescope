@@ -202,6 +202,44 @@ def _log_target_summary(active: list[dict]) -> None:
             log.info("    %s [%d/%d]%s", job, up_count, len(targets), down_str)
 
 
+def _log_down_target_errors(active: list[dict]) -> None:
+    """Log lastError and lastScrape for every down target, grouped by error."""
+    from collections import defaultdict
+    down_targets = [t for t in active if t.get("health") != "up"]
+    if not down_targets:
+        return
+    log.warning("  --- %d targets DOWN — error details ---", len(down_targets))
+    # Group by (job, error) to avoid flooding logs
+    by_error: dict[tuple[str, str], list[str]] = defaultdict(list)
+    for t in down_targets:
+        job = t.get("labels", {}).get("job", "unknown")
+        err = t.get("lastError", "") or "(no error recorded)"
+        addr = t.get("labels", {}).get("instance", t.get("scrapeUrl", "?"))
+        by_error[(job, err)].append(addr)
+    for (job, err), addrs in sorted(by_error.items()):
+        sample = ", ".join(addrs[:3])
+        suffix = f" (+{len(addrs)-3} more)" if len(addrs) > 3 else ""
+        log.warning("    [%s] %d targets: %s", job, len(addrs), err)
+        log.warning("      e.g. %s%s", sample, suffix)
+
+
+def _log_konnectivity_connections(cp_kubeconfig: str, namespace: str) -> None:
+    """Log konnectivity-server connection stats from its /metrics endpoint."""
+    try:
+        with PortForward(cp_kubeconfig, namespace, "deployment/konnectivity-server", 8095, 18095) as pf:
+            resp = retry_request(f"{pf.url}/metrics")
+            text = resp.text
+            ready = extract_prom_value(text, r"^konnectivity_network_proxy_server_ready_backend_connections\s")
+            established = extract_prom_value(text, r"^konnectivity_network_proxy_server_established_connections\s")
+            grpc = extract_prom_value(text, r'^konnectivity_network_proxy_server_grpc_connections\{')
+            pending = extract_prom_value(text, r"^konnectivity_network_proxy_server_pending_backend_dials\s")
+            log.warning("  --- Konnectivity server connections ---")
+            log.warning("    ready_backend: %d, established: %d, grpc: %d, pending_dials: %d",
+                        int(ready), int(established), int(grpc), int(pending))
+    except Exception as e:
+        log.warning("  Could not fetch konnectivity server metrics: %s", e)
+
+
 def wait_for_targets(cp_kubeconfig: str, dp_kubeconfig: str, namespace: str,
                      expected: int, timeout_minutes: int,
                      poll_interval: int = 5,
@@ -263,6 +301,8 @@ def wait_for_targets(cp_kubeconfig: str, dp_kubeconfig: str, namespace: str,
         time.sleep(min(poll_interval, remaining))
     log.warning("Timed out waiting for targets: %d/%d up after %dm", up, total, timeout_minutes)
     _log_target_summary(active)
+    _log_down_target_errors(active)
+    _log_konnectivity_connections(cp_kubeconfig, namespace)
     return up, total, resource_samples
 
 
@@ -492,6 +532,8 @@ def collect_metrics(cp_kubeconfig: str, dp_kubeconfig: str,
     # --- Konnectivity agent metrics (via vmsingle — DP port-forward unreliable) ---
     try:
         with PortForward(cp_kubeconfig, namespace, "deployment/vmsingle", 8428, 18428) as pf:
+            # Quick health check — fail fast if vmsingle is down
+            retry_request(f"{pf.url}/health", retries=1, backoff=1)
             vm_url = f"{pf.url}/api/v1/query"
 
             agent_queries = {
@@ -577,6 +619,7 @@ def collect_metrics(cp_kubeconfig: str, dp_kubeconfig: str,
     # --- Container CPU/memory from vmsingle (cadvisor data for DP pods) ---
     try:
         with PortForward(cp_kubeconfig, namespace, "deployment/vmsingle", 8428, 18428) as pf:
+            retry_request(f"{pf.url}/health", retries=1, backoff=1)
             container_metrics = {}
             for container, query in [
                 ("konnectivity_agent_cpu_rate",
@@ -601,6 +644,7 @@ def collect_metrics(cp_kubeconfig: str, dp_kubeconfig: str,
     # --- vmsingle write-path metrics ---
     try:
         with PortForward(cp_kubeconfig, namespace, "deployment/vmsingle", 8428, 18428) as pf:
+            retry_request(f"{pf.url}/health", retries=1, backoff=1)
             vm_resp = retry_request(f"{pf.url}/metrics")
             vm_metrics = vm_resp.text
 
@@ -640,6 +684,8 @@ def collect_metrics(cp_kubeconfig: str, dp_kubeconfig: str,
     # --- Infrastructure time-series from vmsingle (from self-monitoring scrape jobs) ---
     try:
         with PortForward(cp_kubeconfig, namespace, "deployment/vmsingle", 8428, 18428) as pf:
+            retry_request(f"{pf.url}/health", retries=1, backoff=1)
+
             def _query_instant(q: str):
                 """Run PromQL instant query, return first scalar or None."""
                 try:
