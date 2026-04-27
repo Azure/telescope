@@ -507,14 +507,14 @@ jobs:
       echo "Ingest complete: $completed secrets created."
     displayName: Ingest secret data (${{ parameters.ingest_secrets_gib }} GiB)
 - job: report
-  displayName: Report ASI Dashboard URLs
+  displayName: Print ASI Dashboard URLs
   dependsOn:
   - bootstrap
   - record_start_time
   - ingest_configmap
   - ingest_events
   - ingest_secrets
-  condition: succeeded()
+  condition: in(dependencies.record_start_time.result, 'Succeeded', 'SucceededWithIssues')
   timeoutInMinutes: 10
   variables:
     CLUSTER: $[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]

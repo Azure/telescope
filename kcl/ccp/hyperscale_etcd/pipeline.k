@@ -273,10 +273,10 @@ echo "##vso[task.setvariable variable=BENCHMARK_START_TIME;isOutput=true]$START_
         }
         job.Job {
             job = "report"
-            displayName = "Report ASI Dashboard URLs"
+            displayName = "Print ASI Dashboard URLs"
             timeoutInMinutes = 10
             dependsOn = ["bootstrap", "record_start_time", "ingest_configmap", "ingest_events", "ingest_secrets"]
-            condition = "succeeded()"
+            condition = "in(dependencies.record_start_time.result, 'Succeeded', 'SucceededWithIssues')"
             variables = {
                 CLUSTER = "$[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]"
                 RESOURCE_GROUP = "$[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]"
