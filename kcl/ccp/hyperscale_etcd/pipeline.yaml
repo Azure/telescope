@@ -285,6 +285,7 @@ jobs:
       set -x
 
       temp_dir=$(mktemp -p /tmp -d kperfinstall.XXXX)
+      docker rmi ghcr.io/liyu-ma/kperf:hyperscale-etcd 2>/dev/null || true
       docker pull ghcr.io/liyu-ma/kperf:hyperscale-etcd
       docker run --rm -v $temp_dir:/install-dir \
         ghcr.io/liyu-ma/kperf:hyperscale-etcd bash -c "set -x; install /kperf /runkperf /install-dir"
@@ -371,6 +372,7 @@ jobs:
       set -x
 
       temp_dir=$(mktemp -p /tmp -d kperfinstall.XXXX)
+      docker rmi ghcr.io/liyu-ma/kperf:hyperscale-etcd 2>/dev/null || true
       docker pull ghcr.io/liyu-ma/kperf:hyperscale-etcd
       docker run --rm -v $temp_dir:/install-dir \
         ghcr.io/liyu-ma/kperf:hyperscale-etcd bash -c "set -x; install /kperf /runkperf /install-dir"
@@ -457,6 +459,7 @@ jobs:
       set -x
 
       temp_dir=$(mktemp -p /tmp -d kperfinstall.XXXX)
+      docker rmi ghcr.io/liyu-ma/kperf:hyperscale-etcd 2>/dev/null || true
       docker pull ghcr.io/liyu-ma/kperf:hyperscale-etcd
       docker run --rm -v $temp_dir:/install-dir \
         ghcr.io/liyu-ma/kperf:hyperscale-etcd bash -c "set -x; install /kperf /runkperf /install-dir"

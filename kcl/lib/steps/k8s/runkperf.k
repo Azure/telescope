@@ -14,6 +14,7 @@ set -euo pipefail
 set -x
 
 temp_dir=$(mktemp -p /tmp -d kperfinstall.XXXX)
+docker rmi ${runnerImage} 2>/dev/null || true
 docker pull ${runnerImage}
 docker run --rm -v $temp_dir:/install-dir \\
   ${runnerImage} bash -c "set -x; install /kperf /runkperf /install-dir"
