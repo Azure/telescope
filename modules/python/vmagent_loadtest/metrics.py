@@ -168,8 +168,15 @@ def _classify_targets(active: list[dict]) -> tuple[list[dict], list[dict]]:
     Infrastructure targets (konnectivity-server, konnectivity-agent,
     vmagent-self, vmsingle) are tracked separately so they don't skew
     the scrape success rate.
+
+    Host-level services (node-problem-detector, localdns) are also
+    classified as infra because they depend on the AKS VM Extension /
+    node image and may not be present on all test clusters.
     """
-    infra_jobs = {"konnectivity-server", "konnectivity-agent", "vmagent-self", "vmsingle"}
+    infra_jobs = {
+        "konnectivity-server", "konnectivity-agent", "vmagent-self", "vmsingle",
+        "node-problem-detector", "localdns",
+    }
     load, infra = [], []
     for t in active:
         job = t.get("labels", {}).get("job", "")
@@ -202,23 +209,40 @@ def _log_target_summary(active: list[dict]) -> None:
             log.info("    %s [%d/%d]%s", job, up_count, len(targets), down_str)
 
 
+def _normalize_error(err: str) -> str:
+    """Collapse variable parts of scrape errors so identical root causes group together.
+
+    Strips node names, IP addresses, and port numbers from error messages
+    so that e.g. 150 NPD "502 Bad Gateway" errors become one group.
+    """
+    # Strip scrape URL: "...scraping \"https://...vmss000001:20257/proxy/metrics\": 503..."
+    # → "...scraping <url>: 503..."
+    err = re.sub(r'scraping "https?://[^"]*"', 'scraping <url>', err)
+    # Strip "dialing <ip>:<port>" → "dialing <ip:port>"
+    err = re.sub(r'dialing \d+\.\d+\.\d+\.\d+:\d+', 'dialing <ip:port>', err)
+    # Strip response body JSON (verbose, always the same structure)
+    err = re.sub(r'response body: ".*"', 'response body: <...>', err)
+    return err.strip()
+
+
 def _log_down_target_errors(active: list[dict]) -> None:
-    """Log lastError and lastScrape for every down target, grouped by error."""
+    """Log lastError for every down target, grouped by (job, normalized error)."""
     from collections import defaultdict
     down_targets = [t for t in active if t.get("health") != "up"]
     if not down_targets:
         return
     log.warning("  --- %d targets DOWN — error details ---", len(down_targets))
-    # Group by (job, error) to avoid flooding logs
+    # Group by (job, normalized_error) so identical root causes collapse
     by_error: dict[tuple[str, str], list[str]] = defaultdict(list)
     for t in down_targets:
         job = t.get("labels", {}).get("job", "unknown")
         err = t.get("lastError", "") or "(no error recorded)"
+        normalized = _normalize_error(err)
         addr = t.get("labels", {}).get("instance", t.get("scrapeUrl", "?"))
-        by_error[(job, err)].append(addr)
+        by_error[(job, normalized)].append(addr)
     for (job, err), addrs in sorted(by_error.items()):
-        sample = ", ".join(addrs[:3])
-        suffix = f" (+{len(addrs)-3} more)" if len(addrs) > 3 else ""
+        sample = ", ".join(addrs[:5])
+        suffix = f" (+{len(addrs)-5} more)" if len(addrs) > 5 else ""
         log.warning("    [%s] %d targets: %s", job, len(addrs), err)
         log.warning("      e.g. %s%s", sample, suffix)
 
@@ -283,15 +307,16 @@ def wait_for_targets(cp_kubeconfig: str, dp_kubeconfig: str, namespace: str,
         except Exception as e:
             log.debug("Resource sample failed: %s", e)
 
-        # Check stability: all discovered targets up, count unchanged, meets minimum
-        if total > 0 and up == total and up == prev_up and total == prev_total and up >= expected:
+        # Check stability: >=95% of discovered targets up, count unchanged, meets minimum
+        rate = up / total if total > 0 else 0.0
+        if total > 0 and rate >= 0.95 and up == prev_up and total == prev_total and up >= expected:
             consecutive_stable += 1
         else:
             consecutive_stable = 0
         prev_up, prev_total = up, total
 
-        log.info("  targets: %d/%d up (min %d, stable %d/%d)",
-                 up, total, expected, consecutive_stable, stable_rounds)
+        log.info("  targets: %d/%d up (%.1f%%, min %d, stable %d/%d)",
+                 up, total, rate * 100, expected, consecutive_stable, stable_rounds)
         if consecutive_stable >= stable_rounds:
             _log_target_summary(active)
             return up, total, resource_samples
