@@ -6,10 +6,10 @@ parameters:
   displayName: Run ID (leave empty to auto-generate)
   type: string
   default: default
-- name: skip_cleanup
-  displayName: Skip resource cleanup
+- name: keep_cluster
+  displayName: Keep cluster after benchmark
   type: boolean
-  default: 'false'
+  default: false
 - name: existing_cluster_resource_group
   displayName: Existing cluster resource group (leave as none to create new)
   type: string
@@ -29,15 +29,15 @@ parameters:
 - name: ingest_configmap_gib
   displayName: ConfigMap ingest size (GiB)
   type: number
-  default: '4'
+  default: 4
 - name: ingest_events_gib
   displayName: Events ingest size (GiB)
   type: number
-  default: '3'
+  default: 3
 - name: ingest_secrets_gib
   displayName: Secrets ingest size (GiB)
   type: number
-  default: '4'
+  default: 4
 jobs:
 - job: bootstrap
   displayName: Bootstrap
@@ -244,7 +244,7 @@ jobs:
   dependsOn:
   - bootstrap
   - setup
-  condition: or(succeeded(), ne('${{ parameters.existing_cluster_name }}', 'none'))
+  condition: and(eq(dependencies.bootstrap.result, 'Succeeded'), in(dependencies.setup.result, 'Succeeded', 'Skipped'))
   timeoutInMinutes: 5
   steps:
   - script: |2
@@ -261,7 +261,6 @@ jobs:
   - bootstrap
   - setup
   - record_start_time
-  condition: or(succeeded(), ne('${{ parameters.existing_cluster_name }}', 'none'))
   timeoutInMinutes: 1440
   variables:
     CLUSTER: $[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]
@@ -299,24 +298,25 @@ jobs:
 
       sudo install $temp_dir/kperf $temp_dir/runkperf /usr/local/bin
       rm -rf $temp_dir
-      docker rmi ghcr.io/liyu-ma/kperf:hyperscale-etcd
+      docker rmi ghcr.io/liyu-ma/kperf:hyperscale-etcd 2>/dev/null || true
     displayName: Install runkperf binary
   - script: |2
 
       set -euo pipefail
       set -x
 
-      TARGET=$[ ${{ parameters.ingest_configmap_gib }} * 2048 ]
+      TOTAL_GIB=${{ parameters.ingest_configmap_gib }}
+      TOTAL_OBJECTS_COUNT=$(( TOTAL_GIB * 1073741824 / 524288 ))
       BATCH_SIZE=2000
+      TOTAL_BATCHES=$(( (TOTAL_OBJECTS_COUNT + BATCH_SIZE - 1) / BATCH_SIZE ))
 
       kubectl create namespace kperf-configmap-data 2>/dev/null || true
 
-      TOTAL_BATCHES=$(( (TARGET + BATCH_SIZE - 1) / BATCH_SIZE ))
-      echo "Ingesting $TARGET configmaps in $TOTAL_BATCHES batches of $BATCH_SIZE..."
+      echo "Ingesting $TOTAL_OBJECTS_COUNT configmaps in $TOTAL_BATCHES batches of $BATCH_SIZE..."
 
       completed=0
       for batch in $(seq 1 $TOTAL_BATCHES); do
-        REMAINING=$((TARGET - completed))
+        REMAINING=$((TOTAL_OBJECTS_COUNT - completed))
         COUNT=$BATCH_SIZE
         if [ "$REMAINING" -lt "$COUNT" ]; then
           COUNT=$REMAINING
@@ -337,7 +337,7 @@ jobs:
 
         completed=$((completed + COUNT))
         STORAGE_GIB=$(awk 'BEGIN{printf "%.1f", '$completed' * 524288 / 1073741824}')
-        echo "Progress: $completed / $TARGET configmaps created (~$STORAGE_GIB GiB)"
+        echo "Progress: $completed / $TOTAL_OBJECTS_COUNT configmaps created (~$STORAGE_GIB GiB)"
       done
 
       echo "Ingest complete: $completed configmaps created."
@@ -348,7 +348,6 @@ jobs:
   - bootstrap
   - setup
   - record_start_time
-  condition: or(succeeded(), ne('${{ parameters.existing_cluster_name }}', 'none'))
   timeoutInMinutes: 1440
   variables:
     CLUSTER: $[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]
@@ -386,24 +385,25 @@ jobs:
 
       sudo install $temp_dir/kperf $temp_dir/runkperf /usr/local/bin
       rm -rf $temp_dir
-      docker rmi ghcr.io/liyu-ma/kperf:hyperscale-etcd
+      docker rmi ghcr.io/liyu-ma/kperf:hyperscale-etcd 2>/dev/null || true
     displayName: Install runkperf binary
   - script: |2
 
       set -euo pipefail
       set -x
 
-      TARGET=$[ ${{ parameters.ingest_events_gib }} * 2048 ]
+      TOTAL_GIB=${{ parameters.ingest_events_gib }}
+      TOTAL_OBJECTS_COUNT=$(( TOTAL_GIB * 1073741824 / 524288 ))
       BATCH_SIZE=2000
+      TOTAL_BATCHES=$(( (TOTAL_OBJECTS_COUNT + BATCH_SIZE - 1) / BATCH_SIZE ))
 
       kubectl create namespace kperf-event-data 2>/dev/null || true
 
-      TOTAL_BATCHES=$(( (TARGET + BATCH_SIZE - 1) / BATCH_SIZE ))
-      echo "Ingesting $TARGET events in $TOTAL_BATCHES batches of $BATCH_SIZE..."
+      echo "Ingesting $TOTAL_OBJECTS_COUNT events in $TOTAL_BATCHES batches of $BATCH_SIZE..."
 
       completed=0
       for batch in $(seq 1 $TOTAL_BATCHES); do
-        REMAINING=$((TARGET - completed))
+        REMAINING=$((TOTAL_OBJECTS_COUNT - completed))
         COUNT=$BATCH_SIZE
         if [ "$REMAINING" -lt "$COUNT" ]; then
           COUNT=$REMAINING
@@ -424,7 +424,7 @@ jobs:
 
         completed=$((completed + COUNT))
         STORAGE_GIB=$(awk 'BEGIN{printf "%.1f", '$completed' * 524288 / 1073741824}')
-        echo "Progress: $completed / $TARGET events created (~$STORAGE_GIB GiB)"
+        echo "Progress: $completed / $TOTAL_OBJECTS_COUNT events created (~$STORAGE_GIB GiB)"
       done
 
       echo "Ingest complete: $completed events created."
@@ -435,7 +435,6 @@ jobs:
   - bootstrap
   - setup
   - record_start_time
-  condition: or(succeeded(), ne('${{ parameters.existing_cluster_name }}', 'none'))
   timeoutInMinutes: 1440
   variables:
     CLUSTER: $[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]
@@ -473,24 +472,25 @@ jobs:
 
       sudo install $temp_dir/kperf $temp_dir/runkperf /usr/local/bin
       rm -rf $temp_dir
-      docker rmi ghcr.io/liyu-ma/kperf:hyperscale-etcd
+      docker rmi ghcr.io/liyu-ma/kperf:hyperscale-etcd 2>/dev/null || true
     displayName: Install runkperf binary
   - script: |2
 
       set -euo pipefail
       set -x
 
-      TARGET=$[ ${{ parameters.ingest_secrets_gib }} * 2048 ]
+      TOTAL_GIB=${{ parameters.ingest_secrets_gib }}
+      TOTAL_OBJECTS_COUNT=$(( TOTAL_GIB * 1073741824 / 524288 ))
       BATCH_SIZE=2000
+      TOTAL_BATCHES=$(( (TOTAL_OBJECTS_COUNT + BATCH_SIZE - 1) / BATCH_SIZE ))
 
       kubectl create namespace kperf-secret-data 2>/dev/null || true
 
-      TOTAL_BATCHES=$(( (TARGET + BATCH_SIZE - 1) / BATCH_SIZE ))
-      echo "Ingesting $TARGET secrets in $TOTAL_BATCHES batches of $BATCH_SIZE..."
+      echo "Ingesting $TOTAL_OBJECTS_COUNT secrets in $TOTAL_BATCHES batches of $BATCH_SIZE..."
 
       completed=0
       for batch in $(seq 1 $TOTAL_BATCHES); do
-        REMAINING=$((TARGET - completed))
+        REMAINING=$((TOTAL_OBJECTS_COUNT - completed))
         COUNT=$BATCH_SIZE
         if [ "$REMAINING" -lt "$COUNT" ]; then
           COUNT=$REMAINING
@@ -511,7 +511,7 @@ jobs:
 
         completed=$((completed + COUNT))
         STORAGE_GIB=$(awk 'BEGIN{printf "%.1f", '$completed' * 524288 / 1073741824}')
-        echo "Progress: $completed / $TARGET secrets created (~$STORAGE_GIB GiB)"
+        echo "Progress: $completed / $TOTAL_OBJECTS_COUNT secrets created (~$STORAGE_GIB GiB)"
       done
 
       echo "Ingest complete: $completed secrets created."
@@ -578,7 +578,7 @@ jobs:
   - ingest_events
   - ingest_secrets
   - report
-  condition: and(always(), not(ne('${{ parameters.existing_cluster_name }}', 'none')), ne('${{ parameters.skip_cleanup }}', 'true'))
+  condition: and(always(), not(ne('${{ parameters.existing_cluster_name }}', 'none')), not(${{ parameters.keep_cluster }}))
   timeoutInMinutes: 60
   variables:
     RESOURCE_GROUP: $[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]

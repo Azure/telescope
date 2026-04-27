@@ -7,6 +7,7 @@ import lib.steps.common
 import lib.steps.k8s.runkperf
 import lib.util
 import lib.util.asi_dashboard
+import .bootstrap
 
 SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 DEFAULT_CLUSTER = "hyperscale-etcd-testing"
@@ -85,7 +86,6 @@ prepareForIngestion = lambda {
 }
 
 INGEST_DEPENDS_ON = ["bootstrap", "setup", "record_start_time"]
-INGEST_CONDITION = "or(succeeded(), ${USE_EXISTING_CLUSTER})"
 INGEST_VARIABLES = {
     CLUSTER = "$[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]"
     RESOURCE_GROUP = "$[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]"
@@ -105,10 +105,10 @@ output = ap.Pipeline {
             default = "default"
         }
         ap.Parameter {
-            name = "skip_cleanup"
-            displayName = "Skip resource cleanup"
+            name = "keep_cluster"
+            displayName = "Keep cluster after benchmark"
             type = "boolean"
-            default = "false"
+            default = False
         }
         ap.Parameter {
             name = "existing_cluster_resource_group"
@@ -133,19 +133,19 @@ output = ap.Pipeline {
             name = "ingest_configmap_gib"
             displayName = "ConfigMap ingest size (GiB)"
             type = "number"
-            default = "4"
+            default = 4
         }
         ap.Parameter {
             name = "ingest_events_gib"
             displayName = "Events ingest size (GiB)"
             type = "number"
-            default = "3"
+            default = 3
         }
         ap.Parameter {
             name = "ingest_secrets_gib"
             displayName = "Secrets ingest size (GiB)"
             type = "number"
-            default = "4"
+            default = 4
         }
     ]
 
@@ -154,9 +154,8 @@ output = ap.Pipeline {
             job = "bootstrap"
             displayName = "Bootstrap"
             timeoutInMinutes = 10
-
             steps = [
-                common.Bootstrap(DEFAULT_CLUSTER),
+                bootstrap.Bootstrap(DEFAULT_CLUSTER),
             ]
         }
         job.Job {
@@ -213,7 +212,7 @@ output = ap.Pipeline {
             displayName = "Record Benchmark Start Time"
             timeoutInMinutes = 5
             dependsOn = ["bootstrap", "setup"]
-            condition = INGEST_CONDITION
+            condition = "and(eq(dependencies.bootstrap.result, 'Succeeded'), in(dependencies.setup.result, 'Succeeded', 'Skipped'))"
             steps = [
                 steps.Script {
                     script = """
@@ -232,15 +231,13 @@ echo "##vso[task.setvariable variable=BENCHMARK_START_TIME;isOutput=true]$START_
             displayName = "Ingest ConfigMaps (\${{ parameters.ingest_configmap_gib }} GiB)"
             timeoutInMinutes = 1440
             dependsOn = INGEST_DEPENDS_ON
-            condition = INGEST_CONDITION
             variables = INGEST_VARIABLES
-
             steps = prepareForIngestion() + [
                 runkperf.RunKperfDataIngest(
                     dataType="configmap",
                     namespace="kperf-configmap-data",
                     name="my-configmaps",
-                    total="\$[ \${{ parameters.ingest_configmap_gib }} * 2048 ]",
+                    totalGib="\${{ parameters.ingest_configmap_gib }}",
                     displayName="Ingest configmap data (\${{ parameters.ingest_configmap_gib }} GiB)"),
             ]
         }
@@ -249,15 +246,13 @@ echo "##vso[task.setvariable variable=BENCHMARK_START_TIME;isOutput=true]$START_
             displayName = "Ingest Events (\${{ parameters.ingest_events_gib }} GiB)"
             timeoutInMinutes = 1440
             dependsOn = INGEST_DEPENDS_ON
-            condition = INGEST_CONDITION
             variables = INGEST_VARIABLES
-
             steps = prepareForIngestion() + [
                 runkperf.RunKperfDataIngest(
                     dataType="event",
                     namespace="kperf-event-data",
                     name="my-events",
-                    total="\$[ \${{ parameters.ingest_events_gib }} * 2048 ]",
+                    totalGib="\${{ parameters.ingest_events_gib }}",
                     displayName="Ingest event data (\${{ parameters.ingest_events_gib }} GiB)"),
             ]
         }
@@ -266,15 +261,13 @@ echo "##vso[task.setvariable variable=BENCHMARK_START_TIME;isOutput=true]$START_
             displayName = "Ingest Secrets (\${{ parameters.ingest_secrets_gib }} GiB)"
             timeoutInMinutes = 1440
             dependsOn = INGEST_DEPENDS_ON
-            condition = INGEST_CONDITION
             variables = INGEST_VARIABLES
-
             steps = prepareForIngestion() + [
                 runkperf.RunKperfDataIngest(
                     dataType="secret",
                     namespace="kperf-secret-data",
                     name="my-secrets",
-                    total="\$[ \${{ parameters.ingest_secrets_gib }} * 2048 ]",
+                    totalGib="\${{ parameters.ingest_secrets_gib }}",
                     displayName="Ingest secret data (\${{ parameters.ingest_secrets_gib }} GiB)"),
             ]
         }
@@ -304,7 +297,7 @@ echo "##vso[task.setvariable variable=BENCHMARK_START_TIME;isOutput=true]$START_
             displayName = "Cleanup"
             timeoutInMinutes = 60
             dependsOn = ["bootstrap", "ingest_configmap", "ingest_events", "ingest_secrets", "report"]
-            condition = "and(always(), not(${USE_EXISTING_CLUSTER}), ne('\${{ parameters.skip_cleanup }}', 'true'))"
+            condition = "and(always(), not(${USE_EXISTING_CLUSTER}), not(\${{ parameters.keep_cluster }}))"
             variables = {
                 RESOURCE_GROUP = "$[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]"
             }

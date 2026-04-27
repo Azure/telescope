@@ -3,9 +3,10 @@ import azure_pipelines.ap.steps
 # Default constants for kperf data ingestion
 DEFAULT_QPS = 80
 DEFAULT_BURST = 80
-DEFAULT_SIZE = 524288  # 0.5MB per object
+DEFAULT_SIZE_BYTES = 524288  # 0.5 MiB per object
 DEFAULT_GROUP_SIZE = 80
 DEFAULT_BATCH_SIZE = 2000  # Internal batch size, not configurable by caller
+BYTES_PER_GIB = 1073741824
 
 InstallRunkperf = lambda runnerImage: str, condition: str = "" -> steps.Step {
     steps.Script {
@@ -21,7 +22,7 @@ docker run --rm -v $temp_dir:/install-dir \\
 
 sudo install $temp_dir/kperf $temp_dir/runkperf /usr/local/bin
 rm -rf $temp_dir
-docker rmi ${runnerImage}
+docker rmi ${runnerImage} 2>/dev/null || true
 """
         displayName = "Install runkperf binary"
         if condition:
@@ -34,7 +35,7 @@ docker rmi ${runnerImage}
 # local in-memory counter stays accurate since each successful batch represents a known
 # quantity. This avoids using kubectl get to count existing objects, which would OOM
 # the pipeline agent by fetching full object bodies.
-RunKperfDataIngest = lambda dataType: str, namespace: str, name: str, total: str | int, displayName: str = None, qps: int = DEFAULT_QPS, burst: int = DEFAULT_BURST, size: int = DEFAULT_SIZE, groupSize: int = DEFAULT_GROUP_SIZE, condition: str = "" -> steps.Step {
+RunKperfDataIngest = lambda dataType: str, namespace: str, name: str, totalGib: str | int, displayName: str = None, qps: int = DEFAULT_QPS, burst: int = DEFAULT_BURST, size: int = DEFAULT_SIZE_BYTES, groupSize: int = DEFAULT_GROUP_SIZE, condition: str = "" -> steps.Step {
     _batchSize = DEFAULT_BATCH_SIZE
     _displayName = displayName or "Ingest ${dataType} data"
     steps.Script {
@@ -42,17 +43,18 @@ RunKperfDataIngest = lambda dataType: str, namespace: str, name: str, total: str
 set -euo pipefail
 set -x
 
-TARGET=${total}
+TOTAL_GIB=${totalGib}
+TOTAL_OBJECTS_COUNT=$(( TOTAL_GIB * ${BYTES_PER_GIB} / ${size} ))
 BATCH_SIZE=${_batchSize}
+TOTAL_BATCHES=$(( (TOTAL_OBJECTS_COUNT + BATCH_SIZE - 1) / BATCH_SIZE ))
 
 kubectl create namespace ${namespace} 2>/dev/null || true
 
-TOTAL_BATCHES=$(( (TARGET + BATCH_SIZE - 1) / BATCH_SIZE ))
-echo "Ingesting $TARGET ${dataType}s in $TOTAL_BATCHES batches of $BATCH_SIZE..."
+echo "Ingesting $TOTAL_OBJECTS_COUNT ${dataType}s in $TOTAL_BATCHES batches of $BATCH_SIZE..."
 
 completed=0
 for batch in $(seq 1 $TOTAL_BATCHES); do
-  REMAINING=$((TARGET - completed))
+  REMAINING=$((TOTAL_OBJECTS_COUNT - completed))
   COUNT=$BATCH_SIZE
   if [ "$REMAINING" -lt "$COUNT" ]; then
     COUNT=$REMAINING
@@ -72,8 +74,8 @@ for batch in $(seq 1 $TOTAL_BATCHES); do
   run_batch x || run_batch retry
 
   completed=$((completed + COUNT))
-  STORAGE_GIB=$(awk 'BEGIN{printf "%.1f", '$completed' * ${size} / 1073741824}')
-  echo "Progress: $completed / $TARGET ${dataType}s created (~$STORAGE_GIB GiB)"
+  STORAGE_GIB=$(awk 'BEGIN{printf "%.1f", '$completed' * ${size} / ${BYTES_PER_GIB}}')
+  echo "Progress: $completed / $TOTAL_OBJECTS_COUNT ${dataType}s created (~$STORAGE_GIB GiB)"
 done
 
 echo "Ingest complete: $completed ${dataType}s created."
