@@ -79,7 +79,10 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
     ensure_namespace(dp_kubeconfig, namespace)
 
     # 2. Deploy konnectivity server (skip wait — needs certs, will crashloop)
-    deploy_konnectivity_server(cp_kubeconfig, namespace, server_count=1, wait=False)
+    #    Scale replicas: 1 per 150 agents to distribute tunnel/TLS load
+    server_count = max(1, (tier + 149) // 150)
+    log.info("Konnectivity server replicas: %d (tier %d)", server_count, tier)
+    deploy_konnectivity_server(cp_kubeconfig, namespace, server_count=server_count, wait=False)
 
     # 3. Get LB IP
     server_ip = get_server_lb_ip(cp_kubeconfig, namespace)
