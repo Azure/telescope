@@ -19,6 +19,14 @@ parameters:
   displayName: Existing cluster name (leave as none to create new)
   type: string
   default: none
+- name: scaling_size
+  displayName: Control plane scaling size
+  type: string
+  default: H2
+  values:
+  - H2
+  - H4
+  - H8
 - name: ingest_configmap_gib
   displayName: ConfigMap ingest size (GiB)
   type: number
@@ -139,7 +147,7 @@ jobs:
               \"SkipLinuxAzSecPack\": \"true\"
             },
             \"properties\": {
-              \"controlPlaneScalingProfile\": {\"scalingSize\": \"H2\"},
+              \"controlPlaneScalingProfile\": {\"scalingSize\": \"${{ parameters.scaling_size }}\"},
               \"kubernetesVersion\": \"1.33.0\",
               \"dnsPrefix\": \"$(CLUSTER)-dns\",
               \"agentPoolProfiles\": [

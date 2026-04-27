@@ -35,7 +35,7 @@ requestBody = util.escapeStr("""
       "SkipLinuxAzSecPack": "true"
     },
     "properties": {
-      "controlPlaneScalingProfile": {"scalingSize": "H2"},
+      "controlPlaneScalingProfile": {"scalingSize": "\${{ parameters.scaling_size }}"},
       "kubernetesVersion": "1.33.0",
       "dnsPrefix": "${CLUSTER}-dns",
       "agentPoolProfiles": [
@@ -121,6 +121,13 @@ output = ap.Pipeline {
             displayName = "Existing cluster name (leave as none to create new)"
             type = "string"
             default = "none"
+        }
+        ap.Parameter {
+            name = "scaling_size"
+            displayName = "Control plane scaling size"
+            type = "string"
+            default = "H2"
+            values = ["H2", "H4", "H8"]
         }
         ap.Parameter {
             name = "ingest_configmap_gib"
