@@ -532,8 +532,6 @@ jobs:
       inlineScript: |
         set -exo pipefail
 
-        set +e  # Disable exit-on-error so failures here don't fail the pipeline
-
         RESOURCE_UID=$(az aks show \
           --resource-group "$(RESOURCE_GROUP)" \
           --name "$(CLUSTER)" \
@@ -542,7 +540,7 @@ jobs:
 
         if [ -z "$RESOURCE_UID" ]; then
           echo "##[warning]Failed to fetch resourceUid, skipping ASI URL"
-          exit 0
+          exit 1
         fi
 
         END_TIME=""
@@ -563,6 +561,7 @@ jobs:
         echo "ASI API Server Analyzer URL:"
         echo "$APISERVER_ANALYZER_URL"
         echo "============================================"
+    continueOnError: true
     displayName: Print ASI dashboard URL
 - job: cleanup
   displayName: Cleanup

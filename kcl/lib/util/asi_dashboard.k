@@ -9,8 +9,6 @@ PrintAsiDashboardUrl = lambda serviceConnection: str, cluster: str, resourceGrou
         serviceConnection,
         "Print ASI dashboard URL",
         """
-set +e  # Disable exit-on-error so failures here don't fail the pipeline
-
 RESOURCE_UID=$(az aks show \\
   --resource-group "${resourceGroup}" \\
   --name "${cluster}" \\
@@ -19,7 +17,7 @@ RESOURCE_UID=$(az aks show \\
 
 if [ -z "$RESOURCE_UID" ]; then
   echo "##[warning]Failed to fetch resourceUid, skipping ASI URL"
-  exit 0
+  exit 1
 fi
 
 END_TIME="${endTime}"
@@ -40,5 +38,6 @@ echo ""
 echo "ASI API Server Analyzer URL:"
 echo "$APISERVER_ANALYZER_URL"
 echo "============================================"
-""")
+""",
+        continueOnError=True)
 }
