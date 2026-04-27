@@ -1,4 +1,5 @@
 name: Example Pipeline
+pool: AKS-Telescope-Airlock
 trigger:
 - v2
 parameters:
