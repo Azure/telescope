@@ -25,12 +25,12 @@ stages:
           engine: vmagent-loadtest
           matrix:
             small_fake:
-              TIERS: "50,100,150,300"
+              TIERS: "100,150,200,250,300"
               SOAK_MINUTES: 10
               REAL_TARGETS: "false"
               RUN_LABEL: "small-fake"
             real_targets:
-              TIERS: "50,100,150,300"
+              TIERS: "100,150,200,250,300"
               SOAK_MINUTES: 15
               REAL_TARGETS: "true"
               RUN_LABEL: "real-targets"
