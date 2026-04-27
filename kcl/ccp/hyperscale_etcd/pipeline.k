@@ -94,7 +94,7 @@ INGEST_VARIABLES = {
 output = ap.Pipeline {
     name = "Hyperscale Etcd Benchmarking"
 
-    trigger =  ["v2"]
+    trigger = "none"
     pool = const.DEFAULT_POOL
 
     parameters = [

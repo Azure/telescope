@@ -1,7 +1,6 @@
 name: Hyperscale Etcd Benchmarking
 pool: AKS-Telescope-Airlock
-trigger:
-- v2
+trigger: none
 parameters:
 - name: run_id
   displayName: Run ID (leave empty to auto-generate)
