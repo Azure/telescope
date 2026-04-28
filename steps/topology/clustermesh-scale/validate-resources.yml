@@ -117,12 +117,26 @@ steps:
             echo "------- [debug] retry $i: cilium agent restarts / readiness -------"
             kubectl -n kube-system get pods -l k8s-app=cilium -o wide 2>&1 || true
 
-            echo "------- [debug] retry $i: Fleet ClusterMeshProfile members -------"
+            echo "------- [debug] retry $i: Fleet ClusterMeshProfile profile-level status -------"
+            # Profile-level mesh state (NotConnected/Connecting/Connected/Failed)
+            # plus the last operation error if any. This is the authoritative
+            # control-plane view of whether the mesh has converged.
+            az fleet clustermeshprofile show \
+              --resource-group "$rg" \
+              --fleet-name clustermesh-flt \
+              --name clustermesh-cmp \
+              --query "{state:properties.status.state, provisioningState:properties.provisioningState, lastError:properties.status.lastOperationError}" \
+              -o jsonc 2>&1 || true
+
+            echo "------- [debug] retry $i: Fleet ClusterMeshProfile members (connection state) -------"
+            # Per-member: provisioningState is just ARM-level (join accepted);
+            # meshProperties.status.state is the actual Cilium connection state.
             az fleet clustermeshprofile list-members \
               --resource-group "$rg" \
               --fleet-name clustermesh-flt \
               --name clustermesh-cmp \
-              --output table 2>&1 || true
+              --query "[].{name:name, provisioning:properties.provisioningState, mesh:properties.meshProperties.status.state, lastUpdated:properties.meshProperties.status.lastUpdatedAt, error:properties.meshProperties.status.error.message}" \
+              -o table 2>&1 || true
           fi
           # =============== DEBUG-DUMP-END (REMOVE BEFORE MERGE) ===============
 
