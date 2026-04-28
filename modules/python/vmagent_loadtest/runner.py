@@ -10,10 +10,12 @@ from pathlib import Path
 from .certs import create_cert_secret, generate_certs
 
 from .config import (
-    AGENT_CPU_REQUEST, DEFAULT_NODEPOOL, EXPORTER_CPU_REQUEST,
+    AGENT_CPU_REQUEST, DAEMONSET_POD_TARGET_ROLES,
+    DAEMONSET_TARGET_ROLES, DEFAULT_NODEPOOL, EXPORTER_CPU_REQUEST,
     FAKE_EXPORTER_ROLES, KONN_AGENT_IMAGE,
     KONN_SERVER_IMAGE, NODE_ALLOCATABLE_CPU, PODS_PER_NODE,
-    REAL_TARGET_ROLES, SYSTEM_CPU_PER_NODE, VMAGENT_IMAGE,
+    REAL_TARGET_ROLES, SINGLETON_POD_TARGET_ROLES,
+    SYSTEM_CPU_PER_NODE, VMAGENT_IMAGE,
     VMSINGLE_IMAGE, log,
 )
 from .deploy import (
@@ -44,12 +46,16 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
 
         node_ips = get_node_ips(dp_kubeconfig)
         dp_nodes = len(node_ips)
-        min_targets = dp_nodes * len(REAL_TARGET_ROLES)
+        per_node_roles = (len(REAL_TARGET_ROLES)
+                         + len(DAEMONSET_TARGET_ROLES)
+                         + len(DAEMONSET_POD_TARGET_ROLES))
+        singleton_roles = len(SINGLETON_POD_TARGET_ROLES)
+        min_targets = dp_nodes * per_node_roles + singleton_roles
         log.info("")
         log.info("=" * 60)
-        log.info("TIER: %d nodes (real targets) — min %d targets (%d nodes × %d roles)",
-                 tier, min_targets, dp_nodes, len(REAL_TARGET_ROLES))
-        log.info("  (DaemonSet targets will be auto-discovered)")
+        log.info("TIER: %d nodes (real targets) — min %d targets "
+                 "(%d nodes × %d roles + %d singletons)",
+                 tier, min_targets, dp_nodes, per_node_roles, singleton_roles)
         log.info("=" * 60)
     else:
         min_targets = tier * len(FAKE_EXPORTER_ROLES)

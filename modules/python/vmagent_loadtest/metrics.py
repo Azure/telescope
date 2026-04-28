@@ -164,11 +164,12 @@ def sample_resource_usage(cp_kubeconfig: str, dp_kubeconfig: str,
 def _classify_targets(active: list[dict]) -> tuple[list[dict], list[dict]]:
     """Split active targets into (load_test_targets, infra_targets).
 
-    All targets now count toward the scrape success rate, including
-    infrastructure targets (konnectivity, vmagent, vmsingle) and
-    host-level services (node-problem-detector).
+    Infrastructure targets (konnectivity, vmagent, vmsingle, etc.) are
+    separated so they don't count toward the scrape success rate.
     """
-    infra_jobs: set[str] = set()
+    infra_jobs = {
+        "konnectivity-server", "konnectivity-agent", "vmagent-self", "vmsingle"
+    }
     load, infra = [], []
     for t in active:
         job = t.get("labels", {}).get("job", "")
