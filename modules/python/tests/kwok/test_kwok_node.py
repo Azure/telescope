@@ -489,7 +489,7 @@ class TestNodeValidation(unittest.TestCase):
         self.mock_k8s_client.get_nodes.return_value = mock_nodes
 
         try:
-            self.node.validate()
+            self.node.validate(node_validate_success_threshold=1.0)
             print("Validation succeeded.")
         except RuntimeError as e:
             self.fail(f"Validation failed unexpectedly: {e}")
@@ -515,7 +515,7 @@ class TestNodeValidation(unittest.TestCase):
         self.mock_k8s_client.get_nodes.return_value = mock_nodes
 
         with self.assertRaises(RuntimeError) as context:
-            self.node.validate()
+            self.node.validate(node_validate_success_threshold=1.0)
         self.assertIn("Expected at least 2 KWOK nodes", str(context.exception))
 
     def test_validate_node_not_ready(self):
@@ -544,7 +544,7 @@ class TestNodeValidation(unittest.TestCase):
         self.mock_k8s_client.get_nodes.return_value = mock_nodes
 
         with self.assertRaises(RuntimeError):
-            self.node.validate()
+            self.node.validate(node_validate_success_threshold=1.0)
 
     def test_validate_missing_resources(self):
         """
@@ -572,7 +572,76 @@ class TestNodeValidation(unittest.TestCase):
         self.mock_k8s_client.get_nodes.return_value = mock_nodes
 
         with self.assertRaises(RuntimeError):
-            self.node.validate()
+            self.node.validate(node_validate_success_threshold=1.0)
+
+    def test_validate_partial_threshold_passes(self):
+        """Test that validation succeeds when failing nodes are within the allowed threshold."""
+        mock_deployment = MagicMock()
+        mock_deployment.status.available_replicas = 1
+        self.mock_k8s_client.get_deployment.return_value = mock_deployment
+
+        # node_count=2, threshold=0.5 → only 1 of 2 must pass; one node is not ready
+        mock_nodes = [
+            make_mock_node(
+                name="kwok-node-0",
+                ready=False,
+                allocatable={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
+                capacity={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
+            ),
+            make_mock_node(
+                name="kwok-node-1",
+                ready=True,
+                allocatable={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
+                capacity={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
+            ),
+        ]
+        self.mock_k8s_client.get_nodes.return_value = mock_nodes
+
+        try:
+            self.node.validate(node_validate_success_threshold=0.5)
+        except RuntimeError as e:
+            self.fail(f"Validation failed unexpectedly with threshold=0.5: {e}")
+
+    def test_validate_partial_threshold_fails(self):
+        """Test that validation fails when too many nodes fail the threshold."""
+        mock_deployment = MagicMock()
+        mock_deployment.status.available_replicas = 1
+        self.mock_k8s_client.get_deployment.return_value = mock_deployment
+
+        # node_count=2, threshold=0.9 → ceil(2*0.9)=2 must pass; one node is not ready
+        mock_nodes = [
+            make_mock_node(
+                name="kwok-node-0",
+                ready=False,
+                allocatable={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
+                capacity={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
+            ),
+            make_mock_node(
+                name="kwok-node-1",
+                ready=True,
+                allocatable={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
+                capacity={"cpu": "96", "memory": "1Ti", "pods": "250", "nvidia.com/gpu": "8"},
+            ),
+        ]
+        self.mock_k8s_client.get_nodes.return_value = mock_nodes
+
+        with self.assertRaises(RuntimeError) as context:
+            self.node.validate(node_validate_success_threshold=0.9)
+        self.assertIn("1/2 nodes passed", str(context.exception))
+
+    def test_validate_invalid_threshold(self):
+        """Test that an out-of-range success_threshold raises ValueError."""
+        self.mock_k8s_client.get_deployment.return_value = MagicMock(
+            status=MagicMock(available_replicas=1)
+        )
+        self.mock_k8s_client.get_nodes.return_value = [
+            make_mock_node(name=f"kwok-node-{i}") for i in range(2)
+        ]
+
+        for bad_value in (0.0, -0.1, 1.1):
+            with self.subTest(threshold=bad_value):
+                with self.assertRaises(ValueError):
+                    self.node._validate_kwok_nodes(success_threshold=bad_value)
 
 
 if __name__ == "__main__":

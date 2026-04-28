@@ -4,7 +4,8 @@
       "Bash(curl -s \"https://artifacthub.io/api/v1/packages/search?org=kcl&limit=60\")",
       "Bash(curl -s \"https://api.github.com/orgs/kcl-lang/repos?per_page=100\")",
       "Bash(curl -s \"https://raw.githubusercontent.com/Azure/kcl-azure-pipelines/main/ap/steps/steps.k\")",
-      "Bash(kcl run**)"
+      "Bash(kcl run**)",
+      "Bash(python3 -m pytest *)"
     ]
   }
 }
