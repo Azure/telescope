@@ -478,7 +478,7 @@ class Node(KWOK):
         print(f"{deploy_name} deployment is running with 1 available replica.")
 
 
-    def _validate_kwok_nodes(self, success_threshold: float = 1.0):
+    def _validate_kwok_nodes(self, success_threshold: float):
         """Validate KWOK nodes.
 
         Args:
@@ -514,7 +514,8 @@ class Node(KWOK):
                 self._validate_node_status(node)
                 self._validate_node_resources(node)
                 self._validate_node_schedulable(node)
-            except Exception:
+            except Exception as e:
+                print(f"Node {node.metadata.name} failed validation: {e}")
                 failure_count += 1
 
         passed_count = len(kwok_nodes) - failure_count
