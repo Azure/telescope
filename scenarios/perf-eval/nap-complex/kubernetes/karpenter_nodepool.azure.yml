@@ -37,15 +37,16 @@ spec:
         - key: karpenter.azure.com/sku-name
           operator: In
           values:
-            - "Standard_D96ds_v4"
-            - "Standard_D96_v3"
-            - "Standard_D96_v4"
+            - "Standard_D64_v4"
+            - "Standard_D64_v3"
+            - "Standard_D64ds_v4"
+            - "Standard_D64ds_v5"
         - key: topology.kubernetes.io/zone
           operator: In
           values:
-            - eastus2-1
-            - eastus2-2
-            - eastus2-3
+            - canadacentral-1
+            - canadacentral-2
+            - canadacentral-3
 ---
 apiVersion: karpenter.sh/v1
 kind: NodePool
