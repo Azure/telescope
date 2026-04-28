@@ -1,6 +1,7 @@
 """Subprocess helpers, template rendering, port-forwarding, and HTTP retry."""
 
 import functools
+import socket
 import subprocess
 import time
 from http.client import RemoteDisconnected
@@ -79,15 +80,33 @@ class PortForward:
         self.proc = subprocess.Popen(
             self.cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
-        # Wait for port-forward to establish, verifying the process is alive
-        time.sleep(3)
+        # Actively poll for the local listener to accept TCP connections.
+        # kubectl port-forward sometimes takes several seconds to bind,
+        # especially under load or right after another port-forward exited.
+        deadline = time.time() + 20
+        while time.time() < deadline:
+            if self.proc.poll() is not None:
+                _, stderr = self.proc.communicate()
+                raise RuntimeError(
+                    f"port-forward exited immediately (rc={self.proc.returncode}): "
+                    f"{stderr.decode(errors='replace').strip()}"
+                )
+            try:
+                with socket.create_connection(("localhost", self.local_port), timeout=1):
+                    return self
+            except (ConnectionRefusedError, socket.timeout, OSError):
+                time.sleep(0.5)
+        # Final check
         if self.proc.poll() is not None:
             _, stderr = self.proc.communicate()
             raise RuntimeError(
-                f"port-forward exited immediately (rc={self.proc.returncode}): "
+                f"port-forward exited (rc={self.proc.returncode}): "
                 f"{stderr.decode(errors='replace').strip()}"
             )
-        return self
+        raise RuntimeError(
+            f"port-forward listener on localhost:{self.local_port} "
+            f"did not become ready within 20s"
+        )
 
     def __exit__(self, *exc):
         if self.proc:

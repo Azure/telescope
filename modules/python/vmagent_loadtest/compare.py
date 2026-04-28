@@ -219,19 +219,24 @@ def compare_real_vs_fake(real: dict, fake: dict) -> str:
     lines.append("")
     rp = real.get("pass_criteria", {})
     fp = fake.get("pass_criteria", {})
-    lines.append(f"- **Real**: {'PASS ✅' if real.get('pass') else 'FAIL ❌'}")
-    lines.append(f"- **Fake**: {'PASS ✅' if fake.get('pass') else 'FAIL ❌'}")
+    _ok = lambda r: r.get("result") == "success"
+    lines.append(f"- **Real**: {'PASS ✅' if _ok(real) else 'FAIL ❌'}")
+    lines.append(f"- **Fake**: {'PASS ✅' if _ok(fake) else 'FAIL ❌'}")
     lines.append("")
 
     if rp or fp:
         lines.append("| Criterion | Real | Fake |")
         lines.append("|-----------|------|------|")
         all_keys = sorted(set(list(rp.keys()) + list(fp.keys())) - {"overall"})
+        def _mark(v):
+            if v is None:
+                return "N/A"
+            if isinstance(v, dict):
+                r = v.get("result")
+                return "✅" if r == "success" else ("❌" if r == "failure" else "N/A")
+            return "✅" if v else "❌"
         for k in all_keys:
-            rv = rp.get(k)
-            fv = fp.get(k)
-            lines.append(f"| {k} | {'✅' if rv else '❌' if rv is not None else 'N/A'} "
-                         f"| {'✅' if fv else '❌' if fv is not None else 'N/A'} |")
+            lines.append(f"| {k} | {_mark(rp.get(k))} | {_mark(fp.get(k))} |")
         lines.append("")
 
     # --- Summary ---
@@ -349,9 +354,14 @@ def compare_cross_tier(results: list[dict]) -> str:
     lines.append("|------|--------|------|")
     for r in results:
         status = r.get("status", "?")
-        passed = r.get("pass")
-        lines.append(f"| {r.get('tier', '?')} | {status} | "
-                     f"{'✅' if passed else '❌' if passed is not None else 'N/A'} |")
+        result = r.get("result")
+        if result == "success":
+            mark = "✅"
+        elif result == "failure":
+            mark = "❌"
+        else:
+            mark = "N/A"
+        lines.append(f"| {r.get('tier', '?')} | {status} | {mark} |")
     lines.append("")
 
     # Metrics table: one column per tier

@@ -300,15 +300,18 @@ def wait_for_targets(cp_kubeconfig: str, dp_kubeconfig: str, namespace: str,
         except Exception as e:
             log.debug("Resource sample failed: %s", e)
 
-        # Check stability: >=95% of discovered targets up, count unchanged, meets minimum
-        rate = up / total if total > 0 else 0.0
-        if total > 0 and rate >= 0.95 and up == prev_up and total == prev_total and up >= expected:
+        # Check stability: up count meets the expected floor and is unchanged.
+        # Rate is reported against `expected` (not `total`) because the scrape
+        # config may discover phantom targets (e.g. NPD job with no pods) that
+        # would otherwise mask a healthy run.
+        rate = up / expected if expected > 0 else 0.0
+        if up >= expected and up == prev_up and total == prev_total:
             consecutive_stable += 1
         else:
             consecutive_stable = 0
         prev_up, prev_total = up, total
 
-        log.info("  targets: %d/%d up (%.1f%%, min %d, stable %d/%d)",
+        log.info("  targets: %d/%d up (%.1f%% of min, min %d, stable %d/%d)",
                  up, total, rate * 100, expected, consecutive_stable, stable_rounds)
         if consecutive_stable >= stable_rounds:
             _log_target_summary(active)
@@ -820,22 +823,24 @@ def evaluate_pass_fail(measurements: dict, expected_targets: int = 0) -> dict:
                and rw_errors_pass and rw_rows_pass and dial_failures_pass
                and stream_errors_pass and agent_dial_pass)
 
+    def _r(b): return "success" if b else "failure"
+
     return {
         "scrape_targets": {
             "expected": expected_targets, "up": scrape_up,
-            "total_discovered": scrape_total, "rate": scrape_rate, "pass": scrape_pass,
+            "total_discovered": scrape_total, "rate": scrape_rate, "result": _r(scrape_pass),
         },
-        "oom_events": {"threshold": 0, "actual": oom_events + oom_killed, "pass": oom_pass},
-        "pod_restarts": {"threshold": 0, "actual": restarts, "pass": restarts_pass},
-        "konn_dial_mean_seconds": {"threshold": 2.0, "actual": dial_mean, "pass": dial_pass},
-        "konn_dial_failures": {"threshold": 0, "actual": dial_failures, "pass": dial_failures_pass},
+        "oom_events": {"threshold": 0, "actual": oom_events + oom_killed, "result": _r(oom_pass)},
+        "pod_restarts": {"threshold": 0, "actual": restarts, "result": _r(restarts_pass)},
+        "konn_dial_mean_seconds": {"threshold": 2.0, "actual": dial_mean, "result": _r(dial_pass)},
+        "konn_dial_failures": {"threshold": 0, "actual": dial_failures, "result": _r(dial_failures_pass)},
         "konn_stream_error_rate": {"threshold": "<10%", "actual": round(stream_error_rate, 4),
                                    "detail": f"{stream_errors:.0f}/{stream_packets:.0f} packets",
-                                   "pass": stream_errors_pass},
-        "konn_agent_dial_failures": {"threshold": 0, "actual": agent_dial_failures, "pass": agent_dial_pass},
-        "remote_write_errors": {"threshold": 0, "actual": rw_errors, "pass": rw_errors_pass},
-        "remote_write_rows_inserted": {"threshold": ">0", "actual": rw_rows, "pass": rw_rows_pass},
-        "overall": overall,
+                                   "result": _r(stream_errors_pass)},
+        "konn_agent_dial_failures": {"threshold": 0, "actual": agent_dial_failures, "result": _r(agent_dial_pass)},
+        "remote_write_errors": {"threshold": 0, "actual": rw_errors, "result": _r(rw_errors_pass)},
+        "remote_write_rows_inserted": {"threshold": ">0", "actual": rw_rows, "result": _r(rw_rows_pass)},
+        "overall": _r(overall),
     }
 
 

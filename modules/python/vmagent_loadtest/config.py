@@ -40,18 +40,23 @@ REAL_TARGET_ROLES = [
 ]
 
 # DaemonSet target roles scraped via node role: (job_name, port)
+# NOTE: only roles whose underlying daemonsets are actually deployed in the
+# target cluster contribute to min_targets. localdns/NPD are typically not
+# present on stock AKS, so they are excluded from the expectation. The scrape
+# config still defines those jobs (harmless if absent).
 DAEMONSET_TARGET_ROLES = [
-    ("localdns",               9253),
-    ("node-problem-detector", 20257),
 ]
 
 # DaemonSet target roles scraped via pod role (1 per node): (job_name, namespace)
+# csi-azuredisk-node pods exist but their relabel filter (port name "metrics")
+# does not match in stock AKS, so only csi-azurefile-node contributes.
 DAEMONSET_POD_TARGET_ROLES = [
-    ("csi-azuredisk-node", "kube-system"),    ("csi-azurefile-node", "kube-system"),]
+    ("csi-azurefile-node", "kube-system"),
+]
 
 # Singleton targets scraped via pod role (1 total): (job_name, namespace)
+# kube-state-metrics is not deployed by default on AKS — exclude from expected.
 SINGLETON_POD_TARGET_ROLES = [
-    ("kube-state-metrics", "kube-system"),
 ]
 KUBELET_SA_NAME = "kubelet-scraper"
 
@@ -66,5 +71,13 @@ AGENT_CPU_REQUEST = 10      # konnectivity-agent
 EXPORTER_CPU_REQUEST = 5    # each fake-exporter role
 SYSTEM_CPU_PER_NODE = 200   # kube-system overhead per node
 NODE_ALLOCATABLE_CPU = 1900 # Standard_D2_v3 allocatable
+
+# ---------------- Azure Data Explorer (ADX) export ----------------
+# Defaults for vmsingle time-series export. Env vars (ADX_CLUSTER_URI,
+# ADX_INGEST_URI, ADX_DATABASE, ADX_AUTH) override these at runtime.
+ADX_CLUSTER_URI = "https://vmagent-loadtesting.eastus2.kusto.windows.net"
+ADX_INGEST_URI = "https://ingest-vmagent-loadtesting.eastus2.kusto.windows.net"
+ADX_DATABASE = "vmagentloadtest"
+ADX_AUTH = "az_cli"  # or "msi"
 
 log = logging.getLogger("loadtest")

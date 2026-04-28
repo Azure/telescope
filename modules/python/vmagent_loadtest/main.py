@@ -317,13 +317,13 @@ def main() -> None:
             continue
         m = r["measurements"]
         log.info(
-            "  tier=%-5d scrape=%d/%d (%.1f%%) dial_mean=%.4fs oom=%d pass=%s",
+            "  tier=%-5d scrape=%d/%d (%.1f%%) dial_mean=%.4fs oom=%d result=%s",
             r["tier"],
             m["scrape_targets_up"], m["scrape_targets_total"],
             m["scrape_success_rate"] * 100,
             m.get("konn_server_dial_mean_seconds", 0),
             m["oom_events"],
-            "PASS" if r["pass"] else "FAIL",
+            r.get("result", "failure"),
         )
 
     for f in sorted(results_dir.glob("*.json")):

@@ -24,6 +24,10 @@ from .deploy import (
     ensure_namespace, get_dp_api_server, get_node_ips, get_server_lb_ip,
     rollout_restart, setup_dp_access,
 )
+from .adx import (
+    export_if_configured as adx_export_if_configured,
+    export_summary_if_configured as adx_export_summary_if_configured,
+)
 from .metrics import collect_diagnostics, collect_metrics, collect_pprof, evaluate_pass_fail, wait_for_targets
 from .scaling import scale_dp_nodepool, wait_for_nodes_ready
 from .utils import kubectl
@@ -120,6 +124,7 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
     # 9. Deploy vmsingle receiver, then VMAgent (SD discovers targets dynamically)
     deploy_vmsingle(cp_kubeconfig, namespace)
     deploy_vmagent(cp_kubeconfig, namespace, dp_api_server)
+    tier_start_ts = time.time()  # ADX time-series window starts here
 
     # 10. Wait for targets to come up (polls every 30s, samples resource usage)
     log.info("Waiting for targets (min %d, timeout %dm)...", min_targets, warm_up_minutes)
@@ -144,10 +149,27 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
 
         # 12. Evaluate pass/fail
         pass_fail = evaluate_pass_fail(measurements, expected_targets=min_targets)
-        if pass_fail["overall"]:
-            log.info("RESULT: PASS")
+        if pass_fail["overall"] == "success":
+            log.info("RESULT: success")
         else:
-            log.info("RESULT: FAIL")
+            log.info("RESULT: failure")
+
+        # 12b. Push time-series to ADX (no-op unless ADX_CLUSTER_URI/ADX_DATABASE set)
+        adx_export_if_configured(
+            cp_kubeconfig, namespace, run_id, tier,
+            mode="real-targets" if real_targets else "fake-targets",
+            start_ts=tier_start_ts,
+        )
+
+        # 12c. Push per-tier summary row to ADX (additive)
+        adx_export_summary_if_configured(
+            run_id=run_id,
+            tier=tier,
+            mode="real-targets" if real_targets else "fake-targets",
+            result=pass_fail.get("overall", "failure"),
+            measurements=measurements,
+            pass_criteria=pass_fail,
+        )
     finally:
         # Always collect diagnostics (logs, events, pod descriptions) for RCA
         try:
@@ -178,7 +200,7 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
         "pprof": pprof_results,
         "diagnostics": diagnostics,
         "pass_criteria": pass_fail,
-        "pass": pass_fail.get("overall", False),
+        "result": pass_fail.get("overall", "failure"),
         "status": "completed",
     }
 
