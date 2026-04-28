@@ -80,15 +80,22 @@ steps:
         echo "--- clustermesh-apiserver pod ---"
         kubectl -n kube-system get pods -l k8s-app=clustermesh-apiserver -o wide || true
 
-        echo "--- cilium-dbg clustermesh status ---"
+        echo "--- cilium-dbg status (ClusterMesh section) ---"
         # Retry up to ~5 minutes — the mesh propagation can lag a few seconds
         # past az fleet clustermeshprofile apply's return.
+        # We use `cilium-dbg status` (in-pod debug binary) rather than the
+        # external `cilium clustermesh status` so we don't require cilium-cli
+        # on the agent. cilium-dbg status includes a "ClusterMesh:" block of
+        # the form:
+        #   ClusterMesh:   2/2 remote clusters ready, 0 global-services
+        #      mesh-2: ready, ...
         connected=0
         for i in $(seq 1 30); do
-          out=$(kubectl -n kube-system exec ds/cilium -- cilium-dbg clustermesh status 2>&1 || true)
+          out=$(kubectl -n kube-system exec ds/cilium -- cilium-dbg status 2>&1 || true)
           echo "$out"
-          # Count remote clusters reported as ready.
-          ready=$(echo "$out" | grep -cE "ready, .* connections" || true)
+          # Parse "<ready>/<total> remote clusters ready" line.
+          ready=$(echo "$out" | sed -nE 's/.*ClusterMesh:[[:space:]]+([0-9]+)\/[0-9]+ remote clusters ready.*/\1/p' | head -1)
+          ready=${ready:-0}
           if [ "$ready" -ge "$expected_remote" ]; then
             connected=1
             break
@@ -101,6 +108,12 @@ steps:
           echo "##vso[task.logissue type=error;] $role: clustermesh not Connected to $expected_remote remote clusters"
           failures=$((failures + 1))
         fi
+
+        echo "--- cilium clustermesh status (runner-side, richer diagnostics) ---"
+        # Best-effort, informational only — failures here don't fail the step
+        # because the in-pod check above is authoritative. cilium-cli reports
+        # per-remote connection state, endpoint counts, and version info.
+        cilium clustermesh status --context "$(kubectl config current-context)" --wait=false || true
       done
 
       if [ "$failures" -gt 0 ]; then
