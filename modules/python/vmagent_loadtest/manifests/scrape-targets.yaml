@@ -254,3 +254,223 @@ spec:
             limits:
               cpu: "50m"
               memory: "64Mi"
+---
+# ── fake-cns ──────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: fake-cns-headless
+  namespace: fake-exporter
+spec:
+  clusterIP: None
+  selector:
+    app: fake-cns
+  ports:
+    - name: metrics
+      port: 10092
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: fake-cns
+  namespace: fake-exporter
+spec:
+  serviceName: fake-cns-headless
+  replicas: __REPLICAS__
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: fake-cns
+  template:
+    metadata:
+      labels:
+        app: fake-cns
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "10092"
+        prometheus.io/path: "/metrics"
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: fake-exporter
+          image: __EXPORTER_IMAGE__
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 10092
+          env:
+            - name: PORT
+              value: "10092"
+            - name: PROFILE
+              value: "__PROFILE__"
+          resources:
+            requests:
+              cpu: "5m"
+              memory: "16Mi"
+            limits:
+              cpu: "50m"
+              memory: "64Mi"
+---
+# ── fake-npd ──────────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: fake-npd-headless
+  namespace: fake-exporter
+spec:
+  clusterIP: None
+  selector:
+    app: fake-npd
+  ports:
+    - name: metrics
+      port: 20257
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: fake-npd
+  namespace: fake-exporter
+spec:
+  serviceName: fake-npd-headless
+  replicas: __REPLICAS__
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: fake-npd
+  template:
+    metadata:
+      labels:
+        app: fake-npd
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "20257"
+        prometheus.io/path: "/metrics"
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: fake-exporter
+          image: __EXPORTER_IMAGE__
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 20257
+          env:
+            - name: PORT
+              value: "20257"
+            - name: PROFILE
+              value: "__PROFILE__"
+          resources:
+            requests:
+              cpu: "5m"
+              memory: "16Mi"
+            limits:
+              cpu: "50m"
+              memory: "64Mi"
+---
+# ── fake-runtime ──────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: fake-runtime-headless
+  namespace: fake-exporter
+spec:
+  clusterIP: None
+  selector:
+    app: fake-runtime
+  ports:
+    - name: metrics
+      port: 10257
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: fake-runtime
+  namespace: fake-exporter
+spec:
+  serviceName: fake-runtime-headless
+  replicas: __REPLICAS__
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: fake-runtime
+  template:
+    metadata:
+      labels:
+        app: fake-runtime
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "10257"
+        prometheus.io/path: "/v1/metrics"
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: fake-exporter
+          image: __EXPORTER_IMAGE__
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 10257
+          env:
+            - name: PORT
+              value: "10257"
+            - name: PROFILE
+              value: "__PROFILE__"
+          resources:
+            requests:
+              cpu: "5m"
+              memory: "16Mi"
+            limits:
+              cpu: "50m"
+              memory: "64Mi"
+---
+# ── fake-azurefile ────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: fake-azurefile-headless
+  namespace: fake-exporter
+spec:
+  clusterIP: None
+  selector:
+    app: fake-azurefile
+  ports:
+    - name: metrics
+      port: 29615
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: fake-azurefile
+  namespace: fake-exporter
+spec:
+  serviceName: fake-azurefile-headless
+  replicas: __REPLICAS__
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: fake-azurefile
+  template:
+    metadata:
+      labels:
+        app: fake-azurefile
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "29615"
+        prometheus.io/path: "/metrics"
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: fake-exporter
+          image: __EXPORTER_IMAGE__
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 29615
+          env:
+            - name: PORT
+              value: "29615"
+            - name: PROFILE
+              value: "__PROFILE__"
+          resources:
+            requests:
+              cpu: "5m"
+              memory: "16Mi"
+            limits:
+              cpu: "50m"
+              memory: "64Mi"

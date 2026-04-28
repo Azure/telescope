@@ -164,19 +164,11 @@ def sample_resource_usage(cp_kubeconfig: str, dp_kubeconfig: str,
 def _classify_targets(active: list[dict]) -> tuple[list[dict], list[dict]]:
     """Split active targets into (load_test_targets, infra_targets).
 
-    Load-test targets are the fake-exporter or real-target jobs.
-    Infrastructure targets (konnectivity-server, konnectivity-agent,
-    vmagent-self, vmsingle) are tracked separately so they don't skew
-    the scrape success rate.
-
-    Host-level services (node-problem-detector, localdns) are also
-    classified as infra because they depend on the AKS VM Extension /
-    node image and may not be present on all test clusters.
+    All targets now count toward the scrape success rate, including
+    infrastructure targets (konnectivity, vmagent, vmsingle) and
+    host-level services (node-problem-detector).
     """
-    infra_jobs = {
-        "konnectivity-server", "konnectivity-agent", "vmagent-self", "vmsingle",
-        "node-problem-detector", "localdns",
-    }
+    infra_jobs: set[str] = set()
     load, infra = [], []
     for t in active:
         job = t.get("labels", {}).get("job", "")

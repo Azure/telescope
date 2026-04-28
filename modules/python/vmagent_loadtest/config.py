@@ -22,6 +22,10 @@ FAKE_EXPORTER_ROLES = [
     ("fake-cadvisor",  "fake-cadvisor",  19101),
     ("fake-kubelet",   "fake-kubelet",   10250),
     ("fake-kubeproxy", "fake-kubeproxy", 10256),
+    ("fake-cns",       "fake-cns",       10092),
+    ("fake-npd",       "fake-npd",       20257),
+    ("fake-runtime",   "fake-runtime",   10257),
+    ("fake-azurefile", "fake-azurefile", 29615),
 ]
 FAKE_EXPORTER_NS = "fake-exporter"
 
@@ -31,6 +35,8 @@ REAL_TARGET_ROLES = [
     ("real-cadvisor",   "/metrics/cadvisor", 10250, "https"),
     ("real-kubeproxy",  "/metrics",          10249, "http"),
     ("real-azure-cns", "/metrics",          10092, "http"),
+    ("node-exporter",  "/metrics",          19100, "http"),
+    ("node-runtime",   "/v1/metrics",       10257, "http"),
 ]
 
 # DaemonSet target roles scraped via node role: (job_name, port)
@@ -41,8 +47,7 @@ DAEMONSET_TARGET_ROLES = [
 
 # DaemonSet target roles scraped via pod role (1 per node): (job_name, namespace)
 DAEMONSET_POD_TARGET_ROLES = [
-    ("csi-azuredisk-node", "kube-system"),
-]
+    ("csi-azuredisk-node", "kube-system"),    ("csi-azurefile-node", "kube-system"),]
 
 # Singleton targets scraped via pod role (1 total): (job_name, namespace)
 SINGLETON_POD_TARGET_ROLES = [
