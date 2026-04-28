@@ -1,0 +1,106 @@
+parameters:
+  - name: cloud
+    type: string
+    default: ""
+  - name: engine_input
+    type: object
+    default: {}
+  - name: region
+    type: string
+
+steps:
+  - script: |
+      echo "Set the start time for test execution"
+      startTimestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+      echo "Start: $startTimestamp"
+      echo "##vso[task.setvariable variable=START_TIME]$startTimestamp"
+    displayName: set up timestamp variable
+
+  - script: |
+      set -eo pipefail
+      set -x
+
+      # Same discovery pattern as topology/clustermesh-scale/validate-resources.yml.
+      # We re-run it here rather than relying on a step variable so this engine
+      # file can be invoked independently.
+      clusters=$(az resource list \
+        --resource-type Microsoft.ContainerService/managedClusters \
+        --location "$REGION" \
+        --query "[?tags.run_id=='${RUN_ID}' && starts_with(tags.role, 'mesh-')].{name:name, rg:resourceGroup, role:tags.role}" \
+        -o json)
+
+      cluster_count=$(echo "$clusters" | jq 'length')
+      if [ "$cluster_count" -lt 2 ]; then
+        echo "##vso[task.logissue type=error;] Expected >=2 clustermesh clusters, found $cluster_count"
+        exit 1
+      fi
+
+      echo "Running CL2 across $cluster_count clusters"
+      mkdir -p "$HOME/.kube"
+      echo "$clusters" > "$HOME/.kube/clustermesh-clusters.json"
+      echo "##vso[task.setvariable variable=CLUSTERMESH_COUNT]$cluster_count"
+
+      # CL2 overrides are written once — params are identical for every cluster
+      # in this run (the per-cluster variation is which kubeconfig CL2 hits).
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
+        --namespaces "$CL2_NAMESPACES" \
+        --deployments-per-namespace "$CL2_DEPLOYMENTS_PER_NAMESPACE" \
+        --replicas-per-deployment "$CL2_REPLICAS_PER_DEPLOYMENT" \
+        --operation-timeout "${CL2_OPERATION_TIMEOUT:-15m}" \
+        --cl2_override_file "${CL2_CONFIG_DIR}/overrides.yaml"
+
+      # Per-cluster CL2 fan-out — sequential. Each invocation writes its own
+      # report dir at ${CL2_REPORT_DIR}/<role>/, so collect.yml can iterate the
+      # same way and tag results with --cluster-name.
+      failures=0
+      for row in $(echo "$clusters" | jq -c '.[]'); do
+        name=$(echo "$row" | jq -r '.name')
+        rg=$(echo "$row"   | jq -r '.rg')
+        role=$(echo "$row" | jq -r '.role')
+
+        echo "===================================================================="
+        echo "  Running CL2 on $role ($name)"
+        echo "===================================================================="
+
+        kubeconfig="$HOME/.kube/$role.config"
+        KUBECONFIG="$kubeconfig" az aks get-credentials \
+          --resource-group "$rg" --name "$name" --overwrite-existing --only-show-errors
+
+        report_dir="${CL2_REPORT_DIR}/${role}"
+        mkdir -p "$report_dir"
+
+        if PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
+            --cl2-image "${CL2_IMAGE}" \
+            --cl2-config-dir "${CL2_CONFIG_DIR}" \
+            --cl2-report-dir "$report_dir" \
+            --cl2-config-file "${CL2_CONFIG_FILE}" \
+            --kubeconfig "$kubeconfig" \
+            --provider "${CLOUD}"; then
+          echo "  $role: CL2 run succeeded"
+        else
+          echo "##vso[task.logissue type=warning;] $role: CL2 run failed (continuing other clusters)"
+          failures=$((failures + 1))
+        fi
+      done
+
+      if [ "$failures" -gt 0 ]; then
+        echo "##vso[task.logissue type=error;] CL2 failed on $failures cluster(s)"
+        exit 1
+      fi
+    workingDirectory: modules/python
+    env:
+      ${{ if eq(parameters.cloud, 'azure') }}:
+        CLOUD: aks
+      ${{ else }}:
+        CLOUD: ${{ parameters.cloud }}
+      REGION: ${{ parameters.region }}
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/scale.py
+      CL2_IMAGE: ${{ parameters.engine_input.image }}
+      CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/config
+      CL2_CONFIG_FILE: ${{ parameters.engine_input.cl2_config_file }}
+      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/results
+      CL2_NAMESPACES: ${{ parameters.engine_input.namespaces }}
+      CL2_DEPLOYMENTS_PER_NAMESPACE: ${{ parameters.engine_input.deployments_per_namespace }}
+      CL2_REPLICAS_PER_DEPLOYMENT: ${{ parameters.engine_input.replicas_per_deployment }}
+      CL2_OPERATION_TIMEOUT: ${{ parameters.engine_input.operation_timeout }}
+    displayName: "Run CL2 across all clustermesh clusters"

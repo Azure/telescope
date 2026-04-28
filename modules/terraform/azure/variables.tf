@@ -472,6 +472,7 @@ variable "aks_cli_config_list" {
 
     managed_identity_name             = optional(string, null)
     subnet_name                       = optional(string, null)
+    pod_subnet_name                   = optional(string, null)
     kubernetes_version                = optional(string, null)
     aks_custom_headers                = optional(list(string), [])
     use_custom_configurations         = optional(bool, false)
@@ -586,3 +587,32 @@ variable "disk_encryption_set_config_list" {
   }
 }
 
+
+# =============================================================================
+# ClusterMesh additions (optional; used by the clustermesh-scale scenario).
+# Both default to disabled so existing scenarios are unaffected.
+# =============================================================================
+
+variable "vnet_peering_config" {
+  description = "Pairwise VNet peering across all VNets in network_config_list. Keys are stable src_role-dst_role so adding a cluster does not churn existing peerings."
+  type = object({
+    enabled = optional(bool, false)
+  })
+  default = {}
+}
+
+variable "fleet_config" {
+  description = "Azure Fleet + ClusterMesh profile. When enabled, provisions a Fleet resource, one member per entry in members (labeled member_label_key=member_label_value), and creates+applies a clustermeshprofile via local-exec against the private-preview az fleet CLI (see modules/terraform/azure/fleet/)."
+  type = object({
+    enabled            = optional(bool, false)
+    fleet_name         = optional(string, "")
+    cmp_name           = optional(string, "")
+    member_label_key   = optional(string, "mesh")
+    member_label_value = optional(string, "true")
+    members = optional(list(object({
+      member_name = string
+      aks_role    = string
+    })), [])
+  })
+  default = {}
+}

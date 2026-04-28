@@ -1,0 +1,77 @@
+name: clustermesh-scale-test
+
+# Phase 1 trivial config: deploy a small fixed number of pods on this cluster.
+# Goal: exercise the multi-cluster harness end-to-end, NOT measure anything yet.
+# Real measurement modules (cross-cluster throughput, identity propagation, etc.)
+# will be added under modules/measurements/ in Phase 2.
+
+{{$namespaces := DefaultParam .CL2_NAMESPACES 1}}
+{{$deploymentsPerNamespace := DefaultParam .CL2_DEPLOYMENTS_PER_NAMESPACE 2}}
+{{$replicasPerDeployment := DefaultParam .CL2_REPLICAS_PER_DEPLOYMENT 2}}
+{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
+{{$apiServerCallsPerSecond := DefaultParam .CL2_API_SERVER_CALLS_PER_SECOND 5}}
+
+namespace:
+  number: {{$namespaces}}
+  prefix: clustermesh-scale
+  deleteStaleNamespaces: true
+  deleteAutomanagedNamespaces: true
+  enableExistingNamespaces: false
+  deleteNamespaceTimeout: 20m
+
+tuningSets:
+  - name: Sequence
+    parallelismLimitedLoad:
+      parallelismLimit: 1
+  - name: DeploymentCreateQps
+    qpsLoad:
+      qps: {{$apiServerCallsPerSecond}}
+
+steps:
+  - name: Start measurements
+    measurements:
+      - Identifier: PodStartupLatency
+        Method: PodStartupLatency
+        Params:
+          action: start
+          labelSelector: group = clustermesh-scale-test
+          threshold: 3m
+
+  - module:
+      path: /modules/clustermesh.yaml
+      params:
+        actionName: create
+        tuningSet: DeploymentCreateQps
+
+  - module:
+      path: /modules/scale-test.yaml
+      params:
+        actionName: create
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        replicasPerDeployment: {{$replicasPerDeployment}}
+        tuningSet: DeploymentCreateQps
+        operationTimeout: {{$operationTimeout}}
+
+  - name: Gather measurements
+    measurements:
+      - Identifier: PodStartupLatency
+        Method: PodStartupLatency
+        Params:
+          action: gather
+
+  - module:
+      path: /modules/scale-test.yaml
+      params:
+        actionName: delete
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        replicasPerDeployment: {{$replicasPerDeployment}}
+        tuningSet: DeploymentCreateQps
+        operationTimeout: {{$operationTimeout}}
+
+  - module:
+      path: /modules/clustermesh.yaml
+      params:
+        actionName: delete
+        tuningSet: DeploymentCreateQps

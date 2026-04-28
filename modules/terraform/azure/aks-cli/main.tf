@@ -53,6 +53,12 @@ locals {
     try(var.subnets_map[var.aks_cli_config.subnet_name], null)
   )
 
+  pod_subnet_id = (
+    try(var.aks_cli_config.pod_subnet_name, null) == null ?
+    null :
+    try(var.subnets_map[var.aks_cli_config.pod_subnet_name], null)
+  )
+
   api_server_subnet_id = (
     var.aks_cli_config.api_server_subnet_name == null ?
     null :
@@ -115,6 +121,14 @@ locals {
     format(
       "%s %s",
       "--vnet-subnet-id", local.aks_subnet_id,
+    )
+  )
+
+  pod_subnet_id_parameter = (local.pod_subnet_id == null ?
+    "" :
+    format(
+      "%s %s",
+      "--pod-subnet-id", local.pod_subnet_id,
     )
   )
 
@@ -193,6 +207,7 @@ locals {
     local.kms_parameters,
     local.disk_encryption_parameters,
     local.subnet_id_parameter,
+    local.pod_subnet_id_parameter,
     local.managed_identity_parameter,
     local.kubelet_identity_parameter,
     local.api_server_vnet_integration_parameter,

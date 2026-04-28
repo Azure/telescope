@@ -1,0 +1,239 @@
+parameters:
+  - name: cloud
+    type: string
+  - name: engine
+    type: string
+  - name: regions
+    type: object
+
+steps:
+  # -----------------------------------------------------------------------------
+  # Per-cluster validation: enumerate every fleet member, fetch its kubeconfig,
+  # assert nodes are Ready, cilium agent is Running, and the cluster reports
+  # mesh state Connected to all (N-1) remote clusters.
+  #
+  # Cluster discovery uses the same tag-based pattern as
+  # /steps/cloud/azure/update-kubeconfig.yml — clusters are tagged
+  # role=mesh-N at terraform-apply time.
+  # -----------------------------------------------------------------------------
+  - script: |
+      set -euo pipefail
+      set -x
+
+      region=${{ parameters.regions[0] }}
+
+      # JSON list of {name, rg, role} for every clustermesh AKS cluster in this run.
+      clusters=$(az resource list \
+        --resource-type Microsoft.ContainerService/managedClusters \
+        --location "$region" \
+        --query "[?tags.run_id=='${RUN_ID}' && starts_with(tags.role, 'mesh-')].{name:name, rg:resourceGroup, role:tags.role}" \
+        -o json)
+
+      count=$(echo "$clusters" | jq 'length')
+      if [ "$count" -lt 2 ]; then
+        echo "##vso[task.logissue type=error;] Expected >=2 clustermesh AKS clusters tagged run_id=${RUN_ID}, found $count"
+        exit 1
+      fi
+
+      echo "Discovered $count clustermesh clusters:"
+      echo "$clusters" | jq -r '.[] | "  \(.role): \(.name) in \(.rg)"'
+
+      mkdir -p "$HOME/.kube"
+      echo "$clusters" > "$HOME/.kube/clustermesh-clusters.json"
+
+      echo "##vso[task.setvariable variable=CLUSTERMESH_COUNT]$count"
+    displayName: "Enumerate clustermesh clusters"
+
+  - script: |
+      set -euo pipefail
+      set -x
+
+      clusters=$(cat "$HOME/.kube/clustermesh-clusters.json")
+      expected_remote=$(( $(echo "$clusters" | jq 'length') - 1 ))
+
+      failures=0
+      for row in $(echo "$clusters" | jq -c '.[]'); do
+        name=$(echo "$row" | jq -r '.name')
+        rg=$(echo "$row"   | jq -r '.rg')
+        role=$(echo "$row" | jq -r '.role')
+
+        echo "===================================================================="
+        echo "  Validating $role ($name)"
+        echo "===================================================================="
+
+        # Per-cluster kubeconfig file at $HOME/.kube/<role>.config — keeps each
+        # cluster's auth state isolated so concurrent kubectl calls don't race.
+        kubeconfig="$HOME/.kube/$role.config"
+        KUBECONFIG="$kubeconfig" az aks get-credentials \
+          --resource-group "$rg" --name "$name" --overwrite-existing --only-show-errors
+
+        export KUBECONFIG="$kubeconfig"
+
+        echo "--- nodes ---"
+        kubectl get nodes -o wide
+        kubectl wait --for=condition=Ready nodes --all --timeout=5m
+
+        echo "--- cilium agent pods ---"
+        kubectl -n kube-system get pods -l k8s-app=cilium -o wide
+        kubectl -n kube-system rollout status ds/cilium --timeout=5m
+
+        echo "--- clustermesh-apiserver pod ---"
+        kubectl -n kube-system get pods -l k8s-app=clustermesh-apiserver -o wide || true
+
+        echo "--- cilium-dbg clustermesh status ---"
+        # Retry up to ~5 minutes — the mesh propagation can lag a few seconds
+        # past az fleet clustermeshprofile apply's return.
+        connected=0
+        for i in $(seq 1 30); do
+          out=$(kubectl -n kube-system exec ds/cilium -- cilium-dbg clustermesh status 2>&1 || true)
+          echo "$out"
+          # Count remote clusters reported as ready.
+          ready=$(echo "$out" | grep -cE "ready, .* connections" || true)
+          if [ "$ready" -ge "$expected_remote" ]; then
+            connected=1
+            break
+          fi
+          echo "  waiting for $expected_remote remote clusters to be ready (got $ready), retry $i/30..."
+          sleep 10
+        done
+
+        if [ "$connected" -ne 1 ]; then
+          echo "##vso[task.logissue type=error;] $role: clustermesh not Connected to $expected_remote remote clusters"
+          failures=$((failures + 1))
+        fi
+      done
+
+      if [ "$failures" -gt 0 ]; then
+        echo "##vso[task.logissue type=error;] $failures cluster(s) failed mesh validation"
+        exit 1
+      fi
+    displayName: "Validate Cilium + ClusterMesh on every cluster"
+
+  - script: |
+      set -euo pipefail
+      set -x
+
+      # Cross-cluster data-path smoke: deploy a `global` service backed by an
+      # echo pod in the first cluster, deploy a curl client in the second
+      # cluster, and curl the service by name. If global service load-balancing
+      # works, the request resolves cross-cluster via the mesh data path.
+      #
+      # Per plan.md Phase 1 exit criteria, we don't ship a "green" Phase 1 that
+      # only validated control plane.
+
+      clusters=$(cat "$HOME/.kube/clustermesh-clusters.json")
+      first_role=$(echo  "$clusters" | jq -r '.[0].role')
+      second_role=$(echo "$clusters" | jq -r '.[1].role')
+
+      kc_first="$HOME/.kube/$first_role.config"
+      kc_second="$HOME/.kube/$second_role.config"
+
+      ns="cm-smoke"
+
+      cleanup() {
+        KUBECONFIG="$kc_first"  kubectl delete ns "$ns" --ignore-not-found --wait=false || true
+        KUBECONFIG="$kc_second" kubectl delete ns "$ns" --ignore-not-found --wait=false || true
+      }
+      trap cleanup EXIT
+
+      cat <<'EOF' > /tmp/cm-smoke-server.yaml
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: cm-smoke
+      ---
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: echo
+        namespace: cm-smoke
+      spec:
+        replicas: 1
+        selector:
+          matchLabels: { app: echo }
+        template:
+          metadata:
+            labels: { app: echo }
+          spec:
+            containers:
+              - name: echo
+                image: registry.k8s.io/e2e-test-images/agnhost:2.47
+                args: ["netexec", "--http-port=8080"]
+                ports: [{ containerPort: 8080 }]
+      ---
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: echo
+        namespace: cm-smoke
+        annotations:
+          service.cilium.io/global: "true"
+      spec:
+        selector: { app: echo }
+        ports:
+          - port: 80
+            targetPort: 8080
+      EOF
+
+      cat <<'EOF' > /tmp/cm-smoke-client.yaml
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: cm-smoke
+      ---
+      # Cilium global services require the same Service name to exist in every
+      # participating cluster. The Service in cluster 2 has no local backends;
+      # cross-cluster lookup resolves to cluster 1's pods via the mesh.
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: echo
+        namespace: cm-smoke
+        annotations:
+          service.cilium.io/global: "true"
+      spec:
+        selector: { app: echo }
+        ports:
+          - port: 80
+            targetPort: 8080
+      ---
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: curl
+        namespace: cm-smoke
+        labels: { app: curl }
+      spec:
+        restartPolicy: Never
+        containers:
+          - name: curl
+            image: curlimages/curl:8.10.1
+            command: ["sleep", "600"]
+      EOF
+
+      KUBECONFIG="$kc_first"  kubectl apply -f /tmp/cm-smoke-server.yaml
+      KUBECONFIG="$kc_second" kubectl apply -f /tmp/cm-smoke-client.yaml
+
+      KUBECONFIG="$kc_first"  kubectl -n "$ns" rollout status deploy/echo --timeout=3m
+      KUBECONFIG="$kc_second" kubectl -n "$ns" wait --for=condition=Ready pod/curl --timeout=3m
+
+      # Try for 2 minutes — global service endpoints can take a few seconds
+      # to populate via the mesh.
+      ok=0
+      for i in $(seq 1 24); do
+        if KUBECONFIG="$kc_second" kubectl -n "$ns" exec curl -- \
+            curl -fsS -m 5 http://echo.cm-smoke.svc.cluster.local/hostname; then
+          ok=1
+          echo ""
+          echo "Cross-cluster curl succeeded on attempt $i"
+          break
+        fi
+        echo "  attempt $i/24 failed, retrying in 5s..."
+        sleep 5
+      done
+
+      if [ "$ok" -ne 1 ]; then
+        echo "##vso[task.logissue type=error;] Cross-cluster data-path smoke failed: $second_role could not reach service in $first_role"
+        exit 1
+      fi
+    displayName: "Cross-cluster data-path smoke (global service curl)"

@@ -1,0 +1,35 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: clustermesh-apiserver
+  namespace: monitoring
+spec:
+  # Cilium clustermesh-apiserver exposes metrics on port 9963 (apiserver) and
+  # 9964 (kvstoremesh sidecar) when Prometheus integration is enabled. AKS
+  # managed Cilium uses the same upstream defaults. If a future preview
+  # changes these, override via __address__ relabel below.
+  selector:
+    matchLabels:
+      k8s-app: clustermesh-apiserver
+  namespaceSelector:
+    matchNames:
+      - kube-system
+  podMetricsEndpoints:
+    - interval: {{.interval}}
+      honorLabels: true
+      path: /metrics
+      relabelings:
+        - sourceLabels: [__address__]
+          action: replace
+          targetLabel: __address__
+          regex: (.+?)(\:\d+)?
+          replacement: $1:9963
+    - interval: {{.interval}}
+      honorLabels: true
+      path: /metrics
+      relabelings:
+        - sourceLabels: [__address__]
+          action: replace
+          targetLabel: __address__
+          regex: (.+?)(\:\d+)?
+          replacement: $1:9964

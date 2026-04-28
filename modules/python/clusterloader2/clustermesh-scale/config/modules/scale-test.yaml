@@ -1,0 +1,39 @@
+name: clustermesh-scale-test-module
+
+# Trivial pod deployment module: creates or deletes
+# {{$namespaces}} x {{$deploymentsPerNamespace}} x {{$replicasPerDeployment}}
+# pause-image pods on the target cluster. No traffic, no churn, no policies.
+
+{{$actionName := .actionName}}
+{{$namespaces := .namespaces}}
+{{$deploymentsPerNamespace := .deploymentsPerNamespace}}
+{{$replicasPerDeployment := .replicasPerDeployment}}
+{{$tuningSet := .tuningSet}}
+{{$operationTimeout := .operationTimeout}}
+
+{{$totalDeployments := MultiplyInt $namespaces $deploymentsPerNamespace}}
+
+steps:
+  - name: {{$actionName}} deployments
+    phases:
+      - namespaceRange:
+          min: 1
+          max: {{$namespaces}}
+        replicasPerNamespace: {{$deploymentsPerNamespace}}
+        tuningSet: {{$tuningSet}}
+        objectBundle:
+          - basename: scale-test
+            objectTemplatePath: /modules/scale-test-deployment.yaml
+            templateFillMap:
+              Replicas: {{$replicasPerDeployment}}
+              Group: clustermesh-scale-test
+
+  - name: Wait for deployments to be {{$actionName}}d
+    measurements:
+      - Identifier: WaitForControlledPodsRunning
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+          checkIfPodsAreUpdated: true
+          labelSelector: group = clustermesh-scale-test
+          operationTimeout: {{$operationTimeout}}

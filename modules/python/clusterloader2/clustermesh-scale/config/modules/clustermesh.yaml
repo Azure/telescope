@@ -1,0 +1,25 @@
+## ClusterMesh module: deploys a PodMonitor for clustermesh-apiserver so the
+## CL2-spawned Prometheus picks up at least one mesh-side metric per cluster.
+## Phase 1 exit criteria require this — see plan.md Phase 1 line 318.
+
+{{$tuningSet := DefaultParam .tuningSet "DeploymentCreateQps"}}
+{{$interval := DefaultParam .interval "15s"}}
+{{ $replicasPerNamespace := 1 }}
+
+{{if eq .actionName "create"}}
+  {{ $replicasPerNamespace = 1 }}
+{{else}}
+  {{ $replicasPerNamespace = 0 }}
+{{end}}
+
+steps:
+  - name: {{.actionName}} ClusterMesh Pod Monitor
+    phases:
+      - namespaceList:
+        - "monitoring"
+        replicasPerNamespace: {{$replicasPerNamespace}}
+        tuningSet: {{$tuningSet}}
+        objectBundle:
+          - objectTemplatePath: "modules/clustermesh/podmonitor.yaml"
+            basename: clustermesh-apiserver
+            interval: {{$interval}}

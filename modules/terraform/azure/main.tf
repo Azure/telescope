@@ -320,3 +320,48 @@ module "virtual_machine" {
   # Ensure AKS cluster is created before VM tries to look it up for RBAC
   depends_on = [module.aks, module.aks-cli, module.azapi]
 }
+
+# =============================================================================
+# ClusterMesh add-ons (vnet-peering + fleet + clustermeshprofile).
+#
+# Both are no-ops unless explicitly enabled in their *_config variable. Used
+# today only by the clustermesh-scale scenario.
+# =============================================================================
+
+data "azurerm_client_config" "current" {}
+
+module "vnet_peering" {
+  source = "./vnet-peering"
+
+  peering_enabled     = try(var.vnet_peering_config.enabled, false)
+  resource_group_name = local.run_id
+  vnet_role_to_id     = { for role in keys(local.network_config_map) : role => module.virtual_network[role].vnet_id }
+  vnet_role_to_name   = { for role, nw in local.network_config_map : role => nw.vnet_name }
+
+  depends_on = [module.virtual_network]
+}
+
+module "fleet" {
+  source = "./fleet"
+
+  fleet_enabled       = try(var.fleet_config.enabled, false)
+  resource_group_name = local.run_id
+  location            = local.region
+  subscription_id     = data.azurerm_client_config.current.subscription_id
+  fleet_name          = try(var.fleet_config.fleet_name, "")
+  cmp_name            = try(var.fleet_config.cmp_name, "")
+  member_label_key    = try(var.fleet_config.member_label_key, "mesh")
+  member_label_value  = try(var.fleet_config.member_label_value, "true")
+  members = [
+    for m in try(var.fleet_config.members, []) : {
+      member_name = m.member_name
+      aks_name    = local.aks_cli_config_map[m.aks_role].aks_name
+    }
+  ]
+  tags = local.tags
+
+  # AKS clusters must exist before we join them as fleet members and apply the
+  # mesh profile. Peering must exist too — apply reaches the mesh-apiserver LB
+  # endpoints cross-cluster, which requires peering (separate-VNet mode).
+  depends_on = [module.aks-cli, module.vnet_peering]
+}
