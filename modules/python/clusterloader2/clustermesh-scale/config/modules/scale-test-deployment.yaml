@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: pause
-          image: registry.k8s.io/pause:3.10
+          image: mcr.microsoft.com/oss/kubernetes/pause:3.6
           resources:
             requests:
               cpu: 5m
