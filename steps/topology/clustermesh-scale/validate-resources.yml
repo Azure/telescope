@@ -100,6 +100,32 @@ steps:
             connected=1
             break
           fi
+
+          # ============== DEBUG-DUMP-BEGIN (REMOVE BEFORE MERGE) ==============
+          # Every 3 iterations dump richer state: in-pod cilium-cli view of the
+          # mesh, clustermesh-apiserver pod state, and Fleet-side member status.
+          # These help diagnose why convergence is stalling. Strip before final
+          # PR review.
+          if [ "$((i % 3))" -eq 0 ]; then
+            echo "------- [debug] retry $i: cilium clustermesh status (runner cli) -------"
+            cilium clustermesh status --context "$(kubectl config current-context)" --wait=false 2>&1 || true
+
+            echo "------- [debug] retry $i: clustermesh-apiserver pods -------"
+            kubectl -n kube-system get pods -l k8s-app=clustermesh-apiserver -o wide 2>&1 || true
+            kubectl -n kube-system describe pods -l k8s-app=clustermesh-apiserver 2>&1 | tail -40 || true
+
+            echo "------- [debug] retry $i: cilium agent restarts / readiness -------"
+            kubectl -n kube-system get pods -l k8s-app=cilium -o wide 2>&1 || true
+
+            echo "------- [debug] retry $i: Fleet ClusterMeshProfile members -------"
+            az fleet clustermeshprofile list-members \
+              --resource-group "$rg" \
+              --fleet-name clustermesh-flt \
+              --name clustermesh-cmp \
+              --output table 2>&1 || true
+          fi
+          # =============== DEBUG-DUMP-END (REMOVE BEFORE MERGE) ===============
+
           echo "  waiting for $expected_remote remote clusters to be ready (got $ready), retry $i/30..."
           sleep 10
         done
