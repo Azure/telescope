@@ -42,9 +42,9 @@ spec:
         - key: topology.kubernetes.io/zone
           operator: In
           values:
-            - eastus2-1
-            - eastus2-2
-            - eastus2-3
+            - canadacentral-1
+            - canadacentral-2
+            - canadacentral-3
 ---
 apiVersion: karpenter.sh/v1
 kind: NodePool
