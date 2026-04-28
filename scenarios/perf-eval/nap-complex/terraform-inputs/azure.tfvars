@@ -345,11 +345,11 @@ aks_cli_config_list = [
       {
         name  = "enable-image-cleaner"
         value = ""
+      },
+      {
+        name  = "enable-private-cluster"
+        value = ""
       }
-      # {
-      #   name  = "enable-private-cluster"
-      #   value = ""
-      # }
     ]
   }
 ]
