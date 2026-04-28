@@ -42,6 +42,8 @@ Uses the **AWS Toolkit for Azure DevOps** extension (`AWSShellScript@1` task) wi
 credential_type: service_connection
 ```
 
+> **Note:** The `variable_group` credential type stores static IAM access keys in an ADO variable group, so it does not support OIDC.
+
 ## Pipeline Configuration
 
 The ADO service connection `AWS-for-Telescope-OIDC` has been configured with a role in the AWS benchmarking account. To use OIDC authentication, pipelines need to set the following variables:
@@ -57,7 +59,7 @@ variables:
 
 ### `aws.rolecredential.maxduration`
 
-Set this to control the credential lifetime in seconds. The maximum allowed value is `43200` (12 hours). Choose a value that covers the full duration of your benchmark run:
+Controls the credential lifetime in seconds. The AWS IAM role is configured with a maximum session duration of `43200` (12 hours). Pipelines must set `aws.rolecredential.maxduration` to a value less than or equal to `43200` that covers the full duration of the benchmark run:
 
 ```yaml
 variables:
