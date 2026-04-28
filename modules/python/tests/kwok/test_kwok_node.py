@@ -1,4 +1,5 @@
 """Tests for KWOK node functionality."""
+import json
 import os
 import unittest
 from unittest.mock import MagicMock, call, patch
@@ -165,13 +166,10 @@ class TestNodeIntegration(unittest.TestCase):
 
     def test_create_nodes(self):
         """Test creating KWOK nodes."""
-        upstream_deployment = make_base_controller_deployment()
         ready_deployment = make_ready_deployment("kwok-controller-0")
 
         def get_deployment_side_effect(name, namespace):
             self.assertEqual(namespace, "kube-system")
-            if name == "kwok-controller":
-                return upstream_deployment
             if name == "kwok-controller-0":
                 return ready_deployment
             self.fail(f"Unexpected deployment lookup: {name}")
@@ -185,9 +183,7 @@ class TestNodeIntegration(unittest.TestCase):
                 return "resource-slice-template"
             self.fail(f"Unexpected template path: {template_path}")
 
-        mock_app_client = MagicMock()
         self.mock_k8s_client.get_deployment.side_effect = get_deployment_side_effect
-        self.mock_k8s_client.get_app_client.return_value = mock_app_client
         self.mock_k8s_client.get_config_map.return_value = None
         self.mock_k8s_client.create_template.side_effect = create_template_side_effect
         self.mock_k8s_client.apply_manifest_from_url.return_value = None
@@ -196,15 +192,20 @@ class TestNodeIntegration(unittest.TestCase):
         self.mock_k8s_client.create_node.return_value = None
         self.mock_k8s_client.create_resource_slice.return_value = None
 
+        mock_kwok_yaml_response = MagicMock()
+        deployment_dict = client.ApiClient().sanitize_for_serialization(make_base_controller_deployment())
+        deployment_dict["apiVersion"] = "apps/v1"
+        deployment_dict["kind"] = "Deployment"
+        mock_kwok_yaml_response.text = yaml.dump(deployment_dict)
+
         try:
-            self.node.create()
+            with patch('kwok.kwok.requests.get', return_value=mock_kwok_yaml_response):
+                self.node.create()
             print("Nodes created successfully.")
             self.mock_k8s_client.apply_manifest_from_url.assert_has_calls([
-                call("https://github.com/kubernetes-sigs/kwok/releases/download/v0.7.0/kwok.yaml"),
                 call("https://github.com/kubernetes-sigs/kwok/releases/download/v0.7.0/stage-fast.yaml"),
                 call("https://github.com/kubernetes-sigs/kwok/releases/download/v0.7.0/metrics-usage.yaml"),
             ])
-            mock_app_client.delete_namespaced_deployment.assert_called_once()
 
             controller_manifests = collect_applied_manifests(
                 self.mock_k8s_client.apply_manifest_from_file.call_args_list,
@@ -288,8 +289,6 @@ class TestNodeIntegration(unittest.TestCase):
 
         def get_deployment_side_effect(name, namespace):
             self.assertEqual(namespace, "kube-system")
-            if name == "kwok-controller":
-                return mock_deployment
             if name in {"kwok-controller-0", "kwok-controller-1", "kwok-controller-2"}:
                 return ready_deployment
             self.fail(f"Unexpected deployment lookup: {name}")
@@ -301,9 +300,7 @@ class TestNodeIntegration(unittest.TestCase):
                 return make_rendered_node_template(replacements)
             self.fail(f"Unexpected template path: {template_path}")
 
-        mock_app_client = MagicMock()
         self.mock_k8s_client.get_deployment.side_effect = get_deployment_side_effect
-        self.mock_k8s_client.get_app_client.return_value = mock_app_client
         self.mock_k8s_client.get_config_map.return_value = None
         self.mock_k8s_client.create_template.side_effect = create_template_side_effect
         self.mock_k8s_client.apply_manifest_from_url.return_value = None
@@ -311,15 +308,18 @@ class TestNodeIntegration(unittest.TestCase):
         self.mock_k8s_client.apply_manifest_from_file.return_value = None
         self.mock_k8s_client.create_node.return_value = None
 
-        grouped_node.create()
+        mock_kwok_yaml_response = MagicMock()
+        deployment_dict = client.ApiClient().sanitize_for_serialization(mock_deployment)
+        deployment_dict["apiVersion"] = "apps/v1"
+        deployment_dict["kind"] = "Deployment"
+        mock_kwok_yaml_response.text = yaml.dump(deployment_dict)
+        with patch('kwok.kwok.requests.get', return_value=mock_kwok_yaml_response):
+            grouped_node.create()
 
         self.mock_k8s_client.apply_manifest_from_url.assert_has_calls([
-            call("https://github.com/kubernetes-sigs/kwok/releases/download/v0.7.0/kwok.yaml"),
             call("https://github.com/kubernetes-sigs/kwok/releases/download/v0.7.0/stage-fast.yaml"),
         ])
-        self.assertEqual(self.mock_k8s_client.apply_manifest_from_url.call_count, 2)
-        self.assertEqual(self.mock_k8s_client.apply_manifest_from_file.call_count, 4)
-        mock_app_client.delete_namespaced_deployment.assert_called_once()
+        self.assertEqual(self.mock_k8s_client.apply_manifest_from_url.call_count, 1)
 
         controller_manifests = collect_applied_manifests(
             self.mock_k8s_client.apply_manifest_from_file.call_args_list,
@@ -357,32 +357,29 @@ class TestNodeIntegration(unittest.TestCase):
             ["0", "0", "1", "1", "2"],
         )
 
-    def test_prepare_controller_base_deletes_upstream_with_delete_options(self):
-        """Test controller preparation copies and removes the upstream controller deployment."""
+    def test_bootstrap_returns_controller_deployment(self):
+        """Test that _bootstrap_kwok returns a V1Deployment from fetched kwok.yaml."""
         mock_deployment = make_base_controller_deployment(image="controller-image")
-        self.mock_k8s_client.get_deployment.return_value = mock_deployment
-
-        mock_app_client = MagicMock()
-        self.mock_k8s_client.get_app_client.return_value = mock_app_client
         self.mock_k8s_client.get_config_map.return_value = None
         self.mock_k8s_client.create_template.return_value = make_rendered_config_map()
         self.mock_k8s_client.apply_manifest_from_url.return_value = None
         self.mock_k8s_client.delete_manifest_from_file.return_value = None
         self.mock_k8s_client.apply_manifest_from_file.return_value = None
 
-        controller_base = self.node._prepare_controller_deployment_base(
-            "v0.7.0", enable_metrics=False
-        )
+        mock_response = MagicMock()
+        deployment_dict = client.ApiClient().sanitize_for_serialization(mock_deployment)
+        deployment_dict["apiVersion"] = "apps/v1"
+        deployment_dict["kind"] = "Deployment"
+        mock_response.text = yaml.dump(deployment_dict)
 
+        with patch('kwok.kwok.requests.get', return_value=mock_response):
+            controller_base = self.node._bootstrap_kwok("v0.7.0", enable_metrics=False)
+
+        self.assertIsInstance(controller_base, client.V1Deployment)
         self.assertEqual(
             controller_base.spec.template.spec.containers[0].image,
             "controller-image",
         )
-        self.mock_k8s_client.delete_manifest_from_file.assert_called_once_with(
-            self.node.kwok_config_path
-        )
-        self.mock_k8s_client.apply_manifest_from_file.assert_called_once()
-        mock_app_client.delete_namespaced_deployment.assert_called_once()
 
         derived_manifest = client.ApiClient().sanitize_for_serialization(
             self.node._build_controller_deployment(controller_base, 0)
@@ -399,15 +396,11 @@ class TestNodeIntegration(unittest.TestCase):
                 "requests": {"cpu": "2", "memory": "5Gi"},
             },
         )
+        # Verify the original deployment is not mutated
         self.assertNotIn(
             "--manage-nodes-with-label-selector=kwok-controller-group=0",
             mock_deployment.spec.template.spec.containers[0].args,
         )
-
-        _, kwargs = mock_app_client.delete_namespaced_deployment.call_args
-        self.assertEqual(kwargs["name"], "kwok-controller")
-        self.assertEqual(kwargs["namespace"], "kube-system")
-        self.assertEqual(kwargs["body"].propagation_policy, "Foreground")
 
     def test_tear_down_nodes(self):
         """
