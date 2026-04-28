@@ -305,8 +305,7 @@ jobs:
       set -euo pipefail
       set -x
 
-      TOTAL_GIB=${{ parameters.ingest_configmap_gib }}
-      TOTAL_OBJECTS_COUNT=$(( TOTAL_GIB * 1073741824 / 524288 ))
+      TOTAL_OBJECTS_COUNT=$(( ${{ parameters.ingest_configmap_gib }} * 1073741824 / 524288 ))
       BATCH_SIZE=2000
       TOTAL_BATCHES=$(( (TOTAL_OBJECTS_COUNT + BATCH_SIZE - 1) / BATCH_SIZE ))
 
@@ -392,8 +391,7 @@ jobs:
       set -euo pipefail
       set -x
 
-      TOTAL_GIB=${{ parameters.ingest_events_gib }}
-      TOTAL_OBJECTS_COUNT=$(( TOTAL_GIB * 1073741824 / 524288 ))
+      TOTAL_OBJECTS_COUNT=$(( ${{ parameters.ingest_events_gib }} * 1073741824 / 524288 ))
       BATCH_SIZE=2000
       TOTAL_BATCHES=$(( (TOTAL_OBJECTS_COUNT + BATCH_SIZE - 1) / BATCH_SIZE ))
 
@@ -479,8 +477,7 @@ jobs:
       set -euo pipefail
       set -x
 
-      TOTAL_GIB=${{ parameters.ingest_secrets_gib }}
-      TOTAL_OBJECTS_COUNT=$(( TOTAL_GIB * 1073741824 / 524288 ))
+      TOTAL_OBJECTS_COUNT=$(( ${{ parameters.ingest_secrets_gib }} * 1073741824 / 524288 ))
       BATCH_SIZE=2000
       TOTAL_BATCHES=$(( (TOTAL_OBJECTS_COUNT + BATCH_SIZE - 1) / BATCH_SIZE ))
 

@@ -35,7 +35,7 @@ docker rmi ${runnerImage} 2>/dev/null || true
 # local in-memory counter stays accurate since each successful batch represents a known
 # quantity. This avoids using kubectl get to count existing objects, which would OOM
 # the pipeline agent by fetching full object bodies.
-RunKperfDataIngest = lambda dataType: str, namespace: str, name: str, totalGib: str | int, displayName: str = None, qps: int = DEFAULT_QPS, burst: int = DEFAULT_BURST, size: int = DEFAULT_SIZE_BYTES, groupSize: int = DEFAULT_GROUP_SIZE, condition: str = "" -> steps.Step {
+RunKperfDataIngest = lambda dataType: str, namespace: str, name: str, totalGiB: str | int, displayName: str = None, qps: int = DEFAULT_QPS, burst: int = DEFAULT_BURST, size: int = DEFAULT_SIZE_BYTES, groupSize: int = DEFAULT_GROUP_SIZE, condition: str = "" -> steps.Step {
     _batchSize = DEFAULT_BATCH_SIZE
     _displayName = displayName or "Ingest ${dataType} data"
     steps.Script {
@@ -43,8 +43,7 @@ RunKperfDataIngest = lambda dataType: str, namespace: str, name: str, totalGib: 
 set -euo pipefail
 set -x
 
-TOTAL_GIB=${totalGib}
-TOTAL_OBJECTS_COUNT=$(( TOTAL_GIB * ${BYTES_PER_GIB} / ${size} ))
+TOTAL_OBJECTS_COUNT=$(( ${totalGiB} * ${BYTES_PER_GIB} / ${size} ))
 BATCH_SIZE=${_batchSize}
 TOTAL_BATCHES=$(( (TOTAL_OBJECTS_COUNT + BATCH_SIZE - 1) / BATCH_SIZE ))
 

@@ -237,7 +237,7 @@ echo "##vso[task.setvariable variable=BENCHMARK_START_TIME;isOutput=true]$START_
                     dataType="configmap",
                     namespace="kperf-configmap-data",
                     name="my-configmaps",
-                    totalGib="\${{ parameters.ingest_configmap_gib }}",
+                    totalGiB="\${{ parameters.ingest_configmap_gib }}",
                     displayName="Ingest configmap data (\${{ parameters.ingest_configmap_gib }} GiB)"),
             ]
         }
@@ -252,7 +252,7 @@ echo "##vso[task.setvariable variable=BENCHMARK_START_TIME;isOutput=true]$START_
                     dataType="event",
                     namespace="kperf-event-data",
                     name="my-events",
-                    totalGib="\${{ parameters.ingest_events_gib }}",
+                    totalGiB="\${{ parameters.ingest_events_gib }}",
                     displayName="Ingest event data (\${{ parameters.ingest_events_gib }} GiB)"),
             ]
         }
@@ -267,7 +267,7 @@ echo "##vso[task.setvariable variable=BENCHMARK_START_TIME;isOutput=true]$START_
                     dataType="secret",
                     namespace="kperf-secret-data",
                     name="my-secrets",
-                    totalGib="\${{ parameters.ingest_secrets_gib }}",
+                    totalGiB="\${{ parameters.ingest_secrets_gib }}",
                     displayName="Ingest secret data (\${{ parameters.ingest_secrets_gib }} GiB)"),
             ]
         }
