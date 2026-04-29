@@ -8,10 +8,18 @@ owner          = "aks"
 #
 # Mirrors fleet-setup-script.sh with SHARED_VNET=false (separate VNets + peering).
 # - 2 VNets (one per cluster) at 10.<id>.0.0/16
-# - Per-cluster node subnet (10.<id>.0.0/24) + pod subnet (10.<id>.1.0/24)
+# - Per-cluster node subnet (10.<id>.0.0/24, 254 IPs) + pod subnet (10.<id>.4.0/22, 1022 IPs)
 # - 2 AKS clusters with Cilium + ACNS, Azure CNI w/ pod subnet (not overlay)
 # - Pairwise VNet peering between the two VNets (both directions)
 # - Fleet + 2 fleet members (label mesh=true) + clustermeshprofile
+#
+# Pod subnet sizing: /22 (1022 IPs) is the floor for any Phase 2 scenario in
+# this tier. Math: ~70 baseline pods (kube-system + AKS add-ons across 2 nodes)
+# + 200 workload pods (event-throughput n2 tier: 5 ns x 4 dep x 10 replicas)
+# = ~270 pods/cluster, plus headroom for future churn-stress / HA scenarios
+# without re-touching the network plan. /24 (254 IPs) was insufficient.
+# Larger tiers (n5/n10/n20 in Phase 3) will get their own tfvars files with
+# subnets sized for their cluster + pod counts.
 #
 # Naming:
 #   VNet role         : mesh-1, mesh-2                (one VNet per role)
@@ -34,7 +42,7 @@ network_config_list = [
       },
       {
         name           = "clustermesh-1-pod"
-        address_prefix = "10.1.1.0/24"
+        address_prefix = "10.1.4.0/22"
       }
     ]
     network_security_group_name = ""
@@ -52,7 +60,7 @@ network_config_list = [
       },
       {
         name           = "clustermesh-2-pod"
-        address_prefix = "10.2.1.0/24"
+        address_prefix = "10.2.4.0/22"
       }
     ]
     network_security_group_name = ""
@@ -118,9 +126,9 @@ vnet_peering_config = {
 }
 
 fleet_config = {
-  enabled      = true
-  fleet_name   = "clustermesh-flt"
-  cmp_name     = "clustermesh-cmp"
+  enabled            = true
+  fleet_name         = "clustermesh-flt"
+  cmp_name           = "clustermesh-cmp"
   member_label_key   = "mesh"
   member_label_value = "true"
   members = [
