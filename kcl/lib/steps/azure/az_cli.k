@@ -11,7 +11,6 @@ AzCli = lambda serviceConnection: str, name: str, script: str, condition: str = 
         }
         displayName = name
         condition = condition
-        if continueOnError:
-            continueOnError = continueOnError
+        continueOnError = continueOnError
     }
 }

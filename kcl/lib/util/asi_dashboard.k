@@ -1,8 +1,8 @@
 import azure_pipelines.ap.steps
 import lib.steps.azure as azure
 
-ASI_MANAGED_CLUSTER_URL = "https://asi.azure.ms/services/AKS/pages/Managed%20Cluster"
-ASI_API_SERVER_ANALYZER_URL = "https://asi.azure.ms/services/AKS/pages/API%20Server%20Analyzer"
+ASI_MANAGED_CLUSTER_URL = "https://asi.azure.ms/services/AKS/pages/Managed%20Cluster?clusterVersion=$RESOURCE_UID&globalFrom=$FROM_ENCODED&globalTo=$TO_ENCODED"
+ASI_API_SERVER_ANALYZER_URL = "https://asi.azure.ms/services/AKS/pages/API%20Server%20Analyzer?clusterVersion=$RESOURCE_UID&globalFrom=$FROM_ENCODED&globalTo=$TO_ENCODED"
 
 PrintAsiDashboardUrl = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscriptionId: str, startTime: str, endTime: str = "" -> steps.Step {
     azure.AzCli(
@@ -28,15 +28,12 @@ fi
 FROM_ENCODED=$(echo "${startTime}" | sed 's/:/%3A/g')
 TO_ENCODED=$(echo "$END_TIME" | sed 's/:/%3A/g')
 
-ASI_MC_URL="${ASI_MANAGED_CLUSTER_URL}?clusterVersion=$RESOURCE_UID&globalFrom=$FROM_ENCODED&globalTo=$TO_ENCODED"
-APISERVER_ANALYZER_URL="${ASI_API_SERVER_ANALYZER_URL}?clusterVersion=$RESOURCE_UID&globalFrom=$FROM_ENCODED&globalTo=$TO_ENCODED"
-
 echo "============================================"
 echo "ASI Managed Cluster Dashboard URL:"
-echo "$ASI_MC_URL"
+echo "${ASI_MANAGED_CLUSTER_URL}"
 echo ""
 echo "ASI API Server Analyzer URL:"
-echo "$APISERVER_ANALYZER_URL"
+echo "${ASI_API_SERVER_ANALYZER_URL}"
 echo "============================================"
 """,
         continueOnError=True)

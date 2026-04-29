@@ -3,16 +3,15 @@ import azure_pipelines.ap.jobs.job
 import azure_pipelines.ap.steps
 import lib.const
 import lib.steps.azure
-import lib.steps.common
 import lib.steps.k8s.runkperf
 import lib.util
 import lib.util.asi_dashboard
 import .bootstrap
 
 SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
-DEFAULT_CLUSTER = "hyperscale-etcd-testing"
+DEFAULT_CLUSTER_NAME = "hyperscale-etcd-testing"
 LOCATION = "westus2"
-NODE_POOL = "workerpool"
+# TODO: Merge custom branch to upstream and use official image
 RUNNER_IMAGE = "ghcr.io/liyu-ma/kperf:hyperscale-etcd"
 
 # Condition: true when user provides an existing cluster (skip create/delete)
@@ -75,7 +74,6 @@ az rest \\
 # Common steps for each ingest job (login, get creds, install runkperf)
 prepareForIngestion = lambda {
     [
-        common.InstallPythonDependencies(),
         azure.GetCredentials(
             const.DEFAULT_SERVICE_CONNECTION,
             CLUSTER,
@@ -98,12 +96,6 @@ output = ap.Pipeline {
     pool = const.DEFAULT_POOL
 
     parameters = [
-        ap.Parameter {
-            name = "run_id"
-            displayName = "Run ID (leave empty to auto-generate)"
-            type = "string"
-            default = "default"
-        }
         ap.Parameter {
             name = "keep_cluster"
             displayName = "Keep cluster after benchmark"
@@ -155,7 +147,7 @@ output = ap.Pipeline {
             displayName = "Bootstrap"
             timeoutInMinutes = 10
             steps = [
-                bootstrap.Bootstrap(DEFAULT_CLUSTER),
+                bootstrap.Bootstrap(DEFAULT_CLUSTER_NAME),
             ]
         }
         job.Job {
@@ -170,7 +162,6 @@ output = ap.Pipeline {
             }
 
             steps = [
-                common.InstallPythonDependencies(),
                 azure.Login(
                     const.DEFAULT_SERVICE_CONNECTION,
                     SUBSCRIPTION_ID,
@@ -191,20 +182,6 @@ output = ap.Pipeline {
                     CLUSTER,
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID),
-                azure.CreateNodePool(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    CLUSTER,
-                    RESOURCE_GROUP,
-                    SUBSCRIPTION_ID,
-                    NODE_POOL,
-                    "Standard_D2S_v4",
-                    2),
-                azure.WaitForNodePoolSucceeded(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    CLUSTER,
-                    RESOURCE_GROUP,
-                    SUBSCRIPTION_ID,
-                    NODE_POOL),
             ]
         }
         job.Job {
@@ -231,14 +208,14 @@ echo "##vso[task.setvariable variable=BENCHMARK_START_TIME;isOutput=true]$START_
             displayName = "Ingest ConfigMaps (\${{ parameters.ingest_configmap_gib }} GiB)"
             timeoutInMinutes = 1440
             dependsOn = INGEST_DEPENDS_ON
+            condition = "and(succeeded(), \${{ ne(parameters.ingest_configmap_gib, 0) }})"
             variables = INGEST_VARIABLES
             steps = prepareForIngestion() + [
                 runkperf.RunKperfDataIngest(
                     dataType="configmap",
                     namespace="kperf-configmap-data",
                     name="my-configmaps",
-                    totalGiB="\${{ parameters.ingest_configmap_gib }}",
-                    displayName="Ingest configmap data (\${{ parameters.ingest_configmap_gib }} GiB)"),
+                    totalGiB="\${{ parameters.ingest_configmap_gib }}"),
             ]
         }
         job.Job {
@@ -246,14 +223,14 @@ echo "##vso[task.setvariable variable=BENCHMARK_START_TIME;isOutput=true]$START_
             displayName = "Ingest Events (\${{ parameters.ingest_events_gib }} GiB)"
             timeoutInMinutes = 1440
             dependsOn = INGEST_DEPENDS_ON
+            condition = "and(succeeded(), \${{ ne(parameters.ingest_events_gib, 0) }})"
             variables = INGEST_VARIABLES
             steps = prepareForIngestion() + [
                 runkperf.RunKperfDataIngest(
                     dataType="event",
                     namespace="kperf-event-data",
                     name="my-events",
-                    totalGiB="\${{ parameters.ingest_events_gib }}",
-                    displayName="Ingest event data (\${{ parameters.ingest_events_gib }} GiB)"),
+                    totalGiB="\${{ parameters.ingest_events_gib }}"),
             ]
         }
         job.Job {
@@ -261,14 +238,14 @@ echo "##vso[task.setvariable variable=BENCHMARK_START_TIME;isOutput=true]$START_
             displayName = "Ingest Secrets (\${{ parameters.ingest_secrets_gib }} GiB)"
             timeoutInMinutes = 1440
             dependsOn = INGEST_DEPENDS_ON
+            condition = "and(succeeded(), \${{ ne(parameters.ingest_secrets_gib, 0) }})"
             variables = INGEST_VARIABLES
             steps = prepareForIngestion() + [
                 runkperf.RunKperfDataIngest(
                     dataType="secret",
                     namespace="kperf-secret-data",
                     name="my-secrets",
-                    totalGiB="\${{ parameters.ingest_secrets_gib }}",
-                    displayName="Ingest secret data (\${{ parameters.ingest_secrets_gib }} GiB)"),
+                    totalGiB="\${{ parameters.ingest_secrets_gib }}"),
             ]
         }
         job.Job {
@@ -296,7 +273,7 @@ echo "##vso[task.setvariable variable=BENCHMARK_START_TIME;isOutput=true]$START_
             job = "cleanup"
             displayName = "Cleanup"
             timeoutInMinutes = 60
-            dependsOn = ["bootstrap", "ingest_configmap", "ingest_events", "ingest_secrets", "report"]
+            dependsOn = ["bootstrap", "report"]
             condition = "and(always(), not(${USE_EXISTING_CLUSTER}), not(\${{ parameters.keep_cluster }}))"
             variables = {
                 RESOURCE_GROUP = "$[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]"

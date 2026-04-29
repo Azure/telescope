@@ -5,10 +5,10 @@ DEFAULT_QPS = 80
 DEFAULT_BURST = 80
 DEFAULT_SIZE_BYTES = 524288  # 0.5 MiB per object
 DEFAULT_GROUP_SIZE = 80
-DEFAULT_BATCH_SIZE = 2000  # Internal batch size, not configurable by caller
+BATCH_SIZE = 2000  # Internal batch size, not configurable by caller
 BYTES_PER_GIB = 1073741824
 
-InstallRunkperf = lambda runnerImage: str, condition: str = "" -> steps.Step {
+InstallRunkperf = lambda runnerImage: str -> steps.Step {
     steps.Script {
         script = """
 set -euo pipefail
@@ -25,41 +25,40 @@ rm -rf $temp_dir
 docker rmi ${runnerImage} 2>/dev/null || true
 """
         displayName = "Install runkperf binary"
-        if condition:
-            condition = condition
     }
 }
 
-# RunKperfDataIngest creates objects in fixed-size batches (DEFAULT_BATCH_SIZE) to be
+# RunKperfDataIngest creates objects in fixed-size batches (BATCH_SIZE) to be
 # resilient to failures — if a batch fails, only that batch needs to be retried, and the
 # local in-memory counter stays accurate since each successful batch represents a known
 # quantity. This avoids using kubectl get to count existing objects, which would OOM
 # the pipeline agent by fetching full object bodies.
-RunKperfDataIngest = lambda dataType: str, namespace: str, name: str, totalGiB: str | int, displayName: str = None, qps: int = DEFAULT_QPS, burst: int = DEFAULT_BURST, size: int = DEFAULT_SIZE_BYTES, groupSize: int = DEFAULT_GROUP_SIZE, condition: str = "" -> steps.Step {
-    _batchSize = DEFAULT_BATCH_SIZE
-    _displayName = displayName or "Ingest ${dataType} data"
+RunKperfDataIngest = lambda dataType: str, namespace: str, name: str, totalGiB: str, qps: int = DEFAULT_QPS, burst: int = DEFAULT_BURST, size: int = DEFAULT_SIZE_BYTES, groupSize: int = DEFAULT_GROUP_SIZE -> steps.Step {
     steps.Script {
         script = """
 set -euo pipefail
 set -x
 
 TOTAL_OBJECTS_COUNT=$(( ${totalGiB} * ${BYTES_PER_GIB} / ${size} ))
-BATCH_SIZE=${_batchSize}
-TOTAL_BATCHES=$(( (TOTAL_OBJECTS_COUNT + BATCH_SIZE - 1) / BATCH_SIZE ))
+TOTAL_BATCHES=$(( (TOTAL_OBJECTS_COUNT + ${BATCH_SIZE} - 1) / ${BATCH_SIZE} ))
 
 kubectl create namespace ${namespace} 2>/dev/null || true
 
-echo "Ingesting $TOTAL_OBJECTS_COUNT ${dataType}s in $TOTAL_BATCHES batches of $BATCH_SIZE..."
+echo "Ingesting $TOTAL_OBJECTS_COUNT ${dataType}s in $TOTAL_BATCHES batches of ${BATCH_SIZE}..."
 
 completed=0
 for batch in $(seq 1 $TOTAL_BATCHES); do
   REMAINING=$((TOTAL_OBJECTS_COUNT - completed))
-  COUNT=$BATCH_SIZE
+  COUNT=${BATCH_SIZE}
   if [ "$REMAINING" -lt "$COUNT" ]; then
     COUNT=$REMAINING
   fi
 
   echo "Batch $batch/$TOTAL_BATCHES: creating $COUNT ${dataType}s..."
+  GROUP_SIZE=${groupSize}
+  if [ "$COUNT" -lt "$GROUP_SIZE" ]; then
+    GROUP_SIZE=$COUNT
+  fi
   run_batch() {
     runkperf data ${dataType} \\
       --namespace ${namespace} \\
@@ -68,9 +67,9 @@ for batch in $(seq 1 $TOTAL_BATCHES); do
       --burst ${burst} \\
       --total $COUNT \\
       --size ${size} \\
-      --group-size ${groupSize}
+      --group-size $GROUP_SIZE
   }
-  run_batch x || run_batch retry
+  run_batch first || run_batch retry
 
   completed=$((completed + COUNT))
   STORAGE_GIB=$(awk 'BEGIN{printf "%.1f", '$completed' * ${size} / ${BYTES_PER_GIB}}')
@@ -79,8 +78,7 @@ done
 
 echo "Ingest complete: $completed ${dataType}s created."
 """
-        displayName = _displayName
-        if condition:
-            condition = condition
+        displayName = "Ingest ${dataType} data (${totalGiB} GiB)"
+        condition = "and(succeeded(), ne('${totalGiB}', '0'))"
     }
 }

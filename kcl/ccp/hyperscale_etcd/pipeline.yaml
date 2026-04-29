@@ -2,10 +2,6 @@ name: Hyperscale Etcd Benchmarking
 pool: AKS-Telescope-Airlock
 trigger: none
 parameters:
-- name: run_id
-  displayName: Run ID (leave empty to auto-generate)
-  type: string
-  default: default
 - name: keep_cluster
   displayName: Keep cluster after benchmark
   type: boolean
@@ -47,22 +43,12 @@ jobs:
 
       set -exo pipefail
 
-      # Resolve RUN_ID
-      if [ -n "$PARAM_RUN_ID" ] && [ "$PARAM_RUN_ID" != "default" ]; then
-        RUN_ID="$PARAM_RUN_ID"
-        echo "Using provided Run ID: $RUN_ID"
-      else
-        job_id="$(System.JobId)"
-        RUN_ID=$(Build.BuildId)-${job_id:0:8}
-        echo "Generated Run ID: $RUN_ID"
-      fi
-
       # Resolve CLUSTER
       if [ -n "$PARAM_EXISTING_CLUSTER" ] && [ "$PARAM_EXISTING_CLUSTER" != "none" ]; then
         CLUSTER="$PARAM_EXISTING_CLUSTER"
         echo "Using existing cluster: $CLUSTER"
       else
-        CLUSTER="$DEFAULT_CLUSTER"
+        CLUSTER="$DEFAULT_CLUSTER_NAME"
         echo "Using default cluster: $CLUSTER"
       fi
 
@@ -71,19 +57,18 @@ jobs:
         RESOURCE_GROUP="$PARAM_EXISTING_RG"
         echo "Using existing resource group: $RESOURCE_GROUP"
       else
-        RESOURCE_GROUP="$RUN_ID"
-        echo "Using RUN_ID as resource group: $RESOURCE_GROUP"
+        job_id="$(System.JobId)"
+        RESOURCE_GROUP=$(Build.BuildId)-${job_id:0:8}
+        echo "Generated resource group: $RESOURCE_GROUP"
       fi
 
-      echo "##vso[task.setvariable variable=RUN_ID;isOutput=true]$RUN_ID"
       echo "##vso[task.setvariable variable=CLUSTER;isOutput=true]$CLUSTER"
       echo "##vso[task.setvariable variable=RESOURCE_GROUP;isOutput=true]$RESOURCE_GROUP"
-    displayName: Bootstrap - resolve RUN_ID, CLUSTER, RESOURCE_GROUP
+    displayName: Bootstrap - resolve CLUSTER, RESOURCE_GROUP
     env:
-      PARAM_RUN_ID: ${{ parameters.run_id }}
       PARAM_EXISTING_CLUSTER: ${{ parameters.existing_cluster_name }}
       PARAM_EXISTING_RG: ${{ parameters.existing_cluster_resource_group }}
-      DEFAULT_CLUSTER: hyperscale-etcd-testing
+      DEFAULT_CLUSTER_NAME: hyperscale-etcd-testing
     name: resolve
 - job: setup
   displayName: Cluster Setup
@@ -94,11 +79,6 @@ jobs:
     CLUSTER: $[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]
     RESOURCE_GROUP: $[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]
   steps:
-  - bash: |-
-      set -exo pipefail
-      pip3 install --upgrade "pip<24"
-      pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
-    displayName: Install Python dependencies
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -110,6 +90,7 @@ jobs:
         az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
         az config set defaults.location="westus2"
         az account show
+    continueOnError: false
     displayName: Login to Azure
   - task: AzureCLI@2
     inputs:
@@ -120,6 +101,7 @@ jobs:
         set -exo pipefail
 
         az group create --name "$(RESOURCE_GROUP)" --location "westus2" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+    continueOnError: false
     displayName: Create resource group $(RESOURCE_GROUP) in westus2 (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
   - task: AzureCLI@2
     inputs:
@@ -174,6 +156,7 @@ jobs:
               }
             }
           }"
+    continueOnError: false
     displayName: Create cluster
   - task: AzureCLI@2
     inputs:
@@ -202,43 +185,8 @@ jobs:
           fi
           sleep 30
         done
+    continueOnError: false
     displayName: Wait for cluster to succeed
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: "set -exo pipefail\n\naz aks nodepool add \\\n  --cluster-name \"$(CLUSTER)\" \\\n  --resource-group \"$(RESOURCE_GROUP)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"workerpool\" \\\n  --node-count 2 \\\n  --node-vm-size \"Standard_D2S_v4\" \\\n  --mode User \\\n   \\\n  \n"
-    displayName: Create node pool workerpool
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        while true; do
-          STATE=$(az aks nodepool show \
-            --cluster-name "$(CLUSTER)" \
-            --resource-group "$(RESOURCE_GROUP)" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-            --name "workerpool" \
-            --query "provisioningState" \
-            --output tsv)
-          echo "Node pool provisioning state: $STATE"
-          if [ "$STATE" = "Succeeded" ]; then
-            echo "Node pool is ready."
-            break
-          elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
-            echo "Node pool failed with state: $STATE."
-            exit 1
-          else
-            echo "Provisioning state: $STATE. Retry in 30 seconds"
-          fi
-          sleep 30
-        done
-    displayName: Wait for node pool workerpool to succeed
 - job: record_start_time
   displayName: Record Benchmark Start Time
   dependsOn:
@@ -261,16 +209,12 @@ jobs:
   - bootstrap
   - setup
   - record_start_time
+  condition: and(succeeded(), ${{ ne(parameters.ingest_configmap_gib, 0) }})
   timeoutInMinutes: 1440
   variables:
     CLUSTER: $[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]
     RESOURCE_GROUP: $[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]
   steps:
-  - bash: |-
-      set -exo pipefail
-      pip3 install --upgrade "pip<24"
-      pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
-    displayName: Install Python dependencies
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -284,6 +228,7 @@ jobs:
           --resource-group "$(RESOURCE_GROUP)" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --overwrite-existing
+    continueOnError: false
     displayName: Get credentials for $(CLUSTER)
   - script: |2
 
@@ -306,22 +251,25 @@ jobs:
       set -x
 
       TOTAL_OBJECTS_COUNT=$(( ${{ parameters.ingest_configmap_gib }} * 1073741824 / 524288 ))
-      BATCH_SIZE=2000
-      TOTAL_BATCHES=$(( (TOTAL_OBJECTS_COUNT + BATCH_SIZE - 1) / BATCH_SIZE ))
+      TOTAL_BATCHES=$(( (TOTAL_OBJECTS_COUNT + 2000 - 1) / 2000 ))
 
       kubectl create namespace kperf-configmap-data 2>/dev/null || true
 
-      echo "Ingesting $TOTAL_OBJECTS_COUNT configmaps in $TOTAL_BATCHES batches of $BATCH_SIZE..."
+      echo "Ingesting $TOTAL_OBJECTS_COUNT configmaps in $TOTAL_BATCHES batches of 2000..."
 
       completed=0
       for batch in $(seq 1 $TOTAL_BATCHES); do
         REMAINING=$((TOTAL_OBJECTS_COUNT - completed))
-        COUNT=$BATCH_SIZE
+        COUNT=2000
         if [ "$REMAINING" -lt "$COUNT" ]; then
           COUNT=$REMAINING
         fi
 
         echo "Batch $batch/$TOTAL_BATCHES: creating $COUNT configmaps..."
+        GROUP_SIZE=80
+        if [ "$COUNT" -lt "$GROUP_SIZE" ]; then
+          GROUP_SIZE=$COUNT
+        fi
         run_batch() {
           runkperf data configmap \
             --namespace kperf-configmap-data \
@@ -330,9 +278,9 @@ jobs:
             --burst 80 \
             --total $COUNT \
             --size 524288 \
-            --group-size 80
+            --group-size $GROUP_SIZE
         }
-        run_batch x || run_batch retry
+        run_batch first || run_batch retry
 
         completed=$((completed + COUNT))
         STORAGE_GIB=$(awk 'BEGIN{printf "%.1f", '$completed' * 524288 / 1073741824}')
@@ -340,6 +288,7 @@ jobs:
       done
 
       echo "Ingest complete: $completed configmaps created."
+    condition: and(succeeded(), ne('${{ parameters.ingest_configmap_gib }}', '0'))
     displayName: Ingest configmap data (${{ parameters.ingest_configmap_gib }} GiB)
 - job: ingest_events
   displayName: Ingest Events (${{ parameters.ingest_events_gib }} GiB)
@@ -347,16 +296,12 @@ jobs:
   - bootstrap
   - setup
   - record_start_time
+  condition: and(succeeded(), ${{ ne(parameters.ingest_events_gib, 0) }})
   timeoutInMinutes: 1440
   variables:
     CLUSTER: $[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]
     RESOURCE_GROUP: $[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]
   steps:
-  - bash: |-
-      set -exo pipefail
-      pip3 install --upgrade "pip<24"
-      pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
-    displayName: Install Python dependencies
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -370,6 +315,7 @@ jobs:
           --resource-group "$(RESOURCE_GROUP)" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --overwrite-existing
+    continueOnError: false
     displayName: Get credentials for $(CLUSTER)
   - script: |2
 
@@ -392,22 +338,25 @@ jobs:
       set -x
 
       TOTAL_OBJECTS_COUNT=$(( ${{ parameters.ingest_events_gib }} * 1073741824 / 524288 ))
-      BATCH_SIZE=2000
-      TOTAL_BATCHES=$(( (TOTAL_OBJECTS_COUNT + BATCH_SIZE - 1) / BATCH_SIZE ))
+      TOTAL_BATCHES=$(( (TOTAL_OBJECTS_COUNT + 2000 - 1) / 2000 ))
 
       kubectl create namespace kperf-event-data 2>/dev/null || true
 
-      echo "Ingesting $TOTAL_OBJECTS_COUNT events in $TOTAL_BATCHES batches of $BATCH_SIZE..."
+      echo "Ingesting $TOTAL_OBJECTS_COUNT events in $TOTAL_BATCHES batches of 2000..."
 
       completed=0
       for batch in $(seq 1 $TOTAL_BATCHES); do
         REMAINING=$((TOTAL_OBJECTS_COUNT - completed))
-        COUNT=$BATCH_SIZE
+        COUNT=2000
         if [ "$REMAINING" -lt "$COUNT" ]; then
           COUNT=$REMAINING
         fi
 
         echo "Batch $batch/$TOTAL_BATCHES: creating $COUNT events..."
+        GROUP_SIZE=80
+        if [ "$COUNT" -lt "$GROUP_SIZE" ]; then
+          GROUP_SIZE=$COUNT
+        fi
         run_batch() {
           runkperf data event \
             --namespace kperf-event-data \
@@ -416,9 +365,9 @@ jobs:
             --burst 80 \
             --total $COUNT \
             --size 524288 \
-            --group-size 80
+            --group-size $GROUP_SIZE
         }
-        run_batch x || run_batch retry
+        run_batch first || run_batch retry
 
         completed=$((completed + COUNT))
         STORAGE_GIB=$(awk 'BEGIN{printf "%.1f", '$completed' * 524288 / 1073741824}')
@@ -426,6 +375,7 @@ jobs:
       done
 
       echo "Ingest complete: $completed events created."
+    condition: and(succeeded(), ne('${{ parameters.ingest_events_gib }}', '0'))
     displayName: Ingest event data (${{ parameters.ingest_events_gib }} GiB)
 - job: ingest_secrets
   displayName: Ingest Secrets (${{ parameters.ingest_secrets_gib }} GiB)
@@ -433,16 +383,12 @@ jobs:
   - bootstrap
   - setup
   - record_start_time
+  condition: and(succeeded(), ${{ ne(parameters.ingest_secrets_gib, 0) }})
   timeoutInMinutes: 1440
   variables:
     CLUSTER: $[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]
     RESOURCE_GROUP: $[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]
   steps:
-  - bash: |-
-      set -exo pipefail
-      pip3 install --upgrade "pip<24"
-      pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
-    displayName: Install Python dependencies
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -456,6 +402,7 @@ jobs:
           --resource-group "$(RESOURCE_GROUP)" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --overwrite-existing
+    continueOnError: false
     displayName: Get credentials for $(CLUSTER)
   - script: |2
 
@@ -478,22 +425,25 @@ jobs:
       set -x
 
       TOTAL_OBJECTS_COUNT=$(( ${{ parameters.ingest_secrets_gib }} * 1073741824 / 524288 ))
-      BATCH_SIZE=2000
-      TOTAL_BATCHES=$(( (TOTAL_OBJECTS_COUNT + BATCH_SIZE - 1) / BATCH_SIZE ))
+      TOTAL_BATCHES=$(( (TOTAL_OBJECTS_COUNT + 2000 - 1) / 2000 ))
 
       kubectl create namespace kperf-secret-data 2>/dev/null || true
 
-      echo "Ingesting $TOTAL_OBJECTS_COUNT secrets in $TOTAL_BATCHES batches of $BATCH_SIZE..."
+      echo "Ingesting $TOTAL_OBJECTS_COUNT secrets in $TOTAL_BATCHES batches of 2000..."
 
       completed=0
       for batch in $(seq 1 $TOTAL_BATCHES); do
         REMAINING=$((TOTAL_OBJECTS_COUNT - completed))
-        COUNT=$BATCH_SIZE
+        COUNT=2000
         if [ "$REMAINING" -lt "$COUNT" ]; then
           COUNT=$REMAINING
         fi
 
         echo "Batch $batch/$TOTAL_BATCHES: creating $COUNT secrets..."
+        GROUP_SIZE=80
+        if [ "$COUNT" -lt "$GROUP_SIZE" ]; then
+          GROUP_SIZE=$COUNT
+        fi
         run_batch() {
           runkperf data secret \
             --namespace kperf-secret-data \
@@ -502,9 +452,9 @@ jobs:
             --burst 80 \
             --total $COUNT \
             --size 524288 \
-            --group-size 80
+            --group-size $GROUP_SIZE
         }
-        run_batch x || run_batch retry
+        run_batch first || run_batch retry
 
         completed=$((completed + COUNT))
         STORAGE_GIB=$(awk 'BEGIN{printf "%.1f", '$completed' * 524288 / 1073741824}')
@@ -512,6 +462,7 @@ jobs:
       done
 
       echo "Ingest complete: $completed secrets created."
+    condition: and(succeeded(), ne('${{ parameters.ingest_secrets_gib }}', '0'))
     displayName: Ingest secret data (${{ parameters.ingest_secrets_gib }} GiB)
 - job: report
   displayName: Print ASI Dashboard URLs
@@ -555,15 +506,12 @@ jobs:
         FROM_ENCODED=$(echo "$(BENCHMARK_START_TIME)" | sed 's/:/%3A/g')
         TO_ENCODED=$(echo "$END_TIME" | sed 's/:/%3A/g')
 
-        ASI_MC_URL="https://asi.azure.ms/services/AKS/pages/Managed%20Cluster?clusterVersion=$RESOURCE_UID&globalFrom=$FROM_ENCODED&globalTo=$TO_ENCODED"
-        APISERVER_ANALYZER_URL="https://asi.azure.ms/services/AKS/pages/API%20Server%20Analyzer?clusterVersion=$RESOURCE_UID&globalFrom=$FROM_ENCODED&globalTo=$TO_ENCODED"
-
         echo "============================================"
         echo "ASI Managed Cluster Dashboard URL:"
-        echo "$ASI_MC_URL"
+        echo "https://asi.azure.ms/services/AKS/pages/Managed%20Cluster?clusterVersion=$RESOURCE_UID&globalFrom=$FROM_ENCODED&globalTo=$TO_ENCODED"
         echo ""
         echo "ASI API Server Analyzer URL:"
-        echo "$APISERVER_ANALYZER_URL"
+        echo "https://asi.azure.ms/services/AKS/pages/API%20Server%20Analyzer?clusterVersion=$RESOURCE_UID&globalFrom=$FROM_ENCODED&globalTo=$TO_ENCODED"
         echo "============================================"
     continueOnError: true
     displayName: Print ASI dashboard URL
@@ -571,9 +519,6 @@ jobs:
   displayName: Cleanup
   dependsOn:
   - bootstrap
-  - ingest_configmap
-  - ingest_events
-  - ingest_secrets
   - report
   condition: and(always(), not(ne('${{ parameters.existing_cluster_name }}', 'none')), not(${{ parameters.keep_cluster }}))
   timeoutInMinutes: 60
@@ -590,4 +535,5 @@ jobs:
 
         az group delete --name "$(RESOURCE_GROUP)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
     condition: always()
+    continueOnError: false
     displayName: Delete resource group $(RESOURCE_GROUP) (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
