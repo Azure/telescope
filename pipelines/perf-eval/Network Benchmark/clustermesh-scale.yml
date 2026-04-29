@@ -28,10 +28,6 @@ stages:
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
             install: false
-            cl2_config_file: config.yaml
-            namespaces: 1
-            deployments_per_namespace: 2
-            replicas_per_deployment: 2
             operation_timeout: 15m
           topology: clustermesh-scale
           terraform_input_file_mapping:
@@ -40,6 +36,28 @@ stages:
             n2:
               cluster_count: 2
               mesh_size: 2
+              cl2_config_file: config.yaml
+              test_type: default-config
+              namespaces: 1
+              deployments_per_namespace: 2
+              replicas_per_deployment: 2
+              hold_duration: 30s
+              warmup_duration: 10s
+              restart_count: 0
+              api_server_calls_per_second: 5
+              trigger_reason: ${{ variables['Build.Reason'] }}
+            n2_event_throughput:
+              cluster_count: 2
+              mesh_size: 2
+              cl2_config_file: event-throughput.yaml
+              test_type: event-throughput
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 1
+              api_server_calls_per_second: 20
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           timeout_in_minutes: 120

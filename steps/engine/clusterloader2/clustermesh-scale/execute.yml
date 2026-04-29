@@ -97,10 +97,14 @@ steps:
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/scale.py
       CL2_IMAGE: ${{ parameters.engine_input.image }}
       CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/config
-      CL2_CONFIG_FILE: ${{ parameters.engine_input.cl2_config_file }}
+      CL2_CONFIG_FILE: $(cl2_config_file)
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/results
-      CL2_NAMESPACES: ${{ parameters.engine_input.namespaces }}
-      CL2_DEPLOYMENTS_PER_NAMESPACE: ${{ parameters.engine_input.deployments_per_namespace }}
-      CL2_REPLICAS_PER_DEPLOYMENT: ${{ parameters.engine_input.replicas_per_deployment }}
+      CL2_NAMESPACES: $(namespaces)
+      CL2_DEPLOYMENTS_PER_NAMESPACE: $(deployments_per_namespace)
+      CL2_REPLICAS_PER_DEPLOYMENT: $(replicas_per_deployment)
       CL2_OPERATION_TIMEOUT: ${{ parameters.engine_input.operation_timeout }}
+      CL2_API_SERVER_CALLS_PER_SECOND: $(api_server_calls_per_second)
+      CL2_HOLD_DURATION: $(hold_duration)
+      CL2_WARMUP_DURATION: $(warmup_duration)
+      CL2_RESTART_GENERATION: $(restart_count)
     displayName: "Run CL2 across all clustermesh clusters"

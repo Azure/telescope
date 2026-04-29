@@ -1,0 +1,72 @@
+{{$action := .action}} # start, gather
+
+{{$suffix := DefaultParam .suffix ""}}
+
+# Scenario #1 (Cross-Cluster Event Throughput) — extra measurements layered
+# on top of the always-on clustermesh-metrics.yaml. These are specifically
+# tuned to the event-throughput workload's create/restart/delete sequence,
+# and are scoped to this scenario because they only make sense when the
+# workload is actively churning kvstore writes.
+
+steps:
+  - name: {{$action}} ClusterMesh Event Throughput Measurements
+    measurements:
+    # ---------------------------------------------------------------------
+    # Backlog detection: the headline saturation signal. If the rate of
+    # events queued exceeds the rate at which the local agent drains them,
+    # the system is over-saturated. A sustained positive value over the
+    # measurement window is the failure mode scale testing.txt line 14
+    # ("upper bounds — effective QPS limit") is asking us to find.
+    # ---------------------------------------------------------------------
+    - Identifier: ClusterMeshEventBacklog{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Event Backlog Rate {{$suffix}}
+        metricVersion: v1
+        unit: events/s
+        enableViolations: false
+        queries:
+        - name: Perc99
+          query: quantile(0.99, max_over_time((rate(cilium_kvstore_events_queued_total[1m]) - rate(cilium_kvstore_quorum_errors_total[1m]))[%v:]))
+        - name: MaxBurst
+          query: max(max_over_time(rate(cilium_kvstore_events_queued_total[30s])[%v:]))
+
+    # ---------------------------------------------------------------------
+    # Global services gauge: one row per cluster of how many global services
+    # this cluster's clustermesh-apiserver has accepted. With the workload
+    # creating N global Services per cluster across M clusters, every cluster
+    # should observe roughly N*M global services. Divergence flags either
+    # scrape failures or service-propagation lag.
+    # ---------------------------------------------------------------------
+    - Identifier: ClusterMeshGlobalServices{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Global Services {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        - name: Max
+          query: max(max_over_time(cilium_clustermesh_global_services[%v:]))
+        - name: Perc50
+          query: quantile(0.50, avg_over_time(cilium_clustermesh_global_services[%v:]))
+
+    # ---------------------------------------------------------------------
+    # Explicit p95 split for kvstore operation latency. clustermesh-metrics.yaml
+    # already emits p50/p90/p99; for scenario #1 we also surface p95 so the
+    # scaling-curve dashboard has a smoother percentile gradient when plotting
+    # latency vs cluster count.
+    # ---------------------------------------------------------------------
+    - Identifier: ClusterMeshKvstoreOperationDurationP95{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Kvstore Operation Duration P95 {{$suffix}}
+        metricVersion: v1
+        unit: s
+        enableViolations: false
+        queries:
+        - name: Perc95
+          query: histogram_quantile(0.95, sum(rate(cilium_kvstore_operations_duration_seconds_bucket[1m])) by (le))

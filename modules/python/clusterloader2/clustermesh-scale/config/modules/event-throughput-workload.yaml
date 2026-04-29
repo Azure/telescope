@@ -1,0 +1,58 @@
+name: clustermesh-event-throughput-workload
+
+# Workload module for scale-scenario #1: Cross-Cluster Event Throughput.
+#
+# Exercises three flavors of cross-cluster events on every cluster in parallel:
+#
+#   create  — bring N pods + N global Services up at a controlled QPS.
+#             Drives endpoint+identity creation events into the local
+#             clustermesh-apiserver, which fans out N*(M-1) writes across
+#             the mesh on every other peer's etcd.
+#   restart — bump a pod-template annotation so the Deployment triggers a
+#             rolling restart. Closes the "burst creation/deletion" gap from
+#             scale testing.txt line 52 — measures peak event-flurry capacity
+#             when an entire cluster's pods churn over within seconds.
+#   delete  — set replicasPerNamespace to 0; drives the symmetric delete-event
+#             throughput number.
+
+{{$actionName := .actionName}}
+{{$generation := DefaultParam .generation 0}}
+{{$namespaces := .namespaces}}
+{{$deploymentsPerNamespace := .deploymentsPerNamespace}}
+{{$replicasPerDeployment := .replicasPerDeployment}}
+{{$tuningSet := .tuningSet}}
+{{$operationTimeout := .operationTimeout}}
+
+# delete = bring object count to 0; create/restart keep configured count.
+{{$replicasInPhase := $deploymentsPerNamespace}}
+{{if eq $actionName "delete"}}{{$replicasInPhase = 0}}{{end}}
+
+steps:
+  - name: {{$actionName}} event-throughput workload
+    phases:
+      - namespaceRange:
+          min: 1
+          max: {{$namespaces}}
+        replicasPerNamespace: {{$replicasInPhase}}
+        tuningSet: {{$tuningSet}}
+        objectBundle:
+          - basename: et
+            objectTemplatePath: /modules/event-throughput-deployment.yaml
+            templateFillMap:
+              Replicas: {{$replicasPerDeployment}}
+              Group: clustermesh-event-throughput
+              RestartGeneration: {{$generation}}
+          - basename: et
+            objectTemplatePath: /modules/event-throughput-service.yaml
+            templateFillMap:
+              Group: clustermesh-event-throughput
+
+  - name: Wait for event-throughput pods to be {{$actionName}}d
+    measurements:
+      - Identifier: WaitForControlledPodsRunning
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+          checkIfPodsAreUpdated: true
+          labelSelector: group = clustermesh-event-throughput
+          operationTimeout: {{$operationTimeout}}

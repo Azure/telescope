@@ -106,7 +106,8 @@ class TestConfigureClustermeshScale(unittest.TestCase):
 class TestCollectSingleCluster(unittest.TestCase):
     """collect_clusterloader2 emits one JSONL row per call, tagged with cluster identity."""
 
-    def _collect(self, *, cluster_name, cluster_count=2, mesh_size=2, report_subdir="mesh-1"):
+    def _collect(self, *, cluster_name, cluster_count=2, mesh_size=2,
+                 test_type="unit-test", report_subdir="mesh-1"):
         result_file = tempfile.mktemp(suffix=".jsonl")
         collect_clusterloader2(
             cl2_report_dir=os.path.join(MOCK_REPORT_ROOT, report_subdir),
@@ -114,7 +115,7 @@ class TestCollectSingleCluster(unittest.TestCase):
             run_id="test-run-123",
             run_url="http://example.com/run123",
             result_file=result_file,
-            test_type="unit-test",
+            test_type=test_type,
             start_timestamp="2026-04-28T15:00:00Z",
             cluster_name=cluster_name,
             cluster_count=cluster_count,
@@ -190,6 +191,24 @@ class TestCollectSingleCluster(unittest.TestCase):
             self.assertEqual(row["test_details"]["mesh_size"], 5)
             self.assertEqual(row["test_details"]["cluster_count"], 4)
             self.assertNotEqual(row["mesh_size"], row["cluster_count"])
+        finally:
+            if os.path.exists(result_file):
+                os.remove(result_file)
+
+    def test_collect_propagates_test_type(self):
+        """test_type tags every JSONL row so Kusto can filter scenario flavors.
+
+        Scale-scenario #1 (event-throughput) and the default-config Phase-1
+        smoke run share one results table; downstream dashboards filter on
+        ``test_type == 'event-throughput'`` to scope the scaling-curve view
+        to the right workload. Regression-guards that the field flows through
+        unmodified.
+        """
+        result_file = self._collect(cluster_name="mesh-1", test_type="event-throughput")
+        try:
+            with open(result_file, "r", encoding="utf-8") as f:
+                row = json.loads(f.read().strip().split("\n")[0])
+            self.assertEqual(row["test_type"], "event-throughput")
         finally:
             if os.path.exists(result_file):
                 os.remove(result_file)

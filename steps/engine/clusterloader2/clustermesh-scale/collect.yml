@@ -47,6 +47,7 @@ steps:
           --cluster-name "$role" \
           --cluster-count "$cluster_count" \
           --mesh-size "$MESH_SIZE" \
+          --test_type "$TEST_TYPE" \
           --namespaces "$CL2_NAMESPACES" \
           --deployments-per-namespace "$CL2_DEPLOYMENTS_PER_NAMESPACE" \
           --replicas-per-deployment "$CL2_REPLICAS_PER_DEPLOYMENT" \
@@ -63,8 +64,9 @@ steps:
       RUN_URL: $(RUN_URL)
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/scale.py
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/results
-      CL2_NAMESPACES: ${{ parameters.engine_input.namespaces }}
-      CL2_DEPLOYMENTS_PER_NAMESPACE: ${{ parameters.engine_input.deployments_per_namespace }}
-      CL2_REPLICAS_PER_DEPLOYMENT: ${{ parameters.engine_input.replicas_per_deployment }}
+      CL2_NAMESPACES: $(namespaces)
+      CL2_DEPLOYMENTS_PER_NAMESPACE: $(deployments_per_namespace)
+      CL2_REPLICAS_PER_DEPLOYMENT: $(replicas_per_deployment)
       MESH_SIZE: $(mesh_size)
+      TEST_TYPE: $(test_type)
     displayName: "Collect + aggregate results across clustermesh clusters"

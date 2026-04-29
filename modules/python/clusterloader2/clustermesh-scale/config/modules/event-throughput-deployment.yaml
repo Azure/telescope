@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.Name}}
+  labels:
+    group: {{.Group}}
+    app: {{.Name}}
+spec:
+  replicas: {{.Replicas}}
+  selector:
+    matchLabels:
+      name: {{.Name}}
+  template:
+    metadata:
+      labels:
+        name: {{.Name}}
+        group: {{.Group}}
+        app: {{.Name}}
+      annotations:
+        # Bumping RestartGeneration in the pod template forces a rolling
+        # restart on the next CL2 apply — the canonical Kubernetes pattern
+        # for triggering deployment rollouts without changing image. This
+        # drives the burst event flurry for scale-scenario #1.
+        restart-generation: "{{.RestartGeneration}}"
+    spec:
+      containers:
+        - name: pause
+          image: mcr.microsoft.com/oss/kubernetes/pause:3.6
+          resources:
+            requests:
+              cpu: 5m
+              memory: 10Mi
+            limits:
+              cpu: 50m
+              memory: 50Mi

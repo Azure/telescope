@@ -1,0 +1,156 @@
+name: clustermesh-event-throughput
+
+# Scale scenario #1: Cross-Cluster Event Throughput.
+#
+# Goal (scale testing.txt line 42-54): determine max sustainable and burst
+# event rates for endpoints, services, and identities propagating across
+# the mesh; measure events/sec processed and time-to-convergence proxy.
+#
+# Sequence (every cluster runs this in parallel; CL2 fan-out lives in
+# steps/engine/.../execute.yml):
+#
+#   1. Start measurements (control-plane, cilium, clustermesh-metrics +
+#      scenario-specific clustermesh-throughput).
+#   2. Deploy PodMonitor scraping clustermesh-apiserver.
+#   3. Create N pods + N global Services per cluster at a controlled QPS.
+#   4. Warmup sleep — let initial create-flurry settle into steady state.
+#   5. Burst rolling-restart of every Deployment (closes the "burst"
+#      coverage gap from scale testing.txt line 52).
+#   6. Settle sleep — let kvstore queues drain and propagation latency
+#      histograms accumulate steady-state samples.
+#   7. Gather all measurements.
+#   8. Tear down the workload + PodMonitor.
+
+{{$namespaces := DefaultParam .CL2_NAMESPACES 5}}
+{{$deploymentsPerNamespace := DefaultParam .CL2_DEPLOYMENTS_PER_NAMESPACE 4}}
+{{$replicasPerDeployment := DefaultParam .CL2_REPLICAS_PER_DEPLOYMENT 10}}
+{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "20m"}}
+{{$apiServerCallsPerSecond := DefaultParam .CL2_API_SERVER_CALLS_PER_SECOND 20}}
+{{$warmupDuration := DefaultParam .CL2_WARMUP_DURATION "30s"}}
+{{$holdDuration := DefaultParam .CL2_HOLD_DURATION "2m"}}
+{{$restartGeneration := DefaultParam .CL2_RESTART_GENERATION 1}}
+
+namespace:
+  number: {{$namespaces}}
+  prefix: clustermesh-et
+  deleteStaleNamespaces: true
+  deleteAutomanagedNamespaces: true
+  enableExistingNamespaces: false
+  deleteNamespaceTimeout: 20m
+
+tuningSets:
+  - name: Sequence
+    parallelismLimitedLoad:
+      parallelismLimit: 1
+  - name: DeploymentCreateQps
+    qpsLoad:
+      qps: {{$apiServerCallsPerSecond}}
+
+steps:
+  # ----- Start measurements -----
+  - module:
+      path: /modules/measurements/control-plane.yaml
+      params:
+        action: start
+        group: clustermesh-event-throughput
+
+  - module:
+      path: /modules/measurements/cilium.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/clustermesh-metrics.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/clustermesh-throughput.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/clustermesh.yaml
+      params:
+        actionName: create
+        tuningSet: DeploymentCreateQps
+
+  # ----- Workload: create -----
+  - module:
+      path: /modules/event-throughput-workload.yaml
+      params:
+        actionName: create
+        generation: 0
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        replicasPerDeployment: {{$replicasPerDeployment}}
+        tuningSet: DeploymentCreateQps
+        operationTimeout: {{$operationTimeout}}
+
+  # ----- Warmup: let the create-flurry settle into steady state -----
+  - name: Warmup before burst
+    measurements:
+      - Identifier: WarmupSleep
+        Method: Sleep
+        Params:
+          duration: {{$warmupDuration}}
+
+  # ----- Burst: rolling-restart of every Deployment -----
+  - module:
+      path: /modules/event-throughput-workload.yaml
+      params:
+        actionName: restart
+        generation: {{$restartGeneration}}
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        replicasPerDeployment: {{$replicasPerDeployment}}
+        tuningSet: DeploymentCreateQps
+        operationTimeout: {{$operationTimeout}}
+
+  # ----- Settle: let kvstore queues drain post-burst -----
+  - name: Settle after burst
+    measurements:
+      - Identifier: SettleSleep
+        Method: Sleep
+        Params:
+          duration: {{$holdDuration}}
+
+  # ----- Gather measurements -----
+  - module:
+      path: /modules/measurements/control-plane.yaml
+      params:
+        action: gather
+        group: clustermesh-event-throughput
+
+  - module:
+      path: /modules/measurements/cilium.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/clustermesh-metrics.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/clustermesh-throughput.yaml
+      params:
+        action: gather
+
+  # ----- Workload: delete -----
+  - module:
+      path: /modules/event-throughput-workload.yaml
+      params:
+        actionName: delete
+        generation: {{$restartGeneration}}
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        replicasPerDeployment: {{$replicasPerDeployment}}
+        tuningSet: DeploymentCreateQps
+        operationTimeout: {{$operationTimeout}}
+
+  - module:
+      path: /modules/clustermesh.yaml
+      params:
+        actionName: delete
+        tuningSet: DeploymentCreateQps
