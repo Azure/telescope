@@ -1,6 +1,7 @@
 """KWOK (Kubernetes WithOut Kubelet) - Virtual Node/Pod Simulator."""
 import argparse
 import time
+import math
 from abc import ABC, abstractmethod
 from copy import deepcopy
 from dataclasses import dataclass
@@ -436,7 +437,7 @@ class Node(KWOK):
             f"Last status: {', '.join(last_not_ready) if last_not_ready else 'unknown'}"
         )
 
-    def validate(self):
+    def validate(self, node_validate_success_threshold: float):
         execute_with_retries(
             self._validate_config_map,
         )
@@ -447,7 +448,7 @@ class Node(KWOK):
             )
 
         execute_with_retries(
-            self._validate_kwok_nodes
+            self._validate_kwok_nodes, node_validate_success_threshold
         )
 
     def _validate_config_map(self):
@@ -482,7 +483,19 @@ class Node(KWOK):
         print(f"{deploy_name} deployment is running with 1 available replica.")
 
 
-    def _validate_kwok_nodes(self):
+    def _validate_kwok_nodes(self, success_threshold: float):
+        """Validate KWOK nodes.
+
+        Args:
+            success_threshold: Fraction of nodes that must pass validation (0.0–1.0).
+                               Defaults to 1.0 (100%, all nodes must pass).
+        """
+        if not 0.0 < success_threshold <= 1.0:
+            raise ValueError(
+                f"success_threshold must be between 0 (exclusive) and 1.0 (inclusive), "
+                f"got {success_threshold}"
+            )
+
         ready_nodes = self.k8s_client.get_nodes()
 
         kwok_nodes = [
@@ -498,17 +511,29 @@ class Node(KWOK):
                 f"but found {len(kwok_nodes)}."
             )
 
+        required_count = math.ceil(self.node_count * success_threshold)
+        failure_count = 0
+
         for node in kwok_nodes:
             try:
                 self._validate_node_status(node)
                 self._validate_node_resources(node)
                 self._validate_node_schedulable(node)
             except Exception as e:
-                raise RuntimeError(
-                    f"Validation failed for node {node.metadata.name}: {e}"
-                ) from e
+                print(f"Node {node.metadata.name} failed validation: {e}")
+                failure_count += 1
 
-        print(f"Validation completed for {self.node_count} KWOK nodes.")
+        passed_count = len(kwok_nodes) - failure_count
+        if passed_count < required_count:
+            raise RuntimeError(
+                f"Validation failed: {passed_count}/{len(kwok_nodes)} nodes passed, "
+                f"but {required_count} required ({success_threshold:.0%} of {self.node_count})."
+            )
+
+        print(
+            f"Validation completed: {passed_count}/{len(kwok_nodes)} KWOK nodes passed "
+            f"(threshold: {success_threshold:.0%})."
+        )
 
 
     def _generate_node_ip(self, index, base_ip=(10, 0, 0, 10)):
@@ -680,6 +705,12 @@ def main():
         help=f"KWOK podPlayStageParallelism (default: {POD_PLAY_STAGE_PARALLELISM}).",
     )
     parser.add_argument(
+        "--validate-success-threshold",
+        type=float,
+        default=1.0,
+        help="Fraction of nodes (0.0–1.0] that must pass validation (default: 1.0).",
+    )
+    parser.add_argument(
         "--action",
         choices=["create", "validate", "tear_down"],
         required=True,
@@ -706,7 +737,7 @@ def main():
     if args.action == "create":
         node.create()
     elif args.action == "validate":
-        node.validate()
+        node.validate(node_validate_success_threshold=args.validate_success_threshold)
     elif args.action == "tear_down":
         node.tear_down()
 
