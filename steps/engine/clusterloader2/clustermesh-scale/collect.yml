@@ -46,6 +46,7 @@ steps:
           --start_timestamp "$START_TIME" \
           --cluster-name "$role" \
           --cluster-count "$cluster_count" \
+          --mesh-size "$MESH_SIZE" \
           --namespaces "$CL2_NAMESPACES" \
           --deployments-per-namespace "$CL2_DEPLOYMENTS_PER_NAMESPACE" \
           --replicas-per-deployment "$CL2_REPLICAS_PER_DEPLOYMENT" \
@@ -65,4 +66,5 @@ steps:
       CL2_NAMESPACES: ${{ parameters.engine_input.namespaces }}
       CL2_DEPLOYMENTS_PER_NAMESPACE: ${{ parameters.engine_input.deployments_per_namespace }}
       CL2_REPLICAS_PER_DEPLOYMENT: ${{ parameters.engine_input.replicas_per_deployment }}
+      MESH_SIZE: $(mesh_size)
     displayName: "Collect + aggregate results across clustermesh clusters"

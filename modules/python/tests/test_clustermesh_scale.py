@@ -106,7 +106,7 @@ class TestConfigureClustermeshScale(unittest.TestCase):
 class TestCollectSingleCluster(unittest.TestCase):
     """collect_clusterloader2 emits one JSONL row per call, tagged with cluster identity."""
 
-    def _collect(self, *, cluster_name, cluster_count=2, report_subdir="mesh-1"):
+    def _collect(self, *, cluster_name, cluster_count=2, mesh_size=2, report_subdir="mesh-1"):
         result_file = tempfile.mktemp(suffix=".jsonl")
         collect_clusterloader2(
             cl2_report_dir=os.path.join(MOCK_REPORT_ROOT, report_subdir),
@@ -118,6 +118,7 @@ class TestCollectSingleCluster(unittest.TestCase):
             start_timestamp="2026-04-28T15:00:00Z",
             cluster_name=cluster_name,
             cluster_count=cluster_count,
+            mesh_size=mesh_size,
             namespaces=2,
             deployments_per_namespace=3,
             replicas_per_deployment=4,
@@ -172,6 +173,27 @@ class TestCollectSingleCluster(unittest.TestCase):
             if os.path.exists(result_file):
                 os.remove(result_file)
 
+    def test_collect_emits_mesh_size_independent_of_cluster_count(self):
+        """mesh_size (configured target) and cluster_count (observed) must be distinct fields.
+
+        Querying ``mesh_size != cluster_count`` in Kusto is how we surface
+        partial-mesh runs — a Fleet member that failed to join would manifest
+        as a smaller observed cluster_count than the configured mesh_size.
+        Both fields must be present at top level AND in test_details.
+        """
+        result_file = self._collect(cluster_name="mesh-1", cluster_count=4, mesh_size=5)
+        try:
+            with open(result_file, "r", encoding="utf-8") as f:
+                row = json.loads(f.read().strip().split("\n")[0])
+            self.assertEqual(row["mesh_size"], 5)
+            self.assertEqual(row["cluster_count"], 4)
+            self.assertEqual(row["test_details"]["mesh_size"], 5)
+            self.assertEqual(row["test_details"]["cluster_count"], 4)
+            self.assertNotEqual(row["mesh_size"], row["cluster_count"])
+        finally:
+            if os.path.exists(result_file):
+                os.remove(result_file)
+
 
 class TestCollectMultiCluster(unittest.TestCase):
     """The multi-cluster aggregation invariant — the reason this scenario exists.
@@ -197,6 +219,7 @@ class TestCollectMultiCluster(unittest.TestCase):
             start_timestamp="2026-04-28T15:00:00Z",
             cluster_name=cluster_name,
             cluster_count=2,
+            mesh_size=2,
             namespaces=1,
             deployments_per_namespace=1,
             replicas_per_deployment=1,
@@ -225,8 +248,12 @@ class TestCollectMultiCluster(unittest.TestCase):
             # Run-level fields must be identical across all rows.
             run_ids = {row["run_id"] for row in rows}
             cluster_counts = {row["cluster_count"] for row in rows}
+            mesh_sizes = {row["mesh_size"] for row in rows}
             self.assertEqual(run_ids, {"multi-cluster-run"})
             self.assertEqual(cluster_counts, {2})
+            # mesh_size is a run-level constant — it must be identical across
+            # every per-cluster row in the aggregated stream.
+            self.assertEqual(mesh_sizes, {2})
         finally:
             for path in (f1, f2):
                 if os.path.exists(path):
@@ -250,6 +277,7 @@ class TestCollectFailureStatus(unittest.TestCase):
                 start_timestamp="2026-04-28T15:00:00Z",
                 cluster_name="mesh-fail",
                 cluster_count=2,
+                mesh_size=2,
                 namespaces=1,
                 deployments_per_namespace=1,
                 replicas_per_deployment=1,
@@ -325,6 +353,7 @@ class TestMainArgumentParsing(unittest.TestCase):
             "--start_timestamp", "2026-04-28T15:00:00Z",
             "--cluster-name", "mesh-1",
             "--cluster-count", "2",
+            "--mesh-size", "2",
             "--namespaces", "1",
             "--deployments-per-namespace", "1",
             "--replicas-per-deployment", "1",
@@ -341,6 +370,7 @@ class TestMainArgumentParsing(unittest.TestCase):
             "default-config",
             "2026-04-28T15:00:00Z",
             "mesh-1",
+            2,
             2,
             1,
             1,

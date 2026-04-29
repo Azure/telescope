@@ -39,6 +39,7 @@ stages:
           matrix:
             n2:
               cluster_count: 2
+              mesh_size: 2
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           timeout_in_minutes: 120

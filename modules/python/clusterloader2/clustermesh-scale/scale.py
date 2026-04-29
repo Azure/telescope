@@ -85,6 +85,7 @@ def collect_clusterloader2(
     start_timestamp,
     cluster_name,
     cluster_count,
+    mesh_size,
     namespaces,
     deployments_per_namespace,
     replicas_per_deployment,
@@ -111,6 +112,12 @@ def collect_clusterloader2(
             # with the cluster it came from, so downstream Kusto queries can
             # group/filter by cluster across an N-cluster mesh test.
             "cluster": cluster_name,
+            # mesh_size is the configured target N (from pipeline matrix);
+            # cluster_count is what was actually discovered at run time. Querying
+            # `mesh_size != cluster_count` in Kusto surfaces partial-mesh runs
+            # (e.g., a Fleet member that failed to join) without needing a join
+            # to control-plane logs.
+            "mesh_size": mesh_size,
             "cluster_count": cluster_count,
             "namespaces": namespaces,
             "deployments_per_namespace": deployments_per_namespace,
@@ -129,6 +136,7 @@ def collect_clusterloader2(
         "start_timestamp": start_timestamp,
         # parameters (top-level for Kusto column convenience)
         "cluster": cluster_name,
+        "mesh_size": mesh_size,
         "cluster_count": cluster_count,
         "namespaces": namespaces,
         "deployments_per_namespace": deployments_per_namespace,
@@ -176,6 +184,9 @@ def main():
                      help="Fleet member / AKS cluster identity for attribution")
     pco.add_argument("--cluster-count", type=int, required=True,
                      help="Total clusters in the mesh for this run (N)")
+    pco.add_argument("--mesh-size", type=int, required=True,
+                     help="Configured target cluster count from the pipeline matrix; "
+                          "compared against --cluster-count to detect partial-mesh runs")
     pco.add_argument("--namespaces", type=int, required=True)
     pco.add_argument("--deployments-per-namespace", type=int, required=True)
     pco.add_argument("--replicas-per-deployment", type=int, required=True)
@@ -211,6 +222,7 @@ def main():
             args.start_timestamp,
             args.cluster_name,
             args.cluster_count,
+            args.mesh_size,
             args.namespaces,
             args.deployments_per_namespace,
             args.replicas_per_deployment,

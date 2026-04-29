@@ -80,6 +80,15 @@ steps:
         echo "--- clustermesh-apiserver pod ---"
         kubectl -n kube-system get pods -l k8s-app=clustermesh-apiserver -o wide || true
 
+        # Surface the apiserver/kvstoremesh container ports so we can confirm
+        # the PodMonitor scrape targets (expected: apiserver=9963, kvstoremesh=9964)
+        # without needing to drop into a pod. Informational only — does not gate.
+        echo "--- clustermesh-apiserver exposed ports ---"
+        kubectl -n kube-system get pod -l k8s-app=clustermesh-apiserver \
+          -o jsonpath='{range .items[*].spec.containers[*]}{.name}:{range .ports[*]}{.name}={.containerPort} {end}{"\n"}{end}' \
+          2>/dev/null || true
+        echo
+
         echo "--- cilium-dbg status (ClusterMesh section) ---"
         # Retry up to ~5 minutes — the mesh propagation can lag a few seconds
         # past az fleet clustermeshprofile apply's return.
