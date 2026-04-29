@@ -1,0 +1,114 @@
+{{$action := .action}} # start, gather
+
+{{$suffix := DefaultParam .suffix ""}}
+
+# ClusterMesh-specific Prometheus measurements.
+#
+# All metrics here are upstream Cilium clustermesh-apiserver / cilium-agent
+# metrics, scraped via the PodMonitor deployed by config/modules/clustermesh.yaml.
+# If AKS managed Cilium does not expose a given metric, GenericPrometheusQuery
+# returns empty data items (CL2 logs a warning, the run continues) — refine
+# query strings once we have a live mesh to inspect.
+
+steps:
+  - name: {{$action}} ClusterMesh Measurements
+    measurements:
+    # ---------------------------------------------------------------------
+    # Mesh health: how many remote clusters are connected from this cluster's
+    # perspective. In an N-cluster mesh, this gauge should reach (N-1) on every
+    # cluster. Capturing percentile shape across the run window flags drops.
+    # ---------------------------------------------------------------------
+    - Identifier: ClusterMeshRemoteClustersConnected{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Remote Clusters Connected {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        - name: Perc99
+          query: quantile(0.99, avg_over_time(cilium_clustermesh_remote_clusters[%v:]))
+        - name: Perc50
+          query: quantile(0.50, avg_over_time(cilium_clustermesh_remote_clusters[%v:]))
+        - name: Min
+          query: min_over_time(min(cilium_clustermesh_remote_clusters)[%v:])
+
+    # ---------------------------------------------------------------------
+    # Mesh failure counter: cumulative remote-cluster connection failures.
+    # Healthy runs should keep this at 0; we track the max increase observed
+    # over the run to surface flapping links during scale-up.
+    # ---------------------------------------------------------------------
+    - Identifier: ClusterMeshRemoteClusterFailures{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Remote Cluster Failures {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        - name: MaxIncrease
+          query: max(max_over_time(cilium_clustermesh_remote_cluster_failures[%v:])) - min(min_over_time(cilium_clustermesh_remote_cluster_failures[%v:]))
+
+    # ---------------------------------------------------------------------
+    # Cross-cluster event throughput — the headline metric for scale scenario
+    # #1 (Cross-Cluster Event Throughput) and #2 (Pod Churn). Rate of kvstore
+    # events queued per second on this cluster.
+    # ---------------------------------------------------------------------
+    - Identifier: ClusterMeshKvstoreEventsRate{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Kvstore Events Rate {{$suffix}}
+        metricVersion: v1
+        unit: events/s
+        enableViolations: false
+        queries:
+        - name: Perc99
+          query: quantile(0.99, max_over_time(rate(cilium_kvstore_events_queued_total[1m])[%v:]))
+        - name: Perc90
+          query: quantile(0.90, max_over_time(rate(cilium_kvstore_events_queued_total[1m])[%v:]))
+        - name: Perc50
+          query: quantile(0.50, avg_over_time(rate(cilium_kvstore_events_queued_total[1m])[%v:]))
+
+    # ---------------------------------------------------------------------
+    # Cross-cluster propagation latency proxy: p99 of kvstore operation
+    # duration. This is the closest upstream metric to "how long does it take
+    # for a change in cluster A to be visible in cluster B" without injecting
+    # synthetic probes.
+    # ---------------------------------------------------------------------
+    - Identifier: ClusterMeshKvstoreOperationDuration{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Kvstore Operation Duration {{$suffix}}
+        metricVersion: v1
+        unit: s
+        enableViolations: false
+        queries:
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(rate(cilium_kvstore_operations_duration_seconds_bucket[1m])) by (le))
+        - name: Perc90
+          query: histogram_quantile(0.90, sum(rate(cilium_kvstore_operations_duration_seconds_bucket[1m])) by (le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(rate(cilium_kvstore_operations_duration_seconds_bucket[1m])) by (le))
+
+    # ---------------------------------------------------------------------
+    # Identity propagation: cilium identity count. Under cross-cluster pod
+    # churn (scenarios #1, #2, #3), this should track the global identity
+    # set converging across clusters. Divergence flags propagation lag.
+    # ---------------------------------------------------------------------
+    - Identifier: ClusterMeshIdentityCount{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Identity Count {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        - name: Perc99
+          query: quantile(0.99, max_over_time(cilium_identity[%v:]))
+        - name: Perc50
+          query: quantile(0.50, avg_over_time(cilium_identity[%v:]))

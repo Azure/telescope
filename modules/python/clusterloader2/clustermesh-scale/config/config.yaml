@@ -1,9 +1,12 @@
 name: clustermesh-scale-test
 
-# Phase 1 trivial config: deploy a small fixed number of pods on this cluster.
-# Goal: exercise the multi-cluster harness end-to-end, NOT measure anything yet.
-# Real measurement modules (cross-cluster throughput, identity propagation, etc.)
-# will be added under modules/measurements/ in Phase 2.
+# Workload: deploy a small fixed number of pods on this cluster (no churn,
+# no traffic). Measurement modules under modules/measurements/ run the actual
+# scale-test instrumentation (cilium agent/operator CPU+memory, kube-apiserver
+# health, mesh-specific PromQL) so each per-cluster JSONL row carries the data
+# needed for cross-cluster comparison in Kusto. The workload is deliberately
+# trivial — fan-out, attribution, and metric coverage are what we're testing
+# in Phase 1; richer workloads land per scenario in Phase 2+.
 
 {{$namespaces := DefaultParam .CL2_NAMESPACES 1}}
 {{$deploymentsPerNamespace := DefaultParam .CL2_DEPLOYMENTS_PER_NAMESPACE 2}}
@@ -28,14 +31,28 @@ tuningSets:
       qps: {{$apiServerCallsPerSecond}}
 
 steps:
-  - name: Start measurements
-    measurements:
-      - Identifier: PodStartupLatency
-        Method: PodStartupLatency
-        Params:
-          action: start
-          labelSelector: group = clustermesh-scale-test
-          threshold: 3m
+  # ----- Start measurements -----
+  # control-plane.yaml owns PodStartupLatency + APIResponsivenessPrometheus +
+  # apiserver CPU/mem queries; cilium.yaml owns cilium-agent + cilium-operator
+  # CPU/mem; clustermesh-metrics.yaml owns mesh-specific PromQL (remote-cluster
+  # connectivity, kvstore event rate, identity count, etc.). All three are
+  # gathered later (see "Gather measurements" below) so the steady-state window
+  # is bounded by the workload create/delete pair.
+  - module:
+      path: /modules/measurements/control-plane.yaml
+      params:
+        action: start
+        group: clustermesh-scale-test
+
+  - module:
+      path: /modules/measurements/cilium.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/clustermesh-metrics.yaml
+      params:
+        action: start
 
   - module:
       path: /modules/clustermesh.yaml
@@ -53,12 +70,23 @@ steps:
         tuningSet: DeploymentCreateQps
         operationTimeout: {{$operationTimeout}}
 
-  - name: Gather measurements
-    measurements:
-      - Identifier: PodStartupLatency
-        Method: PodStartupLatency
-        Params:
-          action: gather
+  # ----- Gather measurements -----
+  # Mirror the start block above. Order matches network-scale convention.
+  - module:
+      path: /modules/measurements/control-plane.yaml
+      params:
+        action: gather
+        group: clustermesh-scale-test
+
+  - module:
+      path: /modules/measurements/cilium.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/clustermesh-metrics.yaml
+      params:
+        action: gather
 
   - module:
       path: /modules/scale-test.yaml
