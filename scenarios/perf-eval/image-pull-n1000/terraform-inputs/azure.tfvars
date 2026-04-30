@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "image-pull-n1000"
-deletion_delay = "1h"
+deletion_delay = "2h"
 owner          = "acr"
 
 network_config_list = [
