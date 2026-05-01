@@ -20,34 +20,26 @@ steps:
       set -eo pipefail
       set -x
 
-      # ============== DEBUG (REMOVE AFTER MATRIX-VAR PLUMBING IS FIXED) =============
-      # Last run showed CLUSTER_COUNT=2 and TRIGGER_REASON=Manual auto-exported
-      # from matrix, but mesh_size/namespaces/deployments_per_namespace/etc were
-      # missing. Dump EVERY env var (sorted) so we can see if they're hiding
-      # under different names (AGENT_*, MATRIX_*, etc.), or if they truly
-      # didn't propagate from the parameters.matrix template expansion.
-      echo "------- FULL env dump (sorted) -------"
-      env | sort
-      echo "------- end full env dump -------"
-      # ============== END DEBUG ==============
-
-      # Matrix variables (namespaces, deployments_per_namespace, etc.) are
-      # auto-exported by AzDO to the script as UPPERCASE env vars. Re-export
-      # them under the CL2_* names that the python script and CL2 yaml templates
-      # (config.yaml / event-throughput.yaml) expect.
+      # Matrix variables (namespaces, mesh_size, deployments_per_namespace,
+      # replicas_per_deployment, hold_duration, warmup_duration, restart_count,
+      # api_server_calls_per_second, test_type) are auto-exported by AzDO to
+      # the script as UPPERCASE env vars (e.g. NAMESPACES, MESH_SIZE). Re-export
+      # them under the CL2_* names that scale.py and the CL2 yaml templates
+      # (config.yaml / event-throughput.yaml) consume.
       #
-      # We can't do this remap in the YAML `env:` block because AzDO's `$()`
-      # macro doesn't reliably expand matrix-var references in env values
-      # (you'd get the literal string `$(namespaces)`); see prior failed run.
-      # Same pattern as steps/engine/clusterloader2/network-scale/execute.yml,
-      # which references the auto-exported names directly.
-      export CL2_NAMESPACES="${NAMESPACES:-${namespaces:-}}"
-      export CL2_DEPLOYMENTS_PER_NAMESPACE="${DEPLOYMENTS_PER_NAMESPACE:-${deployments_per_namespace:-}}"
-      export CL2_REPLICAS_PER_DEPLOYMENT="${REPLICAS_PER_DEPLOYMENT:-${replicas_per_deployment:-}}"
-      export CL2_API_SERVER_CALLS_PER_SECOND="${API_SERVER_CALLS_PER_SECOND:-${api_server_calls_per_second:-}}"
-      export CL2_HOLD_DURATION="${HOLD_DURATION:-${hold_duration:-}}"
-      export CL2_WARMUP_DURATION="${WARMUP_DURATION:-${warmup_duration:-}}"
-      export CL2_RESTART_GENERATION="${RESTART_COUNT:-${restart_count:-}}"
+      # Why this re-export rather than `env: CL2_NAMESPACES: $(namespaces)` in
+      # the YAML: AzDO's `$()` runtime macro does not expand matrix variables
+      # in `env:` block values (see prior failed run with literal '$(namespaces)'
+      # reaching python). Same pattern as
+      # steps/engine/clusterloader2/network-scale/execute.yml which references
+      # the auto-exported names directly.
+      export CL2_NAMESPACES="$NAMESPACES"
+      export CL2_DEPLOYMENTS_PER_NAMESPACE="$DEPLOYMENTS_PER_NAMESPACE"
+      export CL2_REPLICAS_PER_DEPLOYMENT="$REPLICAS_PER_DEPLOYMENT"
+      export CL2_API_SERVER_CALLS_PER_SECOND="$API_SERVER_CALLS_PER_SECOND"
+      export CL2_HOLD_DURATION="$HOLD_DURATION"
+      export CL2_WARMUP_DURATION="$WARMUP_DURATION"
+      export CL2_RESTART_GENERATION="$RESTART_COUNT"
 
       # Same discovery pattern as topology/clustermesh-scale/validate-resources.yml.
       # We re-run it here rather than relying on a step variable so this engine

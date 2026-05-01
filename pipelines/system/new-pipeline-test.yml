@@ -28,17 +28,27 @@ stages:
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
             install: false
-            cl2_config_file: config.yaml
-            namespaces: 1
-            deployments_per_namespace: 2
-            replicas_per_deployment: 2
             operation_timeout: 15m
           topology: clustermesh-scale
           terraform_input_file_mapping:
             - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-2.tfvars"
           matrix:
+            # Mirror pipelines/perf-eval/Network Benchmark/clustermesh-scale.yml
+            # so dev runs use the same matrix-var plumbing as production.
+            # Auto-exported as uppercase env vars (NAMESPACES, MESH_SIZE, etc.)
+            # by AzDO and consumed in steps/engine/clusterloader2/clustermesh-scale/execute.yml.
             n2:
               cluster_count: 2
+              mesh_size: 2
+              cl2_config_file: config.yaml
+              test_type: default-config
+              namespaces: 1
+              deployments_per_namespace: 2
+              replicas_per_deployment: 2
+              hold_duration: 30s
+              warmup_duration: 10s
+              restart_count: 0
+              api_server_calls_per_second: 5
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           timeout_in_minutes: 120
