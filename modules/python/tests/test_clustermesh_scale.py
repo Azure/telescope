@@ -64,18 +64,18 @@ class TestConfigureClustermeshScale(unittest.TestCase):
             with open(tmp_path, "r", encoding="utf-8") as f:
                 content = f.read()
 
-            # Prometheus knobs — must match what the CL2 config template reads so
-            # cilium-agent + cilium-operator are scraped on every cluster.
-            # We intentionally drop the network-scale-style memory/CPU scale
-            # factors and the prometheus=true node selector so Prometheus fits
-            # on the small Phase-1 cluster (no dedicated prometheus node pool).
+            # Prometheus knobs — keep the Cilium-scrape flags, but downsize the
+            # resources via 0.1 factors so prometheus-k8s fits on a small Phase
+            # 1 cluster (Standard_D4s_v4, no dedicated prometheus node pool).
+            # Without these, CL2's default 10Gi memory request leaves the pod
+            # Pending → "Error while setting up prometheus stack: timed out".
             self.assertIn("CL2_PROMETHEUS_TOLERATE_MASTER: true", content)
+            self.assertIn("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 0.1", content)
+            self.assertIn("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 0.1", content)
+            self.assertIn("CL2_PROMETHEUS_CPU_SCALE_FACTOR: 0.1", content)
             self.assertIn("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true", content)
             self.assertIn("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true", content)
             self.assertIn("CL2_POD_STARTUP_LATENCY_THRESHOLD: 3m", content)
-            self.assertNotIn("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR", content)
-            self.assertNotIn("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR", content)
-            self.assertNotIn("CL2_PROMETHEUS_CPU_SCALE_FACTOR", content)
             self.assertNotIn("CL2_PROMETHEUS_NODE_SELECTOR", content)
 
             # Topology knobs round-tripped from arguments.
