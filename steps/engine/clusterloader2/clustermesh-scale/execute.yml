@@ -21,18 +21,14 @@ steps:
       set -x
 
       # ============== DEBUG (REMOVE AFTER MATRIX-VAR PLUMBING IS FIXED) =============
-      # Last run: $NAMESPACES was empty even though matrix sets `namespaces: 1`.
-      # AzDO docs claim job-scoped variables (which matrix vars are) auto-export
-      # to env as UPPERCASE, but evidence here says otherwise. Dump what's
-      # actually present so we can reference the right name.
-      echo "------- env vars matching matrix var names -------"
-      env | grep -iE 'namespace|deploy|replica|test_type|mesh|cluster_count|hold|warmup|restart|api_server|trigger' | sort || true
-      echo "------- $(macro) expansion test -------"
-      # If AzDO's $() macro DID substitute matrix vars in script bodies, this
-      # would print the value; if not, it prints the literal $(namespaces).
-      printf 'macro namespaces=>[%s]\n' "$(namespaces)"
-      printf 'macro deployments_per_namespace=>[%s]\n' "$(deployments_per_namespace)"
-      echo "------- end debug -------"
+      # Last run showed CLUSTER_COUNT=2 and TRIGGER_REASON=Manual auto-exported
+      # from matrix, but mesh_size/namespaces/deployments_per_namespace/etc were
+      # missing. Dump EVERY env var (sorted) so we can see if they're hiding
+      # under different names (AGENT_*, MATRIX_*, etc.), or if they truly
+      # didn't propagate from `${{ parameters.matrix }}` expansion.
+      echo "------- FULL env dump (sorted) -------"
+      env | sort
+      echo "------- end full env dump -------"
       # ============== END DEBUG ==============
 
       # Matrix variables (namespaces, deployments_per_namespace, etc.) are
