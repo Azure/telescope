@@ -63,3 +63,7 @@ stages:
           timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false
+          # Iteration-only: skip uploading results to the telescope blob while
+          # we're still stabilizing the clustermesh-scale pipeline. Flip to
+          # false (or remove) once results are meaningful.
+          skip_publish: true
