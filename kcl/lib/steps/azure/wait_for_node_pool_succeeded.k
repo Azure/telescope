@@ -1,6 +1,6 @@
 import azure_pipelines.ap.steps
 
-WaitForNodePoolSucceeded = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, poolName: str -> steps.Step {
+WaitForNodePoolSucceeded = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, poolName: str, timeoutInMinutes: int = 30 -> steps.Step {
     script = """
 while true; do
   STATE=$(az aks nodepool show \\
@@ -23,5 +23,5 @@ while true; do
   sleep 30
 done
 """
-    AzCli(serviceConnection, "Wait for node pool ${poolName} to succeed", script)
+    AzCli(serviceConnection, "Wait for node pool ${poolName} to succeed", script, timeoutInMinutes=timeoutInMinutes)
 }

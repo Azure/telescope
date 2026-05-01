@@ -1,6 +1,6 @@
 import azure_pipelines.ap.steps
 
-WaitForClusterSucceeded = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str -> steps.Step {
+WaitForClusterSucceeded = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, timeoutInMinutes: int = 60 -> steps.Step {
     script = """
 while true; do
   STATE=$(az aks show \\
@@ -22,5 +22,5 @@ while true; do
   sleep 30
 done
 """
-    AzCli(serviceConnection, "Wait for cluster to succeed", script)
+    AzCli(serviceConnection, "Wait for cluster to succeed", script, timeoutInMinutes=timeoutInMinutes)
 }
