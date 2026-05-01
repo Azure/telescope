@@ -123,6 +123,15 @@ steps:
             kubectl -n kube-system get pods -l k8s-app=clustermesh-apiserver -o wide 2>&1 || true
             kubectl -n kube-system describe pods -l k8s-app=clustermesh-apiserver 2>&1 | tail -40 || true
 
+            echo "------- [debug] retry $i: clustermesh-apiserver service -------"
+            # Service of type LoadBalancer for the clustermesh-apiserver. If
+            # EXTERNAL-IP stays "<pending>", the AKS control-plane identity is
+            # missing Network Contributor on the VNet (cloud-controller-manager
+            # cannot provision the internal LB). Look in describe events for
+            # AuthorizationFailed / forbidden messages.
+            kubectl -n kube-system get svc clustermesh-apiserver -o wide 2>&1 || true
+            kubectl -n kube-system describe svc clustermesh-apiserver 2>&1 | tail -25 || true
+
             echo "------- [debug] retry $i: cilium agent restarts / readiness -------"
             kubectl -n kube-system get pods -l k8s-app=cilium -o wide 2>&1 || true
 
