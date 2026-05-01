@@ -17,6 +17,16 @@ steps:
       set -eo pipefail
       set -x
 
+      # Re-export matrix vars under CL2_*/MESH_SIZE/TEST_TYPE names that scale.py
+      # collect expects. Same workaround as execute.yml — matrix-var `$()`
+      # macros don't expand reliably in `env:` blocks.
+      export CL2_NAMESPACES="$NAMESPACES"
+      export CL2_DEPLOYMENTS_PER_NAMESPACE="$DEPLOYMENTS_PER_NAMESPACE"
+      export CL2_REPLICAS_PER_DEPLOYMENT="$REPLICAS_PER_DEPLOYMENT"
+      export MESH_SIZE="${MESH_SIZE:-$CLUSTERMESH_COUNT}"
+      export TEST_TYPE="${TEST_TYPE:-default-config}"
+      export TRIGGER_REASON="${TRIGGER_REASON:-$BUILD_REASON}"
+
       clusters=$(cat "$HOME/.kube/clustermesh-clusters.json")
       cluster_count=$(echo "$clusters" | jq 'length')
 
@@ -64,9 +74,5 @@ steps:
       RUN_URL: $(RUN_URL)
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/scale.py
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/results
-      CL2_NAMESPACES: $(namespaces)
-      CL2_DEPLOYMENTS_PER_NAMESPACE: $(deployments_per_namespace)
-      CL2_REPLICAS_PER_DEPLOYMENT: $(replicas_per_deployment)
-      MESH_SIZE: $(mesh_size)
-      TEST_TYPE: $(test_type)
+      BUILD_REASON: $(Build.Reason)
     displayName: "Collect + aggregate results across clustermesh clusters"

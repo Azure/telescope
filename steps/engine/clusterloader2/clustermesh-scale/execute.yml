@@ -20,6 +20,24 @@ steps:
       set -eo pipefail
       set -x
 
+      # Matrix variables (namespaces, deployments_per_namespace, etc.) are
+      # auto-exported by AzDO to the script as UPPERCASE env vars. Re-export
+      # them under the CL2_* names that the python script and CL2 yaml templates
+      # (config.yaml / event-throughput.yaml) expect.
+      #
+      # We can't do this remap in the YAML `env:` block because AzDO's `$()`
+      # macro doesn't reliably expand matrix-var references in env values
+      # (you'd get the literal string `$(namespaces)`); see prior failed run.
+      # Same pattern as steps/engine/clusterloader2/network-scale/execute.yml,
+      # which references the auto-exported names directly.
+      export CL2_NAMESPACES="$NAMESPACES"
+      export CL2_DEPLOYMENTS_PER_NAMESPACE="$DEPLOYMENTS_PER_NAMESPACE"
+      export CL2_REPLICAS_PER_DEPLOYMENT="$REPLICAS_PER_DEPLOYMENT"
+      export CL2_API_SERVER_CALLS_PER_SECOND="$API_SERVER_CALLS_PER_SECOND"
+      export CL2_HOLD_DURATION="$HOLD_DURATION"
+      export CL2_WARMUP_DURATION="$WARMUP_DURATION"
+      export CL2_RESTART_GENERATION="$RESTART_COUNT"
+
       # Same discovery pattern as topology/clustermesh-scale/validate-resources.yml.
       # We re-run it here rather than relying on a step variable so this engine
       # file can be invoked independently.
@@ -99,12 +117,5 @@ steps:
       CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/config
       CL2_CONFIG_FILE: $(cl2_config_file)
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/results
-      CL2_NAMESPACES: $(namespaces)
-      CL2_DEPLOYMENTS_PER_NAMESPACE: $(deployments_per_namespace)
-      CL2_REPLICAS_PER_DEPLOYMENT: $(replicas_per_deployment)
       CL2_OPERATION_TIMEOUT: ${{ parameters.engine_input.operation_timeout }}
-      CL2_API_SERVER_CALLS_PER_SECOND: $(api_server_calls_per_second)
-      CL2_HOLD_DURATION: $(hold_duration)
-      CL2_WARMUP_DURATION: $(warmup_duration)
-      CL2_RESTART_GENERATION: $(restart_count)
     displayName: "Run CL2 across all clustermesh clusters"
