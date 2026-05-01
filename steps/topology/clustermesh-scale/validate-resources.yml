@@ -226,6 +226,14 @@ steps:
       kind: Namespace
       metadata:
         name: cm-smoke
+        annotations:
+          # AKS managed Cilium gates clustermesh sync at the *namespace* level
+          # by default (CFP-39876, "managed Cilium" change). Without this,
+          # neither pod identities, endpoints, nor services in this namespace
+          # are synced across clusters — even with service.cilium.io/global on
+          # the Service. This is the load-bearing annotation here; the
+          # service-level one below is kept for explicitness.
+          clustermesh.cilium.io/global: "true"
       ---
       apiVersion: apps/v1
       kind: Deployment
@@ -252,6 +260,9 @@ steps:
         name: echo
         namespace: cm-smoke
         annotations:
+          # The namespace annotation above is what actually gates sync in AKS
+          # managed Cilium; this service-level annotation is kept for explicit
+          # intent and forward-compatibility.
           service.cilium.io/global: "true"
       spec:
         selector: { app: echo }
@@ -265,6 +276,8 @@ steps:
       kind: Namespace
       metadata:
         name: cm-smoke
+        annotations:
+          clustermesh.cilium.io/global: "true"
       ---
       # Cilium global services require the same Service name to exist in every
       # participating cluster. The Service in cluster 2 has no local backends;
@@ -340,14 +353,32 @@ steps:
         KUBECONFIG="$kc_first"  kubectl -n "$ns" describe svc echo 2>&1 || true
         KUBECONFIG="$kc_first"  kubectl -n "$ns" get endpoints echo -o wide 2>&1 || true
         KUBECONFIG="$kc_first"  kubectl -n "$ns" get pods -l app=echo -o wide 2>&1 || true
-        KUBECONFIG="$kc_first"  kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium service list 2>&1 | grep -E "echo|cm-smoke|^ID" || true
+        echo "------- $first_role: cilium-config (clustermesh-relevant flags) -------"
+        # Authoritative source for whether the cilium agent is configured to
+        # process global services. Look for: enable-cluster-mesh,
+        # cluster-mesh-shared-services, clustermesh-config, identity-allocation-mode,
+        # enable-services. AKS/ACNS may gate global services with a feature flag.
+        KUBECONFIG="$kc_first"  kubectl -n kube-system get cm cilium-config -o yaml 2>&1 \
+          | grep -iE 'cluster-mesh|clustermesh|service|global|identity' || true
+        echo "------- $first_role: cilium service list (full, head 40) -------"
+        KUBECONFIG="$kc_first"  kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium service list 2>&1 | head -40 || true
+        echo "------- $first_role: cilium-operator logs (tail 60) -------"
+        KUBECONFIG="$kc_first"  kubectl -n kube-system logs -l io.cilium/app=operator --tail=60 2>&1 \
+          | grep -iE 'global|clustermesh|cluster-mesh|cm-smoke|service' || true
 
         echo
         echo "================ SMOKE FAILURE DIAG (cluster $second_role -- client) ================"
         KUBECONFIG="$kc_second" cilium clustermesh status --context "$(KUBECONFIG="$kc_second" kubectl config current-context)" --wait=false 2>&1 || true
         KUBECONFIG="$kc_second" kubectl -n "$ns" describe svc echo 2>&1 || true
         KUBECONFIG="$kc_second" kubectl -n "$ns" get endpoints echo -o wide 2>&1 || true
-        KUBECONFIG="$kc_second" kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium service list 2>&1 | grep -E "echo|cm-smoke|^ID" || true
+        echo "------- $second_role: cilium-config (clustermesh-relevant flags) -------"
+        KUBECONFIG="$kc_second" kubectl -n kube-system get cm cilium-config -o yaml 2>&1 \
+          | grep -iE 'cluster-mesh|clustermesh|service|global|identity' || true
+        echo "------- $second_role: cilium service list (full, head 40) -------"
+        KUBECONFIG="$kc_second" kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium service list 2>&1 | head -40 || true
+        echo "------- $second_role: cilium-operator logs (tail 60) -------"
+        KUBECONFIG="$kc_second" kubectl -n kube-system logs -l io.cilium/app=operator --tail=60 2>&1 \
+          | grep -iE 'global|clustermesh|cluster-mesh|cm-smoke|service' || true
 
         echo
         echo "------- DNS + direct-pod-IP probe from curl pod (bypass ClusterIP) -------"
