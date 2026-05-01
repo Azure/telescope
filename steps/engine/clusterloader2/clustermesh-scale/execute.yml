@@ -20,6 +20,21 @@ steps:
       set -eo pipefail
       set -x
 
+      # ============== DEBUG (REMOVE AFTER MATRIX-VAR PLUMBING IS FIXED) =============
+      # Last run: $NAMESPACES was empty even though matrix sets `namespaces: 1`.
+      # AzDO docs claim job-scoped variables (which matrix vars are) auto-export
+      # to env as UPPERCASE, but evidence here says otherwise. Dump what's
+      # actually present so we can reference the right name.
+      echo "------- env vars matching matrix var names -------"
+      env | grep -iE 'namespace|deploy|replica|test_type|mesh|cluster_count|hold|warmup|restart|api_server|trigger' | sort || true
+      echo "------- $(macro) expansion test -------"
+      # If AzDO's $() macro DID substitute matrix vars in script bodies, this
+      # would print the value; if not, it prints the literal $(namespaces).
+      printf 'macro namespaces=>[%s]\n' "$(namespaces)"
+      printf 'macro deployments_per_namespace=>[%s]\n' "$(deployments_per_namespace)"
+      echo "------- end debug -------"
+      # ============== END DEBUG ==============
+
       # Matrix variables (namespaces, deployments_per_namespace, etc.) are
       # auto-exported by AzDO to the script as UPPERCASE env vars. Re-export
       # them under the CL2_* names that the python script and CL2 yaml templates
@@ -30,13 +45,13 @@ steps:
       # (you'd get the literal string `$(namespaces)`); see prior failed run.
       # Same pattern as steps/engine/clusterloader2/network-scale/execute.yml,
       # which references the auto-exported names directly.
-      export CL2_NAMESPACES="$NAMESPACES"
-      export CL2_DEPLOYMENTS_PER_NAMESPACE="$DEPLOYMENTS_PER_NAMESPACE"
-      export CL2_REPLICAS_PER_DEPLOYMENT="$REPLICAS_PER_DEPLOYMENT"
-      export CL2_API_SERVER_CALLS_PER_SECOND="$API_SERVER_CALLS_PER_SECOND"
-      export CL2_HOLD_DURATION="$HOLD_DURATION"
-      export CL2_WARMUP_DURATION="$WARMUP_DURATION"
-      export CL2_RESTART_GENERATION="$RESTART_COUNT"
+      export CL2_NAMESPACES="${NAMESPACES:-${namespaces:-}}"
+      export CL2_DEPLOYMENTS_PER_NAMESPACE="${DEPLOYMENTS_PER_NAMESPACE:-${deployments_per_namespace:-}}"
+      export CL2_REPLICAS_PER_DEPLOYMENT="${REPLICAS_PER_DEPLOYMENT:-${replicas_per_deployment:-}}"
+      export CL2_API_SERVER_CALLS_PER_SECOND="${API_SERVER_CALLS_PER_SECOND:-${api_server_calls_per_second:-}}"
+      export CL2_HOLD_DURATION="${HOLD_DURATION:-${hold_duration:-}}"
+      export CL2_WARMUP_DURATION="${WARMUP_DURATION:-${warmup_duration:-}}"
+      export CL2_RESTART_GENERATION="${RESTART_COUNT:-${restart_count:-}}"
 
       # Same discovery pattern as topology/clustermesh-scale/validate-resources.yml.
       # We re-run it here rather than relying on a step variable so this engine
