@@ -112,14 +112,19 @@ resource "terraform_data" "member" {
 
   # Bash retry loop. The Fleet RP can lag behind the AKS RP by 30-60s after
   # a fresh AKS create; without retry, `az fleet member create` returns
-  # DependentResourceNotFound. Mirrors the 30 x 20s loop in
-  # fleet-setup-script.sh.
+  # DependentResourceNotFound. Additionally, the AKS cluster can be in
+  # `Updating` state for several minutes after the Network Contributor role
+  # assignment on the VNet (granted in modules/terraform/azure/main.tf for the
+  # clustermesh-apiserver internal LB) — `az fleet member create` rejects
+  # with `ManagedClusterNotInExpectedState` until reconciliation finishes.
+  # 60 x 20s = 20 min covers slow Azure days; the happy path exits on the
+  # first attempt (~5s).
   provisioner "local-exec" {
     interpreter = ["bash", "-c"]
     command     = <<-EOT
       set -euo pipefail
       cmd='${self.input.create_command}'
-      max=30
+      max=60
       delay=20
       for i in $(seq 1 $max); do
         echo "[$i/$max] $cmd"
