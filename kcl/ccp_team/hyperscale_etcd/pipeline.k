@@ -6,10 +6,8 @@ import lib.steps.azure
 import lib.steps.k8s.runkperf
 import lib.util
 import lib.util.asi_dashboard
-import .bootstrap
 
 SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
-DEFAULT_CLUSTER_NAME = "hyperscale-etcd-testing"
 LOCATION = "westus2"
 # TODO: Merge custom branch to upstream and use official image
 RUNNER_IMAGE = "ghcr.io/liyu-ma/kperf:hyperscale-etcd"
@@ -147,7 +145,7 @@ output = ap.Pipeline {
             displayName = "Bootstrap"
             timeoutInMinutes = 10
             steps = [
-                bootstrap.Bootstrap(DEFAULT_CLUSTER_NAME),
+                Bootstrap(),
             ]
         }
         job.Job {

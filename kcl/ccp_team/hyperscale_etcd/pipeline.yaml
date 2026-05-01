@@ -48,7 +48,7 @@ jobs:
         CLUSTER="$PARAM_EXISTING_CLUSTER"
         echo "Using existing cluster: $CLUSTER"
       else
-        CLUSTER="$DEFAULT_CLUSTER_NAME"
+        CLUSTER="hyperscale-etcd-testing"
         echo "Using default cluster: $CLUSTER"
       fi
 
@@ -68,7 +68,6 @@ jobs:
     env:
       PARAM_EXISTING_CLUSTER: ${{ parameters.existing_cluster_name }}
       PARAM_EXISTING_RG: ${{ parameters.existing_cluster_resource_group }}
-      DEFAULT_CLUSTER_NAME: hyperscale-etcd-testing
     name: resolve
 - job: setup
   displayName: Cluster Setup
@@ -266,10 +265,6 @@ jobs:
         fi
 
         echo "Batch $batch/$TOTAL_BATCHES: creating $COUNT configmaps..."
-        GROUP_SIZE=80
-        if [ "$COUNT" -lt "$GROUP_SIZE" ]; then
-          GROUP_SIZE=$COUNT
-        fi
         run_batch() {
           runkperf data configmap \
             --namespace kperf-configmap-data \
@@ -278,7 +273,7 @@ jobs:
             --burst 80 \
             --total $COUNT \
             --size 524288 \
-            --group-size $GROUP_SIZE
+            --group-size 80
         }
         run_batch first || run_batch retry
 
@@ -353,10 +348,6 @@ jobs:
         fi
 
         echo "Batch $batch/$TOTAL_BATCHES: creating $COUNT events..."
-        GROUP_SIZE=80
-        if [ "$COUNT" -lt "$GROUP_SIZE" ]; then
-          GROUP_SIZE=$COUNT
-        fi
         run_batch() {
           runkperf data event \
             --namespace kperf-event-data \
@@ -365,7 +356,7 @@ jobs:
             --burst 80 \
             --total $COUNT \
             --size 524288 \
-            --group-size $GROUP_SIZE
+            --group-size 80
         }
         run_batch first || run_batch retry
 
@@ -440,10 +431,6 @@ jobs:
         fi
 
         echo "Batch $batch/$TOTAL_BATCHES: creating $COUNT secrets..."
-        GROUP_SIZE=80
-        if [ "$COUNT" -lt "$GROUP_SIZE" ]; then
-          GROUP_SIZE=$COUNT
-        fi
         run_batch() {
           runkperf data secret \
             --namespace kperf-secret-data \
@@ -452,7 +439,7 @@ jobs:
             --burst 80 \
             --total $COUNT \
             --size 524288 \
-            --group-size $GROUP_SIZE
+            --group-size 80
         }
         run_batch first || run_batch retry
 

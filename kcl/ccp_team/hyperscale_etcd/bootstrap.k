@@ -1,6 +1,8 @@
 import azure_pipelines.ap.steps
 
-Bootstrap = lambda defaultCluster: str -> steps.Step {
+DEFAULT_CLUSTER_NAME = "hyperscale-etcd-testing"
+
+Bootstrap = lambda -> steps.Step {
     steps.Bash {
         bash = """
 set -exo pipefail
@@ -10,7 +12,7 @@ if [ -n "$PARAM_EXISTING_CLUSTER" ] && [ "$PARAM_EXISTING_CLUSTER" != "none" ]; 
   CLUSTER="$PARAM_EXISTING_CLUSTER"
   echo "Using existing cluster: $CLUSTER"
 else
-  CLUSTER="$DEFAULT_CLUSTER_NAME"
+  CLUSTER="${DEFAULT_CLUSTER_NAME}"
   echo "Using default cluster: $CLUSTER"
 fi
 
@@ -32,7 +34,6 @@ echo "##vso[task.setvariable variable=RESOURCE_GROUP;isOutput=true]$RESOURCE_GRO
         env = {
             PARAM_EXISTING_CLUSTER = "\${{ parameters.existing_cluster_name }}"
             PARAM_EXISTING_RG = "\${{ parameters.existing_cluster_resource_group }}"
-            DEFAULT_CLUSTER_NAME = defaultCluster
         }
     }
 }

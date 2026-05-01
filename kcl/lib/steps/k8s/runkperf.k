@@ -55,10 +55,6 @@ for batch in $(seq 1 $TOTAL_BATCHES); do
   fi
 
   echo "Batch $batch/$TOTAL_BATCHES: creating $COUNT ${dataType}s..."
-  GROUP_SIZE=${groupSize}
-  if [ "$COUNT" -lt "$GROUP_SIZE" ]; then
-    GROUP_SIZE=$COUNT
-  fi
   run_batch() {
     runkperf data ${dataType} \\
       --namespace ${namespace} \\
@@ -67,7 +63,7 @@ for batch in $(seq 1 $TOTAL_BATCHES); do
       --burst ${burst} \\
       --total $COUNT \\
       --size ${size} \\
-      --group-size $GROUP_SIZE
+      --group-size ${groupSize}
   }
   run_batch first || run_batch retry
 
