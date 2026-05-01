@@ -45,6 +45,16 @@ steps:
           continue
         fi
 
+        # If CL2 errored out before producing junit.xml (e.g. prometheus stack
+        # setup timeout), skip aggregation for this cluster — scale.py collect
+        # would crash on the missing file. The execute step already logged a
+        # warning per-cluster; we don't want to also abort the whole pipeline
+        # at collect time when partial data may be useful.
+        if [ ! -f "$report_dir/junit.xml" ]; then
+          echo "##vso[task.logissue type=warning;] $role: $report_dir/junit.xml not found (CL2 likely failed); skipping collect for this cluster"
+          continue
+        fi
+
         per_cluster_result="${TEST_RESULTS_FILE%.*}.${role}.${TEST_RESULTS_FILE##*.}"
 
         PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \

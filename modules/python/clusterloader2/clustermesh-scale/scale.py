@@ -30,15 +30,16 @@ def configure_clusterloader2(
     override_file,
 ):
     with open(override_file, "w", encoding="utf-8") as f:
-        # Prometheus stack — match network-scale defaults so cilium-agent +
-        # cilium-operator are scraped on each cluster.
+        # Prometheus stack. We keep the Cilium-scrape flags ON so the
+        # cilium/control-plane/clustermesh measurement modules have data to
+        # query, but we drop the network-scale-style scale factors and node
+        # selector — those assume a large cluster with a dedicated
+        # "prometheus=true" labeled node pool that this Phase 1 vertical slice
+        # does not provision. With the defaults Prometheus schedules anywhere
+        # and fits comfortably on a Standard_D4s_v4 / 2-node cluster.
         f.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
-        f.write("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 100.0\n")
-        f.write("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 100.0\n")
-        f.write("CL2_PROMETHEUS_CPU_SCALE_FACTOR: 30.0\n")
         f.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true\n")
         f.write("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true\n")
-        f.write('CL2_PROMETHEUS_NODE_SELECTOR: "prometheus: \\"true\\""\n')
         f.write("CL2_POD_STARTUP_LATENCY_THRESHOLD: 3m\n")
 
         # Topology knobs — trivial defaults for Phase 1 vertical slice.

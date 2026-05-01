@@ -96,10 +96,15 @@ steps:
             --cl2-report-dir "$report_dir" \
             --cl2-config-file "${CL2_CONFIG_FILE}" \
             --kubeconfig "$kubeconfig" \
-            --provider "${CLOUD}"; then
+            --provider "${CLOUD}" \
+          && [ -f "$report_dir/junit.xml" ]; then
+          # CL2 produced a junit.xml — that's our authoritative success signal.
+          # The python wrapper logs CL2's non-zero exit but does NOT propagate
+          # it; without the junit check, we'd silently report success and only
+          # find out at collect time when parse_xml_to_json crashes.
           echo "  $role: CL2 run succeeded"
         else
-          echo "##vso[task.logissue type=warning;] $role: CL2 run failed (continuing other clusters)"
+          echo "##vso[task.logissue type=warning;] $role: CL2 run failed (no junit.xml at $report_dir/junit.xml; continuing other clusters)"
           failures=$((failures + 1))
         fi
       done
