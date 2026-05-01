@@ -25,7 +25,7 @@ steps:
       # from matrix, but mesh_size/namespaces/deployments_per_namespace/etc were
       # missing. Dump EVERY env var (sorted) so we can see if they're hiding
       # under different names (AGENT_*, MATRIX_*, etc.), or if they truly
-      # didn't propagate from `${{ parameters.matrix }}` expansion.
+      # didn't propagate from the parameters.matrix template expansion.
       echo "------- FULL env dump (sorted) -------"
       env | sort
       echo "------- end full env dump -------"
