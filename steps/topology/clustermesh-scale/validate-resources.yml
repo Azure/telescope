@@ -98,8 +98,22 @@ steps:
         # the form:
         #   ClusterMesh:   2/2 remote clusters ready, 0 global-services
         #      mesh-2: ready, ...
+        # Retry up to ~10 minutes — the AKS-managed Cilium operator publishes
+        # the per-agent `cilium-clustermesh` Secret asynchronously after Fleet
+        # finishes profile apply, and the clustermesh-apiserver may be
+        # recreated mid-validation (cert/config rotation), bumping the wait
+        # another ~30s for agents to reload. Empirically 5 min was too tight
+        # for whichever cluster gets validated first; 10 min covers it with
+        # margin.
+        #
+        # Note: `cilium-dbg status` (in-pod, agent's local view) and
+        # `cilium clustermesh status` (CLI, queries clustermesh-apiserver) can
+        # disagree for several minutes during this window — the CLI flips to
+        # "configured/connected" first because it counts apiserver clients,
+        # while the in-pod view requires the Secret to be reloaded. We gate on
+        # the in-pod view because the data path needs the agent's local state.
         connected=0
-        for i in $(seq 1 30); do
+        for i in $(seq 1 60); do
           out=$(kubectl -n kube-system exec ds/cilium -- cilium-dbg status 2>&1 || true)
           echo "$out"
           # Parse "<ready>/<total> remote clusters ready" line.
@@ -111,11 +125,11 @@ steps:
           fi
 
           # ============== DEBUG-DUMP-BEGIN (REMOVE BEFORE MERGE) ==============
-          # Every 3 iterations dump richer state: in-pod cilium-cli view of the
+          # Every 6 iterations dump richer state: in-pod cilium-cli view of the
           # mesh, clustermesh-apiserver pod state, and Fleet-side member status.
           # These help diagnose why convergence is stalling. Strip before final
           # PR review.
-          if [ "$((i % 3))" -eq 0 ]; then
+          if [ "$((i % 6))" -eq 0 ]; then
             echo "------- [debug] retry $i: cilium clustermesh status (runner cli) -------"
             cilium clustermesh status --context "$(kubectl config current-context)" --wait=false 2>&1 || true
 
@@ -158,7 +172,7 @@ steps:
           fi
           # =============== DEBUG-DUMP-END (REMOVE BEFORE MERGE) ===============
 
-          echo "  waiting for $expected_remote remote clusters to be ready (got $ready), retry $i/30..."
+          echo "  waiting for $expected_remote remote clusters to be ready (got $ready), retry $i/60..."
           sleep 10
         done
 
