@@ -288,6 +288,12 @@ steps:
       KUBECONFIG="$kc_first"  kubectl -n "$ns" rollout status deploy/echo --timeout=3m
       KUBECONFIG="$kc_second" kubectl -n "$ns" wait --for=condition=Ready pod/curl --timeout=3m
 
+      # Give Cilium clustermesh a moment to sync the new global Service from
+      # cluster 1 → cluster 2 before the first curl attempt. Empirically this
+      # is sub-second once mesh is converged, but we've already paid the cost
+      # of waiting for rollouts above so a small settle here doesn't matter.
+      sleep 15
+
       # Try for 2 minutes — global service endpoints can take a few seconds
       # to populate via the mesh.
       ok=0
@@ -304,6 +310,47 @@ steps:
       done
 
       if [ "$ok" -ne 1 ]; then
+        # ============== SMOKE-FAILURE-DEBUG-DUMP (REMOVE BEFORE MERGE) ==============
+        # On failure, dump enough state to distinguish Cilium global-service
+        # sync issues from cross-VNet pod-IP routing issues. Specifically:
+        #   1. cilium clustermesh status — should show "Global services: 1" if sync OK
+        #   2. cilium service list (in-pod) — should have an entry for cm-smoke/echo
+        #      with remote-cluster backends in cluster 2
+        #   3. kubectl describe svc / get endpoints echo — k8s view (cluster 2 should
+        #      have NO local endpoints, that's expected)
+        #   4. From inside the curl pod: DNS resolve, then direct-IP curl to a
+        #      cluster-1 echo pod IP — bypasses ClusterIP, tests raw L3 across VNets
+        echo
+        echo "================ SMOKE FAILURE DIAG (cluster $first_role -- backend) ================"
+        KUBECONFIG="$kc_first"  cilium clustermesh status --context "$(KUBECONFIG="$kc_first"  kubectl config current-context)" --wait=false 2>&1 || true
+        KUBECONFIG="$kc_first"  kubectl -n "$ns" describe svc echo 2>&1 || true
+        KUBECONFIG="$kc_first"  kubectl -n "$ns" get endpoints echo -o wide 2>&1 || true
+        KUBECONFIG="$kc_first"  kubectl -n "$ns" get pods -l app=echo -o wide 2>&1 || true
+        KUBECONFIG="$kc_first"  kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium service list 2>&1 | grep -E "echo|cm-smoke|^ID" || true
+
+        echo
+        echo "================ SMOKE FAILURE DIAG (cluster $second_role -- client) ================"
+        KUBECONFIG="$kc_second" cilium clustermesh status --context "$(KUBECONFIG="$kc_second" kubectl config current-context)" --wait=false 2>&1 || true
+        KUBECONFIG="$kc_second" kubectl -n "$ns" describe svc echo 2>&1 || true
+        KUBECONFIG="$kc_second" kubectl -n "$ns" get endpoints echo -o wide 2>&1 || true
+        KUBECONFIG="$kc_second" kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium service list 2>&1 | grep -E "echo|cm-smoke|^ID" || true
+
+        echo
+        echo "------- DNS + direct-pod-IP probe from curl pod (bypass ClusterIP) -------"
+        # ClusterIP plumbing is a Cilium-clustermesh concern; direct pod-IP
+        # connectivity is a VNet-peering concern. Hitting a backend pod IP
+        # directly disambiguates the two failure modes.
+        KUBECONFIG="$kc_second" kubectl -n "$ns" exec curl -- nslookup echo.cm-smoke.svc.cluster.local 2>&1 || true
+        backend_ip=$(KUBECONFIG="$kc_first" kubectl -n "$ns" get pod -l app=echo -o jsonpath='{.items[0].status.podIP}' 2>/dev/null || true)
+        echo "first cluster's echo pod IP: ${backend_ip:-<none>}"
+        if [ -n "${backend_ip:-}" ]; then
+          KUBECONFIG="$kc_second" kubectl -n "$ns" exec curl -- \
+            curl -fsS -m 5 "http://${backend_ip}:8080/hostname" 2>&1 || \
+            echo "  direct pod-IP curl ALSO failed → cross-VNet routing issue (peering / pod-CIDR routes)"
+        fi
+        echo "============================ END SMOKE DIAG ============================"
+        # =========================== END SMOKE-FAILURE-DEBUG-DUMP ===========================
+
         echo "##vso[task.logissue type=error;] Cross-cluster data-path smoke failed: $second_role could not reach service in $first_role"
         exit 1
       fi
