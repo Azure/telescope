@@ -30,18 +30,14 @@ def configure_clusterloader2(
     override_file,
 ):
     with open(override_file, "w", encoding="utf-8") as f:
-        # Prometheus stack — we keep the Cilium-scrape flags ON so the
+        # Prometheus stack — keep the Cilium-scrape flags ON so the
         # cilium/control-plane/clustermesh measurement modules have data to
-        # query. The previous FACTOR knobs (MEMORY_LIMIT_FACTOR /
-        # MEMORY_SCALE_FACTOR / CPU_SCALE_FACTOR) were the wrong tool — they
-        # scaled the limit (which has a 0 base) to 0 while leaving the
-        # request at CL2's hardcoded 10Gi default, producing pod template
-        # validation errors ("Invalid value: 10Gi: must be less than or
-        # equal to memory limit of 0") and preventing the StatefulSet from
-        # being created. Override the absolute request and limit instead so
-        # the pod fits a Standard_D4s_v4 / 2-node cluster.
+        # query. The base memory REQUEST is set via the --prometheus-memory-request
+        # CLI flag in execute_clusterloader2 (the CL2_PROMETHEUS_MEMORY_REQUEST
+        # overrides key is not honored by this CL2 image). Memory LIMIT below
+        # IS honored as an overrides key and must be >= the request to satisfy
+        # k8s admission.
         f.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
-        f.write("CL2_PROMETHEUS_MEMORY_REQUEST: 1Gi\n")
         f.write("CL2_PROMETHEUS_MEMORY_LIMIT: 2Gi\n")
         f.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true\n")
         f.write("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true\n")
@@ -78,6 +74,13 @@ def execute_clusterloader2(
         scrape_kubelets=True,
         scrape_ksm=True,
         scrape_metrics_server=True,
+        # CL2 default is 10Gi which doesn't fit a Standard_D4s_v4 / 16GB node
+        # after k8s + Cilium overhead. Override via the CLI flag rather than
+        # `CL2_PROMETHEUS_MEMORY_REQUEST` overrides.yaml key — that key is not
+        # honored by this CL2 image (verified via prometheus-operator log
+        # showing PrometheusMemoryRequest:10Gi at runtime). Pair this with
+        # CL2_PROMETHEUS_MEMORY_LIMIT in the overrides file so request <= limit.
+        prometheus_memory_request="1Gi",
     )
 
 
