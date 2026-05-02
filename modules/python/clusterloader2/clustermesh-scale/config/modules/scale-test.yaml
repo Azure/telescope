@@ -1,7 +1,7 @@
 name: clustermesh-scale-test-module
 
 # Trivial pod deployment module: creates or deletes
-# {{$namespaces}} x {{$deploymentsPerNamespace}} x {{$replicasPerDeployment}}
+# namespaces x deploymentsPerNamespace x replicasPerDeployment
 # pause-image pods on the target cluster. No traffic, no churn, no policies.
 
 {{$actionName := .actionName}}
