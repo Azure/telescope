@@ -110,6 +110,9 @@ steps:
           # culprit here — its pod requests 10Gi by default, doesn't fit on
           # Standard_D4s_v4. If the pod is Pending with FailedScheduling, the
           # describe events make that obvious.
+          #
+          # Note: scale.py passes tear_down_prometheus=False so the stack
+          # survives this dump (otherwise CL2 would clean up before we look).
           echo "------- $role: CL2 FAILURE DIAG -------"
           echo "------- node allocatable / requested capacity -------"
           KUBECONFIG="$kubeconfig" kubectl get nodes -o wide 2>&1 || true
@@ -118,14 +121,20 @@ steps:
           echo "------- monitoring/* pods -------"
           KUBECONFIG="$kubeconfig" kubectl -n monitoring get pods -o wide 2>&1 || true
 
-          for p in prometheus-k8s prometheus-operator grafana; do
-            echo "------- describe pod $p (events) -------"
-            KUBECONFIG="$kubeconfig" kubectl -n monitoring describe pod -l "app.kubernetes.io/name=$p" 2>&1 | tail -50 || true
-          done
+          echo "------- monitoring statefulsets -------"
+          KUBECONFIG="$kubeconfig" kubectl -n monitoring get statefulset -o wide 2>&1 || true
 
-          echo "------- prometheus statefulset (if any) -------"
-          KUBECONFIG="$kubeconfig" kubectl -n monitoring get statefulset 2>&1 || true
-          KUBECONFIG="$kubeconfig" kubectl -n monitoring describe statefulset prometheus-k8s 2>&1 | tail -30 || true
+          echo "------- Prometheus CR (operator input) -------"
+          KUBECONFIG="$kubeconfig" kubectl -n monitoring get prometheus -o yaml 2>&1 | head -80 || true
+
+          echo "------- prometheus-k8s pod describe -------"
+          KUBECONFIG="$kubeconfig" kubectl -n monitoring describe pod -l app.kubernetes.io/name=prometheus 2>&1 | tail -60 || true
+
+          echo "------- prometheus-operator logs (tail 60) -------"
+          KUBECONFIG="$kubeconfig" kubectl -n monitoring logs -l app.kubernetes.io/name=prometheus-operator --tail=60 2>&1 || true
+
+          echo "------- monitoring namespace events (recent) -------"
+          KUBECONFIG="$kubeconfig" kubectl -n monitoring get events --sort-by='.lastTimestamp' 2>&1 | tail -30 || true
           echo "------- end CL2 FAILURE DIAG -------"
           # =========================== END CL2-FAILURE-DEBUG-DUMP ===========================
 
