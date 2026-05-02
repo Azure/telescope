@@ -30,18 +30,19 @@ def configure_clusterloader2(
     override_file,
 ):
     with open(override_file, "w", encoding="utf-8") as f:
-        # Prometheus stack. We keep the Cilium-scrape flags ON so the
+        # Prometheus stack — we keep the Cilium-scrape flags ON so the
         # cilium/control-plane/clustermesh measurement modules have data to
-        # query, but downsize the resources to fit a Phase-1 cluster
-        # (Standard_D4s_v4 / 2 nodes / no dedicated prometheus node pool).
-        # Without these factors, CL2's prometheus-prometheus.yaml requests
-        # 10Gi RAM by default, which the prometheus-k8s pod can't get
-        # scheduled with — symptom: "Error while setting up prometheus stack:
-        # timed out waiting for the condition" after 15 min.
+        # query. The previous FACTOR knobs (MEMORY_LIMIT_FACTOR /
+        # MEMORY_SCALE_FACTOR / CPU_SCALE_FACTOR) were the wrong tool — they
+        # scaled the limit (which has a 0 base) to 0 while leaving the
+        # request at CL2's hardcoded 10Gi default, producing pod template
+        # validation errors ("Invalid value: 10Gi: must be less than or
+        # equal to memory limit of 0") and preventing the StatefulSet from
+        # being created. Override the absolute request and limit instead so
+        # the pod fits a Standard_D4s_v4 / 2-node cluster.
         f.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
-        f.write("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR: 0.1\n")
-        f.write("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR: 0.1\n")
-        f.write("CL2_PROMETHEUS_CPU_SCALE_FACTOR: 0.1\n")
+        f.write("CL2_PROMETHEUS_MEMORY_REQUEST: 1Gi\n")
+        f.write("CL2_PROMETHEUS_MEMORY_LIMIT: 2Gi\n")
         f.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true\n")
         f.write("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true\n")
         f.write("CL2_POD_STARTUP_LATENCY_THRESHOLD: 3m\n")
