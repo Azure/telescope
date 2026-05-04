@@ -393,5 +393,75 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
         # Verify create_template was called 3 times (attempted all deployments)
         self.assertEqual(mock_k8s_client.create_template.call_count, 3)
 
+    def test_create_statefulset_success(self):
+        """Test successful statefulset creation"""
+        # Setup
+        mock_k8s_client = mock.MagicMock()
+        self.mock_aks_client.k8s_client = mock_k8s_client
+        # Must return a real string - yaml.safe_load_all(MagicMock()) causes an infinite loop
+        mock_k8s_client.create_template.return_value = "apiVersion: apps/v1\nkind: StatefulSet\n"
+        mock_k8s_client.wait_for_condition.return_value = True
+
+        # Execute
+        result = self.node_pool_crud.create_statefulset(node_pool_name="test-pool")
+
+        # Verify
+        self.assertTrue(result)
+
+    def test_create_statefulset_failure(self):
+        """Test statefulset creation failure"""
+        # Setup
+        mock_k8s_client = mock.MagicMock()
+        self.mock_aks_client.k8s_client = mock_k8s_client
+        # Must return a real string - yaml.safe_load_all(MagicMock()) causes an infinite loop
+        mock_k8s_client.create_template.return_value = "apiVersion: apps/v1\nkind: StatefulSet\n"
+        mock_k8s_client.wait_for_condition.return_value = False
+
+        # Execute
+        result = self.node_pool_crud.create_statefulset(node_pool_name="test-pool")
+
+        # Verify
+        self.assertFalse(result)
+
+    def test_create_statefulset_no_client(self):
+        """Test statefulset creation with no Kubernetes client"""
+        # Setup
+        self.mock_aks_client.k8s_client = None
+
+        # Execute
+        result = self.node_pool_crud.create_statefulset(node_pool_name="test-pool")
+
+        # Verify
+        self.assertFalse(result)
+    
+    def test_create_statefulset_partial_success(self):
+        """Test Statefulset creation when some Statefulsets succeed and others fail"""
+        # Setup
+        mock_k8s_client = mock.MagicMock()
+        self.mock_aks_client.k8s_client = mock_k8s_client
+
+        # Must return a real string - yaml.safe_load_all(MagicMock()) causes an infinite loop
+        mock_k8s_client.create_template.return_value = "apiVersion: apps/v1\nkind: StatefulSet\n"
+
+        # Simulate: StatefulSet 1 succeeds, StatefulSet 2 fails, StatefulSet 3 succeeds
+        # wait_for_condition returns True/False for each StatefulSet
+        mock_k8s_client.wait_for_condition.side_effect = [True, False, True]
+
+        # Execute - request 3 StatefulSets
+        result = self.node_pool_crud.create_statefulset(
+            node_pool_name="test-pool",
+            number_of_statefulsets=3,
+            replicas=5
+        )
+
+        # Verify - should return False (not all statefulsets succeeded)
+        self.assertFalse(result)
+
+        # Verify wait_for_condition was called 3 times (once per statefulset)
+        self.assertEqual(mock_k8s_client.wait_for_condition.call_count, 3)
+
+        # Verify create_template was called 3 times (attempted all statefulsets)
+        self.assertEqual(mock_k8s_client.create_template.call_count, 3)
+
 if __name__ == "__main__":
     unittest.main()
