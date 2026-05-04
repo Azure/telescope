@@ -83,6 +83,12 @@ aks_cli_config_list = [
       { name = "network-plugin", value = "azure" },
       { name = "network-dataplane", value = "cilium" },
       { name = "enable-acns", value = "" },
+      # AKS default is 30 pods/node. Phase-2 event-throughput workload runs
+      # 5ns x 4dep x 10 replicas = 200 pods per cluster; with 2 default-pool
+      # nodes that's 100/node, so we need ≥110 to leave headroom for Cilium
+      # agent, ACNS daemons, monitoring stack, and kube-system pods. Azure
+      # CNI with pod subnet supports up to 250.
+      { name = "max-pods", value = "110" },
     ]
 
     default_node_pool = {
@@ -106,6 +112,7 @@ aks_cli_config_list = [
       { name = "network-plugin", value = "azure" },
       { name = "network-dataplane", value = "cilium" },
       { name = "enable-acns", value = "" },
+      { name = "max-pods", value = "110" },
     ]
 
     default_node_pool = {
