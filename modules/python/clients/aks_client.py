@@ -314,7 +314,7 @@ class AKSClient:
                     "os_disk_type": "Managed",
                     "nodeLabels": {"gpu": "true"} if gpu_node_pool else {},
                     "gpu_profile": {
-                        "driver": "None" if gpu_node_pool and vm_size == "Standard_ND96asr_v4" else "Install",
+                        "driver": "None" if not gpu_node_pool or vm_size == "Standard_ND96asr_v4" else "Install",
                     },
                 }
 
