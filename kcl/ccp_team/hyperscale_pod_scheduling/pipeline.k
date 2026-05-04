@@ -164,7 +164,7 @@ az rest \\
 
 sizes = ["H2", "H4", "H8"]
 
-makeStage = lambda size: str -> ap.Stage | ap.Template {
+makeStage = lambda size: str -> ap.Stage {
     ap.Stage {
         stage = size
         displayName = size
