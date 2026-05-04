@@ -172,8 +172,6 @@ makeStage = lambda size: str -> ap.Stage {
     }
 }
 
-stages = [makeStage(size) for size in sizes]
-
 output = ap.Pipeline {
     name = "Hyperscale Pod Scheduling Rate"
 
@@ -189,5 +187,5 @@ output = ap.Pipeline {
         }
     ]
 
-    stages = stages
+    stages = [makeStage(size) for size in sizes]
 }
