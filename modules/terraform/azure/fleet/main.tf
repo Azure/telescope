@@ -199,9 +199,14 @@ resource "terraform_data" "clustermeshprofile" {
   ]
 
   input = {
-    create_command  = local.cmp_create_command
-    apply_command   = local.cmp_apply_command
-    destroy_command = local.cmp_destroy_command
+    create_command = local.cmp_create_command
+    apply_command  = local.cmp_apply_command
+    delete_command = local.cmp_destroy_command
+    # Pre-built per-member `az fleet member delete` commands joined with
+    # newlines. We embed the full command strings here so the destroy
+    # provisioner (which can only access self.input.*, not var.* / local.*)
+    # has everything it needs without requerying state.
+    member_delete_commands = local.fleet_enabled ? join("\n", values(local.member_destroy_command)) : ""
   }
 
   # create + apply are two separate az calls. Use bash with `set -euo pipefail`
@@ -211,10 +216,26 @@ resource "terraform_data" "clustermeshprofile" {
     command     = "set -euo pipefail; ${self.input.create_command}; ${self.input.apply_command}"
   }
 
-  # Destroy-time: best-effort profile delete. Ignore "already gone" errors.
+  # Destroy-time: profile delete fails with
+  # `CannotDeleteClusterMeshProfileWithMembers` while the profile still
+  # selects any fleet member. So delete the members first (synchronous `--yes`
+  # call drains the selector), then delete the profile. Best-effort
+  # everywhere — `|| true` so a partial-state teardown still reaches
+  # downstream AKS / RG cleanup. The per-member destroy provisioner on
+  # terraform_data.member runs after this and is a no-op backstop in case
+  # any member here failed to delete.
   provisioner "local-exec" {
     when        = destroy
     interpreter = ["bash", "-c"]
-    command     = "${self.input.destroy_command} || true"
+    command     = <<-EOT
+      set -uo pipefail
+      printf '%s\n' "${self.input.member_delete_commands}" | while IFS= read -r cmd; do
+        [ -n "$cmd" ] || continue
+        echo "[detach-member] $cmd"
+        eval "$cmd" || true
+      done
+      echo "[delete-profile] ${self.input.delete_command}"
+      ${self.input.delete_command} || true
+    EOT
   }
 }

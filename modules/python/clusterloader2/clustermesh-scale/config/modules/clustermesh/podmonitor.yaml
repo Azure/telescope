@@ -15,7 +15,7 @@ spec:
     matchNames:
       - kube-system
   podMetricsEndpoints:
-    - interval: {{.interval}}
+    - interval: {{.Interval}}
       honorLabels: true
       path: /metrics
       relabelings:
@@ -24,7 +24,7 @@ spec:
           targetLabel: __address__
           regex: (.+?)(\:\d+)?
           replacement: $1:9963
-    - interval: {{.interval}}
+    - interval: {{.Interval}}
       honorLabels: true
       path: /metrics
       relabelings:

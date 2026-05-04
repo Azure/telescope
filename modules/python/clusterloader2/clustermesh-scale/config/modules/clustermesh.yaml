@@ -22,4 +22,5 @@ steps:
         objectBundle:
           - objectTemplatePath: "modules/clustermesh/podmonitor.yaml"
             basename: clustermesh-apiserver
-            interval: {{$interval}}
+            templateFillMap:
+              Interval: {{$interval}}

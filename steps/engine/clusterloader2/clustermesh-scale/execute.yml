@@ -90,18 +90,37 @@ steps:
         report_dir="${CL2_REPORT_DIR}/${role}"
         mkdir -p "$report_dir"
 
-        if PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
+        cl2_passed=0
+        # Run CL2; collect outcome WITHOUT failing the bash script (so we can
+        # also inspect junit.xml for internal test failures even when CL2 exits
+        # 0). Treat as "passed" only if BOTH:
+        #   (a) junit.xml exists (CL2 actually completed and wrote a report)
+        #   (b) junit.xml has zero <failure>/<error> elements
+        # Without (b) we'd silently green-light runs where measurements failed
+        # — e.g. PodMonitor template substitution producing "<no value>", which
+        # k8s admission rejects but CL2 still writes junit with <failure> tags.
+        PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
             --cl2-image "${CL2_IMAGE}" \
             --cl2-config-dir "${CL2_CONFIG_DIR}" \
             --cl2-report-dir "$report_dir" \
             --cl2-config-file "${CL2_CONFIG_FILE}" \
             --kubeconfig "$kubeconfig" \
             --provider "${CLOUD}" \
-          && [ -f "$report_dir/junit.xml" ]; then
-          # CL2 produced a junit.xml — that's our authoritative success signal.
-          # The python wrapper logs CL2's non-zero exit but does NOT propagate
-          # it; without the junit check, we'd silently report success and only
-          # find out at collect time when parse_xml_to_json crashes.
+          || true
+        if [ -f "$report_dir/junit.xml" ]; then
+          # Count failure/error attrs from <testsuite ... failures="N" errors="M">.
+          junit_failures=$(grep -oE 'failures="[0-9]+"' "$report_dir/junit.xml" | head -1 | grep -oE '[0-9]+' || echo 0)
+          junit_errors=$(grep -oE 'errors="[0-9]+"' "$report_dir/junit.xml" | head -1 | grep -oE '[0-9]+' || echo 0)
+          junit_failures=${junit_failures:-0}
+          junit_errors=${junit_errors:-0}
+          if [ "$junit_failures" -eq 0 ] && [ "$junit_errors" -eq 0 ]; then
+            cl2_passed=1
+          else
+            echo "##vso[task.logissue type=warning;] $role: junit.xml reports failures=$junit_failures errors=$junit_errors"
+          fi
+        fi
+
+        if [ "$cl2_passed" -eq 1 ]; then
           echo "  $role: CL2 run succeeded"
         else
           # ============== CL2-FAILURE-DEBUG-DUMP (REMOVE BEFORE MERGE) ==============
@@ -138,7 +157,7 @@ steps:
           echo "------- end CL2 FAILURE DIAG -------"
           # =========================== END CL2-FAILURE-DEBUG-DUMP ===========================
 
-          echo "##vso[task.logissue type=warning;] $role: CL2 run failed (no junit.xml at $report_dir/junit.xml; continuing other clusters)"
+          echo "##vso[task.logissue type=warning;] $role: CL2 run failed (junit missing or has failures/errors at $report_dir/junit.xml; continuing other clusters)"
           failures=$((failures + 1))
         fi
       done
