@@ -20,8 +20,8 @@ spec:
           image: mcr.microsoft.com/oss/kubernetes/pause:3.6
           resources:
             requests:
-              cpu: 5m
-              memory: 10Mi
+              cpu: 1m
+              memory: 5Mi
             limits:
-              cpu: 50m
-              memory: 50Mi
+              cpu: 5m
+              memory: 20Mi

@@ -26,10 +26,17 @@ spec:
       containers:
         - name: pause
           image: mcr.microsoft.com/oss/kubernetes/pause:3.6
+          # pause:3.6 is the Kubernetes pause container — it literally sleeps
+          # forever and consumes single-digit CPU shares + ~few MB. The
+          # earlier 50m CPU / 50Mi memory limits caused per-node CPU
+          # overcommit (~160% of allocatable on Standard_D4s_v4) at
+          # 100 pods/node, which starves the kubelet+CNI sandbox setup and
+          # leaves a few stragglers stuck Pending → CL2 timeout. Tighter
+          # limits here mirror what real pause-pod e2e fixtures use.
           resources:
             requests:
-              cpu: 5m
-              memory: 10Mi
+              cpu: 1m
+              memory: 5Mi
             limits:
-              cpu: 50m
-              memory: 50Mi
+              cpu: 5m
+              memory: 20Mi
