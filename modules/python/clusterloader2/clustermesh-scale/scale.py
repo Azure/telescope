@@ -39,6 +39,12 @@ def configure_clusterloader2(
         # k8s admission.
         f.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
         f.write("CL2_PROMETHEUS_MEMORY_LIMIT: 2Gi\n")
+        # Pin Prometheus to the dedicated `prompool` node (label
+        # prometheus=true is set in azure-2.tfvars extra_node_pool). Without
+        # this, prometheus-k8s lands on the default workload pool and
+        # competes with the 200 event-throughput pods for CPU/memory,
+        # causing per-node overcommit and Pending workload pods.
+        f.write('CL2_PROMETHEUS_NODE_SELECTOR: "prometheus: \\"true\\""\n')
         f.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true\n")
         f.write("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true\n")
         f.write("CL2_POD_STARTUP_LATENCY_THRESHOLD: 3m\n")

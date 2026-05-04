@@ -91,13 +91,37 @@ aks_cli_config_list = [
       { name = "max-pods", value = "110" },
     ]
 
+    # Default pool sizing: D4s_v5 (4 vCPU / 16GB) is enough for the workload
+    # pods alone. Prometheus is pinned to prompool below — without that
+    # split, Prometheus's 1Gi+ memory request co-tenanting on default-pool
+    # nodes caused per-node CPU overcommit (~160% allocatable) and left
+    # workload pods stuck Pending.
     default_node_pool = {
       name                 = "default"
       node_count           = 2
       auto_scaling_enabled = false
-      vm_size              = "Standard_D4s_v4"
+      vm_size              = "Standard_D4s_v5"
     }
-    extra_node_pool = []
+    # Dedicated Prometheus node, labeled `prometheus=true`. CL2 is
+    # configured (in modules/python/clusterloader2/clustermesh-scale/scale.py
+    # via CL2_PROMETHEUS_NODE_SELECTOR) to schedule the prometheus-k8s pod
+    # only on this label, so it doesn't compete with workload pods. Mirrors
+    # the `prompool` pattern from
+    # scenarios/perf-eval/cnl-azurecni-overlay-cilium/terraform-inputs/azure.tfvars.
+    # D8s_v3 (8 vCPU / 32GB) is sized for our 1Gi-request Prometheus with
+    # ample headroom — much smaller than #1053's D32s_v5 because our
+    # workload spec is also much smaller.
+    extra_node_pool = [
+      {
+        name                 = "prompool"
+        node_count           = 1
+        auto_scaling_enabled = false
+        vm_size              = "Standard_D8s_v3"
+        optional_parameters = [
+          { name = "labels", value = "prometheus=true" },
+        ]
+      },
+    ]
   },
   {
     role                          = "mesh-2"
@@ -119,9 +143,19 @@ aks_cli_config_list = [
       name                 = "default"
       node_count           = 2
       auto_scaling_enabled = false
-      vm_size              = "Standard_D4s_v4"
+      vm_size              = "Standard_D4s_v5"
     }
-    extra_node_pool = []
+    extra_node_pool = [
+      {
+        name                 = "prompool"
+        node_count           = 1
+        auto_scaling_enabled = false
+        vm_size              = "Standard_D8s_v3"
+        optional_parameters = [
+          { name = "labels", value = "prometheus=true" },
+        ]
+      },
+    ]
   }
 ]
 

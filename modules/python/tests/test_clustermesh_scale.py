@@ -68,9 +68,12 @@ class TestConfigureClustermeshScale(unittest.TestCase):
             # modules have data. Memory LIMIT honored via overrides; the
             # REQUEST is set via the --prometheus-memory-request CLI flag in
             # execute_clusterloader2 (CL2_PROMETHEUS_MEMORY_REQUEST is not a
-            # real overrides key for this CL2 image).
+            # real overrides key for this CL2 image). NODE_SELECTOR pins the
+            # Prometheus pod to the dedicated `prompool` node defined in
+            # azure-2.tfvars (label prometheus=true).
             self.assertIn("CL2_PROMETHEUS_TOLERATE_MASTER: true", content)
             self.assertIn("CL2_PROMETHEUS_MEMORY_LIMIT: 2Gi", content)
+            self.assertIn('CL2_PROMETHEUS_NODE_SELECTOR: "prometheus: \\"true\\""', content)
             self.assertIn("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true", content)
             self.assertIn("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true", content)
             self.assertIn("CL2_POD_STARTUP_LATENCY_THRESHOLD: 3m", content)
@@ -79,7 +82,6 @@ class TestConfigureClustermeshScale(unittest.TestCase):
             self.assertNotIn("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR", content)
             self.assertNotIn("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR", content)
             self.assertNotIn("CL2_PROMETHEUS_CPU_SCALE_FACTOR", content)
-            self.assertNotIn("CL2_PROMETHEUS_NODE_SELECTOR", content)
 
             # Topology knobs round-tripped from arguments.
             self.assertIn("CL2_NAMESPACES: 2", content)
