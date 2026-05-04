@@ -9,7 +9,7 @@ import lib.util
 SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "southeastasia"
-NODE_COUNT = 2000
+NODE_COUNTS = {"H2": 2000, "H4": 4000, "H8": 8000}
 KWOK_NODES_PER_CONTROLLER = 100
 KWOK_POOL = "kwokpool"
 KWOK_POOL_VM_SIZE = "Standard_D4_v3"
@@ -65,6 +65,7 @@ makeRequestBody = lambda scalingSize: str, cluster: str -> str {
 }
 
 makeBenchmarkingJob = lambda scalingSize: str, cl2Manifest: str -> job.Job {
+    nodeCount = NODE_COUNTS[scalingSize]
     cluster = "stg-${scalingSize}-hyperscale-pod-scheduling-rate"
     requestBody = makeRequestBody(scalingSize, cluster)
     createClusterScript = """
@@ -138,12 +139,13 @@ az rest \\
                 SUBSCRIPTION_ID,
                 KWOK_POOL),
             k8s.CreateKwokNodes(
-              NODE_COUNT,
+              nodeCount,
               {
                 "node-manifest-path": "$(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml"
                 "nodes-per-controller": "${KWOK_NODES_PER_CONTROLLER}"
                 "node-selector": "kwok=true"
                 "node-lease-duration-seconds": "100"
+                "pod-play-stage-parallelism": "500"
               }),
             k8s.RunClusterLoader2(
                 const.DEFAULT_SERVICE_CONNECTION,
