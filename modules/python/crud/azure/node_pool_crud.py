@@ -389,3 +389,111 @@ class NodePoolCRUD:
         except Exception as e:
             logger.error("Failed to create deployments: %s", e)
             return False
+        
+    def create_job(
+        self,
+        node_pool_name,
+        completions=1,
+        manifest_dir=None,
+        number_of_jobs=1,
+        label_selector="app=nginx-container",
+        namespace="default"
+    ):
+        """
+        Create Kubernetes jobs after node pool operations.
+
+        Args:
+            node_pool_name: Name of the node pool to target
+            job_name: Base name for the jobs
+            namespace: Kubernetes namespace (default: "default")
+            completions: Number of job completions (default: 1)
+            manifest_dir: Directory containing Kubernetes manifest files
+            number_of_jobs: Number of jobs to create (default: 1)
+
+        Returns:
+            True if all job creations were successful, False otherwise
+        """
+        logger.info("Creating %d job(s)", number_of_jobs)
+        logger.info("Target node pool: %s", node_pool_name)
+        logger.info("Job completions: %d", completions)
+        logger.info("Using manifest directory: %s", manifest_dir)
+
+        try:
+            # Get Kubernetes client from AKS client
+            k8s_client = self.aks_client.k8s_client
+
+            if not k8s_client:
+                logger.error("Kubernetes client not available")
+                return False
+
+            successful_jobs = 0
+
+            # Loop through number of jobs
+            for job_index in range(1, number_of_jobs + 1):
+                logger.info("Creating job %d/%d", job_index, number_of_jobs)
+
+                try:
+                    if manifest_dir:
+                        # Use the template path from manifest_dir
+                        template_path = f"{manifest_dir}/job.yml"
+                    else:
+                        # Use default template path
+                        template_path = "modules/python/crud/workload_templates/job.yml"
+
+                    # Generate job name
+                    job_name = f"myapp-{node_pool_name}-{job_index}"
+
+                    # Create job template using k8s_client.create_template
+                    job_template = k8s_client.create_template(
+                        template_path,
+                        {
+                            "JOB_COMPLETIONS": completions,
+                            "NODE_POOL_NAME": node_pool_name,
+                            "INDEX": job_index,
+                            "LABEL_VALUE": label_selector.split("=", 1)[-1],
+                        }
+                    )
+
+                    # Apply each document in the rendered multi-doc template
+                    for doc in yaml.safe_load_all(job_template):
+                        if doc:
+                            k8s_client.apply_manifest_from_file(manifest_dict=doc)
+
+                    logger.info("Applied manifest for job %s", job_name)
+
+                    # Wait for job to complete (successful job verification)
+                    logger.info("Waiting for job %s to complete...", job_name)
+                    job_ready = k8s_client.wait_for_condition(
+                        resource_type="job",
+                        wait_condition_type="complete",
+                        resource_name=job_name,
+                        namespace=namespace,
+                        timeout_seconds=self.step_timeout
+                    )
+
+                    if job_ready:
+                        logger.info("Job %s is successfully complete", job_name)
+                        logger.info("Successfully created and verified job %d", job_index)
+                        successful_jobs += 1
+                    else:
+                        logger.error("Job %s failed to complete within timeout", job_name)
+                        continue
+
+                except Exception as e:
+                    logger.error("Failed to create job %d: %s", job_index, e)
+                    # Continue with next job instead of failing completely
+                    continue
+
+            # Check if all jobs were successful
+            if successful_jobs == number_of_jobs:
+                logger.info("Successfully created all %d job(s)", number_of_jobs)
+                return True
+            if successful_jobs > 0:
+                logger.warning("Created %d/%d job(s)", successful_jobs, number_of_jobs)
+                return False
+            logger.error("Failed to create any jobs")
+            return False
+
+        except Exception as e:
+            logger.error("Failed to create jobs: %s", e)
+            return False
