@@ -162,23 +162,17 @@ az rest \\
     }
 }
 
-_stages: [ap.Stage | ap.Template] = [
+sizes = ["H2", "H4", "H8"]
+
+makeStage = lambda size: str -> ap.Stage | ap.Template {
     ap.Stage {
-        stage = "H2"
-        displayName = "H2"
-        jobs = [makeBenchmarkingJob("H2", "kcl/ccp_team/hyperscale_pod_scheduling/cl2-h2.yaml")]
+        stage = size
+        displayName = size
+        jobs = [makeBenchmarkingJob(size, "kcl/ccp_team/hyperscale_pod_scheduling/cl2-${size.lower()}.yaml")]
     }
-    ap.Stage {
-        stage = "H4"
-        displayName = "H4"
-        jobs = [makeBenchmarkingJob("H4", "kcl/ccp_team/hyperscale_pod_scheduling/cl2-h4.yaml")]
-    }
-    ap.Stage {
-        stage = "H8"
-        displayName = "H8"
-        jobs = [makeBenchmarkingJob("H8", "kcl/ccp_team/hyperscale_pod_scheduling/cl2-h8.yaml")]
-    }
-]
+}
+
+stages = [makeStage(size) for size in sizes]
 
 output = ap.Pipeline {
     name = "Hyperscale Pod Scheduling Rate"
@@ -195,5 +189,5 @@ output = ap.Pipeline {
         }
     ]
 
-    stages = _stages
+    stages = stages
 }

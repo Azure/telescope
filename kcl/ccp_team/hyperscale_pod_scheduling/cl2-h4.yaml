@@ -8,7 +8,7 @@ data:
     Nodes: 4000
     CL2_SCHEDULER_THROUGHPUT_TOTAL_PODS: 400000
     CL2_SCHEDULER_THROUGHPUT_PODS_PER_DEPLOYMENT: 1000 # Setting a high number of pods per deployment to reduce the number of API calls and focus on scheduler performance rather than API server performance.
-    CL2_DEFAULT_QPS: 2 # Setting low QPS to avoid overwhelming the API server and causing timeouts, since this test is focused on scheduler throughput, not API server performance.
+    CL2_DEFAULT_QPS: 4 # Setting low QPS to avoid overwhelming the API server and causing timeouts, since this test is focused on scheduler throughput, not API server performance.
     CL2_RUN_ON_ARM_NODES: true # This is a hack to allow Cl2 to run on Kwok nodes
 ---
 apiVersion: batch/v1
