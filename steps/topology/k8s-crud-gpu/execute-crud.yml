@@ -24,5 +24,7 @@ steps:
     step_wait_time: $(STEP_WAIT_TIME)
     deployment_name: $(DEPLOYMENT_NAME)
     number_of_deployments: $(NUMBER_OF_DEPLOYMENTS)
+    number_of_jobs: $(NUMBER_OF_JOBS)
+    completions: $(COMPLETIONS)
     replicas: $(REPLICAS)
     manifest_dir: $(MANIFEST_DIR)
