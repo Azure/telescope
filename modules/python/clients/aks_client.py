@@ -464,12 +464,13 @@ class AKSClient:
                 node_pool.count = node_count
 
                 logger.info(f"Scaling node pool {node_pool_name} to {node_count} nodes")
-                self.aks_client.agent_pools.begin_create_or_update(
+                poller = self.aks_client.agent_pools.begin_create_or_update(
                     resource_group_name=self.resource_group,
                     resource_name=cluster_name,
                     agent_pool_name=node_pool_name,
                     parameters=node_pool,
                 )
+                poller.result()  # Wait for Azure control plane to finish before proceeding
 
                 logger.info(
                     f"Waiting for {node_count} nodes in pool {node_pool_name} to be ready..."
@@ -676,12 +677,13 @@ class AKSClient:
                         "cluster_info", self.get_cluster_data(cluster_name)
                     )
                     node_pool.count = step  # Update node count in the node pool object
-                    result = self.aks_client.agent_pools.begin_create_or_update(
+                    poller = self.aks_client.agent_pools.begin_create_or_update(
                         resource_group_name=self.resource_group,
                         resource_name=cluster_name,
                         agent_pool_name=node_pool_name,
                         parameters=node_pool,
                     )
+                    result = poller.result()  # Wait for Azure control plane to finish before proceeding
 
                     # Use agentpool=node_pool_name as default label if not specified
                     label_selector = f"agentpool={node_pool_name}"
