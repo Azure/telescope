@@ -9,6 +9,10 @@ parameters:
   step_time_out: 600
   step_wait_time: 30
   gpu_node_pool: false
+  deployment_name: ""
+  number_of_deployments: 1
+  replicas: 10
+  manifest_dir: ""
 
 steps:
 - script: |
@@ -37,6 +41,7 @@ steps:
       --step-wait-time "$STEP_WAIT_TIME" \
       --step-timeout "$STEP_TIME_OUT" \
       ${GPU_NODE_POOL:+--gpu-node-pool}
+
   displayName: 'Execute K8s Create & Scale Up Operations for ${{ parameters.cloud }}'
   workingDirectory: modules/python
   env:
@@ -53,6 +58,34 @@ steps:
     STEP_WAIT_TIME: ${{ parameters.step_wait_time }}
     ${{ if eq(parameters.cloud, 'aws') }}:
       CAPACITY_TYPE: $(CAPACITY_TYPE)
+
+- script: |
+    set -eo pipefail
+
+    # Deploy Workloads
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" deployment \
+      --cloud "$CLOUD" \
+      --run-id "$RUN_ID" \
+      --result-dir "$RESULT_DIR" \
+      --node-pool-name "$POOL_NAME" \
+      --number-of-deployments "$NUMBER_OF_DEPLOYMENTS" \
+      --replicas "$REPLICAS" \
+      --manifest-dir "$MANIFEST_DIR" \
+      --step-timeout "$STEP_TIME_OUT" \
+      ${GPU_NODE_POOL:+--gpu-node-pool}
+  displayName: 'Execute K8s Workload operations for ${{ parameters.cloud }}'
+  workingDirectory: modules/python
+  env:
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/crud/main.py
+    POOL_NAME: ${{ parameters.pool_name }}
+    CLOUD: ${{ parameters.cloud }}
+    STEP_TIME_OUT: ${{ parameters.step_time_out }}
+    RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
+    GPU_NODE_POOL: ${{ parameters.gpu_node_pool }}
+    DEPLOYMENT_NAME: ${{ parameters.deployment_name }}
+    NUMBER_OF_DEPLOYMENTS: ${{ parameters.number_of_deployments }}
+    REPLICAS: ${{ parameters.replicas }}
+    MANIFEST_DIR: ${{ parameters.manifest_dir }}
 
 - script: |
     set -eo pipefail
