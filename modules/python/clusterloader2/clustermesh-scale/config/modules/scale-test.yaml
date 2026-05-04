@@ -27,6 +27,10 @@ steps:
         Method: WaitForControlledPodsRunning
         Params:
           action: start
+          # CL2 needs apiVersion+kind to know which controllers to track on
+          # start; we deploy Deployment objects (see scale-test-deployment.yaml).
+          apiVersion: apps/v1
+          kind: Deployment
           checkIfPodsAreUpdated: true
           labelSelector: group = clustermesh-scale-test
           operationTimeout: {{$operationTimeout}}

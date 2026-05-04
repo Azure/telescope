@@ -98,6 +98,27 @@ locals {
       "--output", "none",
     ])
   }
+
+  # Re-label members during destroy so the clustermeshprofile's
+  # `${member_label_key}=${member_label_value}` selector no longer matches —
+  # this is the only way out of the Fleet API's chicken-and-egg between
+  # `member delete` (rejects with MemberBelongsToClusterMesh while attached)
+  # and `clustermeshprofile delete` (rejects with
+  # CannotDeleteClusterMeshProfileWithMembers while members exist). The
+  # value `detaching` is intentionally non-matching; `az fleet member update
+  # --labels` REPLACES the labels map (it's not additive), so this also
+  # drops the original mesh=true label.
+  member_relabel_command = {
+    for m in var.members : m.member_name => join(" ", [
+      "az fleet member update",
+      "--subscription", var.subscription_id,
+      "--resource-group", var.resource_group_name,
+      "--fleet-name", var.fleet_name,
+      "--name", m.member_name,
+      "--labels", "${var.member_label_key}=detaching",
+      "--output", "none",
+    ])
+  }
 }
 
 resource "terraform_data" "member" {
@@ -202,11 +223,10 @@ resource "terraform_data" "clustermeshprofile" {
     create_command = local.cmp_create_command
     apply_command  = local.cmp_apply_command
     delete_command = local.cmp_destroy_command
-    # Pre-built per-member `az fleet member delete` commands joined with
-    # newlines. We embed the full command strings here so the destroy
-    # provisioner (which can only access self.input.*, not var.* / local.*)
-    # has everything it needs without requerying state.
-    member_delete_commands = local.fleet_enabled ? join("\n", values(local.member_destroy_command)) : ""
+    # Pre-built per-member `az fleet member update --labels` commands. Joined
+    # with newlines and embedded in self.input because destroy provisioners
+    # can only access self.input.* (not var.* / local.*).
+    member_relabel_commands = local.fleet_enabled ? join("\n", values(local.member_relabel_command)) : ""
   }
 
   # create + apply are two separate az calls. Use bash with `set -euo pipefail`
@@ -216,30 +236,44 @@ resource "terraform_data" "clustermeshprofile" {
     command     = "set -euo pipefail; ${self.input.create_command}; ${self.input.apply_command}"
   }
 
-  # Destroy-time: profile delete fails with
-  # `CannotDeleteClusterMeshProfileWithMembers` while the profile still
-  # selects any fleet member. So delete the members first (synchronous `--yes`
-  # call drains the selector), then delete the profile. Best-effort
-  # everywhere — `|| true` so a partial-state teardown still reaches
-  # downstream AKS / RG cleanup. The per-member destroy provisioner on
-  # terraform_data.member runs after this and is a no-op backstop in case
-  # any member here failed to delete.
+  # Destroy-time: Fleet's API has a chicken-and-egg between member-delete
+  # and clustermeshprofile-delete:
+  #   - `az fleet member delete` rejects with `MemberBelongsToClusterMesh`
+  #     while the member is still selected by any clustermeshprofile.
+  #   - `az fleet clustermeshprofile delete` rejects with
+  #     `CannotDeleteClusterMeshProfileWithMembers` while any member is
+  #     still in the profile.
+  # The az fleet 2.0.4 extension exposes no first-class detach/remove-member
+  # command. The way out is to UPDATE each member's labels to a value that
+  # the profile selector no longer matches (the profile selects on
+  # `${var.member_label_key}=${var.member_label_value}` from create-time),
+  # then re-`apply` the profile so it reconciles to an empty member set,
+  # then delete the profile. After that the per-member destroy provisioner
+  # on terraform_data.member runs successfully (members are no longer
+  # attached to any profile).
   #
-  # `az fleet member delete --yes` returns when the DELETE request is
-  # accepted (~3s), NOT when the member is actually removed from the fleet —
-  # so the profile delete that follows can still see attached members for
-  # 30-60s afterward. We retry the profile delete with backoff until either
-  # it succeeds or the members are confirmed gone.
+  # All steps are best-effort (`|| true` / `exit 0` at the end) so a
+  # partial-state teardown still progresses to RG cleanup.
   provisioner "local-exec" {
     when        = destroy
     interpreter = ["bash", "-c"]
     command     = <<-EOT
       set -uo pipefail
-      printf '%s\n' "${self.input.member_delete_commands}" | while IFS= read -r cmd; do
+      # 1. Relabel every member off the profile's selector.
+      printf '%s\n' "${self.input.member_relabel_commands}" | while IFS= read -r cmd; do
         [ -n "$cmd" ] || continue
-        echo "[detach-member] $cmd"
+        echo "[relabel-member] $cmd"
         eval "$cmd" || true
       done
+
+      # 2. Re-apply the profile so its observed member set matches the new
+      # (empty) selector match. apply is async — we still retry the delete
+      # below so the deletion self-recovers as the apply propagates.
+      echo "[apply-profile] ${self.input.apply_command}"
+      eval "${self.input.apply_command}" || true
+
+      # 3. Delete the profile, retrying for ~5 minutes while the apply
+      # finishes draining membership.
       echo "[delete-profile] ${self.input.delete_command}"
       max=60
       delay=5
