@@ -24,9 +24,6 @@ def setup_logging(level="INFO"):
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S"
     )
-    if isinstance(level, str):
-        level = getattr(logging, level.upper(), logging.INFO)
-
     handler = logging.StreamHandler()
     handler.setFormatter(formatter)
     handler.setLevel(level)
