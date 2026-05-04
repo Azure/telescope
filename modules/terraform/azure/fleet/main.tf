@@ -224,6 +224,12 @@ resource "terraform_data" "clustermeshprofile" {
   # downstream AKS / RG cleanup. The per-member destroy provisioner on
   # terraform_data.member runs after this and is a no-op backstop in case
   # any member here failed to delete.
+  #
+  # `az fleet member delete --yes` returns when the DELETE request is
+  # accepted (~3s), NOT when the member is actually removed from the fleet —
+  # so the profile delete that follows can still see attached members for
+  # 30-60s afterward. We retry the profile delete with backoff until either
+  # it succeeds or the members are confirmed gone.
   provisioner "local-exec" {
     when        = destroy
     interpreter = ["bash", "-c"]
@@ -235,7 +241,20 @@ resource "terraform_data" "clustermeshprofile" {
         eval "$cmd" || true
       done
       echo "[delete-profile] ${self.input.delete_command}"
-      ${self.input.delete_command} || true
+      max=60
+      delay=5
+      for i in $(seq 1 $max); do
+        if eval "${self.input.delete_command}"; then
+          echo "[delete-profile] succeeded on attempt $i"
+          exit 0
+        fi
+        if [ "$i" -lt "$max" ]; then
+          echo "[delete-profile] members still attaching; retry $i/$max in $${delay}s"
+          sleep "$delay"
+        fi
+      done
+      echo "[delete-profile] gave up after $max attempts; downstream cleanup will proceed"
+      exit 0
     EOT
   }
 }

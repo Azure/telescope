@@ -14,6 +14,23 @@ name: clustermesh-scale-test-module
 {{$totalDeployments := MultiplyInt $namespaces $deploymentsPerNamespace}}
 
 steps:
+  # Register a fresh WaitForControlledPodsRunning watcher BEFORE the
+  # create/delete phase. Without this, the second invocation of this module
+  # (actionName=delete) errors with "metric WaitForControlledPodsRunning has
+  # not been started" — CL2 closes the metric after the first `gather`, so
+  # each invocation needs its own start. We use a per-action Identifier
+  # ("...-create" / "...-delete") so the start and gather pair cleanly even
+  # if the runtime ever caches metrics by Identifier across invocations.
+  - name: Start tracking pods to be {{$actionName}}d
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-{{$actionName}}
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: start
+          checkIfPodsAreUpdated: true
+          labelSelector: group = clustermesh-scale-test
+          operationTimeout: {{$operationTimeout}}
+
   - name: {{$actionName}} deployments
     phases:
       - namespaceRange:
@@ -30,10 +47,7 @@ steps:
 
   - name: Wait for deployments to be {{$actionName}}d
     measurements:
-      - Identifier: WaitForControlledPodsRunning
+      - Identifier: WaitForControlledPodsRunning-{{$actionName}}
         Method: WaitForControlledPodsRunning
         Params:
           action: gather
-          checkIfPodsAreUpdated: true
-          labelSelector: group = clustermesh-scale-test
-          operationTimeout: {{$operationTimeout}}
