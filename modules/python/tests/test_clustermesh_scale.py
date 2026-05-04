@@ -74,6 +74,7 @@ class TestConfigureClustermeshScale(unittest.TestCase):
             self.assertIn("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true", content)
             self.assertIn("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true", content)
             self.assertIn("CL2_POD_STARTUP_LATENCY_THRESHOLD: 3m", content)
+            self.assertIn("CL2_ENABLE_VIOLATIONS_FOR_API_CALL_PROMETHEUS_SIMPLE: false", content)
             self.assertNotIn("CL2_PROMETHEUS_MEMORY_REQUEST", content)
             self.assertNotIn("CL2_PROMETHEUS_MEMORY_LIMIT_FACTOR", content)
             self.assertNotIn("CL2_PROMETHEUS_MEMORY_SCALE_FACTOR", content)

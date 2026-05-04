@@ -28,6 +28,24 @@ name: clustermesh-event-throughput-workload
 {{if eq $actionName "delete"}}{{$replicasInPhase = 0}}{{end}}
 
 steps:
+  # Per-action WaitForControlledPodsRunning lifecycle: start (registers
+  # watcher with apiVersion+kind so CL2 knows which controllers to track),
+  # then create/restart/delete the workload, then gather. Using a per-action
+  # Identifier keeps the create/restart/delete invocations from clobbering
+  # each other's metric state across the three module calls in
+  # event-throughput.yaml.
+  - name: Start tracking event-throughput pods to be {{$actionName}}d
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-{{$actionName}}
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: start
+          apiVersion: apps/v1
+          kind: Deployment
+          checkIfPodsAreUpdated: true
+          labelSelector: group = clustermesh-event-throughput
+          operationTimeout: {{$operationTimeout}}
+
   - name: {{$actionName}} event-throughput workload
     phases:
       - namespaceRange:
@@ -49,10 +67,7 @@ steps:
 
   - name: Wait for event-throughput pods to be {{$actionName}}d
     measurements:
-      - Identifier: WaitForControlledPodsRunning
+      - Identifier: WaitForControlledPodsRunning-{{$actionName}}
         Method: WaitForControlledPodsRunning
         Params:
           action: gather
-          checkIfPodsAreUpdated: true
-          labelSelector: group = clustermesh-event-throughput
-          operationTimeout: {{$operationTimeout}}
