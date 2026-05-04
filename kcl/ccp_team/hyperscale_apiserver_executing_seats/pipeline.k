@@ -9,15 +9,8 @@ import lib.util
 SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "westus2"
-CLUSTER = "stg-H2-yaolei"
-CL2_POOL = "cl2pool"
-CL2_TAINT_PREFIX = "cl2pool"
-CL2_NAMESPACE = "clusterloader2"
-KWOK_NODE_COUNT = 100
-
-STORAGE_SUBSCRIPTION_ID = "137f0351-8235-42a6-ac7a-6b46be2d21c7"
-STORAGE_ACCOUNT = "telescopev2"
-STORAGE_CONTAINER = "aks"
+CONTROL_PLANE_SCALING_SIZE = "H8"
+CLUSTER = "stg-${CONTROL_PLANE_SCALING_SIZE}-hyperscale-apiserver-seats"
 
 requestBody = util.escapeStr("""
 {
@@ -33,14 +26,14 @@ requestBody = util.escapeStr("""
       "SkipLinuxAzSecPack": "true"
     },
     "properties": {
-      "controlPlaneScalingProfile": {"scalingSize": "H2"},
+      "controlPlaneScalingProfile": {"scalingSize": "${CONTROL_PLANE_SCALING_SIZE}"},
       "kubernetesVersion": "1.33.0",
       "dnsPrefix": "${CLUSTER}-dns",
       "agentPoolProfiles": [
         {
           "name": "systempool",
           "mode": "System",
-          "count": 30,
+          "count": 3,
           "vmSize": "Standard_D8S_v4",
           "osType": "Linux",
           "maxPods": 250
@@ -63,38 +56,23 @@ requestBody = util.escapeStr("""
   }""")
 
 createClusterScript = """
-az cloud update --endpoint-resource-manager https://eastus2euap.management.azure.com/
 az rest \\
   --method put \\
   --uri "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.ContainerService/managedClusters/${CLUSTER}?api-version=2026-01-02-preview" \\
   --body "${requestBody}"
 """
 
-cl2ResultJson = """{
-    "cl2_status": "\${STATUS}", 
-    "region": "${LOCATION}"
-  }"""
-
 output = ap.Pipeline {
-    name = "Example Pipeline"
+    name = "Hyperscale API Server Executing Seats"
 
     trigger =  ["v2"]
-    pool = const.DEFAULT_POOL
-
-    parameters = [
-        ap.Parameter {
-            name = "run_id"
-            displayName = "Run ID (leave empty to auto-generate)"
-            type = "string"
-            default = "default"
-        }
-    ]
+    parameters = []
 
     jobs = [
         job.Job {
             job = "benchmarking"
             displayName = "Benchmarking"
-            timeoutInMinutes = 1440
+            timeoutInMinutes = 600
 
             steps = [
                 common.SetRunId(),
@@ -119,61 +97,60 @@ output = ap.Pipeline {
                     CLUSTER,
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID),
-                azure.CreateNodePool(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    CLUSTER,
-                    RESOURCE_GROUP,
-                    SUBSCRIPTION_ID,
-                    CL2_POOL,
-                    "Standard_D8S_v4",
-                    4,
-                    CL2_TAINT_PREFIX),
-                azure.WaitForNodePoolSucceeded(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    CLUSTER,
-                    RESOURCE_GROUP,
-                    SUBSCRIPTION_ID,
-                    CL2_POOL),
                 azure.GetCredentials(
                     const.DEFAULT_SERVICE_CONNECTION,
                     CLUSTER,
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID),
+                azure.CreateNodePool(
+                  const.DEFAULT_SERVICE_CONNECTION,
+                  CLUSTER,
+                  RESOURCE_GROUP,
+                  SUBSCRIPTION_ID,
+                  "cl2pool",
+                  "Standard_D16S_v4",
+                  10,
+                  "cl2pool"),
+                azure.WaitForNodePoolSucceeded(
+                  const.DEFAULT_SERVICE_CONNECTION,
+                  CLUSTER,
+                  RESOURCE_GROUP,
+                  SUBSCRIPTION_ID,
+                  "cl2pool"),
+                azure.CreateNodePool(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    CLUSTER,
+                    RESOURCE_GROUP,
+                    SUBSCRIPTION_ID,
+                    "kwokpool",
+                    "Standard_D8_v3",
+                    60,
+                    "kwok",
+                    "kwok=true"),
+                azure.WaitForNodePoolSucceeded(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    CLUSTER,
+                    RESOURCE_GROUP,
+                    SUBSCRIPTION_ID,
+                    "kwokpool"),
                 *k8s.CreateKwokNodes(
-                  KWOK_NODE_COUNT,
+                  15000,
+                  logLevel = "WARNING",
+                  continueOnError = True,
                   params = {
-                    "node-manifest-path": "$(Pipeline.Workspace)/s/kcl/example_pipeline/kwok-node.yaml"
+                    "node-manifest-path": "$(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml"
+                    "nodes-per-controller": "100"
+                    "node-selector": "kwok=true"
+                    "node-lease-duration-seconds": "60"
+                    "validate-success-threshold": "0.9"
                   }),
-                k8s.RunClusterLoader2(
+                  k8s.RunClusterLoader2(
                     const.DEFAULT_SERVICE_CONNECTION,
-                    CL2_NAMESPACE,
-                    manifest = "kcl/example_pipeline/cl2.yaml"),
-                k8s.PrintCl2PodLogs(
+                    "clusterloader2",
+                    manifest = "kcl/ccp_team/hyperscale_apiserver_executing_seats/cl2.yaml"),
+                  k8s.PrintCl2PodLogs(
                     const.DEFAULT_SERVICE_CONNECTION,
-                    CL2_NAMESPACE),
-                azure.AzCli(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    "Collect cl2 pods status",
-                    """
-TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-STATUS="succeeded"
-
-# Check if any cl2 pod failed
-FAILED=$(kubectl get pods --namespace="${CL2_NAMESPACE}" -l job-name=cl2 -o jsonpath='{range .items[*]}{.status.phase}{"\\n"}{end}' | grep -c "^Failed$" || true)
-if [ "$FAILED" -gt 0 ]; then
-  STATUS="failed"
-fi
-
-cat > /tmp/run-result.json << EOF
-${util.formatResult(cl2ResultJson)}
-EOF
-cat /tmp/run-result.json
-"""),
-                common.UploadResult(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    STORAGE_ACCOUNT,
-                    STORAGE_SUBSCRIPTION_ID,
-                    STORAGE_CONTAINER),
+                    "clusterloader2"),
                 azure.DeleteResourceGroup(
                     const.DEFAULT_SERVICE_CONNECTION,
                     RESOURCE_GROUP,

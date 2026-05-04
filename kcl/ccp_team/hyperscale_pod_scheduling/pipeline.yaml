@@ -238,9 +238,21 @@ jobs:
       set -exo pipefail
       export PYTHONPATH=$PYTHONPATH:$(pwd)
       python3 kwok/kwok.py   --action create   --node-count 2000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100
+    workingDirectory: modules/python
+    continueOnError: false
+    displayName: Create KWOK Nodes
+    env:
+      LOG_LEVEL: INFO
+  - script: |2-
+
+      set -exo pipefail
+      export PYTHONPATH=$PYTHONPATH:$(pwd)
       python3 kwok/kwok.py   --action validate   --node-count 2000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100
     workingDirectory: modules/python
-    displayName: Create and Validate KWOK Nodes
+    continueOnError: false
+    displayName: Validate KWOK Nodes
+    env:
+      LOG_LEVEL: INFO
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -249,11 +261,12 @@ jobs:
       inlineScript: |
         set -exo pipefail
 
+        set +eo pipefail
         kubectl create namespace "clusterloader2" || true
         kubectl apply -f $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/cl2.yaml
         # Wait
         while true; do
-          phases="$(kubectl get pods --namespace="clusterloader2" -o jsonpath='{range .items[*]}{.status.phase}{"\n"}{end}')"
+          phases="$(kubectl get pods --namespace="clusterloader2" -o jsonpath='{range .items[*]}{.status.phase}{"\n"}{end}' 2>&1)"
           total=0
           terminal=0
 

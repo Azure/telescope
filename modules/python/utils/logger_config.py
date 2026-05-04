@@ -1,4 +1,5 @@
 import logging
+import os
 
 class AzureDevOpsFormatter(logging.Formatter):
     VSO_FORMATS = {
@@ -24,11 +25,13 @@ def setup_logging():
         "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S"
     )
+    level = getattr(logging, os.environ.get("LOG_LEVEL", "INFO").upper(), logging.INFO)
+
     handler = logging.StreamHandler()
     handler.setFormatter(formatter)
-    handler.setLevel(logging.INFO)
+    handler.setLevel(level)
     root_logger.addHandler(handler)
-    root_logger.setLevel(logging.INFO)
+    root_logger.setLevel(level)
     return root_logger
 
 def get_logger(name):

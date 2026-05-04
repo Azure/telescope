@@ -1,16 +1,11 @@
-name: Example Pipeline
-pool: AKS-Telescope-Airlock
+name: Hyperscale API Server Executing Seats
 trigger:
 - v2
-parameters:
-- name: run_id
-  displayName: Run ID (leave empty to auto-generate)
-  type: string
-  default: default
+parameters: []
 jobs:
 - job: benchmarking
   displayName: Benchmarking
-  timeoutInMinutes: 1440
+  timeoutInMinutes: 600
   steps:
   - bash: |2
 
@@ -61,10 +56,9 @@ jobs:
       inlineScript: |
         set -exo pipefail
 
-        az cloud update --endpoint-resource-manager https://eastus2euap.management.azure.com/
         az rest \
           --method put \
-          --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/stg-H2-yaolei?api-version=2026-01-02-preview" \
+          --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/stg-H8-hyperscale-apiserver-seats?api-version=2026-01-02-preview" \
           --body "
         {
             \"location\": \"westus2\",
@@ -79,14 +73,14 @@ jobs:
               \"SkipLinuxAzSecPack\": \"true\"
             },
             \"properties\": {
-              \"controlPlaneScalingProfile\": {\"scalingSize\": \"H2\"},
+              \"controlPlaneScalingProfile\": {\"scalingSize\": \"H8\"},
               \"kubernetesVersion\": \"1.33.0\",
-              \"dnsPrefix\": \"stg-H2-yaolei-dns\",
+              \"dnsPrefix\": \"stg-H8-hyperscale-apiserver-seats-dns\",
               \"agentPoolProfiles\": [
                 {
                   \"name\": \"systempool\",
                   \"mode\": \"System\",
-                  \"count\": 30,
+                  \"count\": 3,
                   \"vmSize\": \"Standard_D8S_v4\",
                   \"osType\": \"Linux\",
                   \"maxPods\": 250
@@ -118,7 +112,7 @@ jobs:
 
         while true; do
           STATE=$(az aks show \
-            --name "stg-H2-yaolei" \
+            --name "stg-H8-hyperscale-apiserver-seats" \
             --resource-group "$(RUN_ID)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --query "provisioningState" \
@@ -141,7 +135,21 @@ jobs:
       azureSubscription: Azure-for-Telescope-internal
       scriptType: bash
       scriptLocation: inlineScript
-      inlineScript: "set -exo pipefail\n\naz aks nodepool add \\\n  --cluster-name \"stg-H2-yaolei\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"cl2pool\" \\\n  --node-count 4 \\\n  --node-vm-size \"Standard_D8S_v4\" \\\n  --mode User \\\n  --node-taints cl2pool=true:NoSchedule \\\n  \n"
+      inlineScript: |
+        set -exo pipefail
+
+        az aks get-credentials \
+          --name "stg-H8-hyperscale-apiserver-seats" \
+          --resource-group "$(RUN_ID)" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --overwrite-existing
+    displayName: Get credentials for stg-H8-hyperscale-apiserver-seats
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: "set -exo pipefail\n\naz aks nodepool add \\\n  --cluster-name \"stg-H8-hyperscale-apiserver-seats\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"cl2pool\" \\\n  --node-count 10 \\\n  --node-vm-size \"Standard_D16S_v4\" \\\n  --mode User \\\n  --node-taints cl2pool=true:NoSchedule \\\n  \n"
     displayName: Create node pool cl2pool
   - task: AzureCLI@2
     inputs:
@@ -153,7 +161,7 @@ jobs:
 
         while true; do
           STATE=$(az aks nodepool show \
-            --cluster-name "stg-H2-yaolei" \
+            --cluster-name "stg-H8-hyperscale-apiserver-seats" \
             --resource-group "$(RUN_ID)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --name "cl2pool" \
@@ -180,32 +188,66 @@ jobs:
       inlineScript: |
         set -exo pipefail
 
-        az aks get-credentials \
-          --name "stg-H2-yaolei" \
+        az aks nodepool add \
+          --cluster-name "stg-H8-hyperscale-apiserver-seats" \
           --resource-group "$(RUN_ID)" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-          --overwrite-existing
-    displayName: Get credentials for stg-H2-yaolei
+          --name "kwokpool" \
+          --node-count 60 \
+          --node-vm-size "Standard_D8_v3" \
+          --mode User \
+          --node-taints kwok=true:NoSchedule \
+          --labels "kwok=true"
+    displayName: Create node pool kwokpool
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        while true; do
+          STATE=$(az aks nodepool show \
+            --cluster-name "stg-H8-hyperscale-apiserver-seats" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --name "kwokpool" \
+            --query "provisioningState" \
+            --output tsv)
+          echo "Node pool provisioning state: $STATE"
+          if [ "$STATE" = "Succeeded" ]; then
+            echo "Node pool is ready."
+            break
+          elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+            echo "Node pool failed with state: $STATE."
+            exit 1
+          else
+            echo "Provisioning state: $STATE. Retry in 30 seconds"
+          fi
+          sleep 30
+        done
+    displayName: Wait for node pool kwokpool to succeed
   - script: |2-
 
       set -exo pipefail
       export PYTHONPATH=$PYTHONPATH:$(pwd)
-      python3 kwok/kwok.py   --action create   --node-count 100   --node-manifest-path $(Pipeline.Workspace)/s/kcl/example_pipeline/kwok-node.yaml
+      python3 kwok/kwok.py   --action create   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9
     workingDirectory: modules/python
-    continueOnError: false
+    continueOnError: true
     displayName: Create KWOK Nodes
     env:
-      LOG_LEVEL: INFO
+      LOG_LEVEL: WARNING
   - script: |2-
 
       set -exo pipefail
       export PYTHONPATH=$PYTHONPATH:$(pwd)
-      python3 kwok/kwok.py   --action validate   --node-count 100   --node-manifest-path $(Pipeline.Workspace)/s/kcl/example_pipeline/kwok-node.yaml
+      python3 kwok/kwok.py   --action validate   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9
     workingDirectory: modules/python
     continueOnError: false
     displayName: Validate KWOK Nodes
     env:
-      LOG_LEVEL: INFO
+      LOG_LEVEL: WARNING
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -216,7 +258,7 @@ jobs:
 
         set +eo pipefail
         kubectl create namespace "clusterloader2" || true
-        kubectl apply -f $(Pipeline.Workspace)/s/kcl/example_pipeline/cl2.yaml
+        kubectl apply -f $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/cl2.yaml
         # Wait
         while true; do
           phases="$(kubectl get pods --namespace="clusterloader2" -o jsonpath='{range .items[*]}{.status.phase}{"\n"}{end}' 2>&1)"
@@ -259,29 +301,6 @@ jobs:
           kubectl logs --namespace="clusterloader2" "$pod" || true
         done
     displayName: Print cl2 pod logs
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: "set -exo pipefail\n\nTIMESTAMP=$(date -u +\"%Y-%m-%dT%H:%M:%SZ\")\nSTATUS=\"succeeded\"\n\n# Check if any cl2 pod failed\nFAILED=$(kubectl get pods --namespace=\"clusterloader2\" -l job-name=cl2 -o jsonpath='{range .items[*]}{.status.phase}{\"\\n\"}{end}' | grep -c \"^Failed$\" || true)\nif [ \"$FAILED\" -gt 0 ]; then\n  STATUS=\"failed\"\nfi\n\ncat > /tmp/run-result.json << EOF\n\n{\n  \"timestamp\": \"${TIMESTAMP}\",\n  \"run_id\": \"$(RUN_ID)\",\n  \"run_url\": \"$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)\",\n  \"pipeline\": \"$(Build.DefinitionName)\",\n  \"result\": {\n    \"cl2_status\": \"${STATUS}\", \n    \"region\": \"westus2\"\n  }\n}\nEOF\ncat /tmp/run-result.json\n"
-    displayName: Collect cl2 pods status
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        az storage blob upload \
-          --account-name "telescopev2" \
-          --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
-          --container-name "aks" \
-          --name "$(RUN_ID)/run-result.json" \
-          --file /tmp/run-result.json \
-          --auth-mode key
-    displayName: Upload result to storage account
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal

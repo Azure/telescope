@@ -3,11 +3,12 @@ import lib.steps.azure
 
 RunClusterLoader2 = lambda serviceConnection: str, namespace: str, manifest: str -> steps.Step {
     script = """
+set +eo pipefail
 kubectl create namespace "${namespace}" || true
 kubectl apply -f $(Pipeline.Workspace)/s/${manifest}
 # Wait
 while true; do
-  phases="$(kubectl get pods --namespace="${namespace}" -o jsonpath='{range .items[*]}{.status.phase}{"\\n"}{end}')"
+  phases="$(kubectl get pods --namespace="${namespace}" -o jsonpath='{range .items[*]}{.status.phase}{"\\n"}{end}' 2>&1)"
   total=0
   terminal=0
 
