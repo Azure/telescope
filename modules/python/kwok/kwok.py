@@ -13,6 +13,7 @@ import yaml
 from kubernetes import client
 
 from clients.kubernetes_client import KubernetesClient
+from utils.logger_config import setup_logging
 from utils.retries import execute_with_retries
 
 
@@ -716,8 +717,15 @@ def main():
         required=True,
         help="Action to perform: create, validate, or tear_down.",
     )
+    parser.add_argument(
+        "--log-level",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+        default="INFO",
+        help="Logging verbosity for KWOK and its dependencies (default: INFO).",
+    )
 
     args = parser.parse_args()
+    setup_logging(args.log_level)
 
     node = Node(
         node_manifest_path=args.node_manifest_path,
