@@ -975,6 +975,8 @@ class KubernetesClient:
         valid_conditions = {
             'deployment': ['available', 'progressing', 'replicafailure', 'ready'],
             'deployments': ['available', 'progressing', 'replicafailure', 'ready'],
+            'job': ['complete', 'failed'],
+            'jobs': ['complete', 'failed'],
             # Add more resource types as needed
         }
 
@@ -1048,6 +1050,9 @@ class KubernetesClient:
 
             if resource_type_lower in ['deployment', 'deployments']:
                 return self._check_deployment_condition(resource_name, condition_type, namespace, wait_all)
+            
+            if resource_type_lower in ['job', 'jobs']:
+                return self._check_job_condition(resource_name, condition_type, namespace, wait_all)
 
             logger.warning(f"Unsupported resource type for condition checking: {resource_type}")
             return False
@@ -1094,6 +1099,47 @@ class KubernetesClient:
         if condition_type_lower == 'ready':
             return (deployment.status.ready_replicas == deployment.status.replicas and
                     deployment.status.replicas > 0)
+
+        return False
+
+    def _check_job_condition(self, resource_name: str, condition_type: str, namespace: str, wait_all: bool) -> bool:
+        """Check job condition ('complete' or 'failed')."""
+        try:
+            if wait_all or not resource_name:
+                jobs = self.batch.list_namespaced_job(namespace=namespace).items
+            else:
+                job = self.batch.read_namespaced_job(name=resource_name, namespace=namespace)
+                jobs = [job]
+
+            for job in jobs:
+                if not self._is_job_condition_met(job, condition_type):
+                    return False
+
+            return True
+
+        except client.rest.ApiException as e:
+            if e.status == 404:
+                logger.debug("Job not found, waiting...")
+                return False
+            raise e
+
+    def _is_job_condition_met(self, job, condition_type: str) -> bool:
+        """Check if a job meets the specified condition."""
+        if not job.status:
+            return False
+
+        condition_type_lower = condition_type.lower()
+
+        if condition_type_lower == 'complete':
+            return bool(job.status.completion_time and job.status.succeeded and job.status.succeeded > 0)
+
+        if condition_type_lower == 'failed':
+            return bool(job.status.failed and job.status.failed > 0 and not job.status.active)
+
+        if job.status.conditions:
+            for condition in job.status.conditions:
+                if condition.type.lower() == condition_type_lower and condition.status == "True":
+                    return True
 
         return False
 
@@ -1159,6 +1205,8 @@ class KubernetesClient:
                 self.app.create_namespaced_daemon_set(namespace=namespace, body=manifest)
             elif kind == "StatefulSet":
                 self.app.create_namespaced_stateful_set(namespace=namespace, body=manifest)
+            elif kind == "Job":
+                self.batch.create_namespaced_job(namespace=namespace, body=manifest)
             elif kind == "Service":
                 self.api.create_namespaced_service(namespace=namespace, body=manifest)
             elif kind == "ConfigMap":
@@ -1313,6 +1361,11 @@ class KubernetesClient:
                     self.app.patch_namespaced_stateful_set(name=name, namespace=namespace, body=manifest)
                 else:
                     raise ValueError("StatefulSet requires a namespace")
+            elif kind == "Job":
+                if namespace:
+                    self.batch.patch_namespaced_job(name=name, namespace=namespace, body=manifest)
+                else:
+                    raise ValueError("Job requires a namespace")
             elif kind == "Service":
                 if namespace:
                     self.api.patch_namespaced_service(name=name, namespace=namespace, body=manifest)
@@ -1494,6 +1547,11 @@ class KubernetesClient:
                     self.app.delete_namespaced_stateful_set(name=resource_name, namespace=namespace, body=delete_options)
                 else:
                     raise ValueError("StatefulSet requires a namespace")
+            elif kind == "Job":
+                if namespace:
+                    self.batch.delete_namespaced_job(name=resource_name, namespace=namespace, body=delete_options)
+                else:
+                    raise ValueError("Job requires a namespace")
             elif kind == "Service":
                 if namespace:
                     self.api.delete_namespaced_service(name=resource_name, namespace=namespace, body=delete_options)
