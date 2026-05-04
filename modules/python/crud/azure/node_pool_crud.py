@@ -389,3 +389,121 @@ class NodePoolCRUD:
         except Exception as e:
             logger.error("Failed to create deployments: %s", e)
             return False
+
+    def create_statefulset(
+            self,
+            node_pool_name,
+            replicas=10,
+            manifest_dir=None,
+            number_of_statefulsets=1,
+            label_selector="app=nginx-container",
+            namespace="default"
+    ):
+        """
+        Create Kubernetes StatefulSets after node pool operations.
+
+        Args:
+            node_pool_name: Name of the node pool to target
+            namespace: Kubernetes namespace (default: "default")
+            replicas: Number of replicas for the StatefulSet (default: 10)
+            manifest_dir: Directory containing Kubernetes manifest files
+            number_of_statefulsets: Number of StatefulSets to create (default: 1)
+            label_selector: Label selector for pods (default: "app=nginx-container")
+
+        Returns:
+            True if all StatefulSet creations were successful, False otherwise
+        """
+        logger.info("Creating %d StatefulSet(s)", number_of_statefulsets)
+        logger.info("Target node pool: %s", node_pool_name)
+        logger.info("Replicas per StatefulSet: %d", replicas)
+        logger.info("Using manifest directory: %s", manifest_dir)
+
+        try:
+            # Get Kubernetes client from AKS client
+            k8s_client = self.aks_client.k8s_client
+
+            if not k8s_client:
+                logger.error("Kubernetes client not available")
+                return False
+
+            successful_statefulsets = 0
+
+            # Loop through number of StatefulSets
+            for statefulset_index in range(1, number_of_statefulsets + 1):
+                logger.info("Creating StatefulSet %d/%d", statefulset_index, number_of_statefulsets)
+
+                try:
+                    if manifest_dir:
+                        # Use the template path from manifest_dir
+                        template_path = f"{manifest_dir}/statefulset.yml"
+                    else:
+                        # Use default template path
+                        template_path = "modules/python/crud/workload_templates/statefulset.yml"
+
+                    # Generate StatefulSet name
+                    statefulset_name = f"myapp-{node_pool_name}-{statefulset_index}"
+
+                    # Create StatefulSet template using k8s_client.create_template
+                    statefulset_template = k8s_client.create_template(
+                        template_path,
+                        {
+                            "STATEFULSET_REPLICAS": replicas,
+                            "NODE_POOL_NAME": node_pool_name,
+                            "INDEX": statefulset_index,
+                            "LABEL_VALUE": label_selector.split("=", 1)[-1],
+                        }
+                    )
+
+                    # Apply each document in the rendered multi-doc template
+                    for doc in yaml.safe_load_all(statefulset_template):
+                        if doc:
+                            k8s_client.apply_manifest_from_file(manifest_dict=doc)
+
+                    logger.info("Applied manifest for StatefulSet %s", statefulset_name)
+
+                    # Wait for statefulset to be ready (successful statefulset verification)
+                    logger.info("Waiting for StatefulSet %s to become ready...", statefulset_name)
+                    statefulset_ready = k8s_client.wait_for_condition(
+                        resource_type="statefulset",
+                        wait_condition_type="ready",
+                        resource_name=statefulset_name,
+                        namespace=namespace,
+                        timeout_seconds=self.step_timeout
+                    )
+
+                    if statefulset_ready:
+                        logger.info("StatefulSet %s is successfully ready", statefulset_name)
+
+                        # Additionally wait for pods to be ready
+                        logger.info("Waiting for pods of StatefulSet %s to be ready...", statefulset_name)
+                        k8s_client.wait_for_pods_ready(
+                            operation_timeout_in_minutes=5,
+                            namespace=namespace,
+                            pod_count=replicas,
+                            label_selector=label_selector
+                        )
+
+                        logger.info("Successfully created and verified StatefulSet %d", statefulset_index)
+                        successful_statefulsets += 1
+                    else:
+                        logger.error("StatefulSet %s failed to become ready within timeout", statefulset_name)
+                        continue
+
+                except Exception as e:
+                    logger.error("Failed to create StatefulSet %d: %s", statefulset_index, e)
+                    # Continue with next StatefulSet instead of failing completely
+                    continue
+
+            # Check if all StatefulSets were successful
+            if successful_statefulsets == number_of_statefulsets:
+                logger.info("Successfully created all %d StatefulSet(s)", number_of_statefulsets)
+                return True
+            if successful_statefulsets > 0:
+                logger.warning("Created %d/%d StatefulSet(s)", successful_statefulsets, number_of_statefulsets)
+                return False
+            logger.error("Failed to create any StatefulSets")
+            return False
+
+        except Exception as e:
+            logger.error("Failed to create StatefulSets: %s", e)
+            return False

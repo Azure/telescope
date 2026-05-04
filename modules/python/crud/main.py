@@ -162,6 +162,15 @@ def handle_workload_operations(node_pool_crud, args):
             }
 
             result = node_pool_crud.create_deployment(**deploy_kwargs)
+        elif command == "statefulset":
+            # Prepare statefulset arguments
+            statefulset_kwargs = {
+                "node_pool_name": args.node_pool_name,
+                "replicas": args.replicas,
+                "manifest_dir": args.manifest_dir,
+                "number_of_statefulsets": args.number_of_statefulsets,
+            }
+            result = node_pool_crud.create_statefulset(**statefulset_kwargs)
         else:
             logger.error("Unknown workload command: '%s'", command)
             return 1
@@ -371,6 +380,30 @@ def main():
     )
 
     deployment_parser.set_defaults(func=handle_workload_operations)
+
+    # StatefulSet command - add after the "deployment" command parser
+    statefulset_parser = subparsers.add_parser(
+        "statefulset", parents=[common_parser], help="create statefulsets"
+    )
+    statefulset_parser.add_argument("--node-pool-name", required=True, help="Node pool name")
+    statefulset_parser.add_argument(
+        "--number-of-statefulsets",
+        type=int,
+        default=1,
+        help="Number of statefulsets"
+    )
+    statefulset_parser.add_argument(
+        "--replicas",
+        type=int,
+        default=10,
+        help="Number of statefulset replicas"
+    )
+    statefulset_parser.add_argument(
+        "--manifest-dir",
+        required=True,
+        help="Directory containing Kubernetes manifest files for the statefulset"
+    )
+    statefulset_parser.set_defaults(func=handle_workload_operations)
 
     # Arguments provided, run node pool operations and collect benchmark results
     try:
