@@ -122,8 +122,33 @@ steps:
 
         if [ "$cl2_passed" -eq 1 ]; then
           echo "  $role: CL2 run succeeded"
+        fi
+
+        # ============== METRIC-NAMES-PROBE (REMOVE ONCE QUERY NAMES VALIDATED) ===
+        # One-off diagnostic: list every metric name Prometheus has actually
+        # ingested matching cilium_kvstore* / cilium_kvstoremesh* /
+        # container_fs_*. Our clustermesh-metrics queries return "no samples"
+        # for the kvstore-prefixed ones — this output tells us whether the
+        # metric exists under a different name (e.g. cilium_kvstoremesh_*),
+        # is exposed by a different scrape target, or simply isn't emitted
+        # by AKS-managed Cilium 1.18 at all. Once we update the queries with
+        # the right names, delete this probe block.
+        echo "------- $role: PROMETHEUS METRIC-NAMES PROBE -------"
+        prom_pod=$(KUBECONFIG="$kubeconfig" kubectl -n monitoring get pod -l app.kubernetes.io/name=prometheus -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+        if [ -n "${prom_pod:-}" ]; then
+          for prefix in cilium_kvstore cilium_kvstoremesh container_fs; do
+            echo "------- metrics matching ${prefix}* -------"
+            KUBECONFIG="$kubeconfig" kubectl -n monitoring exec "$prom_pod" -c prometheus -- \
+              wget -qO- "http://localhost:9090/api/v1/label/__name__/values" 2>/dev/null \
+              | grep -oE "\"${prefix}[a-z_]+\"" | sort -u || true
+          done
         else
-          # ============== CL2-FAILURE-DEBUG-DUMP (REMOVE BEFORE MERGE) ==============
+          echo "no prometheus pod found"
+        fi
+        echo "------- end METRIC-NAMES PROBE -------"
+        # =========================== END METRIC-NAMES-PROBE =====================
+
+        if [ "$cl2_passed" -ne 1 ]; then
           # Dump enough state to distinguish prometheus-stack scheduling
           # failures from CL2 logic failures. Prometheus is the most common
           # culprit here — its pod requests 10Gi by default, doesn't fit on
@@ -155,7 +180,6 @@ steps:
           echo "------- monitoring namespace events (recent) -------"
           KUBECONFIG="$kubeconfig" kubectl -n monitoring get events --sort-by='.lastTimestamp' 2>&1 | tail -30 || true
           echo "------- end CL2 FAILURE DIAG -------"
-          # =========================== END CL2-FAILURE-DEBUG-DUMP ===========================
 
           echo "##vso[task.logissue type=warning;] $role: CL2 run failed (junit missing or has failures/errors at $report_dir/junit.xml; continuing other clusters)"
           failures=$((failures + 1))
