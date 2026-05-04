@@ -66,7 +66,6 @@ output = ap.Pipeline {
     name = "Hyperscale API Server Executing Seats"
 
     trigger =  ["v2"]
-    parameters = []
 
     jobs = [
         job.Job {

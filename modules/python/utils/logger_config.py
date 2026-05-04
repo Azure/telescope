@@ -16,7 +16,7 @@ class AzureDevOpsFormatter(logging.Formatter):
         # Then add the VSO prefix at the start
         return f"{vso_prefix}{formatted_msg}"
 
-def setup_logging():
+def setup_logging(level="INFO"):
     root_logger = logging.getLogger()
     # Clear any existing handlers
     root_logger.handlers = []
