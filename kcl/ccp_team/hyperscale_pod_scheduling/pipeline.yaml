@@ -7,300 +7,901 @@ parameters:
   displayName: Run ID (leave empty to auto-generate)
   type: string
   default: default
-jobs:
-- job: benchmarking
-  displayName: Benchmarking
-  timeoutInMinutes: 1440
-  steps:
-  - bash: |2
+stages:
+- stage: H2
+  displayName: H2
+  jobs:
+  - job: benchmarking
+    displayName: Benchmarking
+    timeoutInMinutes: 1440
+    steps:
+    - bash: |2
 
-      set -exo pipefail
-      if [ -n "$RUN_ID" ] && [ "$RUN_ID" != "default" ]; then
-        echo "Using provided Run ID: $RUN_ID"
-      else
-        job_id="$(System.JobId)"
-        RUN_ID=$(Build.BuildId)-${job_id:0:8}
-        echo "Run ID: $RUN_ID"
-      fi
-      echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
-    displayName: Set Run ID
-    env:
-      RUN_ID: ${{ parameters.run_id }}
-  - bash: |-
-      set -exo pipefail
-      pip3 install --upgrade "pip<24"
-      pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
-    displayName: Install Python dependencies
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
         set -exo pipefail
-
-        az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
-        az config set defaults.location="southeastasia"
-        az account show
-    displayName: Login to Azure
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
+        if [ -n "$RUN_ID" ] && [ "$RUN_ID" != "default" ]; then
+          echo "Using provided Run ID: $RUN_ID"
+        else
+          job_id="$(System.JobId)"
+          RUN_ID=$(Build.BuildId)-${job_id:0:8}
+          echo "Run ID: $RUN_ID"
+        fi
+        echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
+      displayName: Set Run ID
+      env:
+        RUN_ID: ${{ parameters.run_id }}
+    - bash: |-
         set -exo pipefail
+        pip3 install --upgrade "pip<24"
+        pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
+      displayName: Install Python dependencies
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
 
-        az group create --name "$(RUN_ID)" --location "southeastasia" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
-    displayName: Create resource group $(RUN_ID) in southeastasia (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
+          az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+          az config set defaults.location="southeastasia"
+          az account show
+      displayName: Login to Azure
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
 
-        az rest \
-          --method put \
-          --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/stg-H2-hyperscale-pod-scheduling-rate?api-version=2026-01-02-preview" \
-          --body "
-        {
-            \"location\": \"southeastasia\",
-            \"identity\": { \"type\": \"SystemAssigned\" },
-            \"sku\": {
-              \"name\": \"Base\",
-              \"tier\": \"Standard\"
-            },
-            \"tags\": {
-              \"SkipAKSCluster\": \"true\",
-              \"SkipASMAzSecPackAutoConfig\": \"true\",
-              \"SkipLinuxAzSecPack\": \"true\"
-            },
-            \"properties\": {
-              \"controlPlaneScalingProfile\": {\"scalingSize\": \"H2\"},
-              \"kubernetesVersion\": \"1.33.0\",
-              \"dnsPrefix\": \"stg-H2-hyperscale-pod-scheduling-rate-dns\",
-              \"agentPoolProfiles\": [
-                {
-                  \"name\": \"systempool\",
-                  \"mode\": \"System\",
-                  \"count\": 3,
-                  \"vmSize\": \"Standard_D8S_v4\",
-                  \"osType\": \"Linux\",
-                  \"maxPods\": 250
-                }
-              ],
-            \"networkProfile\": {
-               \"networkPlugin\": \"azure\",
-               \"networkPluginMode\": \"overlay\",
-               \"podCidr\": \"10.64.0.0/10\",
-               \"serviceCidr\": \"10.0.0.0/16\",
-               \"dnsServiceIP\": \"10.0.0.10\",
-               \"outboundType\": \"managedNATGateway\",
-               \"natGatewayProfile\": {
-                  \"managedOutboundIPProfile\": {
-                    \"count\": 10
+          az group create --name "$(RUN_ID)" --location "southeastasia" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+      displayName: Create resource group $(RUN_ID) in southeastasia (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az rest \
+            --method put \
+            --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/stg-H2-hyperscale-pod-scheduling-rate?api-version=2026-01-02-preview" \
+            --body "
+          {
+              \"location\": \"southeastasia\",
+              \"identity\": { \"type\": \"SystemAssigned\" },
+              \"sku\": {
+                \"name\": \"Base\",
+                \"tier\": \"Standard\"
+              },
+              \"tags\": {
+                \"SkipAKSCluster\": \"true\",
+                \"SkipASMAzSecPackAutoConfig\": \"true\",
+                \"SkipLinuxAzSecPack\": \"true\"
+              },
+              \"properties\": {
+                \"controlPlaneScalingProfile\": {\"scalingSize\": \"H2\"},
+                \"kubernetesVersion\": \"1.33.0\",
+                \"dnsPrefix\": \"stg-H2-hyperscale-pod-scheduling-rate-dns\",
+                \"agentPoolProfiles\": [
+                  {
+                    \"name\": \"systempool\",
+                    \"mode\": \"System\",
+                    \"count\": 3,
+                    \"vmSize\": \"Standard_D8S_v4\",
+                    \"osType\": \"Linux\",
+                    \"maxPods\": 250
+                  }
+                ],
+              \"networkProfile\": {
+                 \"networkPlugin\": \"azure\",
+                 \"networkPluginMode\": \"overlay\",
+                 \"podCidr\": \"10.64.0.0/10\",
+                 \"serviceCidr\": \"10.0.0.0/16\",
+                 \"dnsServiceIP\": \"10.0.0.10\",
+                 \"outboundType\": \"managedNATGateway\",
+                 \"natGatewayProfile\": {
+                    \"managedOutboundIPProfile\": {
+                      \"count\": 10
+                    }
                   }
                 }
               }
-            }
-          }"
-    displayName: Create cluster
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
+            }"
+      displayName: Create cluster
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
 
-        while true; do
-          STATE=$(az aks show \
+          while true; do
+            STATE=$(az aks show \
+              --name "stg-H2-hyperscale-pod-scheduling-rate" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --query "provisioningState" \
+              --output tsv)
+            echo "Cluster provisioning state: $STATE"
+            if [ "$STATE" = "Succeeded" ]; then
+              echo "Cluster is ready."
+              break
+            elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+              echo "Cluster failed with state: $STATE."
+              exit 1
+            else
+              echo "Provisioning state: $STATE. Retry in 30 seconds"
+            fi
+            sleep 30
+          done
+      displayName: Wait for cluster to succeed
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: "set -exo pipefail\n\naz aks nodepool add \\\n  --cluster-name \"stg-H2-hyperscale-pod-scheduling-rate\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"cl2pool\" \\\n  --node-count 1 \\\n  --node-vm-size \"Standard_D8S_v4\" \\\n  --mode User \\\n  --node-taints cl2pool=true:NoSchedule \\\n  \n"
+      displayName: Create node pool cl2pool
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          while true; do
+            STATE=$(az aks nodepool show \
+              --cluster-name "stg-H2-hyperscale-pod-scheduling-rate" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --name "cl2pool" \
+              --query "provisioningState" \
+              --output tsv)
+            echo "Node pool provisioning state: $STATE"
+            if [ "$STATE" = "Succeeded" ]; then
+              echo "Node pool is ready."
+              break
+            elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+              echo "Node pool failed with state: $STATE."
+              exit 1
+            else
+              echo "Provisioning state: $STATE. Retry in 30 seconds"
+            fi
+            sleep 30
+          done
+      displayName: Wait for node pool cl2pool to succeed
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az aks get-credentials \
             --name "stg-H2-hyperscale-pod-scheduling-rate" \
             --resource-group "$(RUN_ID)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-            --query "provisioningState" \
-            --output tsv)
-          echo "Cluster provisioning state: $STATE"
-          if [ "$STATE" = "Succeeded" ]; then
-            echo "Cluster is ready."
-            break
-          elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
-            echo "Cluster failed with state: $STATE."
-            exit 1
-          else
-            echo "Provisioning state: $STATE. Retry in 30 seconds"
-          fi
-          sleep 30
-        done
-    displayName: Wait for cluster to succeed
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: "set -exo pipefail\n\naz aks nodepool add \\\n  --cluster-name \"stg-H2-hyperscale-pod-scheduling-rate\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"cl2pool\" \\\n  --node-count 1 \\\n  --node-vm-size \"Standard_D8S_v4\" \\\n  --mode User \\\n  --node-taints cl2pool=true:NoSchedule \\\n  \n"
-    displayName: Create node pool cl2pool
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
+            --overwrite-existing
+      displayName: Get credentials for stg-H2-hyperscale-pod-scheduling-rate
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
 
-        while true; do
-          STATE=$(az aks nodepool show \
-            --cluster-name "stg-H2-hyperscale-pod-scheduling-rate" \
-            --resource-group "$(RUN_ID)" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-            --name "cl2pool" \
-            --query "provisioningState" \
-            --output tsv)
-          echo "Node pool provisioning state: $STATE"
-          if [ "$STATE" = "Succeeded" ]; then
-            echo "Node pool is ready."
-            break
-          elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
-            echo "Node pool failed with state: $STATE."
-            exit 1
-          else
-            echo "Provisioning state: $STATE. Retry in 30 seconds"
-          fi
-          sleep 30
-        done
-    displayName: Wait for node pool cl2pool to succeed
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        az aks get-credentials \
-          --name "stg-H2-hyperscale-pod-scheduling-rate" \
-          --resource-group "$(RUN_ID)" \
-          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-          --overwrite-existing
-    displayName: Get credentials for stg-H2-hyperscale-pod-scheduling-rate
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        az aks nodepool add \
-          --cluster-name "stg-H2-hyperscale-pod-scheduling-rate" \
-          --resource-group "$(RUN_ID)" \
-          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-          --name "kwokpool" \
-          --node-count 20 \
-          --node-vm-size "Standard_D4_v3" \
-          --mode User \
-          --node-taints kwok=true:NoSchedule \
-          --labels "kwok=true"
-    displayName: Create node pool kwokpool
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        while true; do
-          STATE=$(az aks nodepool show \
+          az aks nodepool add \
             --cluster-name "stg-H2-hyperscale-pod-scheduling-rate" \
             --resource-group "$(RUN_ID)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --name "kwokpool" \
-            --query "provisioningState" \
-            --output tsv)
-          echo "Node pool provisioning state: $STATE"
-          if [ "$STATE" = "Succeeded" ]; then
-            echo "Node pool is ready."
-            break
-          elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
-            echo "Node pool failed with state: $STATE."
-            exit 1
-          else
-            echo "Provisioning state: $STATE. Retry in 30 seconds"
-          fi
-          sleep 30
-        done
-    displayName: Wait for node pool kwokpool to succeed
-  - script: |2-
+            --node-count 20 \
+            --node-vm-size "Standard_D4_v3" \
+            --mode User \
+            --node-taints kwok=true:NoSchedule \
+            --labels "kwok=true"
+      displayName: Create node pool kwokpool
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
 
-      set -exo pipefail
-      export PYTHONPATH=$PYTHONPATH:$(pwd)
-      python3 kwok/kwok.py   --action create   --node-count 2000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100
-      python3 kwok/kwok.py   --action validate   --node-count 2000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100
-    workingDirectory: modules/python
-    displayName: Create and Validate KWOK Nodes
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
+          while true; do
+            STATE=$(az aks nodepool show \
+              --cluster-name "stg-H2-hyperscale-pod-scheduling-rate" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --name "kwokpool" \
+              --query "provisioningState" \
+              --output tsv)
+            echo "Node pool provisioning state: $STATE"
+            if [ "$STATE" = "Succeeded" ]; then
+              echo "Node pool is ready."
+              break
+            elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+              echo "Node pool failed with state: $STATE."
+              exit 1
+            else
+              echo "Provisioning state: $STATE. Retry in 30 seconds"
+            fi
+            sleep 30
+          done
+      displayName: Wait for node pool kwokpool to succeed
+    - script: |2-
+
         set -exo pipefail
+        export PYTHONPATH=$PYTHONPATH:$(pwd)
+        python3 kwok/kwok.py   --action create   --node-count 2000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100
+        python3 kwok/kwok.py   --action validate   --node-count 2000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100
+      workingDirectory: modules/python
+      displayName: Create and Validate KWOK Nodes
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
 
-        kubectl create namespace "clusterloader2" || true
-        kubectl apply -f $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/cl2.yaml
-        # Wait
-        while true; do
-          phases="$(kubectl get pods --namespace="clusterloader2" -o jsonpath='{range .items[*]}{.status.phase}{"\n"}{end}')"
-          total=0
-          terminal=0
+          kubectl create namespace "clusterloader2" || true
+          kubectl apply -f $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/cl2-h2.yaml
+          # Wait
+          while true; do
+            phases="$(kubectl get pods --namespace="clusterloader2" -o jsonpath='{range .items[*]}{.status.phase}{"\n"}{end}')"
+            total=0
+            terminal=0
 
-          if [ -n "$phases" ]; then
-            while IFS= read -r phase; do
-              if [ -z "$phase" ]; then
-                continue
-              fi
+            if [ -n "$phases" ]; then
+              while IFS= read -r phase; do
+                if [ -z "$phase" ]; then
+                  continue
+                fi
 
-              total=$((total + 1))
-              if [ "$phase" = "Succeeded" ] || [ "$phase" = "Failed" ]; then
-                terminal=$((terminal + 1))
-              fi
-            done <<< "$phases"
-          fi
+                total=$((total + 1))
+                if [ "$phase" = "Succeeded" ] || [ "$phase" = "Failed" ]; then
+                  terminal=$((terminal + 1))
+                fi
+              done <<< "$phases"
+            fi
 
-          if [ "$total" -gt 0 ] && [ "$terminal" -eq "$total" ]; then
-            echo "All cl2 pods reached terminal state (Succeeded or Failed)"
-            kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o wide
+            if [ "$total" -gt 0 ] && [ "$terminal" -eq "$total" ]; then
+              echo "All cl2 pods reached terminal state (Succeeded or Failed)"
+              kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o wide
 
-            break
-          fi
+              break
+            fi
 
-          sleep 30
-        done
-    displayName: Run cluster loader 2
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
+            sleep 30
+          done
+      displayName: Run cluster loader 2
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          for pod in $(kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o jsonpath='{.items[*].metadata.name}'); do
+            echo "===== Logs for pod: $pod ====="
+            kubectl logs --namespace="clusterloader2" "$pod" || true
+          done
+      displayName: Print cl2 pod logs
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+      condition: always()
+      displayName: Delete resource group $(RUN_ID) (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+- stage: H4
+  displayName: H4
+  jobs:
+  - job: benchmarking
+    displayName: Benchmarking
+    timeoutInMinutes: 1440
+    steps:
+    - bash: |2
+
         set -exo pipefail
-
-        for pod in $(kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o jsonpath='{.items[*].metadata.name}'); do
-          echo "===== Logs for pod: $pod ====="
-          kubectl logs --namespace="clusterloader2" "$pod" || true
-        done
-    displayName: Print cl2 pod logs
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
+        if [ -n "$RUN_ID" ] && [ "$RUN_ID" != "default" ]; then
+          echo "Using provided Run ID: $RUN_ID"
+        else
+          job_id="$(System.JobId)"
+          RUN_ID=$(Build.BuildId)-${job_id:0:8}
+          echo "Run ID: $RUN_ID"
+        fi
+        echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
+      displayName: Set Run ID
+      env:
+        RUN_ID: ${{ parameters.run_id }}
+    - bash: |-
         set -exo pipefail
+        pip3 install --upgrade "pip<24"
+        pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
+      displayName: Install Python dependencies
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
 
-        az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
-    condition: always()
-    displayName: Delete resource group $(RUN_ID) (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+          az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+          az config set defaults.location="southeastasia"
+          az account show
+      displayName: Login to Azure
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az group create --name "$(RUN_ID)" --location "southeastasia" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+      displayName: Create resource group $(RUN_ID) in southeastasia (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az rest \
+            --method put \
+            --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/stg-H4-hyperscale-pod-scheduling-rate?api-version=2026-01-02-preview" \
+            --body "
+          {
+              \"location\": \"southeastasia\",
+              \"identity\": { \"type\": \"SystemAssigned\" },
+              \"sku\": {
+                \"name\": \"Base\",
+                \"tier\": \"Standard\"
+              },
+              \"tags\": {
+                \"SkipAKSCluster\": \"true\",
+                \"SkipASMAzSecPackAutoConfig\": \"true\",
+                \"SkipLinuxAzSecPack\": \"true\"
+              },
+              \"properties\": {
+                \"controlPlaneScalingProfile\": {\"scalingSize\": \"H4\"},
+                \"kubernetesVersion\": \"1.33.0\",
+                \"dnsPrefix\": \"stg-H4-hyperscale-pod-scheduling-rate-dns\",
+                \"agentPoolProfiles\": [
+                  {
+                    \"name\": \"systempool\",
+                    \"mode\": \"System\",
+                    \"count\": 3,
+                    \"vmSize\": \"Standard_D8S_v4\",
+                    \"osType\": \"Linux\",
+                    \"maxPods\": 250
+                  }
+                ],
+              \"networkProfile\": {
+                 \"networkPlugin\": \"azure\",
+                 \"networkPluginMode\": \"overlay\",
+                 \"podCidr\": \"10.64.0.0/10\",
+                 \"serviceCidr\": \"10.0.0.0/16\",
+                 \"dnsServiceIP\": \"10.0.0.10\",
+                 \"outboundType\": \"managedNATGateway\",
+                 \"natGatewayProfile\": {
+                    \"managedOutboundIPProfile\": {
+                      \"count\": 10
+                    }
+                  }
+                }
+              }
+            }"
+      displayName: Create cluster
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          while true; do
+            STATE=$(az aks show \
+              --name "stg-H4-hyperscale-pod-scheduling-rate" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --query "provisioningState" \
+              --output tsv)
+            echo "Cluster provisioning state: $STATE"
+            if [ "$STATE" = "Succeeded" ]; then
+              echo "Cluster is ready."
+              break
+            elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+              echo "Cluster failed with state: $STATE."
+              exit 1
+            else
+              echo "Provisioning state: $STATE. Retry in 30 seconds"
+            fi
+            sleep 30
+          done
+      displayName: Wait for cluster to succeed
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: "set -exo pipefail\n\naz aks nodepool add \\\n  --cluster-name \"stg-H4-hyperscale-pod-scheduling-rate\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"cl2pool\" \\\n  --node-count 1 \\\n  --node-vm-size \"Standard_D8S_v4\" \\\n  --mode User \\\n  --node-taints cl2pool=true:NoSchedule \\\n  \n"
+      displayName: Create node pool cl2pool
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          while true; do
+            STATE=$(az aks nodepool show \
+              --cluster-name "stg-H4-hyperscale-pod-scheduling-rate" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --name "cl2pool" \
+              --query "provisioningState" \
+              --output tsv)
+            echo "Node pool provisioning state: $STATE"
+            if [ "$STATE" = "Succeeded" ]; then
+              echo "Node pool is ready."
+              break
+            elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+              echo "Node pool failed with state: $STATE."
+              exit 1
+            else
+              echo "Provisioning state: $STATE. Retry in 30 seconds"
+            fi
+            sleep 30
+          done
+      displayName: Wait for node pool cl2pool to succeed
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az aks get-credentials \
+            --name "stg-H4-hyperscale-pod-scheduling-rate" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --overwrite-existing
+      displayName: Get credentials for stg-H4-hyperscale-pod-scheduling-rate
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az aks nodepool add \
+            --cluster-name "stg-H4-hyperscale-pod-scheduling-rate" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --name "kwokpool" \
+            --node-count 20 \
+            --node-vm-size "Standard_D4_v3" \
+            --mode User \
+            --node-taints kwok=true:NoSchedule \
+            --labels "kwok=true"
+      displayName: Create node pool kwokpool
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          while true; do
+            STATE=$(az aks nodepool show \
+              --cluster-name "stg-H4-hyperscale-pod-scheduling-rate" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --name "kwokpool" \
+              --query "provisioningState" \
+              --output tsv)
+            echo "Node pool provisioning state: $STATE"
+            if [ "$STATE" = "Succeeded" ]; then
+              echo "Node pool is ready."
+              break
+            elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+              echo "Node pool failed with state: $STATE."
+              exit 1
+            else
+              echo "Provisioning state: $STATE. Retry in 30 seconds"
+            fi
+            sleep 30
+          done
+      displayName: Wait for node pool kwokpool to succeed
+    - script: |2-
+
+        set -exo pipefail
+        export PYTHONPATH=$PYTHONPATH:$(pwd)
+        python3 kwok/kwok.py   --action create   --node-count 2000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100
+        python3 kwok/kwok.py   --action validate   --node-count 2000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100
+      workingDirectory: modules/python
+      displayName: Create and Validate KWOK Nodes
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          kubectl create namespace "clusterloader2" || true
+          kubectl apply -f $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/cl2-h4.yaml
+          # Wait
+          while true; do
+            phases="$(kubectl get pods --namespace="clusterloader2" -o jsonpath='{range .items[*]}{.status.phase}{"\n"}{end}')"
+            total=0
+            terminal=0
+
+            if [ -n "$phases" ]; then
+              while IFS= read -r phase; do
+                if [ -z "$phase" ]; then
+                  continue
+                fi
+
+                total=$((total + 1))
+                if [ "$phase" = "Succeeded" ] || [ "$phase" = "Failed" ]; then
+                  terminal=$((terminal + 1))
+                fi
+              done <<< "$phases"
+            fi
+
+            if [ "$total" -gt 0 ] && [ "$terminal" -eq "$total" ]; then
+              echo "All cl2 pods reached terminal state (Succeeded or Failed)"
+              kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o wide
+
+              break
+            fi
+
+            sleep 30
+          done
+      displayName: Run cluster loader 2
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          for pod in $(kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o jsonpath='{.items[*].metadata.name}'); do
+            echo "===== Logs for pod: $pod ====="
+            kubectl logs --namespace="clusterloader2" "$pod" || true
+          done
+      displayName: Print cl2 pod logs
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+      condition: always()
+      displayName: Delete resource group $(RUN_ID) (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+- stage: H8
+  displayName: H8
+  jobs:
+  - job: benchmarking
+    displayName: Benchmarking
+    timeoutInMinutes: 1440
+    steps:
+    - bash: |2
+
+        set -exo pipefail
+        if [ -n "$RUN_ID" ] && [ "$RUN_ID" != "default" ]; then
+          echo "Using provided Run ID: $RUN_ID"
+        else
+          job_id="$(System.JobId)"
+          RUN_ID=$(Build.BuildId)-${job_id:0:8}
+          echo "Run ID: $RUN_ID"
+        fi
+        echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
+      displayName: Set Run ID
+      env:
+        RUN_ID: ${{ parameters.run_id }}
+    - bash: |-
+        set -exo pipefail
+        pip3 install --upgrade "pip<24"
+        pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
+      displayName: Install Python dependencies
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+          az config set defaults.location="southeastasia"
+          az account show
+      displayName: Login to Azure
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az group create --name "$(RUN_ID)" --location "southeastasia" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+      displayName: Create resource group $(RUN_ID) in southeastasia (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az rest \
+            --method put \
+            --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/stg-H8-hyperscale-pod-scheduling-rate?api-version=2026-01-02-preview" \
+            --body "
+          {
+              \"location\": \"southeastasia\",
+              \"identity\": { \"type\": \"SystemAssigned\" },
+              \"sku\": {
+                \"name\": \"Base\",
+                \"tier\": \"Standard\"
+              },
+              \"tags\": {
+                \"SkipAKSCluster\": \"true\",
+                \"SkipASMAzSecPackAutoConfig\": \"true\",
+                \"SkipLinuxAzSecPack\": \"true\"
+              },
+              \"properties\": {
+                \"controlPlaneScalingProfile\": {\"scalingSize\": \"H8\"},
+                \"kubernetesVersion\": \"1.33.0\",
+                \"dnsPrefix\": \"stg-H8-hyperscale-pod-scheduling-rate-dns\",
+                \"agentPoolProfiles\": [
+                  {
+                    \"name\": \"systempool\",
+                    \"mode\": \"System\",
+                    \"count\": 3,
+                    \"vmSize\": \"Standard_D8S_v4\",
+                    \"osType\": \"Linux\",
+                    \"maxPods\": 250
+                  }
+                ],
+              \"networkProfile\": {
+                 \"networkPlugin\": \"azure\",
+                 \"networkPluginMode\": \"overlay\",
+                 \"podCidr\": \"10.64.0.0/10\",
+                 \"serviceCidr\": \"10.0.0.0/16\",
+                 \"dnsServiceIP\": \"10.0.0.10\",
+                 \"outboundType\": \"managedNATGateway\",
+                 \"natGatewayProfile\": {
+                    \"managedOutboundIPProfile\": {
+                      \"count\": 10
+                    }
+                  }
+                }
+              }
+            }"
+      displayName: Create cluster
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          while true; do
+            STATE=$(az aks show \
+              --name "stg-H8-hyperscale-pod-scheduling-rate" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --query "provisioningState" \
+              --output tsv)
+            echo "Cluster provisioning state: $STATE"
+            if [ "$STATE" = "Succeeded" ]; then
+              echo "Cluster is ready."
+              break
+            elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+              echo "Cluster failed with state: $STATE."
+              exit 1
+            else
+              echo "Provisioning state: $STATE. Retry in 30 seconds"
+            fi
+            sleep 30
+          done
+      displayName: Wait for cluster to succeed
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: "set -exo pipefail\n\naz aks nodepool add \\\n  --cluster-name \"stg-H8-hyperscale-pod-scheduling-rate\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"cl2pool\" \\\n  --node-count 1 \\\n  --node-vm-size \"Standard_D8S_v4\" \\\n  --mode User \\\n  --node-taints cl2pool=true:NoSchedule \\\n  \n"
+      displayName: Create node pool cl2pool
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          while true; do
+            STATE=$(az aks nodepool show \
+              --cluster-name "stg-H8-hyperscale-pod-scheduling-rate" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --name "cl2pool" \
+              --query "provisioningState" \
+              --output tsv)
+            echo "Node pool provisioning state: $STATE"
+            if [ "$STATE" = "Succeeded" ]; then
+              echo "Node pool is ready."
+              break
+            elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+              echo "Node pool failed with state: $STATE."
+              exit 1
+            else
+              echo "Provisioning state: $STATE. Retry in 30 seconds"
+            fi
+            sleep 30
+          done
+      displayName: Wait for node pool cl2pool to succeed
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az aks get-credentials \
+            --name "stg-H8-hyperscale-pod-scheduling-rate" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --overwrite-existing
+      displayName: Get credentials for stg-H8-hyperscale-pod-scheduling-rate
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az aks nodepool add \
+            --cluster-name "stg-H8-hyperscale-pod-scheduling-rate" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --name "kwokpool" \
+            --node-count 20 \
+            --node-vm-size "Standard_D4_v3" \
+            --mode User \
+            --node-taints kwok=true:NoSchedule \
+            --labels "kwok=true"
+      displayName: Create node pool kwokpool
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          while true; do
+            STATE=$(az aks nodepool show \
+              --cluster-name "stg-H8-hyperscale-pod-scheduling-rate" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --name "kwokpool" \
+              --query "provisioningState" \
+              --output tsv)
+            echo "Node pool provisioning state: $STATE"
+            if [ "$STATE" = "Succeeded" ]; then
+              echo "Node pool is ready."
+              break
+            elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+              echo "Node pool failed with state: $STATE."
+              exit 1
+            else
+              echo "Provisioning state: $STATE. Retry in 30 seconds"
+            fi
+            sleep 30
+          done
+      displayName: Wait for node pool kwokpool to succeed
+    - script: |2-
+
+        set -exo pipefail
+        export PYTHONPATH=$PYTHONPATH:$(pwd)
+        python3 kwok/kwok.py   --action create   --node-count 2000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100
+        python3 kwok/kwok.py   --action validate   --node-count 2000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100
+      workingDirectory: modules/python
+      displayName: Create and Validate KWOK Nodes
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          kubectl create namespace "clusterloader2" || true
+          kubectl apply -f $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/cl2-h8.yaml
+          # Wait
+          while true; do
+            phases="$(kubectl get pods --namespace="clusterloader2" -o jsonpath='{range .items[*]}{.status.phase}{"\n"}{end}')"
+            total=0
+            terminal=0
+
+            if [ -n "$phases" ]; then
+              while IFS= read -r phase; do
+                if [ -z "$phase" ]; then
+                  continue
+                fi
+
+                total=$((total + 1))
+                if [ "$phase" = "Succeeded" ] || [ "$phase" = "Failed" ]; then
+                  terminal=$((terminal + 1))
+                fi
+              done <<< "$phases"
+            fi
+
+            if [ "$total" -gt 0 ] && [ "$terminal" -eq "$total" ]; then
+              echo "All cl2 pods reached terminal state (Succeeded or Failed)"
+              kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o wide
+
+              break
+            fi
+
+            sleep 30
+          done
+      displayName: Run cluster loader 2
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          for pod in $(kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o jsonpath='{.items[*].metadata.name}'); do
+            echo "===== Logs for pod: $pod ====="
+            kubectl logs --namespace="clusterloader2" "$pod" || true
+          done
+      displayName: Print cl2 pod logs
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+      condition: always()
+      displayName: Delete resource group $(RUN_ID) (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
