@@ -3407,6 +3407,77 @@ spec:
                     )
                     self.assertTrue(result)
 
+    @patch('time.time')
+    def test_wait_for_condition_statefulset_success(self, mock_time):
+        """Test wait_for_condition for statefulset - success case"""
+        mock_time.side_effect = [0, 0, 1, 2, 2]
+
+        mock_statefulset = MagicMock()
+        mock_statefulset.spec.replicas = 3
+        mock_statefulset.status.ready_replicas = 3
+
+        with patch.object(self.client, 'app') as mock_app, \
+             patch('time.sleep'):
+            mock_app.read_namespaced_stateful_set.return_value = mock_statefulset
+
+            result = self.client.wait_for_condition(
+                resource_type="statefulset",
+                resource_name="test-statefulset",
+                wait_condition_type="ready",
+                namespace="test-namespace",
+                timeout_seconds=5
+            )
+
+            self.assertTrue(result)
+            mock_app.read_namespaced_stateful_set.assert_called_with(
+                name="test-statefulset",
+                namespace="test-namespace"
+            )
+
+    @patch('time.time')
+    def test_wait_for_condition_statefulset_timeout(self, mock_time):
+        """Test wait_for_condition for statefulset - timeout case"""
+        mock_time.side_effect = [0, 0, 2, 5, 6, 6]
+
+        mock_statefulset = MagicMock()
+        mock_statefulset.spec.replicas = 3
+        mock_statefulset.status.ready_replicas = 1
+
+        with patch.object(self.client, 'app') as mock_app, \
+             patch('time.sleep'):
+            mock_app.read_namespaced_stateful_set.return_value = mock_statefulset
+
+            result = self.client.wait_for_condition(
+                resource_type="statefulset",
+                resource_name="test-statefulset",
+                wait_condition_type="ready",
+                namespace="test-namespace",
+                timeout_seconds=1
+            )
+
+            self.assertFalse(result)
+
+    @patch('time.time')
+    def test_wait_for_condition_statefulset_not_found(self, mock_time):
+        """Test wait_for_condition for statefulset - not found case"""
+        mock_time.side_effect = [0, 0, 2, 5, 6, 6]
+
+        api_exception = ApiException(status=404, reason="Not Found")
+
+        with patch.object(self.client, 'app') as mock_app, \
+             patch('time.sleep'):
+            mock_app.read_namespaced_stateful_set.side_effect = api_exception
+
+            result = self.client.wait_for_condition(
+                resource_type="statefulset",
+                resource_name="nonexistent",
+                wait_condition_type="ready",
+                namespace="test-namespace",
+                timeout_seconds=1
+            )
+
+            self.assertFalse(result)
+
     # Tests for the enhanced apply_manifest_from_file method with folder support
     @patch('os.path.isdir')
     @patch('os.path.isfile')

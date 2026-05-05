@@ -222,6 +222,246 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
         # Check time.sleep was called 3 times (between operations)
         self.assertEqual(mock_time.sleep.call_count, 3)
 
+    @mock.patch("crud.azure.node_pool_crud.time")
+    def test_all_create_returns_false_early_exit(self, mock_time):
+        """Test that all() exits early when create returns False"""
+        # Setup - mock create to fail
+        self.node_pool_crud.create_node_pool = mock.MagicMock(return_value=False)
+        self.node_pool_crud.scale_node_pool = mock.MagicMock(return_value=True)
+        self.node_pool_crud.delete_node_pool = mock.MagicMock(return_value=True)
+
+        # Execute
+        result = self.node_pool_crud.all(
+            node_pool_name="test-pool",
+            vm_size="Standard_DS2_v2",
+            node_count=1,
+            target_count=3,
+            progressive=True,
+            scale_step_size=1,
+        )
+
+        # Verify - should return False
+        self.assertFalse(result)
+
+        # Verify create was called once
+        self.node_pool_crud.create_node_pool.assert_called_once()
+
+        # Verify scale and delete were NOT called (early exit)
+        self.node_pool_crud.scale_node_pool.assert_not_called()
+        self.node_pool_crud.delete_node_pool.assert_not_called()
+
+        # Verify time.sleep was NOT called (no operations after create)
+        mock_time.sleep.assert_not_called()
+
+    @mock.patch("crud.azure.node_pool_crud.time")
+    def test_all_scale_up_fails_continues(self, mock_time):
+        """Test that all() continues to scale down and delete when scale up fails"""
+        # Setup - create succeeds, scale_up fails, scale_down and delete succeed
+        self.node_pool_crud.create_node_pool = mock.MagicMock(return_value=True)
+        self.node_pool_crud.scale_node_pool = mock.MagicMock(
+            side_effect=[False, True]  # scale_up fails, scale_down succeeds
+        )
+        self.node_pool_crud.delete_node_pool = mock.MagicMock(return_value=True)
+
+        # Execute
+        result = self.node_pool_crud.all(
+            node_pool_name="test-pool",
+            vm_size="Standard_DS2_v2",
+            node_count=1,
+            target_count=3,
+            progressive=True,
+            scale_step_size=1,
+        )
+
+        # Verify - should return False (scale_up failed)
+        self.assertFalse(result)
+
+        # Verify create was called once
+        self.node_pool_crud.create_node_pool.assert_called_once()
+
+        # Verify scale was called TWICE (scale_up failed, but scale_down still called)
+        self.assertEqual(self.node_pool_crud.scale_node_pool.call_count, 2)
+
+        # Verify delete was still called (cleanup continues despite scale_up failure)
+        self.node_pool_crud.delete_node_pool.assert_called_once()
+
+        # Verify time.sleep was called 3 times (between all operations)
+        self.assertEqual(mock_time.sleep.call_count, 3)
+
+    @mock.patch("crud.azure.node_pool_crud.time")
+    def test_all_scale_down_fails_continues(self, mock_time):
+        """Test that all() continues to delete when scale down fails"""
+        # Setup - create and scale_up succeed, scale_down fails, delete succeeds
+        self.node_pool_crud.create_node_pool = mock.MagicMock(return_value=True)
+        self.node_pool_crud.scale_node_pool = mock.MagicMock(
+            side_effect=[True, False]  # scale_up succeeds, scale_down fails
+        )
+        self.node_pool_crud.delete_node_pool = mock.MagicMock(return_value=True)
+
+        # Execute
+        result = self.node_pool_crud.all(
+            node_pool_name="test-pool",
+            vm_size="Standard_DS2_v2",
+            node_count=1,
+            target_count=3,
+            progressive=True,
+            scale_step_size=1,
+        )
+
+        # Verify - should return False (scale_down failed)
+        self.assertFalse(result)
+
+        # Verify create was called once
+        self.node_pool_crud.create_node_pool.assert_called_once()
+
+        # Verify scale was called TWICE (scale_up succeeded, scale_down failed)
+        self.assertEqual(self.node_pool_crud.scale_node_pool.call_count, 2)
+
+        # Verify delete was still called (cleanup continues despite scale_down failure)
+        self.node_pool_crud.delete_node_pool.assert_called_once()
+
+        # Verify time.sleep was called 3 times (between all operations)
+        self.assertEqual(mock_time.sleep.call_count, 3)
+
+    def test_create_deployment_success(self):
+        """Test successful deployment creation"""
+        # Setup
+        mock_k8s_client = mock.MagicMock()
+        self.mock_aks_client.k8s_client = mock_k8s_client
+        # Must return a real string - yaml.safe_load_all(MagicMock()) causes an infinite loop
+        mock_k8s_client.create_template.return_value = "apiVersion: apps/v1\nkind: Deployment\n"
+        mock_k8s_client.wait_for_condition.return_value = True
+
+        # Execute
+        result = self.node_pool_crud.create_deployment(node_pool_name="test-pool")
+
+        # Verify
+        self.assertTrue(result)
+
+    def test_create_deployment_failure(self):
+        """Test deployment creation failure"""
+        # Setup
+        mock_k8s_client = mock.MagicMock()
+        self.mock_aks_client.k8s_client = mock_k8s_client
+        # Must return a real string - yaml.safe_load_all(MagicMock()) causes an infinite loop
+        mock_k8s_client.create_template.return_value = "apiVersion: apps/v1\nkind: Deployment\n"
+        mock_k8s_client.wait_for_condition.return_value = False
+
+        # Execute
+        result = self.node_pool_crud.create_deployment(node_pool_name="test-pool")
+
+        # Verify
+        self.assertFalse(result)
+
+    def test_create_deployment_no_client(self):
+        """Test deployment creation with no Kubernetes client"""
+        # Setup
+        self.mock_aks_client.k8s_client = None
+
+        # Execute
+        result = self.node_pool_crud.create_deployment(node_pool_name="test-pool")
+
+        # Verify
+        self.assertFalse(result)
+
+    def test_create_deployment_partial_success(self):
+        """Test deployment creation when some deployments succeed and others fail"""
+        # Setup
+        mock_k8s_client = mock.MagicMock()
+        self.mock_aks_client.k8s_client = mock_k8s_client
+
+        # Must return a real string - yaml.safe_load_all(MagicMock()) causes an infinite loop
+        mock_k8s_client.create_template.return_value = "apiVersion: apps/v1\nkind: Deployment\n"
+
+        # Simulate: deployment 1 succeeds, deployment 2 fails, deployment 3 succeeds
+        # wait_for_condition returns True/False for each deployment
+        mock_k8s_client.wait_for_condition.side_effect = [True, False, True]
+
+        # Execute - request 3 deployments
+        result = self.node_pool_crud.create_deployment(
+            node_pool_name="test-pool",
+            number_of_deployments=3,
+            replicas=5
+        )
+
+        # Verify - should return False (not all deployments succeeded)
+        self.assertFalse(result)
+
+        # Verify wait_for_condition was called 3 times (once per deployment)
+        self.assertEqual(mock_k8s_client.wait_for_condition.call_count, 3)
+
+        # Verify create_template was called 3 times (attempted all deployments)
+        self.assertEqual(mock_k8s_client.create_template.call_count, 3)
+
+    def test_create_statefulset_success(self):
+        """Test successful statefulset creation"""
+        # Setup
+        mock_k8s_client = mock.MagicMock()
+        self.mock_aks_client.k8s_client = mock_k8s_client
+        # Must return a real string - yaml.safe_load_all(MagicMock()) causes an infinite loop
+        mock_k8s_client.create_template.return_value = "apiVersion: apps/v1\nkind: StatefulSet\n"
+        mock_k8s_client.wait_for_condition.return_value = True
+
+        # Execute
+        result = self.node_pool_crud.create_statefulset(node_pool_name="test-pool")
+
+        # Verify
+        self.assertTrue(result)
+
+    def test_create_statefulset_failure(self):
+        """Test statefulset creation failure"""
+        # Setup
+        mock_k8s_client = mock.MagicMock()
+        self.mock_aks_client.k8s_client = mock_k8s_client
+        # Must return a real string - yaml.safe_load_all(MagicMock()) causes an infinite loop
+        mock_k8s_client.create_template.return_value = "apiVersion: apps/v1\nkind: StatefulSet\n"
+        mock_k8s_client.wait_for_condition.return_value = False
+
+        # Execute
+        result = self.node_pool_crud.create_statefulset(node_pool_name="test-pool")
+
+        # Verify
+        self.assertFalse(result)
+
+    def test_create_statefulset_no_client(self):
+        """Test statefulset creation with no Kubernetes client"""
+        # Setup
+        self.mock_aks_client.k8s_client = None
+
+        # Execute
+        result = self.node_pool_crud.create_statefulset(node_pool_name="test-pool")
+
+        # Verify
+        self.assertFalse(result)
+    
+    def test_create_statefulset_partial_success(self):
+        """Test Statefulset creation when some Statefulsets succeed and others fail"""
+        # Setup
+        mock_k8s_client = mock.MagicMock()
+        self.mock_aks_client.k8s_client = mock_k8s_client
+
+        # Must return a real string - yaml.safe_load_all(MagicMock()) causes an infinite loop
+        mock_k8s_client.create_template.return_value = "apiVersion: apps/v1\nkind: StatefulSet\n"
+
+        # Simulate: StatefulSet 1 succeeds, StatefulSet 2 fails, StatefulSet 3 succeeds
+        # wait_for_condition returns True/False for each StatefulSet
+        mock_k8s_client.wait_for_condition.side_effect = [True, False, True]
+
+        # Execute - request 3 StatefulSets
+        result = self.node_pool_crud.create_statefulset(
+            node_pool_name="test-pool",
+            number_of_statefulsets=3,
+            replicas=5
+        )
+
+        # Verify - should return False (not all statefulsets succeeded)
+        self.assertFalse(result)
+
+        # Verify wait_for_condition was called 3 times (once per statefulset)
+        self.assertEqual(mock_k8s_client.wait_for_condition.call_count, 3)
+
+        # Verify create_template was called 3 times (attempted all statefulsets)
+        self.assertEqual(mock_k8s_client.create_template.call_count, 3)
 
 if __name__ == "__main__":
     unittest.main()

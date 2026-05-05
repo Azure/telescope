@@ -314,7 +314,7 @@ class AKSClient:
                     "os_disk_type": "Managed",
                     "nodeLabels": {"gpu": "true"} if gpu_node_pool else {},
                     "gpu_profile": {
-                        "driver": "None" if gpu_node_pool and vm_size == "Standard_ND96asr_v4" else "Install",
+                        "driver": "None" if not gpu_node_pool or vm_size == "Standard_ND96asr_v4" else "Install",
                     },
                 }
 
@@ -469,7 +469,7 @@ class AKSClient:
                     resource_name=cluster_name,
                     agent_pool_name=node_pool_name,
                     parameters=node_pool,
-                )
+                ).result()
 
                 logger.info(
                     f"Waiting for {node_count} nodes in pool {node_pool_name} to be ready..."
@@ -681,7 +681,7 @@ class AKSClient:
                         resource_name=cluster_name,
                         agent_pool_name=node_pool_name,
                         parameters=node_pool,
-                    )
+                    ).result()
 
                     # Use agentpool=node_pool_name as default label if not specified
                     label_selector = f"agentpool={node_pool_name}"
