@@ -175,7 +175,6 @@ makeStage = lambda size: str -> ap.Stage {
 output = ap.Pipeline {
     name = "Hyperscale Pod Scheduling Rate"
 
-    trigger =  ["v2"]
     pool = const.DEFAULT_POOL
 
     parameters = [
