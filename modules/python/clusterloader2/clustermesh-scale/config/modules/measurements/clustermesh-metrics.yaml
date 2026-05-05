@@ -95,6 +95,29 @@ steps:
           query: histogram_quantile(0.50, sum(rate(cilium_kvstoremesh_kvstore_operations_duration_seconds_bucket[1m])) by (le))
 
     # ---------------------------------------------------------------------
+    # Watch queue depth (saturation signal — spec line 37 "Key signals:
+    # ... Watch queue depth"). cilium_kvstoremesh_kvstore_sync_queue_size
+    # is a gauge: number of items currently waiting to be processed by
+    # the kvstoremesh sync loop. A persistently positive or growing value
+    # is the saturation indicator (event ingest > drain rate).
+    # ---------------------------------------------------------------------
+    - Identifier: ClusterMeshKvstoreSyncQueueSize{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Kvstore Sync Queue Size {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        - name: Max
+          query: max(max_over_time(cilium_kvstoremesh_kvstore_sync_queue_size[%v:]))
+        - name: Perc99
+          query: quantile(0.99, max_over_time(cilium_kvstoremesh_kvstore_sync_queue_size[%v:]))
+        - name: Perc50
+          query: quantile(0.50, avg_over_time(cilium_kvstoremesh_kvstore_sync_queue_size[%v:]))
+
+    # ---------------------------------------------------------------------
     # Identity propagation: cilium identity count. Under cross-cluster pod
     # churn (scenarios #1, #2, #3), this should track the global identity
     # set converging across clusters. Divergence flags propagation lag.
