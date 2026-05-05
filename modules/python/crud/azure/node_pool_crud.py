@@ -389,7 +389,7 @@ class NodePoolCRUD:
         except Exception as e:
             logger.error("Failed to create deployments: %s", e)
             return False
-        
+
     def create_job(
         self,
         node_pool_name,

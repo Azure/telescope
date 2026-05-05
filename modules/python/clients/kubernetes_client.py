@@ -1050,7 +1050,7 @@ class KubernetesClient:
 
             if resource_type_lower in ['deployment', 'deployments']:
                 return self._check_deployment_condition(resource_name, condition_type, namespace, wait_all)
-            
+
             if resource_type_lower in ['job', 'jobs']:
                 return self._check_job_condition(resource_name, condition_type, namespace, wait_all)
 

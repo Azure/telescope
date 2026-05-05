@@ -116,7 +116,6 @@ steps:
     COMPLETIONS: ${{ parameters.completions }}
     MANIFEST_DIR: ${{ parameters.manifest_dir }}
 
-
 - script: |
     set -eo pipefail
 
