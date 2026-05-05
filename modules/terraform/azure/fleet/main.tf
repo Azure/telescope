@@ -210,6 +210,20 @@ locals {
     "--yes",
     "--output", "none",
   ]) : "true"
+
+  # Returns the count of fleet members CURRENTLY APPLIED to the profile (i.e.
+  # in the profile's reconciled member set, not just selector-matched). Used
+  # by the destroy provisioner to wait for relabel+apply to drain the set
+  # before attempting the profile delete.
+  cmp_list_applied_count_command = local.fleet_enabled ? join(" ", [
+    "az fleet clustermeshprofile list-members",
+    "--subscription", var.subscription_id,
+    "--resource-group", var.resource_group_name,
+    "--fleet-name", var.fleet_name,
+    "--name", var.cmp_name,
+    "--query", "'length(@)'",
+    "--output", "tsv",
+  ]) : "echo 0"
 }
 
 resource "terraform_data" "clustermeshprofile" {
@@ -223,6 +237,10 @@ resource "terraform_data" "clustermeshprofile" {
     create_command = local.cmp_create_command
     apply_command  = local.cmp_apply_command
     delete_command = local.cmp_destroy_command
+    # `list-members` (default mode) returns members APPLIED to the profile —
+    # the same set the profile-delete API checks. We poll its count to know
+    # when the relabel+apply reconcile has actually drained membership.
+    list_applied_count_command = local.cmp_list_applied_count_command
     # Pre-built per-member `az fleet member update --labels` commands. Joined
     # with newlines and embedded in self.input because destroy provisioners
     # can only access self.input.* (not var.* / local.*).
@@ -259,35 +277,59 @@ resource "terraform_data" "clustermeshprofile" {
     interpreter = ["bash", "-c"]
     command     = <<-EOT
       set -uo pipefail
-      # 1. Relabel every member off the profile's selector.
+      # 1. Relabel every member off the profile's selector. After this, a
+      # subsequent `apply` will reconcile the profile's member set to empty.
       printf '%s\n' "${self.input.member_relabel_commands}" | while IFS= read -r cmd; do
         [ -n "$cmd" ] || continue
         echo "[relabel-member] $cmd"
         eval "$cmd" || true
       done
 
-      # 2. Re-apply the profile so its observed member set matches the new
-      # (empty) selector match. apply is async — we still retry the delete
-      # below so the deletion self-recovers as the apply propagates.
+      # 2. Issue an apply to start the reconcile. apply is async on the Fleet
+      # RP — `az fleet clustermeshprofile apply` returns when the LRO is
+      # accepted, but membership reconciliation (including draining the old
+      # applied set) can lag behind by several minutes.
       echo "[apply-profile] ${self.input.apply_command}"
       eval "${self.input.apply_command}" || true
 
-      # 3. Delete the profile, retrying for ~5 minutes while the apply
-      # finishes draining membership.
+      # 3. Poll the profile's APPLIED member count until it reaches 0. Re-issue
+      # `apply` periodically as a nudge in case the first one was a no-op
+      # (e.g. Fleet RP hadn't yet observed the relabeled members).
+      # Budget: 120 x 5s = 10 min.
+      drained=false
+      for i in $(seq 1 120); do
+        count=$(eval "${self.input.list_applied_count_command}" 2>/dev/null | tr -d '[:space:]')
+        echo "[poll-members] attempt $i/120: applied count='$count'"
+        if [ "$count" = "0" ]; then
+          drained=true
+          break
+        fi
+        # Re-apply every minute (every 12 polls) to push Fleet RP if the
+        # initial apply didn't pick up the relabel.
+        if [ "$i" -gt 1 ] && [ $((i % 12)) -eq 0 ]; then
+          echo "[apply-profile] (nudge) ${self.input.apply_command}"
+          eval "${self.input.apply_command}" || true
+        fi
+        sleep 5
+      done
+      if [ "$drained" != "true" ]; then
+        echo "[poll-members] timed out waiting for applied set to drain; will still attempt delete"
+      fi
+
+      # 4. Delete the profile. Brief retry as a backstop in case there's still
+      # propagation lag between list-members showing 0 and delete being allowed.
       echo "[delete-profile] ${self.input.delete_command}"
-      max=60
-      delay=5
-      for i in $(seq 1 $max); do
+      for i in $(seq 1 30); do
         if eval "${self.input.delete_command}"; then
           echo "[delete-profile] succeeded on attempt $i"
           exit 0
         fi
-        if [ "$i" -lt "$max" ]; then
-          echo "[delete-profile] members still attaching; retry $i/$max in $${delay}s"
-          sleep "$delay"
+        if [ "$i" -lt 30 ]; then
+          echo "[delete-profile] retry $i/30 in 5s"
+          sleep 5
         fi
       done
-      echo "[delete-profile] gave up after $max attempts; downstream cleanup will proceed"
+      echo "[delete-profile] gave up after 30 attempts; downstream cleanup will proceed"
       exit 0
     EOT
   }
