@@ -1,6 +1,8 @@
 import json
+import logging
 import os
 import glob
+from unittest.mock import patch
 
 from machine.data_classes import MachineConfig, MachineOperationResponse
 from machine.result_handler import save_test_result
@@ -58,3 +60,28 @@ def test_save_test_result_uses_agentpool_when_no_machine_name(tmp_path):
     fake(m)
     fs = glob.glob(str(tmp_path / "create_machine-*.json"))
     assert any("create_machine-azure-cl-apool-" in os.path.basename(f) for f in fs)
+
+
+def test_save_test_result_swallows_write_errors(tmp_path, caplog):
+    cfg = MachineConfig(
+        cloud="azure", cluster_name="cl", resource_group="rg",
+        agentpool_name="ap", vm_size="x", timeout=1, result_dir=str(tmp_path),
+        machine_name="m1",
+    )
+
+    @save_test_result
+    def fake(self):
+        return MachineOperationResponse(operation_name="scale_machine", succeeded=True)
+
+    class M:
+        pass
+
+    m = M()
+    m.config = cfg
+
+    with patch("machine.result_handler.save_info_to_file", side_effect=OSError("disk full")):
+        with caplog.at_level(logging.WARNING, logger="machine.result_handler"):
+            response = fake(m)
+
+    assert response.operation_name == "scale_machine"
+    assert any("Failed to save result" in rec.message for rec in caplog.records)
