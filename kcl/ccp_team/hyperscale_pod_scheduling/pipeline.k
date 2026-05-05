@@ -138,9 +138,9 @@ az rest \\
                 RESOURCE_GROUP,
                 SUBSCRIPTION_ID,
                 KWOK_POOL),
-            k8s.CreateKwokNodes(
+            *k8s.CreateKwokNodes(
               nodeCount,
-              {
+              params = {
                 "node-manifest-path": "$(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml"
                 "nodes-per-controller": "${KWOK_NODES_PER_CONTROLLER}"
                 "node-selector": "kwok=true"

@@ -134,7 +134,6 @@ output = ap.Pipeline {
                     "kwokpool"),
                 *k8s.CreateKwokNodes(
                   15000,
-                  logLevel = "WARNING",
                   continueOnError = True,
                   params = {
                     "node-manifest-path": "$(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml"
@@ -142,6 +141,7 @@ output = ap.Pipeline {
                     "node-selector": "kwok=true"
                     "node-lease-duration-seconds": "60"
                     "validate-success-threshold": "0.9"
+                    "log-level": "WARNING"
                   }),
                   k8s.RunClusterLoader2(
                     const.DEFAULT_SERVICE_CONNECTION,

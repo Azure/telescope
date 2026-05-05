@@ -185,8 +185,6 @@ jobs:
     workingDirectory: modules/python
     continueOnError: false
     displayName: Create KWOK Nodes
-    env:
-      LOG_LEVEL: INFO
   - script: |2-
 
       set -exo pipefail
@@ -195,8 +193,6 @@ jobs:
     workingDirectory: modules/python
     continueOnError: false
     displayName: Validate KWOK Nodes
-    env:
-      LOG_LEVEL: INFO
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal

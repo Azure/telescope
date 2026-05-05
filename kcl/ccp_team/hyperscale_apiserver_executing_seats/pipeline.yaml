@@ -1,7 +1,6 @@
 name: Hyperscale API Server Executing Seats
 trigger:
 - v2
-parameters: []
 jobs:
 - job: benchmarking
   displayName: Benchmarking
@@ -228,22 +227,18 @@ jobs:
 
       set -exo pipefail
       export PYTHONPATH=$PYTHONPATH:$(pwd)
-      python3 kwok/kwok.py   --action create   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9
+      python3 kwok/kwok.py   --action create   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING
     workingDirectory: modules/python
     continueOnError: true
     displayName: Create KWOK Nodes
-    env:
-      LOG_LEVEL: WARNING
   - script: |2-
 
       set -exo pipefail
       export PYTHONPATH=$PYTHONPATH:$(pwd)
-      python3 kwok/kwok.py   --action validate   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9
+      python3 kwok/kwok.py   --action validate   --node-count 15000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 60 --validate-success-threshold 0.9 --log-level WARNING
     workingDirectory: modules/python
     continueOnError: false
     displayName: Validate KWOK Nodes
-    env:
-      LOG_LEVEL: WARNING
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
