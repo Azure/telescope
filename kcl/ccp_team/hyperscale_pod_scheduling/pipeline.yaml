@@ -1,7 +1,5 @@
 name: Hyperscale Pod Scheduling Rate
 pool: AKS-Telescope-Airlock
-trigger:
-- v2
 parameters:
 - name: run_id
   displayName: Run ID (leave empty to auto-generate)
