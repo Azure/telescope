@@ -125,6 +125,39 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
+  - stage: azure_australiaeast_small_scale_on_demand
+    condition: eq(variables['Build.Reason'], 'Manual')
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - australiaeast
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250423"
+          topology: karpenter
+          matrix:
+            small-scale-on-demand:
+              cpu_per_node: 4
+              node_count: 10
+              pod_count: 100
+              scale_up_timeout: "15m"
+              scale_down_timeout: "15m"
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 5
+              karpenter_cooldown: 900 #seconds
+              warmup_deployment: true
+              warmup_deployment_template: warmup_deployment.yaml
+              vm_size: Standard_D4ds_v4
+              capacity_type: on-demand
+          max_parallel: 1
+          timeout_in_minutes: 560
+          credential_type: service_connection
+          ssh_key_enabled: false
+
   - stage: azure_australiaeast_small_scale
     condition: |
         or(
