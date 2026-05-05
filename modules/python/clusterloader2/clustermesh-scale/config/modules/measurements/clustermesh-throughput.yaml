@@ -27,8 +27,14 @@ steps:
         unit: events/s
         enableViolations: false
         queries:
+        # Wrap each side in sum() to drop labels — the two metrics carry
+        # non-identical label sets (e.g. sync_errors_total has a per-cluster
+        # `source_cluster` label that events_queue_seconds_count doesn't).
+        # Without sum(), PromQL's binary `-` returns an empty vector when
+        # operand label sets don't align. sum() collapses both to a single
+        # series so the subtraction is well-defined.
         - name: Perc99
-          query: quantile(0.99, max_over_time((rate(cilium_kvstoremesh_kvstore_events_queue_seconds_count[1m]) - rate(cilium_kvstoremesh_kvstore_sync_errors_total[1m]))[%v:]))
+          query: quantile(0.99, max_over_time((sum(rate(cilium_kvstoremesh_kvstore_events_queue_seconds_count[1m])) - sum(rate(cilium_kvstoremesh_kvstore_sync_errors_total[1m])))[%v:]))
         - name: MaxBurst
           query: max(max_over_time(rate(cilium_kvstoremesh_kvstore_events_queue_seconds_count[30s])[%v:]))
 

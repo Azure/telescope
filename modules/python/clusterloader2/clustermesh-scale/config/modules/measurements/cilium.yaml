@@ -155,36 +155,13 @@ steps:
           query: quantile(0.90, max_over_time(rate(container_fs_writes_bytes_total{container="cilium-agent"}[1m])[%v:]))
         - name: Perc50
           query: quantile(0.50, max_over_time(rate(container_fs_writes_bytes_total{container="cilium-agent"}[1m])[%v:]))
-    - Identifier: CiliumContainerFsAvgWriteLatency{{$suffix}}
-      Method: GenericPrometheusQuery
-      Params:
-        action: {{$action}}
-        metricName: Cilium Container FS Average Write Latency {{$suffix}}
-        metricVersion: v1
-        unit: s
-        enableViolations: true
-        queries:
-        - name: Perc99
-          query: quantile(0.99, avg_over_time((rate(container_fs_write_seconds_total{container="cilium-agent"}[1m]) / rate(container_fs_writes_total{container="cilium-agent"}[1m]))[%v:]))
-        - name: Perc90
-          query: quantile(0.90, avg_over_time((rate(container_fs_write_seconds_total{container="cilium-agent"}[1m]) / rate(container_fs_writes_total{container="cilium-agent"}[1m]))[%v:]))
-        - name: Perc50
-          query: quantile(0.50, avg_over_time((rate(container_fs_write_seconds_total{container="cilium-agent"}[1m]) / rate(container_fs_writes_total{container="cilium-agent"}[1m]))[%v:]))
-    - Identifier: CiliumContainerFsMaxWriteLatency{{$suffix}}
-      Method: GenericPrometheusQuery
-      Params:
-        action: {{$action}}
-        metricName: Cilium Container FS Max Write Latency {{$suffix}}
-        metricVersion: v1
-        unit: s
-        enableViolations: true
-        queries:
-        - name: Perc99
-          query: quantile(0.99, max_over_time((rate(container_fs_write_seconds_total{container="cilium-agent"}[1m]) / rate(container_fs_writes_total{container="cilium-agent"}[1m]))[%v:]))
-        - name: Perc90
-          query: quantile(0.90, max_over_time((rate(container_fs_write_seconds_total{container="cilium-agent"}[1m]) / rate(container_fs_writes_total{container="cilium-agent"}[1m]))[%v:]))
-        - name: Perc50
-          query: quantile(0.50, max_over_time((rate(container_fs_write_seconds_total{container="cilium-agent"}[1m]) / rate(container_fs_writes_total{container="cilium-agent"}[1m]))[%v:]))
+    # NOTE: FS write latency (avg/max) was intentionally dropped from this
+    # scenario. The query (rate(container_fs_write_seconds_total) / rate(
+    # container_fs_writes_total) for container="cilium-agent") returns no
+    # samples here because cilium-agent in the clustermesh scenario does
+    # almost all I/O via in-kernel bpf maps, not container fs — the write-op
+    # rate is genuinely ~0, so the division yields no result. Written-bytes
+    # rates (above) still produce useful data and remain the FS signal.
     - Identifier: CiliumContainerRestarts{{$suffix}}
       Method: GenericPrometheusQuery
       Params:
