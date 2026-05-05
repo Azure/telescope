@@ -1,8 +1,27 @@
 #!/bin/bash
-set -e
+# Pre-commit hook: regenerate all pipeline.yaml files from pipeline.k files under kcl/
+# Always regenerates to catch changes in shared helpers, dependencies, etc.
 
-if git diff --cached --name-only | grep -q "^kcl/"; then
-    cd kcl/example_pipeline && kcl run pipeline.k -S output -o pipeline.yaml
-    cd -
-    git add kcl/example_pipeline/pipeline.yaml
+if ! command -v kcl &> /dev/null; then
+  echo "Error: kcl CLI not found. Install it: https://kcl-lang.io/docs/user_docs/getting-started/install"
+  exit 1
+fi
+
+FAILED=0
+for K_FILE in $(find kcl/ -name 'pipeline.k'); do
+  DIR=$(dirname "$K_FILE")
+  YAML_FILE="$DIR/pipeline.yaml"
+
+  echo "Generating $YAML_FILE from $K_FILE..."
+  if kcl run "$K_FILE" -S output -o "$YAML_FILE" 2>&1; then
+    git add "$YAML_FILE"
+  else
+    echo "Error: kcl run failed for $K_FILE"
+    FAILED=1
+  fi
+done
+
+if [ "$FAILED" -ne 0 ]; then
+  echo "Pre-commit hook failed: KCL compilation errors. Fix them before committing."
+  exit 1
 fi

@@ -1,0 +1,526 @@
+name: Hyperscale Etcd Benchmarking
+pool: AKS-Telescope-Airlock
+trigger: none
+parameters:
+- name: keep_cluster
+  displayName: Keep cluster after benchmark
+  type: boolean
+  default: false
+- name: existing_cluster_resource_group
+  displayName: Existing cluster resource group (leave as none to create new)
+  type: string
+  default: none
+- name: existing_cluster_name
+  displayName: Existing cluster name (leave as none to create new)
+  type: string
+  default: none
+- name: scaling_size
+  displayName: Control plane scaling size
+  type: string
+  default: H2
+  values:
+  - H2
+  - H4
+  - H8
+- name: ingest_configmap_gib
+  displayName: ConfigMap ingest size (GiB)
+  type: number
+  default: 4
+- name: ingest_events_gib
+  displayName: Events ingest size (GiB)
+  type: number
+  default: 3
+- name: ingest_secrets_gib
+  displayName: Secrets ingest size (GiB)
+  type: number
+  default: 4
+jobs:
+- job: bootstrap
+  displayName: Bootstrap
+  timeoutInMinutes: 10
+  steps:
+  - bash: |2
+
+      set -exo pipefail
+
+      # Resolve CLUSTER
+      if [ -n "$PARAM_EXISTING_CLUSTER" ] && [ "$PARAM_EXISTING_CLUSTER" != "none" ]; then
+        CLUSTER="$PARAM_EXISTING_CLUSTER"
+        echo "Using existing cluster: $CLUSTER"
+      else
+        CLUSTER="hyperscale-etcd-testing"
+        echo "Using default cluster: $CLUSTER"
+      fi
+
+      # Resolve RESOURCE_GROUP
+      if [ -n "$PARAM_EXISTING_RG" ] && [ "$PARAM_EXISTING_RG" != "none" ]; then
+        RESOURCE_GROUP="$PARAM_EXISTING_RG"
+        echo "Using existing resource group: $RESOURCE_GROUP"
+      else
+        job_id="$(System.JobId)"
+        RESOURCE_GROUP=$(Build.BuildId)-${job_id:0:8}
+        echo "Generated resource group: $RESOURCE_GROUP"
+      fi
+
+      echo "##vso[task.setvariable variable=CLUSTER;isOutput=true]$CLUSTER"
+      echo "##vso[task.setvariable variable=RESOURCE_GROUP;isOutput=true]$RESOURCE_GROUP"
+    displayName: Bootstrap - resolve CLUSTER, RESOURCE_GROUP
+    env:
+      PARAM_EXISTING_CLUSTER: ${{ parameters.existing_cluster_name }}
+      PARAM_EXISTING_RG: ${{ parameters.existing_cluster_resource_group }}
+    name: resolve
+- job: setup
+  displayName: Cluster Setup
+  dependsOn: bootstrap
+  condition: and(succeeded(), not(ne('${{ parameters.existing_cluster_name }}', 'none')))
+  timeoutInMinutes: 1440
+  variables:
+    CLUSTER: $[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]
+    RESOURCE_GROUP: $[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]
+  steps:
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+        az config set defaults.location="westus2"
+        az account show
+    continueOnError: false
+    displayName: Login to Azure
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az group create --name "$(RESOURCE_GROUP)" --location "westus2" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+    continueOnError: false
+    displayName: Create resource group $(RESOURCE_GROUP) in westus2 (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az rest \
+          --method put \
+          --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RESOURCE_GROUP)/providers/Microsoft.ContainerService/managedClusters/$(CLUSTER)?api-version=2026-01-02-preview" \
+          --body "
+        {
+            \"location\": \"westus2\",
+            \"identity\": { \"type\": \"SystemAssigned\" },
+            \"sku\": {
+              \"name\": \"Base\",
+              \"tier\": \"Standard\"
+            },
+            \"tags\": {
+              \"SkipAKSCluster\": \"true\",
+              \"SkipASMAzSecPackAutoConfig\": \"true\",
+              \"SkipLinuxAzSecPack\": \"true\"
+            },
+            \"properties\": {
+              \"controlPlaneScalingProfile\": {\"scalingSize\": \"${{ parameters.scaling_size }}\"},
+              \"kubernetesVersion\": \"1.33.0\",
+              \"dnsPrefix\": \"$(CLUSTER)-dns\",
+              \"agentPoolProfiles\": [
+                {
+                  \"name\": \"systempool\",
+                  \"mode\": \"System\",
+                  \"count\": 3,
+                  \"vmSize\": \"Standard_D2_v4\",
+                  \"osType\": \"Linux\",
+                  \"maxPods\": 50
+                }
+              ],
+            \"networkProfile\": {
+               \"networkPlugin\": \"azure\",
+               \"networkPluginMode\": \"overlay\",
+               \"podCidr\": \"10.64.0.0/10\",
+               \"serviceCidr\": \"10.0.0.0/16\",
+               \"dnsServiceIP\": \"10.0.0.10\",
+               \"outboundType\": \"managedNATGateway\",
+               \"natGatewayProfile\": {
+                  \"managedOutboundIPProfile\": {
+                    \"count\": 10
+                  }
+                }
+              }
+            }
+          }"
+    continueOnError: false
+    displayName: Create cluster
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        while true; do
+          STATE=$(az aks show \
+            --name "$(CLUSTER)" \
+            --resource-group "$(RESOURCE_GROUP)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --query "provisioningState" \
+            --output tsv)
+          echo "Cluster provisioning state: $STATE"
+          if [ "$STATE" = "Succeeded" ]; then
+            echo "Cluster is ready."
+            break
+          elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+            echo "Cluster failed with state: $STATE."
+            exit 1
+          else
+            echo "Provisioning state: $STATE. Retry in 30 seconds"
+          fi
+          sleep 30
+        done
+    continueOnError: false
+    displayName: Wait for cluster to succeed
+- job: record_start_time
+  displayName: Record Benchmark Start Time
+  dependsOn:
+  - bootstrap
+  - setup
+  condition: and(eq(dependencies.bootstrap.result, 'Succeeded'), in(dependencies.setup.result, 'Succeeded', 'Skipped'))
+  timeoutInMinutes: 5
+  steps:
+  - script: |2
+
+      set -euo pipefail
+      START_TIME=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+      echo "Benchmark start time: $START_TIME"
+      echo "##vso[task.setvariable variable=BENCHMARK_START_TIME;isOutput=true]$START_TIME"
+    displayName: Record start time
+    name: timestamp
+- job: ingest_configmap
+  displayName: Ingest ConfigMaps (${{ parameters.ingest_configmap_gib }} GiB)
+  dependsOn:
+  - bootstrap
+  - setup
+  - record_start_time
+  condition: and(succeeded(), ${{ ne(parameters.ingest_configmap_gib, 0) }})
+  timeoutInMinutes: 1440
+  variables:
+    CLUSTER: $[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]
+    RESOURCE_GROUP: $[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]
+  steps:
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks get-credentials \
+          --name "$(CLUSTER)" \
+          --resource-group "$(RESOURCE_GROUP)" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --overwrite-existing
+    continueOnError: false
+    displayName: Get credentials for $(CLUSTER)
+  - script: |2
+
+      set -euo pipefail
+      set -x
+
+      temp_dir=$(mktemp -p /tmp -d kperfinstall.XXXX)
+      docker rmi ghcr.io/liyu-ma/kperf:hyperscale-etcd 2>/dev/null || true
+      docker pull ghcr.io/liyu-ma/kperf:hyperscale-etcd
+      docker run --rm -v $temp_dir:/install-dir \
+        ghcr.io/liyu-ma/kperf:hyperscale-etcd bash -c "set -x; install /kperf /runkperf /install-dir"
+
+      sudo install $temp_dir/kperf $temp_dir/runkperf /usr/local/bin
+      rm -rf $temp_dir
+      docker rmi ghcr.io/liyu-ma/kperf:hyperscale-etcd 2>/dev/null || true
+    displayName: Install runkperf binary
+  - script: |2
+
+      set -euo pipefail
+      set -x
+
+      TOTAL_OBJECTS_COUNT=$(( ${{ parameters.ingest_configmap_gib }} * 1073741824 / 524288 ))
+      TOTAL_BATCHES=$(( (TOTAL_OBJECTS_COUNT + 2000 - 1) / 2000 ))
+
+      kubectl create namespace kperf-configmap-data 2>/dev/null || true
+
+      echo "Ingesting $TOTAL_OBJECTS_COUNT configmaps in $TOTAL_BATCHES batches of 2000..."
+
+      completed=0
+      for batch in $(seq 1 $TOTAL_BATCHES); do
+        REMAINING=$((TOTAL_OBJECTS_COUNT - completed))
+        COUNT=2000
+        if [ "$REMAINING" -lt "$COUNT" ]; then
+          COUNT=$REMAINING
+        fi
+
+        echo "Batch $batch/$TOTAL_BATCHES: creating $COUNT configmaps..."
+        run_batch() {
+          runkperf data configmap \
+            --namespace kperf-configmap-data \
+            add my-configmaps-b$batch-$1 \
+            --qps 80 \
+            --burst 80 \
+            --total $COUNT \
+            --size 524288 \
+            --group-size 80
+        }
+        run_batch first || run_batch retry
+
+        completed=$((completed + COUNT))
+        STORAGE_GIB=$(awk 'BEGIN{printf "%.1f", '$completed' * 524288 / 1073741824}')
+        echo "Progress: $completed / $TOTAL_OBJECTS_COUNT configmaps created (~$STORAGE_GIB GiB)"
+      done
+
+      echo "Ingest complete: $completed configmaps created."
+    condition: and(succeeded(), ne('${{ parameters.ingest_configmap_gib }}', '0'))
+    displayName: Ingest configmap data (${{ parameters.ingest_configmap_gib }} GiB)
+- job: ingest_events
+  displayName: Ingest Events (${{ parameters.ingest_events_gib }} GiB)
+  dependsOn:
+  - bootstrap
+  - setup
+  - record_start_time
+  condition: and(succeeded(), ${{ ne(parameters.ingest_events_gib, 0) }})
+  timeoutInMinutes: 1440
+  variables:
+    CLUSTER: $[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]
+    RESOURCE_GROUP: $[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]
+  steps:
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks get-credentials \
+          --name "$(CLUSTER)" \
+          --resource-group "$(RESOURCE_GROUP)" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --overwrite-existing
+    continueOnError: false
+    displayName: Get credentials for $(CLUSTER)
+  - script: |2
+
+      set -euo pipefail
+      set -x
+
+      temp_dir=$(mktemp -p /tmp -d kperfinstall.XXXX)
+      docker rmi ghcr.io/liyu-ma/kperf:hyperscale-etcd 2>/dev/null || true
+      docker pull ghcr.io/liyu-ma/kperf:hyperscale-etcd
+      docker run --rm -v $temp_dir:/install-dir \
+        ghcr.io/liyu-ma/kperf:hyperscale-etcd bash -c "set -x; install /kperf /runkperf /install-dir"
+
+      sudo install $temp_dir/kperf $temp_dir/runkperf /usr/local/bin
+      rm -rf $temp_dir
+      docker rmi ghcr.io/liyu-ma/kperf:hyperscale-etcd 2>/dev/null || true
+    displayName: Install runkperf binary
+  - script: |2
+
+      set -euo pipefail
+      set -x
+
+      TOTAL_OBJECTS_COUNT=$(( ${{ parameters.ingest_events_gib }} * 1073741824 / 524288 ))
+      TOTAL_BATCHES=$(( (TOTAL_OBJECTS_COUNT + 2000 - 1) / 2000 ))
+
+      kubectl create namespace kperf-event-data 2>/dev/null || true
+
+      echo "Ingesting $TOTAL_OBJECTS_COUNT events in $TOTAL_BATCHES batches of 2000..."
+
+      completed=0
+      for batch in $(seq 1 $TOTAL_BATCHES); do
+        REMAINING=$((TOTAL_OBJECTS_COUNT - completed))
+        COUNT=2000
+        if [ "$REMAINING" -lt "$COUNT" ]; then
+          COUNT=$REMAINING
+        fi
+
+        echo "Batch $batch/$TOTAL_BATCHES: creating $COUNT events..."
+        run_batch() {
+          runkperf data event \
+            --namespace kperf-event-data \
+            add my-events-b$batch-$1 \
+            --qps 80 \
+            --burst 80 \
+            --total $COUNT \
+            --size 524288 \
+            --group-size 80
+        }
+        run_batch first || run_batch retry
+
+        completed=$((completed + COUNT))
+        STORAGE_GIB=$(awk 'BEGIN{printf "%.1f", '$completed' * 524288 / 1073741824}')
+        echo "Progress: $completed / $TOTAL_OBJECTS_COUNT events created (~$STORAGE_GIB GiB)"
+      done
+
+      echo "Ingest complete: $completed events created."
+    condition: and(succeeded(), ne('${{ parameters.ingest_events_gib }}', '0'))
+    displayName: Ingest event data (${{ parameters.ingest_events_gib }} GiB)
+- job: ingest_secrets
+  displayName: Ingest Secrets (${{ parameters.ingest_secrets_gib }} GiB)
+  dependsOn:
+  - bootstrap
+  - setup
+  - record_start_time
+  condition: and(succeeded(), ${{ ne(parameters.ingest_secrets_gib, 0) }})
+  timeoutInMinutes: 1440
+  variables:
+    CLUSTER: $[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]
+    RESOURCE_GROUP: $[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]
+  steps:
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks get-credentials \
+          --name "$(CLUSTER)" \
+          --resource-group "$(RESOURCE_GROUP)" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --overwrite-existing
+    continueOnError: false
+    displayName: Get credentials for $(CLUSTER)
+  - script: |2
+
+      set -euo pipefail
+      set -x
+
+      temp_dir=$(mktemp -p /tmp -d kperfinstall.XXXX)
+      docker rmi ghcr.io/liyu-ma/kperf:hyperscale-etcd 2>/dev/null || true
+      docker pull ghcr.io/liyu-ma/kperf:hyperscale-etcd
+      docker run --rm -v $temp_dir:/install-dir \
+        ghcr.io/liyu-ma/kperf:hyperscale-etcd bash -c "set -x; install /kperf /runkperf /install-dir"
+
+      sudo install $temp_dir/kperf $temp_dir/runkperf /usr/local/bin
+      rm -rf $temp_dir
+      docker rmi ghcr.io/liyu-ma/kperf:hyperscale-etcd 2>/dev/null || true
+    displayName: Install runkperf binary
+  - script: |2
+
+      set -euo pipefail
+      set -x
+
+      TOTAL_OBJECTS_COUNT=$(( ${{ parameters.ingest_secrets_gib }} * 1073741824 / 524288 ))
+      TOTAL_BATCHES=$(( (TOTAL_OBJECTS_COUNT + 2000 - 1) / 2000 ))
+
+      kubectl create namespace kperf-secret-data 2>/dev/null || true
+
+      echo "Ingesting $TOTAL_OBJECTS_COUNT secrets in $TOTAL_BATCHES batches of 2000..."
+
+      completed=0
+      for batch in $(seq 1 $TOTAL_BATCHES); do
+        REMAINING=$((TOTAL_OBJECTS_COUNT - completed))
+        COUNT=2000
+        if [ "$REMAINING" -lt "$COUNT" ]; then
+          COUNT=$REMAINING
+        fi
+
+        echo "Batch $batch/$TOTAL_BATCHES: creating $COUNT secrets..."
+        run_batch() {
+          runkperf data secret \
+            --namespace kperf-secret-data \
+            add my-secrets-b$batch-$1 \
+            --qps 80 \
+            --burst 80 \
+            --total $COUNT \
+            --size 524288 \
+            --group-size 80
+        }
+        run_batch first || run_batch retry
+
+        completed=$((completed + COUNT))
+        STORAGE_GIB=$(awk 'BEGIN{printf "%.1f", '$completed' * 524288 / 1073741824}')
+        echo "Progress: $completed / $TOTAL_OBJECTS_COUNT secrets created (~$STORAGE_GIB GiB)"
+      done
+
+      echo "Ingest complete: $completed secrets created."
+    condition: and(succeeded(), ne('${{ parameters.ingest_secrets_gib }}', '0'))
+    displayName: Ingest secret data (${{ parameters.ingest_secrets_gib }} GiB)
+- job: report
+  displayName: Print ASI Dashboard URLs
+  dependsOn:
+  - bootstrap
+  - record_start_time
+  - ingest_configmap
+  - ingest_events
+  - ingest_secrets
+  condition: in(dependencies.record_start_time.result, 'Succeeded', 'SucceededWithIssues')
+  timeoutInMinutes: 10
+  variables:
+    CLUSTER: $[ dependencies.bootstrap.outputs['resolve.CLUSTER'] ]
+    RESOURCE_GROUP: $[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]
+    BENCHMARK_START_TIME: $[ dependencies.record_start_time.outputs['timestamp.BENCHMARK_START_TIME'] ]
+  steps:
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        RESOURCE_UID=$(az aks show \
+          --resource-group "$(RESOURCE_GROUP)" \
+          --name "$(CLUSTER)" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --query "resourceUid" -o tsv)
+
+        if [ -z "$RESOURCE_UID" ]; then
+          echo "##[warning]Failed to fetch resourceUid, skipping ASI URL"
+          exit 1
+        fi
+
+        END_TIME=""
+        if [ -z "$END_TIME" ]; then
+          END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%S.000Z")
+        fi
+
+        FROM_ENCODED=$(echo "$(BENCHMARK_START_TIME)" | sed 's/:/%3A/g')
+        TO_ENCODED=$(echo "$END_TIME" | sed 's/:/%3A/g')
+
+        echo "============================================"
+        echo "ASI Managed Cluster Dashboard URL:"
+        echo "https://asi.azure.ms/services/AKS/pages/Managed%20Cluster?clusterVersion=$RESOURCE_UID&globalFrom=$FROM_ENCODED&globalTo=$TO_ENCODED"
+        echo ""
+        echo "ASI API Server Analyzer URL:"
+        echo "https://asi.azure.ms/services/AKS/pages/API%20Server%20Analyzer?clusterVersion=$RESOURCE_UID&globalFrom=$FROM_ENCODED&globalTo=$TO_ENCODED"
+        echo "============================================"
+    continueOnError: true
+    displayName: Print ASI dashboard URL
+- job: cleanup
+  displayName: Cleanup
+  dependsOn:
+  - bootstrap
+  - report
+  condition: and(always(), not(ne('${{ parameters.existing_cluster_name }}', 'none')), not(${{ parameters.keep_cluster }}))
+  timeoutInMinutes: 60
+  variables:
+    RESOURCE_GROUP: $[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]
+  steps:
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az group delete --name "$(RESOURCE_GROUP)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+    condition: always()
+    continueOnError: false
+    displayName: Delete resource group $(RESOURCE_GROUP) (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
