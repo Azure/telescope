@@ -124,32 +124,6 @@ steps:
           echo "  $role: CL2 run succeeded"
         fi
 
-        # ============== KVSTOREMESH SERIES PROBE (REMOVE WHEN PER-TYPE FIXED) ==
-        # One-off: dump the actual label sets on
-        # cilium_kvstoremesh_kvstore_events_queue_seconds_count so we can write
-        # a working "per-type" prefix filter. The current filters
-        # (prefix=~".*identit.*" / ".*service.*" / ".*/ip/.*") returned "no
-        # samples" — either the label is named differently (e.g. key_prefix,
-        # event_type) or the values aren't human-readable. Once verified,
-        # update measurements/clustermesh-metrics.yaml and remove this block.
-        echo "------- $role: KVSTOREMESH SERIES PROBE -------"
-        prom_pod=$(KUBECONFIG="$kubeconfig" kubectl -n monitoring get pod -l app.kubernetes.io/name=prometheus -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-        if [ -n "${prom_pod:-}" ]; then
-          for m in cilium_kvstoremesh_kvstore_events_queue_seconds_count cilium_kvstoremesh_kvstore_sync_queue_size cilium_kvstoremesh_kvstore_operations_duration_seconds_count; do
-            echo "--- series for $m (first 10) ---"
-            KUBECONFIG="$kubeconfig" kubectl -n monitoring exec "$prom_pod" -c prometheus -- \
-              wget -qO- "http://localhost:9090/api/v1/series?match%5B%5D=$m" 2>/dev/null \
-              | tr ',' '\n' | head -40 || true
-            echo "--- distinct __name__ vs label keys ---"
-            KUBECONFIG="$kubeconfig" kubectl -n monitoring exec "$prom_pod" -c prometheus -- \
-              wget -qO- "http://localhost:9090/api/v1/series?match%5B%5D=$m" 2>/dev/null \
-              | grep -oE '"[a-z_]+":' | sort -u || true
-            echo
-          done
-        fi
-        echo "------- end KVSTOREMESH SERIES PROBE -------"
-        # ===================== END KVSTOREMESH SERIES PROBE ===================
-
         # Always-on log capture (spec line 35: "Logs: clustermesh-apiserver,
         # agent watchers"). Files land in $report_dir/logs/ so they are
         # uploaded alongside junit.xml + measurement results when the
