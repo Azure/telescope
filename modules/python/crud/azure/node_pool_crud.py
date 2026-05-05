@@ -416,7 +416,7 @@ class NodePoolCRUD:
             replicas=10,
             manifest_dir=None,
             number_of_statefulsets=1,
-            label_selector="app=nginx-container",
+            label_selector="app=nginx-statefulset",
             namespace="default"
     ):
         """
