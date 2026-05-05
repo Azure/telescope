@@ -73,6 +73,59 @@ steps:
           query: quantile(0.50, avg_over_time(rate(cilium_kvstoremesh_kvstore_events_queue_seconds_count[1m])[%v:]))
 
     # ---------------------------------------------------------------------
+    # Per-type event rate breakdown (spec line 131: "Event rate (per
+    # type)"). The kvstoremesh kvstore-events histogram carries a
+    # `prefix` label tagging which kvstore key family the event touched.
+    # We split into the three families spec line 5 calls out: endpoints,
+    # services, identities. Cilium upstream prefixes use these path
+    # roots:
+    #   cilium/state/identities/v1/  — security identities
+    #   cilium/state/services/v1/    — global Service objects
+    #   cilium/state/ip/v1/          — endpoint IP-to-identity mappings
+    # If a future Cilium version moves things, queries return empty
+    # (CL2 logs "no samples") and we adjust the regex.
+    # ---------------------------------------------------------------------
+    - Identifier: ClusterMeshKvstoreEventsRateIdentities{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Kvstore Events Rate Identities {{$suffix}}
+        metricVersion: v1
+        unit: events/s
+        enableViolations: false
+        queries:
+        - name: Perc99
+          query: quantile(0.99, max_over_time(sum(rate(cilium_kvstoremesh_kvstore_events_queue_seconds_count{prefix=~".*identit.*"}[1m]))[%v:]))
+        - name: Perc50
+          query: quantile(0.50, avg_over_time(sum(rate(cilium_kvstoremesh_kvstore_events_queue_seconds_count{prefix=~".*identit.*"}[1m]))[%v:]))
+    - Identifier: ClusterMeshKvstoreEventsRateServices{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Kvstore Events Rate Services {{$suffix}}
+        metricVersion: v1
+        unit: events/s
+        enableViolations: false
+        queries:
+        - name: Perc99
+          query: quantile(0.99, max_over_time(sum(rate(cilium_kvstoremesh_kvstore_events_queue_seconds_count{prefix=~".*service.*"}[1m]))[%v:]))
+        - name: Perc50
+          query: quantile(0.50, avg_over_time(sum(rate(cilium_kvstoremesh_kvstore_events_queue_seconds_count{prefix=~".*service.*"}[1m]))[%v:]))
+    - Identifier: ClusterMeshKvstoreEventsRateEndpoints{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Kvstore Events Rate Endpoints {{$suffix}}
+        metricVersion: v1
+        unit: events/s
+        enableViolations: false
+        queries:
+        - name: Perc99
+          query: quantile(0.99, max_over_time(sum(rate(cilium_kvstoremesh_kvstore_events_queue_seconds_count{prefix=~".*/ip/.*"}[1m]))[%v:]))
+        - name: Perc50
+          query: quantile(0.50, avg_over_time(sum(rate(cilium_kvstoremesh_kvstore_events_queue_seconds_count{prefix=~".*/ip/.*"}[1m]))[%v:]))
+
+    # ---------------------------------------------------------------------
     # Cross-cluster propagation latency proxy: p99 of kvstore operation
     # duration. This is the closest upstream metric to "how long does it take
     # for a change in cluster A to be visible in cluster B" without injecting

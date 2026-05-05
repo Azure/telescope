@@ -124,6 +124,30 @@ steps:
           echo "  $role: CL2 run succeeded"
         fi
 
+        # Always-on log capture (spec line 35: "Logs: clustermesh-apiserver,
+        # agent watchers"). Files land in $report_dir/logs/ so they are
+        # uploaded alongside junit.xml + measurement results when the
+        # publish step runs. The same files double as immediate
+        # diagnostics for failed runs (see FAILURE DIAG block below).
+        log_dir="$report_dir/logs"
+        mkdir -p "$log_dir"
+        echo "------- $role: capturing pod logs to $log_dir -------"
+        # clustermesh-apiserver: all three containers (apiserver / etcd /
+        # kvstoremesh) — bounded tail, single pod expected.
+        for c in apiserver etcd kvstoremesh; do
+          KUBECONFIG="$kubeconfig" kubectl -n kube-system logs \
+            -l k8s-app=clustermesh-apiserver -c "$c" --tail=4000 \
+            > "$log_dir/clustermesh-apiserver-$c.log" 2>&1 || true
+        done
+        # cilium-agent: one pod per node — keep tail small to bound size.
+        KUBECONFIG="$kubeconfig" kubectl -n kube-system logs \
+          -l k8s-app=cilium --tail=1000 --prefix=true \
+          > "$log_dir/cilium-agent.log" 2>&1 || true
+        # cilium-operator: low-volume control plane.
+        KUBECONFIG="$kubeconfig" kubectl -n kube-system logs \
+          -l io.cilium/app=operator --tail=2000 --prefix=true \
+          > "$log_dir/cilium-operator.log" 2>&1 || true
+
         if [ "$cl2_passed" -ne 1 ]; then
           # Dump enough state to distinguish prometheus-stack scheduling
           # failures from CL2 logic failures. Prometheus is the most common

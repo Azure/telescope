@@ -162,6 +162,42 @@ steps:
     # almost all I/O via in-kernel bpf maps, not container fs — the write-op
     # rate is genuinely ~0, so the division yields no result. Written-bytes
     # rates (above) still produce useful data and remain the FS signal.
+
+    # ---------------------------------------------------------------------
+    # Network usage (spec line 38, 134: "CPU/memory/network per
+    # component"). cAdvisor exposes container_network_*_bytes_total per
+    # pod. We pin to pod="cilium-.*" instead of container="cilium-agent"
+    # because cAdvisor reports network counters at the pod-sandbox level
+    # (container="POD"), not the per-container level — so a
+    # container="cilium-agent" filter would return empty.
+    # ---------------------------------------------------------------------
+    - Identifier: CiliumContainerNetworkTransmitBytes{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Network Transmit Bytes {{$suffix}}
+        metricVersion: v1
+        unit: bytes/s
+        enableViolations: false
+        queries:
+        - name: Perc99
+          query: quantile(0.99, max_over_time(rate(container_network_transmit_bytes_total{pod=~"cilium-.*",namespace="kube-system"}[1m])[%v:]))
+        - name: Perc50
+          query: quantile(0.50, avg_over_time(rate(container_network_transmit_bytes_total{pod=~"cilium-.*",namespace="kube-system"}[1m])[%v:]))
+    - Identifier: CiliumContainerNetworkReceiveBytes{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Network Receive Bytes {{$suffix}}
+        metricVersion: v1
+        unit: bytes/s
+        enableViolations: false
+        queries:
+        - name: Perc99
+          query: quantile(0.99, max_over_time(rate(container_network_receive_bytes_total{pod=~"cilium-.*",namespace="kube-system"}[1m])[%v:]))
+        - name: Perc50
+          query: quantile(0.50, avg_over_time(rate(container_network_receive_bytes_total{pod=~"cilium-.*",namespace="kube-system"}[1m])[%v:]))
+
     - Identifier: CiliumContainerRestarts{{$suffix}}
       Method: GenericPrometheusQuery
       Params:
