@@ -146,6 +146,44 @@ def handle_node_pool_operation(node_pool_crud, args):
         logger.error(f"Error during '{command}' operation: {str(e)}")
         return 1
 
+def handle_workload_operations(node_pool_crud, args):
+    """Handle workload operations (deployment, statefulset, jobs) based on the command"""
+    command = args.command
+    result = None
+
+    try:
+        if command == "deployment":
+            # Prepare deploy arguments
+            deploy_kwargs = {
+                "node_pool_name": args.node_pool_name,
+                "replicas": args.replicas,
+                "manifest_dir": args.manifest_dir,
+                "number_of_deployments": args.number_of_deployments
+            }
+
+            result = node_pool_crud.create_deployment(**deploy_kwargs)
+        elif command == "jobs":
+            # Prepare job arguments
+            job_kwargs = {
+                "node_pool_name": args.node_pool_name,
+                "completions": args.completions,
+                "manifest_dir": args.manifest_dir,
+                "number_of_jobs": args.number_of_jobs,
+                "label_selector": args.label_selector,
+            }
+
+            result = node_pool_crud.create_job(**job_kwargs)
+        else:
+            logger.error("Unknown workload command: '%s'", command)
+            return 1
+        # Check if the operation was successful
+        if result is False:
+            logger.error(f"Operation '{command}' failed")
+            return 1
+        return 0
+    except Exception as e:
+        logger.error(f"Error during '{command}' operation: {str(e)}")
+        return 1
 
 def handle_node_pool_all(node_pool_crud, args):
     """Handle the all-in-one node pool operation command (create, scale up, scale down, delete)"""
@@ -319,6 +357,61 @@ def main():
         help="Wait time between scaling steps in seconds (for progressive scaling)",
     )
     all_parser.set_defaults(func=handle_node_pool_operation)
+
+    # Deployment command - add after the "all" command parser
+    deployment_parser = subparsers.add_parser(
+        "deployment", parents=[common_parser], help="create deployments"
+    )
+    deployment_parser.add_argument("--node-pool-name", required=True, help="Node pool name")
+    deployment_parser.add_argument(
+        "--number-of-deployments",
+        type=int,
+        default=1,
+        help="Number of deployments"
+    )
+    deployment_parser.add_argument(
+        "--replicas",
+        type=int,
+        default=10,
+        help="Number of deployment replicas"
+    )
+    deployment_parser.add_argument(
+        "--manifest-dir",
+        required=True,
+        help="Directory containing Kubernetes manifest files for the deployment"
+    )
+
+    deployment_parser.set_defaults(func=handle_workload_operations)
+
+    # Jobs command - add after the "deployment" command parser
+    jobs_parser = subparsers.add_parser(
+        "jobs", parents=[common_parser], help="create jobs"
+    )
+    jobs_parser.add_argument("--node-pool-name", required=True, help="Node pool name")
+    jobs_parser.add_argument(
+        "--number-of-jobs",
+        type=int,
+        default=1,
+        help="Number of jobs"
+    )
+    jobs_parser.add_argument(
+        "--completions",
+        type=int,
+        default=1,
+        help="Number of job completions"
+    )
+    jobs_parser.add_argument(
+        "--manifest-dir",
+        required=True,
+        help="Directory containing Kubernetes manifest files for the job"
+    )
+    jobs_parser.add_argument(
+        "--label-selector",
+        default="app=nginx-container",
+        help="Label selector for created job pods (default: app=nginx-container)"
+    )
+
+    jobs_parser.set_defaults(func=handle_workload_operations)
 
     # Arguments provided, run node pool operations and collect benchmark results
     try:
