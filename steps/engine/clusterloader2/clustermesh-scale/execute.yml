@@ -124,49 +124,6 @@ steps:
           echo "  $role: CL2 run succeeded"
         fi
 
-        # ============== ETCD DISCOVERY PROBE (REMOVE ONCE ETCD WIRED) =========
-        # One-off diagnostic: discover (a) which port on the
-        # clustermesh-apiserver pod exposes the embedded etcd's /metrics, and
-        # (b) what etcd_* metric names Prometheus has ingested (in case we're
-        # unknowingly already scraping that port).
-        # Spec line 34 ("Metrics: Cilium, clustermesh-apiserver, etcd") and
-        # line 134 ("etcd metrics (watch count, compactions, latency)") both
-        # require etcd-side coverage. Our current PodMonitor scrapes 9963 +
-        # 9964 — we know 9964 is kvstoremesh; 9963 is either the apiserver
-        # or etcd. This probe tells us which, so the next iteration can wire
-        # the missing one. Once etcd queries are in, delete this block.
-        echo "------- $role: ETCD DISCOVERY PROBE -------"
-        echo "------- clustermesh-apiserver pod containers + ports -------"
-        KUBECONFIG="$kubeconfig" kubectl -n kube-system get pod -l k8s-app=clustermesh-apiserver \
-          -o 'custom-columns=POD:.metadata.name,CONTAINERS:.spec.containers[*].name,PORTS:.spec.containers[*].ports[*].containerPort' 2>&1 || true
-        echo "------- container args for each container -------"
-        cmapi_pod=$(KUBECONFIG="$kubeconfig" kubectl -n kube-system get pod -l k8s-app=clustermesh-apiserver -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-        if [ -n "${cmapi_pod:-}" ]; then
-          for c in apiserver etcd kvstoremesh; do
-            echo "--- container=$c args ---"
-            KUBECONFIG="$kubeconfig" kubectl -n kube-system get pod "$cmapi_pod" \
-              -o jsonpath="{.spec.containers[?(@.name=='$c')].args}" 2>/dev/null \
-              | tr ',' '\n' || true
-            echo
-          done
-          echo "------- probing common etcd metrics ports inside pod -------"
-          for port in 9962 9963 9964 2381 2378; do
-            echo "--- port $port (first 5 metric names) ---"
-            KUBECONFIG="$kubeconfig" kubectl -n kube-system exec "$cmapi_pod" -c apiserver -- \
-              wget -qO- "http://localhost:$port/metrics" 2>/dev/null \
-              | grep -E '^# HELP ' | head -5 || true
-          done
-        fi
-        echo "------- etcd_* metric names Prometheus already has -------"
-        prom_pod=$(KUBECONFIG="$kubeconfig" kubectl -n monitoring get pod -l app.kubernetes.io/name=prometheus -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-        if [ -n "${prom_pod:-}" ]; then
-          KUBECONFIG="$kubeconfig" kubectl -n monitoring exec "$prom_pod" -c prometheus -- \
-            wget -qO- "http://localhost:9090/api/v1/label/__name__/values" 2>/dev/null \
-            | grep -oE '"etcd_[a-z_]+"' | sort -u | head -40 || true
-        fi
-        echo "------- end ETCD DISCOVERY PROBE -------"
-        # ===================== END ETCD DISCOVERY PROBE =======================
-
         if [ "$cl2_passed" -ne 1 ]; then
           # Dump enough state to distinguish prometheus-stack scheduling
           # failures from CL2 logic failures. Prometheus is the most common

@@ -1,0 +1,158 @@
+{{$action := .action}} # start, gather
+
+{{$suffix := DefaultParam .suffix ""}}
+
+# Etcd-internal measurements for the embedded etcd inside each cluster's
+# clustermesh-apiserver pod.
+#
+# Spec coverage (scale testing.txt):
+#   - line  34: "Metrics: Cilium, clustermesh-apiserver, etcd"
+#   - line 134: "etcd metrics (watch count, compactions, latency)"
+#
+# Source: the etcd container in the clustermesh-apiserver pod is launched
+# with `--listen-metrics-urls=http://0.0.0.0:9963` and `--metrics=basic`.
+# Our PodMonitor (modules/clustermesh/podmonitor.yaml, port 9963 endpoint)
+# already scrapes that target — we just hadn't been querying the metrics.
+#
+# `--metrics=basic` only emits the etcd_debugging_* family (despite the
+# name, these ARE the basic-tier metrics; the "extensive" tier adds
+# etcd_disk_wal_fsync_*, etcd_network_peer_*, etcd_mvcc_db_total_size_in_bytes,
+# etc., which AKS-managed Cilium does not enable). Queries below pick the
+# best basic-tier proxies for each spec-required signal.
+
+steps:
+  - name: {{$action}} ClusterMesh Etcd Measurements
+    measurements:
+    # ---------------------------------------------------------------------
+    # Watch count (spec line 134 "watch count"). Total watchers currently
+    # registered against this cluster's clustermesh-apiserver etcd. Each
+    # remote cluster's kvstoremesh maintains watchers for endpoints,
+    # services, and identities, so this scales with mesh size and traffic.
+    # Slow-watcher count is the back-pressure signal: a non-zero value
+    # means watchers can't keep up with the event stream.
+    # ---------------------------------------------------------------------
+    - Identifier: ClusterMeshEtcdWatchCount{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Etcd Watch Count {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        - name: Max
+          query: max(max_over_time(etcd_debugging_mvcc_watcher_total[%v:]))
+        - name: Perc99
+          query: quantile(0.99, max_over_time(etcd_debugging_mvcc_watcher_total[%v:]))
+        - name: Perc50
+          query: quantile(0.50, avg_over_time(etcd_debugging_mvcc_watcher_total[%v:]))
+
+    - Identifier: ClusterMeshEtcdSlowWatchers{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Etcd Slow Watchers {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        - name: Max
+          query: max(max_over_time(etcd_debugging_mvcc_slow_watcher_total[%v:]))
+        - name: Perc99
+          query: quantile(0.99, max_over_time(etcd_debugging_mvcc_slow_watcher_total[%v:]))
+
+    # ---------------------------------------------------------------------
+    # Pending events: events queued for delivery to watchers but not yet
+    # consumed. A growing value over the run window is the etcd-side
+    # equivalent of the kvstoremesh sync queue depth — back-pressure from
+    # the consumer side.
+    # ---------------------------------------------------------------------
+    - Identifier: ClusterMeshEtcdPendingEvents{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Etcd Pending Events {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        - name: Max
+          query: max(max_over_time(etcd_debugging_mvcc_pending_events_total[%v:]))
+        - name: Perc99
+          query: quantile(0.99, max_over_time(etcd_debugging_mvcc_pending_events_total[%v:]))
+
+    # ---------------------------------------------------------------------
+    # Compactions (spec line 134 "compactions"). Auto-compaction is
+    # enabled with `--auto-compaction-retention=1` (1-hour retention). Two
+    # signals: how long a compaction takes (latency) and how many keys
+    # were removed (work done).
+    # ---------------------------------------------------------------------
+    - Identifier: ClusterMeshEtcdCompactionDuration{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Etcd Compaction Duration {{$suffix}}
+        metricVersion: v1
+        unit: ms
+        enableViolations: false
+        queries:
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(rate(etcd_debugging_mvcc_db_compaction_total_duration_milliseconds_bucket[%v])) by (le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(rate(etcd_debugging_mvcc_db_compaction_total_duration_milliseconds_bucket[%v])) by (le))
+
+    - Identifier: ClusterMeshEtcdCompactionKeys{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Etcd Compacted Keys {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        - name: TotalIncrease
+          query: max(max_over_time(etcd_debugging_mvcc_db_compaction_keys_total[%v:])) - min(min_over_time(etcd_debugging_mvcc_db_compaction_keys_total[%v:]))
+
+    # ---------------------------------------------------------------------
+    # Disk-write latency (spec line 134 "latency"). With --metrics=basic
+    # we don't have etcd_disk_wal_fsync_duration_seconds; the closest
+    # available proxy is etcd_debugging_disk_backend_commit_write_duration
+    # (how long it takes to commit a write txn to the bbolt backend).
+    # Together with rebalance/spill durations, this characterizes etcd's
+    # disk subsystem performance under load.
+    # ---------------------------------------------------------------------
+    - Identifier: ClusterMeshEtcdBackendWriteDuration{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Etcd Backend Write Duration {{$suffix}}
+        metricVersion: v1
+        unit: s
+        enableViolations: false
+        queries:
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(rate(etcd_debugging_disk_backend_commit_write_duration_seconds_bucket[1m])) by (le))
+        - name: Perc90
+          query: histogram_quantile(0.90, sum(rate(etcd_debugging_disk_backend_commit_write_duration_seconds_bucket[1m])) by (le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(rate(etcd_debugging_disk_backend_commit_write_duration_seconds_bucket[1m])) by (le))
+
+    # ---------------------------------------------------------------------
+    # MVCC store size proxy. With --metrics=basic we don't get
+    # etcd_mvcc_db_total_size_in_bytes; etcd_debugging_mvcc_keys_total is
+    # the key count and etcd_debugging_mvcc_total_put_size_in_bytes is the
+    # cumulative bytes written. Together they bound the working set.
+    # ---------------------------------------------------------------------
+    - Identifier: ClusterMeshEtcdMvccKeys{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Etcd MVCC Keys {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        - name: Max
+          query: max(max_over_time(etcd_debugging_mvcc_keys_total[%v:]))
+        - name: Perc50
+          query: quantile(0.50, avg_over_time(etcd_debugging_mvcc_keys_total[%v:]))

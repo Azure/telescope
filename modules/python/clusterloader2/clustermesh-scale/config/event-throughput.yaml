@@ -10,7 +10,7 @@ name: clustermesh-event-throughput
 # steps/engine/.../execute.yml):
 #
 #   1. Start measurements (control-plane, cilium, clustermesh-metrics +
-#      scenario-specific clustermesh-throughput).
+#      scenario-specific clustermesh-throughput + etcd-metrics).
 #   2. Deploy PodMonitor scraping clustermesh-apiserver.
 #   3. Create N pods + N global Services per cluster at a controlled QPS.
 #   4. Warmup sleep — let initial create-flurry settle into steady state.
@@ -66,6 +66,11 @@ steps:
 
   - module:
       path: /modules/measurements/clustermesh-throughput.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/etcd-metrics.yaml
       params:
         action: start
 
@@ -134,6 +139,11 @@ steps:
 
   - module:
       path: /modules/measurements/clustermesh-throughput.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/etcd-metrics.yaml
       params:
         action: gather
 
