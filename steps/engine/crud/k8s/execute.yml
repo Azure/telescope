@@ -9,7 +9,6 @@ parameters:
   step_time_out: 600
   step_wait_time: 30
   gpu_node_pool: false
-  deployment_name: ""
   number_of_deployments: 1
   replicas: 10
   manifest_dir: ""
@@ -70,7 +69,7 @@ steps:
       --node-pool-name "$POOL_NAME" \
       --number-of-deployments "$NUMBER_OF_DEPLOYMENTS" \
       --replicas "$REPLICAS" \
-      --manifest-dir "$MANIFEST_DIR" \
+      ${MANIFEST_DIR:+--manifest-dir "$MANIFEST_DIR"} \
       --step-timeout "$STEP_TIME_OUT" \
       ${GPU_NODE_POOL:+--gpu-node-pool}
   displayName: 'Execute K8s Workload operations for ${{ parameters.cloud }}'
@@ -82,7 +81,6 @@ steps:
     STEP_TIME_OUT: ${{ parameters.step_time_out }}
     RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
     GPU_NODE_POOL: ${{ parameters.gpu_node_pool }}
-    DEPLOYMENT_NAME: ${{ parameters.deployment_name }}
     NUMBER_OF_DEPLOYMENTS: ${{ parameters.number_of_deployments }}
     REPLICAS: ${{ parameters.replicas }}
     MANIFEST_DIR: ${{ parameters.manifest_dir }}

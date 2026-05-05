@@ -22,7 +22,6 @@ steps:
     result_dir: $(System.DefaultWorkingDirectory)/$(RUN_ID)
     gpu_node_pool: $(GPU_NODE_POOL)
     step_wait_time: $(STEP_WAIT_TIME)
-    deployment_name: $(DEPLOYMENT_NAME)
     number_of_deployments: $(NUMBER_OF_DEPLOYMENTS)
     replicas: $(REPLICAS)
     manifest_dir: $(MANIFEST_DIR)

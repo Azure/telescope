@@ -7,6 +7,7 @@ both direct and progressive scaling operations and handles GPU-enabled node pool
 """
 
 import logging
+import os
 import time
 import yaml
 
@@ -286,11 +287,11 @@ class NodePoolCRUD:
 
         Args:
             node_pool_name: Name of the node pool to target
-            deployment_name: Base name for the deployments
-            namespace: Kubernetes namespace (default: "default")
             replicas: Number of deployment replicas per deployment (default: 10)
             manifest_dir: Directory containing Kubernetes manifest files
             number_of_deployments: Number of deployments to create (default: 1)
+            label_selector: Label selector used to target the deployment workload
+            namespace: Kubernetes namespace (default: "default")
 
         Returns:
             True if all deployment creations were successful, False otherwise
@@ -319,11 +320,17 @@ class NodePoolCRUD:
                         # Use the template path from manifest_dir
                         template_path = f"{manifest_dir}/deployment.yml"
                     else:
-                        # Use default template path
-                        template_path = "modules/python/crud/workload_templates/deployment.yml"
+                        # Use default template path (relative to workingDirectory: modules/python)
+                        template_path = os.path.join(
+                            os.path.dirname(os.path.abspath(__file__)),
+                            "..", "workload_templates", "deployment.yml"
+                        )
 
                     # Generate deployment name
                     deployment_name = f"myapp-{node_pool_name}-{deployment_index}"
+
+                    # Use per-deployment label to avoid selector collision
+                    deployment_label = f"{label_selector.split('=', 1)[-1]}-{deployment_index}"
 
                     # Create deployment template using k8s_client.create_template
                     deployment_template = k8s_client.create_template(
@@ -332,14 +339,14 @@ class NodePoolCRUD:
                             "DEPLOYMENT_REPLICAS": replicas,
                             "NODE_POOL_NAME": node_pool_name,
                             "INDEX": deployment_index,
-                            "LABEL_VALUE": label_selector.split("=", 1)[-1],
+                            "LABEL_VALUE": deployment_label,
                         }
                     )
 
                     # Apply each document in the rendered multi-doc template
                     for doc in yaml.safe_load_all(deployment_template):
                         if doc:
-                            k8s_client.apply_manifest_from_file(manifest_dict=doc)
+                            k8s_client.apply_manifest_from_file(manifest_dict=doc, namespace=namespace)
 
                     logger.info("Applied manifest for deployment %s", deployment_name)
 
@@ -362,7 +369,7 @@ class NodePoolCRUD:
                             operation_timeout_in_minutes=5,
                             namespace=namespace,
                             pod_count=replicas,
-                            label_selector=label_selector
+                            label_selector=f"app={deployment_label}"
                         )
 
                         logger.info("Successfully created and verified deployment %d", deployment_index)

@@ -7,7 +7,6 @@ metadata:
 spec:
   template:
     metadata:
-      name:
       labels:
         app: {{LABEL_VALUE}}
     spec:
