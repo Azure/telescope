@@ -73,6 +73,45 @@ steps:
       credential_type: ${{ parameters.credential_type }}
 
   - script: |
+      # Install the Azure Fleet preview CLI extension required by the
+      # clustermesh-scale scenario. The Fleet ClusterMeshProfile API surface
+      # is private-preview and only the bundled wheel exposes the
+      # `az fleet clustermeshprofile` and `az fleet member create --labels`
+      # commands invoked by terraform local-exec at provision time.
+      #
+      # The wheel is vendored in-repo at scenarios/perf-eval/clustermesh-scale/vendor/.
+      set -euo pipefail
+      whl="$(Pipeline.Workspace)/s/scenarios/perf-eval/$(SCENARIO_NAME)/vendor/fleet-2.0.4-py3-none-any.whl"
+      if [ ! -f "$whl" ]; then
+        echo "##vso[task.logissue type=error;] Vendored fleet wheel not found at $whl"
+        exit 1
+      fi
+      az extension remove --name fleet --only-show-errors 2>/dev/null || true
+      az extension add --source "$whl" --yes --only-show-errors
+      az fleet --help >/dev/null
+      az fleet clustermeshprofile --help >/dev/null
+      echo "Fleet preview CLI installed from $whl"
+    displayName: "Install Fleet preview CLI (clustermesh scenarios)"
+    condition: startsWith(variables['SCENARIO_NAME'], 'clustermesh')
+
+  - script: |
+      # Install cilium-cli on the runner for richer ClusterMesh diagnostics.
+      # `cilium clustermesh status --context <ctx>` reports per-remote-cluster
+      # connection state, endpoint counts, and version skew — info that the
+      # in-pod `cilium-dbg status` doesn't expose. Used by topology
+      # validate-resources.yml on each cluster context.
+      set -euo pipefail
+      CILIUM_CLI_VERSION=v0.16.20
+      CLI_ARCH=amd64
+      curl -sSL --fail --remote-name-all \
+        "https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-linux-${CLI_ARCH}.tar.gz"
+      sudo tar xzvfC "cilium-linux-${CLI_ARCH}.tar.gz" /usr/local/bin
+      rm "cilium-linux-${CLI_ARCH}.tar.gz"
+      cilium version --client
+    displayName: "Install cilium-cli (clustermesh scenarios)"
+    condition: startsWith(variables['SCENARIO_NAME'], 'clustermesh')
+
+  - script: |
       if [ -n "${TEST_MODULES_DIR}" ]; then
         test_modules_directory=$(Pipeline.Workspace)/s/${TEST_MODULES_DIR}
       else

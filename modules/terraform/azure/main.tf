@@ -320,3 +320,94 @@ module "virtual_machine" {
   # Ensure AKS cluster is created before VM tries to look it up for RBAC
   depends_on = [module.aks, module.aks-cli, module.azapi]
 }
+
+# =============================================================================
+# ClusterMesh add-ons (vnet-peering + fleet + clustermeshprofile).
+#
+# Both are no-ops unless explicitly enabled in their *_config variable. Used
+# today only by the clustermesh-scale scenario.
+# =============================================================================
+
+data "azurerm_client_config" "current" {}
+
+module "vnet_peering" {
+  source = "./vnet-peering"
+
+  peering_enabled     = try(var.vnet_peering_config.enabled, false)
+  resource_group_name = local.run_id
+  vnet_role_to_id     = { for role in keys(local.network_config_map) : role => module.virtual_network[role].vnet_id }
+  vnet_role_to_name   = { for role, nw in local.network_config_map : role => nw.vnet_name }
+
+  depends_on = [module.virtual_network]
+}
+
+# -----------------------------------------------------------------------------
+# Network Contributor on each member's VNet for the AKS control-plane identity.
+#
+# Required so AKS cloud-controller-manager can provision the
+# clustermesh-apiserver internal LoadBalancer Service. `az aks create`
+# auto-grants the cluster identity Network Contributor on the *node subnet*,
+# but LB provisioning on that subnet additionally needs VNet-level read.
+# Without this grant the Service stays at EXTERNAL-IP=<pending>, the
+# `cilium clustermesh status` CLI fails with "unable to derive service IPs
+# automatically", and the per-agent `cilium-clustermesh` secret is never
+# populated → cilium-dbg reports "ClusterMesh: 0/0 remote clusters ready".
+#
+# Mirrors fleet-setup-script.sh Step 3 (the reference manual setup script).
+# Gated on fleet_config.enabled so non-clustermesh scenarios are unaffected.
+# -----------------------------------------------------------------------------
+locals {
+  clustermesh_member_roles = try(var.fleet_config.enabled, false) ? {
+    for m in try(var.fleet_config.members, []) : m.aks_role => m.aks_role
+  } : {}
+}
+
+data "azurerm_kubernetes_cluster" "clustermesh_member" {
+  for_each = local.clustermesh_member_roles
+
+  name                = local.aks_cli_config_map[each.key].aks_name
+  resource_group_name = local.run_id
+
+  # aks-cli creates the cluster via local-exec; depends_on defers the data
+  # read until apply time when the cluster actually exists.
+  depends_on = [module.aks-cli]
+}
+
+resource "azurerm_role_assignment" "clustermesh_vnet_contributor" {
+  for_each = local.clustermesh_member_roles
+
+  scope                = module.virtual_network[each.key].vnet_id
+  role_definition_name = "Network Contributor"
+  principal_id         = data.azurerm_kubernetes_cluster.clustermesh_member[each.key].identity[0].principal_id
+}
+
+module "fleet" {
+  source = "./fleet"
+
+  fleet_enabled       = try(var.fleet_config.enabled, false)
+  resource_group_name = local.run_id
+  location            = local.region
+  subscription_id     = data.azurerm_client_config.current.subscription_id
+  fleet_name          = try(var.fleet_config.fleet_name, "")
+  cmp_name            = try(var.fleet_config.cmp_name, "")
+  member_label_key    = try(var.fleet_config.member_label_key, "mesh")
+  member_label_value  = try(var.fleet_config.member_label_value, "true")
+  members = [
+    for m in try(var.fleet_config.members, []) : {
+      member_name = m.member_name
+      aks_name    = local.aks_cli_config_map[m.aks_role].aks_name
+    }
+  ]
+  tags = local.tags
+
+  # AKS clusters must exist before we join them as fleet members and apply the
+  # mesh profile. Peering must exist too — apply reaches the mesh-apiserver LB
+  # endpoints cross-cluster, which requires peering (separate-VNet mode).
+  # Network Contributor on each VNet must exist before clustermeshprofile apply
+  # so cloud-controller-manager can provision the apiserver internal LB.
+  depends_on = [
+    module.aks-cli,
+    module.vnet_peering,
+    azurerm_role_assignment.clustermesh_vnet_contributor,
+  ]
+}

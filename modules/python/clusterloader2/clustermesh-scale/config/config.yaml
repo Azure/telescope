@@ -1,0 +1,105 @@
+name: clustermesh-scale-test
+
+# Workload: deploy a small fixed number of pods on this cluster (no churn,
+# no traffic). Measurement modules under modules/measurements/ run the actual
+# scale-test instrumentation (cilium agent/operator CPU+memory, kube-apiserver
+# health, mesh-specific PromQL) so each per-cluster JSONL row carries the data
+# needed for cross-cluster comparison in Kusto. The workload is deliberately
+# trivial — fan-out, attribution, and metric coverage are what we're testing
+# in Phase 1; richer workloads land per scenario in Phase 2+.
+
+{{$namespaces := DefaultParam .CL2_NAMESPACES 1}}
+{{$deploymentsPerNamespace := DefaultParam .CL2_DEPLOYMENTS_PER_NAMESPACE 2}}
+{{$replicasPerDeployment := DefaultParam .CL2_REPLICAS_PER_DEPLOYMENT 2}}
+{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
+{{$apiServerCallsPerSecond := DefaultParam .CL2_API_SERVER_CALLS_PER_SECOND 5}}
+
+namespace:
+  number: {{$namespaces}}
+  prefix: clustermesh-scale
+  deleteStaleNamespaces: true
+  deleteAutomanagedNamespaces: true
+  enableExistingNamespaces: false
+  deleteNamespaceTimeout: 20m
+
+tuningSets:
+  - name: Sequence
+    parallelismLimitedLoad:
+      parallelismLimit: 1
+  - name: DeploymentCreateQps
+    qpsLoad:
+      qps: {{$apiServerCallsPerSecond}}
+
+steps:
+  # ----- Start measurements -----
+  # control-plane.yaml owns PodStartupLatency + APIResponsivenessPrometheus +
+  # apiserver CPU/mem queries; cilium.yaml owns cilium-agent + cilium-operator
+  # CPU/mem; clustermesh-metrics.yaml owns mesh-specific PromQL (remote-cluster
+  # connectivity, kvstore event rate, identity count, etc.). All three are
+  # gathered later (see "Gather measurements" below) so the steady-state window
+  # is bounded by the workload create/delete pair.
+  - module:
+      path: /modules/measurements/control-plane.yaml
+      params:
+        action: start
+        group: clustermesh-scale-test
+
+  - module:
+      path: /modules/measurements/cilium.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/clustermesh-metrics.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/clustermesh.yaml
+      params:
+        actionName: create
+        tuningSet: DeploymentCreateQps
+
+  - module:
+      path: /modules/scale-test.yaml
+      params:
+        actionName: create
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        replicasPerDeployment: {{$replicasPerDeployment}}
+        tuningSet: DeploymentCreateQps
+        operationTimeout: {{$operationTimeout}}
+
+  # ----- Gather measurements -----
+  # Mirror the start block above. Order matches network-scale convention.
+  - module:
+      path: /modules/measurements/control-plane.yaml
+      params:
+        action: gather
+        group: clustermesh-scale-test
+
+  - module:
+      path: /modules/measurements/cilium.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/clustermesh-metrics.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/scale-test.yaml
+      params:
+        actionName: delete
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        replicasPerDeployment: {{$replicasPerDeployment}}
+        tuningSet: DeploymentCreateQps
+        operationTimeout: {{$operationTimeout}}
+
+  - module:
+      path: /modules/clustermesh.yaml
+      params:
+        actionName: delete
+        tuningSet: DeploymentCreateQps

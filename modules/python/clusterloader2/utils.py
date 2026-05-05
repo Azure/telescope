@@ -25,7 +25,8 @@ SCHEDULING_THROUGHPUT_PREFIX = "SchedulingThroughput"
 
 def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, cl2_config_file="config.yaml", overrides=False, enable_prometheus=False, tear_down_prometheus=True,
                     enable_exec_service=False, scrape_kubelets=False,
-                    scrape_containerd=False, scrape_ksm=False, scrape_metrics_server=False):
+                    scrape_containerd=False, scrape_ksm=False, scrape_metrics_server=False,
+                    prometheus_memory_request=None):
     docker_client = DockerClient()
 
     command = f"""--provider={provider} --v=2
@@ -41,6 +42,14 @@ def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provi
 
     if scrape_containerd:
         command += f" --prometheus-scrape-containerd={scrape_containerd}"
+
+    if prometheus_memory_request:
+        # CL2 default is 10Gi. Smaller-than-default node SKUs (e.g. AKS
+        # Standard_D4s_v4 with 16GB) can't schedule the pod with the default
+        # request, and the resource-quota / limit ratio in the bundled
+        # prometheus manifests is rejected by k8s admission. Optional
+        # parameter — None preserves CL2 default for existing callers.
+        command += f" --prometheus-memory-request={prometheus_memory_request}"
 
     if overrides:
         command += " --testoverrides=/root/perf-tests/clusterloader2/config/overrides.yaml"

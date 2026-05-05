@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="ClusterLoaderV2" tests="3" failures="1" errors="0" time="42.000">
+    <testcase name="clustermesh-scale-test overall" classname="ClusterLoaderV2" time="41.5">
+        <failure type="ClusterLoaderV2 failure">timeout waiting for deployments to become ready in cluster mesh-fail</failure>
+    </testcase>
+    <testcase name="clustermesh-scale-test: [step: 01] Start measurements" classname="ClusterLoaderV2" time="0.1"></testcase>
+    <testcase name="clustermesh-scale-test: [step: 02] create ClusterMesh Pod Monitor" classname="ClusterLoaderV2" time="0.4"></testcase>
+</testsuite>
