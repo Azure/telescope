@@ -1,6 +1,4 @@
 name: Hyperscale API Server Executing Seats
-trigger:
-- v2
 jobs:
 - job: benchmarking
   displayName: Benchmarking

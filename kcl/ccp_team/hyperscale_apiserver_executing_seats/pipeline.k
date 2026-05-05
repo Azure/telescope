@@ -65,8 +65,6 @@ az rest \\
 output = ap.Pipeline {
     name = "Hyperscale API Server Executing Seats"
 
-    trigger =  ["v2"]
-
     jobs = [
         job.Job {
             job = "benchmarking"
