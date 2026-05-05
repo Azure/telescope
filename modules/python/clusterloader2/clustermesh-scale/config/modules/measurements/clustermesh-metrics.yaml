@@ -66,11 +66,11 @@ steps:
         enableViolations: false
         queries:
         - name: Perc99
-          query: quantile(0.99, max_over_time(rate(cilium_kvstore_events_queued_total[1m])[%v:]))
+          query: quantile(0.99, max_over_time(rate(cilium_kvstoremesh_kvstore_events_queue_seconds_count[1m])[%v:]))
         - name: Perc90
-          query: quantile(0.90, max_over_time(rate(cilium_kvstore_events_queued_total[1m])[%v:]))
+          query: quantile(0.90, max_over_time(rate(cilium_kvstoremesh_kvstore_events_queue_seconds_count[1m])[%v:]))
         - name: Perc50
-          query: quantile(0.50, avg_over_time(rate(cilium_kvstore_events_queued_total[1m])[%v:]))
+          query: quantile(0.50, avg_over_time(rate(cilium_kvstoremesh_kvstore_events_queue_seconds_count[1m])[%v:]))
 
     # ---------------------------------------------------------------------
     # Cross-cluster propagation latency proxy: p99 of kvstore operation
@@ -88,11 +88,11 @@ steps:
         enableViolations: false
         queries:
         - name: Perc99
-          query: histogram_quantile(0.99, sum(rate(cilium_kvstore_operations_duration_seconds_bucket[1m])) by (le))
+          query: histogram_quantile(0.99, sum(rate(cilium_kvstoremesh_kvstore_operations_duration_seconds_bucket[1m])) by (le))
         - name: Perc90
-          query: histogram_quantile(0.90, sum(rate(cilium_kvstore_operations_duration_seconds_bucket[1m])) by (le))
+          query: histogram_quantile(0.90, sum(rate(cilium_kvstoremesh_kvstore_operations_duration_seconds_bucket[1m])) by (le))
         - name: Perc50
-          query: histogram_quantile(0.50, sum(rate(cilium_kvstore_operations_duration_seconds_bucket[1m])) by (le))
+          query: histogram_quantile(0.50, sum(rate(cilium_kvstoremesh_kvstore_operations_duration_seconds_bucket[1m])) by (le))
 
     # ---------------------------------------------------------------------
     # Identity propagation: cilium identity count. Under cross-cluster pod

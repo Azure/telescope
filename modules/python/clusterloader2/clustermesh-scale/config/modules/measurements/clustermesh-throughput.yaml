@@ -28,9 +28,9 @@ steps:
         enableViolations: false
         queries:
         - name: Perc99
-          query: quantile(0.99, max_over_time((rate(cilium_kvstore_events_queued_total[1m]) - rate(cilium_kvstore_quorum_errors_total[1m]))[%v:]))
+          query: quantile(0.99, max_over_time((rate(cilium_kvstoremesh_kvstore_events_queue_seconds_count[1m]) - rate(cilium_kvstoremesh_kvstore_sync_errors_total[1m]))[%v:]))
         - name: MaxBurst
-          query: max(max_over_time(rate(cilium_kvstore_events_queued_total[30s])[%v:]))
+          query: max(max_over_time(rate(cilium_kvstoremesh_kvstore_events_queue_seconds_count[30s])[%v:]))
 
     # ---------------------------------------------------------------------
     # Global services gauge: one row per cluster of how many global services
@@ -69,4 +69,4 @@ steps:
         enableViolations: false
         queries:
         - name: Perc95
-          query: histogram_quantile(0.95, sum(rate(cilium_kvstore_operations_duration_seconds_bucket[1m])) by (le))
+          query: histogram_quantile(0.95, sum(rate(cilium_kvstoremesh_kvstore_operations_duration_seconds_bucket[1m])) by (le))
