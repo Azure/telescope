@@ -58,32 +58,33 @@ steps:
     ${{ if eq(parameters.cloud, 'aws') }}:
       CAPACITY_TYPE: $(CAPACITY_TYPE)
 
-- script: |
-    set -eo pipefail
+- ${{ if eq(parameters.cloud, 'azure') }}:
+  - script: |
+      set -eo pipefail
 
-    # Deploy Workloads
-    PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" deployment \
-      --cloud "$CLOUD" \
-      --run-id "$RUN_ID" \
-      --result-dir "$RESULT_DIR" \
-      --node-pool-name "$POOL_NAME" \
-      --number-of-deployments "$NUMBER_OF_DEPLOYMENTS" \
-      --replicas "$REPLICAS" \
-      ${MANIFEST_DIR:+--manifest-dir "$MANIFEST_DIR"} \
-      --step-timeout "$STEP_TIME_OUT" \
-      ${GPU_NODE_POOL:+--gpu-node-pool}
-  displayName: 'Execute K8s Workload operations for ${{ parameters.cloud }}'
-  workingDirectory: modules/python
-  env:
-    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/crud/main.py
-    POOL_NAME: ${{ parameters.pool_name }}
-    CLOUD: ${{ parameters.cloud }}
-    STEP_TIME_OUT: ${{ parameters.step_time_out }}
-    RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
-    GPU_NODE_POOL: ${{ parameters.gpu_node_pool }}
-    NUMBER_OF_DEPLOYMENTS: ${{ parameters.number_of_deployments }}
-    REPLICAS: ${{ parameters.replicas }}
-    MANIFEST_DIR: ${{ parameters.manifest_dir }}
+      # Deploy Workloads
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" deployment \
+        --cloud "$CLOUD" \
+        --run-id "$RUN_ID" \
+        --result-dir "$RESULT_DIR" \
+        --node-pool-name "$POOL_NAME" \
+        --number-of-deployments "$NUMBER_OF_DEPLOYMENTS" \
+        --replicas "$REPLICAS" \
+        ${MANIFEST_DIR:+--manifest-dir "$MANIFEST_DIR"} \
+        --step-timeout "$STEP_TIME_OUT" \
+        ${GPU_NODE_POOL:+--gpu-node-pool}
+    displayName: 'Execute K8s Workload operations for ${{ parameters.cloud }}'
+    workingDirectory: modules/python
+    env:
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/crud/main.py
+      POOL_NAME: ${{ parameters.pool_name }}
+      CLOUD: ${{ parameters.cloud }}
+      STEP_TIME_OUT: ${{ parameters.step_time_out }}
+      RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
+      GPU_NODE_POOL: ${{ parameters.gpu_node_pool }}
+      NUMBER_OF_DEPLOYMENTS: ${{ parameters.number_of_deployments }}
+      REPLICAS: ${{ parameters.replicas }}
+      MANIFEST_DIR: ${{ parameters.manifest_dir }}
 
 - script: |
     set -eo pipefail

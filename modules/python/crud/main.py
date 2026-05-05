@@ -153,6 +153,10 @@ def handle_workload_operations(node_pool_crud, args):
 
     try:
         if command == "deployment":
+            if not hasattr(node_pool_crud, 'create_deployment'):
+                logger.error("Cloud provider does not support deployment workload operations")
+                return 1
+
             # Prepare deploy arguments
             deploy_kwargs = {
                 "node_pool_name": args.node_pool_name,
