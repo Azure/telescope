@@ -11,7 +11,7 @@
     "operation": "create_machine",
     "tags": null,
     "machine_name": null,
-    "scale_machine_count": 0,
+    "scale_machine_count": 1,
     "use_batch_api": false,
     "machine_workers": 1
   },
@@ -27,6 +27,6 @@
     "percentile_node_readiness_times": {},
     "batch_command_execution_times": {},
     "cloud_data": null,
-    "warning_message": ""
+    "warning_message": null
   }
 }

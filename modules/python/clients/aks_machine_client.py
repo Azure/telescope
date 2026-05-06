@@ -25,7 +25,7 @@ logger = get_logger(__name__)
 _ARM_BASE = "https://management.azure.com"
 _ARM_SCOPE = "https://management.azure.com/.default"
 _AGENTPOOL_API_VERSION = "2024-06-02-preview"  # per ado azure.py — agentpool sub-resource
-_MACHINE_API_VERSION = "2025-06-02-preview"  # per ado azure.py — machines sub-resource (single + batch)
+_MACHINE_API_VERSION = "2025-06-02-preview"  # per ado azure.py — machines sub-resource
 _POLL_INTERVAL_SECONDS = 10
 _PROVISIONING_NONE_STATE_LIMIT = 5
 _BATCH_429_MAX_RETRIES = 3
@@ -158,59 +158,65 @@ class AKSMachineClient:
 
     # Disable too-many-locals: this is essentially a state machine over polling
     # results; refactoring to fewer locals would just hide intermediate state.
-    def _wait_for_machine_node_readiness(  # pylint: disable=too-many-locals
+    def _wait_for_machine_node_readiness(
         self,
-        machine_names: List[str],
-        start_time_utc: str,
+        agentpool_name: str,
+        expected_count: int,
         timeout: int,
     ) -> Dict[str, float]:
-        """Polls each machine until Ready=True; returns percentile dict {P50,P90,P99}.
+        """Wait for nodes in ``agentpool_name`` to become Ready; return {P50,P90,P99}.
 
-        Each per-node "readiness time" = (Ready transition time) - start_time_utc.
-        ``timeout`` is wall-clock seconds from invocation (not per-machine).
-        Returns {"P50":0.0,"P90":0.0,"P99":0.0} if no nodes became Ready before timeout,
-        if ``machine_names`` is empty, if ``k8s_client`` is unavailable, or if
-        ``start_time_utc`` cannot be parsed. Per-machine ``get_node_details`` failures
-        are logged and skipped. This method never raises.
+        AKS Machine ARM resource names (e.g. ``tmach0000``) are NOT the same as the
+        underlying k8s Node names (``aks-<pool>-<rand>-vmss<i>``), so we cannot look
+        up Nodes by Machine name. Instead we poll Nodes labelled
+        ``agentpool=<pool>`` and record the wall-clock elapsed when each percentile
+        ready threshold is hit. Mirrors ado-telescope (azure.py:1420 / 1444).
+
+        ``timeout`` is wall-clock seconds from invocation. Returns the zero-fallback
+        dict if ``k8s_client`` is unavailable, ``expected_count`` <= 0, or no
+        percentile target is met within ``timeout``. Polling exceptions are logged
+        and treated as 0 ready this tick. This method never raises.
         """
-        def parse_iso(s):
-            return datetime.fromisoformat(s.replace("Z", "+00:00"))
         kc = self.aks_client.k8s_client
         if kc is None:
             logger.error(
                 "k8s_client is None on AKSClient; cannot wait for machine readiness"
             )
             return {"P50": 0.0, "P90": 0.0, "P99": 0.0}
-        try:
-            start_dt = parse_iso(start_time_utc)
-        except (ValueError, TypeError) as e:
-            logger.error("Invalid start_time_utc %r: %s", start_time_utc, e)
+        if expected_count <= 0:
             return {"P50": 0.0, "P90": 0.0, "P99": 0.0}
-        pending = set(machine_names)
-        per_node: Dict[str, float] = {}
-        deadline = time.time() + timeout
-        while pending and time.time() < deadline:
-            for name in list(pending):
-                try:
-                    details = kc.get_node_details(name)
-                    for cond in details.get("status", {}).get("conditions", []):
-                        if cond.get("type") == "Ready" and cond.get("status") == "True":
-                            ready_dt = parse_iso(cond["lastTransitionTime"])
-                            per_node[name] = max((ready_dt - start_dt).total_seconds(), 0.0)
-                            pending.discard(name)
-                            break
-                except Exception as e:  # pylint: disable=broad-except
-                    logger.warning("Failed to read node %s readiness: %s", name, e)
-                    continue
-            if pending:
+        label_selector = f"agentpool={agentpool_name}"
+        targets = {p: max(1, int((p / 100.0) * expected_count)) for p in (50, 90, 99)}
+        elapsed: Dict[int, float] = {}
+        start = time.time()
+        deadline = start + timeout
+        logger.info(
+            "Waiting for nodes in agentpool %s (label %s) - targets %s, timeout %ss",
+            agentpool_name, label_selector, targets, timeout,
+        )
+        while time.time() < deadline and len(elapsed) < len(targets):
+            try:
+                ready = len(kc.get_ready_nodes(label_selector=label_selector))
+            except Exception as e:  # pylint: disable=broad-except
+                logger.warning("get_ready_nodes(%s) failed: %s", label_selector, e)
+                ready = 0
+            now_elapsed = time.time() - start
+            for p, target in targets.items():
+                if p not in elapsed and ready >= target:
+                    elapsed[p] = now_elapsed
+                    logger.info(
+                        "P%d hit: %d/%d ready at %.2fs",
+                        p, ready, expected_count, now_elapsed,
+                    )
+            if len(elapsed) < len(targets):
                 time.sleep(2)
-        if not per_node:
+        if not elapsed:
+            logger.warning(
+                "No percentile target met within %ss for agentpool %s",
+                timeout, agentpool_name,
+            )
             return {"P50": 0.0, "P90": 0.0, "P99": 0.0}
-        sorted_vals = sorted(per_node.values())
-        def pct(p):
-            idx = max(0, int(round((p / 100.0) * (len(sorted_vals) - 1))))
-            return sorted_vals[idx]
-        return {"P50": pct(50), "P90": pct(90), "P99": pct(99)}
+        return {f"P{p}": elapsed.get(p, 0.0) for p in (50, 90, 99)}
 
     def scale_machine(self, request: ScaleMachineRequest) -> MachineOperationResponse:
         """Scale a Machine-mode agentpool by creating ``request.scale_machine_count`` machines.
@@ -235,7 +241,10 @@ class AKSMachineClient:
                 successful = self._scale_machine_individually(request, names)
             response.successful_machines = successful
             response.percentile_node_readiness_times = self._wait_for_machine_node_readiness(
-                successful, start_iso, request.timeout)
+                agentpool_name=request.agentpool_name,
+                expected_count=len(successful),
+                timeout=request.timeout,
+            )
             response.succeeded = len(successful) == request.scale_machine_count
         except Exception as exc:  # pylint: disable=broad-except
             logger.exception("scale_machine failed")

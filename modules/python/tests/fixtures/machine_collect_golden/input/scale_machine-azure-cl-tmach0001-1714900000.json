@@ -27,6 +27,6 @@
     "percentile_node_readiness_times": {"P50": 88.0, "P90": 88.0, "P99": 88.0},
     "batch_command_execution_times": {},
     "cloud_data": {"name": "cl", "location": "eastus"},
-    "warning_message": ""
+    "warning_message": null
   }
 }
