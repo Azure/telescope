@@ -11,7 +11,7 @@ Ported from ado-telescope/modules/python/k8s/cloud_providers/azure.py with bug f
 """
 import time
 from datetime import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import requests
 
@@ -145,38 +145,56 @@ class AKSMachineClient:
         logger.error("agentpool provisioning timed out after %ss", timeout)
         return False
 
-    def _wait_for_machine_node_readiness(self, machine_names, start_time_utc: str,
-                                          timeout: int) -> Dict[str, float]:
+    def _wait_for_machine_node_readiness(
+        self,
+        machine_names: List[str],
+        start_time_utc: str,
+        timeout: int,
+    ) -> Dict[str, float]:
         """Polls each machine until Ready=True; returns percentile dict {P50,P90,P99}.
 
         Each per-node "readiness time" = (Ready transition time) - start_time_utc.
-        Returns {"P50":0.0,"P90":0.0,"P99":0.0} if no nodes became Ready before timeout.
-        Never raises on missing/malformed condition data; logs and continues polling.
+        ``timeout`` is wall-clock seconds from invocation (not per-machine).
+        Returns {"P50":0.0,"P90":0.0,"P99":0.0} if no nodes became Ready before timeout,
+        if ``machine_names`` is empty, if ``kubernetes_client`` is unavailable, or if
+        ``start_time_utc`` cannot be parsed. Per-machine ``get_node_details`` failures
+        are logged and skipped. This method never raises.
         """
         def parse_iso(s):
             return datetime.fromisoformat(s.replace("Z", "+00:00"))
-        start_dt = parse_iso(start_time_utc)
+        kc = self.aks_client.kubernetes_client
+        if kc is None:
+            logger.error(
+                "kubernetes_client is None on AKSClient; cannot wait for machine readiness"
+            )
+            return {"P50": 0.0, "P90": 0.0, "P99": 0.0}
+        try:
+            start_dt = parse_iso(start_time_utc)
+        except (ValueError, TypeError) as e:
+            logger.error("Invalid start_time_utc %r: %s", start_time_utc, e)
+            return {"P50": 0.0, "P90": 0.0, "P99": 0.0}
         pending = set(machine_names)
         per_node: Dict[str, float] = {}
         deadline = time.time() + timeout
-        kc = self.aks_client.kubernetes_client
         while pending and time.time() < deadline:
             for name in list(pending):
-                details = kc.get_node_details(name)
-                for cond in details.get("status", {}).get("conditions", []):
-                    if cond.get("type") == "Ready" and cond.get("status") == "True":
-                        ready_dt = parse_iso(cond["lastTransitionTime"])
-                        per_node[name] = max((ready_dt - start_dt).total_seconds(), 0.0)
-                        pending.discard(name)
-                        break
+                try:
+                    details = kc.get_node_details(name)
+                    for cond in details.get("status", {}).get("conditions", []):
+                        if cond.get("type") == "Ready" and cond.get("status") == "True":
+                            ready_dt = parse_iso(cond["lastTransitionTime"])
+                            per_node[name] = max((ready_dt - start_dt).total_seconds(), 0.0)
+                            pending.discard(name)
+                            break
+                except Exception as e:
+                    logger.warning("Failed to read node %s readiness: %s", name, e)
+                    continue
             if pending:
                 time.sleep(2)
         if not per_node:
             return {"P50": 0.0, "P90": 0.0, "P99": 0.0}
         sorted_vals = sorted(per_node.values())
         def pct(p):
-            if not sorted_vals:
-                return 0.0
             idx = max(0, int(round((p / 100.0) * (len(sorted_vals) - 1))))
             return sorted_vals[idx]
         return {"P50": pct(50), "P90": pct(90), "P99": pct(99)}

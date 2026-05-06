@@ -124,3 +124,58 @@ def test_wait_for_machine_node_readiness_computes_percentiles(MockAKS):
     )
     assert set(times.keys()) == {"P50", "P90", "P99"}
     assert all(times[p] >= 0 for p in times)
+
+
+@patch("clients.aks_machine_client.AKSClient")
+def test_wait_for_machine_node_readiness_empty_machine_names(MockAKS):
+    fake_kc = MagicMock()
+    MockAKS.return_value.kubernetes_client = fake_kc
+    c = AKSMachineClient(resource_group="rg")
+    times = c._wait_for_machine_node_readiness(
+        machine_names=[],
+        start_time_utc="2026-05-05T09:59:50Z",
+        timeout=5,
+    )
+    assert times == {"P50": 0.0, "P90": 0.0, "P99": 0.0}
+    fake_kc.get_node_details.assert_not_called()
+
+
+@patch("clients.aks_machine_client.AKSClient")
+def test_wait_for_machine_node_readiness_kubernetes_client_none(MockAKS):
+    MockAKS.return_value.kubernetes_client = None
+    c = AKSMachineClient(resource_group="rg")
+    times = c._wait_for_machine_node_readiness(
+        machine_names=["m1"],
+        start_time_utc="2026-05-05T09:59:50Z",
+        timeout=5,
+    )
+    assert times == {"P50": 0.0, "P90": 0.0, "P99": 0.0}
+
+
+@patch("clients.aks_machine_client.AKSClient")
+def test_wait_for_machine_node_readiness_malformed_start_time(MockAKS):
+    fake_kc = MagicMock()
+    MockAKS.return_value.kubernetes_client = fake_kc
+    c = AKSMachineClient(resource_group="rg")
+    times = c._wait_for_machine_node_readiness(
+        machine_names=["m1"],
+        start_time_utc="not-a-timestamp",
+        timeout=5,
+    )
+    assert times == {"P50": 0.0, "P90": 0.0, "P99": 0.0}
+    fake_kc.get_node_details.assert_not_called()
+
+
+@patch("clients.aks_machine_client.time.sleep")
+@patch("clients.aks_machine_client.AKSClient")
+def test_wait_for_machine_node_readiness_get_node_details_raises(MockAKS, _sleep):
+    fake_kc = MagicMock()
+    fake_kc.get_node_details.side_effect = RuntimeError("boom")
+    MockAKS.return_value.kubernetes_client = fake_kc
+    c = AKSMachineClient(resource_group="rg")
+    times = c._wait_for_machine_node_readiness(
+        machine_names=["m1"],
+        start_time_utc="2026-05-05T09:59:50Z",
+        timeout=0,  # exit immediately after one iteration
+    )
+    assert times == {"P50": 0.0, "P90": 0.0, "P99": 0.0}
