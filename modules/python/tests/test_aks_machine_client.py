@@ -2,6 +2,7 @@
 from unittest.mock import patch, MagicMock
 
 from clients.aks_machine_client import AKSMachineClient
+from machine.data_classes import ScaleMachineRequest
 
 
 def test_compose_aksclient_not_subclass():
@@ -187,13 +188,43 @@ def test_wait_for_machine_node_readiness_get_node_details_raises(MockAKS, _sleep
 def test_scale_machine_non_batch_dispatches_individual(MockAKS, mock_single, mock_wait):
     MockAKS.return_value.subscription_id = "SUB"
     mock_single.side_effect = lambda name, *a, **kw: name  # pretend success
-    from machine.data_classes import ScaleMachineRequest
     req = ScaleMachineRequest(cluster_name="c", resource_group="rg",
                               agentpool_name="ap", vm_size="Standard_D2_v3",
                               scale_machine_count=3, use_batch_api=False, machine_workers=2)
     c = AKSMachineClient(resource_group="rg")
     resp = c.scale_machine(req)
     assert mock_single.call_count == 3
+    assert sorted(c_call.args[0] for c_call in mock_single.call_args_list) == [
+        "tmach0000", "tmach0001", "tmach0002",
+    ]
     assert resp.succeeded is True
     assert resp.percentile_node_readiness_times == {"P50":1.0,"P90":2.0,"P99":3.0}
     assert len(resp.successful_machines) == 3
+
+
+@patch.object(AKSMachineClient, "_wait_for_machine_node_readiness", return_value={"P50":0.0,"P90":0.0,"P99":0.0})
+@patch.object(AKSMachineClient, "_create_single_machine")
+@patch("clients.aks_machine_client.AKSClient")
+def test_scale_machine_non_batch_partial_failure(MockAKS, mock_single, mock_wait):
+    """Worker-level outcomes (True/False/raise) must not escape; only True names count."""
+    MockAKS.return_value.subscription_id = "SUB"
+
+    def fake_single(name, *a, **kw):
+        if name == "tmach0000":
+            return True
+        if name == "tmach0001":
+            return False
+        raise RuntimeError("boom")
+
+    mock_single.side_effect = fake_single
+    req = ScaleMachineRequest(cluster_name="c", resource_group="rg",
+                              agentpool_name="ap", vm_size="Standard_D2_v3",
+                              scale_machine_count=3, use_batch_api=False, machine_workers=2)
+    c = AKSMachineClient(resource_group="rg")
+    resp = c.scale_machine(req)
+    assert mock_single.call_count == 3
+    names_submitted = sorted(c_call.args[0] for c_call in mock_single.call_args_list)
+    assert names_submitted == ["tmach0000", "tmach0001", "tmach0002"]
+    assert resp.successful_machines == ["tmach0000"]
+    assert resp.succeeded is False
+    assert resp.error == ""
