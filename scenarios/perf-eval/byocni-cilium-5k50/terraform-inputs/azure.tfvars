@@ -39,6 +39,14 @@ aks_cli_config_list = [
         value = "none"
       },
       {
+        name  = "service-cidr"
+        value = "192.168.0.0/16"
+      },
+      {
+        name  = "dns-service-ip"
+        value = "192.168.0.10"
+      },
+      {
         name  = "max-pods"
         value = "110"
       },
