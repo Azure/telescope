@@ -34,7 +34,7 @@ stages:
               install_cns_with_acn: true
               cilium_manifest_dir: "1.17"
               cilium_image_registry: acnpublic.azurecr.io
-              cilium_version_tag: v1.17.10-260319
+              cilium_version_tag: 6fd7d20f03-260506
               cns_version: v1.7.12
               azure_ipam_version: v0.4.0
               # Optional overrides:

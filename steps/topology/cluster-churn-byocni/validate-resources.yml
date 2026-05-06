@@ -39,7 +39,7 @@ steps:
 
       export DIR="${CILIUM_MANIFEST_DIR:-1.17}"
       export CILIUM_IMAGE_REGISTRY="${CILIUM_IMAGE_REGISTRY:-acnpublic.azurecr.io}"
-      export CILIUM_VERSION_TAG="${CILIUM_VERSION_TAG:-v1.17.10-260319}"
+      export CILIUM_VERSION_TAG="${CILIUM_VERSION_TAG:-6fd7d20f03-260506}"
 
       kubectl apply -f "test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config.yaml"
       kubectl apply -f "test/integration/manifests/cilium/v${DIR}/cilium-operator/files"
