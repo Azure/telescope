@@ -12,7 +12,7 @@ Ported from ado-telescope/modules/python/k8s/cloud_providers/azure.py with bug f
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
@@ -363,7 +363,7 @@ class AKSMachineClient:
         self,
         request: ScaleMachineRequest,
         names: List[str],
-    ) -> tuple[List[str], Dict[str, float]]:
+    ) -> Tuple[List[str], Dict[str, float]]:
         """Dispatch ``names`` across ``request.machine_workers`` chunks via the AKS Batch API.
 
         Splits ``names`` into up to ``request.machine_workers`` chunks
@@ -410,11 +410,11 @@ class AKSMachineClient:
     ) -> List[str]:
         """Submit a single ``$batch`` request creating every machine in ``chunk``.
 
-        Returns the list of machine names that the batch endpoint accepted
-        (empty on failure, never raises). On HTTP failure inside
-        ``_make_batch_request`` the exception is logged and propagated so
-        ``_scale_machine_batch`` can record the chunk wall-time and exclude
-        these names from the success list.
+        Returns the list of machine names that the batch endpoint accepted.
+        Raises ``RuntimeError`` (from ``_make_batch_request``) if the batch
+        request exhausts 429 retries or returns a non-2xx response. The caller
+        (``_scale_machine_batch.run_chunk``) is expected to catch and exclude
+        the chunk's names from the success list.
         """
         if not chunk:
             return []
@@ -444,12 +444,7 @@ class AKSMachineClient:
             "chunk %d: submitting $batch for %d machines",
             chunk_idx, len(chunk),
         )
-        ts_start = datetime.now(timezone.utc).isoformat()
-        try:
-            self._make_batch_request("POST", url, body, request.timeout)
-        except Exception:
-            logger.exception("chunk %d: $batch request failed (started %s)", chunk_idx, ts_start)
-            raise
+        self._make_batch_request("POST", url, body, request.timeout)
         return list(chunk)
 
     def _make_batch_request(
@@ -458,7 +453,7 @@ class AKSMachineClient:
         url: str,
         data: Dict[str, Any],
         timeout: int,
-    ) -> requests.Response:
+    ) -> None:
         """Send a ``$batch`` request with bounded 429 exponential backoff.
 
         Retries on HTTP 429 up to ``_BATCH_429_MAX_RETRIES`` attempts with

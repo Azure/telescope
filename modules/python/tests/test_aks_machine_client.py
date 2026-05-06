@@ -279,7 +279,8 @@ def test_scale_machine_batch_partial_chunk_failure(MockAKS, mock_create_batch, _
     c = AKSMachineClient(resource_group="rg")
     resp = c.scale_machine(req)
 
-    assert len(resp.successful_machines) == 2
+    expected_chunk0 = sorted([f"tmach{i:04d}" for i in range(4)])[:2]
+    assert sorted(resp.successful_machines) == expected_chunk0
     assert resp.succeeded is False
     assert resp.error == ""
     assert set(resp.batch_command_execution_times.keys()) == {"chunk_0", "chunk_1"}
