@@ -10,12 +10,14 @@ Ported from ado-telescope/modules/python/k8s/cloud_providers/azure.py with bug f
 - UTC timestamps.
 """
 import time
-from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import requests
 
 from clients.aks_client import AKSClient
+from machine.data_classes import MachineOperationResponse, OperationNames
 from utils.logger_config import get_logger
 
 logger = get_logger(__name__)
@@ -198,3 +200,127 @@ class AKSMachineClient:
             idx = max(0, int(round((p / 100.0) * (len(sorted_vals) - 1))))
             return sorted_vals[idx]
         return {"P50": pct(50), "P90": pct(90), "P99": pct(99)}
+
+    def scale_machine(self, request):
+        """Scale a Machine-mode agentpool by creating ``request.scale_machine_count`` machines.
+
+        Branches between batch and non-batch paths. This commit implements only the
+        non-batch path; ``use_batch_api=True`` will reach a method that does not yet
+        exist (Task 8). Never raises — failures recorded on the returned response.
+        """
+        start_dt = datetime.now(timezone.utc)
+        start_iso = start_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+        response = MachineOperationResponse(
+            operation_name=OperationNames.SCALE_MACHINE.value,
+            start_time=start_iso,
+        )
+        try:
+            prefix = self._get_machine_name_prefix(request.scale_machine_count)
+            names = [f"{prefix}{i:04d}" for i in range(request.scale_machine_count)]
+            if request.use_batch_api:
+                successful, batch_times = self._scale_machine_batch(request, names)
+                response.batch_command_execution_times = batch_times
+            else:
+                successful = self._scale_machine_individually(request, names)
+            response.successful_machines = successful
+            response.percentile_node_readiness_times = self._wait_for_machine_node_readiness(
+                successful, start_iso, request.timeout)
+            response.succeeded = len(successful) == request.scale_machine_count
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.exception("scale_machine failed")
+            response.succeeded = False
+            response.error = str(exc)
+        finally:
+            end_dt = datetime.now(timezone.utc)
+            response.end_time = end_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+            response.command_execution_time = (end_dt - start_dt).total_seconds()
+        # Attach cluster snapshot for Kusto cloud_data column.
+        try:
+            response.cloud_data = self.get_cluster_data(request.cluster_name)
+        except Exception as exc:  # pylint: disable=broad-except
+            logger.warning("get_cluster_data failed: %s", exc)
+        return response
+
+    def _get_machine_name_prefix(self, scale_machine_count: int) -> str:
+        """Return the per-run machine-name prefix.
+
+        Returns a stable prefix matching ado-telescope so cross-repo dashboard
+        queries (which group by name regex) keep working. ``scale_machine_count``
+        is currently unused but reserved for future variant prefixes.
+        """
+        return "tmach"
+
+    def _scale_machine_individually(self, request, names):
+        """Submit per-machine PUTs concurrently via ThreadPoolExecutor.
+
+        Each worker calls ``_create_single_machine(name, request)`` which PUTs
+        the machine and waits for its provisioning to terminate. Returns the
+        list of names that reported True. Per-machine exceptions are logged
+        and treated as failure (name omitted from result).
+        """
+        successful: List[str] = []
+        with ThreadPoolExecutor(max_workers=request.machine_workers) as ex:
+            futures = {ex.submit(self._create_single_machine, n, request): n for n in names}
+            for fut in as_completed(futures):
+                n = futures[fut]
+                try:
+                    if fut.result():
+                        successful.append(n)
+                except Exception:  # pylint: disable=broad-except
+                    logger.exception("create_single_machine failed for %s", n)
+        return successful
+
+    def _create_single_machine(self, name: str, request) -> bool:
+        """PUT a single Machine resource and wait for it to reach a terminal state.
+
+        Body is ``{"properties": {"hardware": {"vmSize": ...}}}`` plus optional tags.
+        Returns True iff the machine eventually reaches provisioningState=Succeeded.
+        Never raises on HTTP errors; logs and returns False on non-2xx responses.
+        """
+        sub = self.subscription_id
+        url = (
+            f"{_ARM_BASE}/subscriptions/{sub}/resourceGroups/{request.resource_group}"
+            f"/providers/Microsoft.ContainerService/managedClusters/{request.cluster_name}"
+            f"/agentPools/{request.agentpool_name}/machines/{name}"
+            f"?api-version={_AGENTPOOL_API_VERSION}"
+        )
+        body: Dict[str, Any] = {"properties": {"hardware": {"vmSize": request.vm_size}}}
+        if request.tags:
+            body["tags"] = request.tags
+        resp = self.make_request("PUT", url, data=body, timeout=request.timeout)
+        if resp.status_code not in (200, 201, 202):
+            logger.error("PUT machine %s -> %s %s", name, resp.status_code, resp.text[:500])
+            return False
+        return self._wait_for_machine_provisioning(url, request.timeout)
+
+    def _wait_for_machine_provisioning(self, url: str, timeout: int) -> bool:
+        """Thin wrapper around ``_wait_for_provisioning`` for machine resources."""
+        return self._wait_for_provisioning(url, timeout)
+
+    def _wait_for_provisioning(self, url: str, timeout: int) -> bool:
+        """Poll ``url`` until ``properties.provisioningState`` is terminal or deadline.
+
+        Returns True on Succeeded, False on Failed or timeout. Transient non-200
+        responses are logged and retried until the deadline. Never raises.
+        """
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            r = self.make_request("GET", url, timeout=30)
+            if r.status_code == 200:
+                try:
+                    body = r.json()
+                except (ValueError, TypeError) as exc:
+                    logger.warning("provisioning poll JSON parse failed: %s", exc)
+                    time.sleep(_POLL_INTERVAL_SECONDS)
+                    continue
+                state = body.get("properties", {}).get("provisioningState")
+                if state == "Succeeded":
+                    return True
+                if state == "Failed":
+                    logger.error("provisioning Failed: %s", body[:500] if isinstance(body, str) else body)
+                    return False
+            else:
+                logger.warning("provisioning poll non-200: %s", r.status_code)
+            time.sleep(_POLL_INTERVAL_SECONDS)
+        logger.error("provisioning timeout after %ss for %s", timeout, url)
+        return False
