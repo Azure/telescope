@@ -28,3 +28,51 @@ stages:
           timeout_in_minutes: 180
           credential_type: service_connection
           ssh_key_enabled: false
+
+  # Validates non-batch path under higher concurrency (50 parallel PUTs)
+  - stage: azure_eastus_medium_machine_pool_staging
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus
+          topology: k8s-cluster-crud-machine
+          engine: machine
+          matrix:
+            medium_machine_pool:
+              vm_size: Standard_D2_v3
+              pool_name: mediumpool1
+              scale_machine_count: 50
+              machine_workers: 50
+              use_batch_api: "false"
+              step_time_out: 600
+          max_parallel: 1
+          timeout_in_minutes: 180
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  # Validates batch path (use_batch_api=true) with 100-worker chunking
+  - stage: azure_eastus_large_machine_pool_staging
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus
+          topology: k8s-cluster-crud-machine
+          engine: machine
+          matrix:
+            large_machine_pool:
+              vm_size: Standard_D2_v3
+              pool_name: largepool1
+              scale_machine_count: 2
+              machine_workers: 100
+              use_batch_api: "true"
+              step_time_out: 900
+          max_parallel: 1
+          timeout_in_minutes: 180
+          credential_type: service_connection
+          ssh_key_enabled: false
