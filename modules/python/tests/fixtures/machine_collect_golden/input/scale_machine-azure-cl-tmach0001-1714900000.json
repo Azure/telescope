@@ -1,0 +1,32 @@
+{
+  "config": {
+    "cloud": "azure",
+    "cluster_name": "cl",
+    "resource_group": "rg",
+    "agentpool_name": "ap",
+    "vm_size": "Standard_D2_v3",
+    "timeout": 600,
+    "result_dir": "/tmp",
+    "region": "eastus",
+    "operation": "scale_machine",
+    "tags": null,
+    "machine_name": "tmach0001",
+    "scale_machine_count": 1,
+    "use_batch_api": false,
+    "machine_workers": 1
+  },
+  "response": {
+    "operation_name": "scale_machine",
+    "succeeded": true,
+    "start_time": "2024-05-05T12:26:40Z",
+    "end_time": "2024-05-05T12:28:40Z",
+    "error": "",
+    "command_execution_time": 120.0,
+    "node_readiness_time": 88.0,
+    "successful_machines": ["tmach0001"],
+    "percentile_node_readiness_times": {"P50": 88.0, "P90": 88.0, "P99": 88.0},
+    "batch_command_execution_times": {},
+    "cloud_data": {"name": "cl", "location": "eastus"},
+    "warning_message": ""
+  }
+}

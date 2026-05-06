@@ -1,0 +1,32 @@
+{
+  "config": {
+    "cloud": "azure",
+    "cluster_name": "cl",
+    "resource_group": "rg",
+    "agentpool_name": "ap",
+    "vm_size": "Standard_D2_v3",
+    "timeout": 600,
+    "result_dir": "/tmp",
+    "region": "eastus",
+    "operation": "create_machine",
+    "tags": null,
+    "machine_name": null,
+    "scale_machine_count": 0,
+    "use_batch_api": false,
+    "machine_workers": 1
+  },
+  "response": {
+    "operation_name": "create_machine",
+    "succeeded": true,
+    "start_time": "2024-05-05T12:25:00Z",
+    "end_time": "2024-05-05T12:25:42Z",
+    "error": "",
+    "command_execution_time": 42.5,
+    "node_readiness_time": 0,
+    "successful_machines": [],
+    "percentile_node_readiness_times": {},
+    "batch_command_execution_times": {},
+    "cloud_data": null,
+    "warning_message": ""
+  }
+}
