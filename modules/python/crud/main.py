@@ -146,6 +146,37 @@ def handle_node_pool_operation(node_pool_crud, args):
         logger.error(f"Error during '{command}' operation: {str(e)}")
         return 1
 
+def handle_workload_operations(node_pool_crud, args):
+    """Handle workload operations (deployment, statefulset, jobs) based on the command"""
+    command = args.command
+    result = None
+
+    try:
+        if command == "deployment":
+            if not hasattr(node_pool_crud, 'create_deployment'):
+                logger.error("Cloud provider does not support deployment workload operations")
+                return 1
+
+            # Prepare deploy arguments
+            deploy_kwargs = {
+                "node_pool_name": args.node_pool_name,
+                "replicas": args.replicas,
+                "manifest_dir": args.manifest_dir,
+                "number_of_deployments": args.number_of_deployments
+            }
+
+            result = node_pool_crud.create_deployment(**deploy_kwargs)
+        else:
+            logger.error("Unknown workload command: '%s'", command)
+            return 1
+        # Check if the operation was successful
+        if result is False:
+            logger.error(f"Operation '{command}' failed")
+            return 1
+        return 0
+    except Exception as e:
+        logger.error(f"Error during '{command}' operation: {str(e)}")
+        return 1
 
 def handle_node_pool_all(node_pool_crud, args):
     """Handle the all-in-one node pool operation command (create, scale up, scale down, delete)"""
@@ -319,6 +350,32 @@ def main():
         help="Wait time between scaling steps in seconds (for progressive scaling)",
     )
     all_parser.set_defaults(func=handle_node_pool_operation)
+
+    # Deployment command - add after the "all" command parser
+    deployment_parser = subparsers.add_parser(
+        "deployment", parents=[common_parser], help="create deployments"
+    )
+    deployment_parser.add_argument("--node-pool-name", required=True, help="Node pool name")
+    deployment_parser.add_argument(
+        "--number-of-deployments",
+        type=int,
+        default=1,
+        help="Number of deployments"
+    )
+    deployment_parser.add_argument(
+        "--replicas",
+        type=int,
+        default=10,
+        help="Number of deployment replicas"
+    )
+    deployment_parser.add_argument(
+        "--manifest-dir",
+        required=False,
+        default=None,
+        help="Directory containing Kubernetes manifest files for the deployment"
+    )
+
+    deployment_parser.set_defaults(func=handle_workload_operations)
 
     # Arguments provided, run node pool operations and collect benchmark results
     try:

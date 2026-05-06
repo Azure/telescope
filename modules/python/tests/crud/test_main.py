@@ -13,6 +13,7 @@ import json
 from crud.main import (
     get_node_pool_crud_class,
     handle_node_pool_operation,
+    handle_workload_operations,
     main,
     check_for_progressive_scaling,
     collect_benchmark_results,
@@ -144,6 +145,42 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
             scale_step_size=3,
             gpu_node_pool=False,
         )
+
+    @mock.patch("crud.main.logger")
+    @mock.patch("crud.main.AzureNodePoolCRUD")
+    def test_handle_node_pool_operation_scale_fails_returns_error(
+        self, mock_azure_crud, mock_logger
+    ):
+        """Test handle_node_pool_operation when scale up fails but continues execution.
+
+        This test verifies that when scale_node_pool returns False (e.g., some nodes
+        failed to scale but the operation completed), the function correctly returns
+        exit code 1 to indicate failure while allowing the calling code to continue.
+        """
+        # Setup - progressive scaling where operation fails
+        mock_args = mock.MagicMock()
+        mock_args.command = "scale"
+        mock_args.node_pool_name = "test-np"
+        mock_args.target_count = 10
+        mock_args.scale_step_size = 2  # Progressive scaling
+        mock_args.gpu_node_pool = False
+
+        # Configure mock to return False (scale failed but didn't raise exception)
+        mock_azure_crud.scale_node_pool.return_value = False
+
+        # Execute
+        result = handle_node_pool_operation(mock_azure_crud, mock_args)
+
+        # Verify - operation failed but returned gracefully (no exception)
+        self.assertEqual(result, 1)  # 1 means failure
+        mock_azure_crud.scale_node_pool.assert_called_once_with(
+            node_pool_name="test-np",
+            node_count=10,
+            progressive=True,
+            scale_step_size=2,
+            gpu_node_pool=False,
+        )
+        mock_logger.error.assert_called_with("Operation 'scale' failed")
 
     @mock.patch("crud.main.AzureNodePoolCRUD")
     def test_handle_node_pool_operation_delete(self, mock_azure_crud):
@@ -338,6 +375,143 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         # Verify collect function was called and exit code was 0
         mock_collect_func.assert_called_once()
         self.assertEqual(cm.exception.code, 0)
+
+    @mock.patch("crud.main.AzureNodePoolCRUD")
+    def test_handle_workload_operations_create_deployment_success(self, mock_azure_crud):
+        """Test handle_workload_operations for successful deployment creation"""
+        # Setup
+        mock_args = mock.MagicMock()
+        mock_args.command = "deployment"
+        mock_args.node_pool_name = "test-nodepool"
+        mock_args.replicas = 5
+        mock_args.manifest_dir = "/path/to/manifests"
+        mock_args.number_of_deployments = 3
+
+        # Configure mock to return success
+        mock_azure_crud.create_deployment.return_value = True
+
+        # Execute
+        result = handle_workload_operations(mock_azure_crud, mock_args)
+
+        # Verify
+        self.assertEqual(result, 0)  # 0 means success
+        mock_azure_crud.create_deployment.assert_called_once_with(
+            node_pool_name="test-nodepool",
+            replicas=5,
+            manifest_dir="/path/to/manifests",
+            number_of_deployments=3
+        )
+
+    @mock.patch("crud.main.AzureNodePoolCRUD")
+    def test_handle_workload_operations_failure(self, mock_azure_crud):
+        """Test handle_workload_operations when operation fails"""
+        # Setup
+        mock_args = mock.MagicMock()
+        mock_args.command = "deployment"
+        mock_args.node_pool_name = "test-nodepool"
+        mock_args.replicas = 5
+        mock_args.manifest_dir = "/path/to/manifests"
+        mock_args.number_of_deployments = 3
+
+        # Configure mock to return failure
+        mock_azure_crud.create_deployment.return_value = False
+
+        # Execute
+        result = handle_workload_operations(mock_azure_crud, mock_args)
+
+        # Verify
+        self.assertEqual(result, 1)  # 1 means failure
+
+    @mock.patch("crud.main.logger")
+    @mock.patch("crud.main.AzureNodePoolCRUD")
+    def test_handle_workload_operations_exception(self, mock_azure_crud, mock_logger):
+        """Test handle_workload_operations with exception during operation"""
+        # Setup
+        mock_args = mock.MagicMock()
+        mock_args.command = "deployment"
+        mock_args.node_pool_name = "test-nodepool"
+        mock_args.replicas = 5
+        mock_args.manifest_dir = "/path/to/manifests"
+        mock_args.number_of_deployments = 3
+
+        # Configure mock to raise exception
+        mock_azure_crud.create_deployment.side_effect = ValueError("Test error")
+
+        # Execute
+        result = handle_workload_operations(mock_azure_crud, mock_args)
+
+        # Verify
+        self.assertEqual(result, 1)  # 1 means error
+        mock_logger.error.assert_called_with(
+            "Error during 'deployment' operation: Test error"
+        )
+
+    @mock.patch("crud.main.logger")
+    @mock.patch("crud.main.AzureNodePoolCRUD")
+    def test_handle_workload_operations_partial_success(self, mock_azure_crud, mock_logger):
+        """Test handle_workload_operations when deployment returns partial success (False).
+
+        The create_deployment method returns False when some deployments succeed but
+        not all of them (partial success). This tests that handle_workload_operations
+        correctly treats this as a failure and returns exit code 1.
+        """
+        # Setup - simulate a partial success scenario where create_deployment
+        # returns False (e.g., 2 out of 3 deployments succeeded)
+        mock_args = mock.MagicMock()
+        mock_args.command = "deployment"
+        mock_args.node_pool_name = "test-nodepool"
+        mock_args.replicas = 5
+        mock_args.manifest_dir = "/path/to/manifests"
+        mock_args.number_of_deployments = 3  # Requesting 3 deployments
+
+        # Configure mock to return False (partial success - some deployments
+        # succeeded but not all, which is still considered a failure)
+        mock_azure_crud.create_deployment.return_value = False
+
+        # Execute
+        result = handle_workload_operations(mock_azure_crud, mock_args)
+
+        # Verify
+        self.assertEqual(result, 1)  # 1 means failure (partial success is still failure)
+        mock_azure_crud.create_deployment.assert_called_once_with(
+            node_pool_name="test-nodepool",
+            replicas=5,
+            manifest_dir="/path/to/manifests",
+            number_of_deployments=3
+        )
+        # Verify the error was logged for the failed operation
+        mock_logger.error.assert_called_with("Operation 'deployment' failed")
+
+    @mock.patch("crud.main.AzureNodePoolCRUD")
+    def test_handle_workload_operations_multiple_deployments_success(self, mock_azure_crud):
+        """Test handle_workload_operations with multiple deployments all succeeding.
+
+        This test verifies that when create_deployment is called with multiple
+        deployments (number_of_deployments > 1) and all deployments succeed,
+        the function returns success (exit code 0).
+        """
+        # Setup - configure for multiple deployments
+        mock_args = mock.MagicMock()
+        mock_args.command = "deployment"
+        mock_args.node_pool_name = "test-nodepool"
+        mock_args.replicas = 10
+        mock_args.manifest_dir = "/path/to/manifests"
+        mock_args.number_of_deployments = 5  # Multiple deployments
+
+        # Configure mock to return True (all deployments succeeded)
+        mock_azure_crud.create_deployment.return_value = True
+
+        # Execute
+        result = handle_workload_operations(mock_azure_crud, mock_args)
+
+        # Verify
+        self.assertEqual(result, 0)  # 0 means success
+        mock_azure_crud.create_deployment.assert_called_once_with(
+            node_pool_name="test-nodepool",
+            replicas=10,
+            manifest_dir="/path/to/manifests",
+            number_of_deployments=5
+        )
 
 
 class TestCollectBenchmarkResults(unittest.TestCase):
