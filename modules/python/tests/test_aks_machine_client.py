@@ -36,3 +36,20 @@ def test_make_request_sets_bearer_and_returns_response(MockAKS, mock_req):
     assert r.status_code == 200
     args, _ = mock_req.call_args
     assert args == ("PUT", "https://x")
+
+
+@patch.object(AKSMachineClient, "make_request")
+@patch("clients.aks_machine_client.AKSClient")
+def test_create_machine_agentpool_puts_with_mode_machines(MockAKS, mock_req):
+    MockAKS.return_value.subscription_id = "SUB"
+    mock_req.side_effect = [
+        MagicMock(status_code=201, json=lambda: {"properties": {"provisioningState": "Creating"}}),
+        MagicMock(status_code=200, json=lambda: {"properties": {"provisioningState": "Succeeded"}}),
+    ]
+    c = AKSMachineClient(resource_group="rg")
+    ok = c.create_machine_agentpool("apool", "cl", "rg", timeout=30)
+    assert ok is True
+    put_call = mock_req.call_args_list[0]
+    assert put_call.args[0] == "PUT"
+    assert "/managedClusters/cl/agentPools/apool" in put_call.args[1]
+    assert put_call.kwargs["data"]["properties"]["mode"] == "Machines"
