@@ -1,11 +1,17 @@
 """
 ClusterMesh scale-test harness.
 
-Single-cluster invocation. The Telescope pipeline fans out by calling this
-script once per fleet member (driven by `az fleet clustermeshprofile list-members`
-in steps/topology/clustermesh-scale/execute-clusterloader2.yml). Each invocation
-emits one JSONL with a `cluster` attribution column so concatenated results from
-N clusters are queryable per-cluster downstream.
+Per-cluster execute (`scale.py execute`) is single-cluster: it spawns one
+ClusterLoader2 docker container against one kubeconfig. The Telescope pipeline
+fans out across N clusters; each per-cluster invocation emits one JSONL with a
+`cluster` attribution column so concatenated results from N clusters are
+queryable per-cluster downstream.
+
+Multi-cluster fan-out (`scale.py execute-parallel`, Phase 3) bounds parallel
+CL2 invocations across the mesh — see `execute_parallel` below for the worker
+model. Each parallel worker shells out to `run-cl2-on-cluster.sh` so the
+existing per-iteration bash semantics (CL2 run + junit gate + log capture +
+failure diag) are preserved exactly per cluster.
 
 Phase 1 is intentionally trivial: deploy a small fixed number of pods, no churn,
 no fortio, no network policies. The goal of Phase 1 is to prove the multi-cluster
@@ -15,8 +21,13 @@ Phase 2 by adding measurement modules to config/modules/measurements/ and new
 parameters to configure/collect.
 """
 import argparse
+import concurrent.futures
 import json
 import os
+import signal
+import subprocess
+import sys
+import threading
 from datetime import datetime, timezone
 
 from clusterloader2.utils import parse_xml_to_json, run_cl2_command, process_cl2_reports
@@ -95,6 +106,219 @@ def execute_clusterloader2(
         # CL2_PROMETHEUS_MEMORY_LIMIT in the overrides file so request <= limit.
         prometheus_memory_request="1Gi",
     )
+
+
+# Module-level lock + Popen tracking for execute_parallel. Lock keeps log lines
+# atomic across worker threads; the Popen list lets a SIGINT/SIGTERM handler
+# terminate live children on cancel (AzDO step cancel, Ctrl-C in dev).
+_PARALLEL_STDOUT_LOCK = threading.Lock()
+_PARALLEL_LIVE_POPENS = []
+_PARALLEL_LIVE_POPENS_LOCK = threading.Lock()
+
+
+def _emit_prefixed_line(role, line):
+    # AzDO recognizes ##vso[...] service messages only when they appear at
+    # column 0 — prefixing them would drop the structured annotation. Emit
+    # those unprefixed; everything else gets the [role] tag for readability
+    # under interleaved output.
+    if line.startswith("##"):
+        out = line
+    else:
+        out = f"[{role}] {line}"
+    with _PARALLEL_STDOUT_LOCK:
+        sys.stdout.write(out)
+        sys.stdout.flush()
+
+
+def _run_one_cluster(role, worker_script, worker_args, env=None):
+    """Spawn the per-cluster worker script and stream its merged stdout/stderr.
+
+    Returns (role, exit_code). Exit code is the worker script's exit (which
+    is the authoritative pass/fail per cluster — the script does its own
+    junit gate + log capture + failure diag).
+    """
+    cmd = ["bash", worker_script, role, *worker_args]
+    # bufsize=1 + text=True gives us line-buffered text reads so the prefix
+    # writer sees one CL2 log line at a time. PYTHONUNBUFFERED ensures the
+    # nested python3 scale.py execute child also flushes per-line.
+    child_env = os.environ.copy()
+    if env:
+        child_env.update(env)
+    child_env.setdefault("PYTHONUNBUFFERED", "1")
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        bufsize=1,
+        text=True,
+        env=child_env,
+    )
+    with _PARALLEL_LIVE_POPENS_LOCK:
+        _PARALLEL_LIVE_POPENS.append(proc)
+    try:
+        assert proc.stdout is not None
+        for line in proc.stdout:
+            _emit_prefixed_line(role, line)
+        proc.wait()
+    finally:
+        with _PARALLEL_LIVE_POPENS_LOCK:
+            try:
+                _PARALLEL_LIVE_POPENS.remove(proc)
+            except ValueError:
+                pass
+    return role, proc.returncode
+
+
+def _install_parallel_signal_handlers():
+    """Terminate live worker subprocesses on SIGINT/SIGTERM.
+
+    AzDO step cancel sends SIGTERM. ThreadPoolExecutor will not reap child
+    processes spawned by its workers, and each worker bash script in turn
+    spawns `python3 scale.py execute` which spawns a docker container — so
+    abrupt parent death without explicit teardown can leave orphan docker
+    containers running. We best-effort terminate the bash workers; the docker
+    container behind them will exit when its parent python child exits.
+    """
+    def _terminate_all(signum, _frame):
+        with _PARALLEL_STDOUT_LOCK:
+            sys.stdout.write(
+                f"[execute-parallel] received signal {signum}, "
+                "terminating live workers\n"
+            )
+            sys.stdout.flush()
+        with _PARALLEL_LIVE_POPENS_LOCK:
+            for proc in list(_PARALLEL_LIVE_POPENS):
+                try:
+                    proc.terminate()
+                except Exception:  # pylint: disable=broad-except
+                    pass
+        # Re-raise default behavior for the original signal so the parent
+        # exits with the conventional code (128+signum). This also unblocks
+        # any executor.shutdown(wait=True) waiters.
+        signal.signal(signum, signal.SIG_DFL)
+        os.kill(os.getpid(), signum)
+
+    signal.signal(signal.SIGINT, _terminate_all)
+    signal.signal(signal.SIGTERM, _terminate_all)
+
+
+def execute_parallel(
+    clusters_file,
+    max_concurrent,
+    worker_script,
+    cl2_image,
+    cl2_config_dir,
+    cl2_config_file,
+    cl2_report_dir_base,
+    provider,
+    python_script_file,
+    python_workdir,
+):
+    """Fan out CL2 across N clusters with bounded concurrency.
+
+    Each cluster's CL2 + log capture + failure diag runs in its own bash
+    worker process (run-cl2-on-cluster.sh). At most `max_concurrent` run
+    in parallel. Per-cluster log capture happens IMMEDIATELY when that
+    cluster's CL2 finishes — before peer clusters complete — so kubectl
+    --tail windows and `kubectl get events` recency don't age out.
+
+    The worker script's exit code is the authoritative per-cluster
+    pass/fail (it does its own junit gate). This function aggregates:
+    returns 0 iff every worker exited 0; otherwise 1. Matches the
+    sequential `if failures > 0; exit 1` semantics that execute.yml had
+    before parallelization, so the AzDO step's pass/fail signal is
+    unchanged from the user's perspective.
+
+    `clusters_file` schema: a JSON array of objects with at least `role`
+    and `kubeconfig` fields. Extra fields (e.g. `name`, `rg`) are ignored
+    so the same JSON file produced by execute.yml's discovery step (which
+    also feeds collect.yml) can be reused without a separate write.
+
+    Known concurrency risk: `run_cl2_command` mounts `~/.azure` rw into
+    every CL2 docker container (utils.py:69-70). At max_concurrent > 1
+    those containers concurrently read/write the MSAL token cache. If
+    this causes auth flakes on real 5/10/20-cluster runs, isolate per
+    worker (TODO Phase 3 follow-up).
+    """
+    with open(clusters_file, "r", encoding="utf-8") as f:
+        clusters = json.load(f)
+    if not isinstance(clusters, list) or not clusters:
+        raise ValueError(
+            f"clusters file {clusters_file} must be a non-empty JSON array"
+        )
+
+    # Validate up front so we fail fast before spawning anything.
+    for idx, c in enumerate(clusters):
+        if "role" not in c or "kubeconfig" not in c:
+            raise ValueError(
+                f"clusters[{idx}] missing 'role' or 'kubeconfig': {c}"
+            )
+
+    if max_concurrent < 1:
+        raise ValueError(f"max_concurrent must be >= 1, got {max_concurrent}")
+
+    _install_parallel_signal_handlers()
+
+    print(
+        f"[execute-parallel] dispatching {len(clusters)} cluster(s) "
+        f"with max_concurrent={max_concurrent}",
+        flush=True,
+    )
+
+    results = []
+    with concurrent.futures.ThreadPoolExecutor(
+        max_workers=max_concurrent
+    ) as executor:
+        futures = {}
+        for c in clusters:
+            role = c["role"]
+            kubeconfig = c["kubeconfig"]
+            report_dir = os.path.join(cl2_report_dir_base, role)
+            worker_args = [
+                kubeconfig,
+                report_dir,
+                cl2_image,
+                cl2_config_dir,
+                cl2_config_file,
+                provider,
+                python_script_file,
+                python_workdir,
+            ]
+            fut = executor.submit(
+                _run_one_cluster, role, worker_script, worker_args
+            )
+            futures[fut] = role
+
+        for fut in concurrent.futures.as_completed(futures):
+            role = futures[fut]
+            try:
+                _, exit_code = fut.result()
+            except Exception as e:  # pylint: disable=broad-except
+                # Worker raised before producing an exit code (e.g. could not
+                # spawn bash). Treat as a failure for that cluster — surface
+                # the error and continue collecting peers.
+                print(
+                    f"[execute-parallel] {role}: worker raised: {e}",
+                    flush=True,
+                )
+                results.append((role, 1))
+            else:
+                results.append((role, exit_code))
+
+    failed = [r for r, code in results if code != 0]
+    succeeded = [r for r, code in results if code == 0]
+    print(
+        f"[execute-parallel] summary: {len(succeeded)} succeeded, "
+        f"{len(failed)} failed (max_concurrent={max_concurrent})",
+        flush=True,
+    )
+    if failed:
+        print(
+            f"[execute-parallel] failed clusters: {', '.join(sorted(failed))}",
+            flush=True,
+        )
+        return 1
+    return 0
 
 
 def collect_clusterloader2(
@@ -193,6 +417,31 @@ def main():
     pe.add_argument("--kubeconfig", type=str, required=True)
     pe.add_argument("--provider", type=str, required=True)
 
+    # execute-parallel — fan out CL2 across N clusters with bounded concurrency
+    pep = subparsers.add_parser(
+        "execute-parallel",
+        help="Run CL2 across multiple clusters with bounded concurrency",
+    )
+    pep.add_argument("--clusters", type=str, required=True,
+                     help="Path to JSON file containing array of cluster objects, "
+                          "each with at least 'role' and 'kubeconfig' fields")
+    pep.add_argument("--max-concurrent", type=int, default=4,
+                     help="Maximum number of CL2 invocations to run in parallel")
+    pep.add_argument("--worker-script", type=str, required=True,
+                     help="Path to per-cluster bash worker (run-cl2-on-cluster.sh)")
+    pep.add_argument("--cl2-image", type=str, required=True)
+    pep.add_argument("--cl2-config-dir", type=str, required=True)
+    pep.add_argument("--cl2-config-file", type=str, required=True)
+    pep.add_argument("--cl2-report-dir-base", type=str, required=True,
+                     help="Base directory; per-cluster reports land at <base>/<role>/")
+    pep.add_argument("--provider", type=str, required=True)
+    pep.add_argument("--python-script-file", type=str, required=True,
+                     help="Path to this scale.py — invoked by the worker script "
+                          "via `python3 <path> execute ...`")
+    pep.add_argument("--python-workdir", type=str, required=True,
+                     help="Working dir for the nested python execute call "
+                          "(typically modules/python so PYTHONPATH resolves)")
+
     # collect
     pco = subparsers.add_parser("collect", help="Collect results for one cluster")
     pco.add_argument("--cl2_report_dir", type=str, required=True)
@@ -233,6 +482,20 @@ def main():
             args.kubeconfig,
             args.provider,
         )
+    elif args.command == "execute-parallel":
+        rc = execute_parallel(
+            clusters_file=args.clusters,
+            max_concurrent=args.max_concurrent,
+            worker_script=args.worker_script,
+            cl2_image=args.cl2_image,
+            cl2_config_dir=args.cl2_config_dir,
+            cl2_config_file=args.cl2_config_file,
+            cl2_report_dir_base=args.cl2_report_dir_base,
+            provider=args.provider,
+            python_script_file=args.python_script_file,
+            python_workdir=args.python_workdir,
+        )
+        sys.exit(rc)
     elif args.command == "collect":
         collect_clusterloader2(
             args.cl2_report_dir,

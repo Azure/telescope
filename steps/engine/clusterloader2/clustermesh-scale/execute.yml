@@ -58,7 +58,25 @@ steps:
 
       echo "Running CL2 across $cluster_count clusters"
       mkdir -p "$HOME/.kube"
-      echo "$clusters" > "$HOME/.kube/clustermesh-clusters.json"
+      # Pre-fetch all kubeconfigs sequentially. This is fast (<5s/cluster) and
+      # keeps the parallel CL2 fan-out below from racing on `az aks
+      # get-credentials` writes to ~/.azure (MSAL token cache shared across
+      # all subsequent CL2 docker containers).
+      for row in $(echo "$clusters" | jq -c '.[]'); do
+        name=$(echo "$row" | jq -r '.name')
+        rg=$(echo "$row"   | jq -r '.rg')
+        role=$(echo "$row" | jq -r '.role')
+        kubeconfig="$HOME/.kube/$role.config"
+        KUBECONFIG="$kubeconfig" az aks get-credentials \
+          --resource-group "$rg" --name "$name" --overwrite-existing --only-show-errors
+      done
+
+      # Augment clusters JSON with the per-cluster kubeconfig path, then write
+      # the file consumed by both this step (for parallel fan-out) and
+      # collect.yml (which only reads role/name/rg and ignores extra fields).
+      clusters_with_kubeconfig=$(echo "$clusters" | jq --arg home "$HOME" \
+        '[.[] | . + {kubeconfig: ($home + "/.kube/" + .role + ".config")}]')
+      echo "$clusters_with_kubeconfig" > "$HOME/.kube/clustermesh-clusters.json"
       echo "##vso[task.setvariable variable=CLUSTERMESH_COUNT]$cluster_count"
 
       # CL2 overrides are written once — params are identical for every cluster
@@ -70,126 +88,23 @@ steps:
         --operation-timeout "${CL2_OPERATION_TIMEOUT:-15m}" \
         --cl2_override_file "${CL2_CONFIG_DIR}/overrides.yaml"
 
-      # Per-cluster CL2 fan-out — sequential. Each invocation writes its own
-      # report dir at ${CL2_REPORT_DIR}/<role>/, so collect.yml can iterate the
-      # same way and tag results with --cluster-name.
-      failures=0
-      for row in $(echo "$clusters" | jq -c '.[]'); do
-        name=$(echo "$row" | jq -r '.name')
-        rg=$(echo "$row"   | jq -r '.rg')
-        role=$(echo "$row" | jq -r '.role')
-
-        echo "===================================================================="
-        echo "  Running CL2 on $role ($name)"
-        echo "===================================================================="
-
-        kubeconfig="$HOME/.kube/$role.config"
-        KUBECONFIG="$kubeconfig" az aks get-credentials \
-          --resource-group "$rg" --name "$name" --overwrite-existing --only-show-errors
-
-        report_dir="${CL2_REPORT_DIR}/${role}"
-        mkdir -p "$report_dir"
-
-        cl2_passed=0
-        # Run CL2; collect outcome WITHOUT failing the bash script (so we can
-        # also inspect junit.xml for internal test failures even when CL2 exits
-        # 0). Treat as "passed" only if BOTH:
-        #   (a) junit.xml exists (CL2 actually completed and wrote a report)
-        #   (b) junit.xml has zero <failure>/<error> elements
-        # Without (b) we'd silently green-light runs where measurements failed
-        # — e.g. PodMonitor template substitution producing "<no value>", which
-        # k8s admission rejects but CL2 still writes junit with <failure> tags.
-        PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute \
-            --cl2-image "${CL2_IMAGE}" \
-            --cl2-config-dir "${CL2_CONFIG_DIR}" \
-            --cl2-report-dir "$report_dir" \
-            --cl2-config-file "${CL2_CONFIG_FILE}" \
-            --kubeconfig "$kubeconfig" \
-            --provider "${CLOUD}" \
-          || true
-        if [ -f "$report_dir/junit.xml" ]; then
-          # Count failure/error attrs from <testsuite ... failures="N" errors="M">.
-          junit_failures=$(grep -oE 'failures="[0-9]+"' "$report_dir/junit.xml" | head -1 | grep -oE '[0-9]+' || echo 0)
-          junit_errors=$(grep -oE 'errors="[0-9]+"' "$report_dir/junit.xml" | head -1 | grep -oE '[0-9]+' || echo 0)
-          junit_failures=${junit_failures:-0}
-          junit_errors=${junit_errors:-0}
-          if [ "$junit_failures" -eq 0 ] && [ "$junit_errors" -eq 0 ]; then
-            cl2_passed=1
-          else
-            echo "##vso[task.logissue type=warning;] $role: junit.xml reports failures=$junit_failures errors=$junit_errors"
-          fi
-        fi
-
-        if [ "$cl2_passed" -eq 1 ]; then
-          echo "  $role: CL2 run succeeded"
-        fi
-
-        # Always-on log capture (spec line 35: "Logs: clustermesh-apiserver,
-        # agent watchers"). Files land in $report_dir/logs/ so they are
-        # uploaded alongside junit.xml + measurement results when the
-        # publish step runs. The same files double as immediate
-        # diagnostics for failed runs (see FAILURE DIAG block below).
-        log_dir="$report_dir/logs"
-        mkdir -p "$log_dir"
-        echo "------- $role: capturing pod logs to $log_dir -------"
-        # clustermesh-apiserver: all three containers (apiserver / etcd /
-        # kvstoremesh) — bounded tail, single pod expected.
-        for c in apiserver etcd kvstoremesh; do
-          KUBECONFIG="$kubeconfig" kubectl -n kube-system logs \
-            -l k8s-app=clustermesh-apiserver -c "$c" --tail=4000 \
-            > "$log_dir/clustermesh-apiserver-$c.log" 2>&1 || true
-        done
-        # cilium-agent: one pod per node — keep tail small to bound size.
-        KUBECONFIG="$kubeconfig" kubectl -n kube-system logs \
-          -l k8s-app=cilium --tail=1000 --prefix=true \
-          > "$log_dir/cilium-agent.log" 2>&1 || true
-        # cilium-operator: low-volume control plane.
-        KUBECONFIG="$kubeconfig" kubectl -n kube-system logs \
-          -l io.cilium/app=operator --tail=2000 --prefix=true \
-          > "$log_dir/cilium-operator.log" 2>&1 || true
-
-        if [ "$cl2_passed" -ne 1 ]; then
-          # Dump enough state to distinguish prometheus-stack scheduling
-          # failures from CL2 logic failures. Prometheus is the most common
-          # culprit here — its pod requests 10Gi by default, doesn't fit on
-          # Standard_D4s_v4. If the pod is Pending with FailedScheduling, the
-          # describe events make that obvious.
-          #
-          # Note: scale.py passes tear_down_prometheus=False so the stack
-          # survives this dump (otherwise CL2 would clean up before we look).
-          echo "------- $role: CL2 FAILURE DIAG -------"
-          echo "------- node allocatable / requested capacity -------"
-          KUBECONFIG="$kubeconfig" kubectl get nodes -o wide 2>&1 || true
-          KUBECONFIG="$kubeconfig" kubectl describe nodes 2>&1 | grep -A 4 "Allocatable\|Allocated resources" | head -40 || true
-
-          echo "------- monitoring/* pods -------"
-          KUBECONFIG="$kubeconfig" kubectl -n monitoring get pods -o wide 2>&1 || true
-
-          echo "------- monitoring statefulsets -------"
-          KUBECONFIG="$kubeconfig" kubectl -n monitoring get statefulset -o wide 2>&1 || true
-
-          echo "------- Prometheus CR (operator input) -------"
-          KUBECONFIG="$kubeconfig" kubectl -n monitoring get prometheus -o yaml 2>&1 | head -80 || true
-
-          echo "------- prometheus-k8s pod describe -------"
-          KUBECONFIG="$kubeconfig" kubectl -n monitoring describe pod -l app.kubernetes.io/name=prometheus 2>&1 | tail -60 || true
-
-          echo "------- prometheus-operator logs (tail 60) -------"
-          KUBECONFIG="$kubeconfig" kubectl -n monitoring logs -l app.kubernetes.io/name=prometheus-operator --tail=60 2>&1 || true
-
-          echo "------- monitoring namespace events (recent) -------"
-          KUBECONFIG="$kubeconfig" kubectl -n monitoring get events --sort-by='.lastTimestamp' 2>&1 | tail -30 || true
-          echo "------- end CL2 FAILURE DIAG -------"
-
-          echo "##vso[task.logissue type=warning;] $role: CL2 run failed (junit missing or has failures/errors at $report_dir/junit.xml; continuing other clusters)"
-          failures=$((failures + 1))
-        fi
-      done
-
-      if [ "$failures" -gt 0 ]; then
-        echo "##vso[task.logissue type=error;] CL2 failed on $failures cluster(s)"
-        exit 1
-      fi
+      # Bounded-parallel CL2 fan-out across clusters. Each worker invokes
+      # run-cl2-on-cluster.sh — same per-cluster body the bash for-loop used
+      # to run sequentially (CL2 invoke + junit gate + log capture + failure
+      # diag), now with bounded concurrency. CL2_MAX_CONCURRENT defaults to 4
+      # at the matrix level (event-throughput.yaml); smaller tiers can lower
+      # it to 1 to recover sequential behavior if needed.
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute-parallel \
+        --clusters "$HOME/.kube/clustermesh-clusters.json" \
+        --max-concurrent "${CL2_MAX_CONCURRENT:-4}" \
+        --worker-script "$WORKER_SCRIPT" \
+        --cl2-image "${CL2_IMAGE}" \
+        --cl2-config-dir "${CL2_CONFIG_DIR}" \
+        --cl2-config-file "${CL2_CONFIG_FILE}" \
+        --cl2-report-dir-base "${CL2_REPORT_DIR}" \
+        --provider "${CLOUD}" \
+        --python-script-file "$PYTHON_SCRIPT_FILE" \
+        --python-workdir "$(pwd)"
     workingDirectory: modules/python
     env:
       ${{ if eq(parameters.cloud, 'azure') }}:
@@ -198,6 +113,7 @@ steps:
         CLOUD: ${{ parameters.cloud }}
       REGION: ${{ parameters.region }}
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/scale.py
+      WORKER_SCRIPT: $(Pipeline.Workspace)/s/steps/engine/clusterloader2/clustermesh-scale/run-cl2-on-cluster.sh
       CL2_IMAGE: ${{ parameters.engine_input.image }}
       CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/config
       CL2_CONFIG_FILE: $(cl2_config_file)
