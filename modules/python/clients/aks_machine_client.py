@@ -168,21 +168,16 @@ class AKSMachineClient:
         Each per-node "readiness time" = (Ready transition time) - start_time_utc.
         ``timeout`` is wall-clock seconds from invocation (not per-machine).
         Returns {"P50":0.0,"P90":0.0,"P99":0.0} if no nodes became Ready before timeout,
-        if ``machine_names`` is empty, if ``kubernetes_client`` is unavailable, or if
+        if ``machine_names`` is empty, if ``k8s_client`` is unavailable, or if
         ``start_time_utc`` cannot be parsed. Per-machine ``get_node_details`` failures
         are logged and skipped. This method never raises.
         """
         def parse_iso(s):
             return datetime.fromisoformat(s.replace("Z", "+00:00"))
-        # NOTE: AKSClient currently exposes `k8s_client` rather than
-        # `kubernetes_client`. The tests mock `kubernetes_client` and the
-        # ado-telescope source this was ported from used `kubernetes_client`,
-        # so we preserve that contract here. If/when AKSClient is updated, this
-        # disable can come off. Tracked separately as an integration concern.
-        kc = self.aks_client.kubernetes_client  # pylint: disable=no-member
+        kc = self.aks_client.k8s_client
         if kc is None:
             logger.error(
-                "kubernetes_client is None on AKSClient; cannot wait for machine readiness"
+                "k8s_client is None on AKSClient; cannot wait for machine readiness"
             )
             return {"P50": 0.0, "P90": 0.0, "P99": 0.0}
         try:
