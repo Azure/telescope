@@ -14,9 +14,9 @@ import os
 import sys
 
 from clients.aks_machine_client import AKSMachineClient
+from machine.collect import collect_results
 from machine.data_classes import MachineConfig
 from machine.machine_manager import MachineManager
-from machine.collect import collect_results
 from utils.common import str2bool
 from utils.logger_config import setup_logging, get_logger
 
@@ -24,58 +24,67 @@ logger = get_logger(__name__)
 
 
 def _env_int_override(name: str, default: int) -> int:
-    v = os.environ.get(name, "").strip()
-    if not v or v.startswith("$("):
+    """Return ``int(os.environ[name])`` or ``default`` for empty/unresolved/invalid values."""
+    value = os.environ.get(name, "").strip()
+    if not value or value.startswith("$("):
         return default
     try:
-        return int(v)
+        return int(value)
     except ValueError:
         return default
 
 
 def _env_bool_override(name: str, default: bool) -> bool:
-    v = os.environ.get(name, "").strip()
-    if not v or v.startswith("$("):
+    """Return ``str2bool(os.environ[name])`` or ``default`` for empty/unresolved/invalid values."""
+    value = os.environ.get(name, "").strip()
+    if not value or value.startswith("$("):
         return default
     try:
-        return str2bool(v)
+        return str2bool(value)
     except argparse.ArgumentTypeError:
         return default
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the argparse parser for the create / scale / collect subcommands."""
     parser = argparse.ArgumentParser(
         description="AKS Machine API CRUD perf test")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    def _common(p):
-        p.add_argument("--cloud", choices=["azure"], required=True)
-        p.add_argument("--run-id", required=True, dest="run_id")
-        p.add_argument("--region", dest="region")
-        p.add_argument("--resource-group", dest="resource_group")
-        p.add_argument("--node-pool-name", dest="agentpool_name", required=True)
-        p.add_argument("--vm-size", dest="vm_size", default="Standard_D2_v3")
-        p.add_argument("--scale-machine-count", dest="scale_machine_count", type=int, default=0)
-        p.add_argument("--machine-workers", dest="machine_workers", type=int, default=1)
-        p.add_argument("--use-batch-api", dest="use_batch_api", type=str2bool, default=False)
-        p.add_argument("--step-timeout", dest="step_timeout", type=int, default=600)
-        p.add_argument("--result-dir", dest="result_dir", default=os.environ.get("RESULT_DIR"))
-        p.add_argument("--tags", dest="tags_json", default=None,
-                       help="JSON object string forwarded to ARM machine resource tags.")
+    def _common(subparser):
+        subparser.add_argument("--cloud", choices=["azure"], required=True)
+        subparser.add_argument("--run-id", required=True, dest="run_id")
+        subparser.add_argument("--region", dest="region")
+        subparser.add_argument("--resource-group", dest="resource_group")
+        subparser.add_argument("--node-pool-name", dest="agentpool_name", required=True)
+        subparser.add_argument("--vm-size", dest="vm_size", default="Standard_D2_v3")
+        subparser.add_argument(
+            "--scale-machine-count", dest="scale_machine_count", type=int, default=0)
+        subparser.add_argument("--machine-workers", dest="machine_workers", type=int, default=1)
+        subparser.add_argument(
+            "--use-batch-api", dest="use_batch_api", type=str2bool, default=False)
+        subparser.add_argument("--step-timeout", dest="step_timeout", type=int, default=600)
+        subparser.add_argument(
+            "--result-dir", dest="result_dir", default=os.environ.get("RESULT_DIR"))
+        subparser.add_argument("--tags", dest="tags_json", default=None,
+                               help="JSON object string forwarded to ARM machine resource tags.")
 
     for cmd in ("create", "scale"):
-        sp = sub.add_parser(cmd)
-        _common(sp)
-    sp = sub.add_parser("collect")
-    sp.add_argument("--cloud", choices=["azure"], required=True)
-    sp.add_argument("--run-id", required=True, dest="run_id")
-    sp.add_argument("--run-url", dest="run_url", default=os.environ.get("RUN_URL", ""))
-    sp.add_argument("--region", dest="region")
-    sp.add_argument("--result-dir", dest="result_dir", default=os.environ.get("RESULT_DIR"))
+        subparser = sub.add_parser(cmd)
+        _common(subparser)
+    collect_sp = sub.add_parser("collect")
+    collect_sp.add_argument("--cloud", choices=["azure"], required=True)
+    collect_sp.add_argument("--run-id", required=True, dest="run_id")
+    collect_sp.add_argument(
+        "--run-url", dest="run_url", default=os.environ.get("RUN_URL", ""))
+    collect_sp.add_argument("--region", dest="region")
+    collect_sp.add_argument(
+        "--result-dir", dest="result_dir", default=os.environ.get("RESULT_DIR"))
     return parser
 
 
 def _build_machine_config(args) -> MachineConfig:
+    """Translate parsed CLI args + env overrides into a MachineConfig dataclass."""
     if not args.result_dir:
         raise SystemExit("--result-dir or RESULT_DIR env must be set")
     tags = json.loads(args.tags_json) if args.tags_json else None
@@ -100,6 +109,7 @@ def _build_machine_config(args) -> MachineConfig:
 
 
 def main(argv=None) -> int:
+    """CLI entrypoint. Returns process exit code (0 success, 1 unexpected error)."""
     setup_logging()
     try:
         args = build_parser().parse_args(argv)
@@ -116,7 +126,10 @@ def main(argv=None) -> int:
         cfg2 = MachineConfig(**{**cfg.__dict__, "cluster_name": discovered})
         MachineManager(client, cfg2).perform_operation()
         return 0
-    except SystemExit:
+    except SystemExit:  # pylint: disable=try-except-raise
+        # Defensive: SystemExit is a BaseException so the Exception handler
+        # below would not catch it anyway, but this explicit branch documents
+        # that argparse / build_machine_config exits are intentional.
         raise
     except Exception:  # pylint: disable=broad-except
         logger.critical("Unhandled error in machine.main", exc_info=True)

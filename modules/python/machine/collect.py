@@ -61,6 +61,11 @@ def _format_record(payload: dict, region: Optional[str], run_id: str, run_url: s
 
 def collect_results(run_id: str, run_url: str, region: Optional[str],
                     result_dir: str) -> int:
+    """Aggregate per-op JSON files in ``result_dir`` into ``results.json`` (JSONL).
+
+    Skips the destination file itself, ignores per-file decode/IO errors, and
+    returns 0 unconditionally — caller treats "no inputs" as a no-op.
+    """
     results_path = os.path.join(result_dir, "results.json")
     files = sorted(p for p in glob.glob(os.path.join(result_dir, "*.json"))
                    if os.path.basename(p) != "results.json")

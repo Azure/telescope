@@ -18,6 +18,8 @@ logger = get_logger(__name__)
 
 
 class MachineManager:
+    """Drive create/scale operations against a cloud-service-shaped client."""
+
     def __init__(self, cloud_service, config: MachineConfig):
         self.cloud_service = cloud_service
         self.config = config  # do NOT mutate
@@ -29,6 +31,7 @@ class MachineManager:
             )
 
     def perform_operation(self) -> None:
+        """Dispatch on ``config.operation``: empty -> create then scale; else explicit op."""
         op = (self.config.operation or "").lower()
         if not op:
             resp = self.create()
@@ -47,6 +50,7 @@ class MachineManager:
 
     @save_test_result
     def create(self) -> MachineOperationResponse:
+        """Convert the configured agentpool to Machines mode; record timing/outcome."""
         start = datetime.now(timezone.utc)
         resp = MachineOperationResponse(
             operation_name=OperationNames.CREATE_MACHINE.value,
@@ -68,6 +72,7 @@ class MachineManager:
 
     @save_test_result
     def scale(self) -> MachineOperationResponse:
+        """Build a ScaleMachineRequest from config and delegate to cloud_service.scale_machine."""
         req = ScaleMachineRequest(
             cluster_name=self._cluster_name,
             resource_group=self.config.resource_group,
