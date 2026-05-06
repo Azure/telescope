@@ -9,6 +9,8 @@ Ported from ado-telescope/modules/python/k8s/cloud_providers/azure.py with bug f
 - No mutation of input config.
 - UTC timestamps.
 """
+import json
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
@@ -57,10 +59,21 @@ class AKSMachineClient:
         )
         self.resource_group = self.aks_client.resource_group
         self.subscription_id = self.aks_client.subscription_id
+        self._token_cache_value: Optional[str] = None
+        self._token_cache_expiry: float = 0.0  # unix epoch seconds
+        self._token_lock = threading.Lock()
 
     # ---- auth + REST plumbing ----
     def _get_access_token(self) -> str:
-        return self.aks_client.credential.get_token(_ARM_SCOPE).token
+        """Cached token fetch. Re-uses token across worker threads with a 60s safety margin
+        before expiry. Avoids forking `az account get-access-token` per worker."""
+        with self._token_lock:
+            if self._token_cache_value and time.time() < self._token_cache_expiry - 60:
+                return self._token_cache_value
+            tok = self.aks_client.credential.get_token(_ARM_SCOPE)
+            self._token_cache_value = tok.token
+            self._token_cache_expiry = float(tok.expires_on)
+            return self._token_cache_value
 
     def make_request(
         self,
@@ -420,64 +433,78 @@ class AKSMachineClient:
         chunk: List[str],
         chunk_idx: int,
     ) -> List[str]:
-        """Submit a single ``$batch`` request creating every machine in ``chunk``.
+        """Submit a batch-PUT request creating every machine in ``chunk``.
 
-        Returns the list of machine names that the batch endpoint accepted.
-        Raises ``RuntimeError`` (from ``_make_batch_request``) if the batch
-        request exhausts 429 retries or returns a non-2xx response. The caller
-        (``_scale_machine_batch.run_chunk``) is expected to catch and exclude
-        the chunk's names from the success list.
+        Uses the AKS Machine API ``BatchPutMachine`` HEADER pattern (NOT the
+        non-existent ARM ``/$batch`` envelope): a single PUT to the first
+        machine name in ``chunk`` carrying a ``BatchPutMachine`` header whose
+        value is JSON containing ``vmSkus`` and ``batchMachines`` lists.
+
+        Returns the list of machine names submitted on 2xx. Raises
+        ``RuntimeError`` (from ``_make_batch_request``) if the request exhausts
+        429 retries or returns a non-2xx. Caller catches and excludes failed
+        chunks from the success list.
         """
         if not chunk:
             return []
         sub = self.subscription_id
-        # AKS Batch endpoint pattern: collection-level $batch with api-version.
+        first_machine_name = chunk[0]
         url = (
             f"{_ARM_BASE}/subscriptions/{sub}/resourceGroups/{request.resource_group}"
             f"/providers/Microsoft.ContainerService/managedClusters/{request.cluster_name}"
-            f"/agentPools/{request.agentpool_name}/machines/$batch"
+            f"/agentPools/{request.agentpool_name}/machines/{first_machine_name}"
             f"?api-version={_MACHINE_API_VERSION}"
         )
-        machine_body = {"properties": {"hardware": {"vmSize": request.vm_size}}}
-        # ARM batch envelope: each request targets a child machine name.
-        body = {
-            "requests": [
-                {
-                    "httpMethod": "PUT",
-                    "name": name,
-                    "content": machine_body,
-                }
-                for name in chunk
-            ]
-        }
+        body: Dict[str, Any] = {"properties": {"hardware": {"vmSize": request.vm_size}}}
+        batch_machines = [
+            {"name": name, "properties": {"hardware": {"vmSize": request.vm_size}}}
+            for name in chunk
+        ]
+        vm_skus = [{"name": request.vm_size, "count": len(chunk)}]
+        batch_header_value = json.dumps({
+            "vmSkus": vm_skus,
+            "batchMachines": batch_machines,
+        })
         logger.info(
-            "chunk %d: submitting $batch for %d machines",
-            chunk_idx, len(chunk),
+            "chunk %d: submitting BatchPutMachine PUT for %d machines (target=%s)",
+            chunk_idx, len(chunk), first_machine_name,
         )
-        self._make_batch_request("POST", url, body, request.timeout)
+        self._make_batch_request(
+            "PUT", url, body, request.timeout, batch_header_value=batch_header_value,
+        )
         return list(chunk)
 
-    def _make_batch_request(
+    def _make_batch_request(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self,
         method: str,
         url: str,
         data: Dict[str, Any],
         timeout: int,
+        batch_header_value: str,
     ) -> None:
-        """Send a ``$batch`` request with bounded 429 exponential backoff.
+        """Send a ``BatchPutMachine``-headered request with bounded 429 backoff.
 
-        Retries on HTTP 429 up to ``_BATCH_429_MAX_RETRIES`` attempts with
-        exponential backoff starting at ``_BATCH_429_INITIAL_BACKOFF_SECONDS``
-        and doubling each attempt (1s, 2s, 4s by default). All other non-2xx
-        responses raise immediately. Reuses ``make_request`` for auth.
+        Sends the request directly (NOT via ``make_request``) so we can attach
+        the ``BatchPutMachine`` header alongside the standard auth/content-type
+        headers. Retries on HTTP 429 up to ``_BATCH_429_MAX_RETRIES`` attempts
+        with exponential backoff starting at
+        ``_BATCH_429_INITIAL_BACKOFF_SECONDS`` and doubling each attempt
+        (1s, 2s, 4s by default). All other non-2xx responses raise immediately.
         """
         backoff = _BATCH_429_INITIAL_BACKOFF_SECONDS
         last_resp: Optional[requests.Response] = None
         for attempt in range(_BATCH_429_MAX_RETRIES):
-            resp = self.make_request(method, url, data=data, timeout=timeout)
+            headers = {
+                "Authorization": f"Bearer {self._get_access_token()}",
+                "Content-Type": "application/json",
+                "BatchPutMachine": batch_header_value,
+            }
+            resp = requests.request(
+                method, url, headers=headers, json=data, timeout=timeout,
+            )
             last_resp = resp
             if resp.status_code in (200, 201, 202, 204):
-                return resp
+                return
             if resp.status_code != 429:
                 raise RuntimeError(
                     f"batch request failed: {resp.status_code} {resp.text[:500]}"

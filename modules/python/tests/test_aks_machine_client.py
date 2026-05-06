@@ -1,4 +1,6 @@
 """Tests for AKSMachineClient (composes AKSClient)."""
+import json
+import time
 from unittest.mock import patch, MagicMock
 
 from clients.aks_machine_client import AKSMachineClient
@@ -15,17 +17,48 @@ def test_compose_aksclient_not_subclass():
 @patch("clients.aks_machine_client.AKSClient")
 def test_get_access_token_uses_aks_client_credential(MockAKS):
     fake_cred = MagicMock()
-    fake_cred.get_token.return_value.token = "tok"
+    fake_cred.get_token.return_value = MagicMock(token="tok", expires_on=time.time() + 3600)
     MockAKS.return_value.credential = fake_cred
     c = AKSMachineClient(resource_group="rg")
     assert c._get_access_token() == "tok"
     fake_cred.get_token.assert_called_once_with("https://management.azure.com/.default")
 
 
+@patch("clients.aks_machine_client.AKSClient")
+def test_get_access_token_caches_across_calls(MockAKS):
+    """Second call within validity window must NOT re-invoke get_token."""
+    fake_cred = MagicMock()
+    fake_cred.get_token.return_value = MagicMock(token="tok", expires_on=time.time() + 3600)
+    MockAKS.return_value.credential = fake_cred
+    c = AKSMachineClient(resource_group="rg")
+    assert c._get_access_token() == "tok"
+    assert c._get_access_token() == "tok"
+    assert c._get_access_token() == "tok"
+    assert fake_cred.get_token.call_count == 1
+
+
+@patch("clients.aks_machine_client.AKSClient")
+def test_get_access_token_refreshes_when_expired(MockAKS):
+    """When cached token is within 60s of expiry, fetch a fresh one."""
+    fake_cred = MagicMock()
+    # First token expires very soon (within the 60s safety margin) -> must refresh.
+    fake_cred.get_token.side_effect = [
+        MagicMock(token="old", expires_on=time.time() + 30),
+        MagicMock(token="new", expires_on=time.time() + 3600),
+    ]
+    MockAKS.return_value.credential = fake_cred
+    c = AKSMachineClient(resource_group="rg")
+    assert c._get_access_token() == "old"
+    assert c._get_access_token() == "new"
+    assert fake_cred.get_token.call_count == 2
+
+
 @patch("clients.aks_machine_client.requests.request")
 @patch("clients.aks_machine_client.AKSClient")
 def test_make_request_sets_bearer_and_returns_response(MockAKS, mock_req):
-    MockAKS.return_value.credential.get_token.return_value.token = "T"
+    MockAKS.return_value.credential.get_token.return_value = MagicMock(
+        token="T", expires_on=time.time() + 3600,
+    )
     mock_req.return_value = MagicMock(status_code=200, json=lambda: {"ok": 1})
     c = AKSMachineClient(resource_group="rg")
     r = c.make_request("PUT", "https://x", data={"a": 1}, timeout=10)
@@ -445,68 +478,94 @@ def test_create_batch_machines_submits_envelope(MockAKS, mock_batch):
     chunk = ["m0", "m1"]
     out = c._create_batch_machines(req, chunk, chunk_idx=0)
     assert out == chunk
-    args, _kwargs = mock_batch.call_args
-    assert args[0] == "POST"
-    assert "/machines/$batch" in args[1]
-    body = args[2]
-    assert [r["name"] for r in body["requests"]] == chunk
-    assert all(r["httpMethod"] == "PUT" for r in body["requests"])
-    assert body["requests"][0]["content"]["properties"]["hardware"]["vmSize"] == "Standard_D2_v3"
-    # Note: tags are no longer sent on batch machine PUT (commit 62a46f35).
-    assert "tags" not in body["requests"][0]["content"]
+    args, kwargs = mock_batch.call_args
+    # PUT to the FIRST machine URL (not /$batch).
+    assert args[0] == "PUT"
+    assert "/agentPools/ap/machines/m0?api-version=" in args[1]
+    assert "/$batch" not in args[1]
+    # Body is the standard per-machine PUT body.
+    assert args[2] == {"properties": {"hardware": {"vmSize": "Standard_D2_v3"}}}
+    # BatchPutMachine header value carries vmSkus + batchMachines.
+    header_value = kwargs["batch_header_value"]
+    parsed = json.loads(header_value)
+    assert "vmSkus" in parsed
+    assert "batchMachines" in parsed
+    assert [m["name"] for m in parsed["batchMachines"]] == chunk
+    assert parsed["batchMachines"][0]["properties"]["hardware"]["vmSize"] == "Standard_D2_v3"
+    assert parsed["vmSkus"][0]["name"] == "Standard_D2_v3"
+    assert parsed["vmSkus"][0]["count"] == 2
 
 
 # ---- _make_batch_request ----
 
 @patch("clients.aks_machine_client.time.sleep")
-@patch.object(AKSMachineClient, "make_request")
+@patch("clients.aks_machine_client.requests.request")
 @patch("clients.aks_machine_client.AKSClient")
 def test_make_batch_request_returns_on_2xx(MockAKS, mock_req, mock_sleep):
+    MockAKS.return_value.credential.get_token.return_value = MagicMock(
+        token="T", expires_on=time.time() + 3600,
+    )
     mock_req.return_value = MagicMock(status_code=200)
     c = AKSMachineClient(resource_group="rg")
-    c._make_batch_request("POST", "https://x", {"a": 1}, timeout=30)
+    c._make_batch_request("PUT", "https://x", {"a": 1}, timeout=30,
+                          batch_header_value="HDR")
     assert mock_req.call_count == 1
     args, kwargs = mock_req.call_args
-    assert args[0] == "POST"
+    assert args[0] == "PUT"
     assert args[1] == "https://x"
-    assert kwargs.get("data") == {"a": 1}
+    assert kwargs.get("json") == {"a": 1}
     assert kwargs.get("timeout") == 30
+    assert kwargs["headers"]["BatchPutMachine"] == "HDR"
+    assert kwargs["headers"]["Authorization"] == "Bearer T"
+    assert kwargs["headers"]["Content-Type"] == "application/json"
     mock_sleep.assert_not_called()
 
 
-@patch.object(AKSMachineClient, "make_request")
+@patch("clients.aks_machine_client.requests.request")
 @patch("clients.aks_machine_client.AKSClient")
 def test_make_batch_request_raises_on_non_429_failure(MockAKS, mock_req):
     import pytest
+    MockAKS.return_value.credential.get_token.return_value = MagicMock(
+        token="T", expires_on=time.time() + 3600,
+    )
     mock_req.return_value = MagicMock(status_code=500, text="boom")
     c = AKSMachineClient(resource_group="rg")
     with pytest.raises(RuntimeError, match="batch request failed: 500"):
-        c._make_batch_request("POST", "https://x", {"a": 1}, timeout=30)
+        c._make_batch_request("PUT", "https://x", {"a": 1}, timeout=30,
+                              batch_header_value="HDR")
 
 
 @patch("clients.aks_machine_client.time.sleep")
-@patch.object(AKSMachineClient, "make_request")
+@patch("clients.aks_machine_client.requests.request")
 @patch("clients.aks_machine_client.AKSClient")
 def test_make_batch_request_retries_on_429_then_succeeds(MockAKS, mock_req, _sleep):
+    MockAKS.return_value.credential.get_token.return_value = MagicMock(
+        token="T", expires_on=time.time() + 3600,
+    )
     mock_req.side_effect = [
         MagicMock(status_code=429, text="throttled"),
         MagicMock(status_code=429, text="throttled"),
         MagicMock(status_code=200, text=""),
     ]
     c = AKSMachineClient(resource_group="rg")
-    c._make_batch_request("POST", "https://x", {"a": 1}, timeout=30)
+    c._make_batch_request("PUT", "https://x", {"a": 1}, timeout=30,
+                          batch_header_value="HDR")
     assert mock_req.call_count == 3
 
 
 @patch("clients.aks_machine_client.time.sleep")
-@patch.object(AKSMachineClient, "make_request")
+@patch("clients.aks_machine_client.requests.request")
 @patch("clients.aks_machine_client.AKSClient")
 def test_make_batch_request_raises_after_429_retry_exhaustion(MockAKS, mock_req, _sleep):
     import pytest
+    MockAKS.return_value.credential.get_token.return_value = MagicMock(
+        token="T", expires_on=time.time() + 3600,
+    )
     mock_req.return_value = MagicMock(status_code=429, text="throttled")
     c = AKSMachineClient(resource_group="rg")
     with pytest.raises(RuntimeError, match="exceeded .* 429 retries"):
-        c._make_batch_request("POST", "https://x", {"a": 1}, timeout=30)
+        c._make_batch_request("PUT", "https://x", {"a": 1}, timeout=30,
+                              batch_header_value="HDR")
 
 
 # ---- get_cluster_name / get_cluster_data passthroughs ----
