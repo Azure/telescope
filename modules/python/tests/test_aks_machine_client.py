@@ -228,3 +228,87 @@ def test_scale_machine_non_batch_partial_failure(MockAKS, mock_single, mock_wait
     assert resp.successful_machines == ["tmach0000"]
     assert resp.succeeded is False
     assert resp.error == ""
+
+
+@patch.object(AKSMachineClient, "_wait_for_machine_node_readiness",
+              return_value={"P50": 1.0, "P90": 1.0, "P99": 1.0})
+@patch.object(AKSMachineClient, "_create_batch_machines")
+@patch("clients.aks_machine_client.AKSClient")
+def test_scale_machine_batch_dispatches_in_chunks(MockAKS, mock_create_batch, _mock_wait):
+    """Batch path: 6 machines + 2 workers → 2 chunks of 3, all names submitted exactly once."""
+    MockAKS.return_value.subscription_id = "SUB"
+    mock_create_batch.side_effect = lambda request, chunk, chunk_idx: list(chunk)
+    req = ScaleMachineRequest(
+        cluster_name="cl", resource_group="rg", agentpool_name="ap",
+        vm_size="Standard_D2_v3", scale_machine_count=6,
+        use_batch_api=True, machine_workers=2,
+    )
+    c = AKSMachineClient(resource_group="rg")
+    resp = c.scale_machine(req)
+
+    assert mock_create_batch.call_count == 2
+    expected_names = [f"tmach{i:04d}" for i in range(6)]
+    submitted = sorted(n for call in mock_create_batch.call_args_list for n in call.args[1])
+    assert submitted == sorted(expected_names)
+    assert sorted(resp.successful_machines) == sorted(expected_names)
+    assert set(resp.batch_command_execution_times.keys()) == {"chunk_0", "chunk_1"}
+    assert all(v >= 0.0 for v in resp.batch_command_execution_times.values())
+    assert resp.succeeded is True
+    assert resp.percentile_node_readiness_times == {"P50": 1.0, "P90": 1.0, "P99": 1.0}
+
+
+@patch.object(AKSMachineClient, "_wait_for_machine_node_readiness",
+              return_value={"P50": 0.0, "P90": 0.0, "P99": 0.0})
+@patch.object(AKSMachineClient, "_create_batch_machines")
+@patch("clients.aks_machine_client.AKSClient")
+def test_scale_machine_batch_partial_chunk_failure(MockAKS, mock_create_batch, _mock_wait):
+    """One chunk returns []; the other chunk's names are still recorded."""
+    MockAKS.return_value.subscription_id = "SUB"
+
+    def fake(request, chunk, chunk_idx):
+        if chunk_idx == 1:
+            return []
+        return list(chunk)
+
+    mock_create_batch.side_effect = fake
+    req = ScaleMachineRequest(
+        cluster_name="cl", resource_group="rg", agentpool_name="ap",
+        vm_size="Standard_D2_v3", scale_machine_count=4,
+        use_batch_api=True, machine_workers=2,
+    )
+    c = AKSMachineClient(resource_group="rg")
+    resp = c.scale_machine(req)
+
+    assert len(resp.successful_machines) == 2
+    assert resp.succeeded is False
+    assert resp.error == ""
+    assert set(resp.batch_command_execution_times.keys()) == {"chunk_0", "chunk_1"}
+
+
+@patch.object(AKSMachineClient, "_wait_for_machine_node_readiness",
+              return_value={"P50": 0.0, "P90": 0.0, "P99": 0.0})
+@patch.object(AKSMachineClient, "_create_batch_machines")
+@patch("clients.aks_machine_client.AKSClient")
+def test_scale_machine_batch_worker_exception_isolated(MockAKS, mock_create_batch, _mock_wait):
+    """A chunk worker raising RuntimeError must not poison the other chunk's results."""
+    MockAKS.return_value.subscription_id = "SUB"
+
+    def fake(request, chunk, chunk_idx):
+        if chunk_idx == 1:
+            raise RuntimeError("boom")
+        return list(chunk)
+
+    mock_create_batch.side_effect = fake
+    req = ScaleMachineRequest(
+        cluster_name="cl", resource_group="rg", agentpool_name="ap",
+        vm_size="Standard_D2_v3", scale_machine_count=4,
+        use_batch_api=True, machine_workers=2,
+    )
+    c = AKSMachineClient(resource_group="rg")
+    resp = c.scale_machine(req)
+
+    expected_chunk0 = sorted([f"tmach{i:04d}" for i in range(4)])[:2]
+    assert sorted(resp.successful_machines) == expected_chunk0
+    assert resp.succeeded is False
+    assert resp.error == ""
+    assert set(resp.batch_command_execution_times.keys()) == {"chunk_0", "chunk_1"}
