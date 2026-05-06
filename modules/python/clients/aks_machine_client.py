@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Optional
 import requests
 
 from clients.aks_client import AKSClient
-from machine.data_classes import MachineOperationResponse, OperationNames
+from machine.data_classes import MachineOperationResponse, OperationNames, ScaleMachineRequest
 from utils.logger_config import get_logger
 
 logger = get_logger(__name__)
@@ -26,6 +26,7 @@ _ARM_BASE = "https://management.azure.com"
 _ARM_SCOPE = "https://management.azure.com/.default"
 _AGENTPOOL_API_VERSION = "2024-06-02-preview"  # per ado azure.py
 _POLL_INTERVAL_SECONDS = 10
+_PROVISIONING_NONE_STATE_LIMIT = 5
 
 
 class AKSMachineClient:
@@ -201,7 +202,7 @@ class AKSMachineClient:
             return sorted_vals[idx]
         return {"P50": pct(50), "P90": pct(90), "P99": pct(99)}
 
-    def scale_machine(self, request):
+    def scale_machine(self, request: ScaleMachineRequest) -> MachineOperationResponse:
         """Scale a Machine-mode agentpool by creating ``request.scale_machine_count`` machines.
 
         Branches between batch and non-batch paths. This commit implements only the
@@ -217,6 +218,10 @@ class AKSMachineClient:
         try:
             prefix = self._get_machine_name_prefix(request.scale_machine_count)
             names = [f"{prefix}{i:04d}" for i in range(request.scale_machine_count)]
+            if request.use_batch_api and not hasattr(self, "_scale_machine_batch"):
+                raise NotImplementedError(
+                    "Batch scale path lands in Task 8 of the crud-machine port."
+                )
             if request.use_batch_api:
                 successful, batch_times = self._scale_machine_batch(request, names)
                 response.batch_command_execution_times = batch_times
@@ -301,9 +306,13 @@ class AKSMachineClient:
         """Poll ``url`` until ``properties.provisioningState`` is terminal or deadline.
 
         Returns True on Succeeded, False on Failed or timeout. Transient non-200
-        responses are logged and retried until the deadline. Never raises.
+        responses are logged and retried until the deadline. If ``provisioningState``
+        is missing from successful responses for ``_PROVISIONING_NONE_STATE_LIMIT``
+        consecutive polls, treats the operation as Failed and returns False (rather
+        than spinning until the deadline). Never raises.
         """
         deadline = time.time() + timeout
+        none_count = 0
         while time.time() < deadline:
             r = self.make_request("GET", url, timeout=30)
             if r.status_code == 200:
@@ -317,8 +326,19 @@ class AKSMachineClient:
                 if state == "Succeeded":
                     return True
                 if state == "Failed":
-                    logger.error("provisioning Failed: %s", body[:500] if isinstance(body, str) else body)
+                    logger.error("provisioning Failed: %s", str(body)[:500])
                     return False
+                if state is None:
+                    none_count += 1
+                    if none_count >= _PROVISIONING_NONE_STATE_LIMIT:
+                        logger.warning(
+                            "provisioningState absent for %d consecutive polls; "
+                            "treating as Failed. body=%s",
+                            none_count, str(body)[:500],
+                        )
+                        return False
+                else:
+                    none_count = 0
             else:
                 logger.warning("provisioning poll non-200: %s", r.status_code)
             time.sleep(_POLL_INTERVAL_SECONDS)
