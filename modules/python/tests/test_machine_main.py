@@ -43,3 +43,27 @@ def test_env_bool_override_handles_typical_truthy(monkeypatch):
     assert _env_bool_override("ENV_FLAG", default=False) is True
     monkeypatch.setenv("ENV_FLAG", "$(X)")
     assert _env_bool_override("ENV_FLAG", default=True) is True  # falls through to default
+
+def test_env_int_override_accepts_negative(monkeypatch):
+    monkeypatch.setenv("ENV_FOO", "-3")
+    assert _env_int_override("ENV_FOO", default=1) == -3
+
+def test_env_int_override_falls_back_on_malformed(monkeypatch):
+    monkeypatch.setenv("ENV_FOO", "--5")
+    assert _env_int_override("ENV_FOO", default=11) == 11
+
+def test_create_requires_node_pool_name():
+    p = build_parser()
+    with pytest.raises(SystemExit):
+        p.parse_args(["create", "--cloud", "azure", "--run-id", "X"])
+
+def test_build_machine_config_requires_result_dir(monkeypatch):
+    from machine.main import _build_machine_config
+    monkeypatch.delenv("RESULT_DIR", raising=False)
+    p = build_parser()
+    args = p.parse_args([
+        "create", "--cloud", "azure", "--run-id", "X",
+        "--node-pool-name", "pool1",
+    ])
+    with pytest.raises(SystemExit):
+        _build_machine_config(args)
