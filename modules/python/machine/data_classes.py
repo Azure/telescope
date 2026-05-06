@@ -71,4 +71,4 @@ class MachineOperationResponse:  # pylint: disable=too-many-instance-attributes
     percentile_node_readiness_times: Dict[str, float] = field(default_factory=dict)
     batch_command_execution_times: Dict[str, float] = field(default_factory=dict)
     cloud_data: Optional[Dict] = None
-    warning_message: str = ""
+    warning_message: Optional[str] = None

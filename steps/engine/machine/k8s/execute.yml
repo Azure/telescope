@@ -35,6 +35,9 @@ steps:
         --resource-group "$RUN_ID" \
         --node-pool-name "${{ parameters.pool_name }}" \
         --vm-size "${{ parameters.vm_size }}" \
+        --scale-machine-count "${{ parameters.scale_machine_count }}" \
+        --machine-workers "${{ parameters.machine_workers }}" \
+        --use-batch-api "${{ parameters.use_batch_api }}" \
         --step-timeout "${{ parameters.step_time_out }}" \
         --result-dir "${{ parameters.result_dir }}" \
         --tags "$tags"

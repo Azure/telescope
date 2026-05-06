@@ -111,34 +111,31 @@ def test_create_machine_agentpool_returns_false_on_timeout(MockAKS, mock_req, _s
 @patch("clients.aks_machine_client.AKSClient")
 def test_wait_for_machine_node_readiness_computes_percentiles(MockAKS):
     fake_kc = MagicMock()
-    # Each call returns a node with conditions list; we pretend all 4 are ready immediately.
-    def details(name):
-        return {"status": {"conditions": [{"type": "Ready", "status": "True",
-                                            "lastTransitionTime": "2026-05-05T10:00:00Z"}]}}
-    fake_kc.get_node_details.side_effect = details
+    # Return 4 ready nodes immediately so all percentile targets (P50/P90/P99) are met on first poll.
+    fake_kc.get_ready_nodes.return_value = [object(), object(), object(), object()]
     MockAKS.return_value.k8s_client = fake_kc
     c = AKSMachineClient(resource_group="rg")
     times = c._wait_for_machine_node_readiness(
-        machine_names=["m1", "m2", "m3", "m4"],
-        start_time_utc="2026-05-05T09:59:50Z",
+        agentpool_name="ap",
+        expected_count=4,
         timeout=5,
     )
     assert set(times.keys()) == {"P50", "P90", "P99"}
-    assert all(times[p] >= 0 for p in times)
+    assert all(times[p] >= 0.0 for p in times)
 
 
 @patch("clients.aks_machine_client.AKSClient")
-def test_wait_for_machine_node_readiness_empty_machine_names(MockAKS):
+def test_wait_for_machine_node_readiness_zero_expected_count(MockAKS):
     fake_kc = MagicMock()
     MockAKS.return_value.k8s_client = fake_kc
     c = AKSMachineClient(resource_group="rg")
     times = c._wait_for_machine_node_readiness(
-        machine_names=[],
-        start_time_utc="2026-05-05T09:59:50Z",
+        agentpool_name="ap",
+        expected_count=0,
         timeout=5,
     )
     assert times == {"P50": 0.0, "P90": 0.0, "P99": 0.0}
-    fake_kc.get_node_details.assert_not_called()
+    fake_kc.get_ready_nodes.assert_not_called()
 
 
 @patch("clients.aks_machine_client.AKSClient")
@@ -146,37 +143,23 @@ def test_wait_for_machine_node_readiness_kubernetes_client_none(MockAKS):
     MockAKS.return_value.k8s_client = None
     c = AKSMachineClient(resource_group="rg")
     times = c._wait_for_machine_node_readiness(
-        machine_names=["m1"],
-        start_time_utc="2026-05-05T09:59:50Z",
+        agentpool_name="ap",
+        expected_count=1,
         timeout=5,
     )
     assert times == {"P50": 0.0, "P90": 0.0, "P99": 0.0}
-
-
-@patch("clients.aks_machine_client.AKSClient")
-def test_wait_for_machine_node_readiness_malformed_start_time(MockAKS):
-    fake_kc = MagicMock()
-    MockAKS.return_value.k8s_client = fake_kc
-    c = AKSMachineClient(resource_group="rg")
-    times = c._wait_for_machine_node_readiness(
-        machine_names=["m1"],
-        start_time_utc="not-a-timestamp",
-        timeout=5,
-    )
-    assert times == {"P50": 0.0, "P90": 0.0, "P99": 0.0}
-    fake_kc.get_node_details.assert_not_called()
 
 
 @patch("clients.aks_machine_client.time.sleep")
 @patch("clients.aks_machine_client.AKSClient")
-def test_wait_for_machine_node_readiness_get_node_details_raises(MockAKS, _sleep):
+def test_wait_for_machine_node_readiness_get_ready_nodes_raises(MockAKS, _sleep):
     fake_kc = MagicMock()
-    fake_kc.get_node_details.side_effect = RuntimeError("boom")
+    fake_kc.get_ready_nodes.side_effect = RuntimeError("boom")
     MockAKS.return_value.k8s_client = fake_kc
     c = AKSMachineClient(resource_group="rg")
     times = c._wait_for_machine_node_readiness(
-        machine_names=["m1"],
-        start_time_utc="2026-05-05T09:59:50Z",
+        agentpool_name="ap",
+        expected_count=1,
         timeout=0,  # exit immediately after one iteration
     )
     assert times == {"P50": 0.0, "P90": 0.0, "P99": 0.0}
@@ -335,7 +318,8 @@ def test_create_single_machine_puts_and_polls(MockAKS, mock_req, _mock_wait):
     assert put_call.args[0] == "PUT"
     assert "/agentPools/ap/machines/tmach0000" in put_call.args[1]
     assert put_call.kwargs["data"]["properties"]["hardware"]["vmSize"] == "Standard_D2_v3"
-    assert put_call.kwargs["data"]["tags"] == {"env": "test"}
+    # Note: tags are no longer sent on machine PUT (commit 62a46f35).
+    assert "tags" not in put_call.kwargs["data"]
 
 
 @patch.object(AKSMachineClient, "_wait_for_machine_provisioning")
@@ -468,7 +452,8 @@ def test_create_batch_machines_submits_envelope(MockAKS, mock_batch):
     assert [r["name"] for r in body["requests"]] == chunk
     assert all(r["httpMethod"] == "PUT" for r in body["requests"])
     assert body["requests"][0]["content"]["properties"]["hardware"]["vmSize"] == "Standard_D2_v3"
-    assert body["requests"][0]["content"]["tags"] == {"k": "v"}
+    # Note: tags are no longer sent on batch machine PUT (commit 62a46f35).
+    assert "tags" not in body["requests"][0]["content"]
 
 
 # ---- _make_batch_request ----
