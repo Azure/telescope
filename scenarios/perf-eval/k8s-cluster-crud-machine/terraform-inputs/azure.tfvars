@@ -8,7 +8,11 @@ aks_cli_config_list = [
     aks_name                      = "mchapi"
     sku_tier                      = "standard"
     use_aks_preview_cli_extension = true
-    default_node_pool             = null
+    default_node_pool = {
+      name       = "default"
+      node_count = 2
+      vm_size    = "Standard_D2_v3"
+    }
 
     optional_parameters = [
       {
