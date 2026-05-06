@@ -473,13 +473,20 @@ def test_create_batch_machines_submits_envelope(MockAKS, mock_batch):
 
 # ---- _make_batch_request ----
 
+@patch("clients.aks_machine_client.time.sleep")
 @patch.object(AKSMachineClient, "make_request")
 @patch("clients.aks_machine_client.AKSClient")
-def test_make_batch_request_returns_on_2xx(MockAKS, mock_req):
+def test_make_batch_request_returns_on_2xx(MockAKS, mock_req, mock_sleep):
     mock_req.return_value = MagicMock(status_code=200)
     c = AKSMachineClient(resource_group="rg")
     c._make_batch_request("POST", "https://x", {"a": 1}, timeout=30)
     assert mock_req.call_count == 1
+    args, kwargs = mock_req.call_args
+    assert args[0] == "POST"
+    assert args[1] == "https://x"
+    assert kwargs.get("data") == {"a": 1}
+    assert kwargs.get("timeout") == 30
+    mock_sleep.assert_not_called()
 
 
 @patch.object(AKSMachineClient, "make_request")
@@ -558,12 +565,18 @@ def test_scale_machine_cloud_data_failure_swallowed(MockAKS, _mock_single, _mock
 @patch.object(AKSMachineClient, "_wait_for_agentpool_provisioning", return_value=True)
 @patch.object(AKSMachineClient, "make_request")
 @patch("clients.aks_machine_client.AKSClient")
-def test_create_machine_agentpool_logs_when_rg_mismatches(MockAKS, mock_req, _mock_wait):
+def test_create_machine_agentpool_logs_when_rg_mismatches(MockAKS, mock_req, _mock_wait, caplog):
     MockAKS.return_value.subscription_id = "SUB"
     MockAKS.return_value.resource_group = "rg-bound"
     mock_req.return_value = MagicMock(status_code=201, text="")
     c = AKSMachineClient(resource_group="rg-bound")
-    assert c.create_machine_agentpool("apool", "cl", "rg-other", timeout=30) is True
+    with caplog.at_level("WARNING", logger="clients.aks_machine_client"):
+        ok = c.create_machine_agentpool("apool", "cl", "rg-other", timeout=30)
+    assert ok is True
+    assert any(
+        "rg-other" in r.getMessage() and "rg-bound" in r.getMessage()
+        for r in caplog.records
+    ), f"expected RG-mismatch warning, got: {[r.getMessage() for r in caplog.records]}"
 
 
 # ---- _array_split edge cases ----
@@ -573,6 +586,7 @@ def test_array_split_empty_returns_empty():
 
 
 def test_array_split_clamps_workers_to_len():
-    out = AKSMachineClient._array_split(["a", "b"], 100)
-    assert all(len(c) > 0 for c in out)
-    assert sum(len(c) for c in out) == 2
+    out = AKSMachineClient._array_split(["a", "b"], 4)
+    assert len(out) == 2  # workers clamped to len(items)
+    assert all(len(c) == 1 for c in out)
+    assert sorted(c[0] for c in out) == ["a", "b"]

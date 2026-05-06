@@ -225,7 +225,7 @@ class AKSMachineClient:
             start_time=start_iso,
         )
         try:
-            prefix = self._get_machine_name_prefix(request.scale_machine_count)
+            prefix = self._get_machine_name_prefix()
             names = [f"{prefix}{i:04d}" for i in range(request.scale_machine_count)]
             if request.use_batch_api:
                 successful, batch_times = self._scale_machine_batch(request, names)
@@ -251,13 +251,8 @@ class AKSMachineClient:
             logger.warning("get_cluster_data failed: %s", exc)
         return response
 
-    def _get_machine_name_prefix(self, scale_machine_count: int) -> str:  # pylint: disable=unused-argument
-        """Return the per-run machine-name prefix.
-
-        Returns a stable prefix matching ado-telescope so cross-repo dashboard
-        queries (which group by name regex) keep working. ``scale_machine_count``
-        is currently unused but reserved for future variant prefixes.
-        """
+    def _get_machine_name_prefix(self) -> str:
+        """Return the machine-name prefix used for batch and individual scale paths."""
         return "tmach"
 
     def _scale_machine_individually(self, request, names):
