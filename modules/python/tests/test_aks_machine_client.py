@@ -53,3 +53,55 @@ def test_create_machine_agentpool_puts_with_mode_machines(MockAKS, mock_req):
     assert put_call.args[0] == "PUT"
     assert "/managedClusters/cl/agentPools/apool" in put_call.args[1]
     assert put_call.kwargs["data"]["properties"]["mode"] == "Machines"
+
+
+@patch("clients.aks_machine_client.time.sleep")
+@patch.object(AKSMachineClient, "make_request")
+@patch("clients.aks_machine_client.AKSClient")
+def test_create_machine_agentpool_returns_false_on_put_failure(MockAKS, mock_req, _sleep):
+    MockAKS.return_value.subscription_id = "SUB"
+    mock_req.return_value = MagicMock(status_code=400, text="bad request")
+    c = AKSMachineClient(resource_group="rg")
+    assert c.create_machine_agentpool("apool", "cl", "rg", timeout=30) is False
+    # Only the PUT was attempted; no GET poll.
+    assert mock_req.call_count == 1
+
+
+@patch("clients.aks_machine_client.time.sleep")
+@patch.object(AKSMachineClient, "make_request")
+@patch("clients.aks_machine_client.AKSClient")
+def test_create_machine_agentpool_returns_false_on_failed_state(MockAKS, mock_req, _sleep):
+    MockAKS.return_value.subscription_id = "SUB"
+    mock_req.side_effect = [
+        MagicMock(status_code=201, json=lambda: {"properties": {"provisioningState": "Creating"}}),
+        MagicMock(status_code=200, json=lambda: {"properties": {"provisioningState": "Failed"}}),
+    ]
+    c = AKSMachineClient(resource_group="rg")
+    assert c.create_machine_agentpool("apool", "cl", "rg", timeout=30) is False
+
+
+@patch("clients.aks_machine_client.time.time")
+@patch("clients.aks_machine_client.time.sleep")
+@patch.object(AKSMachineClient, "make_request")
+@patch("clients.aks_machine_client.AKSClient")
+def test_create_machine_agentpool_returns_false_on_timeout(MockAKS, mock_req, _sleep, mock_time):
+    # First call seeds deadline (t=0 -> deadline=30). Second call (loop check) returns 0 (passes).
+    # Third onward returns 100 (past deadline). Use closure since logging also calls time.time().
+    _calls = {"n": 0}
+
+    def _fake_time():
+        _calls["n"] += 1
+        if _calls["n"] == 1:
+            return 0  # initial deadline computation
+        if _calls["n"] == 2:
+            return 0  # first while-loop check (still within deadline)
+        return 100  # subsequent calls -> past deadline
+
+    mock_time.side_effect = _fake_time
+    MockAKS.return_value.subscription_id = "SUB"
+    mock_req.side_effect = [
+        MagicMock(status_code=201, json=lambda: {"properties": {"provisioningState": "Creating"}}),
+        MagicMock(status_code=200, json=lambda: {"properties": {"provisioningState": "Creating"}}),
+    ]
+    c = AKSMachineClient(resource_group="rg")
+    assert c.create_machine_agentpool("apool", "cl", "rg", timeout=30) is False
