@@ -11,11 +11,15 @@ rows must each carry distinct cluster identity while sharing run-level fields. W
 this, downstream Kusto queries cannot group/filter by cluster across the mesh.
 """
 import importlib.util
+import io
 import json
 import os
 import sys
 import tempfile
+import threading
+import time
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -404,6 +408,373 @@ class TestMainArgumentParsing(unittest.TestCase):
             1,
             "Manual",
         )
+
+    @patch.object(clustermesh_scale_module, "execute_parallel")
+    def test_execute_parallel_command_parsing(self, mock_exec_parallel):
+        """`execute-parallel` subcommand wires CLI args through and exits with returned rc."""
+        mock_exec_parallel.return_value = 0
+        test_args = [
+            "clustermesh-scale/scale.py",
+            "execute-parallel",
+            "--clusters", "/tmp/clusters.json",
+            "--max-concurrent", "3",
+            "--worker-script", "/path/to/run-cl2-on-cluster.sh",
+            "--cl2-image", "ghcr.io/azure/clusterloader2:v20250513",
+            "--cl2-config-dir", "/path/to/config",
+            "--cl2-config-file", "config.yaml",
+            "--cl2-report-dir-base", "/path/to/results",
+            "--provider", "aks",
+            "--python-script-file", "/path/to/scale.py",
+            "--python-workdir", "/path/to/modules/python",
+        ]
+        with patch.object(sys, "argv", test_args):
+            with self.assertRaises(SystemExit) as cm:
+                main()
+            self.assertEqual(cm.exception.code, 0)
+        mock_exec_parallel.assert_called_once_with(
+            clusters_file="/tmp/clusters.json",
+            max_concurrent=3,
+            worker_script="/path/to/run-cl2-on-cluster.sh",
+            cl2_image="ghcr.io/azure/clusterloader2:v20250513",
+            cl2_config_dir="/path/to/config",
+            cl2_config_file="config.yaml",
+            cl2_report_dir_base="/path/to/results",
+            provider="aks",
+            python_script_file="/path/to/scale.py",
+            python_workdir="/path/to/modules/python",
+        )
+
+    @patch.object(clustermesh_scale_module, "execute_parallel")
+    def test_execute_parallel_default_max_concurrent_is_4(self, mock_exec_parallel):
+        """Default --max-concurrent matches the plan.md Phase 3 spec value (4)."""
+        mock_exec_parallel.return_value = 0
+        test_args = [
+            "clustermesh-scale/scale.py",
+            "execute-parallel",
+            "--clusters", "/tmp/c.json",
+            "--worker-script", "/w.sh",
+            "--cl2-image", "img",
+            "--cl2-config-dir", "/cfg",
+            "--cl2-config-file", "config.yaml",
+            "--cl2-report-dir-base", "/r",
+            "--provider", "aks",
+            "--python-script-file", "/s.py",
+            "--python-workdir", "/wd",
+        ]
+        with patch.object(sys, "argv", test_args):
+            with self.assertRaises(SystemExit):
+                main()
+        self.assertEqual(mock_exec_parallel.call_args.kwargs["max_concurrent"], 4)
+
+    @patch.object(clustermesh_scale_module, "execute_parallel")
+    def test_execute_parallel_propagates_nonzero_exit(self, mock_exec_parallel):
+        """If execute_parallel returns nonzero, main() exits nonzero so the AzDO step fails."""
+        mock_exec_parallel.return_value = 1
+        test_args = [
+            "clustermesh-scale/scale.py",
+            "execute-parallel",
+            "--clusters", "/tmp/c.json",
+            "--worker-script", "/w.sh",
+            "--cl2-image", "img",
+            "--cl2-config-dir", "/cfg",
+            "--cl2-config-file", "config.yaml",
+            "--cl2-report-dir-base", "/r",
+            "--provider", "aks",
+            "--python-script-file", "/s.py",
+            "--python-workdir", "/wd",
+        ]
+        with patch.object(sys, "argv", test_args):
+            with self.assertRaises(SystemExit) as cm:
+                main()
+            self.assertEqual(cm.exception.code, 1)
+
+
+class _FakePopen:
+    """Test double for subprocess.Popen used in execute_parallel tests.
+
+    Records construction args, fakes a streamable stdout, sleeps inside wait()
+    to force temporal overlap (so concurrency tests can observe max_active),
+    and decrements an active counter on wait so the parent observes correct
+    in-flight counts.
+    """
+
+    # Class-level state mutated across instances by the test runner.
+    _lock = threading.Lock()
+    _active_now = 0
+    _max_active = 0
+    _instances = []  # list of FakePopen instances created
+    _wait_seconds = 0.05  # how long each fake CL2 "runs" in wait()
+    # Per-role configuration: role -> (stdout_lines, exit_code)
+    _role_config = {}
+    _default_exit = 0
+    _default_stdout = []
+
+    @classmethod
+    def reset(cls, *, wait_seconds=0.05, role_config=None,
+              default_stdout=None, default_exit=0):
+        cls._active_now = 0
+        cls._max_active = 0
+        cls._instances = []
+        cls._wait_seconds = wait_seconds
+        cls._role_config = role_config or {}
+        cls._default_stdout = default_stdout or []
+        cls._default_exit = default_exit
+
+    def __init__(self, args, **kwargs):
+        # args is e.g. ["bash", worker_script, role, kubeconfig, ...]
+        self.args = args
+        self.kwargs = kwargs
+        self.returncode = None
+        self._role = args[2] if len(args) >= 3 else None
+        lines, exit_code = self.__class__._role_config.get(
+            self._role, (self.__class__._default_stdout, self.__class__._default_exit)
+        )
+        # Provide an iterator over the staged lines so `for line in proc.stdout`
+        # in _run_one_cluster yields them once.
+        self.stdout = iter(lines)
+        self._exit_code = exit_code
+        with self.__class__._lock:
+            self.__class__._instances.append(self)
+            self.__class__._active_now += 1
+            if self.__class__._active_now > self.__class__._max_active:
+                self.__class__._max_active = self.__class__._active_now
+
+    def wait(self, timeout=None):  # pylint: disable=unused-argument
+        # Sleep so peer workers have a chance to enter wait() concurrently.
+        # Without this overlap window, the test couldn't distinguish parallel
+        # execution from sequential.
+        time.sleep(self.__class__._wait_seconds)
+        with self.__class__._lock:
+            self.__class__._active_now -= 1
+        self.returncode = self._exit_code
+        return self._exit_code
+
+    def terminate(self):
+        # No-op for tests — execute_parallel only terminates on signal,
+        # which we don't trigger from these tests.
+        pass
+
+
+class TestExecuteParallel(unittest.TestCase):
+    """execute_parallel fans out CL2 across N clusters with bounded concurrency.
+
+    Validates the contract per plan.md Phase 3: bounded concurrent CL2
+    invocations, per-cluster pass/fail aggregation, AzDO ##vso service
+    messages preserved without [role] prefix, sensible validation errors.
+    """
+
+    def setUp(self):
+        # Replace signal install with a no-op — installing real handlers in
+        # unit tests can interact badly with pytest's signal handling.
+        self._signal_patcher = patch.object(
+            clustermesh_scale_module, "_install_parallel_signal_handlers", lambda: None
+        )
+        self._signal_patcher.start()
+
+    def tearDown(self):
+        self._signal_patcher.stop()
+
+    def _write_clusters(self, clusters):
+        path = tempfile.mktemp(suffix=".json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(clusters, f)
+        return path
+
+    def _call_execute_parallel(self, clusters_file, max_concurrent=4):
+        return clustermesh_scale_module.execute_parallel(
+            clusters_file=clusters_file,
+            max_concurrent=max_concurrent,
+            worker_script="/path/to/run-cl2-on-cluster.sh",
+            cl2_image="img",
+            cl2_config_dir="/cfg",
+            cl2_config_file="config.yaml",
+            cl2_report_dir_base="/r",
+            provider="aks",
+            python_script_file="/scale.py",
+            python_workdir="/wd",
+        )
+
+    def test_dispatches_one_subprocess_per_cluster(self):
+        """N clusters → N Popen calls, each carrying that cluster's role + kubeconfig."""
+        clusters = [
+            {"role": "mesh-1", "kubeconfig": "/home/.kube/mesh-1.config"},
+            {"role": "mesh-2", "kubeconfig": "/home/.kube/mesh-2.config"},
+            {"role": "mesh-3", "kubeconfig": "/home/.kube/mesh-3.config"},
+        ]
+        cf = self._write_clusters(clusters)
+        try:
+            _FakePopen.reset(wait_seconds=0)
+            with patch.object(clustermesh_scale_module.subprocess, "Popen", _FakePopen):
+                rc = self._call_execute_parallel(cf)
+            self.assertEqual(rc, 0)
+            self.assertEqual(len(_FakePopen._instances), 3)
+            # Each invocation passes role + kubeconfig in the bash worker arg
+            # vector. args layout: ["bash", worker_script, role, kubeconfig,
+            # report_dir, cl2_image, cl2_config_dir, cl2_config_file, provider,
+            # python_script_file, python_workdir]
+            roles_seen = {p.args[2] for p in _FakePopen._instances}
+            self.assertEqual(roles_seen, {"mesh-1", "mesh-2", "mesh-3"})
+            for p in _FakePopen._instances:
+                role = p.args[2]
+                self.assertEqual(p.args[3], f"/home/.kube/{role}.config")
+                # report_dir is base/role
+                self.assertEqual(p.args[4], f"/r/{role}")
+        finally:
+            os.remove(cf)
+
+    def test_all_zero_exit_codes_yield_overall_success(self):
+        """If every per-cluster worker exits 0, execute_parallel returns 0."""
+        clusters = [
+            {"role": "mesh-1", "kubeconfig": "/k1"},
+            {"role": "mesh-2", "kubeconfig": "/k2"},
+        ]
+        cf = self._write_clusters(clusters)
+        try:
+            _FakePopen.reset(wait_seconds=0, default_exit=0)
+            with patch.object(clustermesh_scale_module.subprocess, "Popen", _FakePopen):
+                rc = self._call_execute_parallel(cf)
+            self.assertEqual(rc, 0)
+        finally:
+            os.remove(cf)
+
+    def test_any_nonzero_exit_yields_overall_failure(self):
+        """If ANY per-cluster worker exits non-zero, execute_parallel returns 1.
+
+        Mirrors the sequential bash behavior (`if failures > 0; exit 1`) so
+        the AzDO step's pass/fail signal is unchanged from before parallel
+        fan-out. Other clusters still complete (no early cancellation).
+        """
+        clusters = [
+            {"role": "mesh-1", "kubeconfig": "/k1"},
+            {"role": "mesh-2", "kubeconfig": "/k2"},
+            {"role": "mesh-3", "kubeconfig": "/k3"},
+        ]
+        cf = self._write_clusters(clusters)
+        try:
+            _FakePopen.reset(
+                wait_seconds=0,
+                role_config={
+                    "mesh-1": ([], 0),
+                    "mesh-2": ([], 1),  # this one fails
+                    "mesh-3": ([], 0),
+                },
+            )
+            with patch.object(clustermesh_scale_module.subprocess, "Popen", _FakePopen):
+                rc = self._call_execute_parallel(cf)
+            self.assertEqual(rc, 1)
+            # All three workers ran — failure of one does NOT cancel the others.
+            self.assertEqual(len(_FakePopen._instances), 3)
+        finally:
+            os.remove(cf)
+
+    def test_respects_max_concurrent_bound(self):
+        """No more than max_concurrent workers are in-flight simultaneously.
+
+        Uses a barrier-free approach: each FakePopen sleeps in wait(); we
+        observe the running max_active count maintained inside FakePopen.
+        Asserts max_active <= max_concurrent regardless of timing — no
+        ordering or wall-clock assertion (which would be flaky under CI load).
+        """
+        clusters = [{"role": f"mesh-{i}", "kubeconfig": f"/k{i}"} for i in range(8)]
+        cf = self._write_clusters(clusters)
+        try:
+            _FakePopen.reset(wait_seconds=0.05)  # 50ms per "CL2 run"
+            with patch.object(clustermesh_scale_module.subprocess, "Popen", _FakePopen):
+                rc = self._call_execute_parallel(cf, max_concurrent=3)
+            self.assertEqual(rc, 0)
+            self.assertEqual(len(_FakePopen._instances), 8)
+            # The bound is the contract: never more than 3 concurrent CL2
+            # docker containers from this orchestrator at once.
+            self.assertLessEqual(_FakePopen._max_active, 3)
+            # Sanity: with 8 work items and 50ms each, we WILL see >1 in
+            # flight — otherwise the test would pass trivially with a
+            # single-threaded executor.
+            self.assertGreater(_FakePopen._max_active, 1)
+        finally:
+            os.remove(cf)
+
+    def test_prefixes_role_but_preserves_vso_service_messages(self):
+        """Worker stdout lines get [role] prefix; ##vso AzDO messages stay verbatim.
+
+        AzDO recognizes ##vso[...] service messages only at column 0 — a
+        [role] prefix would silently drop the structured annotation
+        (warnings, errors, set-variable). Regression-guard: if the prefix
+        logic ever changes, this test breaks loudly.
+        """
+        clusters = [{"role": "mesh-1", "kubeconfig": "/k1"}]
+        cf = self._write_clusters(clusters)
+        try:
+            _FakePopen.reset(
+                wait_seconds=0,
+                role_config={
+                    "mesh-1": ([
+                        "hello world\n",
+                        "##vso[task.logissue type=warning;]something\n",
+                        "more text\n",
+                    ], 0),
+                },
+            )
+            buf = io.StringIO()
+            with patch.object(clustermesh_scale_module.subprocess, "Popen", _FakePopen):
+                with redirect_stdout(buf):
+                    rc = self._call_execute_parallel(cf)
+            self.assertEqual(rc, 0)
+            captured = buf.getvalue()
+            # Non-vso lines are prefixed with [role].
+            self.assertIn("[mesh-1] hello world", captured)
+            self.assertIn("[mesh-1] more text", captured)
+            # vso line MUST NOT be prefixed.
+            self.assertIn("##vso[task.logissue type=warning;]something", captured)
+            self.assertNotIn("[mesh-1] ##vso", captured)
+        finally:
+            os.remove(cf)
+
+    def test_empty_clusters_file_raises(self):
+        """A clusters file with [] is invalid — fail fast, don't silently no-op."""
+        cf = self._write_clusters([])
+        try:
+            with self.assertRaises(ValueError):
+                self._call_execute_parallel(cf)
+        finally:
+            os.remove(cf)
+
+    def test_cluster_missing_kubeconfig_raises(self):
+        """Each cluster object must carry both 'role' and 'kubeconfig'."""
+        cf = self._write_clusters([{"role": "mesh-1"}])
+        try:
+            with self.assertRaises(ValueError):
+                self._call_execute_parallel(cf)
+        finally:
+            os.remove(cf)
+
+    def test_max_concurrent_zero_raises(self):
+        """max_concurrent < 1 is meaningless and would deadlock the executor."""
+        cf = self._write_clusters([{"role": "mesh-1", "kubeconfig": "/k1"}])
+        try:
+            with self.assertRaises(ValueError):
+                self._call_execute_parallel(cf, max_concurrent=0)
+        finally:
+            os.remove(cf)
+
+    def test_extra_fields_in_cluster_object_are_ignored(self):
+        """Pipeline writes name/rg/kubeconfig/role; execute_parallel must tolerate extras.
+
+        Same JSON file is consumed by collect.yml (which uses name/rg/role),
+        so execute_parallel must NOT reject the additional fields.
+        """
+        clusters = [
+            {"role": "mesh-1", "kubeconfig": "/k1", "name": "aks-1", "rg": "rg-1"},
+            {"role": "mesh-2", "kubeconfig": "/k2", "name": "aks-2", "rg": "rg-2"},
+        ]
+        cf = self._write_clusters(clusters)
+        try:
+            _FakePopen.reset(wait_seconds=0)
+            with patch.object(clustermesh_scale_module.subprocess, "Popen", _FakePopen):
+                rc = self._call_execute_parallel(cf)
+            self.assertEqual(rc, 0)
+            self.assertEqual(len(_FakePopen._instances), 2)
+        finally:
+            os.remove(cf)
 
 
 if __name__ == "__main__":
