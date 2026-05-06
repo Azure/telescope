@@ -22,11 +22,19 @@ class MachineManager:
         self.cloud_service = cloud_service
         self.config = config  # do NOT mutate
         self._cluster_name = cloud_service.get_cluster_name() or config.cluster_name
+        if not self._cluster_name:
+            raise ValueError(
+                "cluster_name could not be resolved from cloud_service.get_cluster_name() "
+                "or config.cluster_name"
+            )
 
     def perform_operation(self) -> None:
         op = (self.config.operation or "").lower()
         if not op:
-            self.create()
+            resp = self.create()
+            if not resp.succeeded:
+                logger.error("create failed; skipping scale: %s", resp.error)
+                return
             self.scale()
         elif op == "create":
             self.create()

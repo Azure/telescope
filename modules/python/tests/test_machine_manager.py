@@ -51,3 +51,38 @@ def test_no_input_mutation():
     svc = MagicMock(); svc.get_cluster_name.return_value = "discovered"
     MachineManager(svc, cfg)
     assert cfg.cluster_name == "orig"  # unchanged
+
+
+def test_perform_operation_default_skips_scale_when_create_fails(tmp_path):
+    mgr, svc = _make_mgr()
+    mgr.config.result_dir = str(tmp_path)
+    svc.create_machine_agentpool.side_effect = RuntimeError("boom")
+    mgr.perform_operation()  # must not raise
+    svc.create_machine_agentpool.assert_called_once()
+    svc.scale_machine.assert_not_called()
+
+
+def test_scale_builds_request_from_config(tmp_path):
+    mgr, svc = _make_mgr(operation="scale")
+    mgr.config.result_dir = str(tmp_path)
+    mgr.perform_operation()
+    req = svc.scale_machine.call_args.args[0]
+    assert req.cluster_name == "c"  # discovered cluster_name used
+    assert req.resource_group == "rg"
+    assert req.agentpool_name == "ap"
+    assert req.vm_size == "Standard_D2_v3"
+    assert req.scale_machine_count == 2
+    assert req.use_batch_api is False
+    assert req.machine_workers == 2
+    assert req.timeout == 600
+
+
+def test_init_raises_when_cluster_name_unresolvable():
+    cfg = MachineConfig(
+        cloud="azure", cluster_name="placeholder", resource_group="rg",
+        agentpool_name="ap", vm_size="x", timeout=1, result_dir="/tmp",
+    )
+    cfg.cluster_name = None  # MachineConfig types it as required str
+    svc = MagicMock(); svc.get_cluster_name.return_value = None
+    with pytest.raises(ValueError, match="cluster_name"):
+        MachineManager(svc, cfg)
