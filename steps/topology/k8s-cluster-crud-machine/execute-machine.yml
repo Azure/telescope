@@ -2,14 +2,17 @@
 parameters:
   - name: cloud
     type: string
-  - name: region
-    type: string
+  - name: regions
+    type: object
+  - name: engine_input
+    type: object
+    default: {}
 
 steps:
   - template: /steps/engine/machine/k8s/execute.yml
     parameters:
       cloud: ${{ parameters.cloud }}
-      region: ${{ parameters.region }}
+      region: ${{ parameters.regions[0] }}
       result_dir: $(System.DefaultWorkingDirectory)/$(RUN_ID)
       vm_size: $(VM_SIZE)
       pool_name: $(POOL_NAME)
