@@ -9,6 +9,7 @@ Ported from ado-telescope/modules/python/k8s/cloud_providers/azure.py with bug f
 - No mutation of input config.
 - UTC timestamps.
 """
+import time
 from typing import Any, Dict, Optional
 
 import requests
@@ -20,6 +21,8 @@ logger = get_logger(__name__)
 
 _ARM_BASE = "https://management.azure.com"
 _ARM_SCOPE = "https://management.azure.com/.default"
+_AGENTPOOL_API_VERSION = "2024-06-02-preview"  # per ado azure.py
+_POLL_INTERVAL_SECONDS = 10
 
 
 class AKSMachineClient:
@@ -75,3 +78,42 @@ class AKSMachineClient:
 
     def get_cluster_data(self, cluster_name: str) -> Dict:
         return self.aks_client.get_cluster_data(cluster_name)
+
+    # ---- Machine API: agent pool provisioning ----
+    def create_machine_agentpool(
+        self,
+        agentpool_name: str,
+        cluster_name: str,
+        resource_group: str,
+        timeout: int = 300,
+    ) -> bool:
+        sub = self.subscription_id
+        url = (
+            f"{_ARM_BASE}/subscriptions/{sub}/resourceGroups/{resource_group}"
+            f"/providers/Microsoft.ContainerService/managedClusters/{cluster_name}"
+            f"/agentPools/{agentpool_name}?api-version={_AGENTPOOL_API_VERSION}"
+        )
+        body = {"properties": {"mode": "Machines"}}
+        resp = self.make_request("PUT", url, data=body, timeout=timeout)
+        if resp.status_code not in (200, 201):
+            logger.error("create_machine_agentpool PUT failed: %s %s", resp.status_code, resp.text)
+            return False
+        return self._wait_for_agentpool_provisioning(url, timeout)
+
+    def _wait_for_agentpool_provisioning(self, url: str, timeout: int) -> bool:
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            r = self.make_request("GET", url, timeout=30)
+            if r.status_code != 200:
+                logger.warning("agentpool GET %s -> %s", url, r.status_code)
+                time.sleep(_POLL_INTERVAL_SECONDS)
+                continue
+            state = r.json().get("properties", {}).get("provisioningState")
+            if state == "Succeeded":
+                return True
+            if state == "Failed":
+                logger.error("agentpool provisioning failed: %s", r.json())
+                return False
+            time.sleep(_POLL_INTERVAL_SECONDS)
+        logger.error("agentpool provisioning timed out after %ss", timeout)
+        return False
