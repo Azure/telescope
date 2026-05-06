@@ -44,7 +44,6 @@ class AKSMachineClient:
         )
         self.resource_group = self.aks_client.resource_group
         self.subscription_id = self.aks_client.subscription_id
-        self.cluster_name = cluster_name
 
     # ---- auth + REST plumbing ----
     def _get_access_token(self) -> str:
@@ -57,6 +56,13 @@ class AKSMachineClient:
         data: Optional[Dict[str, Any]] = None,
         timeout: int = 30,
     ) -> requests.Response:
+        """Send an authenticated ARM REST request and return the raw Response.
+
+        Callers are responsible for checking ``response.status_code`` (or
+        calling ``raise_for_status()``) — this method does NOT raise on HTTP
+        errors. Long-running Machine API operations return 200/202 with a
+        Location header that callers must follow.
+        """
         headers = {
             "Authorization": f"Bearer {self._get_access_token()}",
             "Content-Type": "application/json",
@@ -69,12 +75,3 @@ class AKSMachineClient:
 
     def get_cluster_data(self, cluster_name: str) -> Dict:
         return self.aks_client.get_cluster_data(cluster_name)
-
-    def load_kubeconfig(self, cluster_name: str, resource_group: str) -> None:
-        """No-op: AKSClient eagerly initializes its KubernetesClient (and loads
-        kubeconfig) during __init__ via ``self.k8s_client = KubernetesClient(...)``.
-        Kept as a stable surface for Task 5+ callers; arguments are accepted but
-        not used because the underlying kubeconfig path is fixed at AKSClient
-        construction time.
-        """
-        return None

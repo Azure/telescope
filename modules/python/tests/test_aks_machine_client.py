@@ -34,3 +34,5 @@ def test_make_request_sets_bearer_and_returns_response(MockAKS, mock_req):
     assert kw["json"] == {"a": 1}
     assert kw["timeout"] == 10
     assert r.status_code == 200
+    args, _ = mock_req.call_args
+    assert args == ("PUT", "https://x")
