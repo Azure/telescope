@@ -64,7 +64,7 @@ aks_cli_config_list = [
       name                 = "system"
       node_count           = 5
       auto_scaling_enabled = false
-      vm_size              = "Standard_D8s_v5"
+      vm_size              = "Standard_D8s_v4"
     }
 
     extra_node_pool = [
@@ -72,7 +72,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D32s_v5"
+        vm_size              = "Standard_D32s_v4"
         optional_parameters = [
           {
             name  = "labels"
@@ -86,7 +86,7 @@ aks_cli_config_list = [
         min_count            = 0
         max_count            = 1000
         auto_scaling_enabled = true
-        vm_size              = "Standard_D4s_v5"
+        vm_size              = "Standard_D4s_v4"
         optional_parameters = [
           {
             name  = "labels"
@@ -104,7 +104,7 @@ aks_cli_config_list = [
         min_count            = 0
         max_count            = 1000
         auto_scaling_enabled = true
-        vm_size              = "Standard_D4s_v5"
+        vm_size              = "Standard_D4s_v4"
         optional_parameters = [
           {
             name  = "labels"
@@ -122,7 +122,7 @@ aks_cli_config_list = [
         min_count            = 0
         max_count            = 1000
         auto_scaling_enabled = true
-        vm_size              = "Standard_D4s_v5"
+        vm_size              = "Standard_D4s_v4"
         optional_parameters = [
           {
             name  = "labels"
@@ -140,7 +140,7 @@ aks_cli_config_list = [
         min_count            = 0
         max_count            = 1000
         auto_scaling_enabled = true
-        vm_size              = "Standard_D4s_v5"
+        vm_size              = "Standard_D4s_v4"
         optional_parameters = [
           {
             name  = "labels"
@@ -158,7 +158,7 @@ aks_cli_config_list = [
         min_count            = 0
         max_count            = 1000
         auto_scaling_enabled = true
-        vm_size              = "Standard_D4s_v5"
+        vm_size              = "Standard_D4s_v4"
         optional_parameters = [
           {
             name  = "labels"
