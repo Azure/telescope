@@ -105,7 +105,7 @@ def main(argv=None) -> int:
         args = build_parser().parse_args(argv)
         if args.command == "collect":
             return collect_results(
-                cloud=args.cloud, run_id=args.run_id, run_url=args.run_url,
+                run_id=args.run_id, run_url=args.run_url,
                 region=args.region, result_dir=args.result_dir)
         cfg = _build_machine_config(args)
         client = AKSMachineClient(
