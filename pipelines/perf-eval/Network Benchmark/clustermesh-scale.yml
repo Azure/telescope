@@ -67,3 +67,45 @@ stages:
           # we're still stabilizing the clustermesh-scale pipeline. Flip to
           # false (or remove) once results are meaningful.
           skip_publish: true
+
+  # Phase 3 — 5-cluster tier. Separate stage (not a matrix entry) because
+  # `terraform_input_file_mapping` is set at the job level, so different
+  # cluster counts require different stages bound to different tfvars files.
+  - stage: azure_eastus2euap_n5
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 15m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-5.tfvars"
+          matrix:
+            n5_event_throughput:
+              cluster_count: 5
+              mesh_size: 5
+              cl2_config_file: event-throughput.yaml
+              test_type: event-throughput
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 1
+              api_server_calls_per_second: 20
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          # 5-cluster provision adds ~10-15 min vs n2 (more terraform + fleet
+          # member creates + RBAC propagation); CL2 fan-out itself stays
+          # bounded at concurrency 4 so per-cluster wall-clock is unchanged.
+          timeout_in_minutes: 180
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: true
