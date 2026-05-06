@@ -370,7 +370,8 @@ def main():
     )
     deployment_parser.add_argument(
         "--manifest-dir",
-        required=True,
+        required=False,
+        default=None,
         help="Directory containing Kubernetes manifest files for the deployment"
     )
 
