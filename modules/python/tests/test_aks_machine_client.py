@@ -105,3 +105,22 @@ def test_create_machine_agentpool_returns_false_on_timeout(MockAKS, mock_req, _s
     ]
     c = AKSMachineClient(resource_group="rg")
     assert c.create_machine_agentpool("apool", "cl", "rg", timeout=30) is False
+
+
+@patch("clients.aks_machine_client.AKSClient")
+def test_wait_for_machine_node_readiness_computes_percentiles(MockAKS):
+    fake_kc = MagicMock()
+    # Each call returns a node with conditions list; we pretend all 4 are ready immediately.
+    def details(name):
+        return {"status": {"conditions": [{"type": "Ready", "status": "True",
+                                            "lastTransitionTime": "2026-05-05T10:00:00Z"}]}}
+    fake_kc.get_node_details.side_effect = details
+    MockAKS.return_value.kubernetes_client = fake_kc
+    c = AKSMachineClient(resource_group="rg")
+    times = c._wait_for_machine_node_readiness(
+        machine_names=["m1", "m2", "m3", "m4"],
+        start_time_utc="2026-05-05T09:59:50Z",
+        timeout=5,
+    )
+    assert set(times.keys()) == {"P50", "P90", "P99"}
+    assert all(times[p] >= 0 for p in times)
