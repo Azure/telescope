@@ -1,0 +1,12 @@
+{
+  "kubeProxyConfig": {
+    "enabled": false,
+    "mode": "IPVS",
+    "ipvsConfig": {
+      "scheduler": "LeastConnection",
+      "TCPTimeoutSeconds": 900,
+      "TCPFINTimeoutSeconds": 120,
+      "UDPTimeoutSeconds": 300
+    }
+  }
+}

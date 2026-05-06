@@ -38,6 +38,7 @@ locals {
   route_table_config_map = { for rt in var.route_table_config_list : rt.name => rt }
 
   aks_cli_custom_config_path = "${path.cwd}/../../../scenarios/${var.scenario_type}/${var.scenario_name}/config/aks_custom_config.json"
+  aks_cli_kube_proxy_config_path = "${path.cwd}/../../../scenarios/${var.scenario_type}/${var.scenario_name}/config/kube-proxy-config.json"
 
   all_subnets              = merge([for network in var.network_config_list : module.virtual_network[network.role].subnets]...)
   all_nics                 = merge([for network in var.network_config_list : module.virtual_network[network.role].nics]...)
@@ -62,6 +63,7 @@ locals {
         sku_tier                          = local.aks_sku_tier != null ? local.aks_sku_tier : aks.sku_tier
         kubernetes_version                = local.aks_kubernetes_version != null ? local.aks_kubernetes_version : aks.kubernetes_version
         aks_custom_headers                = length(local.aks_custom_headers) > 0 ? local.aks_custom_headers : aks.aks_custom_headers
+        optional_parameters               = fileexists(local.aks_cli_kube_proxy_config_path) && length([for p in aks.optional_parameters : p if p.name == "kube-proxy-config"]) == 0 ? concat(aks.optional_parameters, [{ name = "kube-proxy-config", value = local.aks_cli_kube_proxy_config_path }]) : aks.optional_parameters
         default_node_pool                 = local.aks_cli_system_node_pool != null ? local.aks_cli_system_node_pool : aks.default_node_pool
         extra_node_pool                   = local.aks_cli_user_node_pool != null ? local.aks_cli_user_node_pool : aks.extra_node_pool
         enable_apiserver_vnet_integration = local.enable_apiserver_vnet_integration
