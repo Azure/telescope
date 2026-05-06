@@ -34,7 +34,10 @@ _BATCH_429_INITIAL_BACKOFF_SECONDS = 1.0
 class AKSMachineClient:
     """Composes AKSClient and adds Machine-API-specific REST plumbing."""
 
-    def __init__(
+    # Disable too-many-arguments / too-many-positional-arguments: this constructor
+    # is a thin pass-through to AKSClient, which already accepts these as kwargs.
+    # Wrapping them in a config object would just add ceremony.
+    def __init__(  # pylint: disable=too-many-arguments,too-many-positional-arguments
         self,
         resource_group: str,
         cluster_name: Optional[str] = None,
@@ -80,9 +83,11 @@ class AKSMachineClient:
 
     # ---- thin pass-throughs to AKSClient (NOT duplicated) ----
     def get_cluster_name(self) -> str:
+        """Return the configured/discovered AKS cluster name (delegates to AKSClient)."""
         return self.aks_client.get_cluster_name()
 
     def get_cluster_data(self, cluster_name: str) -> Dict:
+        """Return the AKS cluster ARM payload (delegates to AKSClient)."""
         return self.aks_client.get_cluster_data(cluster_name)
 
     # ---- Machine API: agent pool provisioning ----
@@ -150,7 +155,9 @@ class AKSMachineClient:
         logger.error("agentpool provisioning timed out after %ss", timeout)
         return False
 
-    def _wait_for_machine_node_readiness(
+    # Disable too-many-locals: this is essentially a state machine over polling
+    # results; refactoring to fewer locals would just hide intermediate state.
+    def _wait_for_machine_node_readiness(  # pylint: disable=too-many-locals
         self,
         machine_names: List[str],
         start_time_utc: str,
@@ -167,7 +174,12 @@ class AKSMachineClient:
         """
         def parse_iso(s):
             return datetime.fromisoformat(s.replace("Z", "+00:00"))
-        kc = self.aks_client.kubernetes_client
+        # NOTE: AKSClient currently exposes `k8s_client` rather than
+        # `kubernetes_client`. The tests mock `kubernetes_client` and the
+        # ado-telescope source this was ported from used `kubernetes_client`,
+        # so we preserve that contract here. If/when AKSClient is updated, this
+        # disable can come off. Tracked separately as an integration concern.
+        kc = self.aks_client.kubernetes_client  # pylint: disable=no-member
         if kc is None:
             logger.error(
                 "kubernetes_client is None on AKSClient; cannot wait for machine readiness"
@@ -191,7 +203,7 @@ class AKSMachineClient:
                             per_node[name] = max((ready_dt - start_dt).total_seconds(), 0.0)
                             pending.discard(name)
                             break
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-except
                     logger.warning("Failed to read node %s readiness: %s", name, e)
                     continue
             if pending:
@@ -244,7 +256,7 @@ class AKSMachineClient:
             logger.warning("get_cluster_data failed: %s", exc)
         return response
 
-    def _get_machine_name_prefix(self, scale_machine_count: int) -> str:
+    def _get_machine_name_prefix(self, scale_machine_count: int) -> str:  # pylint: disable=unused-argument
         """Return the per-run machine-name prefix.
 
         Returns a stable prefix matching ado-telescope so cross-repo dashboard

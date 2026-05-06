@@ -12,12 +12,16 @@ from typing import Dict, List, Optional
 
 
 class OperationNames(str, Enum):
+    """String enum of supported Machine API CRUD operations."""
     CREATE_MACHINE = "create_machine"
     SCALE_MACHINE = "scale_machine"
 
 
+# Disable too-many-instance-attributes: this is a flat configuration record that
+# mirrors CLI flags 1:1. Splitting it would just reintroduce wrappers.
 @dataclass
-class MachineConfig:
+class MachineConfig:  # pylint: disable=too-many-instance-attributes
+    """Top-level run configuration for a Machine API perf invocation."""
     cloud: str
     cluster_name: str
     resource_group: str
@@ -34,8 +38,11 @@ class MachineConfig:
     machine_workers: int = 1
 
 
+# Disable too-many-instance-attributes: 10 fields all map to ARM Machine PUT body
+# inputs; bundling them would just shift the noise.
 @dataclass
-class ScaleMachineRequest:
+class ScaleMachineRequest:  # pylint: disable=too-many-instance-attributes
+    """Request payload for scaling an agent pool by creating N Machine resources."""
     cluster_name: str
     resource_group: str
     agentpool_name: str
@@ -48,8 +55,11 @@ class ScaleMachineRequest:
     machine_name: Optional[str] = None
 
 
+# Disable too-many-instance-attributes: this dataclass is the on-disk JSON
+# schema; reducing fields would silently drop telemetry columns.
 @dataclass
-class MachineOperationResponse:
+class MachineOperationResponse:  # pylint: disable=too-many-instance-attributes
+    """Per-operation response written to disk and aggregated by collect.py."""
     operation_name: str
     succeeded: bool = False
     start_time: Optional[str] = None
