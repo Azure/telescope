@@ -24,7 +24,8 @@ logger = get_logger(__name__)
 
 _ARM_BASE = "https://management.azure.com"
 _ARM_SCOPE = "https://management.azure.com/.default"
-_AGENTPOOL_API_VERSION = "2024-06-02-preview"  # per ado azure.py
+_AGENTPOOL_API_VERSION = "2024-06-02-preview"  # per ado azure.py — agentpool sub-resource
+_MACHINE_API_VERSION = "2025-04-02-preview"  # per ado azure.py — machines sub-resource
 _POLL_INTERVAL_SECONDS = 10
 _PROVISIONING_NONE_STATE_LIMIT = 5
 _BATCH_429_MAX_RETRIES = 3
@@ -287,7 +288,7 @@ class AKSMachineClient:
             f"{_ARM_BASE}/subscriptions/{sub}/resourceGroups/{request.resource_group}"
             f"/providers/Microsoft.ContainerService/managedClusters/{request.cluster_name}"
             f"/agentPools/{request.agentpool_name}/machines/{name}"
-            f"?api-version={_AGENTPOOL_API_VERSION}"
+            f"?api-version={_MACHINE_API_VERSION}"
         )
         body: Dict[str, Any] = {"properties": {"hardware": {"vmSize": request.vm_size}}}
         if request.tags:
@@ -426,7 +427,7 @@ class AKSMachineClient:
             f"{_ARM_BASE}/subscriptions/{sub}/resourceGroups/{request.resource_group}"
             f"/providers/Microsoft.ContainerService/managedClusters/{request.cluster_name}"
             f"/agentPools/{request.agentpool_name}/machines/$batch"
-            f"?api-version={_AGENTPOOL_API_VERSION}"
+            f"?api-version={_MACHINE_API_VERSION}"
         )
         machine_body = {"properties": {"hardware": {"vmSize": request.vm_size}}}
         if request.tags:
