@@ -1,0 +1,75 @@
+parameters:
+  - name: cloud
+    type: string
+  - name: engine
+    type: string
+  - name: regions
+    type: object
+
+steps:
+  - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
+    parameters:
+      role: slo
+      region: ${{ parameters.regions[0] }}
+
+  - script: |
+      set -euo pipefail
+
+      tmp_dir="$(mktemp -d)"
+      trap 'rm -rf "$tmp_dir"' EXIT
+
+      git clone --depth 1 https://github.com/Azure/azure-container-networking "$tmp_dir/azure-container-networking"
+      pushd "$tmp_dir/azure-container-networking"
+
+      if [[ "${INSTALL_CNS_WITH_ACN:-true}" == "true" ]]; then
+        sudo -E env "PATH=$PATH" make test-load \
+          CNS_ONLY=true \
+          CNS_VERSION="${CNS_VERSION:-v1.7.12}" \
+          AZURE_IPAM_VERSION="${AZURE_IPAM_VERSION:-v0.4.0}" \
+          INSTALL_CNS=true \
+          INSTALL_OVERLAY=true \
+          CNS_IMAGE_REPO="${CNS_IMAGE_REPO:-MCR}" \
+          IPAM_IMAGE_REPO="${IPAM_IMAGE_REPO:-MCR}"
+      fi
+
+      if ! command -v envsubst >/dev/null 2>&1; then
+        echo "##vso[task.logissue type=error;]envsubst is required for ACN manifest templating"
+        exit 1
+      fi
+
+      export DIR="${CILIUM_MANIFEST_DIR:-1.17}"
+      export CILIUM_IMAGE_REGISTRY="${CILIUM_IMAGE_REGISTRY:-acnpublic.azurecr.io}"
+      export CILIUM_VERSION_TAG="${CILIUM_VERSION_TAG:-v1.17.10-260319}"
+
+      kubectl apply -f "test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config.yaml"
+      kubectl apply -f "test/integration/manifests/cilium/v${DIR}/cilium-operator/files"
+      kubectl apply -f "test/integration/manifests/cilium/v${DIR}/cilium-agent/files"
+      envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < "test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml" | kubectl apply -f -
+      envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < "test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml" | kubectl apply -f -
+
+      popd
+
+      kubectl -n kube-system rollout status ds/cilium --timeout="${CILIUM_ROLLOUT_TIMEOUT:-30m}"
+      kubectl -n kube-system rollout status deploy/cilium-operator --timeout="${CILIUM_ROLLOUT_TIMEOUT:-30m}"
+    displayName: Install custom Cilium (BYOCNI)
+
+  - script: |
+      set -eo pipefail
+
+      desired_nodes="${INITIAL_EXPECTED_NODES:-6}"
+      timeout_minutes="${VALIDATION_TIMEOUT_IN_MINUTES:-60}"
+
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE validate \
+        --node_count "$desired_nodes" \
+        --operation_timeout "$timeout_minutes"
+    workingDirectory: modules/python
+    displayName: Validate initial node count
+    env:
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/large_cluster/large_cluster.py
+
+  - ${{ if eq(parameters.cloud, 'aws') }}:
+      - script: kubectl apply -f $KARPENTER_NODEPOOL_FILE
+        env:
+          CLOUD: ${{ parameters.cloud }}
+          KARPENTER_NODEPOOL_FILE: $(Pipeline.Workspace)/s/scenarios/$(SCENARIO_TYPE)/$(SCENARIO_NAME)/kubernetes/karpenter_nodepool.${{ parameters.cloud }}.yml
+        displayName: Validate Karpenter setup
