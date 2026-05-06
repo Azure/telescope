@@ -27,6 +27,8 @@ _ARM_SCOPE = "https://management.azure.com/.default"
 _AGENTPOOL_API_VERSION = "2024-06-02-preview"  # per ado azure.py
 _POLL_INTERVAL_SECONDS = 10
 _PROVISIONING_NONE_STATE_LIMIT = 5
+_BATCH_429_MAX_RETRIES = 3
+_BATCH_429_INITIAL_BACKOFF_SECONDS = 1.0
 
 
 class AKSMachineClient:
@@ -218,10 +220,6 @@ class AKSMachineClient:
         try:
             prefix = self._get_machine_name_prefix(request.scale_machine_count)
             names = [f"{prefix}{i:04d}" for i in range(request.scale_machine_count)]
-            if request.use_batch_api and not hasattr(self, "_scale_machine_batch"):
-                raise NotImplementedError(
-                    "Batch scale path lands in Task 8 of the crud-machine port."
-                )
             if request.use_batch_api:
                 successful, batch_times = self._scale_machine_batch(request, names)
                 response.batch_command_execution_times = batch_times
@@ -344,3 +342,150 @@ class AKSMachineClient:
             time.sleep(_POLL_INTERVAL_SECONDS)
         logger.error("provisioning timeout after %ss for %s", timeout, url)
         return False
+
+    # ---- Machine API: batch scale path ----
+    @staticmethod
+    def _array_split(items: List[str], n: int) -> List[List[str]]:
+        """Split ``items`` into ``n`` chunks of as-equal-as-possible size.
+
+        Equivalent to ``numpy.array_split`` semantics with pure Python. ``n`` is
+        clamped to ``[1, len(items)]`` so empty/oversized worker counts degrade
+        gracefully. Returns at most ``len(items)`` chunks; never returns empty
+        chunks unless ``items`` itself is empty.
+        """
+        if not items:
+            return []
+        n = max(1, min(n, len(items)))
+        k, m = divmod(len(items), n)
+        return [items[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(n)]
+
+    def _scale_machine_batch(
+        self,
+        request: ScaleMachineRequest,
+        names: List[str],
+    ) -> tuple[List[str], Dict[str, float]]:
+        """Dispatch ``names`` across ``request.machine_workers`` chunks via the AKS Batch API.
+
+        Splits ``names`` into up to ``request.machine_workers`` chunks
+        (``_array_split`` semantics) and submits each chunk to a
+        ``ThreadPoolExecutor``. Each worker calls ``_create_batch_machines``,
+        whose return value is the list of names that landed successfully in
+        that chunk. Per-chunk wall time is captured under ``chunk_<idx>``
+        regardless of success/failure. Per-chunk worker exceptions are caught
+        and logged; the chunk's names are excluded from the returned
+        ``successful`` list. The input ``request`` is not mutated.
+        """
+        chunks = self._array_split(names, request.machine_workers)
+        successful: List[str] = []
+        batch_times: Dict[str, float] = {}
+
+        def run_chunk(idx: int, chunk: List[str]):
+            t0 = time.time()
+            try:
+                created = self._create_batch_machines(request, chunk, idx)
+            except Exception:  # pylint: disable=broad-except
+                logger.exception("batch chunk %d failed", idx)
+                created = []
+            elapsed = time.time() - t0
+            return idx, created, elapsed
+
+        with ThreadPoolExecutor(max_workers=max(1, request.machine_workers)) as ex:
+            futures = [ex.submit(run_chunk, i, chunk) for i, chunk in enumerate(chunks)]
+            for fut in as_completed(futures):
+                try:
+                    idx, created, elapsed = fut.result()
+                except Exception:  # pylint: disable=broad-except
+                    # run_chunk already swallows; this is belt-and-suspenders.
+                    logger.exception("unexpected error retrieving batch chunk result")
+                    continue
+                batch_times[f"chunk_{idx}"] = elapsed
+                successful.extend(created)
+        return successful, batch_times
+
+    def _create_batch_machines(
+        self,
+        request: ScaleMachineRequest,
+        chunk: List[str],
+        chunk_idx: int,
+    ) -> List[str]:
+        """Submit a single ``$batch`` request creating every machine in ``chunk``.
+
+        Returns the list of machine names that the batch endpoint accepted
+        (empty on failure, never raises). On HTTP failure inside
+        ``_make_batch_request`` the exception is logged and propagated so
+        ``_scale_machine_batch`` can record the chunk wall-time and exclude
+        these names from the success list.
+        """
+        if not chunk:
+            return []
+        sub = self.subscription_id
+        # AKS Batch endpoint pattern: collection-level $batch with api-version.
+        url = (
+            f"{_ARM_BASE}/subscriptions/{sub}/resourceGroups/{request.resource_group}"
+            f"/providers/Microsoft.ContainerService/managedClusters/{request.cluster_name}"
+            f"/agentPools/{request.agentpool_name}/machines/$batch"
+            f"?api-version={_AGENTPOOL_API_VERSION}"
+        )
+        machine_body = {"properties": {"hardware": {"vmSize": request.vm_size}}}
+        if request.tags:
+            machine_body["tags"] = request.tags
+        # ARM batch envelope: each request targets a child machine name.
+        body = {
+            "requests": [
+                {
+                    "httpMethod": "PUT",
+                    "name": name,
+                    "content": machine_body,
+                }
+                for name in chunk
+            ]
+        }
+        logger.info(
+            "chunk %d: submitting $batch for %d machines",
+            chunk_idx, len(chunk),
+        )
+        ts_start = datetime.now(timezone.utc).isoformat()
+        try:
+            self._make_batch_request("POST", url, body, request.timeout)
+        except Exception:
+            logger.exception("chunk %d: $batch request failed (started %s)", chunk_idx, ts_start)
+            raise
+        return list(chunk)
+
+    def _make_batch_request(
+        self,
+        method: str,
+        url: str,
+        data: Dict[str, Any],
+        timeout: int,
+    ) -> requests.Response:
+        """Send a ``$batch`` request with bounded 429 exponential backoff.
+
+        Retries on HTTP 429 up to ``_BATCH_429_MAX_RETRIES`` attempts with
+        exponential backoff starting at ``_BATCH_429_INITIAL_BACKOFF_SECONDS``
+        and doubling each attempt (1s, 2s, 4s by default). All other non-2xx
+        responses raise immediately. Reuses ``make_request`` for auth.
+        """
+        backoff = _BATCH_429_INITIAL_BACKOFF_SECONDS
+        last_resp: Optional[requests.Response] = None
+        for attempt in range(_BATCH_429_MAX_RETRIES):
+            resp = self.make_request(method, url, data=data, timeout=timeout)
+            last_resp = resp
+            if resp.status_code in (200, 201, 202, 204):
+                return resp
+            if resp.status_code != 429:
+                raise RuntimeError(
+                    f"batch request failed: {resp.status_code} {resp.text[:500]}"
+                )
+            if attempt == _BATCH_429_MAX_RETRIES - 1:
+                break
+            logger.warning(
+                "batch request 429; retrying in %.1fs (attempt %d/%d)",
+                backoff, attempt + 1, _BATCH_429_MAX_RETRIES,
+            )
+            time.sleep(backoff)
+            backoff *= 2
+        text = last_resp.text[:500] if last_resp is not None else ""
+        raise RuntimeError(
+            f"batch request exceeded {_BATCH_429_MAX_RETRIES} 429 retries; last text={text}"
+        )
