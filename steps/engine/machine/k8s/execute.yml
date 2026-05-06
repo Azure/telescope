@@ -10,14 +10,14 @@ parameters:
   - name: pool_name
     type: string
   - name: scale_machine_count
-    type: number
+    type: string  # numeric matrix values resolve at runtime via $(VAR)
   - name: machine_workers
-    type: number
+    type: string
   - name: use_batch_api
     type: string  # 'true'|'false' as ADO doesn't have boolean type for matrix
   - name: step_time_out
-    type: number
-    default: 600
+    type: string
+    default: "600"
 
 steps:
   - bash: |
