@@ -25,7 +25,7 @@ logger = get_logger(__name__)
 _ARM_BASE = "https://management.azure.com"
 _ARM_SCOPE = "https://management.azure.com/.default"
 _AGENTPOOL_API_VERSION = "2024-06-02-preview"  # per ado azure.py — agentpool sub-resource
-_MACHINE_API_VERSION = "2025-04-02-preview"  # per ado azure.py — machines sub-resource
+_MACHINE_API_VERSION = "2025-06-02-preview"  # per ado azure.py — machines sub-resource (single + batch)
 _POLL_INTERVAL_SECONDS = 10
 _PROVISIONING_NONE_STATE_LIMIT = 5
 _BATCH_429_MAX_RETRIES = 3
@@ -279,7 +279,9 @@ class AKSMachineClient:
     def _create_single_machine(self, name: str, request) -> bool:
         """PUT a single Machine resource and wait for it to reach a terminal state.
 
-        Body is ``{"properties": {"hardware": {"vmSize": ...}}}`` plus optional tags.
+        Body is ``{"properties": {"hardware": {"vmSize": ...}}}``. Tags are inherited
+        from the parent agentpool; the machine PUT body in api-version 2025-06-02-preview
+        does not accept a top-level ``tags`` field (rejected with UnmarshalError).
         Returns True iff the machine eventually reaches provisioningState=Succeeded.
         Never raises on HTTP errors; logs and returns False on non-2xx responses.
         """
@@ -291,8 +293,6 @@ class AKSMachineClient:
             f"?api-version={_MACHINE_API_VERSION}"
         )
         body: Dict[str, Any] = {"properties": {"hardware": {"vmSize": request.vm_size}}}
-        if request.tags:
-            body["tags"] = request.tags
         resp = self.make_request("PUT", url, data=body, timeout=request.timeout)
         if resp.status_code not in (200, 201, 202):
             logger.error("PUT machine %s -> %s %s", name, resp.status_code, resp.text[:500])
@@ -430,8 +430,6 @@ class AKSMachineClient:
             f"?api-version={_MACHINE_API_VERSION}"
         )
         machine_body = {"properties": {"hardware": {"vmSize": request.vm_size}}}
-        if request.tags:
-            machine_body["tags"] = request.tags
         # ARM batch envelope: each request targets a child machine name.
         body = {
             "requests": [
