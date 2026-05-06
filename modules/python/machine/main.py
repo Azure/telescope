@@ -9,6 +9,7 @@ Differences from ado-telescope k8s/main.py:
 - Filters unresolved $(VAR) ADO substitutions automatically.
 """
 import argparse
+import json
 import os
 import sys
 
@@ -24,9 +25,12 @@ logger = get_logger(__name__)
 
 def _env_int_override(name: str, default: int) -> int:
     v = os.environ.get(name, "").strip()
-    if not v or v.startswith("$(") or not v.lstrip("-").isdigit():
+    if not v or v.startswith("$("):
         return default
-    return int(v)
+    try:
+        return int(v)
+    except ValueError:
+        return default
 
 
 def _env_bool_override(name: str, default: bool) -> bool:
@@ -35,7 +39,7 @@ def _env_bool_override(name: str, default: bool) -> bool:
         return default
     try:
         return str2bool(v)
-    except Exception:  # pylint: disable=broad-except
+    except argparse.ArgumentTypeError:
         return default
 
 
@@ -49,7 +53,7 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--run-id", required=True, dest="run_id")
         p.add_argument("--region", dest="region")
         p.add_argument("--resource-group", dest="resource_group")
-        p.add_argument("--node-pool-name", dest="agentpool_name")
+        p.add_argument("--node-pool-name", dest="agentpool_name", required=True)
         p.add_argument("--vm-size", dest="vm_size", default="Standard_D2_v3")
         p.add_argument("--scale-machine-count", dest="scale_machine_count", type=int, default=0)
         p.add_argument("--machine-workers", dest="machine_workers", type=int, default=1)
@@ -72,7 +76,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _build_machine_config(args) -> MachineConfig:
-    import json
+    if not args.result_dir:
+        raise SystemExit("--result-dir or RESULT_DIR env must be set")
     tags = json.loads(args.tags_json) if args.tags_json else None
     return MachineConfig(
         cloud=args.cloud,
@@ -96,21 +101,26 @@ def _build_machine_config(args) -> MachineConfig:
 
 def main(argv=None) -> int:
     setup_logging()
-    args = build_parser().parse_args(argv)
-    if args.command == "collect":
-        return collect_results(
-            cloud=args.cloud, run_id=args.run_id, run_url=args.run_url,
-            region=args.region, result_dir=args.result_dir)
-    cfg = _build_machine_config(args)
-    cluster_name_seed = cfg.cluster_name or None
-    client = AKSMachineClient(
-        resource_group=cfg.resource_group, cluster_name=cluster_name_seed,
-        result_dir=cfg.result_dir, operation_timeout_minutes=max(1, cfg.timeout // 60),
-    )
-    discovered = client.get_cluster_name()
-    cfg2 = MachineConfig(**{**cfg.__dict__, "cluster_name": discovered})
-    MachineManager(client, cfg2).perform_operation()
-    return 0
+    try:
+        args = build_parser().parse_args(argv)
+        if args.command == "collect":
+            return collect_results(
+                cloud=args.cloud, run_id=args.run_id, run_url=args.run_url,
+                region=args.region, result_dir=args.result_dir)
+        cfg = _build_machine_config(args)
+        client = AKSMachineClient(
+            resource_group=cfg.resource_group, cluster_name=None,
+            result_dir=cfg.result_dir, operation_timeout_minutes=max(1, cfg.timeout // 60),
+        )
+        discovered = client.get_cluster_name()
+        cfg2 = MachineConfig(**{**cfg.__dict__, "cluster_name": discovered})
+        MachineManager(client, cfg2).perform_operation()
+        return 0
+    except SystemExit:
+        raise
+    except Exception:  # pylint: disable=broad-except
+        logger.critical("Unhandled error in machine.main", exc_info=True)
+        return 1
 
 
 if __name__ == "__main__":
