@@ -1,0 +1,12 @@
+# steps/topology/k8s-cluster-crud-machine/validate-resources.yml
+parameters:
+  - name: cloud
+    type: string
+  - name: region
+    type: string
+
+steps:
+  - template: /steps/cloud/${{ parameters.cloud }}/update-kubeconfig.yml
+    parameters:
+      role: client
+      region: ${{ parameters.region }}

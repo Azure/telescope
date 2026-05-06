@@ -1,0 +1,19 @@
+# steps/topology/k8s-cluster-crud-machine/execute-machine.yml
+parameters:
+  - name: cloud
+    type: string
+  - name: region
+    type: string
+
+steps:
+  - template: /steps/engine/machine/k8s/execute.yml
+    parameters:
+      cloud: ${{ parameters.cloud }}
+      region: ${{ parameters.region }}
+      result_dir: $(System.DefaultWorkingDirectory)/$(RUN_ID)
+      vm_size: $(VM_SIZE)
+      pool_name: $(POOL_NAME)
+      scale_machine_count: $(SCALE_MACHINE_COUNT)
+      machine_workers: $(MACHINE_WORKERS)
+      use_batch_api: $(USE_BATCH_API)
+      step_time_out: $(STEP_TIME_OUT)

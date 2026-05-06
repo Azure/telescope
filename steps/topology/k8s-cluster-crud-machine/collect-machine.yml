@@ -1,0 +1,12 @@
+# steps/topology/k8s-cluster-crud-machine/collect-machine.yml
+parameters:
+  - name: cloud
+    type: string
+  - name: region
+    type: string
+
+steps:
+  - template: /steps/engine/machine/k8s/collect.yml
+    parameters:
+      cloud: ${{ parameters.cloud }}
+      region: ${{ parameters.region }}
