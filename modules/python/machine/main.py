@@ -126,11 +126,6 @@ def main(argv=None) -> int:
         cfg2 = MachineConfig(**{**cfg.__dict__, "cluster_name": discovered})
         MachineManager(client, cfg2).perform_operation()
         return 0
-    except SystemExit:  # pylint: disable=try-except-raise
-        # Defensive: SystemExit is a BaseException so the Exception handler
-        # below would not catch it anyway, but this explicit branch documents
-        # that argparse / build_machine_config exits are intentional.
-        raise
     except Exception:  # pylint: disable=broad-except
         logger.critical("Unhandled error in machine.main", exc_info=True)
         return 1
