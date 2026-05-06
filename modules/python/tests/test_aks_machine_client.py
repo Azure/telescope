@@ -116,7 +116,7 @@ def test_wait_for_machine_node_readiness_computes_percentiles(MockAKS):
         return {"status": {"conditions": [{"type": "Ready", "status": "True",
                                             "lastTransitionTime": "2026-05-05T10:00:00Z"}]}}
     fake_kc.get_node_details.side_effect = details
-    MockAKS.return_value.kubernetes_client = fake_kc
+    MockAKS.return_value.k8s_client = fake_kc
     c = AKSMachineClient(resource_group="rg")
     times = c._wait_for_machine_node_readiness(
         machine_names=["m1", "m2", "m3", "m4"],
@@ -130,7 +130,7 @@ def test_wait_for_machine_node_readiness_computes_percentiles(MockAKS):
 @patch("clients.aks_machine_client.AKSClient")
 def test_wait_for_machine_node_readiness_empty_machine_names(MockAKS):
     fake_kc = MagicMock()
-    MockAKS.return_value.kubernetes_client = fake_kc
+    MockAKS.return_value.k8s_client = fake_kc
     c = AKSMachineClient(resource_group="rg")
     times = c._wait_for_machine_node_readiness(
         machine_names=[],
@@ -143,7 +143,7 @@ def test_wait_for_machine_node_readiness_empty_machine_names(MockAKS):
 
 @patch("clients.aks_machine_client.AKSClient")
 def test_wait_for_machine_node_readiness_kubernetes_client_none(MockAKS):
-    MockAKS.return_value.kubernetes_client = None
+    MockAKS.return_value.k8s_client = None
     c = AKSMachineClient(resource_group="rg")
     times = c._wait_for_machine_node_readiness(
         machine_names=["m1"],
@@ -156,7 +156,7 @@ def test_wait_for_machine_node_readiness_kubernetes_client_none(MockAKS):
 @patch("clients.aks_machine_client.AKSClient")
 def test_wait_for_machine_node_readiness_malformed_start_time(MockAKS):
     fake_kc = MagicMock()
-    MockAKS.return_value.kubernetes_client = fake_kc
+    MockAKS.return_value.k8s_client = fake_kc
     c = AKSMachineClient(resource_group="rg")
     times = c._wait_for_machine_node_readiness(
         machine_names=["m1"],
@@ -172,7 +172,7 @@ def test_wait_for_machine_node_readiness_malformed_start_time(MockAKS):
 def test_wait_for_machine_node_readiness_get_node_details_raises(MockAKS, _sleep):
     fake_kc = MagicMock()
     fake_kc.get_node_details.side_effect = RuntimeError("boom")
-    MockAKS.return_value.kubernetes_client = fake_kc
+    MockAKS.return_value.k8s_client = fake_kc
     c = AKSMachineClient(resource_group="rg")
     times = c._wait_for_machine_node_readiness(
         machine_names=["m1"],
