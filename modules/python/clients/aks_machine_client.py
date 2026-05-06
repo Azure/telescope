@@ -87,6 +87,25 @@ class AKSMachineClient:
         resource_group: str,
         timeout: int = 300,
     ) -> bool:
+        """Convert an existing agentpool to Machines mode via PUT.
+
+        Args:
+            agentpool_name: Target agentpool name.
+            cluster_name: Parent AKS cluster name.
+            resource_group: Resource group containing the cluster.
+            timeout: Total budget (seconds) used as both the PUT HTTP timeout AND the
+                polling deadline for ``_wait_for_agentpool_provisioning``. Default 300s.
+
+        Returns:
+            True iff the agentpool reaches provisioningState='Succeeded' before
+            ``timeout`` seconds elapse. False on PUT failure, ARM-reported Failed
+            state, or timeout. Never raises on HTTP errors.
+        """
+        if resource_group != self.resource_group:
+            logger.warning(
+                "create_machine_agentpool called with resource_group=%s but client bound to %s",
+                resource_group, self.resource_group,
+            )
         sub = self.subscription_id
         url = (
             f"{_ARM_BASE}/subscriptions/{sub}/resourceGroups/{resource_group}"
@@ -101,6 +120,13 @@ class AKSMachineClient:
         return self._wait_for_agentpool_provisioning(url, timeout)
 
     def _wait_for_agentpool_provisioning(self, url: str, timeout: int) -> bool:
+        """Poll the agentpool URL until provisioningState is terminal.
+
+        Polls every ``_POLL_INTERVAL_SECONDS`` (10s) using a 30s per-request HTTP
+        timeout. Returns True on 'Succeeded'. Returns False on 'Failed' or when
+        ``timeout`` seconds have elapsed since invocation. Transient non-200 GETs
+        are logged and retried until the deadline.
+        """
         deadline = time.time() + timeout
         while time.time() < deadline:
             r = self.make_request("GET", url, timeout=30)
