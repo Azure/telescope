@@ -179,3 +179,21 @@ def test_wait_for_machine_node_readiness_get_node_details_raises(MockAKS, _sleep
         timeout=0,  # exit immediately after one iteration
     )
     assert times == {"P50": 0.0, "P90": 0.0, "P99": 0.0}
+
+
+@patch.object(AKSMachineClient, "_wait_for_machine_node_readiness", return_value={"P50":1.0,"P90":2.0,"P99":3.0})
+@patch.object(AKSMachineClient, "_create_single_machine")
+@patch("clients.aks_machine_client.AKSClient")
+def test_scale_machine_non_batch_dispatches_individual(MockAKS, mock_single, mock_wait):
+    MockAKS.return_value.subscription_id = "SUB"
+    mock_single.side_effect = lambda name, *a, **kw: name  # pretend success
+    from machine.data_classes import ScaleMachineRequest
+    req = ScaleMachineRequest(cluster_name="c", resource_group="rg",
+                              agentpool_name="ap", vm_size="Standard_D2_v3",
+                              scale_machine_count=3, use_batch_api=False, machine_workers=2)
+    c = AKSMachineClient(resource_group="rg")
+    resp = c.scale_machine(req)
+    assert mock_single.call_count == 3
+    assert resp.succeeded is True
+    assert resp.percentile_node_readiness_times == {"P50":1.0,"P90":2.0,"P99":3.0}
+    assert len(resp.successful_machines) == 3
