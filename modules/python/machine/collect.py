@@ -59,7 +59,7 @@ def _format_record(payload: dict, region: Optional[str], run_id: str, run_url: s
     }
 
 
-def collect_results(cloud: str, run_id: str, run_url: str, region: Optional[str],
+def collect_results(run_id: str, run_url: str, region: Optional[str],
                     result_dir: str) -> int:
     results_path = os.path.join(result_dir, "results.json")
     files = sorted(p for p in glob.glob(os.path.join(result_dir, "*.json"))
@@ -69,9 +69,13 @@ def collect_results(cloud: str, run_id: str, run_url: str, region: Optional[str]
         return 0
     with open(results_path, "w", encoding="utf-8") as out:
         for path in files:
-            with open(path, encoding="utf-8") as fh:
-                payload = json.load(fh)
-            rec = _format_record(payload, region, run_id, run_url)
-            out.write(json.dumps(rec) + "\n")
+            try:
+                with open(path, encoding="utf-8") as fh:
+                    payload = json.load(fh)
+                rec = _format_record(payload, region, run_id, run_url)
+                out.write(json.dumps(rec) + "\n")
+            except (KeyError, json.JSONDecodeError, OSError) as e:
+                logger.error("skipping %s: %s", path, e)
+                continue
     logger.info("wrote %d records to %s", len(files), results_path)
     return 0
