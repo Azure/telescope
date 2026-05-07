@@ -2,8 +2,10 @@ import azure_pipelines.ap.steps
 
 SetRunId = lambda -> steps.Step {
     steps.Bash {
+# Can not use `set -x`.
+# https://learn.microsoft.com/en-us/azure/devops/pipelines/scripts/logging-commands?view=azure-devops
         bash = """
-set -exo pipefail
+set -eo pipefail
 
 job_id="$(System.JobId)"
 RUN_ID=$(Build.BuildId)-\${job_id:0:8}

@@ -15,7 +15,7 @@ stages:
     steps:
     - bash: |2
 
-        set -exo pipefail
+        set -eo pipefail
 
         job_id="$(System.JobId)"
         RUN_ID=$(Build.BuildId)-${job_id:0:8}
@@ -319,7 +319,7 @@ stages:
     steps:
     - bash: |2
 
-        set -exo pipefail
+        set -eo pipefail
 
         job_id="$(System.JobId)"
         RUN_ID=$(Build.BuildId)-${job_id:0:8}
@@ -623,7 +623,7 @@ stages:
     steps:
     - bash: |2
 
-        set -exo pipefail
+        set -eo pipefail
 
         job_id="$(System.JobId)"
         RUN_ID=$(Build.BuildId)-${job_id:0:8}
