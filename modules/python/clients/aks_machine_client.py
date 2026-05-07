@@ -473,13 +473,30 @@ class AKSMachineClient:
             f"?api-version={_MACHINE_API_VERSION}"
         )
         body: Dict[str, Any] = {"properties": {"hardware": {"vmSize": request.vm_size}}}
-        batch_machines = [
-            {"name": name, "properties": {"hardware": {"vmSize": request.vm_size}}}
-            for name in chunk
-        ]
-        vm_skus = [{"name": request.vm_size, "count": len(chunk)}]
+        # ado-telescope verbatim envelope shape (azure.py:1268-1298). The Machine
+        # API expects:
+        #   - batchMachines[].machineName  (NOT "name") — using the wrong key
+        #     causes the API to silently ignore the entries, creating only the
+        #     URL-pointed machine. This was the root cause of build 66357
+        #     reporting succeeded=true but only 100/200 (== worker count) ready.
+        #   - batchMachines lists ONLY the *additional* machines; the first one
+        #     is created from the URL + body.
+        #   - vmSkus is a {"value": [<rich vm_sku obj>]} envelope, not a flat list.
+        remaining_machines = chunk[1:]
+        batch_machines = [{"machineName": name} for name in remaining_machines]
+        vm_sku = {
+            "name": request.vm_size,
+            "resourceType": "virtualMachines",
+            "family": "standardDv3Family",
+            "locations": ["westus", "eastus", "westeurope"],
+            "capabilities": [
+                {"name": "vCPUs", "value": "2"},
+                {"name": "MemoryGB", "value": "8"},
+            ],
+            "restrictions": [],
+        }
         batch_header_value = json.dumps({
-            "vmSkus": vm_skus,
+            "vmSkus": {"value": [vm_sku]},
             "batchMachines": batch_machines,
         })
         logger.info(
