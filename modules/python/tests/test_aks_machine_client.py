@@ -490,10 +490,14 @@ def test_create_batch_machines_submits_envelope(MockAKS, mock_batch):
     parsed = json.loads(header_value)
     assert "vmSkus" in parsed
     assert "batchMachines" in parsed
-    assert [m["name"] for m in parsed["batchMachines"]] == chunk
-    assert parsed["batchMachines"][0]["properties"]["hardware"]["vmSize"] == "Standard_D2_v3"
-    assert parsed["vmSkus"][0]["name"] == "Standard_D2_v3"
-    assert parsed["vmSkus"][0]["count"] == 2
+    # ado verbatim shape: batchMachines is the *remaining* machines (chunk[1:])
+    # keyed by "machineName" (NOT "name"). The first chunk member is created
+    # from the URL + body. Using the wrong key caused the API to silently drop
+    # additional entries (build 66357: 100 chunks of 2 → only 100/200 ready).
+    assert [m["machineName"] for m in parsed["batchMachines"]] == chunk[1:]
+    # vmSkus uses the rich {"value": [<vm_sku>]} envelope.
+    assert parsed["vmSkus"]["value"][0]["name"] == "Standard_D2_v3"
+    assert parsed["vmSkus"]["value"][0]["resourceType"] == "virtualMachines"
 
 
 # ---- _make_batch_request ----
