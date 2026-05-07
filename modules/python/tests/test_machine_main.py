@@ -67,3 +67,13 @@ def test_build_machine_config_requires_result_dir(monkeypatch):
     ])
     with pytest.raises(SystemExit):
         _build_machine_config(args)
+
+
+def test_readiness_wait_timeout_defaults_to_1200():
+    parser = build_parser()
+    args = parser.parse_args([
+        "create", "--cloud", "azure", "--run-id", "r1",
+        "--region", "eastus", "--resource-group", "rg",
+        "--node-pool-name", "p1", "--result-dir", "/tmp",
+    ])
+    assert args.readiness_wait_timeout == 1200

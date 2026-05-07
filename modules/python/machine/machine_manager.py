@@ -82,6 +82,7 @@ class MachineManager:
             use_batch_api=self.config.use_batch_api,
             machine_workers=self.config.machine_workers,
             timeout=self.config.timeout,
+            readiness_wait_timeout=self.config.readiness_wait_timeout,
             tags=self.config.tags,
             machine_name=self.config.machine_name,
         )
