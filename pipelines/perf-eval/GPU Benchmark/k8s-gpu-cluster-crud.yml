@@ -43,6 +43,9 @@ stages:
               scale_step_size: 1
               step_time_out: 600
               step_wait_time: 30
+              number_of_deployments: 1
+              replicas: 10
+              manifest_dir: ""
           max_parallel: 1
           credential_type: service_connection
           ssh_key_enabled: false
@@ -73,6 +76,9 @@ stages:
               scale_step_size: 1
               step_time_out: 600
               step_wait_time: 30
+              number_of_deployments: 1
+              replicas: 10
+              manifest_dir: ""
           max_parallel: 1
           credential_type: service_connection
           ssh_key_enabled: false
