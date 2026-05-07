@@ -272,7 +272,78 @@ class NodePoolCRUD:
             logger.error(error_msg)
             errors.append(error_msg)
             return False
+    def _apply_deployment(
+        self,
+        k8s_client,
+        node_pool_name,
+        deployment_index,
+        replicas,
+        manifest_dir,
+        label_selector,
+        namespace
+    ):
+        """Helper for create_deployment — applies and verifies a single deployment."""
+        if manifest_dir:
+            # Use the template path from manifest_dir
+            template_path = f"{manifest_dir}/deployment.yml"
+        else:
+            # Use default template path (relative to workingDirectory: modules/python)
+            template_path = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)),
+                "..", "workload_templates", "deployment.yml"
+            )
 
+        # Generate deployment name
+        deployment_name = f"myapp-{node_pool_name}-{deployment_index}"
+
+        # Use per-deployment label to avoid selector collision
+        deployment_label = f"{label_selector.split('=', 1)[-1]}-{deployment_index}"
+
+        # Create deployment template using k8s_client.create_template
+        deployment_template = k8s_client.create_template(
+            template_path,
+            {
+                "DEPLOYMENT_REPLICAS": replicas,
+                "NODE_POOL_NAME": node_pool_name,
+                "INDEX": deployment_index,
+                "LABEL_VALUE": deployment_label,
+            }
+        )
+
+        # Apply each document in the rendered multi-doc template
+        for doc in yaml.safe_load_all(deployment_template):
+            if doc:
+                k8s_client.apply_manifest_from_file(manifest_dict=doc, namespace=namespace)
+
+        logger.info("Applied manifest for deployment %s", deployment_name)
+
+        # Wait for deployment to be available (successful deployment verification)
+        logger.info("Waiting for deployment %s to become available...", deployment_name)
+        deployment_ready = k8s_client.wait_for_condition(
+            resource_type="deployment",
+            wait_condition_type="available",
+            resource_name=deployment_name,
+            namespace=namespace,
+            timeout_seconds=self.step_timeout
+        )
+
+        if not deployment_ready:
+            raise TimeoutError(
+                f"Deployment {deployment_name} failed to become available within timeout"
+            )
+
+        logger.info("Deployment %s is successfully available", deployment_name)
+
+        # Additionally wait for pods to be ready
+        logger.info("Waiting for pods of deployment %s to be ready...", deployment_name)
+        k8s_client.wait_for_pods_ready(
+            operation_timeout_in_minutes=5,
+            namespace=namespace,
+            pod_count=replicas,
+            label_selector=f"app={deployment_label}"
+        )
+
+        logger.info("Successfully created and verified deployment %d", deployment_index)
     def create_deployment(
         self,
         node_pool_name,
@@ -315,68 +386,16 @@ class NodePoolCRUD:
             logger.info("Creating deployment %d/%d", deployment_index, number_of_deployments)
 
             try:
-                if manifest_dir:
-                    # Use the template path from manifest_dir
-                    template_path = f"{manifest_dir}/deployment.yml"
-                else:
-                    # Use default template path (relative to workingDirectory: modules/python)
-                    template_path = os.path.join(
-                        os.path.dirname(os.path.abspath(__file__)),
-                        "..", "workload_templates", "deployment.yml"
-                    )
-
-                # Generate deployment name
-                deployment_name = f"myapp-{node_pool_name}-{deployment_index}"
-
-                # Use per-deployment label to avoid selector collision
-                deployment_label = f"{label_selector.split('=', 1)[-1]}-{deployment_index}"
-
-                # Create deployment template using k8s_client.create_template
-                deployment_template = k8s_client.create_template(
-                    template_path,
-                    {
-                        "DEPLOYMENT_REPLICAS": replicas,
-                        "NODE_POOL_NAME": node_pool_name,
-                        "INDEX": deployment_index,
-                        "LABEL_VALUE": deployment_label,
-                    }
+                self._apply_deployment(
+                    k8s_client=k8s_client,
+                    node_pool_name=node_pool_name,
+                    deployment_index=deployment_index,
+                    replicas=replicas,
+                    manifest_dir=manifest_dir,
+                    label_selector=label_selector,
+                    namespace=namespace
                 )
-
-                # Apply each document in the rendered multi-doc template
-                for doc in yaml.safe_load_all(deployment_template):
-                    if doc:
-                        k8s_client.apply_manifest_from_file(manifest_dict=doc, namespace=namespace)
-
-                logger.info("Applied manifest for deployment %s", deployment_name)
-
-                # Wait for deployment to be available (successful deployment verification)
-                logger.info("Waiting for deployment %s to become available...", deployment_name)
-                deployment_ready = k8s_client.wait_for_condition(
-                    resource_type="deployment",
-                    wait_condition_type="available",
-                    resource_name=deployment_name,
-                    namespace=namespace,
-                    timeout_seconds=self.step_timeout
-                )
-
-                if deployment_ready:
-                    logger.info("Deployment %s is successfully available", deployment_name)
-
-                    # Additionally wait for pods to be ready
-                    logger.info("Waiting for pods of deployment %s to be ready...", deployment_name)
-                    k8s_client.wait_for_pods_ready(
-                        operation_timeout_in_minutes=5,
-                        namespace=namespace,
-                        pod_count=replicas,
-                        label_selector=f"app={deployment_label}"
-                    )
-
-                    logger.info("Successfully created and verified deployment %d", deployment_index)
-                    successful_deployments += 1
-                else:
-                    logger.error("Deployment %s failed to become available within timeout", deployment_name)
-                    continue
-
+                successful_deployments += 1
             except Exception as e:
                 logger.error("Failed to create deployment %d: %s", deployment_index, e)
                 # Continue with next deployment instead of failing completely
