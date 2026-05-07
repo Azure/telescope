@@ -365,7 +365,11 @@ resource "terraform_data" "aks_wait_succeeded" {
   }
 
   provisioner "local-exec" {
-    command = <<-EOT
+    # local-exec defaults to /bin/sh which on Ubuntu agents is dash; dash
+    # rejects `set -o pipefail` (bash-only). Explicitly select bash so the
+    # script's safety options work as written.
+    interpreter = ["bash", "-c"]
+    command     = <<-EOT
       set -eo pipefail
       rg="${self.input.resource_group_name}"
       name="${self.input.aks_name}"
