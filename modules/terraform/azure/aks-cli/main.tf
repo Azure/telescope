@@ -333,9 +333,73 @@ resource "terraform_data" "aks_cli" {
   }
 }
 
+# Gate any subsequent `az aks ...` operations (extra node pools, post-create
+# updates) on the cluster reaching a stable provisioningState=Succeeded.
+#
+# Why this exists: `az aks create --enable-acns` (and similar addon flags
+# like --enable-azure-monitor-metrics) kicks off a PutExtensionAddonHandler
+# PUT operation that runs ASYNCHRONOUSLY after `az aks create` returns. While
+# that operation is in flight, any downstream `az aks nodepool add` (e.g. our
+# extra_node_pool / prompool) fails with:
+#   ERROR: (OperationNotAllowed) Operation is not allowed because there's an
+#   in progress PutExtensionAddonHandler.PUT operation ... Please wait for it
+#   to finish before starting a new operation.
+# The race is timing-dependent and rarely manifests with 1-2 concurrent
+# cluster creates, but is deterministic at N>=5 (regional AKS RP queues the
+# extension installs and the slowest cluster's PUT lags `az aks create` return
+# by several minutes — observed in the clustermesh-scale n5 tier).
+#
+# Polling logic: require 3 consecutive Succeeded readings 20s apart, with a
+# 60s initial buffer so any queued extension install has time to transition
+# the cluster into Updating. The consecutive requirement defends against the
+# brief Succeeded window between create-finish and extension-start. Total
+# budget ~20m.
+resource "terraform_data" "aks_wait_succeeded" {
+  count = var.aks_cli_config.dry_run ? 0 : 1
+
+  depends_on = [terraform_data.aks_cli]
+
+  input = {
+    resource_group_name = var.resource_group_name
+    aks_name            = var.aks_cli_config.aks_name
+  }
+
+  provisioner "local-exec" {
+    command = <<-EOT
+      set -eo pipefail
+      rg="${self.input.resource_group_name}"
+      name="${self.input.aks_name}"
+      echo "Waiting for AKS $name to reach a stable Succeeded state..."
+      sleep 60
+      required=3
+      got=0
+      for i in $(seq 1 60); do
+        state=$(az aks show -g "$rg" -n "$name" --query provisioningState -o tsv 2>/dev/null || echo "Unknown")
+        if [ "$state" = "Succeeded" ]; then
+          got=$((got + 1))
+          if [ "$got" -ge "$required" ]; then
+            echo "AKS $name stable in Succeeded ($got consecutive checks). Continuing."
+            exit 0
+          fi
+        else
+          if [ "$got" -gt 0 ]; then
+            echo "AKS $name re-entered '$state' after Succeeded streak; resetting counter"
+          fi
+          got=0
+        fi
+        echo "AKS $name provisioningState=$state (Succeeded streak=$got/$required)"
+        sleep 20
+      done
+      echo "Timeout: AKS $name did not reach sustained Succeeded after ~20m"
+      exit 1
+    EOT
+  }
+}
+
 resource "terraform_data" "aks_nodepool_cli" {
   depends_on = [
-    terraform_data.aks_cli
+    terraform_data.aks_cli,
+    terraform_data.aks_wait_succeeded,
   ]
 
   for_each = local.extra_pool_map
