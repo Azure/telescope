@@ -183,7 +183,6 @@ jobs:
       export PYTHONPATH=$PYTHONPATH:$(pwd)
       python3 kwok/kwok.py   --action create   --node-count 100   --node-manifest-path $(Pipeline.Workspace)/s/kcl/example_pipeline/kwok-node.yaml
     workingDirectory: modules/python
-    continueOnError: false
     displayName: Create KWOK Nodes
   - script: |2-
 
@@ -191,7 +190,6 @@ jobs:
       export PYTHONPATH=$PYTHONPATH:$(pwd)
       python3 kwok/kwok.py   --action validate   --node-count 100   --node-manifest-path $(Pipeline.Workspace)/s/kcl/example_pipeline/kwok-node.yaml
     workingDirectory: modules/python
-    continueOnError: false
     displayName: Validate KWOK Nodes
   - task: AzureCLI@2
     inputs:
