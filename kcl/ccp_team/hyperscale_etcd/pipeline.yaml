@@ -89,7 +89,6 @@ jobs:
         az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
         az config set defaults.location="westus2"
         az account show
-    continueOnError: false
     displayName: Login to Azure
   - task: AzureCLI@2
     inputs:
@@ -100,7 +99,6 @@ jobs:
         set -exo pipefail
 
         az group create --name "$(RESOURCE_GROUP)" --location "westus2" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
-    continueOnError: false
     displayName: Create resource group $(RESOURCE_GROUP) in westus2 (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
   - task: AzureCLI@2
     inputs:
@@ -155,7 +153,6 @@ jobs:
               }
             }
           }"
-    continueOnError: false
     displayName: Create cluster
   - task: AzureCLI@2
     inputs:
@@ -184,7 +181,6 @@ jobs:
           fi
           sleep 30
         done
-    continueOnError: false
     displayName: Wait for cluster to succeed
 - job: record_start_time
   displayName: Record Benchmark Start Time
@@ -227,7 +223,6 @@ jobs:
           --resource-group "$(RESOURCE_GROUP)" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --overwrite-existing
-    continueOnError: false
     displayName: Get credentials for $(CLUSTER)
   - script: |2
 
@@ -310,7 +305,6 @@ jobs:
           --resource-group "$(RESOURCE_GROUP)" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --overwrite-existing
-    continueOnError: false
     displayName: Get credentials for $(CLUSTER)
   - script: |2
 
@@ -393,7 +387,6 @@ jobs:
           --resource-group "$(RESOURCE_GROUP)" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --overwrite-existing
-    continueOnError: false
     displayName: Get credentials for $(CLUSTER)
   - script: |2
 
@@ -522,5 +515,4 @@ jobs:
 
         az group delete --name "$(RESOURCE_GROUP)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
     condition: always()
-    continueOnError: false
     displayName: Delete resource group $(RESOURCE_GROUP) (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)

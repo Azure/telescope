@@ -236,7 +236,6 @@ stages:
         export PYTHONPATH=$PYTHONPATH:$(pwd)
         python3 kwok/kwok.py   --action create   --node-count 2000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100 --pod-play-stage-parallelism 500
       workingDirectory: modules/python
-      continueOnError: false
       displayName: Create KWOK Nodes
     - script: |2-
 
@@ -244,7 +243,6 @@ stages:
         export PYTHONPATH=$PYTHONPATH:$(pwd)
         python3 kwok/kwok.py   --action validate   --node-count 2000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100 --pod-play-stage-parallelism 500
       workingDirectory: modules/python
-      continueOnError: false
       displayName: Validate KWOK Nodes
     - task: AzureCLI@2
       inputs:
@@ -540,7 +538,6 @@ stages:
         export PYTHONPATH=$PYTHONPATH:$(pwd)
         python3 kwok/kwok.py   --action create   --node-count 4000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100 --pod-play-stage-parallelism 500
       workingDirectory: modules/python
-      continueOnError: false
       displayName: Create KWOK Nodes
     - script: |2-
 
@@ -548,7 +545,6 @@ stages:
         export PYTHONPATH=$PYTHONPATH:$(pwd)
         python3 kwok/kwok.py   --action validate   --node-count 4000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100 --pod-play-stage-parallelism 500
       workingDirectory: modules/python
-      continueOnError: false
       displayName: Validate KWOK Nodes
     - task: AzureCLI@2
       inputs:
@@ -844,7 +840,6 @@ stages:
         export PYTHONPATH=$PYTHONPATH:$(pwd)
         python3 kwok/kwok.py   --action create   --node-count 8000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100 --pod-play-stage-parallelism 500
       workingDirectory: modules/python
-      continueOnError: false
       displayName: Create KWOK Nodes
     - script: |2-
 
@@ -852,7 +847,6 @@ stages:
         export PYTHONPATH=$PYTHONPATH:$(pwd)
         python3 kwok/kwok.py   --action validate   --node-count 8000   --node-manifest-path $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_pod_scheduling/kwok-node.yaml --nodes-per-controller 100 --node-selector kwok=true --node-lease-duration-seconds 100 --pod-play-stage-parallelism 500
       workingDirectory: modules/python
-      continueOnError: false
       displayName: Validate KWOK Nodes
     - task: AzureCLI@2
       inputs:
