@@ -64,6 +64,8 @@ def build_parser() -> argparse.ArgumentParser:
         subparser.add_argument(
             "--use-batch-api", dest="use_batch_api", type=str2bool, default=False)
         subparser.add_argument("--step-timeout", dest="step_timeout", type=int, default=600)
+        subparser.add_argument("--readiness-wait-timeout", dest="readiness_wait_timeout",
+                               type=int, default=1200)
         subparser.add_argument(
             "--result-dir", dest="result_dir", default=os.environ.get("RESULT_DIR"))
         subparser.add_argument("--tags", dest="tags_json", default=None,
@@ -95,6 +97,7 @@ def _build_machine_config(args) -> MachineConfig:
         agentpool_name=args.agentpool_name,
         vm_size=args.vm_size,
         timeout=args.step_timeout,
+        readiness_wait_timeout=args.readiness_wait_timeout,
         result_dir=args.result_dir,
         region=args.region,
         operation=args.command,

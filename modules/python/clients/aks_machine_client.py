@@ -262,7 +262,7 @@ class AKSMachineClient:
             response.percentile_node_readiness_times = self._wait_for_machine_node_readiness(
                 agentpool_name=request.agentpool_name,
                 expected_count=len(successful),
-                timeout=request.timeout,
+                timeout=request.readiness_wait_timeout,
             )
             response.succeeded = len(successful) == request.scale_machine_count
         except Exception as exc:  # pylint: disable=broad-except

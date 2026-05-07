@@ -29,6 +29,7 @@ class MachineConfig:  # pylint: disable=too-many-instance-attributes
     vm_size: str
     timeout: int
     result_dir: str
+    readiness_wait_timeout: int = 1200
     region: Optional[str] = None
     operation: Optional[str] = None
     tags: Optional[Dict[str, str]] = None
@@ -51,6 +52,7 @@ class ScaleMachineRequest:  # pylint: disable=too-many-instance-attributes
     use_batch_api: bool
     machine_workers: int
     timeout: int = 300
+    readiness_wait_timeout: int = 1200
     tags: Optional[Dict[str, str]] = None
     machine_name: Optional[str] = None
 
