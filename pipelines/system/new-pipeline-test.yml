@@ -68,10 +68,10 @@ stages:
             large_machine_pool:
               vm_size: Standard_D2_v3
               pool_name: largepool1
-              scale_machine_count: 2
+              scale_machine_count: 200
               machine_workers: 100
               use_batch_api: "true"
-              step_time_out: 900
+              step_time_out: 1800
           max_parallel: 1
           timeout_in_minutes: 180
           credential_type: service_connection

@@ -179,9 +179,9 @@ class AKSMachineClient:
     ) -> Dict[str, float]:
         """Wait for nodes in ``agentpool_name`` to become Ready; return {P50,P90,P99}.
 
-        AKS Machine ARM resource names (e.g. ``tmach0000``) are NOT the same as the
-        underlying k8s Node names (``aks-<pool>-<rand>-vmss<i>``), so we cannot look
-        up Nodes by Machine name. Instead we poll Nodes labelled
+        AKS Machine ARM resource names (e.g. ``scale100-machine-1``) are NOT the
+        same as the underlying k8s Node names (``aks-<pool>-<rand>-vmss<i>``), so
+        we cannot look up Nodes by Machine name. Instead we poll Nodes labelled
         ``agentpool=<pool>`` and record the wall-clock elapsed when each percentile
         ready threshold is hit. Mirrors ado-telescope (azure.py:1420 / 1444).
 
@@ -245,8 +245,14 @@ class AKSMachineClient:
             start_time=start_iso,
         )
         try:
-            prefix = self._get_machine_name_prefix()
-            names = [f"{prefix}{i:04d}" for i in range(request.scale_machine_count)]
+            # Naming parity with ado-telescope (azure.py:_get_machine_name_prefix +
+            # _scale_machine_individually): prefix is "scale{N}" or "scale{N//1000}k",
+            # machines are 1-indexed as "{prefix}-machine-{i}". Byte-identical names
+            # let cross-repo Kusto dashboards correlate runs across ado/gh.
+            prefix = self._get_machine_name_prefix(request.scale_machine_count)
+            names = [
+                f"{prefix}-machine-{i + 1}" for i in range(request.scale_machine_count)
+            ]
             if request.use_batch_api:
                 successful, batch_times = self._scale_machine_batch(request, names)
                 response.batch_command_execution_times = batch_times
@@ -274,9 +280,20 @@ class AKSMachineClient:
             logger.warning("get_cluster_data failed: %s", exc)
         return response
 
-    def _get_machine_name_prefix(self) -> str:
-        """Return the machine-name prefix used for batch and individual scale paths."""
-        return "tmach"
+    def _get_machine_name_prefix(self, scale_machine_count: int) -> str:
+        """Generate the ado-compatible machine-name prefix for a given scale count.
+
+        Mirrors ado-telescope ``azure.py::_get_machine_name_prefix`` exactly so
+        that the resulting machine ARM resource names match across repos and
+        cross-repo Kusto dashboards keyed on machine name continue to correlate.
+
+        - ``scale1000`` -> ``scale1k`` (any multiple of 1000 >= 1000 collapses)
+        - ``scale500``  -> ``scale500``
+        - ``scale1``    -> ``scale1``
+        """
+        if scale_machine_count >= 1000 and scale_machine_count % 1000 == 0:
+            return f"scale{scale_machine_count // 1000}k"
+        return f"scale{scale_machine_count}"
 
     def _scale_machine_individually(self, request, names):
         """Submit per-machine PUTs concurrently via ThreadPoolExecutor.

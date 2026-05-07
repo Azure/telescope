@@ -211,7 +211,7 @@ def test_scale_machine_non_batch_dispatches_individual(MockAKS, mock_single, moc
     resp = c.scale_machine(req)
     assert mock_single.call_count == 3
     assert sorted(c_call.args[0] for c_call in mock_single.call_args_list) == [
-        "tmach0000", "tmach0001", "tmach0002",
+        "scale3-machine-1", "scale3-machine-2", "scale3-machine-3",
     ]
     assert resp.succeeded is True
     assert resp.percentile_node_readiness_times == {"P50":1.0,"P90":2.0,"P99":3.0}
@@ -226,9 +226,9 @@ def test_scale_machine_non_batch_partial_failure(MockAKS, mock_single, mock_wait
     MockAKS.return_value.subscription_id = "SUB"
 
     def fake_single(name, *a, **kw):
-        if name == "tmach0000":
+        if name == "scale3-machine-1":
             return True
-        if name == "tmach0001":
+        if name == "scale3-machine-2":
             return False
         raise RuntimeError("boom")
 
@@ -240,8 +240,8 @@ def test_scale_machine_non_batch_partial_failure(MockAKS, mock_single, mock_wait
     resp = c.scale_machine(req)
     assert mock_single.call_count == 3
     names_submitted = sorted(c_call.args[0] for c_call in mock_single.call_args_list)
-    assert names_submitted == ["tmach0000", "tmach0001", "tmach0002"]
-    assert resp.successful_machines == ["tmach0000"]
+    assert names_submitted == ["scale3-machine-1", "scale3-machine-2", "scale3-machine-3"]
+    assert resp.successful_machines == ["scale3-machine-1"]
     assert resp.succeeded is False
     assert resp.error == ""
 
@@ -263,7 +263,7 @@ def test_scale_machine_batch_dispatches_in_chunks(MockAKS, mock_create_batch, _m
     resp = c.scale_machine(req)
 
     assert mock_create_batch.call_count == 2
-    expected_names = [f"tmach{i:04d}" for i in range(6)]
+    expected_names = [f"scale6-machine-{i + 1}" for i in range(6)]
     submitted = sorted(n for call in mock_create_batch.call_args_list for n in call.args[1])
     assert submitted == sorted(expected_names)
     assert sorted(resp.successful_machines) == sorted(expected_names)
@@ -295,7 +295,7 @@ def test_scale_machine_batch_partial_chunk_failure(MockAKS, mock_create_batch, _
     c = AKSMachineClient(resource_group="rg")
     resp = c.scale_machine(req)
 
-    expected_chunk0 = sorted([f"tmach{i:04d}" for i in range(4)])[:2]
+    expected_chunk0 = sorted([f"scale4-machine-{i + 1}" for i in range(4)])[:2]
     assert sorted(resp.successful_machines) == expected_chunk0
     assert resp.succeeded is False
     assert resp.error == ""
@@ -324,7 +324,7 @@ def test_scale_machine_batch_worker_exception_isolated(MockAKS, mock_create_batc
     c = AKSMachineClient(resource_group="rg")
     resp = c.scale_machine(req)
 
-    expected_chunk0 = sorted([f"tmach{i:04d}" for i in range(4)])[:2]
+    expected_chunk0 = sorted([f"scale4-machine-{i + 1}" for i in range(4)])[:2]
     assert sorted(resp.successful_machines) == expected_chunk0
     assert resp.succeeded is False
     assert resp.error == ""
@@ -346,10 +346,10 @@ def test_create_single_machine_puts_and_polls(MockAKS, mock_req, _mock_wait):
         tags={"env": "test"},
     )
     c = AKSMachineClient(resource_group="rg")
-    assert c._create_single_machine("tmach0000", req) is True
+    assert c._create_single_machine("scale1-machine-1", req) is True
     put_call = mock_req.call_args_list[0]
     assert put_call.args[0] == "PUT"
-    assert "/agentPools/ap/machines/tmach0000" in put_call.args[1]
+    assert "/agentPools/ap/machines/scale1-machine-1" in put_call.args[1]
     assert put_call.kwargs["data"]["properties"]["hardware"]["vmSize"] == "Standard_D2_v3"
     # Note: tags are no longer sent on machine PUT (commit 62a46f35).
     assert "tags" not in put_call.kwargs["data"]
@@ -367,7 +367,7 @@ def test_create_single_machine_returns_false_on_bad_status(MockAKS, mock_req, mo
         use_batch_api=False, machine_workers=1, timeout=30,
     )
     c = AKSMachineClient(resource_group="rg")
-    assert c._create_single_machine("tmach0000", req) is False
+    assert c._create_single_machine("scale1-machine-1", req) is False
     mock_wait.assert_not_called()
 
 
