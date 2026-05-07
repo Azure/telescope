@@ -15,22 +15,11 @@ steps:
   - script: |
       set -euo pipefail
 
-      tmp_dir="$(mktemp -d)"
-      trap 'rm -rf "$tmp_dir"' EXIT
+      rm -rf azure-container-networking
+      git clone --depth 1 https://github.com/Azure/azure-container-networking
+      cd azure-container-networking
 
-      git clone --depth 1 https://github.com/Azure/azure-container-networking "$tmp_dir/azure-container-networking"
-      pushd "$tmp_dir/azure-container-networking"
-
-      if [[ "${INSTALL_CNS_WITH_ACN:-true}" == "true" ]]; then
-        sudo -E env "PATH=$PATH" make test-load \
-          CNS_ONLY=true \
-          CNS_VERSION="${CNS_VERSION:-v1.7.12}" \
-          AZURE_IPAM_VERSION="${AZURE_IPAM_VERSION:-v0.4.0}" \
-          INSTALL_CNS=true \
-          INSTALL_OVERLAY=true \
-          CNS_IMAGE_REPO="${CNS_IMAGE_REPO:-MCR}" \
-          IPAM_IMAGE_REPO="${IPAM_IMAGE_REPO:-MCR}"
-      fi
+      sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true CNS_VERSION=v1.7.12 AZURE_IPAM_VERSION=v0.4.0 INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=MCR IPAM_IMAGE_REPO=MCR
 
       if ! command -v envsubst >/dev/null 2>&1; then
         echo "##vso[task.logissue type=error;]envsubst is required for ACN manifest templating"
@@ -47,7 +36,8 @@ steps:
       envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < "test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml" | kubectl apply -f -
       envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < "test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml" | kubectl apply -f -
 
-      popd
+      cd ..
+      rm -rf azure-container-networking
 
       kubectl -n kube-system rollout status ds/cilium --timeout="${CILIUM_ROLLOUT_TIMEOUT:-30m}"
       kubectl -n kube-system rollout status deploy/cilium-operator --timeout="${CILIUM_ROLLOUT_TIMEOUT:-30m}"

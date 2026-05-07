@@ -56,7 +56,7 @@ aks_cli_config_list = [
       },
       {
         name  = "max-pods"
-        value = "250"
+        value = "110"
       },
       {
         name  = "enable-addons"
