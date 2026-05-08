@@ -272,6 +272,7 @@ class NodePoolCRUD:
             logger.error(error_msg)
             errors.append(error_msg)
             return False
+
     def _apply_deployment(
         self,
         k8s_client,
@@ -344,6 +345,7 @@ class NodePoolCRUD:
         )
 
         logger.info("Successfully created and verified deployment %d", deployment_index)
+
     def create_deployment(
         self,
         node_pool_name,
