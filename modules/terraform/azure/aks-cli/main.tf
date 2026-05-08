@@ -11,6 +11,33 @@ locals {
     pool.name => pool
   }
 
+  # Pre-built `az aks nodepool add` command per extra pool. Pulled into a
+  # local so the terraform_data.aks_nodepool_cli heredoc body stays readable
+  # (avoids a multi-line interpolation inside the bash retry-loop heredoc,
+  # which `terraform fmt` otherwise mangles).
+  extra_pool_commands = {
+    for pool in var.aks_cli_config.extra_node_pool : pool.name => join(" ", [
+      "az",
+      "aks",
+      "nodepool",
+      "add",
+      "-g", var.resource_group_name,
+      "--cluster-name", var.aks_cli_config.aks_name,
+      "--nodepool-name", pool.name,
+      "--node-count", pool.node_count,
+      "--node-vm-size", pool.vm_size,
+      "--vm-set-type", pool.vm_set_type,
+      "--node-osdisk-type", pool.os_disk_type,
+      local.aks_custom_headers_flags,
+      length(pool.optional_parameters) == 0 ?
+      "" :
+      join(" ", [
+        for param in pool.optional_parameters :
+        format("--%s %s", param.name, param.value)
+      ]),
+    ])
+  }
+
   key_management_service = (
     var.aks_cli_config.kms_config != null
     ) ? {
@@ -408,27 +435,36 @@ resource "terraform_data" "aks_nodepool_cli" {
 
   for_each = local.extra_pool_map
 
+  # Wrap the underlying `az aks nodepool add` (built in locals.extra_pool_commands)
+  # in a bash retry loop that handles the OperationNotAllowed / AnotherOperationInProgress
+  # AKS RP race window. Even with terraform_data.aks_wait_succeeded gating
+  # this on a stable cluster Succeeded state, the AKS RP can lazily start
+  # post-create extension PUTs (e.g. --enable-acns) AFTER the wait exits —
+  # observed at N>=5 cluster create concurrency where the regional RP queues
+  # addon installs minutes behind the parent cluster create. The retry catches
+  # that race; keeping the wait avoids noisy first-attempt failures in the
+  # common (non-lazy) case. 30 retries * 30s = 15min budget.
   provisioner "local-exec" {
-    command = join(" ", [
-      "az",
-      "aks",
-      "nodepool",
-      "add",
-      "-g", var.resource_group_name,
-      "--cluster-name", var.aks_cli_config.aks_name,
-      "--nodepool-name", each.value.name,
-      "--node-count", each.value.node_count,
-      "--node-vm-size", each.value.vm_size,
-      "--vm-set-type", each.value.vm_set_type,
-      "--node-osdisk-type", each.value.os_disk_type,
-      local.aks_custom_headers_flags,
-      length(each.value.optional_parameters) == 0 ?
-      "" :
-      join(" ", [
-        for param in each.value.optional_parameters :
-        format("--%s %s", param.name, param.value)
-      ]),
-    ])
+    interpreter = ["bash", "-c"]
+    command     = <<-EOT
+      set -eo pipefail
+      cmd=${jsonencode(local.extra_pool_commands[each.key])}
+      pool="${each.value.name}"
+      cluster="${var.aks_cli_config.aks_name}"
+      for i in $(seq 1 30); do
+        out=$(eval "$cmd" 2>&1) && { echo "$out"; exit 0; }
+        if echo "$out" | grep -qE "OperationNotAllowed|AnotherOperationInProgress"; then
+          echo "[retry $i/30] $cluster nodepool $pool create blocked by in-progress AKS RP operation; sleeping 30s"
+          sleep 30
+          continue
+        fi
+        # Some other failure (quota, invalid args, etc.) — fail fast.
+        echo "$out" >&2
+        exit 1
+      done
+      echo "Timeout: $cluster nodepool $pool create still blocked after 30 retries (~15m)" >&2
+      exit 1
+    EOT
   }
 }
 
