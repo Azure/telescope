@@ -115,6 +115,12 @@ stages:
   # (10x default-pool D4s_v5 + 10x prompool D8s_v3). 90 VNet peerings.
   - stage: azure_eastus2euap_n10
     dependsOn: []
+    # See dev pipeline (pipelines/system/new-pipeline-test.yml) for the
+    # full rationale on TF_CLI_ARGS_apply=-parallelism=4: at default
+    # parallelism=10 the regional AKS RP throttles severely on 10
+    # simultaneous `az aks create` calls.
+    variables:
+      TF_CLI_ARGS_apply: "-parallelism=4"
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:

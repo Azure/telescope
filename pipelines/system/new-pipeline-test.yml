@@ -111,6 +111,17 @@ stages:
   # (10x default-pool D4s_v5 + 10x prompool D8s_v3). 90 VNet peerings.
   - stage: azure_eastus2euap_n10
     dependsOn: []
+    # Lower terraform apply parallelism from default 10 to 4. At default,
+    # all 10 `az aks create` calls fire simultaneously and the regional AKS
+    # RP throttles severely — observed N=10 first run had every cluster
+    # stuck in `aks_cli: Still creating` for 190+ min (vs. 5-10 min normal).
+    # Parallelism=4 lets the RP process creates in batches: roughly
+    # 4-create wave (~10 min) then 4-create wave then 2-create wave →
+    # ~30 min total apply instead of 4hr+. CL2 fan-out parallelism
+    # (max_concurrent=4) is a SEPARATE knob and stays unchanged. Destroy
+    # is unaffected (uses TF_CLI_ARGS_apply, not TF_CLI_ARGS).
+    variables:
+      TF_CLI_ARGS_apply: "-parallelism=4"
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
