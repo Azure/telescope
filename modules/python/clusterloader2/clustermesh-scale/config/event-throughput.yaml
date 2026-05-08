@@ -29,6 +29,18 @@ name: clustermesh-event-throughput
 {{$warmupDuration := DefaultParam .CL2_WARMUP_DURATION "30s"}}
 {{$holdDuration := DefaultParam .CL2_HOLD_DURATION "2m"}}
 {{$restartGeneration := DefaultParam .CL2_RESTART_GENERATION 1}}
+{{$preWorkloadSettleDuration := DefaultParam .CL2_PRE_WORKLOAD_SETTLE_DURATION "90s"}}
+# CL2_PRE_WORKLOAD_SETTLE_DURATION: settle window between PodMonitor deploy
+# and workload create. Gives Prometheus time to discover the new scrape
+# target and capture at least one BASELINE sample of
+# cilium_kvstoremesh_kvstore_events_queue_seconds_count (per-scope counter
+# near zero) before the workload-create burst increments it. Without this,
+# Prometheus's first scrape lands AFTER the burst, the counter is already
+# at plateau, and rate()/increase() over a flat counter returns 0 for
+# per-scope queries — only the heartbeat-driven aggregate query works.
+# See modules/measurements/clustermesh-metrics.yaml for the full
+# root-cause analysis. 90s gives 3-6 prometheus scrape cycles
+# (15-30s scrape interval) of baseline.
 
 namespace:
   number: {{$namespaces}}
@@ -79,6 +91,18 @@ steps:
       params:
         actionName: create
         tuningSet: DeploymentCreateQps
+
+  # ----- Pre-workload settle: let Prometheus capture baseline samples -----
+  # Gives Prometheus 90s (3-6 scrape cycles) to discover the new PodMonitor
+  # target and scrape the kvstoremesh metrics at near-zero baseline BEFORE
+  # the workload create burst. Required for per-scope rate()/increase()
+  # queries to return non-zero values — see clustermesh-metrics.yaml comments.
+  - name: Pre-workload settle for prometheus baseline
+    measurements:
+      - Identifier: PreWorkloadSettle
+        Method: Sleep
+        Params:
+          duration: {{$preWorkloadSettleDuration}}
 
   # ----- Workload: create -----
   - module:

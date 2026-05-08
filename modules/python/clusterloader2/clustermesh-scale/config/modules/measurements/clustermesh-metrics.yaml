@@ -84,11 +84,21 @@ steps:
           query: sum(increase(cilium_kvstoremesh_kvstore_events_queue_seconds_count[%v]))
 
     # ---------------------------------------------------------------------
-    # Per-type cumulative event count (spec line 5: "How many cross-cluster
-    # events (endpoints, services, identities) can be processed per cluster
-    # and per mesh"). Reports the cumulative count of kvstore events
-    # observed by THIS cluster's kvstoremesh during the test, broken down
-    # by scope label.
+    # Per-type cross-cluster events (spec lines 5, 53, 131).
+    #
+    # Two units captured per scope, answering different spec questions:
+    #   - TotalCount (instant sum) — answers spec line 5: "How many events
+    #     can be processed". Always works because it's an instant query
+    #     on a fresh-cluster counter (starts at 0 → CurrentValue at gather
+    #     == total events observed during the test).
+    #   - Perc99/Perc50/TotalIncrease (rate-based) — answers spec lines 6
+    #     ("steady-state vs burst capacity") and 53 ("Events/sec processed").
+    #     Requires baseline Prometheus samples BEFORE the workload burst;
+    #     event-throughput.yaml inserts a 90s pre-workload settle step
+    #     after the PodMonitor deploy so Prometheus captures the baseline
+    #     and rate()/increase() can see non-zero deltas around the burst.
+    #     If the settle is removed, these queries return 0 (counter plateaus
+    #     before first scrape).
     #
     # Ground-truth scope values (verified via runtime probe on AKS-managed
     # Cilium):
@@ -99,31 +109,6 @@ steps:
     #   serviceexports/v1 — MCS-API ServiceExport (rare in our workload)
     #   cilium/.hear*, cilium/synce*, cilium/.init*, lease — meta scopes
     #     (heartbeat / synced canaries / init lock / leader election)
-    #
-    # Why instant `sum()` instead of `increase()` or `rate()`:
-    #   `cilium_kvstoremesh_kvstore_events_queue_seconds_count` is a
-    #   histogram count (counter). Most per-scope events fire during a
-    #   brief window: initial peer-sync at kvstoremesh startup, plus the
-    #   workload-create burst. By the time Prometheus's PodMonitor target
-    #   discovery + first scrape lands (~30-60s after PodMonitor deploy),
-    #   the counter is already at its post-burst plateau. From there it
-    #   stays flat for the rest of the test (no further per-scope churn).
-    #   `increase(metric[306s])` over a flat counter = 0. Verified
-    #   empirically by parallel diagnostic queries showing CurrentValue>0
-    #   while TotalIncrease=0 across all four per-scope metrics AND the
-    #   parallel cilium_kvstoremesh_kvstore_operations_duration_seconds_count
-    #   metric. The aggregate query works because the heartbeat scope
-    #   (`cilium/.hear*`) increments every ~5s, so increase() always sees
-    #   per-sample deltas.
-    #
-    #   Since each test run uses freshly-provisioned clusters, the counter
-    #   starts at ~0 at cluster bring-up. CurrentValue at gather time is
-    #   therefore equivalent to "total events observed during this test".
-    #
-    #   If a future scenario needs per-scope rate measurements, the fix is
-    #   to ensure Prometheus scrape starts BEFORE the workload (e.g. add a
-    #   60-90s settle step between PodMonitor deploy and workload create);
-    #   then increase() and rate() will work as intended.
     # ---------------------------------------------------------------------
     - Identifier: ClusterMeshKvstoreEventsTotalIdentities{{$suffix}}
       Method: GenericPrometheusQuery
@@ -136,6 +121,12 @@ steps:
         queries:
         - name: TotalCount
           query: sum(cilium_kvstoremesh_kvstore_events_queue_seconds_count{scope="identities/v1"})
+        - name: Perc99
+          query: quantile(0.99, max_over_time(sum(rate(cilium_kvstoremesh_kvstore_events_queue_seconds_count{scope="identities/v1"}[1m]))[%v:30s]))
+        - name: Perc50
+          query: quantile(0.50, avg_over_time(sum(rate(cilium_kvstoremesh_kvstore_events_queue_seconds_count{scope="identities/v1"}[1m]))[%v:30s]))
+        - name: TotalIncrease
+          query: sum(increase(cilium_kvstoremesh_kvstore_events_queue_seconds_count{scope="identities/v1"}[%v]))
     - Identifier: ClusterMeshKvstoreEventsTotalServices{{$suffix}}
       Method: GenericPrometheusQuery
       Params:
@@ -147,6 +138,12 @@ steps:
         queries:
         - name: TotalCount
           query: sum(cilium_kvstoremesh_kvstore_events_queue_seconds_count{scope="services/v1"})
+        - name: Perc99
+          query: quantile(0.99, max_over_time(sum(rate(cilium_kvstoremesh_kvstore_events_queue_seconds_count{scope="services/v1"}[1m]))[%v:30s]))
+        - name: Perc50
+          query: quantile(0.50, avg_over_time(sum(rate(cilium_kvstoremesh_kvstore_events_queue_seconds_count{scope="services/v1"}[1m]))[%v:30s]))
+        - name: TotalIncrease
+          query: sum(increase(cilium_kvstoremesh_kvstore_events_queue_seconds_count{scope="services/v1"}[%v]))
     - Identifier: ClusterMeshKvstoreEventsTotalEndpoints{{$suffix}}
       Method: GenericPrometheusQuery
       Params:
@@ -158,6 +155,12 @@ steps:
         queries:
         - name: TotalCount
           query: sum(cilium_kvstoremesh_kvstore_events_queue_seconds_count{scope="ip/v1"})
+        - name: Perc99
+          query: quantile(0.99, max_over_time(sum(rate(cilium_kvstoremesh_kvstore_events_queue_seconds_count{scope="ip/v1"}[1m]))[%v:30s]))
+        - name: Perc50
+          query: quantile(0.50, avg_over_time(sum(rate(cilium_kvstoremesh_kvstore_events_queue_seconds_count{scope="ip/v1"}[1m]))[%v:30s]))
+        - name: TotalIncrease
+          query: sum(increase(cilium_kvstoremesh_kvstore_events_queue_seconds_count{scope="ip/v1"}[%v]))
     - Identifier: ClusterMeshKvstoreEventsTotalNodes{{$suffix}}
       Method: GenericPrometheusQuery
       Params:
@@ -169,6 +172,12 @@ steps:
         queries:
         - name: TotalCount
           query: sum(cilium_kvstoremesh_kvstore_events_queue_seconds_count{scope="nodes/v1"})
+        - name: Perc99
+          query: quantile(0.99, max_over_time(sum(rate(cilium_kvstoremesh_kvstore_events_queue_seconds_count{scope="nodes/v1"}[1m]))[%v:30s]))
+        - name: Perc50
+          query: quantile(0.50, avg_over_time(sum(rate(cilium_kvstoremesh_kvstore_events_queue_seconds_count{scope="nodes/v1"}[1m]))[%v:30s]))
+        - name: TotalIncrease
+          query: sum(increase(cilium_kvstoremesh_kvstore_events_queue_seconds_count{scope="nodes/v1"}[%v]))
 
     # ---------------------------------------------------------------------
     # Cross-cluster propagation latency proxy: p99 of kvstore operation
