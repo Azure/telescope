@@ -1,19 +1,24 @@
 trigger: none
 
+parameters:
+  - name: region
+    type: string
+    default: eastus
+
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: k8s-cluster-crud-machine
 
 stages:
   # Phase A staging — revert in Phase C / Task 19
-  - stage: azure_eastus_small_machine_pool_staging
+  - stage: azure_${{ parameters.region }}_small_machine_pool_staging
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
-            - eastus
+            - ${{ parameters.region }}
           topology: k8s-cluster-crud-machine
           engine: machine
           matrix:
@@ -30,14 +35,14 @@ stages:
           ssh_key_enabled: false
 
   # Validates non-batch path under higher concurrency (50 parallel PUTs)
-  - stage: azure_eastus_medium_machine_pool_staging
+  - stage: azure_${{ parameters.region }}_medium_machine_pool_staging
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
-            - eastus
+            - ${{ parameters.region }}
           topology: k8s-cluster-crud-machine
           engine: machine
           matrix:
@@ -54,14 +59,14 @@ stages:
           ssh_key_enabled: false
 
   # Validates batch path (use_batch_api=true) with 4 chunks of 50 machines each
-  - stage: azure_eastus_large_machine_pool_staging
+  - stage: azure_${{ parameters.region }}_large_machine_pool_staging
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
-            - eastus
+            - ${{ parameters.region }}
           topology: k8s-cluster-crud-machine
           engine: machine
           matrix:
