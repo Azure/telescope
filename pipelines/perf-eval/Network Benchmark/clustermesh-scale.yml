@@ -109,3 +109,45 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
           skip_publish: true
+
+  # Phase 3 — 10-cluster tier. Per-cluster sizing identical to n2/n5;
+  # only mesh size scales. Quota footprint per run: ~120 vCPU
+  # (10x default-pool D4s_v5 + 10x prompool D8s_v3). 90 VNet peerings.
+  - stage: azure_eastus2euap_n10
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 15m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-10.tfvars"
+          matrix:
+            n10_event_throughput:
+              cluster_count: 10
+              mesh_size: 10
+              cl2_config_file: event-throughput.yaml
+              test_type: event-throughput
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 1
+              api_server_calls_per_second: 20
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          # 10-cluster provision adds ~10-15 min vs n5 (more terraform +
+          # fleet member creates + ARM throughput); CL2 fan-out itself
+          # stays bounded at concurrency 4 (10/4 batches sequentially).
+          timeout_in_minutes: 240
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: true
