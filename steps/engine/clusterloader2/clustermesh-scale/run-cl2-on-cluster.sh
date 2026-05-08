@@ -84,47 +84,6 @@ if [ "$cl2_passed" -eq 1 ]; then
   echo "  $role: CL2 run succeeded"
 fi
 
-# ============== KVSTOREMESH SCOPE LABEL PROBE (REMOVE WHEN PER-TYPE FIXED) ==
-# Per-type events rate (scope=identities/v1|services/v1|nodes/v1) reports 0
-# at all 3 clusters even though aggregate kvstore_events rate is non-zero
-# (~150-200 events/cluster on n5 runs). That means the actual `scope=` label
-# values emitted by this AKS-managed Cilium build differ from what the
-# upstream v1.18 source (`pkg/kvstore/metrics.go: GetScopeFromKey`) would
-# produce. This probe dumps the actual scope/action label values from the
-# live metric so we can update
-# config/modules/measurements/clustermesh-metrics.yaml accordingly.
-# Remove this block once the per-type queries return non-zero values.
-echo "------- $role: KVSTOREMESH SCOPE LABEL PROBE -------"
-prom_pod=$(KUBECONFIG="$kubeconfig" kubectl -n monitoring get pod \
-  -l app.kubernetes.io/name=prometheus -o jsonpath='{.items[0].metadata.name}' \
-  2>/dev/null || true)
-if [ -n "${prom_pod:-}" ]; then
-  for m in cilium_kvstoremesh_kvstore_events_queue_seconds_count cilium_kvstoremesh_kvstore_operations_duration_seconds_count; do
-    echo "--- $m: distinct (scope, action) label combos ---"
-    KUBECONFIG="$kubeconfig" kubectl -n monitoring exec "$prom_pod" -c prometheus -- \
-      wget -qO- "http://localhost:9090/api/v1/series?match%5B%5D=$m" 2>/dev/null \
-      | python3 -c '
-import json, sys
-d = json.load(sys.stdin)
-series = d.get("data", [])
-print(f"  total series: {len(series)}")
-# Unique label keys across all series
-keys = set()
-for s in series:
-    keys.update(s.keys())
-print(f"  label keys present: {sorted(keys)}")
-# Unique scope/action combos
-combos = set()
-for s in series:
-    combos.add((s.get("scope", "<missing>"), s.get("action", "<missing>")))
-for scope, action in sorted(combos):
-    print(f"  scope={scope!r:30s} action={action!r}")
-' || echo "  (probe failed)"
-  done
-fi
-echo "------- end KVSTOREMESH SCOPE LABEL PROBE -------"
-# ===================== END KVSTOREMESH SCOPE LABEL PROBE ======================
-
 # Always-on log capture (spec line 35: "Logs: clustermesh-apiserver,
 # agent watchers"). Files land in $report_dir/logs/ so they are
 # uploaded alongside junit.xml + measurement results when the
