@@ -385,7 +385,8 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         mock_args.node_pool_name = "test-nodepool"
         mock_args.replicas = 5
         mock_args.manifest_dir = "/path/to/manifests"
-        mock_args.number_of_deployments = 3
+        mock_args.count = 3
+        mock_args.label_selector = "app=nginx-container"
 
         # Configure mock to return success
         mock_azure_crud.create_deployment.return_value = True
@@ -399,7 +400,8 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
             node_pool_name="test-nodepool",
             replicas=5,
             manifest_dir="/path/to/manifests",
-            number_of_deployments=3
+            number_of_deployments=3,
+            label_selector="app=nginx-container"
         )
 
     @mock.patch("crud.main.AzureNodePoolCRUD")
@@ -411,7 +413,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         mock_args.node_pool_name = "test-nodepool"
         mock_args.replicas = 5
         mock_args.manifest_dir = "/path/to/manifests"
-        mock_args.number_of_deployments = 3
+        mock_args.count = 3
 
         # Configure mock to return failure
         mock_azure_crud.create_deployment.return_value = False
@@ -432,7 +434,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         mock_args.node_pool_name = "test-nodepool"
         mock_args.replicas = 5
         mock_args.manifest_dir = "/path/to/manifests"
-        mock_args.number_of_deployments = 3
+        mock_args.count = 3
 
         # Configure mock to raise exception
         mock_azure_crud.create_deployment.side_effect = ValueError("Test error")
@@ -462,7 +464,8 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         mock_args.node_pool_name = "test-nodepool"
         mock_args.replicas = 5
         mock_args.manifest_dir = "/path/to/manifests"
-        mock_args.number_of_deployments = 3  # Requesting 3 deployments
+        mock_args.count = 3  # Requesting 3 deployments
+        mock_args.label_selector = "app=nginx-container"
 
         # Configure mock to return False (partial success - some deployments
         # succeeded but not all, which is still considered a failure)
@@ -477,7 +480,8 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
             node_pool_name="test-nodepool",
             replicas=5,
             manifest_dir="/path/to/manifests",
-            number_of_deployments=3
+            number_of_deployments=3,
+            label_selector="app=nginx-container"
         )
         # Verify the error was logged for the failed operation
         mock_logger.error.assert_called_with("Operation 'deployment' failed")
@@ -496,7 +500,8 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         mock_args.node_pool_name = "test-nodepool"
         mock_args.replicas = 10
         mock_args.manifest_dir = "/path/to/manifests"
-        mock_args.number_of_deployments = 5  # Multiple deployments
+        mock_args.count = 5  # Multiple deployments
+        mock_args.label_selector = "app=nginx-container"
 
         # Configure mock to return True (all deployments succeeded)
         mock_azure_crud.create_deployment.return_value = True
@@ -510,7 +515,8 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
             node_pool_name="test-nodepool",
             replicas=10,
             manifest_dir="/path/to/manifests",
-            number_of_deployments=5
+            number_of_deployments=5,
+            label_selector="app=nginx-container"
         )
 
 

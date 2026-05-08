@@ -162,7 +162,8 @@ def handle_workload_operations(node_pool_crud, args):
                 "node_pool_name": args.node_pool_name,
                 "replicas": args.replicas,
                 "manifest_dir": args.manifest_dir,
-                "number_of_deployments": args.number_of_deployments
+                "number_of_deployments": args.count,
+                "label_selector": args.label_selector,
             }
 
             result = node_pool_crud.create_deployment(**deploy_kwargs)
@@ -351,30 +352,38 @@ def main():
     )
     all_parser.set_defaults(func=handle_node_pool_operation)
 
-    # Deployment command - add after the "all" command parser
-    deployment_parser = subparsers.add_parser(
-        "deployment", parents=[common_parser], help="create deployments"
-    )
-    deployment_parser.add_argument("--node-pool-name", required=True, help="Node pool name")
-    deployment_parser.add_argument(
-        "--number-of-deployments",
+    # Common arguments shared across all workload subcommands (deployment, statefulset, jobs)
+    workload_common_parser = argparse.ArgumentParser(add_help=False)
+    workload_common_parser.add_argument("--node-pool-name", required=True, help="Node pool name")
+    workload_common_parser.add_argument(
+        "--count",
         type=int,
         default=1,
-        help="Number of deployments"
+        help="Number of workloads to create"
     )
-    deployment_parser.add_argument(
+    workload_common_parser.add_argument(
         "--replicas",
         type=int,
         default=10,
-        help="Number of deployment replicas"
+        help="Number of replicas per workload"
     )
-    deployment_parser.add_argument(
+    workload_common_parser.add_argument(
         "--manifest-dir",
-        required=False,
         default=None,
-        help="Directory containing Kubernetes manifest files for the deployment"
+        help="Directory containing Kubernetes manifest files"
+    )
+    workload_common_parser.add_argument(
+        "--label-selector",
+        default="app=nginx-container",
+        help="Label selector for created pods (default: app=nginx-container)"
     )
 
+    # Deployment command
+    deployment_parser = subparsers.add_parser(
+        "deployment",
+        parents=[common_parser, workload_common_parser],
+        help="create deployments"
+    )
     deployment_parser.set_defaults(func=handle_workload_operations)
 
     # Arguments provided, run node pool operations and collect benchmark results

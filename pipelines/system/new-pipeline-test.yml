@@ -25,7 +25,7 @@ stages:
               STEP_TIME_OUT: 600
               GPU_NODE_POOL: ""
               STEP_WAIT_TIME: 30
-              NUMBER_OF_DEPLOYMENTS: 2
+              COUNT: 2
               REPLICAS: 2
               MANIFEST_DIR: ""
           max_parallel: 1
