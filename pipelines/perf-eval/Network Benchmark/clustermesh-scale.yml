@@ -165,7 +165,7 @@ stages:
   - stage: azure_eastus2euap_n20
     dependsOn: []
     variables:
-      TF_CLI_ARGS_apply: "-parallelism=4"
+      TF_CLI_ARGS_apply: "-parallelism=8"
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -195,7 +195,7 @@ stages:
               api_server_calls_per_second: 20
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
-          timeout_in_minutes: 360
+          timeout_in_minutes: 480
           credential_type: service_connection
           ssh_key_enabled: false
           skip_publish: true

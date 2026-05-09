@@ -112,8 +112,14 @@ steps:
         # "configured/connected" first because it counts apiserver clients,
         # while the in-pod view requires the Secret to be reloaded. We gate on
         # the in-pod view because the data path needs the agent's local state.
+        # Mesh convergence retry budget. At N=20 we observed mesh-2 +
+        # mesh-6 take ~24 min to reach 19/19 connected (initial-sync + Fleet
+        # member-secret reload at scale). Budget of 120 * 15s = 30 min
+        # accommodates that slowest-cluster tail. Smaller N (2/5/10) finish
+        # in <5 min and exit the loop early via the break, so no cost on
+        # green runs at small N.
         connected=0
-        for i in $(seq 1 60); do
+        for i in $(seq 1 120); do
           out=$(kubectl -n kube-system exec ds/cilium -- cilium-dbg status 2>&1 || true)
           echo "$out"
           # Parse "<ready>/<total> remote clusters ready" line.
@@ -172,8 +178,8 @@ steps:
           fi
           # =============== DEBUG-DUMP-END (REMOVE BEFORE MERGE) ===============
 
-          echo "  waiting for $expected_remote remote clusters to be ready (got $ready), retry $i/60..."
-          sleep 10
+          echo "  waiting for $expected_remote remote clusters to be ready (got $ready), retry $i/120..."
+          sleep 15
         done
 
         if [ "$connected" -ne 1 ]; then

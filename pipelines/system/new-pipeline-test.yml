@@ -175,14 +175,20 @@ stages:
   # 78k vCPU headroom): ~320 vCPU (20x D4s_v5 + 20x D8s_v3). 380 VNet
   # peering links (N*(N-1) at separate-VNet mode). 20 Fleet members.
   #
-  # Same TF_CLI_ARGS_apply=-parallelism=4 as n10 — at N=20 the AKS RP
-  # would be even more aggressively throttled at default parallelism=10.
-  # Expected wall-clock: 80-110 min (5 batches of 4-cluster create at
-  # ~10min each + 380 peerings + 20 sequential fleet member creates).
+  # TF_CLI_ARGS_apply tuning history at this tier:
+  #   - default parallelism=10 (aks-cli implicit): cluster-create RP throttle,
+  #     all 20 stuck "Still creating" for hours.
+  #   - parallelism=4 (first n20 attempt 2026-05-09): apply 219 min (3.65 hr).
+  #     Real bottleneck shifts from AKS RP to terraform graph traversal of
+  #     520+ resources (380 peerings + 20 fleet members + per-cluster waits).
+  #   - parallelism=8 (this run): split-the-difference. Cluster-creates still
+  #     batch (20/8 = ~3 batches), but graph traversal of peerings/members is
+  #     2x faster than parallelism=4. Risk: AKS RP could throttle harder than
+  #     parallelism=4. Fallback if this fails: drop back to parallelism=4.
   - stage: azure_eastus2euap_n20
     dependsOn: []
     variables:
-      TF_CLI_ARGS_apply: "-parallelism=4"
+      TF_CLI_ARGS_apply: "-parallelism=8"
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -212,10 +218,11 @@ stages:
               api_server_calls_per_second: 20
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
-          # n20 apply ~80-110 min + CL2 fan-out at concurrency=4 means
-          # 20/4 = 5 batches of ~6 min each = ~30 min CL2 step. Set the
-          # job timeout high enough to absorb retry attempts on apply.
-          timeout_in_minutes: 360
+          # First n20 attempt: apply 219m, validate 60m, destroy 84m before
+          # AzDO 6hr timeout cancelled. 8hr budget covers worst-case
+          # apply (4hr) + validate (30m) + CL2 (40m) + destroy (90m) +
+          # cleanup, plus terraform retries on apply failure.
+          timeout_in_minutes: 480
           credential_type: service_connection
           ssh_key_enabled: false
           skip_publish: true
