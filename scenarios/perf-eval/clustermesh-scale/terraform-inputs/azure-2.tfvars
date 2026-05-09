@@ -91,16 +91,26 @@ aks_cli_config_list = [
       { name = "max-pods", value = "110" },
     ]
 
-    # Default pool sizing: D4s_v5 (4 vCPU / 16GB) is enough for the workload
-    # pods alone. Prometheus is pinned to prompool below — without that
-    # split, Prometheus's 1Gi+ memory request co-tenanting on default-pool
-    # nodes caused per-node CPU overcommit (~160% allocatable) and left
-    # workload pods stuck Pending.
+    # Default pool sizing: 20 nodes × D4s_v3 (4 vCPU / 16GB).
+    #
+    # 20 nodes per cluster is the spec baseline (scale testing.txt line 24:
+    # "20-node clusters as the baseline unit"). Workload sits on this pool;
+    # Prometheus is pinned to prompool below to avoid the per-node CPU
+    # overcommit + Pending-pods we hit when Prometheus co-tenanted with the
+    # workload at smaller node counts.
+    #
+    # SKU choice — D4s_v3 instead of D4s_v5: same 4 vCPU / 16GB / Premium
+    # SSD; only difference is older Intel CPU generation. We use v3 because
+    # at 20 nodes/cluster × 20 clusters = 1,600 vCPU, the DSv5 family quota
+    # in eastus2euap (limit 1000) is too tight. DSv3 family limit is 5000
+    # vCPU (3,366 free at last check), comfortable for the full sweep.
+    # Performance for our workload (mostly idle pause pods + cilium-agent +
+    # CL2 measurement client) is not bound on CPU generation.
     default_node_pool = {
       name                 = "default"
-      node_count           = 2
+      node_count           = 20
       auto_scaling_enabled = false
-      vm_size              = "Standard_D4s_v5"
+      vm_size              = "Standard_D4s_v3"
     }
     # Dedicated Prometheus node, labeled `prometheus=true`. CL2 is
     # configured (in modules/python/clusterloader2/clustermesh-scale/scale.py
@@ -141,9 +151,9 @@ aks_cli_config_list = [
 
     default_node_pool = {
       name                 = "default"
-      node_count           = 2
+      node_count           = 20
       auto_scaling_enabled = false
-      vm_size              = "Standard_D4s_v5"
+      vm_size              = "Standard_D4s_v3"
     }
     extra_node_pool = [
       {

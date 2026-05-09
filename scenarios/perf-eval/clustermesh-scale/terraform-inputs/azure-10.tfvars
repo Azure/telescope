@@ -17,11 +17,12 @@ owner          = "aks"
 #   - 90 VNet peering links (N*(N-1) at separate-VNet mode)
 #   - 10 Fleet members (label mesh=true) + 1 clustermeshprofile
 #
-# Subscription footprint per run:
-#   - default pool: 10 clusters x 2 nodes x D4s_v5 (4 vCPU)  = 80 vCPU
-#   - prompool:     10 clusters x 1 node  x D8s_v3 (8 vCPU)  = 80 vCPU
-#   - total compute: 160 vCPU
-#   Verify region quota before first run.
+# Subscription footprint per run (20-node baseline per spec line 24):
+#   - default pool: 10 clusters x 20 nodes x D4s_v3 (4 vCPU) = 800 vCPU (DSv3 family)
+#   - prompool:     10 clusters x  1 node  x D8s_v3 (8 vCPU) = 80 vCPU (DSv3 family)
+#   - total DSv3 compute: 880 vCPU
+#   Verify region quota before first run (DSv3 limit is typically 5000 vCPU
+#   in eastus2euap; check `az vm list-usage --location eastus2euap`).
 # =============================================================================
 
 network_config_list = [
@@ -226,9 +227,9 @@ aks_cli_config_list = [
 
     default_node_pool = {
       name                 = "default"
-      node_count           = 2
+      node_count           = 20
       auto_scaling_enabled = false
-      vm_size              = "Standard_D4s_v5"
+      vm_size              = "Standard_D4s_v3"
     }
     extra_node_pool = [
       {
@@ -260,9 +261,9 @@ aks_cli_config_list = [
 
     default_node_pool = {
       name                 = "default"
-      node_count           = 2
+      node_count           = 20
       auto_scaling_enabled = false
-      vm_size              = "Standard_D4s_v5"
+      vm_size              = "Standard_D4s_v3"
     }
     extra_node_pool = [
       {
@@ -294,9 +295,9 @@ aks_cli_config_list = [
 
     default_node_pool = {
       name                 = "default"
-      node_count           = 2
+      node_count           = 20
       auto_scaling_enabled = false
-      vm_size              = "Standard_D4s_v5"
+      vm_size              = "Standard_D4s_v3"
     }
     extra_node_pool = [
       {
@@ -328,9 +329,9 @@ aks_cli_config_list = [
 
     default_node_pool = {
       name                 = "default"
-      node_count           = 2
+      node_count           = 20
       auto_scaling_enabled = false
-      vm_size              = "Standard_D4s_v5"
+      vm_size              = "Standard_D4s_v3"
     }
     extra_node_pool = [
       {
@@ -362,9 +363,9 @@ aks_cli_config_list = [
 
     default_node_pool = {
       name                 = "default"
-      node_count           = 2
+      node_count           = 20
       auto_scaling_enabled = false
-      vm_size              = "Standard_D4s_v5"
+      vm_size              = "Standard_D4s_v3"
     }
     extra_node_pool = [
       {
@@ -396,9 +397,9 @@ aks_cli_config_list = [
 
     default_node_pool = {
       name                 = "default"
-      node_count           = 2
+      node_count           = 20
       auto_scaling_enabled = false
-      vm_size              = "Standard_D4s_v5"
+      vm_size              = "Standard_D4s_v3"
     }
     extra_node_pool = [
       {
@@ -430,9 +431,9 @@ aks_cli_config_list = [
 
     default_node_pool = {
       name                 = "default"
-      node_count           = 2
+      node_count           = 20
       auto_scaling_enabled = false
-      vm_size              = "Standard_D4s_v5"
+      vm_size              = "Standard_D4s_v3"
     }
     extra_node_pool = [
       {
@@ -464,9 +465,9 @@ aks_cli_config_list = [
 
     default_node_pool = {
       name                 = "default"
-      node_count           = 2
+      node_count           = 20
       auto_scaling_enabled = false
-      vm_size              = "Standard_D4s_v5"
+      vm_size              = "Standard_D4s_v3"
     }
     extra_node_pool = [
       {
@@ -498,9 +499,9 @@ aks_cli_config_list = [
 
     default_node_pool = {
       name                 = "default"
-      node_count           = 2
+      node_count           = 20
       auto_scaling_enabled = false
-      vm_size              = "Standard_D4s_v5"
+      vm_size              = "Standard_D4s_v3"
     }
     extra_node_pool = [
       {
@@ -532,9 +533,9 @@ aks_cli_config_list = [
 
     default_node_pool = {
       name                 = "default"
-      node_count           = 2
+      node_count           = 20
       auto_scaling_enabled = false
-      vm_size              = "Standard_D4s_v5"
+      vm_size              = "Standard_D4s_v3"
     }
     extra_node_pool = [
       {

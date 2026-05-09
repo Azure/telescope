@@ -17,18 +17,12 @@ owner          = "aks"
 #   - 20 VNet peering links (N*(N-1) at separate-VNet mode)
 #   - 5 Fleet members (label mesh=true) + 1 clustermeshprofile
 #
-# Subscription footprint per run:
-#   - default pool: 5 clusters x 2 nodes x D4s_v5 (4 vCPU)  = 40 vCPU
-#   - prompool:     5 clusters x 1 node  x D8s_v3 (8 vCPU)  = 40 vCPU
-#   - total compute: 80 vCPU
-#   Verify region quota before first run.
-#
-# Phase 3 risk surfaces specifically validated at this tier:
-#   - Parallel CL2 fan-out at the max_concurrent=4 boundary (5th cluster queues)
-#   - VNet peering O(N^2): 20 links provisioned
-#   - Fleet member create at scale (5 sequential RP calls)
-#   - Network Contributor RBAC propagation across 5 SP-on-VNet assignments
-#   - ~/.azure MSAL token-cache race at concurrency 4 (per-cluster CL2 docker)
+# Subscription footprint per run (20-node baseline per spec line 24):
+#   - default pool: 5 clusters x 20 nodes x D4s_v3 (4 vCPU) = 400 vCPU (DSv3 family)
+#   - prompool:     5 clusters x  1 node  x D8s_v3 (8 vCPU) = 40 vCPU (DSv3 family)
+#   - total DSv3 compute: 440 vCPU
+#   Verify region quota before first run (DSv3 limit is typically 5000 vCPU
+#   in eastus2euap; check `az vm list-usage --location eastus2euap`).
 # =============================================================================
 
 network_config_list = [
@@ -143,9 +137,9 @@ aks_cli_config_list = [
 
     default_node_pool = {
       name                 = "default"
-      node_count           = 2
+      node_count           = 20
       auto_scaling_enabled = false
-      vm_size              = "Standard_D4s_v5"
+      vm_size              = "Standard_D4s_v3"
     }
     extra_node_pool = [
       {
@@ -177,9 +171,9 @@ aks_cli_config_list = [
 
     default_node_pool = {
       name                 = "default"
-      node_count           = 2
+      node_count           = 20
       auto_scaling_enabled = false
-      vm_size              = "Standard_D4s_v5"
+      vm_size              = "Standard_D4s_v3"
     }
     extra_node_pool = [
       {
@@ -211,9 +205,9 @@ aks_cli_config_list = [
 
     default_node_pool = {
       name                 = "default"
-      node_count           = 2
+      node_count           = 20
       auto_scaling_enabled = false
-      vm_size              = "Standard_D4s_v5"
+      vm_size              = "Standard_D4s_v3"
     }
     extra_node_pool = [
       {
@@ -245,9 +239,9 @@ aks_cli_config_list = [
 
     default_node_pool = {
       name                 = "default"
-      node_count           = 2
+      node_count           = 20
       auto_scaling_enabled = false
-      vm_size              = "Standard_D4s_v5"
+      vm_size              = "Standard_D4s_v3"
     }
     extra_node_pool = [
       {
@@ -279,9 +273,9 @@ aks_cli_config_list = [
 
     default_node_pool = {
       name                 = "default"
-      node_count           = 2
+      node_count           = 20
       auto_scaling_enabled = false
-      vm_size              = "Standard_D4s_v5"
+      vm_size              = "Standard_D4s_v3"
     }
     extra_node_pool = [
       {
