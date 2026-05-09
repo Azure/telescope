@@ -76,6 +76,10 @@ stages:
   # out either stage during iteration if the dual cost matters.
   - stage: azure_eastus2euap_n5
     dependsOn: []
+    # ITER-DISABLED 2026-05-08 (inline comments on `condition:` are unsafe —
+    # AzDO doesn't always strip them, leaving the truthy string
+    # "false # ..." as the expression. Keep the marker on its own line.)
+    condition: false
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
