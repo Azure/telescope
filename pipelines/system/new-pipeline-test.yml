@@ -16,8 +16,12 @@ variables:
   OWNER: aks
 
 stages:
+  # ITER-DISABLED 2026-05-08: skip n2 + n5 while iterating on n10 (RG quota
+  # pressure during repeated n10 attempts). Restore by deleting both
+  # `condition: false` lines (search for ITER-DISABLED) when n10 lands.
   - stage: azure_eastus2euap
     dependsOn: []
+    condition: false
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
