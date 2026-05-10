@@ -29,6 +29,14 @@ locals {
       "--vm-set-type", pool.vm_set_type,
       "--node-osdisk-type", pool.os_disk_type,
       local.aks_custom_headers_flags,
+      # If the default pool uses --pod-subnet-id (Azure CNI dynamic IP
+      # allocation), AKS requires ALL agent pools to set it (or none).
+      # Without this, `az aks nodepool add` on extra pools fails with
+      # `InvalidParameter: All or none of the agentpools should set
+      # podsubnet`. Reuse the same pod subnet as the default pool — extra
+      # pools (e.g. prompool) host non-workload pods so the per-pool pod
+      # IP separation isn't meaningful here.
+      local.pod_subnet_id_parameter,
       length(pool.optional_parameters) == 0 ?
       "" :
       join(" ", [
