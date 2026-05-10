@@ -496,58 +496,63 @@ class _FakePopen:
     to force temporal overlap (so concurrency tests can observe max_active),
     and decrements an active counter on wait so the parent observes correct
     in-flight counts.
+
+    Class attributes (lock, counters, instances) are intentionally public —
+    the class itself is "private" via the leading underscore, and tests
+    inspect this state directly to assert concurrency invariants.
     """
 
     # Class-level state mutated across instances by the test runner.
-    _lock = threading.Lock()
-    _active_now = 0
-    _max_active = 0
-    _instances = []  # list of FakePopen instances created
-    _wait_seconds = 0.05  # how long each fake CL2 "runs" in wait()
+    lock = threading.Lock()
+    active_now = 0
+    max_active = 0
+    instances = []  # list of FakePopen instances created
+    wait_seconds = 0.05  # how long each fake CL2 "runs" in wait()
     # Per-role configuration: role -> (stdout_lines, exit_code)
-    _role_config = {}
-    _default_exit = 0
-    _default_stdout = []
+    role_config = {}
+    default_exit = 0
+    default_stdout = []
 
     @classmethod
     def reset(cls, *, wait_seconds=0.05, role_config=None,
               default_stdout=None, default_exit=0):
-        cls._active_now = 0
-        cls._max_active = 0
-        cls._instances = []
-        cls._wait_seconds = wait_seconds
-        cls._role_config = role_config or {}
-        cls._default_stdout = default_stdout or []
-        cls._default_exit = default_exit
+        cls.active_now = 0
+        cls.max_active = 0
+        cls.instances = []
+        cls.wait_seconds = wait_seconds
+        cls.role_config = role_config or {}
+        cls.default_stdout = default_stdout or []
+        cls.default_exit = default_exit
 
     def __init__(self, args, **kwargs):
         # args is e.g. ["bash", worker_script, role, kubeconfig, ...]
         self.args = args
         self.kwargs = kwargs
         self.returncode = None
-        self._role = args[2] if len(args) >= 3 else None
-        lines, exit_code = self.__class__._role_config.get(
-            self._role, (self.__class__._default_stdout, self.__class__._default_exit)
+        self.role = args[2] if len(args) >= 3 else None
+        lines, exit_code = self.__class__.role_config.get(
+            self.role, (self.__class__.default_stdout, self.__class__.default_exit)
         )
         # Provide an iterator over the staged lines so `for line in proc.stdout`
         # in _run_one_cluster yields them once.
         self.stdout = iter(lines)
-        self._exit_code = exit_code
-        with self.__class__._lock:
-            self.__class__._instances.append(self)
-            self.__class__._active_now += 1
-            if self.__class__._active_now > self.__class__._max_active:
-                self.__class__._max_active = self.__class__._active_now
+        self.exit_code = exit_code
+        with self.__class__.lock:
+            self.__class__.instances.append(self)
+            self.__class__.active_now += 1
+            self.__class__.max_active = max(
+                self.__class__.max_active, self.__class__.active_now
+            )
 
     def wait(self, timeout=None):  # pylint: disable=unused-argument
         # Sleep so peer workers have a chance to enter wait() concurrently.
         # Without this overlap window, the test couldn't distinguish parallel
         # execution from sequential.
-        time.sleep(self.__class__._wait_seconds)
-        with self.__class__._lock:
-            self.__class__._active_now -= 1
-        self.returncode = self._exit_code
-        return self._exit_code
+        time.sleep(self.__class__.wait_seconds)
+        with self.__class__.lock:
+            self.__class__.active_now -= 1
+        self.returncode = self.exit_code
+        return self.exit_code
 
     def terminate(self):
         # No-op for tests — execute_parallel only terminates on signal,
@@ -607,14 +612,14 @@ class TestExecuteParallel(unittest.TestCase):
             with patch.object(clustermesh_scale_module.subprocess, "Popen", _FakePopen):
                 rc = self._call_execute_parallel(cf)
             self.assertEqual(rc, 0)
-            self.assertEqual(len(_FakePopen._instances), 3)
+            self.assertEqual(len(_FakePopen.instances), 3)
             # Each invocation passes role + kubeconfig in the bash worker arg
             # vector. args layout: ["bash", worker_script, role, kubeconfig,
             # report_dir, cl2_image, cl2_config_dir, cl2_config_file, provider,
             # python_script_file, python_workdir]
-            roles_seen = {p.args[2] for p in _FakePopen._instances}
+            roles_seen = {p.args[2] for p in _FakePopen.instances}
             self.assertEqual(roles_seen, {"mesh-1", "mesh-2", "mesh-3"})
-            for p in _FakePopen._instances:
+            for p in _FakePopen.instances:
                 role = p.args[2]
                 self.assertEqual(p.args[3], f"/home/.kube/{role}.config")
                 # report_dir is base/role
@@ -663,7 +668,7 @@ class TestExecuteParallel(unittest.TestCase):
                 rc = self._call_execute_parallel(cf)
             self.assertEqual(rc, 1)
             # All three workers ran — failure of one does NOT cancel the others.
-            self.assertEqual(len(_FakePopen._instances), 3)
+            self.assertEqual(len(_FakePopen.instances), 3)
         finally:
             os.remove(cf)
 
@@ -682,14 +687,14 @@ class TestExecuteParallel(unittest.TestCase):
             with patch.object(clustermesh_scale_module.subprocess, "Popen", _FakePopen):
                 rc = self._call_execute_parallel(cf, max_concurrent=3)
             self.assertEqual(rc, 0)
-            self.assertEqual(len(_FakePopen._instances), 8)
+            self.assertEqual(len(_FakePopen.instances), 8)
             # The bound is the contract: never more than 3 concurrent CL2
             # docker containers from this orchestrator at once.
-            self.assertLessEqual(_FakePopen._max_active, 3)
+            self.assertLessEqual(_FakePopen.max_active, 3)
             # Sanity: with 8 work items and 50ms each, we WILL see >1 in
             # flight — otherwise the test would pass trivially with a
             # single-threaded executor.
-            self.assertGreater(_FakePopen._max_active, 1)
+            self.assertGreater(_FakePopen.max_active, 1)
         finally:
             os.remove(cf)
 
@@ -772,7 +777,7 @@ class TestExecuteParallel(unittest.TestCase):
             with patch.object(clustermesh_scale_module.subprocess, "Popen", _FakePopen):
                 rc = self._call_execute_parallel(cf)
             self.assertEqual(rc, 0)
-            self.assertEqual(len(_FakePopen._instances), 2)
+            self.assertEqual(len(_FakePopen.instances), 2)
         finally:
             os.remove(cf)
 

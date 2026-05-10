@@ -145,7 +145,11 @@ def _run_one_cluster(role, worker_script, worker_args, env=None):
     if env:
         child_env.update(env)
     child_env.setdefault("PYTHONUNBUFFERED", "1")
-    proc = subprocess.Popen(
+    # Not using `with subprocess.Popen(...)` because the Popen handle is
+    # registered in _PARALLEL_LIVE_POPENS for the SIGINT/SIGTERM handler;
+    # `with` would close stdout at function exit and cancel signal-based
+    # termination semantics. The try/finally below handles cleanup.
+    proc = subprocess.Popen(  # pylint: disable=consider-using-with
         cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
