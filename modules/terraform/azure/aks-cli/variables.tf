@@ -73,10 +73,20 @@ variable "bootstrap_container_registry_resource_id" {
 
 variable "aks_cli_config" {
   type = object({
-    role                              = string
-    aks_name                          = string
-    sku_tier                          = string
-    subnet_name                       = optional(string, null)
+    role        = string
+    aks_name    = string
+    sku_tier    = string
+    subnet_name = optional(string, null)
+    # Pod subnet for Azure CNI dynamic IP allocation (--pod-subnet-id).
+    # When set, AKS pulls pod IPs from this subnet instead of co-tenanting
+    # them on the node subnet (legacy CNI). Required at scale since legacy
+    # mode pre-allocates `1 + max-pods` IPs per node on the node subnet —
+    # at 20 nodes × max-pods=110 that's 2,220 IPs, vastly exceeding a typical
+    # /24 node subnet. The aks-cli main.tf reads this via local.pod_subnet_id
+    # and emits --pod-subnet-id when non-null. Originally referenced in
+    # main.tf without being declared here — silently fell back to legacy
+    # CNI for ALL callers regardless of tfvars. Added 2026-05-09.
+    pod_subnet_name                   = optional(string, null)
     managed_identity_name             = optional(string, null)
     kubernetes_version                = optional(string, null)
     aks_custom_headers                = optional(list(string), [])
