@@ -26,6 +26,16 @@ steps:
       export MESH_SIZE="${MESH_SIZE:-$CLUSTERMESH_COUNT}"
       export TEST_TYPE="${TEST_TYPE:-default-config}"
       export TRIGGER_REASON="${TRIGGER_REASON:-$BUILD_REASON}"
+      # Phase 4a — pod-churn knobs recorded in each JSONL row so Kusto can
+      # filter/group on the exact stressor parameters. Non-churn matrix
+      # entries leave these unset → fall back to 0/"" defaults that
+      # scale.py collect treats as "not a churn run".
+      export CL2_CHURN_CYCLES="${CHURN_CYCLES:-0}"
+      export CL2_CHURN_UP_DURATION="${CHURN_UP_DURATION:-}"
+      export CL2_CHURN_DOWN_DURATION="${CHURN_DOWN_DURATION:-}"
+      export CL2_KILL_DURATION_SECONDS="${KILL_DURATION_SECONDS:-0}"
+      export CL2_KILL_INTERVAL_SECONDS="${KILL_INTERVAL_SECONDS:-0}"
+      export CL2_KILL_BATCH="${KILL_BATCH:-0}"
 
       clusters=$(cat "$HOME/.kube/clustermesh-clusters.json")
       cluster_count=$(echo "$clusters" | jq 'length')
@@ -77,6 +87,12 @@ steps:
           --namespaces "$CL2_NAMESPACES" \
           --deployments-per-namespace "$CL2_DEPLOYMENTS_PER_NAMESPACE" \
           --replicas-per-deployment "$CL2_REPLICAS_PER_DEPLOYMENT" \
+          --churn-cycles "$CL2_CHURN_CYCLES" \
+          --churn-up-duration "$CL2_CHURN_UP_DURATION" \
+          --churn-down-duration "$CL2_CHURN_DOWN_DURATION" \
+          --kill-duration-seconds "$CL2_KILL_DURATION_SECONDS" \
+          --kill-interval-seconds "$CL2_KILL_INTERVAL_SECONDS" \
+          --kill-batch "$CL2_KILL_BATCH" \
           --trigger_reason "${TRIGGER_REASON:-}" || collect_rc=$?
 
         if [ "$collect_rc" -ne 0 ]; then

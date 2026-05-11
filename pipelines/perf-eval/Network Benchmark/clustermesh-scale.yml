@@ -59,6 +59,50 @@ stages:
               restart_count: 1
               api_server_calls_per_second: 20
               trigger_reason: ${{ variables['Build.Reason'] }}
+            # Phase 4a — Scenario #2 (Pod Churn Stress).
+            # Each matrix entry runs the full provision → execute → destroy
+            # lifecycle independently (matrix entries do NOT share Fleet/RG);
+            # enable selectively in the AzDO UI to control per-run cost.
+            n2_pod_churn_scale:
+              cluster_count: 2
+              mesh_size: 2
+              cl2_config_file: pod-churn-scale.yaml
+              test_type: pod-churn-scale
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              # 5 cycles × (60s up + 60s down) ≈ 10 min sustained churn —
+              # spec line 67 "CPU/memory growth over time" measurement window.
+              churn_cycles: 5
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              trigger_reason: ${{ variables['Build.Reason'] }}
+            n2_pod_churn_kill:
+              cluster_count: 2
+              mesh_size: 2
+              cl2_config_file: pod-churn-kill.yaml
+              test_type: pod-churn-kill
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              # In-cluster killer Job loops for kill_duration_seconds, deleting
+              # kill_batch random workload pods every kill_interval_seconds.
+              # kill_job_deadline_seconds is the Job activeDeadlineSeconds —
+              # defense-in-depth bound; must exceed kill_duration_seconds.
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
@@ -100,6 +144,41 @@ stages:
               warmup_duration: 30s
               restart_count: 1
               api_server_calls_per_second: 20
+              trigger_reason: ${{ variables['Build.Reason'] }}
+            # Phase 4a — Scenario #2 (Pod Churn Stress).
+            n5_pod_churn_scale:
+              cluster_count: 5
+              mesh_size: 5
+              cl2_config_file: pod-churn-scale.yaml
+              test_type: pod-churn-scale
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              churn_cycles: 5
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              trigger_reason: ${{ variables['Build.Reason'] }}
+            n5_pod_churn_kill:
+              cluster_count: 5
+              mesh_size: 5
+              cl2_config_file: pod-churn-kill.yaml
+              test_type: pod-churn-kill
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           # 5-cluster provision adds ~10-15 min vs n2 (more terraform + fleet
@@ -149,6 +228,41 @@ stages:
               restart_count: 1
               api_server_calls_per_second: 20
               trigger_reason: ${{ variables['Build.Reason'] }}
+            # Phase 4a — Scenario #2 (Pod Churn Stress).
+            n10_pod_churn_scale:
+              cluster_count: 10
+              mesh_size: 10
+              cl2_config_file: pod-churn-scale.yaml
+              test_type: pod-churn-scale
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              churn_cycles: 5
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              trigger_reason: ${{ variables['Build.Reason'] }}
+            n10_pod_churn_kill:
+              cluster_count: 10
+              mesh_size: 10
+              cl2_config_file: pod-churn-kill.yaml
+              test_type: pod-churn-kill
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           # 10-cluster provision adds ~10-15 min vs n5 (more terraform +
           # fleet member creates + ARM throughput); CL2 fan-out itself
@@ -193,6 +307,42 @@ stages:
               warmup_duration: 30s
               restart_count: 1
               api_server_calls_per_second: 20
+              trigger_reason: ${{ variables['Build.Reason'] }}
+            # Phase 4a — Scenario #2 (Pod Churn Stress). Each entry is a
+            # separate full lifecycle (~6h at n20). Enable selectively.
+            n20_pod_churn_scale:
+              cluster_count: 20
+              mesh_size: 20
+              cl2_config_file: pod-churn-scale.yaml
+              test_type: pod-churn-scale
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              churn_cycles: 5
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              trigger_reason: ${{ variables['Build.Reason'] }}
+            n20_pod_churn_kill:
+              cluster_count: 20
+              mesh_size: 20
+              cl2_config_file: pod-churn-kill.yaml
+              test_type: pod-churn-kill
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           timeout_in_minutes: 480
