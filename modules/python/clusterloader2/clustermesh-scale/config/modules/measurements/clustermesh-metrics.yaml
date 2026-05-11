@@ -38,6 +38,17 @@ steps:
     # Mesh failure counter: cumulative remote-cluster connection failures.
     # Healthy runs should keep this at 0; we track the max increase observed
     # over the run to surface flapping links during scale-up.
+    #
+    # Observed N=20 baseline (run 66826-8f280609): MaxIncrease = 4–6 on
+    # EVERY cluster — even green runs. Hypothesis is Fleet pushing peer
+    # config updates mid-run briefly bounces connections. To distinguish
+    # "5 failures spread across 5 peers" from "5 failures all against ONE
+    # bad peer", PerPeerMaxIncrease below preserves the target_cluster
+    # label and reports the max-failure peer per focal cluster. If the two
+    # numbers match, failures are concentrated on a single peer (real
+    # peering issue); if PerPeerMaxIncrease ≈ 1 with MaxIncrease ≈ 5,
+    # failures are uniformly distributed (Fleet churn, not peering bug).
+    # See todo remote-cluster-failures-investigation.
     # ---------------------------------------------------------------------
     - Identifier: ClusterMeshRemoteClusterFailures{{$suffix}}
       Method: GenericPrometheusQuery
@@ -50,6 +61,16 @@ steps:
         queries:
         - name: MaxIncrease
           query: max(max_over_time(cilium_clustermesh_remote_cluster_failures[%v:])) - min(min_over_time(cilium_clustermesh_remote_cluster_failures[%v:]))
+        # Max failures observed against any single peer cluster. Reported
+        # per scrape series (preserving target_cluster label inside the
+        # subquery), then we take the worst peer with quantile(0.99,...).
+        - name: PerPeerMaxIncrease
+          query: quantile(0.99, max_over_time(cilium_clustermesh_remote_cluster_failures[%v:]) - min_over_time(cilium_clustermesh_remote_cluster_failures[%v:]))
+        # Median peer's failure count — if this is also ≈ MaxIncrease, every
+        # peer is failing roughly equally; if it's near 0, failures are
+        # heavily concentrated on a few outlier peers.
+        - name: PerPeerMedianIncrease
+          query: quantile(0.50, max_over_time(cilium_clustermesh_remote_cluster_failures[%v:]) - min_over_time(cilium_clustermesh_remote_cluster_failures[%v:]))
 
     # ---------------------------------------------------------------------
     # Cross-cluster event throughput — the headline metric for scale scenario

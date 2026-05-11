@@ -54,6 +54,51 @@ steps:
             query: quantile(0.90, max_over_time(rate(process_cpu_seconds_total{endpoint="apiserver"}[1m])[%v:]))
           - name: Perc50
             query: quantile(0.50, max_over_time(rate(process_cpu_seconds_total{endpoint="apiserver"}[1m])[%v:]))
+      # ---------------------------------------------------------------------
+      # Per-pod normalized apiserver CPU. The two ApiserverAvg/MaxCPUUsage
+      # measurements above use the team-wide shared PromQL pattern (copied
+      # across large_cluster / network-scale / slo / network-load) which
+      # implicitly aggregates across whatever series match
+      # `endpoint="apiserver"` — so the resulting "cores" value is actually
+      # a Prometheus rate aggregate, not literal cores per pod.
+      #
+      # This duplicate measurement adds explicit `sum by(pod)` grouping so
+      # we get a per-pod value (i.e. genuine cores) AND `quantile(0.99)`
+      # then picks the most-loaded pod. If the underlying scrape doesn't
+      # carry a `pod` label, sum-by collapses to one series and the
+      # measurement still yields a usable cross-cluster number.
+      #
+      # Kept SEPARATE from the shared-pattern measurements so dashboards
+      # comparing across scenarios still see the same column names from
+      # the originals; we just gain an honest per-pod column on top.
+      # See todo apiserver-cpu-promql-fix.
+      # ---------------------------------------------------------------------
+      - Identifier: ApiserverAvgCPUPerPod{{$suffix}}
+        Method: GenericPrometheusQuery
+        Params:
+          action: {{$action}}
+          metricName: Apiserver Avg CPU Per Pod {{$suffix}}
+          metricVersion: v1
+          unit: cores
+          enableViolations: false
+          queries:
+          - name: Perc99
+            query: quantile(0.99, sum by(pod) (avg_over_time(rate(process_cpu_seconds_total{endpoint="apiserver"}[1m])[%v:])))
+          - name: Perc50
+            query: quantile(0.50, sum by(pod) (avg_over_time(rate(process_cpu_seconds_total{endpoint="apiserver"}[1m])[%v:])))
+      - Identifier: ApiserverMaxCPUPerPod{{$suffix}}
+        Method: GenericPrometheusQuery
+        Params:
+          action: {{$action}}
+          metricName: Apiserver Max CPU Per Pod {{$suffix}}
+          metricVersion: v1
+          unit: cores
+          enableViolations: false
+          queries:
+          - name: Perc99
+            query: quantile(0.99, sum by(pod) (max_over_time(rate(process_cpu_seconds_total{endpoint="apiserver"}[1m])[%v:])))
+          - name: Perc50
+            query: quantile(0.50, sum by(pod) (max_over_time(rate(process_cpu_seconds_total{endpoint="apiserver"}[1m])[%v:])))
       - Identifier: ApiserverAvgMemUsage{{$suffix}}
         Method: GenericPrometheusQuery
         Params:
