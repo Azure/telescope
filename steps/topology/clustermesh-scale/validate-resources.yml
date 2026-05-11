@@ -44,6 +44,90 @@ steps:
       echo "##vso[task.setvariable variable=CLUSTERMESH_COUNT]$count"
     displayName: "Enumerate clustermesh clusters"
 
+  # ----------------------------------------------------------------------------
+  # Pre-gate: wait for every cluster's clustermesh-apiserver Deployment to be
+  # Available AND its Service to have an external LoadBalancer IP, in parallel.
+  #
+  # Why this step exists
+  # --------------------
+  # Fleet's ClusterMeshProfile reconciler only pushes a peer's kubeconfig into
+  # other clusters' apiserver configs once that peer's LB has an external IP.
+  # If we start the per-cluster peering loop below before every cluster's LB
+  # is up, the X/Y readout in `cilium-dbg status` stalls at "Y < N-1" — Fleet
+  # has only pushed the kubeconfigs for the subset of peers that ARE LB-ready,
+  # and bumping the retry budget in the loop doesn't help because the missing
+  # peer kubeconfigs will never arrive while their LBs are still pending.
+  #
+  # Empirically at N=20, ~25% of clustermesh-apiserver LBs are still pending
+  # IP assignment when terraform apply returns success, because Azure LB
+  # provisioning happens asynchronously after Service creation. Per-cluster
+  # budget is 30 min — longer than any LB tail we've observed.
+  # ----------------------------------------------------------------------------
+  - script: |
+      set -euo pipefail
+      set -x
+
+      clusters=$(cat "$HOME/.kube/clustermesh-clusters.json")
+      cluster_count=$(echo "$clusters" | jq 'length')
+
+      # Sequential kubeconfig fetch — parallel `az aks get-credentials`
+      # writes race on the shared ~/.azure MSAL token cache (same reason
+      # execute.yml pre-fetches kubeconfigs sequentially).
+      for row in $(echo "$clusters" | jq -c '.[]'); do
+        name=$(echo "$row" | jq -r '.name')
+        rg=$(echo   "$row" | jq -r '.rg')
+        role=$(echo "$row" | jq -r '.role')
+        kc="$HOME/.kube/$role.config"
+        KUBECONFIG="$kc" az aks get-credentials \
+          --resource-group "$rg" --name "$name" --overwrite-existing --only-show-errors
+      done
+
+      # Parallel poll for clustermesh-apiserver readiness on every cluster.
+      # Each subshell gets a 30-min budget; we collect failures rather than
+      # fail-fast on the first one so the operator sees the full set of
+      # slow LBs in one shot instead of one cluster at a time.
+      pids=()
+      roles=()
+      for row in $(echo "$clusters" | jq -c '.[]'); do
+        role=$(echo "$row" | jq -r '.role')
+        (
+          kc="$HOME/.kube/$role.config"
+          deadline=$(( $(date +%s) + 1800 ))
+          last_state=""
+          while [ "$(date +%s)" -lt "$deadline" ]; do
+            avail=$(KUBECONFIG="$kc" kubectl -n kube-system get deployment clustermesh-apiserver \
+                -o jsonpath='{.status.conditions[?(@.type=="Available")].status}' 2>/dev/null || true)
+            ip=$(KUBECONFIG="$kc" kubectl -n kube-system get svc clustermesh-apiserver \
+                -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
+            if [ "$avail" = "True" ] && [ -n "$ip" ]; then
+              echo "[$role] OK (deployment=Available, LB IP=$ip)"
+              exit 0
+            fi
+            last_state="deployment=${avail:-<none>}, LB=${ip:-<none>}"
+            sleep 15
+          done
+          echo "[$role] FAIL: clustermesh-apiserver not ready within 30 min ($last_state)" >&2
+          exit 1
+        ) &
+        pids+=("$!")
+        roles+=("$role")
+      done
+
+      failed=0
+      for i in "${!pids[@]}"; do
+        if ! wait "${pids[$i]}"; then
+          echo "##vso[task.logissue type=error;] ${roles[$i]}: clustermesh-apiserver not ready within 30 min"
+          failed=$((failed + 1))
+        fi
+      done
+
+      if [ "$failed" -gt 0 ]; then
+        echo "##vso[task.logissue type=error;] $failed of $cluster_count clustermesh-apiserver(s) not ready; peering will not converge"
+        exit 1
+      fi
+      echo "All $cluster_count clustermesh-apiserver Deployments+LBs ready; Fleet can now push peer configs"
+    displayName: "Wait for clustermesh-apiserver Deployments + LBs (parallel)"
+
   - script: |
       set -euo pipefail
       set -x
