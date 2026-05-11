@@ -40,6 +40,14 @@ def configure_clusterloader2(
     replicas_per_deployment,
     operation_timeout,
     override_file,
+    churn_cycles=5,
+    churn_up_duration="60s",
+    churn_down_duration="60s",
+    kill_duration="10m",
+    kill_interval_seconds=10,
+    kill_batch=5,
+    kill_duration_seconds=600,
+    kill_job_deadline_seconds=660,
 ):
     with open(override_file, "w", encoding="utf-8") as f:
         # Prometheus stack — keep the Cilium-scrape flags ON so the
@@ -73,6 +81,23 @@ def configure_clusterloader2(
         f.write(f"CL2_DEPLOYMENTS_PER_NAMESPACE: {deployments_per_namespace}\n")
         f.write(f"CL2_REPLICAS_PER_DEPLOYMENT: {replicas_per_deployment}\n")
         f.write(f"CL2_OPERATION_TIMEOUT: {operation_timeout}\n")
+
+        # Phase 4a — Scenario #2 (Pod Churn Stress) knobs.
+        # Written unconditionally with defaults so an event-throughput run
+        # (which doesn't reference these CL2_* params in its template)
+        # silently ignores them. CL2 does not fail on unknown overrides
+        # keys, so the cost is a few lines of YAML noise per non-churn run.
+        # The alternative — splitting configure into per-scenario
+        # subcommands — would proliferate harness surface area; see
+        # plan.md Phase 4a notes.
+        f.write(f"CL2_CHURN_CYCLES: {churn_cycles}\n")
+        f.write(f"CL2_CHURN_UP_DURATION: {churn_up_duration}\n")
+        f.write(f"CL2_CHURN_DOWN_DURATION: {churn_down_duration}\n")
+        f.write(f"CL2_KILL_DURATION: {kill_duration}\n")
+        f.write(f"CL2_KILL_INTERVAL_SECONDS: {kill_interval_seconds}\n")
+        f.write(f"CL2_KILL_BATCH: {kill_batch}\n")
+        f.write(f"CL2_KILL_DURATION_SECONDS: {kill_duration_seconds}\n")
+        f.write(f"CL2_KILL_JOB_DEADLINE_SECONDS: {kill_job_deadline_seconds}\n")
 
     with open(override_file, "r", encoding="utf-8") as f:
         print(f"Content of file {override_file}:\n{f.read()}")
@@ -341,6 +366,12 @@ def collect_clusterloader2(
     deployments_per_namespace,
     replicas_per_deployment,
     trigger_reason="",
+    churn_cycles=0,
+    churn_up_duration="",
+    churn_down_duration="",
+    kill_duration_seconds=0,
+    kill_interval_seconds=0,
+    kill_batch=0,
 ):
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent=2)
     json_data = json.loads(details)
@@ -374,6 +405,17 @@ def collect_clusterloader2(
             "deployments_per_namespace": deployments_per_namespace,
             "replicas_per_deployment": replicas_per_deployment,
             "pods_per_cluster": namespaces * deployments_per_namespace * replicas_per_deployment,
+            # Phase 4a — pod-churn knobs. Defaults are 0/"" for non-churn
+            # test_types so existing Kusto queries that don't reference
+            # these fields stay valid. For pod-churn runs these record the
+            # exact stressor parameters so historical comparisons survive
+            # default changes.
+            "churn_cycles": churn_cycles,
+            "churn_up_duration": churn_up_duration,
+            "churn_down_duration": churn_down_duration,
+            "kill_duration_seconds": kill_duration_seconds,
+            "kill_interval_seconds": kill_interval_seconds,
+            "kill_batch": kill_batch,
             "details": (
                 testsuites[0]["testcases"][0].get("failure", None)
                 if testsuites[0].get("testcases")
@@ -392,6 +434,10 @@ def collect_clusterloader2(
         "namespaces": namespaces,
         "deployments_per_namespace": deployments_per_namespace,
         "replicas_per_deployment": replicas_per_deployment,
+        "churn_cycles": churn_cycles,
+        "kill_duration_seconds": kill_duration_seconds,
+        "kill_interval_seconds": kill_interval_seconds,
+        "kill_batch": kill_batch,
     }
     # Shared process_cl2_reports() does an unconditional open() on every
     # entry of cl2_report_dir, which raises IsADirectoryError on any subdir.
@@ -441,6 +487,28 @@ def main():
     pc.add_argument("--operation-timeout", type=str, default="15m")
     pc.add_argument("--cl2_override_file", type=str, required=True,
                     help="Path to the overrides of CL2 config file")
+    # Phase 4a — Scenario #2 (Pod Churn Stress) knobs. Defaults match the
+    # pipeline matrix defaults so a configure invocation that doesn't pass
+    # these still writes valid overrides for both pod-churn-scale.yaml and
+    # pod-churn-kill.yaml.
+    pc.add_argument("--churn-cycles", type=int, default=5,
+                    help="Number of scale-up/down cycles (pod-churn-scale).")
+    pc.add_argument("--churn-up-duration", type=str, default="60s",
+                    help="Sleep between scale-up and next scale-down (pod-churn-scale).")
+    pc.add_argument("--churn-down-duration", type=str, default="60s",
+                    help="Sleep between scale-down and next scale-up (pod-churn-scale).")
+    pc.add_argument("--kill-duration", type=str, default="10m",
+                    help="Total kill-loop duration as a human string (logged only). "
+                         "The runtime is bounded by --kill-duration-seconds.")
+    pc.add_argument("--kill-interval-seconds", type=int, default=10,
+                    help="Seconds between successive kill rounds (pod-churn-kill).")
+    pc.add_argument("--kill-batch", type=int, default=5,
+                    help="Pods deleted per round (pod-churn-kill).")
+    pc.add_argument("--kill-duration-seconds", type=int, default=600,
+                    help="Killer Job script runtime in seconds (pod-churn-kill).")
+    pc.add_argument("--kill-job-deadline-seconds", type=int, default=660,
+                    help="Killer Job activeDeadlineSeconds — defense-in-depth bound, "
+                         "should be kill_duration_seconds plus a small buffer.")
 
     # execute
     pe = subparsers.add_parser("execute", help="Run CL2 against a single cluster")
@@ -496,6 +564,15 @@ def main():
     pco.add_argument("--deployments-per-namespace", type=int, required=True)
     pco.add_argument("--replicas-per-deployment", type=int, required=True)
     pco.add_argument("--trigger_reason", type=str, default="")
+    # Phase 4a — pod-churn knobs recorded into the JSONL for historical
+    # comparison. Optional; default to 0/"" so non-churn test_types
+    # (event-throughput, default-config) don't need to set them.
+    pco.add_argument("--churn-cycles", type=int, default=0)
+    pco.add_argument("--churn-up-duration", type=str, default="")
+    pco.add_argument("--churn-down-duration", type=str, default="")
+    pco.add_argument("--kill-duration-seconds", type=int, default=0)
+    pco.add_argument("--kill-interval-seconds", type=int, default=0)
+    pco.add_argument("--kill-batch", type=int, default=0)
 
     args = parser.parse_args()
 
@@ -506,6 +583,14 @@ def main():
             args.replicas_per_deployment,
             args.operation_timeout,
             args.cl2_override_file,
+            churn_cycles=args.churn_cycles,
+            churn_up_duration=args.churn_up_duration,
+            churn_down_duration=args.churn_down_duration,
+            kill_duration=args.kill_duration,
+            kill_interval_seconds=args.kill_interval_seconds,
+            kill_batch=args.kill_batch,
+            kill_duration_seconds=args.kill_duration_seconds,
+            kill_job_deadline_seconds=args.kill_job_deadline_seconds,
         )
     elif args.command == "execute":
         execute_clusterloader2(
@@ -546,6 +631,12 @@ def main():
             args.deployments_per_namespace,
             args.replicas_per_deployment,
             args.trigger_reason,
+            churn_cycles=args.churn_cycles,
+            churn_up_duration=args.churn_up_duration,
+            churn_down_duration=args.churn_down_duration,
+            kill_duration_seconds=args.kill_duration_seconds,
+            kill_interval_seconds=args.kill_interval_seconds,
+            kill_batch=args.kill_batch,
         )
     else:
         parser.print_help()

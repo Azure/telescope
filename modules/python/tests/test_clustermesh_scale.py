@@ -181,6 +181,78 @@ class TestConfigureClustermeshScale(unittest.TestCase):
         finally:
             os.remove(tmp_path)
 
+    def test_overrides_file_emits_phase4a_pod_churn_defaults(self):
+        """Every CL2_* knob the pod-churn-{scale,kill}.yaml templates read must
+        be emitted by configure_clusterloader2, even when not passed explicitly —
+        so an event-throughput run that omits the churn args still produces
+        a valid overrides file that pod-churn templates would accept.
+
+        Defaults must match the documented Phase 4a defaults in plan.md.
+        """
+        with tempfile.NamedTemporaryFile(
+            delete=False, mode="w+", encoding="utf-8"
+        ) as tmp:
+            tmp_path = tmp.name
+        try:
+            configure_clusterloader2(
+                namespaces=1,
+                deployments_per_namespace=1,
+                replicas_per_deployment=1,
+                operation_timeout="15m",
+                override_file=tmp_path,
+            )
+            with open(tmp_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            # pod-churn-scale knobs.
+            self.assertIn("CL2_CHURN_CYCLES: 5", content)
+            self.assertIn("CL2_CHURN_UP_DURATION: 60s", content)
+            self.assertIn("CL2_CHURN_DOWN_DURATION: 60s", content)
+            # pod-churn-kill knobs.
+            self.assertIn("CL2_KILL_DURATION: 10m", content)
+            self.assertIn("CL2_KILL_INTERVAL_SECONDS: 10", content)
+            self.assertIn("CL2_KILL_BATCH: 5", content)
+            self.assertIn("CL2_KILL_DURATION_SECONDS: 600", content)
+            # Job deadline must exceed kill_duration so the activeDeadlineSeconds
+            # safety net never fires before the killer's own time check.
+            self.assertIn("CL2_KILL_JOB_DEADLINE_SECONDS: 660", content)
+        finally:
+            os.remove(tmp_path)
+
+    def test_overrides_file_pod_churn_overrides_passthrough(self):
+        """Explicit churn args override the defaults in the overrides file."""
+        with tempfile.NamedTemporaryFile(
+            delete=False, mode="w+", encoding="utf-8"
+        ) as tmp:
+            tmp_path = tmp.name
+        try:
+            configure_clusterloader2(
+                namespaces=5,
+                deployments_per_namespace=4,
+                replicas_per_deployment=10,
+                operation_timeout="20m",
+                override_file=tmp_path,
+                churn_cycles=3,
+                churn_up_duration="30s",
+                churn_down_duration="45s",
+                kill_duration="5m",
+                kill_interval_seconds=15,
+                kill_batch=3,
+                kill_duration_seconds=300,
+                kill_job_deadline_seconds=360,
+            )
+            with open(tmp_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            self.assertIn("CL2_CHURN_CYCLES: 3", content)
+            self.assertIn("CL2_CHURN_UP_DURATION: 30s", content)
+            self.assertIn("CL2_CHURN_DOWN_DURATION: 45s", content)
+            self.assertIn("CL2_KILL_DURATION: 5m", content)
+            self.assertIn("CL2_KILL_INTERVAL_SECONDS: 15", content)
+            self.assertIn("CL2_KILL_BATCH: 3", content)
+            self.assertIn("CL2_KILL_DURATION_SECONDS: 300", content)
+            self.assertIn("CL2_KILL_JOB_DEADLINE_SECONDS: 360", content)
+        finally:
+            os.remove(tmp_path)
+
 
 class TestCollectSingleCluster(unittest.TestCase):
     """collect_clusterloader2 emits one JSONL row per call, tagged with cluster identity."""
@@ -288,6 +360,76 @@ class TestCollectSingleCluster(unittest.TestCase):
             with open(result_file, "r", encoding="utf-8") as f:
                 row = json.loads(f.read().strip().split("\n")[0])
             self.assertEqual(row["test_type"], "event-throughput")
+        finally:
+            if os.path.exists(result_file):
+                os.remove(result_file)
+
+    def test_collect_records_pod_churn_knobs(self):
+        """Phase 4a — pod-churn scenarios record churn knobs on every row.
+
+        Spec line 67 ("CPU/memory growth over time") requires historical
+        comparison across runs with potentially-different churn parameters.
+        Recording the knobs on the row means a future query for
+        ``churn_cycles==5 AND kill_batch==5`` returns only directly-comparable
+        rows. Non-churn test_types default to 0/"" — Kusto-friendly nulls.
+        """
+        result_file = tempfile.mktemp(suffix=".jsonl")
+        try:
+            collect_clusterloader2(
+                cl2_report_dir=os.path.join(MOCK_REPORT_ROOT, "mesh-1"),
+                cloud_info=json.dumps({"cloud": "azure", "region": "eastus2"}),
+                run_id="test-run-churn",
+                run_url="http://example.com/runchurn",
+                result_file=result_file,
+                test_type="pod-churn-scale",
+                start_timestamp="2026-04-28T15:00:00Z",
+                cluster_name="mesh-1",
+                cluster_count=2,
+                mesh_size=2,
+                namespaces=5,
+                deployments_per_namespace=4,
+                replicas_per_deployment=10,
+                trigger_reason="Manual",
+                churn_cycles=5,
+                churn_up_duration="60s",
+                churn_down_duration="60s",
+                kill_duration_seconds=600,
+                kill_interval_seconds=10,
+                kill_batch=5,
+            )
+            with open(result_file, "r", encoding="utf-8") as f:
+                row = json.loads(f.read().strip().split("\n")[0])
+            # Top-level fields — Kusto column convenience.
+            self.assertEqual(row["churn_cycles"], 5)
+            self.assertEqual(row["kill_duration_seconds"], 600)
+            self.assertEqual(row["kill_interval_seconds"], 10)
+            self.assertEqual(row["kill_batch"], 5)
+            # Nested in test_details for richer queries.
+            details = row["test_details"]
+            self.assertEqual(details["churn_cycles"], 5)
+            self.assertEqual(details["churn_up_duration"], "60s")
+            self.assertEqual(details["churn_down_duration"], "60s")
+            self.assertEqual(details["kill_duration_seconds"], 600)
+            self.assertEqual(details["kill_interval_seconds"], 10)
+            self.assertEqual(details["kill_batch"], 5)
+        finally:
+            if os.path.exists(result_file):
+                os.remove(result_file)
+
+    def test_collect_pod_churn_knobs_default_to_zero_for_non_churn_runs(self):
+        """Non-churn collect calls omit the churn knobs; defaults must be 0/""
+        so the JSONL row is still schema-stable for Kusto (no missing fields).
+        """
+        result_file = self._collect(cluster_name="mesh-1", test_type="event-throughput")
+        try:
+            with open(result_file, "r", encoding="utf-8") as f:
+                row = json.loads(f.read().strip().split("\n")[0])
+            self.assertEqual(row["churn_cycles"], 0)
+            self.assertEqual(row["kill_duration_seconds"], 0)
+            self.assertEqual(row["kill_interval_seconds"], 0)
+            self.assertEqual(row["kill_batch"], 0)
+            self.assertEqual(row["test_details"]["churn_up_duration"], "")
+            self.assertEqual(row["test_details"]["churn_down_duration"], "")
         finally:
             if os.path.exists(result_file):
                 os.remove(result_file)
@@ -469,7 +611,17 @@ class TestMainArgumentParsing(unittest.TestCase):
         ]
         with patch.object(sys, "argv", test_args):
             main()
-        mock_configure.assert_called_once_with(2, 3, 4, "20m", "/tmp/overrides.yaml")
+        mock_configure.assert_called_once_with(
+            2, 3, 4, "20m", "/tmp/overrides.yaml",
+            churn_cycles=5,
+            churn_up_duration="60s",
+            churn_down_duration="60s",
+            kill_duration="10m",
+            kill_interval_seconds=10,
+            kill_batch=5,
+            kill_duration_seconds=600,
+            kill_job_deadline_seconds=660,
+        )
 
     @patch.object(clustermesh_scale_module, "execute_clusterloader2")
     def test_execute_command_parsing(self, mock_execute):
@@ -533,6 +685,12 @@ class TestMainArgumentParsing(unittest.TestCase):
             1,
             1,
             "Manual",
+            churn_cycles=0,
+            churn_up_duration="",
+            churn_down_duration="",
+            kill_duration_seconds=0,
+            kill_interval_seconds=0,
+            kill_batch=0,
         )
 
     @patch.object(clustermesh_scale_module, "execute_parallel")

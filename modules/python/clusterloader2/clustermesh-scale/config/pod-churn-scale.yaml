@@ -1,0 +1,265 @@
+name: clustermesh-pod-churn-scale
+
+# Scale scenario #2 (Pod Churn Stress Test) — deterministic scale-cycle variant.
+#
+# Spec (scale testing.txt line 55-67): "Validate stability under high pod churn.
+# Repeatedly scale deployments up/down. Track propagation latency, missed or
+# delayed updates, CPU/memory growth over time."
+#
+# This scenario cycles each Deployment's .spec.replicas between $replicasPerDeployment
+# and 0 for $churnCycles iterations, holding each end-state for $churnUpDuration /
+# $churnDownDuration respectively. The cycle drives a steady-state stream of pod
+# create/delete events without churning Deployment or Service objects (those stay
+# present across all cycles), isolating the pod-event signal.
+#
+# Sequence:
+#   1. Start measurements (control-plane, cilium, clustermesh-metrics,
+#      clustermesh-throughput, etcd-metrics, pod-churn-stress).
+#   2. Deploy PodMonitor (clustermesh.yaml).
+#   3. Initial workload apply at full replicas + WaitForControlledPodsRunning gate
+#      (proves the workload settled before churn begins).
+#   4. Churn loop ($churnCycles iterations):
+#        a. Scale-down to replicas=0 (no wait — let it churn freely).
+#        b. Sleep $churnDownDuration.
+#        c. Scale-up to replicas=$replicasPerDeployment.
+#        d. Sleep $churnUpDuration.
+#   5. Final scale-up (idempotent — guarantees known terminal state) + final
+#      WaitForControlledPodsRunning.gather for convergence.
+#   6. Settle sleep ($holdDuration) — lets kvstore queues drain and slope queries
+#      observe the post-churn settle.
+#   7. Gather measurements (mirror start order).
+#   8. Teardown (delete workload + PodMonitor).
+
+{{$namespaces := DefaultParam .CL2_NAMESPACES 5}}
+{{$deploymentsPerNamespace := DefaultParam .CL2_DEPLOYMENTS_PER_NAMESPACE 4}}
+{{$replicasPerDeployment := DefaultParam .CL2_REPLICAS_PER_DEPLOYMENT 10}}
+{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "20m"}}
+{{$apiServerCallsPerSecond := DefaultParam .CL2_API_SERVER_CALLS_PER_SECOND 20}}
+{{$warmupDuration := DefaultParam .CL2_WARMUP_DURATION "30s"}}
+{{$holdDuration := DefaultParam .CL2_HOLD_DURATION "2m"}}
+{{$churnCycles := DefaultParam .CL2_CHURN_CYCLES 5}}
+{{$churnUpDuration := DefaultParam .CL2_CHURN_UP_DURATION "60s"}}
+{{$churnDownDuration := DefaultParam .CL2_CHURN_DOWN_DURATION "60s"}}
+
+{{$group := "clustermesh-pod-churn-scale"}}
+{{$basename := "pcs"}}
+
+namespace:
+  number: {{$namespaces}}
+  prefix: clustermesh-pcs
+  deleteStaleNamespaces: true
+  deleteAutomanagedNamespaces: true
+  enableExistingNamespaces: false
+  deleteNamespaceTimeout: 20m
+
+tuningSets:
+  - name: Sequence
+    parallelismLimitedLoad:
+      parallelismLimit: 1
+  - name: DeploymentCreateQps
+    qpsLoad:
+      qps: {{$apiServerCallsPerSecond}}
+
+steps:
+  # ----- Start measurements -----
+  - module:
+      path: /modules/measurements/control-plane.yaml
+      params:
+        action: start
+        group: {{$group}}
+
+  - module:
+      path: /modules/measurements/cilium.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/clustermesh-metrics.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/clustermesh-throughput.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/etcd-metrics.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/pod-churn-stress.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/clustermesh.yaml
+      params:
+        actionName: create
+        tuningSet: DeploymentCreateQps
+
+  # ----- Initial workload create + settle -----
+  # WaitForControlledPodsRunning is registered ONCE here and gathered ONCE at
+  # the end of the churn loop. Per-cycle waits would block the cycle until
+  # pods settled, defeating the "rapid churn" intent of scenario #2.
+  - name: Start tracking pod-churn-scale Deployments
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-pod-churn-scale
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: start
+          apiVersion: apps/v1
+          kind: Deployment
+          checkIfPodsAreUpdated: true
+          labelSelector: group = {{$group}}
+          operationTimeout: {{$operationTimeout}}
+
+  - module:
+      path: /modules/pod-churn-workload.yaml
+      params:
+        actionName: apply
+        replicas: {{$replicasPerDeployment}}
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        tuningSet: DeploymentCreateQps
+        group: {{$group}}
+        basename: {{$basename}}
+
+  - name: Wait for initial pod-churn pods to be Running
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-pod-churn-scale
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+
+  # ----- Warmup before churn -----
+  - name: Warmup before churn
+    measurements:
+      - Identifier: WarmupSleep
+        Method: Sleep
+        Params:
+          duration: {{$warmupDuration}}
+
+  # ----- Re-register a fresh watcher for the churn window so the final gather
+  # only reflects the churn loop's outcome, not the initial create. -----
+  - name: Start tracking pod-churn loop
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-pod-churn-loop
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: start
+          apiVersion: apps/v1
+          kind: Deployment
+          checkIfPodsAreUpdated: true
+          labelSelector: group = {{$group}}
+          operationTimeout: {{$operationTimeout}}
+
+  # ----- Churn loop -----
+  # CL2's `Loop $N` template func yields 0..N-1; we emit $churnCycles pairs of
+  # scale-down → sleep → scale-up → sleep. No per-cycle WaitForControlledPodsRunning:
+  # we WANT the system in flux during this window so the measurements observe
+  # sustained churn rather than per-cycle settle-and-spike.
+  {{range $i := Loop $churnCycles}}
+  - module:
+      path: /modules/pod-churn-workload.yaml
+      params:
+        actionName: apply
+        replicas: 0
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        tuningSet: DeploymentCreateQps
+        group: {{$group}}
+        basename: {{$basename}}
+
+  - name: Pod-churn cycle {{$i}} — down hold
+    measurements:
+      - Identifier: ChurnCycleDownSleep-{{$i}}
+        Method: Sleep
+        Params:
+          duration: {{$churnDownDuration}}
+
+  - module:
+      path: /modules/pod-churn-workload.yaml
+      params:
+        actionName: apply
+        replicas: {{$replicasPerDeployment}}
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        tuningSet: DeploymentCreateQps
+        group: {{$group}}
+        basename: {{$basename}}
+
+  - name: Pod-churn cycle {{$i}} — up hold
+    measurements:
+      - Identifier: ChurnCycleUpSleep-{{$i}}
+        Method: Sleep
+        Params:
+          duration: {{$churnUpDuration}}
+  {{end}}
+
+  # ----- Final convergence: end the churn window at a known terminal state. -----
+  - name: Wait for post-churn pods to be Running
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-pod-churn-loop
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+
+  # ----- Settle: let kvstore queues drain post-churn -----
+  - name: Settle after churn
+    measurements:
+      - Identifier: SettleSleep
+        Method: Sleep
+        Params:
+          duration: {{$holdDuration}}
+
+  # ----- Gather measurements -----
+  - module:
+      path: /modules/measurements/control-plane.yaml
+      params:
+        action: gather
+        group: {{$group}}
+
+  - module:
+      path: /modules/measurements/cilium.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/clustermesh-metrics.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/clustermesh-throughput.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/etcd-metrics.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/pod-churn-stress.yaml
+      params:
+        action: gather
+
+  # ----- Teardown: drop Deployments + Services. -----
+  - module:
+      path: /modules/pod-churn-workload.yaml
+      params:
+        actionName: delete
+        replicas: 0
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        tuningSet: DeploymentCreateQps
+        group: {{$group}}
+        basename: {{$basename}}
+
+  - module:
+      path: /modules/clustermesh.yaml
+      params:
+        actionName: delete
+        tuningSet: DeploymentCreateQps
