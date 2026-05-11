@@ -92,7 +92,7 @@ aks_cli_config_list = [
         name                 = "userpool1"
         node_count           = 1000
         auto_scaling_enabled = false
-        vm_size              = "Standard_D4s_v4"
+        vm_size              = "Standard_D4_v3"
         optional_parameters = [
           {
             name  = "labels"
@@ -108,7 +108,7 @@ aks_cli_config_list = [
         name                 = "userpool2"
         node_count           = 1000
         auto_scaling_enabled = false
-        vm_size              = "Standard_D4s_v4"
+        vm_size              = "Standard_D4_v3"
         optional_parameters = [
           {
             name  = "labels"
@@ -124,7 +124,7 @@ aks_cli_config_list = [
         name                 = "userpool3"
         node_count           = 1000
         auto_scaling_enabled = false
-        vm_size              = "Standard_D4s_v4"
+        vm_size              = "Standard_D4_v3"
         optional_parameters = [
           {
             name  = "labels"
@@ -140,7 +140,7 @@ aks_cli_config_list = [
         name                 = "userpool4"
         node_count           = 1000
         auto_scaling_enabled = false
-        vm_size              = "Standard_D4s_v4"
+        vm_size              = "Standard_D4_v3"
         optional_parameters = [
           {
             name  = "labels"
@@ -156,7 +156,7 @@ aks_cli_config_list = [
         name                 = "userpool5"
         node_count           = 1000
         auto_scaling_enabled = false
-        vm_size              = "Standard_D4s_v4"
+        vm_size              = "Standard_D4_v3"
         optional_parameters = [
           {
             name  = "labels"
