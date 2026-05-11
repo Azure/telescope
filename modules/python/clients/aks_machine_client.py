@@ -171,24 +171,33 @@ class AKSMachineClient:
 
     # Disable too-many-locals: this is essentially a state machine over polling
     # results; refactoring to fewer locals would just hide intermediate state.
-    def _wait_for_machine_node_readiness(
+    def _wait_for_machine_node_readiness(  # pylint: disable=too-many-locals
         self,
         agentpool_name: str,
         expected_count: int,
         timeout: int,
+        baseline_count: int = 0,
     ) -> Dict[str, float]:
-        """Wait for nodes in ``agentpool_name`` to become Ready; return {P50,P90,P99}.
+        """Wait for ``expected_count`` NEW Ready nodes in ``agentpool_name``; return {P50,P90,P99}.
 
         AKS Machine ARM resource names (e.g. ``scale100-machine-1``) are NOT the
         same as the underlying k8s Node names (``aks-<pool>-<rand>-vmss<i>``), so
         we cannot look up Nodes by Machine name. Instead we poll Nodes labelled
         ``agentpool=<pool>`` and record the wall-clock elapsed when each percentile
-        ready threshold is hit. Mirrors ado-telescope (azure.py:1420 / 1444).
+        ready threshold is hit.
 
-        ``timeout`` is wall-clock seconds from invocation. Returns the zero-fallback
-        dict if ``k8s_client`` is unavailable, ``expected_count`` <= 0, or no
-        percentile target is met within ``timeout``. Polling exceptions are logged
-        and treated as 0 ready this tick. This method never raises.
+        ``baseline_count`` is the number of Ready+labeled nodes that already
+        existed BEFORE scale_machine ran. Percentile targets are computed against
+        ``baseline_count + expected_count`` and clamped to ``> baseline_count``
+        so a target never fires on pre-existing nodes alone. Without this, an
+        agentpool that already has 1 Ready node and is being scaled by 1 more
+        would report P50/P90/P99 = ~0.7s (the first poll) even though the new
+        node had not yet provisioned.
+
+        ``timeout`` is wall-clock seconds from invocation. Returns the
+        zero-fallback dict if ``k8s_client`` is unavailable, ``expected_count``
+        <= 0, or no percentile target is met within ``timeout``. Polling
+        exceptions are logged and treated as 0 ready this tick. Never raises.
         """
         kc = self.aks_client.k8s_client
         if kc is None:
@@ -199,13 +208,22 @@ class AKSMachineClient:
         if expected_count <= 0:
             return {"P50": 0.0, "P90": 0.0, "P99": 0.0}
         label_selector = f"agentpool={agentpool_name}"
-        targets = {p: max(1, int((p / 100.0) * expected_count)) for p in (50, 90, 99)}
+        target_total = baseline_count + expected_count
+        # Each percentile target must be STRICTLY GREATER than baseline_count so
+        # we count only NEW nodes — pre-existing labeled Ready nodes alone must
+        # never satisfy any threshold.
+        targets = {
+            p: max(baseline_count + 1, int((p / 100.0) * target_total))
+            for p in (50, 90, 99)
+        }
         elapsed: Dict[int, float] = {}
         start = time.time()
         deadline = start + timeout
         logger.info(
-            "Waiting for nodes in agentpool %s (label %s) - targets %s, timeout %ss",
-            agentpool_name, label_selector, targets, timeout,
+            "Waiting for nodes in agentpool %s (label %s) - "
+            "targets %s, baseline=%d, expected=%d, timeout %ss",
+            agentpool_name, label_selector, targets,
+            baseline_count, expected_count, timeout,
         )
         while time.time() < deadline and len(elapsed) < len(targets):
             try:
@@ -218,8 +236,8 @@ class AKSMachineClient:
                 if p not in elapsed and ready >= target:
                     elapsed[p] = now_elapsed
                     logger.info(
-                        "P%d hit: %d/%d ready at %.2fs",
-                        p, ready, expected_count, now_elapsed,
+                        "P%d hit: %d/%d ready (target=%d, baseline=%d) at %.2fs",
+                        p, ready, target_total, target, baseline_count, now_elapsed,
                     )
             if len(elapsed) < len(targets):
                 time.sleep(2)
@@ -234,9 +252,23 @@ class AKSMachineClient:
     def scale_machine(self, request: ScaleMachineRequest) -> MachineOperationResponse:
         """Scale a Machine-mode agentpool by creating ``request.scale_machine_count`` machines.
 
-        Branches between batch and non-batch paths. This commit implements only the
-        non-batch path; ``use_batch_api=True`` will reach a method that does not yet
-        exist (Task 8). Never raises — failures recorded on the returned response.
+        Flow (both batch and non-batch):
+          1. Snapshot the current Ready+labeled node count in the agentpool
+             (``baseline_count``) so the readiness watcher counts only NEW nodes.
+          2. Submit machine PUTs (individually or via the batch header pattern).
+             Per-machine ARM polling is intentionally NOT performed — the AKS RP
+             reports per-machine provisioningState='Succeeded' as soon as the
+             agentpool admits the request, which is well before the underlying
+             VM is created. Polling at this layer therefore returns spuriously
+             early and is useless.
+          3. Wait ONCE on the agentpool-level provisioningState — this is the
+             only ARM signal that truly reflects "all batched machine creation
+             work is finished". Logged informationally; non-blocking for the
+             response (readiness percentiles are the load-bearing metric).
+          4. Wait for nodes labeled ``agentpool=<pool>`` to surpass
+             ``baseline_count`` by enough to satisfy P50/P90/P99 targets.
+
+        Never raises — failures recorded on the returned response.
         """
         start_dt = datetime.now(timezone.utc)
         start_iso = start_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -245,6 +277,29 @@ class AKSMachineClient:
             start_time=start_iso,
         )
         try:
+            # Snapshot baseline BEFORE any PUTs so the readiness watcher counts
+            # only NEW nodes. Without this, agentpools that already have a Ready
+            # node (e.g. an implicit placeholder created when the agentpool was
+            # switched to Machines mode) cause P50/P90/P99 to fire on the very
+            # first poll, hiding the real provisioning latency.
+            kc = self.aks_client.k8s_client
+            baseline_count = 0
+            if kc is not None:
+                try:
+                    baseline_count = len(
+                        kc.get_ready_nodes(
+                            label_selector=f"agentpool={request.agentpool_name}"
+                        )
+                    )
+                    logger.info(
+                        "baseline ready nodes in agentpool %s: %d",
+                        request.agentpool_name, baseline_count,
+                    )
+                except Exception:  # pylint: disable=broad-except
+                    logger.warning(
+                        "baseline node snapshot failed; readiness count may be inflated"
+                    )
+
             # Naming parity with ado-telescope (azure.py:_get_machine_name_prefix +
             # _scale_machine_individually): prefix is "scale{N}" or "scale{N//1000}k",
             # machines are 1-indexed as "{prefix}-machine-{i}". Byte-identical names
@@ -259,10 +314,28 @@ class AKSMachineClient:
             else:
                 successful = self._scale_machine_individually(request, names)
             response.successful_machines = successful
+
+            # Single agentpool-level provisioning check. This is the canonical
+            # ARM signal for "all batched machine creation work is done" and
+            # replaces N per-machine polls that returned Succeeded prematurely.
+            agentpool_url = (
+                f"{_ARM_BASE}/subscriptions/{self.subscription_id}/resourceGroups/"
+                f"{request.resource_group}/providers/Microsoft.ContainerService/"
+                f"managedClusters/{request.cluster_name}/agentPools/"
+                f"{request.agentpool_name}?api-version={_AGENTPOOL_API_VERSION}"
+            )
+            agentpool_ok = self._wait_for_provisioning(agentpool_url, request.timeout)
+            logger.info(
+                "agentpool %s provisioning %s",
+                request.agentpool_name,
+                "Succeeded" if agentpool_ok else "Failed/Timeout",
+            )
+
             response.percentile_node_readiness_times = self._wait_for_machine_node_readiness(
                 agentpool_name=request.agentpool_name,
                 expected_count=len(successful),
                 timeout=request.readiness_wait_timeout,
+                baseline_count=baseline_count,
             )
             response.succeeded = len(successful) == request.scale_machine_count
         except Exception as exc:  # pylint: disable=broad-except
@@ -316,12 +389,20 @@ class AKSMachineClient:
         return successful
 
     def _create_single_machine(self, name: str, request) -> bool:
-        """PUT a single Machine resource and wait for it to reach a terminal state.
+        """PUT a single Machine resource. Returns True on any 2xx response.
 
         Body is ``{"properties": {"hardware": {"vmSize": ...}}}``. Tags are inherited
         from the parent agentpool; the machine PUT body in api-version 2025-06-02-preview
         does not accept a top-level ``tags`` field (rejected with UnmarshalError).
-        Returns True iff the machine eventually reaches provisioningState=Succeeded.
+
+        Intentionally does NOT poll the per-machine ARM provisioningState. The
+        AKS RP reports per-machine ``provisioningState='Succeeded'`` essentially
+        as soon as the agentpool admits the request — well before the underlying
+        VM is created. Polling here therefore returns spuriously early and only
+        adds N round-trips of latency without surfacing useful signal. The
+        canonical completion signal is the agentpool-level provisioningState,
+        which ``scale_machine`` polls once after all PUTs return.
+
         Never raises on HTTP errors; logs and returns False on non-2xx responses.
         """
         sub = self.subscription_id
@@ -336,11 +417,7 @@ class AKSMachineClient:
         if resp.status_code not in (200, 201, 202):
             logger.error("PUT machine %s -> %s %s", name, resp.status_code, resp.text[:500])
             return False
-        return self._wait_for_machine_provisioning(url, request.timeout)
-
-    def _wait_for_machine_provisioning(self, url: str, timeout: int) -> bool:
-        """Thin wrapper around ``_wait_for_provisioning`` for machine resources."""
-        return self._wait_for_provisioning(url, timeout)
+        return True
 
     def _wait_for_provisioning(self, url: str, timeout: int) -> bool:
         """Poll ``url`` until ``properties.provisioningState`` is terminal or deadline.
