@@ -57,6 +57,12 @@ steps:
 
         per_cluster_result="${TEST_RESULTS_FILE%.*}.${role}.${TEST_RESULTS_FILE##*.}"
 
+        # Per-cluster collect must NOT fail-fast: a Python crash here (parse
+        # error on an unexpected file shape, corrupt junit.xml, etc.) would
+        # under `set -eo pipefail` abort the whole loop and lose data from
+        # the OTHER (N-1) clusters that completed CL2 successfully. We log
+        # a warning and continue so the rest still aggregate.
+        collect_rc=0
         PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
           --cl2_report_dir "$report_dir" \
           --cloud_info "${CLOUD_INFO:-}" \
@@ -71,7 +77,17 @@ steps:
           --namespaces "$CL2_NAMESPACES" \
           --deployments-per-namespace "$CL2_DEPLOYMENTS_PER_NAMESPACE" \
           --replicas-per-deployment "$CL2_REPLICAS_PER_DEPLOYMENT" \
-          --trigger_reason "${TRIGGER_REASON:-}"
+          --trigger_reason "${TRIGGER_REASON:-}" || collect_rc=$?
+
+        if [ "$collect_rc" -ne 0 ]; then
+          echo "##vso[task.logissue type=warning;] $role: scale.py collect exited $collect_rc; skipping aggregation for this cluster"
+          continue
+        fi
+
+        if [ ! -f "$per_cluster_result" ]; then
+          echo "##vso[task.logissue type=warning;] $role: per-cluster result file $per_cluster_result missing after collect; skipping"
+          continue
+        fi
 
         cat "$per_cluster_result" >> "$TEST_RESULTS_FILE"
       done

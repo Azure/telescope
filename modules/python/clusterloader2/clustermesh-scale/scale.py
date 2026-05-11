@@ -27,6 +27,7 @@ import os
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 from datetime import datetime, timezone
 
@@ -392,7 +393,36 @@ def collect_clusterloader2(
         "deployments_per_namespace": deployments_per_namespace,
         "replicas_per_deployment": replicas_per_deployment,
     }
-    content = process_cl2_reports(cl2_report_dir, template)
+    # Shared process_cl2_reports() does an unconditional open() on every
+    # entry of cl2_report_dir, which raises IsADirectoryError on any subdir.
+    # Today the only subdir is logs/ (created by run-cl2-on-cluster.sh for
+    # pod-log capture), but we stash ANY subdir so future additions (new
+    # diag dumps, CL2 version bump emitting per-phase subdirs, etc.) don't
+    # silently regress. Subdirs are relocated OUTSIDE cl2_report_dir for
+    # the duration of the parse and restored in a finally block — they
+    # must end up back inside cl2_report_dir so the pipeline-level
+    # artifact publish picks them up alongside junit.xml.
+    stash_root = None
+    stashed_entries = []
+    for entry in os.listdir(cl2_report_dir):
+        if os.path.isdir(os.path.join(cl2_report_dir, entry)):
+            if stash_root is None:
+                stash_root = tempfile.mkdtemp(prefix="cl2-report-stash-")
+            os.rename(
+                os.path.join(cl2_report_dir, entry),
+                os.path.join(stash_root, entry),
+            )
+            stashed_entries.append(entry)
+    try:
+        content = process_cl2_reports(cl2_report_dir, template)
+    finally:
+        if stash_root:
+            for entry in stashed_entries:
+                src = os.path.join(stash_root, entry)
+                if os.path.isdir(src):
+                    os.rename(src, os.path.join(cl2_report_dir, entry))
+            if not os.listdir(stash_root):
+                os.rmdir(stash_root)
 
     os.makedirs(os.path.dirname(result_file), exist_ok=True)
     with open(result_file, "w", encoding="utf-8") as f:

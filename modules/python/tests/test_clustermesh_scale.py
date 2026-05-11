@@ -14,12 +14,14 @@ import importlib.util
 import io
 import json
 import os
+import shutil
 import sys
 import tempfile
 import threading
 import time
 import unittest
 from contextlib import redirect_stdout
+from glob import glob
 from pathlib import Path
 from unittest.mock import patch
 
@@ -44,6 +46,71 @@ main = clustermesh_scale_module.main
 MOCK_REPORT_ROOT = os.path.join(
     os.path.dirname(__file__), "mock_data", "clustermesh-scale", "report"
 )
+
+# Files/dirs that run-cl2-on-cluster.sh writes into every per-cluster
+# $report_dir. Any new artifact added there MUST be mirrored in
+# mock_data/clustermesh-scale/report/mesh-*/ so the local test suite
+# exercises the same shape collect_clusterloader2 sees in real runs.
+# The TestMockFixtureParity class below enforces this.
+EXPECTED_PER_CLUSTER_ARTIFACTS = {
+    "files": ["junit.xml"],
+    "file_globs": ["*.json"],
+    "subdirs": ["logs"],
+    "logs_files": [
+        "clustermesh-apiserver-apiserver.log",
+        "clustermesh-apiserver-etcd.log",
+        "clustermesh-apiserver-kvstoremesh.log",
+        "cilium-agent.log",
+        "cilium-operator.log",
+    ],
+}
+
+
+class TestMockFixtureParity(unittest.TestCase):
+    """Mock data must mirror the real run-cl2-on-cluster.sh output layout.
+
+    Without this, collect_clusterloader2 tests can pass against a stale
+    mock while real runs crash on shapes the mock doesn't include —
+    exactly the IsADirectoryError on logs/ regression that triggered
+    adding this guard.
+    """
+
+    def _assert_cluster_dir_shape(self, cluster_dir):
+        for fname in EXPECTED_PER_CLUSTER_ARTIFACTS["files"]:
+            self.assertTrue(
+                os.path.isfile(os.path.join(cluster_dir, fname)),
+                f"{cluster_dir}: missing required file {fname}",
+            )
+        for pattern in EXPECTED_PER_CLUSTER_ARTIFACTS["file_globs"]:
+            self.assertTrue(
+                glob(os.path.join(cluster_dir, pattern)),
+                f"{cluster_dir}: no file matches {pattern}",
+            )
+        for sd in EXPECTED_PER_CLUSTER_ARTIFACTS["subdirs"]:
+            self.assertTrue(
+                os.path.isdir(os.path.join(cluster_dir, sd)),
+                f"{cluster_dir}: missing required subdir {sd}/ "
+                f"(run-cl2-on-cluster.sh writes this; "
+                f"keep the mock in sync so collect tests stay realistic)",
+            )
+        log_dir = os.path.join(cluster_dir, "logs")
+        for lf in EXPECTED_PER_CLUSTER_ARTIFACTS["logs_files"]:
+            self.assertTrue(
+                os.path.isfile(os.path.join(log_dir, lf)),
+                f"{log_dir}: missing log file {lf}",
+            )
+
+    def test_mesh_1_mock_matches_engine_output(self):
+        """mesh-1 mock has the same shape as a real per-cluster report dir."""
+        self._assert_cluster_dir_shape(os.path.join(MOCK_REPORT_ROOT, "mesh-1"))
+
+    def test_mesh_2_mock_matches_engine_output(self):
+        """mesh-2 mock has the same shape as a real per-cluster report dir."""
+        self._assert_cluster_dir_shape(os.path.join(MOCK_REPORT_ROOT, "mesh-2"))
+
+    def test_mesh_fail_mock_matches_engine_output(self):
+        """mesh-fail mock has the same shape as a real per-cluster report dir."""
+        self._assert_cluster_dir_shape(os.path.join(MOCK_REPORT_ROOT, "mesh-fail"))
 
 
 class TestConfigureClustermeshScale(unittest.TestCase):
@@ -224,6 +291,65 @@ class TestCollectSingleCluster(unittest.TestCase):
         finally:
             if os.path.exists(result_file):
                 os.remove(result_file)
+
+    def test_collect_skips_any_subdir_under_report_dir(self):
+        """process_cl2_reports open()s every dir entry, so ANY subdir trips it.
+
+        Today only logs/ exists (pod log capture from run-cl2-on-cluster.sh).
+        Tomorrow could be phase-logs/ from a CL2 version bump, additional
+        diag dumps, etc. collect_clusterloader2 must stash every subdir
+        outside the report dir during the parse and restore each one
+        afterward so the pipeline-level artifact publish still picks them up.
+        """
+        src = os.path.join(MOCK_REPORT_ROOT, "mesh-1")
+        with tempfile.TemporaryDirectory() as tmp:
+            report_dir = os.path.join(tmp, "mesh-1")
+            shutil.copytree(src, report_dir)
+            # mesh-1 fixture already ships logs/; add two more synthetic
+            # subdirs to lock in the "skip ALL subdirs" contract.
+            extra_subdirs = {
+                "phase-logs": "phase-0.log",
+                "diag-dump": "events.txt",
+            }
+            for sd, fname in extra_subdirs.items():
+                sd_path = os.path.join(report_dir, sd)
+                os.makedirs(sd_path, exist_ok=True)
+                with open(os.path.join(sd_path, fname), "w", encoding="utf-8") as f:
+                    f.write(f"synthetic {sd}/{fname}\n")
+
+            result_file = tempfile.mktemp(suffix=".jsonl")
+            try:
+                collect_clusterloader2(
+                    cl2_report_dir=report_dir,
+                    cloud_info=json.dumps({"cloud": "azure", "region": "eastus2"}),
+                    run_id="test-run-subdirs",
+                    run_url="http://example.com/runsubdirs",
+                    result_file=result_file,
+                    test_type="unit-test",
+                    start_timestamp="2026-04-28T15:00:00Z",
+                    cluster_name="mesh-1",
+                    cluster_count=2,
+                    mesh_size=2,
+                    namespaces=1,
+                    deployments_per_namespace=1,
+                    replicas_per_deployment=1,
+                    trigger_reason="Manual",
+                )
+                self.assertTrue(os.path.exists(result_file))
+                with open(result_file, "r", encoding="utf-8") as f:
+                    self.assertGreater(len(f.read()), 0)
+                # All three subdirs (mock logs/ + 2 synthetic) restored
+                # at original location with contents intact.
+                self.assertTrue(os.path.isdir(os.path.join(report_dir, "logs")))
+                for sd, fname in extra_subdirs.items():
+                    self.assertTrue(os.path.isdir(os.path.join(report_dir, sd)),
+                                    f"{sd}/ missing after collect")
+                    nested = os.path.join(report_dir, sd, fname)
+                    self.assertTrue(os.path.isfile(nested),
+                                    f"{nested} missing after collect")
+            finally:
+                if os.path.exists(result_file):
+                    os.remove(result_file)
 
 
 class TestCollectMultiCluster(unittest.TestCase):
