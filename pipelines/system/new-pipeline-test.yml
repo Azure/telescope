@@ -67,7 +67,7 @@ stages:
           # we're still stabilizing the clustermesh-scale pipeline. Mirrors the
           # same flag in pipelines/perf-eval/Network Benchmark/clustermesh-scale.yml.
           # Flip to false (or remove) once results are meaningful.
-          skip_publish: true
+          skip_publish: false
 
   # Phase 3 — 5-cluster tier. Separate stage (not a matrix entry) because
   # `terraform_input_file_mapping` is set at the job level, so different
@@ -112,7 +112,7 @@ stages:
           timeout_in_minutes: 180
           credential_type: service_connection
           ssh_key_enabled: false
-          skip_publish: true
+          skip_publish: false
 
   # Phase 3 — 10-cluster tier. Per-cluster sizing identical to n2/n5;
   # only mesh size scales. Quota footprint per run: ~120 vCPU
@@ -167,7 +167,7 @@ stages:
           timeout_in_minutes: 240
           credential_type: service_connection
           ssh_key_enabled: false
-          skip_publish: true
+          skip_publish: false
 
   # Phase 3 — 20-cluster tier (final scale-test point per spec line 25).
   # Per-cluster sizing identical to lower tiers; only mesh size scales.
@@ -225,4 +225,4 @@ stages:
           timeout_in_minutes: 480
           credential_type: service_connection
           ssh_key_enabled: false
-          skip_publish: true
+          skip_publish: false
