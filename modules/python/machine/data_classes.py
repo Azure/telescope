@@ -8,7 +8,7 @@ Differences from ado-telescope's k8s/data_classes.py:
 """
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 class OperationNames(str, Enum):
@@ -70,7 +70,7 @@ class MachineOperationResponse:  # pylint: disable=too-many-instance-attributes
     command_execution_time: float = 0
     node_readiness_time: float = 0
     successful_machines: List[str] = field(default_factory=list)
-    percentile_node_readiness_times: Dict[str, float] = field(default_factory=dict)
+    percentile_node_readiness_times: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     batch_command_execution_times: Dict[str, float] = field(default_factory=dict)
     cloud_data: Optional[Dict] = None
     warning_message: Optional[str] = None

@@ -7,6 +7,24 @@ from clients.aks_machine_client import AKSMachineClient
 from machine.data_classes import ScaleMachineRequest
 
 
+def _ready(values):
+    """Build the ado-parity nested percentile envelope from a {p:seconds} mapping.
+
+    For each P in (50, 70, 90, 99, 100), produce
+    {"target_nodes": 1, "elapsed_time_seconds": values[p], "percentage": p, "success": True}.
+    Used by scale_machine tests to mock the watcher's nested return shape.
+    """
+    return {
+        f"P{p}": {
+            "target_nodes": 1,
+            "elapsed_time_seconds": values[p],
+            "percentage": p,
+            "success": True,
+        }
+        for p in (50, 70, 90, 99, 100)
+    }
+
+
 def test_compose_aksclient_not_subclass():
     """Verify AKSMachineClient composes (does NOT inherit from) AKSClient."""
     from clients.aks_client import AKSClient
@@ -144,7 +162,7 @@ def test_create_machine_agentpool_returns_false_on_timeout(MockAKS, mock_req, _s
 @patch("clients.aks_machine_client.AKSClient")
 def test_wait_for_machine_node_readiness_computes_percentiles(MockAKS):
     fake_kc = MagicMock()
-    # Return 4 ready nodes immediately so all percentile targets (P50/P90/P99) are met on first poll.
+    # Return 4 ready nodes immediately so all percentile targets (P50/P70/P90/P99/P100) are met on first poll.
     fake_kc.get_ready_nodes.return_value = [object(), object(), object(), object()]
     MockAKS.return_value.k8s_client = fake_kc
     c = AKSMachineClient(resource_group="rg")
@@ -153,8 +171,9 @@ def test_wait_for_machine_node_readiness_computes_percentiles(MockAKS):
         expected_count=4,
         timeout=5,
     )
-    assert set(times.keys()) == {"P50", "P90", "P99"}
-    assert all(times[p] >= 0.0 for p in times)
+    assert set(times.keys()) == {"P50", "P70", "P90", "P99", "P100"}
+    assert all(times[p]["success"] for p in times)
+    assert all(times[p]["elapsed_time_seconds"] >= 0.0 for p in times)
 
 
 @patch("clients.aks_machine_client.AKSClient")
@@ -167,7 +186,10 @@ def test_wait_for_machine_node_readiness_zero_expected_count(MockAKS):
         expected_count=0,
         timeout=5,
     )
-    assert times == {"P50": 0.0, "P90": 0.0, "P99": 0.0}
+    assert set(times.keys()) == {"P50", "P70", "P90", "P99", "P100"}
+    assert all(times[p]["success"] is False for p in times)
+    assert all(times[p]["elapsed_time_seconds"] is None for p in times)
+    assert all(times[p]["target_nodes"] == 0 for p in times)
     fake_kc.get_ready_nodes.assert_not_called()
 
 
@@ -180,7 +202,10 @@ def test_wait_for_machine_node_readiness_kubernetes_client_none(MockAKS):
         expected_count=1,
         timeout=5,
     )
-    assert times == {"P50": 0.0, "P90": 0.0, "P99": 0.0}
+    assert set(times.keys()) == {"P50", "P70", "P90", "P99", "P100"}
+    assert all(times[p]["success"] is False for p in times)
+    assert all(times[p]["elapsed_time_seconds"] is None for p in times)
+    assert all(times[p]["target_nodes"] == 0 for p in times)
 
 
 @patch("clients.aks_machine_client.time.sleep")
@@ -195,7 +220,12 @@ def test_wait_for_machine_node_readiness_get_ready_nodes_raises(MockAKS, _sleep)
         expected_count=1,
         timeout=0,  # exit immediately after one iteration
     )
-    assert times == {"P50": 0.0, "P90": 0.0, "P99": 0.0}
+    assert set(times.keys()) == {"P50", "P70", "P90", "P99", "P100"}
+    assert all(times[p]["success"] is False for p in times)
+    assert all(times[p]["elapsed_time_seconds"] is None for p in times)
+    # no-target-met return path retains the real targets[p] computed from
+    # baseline+expected, so target_nodes must be > 0 here (baseline=0, expected=1).
+    assert all(times[p]["target_nodes"] >= 1 for p in times)
 
 
 @patch("clients.aks_machine_client.time.sleep")
@@ -220,9 +250,12 @@ def test_readiness_excludes_baseline_nodes(MockAKS, _sleep):
     )
     # All percentile targets clamp to max(baseline+1, ...) = 2, so they must
     # only fire on the SECOND poll when ready==2.
-    assert times["P50"] > 0.0
-    assert times["P90"] > 0.0
-    assert times["P99"] > 0.0
+    assert times["P50"]["elapsed_time_seconds"] > 0.0
+    assert times["P70"]["elapsed_time_seconds"] > 0.0
+    assert times["P90"]["elapsed_time_seconds"] > 0.0
+    assert times["P99"]["elapsed_time_seconds"] > 0.0
+    assert times["P100"]["elapsed_time_seconds"] > 0.0
+    assert all(times[p]["success"] is True for p in times)
     # The watcher polled exactly twice (first returned 1 -> insufficient, second returned 2).
     assert fake_kc.get_ready_nodes.call_count == 2
 
@@ -243,11 +276,15 @@ def test_readiness_baseline_never_satisfies_targets_alone(MockAKS, _sleep):
         timeout=0,  # exit after one iteration
         baseline_count=1,
     )
-    assert times == {"P50": 0.0, "P90": 0.0, "P99": 0.0}
+    assert set(times.keys()) == {"P50", "P70", "P90", "P99", "P100"}
+    assert all(times[p]["success"] is False for p in times)
+    assert all(times[p]["elapsed_time_seconds"] is None for p in times)
+    # All targets clamp to max(baseline+1, ...) = 2; no progress was made.
+    assert all(times[p]["target_nodes"] == 2 for p in times)
 
 
 @patch.object(AKSMachineClient, "_wait_for_provisioning", return_value=True)
-@patch.object(AKSMachineClient, "_wait_for_machine_node_readiness", return_value={"P50":1.0,"P90":2.0,"P99":3.0})
+@patch.object(AKSMachineClient, "_wait_for_machine_node_readiness", return_value=_ready({50:1.0,70:1.5,90:2.0,99:3.0,100:4.0}))
 @patch.object(AKSMachineClient, "_create_single_machine")
 @patch("clients.aks_machine_client.AKSClient")
 def test_scale_machine_non_batch_dispatches_individual(MockAKS, mock_single, mock_wait, _mock_ap):
@@ -264,14 +301,14 @@ def test_scale_machine_non_batch_dispatches_individual(MockAKS, mock_single, moc
         "scale3-machine-1", "scale3-machine-2", "scale3-machine-3",
     ]
     assert resp.succeeded is True
-    assert resp.percentile_node_readiness_times == {"P50":1.0,"P90":2.0,"P99":3.0}
+    assert resp.percentile_node_readiness_times == _ready({50:1.0,70:1.5,90:2.0,99:3.0,100:4.0})
     assert len(resp.successful_machines) == 3
     # baseline_count=0 (empty get_ready_nodes) passed through to watcher
     assert mock_wait.call_args.kwargs["baseline_count"] == 0
 
 
 @patch.object(AKSMachineClient, "_wait_for_provisioning", return_value=True)
-@patch.object(AKSMachineClient, "_wait_for_machine_node_readiness", return_value={"P50":0.0,"P90":0.0,"P99":0.0})
+@patch.object(AKSMachineClient, "_wait_for_machine_node_readiness", return_value=_ready({50:0.0,70:0.0,90:0.0,99:0.0,100:0.0}))
 @patch.object(AKSMachineClient, "_create_single_machine")
 @patch("clients.aks_machine_client.AKSClient")
 def test_scale_machine_non_batch_partial_failure(MockAKS, mock_single, mock_wait, _mock_ap):
@@ -302,7 +339,7 @@ def test_scale_machine_non_batch_partial_failure(MockAKS, mock_single, mock_wait
 
 @patch.object(AKSMachineClient, "_wait_for_provisioning", return_value=True)
 @patch.object(AKSMachineClient, "_wait_for_machine_node_readiness",
-              return_value={"P50": 1.0, "P90": 1.0, "P99": 1.0})
+              return_value=_ready({50:1.0,70:1.0,90:1.0,99:1.0,100:1.0}))
 @patch.object(AKSMachineClient, "_create_batch_machines")
 @patch("clients.aks_machine_client.AKSClient")
 def test_scale_machine_batch_dispatches_in_chunks(MockAKS, mock_create_batch, _mock_wait, _mock_ap):
@@ -326,12 +363,12 @@ def test_scale_machine_batch_dispatches_in_chunks(MockAKS, mock_create_batch, _m
     assert set(resp.batch_command_execution_times.keys()) == {"chunk_0", "chunk_1"}
     assert all(v >= 0.0 for v in resp.batch_command_execution_times.values())
     assert resp.succeeded is True
-    assert resp.percentile_node_readiness_times == {"P50": 1.0, "P90": 1.0, "P99": 1.0}
+    assert resp.percentile_node_readiness_times == _ready({50:1.0,70:1.0,90:1.0,99:1.0,100:1.0})
 
 
 @patch.object(AKSMachineClient, "_wait_for_provisioning", return_value=True)
 @patch.object(AKSMachineClient, "_wait_for_machine_node_readiness",
-              return_value={"P50": 0.0, "P90": 0.0, "P99": 0.0})
+              return_value=_ready({50:0.0,70:0.0,90:0.0,99:0.0,100:0.0}))
 @patch.object(AKSMachineClient, "_create_batch_machines")
 @patch("clients.aks_machine_client.AKSClient")
 def test_scale_machine_batch_partial_chunk_failure(MockAKS, mock_create_batch, _mock_wait, _mock_ap):
@@ -362,7 +399,7 @@ def test_scale_machine_batch_partial_chunk_failure(MockAKS, mock_create_batch, _
 
 @patch.object(AKSMachineClient, "_wait_for_provisioning", return_value=True)
 @patch.object(AKSMachineClient, "_wait_for_machine_node_readiness",
-              return_value={"P50": 0.0, "P90": 0.0, "P99": 0.0})
+              return_value=_ready({50:0.0,70:0.0,90:0.0,99:0.0,100:0.0}))
 @patch.object(AKSMachineClient, "_create_batch_machines")
 @patch("clients.aks_machine_client.AKSClient")
 def test_scale_machine_batch_worker_exception_isolated(MockAKS, mock_create_batch, _mock_wait, _mock_ap):
@@ -393,7 +430,7 @@ def test_scale_machine_batch_worker_exception_isolated(MockAKS, mock_create_batc
 
 @patch.object(AKSMachineClient, "_wait_for_provisioning", return_value=True)
 @patch.object(AKSMachineClient, "_wait_for_machine_node_readiness",
-              return_value={"P50": 5.0, "P90": 5.0, "P99": 5.0})
+              return_value=_ready({50:5.0,70:5.0,90:5.0,99:5.0,100:5.0}))
 @patch.object(AKSMachineClient, "_create_single_machine", return_value=True)
 @patch("clients.aks_machine_client.AKSClient")
 def test_scale_machine_passes_baseline_count_to_watcher(MockAKS, _mock_single, mock_wait, _mock_ap):
@@ -679,7 +716,7 @@ def test_get_cluster_data_passthrough(MockAKS):
 @patch.object(AKSMachineClient, "_wait_for_provisioning", return_value=True)
 @patch.object(AKSMachineClient, "get_cluster_data", side_effect=RuntimeError("snap fail"))
 @patch.object(AKSMachineClient, "_wait_for_machine_node_readiness",
-              return_value={"P50": 0.0, "P90": 0.0, "P99": 0.0})
+              return_value=_ready({50:0.0,70:0.0,90:0.0,99:0.0,100:0.0}))
 @patch.object(AKSMachineClient, "_create_single_machine", return_value=True)
 @patch("clients.aks_machine_client.AKSClient")
 def test_scale_machine_cloud_data_failure_swallowed(MockAKS, _mock_single, _mock_wait, _mock_cd, _mock_ap):
