@@ -12,6 +12,10 @@ network_config_list = [
     vnet_address_space = "10.192.0.0/10"
     subnet = [
       {
+        name           = "system-subnet"
+        address_prefix = "10.193.0.0/24"
+      },
+      {
         name           = "nap-subnet"
         address_prefix = "10.192.0.0/16"
         delegations = [
@@ -34,7 +38,7 @@ aks_cli_config_list = [
     role                  = "nap"
     aks_name              = "nap"
     sku_tier              = "standard"
-    subnet_name           = "nap-subnet"
+    subnet_name           = "system-subnet"
     managed_identity_name = "nap-identity"
     default_node_pool = {
       name       = "system"
