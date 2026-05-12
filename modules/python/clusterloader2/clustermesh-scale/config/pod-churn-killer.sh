@@ -35,10 +35,22 @@ WORKLOAD_GROUP="${4:-clustermesh-pod-churn}"
 LABEL_SELECTOR="group=${WORKLOAD_GROUP}"
 
 if ! command -v kubectl >/dev/null 2>&1; then
-  echo "killer ERROR: kubectl not in PATH inside CL2 container; "\
-       "falling back to in-cluster Job design required (see pod-churn-kill.yaml)"
-  echo "killer ERROR: PATH=$PATH"
-  exit 127
+  # Fallback: the pipeline's execute.yml pre-stages kubectl into the
+  # cl2_config_dir (which is bind-mounted at /root/perf-tests/clusterloader2/config
+  # by run_cl2_command). If neither PATH kubectl nor the pre-staged binary
+  # is available, fail with a clear diagnostic.
+  PREBAKED_KUBECTL=/root/perf-tests/clusterloader2/config/kubectl
+  if [ -x "${PREBAKED_KUBECTL}" ]; then
+    KUBECTL_BIN_DIR="$(dirname "${PREBAKED_KUBECTL}")"
+    export PATH="${KUBECTL_BIN_DIR}:${PATH}"
+    echo "killer: using pre-staged kubectl at ${PREBAKED_KUBECTL}"
+  else
+    echo "killer ERROR: kubectl not in PATH inside CL2 container; "\
+         "pre-staged binary at ${PREBAKED_KUBECTL} is also missing — "\
+         "verify execute.yml pre-stage step ran successfully"
+    echo "killer ERROR: PATH=$PATH"
+    exit 127
+  fi
 fi
 
 KUBECTL_CLIENT_INFO="$(kubectl version --client=true --output=yaml 2>&1 | head -3 || true)"

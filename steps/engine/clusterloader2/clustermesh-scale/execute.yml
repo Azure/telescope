@@ -109,6 +109,37 @@ steps:
         --kill-job-deadline-seconds "$CL2_KILL_JOB_DEADLINE_SECONDS" \
         --cl2_override_file "${CL2_CONFIG_DIR}/overrides.yaml"
 
+      # Phase 4a — pre-stage kubectl into the CL2 config dir so the
+      # pod-churn-killer.sh script (invoked via Method: Exec from inside
+      # the CL2 docker container) has a working kubectl binary regardless
+      # of whether the CL2 image bundles one. The cl2_config_dir is
+      # bind-mounted by run_cl2_command at /root/perf-tests/clusterloader2/config,
+      # so $CL2_CONFIG_DIR/kubectl on the host becomes accessible at
+      # /root/perf-tests/clusterloader2/config/kubectl inside the container.
+      #
+      # Why this lives in execute.yml rather than the Dockerfile: we don't
+      # control the CL2 image build (ghcr.io/azure/clusterloader2). Method:
+      # Exec is the only host-side hook CL2 exposes inside a test run.
+      # AzDO agents have curl + internet egress to dl.k8s.io (Kubernetes'
+      # canonical release host).
+      #
+      # Non-fatal: a curl failure here logs a warning but does NOT abort
+      # the step. pod-churn-killer.sh's preflight check exits 127 if the
+      # binary is missing, which CL2 records as a single measurement
+      # failure — scale-cycle data still lands cleanly.
+      if [ ! -x "${CL2_CONFIG_DIR}/kubectl" ]; then
+        KUBECTL_VERSION="${KUBECTL_VERSION:-v1.30.0}"
+        echo "Pre-staging kubectl ${KUBECTL_VERSION} for in-container use by Method: Exec scripts"
+        if curl -sfL -o "${CL2_CONFIG_DIR}/kubectl" \
+            "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"; then
+          chmod 0755 "${CL2_CONFIG_DIR}/kubectl"
+          "${CL2_CONFIG_DIR}/kubectl" version --client=true --output=yaml | head -3 || true
+        else
+          echo "##vso[task.logissue type=warning;] kubectl pre-stage download failed; pod-churn kill phase will fail-soft (script's fallback path)"
+          rm -f "${CL2_CONFIG_DIR}/kubectl"
+        fi
+      fi
+
       # Bounded-parallel CL2 fan-out across clusters. Each worker invokes
       # run-cl2-on-cluster.sh — same per-cluster body the bash for-loop used
       # to run sequentially (CL2 invoke + junit gate + log capture + failure
