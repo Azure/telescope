@@ -1,0 +1,309 @@
+name: clustermesh-pod-churn-combined
+
+# Combined Phase 4a config — single CL2 invocation runs scale-cycle then
+# kill against the SAME workload deployment. Goal: extract maximum signal
+# per (expensive) n20 provision/destroy lifecycle by exercising both
+# stressor flavors of Scenario #2 back-to-back.
+#
+# Sequence:
+#   1. Start measurements (control-plane, cilium, clustermesh-{metrics,
+#      throughput}, etcd-metrics, pod-churn-stress).
+#   2. Deploy PodMonitor.
+#   3. Create workload at full replicas + WaitForControlledPodsRunning gate.
+#   4. PHASE A — Scale-cycle stress (deterministic):
+#        $churnCycles iterations of (scale-down 0 → sleep down → scale-up N
+#        → sleep up). No per-cycle wait; let it churn freely.
+#   5. Intermediate WaitForControlledPodsRunning gather + brief settle.
+#   6. PHASE B — Kill stress (stochastic): Method: Exec runs
+#      pod-churn-killer.sh inside the CL2 docker container, deleting
+#      $killBatch random workload pods every $killIntervalSeconds for
+#      $killDurationSeconds. ReplicaSet re-creates them, driving the
+#      failure-driven event path. If kubectl is unavailable in the CL2
+#      image (Method: Exec dependency), this measurement returns 127 and
+#      CL2 marks it failed but the surrounding settle/gather/teardown
+#      steps still run, preserving Phase A scale-cycle data.
+#   7. Final WaitForControlledPodsRunning gather + settle.
+#   8. Gather measurements (all modules above).
+#   9. Teardown (workload + PodMonitor).
+#
+# Knob values come from the same CL2_* overrides scale.py writes for the
+# split scale/kill scenarios, so the existing matrix-var plumbing in
+# steps/engine/clusterloader2/clustermesh-scale/execute.yml works without
+# modification.
+
+{{$namespaces := DefaultParam .CL2_NAMESPACES 5}}
+{{$deploymentsPerNamespace := DefaultParam .CL2_DEPLOYMENTS_PER_NAMESPACE 4}}
+{{$replicasPerDeployment := DefaultParam .CL2_REPLICAS_PER_DEPLOYMENT 10}}
+{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "20m"}}
+{{$apiServerCallsPerSecond := DefaultParam .CL2_API_SERVER_CALLS_PER_SECOND 20}}
+{{$warmupDuration := DefaultParam .CL2_WARMUP_DURATION "30s"}}
+{{$holdDuration := DefaultParam .CL2_HOLD_DURATION "2m"}}
+{{$churnCycles := DefaultParam .CL2_CHURN_CYCLES 5}}
+{{$churnUpDuration := DefaultParam .CL2_CHURN_UP_DURATION "60s"}}
+{{$churnDownDuration := DefaultParam .CL2_CHURN_DOWN_DURATION "60s"}}
+{{$killDurationSeconds := DefaultParam .CL2_KILL_DURATION_SECONDS 600}}
+{{$killIntervalSeconds := DefaultParam .CL2_KILL_INTERVAL_SECONDS 10}}
+{{$killBatch := DefaultParam .CL2_KILL_BATCH 5}}
+# Method: Exec timeout — must exceed kill duration with margin so the
+# loop's deadline check fires before this hard cap. Set to 1.5x kill
+# duration as defense-in-depth.
+{{$killExecTimeout := DefaultParam .CL2_KILL_EXEC_TIMEOUT "15m"}}
+
+{{$workloadGroup := "clustermesh-pod-churn-combined"}}
+{{$workloadBasename := "pcc"}}
+
+namespace:
+  number: {{$namespaces}}
+  prefix: clustermesh-pcc
+  deleteStaleNamespaces: true
+  deleteAutomanagedNamespaces: true
+  enableExistingNamespaces: false
+  deleteNamespaceTimeout: 20m
+
+tuningSets:
+  - name: Sequence
+    parallelismLimitedLoad:
+      parallelismLimit: 1
+  - name: DeploymentCreateQps
+    qpsLoad:
+      qps: {{$apiServerCallsPerSecond}}
+
+steps:
+  # ----- Start measurements -----
+  - module:
+      path: /modules/measurements/control-plane.yaml
+      params:
+        action: start
+        group: {{$workloadGroup}}
+
+  - module:
+      path: /modules/measurements/cilium.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/clustermesh-metrics.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/clustermesh-throughput.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/etcd-metrics.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/pod-churn-stress.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/clustermesh.yaml
+      params:
+        actionName: create
+        tuningSet: DeploymentCreateQps
+
+  # ----- Workload deploy + initial settle -----
+  - name: Start tracking pod-churn-combined Deployments
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-pod-churn-combined-initial
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: start
+          apiVersion: apps/v1
+          kind: Deployment
+          checkIfPodsAreUpdated: true
+          labelSelector: group = {{$workloadGroup}}
+          operationTimeout: {{$operationTimeout}}
+
+  - module:
+      path: /modules/pod-churn-workload.yaml
+      params:
+        actionName: apply
+        replicas: {{$replicasPerDeployment}}
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        tuningSet: DeploymentCreateQps
+        group: {{$workloadGroup}}
+        basename: {{$workloadBasename}}
+
+  - name: Wait for initial pod-churn-combined pods to be Running
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-pod-churn-combined-initial
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+
+  - name: Warmup before phase A
+    measurements:
+      - Identifier: WarmupSleep
+        Method: Sleep
+        Params:
+          duration: {{$warmupDuration}}
+
+  # ----- PHASE A: scale-cycle stress -----
+  - name: Start tracking pod-churn scale-cycle phase
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-phase-a
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: start
+          apiVersion: apps/v1
+          kind: Deployment
+          checkIfPodsAreUpdated: true
+          labelSelector: group = {{$workloadGroup}}
+          operationTimeout: {{$operationTimeout}}
+
+  {{range $i := Loop $churnCycles}}
+  - module:
+      path: /modules/pod-churn-workload.yaml
+      params:
+        actionName: apply
+        replicas: 0
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        tuningSet: DeploymentCreateQps
+        group: {{$workloadGroup}}
+        basename: {{$workloadBasename}}
+
+  - name: Phase A cycle {{$i}} — down hold
+    measurements:
+      - Identifier: PhaseADownSleep-{{$i}}
+        Method: Sleep
+        Params:
+          duration: {{$churnDownDuration}}
+
+  - module:
+      path: /modules/pod-churn-workload.yaml
+      params:
+        actionName: apply
+        replicas: {{$replicasPerDeployment}}
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        tuningSet: DeploymentCreateQps
+        group: {{$workloadGroup}}
+        basename: {{$workloadBasename}}
+
+  - name: Phase A cycle {{$i}} — up hold
+    measurements:
+      - Identifier: PhaseAUpSleep-{{$i}}
+        Method: Sleep
+        Params:
+          duration: {{$churnUpDuration}}
+  {{end}}
+
+  - name: Wait for post-scale-cycle pods to be Running
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-phase-a
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+
+  - name: Brief settle between Phase A and Phase B
+    measurements:
+      - Identifier: InterPhaseSleep
+        Method: Sleep
+        Params:
+          duration: 30s
+
+  # ----- PHASE B: kill stress via Method: Exec -----
+  # Method: Exec runs the killer script inside the CL2 docker container.
+  # The container has /root/.kube/config (the per-cluster kubeconfig)
+  # mounted by run_cl2_command. The script uses kubectl from $PATH in
+  # the CL2 image; if missing it exits 127, this measurement is marked
+  # failed, but subsequent steps (settle, gather, teardown) still run.
+  - name: Phase B pod-churn kill loop
+    measurements:
+      - Identifier: PodChurnKillLoop
+        Method: Exec
+        Params:
+          streamOutput: true
+          timeout: {{$killExecTimeout}}
+          command:
+          - bash
+          - /root/perf-tests/clusterloader2/config/pod-churn-killer.sh
+          - "{{$killDurationSeconds}}"
+          - "{{$killIntervalSeconds}}"
+          - "{{$killBatch}}"
+          - "{{$workloadGroup}}"
+
+  # ----- Final convergence -----
+  - name: Start tracking post-kill convergence
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-post-combined
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: start
+          apiVersion: apps/v1
+          kind: Deployment
+          checkIfPodsAreUpdated: true
+          labelSelector: group = {{$workloadGroup}}
+          operationTimeout: {{$operationTimeout}}
+
+  - name: Wait for post-kill pods to be Running
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-post-combined
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+
+  - name: Settle after combined churn
+    measurements:
+      - Identifier: SettleSleep
+        Method: Sleep
+        Params:
+          duration: {{$holdDuration}}
+
+  # ----- Gather measurements -----
+  - module:
+      path: /modules/measurements/control-plane.yaml
+      params:
+        action: gather
+        group: {{$workloadGroup}}
+
+  - module:
+      path: /modules/measurements/cilium.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/clustermesh-metrics.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/clustermesh-throughput.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/etcd-metrics.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/pod-churn-stress.yaml
+      params:
+        action: gather
+
+  # ----- Teardown -----
+  - module:
+      path: /modules/pod-churn-workload.yaml
+      params:
+        actionName: delete
+        replicas: 0
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        tuningSet: DeploymentCreateQps
+        group: {{$workloadGroup}}
+        basename: {{$workloadBasename}}
+
+  - module:
+      path: /modules/clustermesh.yaml
+      params:
+        actionName: delete
+        tuningSet: DeploymentCreateQps

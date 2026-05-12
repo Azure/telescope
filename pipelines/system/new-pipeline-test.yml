@@ -358,6 +358,33 @@ stages:
               kill_batch: 5
               kill_job_deadline_seconds: 660
               trigger_reason: ${{ variables['Build.Reason'] }}
+            # Combined scale-cycle + kill in one CL2 invocation per cluster.
+            # Maximizes signal per (expensive) n20 provision/destroy lifecycle.
+            # Kill phase uses Method: Exec → kubectl from inside the CL2
+            # container (no in-cluster Job, no AcrPull dependency). If kubectl
+            # is unavailable in the CL2 image, the kill measurement is marked
+            # failed but scale-phase data still lands cleanly.
+            n20_pod_churn_combined:
+              cluster_count: 20
+              mesh_size: 20
+              cl2_config_file: pod-churn-combined.yaml
+              test_type: pod-churn-combined
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              churn_cycles: 5
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           # First n20 attempt: apply 219m, validate 60m, destroy 84m before
           # AzDO 6hr timeout cancelled. 8hr budget covers worst-case
