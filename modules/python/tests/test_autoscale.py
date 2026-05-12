@@ -102,7 +102,7 @@ class TestClusterLoaderFunctions(unittest.TestCase):
         # Mock the CPU request calculation
         mock_calculate_cpu_request.return_value = 1900
 
-        override_config_clusterloader2(2, 100, 1000, '5m', '5m', 1, 'autoscaler = true', '{autoscaler : true}', 'override_file', 'false', '/mock/path', 'linux', 'warmup_deployment.yaml', 'deployment_template.yaml')
+        override_config_clusterloader2(2, 100, 1000, '5m', '5m', 1, 'autoscaler = true', '{autoscaler : true}', 'override_file', 'false', '/mock/path', '5s', 'linux', 'warmup_deployment.yaml', 'deployment_template.yaml')
         mock_open.assert_any_call('override_file', 'w', encoding='utf-8')
         handle = mock_open()
         handle.write.assert_any_call('CL2_DEPLOYMENT_CPU: 1900m\n')
@@ -124,7 +124,7 @@ class TestClusterLoaderFunctions(unittest.TestCase):
 
         # Test with warmup deployment true
         mock_warmup.retun_value = None
-        override_config_clusterloader2(2, 100, 1000, '5m', '5m', 1, 'autoscaler = true', '{autoscaler : true}', 'override_file', 'true', '/mock/path', 'windows', 'warmup_deployment.yaml', 'deployment_template.yaml')
+        override_config_clusterloader2(2, 100, 1000, '5m', '5m', 1, 'autoscaler = true', '{autoscaler : true}', 'override_file', 'true', '/mock/path', '5s', 'windows', 'warmup_deployment.yaml', 'deployment_template.yaml')
         mock_open.assert_any_call('override_file', 'w', encoding='utf-8')
         handle = mock_open()
         handle.write.assert_any_call('CL2_DEPLOYMENT_CPU: 1900m\n')
@@ -264,6 +264,7 @@ class TestClusterLoaderFunctions(unittest.TestCase):
                 'override.yaml',
                 'warmup-deploy',
                 'config-dir',
+                '5s',
                 'linux',
                 '',
                 '',
@@ -271,7 +272,6 @@ class TestClusterLoaderFunctions(unittest.TestCase):
                 pod_memory_request=None,
                 cl2_config_file='config.yaml',
                 enable_prometheus=False,
-                refresh_interval='5s',
             )
 
     @patch('clusterloader2.autoscale.autoscale.execute_clusterloader2')
