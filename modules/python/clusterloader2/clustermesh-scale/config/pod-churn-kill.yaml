@@ -55,6 +55,25 @@ tuningSets:
       qps: {{$apiServerCallsPerSecond}}
 
 steps:
+  # ----- ACNS namespace opt-in (CFP-39876) -----
+  # AKS-managed Cilium ships with clustermesh-default-global-namespace=false,
+  # so workload namespaces need clustermesh.cilium.io/global=true to sync
+  # their CiliumIdentity/Endpoint/Services across the mesh. Without this,
+  # cross-cluster propagation metrics are structurally 0. See plan.md
+  # note #14 + ACNS team confirmation 2026-05-11.
+  - name: Annotate workload namespaces for ACNS cross-cluster sync
+    measurements:
+      - Identifier: AnnotateNamespacesForGlobalSync
+        Method: Exec
+        Params:
+          streamOutput: true
+          timeout: 1m
+          command:
+          - bash
+          - /root/perf-tests/clusterloader2/config/annotate-namespaces.sh
+          - "{{$namespaces}}"
+          - "clustermesh-pck"
+
   # ----- Start measurements -----
   - module:
       path: /modules/measurements/control-plane.yaml
