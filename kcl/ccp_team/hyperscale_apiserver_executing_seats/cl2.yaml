@@ -562,11 +562,12 @@ data:
   override.yaml: |
     # Total client-side inflight LIST = PODS * INFLIGHT_PER_POD.
     CL2_LIST_BENCHMARK_PODS: 36         # number of lister pods (Deployment replicas)
-    CL2_LIST_INFLIGHT_PER_POD: 100      # goroutines per pod, each in a tight LIST loop (binary --inflight flag)
-    # Per-LIST response = CL2_LIST_CONFIG_MAP_NUMBER * CL2_LIST_CONFIG_MAP_BYTES.
-    # Kept small so per-pod memory at INFLIGHT_PER_POD concurrent responses stays bounded.
-    CL2_LIST_CONFIG_MAP_NUMBER: 5000
-    CL2_LIST_CONFIG_MAP_BYTES: 1000
+    CL2_LIST_INFLIGHT_PER_POD: 200      # goroutines per pod, each in a tight LIST loop (binary --inflight flag)
+    # Per-LIST response ≈ NUMBER * BYTES ≈ 100MB. Heavy enough that each LIST stays in
+    # flight long enough for readOnly inflight to track the goroutine pool size, instead
+    # of looking small due to fast cache-served LISTs returning in ~50ms.
+    CL2_LIST_CONFIG_MAP_NUMBER: 20000
+    CL2_LIST_CONFIG_MAP_BYTES: 5000
     CL2_LIST_BENCHMARK_CPU: "500m"
     CL2_LIST_BENCHMARK_MEMORY: "512Mi"
     # Estimated load test duration. Read driver Sleeps for this long, then exits cleanly
