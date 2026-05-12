@@ -221,6 +221,42 @@ jobs:
           sleep 30
         done
     displayName: Wait for node pool kwokpool to succeed
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: "set -exo pipefail\n\naz aks nodepool add \\\n  --cluster-name \"stg-H8-hyperscale-apiserver-seats\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"listpool\" \\\n  --node-count 3 \\\n  --node-vm-size \"Standard_D8S_v4\" \\\n  --mode User \\\n   \\\n  \n"
+    displayName: Create node pool listpool
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        while true; do
+          STATE=$(az aks nodepool show \
+            --cluster-name "stg-H8-hyperscale-apiserver-seats" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --name "listpool" \
+            --query "provisioningState" \
+            --output tsv)
+          echo "Node pool provisioning state: $STATE"
+          if [ "$STATE" = "Succeeded" ]; then
+            echo "Node pool is ready."
+            break
+          elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+            echo "Node pool failed with state: $STATE."
+            exit 1
+          else
+            echo "Provisioning state: $STATE. Retry in 30 seconds"
+          fi
+          sleep 30
+        done
+    displayName: Wait for node pool listpool to succeed
   - script: |2-
 
       set -exo pipefail
@@ -284,7 +320,7 @@ jobs:
       inlineScript: |
         set -exo pipefail
 
-        for pod in $(kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o jsonpath='{.items[*].metadata.name}'); do
+        for pod in $(kubectl get pods --namespace="clusterloader2" -l job-name -o jsonpath='{.items[*].metadata.name}'); do
           echo "===== Logs for pod: $pod ====="
           kubectl logs --namespace="clusterloader2" "$pod" || true
         done

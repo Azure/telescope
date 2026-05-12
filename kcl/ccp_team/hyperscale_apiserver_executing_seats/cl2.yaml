@@ -552,3 +552,267 @@ data:
           complete: true
           testType: "policy-creation"
     {{end}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cl2-read-override
+  namespace: clusterloader2
+data:
+  override.yaml: |
+    # Total client-side inflight LIST = PODS * INFLIGHT_PER_POD.
+    CL2_LIST_BENCHMARK_PODS: 36         # number of lister pods (Deployment replicas)
+    CL2_LIST_INFLIGHT_PER_POD: 100      # goroutines per pod, each in a tight LIST loop (binary --inflight flag)
+    # Per-LIST response = CL2_LIST_CONFIG_MAP_NUMBER * CL2_LIST_CONFIG_MAP_BYTES.
+    # Kept small so per-pod memory at INFLIGHT_PER_POD concurrent responses stays bounded.
+    CL2_LIST_CONFIG_MAP_NUMBER: 5000
+    CL2_LIST_CONFIG_MAP_BYTES: 1000
+    CL2_LIST_BENCHMARK_CPU: "500m"
+    CL2_LIST_BENCHMARK_MEMORY: "512Mi"
+    # Estimated load test duration. Read driver Sleeps for this long, then exits cleanly
+    # so its CL2 measurement gather step runs and its report is captured. RunClusterLoader2
+    # waits for both load + read to reach terminal, so don't set this larger than expected
+    # load test runtime or the pipeline will idle waiting for read.
+    CL2_LIST_BENCHMARK_DURATION: "60m"
+---
+# Override files mounted on top of the cl2 image's testing/list/ tree.
+# - config.yaml: parameterizes the upstream-hardcoded 5m Sleep so duration is tunable.
+# - modules/list-benchmark.yaml: passes Inflight, Cpu, Memory through to deployment.
+# - deployment.yaml: adds --inflight flag and accepts Cpu/Memory templateFillMap.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cl2-read-testconfig
+  namespace: clusterloader2
+data:
+  config.yaml: |
+    # List benchmark (telescope override of testing/list/config.yaml).
+    {{$configMapBytes := DefaultParam .CL2_LIST_CONFIG_MAP_BYTES 100000}}
+    {{$configMapNumber := DefaultParam .CL2_LIST_CONFIG_MAP_NUMBER 10000}}
+    {{$configMapGroup := DefaultParam .CL2_LIST_CONFIG_MAP_GROUP "list-configmap"}}
+
+    {{$listReplicas := DefaultParam .CL2_LIST_BENCHMARK_PODS 1}}
+    {{$contentType := DefaultParam .CL2_LIST_BENCHMARK_CONTENT_TYPE "json"}}
+    {{$inflight := DefaultParam .CL2_LIST_INFLIGHT_PER_POD 1}}
+    {{$cpu := DefaultParam .CL2_LIST_BENCHMARK_CPU "1250m"}}
+    {{$memory := DefaultParam .CL2_LIST_BENCHMARK_MEMORY "32Mi"}}
+    {{$duration := DefaultParam .CL2_LIST_BENCHMARK_DURATION "5m"}}
+
+    name: list-benchmark
+    namespace:
+      number: 1
+    tuningSets:
+    - name: Sequence
+      parallelismLimitedLoad:
+        parallelismLimit: 10
+    steps:
+    - name: Setup namespace for list benchmark pods
+      phases:
+      - replicasPerNamespace: 1
+        tuningSet: Sequence
+        objectBundle:
+        - basename: list-benchmark
+          objectTemplatePath: namespace.yaml
+    - name: Setup permissions
+      phases:
+      - replicasPerNamespace: 1
+        tuningSet: Sequence
+        objectBundle:
+        - basename: list-clusterrole
+          objectTemplatePath: clusterrole.yaml
+      - replicasPerNamespace: 1
+        tuningSet: Sequence
+        objectBundle:
+        - basename: list-clusterrolebinding
+          objectTemplatePath: clusterrolebinding.yaml
+      - namespaceRange:
+          min: 1
+          max: 1
+        replicasPerNamespace: 1
+        tuningSet: Sequence
+        objectBundle:
+        - basename: list-rolebinding
+          objectTemplatePath: rolebinding.yaml
+
+    - name: Create configmaps
+      phases:
+      - namespaceRange:
+          min: 1
+          max: 1
+        tuningSet: Sequence
+        replicasPerNamespace: {{$configMapNumber}}
+        objectBundle:
+        - basename: {{$configMapGroup}}
+          objectTemplatePath: configmap.yaml
+          templateFillMap:
+            bytes: {{$configMapBytes}}
+            group: {{$configMapGroup}}
+
+    - module:
+        path: modules/list-benchmark.yaml
+        params:
+          namePrefix: "list-configmaps-"
+          replicas: {{$listReplicas}}
+          uri: /api/v1/configmaps?resourceVersion=0
+          namespaced: false
+          contentType: {{$contentType}}
+          inflight: {{$inflight}}
+          cpu: {{$cpu}}
+          memory: {{$memory}}
+    - module:
+        path: /modules/measurements.yaml
+        params:
+          action: start
+    - name: Sustain LIST inflight
+      measurements:
+        - Identifier: Wait
+          Method: Sleep
+          Params:
+            duration: {{$duration}}
+    - module:
+        path: /modules/measurements.yaml
+        params:
+          action: gather
+    - module:
+        path: modules/list-benchmark.yaml
+        params:
+          namePrefix: "list-configmaps-"
+          replicas: 0
+  list-benchmark.yaml: |
+    {{$namePrefix := DefaultParam .namePrefix "list-benchmark-"}}
+    {{$replicas := DefaultParam .replicas 0}}
+    {{$uri := DefaultParam .uri "/"}}
+    {{$contentType := DefaultParam .contentType "json"}}
+    {{$inflight := DefaultParam .inflight 1}}
+    {{$cpu := DefaultParam .cpu "1250m"}}
+    {{$memory := DefaultParam .memory "32Mi"}}
+
+    steps:
+    - name: Creating WaitForControlledPodsRunning measurement
+      measurements:
+      - Identifier: WaitForListBenchmarkDeployment
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: start
+          apiVersion: apps/v1
+          checkIfPodsAreUpdated: true
+          kind: Deployment
+          labelSelector: group = benchmark
+          operationTimeout: 5m
+    - name: Deploying {{$namePrefix}}deployment
+      phases:
+      - tuningSet: Sequence
+        replicasPerNamespace: 1
+        namespaceRange:
+          min: 0
+          max: 0
+          basename: list-benchmark
+        objectBundle:
+        - basename: {{$namePrefix}}deploy
+          objectTemplatePath: deployment.yaml
+          templateFillMap:
+            Replicas: {{$replicas}}
+            Uri: {{$uri}}
+            ContentType: {{$contentType}}
+            Inflight: {{$inflight}}
+            Cpu: {{$cpu}}
+            Memory: {{$memory}}
+    - name: Waiting for WaitForControlledPodsRunning gather
+      measurements:
+      - Identifier: WaitForListBenchmarkDeployment
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+  deployment.yaml: |
+    # Source of image: https://github.com/kubernetes/perf-tests/tree/master/util-images/request-benchmark
+    {{$image := DefaultParam .CL2_BENCHMARK_IMAGE "gcr.io/k8s-testimages/perf-tests-util/request-benchmark:latest"}}
+    {{$cpu := DefaultParam .Cpu "1250m"}}
+    {{$memory := DefaultParam .Memory "32Mi"}}
+    {{$inflight := DefaultParam .Inflight 1}}
+
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: {{.Name}}
+      labels:
+        group: benchmark
+    spec:
+      replicas: {{.Replicas}}
+      selector:
+        matchLabels:
+          name: {{.Name}}
+      template:
+        metadata:
+          labels:
+            name: {{.Name}}
+            group: benchmark
+        spec:
+          containers:
+          - name: {{.Name}}
+            image: {{$image}}
+            imagePullPolicy: Always
+            args:
+            - --namespace={{.Namespace}}
+            - --uri={{.Uri}}
+            - --content-type={{.ContentType}}
+            - --inflight={{$inflight}}
+            resources:
+              requests:
+                cpu: {{$cpu}}
+                memory: {{$memory}}
+              limits:
+                cpu: {{$cpu}}
+                memory: {{$memory}}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cl2-read
+  namespace: clusterloader2
+spec:
+  completions: 1
+  parallelism: 1
+  backoffLimit: 0
+  template:
+    spec:
+      containers:
+      - args:
+        - '--provider=aks'
+        - '--run-from-cluster=true'
+        - '--v=2'
+        - '--testoverrides=/override/override.yaml'
+        - '--testconfig=testing/list/config.yaml'
+        image: ghcr.io/azure/clusterloader2:v20260220
+        name: cl2-read
+        resources:
+          requests:
+            cpu: '2'
+            memory: '4Gi'
+        volumeMounts:
+        - mountPath: /override
+          name: cl2-read-override
+        # Mount custom config + module + deployment over the in-image testing/list/ tree.
+        - mountPath: /root/perf-tests/clusterloader2/testing/list/config.yaml
+          name: cl2-read-testconfig
+          subPath: config.yaml
+        - mountPath: /root/perf-tests/clusterloader2/testing/list/modules/list-benchmark.yaml
+          name: cl2-read-testconfig
+          subPath: list-benchmark.yaml
+        - mountPath: /root/perf-tests/clusterloader2/testing/list/deployment.yaml
+          name: cl2-read-testconfig
+          subPath: deployment.yaml
+      nodeSelector:
+        agentpool: cl2pool
+      restartPolicy: Never
+      serviceAccountName: cl2
+      tolerations:
+      - effect: NoSchedule
+        key: cl2pool
+        operator: Exists
+      volumes:
+      - configMap:
+          name: cl2-read-override
+        name: cl2-read-override
+      - configMap:
+          name: cl2-read-testconfig
+        name: cl2-read-testconfig

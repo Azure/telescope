@@ -130,6 +130,23 @@ output = ap.Pipeline {
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID,
                     "kwokpool"),
+                # Untainted pool that hosts the list-benchmark lister Deployment pods
+                # (upstream deployment template has no nodeSelector/tolerations, so they
+                # land on any untainted node — systempool is too small for 36 listers).
+                azure.CreateNodePool(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    CLUSTER,
+                    RESOURCE_GROUP,
+                    SUBSCRIPTION_ID,
+                    "listpool",
+                    "Standard_D8S_v4",
+                    3),
+                azure.WaitForNodePoolSucceeded(
+                    const.DEFAULT_SERVICE_CONNECTION,
+                    CLUSTER,
+                    RESOURCE_GROUP,
+                    SUBSCRIPTION_ID,
+                    "listpool"),
                 *k8s.CreateKwokNodes(
                   15000,
                   continueOnError = True,
@@ -141,11 +158,14 @@ output = ap.Pipeline {
                     "validate-success-threshold": "0.9"
                     "log-level": "WARNING"
                   }),
-                  k8s.RunClusterLoader2(
+                # Apply manifest containing both load (Job cl2) and read (Job cl2-read)
+                # in clusterloader2 ns; the wait loop covers all pods in the ns, so
+                # both drivers must reach terminal before this returns.
+                k8s.RunClusterLoader2(
                     const.DEFAULT_SERVICE_CONNECTION,
                     "clusterloader2",
                     manifest = "kcl/ccp_team/hyperscale_apiserver_executing_seats/cl2.yaml"),
-                  k8s.PrintCl2PodLogs(
+                k8s.PrintCl2PodLogs(
                     const.DEFAULT_SERVICE_CONNECTION,
                     "clusterloader2"),
                 azure.DeleteResourceGroup(

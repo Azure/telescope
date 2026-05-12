@@ -292,7 +292,7 @@ stages:
         inlineScript: |
           set -exo pipefail
 
-          for pod in $(kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o jsonpath='{.items[*].metadata.name}'); do
+          for pod in $(kubectl get pods --namespace="clusterloader2" -l job-name -o jsonpath='{.items[*].metadata.name}'); do
             echo "===== Logs for pod: $pod ====="
             kubectl logs --namespace="clusterloader2" "$pod" || true
           done
@@ -594,7 +594,7 @@ stages:
         inlineScript: |
           set -exo pipefail
 
-          for pod in $(kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o jsonpath='{.items[*].metadata.name}'); do
+          for pod in $(kubectl get pods --namespace="clusterloader2" -l job-name -o jsonpath='{.items[*].metadata.name}'); do
             echo "===== Logs for pod: $pod ====="
             kubectl logs --namespace="clusterloader2" "$pod" || true
           done
@@ -896,7 +896,7 @@ stages:
         inlineScript: |
           set -exo pipefail
 
-          for pod in $(kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o jsonpath='{.items[*].metadata.name}'); do
+          for pod in $(kubectl get pods --namespace="clusterloader2" -l job-name -o jsonpath='{.items[*].metadata.name}'); do
             echo "===== Logs for pod: $pod ====="
             kubectl logs --namespace="clusterloader2" "$pod" || true
           done
