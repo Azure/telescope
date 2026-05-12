@@ -41,6 +41,10 @@ aks_cli_config_list = [
         value = "Auto"
       },
       {
+        name  = "network-plugin"
+        value = "azure"
+      },
+      {
         name  = "node-init-taints"
         value = "CriticalAddonsOnly=true:NoSchedule"
       }
