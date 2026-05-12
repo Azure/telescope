@@ -9,11 +9,11 @@ network_config_list = [
   {
     role               = "crud"
     vnet_name          = "nap-vnet"
-    vnet_address_space = "10.192.0.0/10"
+    vnet_address_space = "10.193.0.0/10"
     subnet = [
       {
         name           = "nap-subnet"
-        address_prefix = "10.192.0.0/16"
+        address_prefix = "10.193.0.0/16"
       }
     ]
     network_security_group_name = ""
