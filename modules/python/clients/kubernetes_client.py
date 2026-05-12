@@ -71,6 +71,7 @@ class KubernetesClient:
         """
         Get a list of nodes that are ready to be scheduled. Should apply all conditions:
         - 'Ready' condition status is True
+        - 'NetworkUnavailable' condition status is not present or is False
         - Spec unschedulable is False
         - Spec taints do not have any builtin taints keys with effect 'NoSchedule' or 'NoExecute'
         """
@@ -84,6 +85,7 @@ class KubernetesClient:
         status_conditions = {cond.type: cond.status for cond in node.status.conditions}
         is_schedulable = (
             status_conditions.get("Ready") == "True"
+            and status_conditions.get("NetworkUnavailable") != "True"
             and node.spec.unschedulable is not True
         )
         if not is_schedulable:
