@@ -237,6 +237,7 @@ def override_config_clusterloader2(
     override_file,
     warmup_deployment,
     cl2_config_dir,
+    refresh_interval,
     os_type="linux",
     warmup_deployment_template="",
     deployment_template="",
@@ -272,6 +273,7 @@ def override_config_clusterloader2(
         file.write(f"CL2_SCALE_UP_TIMEOUT: {scale_up_timeout}\n")
         file.write(f"CL2_SCALE_DOWN_TIMEOUT: {scale_down_timeout}\n")
         file.write(f"CL2_LOOP_COUNT: {loop_count}\n")
+        file.write(f"CL2_REFRESH_INTERVAL: {refresh_interval}\n")
 
         if enable_prometheus:
             file.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
@@ -456,6 +458,12 @@ def main():
         type=str2bool,
         help="Enable Prometheus server in CL2",
     )
+    parser_override.add_argument(
+        "--refresh_interval",
+        type=str,
+        default="5s",
+        help="Refresh interval for WaitForNodes and WaitForRunningPods measurements",
+    )
     # Sub-command for execute_clusterloader2
     parser_execute = subparsers.add_parser("execute", help="Execute scale up operation")
     parser_execute.add_argument("cl2_image", type=str, help="Name of the CL2 image")
@@ -542,6 +550,7 @@ def main():
             args.cl2_override_file,
             args.warmup_deployment,
             args.cl2_config_dir,
+            args.refresh_interval,
             args.os_type,
             args.warmup_deployment_template,
             args.deployment_template,
