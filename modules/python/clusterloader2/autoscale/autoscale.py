@@ -237,6 +237,7 @@ def override_config_clusterloader2(
     override_file,
     warmup_deployment,
     cl2_config_dir,
+    refresh_interval,
     os_type="linux",
     warmup_deployment_template="",
     deployment_template="",
@@ -244,7 +245,6 @@ def override_config_clusterloader2(
     pod_memory_request="",
     cl2_config_file="config.yaml",
     enable_prometheus=False,
-    refresh_interval="5s",
 ):
     desired_node_count = 1
     if warmup_deployment in ["true", "True"]:
@@ -553,11 +553,11 @@ def main():
             args.os_type,
             args.warmup_deployment_template,
             args.deployment_template,
+            args.refresh_interval,
             pod_cpu_request=args.pod_cpu_request,
             pod_memory_request=args.pod_memory_request,
             cl2_config_file=args.cl2_config_file,
             enable_prometheus=args.enable_prometheus,
-            refresh_interval=args.refresh_interval,
         )
     elif args.command == "execute":
         execute_clusterloader2(
