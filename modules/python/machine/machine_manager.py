@@ -68,6 +68,10 @@ class MachineManager:
             end = datetime.now(timezone.utc)
             resp.end_time = end.strftime("%Y-%m-%dT%H:%M:%SZ")
             resp.command_execution_time = (end - start).total_seconds()
+            logger.info(
+                "Agent pool creation completed in %.2f seconds",
+                resp.command_execution_time,
+            )
         return resp
 
     @save_test_result
