@@ -247,7 +247,27 @@ class AKSMachineClient:
                 timeout, agentpool_name,
             )
             return {"P50": 0.0, "P90": 0.0, "P99": 0.0}
-        return {f"P{p}": elapsed.get(p, 0.0) for p in (50, 90, 99)}
+        result = {f"P{p}": elapsed.get(p, 0.0) for p in (50, 90, 99)}
+        # ado-parity stdout logging: percentile summary + a P100-equivalent
+        # "node_readiness_time" line. We don't track a true P100 here (we exit
+        # as soon as the highest configured target hits), so the max of the
+        # achieved percentiles is the closest analogue to ado's
+        # `response.node_readiness_time = percentile_times[100]`.
+        logger.info("Node Readiness Percentile Summary for agentpool %s:", agentpool_name)
+        for p in (50, 90, 99):
+            if p in elapsed:
+                logger.info("  P%d (target=%d nodes): %.2f seconds",
+                            p, targets[p], elapsed[p])
+            else:
+                logger.info("  P%d (target=%d nodes): TIMEOUT", p, targets[p])
+        max_elapsed = max(elapsed.values())
+        logger.info(
+            "All target nodes became ready in %.2f seconds in agent pool %s",
+            max_elapsed, agentpool_name,
+        )
+        logger.info("Percentile node readiness data: %s",
+                    json.dumps(result, indent=2))
+        return result
 
     def scale_machine(self, request: ScaleMachineRequest) -> MachineOperationResponse:
         """Scale a Machine-mode agentpool by creating ``request.scale_machine_count`` machines.
@@ -337,6 +357,13 @@ class AKSMachineClient:
                 timeout=request.readiness_wait_timeout,
                 baseline_count=baseline_count,
             )
+            # ado-parity: node_readiness_time is the wall-clock elapsed until
+            # all target percentiles have been hit. We derive it from the max
+            # of the achieved percentile times (closest analogue to ado's P100).
+            if response.percentile_node_readiness_times:
+                response.node_readiness_time = max(
+                    response.percentile_node_readiness_times.values()
+                )
             response.succeeded = len(successful) == request.scale_machine_count
         except Exception as exc:  # pylint: disable=broad-except
             logger.exception("scale_machine failed")
@@ -346,6 +373,10 @@ class AKSMachineClient:
             end_dt = datetime.now(timezone.utc)
             response.end_time = end_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
             response.command_execution_time = (end_dt - start_dt).total_seconds()
+            logger.info(
+                "Machine scaling completed in %.2f seconds (node_readiness_time=%.2fs)",
+                response.command_execution_time, response.node_readiness_time,
+            )
         # Attach cluster snapshot for Kusto cloud_data column.
         try:
             response.cloud_data = self.get_cluster_data(request.cluster_name)
