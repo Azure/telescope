@@ -178,7 +178,7 @@ class AKSMachineClient:
         timeout: int,
         baseline_count: int = 0,
     ) -> Dict[str, float]:
-        """Wait for ``expected_count`` NEW Ready nodes in ``agentpool_name``; return {P50,P90,P99}.
+        """Wait for ``expected_count`` NEW Ready nodes; return ado-parity nested percentile dict.
 
         AKS Machine ARM resource names (e.g. ``scale100-machine-1``) are NOT the
         same as the underlying k8s Node names (``aks-<pool>-<rand>-vmss<i>``), so
@@ -191,7 +191,7 @@ class AKSMachineClient:
         ``baseline_count + expected_count`` and clamped to ``> baseline_count``
         so a target never fires on pre-existing nodes alone. Without this, an
         agentpool that already has 1 Ready node and is being scaled by 1 more
-        would report P50/P90/P99 = ~0.7s (the first poll) even though the new
+        would report P50/P70/P90/P99/P100 = ~0.7s (the first poll) even though the new
         node had not yet provisioned.
 
         ``timeout`` is wall-clock seconds from invocation. Returns the
@@ -199,14 +199,26 @@ class AKSMachineClient:
         <= 0, or no percentile target is met within ``timeout``. Polling
         exceptions are logged and treated as 0 ready this tick. Never raises.
         """
+        # ado-parity empty-state envelope: nested dict per P-key with
+        # `target_nodes`, `elapsed_time_seconds`, `percentage`, `success` so
+        # the Kusto schema sees consistent shape regardless of outcome.
+        empty_envelope: Dict[str, Dict[str, Any]] = {
+            f"P{p}": {
+                "target_nodes": 0,
+                "elapsed_time_seconds": None,
+                "percentage": p,
+                "success": False,
+            }
+            for p in (50, 70, 90, 99, 100)
+        }
         kc = self.aks_client.k8s_client
         if kc is None:
             logger.error(
                 "k8s_client is None on AKSClient; cannot wait for machine readiness"
             )
-            return {"P50": 0.0, "P90": 0.0, "P99": 0.0}
+            return empty_envelope
         if expected_count <= 0:
-            return {"P50": 0.0, "P90": 0.0, "P99": 0.0}
+            return empty_envelope
         label_selector = f"agentpool={agentpool_name}"
         target_total = baseline_count + expected_count
         # Each percentile target must be STRICTLY GREATER than baseline_count so
@@ -214,7 +226,7 @@ class AKSMachineClient:
         # never satisfy any threshold.
         targets = {
             p: max(baseline_count + 1, int((p / 100.0) * target_total))
-            for p in (50, 90, 99)
+            for p in (50, 70, 90, 99, 100)
         }
         elapsed: Dict[int, float] = {}
         start = time.time()
@@ -246,15 +258,29 @@ class AKSMachineClient:
                 "No percentile target met within %ss for agentpool %s",
                 timeout, agentpool_name,
             )
-            return {"P50": 0.0, "P90": 0.0, "P99": 0.0}
-        result = {f"P{p}": elapsed.get(p, 0.0) for p in (50, 90, 99)}
-        # ado-parity stdout logging: percentile summary + a P100-equivalent
-        # "node_readiness_time" line. We don't track a true P100 here (we exit
-        # as soon as the highest configured target hits), so the max of the
-        # achieved percentiles is the closest analogue to ado's
-        # `response.node_readiness_time = percentile_times[100]`.
+            return {
+                f"P{p}": {
+                    "target_nodes": targets[p],
+                    "elapsed_time_seconds": None,
+                    "percentage": p,
+                    "success": False,
+                }
+                for p in (50, 70, 90, 99, 100)
+            }
+        result: Dict[str, Dict[str, Any]] = {
+            f"P{p}": {
+                "target_nodes": targets[p],
+                "elapsed_time_seconds": elapsed.get(p),
+                "percentage": p,
+                "success": p in elapsed,
+            }
+            for p in (50, 70, 90, 99, 100)
+        }
+        # ado-parity stdout logging: percentile summary including P100, which is
+        # the wall-clock elapsed until ALL target nodes are Ready. This matches
+        # ado's `response.node_readiness_time = percentile_times[100]` exactly.
         logger.info("Node Readiness Percentile Summary for agentpool %s:", agentpool_name)
-        for p in (50, 90, 99):
+        for p in (50, 70, 90, 99, 100):
             if p in elapsed:
                 logger.info("  P%d (target=%d nodes): %.2f seconds",
                             p, targets[p], elapsed[p])
@@ -286,7 +312,7 @@ class AKSMachineClient:
              work is finished". Logged informationally; non-blocking for the
              response (readiness percentiles are the load-bearing metric).
           4. Wait for nodes labeled ``agentpool=<pool>`` to surpass
-             ``baseline_count`` by enough to satisfy P50/P90/P99 targets.
+             ``baseline_count`` by enough to satisfy P50/P70/P90/P99/P100 targets.
 
         Never raises — failures recorded on the returned response.
         """
@@ -300,7 +326,7 @@ class AKSMachineClient:
             # Snapshot baseline BEFORE any PUTs so the readiness watcher counts
             # only NEW nodes. Without this, agentpools that already have a Ready
             # node (e.g. an implicit placeholder created when the agentpool was
-            # switched to Machines mode) cause P50/P90/P99 to fire on the very
+            # switched to Machines mode) cause P50/P70/P90/P99/P100 to fire on the very
             # first poll, hiding the real provisioning latency.
             kc = self.aks_client.k8s_client
             baseline_count = 0
@@ -357,12 +383,13 @@ class AKSMachineClient:
                 timeout=request.readiness_wait_timeout,
                 baseline_count=baseline_count,
             )
-            # ado-parity: node_readiness_time is the wall-clock elapsed until
-            # all target percentiles have been hit. We derive it from the max
-            # of the achieved percentile times (closest analogue to ado's P100).
+            # ado-parity: node_readiness_time equals P100.elapsed_time_seconds —
+            # wall-clock elapsed until all target nodes are Ready. Matches
+            # ado's `response.node_readiness_time = percentile_times[100]`.
             if response.percentile_node_readiness_times:
-                response.node_readiness_time = max(
-                    response.percentile_node_readiness_times.values()
+                response.node_readiness_time = (
+                    response.percentile_node_readiness_times
+                    .get("P100", {}).get("elapsed_time_seconds") or 0.0
                 )
             response.succeeded = len(successful) == request.scale_machine_count
         except Exception as exc:  # pylint: disable=broad-except
