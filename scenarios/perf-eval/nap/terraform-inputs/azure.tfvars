@@ -14,6 +14,13 @@ network_config_list = [
       {
         name           = "nap-subnet"
         address_prefix = "10.192.0.0/16"
+        delegations = [
+          {
+            name                       = "nap-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
       }
     ]
     network_security_group_name = ""
@@ -39,10 +46,6 @@ aks_cli_config_list = [
       {
         name  = "node-provisioning-mode"
         value = "Auto"
-      },
-      {
-        name  = "network-plugin"
-        value = "azure"
       },
       {
         name  = "node-init-taints"
