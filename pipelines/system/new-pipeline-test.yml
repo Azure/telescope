@@ -134,11 +134,13 @@ stages:
             n2_shared:
               cluster_count: 2
               mesh_size: 2
-              # ITER-ONLY 2026-05-13: only apiserver-failure to iterate on
-              # the killer's recovery timeout root cause. Restore full
-              # 3-scenario list once #4 lands clean:
-              #   "event-throughput,pod-churn-combined,apiserver-failure"
-              share_infra_scenarios: "apiserver-failure"
+              # Phase 4b — 4-scenario share-infra validation:
+              # event-throughput (#1), pod-churn-combined (#2),
+              # apiserver-failure (#4), ha-config (#7). #7 runs LAST so its
+              # scale-up residue doesn't affect the other scenarios; the
+              # scale-down step at the end of ha-config restores the
+              # Deployment to 1 replica.
+              share_infra_scenarios: "event-throughput,pod-churn-combined,apiserver-failure,ha-config"
               cl2_config_file: ""  # unused when share_infra_scenarios is set
               test_type: shared    # row-level test_type comes from each scenario at collect time
               namespaces: 5
@@ -163,11 +165,17 @@ stages:
               apiserver_kill_target_context: clustermesh-1
               apiserver_kill_recovery_timeout_seconds: 240
               apiserver_kill_observation_seconds: 60
+              # Phase 4b — Scenario #7 (HA Configuration Validation) knob.
+              # Each cluster scales clustermesh-apiserver to this count
+              # before ha-config measurements start; 3 is standard HA
+              # (etcd-quorum-friendly). ENO may revert; the scaler tags
+              # ha_replicas_honored in the timing JSON either way.
+              ha_config_replicas: 3
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
-          # n=2 share-infra (3 scenarios): provision (~15min) + validate (~5min)
-          # + 3 × CL2 (~25min each, with 60s settle between) + destroy (~15min)
-          # ≈ ~120min. Buffer to 360 for LB-tail / apply retries.
+          # n=2 share-infra (4 scenarios): provision (~15min) + validate (~5min)
+          # + 4 × CL2 (~25min each, with 60s settle between) + destroy (~15min)
+          # ≈ ~145min. Buffer to 360 for LB-tail / apply retries.
           timeout_in_minutes: 360
           credential_type: service_connection
           ssh_key_enabled: false
@@ -408,7 +416,7 @@ stages:
             n20_shared:
               cluster_count: 20
               mesh_size: 20
-              share_infra_scenarios: "event-throughput,pod-churn-combined,apiserver-failure"
+              share_infra_scenarios: "event-throughput,pod-churn-combined,apiserver-failure,ha-config"
               cl2_config_file: ""  # unused in share-infra mode
               test_type: shared    # row-level test_type comes from each scenario
               cl2_max_concurrent: 8
@@ -430,6 +438,7 @@ stages:
               apiserver_kill_target_context: clustermesh-1
               apiserver_kill_recovery_timeout_seconds: 240
               apiserver_kill_observation_seconds: 60
+              ha_config_replicas: 3
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           # n=20 share-infra (3 scenarios): provision (~4h) + validate (~30min)

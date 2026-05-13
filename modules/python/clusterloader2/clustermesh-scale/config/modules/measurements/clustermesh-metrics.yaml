@@ -264,3 +264,61 @@ steps:
           query: quantile(0.99, max_over_time(cilium_identity[%v:]))
         - name: Perc50
           query: quantile(0.50, avg_over_time(cilium_identity[%v:]))
+
+    # ---------------------------------------------------------------------
+    # Scenario #7 (HA Configuration) — clustermesh-apiserver pod resource
+    # overhead. With replicas=1 (baseline scenarios #1-#6) the Total metrics
+    # equal the single-pod values; with replicas=N (scenario #7 / ha-config)
+    # they reflect the cumulative cost of N replicas. Direct A/B in Kusto:
+    # compare `test_type in ("apiserver-failure","ha-config")` rows.
+    #
+    # Scoped to label `pod=~"clustermesh-apiserver-.*"` which matches every
+    # pod under the Deployment (ReplicaSet hash + suffix). Source is cAdvisor
+    # (kubelet metrics), which the CL2 prometheus stack scrapes by default.
+    # ---------------------------------------------------------------------
+    - Identifier: ClusterMeshApiserverPodCPU{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh APIServer Pod CPU {{$suffix}}
+        metricVersion: v1
+        unit: cpu
+        enableViolations: false
+        queries:
+        - name: TotalMax
+          query: max_over_time(sum(rate(container_cpu_usage_seconds_total{pod=~"clustermesh-apiserver-.*", container!="", container!="POD"}[1m]))[%v:])
+        - name: TotalAvg
+          query: avg_over_time(sum(rate(container_cpu_usage_seconds_total{pod=~"clustermesh-apiserver-.*", container!="", container!="POD"}[1m]))[%v:])
+        - name: PerPodMax
+          query: max_over_time(max(sum by (pod) (rate(container_cpu_usage_seconds_total{pod=~"clustermesh-apiserver-.*", container!="", container!="POD"}[1m])))[%v:])
+
+    - Identifier: ClusterMeshApiserverPodMemory{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh APIServer Pod Memory {{$suffix}}
+        metricVersion: v1
+        unit: bytes
+        enableViolations: false
+        queries:
+        - name: TotalMax
+          query: max_over_time(sum(container_memory_working_set_bytes{pod=~"clustermesh-apiserver-.*", container!="", container!="POD"})[%v:])
+        - name: TotalAvg
+          query: avg_over_time(sum(container_memory_working_set_bytes{pod=~"clustermesh-apiserver-.*", container!="", container!="POD"})[%v:])
+        - name: PerPodMax
+          query: max_over_time(max(sum by (pod) (container_memory_working_set_bytes{pod=~"clustermesh-apiserver-.*", container!="", container!="POD"}))[%v:])
+
+    - Identifier: ClusterMeshApiserverPodRestarts{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh APIServer Pod Restarts {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        - name: Total
+          query: max_over_time(sum(kube_pod_container_status_restarts_total{pod=~"clustermesh-apiserver-.*"})[%v:])
+        - name: PerPodMax
+          query: max_over_time(max(sum by (pod) (kube_pod_container_status_restarts_total{pod=~"clustermesh-apiserver-.*"}))[%v:])
+

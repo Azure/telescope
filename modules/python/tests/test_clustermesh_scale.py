@@ -307,6 +307,47 @@ class TestConfigureClustermeshScale(unittest.TestCase):
         finally:
             os.remove(tmp_path)
 
+    def test_overrides_file_ha_config_replicas_default(self):
+        """ha-config replicas default to 3 (standard k8s HA)."""
+        with tempfile.NamedTemporaryFile(
+            delete=False, mode="w+", encoding="utf-8"
+        ) as tmp:
+            tmp_path = tmp.name
+        try:
+            configure_clusterloader2(
+                namespaces=1,
+                deployments_per_namespace=1,
+                replicas_per_deployment=1,
+                operation_timeout="15m",
+                override_file=tmp_path,
+            )
+            with open(tmp_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            self.assertIn("CL2_HA_CONFIG_REPLICAS: 3", content)
+        finally:
+            os.remove(tmp_path)
+
+    def test_overrides_file_ha_config_replicas_passthrough(self):
+        """Explicit ha_config_replicas overrides the default."""
+        with tempfile.NamedTemporaryFile(
+            delete=False, mode="w+", encoding="utf-8"
+        ) as tmp:
+            tmp_path = tmp.name
+        try:
+            configure_clusterloader2(
+                namespaces=1,
+                deployments_per_namespace=1,
+                replicas_per_deployment=1,
+                operation_timeout="15m",
+                override_file=tmp_path,
+                ha_config_replicas=5,
+            )
+            with open(tmp_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            self.assertIn("CL2_HA_CONFIG_REPLICAS: 5", content)
+        finally:
+            os.remove(tmp_path)
+
 
 class TestApiserverFailureTimingPickup(unittest.TestCase):
     """collect_clusterloader2 appends a row from ApiserverFailureTimings_*.json
@@ -405,6 +446,104 @@ class TestApiserverFailureTimingPickup(unittest.TestCase):
                 if r.get("measurement") == "ApiserverFailureRecoveryTiming"
             ]
             self.assertEqual(len(timing_rows), 0)
+        finally:
+            if os.path.exists(result_file):
+                os.remove(result_file)
+
+
+class TestHAConfigScalingTimingPickup(unittest.TestCase):
+    """collect_clusterloader2 appends a row from HAConfigScalingTimings_*.json
+    if it finds one in the report dir. ha-config-scaler.sh writes the file
+    on every cluster (not just target) — mesh-wide HA scaling.
+    """
+
+    def test_scaling_file_appends_row(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = os.path.join(MOCK_REPORT_ROOT, "mesh-1")
+            report_dir = os.path.join(tmp, "mesh-1")
+            shutil.copytree(src, report_dir)
+            scaling_path = os.path.join(
+                report_dir, "HAConfigScalingTimings_clustermesh-1.json"
+            )
+            with open(scaling_path, "w", encoding="utf-8") as f:
+                json.dump({
+                    "context": "clustermesh-1",
+                    "action": "scale-up",
+                    "requested_replicas": 3,
+                    "spec_replicas_after": 3,
+                    "ready_replicas_after": 3,
+                    "ha_replicas_honored": True,
+                    "scale_duration_seconds": 42,
+                    "note": "ok",
+                }, f)
+
+            result_file = tempfile.mktemp(suffix=".jsonl")
+            try:
+                collect_clusterloader2(
+                    cl2_report_dir=report_dir,
+                    cloud_info="",
+                    run_id="ha-test",
+                    run_url="",
+                    result_file=result_file,
+                    test_type="ha-config",
+                    start_timestamp="2026-05-13T20:00:00Z",
+                    cluster_name="mesh-1",
+                    cluster_count=2,
+                    mesh_size=2,
+                    namespaces=5,
+                    deployments_per_namespace=4,
+                    replicas_per_deployment=10,
+                    trigger_reason="Manual",
+                )
+                with open(result_file, "r", encoding="utf-8") as f:
+                    lines = [json.loads(l) for l in f.read().strip().split("\n")]
+                scaling_rows = [
+                    r for r in lines
+                    if r.get("measurement") == "HAConfigScalingTiming"
+                ]
+                self.assertEqual(len(scaling_rows), 1)
+                sr = scaling_rows[0]
+                self.assertEqual(sr["group"], "ha-config")
+                self.assertEqual(sr["test_type"], "ha-config")
+                self.assertEqual(sr["cluster"], "mesh-1")
+                self.assertEqual(sr["result"]["unit"], "seconds")
+                data = sr["result"]["data"]
+                self.assertEqual(data["requested_replicas"], 3)
+                self.assertEqual(data["spec_replicas_after"], 3)
+                self.assertTrue(data["ha_replicas_honored"])
+            finally:
+                if os.path.exists(result_file):
+                    os.remove(result_file)
+
+    def test_no_scaling_file_means_no_extra_row(self):
+        """Without a scaling JSON, no HAConfigScalingTiming row is emitted
+        (covers the non-ha-config scenario case, where the scaler isn't run).
+        """
+        result_file = tempfile.mktemp(suffix=".jsonl")
+        try:
+            collect_clusterloader2(
+                cl2_report_dir=os.path.join(MOCK_REPORT_ROOT, "mesh-2"),
+                cloud_info="",
+                run_id="ha-test-no-scaling",
+                run_url="",
+                result_file=result_file,
+                test_type="event-throughput",
+                start_timestamp="2026-05-13T20:00:00Z",
+                cluster_name="mesh-2",
+                cluster_count=2,
+                mesh_size=2,
+                namespaces=5,
+                deployments_per_namespace=4,
+                replicas_per_deployment=10,
+                trigger_reason="Manual",
+            )
+            with open(result_file, "r", encoding="utf-8") as f:
+                lines = [json.loads(l) for l in f.read().strip().split("\n") if l]
+            scaling_rows = [
+                r for r in lines
+                if r.get("measurement") == "HAConfigScalingTiming"
+            ]
+            self.assertEqual(len(scaling_rows), 0)
         finally:
             if os.path.exists(result_file):
                 os.remove(result_file)
@@ -780,6 +919,7 @@ class TestMainArgumentParsing(unittest.TestCase):
             apiserver_kill_target_context="clustermesh-1",
             apiserver_kill_recovery_timeout_seconds=240,
             apiserver_kill_observation_seconds=60,
+            ha_config_replicas=3,
         )
 
     @patch.object(clustermesh_scale_module, "execute_clusterloader2")

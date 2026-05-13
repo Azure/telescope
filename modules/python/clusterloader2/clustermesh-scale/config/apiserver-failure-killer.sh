@@ -75,28 +75,49 @@ write_timing() {
   "killed_pod_name": "${pod_name}",
   "killed_pod_uid": "${uid_old}",
   "replacement_pod_uid": "${uid_new}",
+  "pre_kill_replicas": ${PRE_KILL_REPLICAS:-0},
+  "ready_pods_at_kill": ${READY_PODS_AT_KILL:-0},
   "note": "${note}"
 }
 EOF
   echo "apiserver-failure-killer: wrote ${TIMING_FILE}"
 }
 
-# 1. Capture pod name + UID BEFORE delete. Per rubber-duck blocker #5:
-#    don't trust "any Running pod appeared after delete" as proof — verify
-#    a NEW pod (different UID) actually came up after the kill timestamp.
-TARGET_POD_JSON=$("${KUBECTL}" -n kube-system get pods \
+# 1. Capture pre-kill state: ALL clustermesh-apiserver pods (name=uid=ready),
+#    not just the first. With HA replicas>1 (scenario #7), the wait-for-new-pod
+#    loop must distinguish "new replacement pod" from "the OTHER surviving
+#    replicas that were already Ready before the kill" — a single-UID compare
+#    matches the surviving pods immediately and falsely reports recovered=0s.
+#    Rubber-duck critique blocker #2.
+PRE_KILL_PODS=$("${KUBECTL}" -n kube-system get pods \
   -l k8s-app=clustermesh-apiserver \
-  -o 'jsonpath={range .items[*]}{.metadata.name}={.metadata.uid}{"\n"}{end}' \
-  2>/dev/null | grep -v '^$' | head -1)
+  -o 'jsonpath={range .items[*]}{.metadata.name}={.metadata.uid}={.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}' \
+  2>/dev/null | grep -v '^$')
 
-if [ -z "${TARGET_POD_JSON}" ]; then
+if [ -z "${PRE_KILL_PODS}" ]; then
   echo "apiserver-failure-killer ERROR: no clustermesh-apiserver pod matched label selector"
+  PRE_KILL_REPLICAS=0
+  READY_PODS_AT_KILL=0
   write_timing 0 0 false "" "" "" "no pod matched label selector k8s-app=clustermesh-apiserver"
   exit 1
 fi
 
-POD_NAME="${TARGET_POD_JSON%=*}"
-POD_UID="${TARGET_POD_JSON#*=}"
+PRE_KILL_REPLICAS=$(echo "${PRE_KILL_PODS}" | wc -l | tr -d ' ')
+READY_PODS_AT_KILL=$(echo "${PRE_KILL_PODS}" | awk -F'=' '$3=="True"{c++} END{print c+0}')
+# Newline-separated list of pre-kill UIDs — used to filter the recovery
+# wait loop's candidate set.
+PRE_KILL_UIDS=$(echo "${PRE_KILL_PODS}" | awk -F'=' '{print $2}')
+
+# Pick the first Ready pod as the kill target (preserves prior behavior for
+# scenario #4). If no Ready pod, fall back to first pod.
+TARGET_LINE=$(echo "${PRE_KILL_PODS}" | awk -F'=' '$3=="True"{print; exit}')
+if [ -z "${TARGET_LINE}" ]; then
+  TARGET_LINE=$(echo "${PRE_KILL_PODS}" | head -1)
+fi
+POD_NAME="${TARGET_LINE%%=*}"
+_REST="${TARGET_LINE#*=}"
+POD_UID="${_REST%=*}"
+echo "apiserver-failure-killer: pre-kill replicas=${PRE_KILL_REPLICAS} ready=${READY_PODS_AT_KILL}"
 echo "apiserver-failure-killer: target pod ${POD_NAME} uid=${POD_UID}"
 
 # 2. Delete exactly that pod by name (not by label selector — prevents
@@ -141,27 +162,45 @@ NEW_POD_NAME=""
 NEW_POD_UID=""
 NEXT_SAMPLE=$((T0 + 30))
 while [ "$(date +%s)" -lt "${RECOVERY_DEADLINE}" ]; do
-  # Find any clustermesh-apiserver pod whose UID is NEW (not the one we killed)
-  # AND whose Ready condition is True.
+  # Find any clustermesh-apiserver pod whose UID is NEW (not in the pre-kill
+  # UID set) AND whose Ready condition is True.
   #
-  # BUG-FIX 2026-05-13: original used a nested kubectl jsonpath filter
-  # `items[?(@.status.conditions[?(@.type=="Ready")].status=="True")]`.
-  # kubectl's jsonpath engine doesn't reliably evaluate nested `[?]`
-  # filters — returns empty even when matching pods exist. Smoke build
-  # 67075 saw a replacement pod Running+Ready at elapsed=31s but the
-  # CANDIDATE query returned empty for the full 240s window. Result:
-  # false-negative timeout while pod was actually healthy.
+  # BUG-FIX 2026-05-13a: original kubectl jsonpath nested `[?]` filter is
+  # broken — switched to shell-side filter listing all pods.
   #
-  # Replacement: list ALL apiserver pods with name+uid+readyStatus, then
-  # filter in shell. Same data, no kubectl-jsonpath limitation.
+  # BUG-FIX 2026-05-13b: original filter compared against a SINGLE killed-pod
+  # UID. With HA replicas>1 (scenario #7), the surviving N-1 replicas already
+  # have different UIDs and are Ready, so the filter would match one of them
+  # instantly → false `recovered after 0s`. Rubber-duck critique blocker #2.
+  # Fix: filter against the pre-kill UID set (every pod present at kill time),
+  # so only a genuinely new replacement pod passes.
   ALL_PODS=$("${KUBECTL}" -n kube-system get pods \
     -l k8s-app=clustermesh-apiserver \
     -o 'jsonpath={range .items[*]}{.metadata.name}={.metadata.uid}={.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}' \
-    2>/dev/null)
-  # Format: name=uid=Ready
-  CANDIDATE=$(echo "${ALL_PODS}" | grep -v '^$' | grep '=True$' | grep -v "=${POD_UID}=" | head -1)
+    2>/dev/null | grep -v '^$' | grep '=True$')
+  CANDIDATE=""
+  if [ -n "${ALL_PODS}" ]; then
+    while IFS= read -r _line; do
+      [ -z "${_line}" ] && continue
+      # _line format: name=uid=True
+      _name_uid="${_line%=*}"          # name=uid
+      _uid="${_name_uid#*=}"           # uid
+      _in_set=0
+      for _old_uid in ${PRE_KILL_UIDS}; do
+        if [ "${_uid}" = "${_old_uid}" ]; then
+          _in_set=1
+          break
+        fi
+      done
+      if [ "${_in_set}" -eq 0 ]; then
+        CANDIDATE="${_line}"
+        break
+      fi
+    done <<EOF
+${ALL_PODS}
+EOF
+  fi
   if [ -n "${CANDIDATE}" ]; then
-    # Strip the trailing `=True`, then split name/uid.
     NAME_UID="${CANDIDATE%=*}"
     NEW_POD_NAME="${NAME_UID%=*}"
     NEW_POD_UID="${NAME_UID#*=}"

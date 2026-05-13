@@ -51,6 +51,7 @@ def configure_clusterloader2(
     apiserver_kill_target_context="clustermesh-1",
     apiserver_kill_recovery_timeout_seconds=240,
     apiserver_kill_observation_seconds=60,
+    ha_config_replicas=3,
 ):
     with open(override_file, "w", encoding="utf-8") as f:
         # Prometheus stack — keep the Cilium-scrape flags ON so the
@@ -109,6 +110,11 @@ def configure_clusterloader2(
         f.write(f"CL2_APISERVER_KILL_TARGET_CONTEXT: {apiserver_kill_target_context}\n")
         f.write(f"CL2_APISERVER_KILL_RECOVERY_TIMEOUT_SECONDS: {apiserver_kill_recovery_timeout_seconds}\n")
         f.write(f"CL2_APISERVER_KILL_OBSERVATION_SECONDS: {apiserver_kill_observation_seconds}\n")
+
+        # Phase 4b — Scenario #7 (HA Configuration Validation) knob.
+        # Single replicas-count override consumed by ha-config.yaml. Other
+        # scenarios' CL2 configs don't reference it; ignored silently.
+        f.write(f"CL2_HA_CONFIG_REPLICAS: {ha_config_replicas}\n")
 
     with open(override_file, "r", encoding="utf-8") as f:
         print(f"Content of file {override_file}:\n{f.read()}")
@@ -505,6 +511,12 @@ def collect_clusterloader2(
     # timing file (always exactly one — only the target cluster writes one).
     _emit_apiserver_failure_timing_rows(cl2_report_dir, template, result_file)
 
+    # Phase 4b — Scenario #7 (HA Configuration Validation) scaling pickup.
+    # ha-config-scaler.sh writes HAConfigScalingTimings_<context>.json on
+    # EVERY cluster (not just the kill target) — HA scaling is mesh-wide.
+    # One row per cluster.
+    _emit_ha_config_scaling_rows(cl2_report_dir, template, result_file)
+
 
 def _emit_apiserver_failure_timing_rows(cl2_report_dir, template, result_file):
     """Append one JSONL row per ApiserverFailureTimings_*.json found.
@@ -552,6 +564,54 @@ def _emit_apiserver_failure_timing_rows(cl2_report_dir, template, result_file):
             row["measurement"] = "ApiserverFailureRecoveryTiming"
             row["group"] = "apiserver-failure"
             row["result"] = {"data": timing_data, "unit": "seconds"}
+            out.write(json.dumps(row) + "\n")
+
+
+def _emit_ha_config_scaling_rows(cl2_report_dir, template, result_file):
+    """Append one JSONL row per HAConfigScalingTimings_*.json found.
+
+    The scaling file shape (from ha-config-scaler.sh):
+        {
+          "context": str,
+          "action": "scale-up" | "scale-down",
+          "requested_replicas": int,
+          "spec_replicas_after": int,
+          "ready_replicas_after": int,
+          "ha_replicas_honored": bool,
+          "scale_duration_seconds": int,
+          "note": str
+        }
+
+    Each file becomes one row in the JSONL with
+    measurement="HAConfigScalingTiming", group="ha-config", and
+    result.data = the scaling JSON. Only scale-up emits a file; scale-down
+    is best-effort cleanup that does NOT overwrite the scale-up file.
+    Downstream Kusto queries can filter on measurement="HAConfigScalingTiming"
+    and ha_replicas_honored=true to scope HA A/B comparisons to runs where
+    the scale actually stuck (ENO operator did not revert).
+    """
+    timing_files = [
+        f for f in os.listdir(cl2_report_dir)
+        if f.startswith("HAConfigScalingTimings_") and f.endswith(".json")
+    ]
+    if not timing_files:
+        return
+    with open(result_file, "a", encoding="utf-8") as out:
+        for tf in timing_files:
+            tf_path = os.path.join(cl2_report_dir, tf)
+            try:
+                with open(tf_path, "r", encoding="utf-8") as tfh:
+                    scaling_data = json.load(tfh)
+            except (OSError, json.JSONDecodeError) as e:
+                print(
+                    f"[collect] WARN: failed to read {tf_path}: {e}",
+                    file=sys.stderr,
+                )
+                continue
+            row = json.loads(json.dumps(template))
+            row["measurement"] = "HAConfigScalingTiming"
+            row["group"] = "ha-config"
+            row["result"] = {"data": scaling_data, "unit": "seconds"}
             out.write(json.dumps(row) + "\n")
 
 
@@ -603,6 +663,12 @@ def main():
                     help="Sleep duration AFTER the kill returns, before measurement gather. "
                          "Lets peer clusters' Prometheus scrape the failure window and "
                          "the post-recovery backlog drain.")
+    # Phase 4b — Scenario #7 (HA Configuration Validation) knob.
+    pc.add_argument("--ha-config-replicas", type=int, default=3,
+                    help="Target replicas count for clustermesh-apiserver Deployment "
+                         "during the ha-config scenario. Each cluster scales its own "
+                         "Deployment to this count before measurements start, then back "
+                         "to 1 after gather. Default 3 (standard k8s HA, etcd quorum-friendly).")
 
     # execute
     pe = subparsers.add_parser("execute", help="Run CL2 against a single cluster")
@@ -696,6 +762,7 @@ def main():
             apiserver_kill_target_context=args.apiserver_kill_target_context,
             apiserver_kill_recovery_timeout_seconds=args.apiserver_kill_recovery_timeout_seconds,
             apiserver_kill_observation_seconds=args.apiserver_kill_observation_seconds,
+            ha_config_replicas=args.ha_config_replicas,
         )
     elif args.command == "execute":
         execute_clusterloader2(

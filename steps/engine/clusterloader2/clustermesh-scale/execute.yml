@@ -57,6 +57,8 @@ steps:
       export CL2_APISERVER_KILL_TARGET_CONTEXT="${APISERVER_KILL_TARGET_CONTEXT:-clustermesh-1}"
       export CL2_APISERVER_KILL_RECOVERY_TIMEOUT_SECONDS="${APISERVER_KILL_RECOVERY_TIMEOUT_SECONDS:-240}"
       export CL2_APISERVER_KILL_OBSERVATION_SECONDS="${APISERVER_KILL_OBSERVATION_SECONDS:-60}"
+      # Phase 4b — Scenario #7 (HA Configuration Validation) knob.
+      export CL2_HA_CONFIG_REPLICAS="${HA_CONFIG_REPLICAS:-3}"
 
       # Same discovery pattern as topology/clustermesh-scale/validate-resources.yml.
       # We re-run it here rather than relying on a step variable so this engine
@@ -114,6 +116,7 @@ steps:
         --apiserver-kill-target-context "$CL2_APISERVER_KILL_TARGET_CONTEXT" \
         --apiserver-kill-recovery-timeout-seconds "$CL2_APISERVER_KILL_RECOVERY_TIMEOUT_SECONDS" \
         --apiserver-kill-observation-seconds "$CL2_APISERVER_KILL_OBSERVATION_SECONDS" \
+        --ha-config-replicas "$CL2_HA_CONFIG_REPLICAS" \
         --cl2_override_file "${CL2_CONFIG_DIR}/overrides.yaml"
 
       # Phase 4a — pre-stage kubectl into the CL2 config dir so the
