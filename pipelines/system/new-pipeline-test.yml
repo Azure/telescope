@@ -16,9 +16,12 @@ variables:
   OWNER: aks
 
 stages:
-  # Phase 4b share-infra n=2 smoke. n=20 disabled below to free agent capacity.
+  # ITER-DISABLED 2026-05-12: Phase 4b share-infra promoted to n=20 for
+  # overnight run. Re-enable n=2 stage (delete `condition: false`) to
+  # iterate at low cost.
   - stage: azure_eastus2euap
     dependsOn: []
+    condition: false
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -358,9 +361,6 @@ stages:
   #     parallelism=4. Fallback if this fails: drop back to parallelism=4.
   - stage: azure_eastus2euap_n20
     dependsOn: []
-    # ITER-DISABLED 2026-05-12: Phase 4b share-infra smoke at n=2 first.
-    # Re-enable + flip n=2 to disabled once share-infra is validated.
-    condition: false
     variables:
       TF_CLI_ARGS_apply: "-parallelism=8"
     jobs:
@@ -378,79 +378,38 @@ stages:
           terraform_input_file_mapping:
             - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-20.tfvars"
           matrix:
-            # SMOKE 2026-05-12: Phase 4a n=20 first run. Two matrix entries
-            # to capture both Scenario #1 (event-throughput, fresh baseline
-            # with CFP-39876 namespace annotation in place) and Scenario #2
-            # (pod-churn-combined). Each entry is its own ~6h lifecycle =
-            # ~12h total. The pod_churn_scale + pod_churn_kill entries
-            # below stay commented — combined.yaml already covers both
-            # halves of scenario #2 in one CL2 invocation.
-            n20_event_throughput:
+            # Phase 4b — n=20 share-infra overnight run.
+            # Runs 3 scenarios in ONE provision/destroy lifecycle:
+            #   1. event-throughput (scenario #1 baseline with CFP-39876 fix)
+            #   2. pod-churn-combined (scenario #2 scale + kill phases)
+            #   3. apiserver-failure (scenario #4 — Phase 4b's new scenario)
+            # Compresses what would be 3 × 6h = 18h of separate lifecycles
+            # into ~7-8h shared.
+            #
+            # cl2_max_concurrent=8: bumped from default 4 so more peer
+            # clusters' Prometheus are running during scenario #4's kill
+            # window. At default 4, only 3 of 19 peers would be in flight
+            # when mesh-1 is killed. At 8: ~7 peers. Marginal agent memory
+            # increase, much better peer coverage.
+            #
+            # SMOKE-ONLY: solo-scenario matrix entries below commented out
+            # so this overnight run produces exactly one results blob from
+            # the shared lifecycle. Uncomment for solo iteration.
+            # n20_event_throughput: ...
+            # n20_pod_churn_combined: ...
+            n20_shared:
               cluster_count: 20
               mesh_size: 20
-              cl2_config_file: event-throughput.yaml
-              test_type: event-throughput
+              share_infra_scenarios: "event-throughput,pod-churn-combined,apiserver-failure"
+              cl2_config_file: ""  # unused in share-infra mode
+              test_type: shared    # row-level test_type comes from each scenario
+              cl2_max_concurrent: 8
               namespaces: 5
               deployments_per_namespace: 4
               replicas_per_deployment: 10
               hold_duration: 2m
               warmup_duration: 30s
               restart_count: 1
-              api_server_calls_per_second: 20
-              trigger_reason: ${{ variables['Build.Reason'] }}
-            # Phase 4a — Scenario #2 (Pod Churn Stress). Each entry is a
-            # separate full lifecycle (~6h at n20). Enable selectively.
-            # n20_pod_churn_scale:
-            #   cluster_count: 20
-            #   mesh_size: 20
-            #   cl2_config_file: pod-churn-scale.yaml
-            #   test_type: pod-churn-scale
-            #   namespaces: 5
-            #   deployments_per_namespace: 4
-            #   replicas_per_deployment: 10
-            #   hold_duration: 2m
-            #   warmup_duration: 30s
-            #   restart_count: 0
-            #   api_server_calls_per_second: 20
-            #   churn_cycles: 5
-            #   churn_up_duration: 60s
-            #   churn_down_duration: 60s
-            #   trigger_reason: ${{ variables['Build.Reason'] }}
-            # n20_pod_churn_kill:
-            #   cluster_count: 20
-            #   mesh_size: 20
-            #   cl2_config_file: pod-churn-kill.yaml
-            #   test_type: pod-churn-kill
-            #   namespaces: 5
-            #   deployments_per_namespace: 4
-            #   replicas_per_deployment: 10
-            #   hold_duration: 2m
-            #   warmup_duration: 30s
-            #   restart_count: 0
-            #   api_server_calls_per_second: 20
-            #   kill_duration: 10m
-            #   kill_duration_seconds: 600
-            #   kill_interval_seconds: 10
-            #   kill_batch: 5
-            #   kill_job_deadline_seconds: 660
-            #   trigger_reason: ${{ variables['Build.Reason'] }}
-            # Combined scale-cycle + kill in one CL2 invocation per cluster.
-            # Maximizes signal per (expensive) n20 provision/destroy lifecycle.
-            # Kill phase uses Method: Exec → kubectl from inside the CL2
-            # container (no in-cluster Job, no AcrPull dependency). If kubectl
-            # is unavailable in the CL2 image, the kill measurement is marked
-            # failed but scale-phase data still lands cleanly.
-            n20_pod_churn_combined:
-              cluster_count: 20
-              mesh_size: 20
-              cl2_config_file: pod-churn-combined.yaml
-              test_type: pod-churn-combined
-              namespaces: 5
-              deployments_per_namespace: 4
-              replicas_per_deployment: 10
-              hold_duration: 2m
-              warmup_duration: 30s
-              restart_count: 0
               api_server_calls_per_second: 20
               churn_cycles: 5
               churn_up_duration: 60s
@@ -460,13 +419,16 @@ stages:
               kill_interval_seconds: 10
               kill_batch: 5
               kill_job_deadline_seconds: 660
+              apiserver_kill_target_context: clustermesh-1
+              apiserver_kill_recovery_timeout_seconds: 120
+              apiserver_kill_observation_seconds: 60
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
-          # First n20 attempt: apply 219m, validate 60m, destroy 84m before
-          # AzDO 6hr timeout cancelled. 8hr budget covers worst-case
-          # apply (4hr) + validate (30m) + CL2 (40m) + destroy (90m) +
-          # cleanup, plus terraform retries on apply failure.
-          timeout_in_minutes: 480
+          # n=20 share-infra (3 scenarios): provision (~4h) + validate (~30min)
+          # + 3 × CL2 (~25min each, with 60s settle between) + destroy (~1.5h)
+          # ≈ ~7.5h baseline. Phase 4a's last n=20 hit 480 min during destroy
+          # so we go to 720 (12h) for safe overnight headroom.
+          timeout_in_minutes: 720
           credential_type: service_connection
           ssh_key_enabled: false
           skip_publish: false
