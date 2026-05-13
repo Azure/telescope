@@ -72,7 +72,7 @@ aks_cli_config_list = [
       name                 = "system"
       node_count           = 5
       auto_scaling_enabled = false
-      vm_size              = "Standard_D8s_v4"
+      vm_size              = "Standard_D16ds_v5"
     }
 
     extra_node_pool = [
