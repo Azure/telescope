@@ -48,6 +48,9 @@ def configure_clusterloader2(
     kill_batch=5,
     kill_duration_seconds=600,
     kill_job_deadline_seconds=660,
+    apiserver_kill_target_context="clustermesh-1",
+    apiserver_kill_recovery_timeout_seconds=120,
+    apiserver_kill_observation_seconds=60,
 ):
     with open(override_file, "w", encoding="utf-8") as f:
         # Prometheus stack — keep the Cilium-scrape flags ON so the
@@ -98,6 +101,14 @@ def configure_clusterloader2(
         f.write(f"CL2_KILL_BATCH: {kill_batch}\n")
         f.write(f"CL2_KILL_DURATION_SECONDS: {kill_duration_seconds}\n")
         f.write(f"CL2_KILL_JOB_DEADLINE_SECONDS: {kill_job_deadline_seconds}\n")
+
+        # Phase 4b — Scenario #4 (ClusterMesh APIServer Failure) knobs.
+        # Same unconditional-write pattern as the pod-churn knobs above:
+        # CL2 templates that don't reference these silently ignore. Allows
+        # share-infra runs where multiple scenarios share one overrides.yaml.
+        f.write(f"CL2_APISERVER_KILL_TARGET_CONTEXT: {apiserver_kill_target_context}\n")
+        f.write(f"CL2_APISERVER_KILL_RECOVERY_TIMEOUT_SECONDS: {apiserver_kill_recovery_timeout_seconds}\n")
+        f.write(f"CL2_APISERVER_KILL_OBSERVATION_SECONDS: {apiserver_kill_observation_seconds}\n")
 
     with open(override_file, "r", encoding="utf-8") as f:
         print(f"Content of file {override_file}:\n{f.read()}")
@@ -486,6 +497,63 @@ def collect_clusterloader2(
     with open(result_file, "w", encoding="utf-8") as f:
         f.write(content)
 
+    # Phase 4b — Scenario #4 (ClusterMesh APIServer Failure) timing pickup.
+    # apiserver-failure-killer.sh writes ApiserverFailureTimings_<context>.json
+    # at the target cluster's report dir with t0/t1/duration. Non-target
+    # clusters skip writing the file. process_cl2_reports() doesn't recognize
+    # this file pattern, so we emit the row explicitly here. One row per
+    # timing file (always exactly one — only the target cluster writes one).
+    _emit_apiserver_failure_timing_rows(cl2_report_dir, template, result_file)
+
+
+def _emit_apiserver_failure_timing_rows(cl2_report_dir, template, result_file):
+    """Append one JSONL row per ApiserverFailureTimings_*.json found.
+
+    The timing file shape (from apiserver-failure-killer.sh):
+        {
+          "target_context": str,
+          "t0_kill_epoch": int,
+          "t1_recovered_epoch": int,
+          "recovery_duration_seconds": int,
+          "recovered": bool,
+          "killed_pod_name": str,
+          "killed_pod_uid": str,
+          "replacement_pod_uid": str,
+          "note": str
+        }
+
+    Each timing file becomes one row in the JSONL with
+    measurement="ApiserverFailureRecoveryTiming", group="apiserver-failure",
+    and result.data = the timing JSON. Downstream Kusto queries can filter
+    on this measurement name to get per-run recovery timings keyed by
+    test_type=apiserver-failure + cluster.
+    """
+    timing_files = [
+        f for f in os.listdir(cl2_report_dir)
+        if f.startswith("ApiserverFailureTimings_") and f.endswith(".json")
+    ]
+    if not timing_files:
+        return
+    with open(result_file, "a", encoding="utf-8") as out:
+        for tf in timing_files:
+            tf_path = os.path.join(cl2_report_dir, tf)
+            try:
+                with open(tf_path, "r", encoding="utf-8") as tfh:
+                    timing_data = json.load(tfh)
+            except (OSError, json.JSONDecodeError) as e:
+                print(
+                    f"[collect] WARN: failed to read {tf_path}: {e}",
+                    file=sys.stderr,
+                )
+                continue
+            # Deep-copy template so we don't mutate the shared dict for any
+            # downstream caller.
+            row = json.loads(json.dumps(template))
+            row["measurement"] = "ApiserverFailureRecoveryTiming"
+            row["group"] = "apiserver-failure"
+            row["result"] = {"data": timing_data, "unit": "seconds"}
+            out.write(json.dumps(row) + "\n")
+
 
 def main():
     parser = argparse.ArgumentParser(description="ClusterMesh scale-test harness.")
@@ -521,6 +589,17 @@ def main():
     pc.add_argument("--kill-job-deadline-seconds", type=int, default=660,
                     help="Killer Job activeDeadlineSeconds — defense-in-depth bound, "
                          "should be kill_duration_seconds plus a small buffer.")
+    # Phase 4b — Scenario #4 (ClusterMesh APIServer Failure) knobs.
+    pc.add_argument("--apiserver-kill-target-context", type=str, default="clustermesh-1",
+                    help="kubectl context name of the cluster whose clustermesh-apiserver "
+                         "to kill. Other clusters no-op (per-cluster CL2 with shared overrides).")
+    pc.add_argument("--apiserver-kill-recovery-timeout-seconds", type=int, default=120,
+                    help="How long to wait for the replacement clustermesh-apiserver pod "
+                         "to reach Ready after kill.")
+    pc.add_argument("--apiserver-kill-observation-seconds", type=int, default=60,
+                    help="Sleep duration AFTER the kill returns, before measurement gather. "
+                         "Lets peer clusters' Prometheus scrape the failure window and "
+                         "the post-recovery backlog drain.")
 
     # execute
     pe = subparsers.add_parser("execute", help="Run CL2 against a single cluster")
@@ -611,6 +690,9 @@ def main():
             kill_batch=args.kill_batch,
             kill_duration_seconds=args.kill_duration_seconds,
             kill_job_deadline_seconds=args.kill_job_deadline_seconds,
+            apiserver_kill_target_context=args.apiserver_kill_target_context,
+            apiserver_kill_recovery_timeout_seconds=args.apiserver_kill_recovery_timeout_seconds,
+            apiserver_kill_observation_seconds=args.apiserver_kill_observation_seconds,
         )
     elif args.command == "execute":
         execute_clusterloader2(

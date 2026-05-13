@@ -131,7 +131,7 @@ stages:
             n2_shared:
               cluster_count: 2
               mesh_size: 2
-              share_infra_scenarios: "event-throughput,pod-churn-combined"
+              share_infra_scenarios: "event-throughput,pod-churn-combined,apiserver-failure"
               cl2_config_file: ""  # unused when share_infra_scenarios is set
               test_type: shared    # row-level test_type comes from each scenario at collect time
               namespaces: 5
@@ -149,12 +149,19 @@ stages:
               kill_interval_seconds: 10
               kill_batch: 5
               kill_job_deadline_seconds: 660
+              # Phase 4b — Scenario #4 (ClusterMesh APIServer Failure) knobs.
+              # Default target context matches our tfvars cluster name pattern
+              # (clustermesh-1 is the first cluster's AKS name; az aks
+              # get-credentials writes context=AKS-name).
+              apiserver_kill_target_context: clustermesh-1
+              apiserver_kill_recovery_timeout_seconds: 120
+              apiserver_kill_observation_seconds: 60
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
-          # n=2 share-infra: provision (~15min) + validate (~5min) + 2 × CL2
-          # (~25min each, with 60s settle between) + destroy (~15min) ≈ ~90min.
-          # Buffer to 240 in case of LB-tail or apply retries.
-          timeout_in_minutes: 240
+          # n=2 share-infra (3 scenarios): provision (~15min) + validate (~5min)
+          # + 3 × CL2 (~25min each, with 60s settle between) + destroy (~15min)
+          # ≈ ~120min. Buffer to 360 for LB-tail / apply retries.
+          timeout_in_minutes: 360
           credential_type: service_connection
           ssh_key_enabled: false
           # Iteration-only: skip uploading results to the telescope blob while

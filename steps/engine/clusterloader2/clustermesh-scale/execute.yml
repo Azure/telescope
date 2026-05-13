@@ -53,6 +53,10 @@ steps:
       export CL2_KILL_BATCH="${KILL_BATCH:-5}"
       export CL2_KILL_DURATION_SECONDS="${KILL_DURATION_SECONDS:-600}"
       export CL2_KILL_JOB_DEADLINE_SECONDS="${KILL_JOB_DEADLINE_SECONDS:-660}"
+      # Phase 4b — Scenario #4 (ClusterMesh APIServer Failure) knobs.
+      export CL2_APISERVER_KILL_TARGET_CONTEXT="${APISERVER_KILL_TARGET_CONTEXT:-clustermesh-1}"
+      export CL2_APISERVER_KILL_RECOVERY_TIMEOUT_SECONDS="${APISERVER_KILL_RECOVERY_TIMEOUT_SECONDS:-120}"
+      export CL2_APISERVER_KILL_OBSERVATION_SECONDS="${APISERVER_KILL_OBSERVATION_SECONDS:-60}"
 
       # Same discovery pattern as topology/clustermesh-scale/validate-resources.yml.
       # We re-run it here rather than relying on a step variable so this engine
@@ -107,6 +111,9 @@ steps:
         --kill-batch "$CL2_KILL_BATCH" \
         --kill-duration-seconds "$CL2_KILL_DURATION_SECONDS" \
         --kill-job-deadline-seconds "$CL2_KILL_JOB_DEADLINE_SECONDS" \
+        --apiserver-kill-target-context "$CL2_APISERVER_KILL_TARGET_CONTEXT" \
+        --apiserver-kill-recovery-timeout-seconds "$CL2_APISERVER_KILL_RECOVERY_TIMEOUT_SECONDS" \
+        --apiserver-kill-observation-seconds "$CL2_APISERVER_KILL_OBSERVATION_SECONDS" \
         --cl2_override_file "${CL2_CONFIG_DIR}/overrides.yaml"
 
       # Phase 4a — pre-stage kubectl into the CL2 config dir so the

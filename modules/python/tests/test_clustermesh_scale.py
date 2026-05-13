@@ -253,6 +253,162 @@ class TestConfigureClustermeshScale(unittest.TestCase):
         finally:
             os.remove(tmp_path)
 
+    def test_overrides_file_apiserver_failure_defaults(self):
+        """Phase 4b — Scenario #4 (APIServer Failure) knobs landed in overrides
+        with the documented defaults.
+
+        Same unconditional-write pattern as churn knobs: every configure call
+        writes these keys so a future event-throughput run with this overrides
+        file still produces a valid (if unused) override set for the apiserver
+        templates.
+        """
+        with tempfile.NamedTemporaryFile(
+            delete=False, mode="w+", encoding="utf-8"
+        ) as tmp:
+            tmp_path = tmp.name
+        try:
+            configure_clusterloader2(
+                namespaces=1,
+                deployments_per_namespace=1,
+                replicas_per_deployment=1,
+                operation_timeout="15m",
+                override_file=tmp_path,
+            )
+            with open(tmp_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            self.assertIn("CL2_APISERVER_KILL_TARGET_CONTEXT: clustermesh-1", content)
+            self.assertIn("CL2_APISERVER_KILL_RECOVERY_TIMEOUT_SECONDS: 120", content)
+            self.assertIn("CL2_APISERVER_KILL_OBSERVATION_SECONDS: 60", content)
+        finally:
+            os.remove(tmp_path)
+
+    def test_overrides_file_apiserver_failure_overrides_passthrough(self):
+        """Explicit apiserver-failure args override the defaults."""
+        with tempfile.NamedTemporaryFile(
+            delete=False, mode="w+", encoding="utf-8"
+        ) as tmp:
+            tmp_path = tmp.name
+        try:
+            configure_clusterloader2(
+                namespaces=1,
+                deployments_per_namespace=1,
+                replicas_per_deployment=1,
+                operation_timeout="15m",
+                override_file=tmp_path,
+                apiserver_kill_target_context="clustermesh-5",
+                apiserver_kill_recovery_timeout_seconds=180,
+                apiserver_kill_observation_seconds=90,
+            )
+            with open(tmp_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            self.assertIn("CL2_APISERVER_KILL_TARGET_CONTEXT: clustermesh-5", content)
+            self.assertIn("CL2_APISERVER_KILL_RECOVERY_TIMEOUT_SECONDS: 180", content)
+            self.assertIn("CL2_APISERVER_KILL_OBSERVATION_SECONDS: 90", content)
+        finally:
+            os.remove(tmp_path)
+
+
+class TestApiserverFailureTimingPickup(unittest.TestCase):
+    """collect_clusterloader2 appends a row from ApiserverFailureTimings_*.json
+    if it finds one in the report dir. This is the Phase 4b mechanism for
+    surfacing the killer script's recorded timestamps into the JSONL — vanilla
+    process_cl2_reports() doesn't recognize the file pattern.
+    """
+
+    def test_timing_file_appends_row(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            # Copy the mock report dir so we can add a timing file alongside.
+            src = os.path.join(MOCK_REPORT_ROOT, "mesh-1")
+            report_dir = os.path.join(tmp, "mesh-1")
+            shutil.copytree(src, report_dir)
+            timing_path = os.path.join(
+                report_dir, "ApiserverFailureTimings_clustermesh-1.json"
+            )
+            with open(timing_path, "w", encoding="utf-8") as f:
+                json.dump({
+                    "target_context": "clustermesh-1",
+                    "t0_kill_epoch": 1746000000,
+                    "t1_recovered_epoch": 1746000035,
+                    "recovery_duration_seconds": 35,
+                    "recovered": True,
+                    "killed_pod_name": "clustermesh-apiserver-abc",
+                    "killed_pod_uid": "old-uid",
+                    "replacement_pod_uid": "new-uid",
+                    "note": "ok",
+                }, f)
+
+            result_file = tempfile.mktemp(suffix=".jsonl")
+            try:
+                collect_clusterloader2(
+                    cl2_report_dir=report_dir,
+                    cloud_info="",
+                    run_id="apf-test",
+                    run_url="",
+                    result_file=result_file,
+                    test_type="apiserver-failure",
+                    start_timestamp="2026-05-12T20:00:00Z",
+                    cluster_name="mesh-1",
+                    cluster_count=2,
+                    mesh_size=2,
+                    namespaces=5,
+                    deployments_per_namespace=4,
+                    replicas_per_deployment=10,
+                    trigger_reason="Manual",
+                )
+                with open(result_file, "r", encoding="utf-8") as f:
+                    lines = [json.loads(l) for l in f.read().strip().split("\n")]
+                # At least one ApiserverFailureRecoveryTiming row appended
+                timing_rows = [
+                    r for r in lines
+                    if r.get("measurement") == "ApiserverFailureRecoveryTiming"
+                ]
+                self.assertEqual(len(timing_rows), 1)
+                tr = timing_rows[0]
+                self.assertEqual(tr["group"], "apiserver-failure")
+                self.assertEqual(tr["test_type"], "apiserver-failure")
+                self.assertEqual(tr["cluster"], "mesh-1")
+                self.assertEqual(tr["result"]["unit"], "seconds")
+                data = tr["result"]["data"]
+                self.assertEqual(data["target_context"], "clustermesh-1")
+                self.assertEqual(data["recovery_duration_seconds"], 35)
+                self.assertTrue(data["recovered"])
+            finally:
+                if os.path.exists(result_file):
+                    os.remove(result_file)
+
+    def test_no_timing_file_means_no_extra_row(self):
+        """Non-target clusters skip writing the timing file; collect must not
+        emit any ApiserverFailureRecoveryTiming row for those clusters.
+        """
+        result_file = tempfile.mktemp(suffix=".jsonl")
+        try:
+            collect_clusterloader2(
+                cl2_report_dir=os.path.join(MOCK_REPORT_ROOT, "mesh-2"),
+                cloud_info="",
+                run_id="apf-test-no-timing",
+                run_url="",
+                result_file=result_file,
+                test_type="apiserver-failure",
+                start_timestamp="2026-05-12T20:00:00Z",
+                cluster_name="mesh-2",
+                cluster_count=2,
+                mesh_size=2,
+                namespaces=5,
+                deployments_per_namespace=4,
+                replicas_per_deployment=10,
+                trigger_reason="Manual",
+            )
+            with open(result_file, "r", encoding="utf-8") as f:
+                lines = [json.loads(l) for l in f.read().strip().split("\n") if l]
+            timing_rows = [
+                r for r in lines
+                if r.get("measurement") == "ApiserverFailureRecoveryTiming"
+            ]
+            self.assertEqual(len(timing_rows), 0)
+        finally:
+            if os.path.exists(result_file):
+                os.remove(result_file)
+
 
 class TestCollectSingleCluster(unittest.TestCase):
     """collect_clusterloader2 emits one JSONL row per call, tagged with cluster identity."""
@@ -621,6 +777,9 @@ class TestMainArgumentParsing(unittest.TestCase):
             kill_batch=5,
             kill_duration_seconds=600,
             kill_job_deadline_seconds=660,
+            apiserver_kill_target_context="clustermesh-1",
+            apiserver_kill_recovery_timeout_seconds=120,
+            apiserver_kill_observation_seconds=60,
         )
 
     @patch.object(clustermesh_scale_module, "execute_clusterloader2")
