@@ -133,9 +133,18 @@ done
 
 T1=$(date +%s)
 if [ -z "${NEW_POD_UID}" ]; then
-  echo "apiserver-failure-killer ERROR: recovery timeout after ${RECOVERY_TIMEOUT_SECONDS}s; no NEW Ready pod"
+  echo "apiserver-failure-killer WARN: recovery timeout after ${RECOVERY_TIMEOUT_SECONDS}s; no NEW Ready pod"
   write_timing "${T0}" 0 false "${POD_NAME}" "${POD_UID}" "" "recovery timeout"
-  exit 1
+  # Phase 4b: exit 0 on timeout (NOT 1). The timing JSON with
+  # `recovered:false` is the load-bearing signal that the scenario was
+  # attempted but did not recover within budget — Kusto queries on
+  # ApiserverFailureRecoveryTiming.recovered will flag this. Exiting 1
+  # here would cascade-fail the CL2 step → execute.yml's overall_rc=1 →
+  # share-infra step exits with SucceededWithIssues at worst, but
+  # peer-cluster measurements (which DID gather data about the failure
+  # event) would also be wasted. Soft-fail is correct: rubber-duck
+  # critique #10 confirmed.
+  exit 0
 fi
 
 DUR=$((T1 - T0))

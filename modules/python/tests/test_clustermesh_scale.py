@@ -277,7 +277,7 @@ class TestConfigureClustermeshScale(unittest.TestCase):
             with open(tmp_path, "r", encoding="utf-8") as f:
                 content = f.read()
             self.assertIn("CL2_APISERVER_KILL_TARGET_CONTEXT: clustermesh-1", content)
-            self.assertIn("CL2_APISERVER_KILL_RECOVERY_TIMEOUT_SECONDS: 120", content)
+            self.assertIn("CL2_APISERVER_KILL_RECOVERY_TIMEOUT_SECONDS: 240", content)
             self.assertIn("CL2_APISERVER_KILL_OBSERVATION_SECONDS: 60", content)
         finally:
             os.remove(tmp_path)
@@ -778,7 +778,7 @@ class TestMainArgumentParsing(unittest.TestCase):
             kill_duration_seconds=600,
             kill_job_deadline_seconds=660,
             apiserver_kill_target_context="clustermesh-1",
-            apiserver_kill_recovery_timeout_seconds=120,
+            apiserver_kill_recovery_timeout_seconds=240,
             apiserver_kill_observation_seconds=60,
         )
 

@@ -45,7 +45,7 @@ name: clustermesh-apiserver-failure
 {{$warmupDuration := DefaultParam .CL2_WARMUP_DURATION "60s"}}
 {{$holdDuration := DefaultParam .CL2_HOLD_DURATION "60s"}}
 {{$apiserverKillTargetContext := DefaultParam .CL2_APISERVER_KILL_TARGET_CONTEXT "clustermesh-1"}}
-{{$apiserverKillRecoveryTimeoutSeconds := DefaultParam .CL2_APISERVER_KILL_RECOVERY_TIMEOUT_SECONDS 120}}
+{{$apiserverKillRecoveryTimeoutSeconds := DefaultParam .CL2_APISERVER_KILL_RECOVERY_TIMEOUT_SECONDS 240}}
 {{$apiserverKillObservationSeconds := DefaultParam .CL2_APISERVER_KILL_OBSERVATION_SECONDS 60}}
 
 {{$workloadGroup := "clustermesh-apiserver-failure"}}

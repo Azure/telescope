@@ -16,12 +16,12 @@ variables:
   OWNER: aks
 
 stages:
-  # ITER-DISABLED 2026-05-12: Phase 4b share-infra promoted to n=20 for
-  # overnight run. Re-enable n=2 stage (delete `condition: false`) to
-  # iterate at low cost.
+  # 2026-05-13: Phase 4b smoke at n=2 to validate Option B++ fix
+  # (execute always exit 0 + SucceededWithIssues marker) + soft-fail
+  # killer + 240s recovery timeout. Re-disable n=2 + enable n=20 once
+  # this lands clean.
   - stage: azure_eastus2euap
     dependsOn: []
-    condition: false
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -157,7 +157,7 @@ stages:
               # (clustermesh-1 is the first cluster's AKS name; az aks
               # get-credentials writes context=AKS-name).
               apiserver_kill_target_context: clustermesh-1
-              apiserver_kill_recovery_timeout_seconds: 120
+              apiserver_kill_recovery_timeout_seconds: 240
               apiserver_kill_observation_seconds: 60
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
@@ -361,6 +361,10 @@ stages:
   #     parallelism=4. Fallback if this fails: drop back to parallelism=4.
   - stage: azure_eastus2euap_n20
     dependsOn: []
+    # ITER-DISABLED 2026-05-13: Phase 4b smoke at n=2 first to validate
+    # the Option B++ exit-0+SucceededWithIssues fix. Re-enable when
+    # ready to promote.
+    condition: false
     variables:
       TF_CLI_ARGS_apply: "-parallelism=8"
     jobs:
@@ -420,7 +424,7 @@ stages:
               kill_batch: 5
               kill_job_deadline_seconds: 660
               apiserver_kill_target_context: clustermesh-1
-              apiserver_kill_recovery_timeout_seconds: 120
+              apiserver_kill_recovery_timeout_seconds: 240
               apiserver_kill_observation_seconds: 60
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1

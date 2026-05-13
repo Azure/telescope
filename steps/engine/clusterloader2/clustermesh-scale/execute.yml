@@ -55,7 +55,7 @@ steps:
       export CL2_KILL_JOB_DEADLINE_SECONDS="${KILL_JOB_DEADLINE_SECONDS:-660}"
       # Phase 4b — Scenario #4 (ClusterMesh APIServer Failure) knobs.
       export CL2_APISERVER_KILL_TARGET_CONTEXT="${APISERVER_KILL_TARGET_CONTEXT:-clustermesh-1}"
-      export CL2_APISERVER_KILL_RECOVERY_TIMEOUT_SECONDS="${APISERVER_KILL_RECOVERY_TIMEOUT_SECONDS:-120}"
+      export CL2_APISERVER_KILL_RECOVERY_TIMEOUT_SECONDS="${APISERVER_KILL_RECOVERY_TIMEOUT_SECONDS:-240}"
       export CL2_APISERVER_KILL_OBSERVATION_SECONDS="${APISERVER_KILL_OBSERVATION_SECONDS:-60}"
 
       # Same discovery pattern as topology/clustermesh-scale/validate-resources.yml.
@@ -244,7 +244,24 @@ steps:
         echo "============================================="
         echo "Share-infra summary: ${#SCENARIO_LIST[@]} scenarios processed, overall_rc=${overall_rc}"
         echo "============================================="
-        exit "$overall_rc"
+        # Phase 4b: do NOT exit with non-zero on per-scenario failure.
+        # If we did, AzDO's default succeeded() gate on subsequent steps
+        # (collect + upload + destroy) would SKIP them and we'd lose ALL
+        # data even when most scenarios succeeded. Instead, emit
+        # `task.complete result=SucceededWithIssues` so the step shows
+        # orange in the AzDO UI (not green, not red) while still allowing
+        # downstream steps to run. Per-scenario failures remain visible
+        # via the ##vso[task.logissue type=warning] lines emitted in the
+        # loop above; per-row failures are also queryable in Kusto via
+        # the status column.
+        #
+        # Genuinely catastrophic failures (validation errors above this
+        # block) still exit 1 — those happen BEFORE any data is gathered
+        # so skipping downstream is the right call.
+        if [ "$overall_rc" -ne 0 ]; then
+          echo "##vso[task.complete result=SucceededWithIssues;]"
+        fi
+        exit 0
       fi
 
       # Single-scenario path (default, unchanged from Phase 4a — prod pipeline

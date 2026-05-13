@@ -49,7 +49,7 @@ def configure_clusterloader2(
     kill_duration_seconds=600,
     kill_job_deadline_seconds=660,
     apiserver_kill_target_context="clustermesh-1",
-    apiserver_kill_recovery_timeout_seconds=120,
+    apiserver_kill_recovery_timeout_seconds=240,
     apiserver_kill_observation_seconds=60,
 ):
     with open(override_file, "w", encoding="utf-8") as f:
@@ -593,9 +593,12 @@ def main():
     pc.add_argument("--apiserver-kill-target-context", type=str, default="clustermesh-1",
                     help="kubectl context name of the cluster whose clustermesh-apiserver "
                          "to kill. Other clusters no-op (per-cluster CL2 with shared overrides).")
-    pc.add_argument("--apiserver-kill-recovery-timeout-seconds", type=int, default=120,
+    pc.add_argument("--apiserver-kill-recovery-timeout-seconds", type=int, default=240,
                     help="How long to wait for the replacement clustermesh-apiserver pod "
-                         "to reach Ready after kill.")
+                         "to reach Ready after kill. AKS-managed Cilium can take "
+                         "120-180s in our observed runs (image pull + ENI attach); "
+                         "240s gives headroom. Killer fails soft on timeout — writes "
+                         "timing JSON with recovered:false instead of erroring.")
     pc.add_argument("--apiserver-kill-observation-seconds", type=int, default=60,
                     help="Sleep duration AFTER the kill returns, before measurement gather. "
                          "Lets peer clusters' Prometheus scrape the failure window and "
