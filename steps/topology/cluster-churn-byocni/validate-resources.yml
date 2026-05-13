@@ -25,7 +25,7 @@ steps:
       git clone --depth 1 https://github.com/Azure/azure-container-networking
       cd azure-container-networking
 
-      sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true CNS_VERSION="${cns_version}" AZURE_IPAM_VERSION="${azure_ipam_version}" INSTALL_CNS=true INSTALL_OVERLAY=true
+      sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true CNS_VERSION="${cns_version}" AZURE_IPAM_VERSION="${azure_ipam_version}" INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=MCR IPAM_IMAGE_REPO=MCR
 
       if ! command -v envsubst >/dev/null 2>&1; then
         echo "##vso[task.logissue type=error;]envsubst is required for ACN manifest templating"
