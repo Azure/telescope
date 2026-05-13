@@ -561,8 +561,8 @@ metadata:
 data:
   override.yaml: |
     # Total client-side inflight LIST = PODS * INFLIGHT_PER_POD.
-    CL2_LIST_BENCHMARK_PODS: 36         # number of lister pods (Deployment replicas)
-    CL2_LIST_INFLIGHT_PER_POD: 100      # goroutines per pod, each in a tight LIST loop (binary --inflight flag)
+    CL2_LIST_BENCHMARK_PODS: 144        # number of lister pods (Deployment replicas)
+    CL2_LIST_INFLIGHT_PER_POD: 200      # goroutines per pod, each in a tight LIST loop (binary --inflight flag); kept ≤ HTTP/2 stream limit (~250)
     # Per-LIST response = NUMBER * BYTES ≈ 5MB. Bumping these to make LISTs heavier
     # (to keep readOnly inflight count high) backfired in a prior run — readOnly seats
     # dropped to ~240, suspected lister OOM and/or APF queueing. Keep small until the

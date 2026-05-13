@@ -132,7 +132,8 @@ output = ap.Pipeline {
                     "kwokpool"),
                 # Untainted pool that hosts the list-benchmark lister Deployment pods
                 # (upstream deployment template has no nodeSelector/tolerations, so they
-                # land on any untainted node — systempool is too small for 36 listers).
+                # land on any untainted node). 12 * D8S_v4 ≈ 75 vCPU usable, fits
+                # 144 lister pods at 500m each with comfortable headroom.
                 azure.CreateNodePool(
                     const.DEFAULT_SERVICE_CONNECTION,
                     CLUSTER,
@@ -140,7 +141,7 @@ output = ap.Pipeline {
                     SUBSCRIPTION_ID,
                     "listpool",
                     "Standard_D8S_v4",
-                    3),
+                    12),
                 azure.WaitForNodePoolSucceeded(
                     const.DEFAULT_SERVICE_CONNECTION,
                     CLUSTER,

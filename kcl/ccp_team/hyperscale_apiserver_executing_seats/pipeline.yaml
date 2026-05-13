@@ -226,7 +226,7 @@ jobs:
       azureSubscription: Azure-for-Telescope-internal
       scriptType: bash
       scriptLocation: inlineScript
-      inlineScript: "set -exo pipefail\n\naz aks nodepool add \\\n  --cluster-name \"stg-H8-hyperscale-apiserver-seats\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"listpool\" \\\n  --node-count 3 \\\n  --node-vm-size \"Standard_D8S_v4\" \\\n  --mode User \\\n   \\\n  \n"
+      inlineScript: "set -exo pipefail\n\naz aks nodepool add \\\n  --cluster-name \"stg-H8-hyperscale-apiserver-seats\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"listpool\" \\\n  --node-count 12 \\\n  --node-vm-size \"Standard_D8S_v4\" \\\n  --mode User \\\n   \\\n  \n"
     displayName: Create node pool listpool
   - task: AzureCLI@2
     inputs:
