@@ -569,7 +569,7 @@ data:
     # failure mode is confirmed.
     CL2_LIST_CONFIG_MAP_NUMBER: 10000
     CL2_LIST_CONFIG_MAP_BYTES: 10000
-    CL2_LIST_BENCHMARK_CPU: "3000m"
+    CL2_LIST_BENCHMARK_CPU: "500m"
     CL2_LIST_BENCHMARK_MEMORY: "2048Mi"
     # Estimated load test duration. Read driver Sleeps for this long, then exits cleanly
     # so its CL2 measurement gather step runs and its report is captured. RunClusterLoader2
