@@ -155,7 +155,39 @@ steps:
 
         echo "--- nodes ---"
         kubectl get nodes -o wide
-        kubectl wait --for=condition=Ready nodes --all --timeout=5m
+        # Wait until ALL nodes reach Ready. Originally a single
+        # `kubectl wait --timeout=5m` call, but a 5min hard timeout is
+        # brittle when 1-2 of N nodes flap NotReady transiently at
+        # startup (kubelet image pull, CNI sandbox init). Smoke build
+        # 67014 hit this — 2 of 21 nodes briefly NotReady, kubectl
+        # wait timed out, validate step failed, CL2 skipped (~30min
+        # of provisioned infra wasted).
+        #
+        # New behavior: retry-with-resample loop, 15min budget, 30s
+        # rechecks. Exits as soon as all nodes are Ready; gives a
+        # final diag dump on timeout (which clusters/nodes are still
+        # NotReady).
+        node_ready_deadline=$(( $(date +%s) + 900 ))
+        while true; do
+          if kubectl wait --for=condition=Ready nodes --all --timeout=30s >/dev/null 2>&1; then
+            echo "All nodes Ready"
+            break
+          fi
+          if [ "$(date +%s)" -ge "$node_ready_deadline" ]; then
+            echo "##vso[task.logissue type=error;] $role: node readiness timeout after 15 min"
+            echo "--- final node state ---"
+            kubectl get nodes -o wide || true
+            echo "--- NotReady nodes describe ---"
+            for n in $(kubectl get nodes --no-headers 2>/dev/null | awk '$2 != "Ready" {print $1}'); do
+              echo "--- $n ---"
+              kubectl describe node "$n" 2>&1 | head -50 || true
+            done
+            exit 1
+          fi
+          not_ready=$(kubectl get nodes --no-headers 2>/dev/null | awk '$2 != "Ready"' | wc -l)
+          echo "$(date -u +%H:%M:%S): ${not_ready} node(s) NotReady, waiting (deadline at $(date -u -d @${node_ready_deadline} +%H:%M:%S))"
+          sleep 30
+        done
 
         echo "--- cilium agent pods ---"
         kubectl -n kube-system get pods -l k8s-app=cilium -o wide
