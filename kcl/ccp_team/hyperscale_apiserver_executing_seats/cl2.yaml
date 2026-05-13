@@ -569,8 +569,8 @@ data:
     # failure mode is confirmed.
     CL2_LIST_CONFIG_MAP_NUMBER: 10000
     CL2_LIST_CONFIG_MAP_BYTES: 10000
-    CL2_LIST_BENCHMARK_CPU: "500m"
-    CL2_LIST_BENCHMARK_MEMORY: "512Mi"
+    CL2_LIST_BENCHMARK_CPU: "3000m"
+    CL2_LIST_BENCHMARK_MEMORY: "2048Mi"
     # Estimated load test duration. Read driver Sleeps for this long, then exits cleanly
     # so its CL2 measurement gather step runs and its report is captured. RunClusterLoader2
     # waits for both load + read to reach terminal, so don't set this larger than expected
@@ -606,7 +606,7 @@ data:
     tuningSets:
     - name: Sequence
       parallelismLimitedLoad:
-        parallelismLimit: 10
+        parallelismLimit: 100
     steps:
     - name: Setup namespace for list benchmark pods
       phases:
