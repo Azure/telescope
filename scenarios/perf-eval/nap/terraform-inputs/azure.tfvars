@@ -3,7 +3,6 @@ scenario_name  = "nap"
 deletion_delay = "4h"
 owner          = "aks"
 
-aks_config_list = []
 
 network_config_list = [
   {

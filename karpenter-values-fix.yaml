@@ -1,0 +1,10 @@
+karpenterOverlay:
+  enableDefaultPools: true
+  network:
+    dataplane: azure
+    vnetResourceGroup: 66998-3093b6fc
+    subnetId: /subscriptions/f6e2f77f-9959-42ad-87f0-c30a6abc0133/resourceGroups/66998-3093b6fc/providers/Microsoft.Network/virtualNetworks/nap-vnet/subnets/nap-subnet
+
+global:
+  commonGlobals:
+    isAutomaticSKU: false
