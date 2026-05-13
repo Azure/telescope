@@ -105,23 +105,38 @@ steps:
         return 0
       }
 
-      # Helper: returns (via stdout) the churn arg values for a given scenario.
-      # Echoes 7 fields tab-separated: cc, cu, cd, kds, kis, kb, st
-      # For non-churn scenarios (event-throughput etc.) returns zeros so the
-      # JSONL doesn't tag those rows with misleading churn knobs.
-      churn_args_for_scenario() {
+      # Helper: set the 7 collect arg vars (cc/cu/cd/kds/kis/kb/st) for a
+      # given scenario name. For pod-churn-* scenarios, use the matrix-exported
+      # CL2_CHURN_* / CL2_KILL_* values directly. For non-churn scenarios
+      # (event-throughput, default-config), emit zeros/empties so the JSONL
+      # doesn't mis-tag those rows.
+      #
+      # Implementation note: an earlier version used `IFS=$'\t' read` to parse
+      # tab-separated values from a printf string. That was buggy because tab
+      # is whitespace-IFS and bash collapses consecutive tabs into a single
+      # delimiter — non-churn scenarios (which had empty cu/cd fields) ended
+      # up with shifted values. Direct assignment avoids that pitfall.
+      set_churn_args_for_scenario() {
         local _scen="$1" _st="$2"
         case "$_scen" in
           pod-churn-*)
-            printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-              "$CL2_CHURN_CYCLES" "$CL2_CHURN_UP_DURATION" "$CL2_CHURN_DOWN_DURATION" \
-              "$CL2_KILL_DURATION_SECONDS" "$CL2_KILL_INTERVAL_SECONDS" "$CL2_KILL_BATCH" \
-              "$_st"
+            cc="$CL2_CHURN_CYCLES"
+            cu="$CL2_CHURN_UP_DURATION"
+            cd_v="$CL2_CHURN_DOWN_DURATION"
+            kds="$CL2_KILL_DURATION_SECONDS"
+            kis="$CL2_KILL_INTERVAL_SECONDS"
+            kb="$CL2_KILL_BATCH"
             ;;
           *)
-            printf '0\t\t\t0\t0\t0\t%s\n' "$_st"
+            cc=0
+            cu=""
+            cd_v=""
+            kds=0
+            kis=0
+            kb=0
             ;;
         esac
+        st="$_st"
       }
 
       # Share-infra mode: SHARE_INFRA_META is a JSON array of
@@ -135,26 +150,26 @@ steps:
           SCENARIO=$(echo "$sn" | jq -r '.scenario')
           SCENARIO_START=$(echo "$sn" | jq -r '.start_timestamp')
           echo "----- collecting scenario: $SCENARIO (start=$SCENARIO_START) -----"
-          IFS=$'\t' read -r cc cu cd kds kis kb st <<< "$(churn_args_for_scenario "$SCENARIO" "$SCENARIO_START")"
+          set_churn_args_for_scenario "$SCENARIO" "$SCENARIO_START"
           for row in $(echo "$clusters" | jq -c '.[]'); do
             role=$(echo "$row" | jq -r '.role')
             report_dir="${CL2_REPORT_DIR}/${SCENARIO}/${role}"
             per_cluster_result="${TEST_RESULTS_FILE%.*}.${SCENARIO}.${role}.${TEST_RESULTS_FILE##*.}"
             if collect_one "$SCENARIO" "$role" "$report_dir" "$per_cluster_result" \
-                "$cc" "$cu" "$cd" "$kds" "$kis" "$kb" "$st"; then
+                "$cc" "$cu" "$cd_v" "$kds" "$kis" "$kb" "$st"; then
               cat "$per_cluster_result" >> "$TEST_RESULTS_FILE"
             fi
           done
         done
       else
         # Single-scenario mode (prod path — unchanged behavior).
-        IFS=$'\t' read -r cc cu cd kds kis kb st <<< "$(churn_args_for_scenario "$TEST_TYPE" "$START_TIME")"
+        set_churn_args_for_scenario "$TEST_TYPE" "$START_TIME"
         for row in $(echo "$clusters" | jq -c '.[]'); do
           role=$(echo "$row" | jq -r '.role')
           report_dir="${CL2_REPORT_DIR}/${role}"
           per_cluster_result="${TEST_RESULTS_FILE%.*}.${role}.${TEST_RESULTS_FILE##*.}"
           if collect_one "$TEST_TYPE" "$role" "$report_dir" "$per_cluster_result" \
-              "$cc" "$cu" "$cd" "$kds" "$kis" "$kb" "$st"; then
+              "$cc" "$cu" "$cd_v" "$kds" "$kis" "$kb" "$st"; then
             cat "$per_cluster_result" >> "$TEST_RESULTS_FILE"
           fi
         done
