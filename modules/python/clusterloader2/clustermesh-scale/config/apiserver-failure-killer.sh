@@ -143,13 +143,28 @@ NEXT_SAMPLE=$((T0 + 30))
 while [ "$(date +%s)" -lt "${RECOVERY_DEADLINE}" ]; do
   # Find any clustermesh-apiserver pod whose UID is NEW (not the one we killed)
   # AND whose Ready condition is True.
-  CANDIDATE=$("${KUBECTL}" -n kube-system get pods \
+  #
+  # BUG-FIX 2026-05-13: original used a nested kubectl jsonpath filter
+  # `items[?(@.status.conditions[?(@.type=="Ready")].status=="True")]`.
+  # kubectl's jsonpath engine doesn't reliably evaluate nested `[?]`
+  # filters — returns empty even when matching pods exist. Smoke build
+  # 67075 saw a replacement pod Running+Ready at elapsed=31s but the
+  # CANDIDATE query returned empty for the full 240s window. Result:
+  # false-negative timeout while pod was actually healthy.
+  #
+  # Replacement: list ALL apiserver pods with name+uid+readyStatus, then
+  # filter in shell. Same data, no kubectl-jsonpath limitation.
+  ALL_PODS=$("${KUBECTL}" -n kube-system get pods \
     -l k8s-app=clustermesh-apiserver \
-    -o 'jsonpath={range .items[?(@.status.conditions[?(@.type=="Ready")].status=="True")]}{.metadata.name}={.metadata.uid}{"\n"}{end}' \
-    2>/dev/null | grep -v '^$' | grep -v "=${POD_UID}$" | head -1)
+    -o 'jsonpath={range .items[*]}{.metadata.name}={.metadata.uid}={.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}' \
+    2>/dev/null)
+  # Format: name=uid=Ready
+  CANDIDATE=$(echo "${ALL_PODS}" | grep -v '^$' | grep '=True$' | grep -v "=${POD_UID}=" | head -1)
   if [ -n "${CANDIDATE}" ]; then
-    NEW_POD_NAME="${CANDIDATE%=*}"
-    NEW_POD_UID="${CANDIDATE#*=}"
+    # Strip the trailing `=True`, then split name/uid.
+    NAME_UID="${CANDIDATE%=*}"
+    NEW_POD_NAME="${NAME_UID%=*}"
+    NEW_POD_UID="${NAME_UID#*=}"
     break
   fi
   # Periodic state sample for diagnostics.
