@@ -129,7 +129,11 @@ dump_state() {
     echo "--- pod UIDs + readiness ---"
     "${KUBECTL}" -n kube-system get pods -l k8s-app=clustermesh-apiserver \
       -o 'jsonpath={range .items[*]}{.metadata.name}{" uid="}{.metadata.uid}{" phase="}{.status.phase}{" ready="}{.status.conditions[?(@.type=="Ready")].status}{" reason="}{.status.conditions[?(@.type=="Ready")].reason}{"\n"}{end}' 2>&1 || true
-  } >> "${DIAG_LOG}"
+    # tee'd to BOTH the file AND stdout so the AzDO step log carries the
+    # same diag info as the file. AzDO pipeline artifacts aren't published
+    # for our scenarios — the agent's report dir is torn down with the job
+    # — so without stdout duplication the diag is unreachable.
+  } 2>&1 | tee -a "${DIAG_LOG}"
 }
 
 RECOVERY_DEADLINE=$((T0 + RECOVERY_TIMEOUT_SECONDS))
@@ -161,6 +165,8 @@ T1=$(date +%s)
 if [ -z "${NEW_POD_UID}" ]; then
   echo "apiserver-failure-killer WARN: recovery timeout after ${RECOVERY_TIMEOUT_SECONDS}s; no NEW Ready pod"
   # Final diag dump on timeout — describe deployment, latest pod, recent events.
+  # tee'd so AzDO step log AND the file both contain the diag (see dump_state
+  # comment for why duplication matters).
   {
     echo "===== TIMEOUT FINAL DIAG at $(date -u +"%Y-%m-%dT%H:%M:%SZ") ====="
     echo "--- describe deployment clustermesh-apiserver ---"
@@ -172,7 +178,7 @@ if [ -z "${NEW_POD_UID}" ]; then
     done
     echo "--- recent kube-system events ---"
     "${KUBECTL}" -n kube-system get events --sort-by=.lastTimestamp 2>&1 | tail -50 || true
-  } >> "${DIAG_LOG}"
+  } 2>&1 | tee -a "${DIAG_LOG}"
   echo "apiserver-failure-killer: diag dump written to ${DIAG_LOG}"
   write_timing "${T0}" 0 false "${POD_NAME}" "${POD_UID}" "" "recovery timeout"
   # Phase 4b: exit 0 on timeout (NOT 1). The timing JSON with

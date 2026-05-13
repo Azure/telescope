@@ -134,7 +134,11 @@ stages:
             n2_shared:
               cluster_count: 2
               mesh_size: 2
-              share_infra_scenarios: "event-throughput,pod-churn-combined,apiserver-failure"
+              # ITER-ONLY 2026-05-13: only apiserver-failure to iterate on
+              # the killer's recovery timeout root cause. Restore full
+              # 3-scenario list once #4 lands clean:
+              #   "event-throughput,pod-churn-combined,apiserver-failure"
+              share_infra_scenarios: "apiserver-failure"
               cl2_config_file: ""  # unused when share_infra_scenarios is set
               test_type: shared    # row-level test_type comes from each scenario at collect time
               namespaces: 5
