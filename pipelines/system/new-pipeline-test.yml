@@ -40,6 +40,7 @@ stages:
               # cilium_image_registry: "<your-registry>"
               # cilium_version_tag: "<your-cilium-tag>"
           max_parallel: 1
+          retry_attempt_count: 0
           credential_type: service_connection # required
           ssh_key_enabled: false
           timeout_in_minutes: 1500

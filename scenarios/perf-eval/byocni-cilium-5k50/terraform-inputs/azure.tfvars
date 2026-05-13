@@ -65,6 +65,10 @@ aks_cli_config_list = [
       {
         name  = "load-balancer-managed-outbound-ip-count"
         value = "20"
+      },
+      {
+        name  = "load-balancer-backend-pool-type"
+        value = "nodeIP"
       }
     ]
 
