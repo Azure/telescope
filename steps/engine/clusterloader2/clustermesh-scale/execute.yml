@@ -147,6 +147,26 @@ steps:
         fi
       fi
 
+      # Phase 4b — pre-pull CL2 docker image ONCE on the agent before
+      # parallel fan-out. Without this, scale.py execute-parallel spawns up
+      # to CL2_MAX_CONCURRENT (default 4, dev pipeline 8) `docker run`
+      # commands simultaneously, each of which independently pulls
+      # ghcr.io/azure/clusterloader2:<tag>. The parallel pull race against
+      # ghcr.io's anonymous-rate limit caused mesh-13's CL2 step to fail
+      # in build 67013 with `context deadline exceeded` on the token
+      # endpoint. Pre-pulling once means the parallel `docker run`s see
+      # the image cached locally and skip the pull entirely.
+      #
+      # Best-effort: `docker pull` failure here triggers a warning + lets
+      # the parallel-fanout retry on its own. Most runs will benefit from
+      # the cache hit; failures behave no worse than before.
+      echo "Pre-pulling CL2 image ${CL2_IMAGE} on the AzDO agent (sidesteps ghcr.io rate-limit race during parallel fanout)..."
+      if docker pull "${CL2_IMAGE}" 2>&1 | tail -5; then
+        echo "Pre-pull succeeded; subsequent docker runs will hit local cache"
+      else
+        echo "##vso[task.logissue type=warning;] CL2 image pre-pull failed; per-cluster CL2 invocations will each attempt their own pull (ghcr.io rate-limit risk persists)"
+      fi
+
       # CL2 execution: single-scenario (default, prod path) or share-infra
       # multi-scenario loop (dev pipeline iteration). See plan.md Phase 4b
       # section for the design rationale.

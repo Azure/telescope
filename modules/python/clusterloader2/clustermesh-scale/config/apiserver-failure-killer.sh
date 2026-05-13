@@ -113,9 +113,29 @@ fi
 # 3. Wait for replacement pod to reach Ready. Per rubber-duck #6:
 #    Ready (not just Running) is what matters — apiserver may be Running
 #    while still loading certs / unable to serve mesh traffic.
+#
+# Periodic state samples (every 30s) write to a diag log so we can see
+# what kubelet/scheduler/operator were doing during recovery — instead
+# of just "timed out" with no signal.
+DIAG_LOG="${REPORT_DIR}/ApiserverFailureDiag_${CURRENT_CONTEXT}.log"
+: > "${DIAG_LOG}"
+
+dump_state() {
+  local label="$1"
+  {
+    echo "===== ${label} at $(date -u +"%Y-%m-%dT%H:%M:%SZ") (epoch=$(date +%s)) ====="
+    echo "--- pods (k8s-app=clustermesh-apiserver) ---"
+    "${KUBECTL}" -n kube-system get pods -l k8s-app=clustermesh-apiserver -o wide 2>&1 || true
+    echo "--- pod UIDs + readiness ---"
+    "${KUBECTL}" -n kube-system get pods -l k8s-app=clustermesh-apiserver \
+      -o 'jsonpath={range .items[*]}{.metadata.name}{" uid="}{.metadata.uid}{" phase="}{.status.phase}{" ready="}{.status.conditions[?(@.type=="Ready")].status}{" reason="}{.status.conditions[?(@.type=="Ready")].reason}{"\n"}{end}' 2>&1 || true
+  } >> "${DIAG_LOG}"
+}
+
 RECOVERY_DEADLINE=$((T0 + RECOVERY_TIMEOUT_SECONDS))
 NEW_POD_NAME=""
 NEW_POD_UID=""
+NEXT_SAMPLE=$((T0 + 30))
 while [ "$(date +%s)" -lt "${RECOVERY_DEADLINE}" ]; do
   # Find any clustermesh-apiserver pod whose UID is NEW (not the one we killed)
   # AND whose Ready condition is True.
@@ -128,12 +148,32 @@ while [ "$(date +%s)" -lt "${RECOVERY_DEADLINE}" ]; do
     NEW_POD_UID="${CANDIDATE#*=}"
     break
   fi
+  # Periodic state sample for diagnostics.
+  NOW=$(date +%s)
+  if [ "${NOW}" -ge "${NEXT_SAMPLE}" ]; then
+    dump_state "RECOVERY-WAIT sample (elapsed=$((NOW - T0))s)"
+    NEXT_SAMPLE=$((NOW + 30))
+  fi
   sleep 2
 done
 
 T1=$(date +%s)
 if [ -z "${NEW_POD_UID}" ]; then
   echo "apiserver-failure-killer WARN: recovery timeout after ${RECOVERY_TIMEOUT_SECONDS}s; no NEW Ready pod"
+  # Final diag dump on timeout — describe deployment, latest pod, recent events.
+  {
+    echo "===== TIMEOUT FINAL DIAG at $(date -u +"%Y-%m-%dT%H:%M:%SZ") ====="
+    echo "--- describe deployment clustermesh-apiserver ---"
+    "${KUBECTL}" -n kube-system describe deployment clustermesh-apiserver 2>&1 || true
+    echo "--- describe ALL clustermesh-apiserver pods ---"
+    for p in $("${KUBECTL}" -n kube-system get pods -l k8s-app=clustermesh-apiserver -o name 2>/dev/null); do
+      echo "--- $p ---"
+      "${KUBECTL}" -n kube-system describe "$p" 2>&1 || true
+    done
+    echo "--- recent kube-system events ---"
+    "${KUBECTL}" -n kube-system get events --sort-by=.lastTimestamp 2>&1 | tail -50 || true
+  } >> "${DIAG_LOG}"
+  echo "apiserver-failure-killer: diag dump written to ${DIAG_LOG}"
   write_timing "${T0}" 0 false "${POD_NAME}" "${POD_UID}" "" "recovery timeout"
   # Phase 4b: exit 0 on timeout (NOT 1). The timing JSON with
   # `recovered:false` is the load-bearing signal that the scenario was
