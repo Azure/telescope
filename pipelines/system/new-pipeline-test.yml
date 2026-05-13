@@ -16,11 +16,9 @@ variables:
   OWNER: aks
 
 stages:
-  # ITER-DISABLED 2026-05-12: Phase 4a n=2 smoke is green, promoting to n=20.
-  # Re-enable (delete `condition: false`) and disable n=20 to iterate at n=2.
+  # Phase 4b share-infra n=2 smoke. n=20 disabled below to free agent capacity.
   - stage: azure_eastus2euap
     dependsOn: []
-    condition: false
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -100,17 +98,48 @@ stages:
             # Combined scale-cycle + kill in one CL2 invocation per cluster.
             # Kill phase uses Method: Exec → kubectl from inside the CL2
             # container (no in-cluster Job, no AcrPull dependency).
-            n2_pod_churn_combined:
+            # SMOKE-ONLY 2026-05-12: commented out for n=2 share-infra smoke;
+            # uncomment for solo-scenario iteration.
+            # n2_pod_churn_combined:
+            #   cluster_count: 2
+            #   mesh_size: 2
+            #   cl2_config_file: pod-churn-combined.yaml
+            #   test_type: pod-churn-combined
+            #   namespaces: 5
+            #   deployments_per_namespace: 4
+            #   replicas_per_deployment: 10
+            #   hold_duration: 2m
+            #   warmup_duration: 30s
+            #   restart_count: 0
+            #   api_server_calls_per_second: 20
+            #   churn_cycles: 5
+            #   churn_up_duration: 60s
+            #   churn_down_duration: 60s
+            #   kill_duration: 10m
+            #   kill_duration_seconds: 600
+            #   kill_interval_seconds: 10
+            #   kill_batch: 5
+            #   kill_job_deadline_seconds: 660
+            #   trigger_reason: ${{ variables['Build.Reason'] }}
+            # Phase 4b share-infra: ONE matrix entry runs BOTH scenarios
+            # sequentially against the same provisioned clusters. The
+            # share_infra_scenarios env var (auto-exported as
+            # SHARE_INFRA_SCENARIOS by AzDO) triggers the multi-scenario
+            # path in execute.yml + collect.yml. Per-row test_type
+            # attribution preserved in the JSONL. Single provision/destroy
+            # = ~92% time reduction vs running two matrix entries.
+            n2_shared:
               cluster_count: 2
               mesh_size: 2
-              cl2_config_file: pod-churn-combined.yaml
-              test_type: pod-churn-combined
+              share_infra_scenarios: "event-throughput,pod-churn-combined"
+              cl2_config_file: ""  # unused when share_infra_scenarios is set
+              test_type: shared    # row-level test_type comes from each scenario at collect time
               namespaces: 5
               deployments_per_namespace: 4
               replicas_per_deployment: 10
               hold_duration: 2m
               warmup_duration: 30s
-              restart_count: 0
+              restart_count: 1
               api_server_calls_per_second: 20
               churn_cycles: 5
               churn_up_duration: 60s
@@ -122,7 +151,10 @@ stages:
               kill_job_deadline_seconds: 660
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
-          timeout_in_minutes: 120
+          # n=2 share-infra: provision (~15min) + validate (~5min) + 2 × CL2
+          # (~25min each, with 60s settle between) + destroy (~15min) ≈ ~90min.
+          # Buffer to 240 in case of LB-tail or apply retries.
+          timeout_in_minutes: 240
           credential_type: service_connection
           ssh_key_enabled: false
           # Iteration-only: skip uploading results to the telescope blob while
@@ -319,6 +351,9 @@ stages:
   #     parallelism=4. Fallback if this fails: drop back to parallelism=4.
   - stage: azure_eastus2euap_n20
     dependsOn: []
+    # ITER-DISABLED 2026-05-12: Phase 4b share-infra smoke at n=2 first.
+    # Re-enable + flip n=2 to disabled once share-infra is validated.
+    condition: false
     variables:
       TF_CLI_ARGS_apply: "-parallelism=8"
     jobs:

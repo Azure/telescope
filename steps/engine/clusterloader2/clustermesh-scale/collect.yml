@@ -41,72 +41,124 @@ steps:
       cluster_count=$(echo "$clusters" | jq 'length')
 
       # Aggregate every per-cluster JSONL into a single TEST_RESULTS_FILE.
-      # Each line carries `cluster: <role>` so downstream Kusto queries can
-      # group/filter by cluster across the mesh.
+      # Each line carries `cluster: <role>` and `test_type: <name>` so
+      # downstream Kusto queries can group/filter by cluster AND scenario
+      # across the mesh.
       mkdir -p "$(dirname "$TEST_RESULTS_FILE")"
       : > "$TEST_RESULTS_FILE"
 
-      for row in $(echo "$clusters" | jq -c '.[]'); do
-        role=$(echo "$row" | jq -r '.role')
-        report_dir="${CL2_REPORT_DIR}/${role}"
-
-        if [ ! -d "$report_dir" ]; then
-          echo "##vso[task.logissue type=warning;] $role: missing report dir $report_dir, skipping"
-          continue
+      # Helper: collect one (scenario, cluster) pair. Args:
+      #   $1 scenario name (also used as test_type)
+      #   $2 cluster role
+      #   $3 per-cluster CL2 report dir (already includes scenario subdir
+      #      in share-infra mode; just <CL2_REPORT_DIR>/<role> in single
+      #      scenario mode)
+      #   $4 result file path
+      #   $5 churn_cycles value (0 to record "not a churn scenario")
+      #   $6 churn_up_duration value ("" to record "not a churn scenario")
+      #   $7 churn_down_duration value
+      #   $8 kill_duration_seconds value
+      #   $9 kill_interval_seconds value
+      #   $10 kill_batch value
+      #   $11 scenario_start_timestamp value
+      collect_one() {
+        local _scen="$1" _role="$2" _report="$3" _out="$4"
+        local _cc="$5" _cu="$6" _cd="$7" _kds="$8" _kis="$9" _kb="${10}" _st="${11}"
+        if [ ! -d "$_report" ]; then
+          echo "##vso[task.logissue type=warning;] $_scen/$_role: missing report dir $_report, skipping"
+          return 1
         fi
-
-        # If CL2 errored out before producing junit.xml (e.g. prometheus stack
-        # setup timeout), skip aggregation for this cluster — scale.py collect
-        # would crash on the missing file. The execute step already logged a
-        # warning per-cluster; we don't want to also abort the whole pipeline
-        # at collect time when partial data may be useful.
-        if [ ! -f "$report_dir/junit.xml" ]; then
-          echo "##vso[task.logissue type=warning;] $role: $report_dir/junit.xml not found (CL2 likely failed); skipping collect for this cluster"
-          continue
+        if [ ! -f "$_report/junit.xml" ]; then
+          echo "##vso[task.logissue type=warning;] $_scen/$_role: $_report/junit.xml not found (CL2 likely failed); skipping collect"
+          return 1
         fi
-
-        per_cluster_result="${TEST_RESULTS_FILE%.*}.${role}.${TEST_RESULTS_FILE##*.}"
-
-        # Per-cluster collect must NOT fail-fast: a Python crash here (parse
-        # error on an unexpected file shape, corrupt junit.xml, etc.) would
-        # under `set -eo pipefail` abort the whole loop and lose data from
-        # the OTHER (N-1) clusters that completed CL2 successfully. We log
-        # a warning and continue so the rest still aggregate.
-        collect_rc=0
+        local _rc=0
         PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
-          --cl2_report_dir "$report_dir" \
+          --cl2_report_dir "$_report" \
           --cloud_info "${CLOUD_INFO:-}" \
           --run_id "$RUN_ID" \
           --run_url "$RUN_URL" \
-          --result_file "$per_cluster_result" \
-          --start_timestamp "$START_TIME" \
-          --cluster-name "$role" \
+          --result_file "$_out" \
+          --start_timestamp "$_st" \
+          --cluster-name "$_role" \
           --cluster-count "$cluster_count" \
           --mesh-size "$MESH_SIZE" \
-          --test_type "$TEST_TYPE" \
+          --test_type "$_scen" \
           --namespaces "$CL2_NAMESPACES" \
           --deployments-per-namespace "$CL2_DEPLOYMENTS_PER_NAMESPACE" \
           --replicas-per-deployment "$CL2_REPLICAS_PER_DEPLOYMENT" \
-          --churn-cycles "$CL2_CHURN_CYCLES" \
-          --churn-up-duration "$CL2_CHURN_UP_DURATION" \
-          --churn-down-duration "$CL2_CHURN_DOWN_DURATION" \
-          --kill-duration-seconds "$CL2_KILL_DURATION_SECONDS" \
-          --kill-interval-seconds "$CL2_KILL_INTERVAL_SECONDS" \
-          --kill-batch "$CL2_KILL_BATCH" \
-          --trigger_reason "${TRIGGER_REASON:-}" || collect_rc=$?
-
-        if [ "$collect_rc" -ne 0 ]; then
-          echo "##vso[task.logissue type=warning;] $role: scale.py collect exited $collect_rc; skipping aggregation for this cluster"
-          continue
+          --churn-cycles "$_cc" \
+          --churn-up-duration "$_cu" \
+          --churn-down-duration "$_cd" \
+          --kill-duration-seconds "$_kds" \
+          --kill-interval-seconds "$_kis" \
+          --kill-batch "$_kb" \
+          --trigger_reason "${TRIGGER_REASON:-}" || _rc=$?
+        if [ "$_rc" -ne 0 ]; then
+          echo "##vso[task.logissue type=warning;] $_scen/$_role: scale.py collect exited $_rc; skipping aggregation"
+          return 1
         fi
-
-        if [ ! -f "$per_cluster_result" ]; then
-          echo "##vso[task.logissue type=warning;] $role: per-cluster result file $per_cluster_result missing after collect; skipping"
-          continue
+        if [ ! -f "$_out" ]; then
+          echo "##vso[task.logissue type=warning;] $_scen/$_role: per-cluster result file $_out missing after collect; skipping"
+          return 1
         fi
+        return 0
+      }
 
-        cat "$per_cluster_result" >> "$TEST_RESULTS_FILE"
-      done
+      # Helper: returns (via stdout) the churn arg values for a given scenario.
+      # Echoes 7 fields tab-separated: cc, cu, cd, kds, kis, kb, st
+      # For non-churn scenarios (event-throughput etc.) returns zeros so the
+      # JSONL doesn't tag those rows with misleading churn knobs.
+      churn_args_for_scenario() {
+        local _scen="$1" _st="$2"
+        case "$_scen" in
+          pod-churn-*)
+            printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+              "$CL2_CHURN_CYCLES" "$CL2_CHURN_UP_DURATION" "$CL2_CHURN_DOWN_DURATION" \
+              "$CL2_KILL_DURATION_SECONDS" "$CL2_KILL_INTERVAL_SECONDS" "$CL2_KILL_BATCH" \
+              "$_st"
+            ;;
+          *)
+            printf '0\t\t\t0\t0\t0\t%s\n' "$_st"
+            ;;
+        esac
+      }
+
+      # Share-infra mode: SHARE_INFRA_META is a JSON array of
+      # {scenario, start_timestamp} produced by execute.yml. Iterate
+      # per-scenario × per-cluster, aggregating ALL rows into one blob with
+      # per-row test_type attribution.
+      if [ -n "${SHARE_INFRA_META:-}" ] && [ -f "$SHARE_INFRA_META" ]; then
+        echo "Share-infra collect: reading scenarios from $SHARE_INFRA_META"
+        scenarios_json=$(cat "$SHARE_INFRA_META")
+        for sn in $(echo "$scenarios_json" | jq -c '.[]'); do
+          SCENARIO=$(echo "$sn" | jq -r '.scenario')
+          SCENARIO_START=$(echo "$sn" | jq -r '.start_timestamp')
+          echo "----- collecting scenario: $SCENARIO (start=$SCENARIO_START) -----"
+          IFS=$'\t' read -r cc cu cd kds kis kb st <<< "$(churn_args_for_scenario "$SCENARIO" "$SCENARIO_START")"
+          for row in $(echo "$clusters" | jq -c '.[]'); do
+            role=$(echo "$row" | jq -r '.role')
+            report_dir="${CL2_REPORT_DIR}/${SCENARIO}/${role}"
+            per_cluster_result="${TEST_RESULTS_FILE%.*}.${SCENARIO}.${role}.${TEST_RESULTS_FILE##*.}"
+            if collect_one "$SCENARIO" "$role" "$report_dir" "$per_cluster_result" \
+                "$cc" "$cu" "$cd" "$kds" "$kis" "$kb" "$st"; then
+              cat "$per_cluster_result" >> "$TEST_RESULTS_FILE"
+            fi
+          done
+        done
+      else
+        # Single-scenario mode (prod path — unchanged behavior).
+        IFS=$'\t' read -r cc cu cd kds kis kb st <<< "$(churn_args_for_scenario "$TEST_TYPE" "$START_TIME")"
+        for row in $(echo "$clusters" | jq -c '.[]'); do
+          role=$(echo "$row" | jq -r '.role')
+          report_dir="${CL2_REPORT_DIR}/${role}"
+          per_cluster_result="${TEST_RESULTS_FILE%.*}.${role}.${TEST_RESULTS_FILE##*.}"
+          if collect_one "$TEST_TYPE" "$role" "$report_dir" "$per_cluster_result" \
+              "$cc" "$cu" "$cd" "$kds" "$kis" "$kb" "$st"; then
+            cat "$per_cluster_result" >> "$TEST_RESULTS_FILE"
+          fi
+        done
+      fi
 
       echo "Aggregated results from $cluster_count clusters into $TEST_RESULTS_FILE"
       wc -l "$TEST_RESULTS_FILE" || true

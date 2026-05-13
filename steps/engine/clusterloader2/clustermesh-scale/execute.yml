@@ -140,6 +140,109 @@ steps:
         fi
       fi
 
+      # CL2 execution: single-scenario (default, prod path) or share-infra
+      # multi-scenario loop (dev pipeline iteration). See plan.md Phase 4b
+      # section for the design rationale.
+      #
+      # Gating env var SHARE_INFRA_SCENARIOS — comma-separated list of CL2
+      # config basenames (e.g. "event-throughput,pod-churn-combined"). When
+      # set, each entry runs sequentially against the same provisioned
+      # clusters with a 60s settle between scenarios. test_type per row in
+      # the JSONL is each scenario's own basename. When unset, fall through
+      # to the single-scenario invocation that prod pipeline expects.
+      overall_rc=0
+
+      if [ -n "${SHARE_INFRA_SCENARIOS:-}" ]; then
+        # Trim whitespace from each entry, split on comma.
+        IFS=',' read -ra SCENARIO_LIST <<< "$SHARE_INFRA_SCENARIOS"
+        for i in "${!SCENARIO_LIST[@]}"; do
+          SCENARIO_LIST[$i]="$(echo "${SCENARIO_LIST[$i]}" | xargs)"
+        done
+
+        # Pre-validate: non-empty, all referenced config files exist, no
+        # blanks (catches trailing commas, whitespace-only entries).
+        if [ "${#SCENARIO_LIST[@]}" -eq 0 ]; then
+          echo "##vso[task.logissue type=error;] SHARE_INFRA_SCENARIOS is set but empty after split"
+          exit 1
+        fi
+        for s in "${SCENARIO_LIST[@]}"; do
+          if [ -z "$s" ]; then
+            echo "##vso[task.logissue type=error;] SHARE_INFRA_SCENARIOS contains empty entry; got: '$SHARE_INFRA_SCENARIOS'"
+            exit 1
+          fi
+          if [ ! -f "${CL2_CONFIG_DIR}/${s}.yaml" ]; then
+            echo "##vso[task.logissue type=error;] CL2 config file not found: ${CL2_CONFIG_DIR}/${s}.yaml (from SHARE_INFRA_SCENARIOS=$SHARE_INFRA_SCENARIOS)"
+            exit 1
+          fi
+        done
+
+        # Persist the validated scenario list + per-scenario start timestamps
+        # for downstream collect.yml. Written to the kubeconfig dir alongside
+        # clustermesh-clusters.json so it's deterministically discoverable.
+        SHARE_INFRA_META="$HOME/.kube/share-infra-meta.json"
+        echo "[]" > "$SHARE_INFRA_META"
+
+        echo "============================================="
+        echo "Share-infra mode: ${#SCENARIO_LIST[@]} scenarios in this lifecycle: ${SCENARIO_LIST[*]}"
+        echo "============================================="
+
+        for i in "${!SCENARIO_LIST[@]}"; do
+          SCENARIO="${SCENARIO_LIST[$i]}"
+          scenario_idx=$((i + 1))
+          echo "============================================="
+          echo "Scenario [${scenario_idx}/${#SCENARIO_LIST[@]}]: ${SCENARIO}"
+          echo "============================================="
+          scenario_start=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          jq --arg name "$SCENARIO" --arg start "$scenario_start" \
+            '. += [{"scenario": $name, "start_timestamp": $start}]' \
+            "$SHARE_INFRA_META" > "${SHARE_INFRA_META}.tmp" && mv "${SHARE_INFRA_META}.tmp" "$SHARE_INFRA_META"
+
+          # Per-scenario report dir so collect.yml can iterate per-scenario.
+          # tear_down_prometheus=True so each scenario gets a clean Prom deploy
+          # (rather than colliding with the previous scenario's leftover
+          # PodMonitor + scrape config).
+          scenario_rc=0
+          PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute-parallel \
+            --clusters "$HOME/.kube/clustermesh-clusters.json" \
+            --max-concurrent "${CL2_MAX_CONCURRENT:-4}" \
+            --worker-script "$WORKER_SCRIPT" \
+            --cl2-image "${CL2_IMAGE}" \
+            --cl2-config-dir "${CL2_CONFIG_DIR}" \
+            --cl2-config-file "${SCENARIO}.yaml" \
+            --cl2-report-dir-base "${CL2_REPORT_DIR}/${SCENARIO}" \
+            --provider "${CLOUD}" \
+            --python-script-file "$PYTHON_SCRIPT_FILE" \
+            --python-workdir "$(pwd)" \
+            --tear-down-prometheus || scenario_rc=$?
+
+          if [ "$scenario_rc" -ne 0 ]; then
+            echo "##vso[task.logissue type=warning;] Scenario ${SCENARIO} exited rc=${scenario_rc}; subsequent scenarios will continue but the step's final exit reflects this failure"
+            overall_rc=$scenario_rc
+          fi
+
+          # Settle between scenarios — gives Cilium time to GC stale
+          # identities/endpoints/services from the previous scenario before
+          # the next scenario's measurement window begins. Last scenario
+          # skips the settle.
+          if [ "$scenario_idx" -lt "${#SCENARIO_LIST[@]}" ]; then
+            echo "Settle 60s between scenarios (kvstore GC + identity slot cooldown)..."
+            sleep 60
+          fi
+        done
+
+        # Make the meta file available to collect.yml via a step variable —
+        # written as task.setvariable so the next step in the same job picks it up.
+        echo "##vso[task.setvariable variable=SHARE_INFRA_META]$SHARE_INFRA_META"
+
+        echo "============================================="
+        echo "Share-infra summary: ${#SCENARIO_LIST[@]} scenarios processed, overall_rc=${overall_rc}"
+        echo "============================================="
+        exit "$overall_rc"
+      fi
+
+      # Single-scenario path (default, unchanged from Phase 4a — prod pipeline
+      # relies on this).
+      #
       # Bounded-parallel CL2 fan-out across clusters. Each worker invokes
       # run-cl2-on-cluster.sh — same per-cluster body the bash for-loop used
       # to run sequentially (CL2 invoke + junit gate + log capture + failure

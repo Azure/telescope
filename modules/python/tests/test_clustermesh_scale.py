@@ -645,6 +645,7 @@ class TestMainArgumentParsing(unittest.TestCase):
             "config.yaml",
             "/path/to/kubeconfig",
             "aks",
+            tear_down_prometheus=False,
         )
 
     @patch.object(clustermesh_scale_module, "collect_clusterloader2")
@@ -726,6 +727,7 @@ class TestMainArgumentParsing(unittest.TestCase):
             provider="aks",
             python_script_file="/path/to/scale.py",
             python_workdir="/path/to/modules/python",
+            tear_down_prometheus=False,
         )
 
     @patch.object(clustermesh_scale_module, "execute_parallel")
@@ -771,6 +773,36 @@ class TestMainArgumentParsing(unittest.TestCase):
             with self.assertRaises(SystemExit) as cm:
                 main()
             self.assertEqual(cm.exception.code, 1)
+
+    @patch.object(clustermesh_scale_module, "execute_parallel")
+    def test_execute_parallel_tear_down_prometheus_flag(self, mock_exec_parallel):
+        """--tear-down-prometheus flag flows through to execute_parallel.
+
+        Used by share-infra mode (multiple scenarios per provision/destroy
+        lifecycle) so each scenario's CL2 invocation deploys a fresh
+        Prometheus stack rather than colliding with the previous scenario's
+        leftover Prom resources.
+        """
+        mock_exec_parallel.return_value = 0
+        test_args_off = [
+            "clustermesh-scale/scale.py", "execute-parallel",
+            "--clusters", "/tmp/c.json", "--worker-script", "/w.sh",
+            "--cl2-image", "img", "--cl2-config-dir", "/cfg",
+            "--cl2-config-file", "config.yaml", "--cl2-report-dir-base", "/r",
+            "--provider", "aks", "--python-script-file", "/s.py", "--python-workdir", "/wd",
+        ]
+        with patch.object(sys, "argv", test_args_off):
+            with self.assertRaises(SystemExit):
+                main()
+        self.assertEqual(
+            mock_exec_parallel.call_args.kwargs["tear_down_prometheus"], False)
+
+        mock_exec_parallel.reset_mock()
+        with patch.object(sys, "argv", test_args_off + ["--tear-down-prometheus"]):
+            with self.assertRaises(SystemExit):
+                main()
+        self.assertEqual(
+            mock_exec_parallel.call_args.kwargs["tear_down_prometheus"], True)
 
 
 class _FakePopen:

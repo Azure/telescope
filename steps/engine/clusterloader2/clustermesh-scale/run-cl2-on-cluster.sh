@@ -22,12 +22,18 @@
 #   run-cl2-on-cluster.sh \
 #     <role> <kubeconfig> <report_dir> \
 #     <cl2_image> <cl2_config_dir> <cl2_config_file> \
-#     <provider> <python_script_file> <python_workdir>
+#     <provider> <python_script_file> <python_workdir> \
+#     [tear_down_prometheus_flag]
+#
+# tear_down_prometheus_flag: "1" → pass --tear-down-prometheus to scale.py
+# execute. Used by share-infra mode so each scenario's CL2 deploys a fresh
+# Prom. "0" or unset → preserve Prom for failure-diagnostic dump (default
+# single-scenario behavior).
 
 set -uo pipefail
 
-if [ "$#" -ne 9 ]; then
-  echo "Usage: $0 <role> <kubeconfig> <report_dir> <cl2_image> <cl2_config_dir> <cl2_config_file> <provider> <python_script_file> <python_workdir>" >&2
+if [ "$#" -lt 9 ] || [ "$#" -gt 10 ]; then
+  echo "Usage: $0 <role> <kubeconfig> <report_dir> <cl2_image> <cl2_config_dir> <cl2_config_file> <provider> <python_script_file> <python_workdir> [tear_down_prometheus_flag]" >&2
   exit 2
 fi
 
@@ -40,6 +46,7 @@ cl2_config_file="$6"
 provider="$7"
 python_script_file="$8"
 python_workdir="$9"
+tear_down_prometheus_flag="${10:-0}"
 
 mkdir -p "$report_dir"
 
@@ -56,6 +63,10 @@ cl2_passed=0
 # Without (b) we'd silently green-light runs where measurements failed
 # — e.g. PodMonitor template substitution producing "<no value>", which
 # k8s admission rejects but CL2 still writes junit with <failure> tags.
+exec_extra_args=()
+if [ "$tear_down_prometheus_flag" = "1" ]; then
+  exec_extra_args+=(--tear-down-prometheus)
+fi
 (
   cd "$python_workdir" || exit 1
   PYTHONPATH="${PYTHONPATH:-}:$python_workdir" python3 -u "$python_script_file" execute \
@@ -64,7 +75,8 @@ cl2_passed=0
     --cl2-report-dir "$report_dir" \
     --cl2-config-file "$cl2_config_file" \
     --kubeconfig "$kubeconfig" \
-    --provider "$provider"
+    --provider "$provider" \
+    "${exec_extra_args[@]}"
 ) || true
 
 if [ -f "$report_dir/junit.xml" ]; then

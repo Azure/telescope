@@ -110,6 +110,7 @@ def execute_clusterloader2(
     cl2_config_file,
     kubeconfig,
     provider,
+    tear_down_prometheus=False,
 ):
     run_cl2_command(
         kubeconfig,
@@ -120,7 +121,13 @@ def execute_clusterloader2(
         cl2_config_file=cl2_config_file,
         overrides=True,
         enable_prometheus=True,
-        tear_down_prometheus=False,
+        # Default False preserves the diagnostic-on-failure capability — when
+        # CL2 fails, run-cl2-on-cluster.sh's FAILURE DIAG block can dump
+        # prometheus-operator + prometheus-k8s pod logs. Set True in
+        # share-infra mode (multi-scenario per lifecycle) so each scenario's
+        # CL2 invocation gets a clean Prometheus deploy and the previous
+        # scenario's PodMonitor/scrape config doesn't bleed in.
+        tear_down_prometheus=tear_down_prometheus,
         scrape_kubelets=True,
         scrape_ksm=True,
         scrape_metrics_server=True,
@@ -243,6 +250,7 @@ def execute_parallel(
     provider,
     python_script_file,
     python_workdir,
+    tear_down_prometheus=False,
 ):
     """Fan out CL2 across N clusters with bounded concurrency.
 
@@ -313,6 +321,10 @@ def execute_parallel(
                 provider,
                 python_script_file,
                 python_workdir,
+                # Last positional: 1 = tear down Prometheus at end of CL2 (used
+                # by share-infra mode so the next scenario's CL2 deploys a
+                # fresh Prom); 0 = preserve Prom for failure-diagnostic dump.
+                "1" if tear_down_prometheus else "0",
             ]
             fut = executor.submit(
                 _run_one_cluster, role, worker_script, worker_args
@@ -518,6 +530,10 @@ def main():
     pe.add_argument("--cl2-config-file", type=str, required=True)
     pe.add_argument("--kubeconfig", type=str, required=True)
     pe.add_argument("--provider", type=str, required=True)
+    pe.add_argument("--tear-down-prometheus", action="store_true",
+                    help="Tear down Prometheus stack at end of CL2 (set in share-infra "
+                         "mode so the next scenario's CL2 can deploy a fresh Prom). "
+                         "Default is to preserve Prom for failure-diagnostic dumping.")
 
     # execute-parallel — fan out CL2 across N clusters with bounded concurrency
     pep = subparsers.add_parser(
@@ -543,6 +559,10 @@ def main():
     pep.add_argument("--python-workdir", type=str, required=True,
                      help="Working dir for the nested python execute call "
                           "(typically modules/python so PYTHONPATH resolves)")
+    pep.add_argument("--tear-down-prometheus", action="store_true",
+                     help="Pass through to each per-cluster CL2 invocation; used in "
+                          "share-infra mode where multiple scenarios share infra and "
+                          "each needs a clean Prometheus deploy.")
 
     # collect
     pco = subparsers.add_parser("collect", help="Collect results for one cluster")
@@ -600,6 +620,7 @@ def main():
             args.cl2_config_file,
             args.kubeconfig,
             args.provider,
+            tear_down_prometheus=args.tear_down_prometheus,
         )
     elif args.command == "execute-parallel":
         rc = execute_parallel(
@@ -613,6 +634,7 @@ def main():
             provider=args.provider,
             python_script_file=args.python_script_file,
             python_workdir=args.python_workdir,
+            tear_down_prometheus=args.tear_down_prometheus,
         )
         sys.exit(rc)
     elif args.command == "collect":
