@@ -158,7 +158,7 @@ aks_cli_config_list = [
       },
       {
         name                 = "userpool5"
-        node_count           = 1000
+        node_count           = 994
         auto_scaling_enabled = false
         vm_size              = "Standard_D4_v3"
         optional_parameters = [
