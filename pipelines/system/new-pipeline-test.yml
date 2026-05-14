@@ -134,13 +134,13 @@ stages:
             n2_shared:
               cluster_count: 2
               mesh_size: 2
-              # Phase 4b — 4-scenario share-infra validation:
+              # Phase 4b — 5-scenario share-infra validation:
               # event-throughput (#1), pod-churn-combined (#2),
-              # apiserver-failure (#4), ha-config (#7). #7 runs LAST so its
-              # scale-up residue doesn't affect the other scenarios; the
-              # scale-down step at the end of ha-config restores the
-              # Deployment to 1 replica.
-              share_infra_scenarios: "event-throughput,pod-churn-combined,apiserver-failure,ha-config"
+              # apiserver-failure (#4), ha-config (#7), isolation (#5).
+              # ha-config is BEFORE isolation so its scale-down restores
+              # the apiserver Deployment to 1 replica before isolation's
+              # heavy pod-churn loop runs on the target cluster.
+              share_infra_scenarios: "event-throughput,pod-churn-combined,apiserver-failure,ha-config,isolation"
               cl2_config_file: ""  # unused when share_infra_scenarios is set
               test_type: shared    # row-level test_type comes from each scenario at collect time
               namespaces: 5
@@ -173,9 +173,9 @@ stages:
               ha_config_replicas: 3
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
-          # n=2 share-infra (4 scenarios): provision (~15min) + validate (~5min)
-          # + 4 × CL2 (~25min each, with 60s settle between) + destroy (~15min)
-          # ≈ ~145min. Buffer to 360 for LB-tail / apply retries.
+          # n=2 share-infra (5 scenarios): provision (~15min) + validate (~5min)
+          # + 5 × CL2 (~25min each, with 60s settle between) + destroy (~15min)
+          # ≈ ~170min. Buffer to 360 for LB-tail / apply retries.
           timeout_in_minutes: 360
           credential_type: service_connection
           ssh_key_enabled: false
@@ -416,7 +416,7 @@ stages:
             n20_shared:
               cluster_count: 20
               mesh_size: 20
-              share_infra_scenarios: "event-throughput,pod-churn-combined,apiserver-failure,ha-config"
+              share_infra_scenarios: "event-throughput,pod-churn-combined,apiserver-failure,ha-config,isolation"
               cl2_config_file: ""  # unused in share-infra mode
               test_type: shared    # row-level test_type comes from each scenario
               cl2_max_concurrent: 8

@@ -36,6 +36,12 @@ steps:
       export CL2_KILL_DURATION_SECONDS="${KILL_DURATION_SECONDS:-0}"
       export CL2_KILL_INTERVAL_SECONDS="${KILL_INTERVAL_SECONDS:-0}"
       export CL2_KILL_BATCH="${KILL_BATCH:-0}"
+      # Phase 4b — Scenario #5 (Multi-Cluster Failure Isolation) target context.
+      # Reused from scenario #4 by convention; used here to special-case the
+      # per-cluster churn knobs (only the target row carries non-zero kill
+      # values; peer rows carry zeros even though the share-infra scenario
+      # was configured with churn knobs).
+      export CL2_APISERVER_KILL_TARGET_CONTEXT="${APISERVER_KILL_TARGET_CONTEXT:-clustermesh-1}"
 
       clusters=$(cat "$HOME/.kube/clustermesh-clusters.json")
       cluster_count=$(echo "$clusters" | jq 'length')
@@ -153,10 +159,31 @@ steps:
           set_churn_args_for_scenario "$SCENARIO" "$SCENARIO_START"
           for row in $(echo "$clusters" | jq -c '.[]'); do
             role=$(echo "$row" | jq -r '.role')
+            name=$(echo "$row" | jq -r '.name')
             report_dir="${CL2_REPORT_DIR}/${SCENARIO}/${role}"
             per_cluster_result="${TEST_RESULTS_FILE%.*}.${SCENARIO}.${role}.${TEST_RESULTS_FILE##*.}"
+            # Phase 4b — Scenario #5 (Isolation) per-cluster churn-knob
+            # override: only the TARGET cluster's row gets actual kill knobs;
+            # peer rows stay at zeros (default). This honestly represents
+            # "kill duration/interval/batch describe what THIS cluster did",
+            # not "what the scenario was configured to do globally".
+            #
+            # The matrix-exported APISERVER_KILL_TARGET_CONTEXT (default
+            # clustermesh-1) is compared against the cluster's `name` field
+            # from the discovered-clusters JSON (AKS resource name = kubectl
+            # context name set by `az aks get-credentials`).
+            cc_row="$cc"; cu_row="$cu"; cd_row="$cd_v"
+            kds_row="$kds"; kis_row="$kis"; kb_row="$kb"
+            if [ "$SCENARIO" = "isolation" ] && [ "$name" = "$CL2_APISERVER_KILL_TARGET_CONTEXT" ]; then
+              cc_row=0
+              cu_row=""
+              cd_row=""
+              kds_row="$CL2_KILL_DURATION_SECONDS"
+              kis_row="$CL2_KILL_INTERVAL_SECONDS"
+              kb_row="$CL2_KILL_BATCH"
+            fi
             if collect_one "$SCENARIO" "$role" "$report_dir" "$per_cluster_result" \
-                "$cc" "$cu" "$cd_v" "$kds" "$kis" "$kb" "$st"; then
+                "$cc_row" "$cu_row" "$cd_row" "$kds_row" "$kis_row" "$kb_row" "$st"; then
               cat "$per_cluster_result" >> "$TEST_RESULTS_FILE"
             fi
           done
