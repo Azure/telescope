@@ -158,9 +158,7 @@ class AKSMachineClient(AKSClient):
                 op.add_metadata("cluster_info", self.get_cluster_data(cluster_name))
                 return True
             except Exception as e:
-                logger.error(
-                    "Failed to create machine agentpool %s: %s", agentpool_name, e
-                )
+                logger.error(f"Failed to create machine agentpool {agentpool_name}: {e}")
                 raise
 
     def _wait_for_agentpool_provisioning(self, url: str, timeout: int) -> bool:
@@ -178,34 +176,33 @@ class AKSMachineClient(AKSClient):
         while time.time() < deadline:
             r = self.make_request("GET", url, timeout=30)
             if r.status_code != 200:
-                logger.warning("agentpool GET %s -> %s", url, r.status_code)
+                logger.warning(f"agentpool GET {url} -> {r.status_code}")
                 time.sleep(_POLL_INTERVAL_SECONDS)
                 continue
             try:
                 body = r.json()
             except (ValueError, TypeError) as exc:
-                logger.warning("agentpool poll JSON parse failed: %s", exc)
+                logger.warning(f"agentpool poll JSON parse failed: {exc}")
                 time.sleep(_POLL_INTERVAL_SECONDS)
                 continue
             state = body.get("properties", {}).get("provisioningState")
             if state == "Succeeded":
                 return True
             if state == "Failed":
-                logger.error("agentpool provisioning failed: %s", body)
+                logger.error(f"agentpool provisioning failed: {body}")
                 return False
             if state is None:
                 none_count += 1
                 if none_count >= _PROVISIONING_NONE_STATE_LIMIT:
                     logger.warning(
-                        "agentpool provisioningState absent for %d consecutive polls; "
-                        "treating as Failed.",
-                        none_count,
+                        f"agentpool provisioningState absent for {none_count} consecutive polls; "
+                        f"treating as Failed."
                     )
                     return False
             else:
                 none_count = 0
             time.sleep(_POLL_INTERVAL_SECONDS)
-        logger.error("agentpool provisioning timed out after %ss", timeout)
+        logger.error(f"agentpool provisioning timed out after {timeout}s")
         return False
 
     def _wait_for_machine_node_readiness(
@@ -270,31 +267,29 @@ class AKSMachineClient(AKSClient):
         start = time.time()
         deadline = start + timeout
         logger.info(
-            "Waiting for nodes in agentpool %s (label %s) - "
-            "targets %s, baseline=%d, expected=%d, timeout %ss",
-            agentpool_name, label_selector, targets,
-            baseline_count, expected_count, timeout,
+            f"Waiting for nodes in agentpool {agentpool_name} (label {label_selector}) - "
+            f"targets {targets}, baseline={baseline_count}, expected={expected_count}, "
+            f"timeout {timeout}s"
         )
         while time.time() < deadline and len(elapsed) < len(targets):
             try:
                 ready = len(kc.get_ready_nodes(label_selector=label_selector))
             except Exception as e:
-                logger.warning("get_ready_nodes(%s) failed: %s", label_selector, e)
+                logger.warning(f"get_ready_nodes({label_selector}) failed: {e}")
                 ready = 0
             now_elapsed = time.time() - start
             for p, target in targets.items():
                 if p not in elapsed and ready >= target:
                     elapsed[p] = now_elapsed
                     logger.info(
-                        "P%d hit: %d/%d ready (target=%d, baseline=%d) at %.2fs",
-                        p, ready, target_total, target, baseline_count, now_elapsed,
+                        f"P{p} hit: {ready}/{target_total} ready "
+                        f"(target={target}, baseline={baseline_count}) at {now_elapsed:.2f}s"
                     )
             if len(elapsed) < len(targets):
                 time.sleep(2)
         if not elapsed:
             logger.warning(
-                "No percentile target met within %ss for agentpool %s",
-                timeout, agentpool_name,
+                f"No percentile target met within {timeout}s for agentpool {agentpool_name}"
             )
             return {
                 f"P{p}": {
@@ -317,20 +312,18 @@ class AKSMachineClient(AKSClient):
         # ado-parity stdout logging: percentile summary including P100, which is
         # the wall-clock elapsed until ALL target nodes are Ready. This matches
         # ado's `response.node_readiness_time = percentile_times[100]` exactly.
-        logger.info("Node Readiness Percentile Summary for agentpool %s:", agentpool_name)
+        logger.info(f"Node Readiness Percentile Summary for agentpool {agentpool_name}:")
         for p in (50, 70, 90, 99, 100):
             if p in elapsed:
-                logger.info("  P%d (target=%d nodes): %.2f seconds",
-                            p, targets[p], elapsed[p])
+                logger.info(f"  P{p} (target={targets[p]} nodes): {elapsed[p]:.2f} seconds")
             else:
-                logger.info("  P%d (target=%d nodes): TIMEOUT", p, targets[p])
+                logger.info(f"  P{p} (target={targets[p]} nodes): TIMEOUT")
         max_elapsed = max(elapsed.values())
         logger.info(
-            "All target nodes became ready in %.2f seconds in agent pool %s",
-            max_elapsed, agentpool_name,
+            f"All target nodes became ready in {max_elapsed:.2f} seconds "
+            f"in agent pool {agentpool_name}"
         )
-        logger.info("Percentile node readiness data: %s",
-                    json.dumps(result, indent=2))
+        logger.info(f"Percentile node readiness data: {json.dumps(result, indent=2)}")
         return result
 
     def scale_machine(
@@ -408,8 +401,7 @@ class AKSMachineClient(AKSClient):
                             )
                         )
                         logger.info(
-                            "baseline ready nodes in agentpool %s: %d",
-                            agentpool_name, baseline_count,
+                            f"baseline ready nodes in agentpool {agentpool_name}: {baseline_count}"
                         )
                     except Exception:
                         logger.warning(
@@ -439,9 +431,8 @@ class AKSMachineClient(AKSClient):
                     agentpool_url, timeout
                 )
                 logger.info(
-                    "agentpool %s provisioning %s",
-                    agentpool_name,
-                    "Succeeded" if agentpool_ok else "Failed/Timeout",
+                    f"agentpool {agentpool_name} provisioning "
+                    f"{'Succeeded' if agentpool_ok else 'Failed/Timeout'}"
                 )
 
                 percentile_envelope = self._wait_for_machine_node_readiness(
@@ -463,9 +454,7 @@ class AKSMachineClient(AKSClient):
                     )
                 return True
             except Exception as e:
-                logger.error(
-                    "Failed to scale machine agentpool %s: %s", agentpool_name, e
-                )
+                logger.error(f"Failed to scale machine agentpool {agentpool_name}: {e}")
                 raise
 
 
@@ -504,7 +493,7 @@ class AKSMachineClient(AKSClient):
                     if fut.result():
                         successful.append(n)
                 except Exception:
-                    logger.exception("create_single_machine failed for %s", n)
+                    logger.exception(f"create_single_machine failed for {n}")
         return successful
 
     def _create_single_machine(self, name: str, request: SimpleNamespace) -> bool:
@@ -534,7 +523,7 @@ class AKSMachineClient(AKSClient):
         body: Dict[str, Any] = {"properties": {"hardware": {"vmSize": request.vm_size}}}
         resp = self.make_request("PUT", url, data=body, timeout=request.timeout)
         if resp.status_code not in (200, 201, 202):
-            logger.error("PUT machine %s -> %s %s", name, resp.status_code, resp.text[:500])
+            logger.error(f"PUT machine {name} -> {resp.status_code} {resp.text[:500]}")
             return False
         return True
 
@@ -579,7 +568,7 @@ class AKSMachineClient(AKSClient):
             try:
                 created = self._create_batch_machines(request, chunk, idx)
             except Exception:
-                logger.exception("batch chunk %d failed", idx)
+                logger.exception(f"batch chunk {idx} failed")
                 created = []
             elapsed = time.time() - t0
             return idx, created, elapsed
@@ -653,8 +642,8 @@ class AKSMachineClient(AKSClient):
             "batchMachines": batch_machines,
         })
         logger.info(
-            "chunk %d: submitting BatchPutMachine PUT for %d machines (target=%s)",
-            chunk_idx, len(chunk), first_machine_name,
+            f"chunk {chunk_idx}: submitting BatchPutMachine PUT for {len(chunk)} machines "
+            f"(target={first_machine_name})"
         )
         self._make_batch_request(
             "PUT", url, body, request.timeout, batch_header_value=batch_header_value,
@@ -699,8 +688,8 @@ class AKSMachineClient(AKSClient):
             if attempt == _BATCH_429_MAX_RETRIES - 1:
                 break
             logger.warning(
-                "batch request 429; retrying in %.1fs (attempt %d/%d)",
-                backoff, attempt + 1, _BATCH_429_MAX_RETRIES,
+                f"batch request 429; retrying in {backoff:.1f}s "
+                f"(attempt {attempt + 1}/{_BATCH_429_MAX_RETRIES})"
             )
             time.sleep(backoff)
             backoff *= 2
