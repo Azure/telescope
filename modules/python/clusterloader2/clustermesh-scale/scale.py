@@ -573,7 +573,7 @@ def _emit_node_churn_timing_rows(cl2_report_dir, template, result_file):
           "ops": [
             {
               "op_index": int,
-              "op_type": "scale_up"|"scale_down"|"replace_drain"|"replace_delete"|"replace_wait",
+              "op_type": "scale_up"|"scale_down"|"replace_drain"|"replace_delete"|"replace_refill"|"replace_wait",
               "start_epoch": int,
               "end_epoch": int,
               "duration_seconds": int,

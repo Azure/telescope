@@ -17,9 +17,11 @@
 #   * "Node scale-up/scale-down" + "Add/remove nodes continuously" → SCALE
 #     scenario: cycle target's `default` pool count ±$DELTA for $CYCLES.
 #   * "Node replacement (new IPs)" + "Force node recreation" → REPLACE
-#     scenario: drain K nodes and delete their VMSS instances; VMSS auto-
-#     replaces (AKS nodepool desired-count is fixed) → K new VMs with
-#     new private IPs.
+#     scenario: drain K nodes; `az vmss delete-instances` drops VMSS capacity
+#     by K; then explicitly `az aks nodepool scale --node-count $ORIGINAL`
+#     to refill (AKS doesn't auto-refill after delete-instances — build 67133
+#     lesson). VMSS picks the next available instance IDs and provisions
+#     brand-new VMs with brand-new private IPs.
 #   * "Observe: IP update propagation, Temporary inconsistency windows" →
 #     pre/post node InternalIP snapshots, per-op duration, observed node
 #     count post-op. Peer-side propagation is captured by the parallel
@@ -88,7 +90,7 @@ TARGET_KUBECONFIG="${14:-}"
 NODE_CHURN_OP_TIMEOUT_SECONDS=900         # per `az aks nodepool scale` op
 NODE_CHURN_FINALIZER_TIMEOUT_SECONDS=900  # cleanup pool restore
 NODE_REPLACE_DRAIN_TIMEOUT_SECONDS=300    # per node drain
-NODE_REPLACE_WAIT_TIMEOUT_SECONDS=1200    # for VMSS to refill to original count
+NODE_REPLACE_WAIT_TIMEOUT_SECONDS=1500    # for kubelet Ready after refill (build 67133: bumped 1200→1500 — refill provisioning + bootstrap can take 12-15 min on a fresh VM)
 
 mkdir -p "$REPORT_DIR" "$SENTINEL_DIR"
 TIMING_FILE="${REPORT_DIR}/NodeChurnTimings_${TARGET_CLUSTER_NAME}.json"
@@ -800,10 +802,48 @@ run_replace_phase() {
 
   if [ "$CIRCUIT_BROKEN" = true ]; then return; fi
 
-  # ---- 4. Wait for AKS to refill VMSS desired-count = ORIGINAL_NODE_COUNT ----
-  # VMSS auto-refills since AKS-managed desired-capacity stays at original.
-  # We wait for K8s Ready node count to return to original (not just VMSS
-  # provisioningState, which races ahead of kubelet-Ready).
+  # ---- 4. Explicit refill via AKS nodepool scale ----
+  # Build 67133 lesson: `az vmss delete-instances` drops VMSS capacity by K,
+  # and AKS observes the drop (nodepool count goes from N to N-K) but does
+  # NOT auto-refill back to N. The finalizer's `az aks nodepool scale
+  # --node-count $ORIGINAL` succeeded → so the explicit re-scale IS the
+  # correct primitive. Run it here as a dedicated op so the timing JSON
+  # records the refill latency separately from the kubelet-Ready wait.
+  #
+  # AKS-side refill picks up the next available VMSS instance ID and
+  # provisions a brand-new VM with a brand-new InternalIP — exactly the
+  # IP-churn signal the spec asks for.
+  OP_INDEX=$(( OP_INDEX + 1 ))
+  log "op#${OP_INDEX} replace_refill: az aks nodepool scale → ${ORIGINAL_NODE_COUNT} (re-add ${NODE_REPLACE_BATCH_SIZE} replacement(s))"
+  _t0=$(date +%s)
+  _err=""
+  _ok=true
+  if ! az aks nodepool scale \
+      --cluster-name "$TARGET_CLUSTER_NAME" \
+      --resource-group "$TARGET_RESOURCE_GROUP" \
+      --name "$TARGET_NODEPOOL" \
+      --node-count "$ORIGINAL_NODE_COUNT" \
+      --only-show-errors 2>/tmp/node-churner-az.err; then
+    _err=$(tr '\n' ' ' < /tmp/node-churner-az.err | head -c 500)
+    _ok=false
+    if echo "$_err" | grep -qiE 'OperationNotAllowed|TooManyRequests|429|conflict'; then
+      err "replace phase: structural Azure RP error on replace_refill; tripping circuit breaker"
+      CIRCUIT_BROKEN=true
+      SCENARIO_VALID=false
+      debug_dump "CIRCUIT-BROKEN on replace_refill op#${OP_INDEX} (Azure RP structural error)"
+    fi
+  fi
+  _t1=$(date +%s)
+  _ncount=$(observe_node_count)
+  [ -z "$_ncount" ] && _ncount=0
+  record_op "$OP_INDEX" "replace_refill" "$_t0" "$_t1" "$_ok" "$_ncount" '[]' '[]' 0 "$_err"
+
+  if [ "$CIRCUIT_BROKEN" = true ]; then return; fi
+
+  # ---- 5. Wait for K8s Ready node count to return to ORIGINAL ----
+  # AKS nodepool scale returns when Azure provisioning is complete, but
+  # kubelet on the new VM still needs to register + reach Ready. Poll
+  # kubectl until Ready count == ORIGINAL (not just VMSS provisioningState).
   OP_INDEX=$(( OP_INDEX + 1 ))
   log "op#${OP_INDEX} replace_wait: waiting for ${ORIGINAL_NODE_COUNT} Ready nodes in pool"
   _t0=$(date +%s)

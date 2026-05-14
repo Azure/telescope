@@ -186,13 +186,16 @@ stages:
               # Reduced cycles (2 instead of 3) and shorter durations for
               # n=2 smoke iteration; production n=20 share-infra uses the
               # full defaults via execute.yml fallbacks.
+              # Build 67133 wall time: 38:33 (replace_wait timeout was tight).
+              # Bumped n2 combined sleep 2100→2700 to give replace_refill +
+              # replace_wait + transition margin. Production default stays 3300.
               node_churn_target_context: clustermesh-1
               node_churn_cycles: 2
               node_churn_delta: 3
               node_churn_settle_seconds: 60
-              node_churn_scale_duration_seconds: 1200
-              node_churn_replace_duration_seconds: 900
-              node_churn_combined_duration_seconds: 2100
+              node_churn_scale_duration_seconds: 1500
+              node_churn_replace_duration_seconds: 1200
+              node_churn_combined_duration_seconds: 2700
               node_replace_batch_size: 1
               node_churn_ready_timeout_seconds: 300
               trigger_reason: ${{ variables['Build.Reason'] }}
