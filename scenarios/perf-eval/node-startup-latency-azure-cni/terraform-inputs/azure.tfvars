@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "node-startup-latency-azure-cni"
+scenario_name  = "nsl-azure-cni"
 deletion_delay = "2h"
 owner          = "aks"
 

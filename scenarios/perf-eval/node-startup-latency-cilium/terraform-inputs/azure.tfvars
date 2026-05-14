@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "node-startup-latency-cilium"
+scenario_name  = "nsl-cilium"
 deletion_delay = "2h"
 owner          = "aks"
 

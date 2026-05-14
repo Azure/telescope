@@ -1,5 +1,5 @@
 scenario_type  = "perf-eval"
-scenario_name  = "node-startup-latency-kubenet"
+scenario_name  = "nsl-kubenet"
 deletion_delay = "2h"
 owner          = "aks"
 
