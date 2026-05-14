@@ -13,7 +13,7 @@ stages:
           cloud: azure
           regions:
             - australiaeast
-          topology: k8s-crud
+          topology: k8s-crud-gpu
           engine: crud
           matrix:
             job_crud:
