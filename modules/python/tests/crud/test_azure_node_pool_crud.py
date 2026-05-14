@@ -433,7 +433,7 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
 
         # Verify
         self.assertFalse(result)
-    
+
     def test_create_statefulset_partial_success(self):
         """Test Statefulset creation when some Statefulsets succeed and others fail"""
         # Setup
