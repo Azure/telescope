@@ -661,20 +661,15 @@ data:
           inflight: {{$inflight}}
           cpu: {{$cpu}}
           memory: {{$memory}}
-    - module:
-        path: /modules/measurements.yaml
-        params:
-          action: start
+    # Skip /modules/measurements.yaml — APIResponsivenessPrometheus + TestMetrics
+    # report aren't useful for our purpose (we read seat metrics from prometheus
+    # directly) and they fail at gather time when apiserver is under heavy load.
     - name: Sustain LIST inflight
       measurements:
         - Identifier: Wait
           Method: Sleep
           Params:
             duration: {{$duration}}
-    - module:
-        path: /modules/measurements.yaml
-        params:
-          action: gather
     - module:
         path: modules/list-benchmark.yaml
         params:
