@@ -257,17 +257,22 @@ steps:
       #   - unset NODE_CHURNER_PID after wait
       launch_node_churner() {
         local _scen="$1" _report_dir_base="$2"
-        # Discover target cluster name + RG from the clusters JSON.
-        local _target_role="${CL2_NODE_CHURN_TARGET_CONTEXT}"
+        # Discover target cluster + kubeconfig from the augmented clusters
+        # JSON written to $HOME/.kube/clustermesh-clusters.json. The shell
+        # `$clusters` var in this script is the EARLY discovery output
+        # WITHOUT the kubeconfig field; using it here gave node-churner an
+        # empty TARGET_KUBECONFIG arg in build 67126.
+        local _all _target_role _target_row
+        _all=$(cat "$HOME/.kube/clustermesh-clusters.json" 2>/dev/null || echo "[]")
+        _target_role="${CL2_NODE_CHURN_TARGET_CONTEXT}"
         # Map role → AKS name + RG. Our tfvars set aks_name == role-derived
         # name (e.g., role=mesh-1 → name=clustermesh-1), and `az aks
         # get-credentials` writes kubectl context = AKS name. So
         # CL2_NODE_CHURN_TARGET_CONTEXT is the AKS cluster name.
-        local _target_row
-        _target_row=$(echo "$clusters" | jq -c --arg n "$_target_role" '.[] | select(.name==$n)')
+        _target_row=$(echo "$_all" | jq -c --arg n "$_target_role" '.[] | select(.name==$n)')
         if [ -z "$_target_row" ]; then
           # Fallback: maybe the user set NODE_CHURN_TARGET_CONTEXT to a role.
-          _target_row=$(echo "$clusters" | jq -c --arg r "$_target_role" '.[] | select(.role==$r)')
+          _target_row=$(echo "$_all" | jq -c --arg r "$_target_role" '.[] | select(.role==$r)')
         fi
         if [ -z "$_target_row" ]; then
           echo "##vso[task.logissue type=warning;] node-churner: target cluster '${_target_role}' not found in discovered clusters; skipping scenario stimulus"
@@ -278,9 +283,6 @@ steps:
         _target_name=$(echo "$_target_row" | jq -r '.name')
         _target_rg=$(echo "$_target_row" | jq -r '.rg')
         _target_role_field=$(echo "$_target_row" | jq -r '.role')
-        # The clusters JSON has each cluster's per-cluster kubeconfig from the
-        # earlier pre-fetch (line ~88 in this script). Use it directly so the
-        # churner doesn't have to derive a role→kubeconfig mapping.
         _target_kubeconfig=$(echo "$_target_row" | jq -r '.kubeconfig // ""')
 
         # Per-scenario expected duration (matches the CL2 sleep window).
@@ -362,14 +364,20 @@ steps:
         local _diag_dir="${CL2_REPORT_DIR}/_debug"
         mkdir -p "$_diag_dir"
         local _diag_log="${_diag_dir}/scenario-diag-${_scen}.log"
+        # Read augmented clusters JSON (has kubeconfig field) — the shell
+        # `$clusters` var earlier in this script is the EARLY discovery
+        # output WITHOUT kubeconfig. Build 67126 regression: using
+        # `$clusters` here caused _kc=null → kubectl context errors.
+        local _clusters_with_kc
+        _clusters_with_kc=$(cat "$HOME/.kube/clustermesh-clusters.json" 2>/dev/null || echo "[]")
         {
           echo "================================================================"
           echo "=== scenario-failure-diag: scenario=${_scen} rc=${_rc}"
           echo "=== timestamp: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
           echo "================================================================"
           echo ""
-          echo "-- clusters JSON --"
-          jq . "$HOME/.kube/clustermesh-clusters.json" 2>&1 || echo "(jq failed)"
+          echo "-- clusters JSON (kubeconfig-augmented) --"
+          echo "$_clusters_with_kc" | jq . 2>&1 || echo "$_clusters_with_kc"
           echo ""
           if [ -f "${SHARE_INFRA_META:-/nonexistent}" ]; then
             echo "-- share-infra meta --"
@@ -377,14 +385,21 @@ steps:
             echo ""
           fi
           echo "-- per-cluster state --"
-          for _row in $(echo "$clusters" | jq -c '.[]'); do
+          for _row in $(echo "$_clusters_with_kc" | jq -c '.[]'); do
             local _role _name _kc
             _role=$(echo "$_row" | jq -r '.role')
             _name=$(echo "$_row" | jq -r '.name')
             _kc=$(echo "$_row" | jq -r '.kubeconfig')
-            echo "--- cluster ${_role} (${_name}) ---"
+            echo "--- cluster ${_role} (${_name}, kubeconfig=${_kc}) ---"
+            if [ ! -f "$_kc" ]; then
+              echo "(kubeconfig file missing: ${_kc})"
+              continue
+            fi
             echo "-- nodes --"
             KUBECONFIG="$_kc" kubectl --context "$_name" get nodes -o wide 2>&1 | head -40 || echo "(kubectl get nodes failed)"
+            echo "-- nodes providerID --"
+            KUBECONFIG="$_kc" kubectl --context "$_name" get nodes \
+              -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.spec.providerID}{"\n"}{end}' 2>&1 | head -40 || true
             echo "-- kube-system pods (clustermesh/cilium) --"
             KUBECONFIG="$_kc" kubectl --context "$_name" -n kube-system get pods \
               -l 'k8s-app in (clustermesh-apiserver,cilium)' -o wide 2>&1 | head -20 || true

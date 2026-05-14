@@ -414,45 +414,96 @@ wait_vmss_succeeded() {
   return 1
 }
 
+# Resolve target kubeconfig — TARGET_KUBECONFIG (positional arg 14) is
+# the authoritative path passed by execute.yml from clusters_with_kubeconfig.
+# Fallbacks (legacy / robustness) below.
+resolve_target_kubeconfig() {
+  local _kc="$TARGET_KUBECONFIG"
+  if [ -n "$_kc" ] && [ -f "$_kc" ]; then
+    echo "$_kc"; return
+  fi
+  _kc="$HOME/.kube/mesh-${TARGET_CLUSTER_NAME#clustermesh-}.config"
+  if [ -f "$_kc" ]; then
+    echo "$_kc"; return
+  fi
+  _kc="$HOME/.kube/config"
+  if [ -f "$_kc" ]; then
+    echo "$_kc"; return
+  fi
+  echo ""
+}
+
+# Run `kubectl get nodes -o json` against the target cluster, capturing
+# BOTH stdout and stderr. Logs stderr to DEBUG_LOG so we can postmortem
+# failure modes (auth errors, network, label-selector drift) — build
+# 67126 lost this visibility because the old kubectl invocations had
+# `2>/dev/null`.
+#
+# Returns 0 on success and prints the JSON to stdout; returns 1 on
+# kubectl failure and prints nothing.
+target_kubectl_get_nodes_json() {
+  local _kc _out _rc
+  _kc=$(resolve_target_kubeconfig)
+  if [ -z "$_kc" ] || [ -z "$KUBECTL" ]; then
+    {
+      echo "===== kubectl get nodes: NO kubeconfig/kubectl ($(date -u +%FT%TZ)) ====="
+      echo "TARGET_KUBECONFIG=${TARGET_KUBECONFIG:-unset}"
+      echo "resolved=${_kc:-empty} KUBECTL=${KUBECTL:-empty}"
+    } >> "$DEBUG_LOG"
+    return 1
+  fi
+  _out=$(KUBECONFIG="$_kc" "$KUBECTL" --context "$TARGET_CLUSTER_NAME" \
+    get nodes -o json 2>>"$DEBUG_LOG")
+  _rc=$?
+  if [ "$_rc" -ne 0 ] || [ -z "$_out" ]; then
+    {
+      echo "===== kubectl get nodes FAILED rc=${_rc} at $(date -u +%FT%TZ) ====="
+      echo "kubeconfig=${_kc} context=${TARGET_CLUSTER_NAME}"
+      echo "(stderr appended above by 2>>)"
+    } >> "$DEBUG_LOG"
+    return 1
+  fi
+  echo "$_out"
+  return 0
+}
+
+# Filter nodes by TARGET_VMSS providerID — robust against AKS agentpool
+# label key drift (newer AKS clusters prefer kubernetes.azure.com/agentpool
+# over the legacy `agentpool` key). VMSS name is unique within the cluster
+# and exact-match; also implicitly excludes prompool VMSS.
+#
+# Emits "node_name vmss_instance_id" lines on stdout, one per matched node.
+target_nodes_in_target_vmss() {
+  local _json
+  _json=$(target_kubectl_get_nodes_json) || return 1
+  echo "$_json" | jq -r --arg vmss "$TARGET_VMSS" '
+    .items[]
+    | select(.spec.providerID
+        | contains("/virtualMachineScaleSets/" + $vmss + "/virtualMachines/"))
+    | "\(.metadata.name) " + (.spec.providerID | split("/virtualMachines/")[1])
+  ' 2>>"$DEBUG_LOG"
+}
+
 # Observe current node count on target cluster from K8s side. Returns "" on
 # kubectl failure — caller treats as "unknown observed count".
 observe_node_count() {
-  if [ -z "$KUBECTL" ]; then
-    echo ""
-    return
-  fi
-  local _kubeconfig="$TARGET_KUBECONFIG"
-  if [ -z "$_kubeconfig" ] || [ ! -f "$_kubeconfig" ]; then
-    # Fallback: derive from target_context (legacy path).
-    _kubeconfig="$HOME/.kube/mesh-${TARGET_CLUSTER_NAME#clustermesh-}.config"
-  fi
-  if [ ! -f "$_kubeconfig" ]; then
-    _kubeconfig="$HOME/.kube/config"
-  fi
-  KUBECONFIG="$_kubeconfig" "$KUBECTL" --context "$TARGET_CLUSTER_NAME" \
-    get nodes -l "agentpool=${TARGET_NODEPOOL}" \
-    -o jsonpath='{.items[*].metadata.name}' 2>/dev/null | wc -w | tr -d ' '
+  local _lines
+  _lines=$(target_nodes_in_target_vmss) || { echo ""; return; }
+  echo "$_lines" | grep -c . | tr -d ' '
 }
 
 # Snapshot current Internal IPs for target pool's nodes. Returns a JSON array
 # string (e.g., '["10.1.0.4","10.1.0.5",...]'); empty array on kubectl failure.
 snapshot_node_ips() {
-  if [ -z "$KUBECTL" ]; then
-    echo "[]"
-    return
-  fi
-  local _kubeconfig="$TARGET_KUBECONFIG"
-  if [ -z "$_kubeconfig" ] || [ ! -f "$_kubeconfig" ]; then
-    _kubeconfig="$HOME/.kube/mesh-${TARGET_CLUSTER_NAME#clustermesh-}.config"
-  fi
-  if [ ! -f "$_kubeconfig" ]; then
-    _kubeconfig="$HOME/.kube/config"
-  fi
-  KUBECONFIG="$_kubeconfig" "$KUBECTL" --context "$TARGET_CLUSTER_NAME" \
-    get nodes -l "agentpool=${TARGET_NODEPOOL}" \
-    -o json 2>/dev/null \
-    | jq -c '[.items[] | .status.addresses[] | select(.type=="InternalIP") | .address] // []' \
-    || echo "[]"
+  local _json
+  _json=$(target_kubectl_get_nodes_json) || { echo "[]"; return; }
+  echo "$_json" | jq -c --arg vmss "$TARGET_VMSS" \
+    '[ .items[]
+       | select(.spec.providerID
+           | contains("/virtualMachineScaleSets/" + $vmss + "/virtualMachines/"))
+       | .status.addresses[]
+       | select(.type=="InternalIP")
+       | .address ] // []' 2>>"$DEBUG_LOG" || echo "[]"
 }
 
 # -----------------------------------------------------------------------------
@@ -617,35 +668,49 @@ run_replace_phase() {
     err "replace phase: kubectl unavailable; skipping (cannot drain)"
     CIRCUIT_BROKEN=true
     SCENARIO_VALID=false
+    debug_dump "REPLACE-PHASE aborted (KUBECTL unset)"
     return
   fi
 
   # ---- 1. Pre-snapshot IPs + pick K nodes ----
   local _pre_ips
   _pre_ips=$(snapshot_node_ips)
-  local _kubeconfig="$TARGET_KUBECONFIG"
-  if [ -z "$_kubeconfig" ] || [ ! -f "$_kubeconfig" ]; then
-    _kubeconfig="$HOME/.kube/mesh-${TARGET_CLUSTER_NAME#clustermesh-}.config"
-  fi
-  if [ ! -f "$_kubeconfig" ]; then
-    _kubeconfig="$HOME/.kube/config"
-  fi
-
-  # node name + VMSS instance id pairs, randomized. providerID format:
-  # azure:///.../virtualMachineScaleSets/<vmss>/virtualMachines/<instance-id>
-  local _node_iid_lines
-  _node_iid_lines=$(KUBECONFIG="$_kubeconfig" "$KUBECTL" --context "$TARGET_CLUSTER_NAME" \
-    get nodes -l "agentpool=${TARGET_NODEPOOL}" \
-    -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.spec.providerID}{"\n"}{end}' 2>/dev/null \
-    | awk '$2 ~ /virtualMachines\// {
-        split($2, a, "/virtualMachines/"); print $1" "a[2]
-      }')
-  if [ -z "$_node_iid_lines" ]; then
-    err "replace phase: kubectl returned no nodes for pool ${TARGET_NODEPOOL}; aborting"
+  local _kubeconfig
+  _kubeconfig=$(resolve_target_kubeconfig)
+  if [ -z "$_kubeconfig" ]; then
+    err "replace phase: could not resolve a usable kubeconfig path; aborting"
     CIRCUIT_BROKEN=true
     SCENARIO_VALID=false
+    debug_dump "REPLACE-PHASE aborted (no usable kubeconfig)"
     return
   fi
+
+  # Pick K target VMSS instance ids via the VMSS-providerID filter
+  # (label-key independent, build 67126 lesson).
+  local _node_iid_lines
+  _node_iid_lines=$(target_nodes_in_target_vmss)
+  if [ -z "$_node_iid_lines" ]; then
+    err "replace phase: 0 nodes match VMSS=${TARGET_VMSS}; aborting"
+    # Dump raw kubectl output so postmortem can see WHY (label drift,
+    # providerID format change, auth blip).
+    {
+      echo "===== REPLACE-PHASE no-nodes diagnostic ====="
+      echo "expected VMSS=${TARGET_VMSS}"
+      echo "kubeconfig=${_kubeconfig}"
+      echo "-- kubectl get nodes -o wide (raw, no label filter) --"
+      KUBECONFIG="$_kubeconfig" "$KUBECTL" --context "$TARGET_CLUSTER_NAME" \
+        get nodes -o wide 2>&1 | head -50 || true
+      echo "-- kubectl get nodes -o jsonpath providerID dump --"
+      KUBECONFIG="$_kubeconfig" "$KUBECTL" --context "$TARGET_CLUSTER_NAME" \
+        get nodes -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.spec.providerID}{"\n"}{end}' 2>&1 \
+        | head -50 || true
+    } >> "$DEBUG_LOG"
+    CIRCUIT_BROKEN=true
+    SCENARIO_VALID=false
+    debug_dump "REPLACE-PHASE aborted (0 nodes match VMSS=${TARGET_VMSS})"
+    return
+  fi
+
   # Shuffle and take first K.
   local _selected
   if command -v shuf >/dev/null 2>&1; then
@@ -702,6 +767,7 @@ run_replace_phase() {
     err "replace phase: no instance IDs collected; aborting"
     CIRCUIT_BROKEN=true
     SCENARIO_VALID=false
+    debug_dump "REPLACE-PHASE aborted (no instance ids after drain loop)"
     return
   fi
 
@@ -746,10 +812,19 @@ run_replace_phase() {
   local _wait_deadline=$(( _t0 + NODE_REPLACE_WAIT_TIMEOUT_SECONDS ))
   local _ready_count=0
   while [ "$(date +%s)" -lt "$_wait_deadline" ]; do
-    _ready_count=$(KUBECONFIG="$_kubeconfig" "$KUBECTL" --context "$TARGET_CLUSTER_NAME" \
-      get nodes -l "agentpool=${TARGET_NODEPOOL}" \
-      -o 'jsonpath={range .items[*]}{.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}' 2>/dev/null \
-      | grep -c '^True$' || true)
+    # Count Ready nodes whose providerID is in our target VMSS (label-
+    # selector-agnostic; build 67126 regression fix).
+    local _ready_json
+    _ready_json=$(target_kubectl_get_nodes_json 2>/dev/null)
+    if [ -n "$_ready_json" ]; then
+      _ready_count=$(echo "$_ready_json" | jq -r --arg vmss "$TARGET_VMSS" '
+        [ .items[]
+          | select(.spec.providerID | contains("/virtualMachineScaleSets/" + $vmss + "/virtualMachines/"))
+          | .status.conditions[]
+          | select(.type=="Ready" and .status=="True") ] | length' 2>/dev/null || echo 0)
+    else
+      _ready_count=0
+    fi
     if [ "$_ready_count" -ge "$ORIGINAL_NODE_COUNT" ]; then
       _ok=true
       break
