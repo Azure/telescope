@@ -10,7 +10,6 @@ parameters:
   step_wait_time: 30
   gpu_node_pool: false
   count: 1
-  number_of_jobs: 1
   completions: 1
   replicas: 10
   manifest_dir: ""
@@ -92,12 +91,12 @@ steps:
     set -eo pipefail
 
     # Deploy Jobs
-    PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" jobs \
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" job \
       --cloud "$CLOUD" \
       --run-id "$RUN_ID" \
       --result-dir "$RESULT_DIR" \
       --node-pool-name "$POOL_NAME" \
-      --number-of-jobs "$NUMBER_OF_JOBS" \
+      --count "$COUNT" \
       --completions "$COMPLETIONS" \
       --manifest-dir "$MANIFEST_DIR" \
       --step-timeout "$STEP_TIME_OUT" \
@@ -111,7 +110,7 @@ steps:
     STEP_TIME_OUT: ${{ parameters.step_time_out }}
     RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
     GPU_NODE_POOL: ${{ parameters.gpu_node_pool }}
-    NUMBER_OF_JOBS: ${{ parameters.number_of_jobs }}
+    COUNT: ${{ parameters.count }}
     COMPLETIONS: ${{ parameters.completions }}
     MANIFEST_DIR: ${{ parameters.manifest_dir }}
 

@@ -167,13 +167,17 @@ def handle_workload_operations(node_pool_crud, args):
             }
 
             result = node_pool_crud.create_deployment(**deploy_kwargs)
-        elif command == "jobs":
+        elif command == "job":
+            if not hasattr(node_pool_crud, 'create_job'):
+                logger.error("Cloud provider does not support job workload operations")
+                return 1
+
             # Prepare job arguments
             job_kwargs = {
                 "node_pool_name": args.node_pool_name,
                 "completions": args.completions,
                 "manifest_dir": args.manifest_dir,
-                "number_of_jobs": args.number_of_jobs,
+                "number_of_jobs": args.count,
                 "label_selector": args.label_selector,
             }
 
@@ -397,35 +401,19 @@ def main():
     )
     deployment_parser.set_defaults(func=handle_workload_operations)
 
-    # Jobs command - add after the "deployment" command parser
-    jobs_parser = subparsers.add_parser(
-        "jobs", parents=[common_parser], help="create jobs"
+    # Job command
+    job_parser = subparsers.add_parser(
+        "job",
+        parents=[common_parser, workload_common_parser],
+        help="create jobs"
     )
-    jobs_parser.add_argument("--node-pool-name", required=True, help="Node pool name")
-    jobs_parser.add_argument(
-        "--number-of-jobs",
-        type=int,
-        default=1,
-        help="Number of jobs"
-    )
-    jobs_parser.add_argument(
+    job_parser.add_argument(
         "--completions",
         type=int,
         default=1,
         help="Number of job completions"
     )
-    jobs_parser.add_argument(
-        "--manifest-dir",
-        required=True,
-        help="Directory containing Kubernetes manifest files for the job"
-    )
-    jobs_parser.add_argument(
-        "--label-selector",
-        default="app=nginx-container",
-        help="Label selector for created job pods (default: app=nginx-container)"
-    )
-
-    jobs_parser.set_defaults(func=handle_workload_operations)
+    job_parser.set_defaults(func=handle_workload_operations)
 
     # Arguments provided, run node pool operations and collect benchmark results
     try:
