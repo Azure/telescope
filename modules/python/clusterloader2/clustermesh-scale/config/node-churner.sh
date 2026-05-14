@@ -170,6 +170,84 @@ log "scenario=${SCENARIO} target=${TARGET_CLUSTER_NAME} pool=${TARGET_NODEPOOL}"
 log "params cycles=${NODE_CHURN_CYCLES} delta=${NODE_CHURN_DELTA} settle=${NODE_CHURN_SETTLE_SECONDS}s replace_batch=${NODE_REPLACE_BATCH_SIZE}"
 log "cl2 sleep window=${EXPECTED_DURATION_SECONDS}s; ready quorum=${CLUSTER_COUNT} sentinels (timeout ${NODE_CHURN_READY_TIMEOUT_SECONDS}s)"
 
+# Persistent debug log — captures EVERY abort path's diagnostic dump so
+# postmortem doesn't depend on AzDO retaining stdout. Lives alongside
+# NodeChurnTimings_*.json in the per-cluster report dir, gets uploaded
+# with the rest of the artifacts. Survives task cancellation.
+DEBUG_LOG="${REPORT_DIR}/node-churner-debug.log"
+: > "$DEBUG_LOG"
+
+# State vars referenced by debug_dump — initialized early so any abort
+# path (before main scenario dispatch) can call debug_dump safely under
+# `set -u`. They're re-initialized to their authoritative values later
+# when the scenario actually runs.
+STARTED_EPOCH=$(date +%s)
+READY_QUORUM_REACHED=false
+SCENARIO_VALID=true
+CLEANUP_FAILED=false
+TRUNCATED=false
+CIRCUIT_BROKEN=false
+OPS_JSON='[]'
+ORIGINAL_NODE_COUNT=0
+NODE_RESOURCE_GROUP=""
+TARGET_VMSS=""
+
+debug_dump() {
+  local _label="$1"
+  {
+    echo ""
+    echo "================================================================"
+    echo "=== ${_label} at $(date -u +"%Y-%m-%dT%H:%M:%SZ") (epoch=$(date +%s))"
+    echo "================================================================"
+    echo "-- runtime params --"
+    echo "scenario=${SCENARIO} target_cluster_name=${TARGET_CLUSTER_NAME} target_rg=${TARGET_RESOURCE_GROUP}"
+    echo "target_nodepool=${TARGET_NODEPOOL} target_vmss=${TARGET_VMSS:-unset} NRG=${NODE_RESOURCE_GROUP:-unset}"
+    echo "original_node_count=${ORIGINAL_NODE_COUNT:-unset} cluster_count_quorum=${CLUSTER_COUNT}"
+    echo "ready_quorum_reached=${READY_QUORUM_REACHED} scenario_valid=${SCENARIO_VALID} circuit_broken=${CIRCUIT_BROKEN} cleanup_failed=${CLEANUP_FAILED} truncated=${TRUNCATED}"
+    echo "TARGET_KUBECONFIG=${TARGET_KUBECONFIG:-unset} KUBECTL=${KUBECTL:-unset}"
+    echo ""
+    echo "-- sentinel dir listing (${SENTINEL_DIR}) --"
+    ls -la "$SENTINEL_DIR" 2>&1 || echo "(ls failed)"
+    echo ""
+    echo "-- az aks nodepool show (target) --"
+    az aks nodepool show \
+      --cluster-name "$TARGET_CLUSTER_NAME" \
+      --resource-group "$TARGET_RESOURCE_GROUP" \
+      --name "$TARGET_NODEPOOL" \
+      --query '{count:count, provisioningState:provisioningState, powerState:powerState, vmSize:vmSize}' \
+      -o json 2>&1 || echo "(az aks nodepool show failed)"
+    echo ""
+    if [ -n "${TARGET_VMSS:-}" ] && [ -n "${NODE_RESOURCE_GROUP:-}" ]; then
+      echo "-- az vmss show (target VMSS sku.capacity) --"
+      az vmss show --resource-group "$NODE_RESOURCE_GROUP" --name "$TARGET_VMSS" \
+        --query '{capacity:sku.capacity, provisioningState:provisioningState}' \
+        -o json 2>&1 || echo "(az vmss show failed)"
+      echo ""
+      echo "-- az vmss list-instances (count + ids) --"
+      az vmss list-instances --resource-group "$NODE_RESOURCE_GROUP" --name "$TARGET_VMSS" \
+        --query 'length([])' -o tsv 2>&1 || echo "(az vmss list-instances failed)"
+    fi
+    echo ""
+    if [ -n "${KUBECTL:-}" ] && [ -n "${TARGET_KUBECONFIG:-}" ] && [ -f "$TARGET_KUBECONFIG" ]; then
+      echo "-- kubectl get nodes (target cluster) --"
+      KUBECONFIG="$TARGET_KUBECONFIG" "$KUBECTL" --context "$TARGET_CLUSTER_NAME" \
+        get nodes -l "agentpool=${TARGET_NODEPOOL}" -o wide 2>&1 | head -30 || echo "(kubectl get nodes failed)"
+      echo ""
+      echo "-- target node internal IPs --"
+      KUBECONFIG="$TARGET_KUBECONFIG" "$KUBECTL" --context "$TARGET_CLUSTER_NAME" \
+        get nodes -l "agentpool=${TARGET_NODEPOOL}" \
+        -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.status.addresses[?(@.type=="InternalIP")].address}{"\n"}{end}' 2>&1 || true
+    else
+      echo "-- kubectl skipped (no KUBECTL or kubeconfig) --"
+    fi
+    echo ""
+    echo "-- ops recorded so far --"
+    echo "$OPS_JSON" | jq -r '.[] | "op#\(.op_index) \(.op_type) succeeded=\(.succeeded) duration=\(.duration_seconds)s observed_nodes=\(.observed_node_count) error=\"\(.error)\""' 2>&1 || echo "$OPS_JSON"
+    echo "================================================================"
+    echo ""
+  } | tee -a "$DEBUG_LOG"
+}
+
 # write_aborted_timing — emit a minimal timing JSON for any early-exit
 # code path (az missing, jq missing, can't resolve nodepool / VMSS, etc.)
 # so collect.py picks up evidence that the scenario was attempted.
@@ -243,14 +321,11 @@ log "target VMSS=${TARGET_VMSS} in NRG=${NODE_RESOURCE_GROUP}"
 # Timing-JSON accumulator. We keep state in shell vars + an ops jq array, and
 # rewrite the timing file at every milestone so a crashed/SIGKILL'd run still
 # leaves a partial-state file behind.
+#
+# Note: STARTED_EPOCH / *_FAILED / *_VALID / OPS_JSON are already initialized
+# above (right after DEBUG_LOG) so debug_dump callable from any early-exit
+# path. Don't re-initialize here.
 # -----------------------------------------------------------------------------
-STARTED_EPOCH=$(date +%s)
-READY_QUORUM_REACHED=false
-SCENARIO_VALID=true
-CLEANUP_FAILED=false
-TRUNCATED=false
-CIRCUIT_BROKEN=false
-OPS_JSON='[]'
 
 write_timing_file() {
   local _ended _dur
@@ -411,12 +486,14 @@ finalizer() {
       --no-wait --only-show-errors >/dev/null 2>&1; then
     err "finalizer: az aks nodepool scale to ${ORIGINAL_NODE_COUNT} failed"
     CLEANUP_FAILED=true
+    debug_dump "FINALIZER cleanup_failed (az aks nodepool scale to original failed)"
     write_timing_file
     return 1
   fi
   if ! wait_vmss_succeeded "$NODE_CHURN_FINALIZER_TIMEOUT_SECONDS"; then
     err "finalizer: pool did NOT reach Succeeded within ${NODE_CHURN_FINALIZER_TIMEOUT_SECONDS}s"
     CLEANUP_FAILED=true
+    debug_dump "FINALIZER cleanup_failed (provisioningState != Succeeded)"
     write_timing_file
     return 1
   fi
@@ -447,6 +524,7 @@ done
 if [ "$READY_QUORUM_REACHED" != true ]; then
   err "ready-barrier: quorum NOT reached after ${NODE_CHURN_READY_TIMEOUT_SECONDS}s (saw ${_count:-0}/${CLUSTER_COUNT}); aborting scenario"
   SCENARIO_VALID=false
+  debug_dump "READY-BARRIER ABORT (saw ${_count:-0}/${CLUSTER_COUNT})"
   write_timing_file
   exit 0
 fi
@@ -486,6 +564,7 @@ run_scale_phase() {
         err "scale phase: structural Azure RP error on scale_up; tripping circuit breaker"
         CIRCUIT_BROKEN=true
         SCENARIO_VALID=false
+        debug_dump "CIRCUIT-BROKEN on scale_up op#${OP_INDEX} (Azure RP structural error)"
       fi
     fi
     local _t1=$(date +%s)
@@ -519,6 +598,7 @@ run_scale_phase() {
         err "scale phase: structural Azure RP error on scale_down; tripping circuit breaker"
         CIRCUIT_BROKEN=true
         SCENARIO_VALID=false
+        debug_dump "CIRCUIT-BROKEN on scale_down op#${OP_INDEX} (Azure RP structural error)"
       fi
     fi
     _t1=$(date +%s)
@@ -643,6 +723,7 @@ run_replace_phase() {
       err "replace phase: structural Azure RP error on vmss delete-instances; tripping circuit breaker"
       CIRCUIT_BROKEN=true
       SCENARIO_VALID=false
+      debug_dump "CIRCUIT-BROKEN on replace_delete op#${OP_INDEX} (Azure RP structural error)"
     fi
   fi
   local _t1=$(date +%s)
@@ -686,6 +767,7 @@ run_replace_phase() {
     _err="replace_wait: timeout after ${NODE_REPLACE_WAIT_TIMEOUT_SECONDS}s; ready=${_ready_count}/${ORIGINAL_NODE_COUNT}"
     err "$_err"
     SCENARIO_VALID=false
+    debug_dump "REPLACE_WAIT timeout (ready=${_ready_count}/${ORIGINAL_NODE_COUNT})"
   fi
   record_op "$OP_INDEX" "replace_wait" "$_t0" "$_t1" "$_ok" "$_ready_count" "$_pre_ips" "$_post_ips" "$_new_ip_count" "$_err"
   log "replace phase: complete (new_ip_count=${_new_ip_count})"

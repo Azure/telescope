@@ -178,19 +178,8 @@ steps:
           query: max(cilium_clustermesh_remote_cluster_nodes)
 
     # -----------------------------------------------------------------
-    # NODE-OP DURATION DERIVED FROM kube-state-metrics. kube_node_created
-    # is a gauge of node creation timestamps. delta over the window =
-    # number of new nodes that joined (a peer-cluster sanity check: peers
-    # should see 0 here while target sees K new nodes).
-    # -----------------------------------------------------------------
-    - Identifier: NewNodesAppearedInWindow{{$suffix}}
-      Method: GenericPrometheusQuery
-      Params:
-        action: {{$action}}
-        metricName: New Nodes Appeared In Window {{$suffix}}
-        metricVersion: v1
-        unit: count
-        enableViolations: false
-        queries:
-        - name: Count
-          query: count(kube_node_created and on(node) (time() - kube_node_created < %v))
+    # NewNodesAppearedInWindow REMOVED 2026-05-14: build 67114 showed
+    # CL2's %v substitution produces a duration literal ("2309s") which
+    # PromQL rejects in scalar `<` comparison. The signal is redundant
+    # with NodeCardinality (Max - Min) above + the authoritative pre/post
+    # InternalIP set delta in NodeChurnTimings_*.json.

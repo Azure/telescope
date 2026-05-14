@@ -163,15 +163,8 @@ steps:
           timeout: 30s
           command:
           - bash
-          - -c
-          - |
-            set -euo pipefail
-            mkdir -p /root/perf-tests/clusterloader2/config/sentinels
-            CTX=$(kubectl config current-context 2>/dev/null || \
-                  /root/perf-tests/clusterloader2/config/kubectl config current-context 2>/dev/null || \
-                  echo "unknown")
-            touch "/root/perf-tests/clusterloader2/config/sentinels/ready-${CTX}"
-            echo "wrote sentinel ready-${CTX}"
+          - /root/perf-tests/clusterloader2/config/write-ready-sentinel.sh
+          - /root/perf-tests/clusterloader2/config/sentinels
 
   # ----- Sleep window — host-side node-churner.sh churns nodes on target -----
   # ----- cluster during this period; peers observe via measurements.    -----

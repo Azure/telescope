@@ -859,6 +859,117 @@ class TestNodeChurnTimingPickup(unittest.TestCase):
                 os.remove(result_file)
 
 
+class TestWriteReadySentinelScript(unittest.TestCase):
+    """write-ready-sentinel.sh derives a unique context per CL2 invocation
+    and writes a non-empty sentinel filename. Build 67114 regression: the
+    original inline `bash -c` Method:Exec returned an empty context name,
+    causing both clusters to write the same path (ready-) and one to
+    overwrite the other → barrier saw 1/2 → scenario aborted.
+
+    The fix relies on parsing /root/.kube/config directly (CL2 bind-mounts
+    the per-cluster kubeconfig there). These tests confirm the resolution
+    chain (kubeconfig-parse > kubectl-PATH > kubectl-prestaged > server-hash
+    > hostname > pid-fallback) and that the sentinel filename always has
+    a non-empty suffix.
+    """
+
+    SCRIPT_PATH = (
+        Path(__file__).resolve().parents[1]
+        / "clusterloader2" / "clustermesh-scale" / "config" / "write-ready-sentinel.sh"
+    )
+
+    def _run_with_kubeconfig(self, kubeconfig_content, td):
+        import subprocess
+        kubeconfig = os.path.join(td, "kubeconfig")
+        with open(kubeconfig, "w", encoding="utf-8") as f:
+            f.write(kubeconfig_content)
+        sentinel_dir = os.path.join(td, "sentinels")
+        os.makedirs(sentinel_dir, exist_ok=True)
+        env = os.environ.copy()
+        env["KUBECONFIG"] = kubeconfig
+        result = subprocess.run(
+            ["bash", str(self.SCRIPT_PATH), sentinel_dir],
+            capture_output=True, text=True, env=env, check=False,
+            timeout=10,
+        )
+        return result, sentinel_dir
+
+    def test_kubeconfig_parse_resolves_current_context(self):
+        kc = (
+            "apiVersion: v1\n"
+            "clusters:\n"
+            "- cluster:\n"
+            "    server: https://test1.example.com:443\n"
+            "  name: clustermesh-1\n"
+            "contexts:\n"
+            "- context:\n"
+            "    cluster: clustermesh-1\n"
+            "  name: clustermesh-1\n"
+            "current-context: clustermesh-1\n"
+        )
+        with tempfile.TemporaryDirectory() as td:
+            result, sentinel_dir = self._run_with_kubeconfig(kc, td)
+            self.assertEqual(result.returncode, 0, f"stderr={result.stderr}")
+            files = os.listdir(sentinel_dir)
+            self.assertEqual(files, ["ready-clustermesh-1"])
+            self.assertIn("via kubeconfig-parse", result.stderr)
+
+    def test_different_kubeconfigs_yield_distinct_sentinels(self):
+        """Build 67114 regression: two clusters MUST NOT write the same
+        sentinel path (otherwise the second's write silently overwrites
+        the first, breaking the quorum count)."""
+        kc1 = "current-context: clustermesh-1\n"
+        kc2 = "current-context: clustermesh-2\n"
+        with tempfile.TemporaryDirectory() as td1, tempfile.TemporaryDirectory() as td2:
+            r1, sd1 = self._run_with_kubeconfig(kc1, td1)
+            r2, sd2 = self._run_with_kubeconfig(kc2, td2)
+            self.assertEqual(r1.returncode, 0)
+            self.assertEqual(r2.returncode, 0)
+            self.assertEqual(os.listdir(sd1), ["ready-clustermesh-1"])
+            self.assertEqual(os.listdir(sd2), ["ready-clustermesh-2"])
+
+    def test_empty_current_context_falls_back_to_server_hash(self):
+        """If current-context line is missing/blank, fall back to a hash of
+        the server URL. Two different servers MUST yield different hashes."""
+        kc1 = (
+            "apiVersion: v1\n"
+            "clusters:\n"
+            "- cluster:\n"
+            "    server: https://serverA.example.com:443\n"
+            "  name: foo\n"
+        )
+        kc2 = (
+            "apiVersion: v1\n"
+            "clusters:\n"
+            "- cluster:\n"
+            "    server: https://serverB.example.com:443\n"
+            "  name: foo\n"
+        )
+        with tempfile.TemporaryDirectory() as td1, tempfile.TemporaryDirectory() as td2:
+            r1, sd1 = self._run_with_kubeconfig(kc1, td1)
+            r2, sd2 = self._run_with_kubeconfig(kc2, td2)
+            self.assertEqual(r1.returncode, 0)
+            self.assertEqual(r2.returncode, 0)
+            f1 = os.listdir(sd1)[0]
+            f2 = os.listdir(sd2)[0]
+            self.assertNotEqual(f1, f2,
+                                f"server-hash collision: {f1} == {f2}")
+
+    def test_sentinel_filename_always_non_empty_suffix(self):
+        """Whatever the resolution path, the sentinel filename suffix is
+        never empty (avoids the build 67114 path-collision regression)."""
+        kc = ""
+        with tempfile.TemporaryDirectory() as td:
+            r, sd = self._run_with_kubeconfig(kc, td)
+            self.assertEqual(r.returncode, 0, f"stderr={r.stderr}")
+            files = os.listdir(sd)
+            self.assertEqual(len(files), 1)
+            self.assertNotEqual(files[0], "ready-",
+                                "sentinel filename has empty suffix — build 67114 regression")
+            self.assertTrue(files[0].startswith("ready-"))
+            self.assertGreater(len(files[0]), len("ready-"))
+
+
 class TestNodeChurnerScript(unittest.TestCase):
     """node-churner.sh smoke tests — bash -n syntax + arg validation. The
     script's full Azure CLI behavior cannot be unit-tested without mocking

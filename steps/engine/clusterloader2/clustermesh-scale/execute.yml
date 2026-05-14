@@ -345,6 +345,71 @@ steps:
         return 0
       }
 
+      # Proactive failure-time debug dump — runs after every scenario
+      # (always for node-churn; on rc!=0 for others). Writes diagnostic
+      # state to <report_dir>/_debug/scenario-diag-<scenario>.log so
+      # postmortem doesn't depend on AzDO retaining stdout. Captures:
+      #   - per-cluster `kubectl get nodes` (Ready state, IPs)
+      #   - per-cluster `kubectl -n kube-system get pods` (mesh + workload pods)
+      #   - per-cluster `cilium clustermesh status` (mesh health)
+      #   - clusters JSON snapshot
+      #   - share-infra meta snapshot
+      #   - node-churner.log + NodeChurnTimings_*.json contents (for node-churn)
+      # User direction 2026-05-14: assume failure; keep this dump baked
+      # in until end-to-end node-churn is green.
+      scenario_failure_diag() {
+        local _scen="$1" _rc="${2:-0}"
+        local _diag_dir="${CL2_REPORT_DIR}/_debug"
+        mkdir -p "$_diag_dir"
+        local _diag_log="${_diag_dir}/scenario-diag-${_scen}.log"
+        {
+          echo "================================================================"
+          echo "=== scenario-failure-diag: scenario=${_scen} rc=${_rc}"
+          echo "=== timestamp: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          echo "================================================================"
+          echo ""
+          echo "-- clusters JSON --"
+          jq . "$HOME/.kube/clustermesh-clusters.json" 2>&1 || echo "(jq failed)"
+          echo ""
+          if [ -f "${SHARE_INFRA_META:-/nonexistent}" ]; then
+            echo "-- share-infra meta --"
+            jq . "$SHARE_INFRA_META" 2>&1 || cat "$SHARE_INFRA_META"
+            echo ""
+          fi
+          echo "-- per-cluster state --"
+          for _row in $(echo "$clusters" | jq -c '.[]'); do
+            local _role _name _kc
+            _role=$(echo "$_row" | jq -r '.role')
+            _name=$(echo "$_row" | jq -r '.name')
+            _kc=$(echo "$_row" | jq -r '.kubeconfig')
+            echo "--- cluster ${_role} (${_name}) ---"
+            echo "-- nodes --"
+            KUBECONFIG="$_kc" kubectl --context "$_name" get nodes -o wide 2>&1 | head -40 || echo "(kubectl get nodes failed)"
+            echo "-- kube-system pods (clustermesh/cilium) --"
+            KUBECONFIG="$_kc" kubectl --context "$_name" -n kube-system get pods \
+              -l 'k8s-app in (clustermesh-apiserver,cilium)' -o wide 2>&1 | head -20 || true
+            echo "-- recent kube-system events --"
+            KUBECONFIG="$_kc" kubectl --context "$_name" -n kube-system get events \
+              --sort-by=.lastTimestamp 2>&1 | tail -20 || true
+            echo ""
+          done
+          echo "-- sentinel dir contents (${SENTINEL_DIR:-unset}) --"
+          ls -la "${SENTINEL_DIR:-/nonexistent}" 2>&1 || echo "(sentinel dir missing)"
+          echo ""
+          if is_node_churn_scenario "$_scen"; then
+            echo "-- node-churn timing files + logs --"
+            find "${CL2_REPORT_DIR}/${_scen}" -name 'NodeChurnTimings_*.json' \
+              -o -name 'node-churner*.log' 2>/dev/null | while IFS= read -r _f; do
+              echo "--- ${_f} ---"
+              cat "$_f" 2>&1 || true
+              echo ""
+            done
+          fi
+          echo "=== end scenario-failure-diag ==="
+        } 2>&1 | tee -a "$_diag_log"
+        echo "scenario-failure-diag: wrote ${_diag_log}"
+      }
+
       if [ -n "${SHARE_INFRA_SCENARIOS:-}" ]; then
         # Trim whitespace from each entry, split on comma.
         IFS=',' read -ra SCENARIO_LIST <<< "$SHARE_INFRA_SCENARIOS"
@@ -438,6 +503,15 @@ steps:
           # the next scenario starts, otherwise the next CL2 invocation
           # could run against an in-flux topology.
           wait_node_churner "$SCENARIO"
+
+          # Proactive failure debug dump (added 2026-05-14 after build 67114).
+          # User direction: assume failure, keep debug logs persistent across
+          # runs; remove only after green. Runs unconditionally for node-churn
+          # scenarios (failure cases need az/k8s state to triage); runs only
+          # on rc!=0 for other scenarios.
+          if is_node_churn_scenario "$SCENARIO" || [ "$scenario_rc" -ne 0 ]; then
+            scenario_failure_diag "$SCENARIO" "$scenario_rc"
+          fi
 
           # Treat finalizer cleanup_failed as a hard fail of the share-infra
           # loop — running additional scenarios against a half-scaled cluster
@@ -533,6 +607,10 @@ steps:
         --python-script-file "$PYTHON_SCRIPT_FILE" \
         --python-workdir "$(pwd)" || single_scenario_rc=$?
       wait_node_churner "$SINGLE_SCENARIO_BASENAME"
+      # Proactive failure debug dump for single-scenario mode too.
+      if is_node_churn_scenario "$SINGLE_SCENARIO_BASENAME" || [ "$single_scenario_rc" -ne 0 ]; then
+        scenario_failure_diag "$SINGLE_SCENARIO_BASENAME" "$single_scenario_rc"
+      fi
       # In single-scenario prod mode we DON'T have a share-infra loop to
       # break out of, but we still want the AzDO step to surface non-zero
       # rc on CL2 failure (prod's existing contract). The churner-finalizer
