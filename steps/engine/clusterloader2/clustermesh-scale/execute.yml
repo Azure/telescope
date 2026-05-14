@@ -231,10 +231,27 @@ steps:
           # tear_down_prometheus=True so each scenario gets a clean Prom deploy
           # (rather than colliding with the previous scenario's leftover
           # PodMonitor + scrape config).
+          #
+          # Per-scenario max_concurrent override (Phase 4b — Scenario #5):
+          # the isolation scenario REQUIRES every peer cluster's Prometheus
+          # window to overlap the target's 10min churn window — otherwise
+          # peers in later batches start CL2 AFTER target's churn has
+          # ended and produce useless rows for the A/B. Bump concurrency to
+          # mesh_size (== cluster_count) for isolation. Safe at n=20 because
+          # peers SLEEP during the kill window — 1 heavy container + 19
+          # idle ones easily fits the agent. Other scenarios stay at the
+          # configured default (8 at n=20) to avoid all-clusters-working
+          # OOM contention.
+          if [ "${SCENARIO}" = "isolation" ]; then
+            EFFECTIVE_MAX_CONCURRENT="${cluster_count}"
+            echo "Scenario ${SCENARIO}: overriding max_concurrent ${CL2_MAX_CONCURRENT:-4} → ${EFFECTIVE_MAX_CONCURRENT} (mesh-wide observation required for valid peer A/B)"
+          else
+            EFFECTIVE_MAX_CONCURRENT="${CL2_MAX_CONCURRENT:-4}"
+          fi
           scenario_rc=0
           PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute-parallel \
             --clusters "$HOME/.kube/clustermesh-clusters.json" \
-            --max-concurrent "${CL2_MAX_CONCURRENT:-4}" \
+            --max-concurrent "${EFFECTIVE_MAX_CONCURRENT}" \
             --worker-script "$WORKER_SCRIPT" \
             --cl2-image "${CL2_IMAGE}" \
             --cl2-config-dir "${CL2_CONFIG_DIR}" \
@@ -296,9 +313,19 @@ steps:
       # diag), now with bounded concurrency. CL2_MAX_CONCURRENT defaults to 4
       # at the matrix level (event-throughput.yaml); smaller tiers can lower
       # it to 1 to recover sequential behavior if needed.
+      #
+      # Same per-scenario override as the share-infra loop above: isolation
+      # needs mesh-wide concurrent observation of target's churn window.
+      SINGLE_SCENARIO_BASENAME="${CL2_CONFIG_FILE%.yaml}"
+      if [ "${SINGLE_SCENARIO_BASENAME}" = "isolation" ]; then
+        EFFECTIVE_MAX_CONCURRENT="${cluster_count}"
+        echo "Single-scenario isolation: overriding max_concurrent ${CL2_MAX_CONCURRENT:-4} → ${EFFECTIVE_MAX_CONCURRENT} (mesh-wide observation required for valid peer A/B)"
+      else
+        EFFECTIVE_MAX_CONCURRENT="${CL2_MAX_CONCURRENT:-4}"
+      fi
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute-parallel \
         --clusters "$HOME/.kube/clustermesh-clusters.json" \
-        --max-concurrent "${CL2_MAX_CONCURRENT:-4}" \
+        --max-concurrent "${EFFECTIVE_MAX_CONCURRENT}" \
         --worker-script "$WORKER_SCRIPT" \
         --cl2-image "${CL2_IMAGE}" \
         --cl2-config-dir "${CL2_CONFIG_DIR}" \
