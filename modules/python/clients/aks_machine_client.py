@@ -1,28 +1,41 @@
 """AKS Machine API client.
 
-Composes the existing AKSClient (auth, ContainerServiceClient, KubernetesClient,
-get_cluster_name, get_cluster_data) and adds raw REST methods for the Machine API
-which is not exposed in the Azure SDK.
+Subclasses ``AKSClient`` to inherit auth, ContainerServiceClient,
+KubernetesClient, ``get_cluster_name``, ``get_cluster_data``, and the existing
+node-pool CRUD methods. Adds raw REST methods for the Machine API which is not
+yet exposed in the Azure SDK.
 
-Ported from ado-telescope/modules/python/k8s/cloud_providers/azure.py with bug fixes:
-- Truthful type hints (cloud_data Dict, not str).
-- No mutation of input config.
-- UTC timestamps.
+Public methods (``create_machine_agentpool``, ``scale_machine``) wrap their work
+in ``OperationContext`` exactly like ``AKSClient.create_node_pool`` /
+``AKSClient.scale_node_pool``: the context is opened inside the client method,
+metadata is enriched with ``op.add_metadata`` along the way, success returns
+True, failures are logged and re-raised so ``OperationContext`` records them.
+``MachineCRUD`` therefore stays a thin try/except wrapper, mirroring
+``crud/azure/node_pool_crud.py``.
+
+Ported from ado-telescope/modules/python/k8s/cloud_providers/azure.py.
 """
 import json
+import logging
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
 from clients.aks_client import AKSClient
-from machine.data_classes import MachineOperationResponse, OperationNames, ScaleMachineRequest
-from utils.logger_config import get_logger
+from utils.logger_config import get_logger, setup_logging
 
+# Configure logging (mirrors clients/aks_client.py / crud/azure/node_pool_crud.py).
+setup_logging()
 logger = get_logger(__name__)
+# Suppress noisy Azure SDK logs (mirror clients/aks_client.py).
+get_logger("azure.core.pipeline.policies.http_logging_policy").setLevel(logging.ERROR)
+get_logger("azure.identity").setLevel(logging.ERROR)
+get_logger("azure.core.pipeline").setLevel(logging.ERROR)
+get_logger("msal").setLevel(logging.ERROR)
 
 _ARM_BASE = "https://management.azure.com"
 _ARM_SCOPE = "https://management.azure.com/.default"
@@ -34,31 +47,18 @@ _BATCH_429_MAX_RETRIES = 3
 _BATCH_429_INITIAL_BACKOFF_SECONDS = 1.0
 
 
-class AKSMachineClient:
-    """Composes AKSClient and adds Machine-API-specific REST plumbing."""
+class AKSMachineClient(AKSClient):
+    """Extends ``AKSClient`` with Machine-API REST plumbing.
 
-    # Disable too-many-arguments / too-many-positional-arguments: this constructor
-    # is a thin pass-through to AKSClient, which already accepts these as kwargs.
-    # Wrapping them in a config object would just add ceremony.
-    def __init__(  # pylint: disable=too-many-arguments,too-many-positional-arguments
-        self,
-        resource_group: str,
-        cluster_name: Optional[str] = None,
-        subscription_id: Optional[str] = None,
-        kube_config_file: Optional[str] = None,
-        result_dir: Optional[str] = None,
-        operation_timeout_minutes: int = 30,
-    ):
-        self.aks_client = AKSClient(
-            subscription_id=subscription_id,
-            resource_group=resource_group,
-            cluster_name=cluster_name,
-            kube_config_file=kube_config_file,
-            result_dir=result_dir,
-            operation_timeout_minutes=operation_timeout_minutes,
-        )
-        self.resource_group = self.aks_client.resource_group
-        self.subscription_id = self.aks_client.subscription_id
+    Inherits ``credential``, ``subscription_id``, ``resource_group``,
+    ``k8s_client``, ``get_cluster_name``, ``get_cluster_data``, and the
+    existing ``create_node_pool`` / ``scale_node_pool`` / ``delete_node_pool``
+    methods. Tests that require a baseline node pool can therefore call the
+    inherited methods directly without a separate client.
+    """
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self._token_cache_value: Optional[str] = None
         self._token_cache_expiry: float = 0.0  # unix epoch seconds
         self._token_lock = threading.Lock()
@@ -70,7 +70,7 @@ class AKSMachineClient:
         with self._token_lock:
             if self._token_cache_value and time.time() < self._token_cache_expiry - 60:
                 return self._token_cache_value
-            tok = self.aks_client.credential.get_token(_ARM_SCOPE)
+            tok = self.credential.get_token(_ARM_SCOPE)
             self._token_cache_value = tok.token
             self._token_cache_expiry = float(tok.expires_on)
             return self._token_cache_value
@@ -95,54 +95,73 @@ class AKSMachineClient:
         }
         return requests.request(method, url, headers=headers, json=data, timeout=timeout)
 
-    # ---- thin pass-throughs to AKSClient (NOT duplicated) ----
-    def get_cluster_name(self) -> str:
-        """Return the configured/discovered AKS cluster name (delegates to AKSClient)."""
-        return self.aks_client.get_cluster_name()
-
-    def get_cluster_data(self, cluster_name: str) -> Dict:
-        """Return the AKS cluster ARM payload (delegates to AKSClient)."""
-        return self.aks_client.get_cluster_data(cluster_name)
-
     # ---- Machine API: agent pool provisioning ----
     def create_machine_agentpool(
         self,
         agentpool_name: str,
-        cluster_name: str,
-        resource_group: str,
+        vm_size: str,
+        cluster_name: Optional[str] = None,
         timeout: int = 300,
     ) -> bool:
         """Convert an existing agentpool to Machines mode via PUT.
 
+        Mirrors ``AKSClient.create_node_pool`` convention: opens an
+        ``OperationContext`` here, enriches metadata, returns True on success,
+        re-raises on failure (so the context records ``success=False`` with
+        traceback before the exception propagates to ``MachineCRUD``).
+
         Args:
             agentpool_name: Target agentpool name.
-            cluster_name: Parent AKS cluster name.
-            resource_group: Resource group containing the cluster.
-            timeout: Total budget (seconds) used as both the PUT HTTP timeout AND the
-                polling deadline for ``_wait_for_agentpool_provisioning``. Default 300s.
+            vm_size: VM SKU recorded in operation metadata. The PUT body itself
+                only sets ``mode: Machines``; the SKU is informational here so
+                downstream Kusto rows can attribute the agentpool to a SKU.
+            cluster_name: Parent AKS cluster name. Defaults to
+                ``self.get_cluster_name()`` (matches ``create_node_pool``).
+            timeout: Total budget (seconds) used as both the PUT HTTP timeout
+                AND the polling deadline for ``_wait_for_agentpool_provisioning``.
 
         Returns:
-            True iff the agentpool reaches provisioningState='Succeeded' before
-            ``timeout`` seconds elapse. False on PUT failure, ARM-reported Failed
-            state, or timeout. Never raises on HTTP errors.
+            True iff the agentpool reaches provisioningState='Succeeded'.
+
+        Raises:
+            RuntimeError: PUT non-2xx, ARM-reported Failed state, or timeout.
         """
-        if resource_group != self.resource_group:
-            logger.warning(
-                "create_machine_agentpool called with resource_group=%s but client bound to %s",
-                resource_group, self.resource_group,
-            )
-        sub = self.subscription_id
-        url = (
-            f"{_ARM_BASE}/subscriptions/{sub}/resourceGroups/{resource_group}"
-            f"/providers/Microsoft.ContainerService/managedClusters/{cluster_name}"
-            f"/agentPools/{agentpool_name}?api-version={_AGENTPOOL_API_VERSION}"
-        )
-        body = {"properties": {"mode": "Machines"}}
-        resp = self.make_request("PUT", url, data=body, timeout=timeout)
-        if resp.status_code not in (200, 201):
-            logger.error("create_machine_agentpool PUT failed: %s %s", resp.status_code, resp.text)
-            return False
-        return self._wait_for_agentpool_provisioning(url, timeout)
+        cluster_name = cluster_name or self.get_cluster_name()
+        metadata = {
+            "cluster_name": cluster_name,
+            "agentpool_name": agentpool_name,
+            "vm_size": vm_size,
+        }
+        with self._get_operation_context()(
+            "create_machine_agentpool", "azure", metadata, result_dir=self.result_dir
+        ) as op:
+            try:
+                sub = self.subscription_id
+                url = (
+                    f"{_ARM_BASE}/subscriptions/{sub}/resourceGroups/{self.resource_group}"
+                    f"/providers/Microsoft.ContainerService/managedClusters/{cluster_name}"
+                    f"/agentPools/{agentpool_name}?api-version={_AGENTPOOL_API_VERSION}"
+                )
+                body = {"properties": {"mode": "Machines"}}
+                resp = self.make_request("PUT", url, data=body, timeout=timeout)
+                if resp.status_code not in (200, 201):
+                    raise RuntimeError(
+                        f"create_machine_agentpool PUT failed: "
+                        f"{resp.status_code} {resp.text[:500]}"
+                    )
+                if not self._wait_for_agentpool_provisioning(url, timeout):
+                    raise RuntimeError(
+                        f"agentpool {agentpool_name} did not reach Succeeded within {timeout}s"
+                    )
+                op.add_metadata("agentpool_info", self.get_node_pool(
+                    agentpool_name, cluster_name).as_dict())
+                op.add_metadata("cluster_info", self.get_cluster_data(cluster_name))
+                return True
+            except Exception as e:
+                logger.error(
+                    "Failed to create machine agentpool %s: %s", agentpool_name, e
+                )
+                raise
 
     def _wait_for_agentpool_provisioning(self, url: str, timeout: int) -> bool:
         """Poll the agentpool URL until provisioningState is terminal.
@@ -150,21 +169,41 @@ class AKSMachineClient:
         Polls every ``_POLL_INTERVAL_SECONDS`` (10s) using a 30s per-request HTTP
         timeout. Returns True on 'Succeeded'. Returns False on 'Failed' or when
         ``timeout`` seconds have elapsed since invocation. Transient non-200 GETs
-        are logged and retried until the deadline.
+        are logged and retried until the deadline. Also handles missing
+        provisioningState (treats absence for ``_PROVISIONING_NONE_STATE_LIMIT``
+        consecutive polls as Failed).
         """
         deadline = time.time() + timeout
+        none_count = 0
         while time.time() < deadline:
             r = self.make_request("GET", url, timeout=30)
             if r.status_code != 200:
                 logger.warning("agentpool GET %s -> %s", url, r.status_code)
                 time.sleep(_POLL_INTERVAL_SECONDS)
                 continue
-            state = r.json().get("properties", {}).get("provisioningState")
+            try:
+                body = r.json()
+            except (ValueError, TypeError) as exc:
+                logger.warning("agentpool poll JSON parse failed: %s", exc)
+                time.sleep(_POLL_INTERVAL_SECONDS)
+                continue
+            state = body.get("properties", {}).get("provisioningState")
             if state == "Succeeded":
                 return True
             if state == "Failed":
-                logger.error("agentpool provisioning failed: %s", r.json())
+                logger.error("agentpool provisioning failed: %s", body)
                 return False
+            if state is None:
+                none_count += 1
+                if none_count >= _PROVISIONING_NONE_STATE_LIMIT:
+                    logger.warning(
+                        "agentpool provisioningState absent for %d consecutive polls; "
+                        "treating as Failed.",
+                        none_count,
+                    )
+                    return False
+            else:
+                none_count = 0
             time.sleep(_POLL_INTERVAL_SECONDS)
         logger.error("agentpool provisioning timed out after %ss", timeout)
         return False
@@ -177,7 +216,7 @@ class AKSMachineClient:
         expected_count: int,
         timeout: int,
         baseline_count: int = 0,
-    ) -> Dict[str, float]:
+    ) -> Dict[str, Dict[str, Any]]:
         """Wait for ``expected_count`` NEW Ready nodes; return ado-parity nested percentile dict.
 
         AKS Machine ARM resource names (e.g. ``scale100-machine-1``) are NOT the
@@ -191,13 +230,14 @@ class AKSMachineClient:
         ``baseline_count + expected_count`` and clamped to ``> baseline_count``
         so a target never fires on pre-existing nodes alone. Without this, an
         agentpool that already has 1 Ready node and is being scaled by 1 more
-        would report P50/P70/P90/P99/P100 = ~0.7s (the first poll) even though the new
-        node had not yet provisioned.
+        would report P50/P70/P90/P99/P100 = ~0.7s (the first poll) even though the
+        new node had not yet provisioned.
 
-        ``timeout`` is wall-clock seconds from invocation. Returns the
-        zero-fallback dict if ``k8s_client`` is unavailable, ``expected_count``
-        <= 0, or no percentile target is met within ``timeout``. Polling
-        exceptions are logged and treated as 0 ready this tick. Never raises.
+        ``timeout`` is wall-clock seconds from invocation. Returns the nested
+        empty-state envelope (``elapsed_time_seconds=None``, ``success=False``)
+        if ``k8s_client`` is unavailable, ``expected_count`` <= 0, or no
+        percentile target is met within ``timeout``. Polling exceptions are
+        logged and treated as 0 ready this tick. Never raises.
         """
         # ado-parity empty-state envelope: nested dict per P-key with
         # `target_nodes`, `elapsed_time_seconds`, `percentage`, `success` so
@@ -211,7 +251,7 @@ class AKSMachineClient:
             }
             for p in (50, 70, 90, 99, 100)
         }
-        kc = self.aks_client.k8s_client
+        kc = self.k8s_client
         if kc is None:
             logger.error(
                 "k8s_client is None on AKSClient; cannot wait for machine readiness"
@@ -295,123 +335,150 @@ class AKSMachineClient:
                     json.dumps(result, indent=2))
         return result
 
-    def scale_machine(self, request: ScaleMachineRequest) -> MachineOperationResponse:
-        """Scale a Machine-mode agentpool by creating ``request.scale_machine_count`` machines.
+    # Disable too-many-arguments / too-many-positional-arguments / too-many-locals:
+    # this is the public scale entry point; argument fan-out matches
+    # ``AKSClient.scale_node_pool`` (also above limit) and the local var count
+    # tracks the pipeline (baseline snapshot, machine names, batch dispatch,
+    # readiness watcher). Wrapping in a request dataclass would just duplicate
+    # the argparse layer above.
+    def scale_machine(  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
+        self,
+        agentpool_name: str,
+        vm_size: str,
+        scale_machine_count: int,
+        cluster_name: Optional[str] = None,
+        use_batch_api: bool = False,
+        machine_workers: int = 1,
+        timeout: int = 600,
+        readiness_wait_timeout: int = 1200,
+        tags: Optional[Dict[str, str]] = None,  # pylint: disable=unused-argument
+    ) -> bool:
+        """Scale a Machine-mode agentpool by creating ``scale_machine_count`` machines.
+
+        Mirrors ``AKSClient.scale_node_pool`` convention: opens an
+        ``OperationContext`` here, enriches with successful machine names,
+        per-percentile readiness envelope, batch chunk timings, and the cluster
+        snapshot. Returns True iff every requested machine landed AND every
+        readiness percentile target was hit. Re-raises on failure so the
+        context records the trace.
 
         Flow (both batch and non-batch):
           1. Snapshot the current Ready+labeled node count in the agentpool
              (``baseline_count``) so the readiness watcher counts only NEW nodes.
           2. Submit machine PUTs (individually or via the batch header pattern).
-             Per-machine ARM polling is intentionally NOT performed — the AKS RP
-             reports per-machine provisioningState='Succeeded' as soon as the
-             agentpool admits the request, which is well before the underlying
-             VM is created. Polling at this layer therefore returns spuriously
-             early and is useless.
-          3. Wait ONCE on the agentpool-level provisioningState — this is the
-             only ARM signal that truly reflects "all batched machine creation
-             work is finished". Logged informationally; non-blocking for the
-             response (readiness percentiles are the load-bearing metric).
+             Per-machine ARM polling is intentionally NOT performed.
+          3. Wait ONCE on the agentpool-level provisioningState.
           4. Wait for nodes labeled ``agentpool=<pool>`` to surpass
              ``baseline_count`` by enough to satisfy P50/P70/P90/P99/P100 targets.
 
-        Never raises — failures recorded on the returned response.
+        ``tags`` is currently unused (Machine API rejects top-level tags on the
+        machine PUT body; machines inherit tags from the parent agentpool).
+
+        Raises:
+            RuntimeError: fewer machines landed than requested.
         """
-        start_dt = datetime.now(timezone.utc)
-        start_iso = start_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-        response = MachineOperationResponse(
-            operation_name=OperationNames.SCALE_MACHINE.value,
-            start_time=start_iso,
+        cluster_name = cluster_name or self.get_cluster_name()
+        metadata = {
+            "cluster_name": cluster_name,
+            "agentpool_name": agentpool_name,
+            "vm_size": vm_size,
+            "scale_machine_count": scale_machine_count,
+            "use_batch_api": use_batch_api,
+            "machine_workers": machine_workers,
+        }
+        # Bundle into a SimpleNamespace so the helpers retain the
+        # ``request.foo`` shape ported verbatim from ado-telescope without
+        # exposing yet another module-level data class.
+        request = SimpleNamespace(
+            agentpool_name=agentpool_name,
+            cluster_name=cluster_name,
+            resource_group=self.resource_group,
+            vm_size=vm_size,
+            scale_machine_count=scale_machine_count,
+            use_batch_api=use_batch_api,
+            machine_workers=machine_workers,
+            timeout=timeout,
+            readiness_wait_timeout=readiness_wait_timeout,
         )
-        try:
-            # Snapshot baseline BEFORE any PUTs so the readiness watcher counts
-            # only NEW nodes. Without this, agentpools that already have a Ready
-            # node (e.g. an implicit placeholder created when the agentpool was
-            # switched to Machines mode) cause P50/P70/P90/P99/P100 to fire on the very
-            # first poll, hiding the real provisioning latency.
-            kc = self.aks_client.k8s_client
-            baseline_count = 0
-            if kc is not None:
-                try:
-                    baseline_count = len(
-                        kc.get_ready_nodes(
-                            label_selector=f"agentpool={request.agentpool_name}"
+        with self._get_operation_context()(
+            "scale_machine", "azure", metadata, result_dir=self.result_dir
+        ) as op:
+            try:
+                # Snapshot baseline BEFORE any PUTs so the readiness watcher
+                # counts only NEW nodes.
+                kc = self.k8s_client
+                baseline_count = 0
+                if kc is not None:
+                    try:
+                        baseline_count = len(
+                            kc.get_ready_nodes(
+                                label_selector=f"agentpool={agentpool_name}"
+                            )
                         )
-                    )
-                    logger.info(
-                        "baseline ready nodes in agentpool %s: %d",
-                        request.agentpool_name, baseline_count,
-                    )
-                except Exception:  # pylint: disable=broad-except
-                    logger.warning(
-                        "baseline node snapshot failed; readiness count may be inflated"
-                    )
+                        logger.info(
+                            "baseline ready nodes in agentpool %s: %d",
+                            agentpool_name, baseline_count,
+                        )
+                    except Exception:  # pylint: disable=broad-except
+                        logger.warning(
+                            "baseline node snapshot failed; readiness count may be inflated"
+                        )
 
-            # Naming parity with ado-telescope (azure.py:_get_machine_name_prefix +
-            # _scale_machine_individually): prefix is "scale{N}" or "scale{N//1000}k",
-            # machines are 1-indexed as "{prefix}-machine-{i}". Byte-identical names
-            # let cross-repo Kusto dashboards correlate runs across ado/gh.
-            prefix = self._get_machine_name_prefix(request.scale_machine_count)
-            names = [
-                f"{prefix}-machine-{i + 1}" for i in range(request.scale_machine_count)
-            ]
-            if request.use_batch_api:
-                successful, batch_times = self._scale_machine_batch(request, names)
-                response.batch_command_execution_times = batch_times
-            else:
-                successful = self._scale_machine_individually(request, names)
-            response.successful_machines = successful
+                # Naming parity with ado-telescope.
+                prefix = self._get_machine_name_prefix(scale_machine_count)
+                names = [
+                    f"{prefix}-machine-{i + 1}" for i in range(scale_machine_count)
+                ]
+                if use_batch_api:
+                    successful, batch_times = self._scale_machine_batch(request, names)
+                    op.add_metadata("batch_command_execution_times", batch_times)
+                else:
+                    successful = self._scale_machine_individually(request, names)
+                op.add_metadata("successful_machines", successful)
 
-            # Single agentpool-level provisioning check. This is the canonical
-            # ARM signal for "all batched machine creation work is done" and
-            # replaces N per-machine polls that returned Succeeded prematurely.
-            agentpool_url = (
-                f"{_ARM_BASE}/subscriptions/{self.subscription_id}/resourceGroups/"
-                f"{request.resource_group}/providers/Microsoft.ContainerService/"
-                f"managedClusters/{request.cluster_name}/agentPools/"
-                f"{request.agentpool_name}?api-version={_AGENTPOOL_API_VERSION}"
-            )
-            agentpool_ok = self._wait_for_provisioning(agentpool_url, request.timeout)
-            logger.info(
-                "agentpool %s provisioning %s",
-                request.agentpool_name,
-                "Succeeded" if agentpool_ok else "Failed/Timeout",
-            )
-
-            response.percentile_node_readiness_times = self._wait_for_machine_node_readiness(
-                agentpool_name=request.agentpool_name,
-                expected_count=len(successful),
-                timeout=request.readiness_wait_timeout,
-                baseline_count=baseline_count,
-            )
-            # ado-parity: node_readiness_time equals P100.elapsed_time_seconds —
-            # wall-clock elapsed until all target nodes are Ready. Matches
-            # ado's `response.node_readiness_time = percentile_times[100]`.
-            if response.percentile_node_readiness_times:
-                response.node_readiness_time = (
-                    response.percentile_node_readiness_times
-                    .get("P100", {}).get("elapsed_time_seconds") or 0.0
+                # Single agentpool-level provisioning check.
+                agentpool_url = (
+                    f"{_ARM_BASE}/subscriptions/{self.subscription_id}/resourceGroups/"
+                    f"{self.resource_group}/providers/Microsoft.ContainerService/"
+                    f"managedClusters/{cluster_name}/agentPools/"
+                    f"{agentpool_name}?api-version={_AGENTPOOL_API_VERSION}"
                 )
-            response.succeeded = len(successful) == request.scale_machine_count
-        except Exception as exc:  # pylint: disable=broad-except
-            logger.exception("scale_machine failed")
-            response.succeeded = False
-            response.error = str(exc)
-        finally:
-            end_dt = datetime.now(timezone.utc)
-            response.end_time = end_dt.strftime("%Y-%m-%dT%H:%M:%SZ")
-            response.command_execution_time = (end_dt - start_dt).total_seconds()
-            logger.info(
-                "Machine scaling completed in %.2f seconds (node_readiness_time=%.2fs)",
-                response.command_execution_time, response.node_readiness_time,
-            )
-        # Attach cluster snapshot for Kusto cloud_data column.
-        try:
-            response.cloud_data = self.get_cluster_data(request.cluster_name)
-        except Exception as exc:  # pylint: disable=broad-except
-            logger.warning("get_cluster_data failed: %s", exc)
-        return response
+                agentpool_ok = self._wait_for_agentpool_provisioning(
+                    agentpool_url, timeout
+                )
+                logger.info(
+                    "agentpool %s provisioning %s",
+                    agentpool_name,
+                    "Succeeded" if agentpool_ok else "Failed/Timeout",
+                )
 
-    def _get_machine_name_prefix(self, scale_machine_count: int) -> str:
+                percentile_envelope = self._wait_for_machine_node_readiness(
+                    agentpool_name=agentpool_name,
+                    expected_count=len(successful),
+                    timeout=readiness_wait_timeout,
+                    baseline_count=baseline_count,
+                )
+                op.add_metadata("percentile_node_readiness_times", percentile_envelope)
+                p100 = percentile_envelope.get("P100", {})
+                op.add_metadata(
+                    "node_readiness_time", p100.get("elapsed_time_seconds") or 0.0
+                )
+                op.add_metadata("cluster_info", self.get_cluster_data(cluster_name))
+
+                if len(successful) != scale_machine_count:
+                    raise RuntimeError(
+                        f"scale_machine landed {len(successful)}/{scale_machine_count} machines"
+                    )
+                return True
+            except Exception as e:
+                logger.error(
+                    "Failed to scale machine agentpool %s: %s", agentpool_name, e
+                )
+                raise
+
+
+    @staticmethod
+    def _get_machine_name_prefix(scale_machine_count: int) -> str:
         """Generate the ado-compatible machine-name prefix for a given scale count.
 
         Mirrors ado-telescope ``azure.py::_get_machine_name_prefix`` exactly so
@@ -426,7 +493,9 @@ class AKSMachineClient:
             return f"scale{scale_machine_count // 1000}k"
         return f"scale{scale_machine_count}"
 
-    def _scale_machine_individually(self, request, names):
+    def _scale_machine_individually(
+        self, request: SimpleNamespace, names: List[str],
+    ) -> List[str]:
         """Submit per-machine PUTs concurrently via ThreadPoolExecutor.
 
         Each worker calls ``_create_single_machine(name, request)`` which PUTs
@@ -446,7 +515,7 @@ class AKSMachineClient:
                     logger.exception("create_single_machine failed for %s", n)
         return successful
 
-    def _create_single_machine(self, name: str, request) -> bool:
+    def _create_single_machine(self, name: str, request: SimpleNamespace) -> bool:
         """PUT a single Machine resource. Returns True on any 2xx response.
 
         Body is ``{"properties": {"hardware": {"vmSize": ...}}}``. Tags are inherited
@@ -477,49 +546,6 @@ class AKSMachineClient:
             return False
         return True
 
-    def _wait_for_provisioning(self, url: str, timeout: int) -> bool:
-        """Poll ``url`` until ``properties.provisioningState`` is terminal or deadline.
-
-        Returns True on Succeeded, False on Failed or timeout. Transient non-200
-        responses are logged and retried until the deadline. If ``provisioningState``
-        is missing from successful responses for ``_PROVISIONING_NONE_STATE_LIMIT``
-        consecutive polls, treats the operation as Failed and returns False (rather
-        than spinning until the deadline). Never raises.
-        """
-        deadline = time.time() + timeout
-        none_count = 0
-        while time.time() < deadline:
-            r = self.make_request("GET", url, timeout=30)
-            if r.status_code == 200:
-                try:
-                    body = r.json()
-                except (ValueError, TypeError) as exc:
-                    logger.warning("provisioning poll JSON parse failed: %s", exc)
-                    time.sleep(_POLL_INTERVAL_SECONDS)
-                    continue
-                state = body.get("properties", {}).get("provisioningState")
-                if state == "Succeeded":
-                    return True
-                if state == "Failed":
-                    logger.error("provisioning Failed: %s", str(body)[:500])
-                    return False
-                if state is None:
-                    none_count += 1
-                    if none_count >= _PROVISIONING_NONE_STATE_LIMIT:
-                        logger.warning(
-                            "provisioningState absent for %d consecutive polls; "
-                            "treating as Failed. body=%s",
-                            none_count, str(body)[:500],
-                        )
-                        return False
-                else:
-                    none_count = 0
-            else:
-                logger.warning("provisioning poll non-200: %s", r.status_code)
-            time.sleep(_POLL_INTERVAL_SECONDS)
-        logger.error("provisioning timeout after %ss for %s", timeout, url)
-        return False
-
     # ---- Machine API: batch scale path ----
     @staticmethod
     def _array_split(items: List[str], n: int) -> List[List[str]]:
@@ -538,7 +564,7 @@ class AKSMachineClient:
 
     def _scale_machine_batch(
         self,
-        request: ScaleMachineRequest,
+        request: SimpleNamespace,
         names: List[str],
     ) -> Tuple[List[str], Dict[str, float]]:
         """Dispatch ``names`` across ``request.machine_workers`` chunks via the AKS Batch API.
@@ -581,7 +607,7 @@ class AKSMachineClient:
 
     def _create_batch_machines(
         self,
-        request: ScaleMachineRequest,
+        request: SimpleNamespace,
         chunk: List[str],
         chunk_idx: int,
     ) -> List[str]:
