@@ -370,11 +370,20 @@ write_timing_file() {
 # Append one op record to OPS_JSON. Args:
 #   $1 op_index, $2 op_type, $3 start_epoch, $4 end_epoch,
 #   $5 succeeded (true|false), $6 observed_node_count,
-#   $7 pre_ip_set_json ('[]' if none), $8 post_ip_set_json ('[]' if none),
-#   $9 new_ip_count, $10 error_message
+#   $7 pre_state_json  — JSON object {"ips":[...], "names":[...]} ('{}' = empty)
+#   $8 post_state_json — JSON object {"ips":[...], "names":[...]} ('{}' = empty)
+#   $9 error_message (empty string OK)
+#
+# Build 67155 lesson: pre_ip_set/post_ip_set alone is a FLAWED replacement
+# signal because Azure VNet allocator immediately reuses freed private IPs
+# (we deleted vmss-instance 19 at 10.1.0.19; the replacement got 10.1.0.19
+# again). Authoritative signal is NODE NAME delta (VMSS instance IDs are
+# monotonic — vmss00000j → vmss00000k — not reused). jq below computes
+# BOTH new_ip_count and new_node_count; downstream queries should prefer
+# new_node_count for "did replacement actually happen".
 record_op() {
   local _idx="$1" _type="$2" _t0="$3" _t1="$4" _ok="$5" _ncount="$6"
-  local _pre="$7" _post="$8" _newips="$9" _err="${10:-}"
+  local _pre="$7" _post="$8" _err="${9:-}"
   local _dur=$(( _t1 - _t0 ))
   OPS_JSON=$(jq -c \
     --argjson idx "$_idx" \
@@ -386,12 +395,18 @@ record_op() {
     --argjson ncount "$_ncount" \
     --argjson pre "$_pre" \
     --argjson post "$_post" \
-    --argjson newips "$_newips" \
     --arg err "$_err" \
-    '. + [{op_index:$idx, op_type:$type, start_epoch:$t0, end_epoch:$t1,
-           duration_seconds:$dur, succeeded:$ok, observed_node_count:$ncount,
-           pre_ip_set:$pre, post_ip_set:$post, new_ip_count:$newips,
-           error:$err}]' \
+    '. + [{
+       op_index:$idx, op_type:$type, start_epoch:$t0, end_epoch:$t1,
+       duration_seconds:$dur, succeeded:$ok, observed_node_count:$ncount,
+       pre_ip_set:    ($pre.ips   // []),
+       post_ip_set:   ($post.ips  // []),
+       pre_node_names:  ($pre.names  // []),
+       post_node_names: ($post.names // []),
+       new_ip_count:   ([($post.ips   // [])[] | select(. as $p | (($pre.ips   // []) | index($p)) | not)] | length),
+       new_node_count: ([($post.names // [])[] | select(. as $p | (($pre.names // []) | index($p)) | not)] | length),
+       error:$err
+     }]' \
     <<< "$OPS_JSON")
   write_timing_file
 }
@@ -494,18 +509,34 @@ observe_node_count() {
   echo "$_lines" | grep -c . | tr -d ' '
 }
 
-# Snapshot current Internal IPs for target pool's nodes. Returns a JSON array
-# string (e.g., '["10.1.0.4","10.1.0.5",...]'); empty array on kubectl failure.
-snapshot_node_ips() {
+# Snapshot current Internal IPs AND node names for nodes in TARGET_VMSS.
+# Returns a JSON object {"ips":[...], "names":[...]} on stdout.
+#
+# Build 67155 lesson: capture BOTH ips and names. IPs alone are unreliable
+# as a replacement signal because Azure VNet allocator immediately reuses
+# freed IPs. VMSS instance IDs (embedded in node names) are monotonic →
+# names are the authoritative replacement signal.
+#
+# On kubectl failure, returns '{"ips":[],"names":[]}' (jq logic later
+# handles empty arrays correctly: new_*_count == count of "post" entries).
+snapshot_node_state() {
   local _json
-  _json=$(target_kubectl_get_nodes_json) || { echo "[]"; return; }
-  echo "$_json" | jq -c --arg vmss "$TARGET_VMSS" \
-    '[ .items[]
-       | select(.spec.providerID
-           | contains("/virtualMachineScaleSets/" + $vmss + "/virtualMachines/"))
-       | .status.addresses[]
-       | select(.type=="InternalIP")
-       | .address ] // []' 2>>"$DEBUG_LOG" || echo "[]"
+  _json=$(target_kubectl_get_nodes_json) || { echo '{"ips":[],"names":[]}'; return; }
+  echo "$_json" | jq -c --arg vmss "$TARGET_VMSS" '
+    [ .items[]
+      | select(.spec.providerID
+          | contains("/virtualMachineScaleSets/" + $vmss + "/virtualMachines/"))
+    ] as $matched
+    | {
+        ips:   [$matched[] | .status.addresses[] | select(.type=="InternalIP") | .address],
+        names: [$matched[] | .metadata.name]
+      }' 2>>"$DEBUG_LOG" || echo '{"ips":[],"names":[]}'
+}
+
+# Legacy compatibility shim — some call sites only need the IP set.
+# New code should prefer snapshot_node_state.
+snapshot_node_ips() {
+  snapshot_node_state | jq -c '.ips' 2>>"$DEBUG_LOG" || echo "[]"
 }
 
 # -----------------------------------------------------------------------------
@@ -624,7 +655,7 @@ run_scale_phase() {
     local _ncount
     _ncount=$(observe_node_count)
     [ -z "$_ncount" ] && _ncount=0
-    record_op "$OP_INDEX" "scale_up" "$_t0" "$_t1" "$_ok" "$_ncount" '[]' '[]' 0 "$_err"
+    record_op "$OP_INDEX" "scale_up" "$_t0" "$_t1" "$_ok" "$_ncount" '{}' '{}' "$_err"
     [ "$_ok" = true ] && _cur="$_target"
     sleep "$NODE_CHURN_SETTLE_SECONDS"
 
@@ -657,7 +688,7 @@ run_scale_phase() {
     _t1=$(date +%s)
     _ncount=$(observe_node_count)
     [ -z "$_ncount" ] && _ncount=0
-    record_op "$OP_INDEX" "scale_down" "$_t0" "$_t1" "$_ok" "$_ncount" '[]' '[]' 0 "$_err"
+    record_op "$OP_INDEX" "scale_down" "$_t0" "$_t1" "$_ok" "$_ncount" '{}' '{}' "$_err"
     [ "$_ok" = true ] && _cur="$_target"
     sleep "$NODE_CHURN_SETTLE_SECONDS"
   done
@@ -674,9 +705,13 @@ run_replace_phase() {
     return
   fi
 
-  # ---- 1. Pre-snapshot IPs + pick K nodes ----
-  local _pre_ips
-  _pre_ips=$(snapshot_node_ips)
+  # ---- 1. Pre-snapshot state (IPs + node names) + pick K nodes ----
+  # Both ips AND names are recorded so post-run analysis can use whichever
+  # signal is appropriate. Build 67155 showed IPs are unreliable (Azure
+  # reuses freed private IPs); node names (VMSS instance suffix) are the
+  # authoritative replacement marker.
+  local _pre_state
+  _pre_state=$(snapshot_node_state)
   local _kubeconfig
   _kubeconfig=$(resolve_target_kubeconfig)
   if [ -z "$_kubeconfig" ]; then
@@ -753,7 +788,7 @@ run_replace_phase() {
       log "replace phase: drain ${_node_name} returned non-zero; continuing (VMSS delete will force)"
     fi
     local _t1=$(date +%s)
-    record_op "$OP_INDEX" "replace_drain" "$_t0" "$_t1" "$_ok" 0 '[]' '[]' 0 "$_err"
+    record_op "$OP_INDEX" "replace_drain" "$_t0" "$_t1" "$_ok" 0 '{}' '{}' "$_err"
     if [ -n "$_instance_ids_csv" ]; then
       _instance_ids_csv="${_instance_ids_csv} ${_instance_id}"
     else
@@ -798,7 +833,7 @@ run_replace_phase() {
   local _ncount
   _ncount=$(observe_node_count)
   [ -z "$_ncount" ] && _ncount=0
-  record_op "$OP_INDEX" "replace_delete" "$_t0" "$_t1" "$_ok" "$_ncount" '[]' '[]' 0 "$_err"
+  record_op "$OP_INDEX" "replace_delete" "$_t0" "$_t1" "$_ok" "$_ncount" '{}' '{}' "$_err"
 
   if [ "$CIRCUIT_BROKEN" = true ]; then return; fi
 
@@ -836,7 +871,7 @@ run_replace_phase() {
   _t1=$(date +%s)
   _ncount=$(observe_node_count)
   [ -z "$_ncount" ] && _ncount=0
-  record_op "$OP_INDEX" "replace_refill" "$_t0" "$_t1" "$_ok" "$_ncount" '[]' '[]' 0 "$_err"
+  record_op "$OP_INDEX" "replace_refill" "$_t0" "$_t1" "$_ok" "$_ncount" '{}' '{}' "$_err"
 
   if [ "$CIRCUIT_BROKEN" = true ]; then return; fi
 
@@ -872,20 +907,20 @@ run_replace_phase() {
     sleep 10
   done
   _t1=$(date +%s)
-  local _post_ips
-  _post_ips=$(snapshot_node_ips)
-  # Compute new-IP count (IPs in post but not in pre).
-  local _new_ip_count
-  _new_ip_count=$(jq -n --argjson pre "$_pre_ips" --argjson post "$_post_ips" \
-    '[$post[] | select(. as $p | ($pre | index($p)) | not)] | length')
+  local _post_state
+  _post_state=$(snapshot_node_state)
   if [ "$_ok" != true ]; then
     _err="replace_wait: timeout after ${NODE_REPLACE_WAIT_TIMEOUT_SECONDS}s; ready=${_ready_count}/${ORIGINAL_NODE_COUNT}"
     err "$_err"
     SCENARIO_VALID=false
     debug_dump "REPLACE_WAIT timeout (ready=${_ready_count}/${ORIGINAL_NODE_COUNT})"
   fi
-  record_op "$OP_INDEX" "replace_wait" "$_t0" "$_t1" "$_ok" "$_ready_count" "$_pre_ips" "$_post_ips" "$_new_ip_count" "$_err"
-  log "replace phase: complete (new_ip_count=${_new_ip_count})"
+  record_op "$OP_INDEX" "replace_wait" "$_t0" "$_t1" "$_ok" "$_ready_count" "$_pre_state" "$_post_state" "$_err"
+  # Pull new_node_count from the just-recorded op for the summary log line.
+  local _new_node_count _new_ip_count
+  _new_node_count=$(echo "$OPS_JSON" | jq -r '.[-1].new_node_count')
+  _new_ip_count=$(echo "$OPS_JSON" | jq -r '.[-1].new_ip_count')
+  log "replace phase: complete (new_node_count=${_new_node_count} [authoritative], new_ip_count=${_new_ip_count} [informational; Azure may reuse freed IPs])"
 }
 
 case "$SCENARIO" in

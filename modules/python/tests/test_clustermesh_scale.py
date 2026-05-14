@@ -679,9 +679,12 @@ class TestNodeChurnTimingPickup(unittest.TestCase):
                     "start_epoch": 1746000500, "end_epoch": 1746001100,
                     "duration_seconds": 600, "succeeded": True,
                     "observed_node_count": 20,
-                    "pre_ip_set": ["10.1.0.4", "10.1.0.5"],
-                    "post_ip_set": ["10.1.0.6", "10.1.0.7"],
-                    "new_ip_count": 2,
+                    "pre_ip_set": ["10.1.0.4", "10.1.0.19"],
+                    "post_ip_set": ["10.1.0.4", "10.1.0.19"],
+                    "pre_node_names": ["aks-default-vmss000004", "aks-default-vmss00000j"],
+                    "post_node_names": ["aks-default-vmss000004", "aks-default-vmss00000k"],
+                    "new_ip_count": 0,
+                    "new_node_count": 1,
                     "error": "",
                 },
             ])
@@ -724,10 +727,15 @@ class TestNodeChurnTimingPickup(unittest.TestCase):
                 for op_row in ops:
                     self.assertEqual(op_row["result"]["data"]["scenario"], "node-churn-combined")
                     self.assertEqual(op_row["result"]["data"]["target_context"], "clustermesh-1")
-                # replace_wait op carries IP set deltas
+                # replace_wait op carries IP set + node name deltas.
+                # Build 67155: new_ip_count is informational (Azure can reuse IPs);
+                # new_node_count is the authoritative replacement signal.
                 replace = [o for o in ops if o["result"]["data"]["op_type"] == "replace_wait"][0]
-                self.assertEqual(replace["result"]["data"]["new_ip_count"], 2)
-                self.assertIn("10.1.0.6", replace["result"]["data"]["post_ip_set"])
+                self.assertEqual(replace["result"]["data"]["new_ip_count"], 0)
+                self.assertEqual(replace["result"]["data"]["new_node_count"], 1,
+                                 "node name delta is the authoritative replacement signal")
+                self.assertIn("aks-default-vmss00000k",
+                              replace["result"]["data"]["post_node_names"])
             finally:
                 if os.path.exists(result_file):
                     os.remove(result_file)

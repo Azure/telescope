@@ -579,10 +579,17 @@ def _emit_node_churn_timing_rows(cl2_report_dir, template, result_file):
               "duration_seconds": int,
               "succeeded": bool,
               "observed_node_count": int,
-              "pre_ip_set": [str],        // only on replace_wait ops; empty otherwise
+              "pre_ip_set": [str],         // only populated on replace_wait
               "post_ip_set": [str],
-              "new_ip_count": int,
-              "error": str                // empty on success
+              "pre_node_names": [str],     // only populated on replace_wait
+              "post_node_names": [str],
+              "new_ip_count": int,         // INFORMATIONAL — Azure VNet allocator
+                                           // reuses freed IPs immediately so this
+                                           // may be 0 even after successful replacement
+              "new_node_count": int,       // AUTHORITATIVE replacement signal —
+                                           // VMSS instance IDs are monotonic so node
+                                           // names always differ after replacement
+              "error": str                 // empty on success
             }, ...
           ]
         }
