@@ -147,7 +147,7 @@ def handle_node_pool_operation(node_pool_crud, args):
         return 1
 
 def handle_workload_operations(node_pool_crud, args):
-    """Handle workload operations (deployment, statefulset, jobs) based on the command"""
+    """Handle workload operations (deployment, job) based on the command"""
     command = args.command
     result = None
 
