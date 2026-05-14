@@ -560,15 +560,31 @@ finalizer() {
     fi
     log "finalizer: pool count matches but provisioningState != Succeeded; will explicitly scale to nudge reconcile"
   fi
-  # Even if VMSS desired-count != AKS desired-count (after a VMSS instance
-  # delete), `az aks nodepool scale` with the original count re-syncs both.
+  # Build 67170 lesson: prior scale ops may have failed mid-scenario while
+  # AKS was still Updating. Wait for Succeeded before issuing the explicit
+  # scale-back-to-original — otherwise this scale fails with the SAME
+  # OperationNotAllowed error and cleanup_failed=true cascades incorrectly.
+  if ! wait_vmss_succeeded "$NODE_CHURN_FINALIZER_TIMEOUT_SECONDS"; then
+    err "finalizer: provisioningState never reached Succeeded within ${NODE_CHURN_FINALIZER_TIMEOUT_SECONDS}s; cannot proceed with restore"
+    CLEANUP_FAILED=true
+    debug_dump "FINALIZER cleanup_failed (waited for Succeeded; never got there)"
+    write_timing_file
+    return 1
+  fi
+  # Stderr captured to debug log (build 67170 lesson: the prior >/dev/null
+  # 2>&1 swallowed the real error message; we ended up guessing).
   if ! az aks nodepool scale \
       --cluster-name "$TARGET_CLUSTER_NAME" \
       --resource-group "$TARGET_RESOURCE_GROUP" \
       --name "$TARGET_NODEPOOL" \
       --node-count "$ORIGINAL_NODE_COUNT" \
-      --no-wait --only-show-errors >/dev/null 2>&1; then
-    err "finalizer: az aks nodepool scale to ${ORIGINAL_NODE_COUNT} failed"
+      --no-wait --only-show-errors 2>/tmp/node-churner-finalizer.err; then
+    local _finalizer_err
+    _finalizer_err=$(tr '\n' ' ' < /tmp/node-churner-finalizer.err | head -c 500)
+    err "finalizer: az aks nodepool scale to ${ORIGINAL_NODE_COUNT} failed: ${_finalizer_err}"
+    echo "===== finalizer az error ====="     >> "$DEBUG_LOG"
+    cat /tmp/node-churner-finalizer.err       >> "$DEBUG_LOG"
+    echo "===== end finalizer az error =====" >> "$DEBUG_LOG"
     CLEANUP_FAILED=true
     debug_dump "FINALIZER cleanup_failed (az aks nodepool scale to original failed)"
     write_timing_file
@@ -632,6 +648,19 @@ run_scale_phase() {
     local _target=$(( _cur + NODE_CHURN_DELTA ))
     OP_INDEX=$(( OP_INDEX + 1 ))
     log "cycle ${_c}/${NODE_CHURN_CYCLES} op#${OP_INDEX} scale_up: ${_cur} → ${_target}"
+    # Build 67170 lesson: `az aks nodepool scale` returns sync to the CLI
+    # but the underlying managed-cluster RP operation continues async.
+    # Issuing the next nodepool scale while provisioningState=Updating
+    # triggers OperationNotAllowed. Always wait for Succeeded first.
+    if ! wait_vmss_succeeded "$NODE_CHURN_OP_TIMEOUT_SECONDS"; then
+      err "scale phase: provisioningState != Succeeded before scale_up op#${OP_INDEX}; aborting cycle"
+      CIRCUIT_BROKEN=true
+      SCENARIO_VALID=false
+      debug_dump "PRE-OP wait_vmss_succeeded timeout before scale_up op#${OP_INDEX}"
+      break
+    fi
+    local _pre_state
+    _pre_state=$(snapshot_node_state)
     local _t0=$(date +%s)
     local _err=""
     local _ok=true
@@ -655,7 +684,9 @@ run_scale_phase() {
     local _ncount
     _ncount=$(observe_node_count)
     [ -z "$_ncount" ] && _ncount=0
-    record_op "$OP_INDEX" "scale_up" "$_t0" "$_t1" "$_ok" "$_ncount" '{}' '{}' "$_err"
+    local _post_state
+    _post_state=$(snapshot_node_state)
+    record_op "$OP_INDEX" "scale_up" "$_t0" "$_t1" "$_ok" "$_ncount" "$_pre_state" "$_post_state" "$_err"
     [ "$_ok" = true ] && _cur="$_target"
     sleep "$NODE_CHURN_SETTLE_SECONDS"
 
@@ -667,6 +698,14 @@ run_scale_phase() {
     if [ "$_target" -lt 1 ]; then _target=1; fi
     OP_INDEX=$(( OP_INDEX + 1 ))
     log "cycle ${_c}/${NODE_CHURN_CYCLES} op#${OP_INDEX} scale_down: ${_cur} → ${_target}"
+    if ! wait_vmss_succeeded "$NODE_CHURN_OP_TIMEOUT_SECONDS"; then
+      err "scale phase: provisioningState != Succeeded before scale_down op#${OP_INDEX}; aborting cycle"
+      CIRCUIT_BROKEN=true
+      SCENARIO_VALID=false
+      debug_dump "PRE-OP wait_vmss_succeeded timeout before scale_down op#${OP_INDEX}"
+      break
+    fi
+    _pre_state=$(snapshot_node_state)
     _t0=$(date +%s)
     _err=""
     _ok=true
@@ -688,7 +727,8 @@ run_scale_phase() {
     _t1=$(date +%s)
     _ncount=$(observe_node_count)
     [ -z "$_ncount" ] && _ncount=0
-    record_op "$OP_INDEX" "scale_down" "$_t0" "$_t1" "$_ok" "$_ncount" '{}' '{}' "$_err"
+    _post_state=$(snapshot_node_state)
+    record_op "$OP_INDEX" "scale_down" "$_t0" "$_t1" "$_ok" "$_ncount" "$_pre_state" "$_post_state" "$_err"
     [ "$_ok" = true ] && _cur="$_target"
     sleep "$NODE_CHURN_SETTLE_SECONDS"
   done
@@ -811,6 +851,14 @@ run_replace_phase() {
   # ---- 3. Delete selected VMSS instances in a single batched call ----
   OP_INDEX=$(( OP_INDEX + 1 ))
   log "op#${OP_INDEX} replace_delete: deleting VMSS instances [${_instance_ids_csv}]"
+  # Wait for AKS to settle before issuing the next RP op (build 67170 race fix).
+  if ! wait_vmss_succeeded "$NODE_CHURN_OP_TIMEOUT_SECONDS"; then
+    err "replace phase: provisioningState != Succeeded before replace_delete; tripping circuit breaker"
+    CIRCUIT_BROKEN=true
+    SCENARIO_VALID=false
+    debug_dump "PRE-OP wait_vmss_succeeded timeout before replace_delete op#${OP_INDEX}"
+    return
+  fi
   local _t0=$(date +%s)
   local _err=""
   local _ok=true
@@ -850,6 +898,13 @@ run_replace_phase() {
   # IP-churn signal the spec asks for.
   OP_INDEX=$(( OP_INDEX + 1 ))
   log "op#${OP_INDEX} replace_refill: az aks nodepool scale → ${ORIGINAL_NODE_COUNT} (re-add ${NODE_REPLACE_BATCH_SIZE} replacement(s))"
+  if ! wait_vmss_succeeded "$NODE_CHURN_OP_TIMEOUT_SECONDS"; then
+    err "replace phase: provisioningState != Succeeded before replace_refill; tripping circuit breaker"
+    CIRCUIT_BROKEN=true
+    SCENARIO_VALID=false
+    debug_dump "PRE-OP wait_vmss_succeeded timeout before replace_refill op#${OP_INDEX}"
+    return
+  fi
   _t0=$(date +%s)
   _err=""
   _ok=true
