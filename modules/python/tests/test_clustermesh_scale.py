@@ -1428,6 +1428,10 @@ class TestMainArgumentParsing(unittest.TestCase):
             node_churn_combined_duration_seconds=3300,
             node_replace_batch_size=10,
             node_churn_ready_timeout_seconds=300,
+            saturation_qps_list="20,40,80,160",
+            saturation_restarts_list="1,2,3,4",
+            saturation_rung_duration_seconds=180,
+            saturation_settle_seconds=60,
         )
 
     @patch.object(clustermesh_scale_module, "execute_clusterloader2")
@@ -1499,6 +1503,8 @@ class TestMainArgumentParsing(unittest.TestCase):
             kill_duration_seconds=0,
             kill_interval_seconds=0,
             kill_batch=0,
+            saturation_qps_list="",
+            saturation_restarts_list="",
         )
 
     @patch.object(clustermesh_scale_module, "execute_parallel")
@@ -1903,6 +1909,491 @@ class TestExecuteParallel(unittest.TestCase):
             self.assertEqual(len(_FakePopen.instances), 2)
         finally:
             os.remove(cf)
+
+
+# ============================================================================
+# Phase 4b — Scenario #6 (Upper Bound / Saturation) tests
+# ============================================================================
+
+
+SATURATION_THRESHOLDS = clustermesh_scale_module.SATURATION_THRESHOLDS
+SATURATION_CLASSIFIER_VERSION = clustermesh_scale_module.SATURATION_CLASSIFIER_VERSION
+
+
+def _write_metric_file(report_dir, identifier, suffix, metrics):
+    """Write a CL2-shaped GenericPrometheusQuery JSON.
+
+    File pattern matches what CL2 emits at gather time:
+    GenericPrometheusQuery_<Identifier><suffix>_<group>_<timestamp>.json
+    """
+    fname = (
+        f"GenericPrometheusQuery_{identifier}{suffix}_"
+        f"saturation-test_2026-05-14T00:00:00Z.json"
+    )
+    path = os.path.join(report_dir, fname)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump({
+            "version": "v1",
+            "dataItems": [
+                {"labels": {"Metric": label}, "data": {"value": value}}
+                for label, value in metrics.items()
+            ],
+        }, f)
+    return path
+
+
+class TestConfigureSaturationKnobs(unittest.TestCase):
+    """Phase 4b — Scenario #6 saturation overrides flow through
+    configure_clusterloader2 and land in the CL2 overrides file with the
+    expected CL2_SATURATION_* keys.
+    """
+
+    def test_saturation_defaults_emitted(self):
+        with tempfile.NamedTemporaryFile(delete=False, mode="w+", encoding="utf-8") as tmp:
+            tmp_path = tmp.name
+        try:
+            configure_clusterloader2(
+                namespaces=1,
+                deployments_per_namespace=1,
+                replicas_per_deployment=1,
+                operation_timeout="15m",
+                override_file=tmp_path,
+            )
+            with open(tmp_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            self.assertIn('CL2_SATURATION_QPS_LIST: "20,40,80,160"', content)
+            self.assertIn('CL2_SATURATION_RESTARTS_LIST: "1,2,3,4"', content)
+            self.assertIn("CL2_SATURATION_RUNG_DURATION_SECONDS: 180", content)
+            self.assertIn("CL2_SATURATION_SETTLE_SECONDS: 60", content)
+        finally:
+            os.remove(tmp_path)
+
+    def test_saturation_overrides_passthrough(self):
+        with tempfile.NamedTemporaryFile(delete=False, mode="w+", encoding="utf-8") as tmp:
+            tmp_path = tmp.name
+        try:
+            configure_clusterloader2(
+                namespaces=1,
+                deployments_per_namespace=1,
+                replicas_per_deployment=1,
+                operation_timeout="15m",
+                override_file=tmp_path,
+                saturation_qps_list="50,100,200,400,800",
+                saturation_restarts_list="1,1,2,3,5",
+                saturation_rung_duration_seconds=240,
+                saturation_settle_seconds=90,
+            )
+            with open(tmp_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            self.assertIn('CL2_SATURATION_QPS_LIST: "50,100,200,400,800"', content)
+            self.assertIn('CL2_SATURATION_RESTARTS_LIST: "1,1,2,3,5"', content)
+            self.assertIn("CL2_SATURATION_RUNG_DURATION_SECONDS: 240", content)
+            self.assertIn("CL2_SATURATION_SETTLE_SECONDS: 90", content)
+        finally:
+            os.remove(tmp_path)
+
+    def test_saturation_classifier_constants_exposed(self):
+        """SATURATION_THRESHOLDS + SATURATION_CLASSIFIER_VERSION must be
+        importable so dashboards (and these tests) can reference them. If
+        the schema changes, the version string must change too."""
+        self.assertEqual(SATURATION_CLASSIFIER_VERSION, "saturation-v1")
+        for k in (
+            "latency_p99_ms", "queue_size_perc99", "apiserver_max_cpu_cores",
+            "mesh_failure_rate_max", "etcd_commit_p99_ms",
+        ):
+            self.assertIn(k, SATURATION_THRESHOLDS)
+            self.assertGreater(SATURATION_THRESHOLDS[k], 0)
+
+
+class TestSaturationClassifier(unittest.TestCase):
+    """Phase 4b — Scenario #6 classifier emits per-rung verdicts +
+    per-cluster summary rows. Synthetic per-rung mock data exercises
+    each verdict path.
+    """
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.report_dir = os.path.join(self.tmpdir, "mesh-1")
+        shutil.copytree(os.path.join(MOCK_REPORT_ROOT, "mesh-1"), self.report_dir)
+        self.result_file = tempfile.mktemp(suffix=".jsonl")
+
+    def tearDown(self):
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+        if os.path.exists(self.result_file):
+            os.remove(self.result_file)
+
+    def _write_clean_rung(self, rung):
+        suffix = f"Rung{rung}"
+        _write_metric_file(
+            self.report_dir, "ClusterMeshKvstoreOperationDuration",
+            suffix, {"Perc99": 0.020},
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMeshKvstoreSyncQueueSize",
+            suffix, {"Max": 5, "Perc99": 3},
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMeshApiserverPodCPU",
+            suffix, {"PerPodMax": 0.3, "TotalMax": 0.3, "TotalAvg": 0.2},
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMeshRemoteClusterFailureRate",
+            suffix, {"Max": 0.01},
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMeshEtcdBackendWriteDuration",
+            suffix, {"Perc99": 0.005},
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMeshKvstoreEventsRate",
+            suffix, {"Perc99": 15},
+        )
+
+    def _write_latency_tripped_rung(self, rung):
+        suffix = f"Rung{rung}"
+        _write_metric_file(
+            self.report_dir, "ClusterMeshKvstoreOperationDuration",
+            suffix, {"Perc99": 0.900},
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMeshKvstoreSyncQueueSize",
+            suffix, {"Max": 10, "Perc99": 5},
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMeshApiserverPodCPU",
+            suffix, {"PerPodMax": 0.4, "TotalMax": 0.4, "TotalAvg": 0.3},
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMeshRemoteClusterFailureRate",
+            suffix, {"Max": 0.02},
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMeshEtcdBackendWriteDuration",
+            suffix, {"Perc99": 0.010},
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMeshKvstoreEventsRate",
+            suffix, {"Perc99": 50},
+        )
+
+    def _write_queue_unbounded_rung(self, rung):
+        suffix = f"Rung{rung}"
+        _write_metric_file(
+            self.report_dir, "ClusterMeshKvstoreOperationDuration",
+            suffix, {"Perc99": 0.100},
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMeshKvstoreSyncQueueSize",
+            suffix, {"Max": 8000, "Perc99": 5000},
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMeshApiserverPodCPU",
+            suffix, {"PerPodMax": 0.5, "TotalMax": 0.5, "TotalAvg": 0.4},
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMeshRemoteClusterFailureRate",
+            suffix, {"Max": 0.02},
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMeshEtcdBackendWriteDuration",
+            suffix, {"Perc99": 0.020},
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMeshKvstoreEventsRate",
+            suffix, {"Perc99": 200},
+        )
+
+    def _write_cpu_exhaust_rung(self, rung):
+        suffix = f"Rung{rung}"
+        _write_metric_file(
+            self.report_dir, "ClusterMeshKvstoreOperationDuration",
+            suffix, {"Perc99": 0.200},
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMeshKvstoreSyncQueueSize",
+            suffix, {"Max": 50, "Perc99": 30},
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMeshApiserverPodCPU",
+            suffix, {"PerPodMax": 2.5, "TotalMax": 2.5, "TotalAvg": 2.0},
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMeshRemoteClusterFailureRate",
+            suffix, {"Max": 0.05},
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMeshEtcdBackendWriteDuration",
+            suffix, {"Perc99": 0.050},
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMeshKvstoreEventsRate",
+            suffix, {"Perc99": 80},
+        )
+
+    def _run_collect(self, qps_list, restarts_list=None):
+        if restarts_list is None:
+            restarts_list = ",".join(["1"] * len(qps_list.split(",")))
+        collect_clusterloader2(
+            cl2_report_dir=self.report_dir,
+            cloud_info="",
+            run_id="sat-test",
+            run_url="",
+            result_file=self.result_file,
+            test_type="upper-bound",
+            start_timestamp="2026-05-14T00:00:00Z",
+            cluster_name="mesh-1",
+            cluster_count=2,
+            mesh_size=2,
+            namespaces=5,
+            deployments_per_namespace=4,
+            replicas_per_deployment=10,
+            trigger_reason="Manual",
+            saturation_qps_list=qps_list,
+            saturation_restarts_list=restarts_list,
+        )
+        with open(self.result_file, "r", encoding="utf-8") as f:
+            return [json.loads(l) for l in f.read().strip().split("\n") if l]
+
+    def test_classifier_no_op_when_qps_list_empty(self):
+        """Non-upper-bound runs leave saturation_qps_list empty → no
+        SaturationRung / SaturationSummary rows."""
+        collect_clusterloader2(
+            cl2_report_dir=self.report_dir,
+            cloud_info="",
+            run_id="sat-noop",
+            run_url="",
+            result_file=self.result_file,
+            test_type="event-throughput",
+            start_timestamp="2026-05-14T00:00:00Z",
+            cluster_name="mesh-1",
+            cluster_count=2,
+            mesh_size=2,
+            namespaces=5,
+            deployments_per_namespace=4,
+            replicas_per_deployment=10,
+            trigger_reason="Manual",
+        )
+        with open(self.result_file, "r", encoding="utf-8") as f:
+            lines = [json.loads(l) for l in f.read().strip().split("\n") if l]
+        rungs = [r for r in lines if r.get("measurement") == "SaturationRung"]
+        summaries = [r for r in lines if r.get("measurement") == "SaturationSummary"]
+        self.assertEqual(len(rungs), 0)
+        self.assertEqual(len(summaries), 0)
+
+    def test_all_clean_rungs_max_clean_qps_is_highest(self):
+        for r in range(3):
+            self._write_clean_rung(r)
+        lines = self._run_collect("20,40,80")
+        rungs = sorted(
+            [r for r in lines if r.get("measurement") == "SaturationRung"],
+            key=lambda r: r["result"]["data"]["rung_index"],
+        )
+        summary = [r for r in lines if r.get("measurement") == "SaturationSummary"]
+        self.assertEqual(len(rungs), 3)
+        self.assertEqual(len(summary), 1)
+        for r in rungs:
+            self.assertEqual(r["result"]["data"]["verdict"], "clean")
+            self.assertTrue(r["result"]["data"]["rung_completed"])
+            self.assertEqual(r["result"]["data"]["measurement_missing"], [])
+        s = summary[0]["result"]["data"]
+        self.assertEqual(s["max_clean_qps"], 80)
+        self.assertEqual(s["rungs_completed"], 3)
+        self.assertEqual(s["rungs_configured"], 3)
+        self.assertIsNone(s["first_failure_rung_index"])
+        self.assertIsNone(s["first_failure_mode"])
+        self.assertEqual(s["classifier_version"], SATURATION_CLASSIFIER_VERSION)
+
+    def test_latency_spike_verdict(self):
+        self._write_clean_rung(0)
+        self._write_latency_tripped_rung(1)
+        lines = self._run_collect("20,40")
+        rungs = sorted(
+            [r for r in lines if r.get("measurement") == "SaturationRung"],
+            key=lambda r: r["result"]["data"]["rung_index"],
+        )
+        self.assertEqual(rungs[0]["result"]["data"]["verdict"], "clean")
+        self.assertEqual(rungs[1]["result"]["data"]["verdict"], "latency_spike")
+        self.assertAlmostEqual(
+            rungs[1]["result"]["data"]["dominant_signal_ratio"], 1.8, places=2,
+        )
+        summary = [r for r in lines if r.get("measurement") == "SaturationSummary"][0]
+        s = summary["result"]["data"]
+        self.assertEqual(s["max_clean_qps"], 20)
+        self.assertEqual(s["first_failure_rung_index"], 1)
+        self.assertEqual(s["first_failure_qps"], 40)
+        self.assertEqual(s["first_failure_mode"], "latency_spike")
+        self.assertIsNone(s["second_failure_mode"])
+
+    def test_queue_unbounded_verdict(self):
+        self._write_clean_rung(0)
+        self._write_queue_unbounded_rung(1)
+        lines = self._run_collect("20,40")
+        rung1 = next(
+            r for r in lines
+            if r.get("measurement") == "SaturationRung"
+            and r["result"]["data"]["rung_index"] == 1
+        )
+        self.assertEqual(rung1["result"]["data"]["verdict"], "queue_unbounded")
+        self.assertAlmostEqual(
+            rung1["result"]["data"]["dominant_signal_ratio"], 5.0, places=2,
+        )
+
+    def test_cpu_exhaust_verdict(self):
+        self._write_clean_rung(0)
+        self._write_cpu_exhaust_rung(1)
+        lines = self._run_collect("20,40")
+        rung1 = next(
+            r for r in lines
+            if r.get("measurement") == "SaturationRung"
+            and r["result"]["data"]["rung_index"] == 1
+        )
+        self.assertEqual(rung1["result"]["data"]["verdict"], "cpu_exhaust")
+        self.assertAlmostEqual(
+            rung1["result"]["data"]["dominant_signal_ratio"], 2.5 / 1.5,
+            places=2,
+        )
+
+    def test_second_failure_mode_tracking(self):
+        """Rung 0 clean, rung 1 latency, rung 2 cpu_exhaust → first=latency_spike,
+        second=cpu_exhaust. Same-mode subsequent failures don't overwrite second."""
+        self._write_clean_rung(0)
+        self._write_latency_tripped_rung(1)
+        self._write_cpu_exhaust_rung(2)
+        lines = self._run_collect("20,40,80")
+        summary = [r for r in lines if r.get("measurement") == "SaturationSummary"][0]
+        s = summary["result"]["data"]
+        self.assertEqual(s["first_failure_mode"], "latency_spike")
+        self.assertEqual(s["second_failure_mode"], "cpu_exhaust")
+        self.assertEqual(s["first_failure_qps"], 40)
+
+    def test_max_clean_qps_is_contiguous_prefix(self):
+        """If a non-clean rung lands then a later 'clean' rung shows up,
+        max_clean_qps does NOT extend past the first failure."""
+        self._write_clean_rung(0)
+        self._write_clean_rung(1)
+        self._write_latency_tripped_rung(2)
+        self._write_clean_rung(3)
+        lines = self._run_collect("20,40,80,160")
+        summary = [r for r in lines if r.get("measurement") == "SaturationSummary"][0]
+        s = summary["result"]["data"]
+        self.assertEqual(s["max_clean_qps"], 40)
+        self.assertEqual(s["first_failure_rung_index"], 2)
+        self.assertEqual(s["first_failure_mode"], "latency_spike")
+
+    def test_missing_measurements_flag_incomplete_rung(self):
+        """If a rung's measurement files are missing, measurement_missing
+        lists the gaps. Latency present → rung_completed still true."""
+        _write_metric_file(
+            self.report_dir, "ClusterMeshKvstoreOperationDuration",
+            "Rung0", {"Perc99": 0.020},
+        )
+        lines = self._run_collect("20")
+        rung = next(r for r in lines if r.get("measurement") == "SaturationRung")
+        d = rung["result"]["data"]
+        self.assertTrue(d["rung_completed"])
+        self.assertIn("queue_size_perc99", d["measurement_missing"])
+        self.assertIn("apiserver_max_cpu_cores", d["measurement_missing"])
+        self.assertIn("mesh_failure_rate_max", d["measurement_missing"])
+        self.assertIn("etcd_commit_p99_ms", d["measurement_missing"])
+
+    def test_rung_completed_false_when_latency_missing(self):
+        """Latency is the gating signal — without it, rung is incomplete
+        regardless of how many other signals landed."""
+        _write_metric_file(
+            self.report_dir, "ClusterMeshKvstoreSyncQueueSize",
+            "Rung0", {"Max": 5, "Perc99": 3},
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMeshApiserverPodCPU",
+            "Rung0", {"PerPodMax": 0.3, "TotalMax": 0.3, "TotalAvg": 0.2},
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMeshRemoteClusterFailureRate",
+            "Rung0", {"Max": 0.01},
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMeshEtcdBackendWriteDuration",
+            "Rung0", {"Perc99": 0.005},
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMeshKvstoreEventsRate",
+            "Rung0", {"Perc99": 15},
+        )
+        lines = self._run_collect("20")
+        rung = next(r for r in lines if r.get("measurement") == "SaturationRung")
+        self.assertFalse(rung["result"]["data"]["rung_completed"])
+        self.assertIn("latency_p99_ms", rung["result"]["data"]["measurement_missing"])
+        summary = [r for r in lines if r.get("measurement") == "SaturationSummary"][0]
+        self.assertEqual(summary["result"]["data"]["rungs_completed"], 0)
+
+    def test_summary_carries_classifier_metadata(self):
+        """SaturationSummary records classifier_version + thresholds so
+        dashboards can recompute verdicts post-hoc."""
+        self._write_clean_rung(0)
+        lines = self._run_collect("20")
+        summary = [r for r in lines if r.get("measurement") == "SaturationSummary"][0]
+        s = summary["result"]["data"]
+        self.assertEqual(s["classifier_version"], SATURATION_CLASSIFIER_VERSION)
+        self.assertEqual(s["thresholds"], SATURATION_THRESHOLDS)
+        self.assertEqual(s["configured_qps_list"], [20])
+        self.assertEqual(s["configured_restarts_list"], [1])
+
+    def test_rung_row_carries_raw_signal_values(self):
+        """SaturationRung records raw signal values + all per-criterion
+        ratios so the classifier can be re-run post-hoc at different
+        thresholds without re-collecting from CL2."""
+        self._write_latency_tripped_rung(0)
+        lines = self._run_collect("20")
+        rung = next(r for r in lines if r.get("measurement") == "SaturationRung")
+        d = rung["result"]["data"]
+        self.assertAlmostEqual(d["signals"]["latency_p99_ms"], 900.0, places=1)
+        self.assertAlmostEqual(d["signals"]["apiserver_max_cpu_cores"], 0.4, places=2)
+        self.assertIn("latency_spike", d["all_verdicts"])
+        self.assertIn("cpu_exhaust", d["all_verdicts"])
+
+    def test_malformed_qps_list_skips_classifier_gracefully(self):
+        """Malformed CL2_SATURATION_QPS_LIST should not crash collect; the
+        classifier logs a warning and emits zero saturation rows."""
+        self._write_latency_tripped_rung(0)
+        collect_clusterloader2(
+            cl2_report_dir=self.report_dir,
+            cloud_info="",
+            run_id="sat-malformed",
+            run_url="",
+            result_file=self.result_file,
+            test_type="upper-bound",
+            start_timestamp="2026-05-14T00:00:00Z",
+            cluster_name="mesh-1",
+            cluster_count=2,
+            mesh_size=2,
+            namespaces=5,
+            deployments_per_namespace=4,
+            replicas_per_deployment=10,
+            trigger_reason="Manual",
+            saturation_qps_list="20,not-a-number,80",
+            saturation_restarts_list="1,2,3",
+        )
+        with open(self.result_file, "r", encoding="utf-8") as f:
+            lines = [json.loads(l) for l in f.read().strip().split("\n") if l]
+        rungs = [r for r in lines if r.get("measurement") == "SaturationRung"]
+        summaries = [r for r in lines if r.get("measurement") == "SaturationSummary"]
+        self.assertEqual(len(rungs), 0)
+        self.assertEqual(len(summaries), 0)
+
+    def test_restarts_list_padded_when_shorter_than_qps(self):
+        """If restarts_list is shorter than qps_list, missing entries
+        default to 1 so the classifier doesn't crash."""
+        self._write_clean_rung(0)
+        self._write_clean_rung(1)
+        self._write_clean_rung(2)
+        lines = self._run_collect("20,40,80", restarts_list="1,2")
+        rungs = sorted(
+            [r for r in lines if r.get("measurement") == "SaturationRung"],
+            key=lambda r: r["result"]["data"]["rung_index"],
+        )
+        self.assertEqual(rungs[0]["result"]["data"]["configured_restarts"], 1)
+        self.assertEqual(rungs[1]["result"]["data"]["configured_restarts"], 2)
+        self.assertEqual(rungs[2]["result"]["data"]["configured_restarts"], 1)
 
 
 if __name__ == "__main__":

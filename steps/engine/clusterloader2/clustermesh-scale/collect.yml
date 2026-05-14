@@ -42,6 +42,13 @@ steps:
       # values; peer rows carry zeros even though the share-infra scenario
       # was configured with churn knobs).
       export CL2_APISERVER_KILL_TARGET_CONTEXT="${APISERVER_KILL_TARGET_CONTEXT:-clustermesh-1}"
+      # Phase 4b — Scenario #6 (Upper Bound / Saturation) collect knobs.
+      # Default to empty string so non-saturation test_types skip the
+      # classifier entirely (zero overhead). For upper-bound test_types,
+      # the matrix sets these → scale.py collect emits SaturationRung +
+      # SaturationSummary rows tagging which signal tripped per rung.
+      export CL2_SATURATION_QPS_LIST="${SATURATION_QPS_LIST:-}"
+      export CL2_SATURATION_RESTARTS_LIST="${SATURATION_RESTARTS_LIST:-}"
 
       clusters=$(cat "$HOME/.kube/clustermesh-clusters.json")
       cluster_count=$(echo "$clusters" | jq 'length')
@@ -67,9 +74,12 @@ steps:
       #   $9 kill_interval_seconds value
       #   $10 kill_batch value
       #   $11 scenario_start_timestamp value
+      #   $12 saturation_qps_list value ("" for non-saturation scenarios)
+      #   $13 saturation_restarts_list value ("" for non-saturation scenarios)
       collect_one() {
         local _scen="$1" _role="$2" _report="$3" _out="$4"
         local _cc="$5" _cu="$6" _cd="$7" _kds="$8" _kis="$9" _kb="${10}" _st="${11}"
+        local _sqps="${12:-}" _sres="${13:-}"
         if [ ! -d "$_report" ]; then
           echo "##vso[task.logissue type=warning;] $_scen/$_role: missing report dir $_report, skipping"
           return 1
@@ -99,6 +109,8 @@ steps:
           --kill-duration-seconds "$_kds" \
           --kill-interval-seconds "$_kis" \
           --kill-batch "$_kb" \
+          --saturation-qps-list "$_sqps" \
+          --saturation-restarts-list "$_sres" \
           --trigger_reason "${TRIGGER_REASON:-}" || _rc=$?
         if [ "$_rc" -ne 0 ]; then
           echo "##vso[task.logissue type=warning;] $_scen/$_role: scale.py collect exited $_rc; skipping aggregation"
@@ -122,6 +134,10 @@ steps:
       # is whitespace-IFS and bash collapses consecutive tabs into a single
       # delimiter — non-churn scenarios (which had empty cu/cd fields) ended
       # up with shifted values. Direct assignment avoids that pitfall.
+      #
+      # Also sets sqps/sres for upper-bound (Scenario #6). These vars are
+      # passed to collect_one as $12/$13; saturation classifier in scale.py
+      # collect skips when sqps is empty (non-upper-bound scenarios).
       set_churn_args_for_scenario() {
         local _scen="$1" _st="$2"
         case "$_scen" in
@@ -132,6 +148,18 @@ steps:
             kds="$CL2_KILL_DURATION_SECONDS"
             kis="$CL2_KILL_INTERVAL_SECONDS"
             kb="$CL2_KILL_BATCH"
+            sqps=""
+            sres=""
+            ;;
+          upper-bound)
+            cc=0
+            cu=""
+            cd_v=""
+            kds=0
+            kis=0
+            kb=0
+            sqps="$CL2_SATURATION_QPS_LIST"
+            sres="$CL2_SATURATION_RESTARTS_LIST"
             ;;
           *)
             cc=0
@@ -140,6 +168,8 @@ steps:
             kds=0
             kis=0
             kb=0
+            sqps=""
+            sres=""
             ;;
         esac
         st="$_st"
@@ -183,7 +213,8 @@ steps:
               kb_row="$CL2_KILL_BATCH"
             fi
             if collect_one "$SCENARIO" "$role" "$report_dir" "$per_cluster_result" \
-                "$cc_row" "$cu_row" "$cd_row" "$kds_row" "$kis_row" "$kb_row" "$st"; then
+                "$cc_row" "$cu_row" "$cd_row" "$kds_row" "$kis_row" "$kb_row" "$st" \
+                "$sqps" "$sres"; then
               cat "$per_cluster_result" >> "$TEST_RESULTS_FILE"
             fi
           done
@@ -196,7 +227,8 @@ steps:
           report_dir="${CL2_REPORT_DIR}/${role}"
           per_cluster_result="${TEST_RESULTS_FILE%.*}.${role}.${TEST_RESULTS_FILE##*.}"
           if collect_one "$TEST_TYPE" "$role" "$report_dir" "$per_cluster_result" \
-              "$cc" "$cu" "$cd_v" "$kds" "$kis" "$kb" "$st"; then
+              "$cc" "$cu" "$cd_v" "$kds" "$kis" "$kb" "$st" \
+              "$sqps" "$sres"; then
             cat "$per_cluster_result" >> "$TEST_RESULTS_FILE"
           fi
         done

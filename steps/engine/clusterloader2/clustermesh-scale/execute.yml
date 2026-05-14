@@ -73,6 +73,15 @@ steps:
       export CL2_NODE_CHURN_COMBINED_DURATION_SECONDS="${NODE_CHURN_COMBINED_DURATION_SECONDS:-3300}"
       export CL2_NODE_REPLACE_BATCH_SIZE="${NODE_REPLACE_BATCH_SIZE:-10}"
       export CL2_NODE_CHURN_READY_TIMEOUT_SECONDS="${NODE_CHURN_READY_TIMEOUT_SECONDS:-300}"
+      # Phase 4b — Scenario #6 (Upper Bound / Saturation) knobs.
+      # upper-bound.yaml consumes these via CL2's DefaultParam template
+      # func; non-saturation scenarios ignore them. Defaults mirror
+      # scale.py configure's defaults so a forgotten matrix var falls
+      # through to the documented 4-rung sweep at 20/40/80/160 QPS.
+      export CL2_SATURATION_QPS_LIST="${SATURATION_QPS_LIST:-20,40,80,160}"
+      export CL2_SATURATION_RESTARTS_LIST="${SATURATION_RESTARTS_LIST:-1,2,3,4}"
+      export CL2_SATURATION_RUNG_DURATION_SECONDS="${SATURATION_RUNG_DURATION_SECONDS:-180}"
+      export CL2_SATURATION_SETTLE_SECONDS="${SATURATION_SETTLE_SECONDS:-60}"
 
       # Same discovery pattern as topology/clustermesh-scale/validate-resources.yml.
       # We re-run it here rather than relying on a step variable so this engine
@@ -140,6 +149,10 @@ steps:
         --node-churn-combined-duration-seconds "$CL2_NODE_CHURN_COMBINED_DURATION_SECONDS" \
         --node-replace-batch-size "$CL2_NODE_REPLACE_BATCH_SIZE" \
         --node-churn-ready-timeout-seconds "$CL2_NODE_CHURN_READY_TIMEOUT_SECONDS" \
+        --saturation-qps-list "$CL2_SATURATION_QPS_LIST" \
+        --saturation-restarts-list "$CL2_SATURATION_RESTARTS_LIST" \
+        --saturation-rung-duration-seconds "$CL2_SATURATION_RUNG_DURATION_SECONDS" \
+        --saturation-settle-seconds "$CL2_SATURATION_SETTLE_SECONDS" \
         --cl2_override_file "${CL2_CONFIG_DIR}/overrides.yaml"
 
       # Phase 4a — pre-stage kubectl into the CL2 config dir so the
@@ -218,10 +231,21 @@ steps:
       #                       all clusters' CL2 sentinels to land before
       #                       node ops start — that's only possible if all
       #                       CL2's are running concurrently.
+      #   - upper-bound:      saturation testing measures per-cluster
+      #                       failure point under aggregate mesh load. If
+      #                       peers don't load concurrently, each cluster's
+      #                       reading understates the real saturation curve
+      #                       (mesh-wide propagation is a function of N×load,
+      #                       not load×1). Plus: the in-run rung loop is
+      #                       not coordinated across clusters — we accept
+      #                       that rung-r on cluster A may overlap rung-(r±1)
+      #                       on cluster B in wall-time; the per-rung
+      #                       suffix in measurement filenames keeps the
+      #                       data attribution clean.
       needs_mesh_wide_concurrency() {
         local _scen="$1"
         case "$_scen" in
-          isolation|node-churn-scale|node-churn-replace|node-churn-combined)
+          isolation|node-churn-scale|node-churn-replace|node-churn-combined|upper-bound)
             return 0
             ;;
         esac
@@ -235,6 +259,18 @@ steps:
       is_node_churn_scenario() {
         case "$1" in
           node-churn-scale|node-churn-replace|node-churn-combined) return 0 ;;
+        esac
+        return 1
+      }
+
+      # Scenario #6 (Upper Bound / Saturation) predicate. Used to gate the
+      # proactive failure-diag dump (runs unconditionally for upper-bound
+      # like for node-churn, NOT just on rc!=0). User direction 2026-05-14:
+      # be proactive about debug dumps until scenario is end-to-end green;
+      # remove the unconditional gate once the first n=2 + n=20 are clean.
+      is_upper_bound_scenario() {
+        case "$1" in
+          upper-bound) return 0 ;;
         esac
         return 1
       }
@@ -420,6 +456,63 @@ steps:
               echo ""
             done
           fi
+          if is_upper_bound_scenario "$_scen"; then
+            echo "-- upper-bound scenario state --"
+            echo "-- CL2_SATURATION_* env (as passed into CL2) --"
+            env | grep -E '^CL2_SATURATION_' 2>&1 || echo "(no CL2_SATURATION_* env vars)"
+            echo ""
+            echo "-- rendered overrides.yaml (CL2 sees this — verifies scale.py configure landed the saturation knobs) --"
+            if [ -f "${CL2_CONFIG_DIR}/overrides.yaml" ]; then
+              grep -E '^CL2_(SATURATION|NAMESPACES|DEPLOYMENTS|REPLICAS)' "${CL2_CONFIG_DIR}/overrides.yaml" 2>&1 || true
+            else
+              echo "(${CL2_CONFIG_DIR}/overrides.yaml does not exist)"
+            fi
+            echo ""
+            # Per-cluster: which rung measurement files made it to disk?
+            # If a rung is missing entirely, the classifier flags rung_completed=false;
+            # this dump tells postmortem WHY (e.g. CL2 timed out mid-rung,
+            # Prometheus pod was Pending, restart-burst hung).
+            for _row in $(echo "$_clusters_with_kc" | jq -c '.[]'); do
+              local _role _name _kc
+              _role=$(echo "$_row" | jq -r '.role')
+              _name=$(echo "$_row" | jq -r '.name')
+              _kc=$(echo "$_row" | jq -r '.kubeconfig')
+              # Single-scenario mode: report dir is <CL2_REPORT_DIR>/<role>.
+              # Share-infra mode: <CL2_REPORT_DIR>/<scenario>/<role>. Try both.
+              local _report_dir="${CL2_REPORT_DIR}/${_scen}/${_role}"
+              if [ ! -d "$_report_dir" ]; then
+                _report_dir="${CL2_REPORT_DIR}/${_role}"
+              fi
+              echo "--- cluster ${_role} (${_name}) report dir: ${_report_dir} ---"
+              echo "-- per-rung measurement file counts --"
+              for _rung in 0 1 2 3 4 5 6 7; do
+                local _count
+                _count=$(ls "${_report_dir}"/GenericPrometheusQuery_*Rung${_rung}_*.json 2>/dev/null | wc -l || echo 0)
+                if [ "$_count" -gt 0 ]; then
+                  echo "  Rung${_rung}: ${_count} measurement files"
+                fi
+              done
+              echo "-- junit.xml (CL2 phase pass/fail per rung) --"
+              if [ -f "${_report_dir}/junit.xml" ]; then
+                head -200 "${_report_dir}/junit.xml" 2>&1 || true
+              else
+                echo "(no junit.xml — CL2 likely failed before gathering measurements)"
+              fi
+              echo "-- monitoring/prometheus pod status (saturation can OOM Prom) --"
+              if [ -f "$_kc" ]; then
+                KUBECONFIG="$_kc" kubectl --context "$_name" -n monitoring get pods \
+                  -o wide 2>&1 | head -20 || echo "(kubectl get pods -n monitoring failed)"
+                echo "-- clustermesh-apiserver pod resource state (OOM/Restart signals) --"
+                KUBECONFIG="$_kc" kubectl --context "$_name" -n kube-system describe pod \
+                  -l 'k8s-app=clustermesh-apiserver' 2>&1 \
+                  | grep -E 'OOMKilled|Last State|Restart Count|Ready:' \
+                  | head -30 || true
+              else
+                echo "(kubeconfig missing: ${_kc})"
+              fi
+              echo ""
+            done
+          fi
           echo "=== end scenario-failure-diag ==="
         } 2>&1 | tee -a "$_diag_log"
         echo "scenario-failure-diag: wrote ${_diag_log}"
@@ -522,9 +615,9 @@ steps:
           # Proactive failure debug dump (added 2026-05-14 after build 67114).
           # User direction: assume failure, keep debug logs persistent across
           # runs; remove only after green. Runs unconditionally for node-churn
-          # scenarios (failure cases need az/k8s state to triage); runs only
-          # on rc!=0 for other scenarios.
-          if is_node_churn_scenario "$SCENARIO" || [ "$scenario_rc" -ne 0 ]; then
+          # AND upper-bound scenarios (both have rich state worth dumping
+          # whether or not CL2 succeeded); runs only on rc!=0 for others.
+          if is_node_churn_scenario "$SCENARIO" || is_upper_bound_scenario "$SCENARIO" || [ "$scenario_rc" -ne 0 ]; then
             scenario_failure_diag "$SCENARIO" "$scenario_rc"
           fi
 
@@ -622,8 +715,10 @@ steps:
         --python-script-file "$PYTHON_SCRIPT_FILE" \
         --python-workdir "$(pwd)" || single_scenario_rc=$?
       wait_node_churner "$SINGLE_SCENARIO_BASENAME"
-      # Proactive failure debug dump for single-scenario mode too.
-      if is_node_churn_scenario "$SINGLE_SCENARIO_BASENAME" || [ "$single_scenario_rc" -ne 0 ]; then
+      # Proactive failure debug dump for single-scenario mode too. Run
+      # unconditionally for node-churn AND upper-bound (rich state worth
+      # dumping regardless of success); rc!=0 for everything else.
+      if is_node_churn_scenario "$SINGLE_SCENARIO_BASENAME" || is_upper_bound_scenario "$SINGLE_SCENARIO_BASENAME" || [ "$single_scenario_rc" -ne 0 ]; then
         scenario_failure_diag "$SINGLE_SCENARIO_BASENAME" "$single_scenario_rc"
       fi
       # In single-scenario prod mode we DON'T have a share-infra loop to

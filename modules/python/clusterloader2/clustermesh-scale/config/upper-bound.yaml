@@ -1,0 +1,326 @@
+name: clustermesh-upper-bound
+
+# Scale scenario #6: Upper Bound / Saturation Testing.
+#
+# Goal (scale testing.txt line 103-114): Find system limits safely.
+#   - Increasing clusters       → covered by the matrix (n2/n5/n10/n20
+#                                 entries each run this same CL2 config).
+#   - Increasing events per     → covered IN-RUN by ramping through N
+#     cluster                     "rungs" of progressively heavier load.
+#   - Record failure modes,     → scale.py collect's saturation classifier
+#     not just thresholds          tags each rung with the dominant signal
+#                                  ({clean, latency_spike, queue_unbounded,
+#                                   cpu_exhaust, mesh_failure_burst,
+#                                   etcd_tail}). See _emit_saturation_profile_rows.
+#
+# Per-rung structure (single CL2 invocation per cluster runs the full
+# ramp; bounded sweep, not adaptive stress-to-fail — see the rubber-duck
+# review notes in plan.md's Scenario #6 section):
+#
+#   For rung r in 0..N-1:
+#     1. Start measurements with suffix=Rung<r> (per-rung time window via
+#        CL2's %v placeholder; suffix namespaces the emitted JSONs so the
+#        Python collector can read them per-rung).
+#     2. Restart-burst the workload at TuningSet qps = qps_list[r], doing
+#        restarts_list[r] consecutive restart cycles. Each restart bumps a
+#        Deployment pod-template annotation, which triggers a rolling
+#        recreate of every replica → forces a flurry of endpoint/identity
+#        events through clustermesh-apiserver.
+#     3. Sleep rung_duration so the measurement window covers the burst
+#        AND the steady-state right after. CL2's gather queries (action:
+#        gather) substitute %v with the wall time since the matching
+#        action: start — so a longer rung_duration captures more of the
+#        post-burst tail.
+#     4. Gather measurements with suffix=Rung<r>.
+#     5. Sleep settle_duration before the next rung. The settle window is
+#        sized so kvstore queues from rung r drain before rung r+1 starts.
+#
+# After all rungs, delete the workload + PodMonitor.
+#
+# IMPORTANT design notes (don't change without re-reading rubber-duck
+# critique notes in plan.md):
+# - Single CL2 invocation per cluster, NOT N separate invocations. Keeps
+#   one Prometheus time-axis consistent across rungs; cross-rung
+#   comparison is cleaner; avoids 5× the workload-create-teardown cost.
+# - QPS alone doesn't drive kvstore events 1:1 — each rung also bumps
+#   `restartsPerRung` so cumulative events scale with rung index even
+#   when QPS saturates CL2's Deployment-apply rate. Both dials are
+#   driven by the matrix vars.
+# - The classifier verdict is computed at collect time from the per-rung
+#   measurement JSONs, NOT inside CL2. Raw signal values + thresholds +
+#   classifier_version are emitted alongside verdicts so dashboards can
+#   recompute verdicts post-hoc if thresholds need calibration.
+# - NOT share-infra-eligible in v1 — a tripped rung can leave queue/memory
+#   residue that would contaminate following scenarios. Standalone matrix
+#   entries only until baseline data justifies share-infra positioning.
+# - CL2's template engine has its OWN func map (see kubernetes/perf-tests
+#   clusterloader2/pkg/config/template_functions.go); sprig is NOT
+#   available. Use StringSplit, Loop, AddInt, MultiplyInt, SubtractInt,
+#   index, len. atoi is implicit — arithmetic funcs accept string args
+#   and parse via toFloat64.
+
+{{$namespaces := DefaultParam .CL2_NAMESPACES 5}}
+{{$deploymentsPerNamespace := DefaultParam .CL2_DEPLOYMENTS_PER_NAMESPACE 4}}
+{{$replicasPerDeployment := DefaultParam .CL2_REPLICAS_PER_DEPLOYMENT 10}}
+{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "20m"}}
+
+# Saturation knobs. SaturationQpsList is a comma-separated list of QPS
+# values, one per rung. SaturationRestartsList is the per-rung restart
+# count (length must match SaturationQpsList) — driven separately so
+# dashboards can distinguish "QPS axis" from "workload-amplitude axis".
+# Each rung lasts SaturationRungDurationSeconds + SaturationSettleSeconds.
+#
+# Defaults match scale.py's defaults so a forgotten matrix var falls
+# through to a safe-but-meaningful 4-rung sweep at 20/40/80/160 QPS with
+# 1/2/3/4 restarts per rung (4 rungs × 240s ≈ 16 min CL2 wall time).
+{{$saturationQpsListStr := DefaultParam .CL2_SATURATION_QPS_LIST "20,40,80,160"}}
+{{$saturationRestartsListStr := DefaultParam .CL2_SATURATION_RESTARTS_LIST "1,2,3,4"}}
+{{$saturationRungDurationSeconds := DefaultParam .CL2_SATURATION_RUNG_DURATION_SECONDS 180}}
+{{$saturationSettleSeconds := DefaultParam .CL2_SATURATION_SETTLE_SECONDS 60}}
+
+# Parse comma-separated strings into Go []string slices. StringSplit is
+# CL2's built-in. The arithmetic funcs (AddInt, MultiplyInt, etc.) accept
+# string args and parse them via toFloat64, so we can pass slice elements
+# directly without an atoi step.
+{{$qpsList := StringSplit $saturationQpsListStr}}
+{{$restartsList := StringSplit $saturationRestartsListStr}}
+
+namespace:
+  number: {{$namespaces}}
+  prefix: clustermesh-ub
+  deleteStaleNamespaces: true
+  deleteAutomanagedNamespaces: true
+  enableExistingNamespaces: false
+  deleteNamespaceTimeout: 20m
+
+tuningSets:
+  - name: Sequence
+    parallelismLimitedLoad:
+      parallelismLimit: 1
+  # Initial workload-create QPS is fixed at the first rung's QPS — every
+  # cluster brings the baseline workload up at the gentle rung-0 rate so
+  # the create-flurry doesn't itself trip saturation before the ramp
+  # starts. Saturation rungs use their own per-rung TuningSets defined
+  # below.
+  - name: WorkloadCreateQps
+    qpsLoad:
+      qps: {{index $qpsList 0}}
+  # One TuningSet per rung. CL2 template ranges over $qpsList and emits
+  # Rung0Qps, Rung1Qps, ... TuningSets that the workload module references
+  # by name via the matching $tuningSet param below.
+  {{range $i, $qps := $qpsList}}
+  - name: Rung{{$i}}Qps
+    qpsLoad:
+      qps: {{$qps}}
+  {{end}}
+
+steps:
+  # ----- ACNS namespace opt-in (CFP-39876) -----
+  # Identical to event-throughput.yaml — required for cross-cluster sync
+  # to fire at all. See plan.md note #14.
+  - name: Annotate workload namespaces for ACNS cross-cluster sync
+    measurements:
+      - Identifier: AnnotateNamespacesForGlobalSync
+        Method: Exec
+        Params:
+          streamOutput: true
+          timeout: 1m
+          command:
+          - bash
+          - /root/perf-tests/clusterloader2/config/annotate-namespaces.sh
+          - "{{$namespaces}}"
+          - "clustermesh-ub"
+
+  - module:
+      path: /modules/clustermesh.yaml
+      params:
+        actionName: create
+        tuningSet: WorkloadCreateQps
+
+  # ----- Baseline workload create -----
+  # Done OUTSIDE the rung loop so the create cost (which depends on
+  # cluster cold-start, image pulls, scheduling) isn't conflated with
+  # rung-0's restart-burst signal. After create, every rung exercises
+  # the same population of Deployments via restart bursts.
+  - module:
+      path: /modules/event-throughput-workload.yaml
+      params:
+        actionName: create
+        generation: 0
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        replicasPerDeployment: {{$replicasPerDeployment}}
+        tuningSet: WorkloadCreateQps
+        operationTimeout: {{$operationTimeout}}
+        phaseSuffix: Create
+
+  # 30s pre-rung settle: lets the create-flurry's residual kvstore traffic
+  # drain before rung 0 starts measuring. Without this, rung 0's baseline
+  # carries spillover from the create burst and looks artificially loaded.
+  - name: Pre-rung settle (drain create-flurry)
+    measurements:
+      - Identifier: PreRungSettle
+        Method: Sleep
+        Params:
+          duration: 30s
+
+  # ----- Saturation rung loop -----
+  # Each rung: start measurements with Rung<i> suffix → restart-burst the
+  # workload restartsList[i] times at qpsList[i] QPS → sleep rung duration
+  # so the gather window captures both burst and tail → gather measurements
+  # → settle before next rung.
+  #
+  # Restart generations are offset per rung by 1000*(rung+1) so the
+  # pod-template annotation values are strictly monotonic across rungs
+  # (avoids a rollout being skipped because the same generation was used
+  # in a prior rung).
+  {{range $i, $qps := $qpsList}}
+
+  # ===== Rung {{$i}} (qps={{$qps}}, restarts={{index $restartsList $i}}) =====
+  - module:
+      path: /modules/measurements/control-plane.yaml
+      params:
+        action: start
+        group: clustermesh-upper-bound-rung{{$i}}
+        suffix: Rung{{$i}}
+
+  - module:
+      path: /modules/measurements/cilium.yaml
+      params:
+        action: start
+        suffix: Rung{{$i}}
+
+  - module:
+      path: /modules/measurements/clustermesh-metrics.yaml
+      params:
+        action: start
+        suffix: Rung{{$i}}
+
+  - module:
+      path: /modules/measurements/clustermesh-throughput.yaml
+      params:
+        action: start
+        suffix: Rung{{$i}}
+
+  - module:
+      path: /modules/measurements/etcd-metrics.yaml
+      params:
+        action: start
+        suffix: Rung{{$i}}
+
+  - module:
+      path: /modules/measurements/pod-churn-stress.yaml
+      params:
+        action: start
+        suffix: Rung{{$i}}
+
+  # Rung {{$i}} workload: restart-burst the population N times. Each
+  # restart bumps the pod-template annotation to a unique generation so
+  # the rolling-recreate fires. Generation = 1000*(rung+1) + r so cross-
+  # rung values never collide.
+  {{range $r := Loop (index $restartsList $i)}}
+  - module:
+      path: /modules/event-throughput-workload.yaml
+      params:
+        actionName: restart
+        generation: {{AddInt (MultiplyInt 1000 (AddInt $i 1)) $r}}
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        replicasPerDeployment: {{$replicasPerDeployment}}
+        tuningSet: Rung{{$i}}Qps
+        operationTimeout: {{$operationTimeout}}
+        phaseSuffix: Rung{{$i}}Restart{{$r}}
+  {{end}}
+
+  # Rung-{{$i}} hold: keep the measurement window open after the burst so
+  # the gather queries capture peak + tail. CL2's %v in queries resolves
+  # to the wall time since the matching `start`, so this Sleep determines
+  # the measurement window width for rung {{$i}}.
+  - name: Rung {{$i}} hold (qps={{$qps}}, restarts={{index $restartsList $i}})
+    measurements:
+      - Identifier: SaturationRung{{$i}}Hold
+        Method: Sleep
+        Params:
+          duration: {{$saturationRungDurationSeconds}}s
+
+  # Gather rung-{{$i}} measurements. The suffix=Rung{{$i}} param threads
+  # through every GenericPrometheusQuery's Identifier and metricName so
+  # the emitted JSONs are uniquely named per rung. scale.py collect reads
+  # them back by matching the Rung<N> suffix.
+  - module:
+      path: /modules/measurements/control-plane.yaml
+      params:
+        action: gather
+        group: clustermesh-upper-bound-rung{{$i}}
+        suffix: Rung{{$i}}
+
+  - module:
+      path: /modules/measurements/cilium.yaml
+      params:
+        action: gather
+        suffix: Rung{{$i}}
+
+  - module:
+      path: /modules/measurements/clustermesh-metrics.yaml
+      params:
+        action: gather
+        suffix: Rung{{$i}}
+
+  - module:
+      path: /modules/measurements/clustermesh-throughput.yaml
+      params:
+        action: gather
+        suffix: Rung{{$i}}
+
+  - module:
+      path: /modules/measurements/etcd-metrics.yaml
+      params:
+        action: gather
+        suffix: Rung{{$i}}
+
+  - module:
+      path: /modules/measurements/pod-churn-stress.yaml
+      params:
+        action: gather
+        suffix: Rung{{$i}}
+
+  # Inter-rung settle: drain kvstore queues from rung {{$i}} before the
+  # next rung starts. Without this, the next rung's baseline carries
+  # rung-{{$i}}'s spillover. 60s is enough at low rungs; at the highest
+  # rungs the spillover may exceed settle and the next rung's verdict
+  # will be biased "worse" — that's fine, it captures cumulative system
+  # stress correctly.
+  - name: Rung {{$i}} settle
+    measurements:
+      - Identifier: SaturationRung{{$i}}Settle
+        Method: Sleep
+        Params:
+          duration: {{$saturationSettleSeconds}}s
+
+  {{end}}
+  # ----- end of rung loop -----
+
+  # ----- Workload + PodMonitor teardown -----
+  # Use a generation strictly greater than any rung's max generation
+  # (1000 * (max_rung+1) + max_restart_in_that_rung) so the delete-time
+  # pod-template doesn't accidentally match a prior rung's template
+  # and skip the rolling cleanup. With defaults (4 rungs × max 4 restarts)
+  # max rung generation = 1000*4 + 3 = 4003; we use 999999 which is well
+  # above any plausible matrix-configured value.
+  - module:
+      path: /modules/event-throughput-workload.yaml
+      params:
+        actionName: delete
+        generation: 999999
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        replicasPerDeployment: {{$replicasPerDeployment}}
+        tuningSet: WorkloadCreateQps
+        operationTimeout: {{$operationTimeout}}
+        phaseSuffix: Delete
+
+  - module:
+      path: /modules/clustermesh.yaml
+      params:
+        actionName: delete
+        tuningSet: WorkloadCreateQps

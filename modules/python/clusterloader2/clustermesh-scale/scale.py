@@ -34,6 +34,47 @@ from datetime import datetime, timezone
 from clusterloader2.utils import parse_xml_to_json, run_cl2_command, process_cl2_reports
 
 
+# Phase 4b — Scenario #6 (Upper Bound / Saturation) classifier constants.
+# Versioned so downstream Kusto dashboards can compare verdicts across
+# tuning iterations. Raw signal values + thresholds are emitted alongside
+# the verdict so dashboards can recompute verdicts post-hoc without re-
+# running the test if thresholds need calibration.
+#
+# Thresholds rationale (v1 — first-smoke calibration; revisit after first
+# n=2 green):
+#   latency_p99_ms          — 500ms p99 of cilium_kvstoremesh_kvstore_
+#                             operations_duration. Healthy AKS-managed
+#                             Cilium runs show p99 < 100ms; 5× that is
+#                             the saturation knee.
+#   queue_size_perc99       — 1000 in cilium_kvstoremesh_kvstore_sync_
+#                             queue_size. Steady-state on green pod-churn
+#                             runs is single digits; 3 orders of magnitude
+#                             above noise floor is unambiguously bad.
+#   apiserver_max_cpu_cores — 1.5 cores per clustermesh-apiserver pod
+#                             (ClusterMeshApiserverPodCPU PerPodMax).
+#                             AKS-managed Cilium typically requests
+#                             0.5-1.0 vCPU; saturated >2× allocation = at
+#                             risk of throttling.
+#   mesh_failure_rate_max   — 0.5 reconnect-failures/s. Plan.md deferred
+#                             decision #6 documents the green-run
+#                             baseline of 4-6 reconnects per 36 min run
+#                             ≈ 0.003/s (uniformly distributed across
+#                             peers, benign Fleet churn). 0.5/s = ~150×
+#                             that baseline → real failure burst.
+#   etcd_commit_p99_ms      — 200ms p99 of etcd_debugging_disk_backend_
+#                             commit_write_duration. Etcd's design target
+#                             is single-digit ms; 200ms = backed-up disk
+#                             subsystem.
+SATURATION_CLASSIFIER_VERSION = "saturation-v1"
+SATURATION_THRESHOLDS = {
+    "latency_p99_ms": 500.0,
+    "queue_size_perc99": 1000.0,
+    "apiserver_max_cpu_cores": 1.5,
+    "mesh_failure_rate_max": 0.5,
+    "etcd_commit_p99_ms": 200.0,
+}
+
+
 def configure_clusterloader2(
     namespaces,
     deployments_per_namespace,
@@ -61,6 +102,10 @@ def configure_clusterloader2(
     node_churn_combined_duration_seconds=3300,
     node_replace_batch_size=10,
     node_churn_ready_timeout_seconds=300,
+    saturation_qps_list="20,40,80,160",
+    saturation_restarts_list="1,2,3,4",
+    saturation_rung_duration_seconds=180,
+    saturation_settle_seconds=60,
 ):
     with open(override_file, "w", encoding="utf-8") as f:
         # Prometheus stack — keep the Cilium-scrape flags ON so the
@@ -140,6 +185,19 @@ def configure_clusterloader2(
         f.write(f"CL2_NODE_CHURN_COMBINED_DURATION_SECONDS: {node_churn_combined_duration_seconds}\n")
         f.write(f"CL2_NODE_REPLACE_BATCH_SIZE: {node_replace_batch_size}\n")
         f.write(f"CL2_NODE_CHURN_READY_TIMEOUT_SECONDS: {node_churn_ready_timeout_seconds}\n")
+
+        # Phase 4b — Scenario #6 (Upper Bound / Saturation) knobs.
+        # upper-bound.yaml CL2 config consumes these to drive the per-rung
+        # QPS ramp + restart amplitude. Written unconditionally with the
+        # same defaulted-pattern as scenario #2-#5 knobs: non-saturation
+        # CL2 configs simply ignore them (CL2 doesn't fail on unknown
+        # overrides keys). The qps and restarts lists are written as
+        # comma-separated strings; upper-bound.yaml uses CL2's
+        # StringSplit template func to parse.
+        f.write(f"CL2_SATURATION_QPS_LIST: \"{saturation_qps_list}\"\n")
+        f.write(f"CL2_SATURATION_RESTARTS_LIST: \"{saturation_restarts_list}\"\n")
+        f.write(f"CL2_SATURATION_RUNG_DURATION_SECONDS: {saturation_rung_duration_seconds}\n")
+        f.write(f"CL2_SATURATION_SETTLE_SECONDS: {saturation_settle_seconds}\n")
 
     with open(override_file, "r", encoding="utf-8") as f:
         print(f"Content of file {override_file}:\n{f.read()}")
@@ -426,6 +484,8 @@ def collect_clusterloader2(
     kill_duration_seconds=0,
     kill_interval_seconds=0,
     kill_batch=0,
+    saturation_qps_list="",
+    saturation_restarts_list="",
 ):
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent=2)
     json_data = json.loads(details)
@@ -550,6 +610,360 @@ def collect_clusterloader2(
     # replace_delete / replace_wait). Non-target clusters skip writing the
     # file → no rows emitted for them.
     _emit_node_churn_timing_rows(cl2_report_dir, template, result_file)
+
+    # Phase 4b — Scenario #6 (Upper Bound / Saturation) classifier rows.
+    # Reads per-rung GenericPrometheusQuery output JSONs (one per measurement
+    # × rung; CL2 emits them with the rung's suffix in the Identifier and
+    # filename), applies the saturation classifier to each rung, and emits
+    # one SaturationRung row per rung + one SaturationSummary row per
+    # cluster. No-op when saturation_qps_list is empty (i.e. not an
+    # upper-bound test_type) so non-saturation scenarios pay zero overhead.
+    _emit_saturation_profile_rows(
+        cl2_report_dir, template, result_file,
+        saturation_qps_list, saturation_restarts_list,
+    )
+
+
+def _emit_saturation_profile_rows(
+    cl2_report_dir, template, result_file,
+    saturation_qps_list, saturation_restarts_list,
+):
+    """Append SaturationRung + SaturationSummary JSONL rows.
+
+    Reads per-rung GenericPrometheusQuery output JSONs (CL2-emitted, format
+    {"version": "v1", "dataItems": [{"labels": {"Metric": <query_name>},
+    "data": {"value": <number>}}, ...]}) and applies the classifier.
+
+    Args:
+        cl2_report_dir: per-cluster report directory.
+        template: row template (cluster/mesh_size/etc. already filled in).
+        result_file: per-cluster JSONL output path (appended).
+        saturation_qps_list: comma-separated QPS values, one per rung.
+                             Empty string → not an upper-bound run → no-op.
+        saturation_restarts_list: comma-separated restart counts, one per
+                                  rung. Length must match qps_list; if not,
+                                  missing entries default to 1.
+
+    Emitted rows (one per rung + one per cluster summary):
+        SaturationRung: {
+            "rung_index": int,
+            "configured_qps": int,
+            "configured_restarts": int,
+            "classifier_version": str,
+            "thresholds": {<criterion>: float},
+            "verdict": str,  # clean | latency_spike | queue_unbounded |
+                             # cpu_exhaust | mesh_failure_burst | etcd_tail
+            "dominant_signal_ratio": float,
+            "rung_completed": bool,
+            "measurement_missing": [str],
+            "signals": {<name>: float|None},
+            "all_verdicts": {<criterion>: float},  # ratio observed/threshold
+        }
+        SaturationSummary: {
+            "rungs_configured": int,
+            "rungs_completed": int,
+            "max_clean_qps": int|None,  # highest QPS in contiguous clean prefix
+            "first_failure_rung_index": int|None,
+            "first_failure_qps": int|None,
+            "first_failure_mode": str|None,
+            "second_failure_mode": str|None,
+            "classifier_version": str,
+        }
+    """
+    if not saturation_qps_list:
+        return  # Not an upper-bound run; no-op.
+    try:
+        qps_list = [int(x) for x in saturation_qps_list.split(",") if x.strip()]
+    except ValueError as e:
+        print(
+            f"[collect] WARN: malformed saturation_qps_list "
+            f"{saturation_qps_list!r}: {e}; skipping saturation classifier",
+            file=sys.stderr,
+        )
+        return
+    if not qps_list:
+        return
+    try:
+        restarts_list = [
+            int(x) for x in (saturation_restarts_list or "").split(",")
+            if x.strip()
+        ]
+    except ValueError:
+        restarts_list = []
+    # Pad/truncate restarts_list to match qps_list length. Missing entries
+    # default to 1 (the smallest meaningful restart count). Excess entries
+    # are ignored.
+    while len(restarts_list) < len(qps_list):
+        restarts_list.append(1)
+    restarts_list = restarts_list[: len(qps_list)]
+
+    if not os.path.isdir(cl2_report_dir):
+        print(
+            f"[collect] WARN: saturation classifier: report dir "
+            f"{cl2_report_dir} does not exist",
+            file=sys.stderr,
+        )
+        return
+    all_files = os.listdir(cl2_report_dir)
+
+    # Proactive debug: dump the full list of rung-suffixed measurement files
+    # so postmortem doesn't depend on the AzDO step's stdout being preserved.
+    # User direction 2026-05-14: assume failure, keep debug logs baked in
+    # until n=2 + n=20 are green; strip after.
+    rung_files_seen = sorted([
+        f for f in all_files
+        if f.startswith("GenericPrometheusQuery_")
+        and "Rung" in f
+        and f.endswith(".json")
+    ])
+    print(
+        f"[collect] saturation: classifier starting for "
+        f"qps_list={qps_list} restarts_list={restarts_list}",
+        file=sys.stderr,
+    )
+    print(
+        f"[collect] saturation: {len(rung_files_seen)} per-rung measurement "
+        f"files found in {cl2_report_dir}",
+        file=sys.stderr,
+    )
+    for fname in rung_files_seen:
+        print(f"[collect] saturation:   {fname}", file=sys.stderr)
+
+    def _read_metric(filepath, metric_label):
+        """Return the numeric `value` for a given Metric label, or None."""
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except (OSError, json.JSONDecodeError) as e:
+            print(
+                f"[collect] WARN: failed to read {filepath}: {e}",
+                file=sys.stderr,
+            )
+            return None
+        for item in data.get("dataItems", []) or []:
+            labels = item.get("labels") or {}
+            if labels.get("Metric") == metric_label:
+                val = (item.get("data") or {}).get("value")
+                if val is None or val == "":
+                    return None
+                try:
+                    return float(val)
+                except (TypeError, ValueError):
+                    return None
+        return None
+
+    def _find_file(rung_suffix, identifier_prefix):
+        """Locate the CL2-emitted JSON for a given Identifier prefix and
+        rung suffix. CL2's file pattern is
+        GenericPrometheusQuery_<Identifier>_<group>_<timestamp>.json
+        where Identifier includes our `{{$suffix}}` (e.g.
+        ClusterMeshKvstoreSyncQueueSizeRung0). We match on the prefix
+        Identifier name followed by the rung suffix followed by an
+        underscore so substring collisions across rung indices (Rung0
+        vs Rung00 vs Rung1) are avoided.
+        """
+        target = f"GenericPrometheusQuery_{identifier_prefix}{rung_suffix}_"
+        matches = [
+            f for f in all_files
+            if f.startswith(target) and f.endswith(".json")
+        ]
+        if matches:
+            return os.path.join(cl2_report_dir, matches[0])
+        return None
+
+    # Identifier → (Metric label, transform). Transform converts the
+    # measurement's native unit into the classifier's threshold unit (e.g.
+    # seconds → milliseconds). The Identifier matches the Go-template
+    # `Identifier:` line in the measurement YAML, with the {{$suffix}}
+    # placeholder filled at runtime to RungN.
+    signal_map = {
+        "latency_p99_ms": (
+            "ClusterMeshKvstoreOperationDuration", "Perc99",
+            lambda v: v * 1000.0,
+        ),
+        "queue_size_perc99": (
+            "ClusterMeshKvstoreSyncQueueSize", "Perc99",
+            lambda v: v,
+        ),
+        "queue_size_max": (
+            "ClusterMeshKvstoreSyncQueueSize", "Max",
+            lambda v: v,
+        ),
+        "apiserver_max_cpu_cores": (
+            "ClusterMeshApiserverPodCPU", "PerPodMax",
+            lambda v: v,
+        ),
+        "mesh_failure_rate_max": (
+            "ClusterMeshRemoteClusterFailureRate", "Max",
+            lambda v: v,
+        ),
+        "etcd_commit_p99_ms": (
+            "ClusterMeshEtcdBackendWriteDuration", "Perc99",
+            lambda v: v * 1000.0,
+        ),
+        "observed_event_rate_p99": (
+            "ClusterMeshKvstoreEventsRate", "Perc99",
+            lambda v: v,
+        ),
+    }
+    # Criterion → signal-name driving the verdict. Each criterion's ratio
+    # is observed/threshold; ≥1.0 = tripped. Dominant criterion = the
+    # tripped one with the highest ratio.
+    criteria = {
+        "latency_spike": "latency_p99_ms",
+        "queue_unbounded": "queue_size_perc99",
+        "cpu_exhaust": "apiserver_max_cpu_cores",
+        "mesh_failure_burst": "mesh_failure_rate_max",
+        "etcd_tail": "etcd_commit_p99_ms",
+    }
+
+    rungs_completed = 0
+    first_failure_index = None
+    first_failure_qps = None
+    first_failure_mode = None
+    second_failure_mode = None
+    max_clean_qps = None
+    clean_streak_broken = False
+
+    with open(result_file, "a", encoding="utf-8") as out:
+        for rung_idx, qps in enumerate(qps_list):
+            suffix = f"Rung{rung_idx}"
+            restarts = restarts_list[rung_idx]
+
+            signals = {}
+            measurement_missing = []
+            for sig_name, (ident, metric_label, transform) in signal_map.items():
+                fpath = _find_file(suffix, ident)
+                if fpath is None:
+                    signals[sig_name] = None
+                    measurement_missing.append(sig_name)
+                    continue
+                raw = _read_metric(fpath, metric_label)
+                if raw is None:
+                    signals[sig_name] = None
+                    measurement_missing.append(sig_name)
+                else:
+                    signals[sig_name] = transform(raw)
+
+            # Rung "completed" iff at least one signal landed AND the
+            # latency signal landed (proxy for "the rung executed and CL2
+            # gathered measurements for it"). Tuned conservatively so a
+            # half-collected rung is flagged for re-investigation rather
+            # than silently summarized.
+            rung_completed = (
+                signals.get("latency_p99_ms") is not None
+                and len(measurement_missing) < len(signal_map)
+            )
+            if rung_completed:
+                rungs_completed += 1
+
+            # Compute per-criterion ratios. None signals = criterion
+            # skipped (cannot contribute to verdict).
+            all_verdicts = {}
+            for criterion, sig_name in criteria.items():
+                v = signals.get(sig_name)
+                if v is None:
+                    continue
+                threshold = SATURATION_THRESHOLDS[
+                    sig_name if sig_name in SATURATION_THRESHOLDS
+                    else "latency_p99_ms"  # never hits — defensive
+                ]
+                if threshold <= 0:
+                    continue
+                all_verdicts[criterion] = v / threshold
+
+            tripped = {c: r for c, r in all_verdicts.items() if r >= 1.0}
+            if tripped:
+                verdict = max(tripped, key=tripped.get)
+                dominant_ratio = tripped[verdict]
+            else:
+                verdict = "clean"
+                dominant_ratio = max(all_verdicts.values()) if all_verdicts else 0.0
+
+            # Track per-cluster summary fields. max_clean_qps is the
+            # highest qps in a CONTIGUOUS clean+completed prefix — once
+            # a non-clean rung lands we stop extending it (a brief
+            # later-rung "false clean" shouldn't disqualify the genuine
+            # earlier failure).
+            if verdict == "clean" and rung_completed and not clean_streak_broken:
+                if max_clean_qps is None or qps > max_clean_qps:
+                    max_clean_qps = qps
+            else:
+                clean_streak_broken = True
+                if verdict != "clean":
+                    if first_failure_index is None:
+                        first_failure_index = rung_idx
+                        first_failure_qps = qps
+                        first_failure_mode = verdict
+                    elif (second_failure_mode is None
+                          and verdict != first_failure_mode):
+                        second_failure_mode = verdict
+
+            rung_row = json.loads(json.dumps(template))
+            rung_row["measurement"] = "SaturationRung"
+            rung_row["group"] = "upper-bound"
+            rung_row["result"] = {
+                "data": {
+                    "rung_index": rung_idx,
+                    "configured_qps": qps,
+                    "configured_restarts": restarts,
+                    "classifier_version": SATURATION_CLASSIFIER_VERSION,
+                    "thresholds": SATURATION_THRESHOLDS,
+                    "verdict": verdict,
+                    "dominant_signal_ratio": dominant_ratio,
+                    "rung_completed": rung_completed,
+                    "measurement_missing": measurement_missing,
+                    "signals": signals,
+                    "all_verdicts": all_verdicts,
+                },
+                "unit": "verdict",
+            }
+            out.write(json.dumps(rung_row) + "\n")
+
+            # Per-rung stderr summary: greppable line for AzDO postmortem
+            # ("collect saturation rung=2 verdict=queue_unbounded ratio=5.0").
+            # Counts signals found out of expected so partial rungs surface.
+            print(
+                f"[collect] saturation: rung={rung_idx} qps={qps} "
+                f"restarts={restarts} verdict={verdict} "
+                f"dominant_ratio={dominant_ratio:.3f} "
+                f"completed={rung_completed} "
+                f"signals_found={len(signal_map) - len(measurement_missing)}/{len(signal_map)} "
+                f"missing={measurement_missing}",
+                file=sys.stderr,
+            )
+
+        summary_row = json.loads(json.dumps(template))
+        summary_row["measurement"] = "SaturationSummary"
+        summary_row["group"] = "upper-bound"
+        summary_row["result"] = {
+            "data": {
+                "rungs_configured": len(qps_list),
+                "rungs_completed": rungs_completed,
+                "max_clean_qps": max_clean_qps,
+                "first_failure_rung_index": first_failure_index,
+                "first_failure_qps": first_failure_qps,
+                "first_failure_mode": first_failure_mode,
+                "second_failure_mode": second_failure_mode,
+                "configured_qps_list": qps_list,
+                "configured_restarts_list": restarts_list,
+                "classifier_version": SATURATION_CLASSIFIER_VERSION,
+                "thresholds": SATURATION_THRESHOLDS,
+            },
+            "unit": "verdict",
+        }
+        out.write(json.dumps(summary_row) + "\n")
+
+        # Stderr summary for AzDO postmortem; greppable headline line.
+        print(
+            f"[collect] saturation: SUMMARY rungs_completed={rungs_completed}/{len(qps_list)} "
+            f"max_clean_qps={max_clean_qps} "
+            f"first_failure_qps={first_failure_qps} "
+            f"first_failure_mode={first_failure_mode} "
+            f"second_failure_mode={second_failure_mode} "
+            f"classifier_version={SATURATION_CLASSIFIER_VERSION}",
+            file=sys.stderr,
+        )
 
 
 def _emit_node_churn_timing_rows(cl2_report_dir, template, result_file):
@@ -851,6 +1265,34 @@ def main():
                          "(all clusters' sentinels) isn't reached within this window, "
                          "the churner aborts WITH cleanup (restores pool to original "
                          "node count) and marks scenario_valid=false in the timing JSON.")
+    # Phase 4b — Scenario #6 (Upper Bound / Saturation) knobs.
+    # Each upper-bound CL2 run sweeps through N rungs of progressively
+    # heavier load (QPS × restart count). The classifier in collect emits
+    # one SaturationRung row per rung tagging which signal tripped
+    # (clean | latency_spike | queue_unbounded | cpu_exhaust |
+    # mesh_failure_burst | etcd_tail). See SATURATION_THRESHOLDS at the
+    # top of this module + plan.md Scenario #6 section.
+    pc.add_argument("--saturation-qps-list", type=str, default="20,40,80,160",
+                    help="Comma-separated list of QPS values, one per saturation "
+                         "rung. Length determines number of rungs; CL2's "
+                         "upper-bound.yaml parses this via StringSplit. "
+                         "Defaults to a 4-rung sweep (20, 40, 80, 160 calls/sec).")
+    pc.add_argument("--saturation-restarts-list", type=str, default="1,2,3,4",
+                    help="Comma-separated list of restart counts, one per saturation "
+                         "rung (length must match --saturation-qps-list). Each rung's "
+                         "workload is restart-bursted this many times so cumulative "
+                         "event volume scales with rung index even when CL2's "
+                         "Deployment-apply QPS saturates.")
+    pc.add_argument("--saturation-rung-duration-seconds", type=int, default=180,
+                    help="Wall-clock duration each rung holds after its restart-burst "
+                         "before measurements are gathered. Drives the per-rung "
+                         "measurement window (CL2 substitutes %%v in queries with "
+                         "wall time since the matching `start` action).")
+    pc.add_argument("--saturation-settle-seconds", type=int, default=60,
+                    help="Sleep between rungs so kvstore queues from rung r drain "
+                         "before rung r+1's measurement window opens. Insufficient "
+                         "settle biases later rungs' verdicts toward `queue_unbounded` "
+                         "even if the queue would have drained on its own.")
 
     # execute
     pe = subparsers.add_parser("execute", help="Run CL2 against a single cluster")
@@ -923,6 +1365,18 @@ def main():
     pco.add_argument("--kill-duration-seconds", type=int, default=0)
     pco.add_argument("--kill-interval-seconds", type=int, default=0)
     pco.add_argument("--kill-batch", type=int, default=0)
+    # Phase 4b — Scenario #6 (Upper Bound / Saturation) collect knobs.
+    # Optional; default to empty string so non-saturation test_types skip
+    # the classifier entirely (zero overhead). For upper-bound test_types,
+    # collect.yml plumbs the matrix-configured saturation_qps_list +
+    # saturation_restarts_list into these args so the classifier records
+    # the actual QPS and restart values that drove each rung.
+    pco.add_argument("--saturation-qps-list", type=str, default="",
+                     help="Comma-separated QPS values from the upper-bound run. "
+                          "Empty = not an upper-bound run; classifier is no-op.")
+    pco.add_argument("--saturation-restarts-list", type=str, default="",
+                     help="Comma-separated restart counts from the upper-bound run "
+                          "(length must match --saturation-qps-list).")
 
     args = parser.parse_args()
 
@@ -954,6 +1408,10 @@ def main():
             node_churn_combined_duration_seconds=args.node_churn_combined_duration_seconds,
             node_replace_batch_size=args.node_replace_batch_size,
             node_churn_ready_timeout_seconds=args.node_churn_ready_timeout_seconds,
+            saturation_qps_list=args.saturation_qps_list,
+            saturation_restarts_list=args.saturation_restarts_list,
+            saturation_rung_duration_seconds=args.saturation_rung_duration_seconds,
+            saturation_settle_seconds=args.saturation_settle_seconds,
         )
     elif args.command == "execute":
         execute_clusterloader2(
@@ -1002,6 +1460,8 @@ def main():
             kill_duration_seconds=args.kill_duration_seconds,
             kill_interval_seconds=args.kill_interval_seconds,
             kill_batch=args.kill_batch,
+            saturation_qps_list=args.saturation_qps_list,
+            saturation_restarts_list=args.saturation_restarts_list,
         )
     else:
         parser.print_help()

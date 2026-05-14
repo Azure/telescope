@@ -175,6 +175,47 @@ stages:
               node_replace_batch_size: 10
               node_churn_ready_timeout_seconds: 300
               trigger_reason: ${{ variables['Build.Reason'] }}
+            # Phase 4b — Scenario #6 (Upper Bound / Saturation Testing).
+            # In-run rung loop sweeps QPS across the configured list; each
+            # rung restart-bursts the workload at that QPS for
+            # saturation_rung_duration_seconds. scale.py collect's
+            # classifier tags each rung with the dominant signal
+            # (clean | latency_spike | queue_unbounded | cpu_exhaust |
+            # mesh_failure_burst | etcd_tail) — see SATURATION_THRESHOLDS
+            # in scale.py + plan.md Scenario #6 section.
+            #
+            # Mesh-wide concurrency forced in execute.yml
+            # (needs_mesh_wide_concurrency) so every cluster's CL2 runs
+            # simultaneously — per-cluster saturation point is meaningless
+            # if peers aren't also loaded.
+            #
+            # NOT share-infra-eligible in v1: a tripped rung can leave
+            # queue/memory residue that would contaminate following
+            # scenarios. Standalone matrix entry only until baseline data
+            # justifies share-infra positioning.
+            n2_upper_bound:
+              cluster_count: 2
+              mesh_size: 2
+              cl2_config_file: upper-bound.yaml
+              test_type: upper-bound
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              # Baseline QPS used by the workload-create phase (first rung's
+              # QPS, gentle). Per-rung QPS comes from saturation_qps_list.
+              api_server_calls_per_second: 20
+              # 4-rung sweep. n=2 smoke uses smaller-amplitude defaults so
+              # the first run doesn't trip Azure-side limits before the
+              # classifier thresholds have been calibrated. Bump for prod
+              # after first n=2 + n=20 greens.
+              saturation_qps_list: "20,40,80,160"
+              saturation_restarts_list: "1,2,3,4"
+              saturation_rung_duration_seconds: 180
+              saturation_settle_seconds: 60
+              trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
@@ -310,6 +351,27 @@ stages:
               node_churn_combined_duration_seconds: 3300
               node_replace_batch_size: 10
               node_churn_ready_timeout_seconds: 300
+              trigger_reason: ${{ variables['Build.Reason'] }}
+            # Phase 4b — Scenario #6 (Upper Bound / Saturation). See n2
+            # entry for the full design rationale; only mesh_size differs
+            # at this tier. Same QPS sweep at every tier so the per-tier
+            # saturation point is directly comparable across clusters axis.
+            n5_upper_bound:
+              cluster_count: 5
+              mesh_size: 5
+              cl2_config_file: upper-bound.yaml
+              test_type: upper-bound
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              saturation_qps_list: "20,40,80,160"
+              saturation_restarts_list: "1,2,3,4"
+              saturation_rung_duration_seconds: 180
+              saturation_settle_seconds: 60
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           # 5-cluster provision adds ~10-15 min vs n2 (more terraform + fleet
@@ -451,6 +513,24 @@ stages:
               node_churn_combined_duration_seconds: 3300
               node_replace_batch_size: 10
               node_churn_ready_timeout_seconds: 300
+              trigger_reason: ${{ variables['Build.Reason'] }}
+            # Phase 4b — Scenario #6 (Upper Bound / Saturation) at n=10.
+            n10_upper_bound:
+              cluster_count: 10
+              mesh_size: 10
+              cl2_config_file: upper-bound.yaml
+              test_type: upper-bound
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              saturation_qps_list: "20,40,80,160"
+              saturation_restarts_list: "1,2,3,4"
+              saturation_rung_duration_seconds: 180
+              saturation_settle_seconds: 60
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           # 10-cluster provision adds ~10-15 min vs n5 (more terraform +
@@ -620,6 +700,28 @@ stages:
               node_churn_combined_duration_seconds: 3300
               node_replace_batch_size: 10
               node_churn_ready_timeout_seconds: 300
+              trigger_reason: ${{ variables['Build.Reason'] }}
+            # Phase 4b — Scenario #6 (Upper Bound / Saturation) at n=20.
+            # Highest mesh-pressure tier. Default thresholds calibrated on
+            # lower tiers; expect more rungs to trip at n=20 (more peers
+            # to propagate to per event). First n=20 run is the
+            # ground-truth calibration data point.
+            n20_upper_bound:
+              cluster_count: 20
+              mesh_size: 20
+              cl2_config_file: upper-bound.yaml
+              test_type: upper-bound
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              saturation_qps_list: "20,40,80,160"
+              saturation_restarts_list: "1,2,3,4"
+              saturation_rung_duration_seconds: 180
+              saturation_settle_seconds: 60
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           timeout_in_minutes: 480
