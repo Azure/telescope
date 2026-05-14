@@ -6,14 +6,10 @@ node-pool CRUD methods. Adds raw REST methods for the Machine API which is not
 yet exposed in the Azure SDK.
 
 Public methods (``create_machine_agentpool``, ``scale_machine``) wrap their work
-in ``OperationContext`` exactly like ``AKSClient.create_node_pool`` /
-``AKSClient.scale_node_pool``: the context is opened inside the client method,
+in ``OperationContext``: the context is opened inside the client method,
 metadata is enriched with ``op.add_metadata`` along the way, success returns
 True, failures are logged and re-raised so ``OperationContext`` records them.
-``MachineCRUD`` therefore stays a thin try/except wrapper, mirroring
-``crud/azure/node_pool_crud.py``.
-
-Ported from ado-telescope/modules/python/k8s/cloud_providers/azure.py.
+``MachineCRUD`` therefore stays a thin try/except wrapper.
 """
 import json
 import logging
@@ -28,10 +24,10 @@ import requests
 from clients.aks_client import AKSClient
 from utils.logger_config import get_logger, setup_logging
 
-# Configure logging (mirrors clients/aks_client.py / crud/azure/node_pool_crud.py).
+# Configure logging.
 setup_logging()
 logger = get_logger(__name__)
-# Suppress noisy Azure SDK logs (mirror clients/aks_client.py).
+# Suppress noisy Azure SDK logs.
 get_logger("azure.core.pipeline.policies.http_logging_policy").setLevel(logging.ERROR)
 get_logger("azure.identity").setLevel(logging.ERROR)
 get_logger("azure.core.pipeline").setLevel(logging.ERROR)
@@ -39,8 +35,8 @@ get_logger("msal").setLevel(logging.ERROR)
 
 _ARM_BASE = "https://management.azure.com"
 _ARM_SCOPE = "https://management.azure.com/.default"
-_AGENTPOOL_API_VERSION = "2024-06-02-preview"  # per ado azure.py — agentpool sub-resource
-_MACHINE_API_VERSION = "2025-06-02-preview"  # per ado azure.py — machines sub-resource
+_AGENTPOOL_API_VERSION = "2024-06-02-preview"
+_MACHINE_API_VERSION = "2025-06-02-preview"
 _POLL_INTERVAL_SECONDS = 10
 _PROVISIONING_NONE_STATE_LIMIT = 5
 _BATCH_429_MAX_RETRIES = 3
@@ -105,10 +101,9 @@ class AKSMachineClient(AKSClient):
     ) -> bool:
         """Convert an existing agentpool to Machines mode via PUT.
 
-        Mirrors ``AKSClient.create_node_pool`` convention: opens an
-        ``OperationContext`` here, enriches metadata, returns True on success,
-        re-raises on failure (so the context records ``success=False`` with
-        traceback before the exception propagates to ``MachineCRUD``).
+        Opens an ``OperationContext`` here, enriches metadata, returns True on
+        success, re-raises on failure (so the context records ``success=False``
+        with traceback before the exception propagates to ``MachineCRUD``).
 
         Args:
             agentpool_name: Target agentpool name.
@@ -144,7 +139,9 @@ class AKSMachineClient(AKSClient):
                 )
                 body = {"properties": {"mode": "Machines"}}
                 resp = self.make_request("PUT", url, data=body, timeout=timeout)
-                if resp.status_code not in (200, 201):
+                # ARM async PUT acceptance returns 200/201/202; the agentpool
+                # provisioning poll below is the real completion gate.
+                if resp.status_code not in (200, 201, 202):
                     raise RuntimeError(
                         f"create_machine_agentpool PUT failed: "
                         f"{resp.status_code} {resp.text[:500]}"
@@ -212,7 +209,7 @@ class AKSMachineClient(AKSClient):
         timeout: int,
         baseline_count: int = 0,
     ) -> Dict[str, Dict[str, Any]]:
-        """Wait for ``expected_count`` NEW Ready nodes; return ado-parity nested percentile dict.
+        """Wait for ``expected_count`` NEW Ready nodes; return nested percentile dict.
 
         AKS Machine ARM resource names (e.g. ``scale100-machine-1``) are NOT the
         same as the underlying k8s Node names (``aks-<pool>-<rand>-vmss<i>``), so
@@ -234,7 +231,7 @@ class AKSMachineClient(AKSClient):
         percentile target is met within ``timeout``. Polling exceptions are
         logged and treated as 0 ready this tick. Never raises.
         """
-        # ado-parity empty-state envelope: nested dict per P-key with
+        # Empty-state envelope: nested dict per P-key with
         # `target_nodes`, `elapsed_time_seconds`, `percentage`, `success` so
         # the Kusto schema sees consistent shape regardless of outcome.
         empty_envelope: Dict[str, Dict[str, Any]] = {
@@ -309,9 +306,8 @@ class AKSMachineClient(AKSClient):
             }
             for p in (50, 70, 90, 99, 100)
         }
-        # ado-parity stdout logging: percentile summary including P100, which is
-        # the wall-clock elapsed until ALL target nodes are Ready. This matches
-        # ado's `response.node_readiness_time = percentile_times[100]` exactly.
+        # Log percentile summary including P100, which is the wall-clock
+        # elapsed until ALL target nodes are Ready.
         logger.info(f"Node Readiness Percentile Summary for agentpool {agentpool_name}:")
         for p in (50, 70, 90, 99, 100):
             if p in elapsed:
@@ -340,11 +336,10 @@ class AKSMachineClient(AKSClient):
     ) -> bool:
         """Scale a Machine-mode agentpool by creating ``scale_machine_count`` machines.
 
-        Mirrors ``AKSClient.scale_node_pool`` convention: opens an
-        ``OperationContext`` here, enriches with successful machine names,
-        per-percentile readiness envelope, batch chunk timings, and the cluster
-        snapshot. Returns True iff every requested machine landed AND every
-        readiness percentile target was hit. Re-raises on failure so the
+        Opens an ``OperationContext`` here, enriches with successful machine
+        names, per-percentile readiness envelope, batch chunk timings, and the
+        cluster snapshot. Returns True iff every requested machine landed AND
+        every readiness percentile target was hit. Re-raises on failure so the
         context records the trace.
 
         Flow (both batch and non-batch):
@@ -372,8 +367,7 @@ class AKSMachineClient(AKSClient):
             "machine_workers": machine_workers,
         }
         # Bundle into a SimpleNamespace so the helpers retain the
-        # ``request.foo`` shape ported verbatim from ado-telescope without
-        # exposing yet another module-level data class.
+        # ``request.foo`` shape without exposing yet another module-level data class.
         request = SimpleNamespace(
             agentpool_name=agentpool_name,
             cluster_name=cluster_name,
@@ -408,7 +402,6 @@ class AKSMachineClient(AKSClient):
                             "baseline node snapshot failed; readiness count may be inflated"
                         )
 
-                # Naming parity with ado-telescope.
                 prefix = self._get_machine_name_prefix(scale_machine_count)
                 names = [
                     f"{prefix}-machine-{i + 1}" for i in range(scale_machine_count)
@@ -452,6 +445,17 @@ class AKSMachineClient(AKSClient):
                     raise RuntimeError(
                         f"scale_machine landed {len(successful)}/{scale_machine_count} machines"
                     )
+                if not agentpool_ok:
+                    raise RuntimeError(
+                        f"agentpool {agentpool_name} did not reach Succeeded within {timeout}s"
+                    )
+                # P100 is the strictest readiness envelope (all target nodes
+                # Ready); if it succeeded, every lower percentile did too.
+                if not p100.get("success", False):
+                    raise RuntimeError(
+                        f"node readiness P100 did not complete within "
+                        f"{readiness_wait_timeout}s for agentpool {agentpool_name}"
+                    )
                 return True
             except Exception as e:
                 logger.error(f"Failed to scale machine agentpool {agentpool_name}: {e}")
@@ -460,11 +464,10 @@ class AKSMachineClient(AKSClient):
 
     @staticmethod
     def _get_machine_name_prefix(scale_machine_count: int) -> str:
-        """Generate the ado-compatible machine-name prefix for a given scale count.
+        """Generate the machine-name prefix for a given scale count.
 
-        Mirrors ado-telescope ``azure.py::_get_machine_name_prefix`` exactly so
-        that the resulting machine ARM resource names match across repos and
-        cross-repo Kusto dashboards keyed on machine name continue to correlate.
+        The prefix is part of the machine ARM resource name; cross-repo Kusto
+        dashboards key on machine name, so this scheme is kept stable.
 
         - ``scale1000`` -> ``scale1k`` (any multiple of 1000 >= 1000 collapses)
         - ``scale500``  -> ``scale500``
@@ -480,12 +483,17 @@ class AKSMachineClient(AKSClient):
         """Submit per-machine PUTs concurrently via ThreadPoolExecutor.
 
         Each worker calls ``_create_single_machine(name, request)`` which PUTs
-        the machine and waits for its provisioning to terminate. Returns the
-        list of names that reported True. Per-machine exceptions are logged
-        and treated as failure (name omitted from result).
+        the machine and returns True on any 2xx response. Per-machine
+        provisioningState is intentionally NOT polled (see
+        ``_create_single_machine`` for why); the agentpool-level poll in
+        ``scale_machine`` is the real completion signal. Returns the list of
+        names that reported True. Per-machine exceptions are logged and
+        treated as failure (name omitted from result).
         """
         successful: List[str] = []
-        with ThreadPoolExecutor(max_workers=request.machine_workers) as ex:
+        # Clamp workers to >=1 so a misconfigured request (0 or negative) cannot
+        # crash ThreadPoolExecutor with ValueError. Matches the batch path.
+        with ThreadPoolExecutor(max_workers=max(1, request.machine_workers)) as ex:
             futures = {ex.submit(self._create_single_machine, n, request): n for n in names}
             for fut in as_completed(futures):
                 n = futures[fut]
@@ -615,7 +623,7 @@ class AKSMachineClient(AKSClient):
             f"?api-version={_MACHINE_API_VERSION}"
         )
         body: Dict[str, Any] = {"properties": {"hardware": {"vmSize": request.vm_size}}}
-        # ado-telescope verbatim envelope shape (azure.py:1268-1298). The Machine
+        # AKS Batch Machine API envelope shape. The Machine
         # API expects:
         #   - batchMachines[].machineName  (NOT "name") — using the wrong key
         #     causes the API to silently ignore the entries, creating only the
