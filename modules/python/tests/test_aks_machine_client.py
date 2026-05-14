@@ -32,14 +32,16 @@ class TestAKSMachineClient(unittest.TestCase):
             "clients.aks_client.ManagedIdentityCredential"
         )
         self.k8s_client_patcher = mock.patch("clients.aks_client.KubernetesClient")
-        self.operation_context_patcher = mock.patch(
-            "crud.operation.OperationContext"
+        self.operation_context_getter_patcher = mock.patch(
+            "clients.aks_machine_client.AKSMachineClient._get_operation_context"
         )
 
         self.cs_client_patcher.start()
         self.mi_cred_patcher.start()
         mock_k8s_class = self.k8s_client_patcher.start()
-        self.mock_operation_context = self.operation_context_patcher.start()
+        mock_get_operation_context = self.operation_context_getter_patcher.start()
+        self.mock_operation_context = mock.MagicMock()
+        mock_get_operation_context.return_value = self.mock_operation_context
 
         self.mock_k8s = mock_k8s_class.return_value
         self.mock_operation = mock.MagicMock()
