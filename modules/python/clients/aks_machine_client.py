@@ -12,8 +12,9 @@ True, failures are logged and re-raised so ``OperationContext`` records them.
 ``MachineCRUD`` therefore stays a thin try/except wrapper.
 
 This is the scaffolding revision: ``create_machine_agentpool`` and the
-agentpool provisioning poll are fully implemented; ``scale_machine`` and its
-private helpers raise ``NotImplementedError`` and will land in a follow-up PR.
+agentpool provisioning poll are fully implemented; ``scale_machine``, its
+private helpers, and the ``_get_machine_name_prefix`` naming helper raise
+``NotImplementedError`` and will land in a follow-up PR.
 """
 import logging
 import threading
@@ -39,6 +40,10 @@ _ARM_SCOPE = "https://management.azure.com/.default"
 _AGENTPOOL_API_VERSION = "2024-06-02-preview"
 _POLL_INTERVAL_SECONDS = 10
 _PROVISIONING_NONE_STATE_LIMIT = 5
+# Per-request HTTP timeout is capped so that a single slow PUT/GET cannot
+# consume the caller's whole ``timeout`` budget before the polling loop starts.
+# The remaining budget is reserved for ``_wait_for_agentpool_provisioning``.
+_PER_REQUEST_TIMEOUT_CAP = 60
 
 
 class AKSMachineClient(AKSClient):
@@ -56,6 +61,11 @@ class AKSMachineClient(AKSClient):
         self._token_cache_value: Optional[str] = None
         self._token_cache_expiry: float = 0.0  # unix epoch seconds
         self._token_lock = threading.Lock()
+        # Pool TCP/TLS across calls. ``requests.Session`` is thread-safe for
+        # sending requests (each request creates its own urllib3 connection
+        # from the shared pool), so this is safe for the planned parallel
+        # scale path landing in PR-2.
+        self._session = requests.Session()
 
     # ---- auth + REST plumbing ----
     def _get_access_token(self) -> str:
@@ -82,12 +92,17 @@ class AKSMachineClient(AKSClient):
         calling ``raise_for_status()``) — this method does NOT raise on HTTP
         errors. Long-running Machine API operations return 200/202 with a
         Location header that callers must follow.
+
+        Uses ``self._session`` for connection pooling so TCP/TLS handshakes
+        are reused across polls and the planned parallel scale path.
         """
         headers = {
             "Authorization": f"Bearer {self._get_access_token()}",
             "Content-Type": "application/json",
         }
-        return requests.request(method, url, headers=headers, json=data, timeout=timeout)
+        return self._session.request(
+            method, url, headers=headers, json=data, timeout=timeout
+        )
 
     # ---- Machine API: agent pool provisioning ----
     def create_machine_agentpool(
@@ -110,8 +125,11 @@ class AKSMachineClient(AKSClient):
                 downstream Kusto rows can attribute the agentpool to a SKU.
             cluster_name: Parent AKS cluster name. Defaults to
                 ``self.get_cluster_name()`` (matches ``create_node_pool``).
-            timeout: Total budget (seconds) used as both the PUT HTTP timeout
-                AND the polling deadline for ``_wait_for_agentpool_provisioning``.
+            timeout: Total wall-clock budget (seconds) for this operation.
+                Used as the polling deadline for ``_wait_for_agentpool_provisioning``.
+                The per-request HTTP timeout is capped at
+                ``_PER_REQUEST_TIMEOUT_CAP`` so a single slow PUT cannot consume
+                the whole budget before polling starts.
 
         Returns:
             True iff the agentpool reaches provisioningState='Succeeded'.
@@ -136,7 +154,10 @@ class AKSMachineClient(AKSClient):
                     f"/agentPools/{agentpool_name}?api-version={_AGENTPOOL_API_VERSION}"
                 )
                 body = {"properties": {"mode": "Machines"}}
-                resp = self.make_request("PUT", url, data=body, timeout=timeout)
+                # Cap the PUT timeout so the bulk of ``timeout`` is preserved
+                # for the polling loop below.
+                put_timeout = min(timeout, _PER_REQUEST_TIMEOUT_CAP)
+                resp = self.make_request("PUT", url, data=body, timeout=put_timeout)
                 # ARM async PUT acceptance returns 200/201/202; the agentpool
                 # provisioning poll below is the real completion gate.
                 if resp.status_code not in (200, 201, 202):
@@ -162,11 +183,15 @@ class AKSMachineClient(AKSClient):
         Polls every ``_POLL_INTERVAL_SECONDS`` (10s) using a 30s per-request HTTP
         timeout. Returns True on 'Succeeded'. Returns False on 'Failed' or when
         ``timeout`` seconds have elapsed since invocation. Transient non-200 GETs
-        are logged and retried until the deadline. Also handles missing
-        provisioningState (treats absence for ``_PROVISIONING_NONE_STATE_LIMIT``
-        consecutive polls as Failed).
+        are logged and retried until the deadline. Missing ``provisioningState``
+        (which ARM can transiently omit right after PUT acceptance) is tolerated
+        until BOTH ``_PROVISIONING_NONE_STATE_LIMIT`` consecutive polls AND at
+        least half of ``timeout`` have elapsed; only then is it treated as
+        Failed. This avoids false negatives on slower control planes.
         """
-        deadline = time.time() + timeout
+        start = time.time()
+        deadline = start + timeout
+        none_grace_deadline = start + timeout / 2
         none_count = 0
         while time.time() < deadline:
             r = self.make_request("GET", url, timeout=30)
@@ -188,10 +213,15 @@ class AKSMachineClient(AKSClient):
                 return False
             if state is None:
                 none_count += 1
-                if none_count >= _PROVISIONING_NONE_STATE_LIMIT:
+                # Only treat missing state as Failed once we're past the grace
+                # window AND have seen it for several consecutive polls.
+                if (
+                    none_count >= _PROVISIONING_NONE_STATE_LIMIT
+                    and time.time() >= none_grace_deadline
+                ):
                     logger.warning(
-                        f"agentpool provisioningState absent for {none_count} consecutive polls; "
-                        f"treating as Failed."
+                        f"agentpool provisioningState absent for {none_count} consecutive polls "
+                        f"after {time.time() - start:.0f}s; treating as Failed."
                     )
                     return False
             else:
@@ -244,13 +274,9 @@ class AKSMachineClient(AKSClient):
     def _get_machine_name_prefix(scale_machine_count: int) -> str:
         """Generate the machine-name prefix for a given scale count.
 
-        The prefix is part of the machine ARM resource name; cross-repo Kusto
-        dashboards key on machine name, so this scheme is kept stable.
-
-        - ``scale1000`` -> ``scale1k`` (any multiple of 1000 >= 1000 collapses)
-        - ``scale500``  -> ``scale500``
-        - ``scale1``    -> ``scale1``
+        Stubbed in this PR; implementation lands in a follow-up alongside the
+        scale path that consumes it.
         """
-        if scale_machine_count >= 1000 and scale_machine_count % 1000 == 0:
-            return f"scale{scale_machine_count // 1000}k"
-        return f"scale{scale_machine_count}"
+        raise NotImplementedError(
+            "_get_machine_name_prefix lands in a follow-up PR"
+        )

@@ -6,14 +6,13 @@ result file via ``Operation.save_to_file`` on context exit. Tests verify:
 - success path returns True and enriches ``op.add_metadata`` with the right keys
 - failure path raises (so the OperationContext records ``success=False``)
 
-Only ``create_machine_agentpool`` and the ``_get_machine_name_prefix`` static
-helper have full implementations on this scaffolding PR; ``scale_machine`` and
-its private helpers raise ``NotImplementedError`` and will be tested in a
-follow-up PR.
+Only ``create_machine_agentpool`` has a full implementation on this scaffolding
+PR; ``scale_machine`` and the ``_get_machine_name_prefix`` naming helper raise
+``NotImplementedError`` and will be tested in a follow-up PR.
 """
 # pylint: disable=protected-access
-# Several tests intentionally exercise the static helper ``_get_machine_name_prefix``
-# directly; the leading underscore is conventional rather than semantic privacy.
+# Tests intentionally exercise private helpers directly; the leading underscore
+# is conventional rather than semantic privacy.
 import tempfile
 import unittest
 from unittest import mock
@@ -50,8 +49,9 @@ class TestAKSMachineClient(unittest.TestCase):
         self.mock_operation_context.return_value.__exit__.return_value = None
 
         # Hermetic per-test temp dir avoids cross-platform /tmp assumptions
-        # and parallel-run collisions.
-        self._tmp_dir = tempfile.TemporaryDirectory()
+        # and parallel-run collisions. ``with`` doesn't fit the setUp/tearDown
+        # lifecycle, so we explicitly cleanup() in tearDown.
+        self._tmp_dir = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
         self.test_result_dir = self._tmp_dir.name
 
         self.client = AKSMachineClient(
@@ -140,16 +140,12 @@ class TestAKSMachineClient(unittest.TestCase):
                 scale_machine_count=2,
             )
 
-    # ---- _get_machine_name_prefix static helper ----
+    # ---- _get_machine_name_prefix: stubbed on this PR ----
 
-    def test_machine_name_prefix_collapses_thousands(self):
-        self.assertEqual(AKSMachineClient._get_machine_name_prefix(1000), "scale1k")
-        self.assertEqual(AKSMachineClient._get_machine_name_prefix(3000), "scale3k")
-
-    def test_machine_name_prefix_keeps_non_thousand_values(self):
-        self.assertEqual(AKSMachineClient._get_machine_name_prefix(1), "scale1")
-        self.assertEqual(AKSMachineClient._get_machine_name_prefix(500), "scale500")
-        self.assertEqual(AKSMachineClient._get_machine_name_prefix(1500), "scale1500")
+    def test_get_machine_name_prefix_raises_not_implemented(self):
+        """_get_machine_name_prefix is a stub on this PR; lands with the scale path."""
+        with self.assertRaises(NotImplementedError):
+            AKSMachineClient._get_machine_name_prefix(1000)
 
 
 if __name__ == "__main__":
