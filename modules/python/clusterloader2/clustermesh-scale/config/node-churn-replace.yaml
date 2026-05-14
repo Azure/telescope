@@ -1,0 +1,235 @@
+name: clustermesh-node-churn-replace
+
+# Scale scenario #3 (Node Churn / IP Churn) — node-replacement flavor.
+#
+# Spec mapping (scale testing.txt:68-79):
+#   * "Node replacement (new IPs)" / "Force node recreation" → this file.
+#   * "Node scale-up/scale-down" / "Add/remove nodes continuously" → node-churn-scale.yaml.
+#
+# Stimulus mechanism: host-side node-churner.sh DRAINS K nodes (via kubectl)
+# then DELETES their VMSS instances (via `az vmss delete-instances`). AKS
+# nodepool desired-count stays fixed (auto_scaling_enabled=false) so VMSS
+# auto-replaces deleted instances with brand-new VMs that get brand-new
+# private IPs. Result: K nodes effectively replaced with new identity +
+# new IPs, same total count. Pre/post InternalIP snapshots in the timing
+# JSON let Kusto verify the IP set actually churned.
+#
+# Why VMSS delete-instances rather than `az aks nodepool upgrade --node-image-only`:
+# rubber-duck design review #2 — the upgrade short-circuits as a no-op
+# when the node image is already current, producing zero IP churn signal.
+# VMSS instance delete is mechanism-pure: deleted = gone, replacement =
+# new VM with new private IP, every time.
+#
+# CL2-side behavior is symmetric with node-churn-scale: every cluster
+# deploys workload, signals ready-sentinel, sleeps for
+# CL2_NODE_CHURN_REPLACE_DURATION_SECONDS, gathers. See node-churn-scale.yaml
+# for the per-step rationale.
+
+{{$namespaces := DefaultParam .CL2_NAMESPACES 5}}
+{{$deploymentsPerNamespace := DefaultParam .CL2_DEPLOYMENTS_PER_NAMESPACE 4}}
+{{$replicasPerDeployment := DefaultParam .CL2_REPLICAS_PER_DEPLOYMENT 10}}
+{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "20m"}}
+{{$apiServerCallsPerSecond := DefaultParam .CL2_API_SERVER_CALLS_PER_SECOND 20}}
+{{$warmupDuration := DefaultParam .CL2_WARMUP_DURATION "30s"}}
+{{$holdDuration := DefaultParam .CL2_HOLD_DURATION "2m"}}
+
+# Default 1500s = 25min covers VMSS delete-and-refill for K=10 instances
+# in parallel: each drain ≤ 5min + parallel VMSS provisioning ≤ 15min.
+{{$replaceDurationSeconds := DefaultParam .CL2_NODE_CHURN_REPLACE_DURATION_SECONDS 1500}}
+
+{{$group := "clustermesh-node-churn-replace"}}
+{{$basename := "ncr"}}
+
+namespace:
+  number: {{$namespaces}}
+  prefix: clustermesh-ncr
+  deleteStaleNamespaces: true
+  deleteAutomanagedNamespaces: true
+  enableExistingNamespaces: false
+  deleteNamespaceTimeout: 20m
+
+tuningSets:
+  - name: Sequence
+    parallelismLimitedLoad:
+      parallelismLimit: 1
+  - name: DeploymentCreateQps
+    qpsLoad:
+      qps: {{$apiServerCallsPerSecond}}
+
+steps:
+  - name: Annotate workload namespaces for ACNS cross-cluster sync
+    measurements:
+      - Identifier: AnnotateNamespacesForGlobalSync
+        Method: Exec
+        Params:
+          streamOutput: true
+          timeout: 1m
+          command:
+          - bash
+          - /root/perf-tests/clusterloader2/config/annotate-namespaces.sh
+          - "{{$namespaces}}"
+          - "clustermesh-ncr"
+
+  - module:
+      path: /modules/measurements/control-plane.yaml
+      params:
+        action: start
+        group: {{$group}}
+
+  - module:
+      path: /modules/measurements/cilium.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/clustermesh-metrics.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/etcd-metrics.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/node-churn.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/clustermesh.yaml
+      params:
+        actionName: create
+        tuningSet: DeploymentCreateQps
+
+  - name: Start tracking node-churn-replace Deployments
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-node-churn-replace
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: start
+          apiVersion: apps/v1
+          kind: Deployment
+          checkIfPodsAreUpdated: true
+          labelSelector: group = {{$group}}
+          operationTimeout: {{$operationTimeout}}
+
+  - module:
+      path: /modules/pod-churn-workload.yaml
+      params:
+        actionName: apply
+        replicas: {{$replicasPerDeployment}}
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        tuningSet: DeploymentCreateQps
+        group: {{$group}}
+        basename: {{$basename}}
+
+  - name: Wait for initial node-churn-replace pods to be Running
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-node-churn-replace
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+
+  - name: Warmup before node-churn-replace stimulus window
+    measurements:
+      - Identifier: WarmupSleep
+        Method: Sleep
+        Params:
+          duration: {{$warmupDuration}}
+
+  - name: Signal CL2 ready to host-side node-churner
+    measurements:
+      - Identifier: NodeChurnReadySentinel
+        Method: Exec
+        Params:
+          streamOutput: true
+          timeout: 30s
+          command:
+          - bash
+          - -c
+          - |
+            set -euo pipefail
+            mkdir -p /root/perf-tests/clusterloader2/config/sentinels
+            CTX=$(kubectl config current-context 2>/dev/null || \
+                  /root/perf-tests/clusterloader2/config/kubectl config current-context 2>/dev/null || \
+                  echo "unknown")
+            touch "/root/perf-tests/clusterloader2/config/sentinels/ready-${CTX}"
+            echo "wrote sentinel ready-${CTX}"
+
+  - name: Observe node-churn-replace stimulus window
+    measurements:
+      - Identifier: NodeChurnObservationSleep
+        Method: Sleep
+        Params:
+          duration: {{$replaceDurationSeconds}}s
+
+  - name: Wait for post-node-churn-replace pods to be Running
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-node-churn-replace-final
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: start
+          apiVersion: apps/v1
+          kind: Deployment
+          checkIfPodsAreUpdated: true
+          labelSelector: group = {{$group}}
+          operationTimeout: {{$operationTimeout}}
+
+  - name: Final wait for pods to converge after node-churn-replace
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-node-churn-replace-final
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+
+  - name: Settle after node-churn-replace
+    measurements:
+      - Identifier: SettleSleep
+        Method: Sleep
+        Params:
+          duration: {{$holdDuration}}
+
+  - module:
+      path: /modules/measurements/control-plane.yaml
+      params:
+        action: gather
+        group: {{$group}}
+
+  - module:
+      path: /modules/measurements/cilium.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/clustermesh-metrics.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/etcd-metrics.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/node-churn.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/pod-churn-workload.yaml
+      params:
+        actionName: delete
+        replicas: 0
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        tuningSet: DeploymentCreateQps
+        group: {{$group}}
+        basename: {{$basename}}
+
+  - module:
+      path: /modules/clustermesh.yaml
+      params:
+        actionName: delete
+        tuningSet: DeploymentCreateQps

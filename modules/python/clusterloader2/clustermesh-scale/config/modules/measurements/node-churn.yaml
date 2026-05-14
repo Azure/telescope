@@ -1,0 +1,196 @@
+{{$action := .action}} # start, gather
+
+{{$suffix := DefaultParam .suffix ""}}
+
+# Scale scenario #3 (Node Churn / IP Churn) — measurements layered on top
+# of clustermesh-metrics.yaml + cilium.yaml. These queries surface the
+# spec-required signals (scale testing.txt:78-79):
+#
+#   * IP update propagation — kvstore event rates broken out by scope so
+#     node/IP scope events are visible separately from identity/service
+#     scope. Under node-churn, node-scope events should burst when nodes
+#     drain/replace; identity-scope events should stay flat (identity is
+#     label-keyed, not IP-keyed).
+#   * Temporary inconsistency windows — node Ready transitions, pod
+#     eviction rate, remote-cluster endpoint cardinality on peers
+#     (whether peers observe the target's IP churn fully).
+#
+# Rubber-duck design review #5 + #6: cilium_identity_count is a weak
+# signal under node-churn (identities don't churn when only IPs change).
+# Dropped in favor of kvstore-scope rates + remote endpoint cardinality.
+
+steps:
+  - name: {{$action}} Node Churn Measurements
+    measurements:
+
+    # -----------------------------------------------------------------
+    # NODE READY TRANSITIONS. changes() over a counter-like series of
+    # node-condition states counts the number of Ready/NotReady flips
+    # during the window. Healthy scale-cycle: 2N transitions per cycle
+    # (N nodes drain + N nodes ready). Replace: ≥ K (drained + new).
+    # Spec line 79 "Temporary inconsistency windows": this is the
+    # local-cluster view of how long nodes stayed un-Ready.
+    # -----------------------------------------------------------------
+    - Identifier: NodeReadyTransitions{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Node Ready Transitions {{$suffix}}
+        metricVersion: v1
+        unit: count
+        enableViolations: false
+        queries:
+        - name: ReadyTransitionsTotal
+          query: sum(changes(kube_node_status_condition{condition="Ready",status="true"}[%v:]))
+        - name: NotReadyTransitionsTotal
+          query: sum(changes(kube_node_status_condition{condition="Ready",status="false"}[%v:]))
+
+    # -----------------------------------------------------------------
+    # NODE CARDINALITY OVER TIME — gauge for node-info series counts the
+    # nodes visible to kube-state-metrics. min/max over the window flag
+    # the scaling delta (e.g., max=25 vs min=20 → +5 scale-up observed).
+    # NodeCount must trend back to OriginalCount by gather time (the
+    # finalizer guarantees it on target; peers see only their own static
+    # pool unaffected by target's churn).
+    # -----------------------------------------------------------------
+    - Identifier: NodeCardinality{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Node Cardinality {{$suffix}}
+        metricVersion: v1
+        unit: count
+        enableViolations: false
+        queries:
+        - name: Min
+          query: min_over_time(count(kube_node_info)[%v:])
+        - name: Max
+          query: max_over_time(count(kube_node_info)[%v:])
+        - name: Last
+          query: count(kube_node_info)
+
+    # -----------------------------------------------------------------
+    # POD EVICTION / RESCHEDULE RATE. Pods on a drained or deleted node
+    # get NodeLost (kubelet evicts) or Evicted (kube-controller forcibly
+    # rescheduled). Rate over the window: target should spike during
+    # ops; peers stay near 0 (no node churn there).
+    # -----------------------------------------------------------------
+    - Identifier: PodEvictionRate{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Pod Eviction Rate {{$suffix}}
+        metricVersion: v1
+        unit: events/s
+        enableViolations: false
+        queries:
+        - name: NodeLostMax
+          query: max(max_over_time(rate(kube_pod_status_reason{reason="NodeLost"}[1m])[%v:]))
+        - name: EvictedMax
+          query: max(max_over_time(rate(kube_pod_status_reason{reason="Evicted"}[1m])[%v:]))
+
+    # -----------------------------------------------------------------
+    # KVSTORE EVENT RATES BY SCOPE — the headline propagation signal.
+    # cilium_kvstoremesh_kvstore_events_queue_seconds_count carries a
+    # `scope` label (verified runtime-probed in Phase 2: nodes/v1, ip/v1,
+    # identities/v1, endpoints/v1, services/v1).
+    #
+    # Under node-churn the EXPECTED splits are:
+    #   nodes/v1     → burst (each scale/replace op churns N node entries)
+    #   ip/v1        → burst (each new VM gets a new IP entry)
+    #   identities/v1→ near-zero (workload pods keep same labels)
+    #   endpoints/v1 → burst (pods reschedule with new pod IPs)
+    #   services/v1  → near-zero (service definitions stable)
+    #
+    # Cross-scenario Kusto query: filter by scope, compare target vs peer
+    # rate. Peer rates indicate "did target's node churn propagate to
+    # peers' kvstore" — the spec "IP update propagation" signal.
+    # -----------------------------------------------------------------
+    - Identifier: KvstoreNodeScopeEventRate{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Kvstore Node Scope Event Rate {{$suffix}}
+        metricVersion: v1
+        unit: events/s
+        enableViolations: false
+        queries:
+        - name: Max
+          query: max(max_over_time(rate(cilium_kvstoremesh_kvstore_events_queue_seconds_count{scope="nodes/v1"}[1m])[%v:]))
+        - name: Perc50
+          query: quantile(0.50, max_over_time(rate(cilium_kvstoremesh_kvstore_events_queue_seconds_count{scope="nodes/v1"}[1m])[%v:]))
+
+    - Identifier: KvstoreIpScopeEventRate{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Kvstore IP Scope Event Rate {{$suffix}}
+        metricVersion: v1
+        unit: events/s
+        enableViolations: false
+        queries:
+        - name: Max
+          query: max(max_over_time(rate(cilium_kvstoremesh_kvstore_events_queue_seconds_count{scope="ip/v1"}[1m])[%v:]))
+        - name: Perc50
+          query: quantile(0.50, max_over_time(rate(cilium_kvstoremesh_kvstore_events_queue_seconds_count{scope="ip/v1"}[1m])[%v:]))
+
+    - Identifier: KvstoreEndpointsScopeEventRate{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Kvstore Endpoints Scope Event Rate {{$suffix}}
+        metricVersion: v1
+        unit: events/s
+        enableViolations: false
+        queries:
+        - name: Max
+          query: max(max_over_time(rate(cilium_kvstoremesh_kvstore_events_queue_seconds_count{scope="endpoints/v1"}[1m])[%v:]))
+        - name: Perc50
+          query: quantile(0.50, max_over_time(rate(cilium_kvstoremesh_kvstore_events_queue_seconds_count{scope="endpoints/v1"}[1m])[%v:]))
+
+    # -----------------------------------------------------------------
+    # REMOTE-CLUSTER ENDPOINT CARDINALITY. cilium_clustermesh_remote_cluster_*
+    # tracks per-peer state from THIS cluster's perspective. On peers
+    # during target's node-churn:
+    #   - remote_cluster_nodes_total → fluctuates (target's node count
+    #     changes) → min/max delta proves propagation reached peer
+    #   - remote_cluster_endpoints_total → fluctuates (pod rescheduling
+    #     during target's node churn)
+    #
+    # Spec "IP update propagation" — if the peer-side delta is zero
+    # while target's local kvstore events show burst, propagation is
+    # broken or stale.
+    # -----------------------------------------------------------------
+    - Identifier: RemoteClusterNodesCardinality{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Remote Cluster Nodes Cardinality {{$suffix}}
+        metricVersion: v1
+        unit: count
+        enableViolations: false
+        queries:
+        - name: Min
+          query: min(min_over_time(cilium_clustermesh_remote_cluster_nodes[%v:]))
+        - name: Max
+          query: max(max_over_time(cilium_clustermesh_remote_cluster_nodes[%v:]))
+        - name: Last
+          query: max(cilium_clustermesh_remote_cluster_nodes)
+
+    # -----------------------------------------------------------------
+    # NODE-OP DURATION DERIVED FROM kube-state-metrics. kube_node_created
+    # is a gauge of node creation timestamps. delta over the window =
+    # number of new nodes that joined (a peer-cluster sanity check: peers
+    # should see 0 here while target sees K new nodes).
+    # -----------------------------------------------------------------
+    - Identifier: NewNodesAppearedInWindow{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: New Nodes Appeared In Window {{$suffix}}
+        metricVersion: v1
+        unit: count
+        enableViolations: false
+        queries:
+        - name: Count
+          query: count(kube_node_created and on(node) (time() - kube_node_created < %v))

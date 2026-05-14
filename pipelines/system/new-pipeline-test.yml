@@ -136,16 +136,22 @@ stages:
               mesh_size: 2
               # Phase 4b — 5-scenario share-infra validation:
               # event-throughput (#1), pod-churn-combined (#2),
-              # apiserver-failure (#4), ha-config (#7), isolation (#5).
+              # apiserver-failure (#4), ha-config (#7), isolation (#5),
+              # node-churn-combined (#3).
               # ha-config is BEFORE isolation so its scale-down restores
               # the apiserver Deployment to 1 replica before isolation's
               # heavy pod-churn loop runs on the target cluster.
+              # node-churn-combined is LAST per rubber-duck design review
+              # #11 — node ops can leave the target cluster in a half-
+              # scaled state if the finalizer can't restore. Putting
+              # node-churn last means contamination affects no further
+              # scenarios in the share-infra lifecycle.
               #
-              # ITER-ONLY 2026-05-13: narrowed to isolation for fast smoke
-              # iteration on scenario #5. Restore full 5-scenario list
-              # before n=20 promotion:
-              #   "event-throughput,pod-churn-combined,apiserver-failure,ha-config,isolation"
-              share_infra_scenarios: "isolation"
+              # ITER-ONLY 2026-05-13: narrowed to node-churn-combined
+              # ONLY for fast smoke iteration on scenario #3. Restore
+              # full 6-scenario list before n=20 promotion:
+              #   "event-throughput,pod-churn-combined,apiserver-failure,ha-config,isolation,node-churn-combined"
+              share_infra_scenarios: "node-churn-combined"
               cl2_config_file: ""  # unused when share_infra_scenarios is set
               test_type: shared    # row-level test_type comes from each scenario at collect time
               namespaces: 5
@@ -176,6 +182,19 @@ stages:
               # (etcd-quorum-friendly). ENO may revert; the scaler tags
               # ha_replicas_honored in the timing JSON either way.
               ha_config_replicas: 3
+              # Phase 4b — Scenario #3 (Node Churn / IP Churn) knobs.
+              # Reduced cycles (2 instead of 3) and shorter durations for
+              # n=2 smoke iteration; production n=20 share-infra uses the
+              # full defaults via execute.yml fallbacks.
+              node_churn_target_context: clustermesh-1
+              node_churn_cycles: 2
+              node_churn_delta: 3
+              node_churn_settle_seconds: 60
+              node_churn_scale_duration_seconds: 1200
+              node_churn_replace_duration_seconds: 900
+              node_churn_combined_duration_seconds: 2100
+              node_replace_batch_size: 1
+              node_churn_ready_timeout_seconds: 300
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           # n=2 share-infra (5 scenarios): provision (~15min) + validate (~5min)
@@ -421,7 +440,7 @@ stages:
             n20_shared:
               cluster_count: 20
               mesh_size: 20
-              share_infra_scenarios: "event-throughput,pod-churn-combined,apiserver-failure,ha-config,isolation"
+              share_infra_scenarios: "event-throughput,pod-churn-combined,apiserver-failure,ha-config,isolation,node-churn-combined"
               cl2_config_file: ""  # unused in share-infra mode
               test_type: shared    # row-level test_type comes from each scenario
               cl2_max_concurrent: 8
@@ -444,6 +463,20 @@ stages:
               apiserver_kill_recovery_timeout_seconds: 240
               apiserver_kill_observation_seconds: 60
               ha_config_replicas: 3
+              # Phase 4b — Scenario #3 (Node Churn / IP Churn) knobs at n=20.
+              # Positioned LAST in share_infra_scenarios per rubber-duck
+              # design review #11 (node ops can leave target half-scaled
+              # if finalizer can't restore; putting it last contains the
+              # blast radius).
+              node_churn_target_context: clustermesh-1
+              node_churn_cycles: 3
+              node_churn_delta: 5
+              node_churn_settle_seconds: 60
+              node_churn_scale_duration_seconds: 1800
+              node_churn_replace_duration_seconds: 1500
+              node_churn_combined_duration_seconds: 3300
+              node_replace_batch_size: 10
+              node_churn_ready_timeout_seconds: 300
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           # n=20 share-infra (3 scenarios): provision (~4h) + validate (~30min)

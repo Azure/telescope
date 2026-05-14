@@ -456,7 +456,6 @@ class TestHAConfigScalingTimingPickup(unittest.TestCase):
     if it finds one in the report dir. ha-config-scaler.sh writes the file
     on every cluster (not just target) — mesh-wide HA scaling.
     """
-
     def test_scaling_file_appends_row(self):
         with tempfile.TemporaryDirectory() as tmp:
             src = os.path.join(MOCK_REPORT_ROOT, "mesh-1")
@@ -547,6 +546,387 @@ class TestHAConfigScalingTimingPickup(unittest.TestCase):
         finally:
             if os.path.exists(result_file):
                 os.remove(result_file)
+
+
+class TestConfigureNodeChurnKnobs(unittest.TestCase):
+    """Phase 4b — Scenario #3 (Node Churn / IP Churn) overrides flow through
+    configure_clusterloader2 and land in the CL2 overrides file with the
+    expected CL2_NODE_CHURN_* keys.
+    """
+
+    def test_node_churn_defaults_emitted(self):
+        """Defaults match scale.py argparse + node-churner.sh expectations."""
+        with tempfile.NamedTemporaryFile(delete=False, mode="w+", encoding="utf-8") as tmp:
+            tmp_path = tmp.name
+        try:
+            configure_clusterloader2(
+                namespaces=1,
+                deployments_per_namespace=1,
+                replicas_per_deployment=1,
+                operation_timeout="15m",
+                override_file=tmp_path,
+            )
+            with open(tmp_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            self.assertIn("CL2_NODE_CHURN_TARGET_CONTEXT: clustermesh-1", content)
+            self.assertIn("CL2_NODE_CHURN_CYCLES: 3", content)
+            self.assertIn("CL2_NODE_CHURN_DELTA: 5", content)
+            self.assertIn("CL2_NODE_CHURN_SETTLE_SECONDS: 60", content)
+            self.assertIn("CL2_NODE_CHURN_SCALE_DURATION_SECONDS: 1800", content)
+            self.assertIn("CL2_NODE_CHURN_REPLACE_DURATION_SECONDS: 1500", content)
+            self.assertIn("CL2_NODE_CHURN_COMBINED_DURATION_SECONDS: 3300", content)
+            self.assertIn("CL2_NODE_REPLACE_BATCH_SIZE: 10", content)
+            self.assertIn("CL2_NODE_CHURN_READY_TIMEOUT_SECONDS: 300", content)
+        finally:
+            os.remove(tmp_path)
+
+    def test_node_churn_overrides_passthrough(self):
+        """Explicit kwargs override defaults; per-tier matrix overrides land."""
+        with tempfile.NamedTemporaryFile(delete=False, mode="w+", encoding="utf-8") as tmp:
+            tmp_path = tmp.name
+        try:
+            configure_clusterloader2(
+                namespaces=1,
+                deployments_per_namespace=1,
+                replicas_per_deployment=1,
+                operation_timeout="15m",
+                override_file=tmp_path,
+                node_churn_target_context="clustermesh-7",
+                node_churn_cycles=5,
+                node_churn_delta=3,
+                node_churn_settle_seconds=90,
+                node_churn_scale_duration_seconds=2400,
+                node_churn_replace_duration_seconds=2000,
+                node_churn_combined_duration_seconds=4500,
+                node_replace_batch_size=8,
+                node_churn_ready_timeout_seconds=180,
+            )
+            with open(tmp_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            self.assertIn("CL2_NODE_CHURN_TARGET_CONTEXT: clustermesh-7", content)
+            self.assertIn("CL2_NODE_CHURN_CYCLES: 5", content)
+            self.assertIn("CL2_NODE_CHURN_DELTA: 3", content)
+            self.assertIn("CL2_NODE_CHURN_SETTLE_SECONDS: 90", content)
+            self.assertIn("CL2_NODE_CHURN_SCALE_DURATION_SECONDS: 2400", content)
+            self.assertIn("CL2_NODE_CHURN_REPLACE_DURATION_SECONDS: 2000", content)
+            self.assertIn("CL2_NODE_CHURN_COMBINED_DURATION_SECONDS: 4500", content)
+            self.assertIn("CL2_NODE_REPLACE_BATCH_SIZE: 8", content)
+            self.assertIn("CL2_NODE_CHURN_READY_TIMEOUT_SECONDS: 180", content)
+        finally:
+            os.remove(tmp_path)
+
+
+class TestNodeChurnTimingPickup(unittest.TestCase):
+    """collect_clusterloader2 appends one NodeChurnSummary row + one
+    NodeChurnOpTiming row per op from NodeChurnTimings_*.json. node-churner.sh
+    writes the file ONLY in the target cluster's report dir (the script runs
+    on the host, not inside CL2; the file lives in the target's per-cluster
+    report dir so the existing per-cluster collect pickup works).
+    """
+
+    def _write_timing(self, report_dir, target_context, ops=None,
+                      scenario="node-churn-combined",
+                      ready_quorum_reached=True,
+                      scenario_valid=True, cleanup_failed=False,
+                      truncated=False):
+        ops = ops or []
+        path = os.path.join(report_dir, f"NodeChurnTimings_{target_context}.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({
+                "scenario": scenario,
+                "target_context": target_context,
+                "target_cluster_name": target_context,
+                "target_resource_group": "test-rg",
+                "target_nodepool": "default",
+                "target_node_resource_group": f"MC_test-rg_{target_context}_eastus2",
+                "target_vmss": "aks-default-12345",
+                "original_node_count": 20,
+                "ready_quorum_reached": ready_quorum_reached,
+                "scenario_valid": scenario_valid,
+                "cleanup_failed": cleanup_failed,
+                "truncated": truncated,
+                "started_epoch": 1746000000,
+                "ended_epoch": 1746001500,
+                "duration_seconds": 1500,
+                "ops": ops,
+            }, f)
+        return path
+
+    def test_timing_file_emits_summary_and_op_rows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = os.path.join(MOCK_REPORT_ROOT, "mesh-1")
+            report_dir = os.path.join(tmp, "mesh-1")
+            shutil.copytree(src, report_dir)
+            self._write_timing(report_dir, "clustermesh-1", ops=[
+                {
+                    "op_index": 1, "op_type": "scale_up",
+                    "start_epoch": 1746000010, "end_epoch": 1746000200,
+                    "duration_seconds": 190, "succeeded": True,
+                    "observed_node_count": 25,
+                    "pre_ip_set": [], "post_ip_set": [], "new_ip_count": 0,
+                    "error": "",
+                },
+                {
+                    "op_index": 2, "op_type": "scale_down",
+                    "start_epoch": 1746000260, "end_epoch": 1746000450,
+                    "duration_seconds": 190, "succeeded": True,
+                    "observed_node_count": 20,
+                    "pre_ip_set": [], "post_ip_set": [], "new_ip_count": 0,
+                    "error": "",
+                },
+                {
+                    "op_index": 3, "op_type": "replace_wait",
+                    "start_epoch": 1746000500, "end_epoch": 1746001100,
+                    "duration_seconds": 600, "succeeded": True,
+                    "observed_node_count": 20,
+                    "pre_ip_set": ["10.1.0.4", "10.1.0.5"],
+                    "post_ip_set": ["10.1.0.6", "10.1.0.7"],
+                    "new_ip_count": 2,
+                    "error": "",
+                },
+            ])
+            result_file = tempfile.mktemp(suffix=".jsonl")
+            try:
+                collect_clusterloader2(
+                    cl2_report_dir=report_dir,
+                    cloud_info="",
+                    run_id="nc-test",
+                    run_url="",
+                    result_file=result_file,
+                    test_type="node-churn-combined",
+                    start_timestamp="2026-05-13T20:00:00Z",
+                    cluster_name="mesh-1",
+                    cluster_count=2,
+                    mesh_size=2,
+                    namespaces=5,
+                    deployments_per_namespace=4,
+                    replicas_per_deployment=10,
+                    trigger_reason="Manual",
+                )
+                with open(result_file, "r", encoding="utf-8") as f:
+                    lines = [json.loads(l) for l in f.read().strip().split("\n") if l]
+                summary = [r for r in lines if r.get("measurement") == "NodeChurnSummary"]
+                ops = [r for r in lines if r.get("measurement") == "NodeChurnOpTiming"]
+                self.assertEqual(len(summary), 1)
+                self.assertEqual(len(ops), 3)
+                s = summary[0]
+                self.assertEqual(s["group"], "node-churn-combined")
+                self.assertEqual(s["test_type"], "node-churn-combined")
+                self.assertEqual(s["cluster"], "mesh-1")
+                self.assertEqual(s["result"]["data"]["op_count"], 3)
+                self.assertEqual(s["result"]["data"]["original_node_count"], 20)
+                self.assertTrue(s["result"]["data"]["ready_quorum_reached"])
+                self.assertTrue(s["result"]["data"]["scenario_valid"])
+                # ops sorted by op_index
+                op_types = [o["result"]["data"]["op_type"] for o in ops]
+                self.assertEqual(set(op_types), {"scale_up", "scale_down", "replace_wait"})
+                # scenario-level context merged onto op rows
+                for op_row in ops:
+                    self.assertEqual(op_row["result"]["data"]["scenario"], "node-churn-combined")
+                    self.assertEqual(op_row["result"]["data"]["target_context"], "clustermesh-1")
+                # replace_wait op carries IP set deltas
+                replace = [o for o in ops if o["result"]["data"]["op_type"] == "replace_wait"][0]
+                self.assertEqual(replace["result"]["data"]["new_ip_count"], 2)
+                self.assertIn("10.1.0.6", replace["result"]["data"]["post_ip_set"])
+            finally:
+                if os.path.exists(result_file):
+                    os.remove(result_file)
+
+    def test_timing_file_with_empty_ops_emits_summary_only(self):
+        """Ready-quorum-never-reached case: timing file exists with ops=[],
+        scenario_valid=false. Summary row still emitted so Kusto can detect
+        the aborted run; no op rows."""
+        with tempfile.TemporaryDirectory() as tmp:
+            src = os.path.join(MOCK_REPORT_ROOT, "mesh-1")
+            report_dir = os.path.join(tmp, "mesh-1")
+            shutil.copytree(src, report_dir)
+            self._write_timing(
+                report_dir, "clustermesh-1", ops=[],
+                ready_quorum_reached=False, scenario_valid=False,
+            )
+            result_file = tempfile.mktemp(suffix=".jsonl")
+            try:
+                collect_clusterloader2(
+                    cl2_report_dir=report_dir,
+                    cloud_info="",
+                    run_id="nc-test-abort",
+                    run_url="",
+                    result_file=result_file,
+                    test_type="node-churn-scale",
+                    start_timestamp="2026-05-13T20:00:00Z",
+                    cluster_name="mesh-1",
+                    cluster_count=2,
+                    mesh_size=2,
+                    namespaces=5,
+                    deployments_per_namespace=4,
+                    replicas_per_deployment=10,
+                    trigger_reason="Manual",
+                )
+                with open(result_file, "r", encoding="utf-8") as f:
+                    lines = [json.loads(l) for l in f.read().strip().split("\n") if l]
+                summary = [r for r in lines if r.get("measurement") == "NodeChurnSummary"]
+                ops = [r for r in lines if r.get("measurement") == "NodeChurnOpTiming"]
+                self.assertEqual(len(summary), 1)
+                self.assertEqual(len(ops), 0)
+                self.assertFalse(summary[0]["result"]["data"]["ready_quorum_reached"])
+                self.assertFalse(summary[0]["result"]["data"]["scenario_valid"])
+                self.assertEqual(summary[0]["result"]["data"]["op_count"], 0)
+            finally:
+                if os.path.exists(result_file):
+                    os.remove(result_file)
+
+    def test_timing_file_with_cleanup_failed_marks_summary(self):
+        """If node-churner finalizer can't restore the pool, cleanup_failed=true.
+        execute.yml uses this to break the share-infra loop; collect must still
+        emit the summary row with cleanup_failed=true visible."""
+        with tempfile.TemporaryDirectory() as tmp:
+            src = os.path.join(MOCK_REPORT_ROOT, "mesh-1")
+            report_dir = os.path.join(tmp, "mesh-1")
+            shutil.copytree(src, report_dir)
+            self._write_timing(
+                report_dir, "clustermesh-1",
+                ops=[{
+                    "op_index": 1, "op_type": "scale_up",
+                    "start_epoch": 1746000010, "end_epoch": 1746000200,
+                    "duration_seconds": 190, "succeeded": False,
+                    "observed_node_count": 0,
+                    "pre_ip_set": [], "post_ip_set": [], "new_ip_count": 0,
+                    "error": "OperationNotAllowed",
+                }],
+                cleanup_failed=True, scenario_valid=False,
+            )
+            result_file = tempfile.mktemp(suffix=".jsonl")
+            try:
+                collect_clusterloader2(
+                    cl2_report_dir=report_dir,
+                    cloud_info="",
+                    run_id="nc-test-cleanup",
+                    run_url="",
+                    result_file=result_file,
+                    test_type="node-churn-combined",
+                    start_timestamp="2026-05-13T20:00:00Z",
+                    cluster_name="mesh-1",
+                    cluster_count=2,
+                    mesh_size=2,
+                    namespaces=5,
+                    deployments_per_namespace=4,
+                    replicas_per_deployment=10,
+                    trigger_reason="Manual",
+                )
+                with open(result_file, "r", encoding="utf-8") as f:
+                    lines = [json.loads(l) for l in f.read().strip().split("\n") if l]
+                summary = [r for r in lines if r.get("measurement") == "NodeChurnSummary"]
+                self.assertEqual(len(summary), 1)
+                self.assertTrue(summary[0]["result"]["data"]["cleanup_failed"])
+                # failed op still surfaces with succeeded=false
+                ops = [r for r in lines if r.get("measurement") == "NodeChurnOpTiming"]
+                self.assertEqual(len(ops), 1)
+                self.assertFalse(ops[0]["result"]["data"]["succeeded"])
+                self.assertIn("OperationNotAllowed", ops[0]["result"]["data"]["error"])
+            finally:
+                if os.path.exists(result_file):
+                    os.remove(result_file)
+
+    def test_no_timing_file_means_no_node_churn_rows(self):
+        """Non-target clusters (and non-node-churn scenarios) skip writing
+        the timing file → no NodeChurnSummary / NodeChurnOpTiming rows."""
+        result_file = tempfile.mktemp(suffix=".jsonl")
+        try:
+            collect_clusterloader2(
+                cl2_report_dir=os.path.join(MOCK_REPORT_ROOT, "mesh-2"),
+                cloud_info="",
+                run_id="nc-test-no-timing",
+                run_url="",
+                result_file=result_file,
+                test_type="node-churn-scale",
+                start_timestamp="2026-05-13T20:00:00Z",
+                cluster_name="mesh-2",
+                cluster_count=2,
+                mesh_size=2,
+                namespaces=5,
+                deployments_per_namespace=4,
+                replicas_per_deployment=10,
+                trigger_reason="Manual",
+            )
+            with open(result_file, "r", encoding="utf-8") as f:
+                lines = [json.loads(l) for l in f.read().strip().split("\n") if l]
+            summary = [r for r in lines if r.get("measurement") == "NodeChurnSummary"]
+            ops = [r for r in lines if r.get("measurement") == "NodeChurnOpTiming"]
+            self.assertEqual(len(summary), 0)
+            self.assertEqual(len(ops), 0)
+        finally:
+            if os.path.exists(result_file):
+                os.remove(result_file)
+
+
+class TestNodeChurnerScript(unittest.TestCase):
+    """node-churner.sh smoke tests — bash -n syntax + arg validation. The
+    script's full Azure CLI behavior cannot be unit-tested without mocking
+    the cloud, but its argparse-equivalent + missing-binary fail-soft path
+    can.
+    """
+
+    SCRIPT_PATH = (
+        Path(__file__).resolve().parents[1]
+        / "clusterloader2" / "clustermesh-scale" / "config" / "node-churner.sh"
+    )
+
+    def test_script_exists_and_is_executable(self):
+        self.assertTrue(self.SCRIPT_PATH.exists(),
+                        f"{self.SCRIPT_PATH} should exist")
+        self.assertTrue(
+            os.access(self.SCRIPT_PATH, os.X_OK),
+            f"{self.SCRIPT_PATH} must be executable",
+        )
+
+    def test_script_bash_syntax(self):
+        import subprocess
+        result = subprocess.run(
+            ["bash", "-n", str(self.SCRIPT_PATH)],
+            capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(result.returncode, 0,
+                         f"bash -n failed: stderr={result.stderr}")
+
+    def test_script_aborts_softly_when_az_missing(self):
+        """When `az` CLI isn't on PATH, the script writes a timing file with
+        scenario_valid=false instead of erroring out (so execute.yml's
+        share-infra loop continues to subsequent scenarios with clean data).
+        """
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmp:
+            report_dir = os.path.join(tmp, "report")
+            sentinel_dir = os.path.join(tmp, "sentinels")
+            os.makedirs(report_dir, exist_ok=True)
+            os.makedirs(sentinel_dir, exist_ok=True)
+            env = os.environ.copy()
+            env["PATH"] = "/usr/bin:/bin"  # strip out any az
+            result = subprocess.run(
+                [
+                    "bash", str(self.SCRIPT_PATH),
+                    "node-churn-scale",   # scenario
+                    "clustermesh-1",      # target cluster name
+                    "test-rg",            # target rg
+                    "default",            # target nodepool
+                    report_dir,           # report dir
+                    sentinel_dir,         # sentinel dir
+                    "2",                  # cluster count
+                    "1", "1", "1", "1", "30", "60",  # remaining knobs
+                ],
+                capture_output=True, text=True, env=env, check=False,
+                timeout=30,
+            )
+            # Soft-fail contract: exit 0 even when az is missing.
+            self.assertEqual(result.returncode, 0,
+                             f"expected soft-fail (rc=0); got rc={result.returncode}, "
+                             f"stderr={result.stderr}")
+            timing_file = os.path.join(report_dir, "NodeChurnTimings_clustermesh-1.json")
+            self.assertTrue(os.path.exists(timing_file),
+                            "timing file should still be written on soft-fail")
+            with open(timing_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            self.assertFalse(data["scenario_valid"],
+                             "scenario_valid must be false when az is missing")
 
 
 class TestCollectSingleCluster(unittest.TestCase):
@@ -920,6 +1300,15 @@ class TestMainArgumentParsing(unittest.TestCase):
             apiserver_kill_recovery_timeout_seconds=240,
             apiserver_kill_observation_seconds=60,
             ha_config_replicas=3,
+            node_churn_target_context="clustermesh-1",
+            node_churn_cycles=3,
+            node_churn_delta=5,
+            node_churn_settle_seconds=60,
+            node_churn_scale_duration_seconds=1800,
+            node_churn_replace_duration_seconds=1500,
+            node_churn_combined_duration_seconds=3300,
+            node_replace_batch_size=10,
+            node_churn_ready_timeout_seconds=300,
         )
 
     @patch.object(clustermesh_scale_module, "execute_clusterloader2")

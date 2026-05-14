@@ -103,6 +103,78 @@ stages:
               kill_batch: 5
               kill_job_deadline_seconds: 660
               trigger_reason: ${{ variables['Build.Reason'] }}
+            # Phase 4b — Scenario #3 (Node Churn / IP Churn). The stimulus
+            # (az aks nodepool scale / VMSS instance delete) runs OUTSIDE
+            # CL2 from steps/engine/clusterloader2/clustermesh-scale/execute.yml
+            # in a background subshell; CL2 deploys a baseline workload on
+            # every cluster and observes via measurements (node-churn.yaml).
+            # See modules/python/clusterloader2/clustermesh-scale/config/node-churner.sh
+            # for the script header. mesh_size-wide concurrency override
+            # forced in execute.yml (needs_mesh_wide_concurrency).
+            n2_node_churn_scale:
+              cluster_count: 2
+              mesh_size: 2
+              cl2_config_file: node-churn-scale.yaml
+              test_type: node-churn-scale
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              # Node-churn knobs — see scale.py configure for semantics. Defaults
+              # in execute.yml fill in when matrix entry omits them, but we set
+              # them explicitly for traceability.
+              node_churn_target_context: clustermesh-1
+              node_churn_cycles: 3
+              node_churn_delta: 5
+              node_churn_settle_seconds: 60
+              node_churn_scale_duration_seconds: 1800
+              node_churn_ready_timeout_seconds: 300
+              trigger_reason: ${{ variables['Build.Reason'] }}
+            n2_node_churn_replace:
+              cluster_count: 2
+              mesh_size: 2
+              cl2_config_file: node-churn-replace.yaml
+              test_type: node-churn-replace
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              node_churn_target_context: clustermesh-1
+              node_churn_settle_seconds: 60
+              node_churn_replace_duration_seconds: 1500
+              # node_replace_batch_size: 10 default; bounded above by original
+              # pool size (20) so 10 = 50%% replacement is the sweet spot for
+              # mesh propagation pressure without saturating Cilium endpoint
+              # reconcile under our DSv3 budget.
+              node_replace_batch_size: 10
+              node_churn_ready_timeout_seconds: 300
+              trigger_reason: ${{ variables['Build.Reason'] }}
+            n2_node_churn_combined:
+              cluster_count: 2
+              mesh_size: 2
+              cl2_config_file: node-churn-combined.yaml
+              test_type: node-churn-combined
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              node_churn_target_context: clustermesh-1
+              node_churn_cycles: 3
+              node_churn_delta: 5
+              node_churn_settle_seconds: 60
+              node_churn_combined_duration_seconds: 3300
+              node_replace_batch_size: 10
+              node_churn_ready_timeout_seconds: 300
+              trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
@@ -179,6 +251,65 @@ stages:
               kill_interval_seconds: 10
               kill_batch: 5
               kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
+            # Phase 4b — Scenario #3 (Node Churn / IP Churn). See n2 entry
+            # for the full design rationale; only mesh_size differs at this tier.
+            n5_node_churn_scale:
+              cluster_count: 5
+              mesh_size: 5
+              cl2_config_file: node-churn-scale.yaml
+              test_type: node-churn-scale
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              node_churn_target_context: clustermesh-1
+              node_churn_cycles: 3
+              node_churn_delta: 5
+              node_churn_settle_seconds: 60
+              node_churn_scale_duration_seconds: 1800
+              node_churn_ready_timeout_seconds: 300
+              trigger_reason: ${{ variables['Build.Reason'] }}
+            n5_node_churn_replace:
+              cluster_count: 5
+              mesh_size: 5
+              cl2_config_file: node-churn-replace.yaml
+              test_type: node-churn-replace
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              node_churn_target_context: clustermesh-1
+              node_churn_settle_seconds: 60
+              node_churn_replace_duration_seconds: 1500
+              node_replace_batch_size: 10
+              node_churn_ready_timeout_seconds: 300
+              trigger_reason: ${{ variables['Build.Reason'] }}
+            n5_node_churn_combined:
+              cluster_count: 5
+              mesh_size: 5
+              cl2_config_file: node-churn-combined.yaml
+              test_type: node-churn-combined
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              node_churn_target_context: clustermesh-1
+              node_churn_cycles: 3
+              node_churn_delta: 5
+              node_churn_settle_seconds: 60
+              node_churn_combined_duration_seconds: 3300
+              node_replace_batch_size: 10
+              node_churn_ready_timeout_seconds: 300
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           # 5-cluster provision adds ~10-15 min vs n2 (more terraform + fleet
@@ -262,6 +393,64 @@ stages:
               kill_interval_seconds: 10
               kill_batch: 5
               kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
+            # Phase 4b — Scenario #3 (Node Churn / IP Churn).
+            n10_node_churn_scale:
+              cluster_count: 10
+              mesh_size: 10
+              cl2_config_file: node-churn-scale.yaml
+              test_type: node-churn-scale
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              node_churn_target_context: clustermesh-1
+              node_churn_cycles: 3
+              node_churn_delta: 5
+              node_churn_settle_seconds: 60
+              node_churn_scale_duration_seconds: 1800
+              node_churn_ready_timeout_seconds: 300
+              trigger_reason: ${{ variables['Build.Reason'] }}
+            n10_node_churn_replace:
+              cluster_count: 10
+              mesh_size: 10
+              cl2_config_file: node-churn-replace.yaml
+              test_type: node-churn-replace
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              node_churn_target_context: clustermesh-1
+              node_churn_settle_seconds: 60
+              node_churn_replace_duration_seconds: 1500
+              node_replace_batch_size: 10
+              node_churn_ready_timeout_seconds: 300
+              trigger_reason: ${{ variables['Build.Reason'] }}
+            n10_node_churn_combined:
+              cluster_count: 10
+              mesh_size: 10
+              cl2_config_file: node-churn-combined.yaml
+              test_type: node-churn-combined
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              node_churn_target_context: clustermesh-1
+              node_churn_cycles: 3
+              node_churn_delta: 5
+              node_churn_settle_seconds: 60
+              node_churn_combined_duration_seconds: 3300
+              node_replace_batch_size: 10
+              node_churn_ready_timeout_seconds: 300
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           # 10-cluster provision adds ~10-15 min vs n5 (more terraform +
@@ -370,6 +559,67 @@ stages:
               kill_interval_seconds: 10
               kill_batch: 5
               kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
+            # Phase 4b — Scenario #3 (Node Churn / IP Churn) at n=20.
+            # Each entry is a separate provision/destroy lifecycle (~6.5h
+            # at n=20 including the ~30-55min node-churn window itself).
+            # Enable selectively in AzDO UI.
+            n20_node_churn_scale:
+              cluster_count: 20
+              mesh_size: 20
+              cl2_config_file: node-churn-scale.yaml
+              test_type: node-churn-scale
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              node_churn_target_context: clustermesh-1
+              node_churn_cycles: 3
+              node_churn_delta: 5
+              node_churn_settle_seconds: 60
+              node_churn_scale_duration_seconds: 1800
+              node_churn_ready_timeout_seconds: 300
+              trigger_reason: ${{ variables['Build.Reason'] }}
+            n20_node_churn_replace:
+              cluster_count: 20
+              mesh_size: 20
+              cl2_config_file: node-churn-replace.yaml
+              test_type: node-churn-replace
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              node_churn_target_context: clustermesh-1
+              node_churn_settle_seconds: 60
+              node_churn_replace_duration_seconds: 1500
+              node_replace_batch_size: 10
+              node_churn_ready_timeout_seconds: 300
+              trigger_reason: ${{ variables['Build.Reason'] }}
+            n20_node_churn_combined:
+              cluster_count: 20
+              mesh_size: 20
+              cl2_config_file: node-churn-combined.yaml
+              test_type: node-churn-combined
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              node_churn_target_context: clustermesh-1
+              node_churn_cycles: 3
+              node_churn_delta: 5
+              node_churn_settle_seconds: 60
+              node_churn_combined_duration_seconds: 3300
+              node_replace_batch_size: 10
+              node_churn_ready_timeout_seconds: 300
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           timeout_in_minutes: 480

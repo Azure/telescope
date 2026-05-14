@@ -52,6 +52,15 @@ def configure_clusterloader2(
     apiserver_kill_recovery_timeout_seconds=240,
     apiserver_kill_observation_seconds=60,
     ha_config_replicas=3,
+    node_churn_target_context="clustermesh-1",
+    node_churn_cycles=3,
+    node_churn_delta=5,
+    node_churn_settle_seconds=60,
+    node_churn_scale_duration_seconds=1800,
+    node_churn_replace_duration_seconds=1500,
+    node_churn_combined_duration_seconds=3300,
+    node_replace_batch_size=10,
+    node_churn_ready_timeout_seconds=300,
 ):
     with open(override_file, "w", encoding="utf-8") as f:
         # Prometheus stack — keep the Cilium-scrape flags ON so the
@@ -115,6 +124,22 @@ def configure_clusterloader2(
         # Single replicas-count override consumed by ha-config.yaml. Other
         # scenarios' CL2 configs don't reference it; ignored silently.
         f.write(f"CL2_HA_CONFIG_REPLICAS: {ha_config_replicas}\n")
+
+        # Phase 4b — Scenario #3 (Node Churn / IP Churn) knobs.
+        # node-churn-{scale,replace,combined}.yaml each consume a subset.
+        # node-churner.sh (driven from execute.yml, NOT Method:Exec — CL2
+        # image has no az CLI) reads the same matrix vars directly; these
+        # overrides drive the CL2-side sleep/sentinel window that aligns
+        # with the churner's wall-clock run.
+        f.write(f"CL2_NODE_CHURN_TARGET_CONTEXT: {node_churn_target_context}\n")
+        f.write(f"CL2_NODE_CHURN_CYCLES: {node_churn_cycles}\n")
+        f.write(f"CL2_NODE_CHURN_DELTA: {node_churn_delta}\n")
+        f.write(f"CL2_NODE_CHURN_SETTLE_SECONDS: {node_churn_settle_seconds}\n")
+        f.write(f"CL2_NODE_CHURN_SCALE_DURATION_SECONDS: {node_churn_scale_duration_seconds}\n")
+        f.write(f"CL2_NODE_CHURN_REPLACE_DURATION_SECONDS: {node_churn_replace_duration_seconds}\n")
+        f.write(f"CL2_NODE_CHURN_COMBINED_DURATION_SECONDS: {node_churn_combined_duration_seconds}\n")
+        f.write(f"CL2_NODE_REPLACE_BATCH_SIZE: {node_replace_batch_size}\n")
+        f.write(f"CL2_NODE_CHURN_READY_TIMEOUT_SECONDS: {node_churn_ready_timeout_seconds}\n")
 
     with open(override_file, "r", encoding="utf-8") as f:
         print(f"Content of file {override_file}:\n{f.read()}")
@@ -517,6 +542,113 @@ def collect_clusterloader2(
     # One row per cluster.
     _emit_ha_config_scaling_rows(cl2_report_dir, template, result_file)
 
+    # Phase 4b — Scenario #3 (Node Churn / IP Churn) timing pickup.
+    # node-churner.sh writes NodeChurnTimings_<target_context>.json into the
+    # TARGET cluster's per-cluster report dir (the churner runs from
+    # execute.yml on the AzDO agent, not inside CL2 — see plan.md scenario #3
+    # design). One row per recorded op (scale_up / scale_down / replace_drain /
+    # replace_delete / replace_wait). Non-target clusters skip writing the
+    # file → no rows emitted for them.
+    _emit_node_churn_timing_rows(cl2_report_dir, template, result_file)
+
+
+def _emit_node_churn_timing_rows(cl2_report_dir, template, result_file):
+    """Append one JSONL row per recorded op in NodeChurnTimings_*.json.
+
+    File shape (from node-churner.sh):
+        {
+          "target_context": str,
+          "target_cluster_name": str,
+          "target_resource_group": str,
+          "target_nodepool": str,
+          "scenario": "node-churn-scale" | "node-churn-replace" | "node-churn-combined",
+          "original_node_count": int,
+          "ready_quorum_reached": bool,
+          "cleanup_failed": bool,
+          "scenario_valid": bool,         // false if a circuit-breaker fired
+          "truncated": bool,              // true if churner ran past CL2 sleep
+          "started_epoch": int,
+          "ended_epoch": int,
+          "duration_seconds": int,
+          "ops": [
+            {
+              "op_index": int,
+              "op_type": "scale_up"|"scale_down"|"replace_drain"|"replace_delete"|"replace_wait",
+              "start_epoch": int,
+              "end_epoch": int,
+              "duration_seconds": int,
+              "succeeded": bool,
+              "observed_node_count": int,
+              "pre_ip_set": [str],        // only on replace_wait ops; empty otherwise
+              "post_ip_set": [str],
+              "new_ip_count": int,
+              "error": str                // empty on success
+            }, ...
+          ]
+        }
+
+    Each op becomes one row in the JSONL with
+    measurement="NodeChurnOpTiming", group=<scenario>, and result.data = the
+    per-op JSON, PLUS scenario-level fields copied onto result.data for
+    cross-row context (scenario_valid, cleanup_failed, truncated, etc.).
+    A scenario-level summary row with measurement="NodeChurnSummary" is also
+    emitted so Kusto queries can detect cleanup_failed / scenario_valid=false
+    runs without joining op rows. One summary row per timing file.
+    """
+    timing_files = [
+        f for f in os.listdir(cl2_report_dir)
+        if f.startswith("NodeChurnTimings_") and f.endswith(".json")
+    ]
+    if not timing_files:
+        return
+    scenario_level_keys = (
+        "scenario", "target_context", "target_cluster_name",
+        "target_resource_group", "target_nodepool",
+        "original_node_count", "ready_quorum_reached", "cleanup_failed",
+        "scenario_valid", "truncated", "started_epoch", "ended_epoch",
+        "duration_seconds",
+    )
+    with open(result_file, "a", encoding="utf-8") as out:
+        for tf in timing_files:
+            tf_path = os.path.join(cl2_report_dir, tf)
+            try:
+                with open(tf_path, "r", encoding="utf-8") as tfh:
+                    timing_data = json.load(tfh)
+            except (OSError, json.JSONDecodeError) as e:
+                print(
+                    f"[collect] WARN: failed to read {tf_path}: {e}",
+                    file=sys.stderr,
+                )
+                continue
+            scenario_context = {
+                k: timing_data.get(k) for k in scenario_level_keys
+            }
+            # One summary row per file — always emitted, even if ops list is
+            # empty (e.g., quorum never reached → churner aborted before any op).
+            summary_row = json.loads(json.dumps(template))
+            summary_row["measurement"] = "NodeChurnSummary"
+            summary_row["group"] = timing_data.get("scenario", "node-churn")
+            summary_row["result"] = {
+                "data": {
+                    **scenario_context,
+                    "op_count": len(timing_data.get("ops") or []),
+                },
+                "unit": "seconds",
+            }
+            out.write(json.dumps(summary_row) + "\n")
+            # One row per op, with scenario_context merged onto result.data so
+            # a single Kusto filter (e.g., scenario_valid=true) gates op-level
+            # analysis without needing a join.
+            for op in timing_data.get("ops") or []:
+                op_row = json.loads(json.dumps(template))
+                op_row["measurement"] = "NodeChurnOpTiming"
+                op_row["group"] = timing_data.get("scenario", "node-churn")
+                op_row["result"] = {
+                    "data": {**scenario_context, **op},
+                    "unit": "seconds",
+                }
+                out.write(json.dumps(op_row) + "\n")
+
 
 def _emit_apiserver_failure_timing_rows(cl2_report_dir, template, result_file):
     """Append one JSONL row per ApiserverFailureTimings_*.json found.
@@ -669,6 +801,49 @@ def main():
                          "during the ha-config scenario. Each cluster scales its own "
                          "Deployment to this count before measurements start, then back "
                          "to 1 after gather. Default 3 (standard k8s HA, etcd quorum-friendly).")
+    # Phase 4b — Scenario #3 (Node Churn / IP Churn) knobs.
+    # CL2 templates that don't reference these silently ignore (same pattern
+    # as the apiserver / ha-config knobs). node-churner.sh consumes them via
+    # matrix-exported env vars in execute.yml — NOT via these overrides.
+    pc.add_argument("--node-churn-target-context", type=str, default="clustermesh-1",
+                    help="kubectl context name of the cluster whose default nodepool "
+                         "is scaled / replaced. Other clusters observe via CL2. "
+                         "Reuses the apiserver-failure target convention.")
+    pc.add_argument("--node-churn-cycles", type=int, default=3,
+                    help="Number of scale-up/down cycles in node-churn-scale. "
+                         "Each cycle does ONE scale-up by --node-churn-delta then ONE "
+                         "scale-down by the same delta with --node-churn-settle-seconds "
+                         "between ops. 3 cycles × 2 ops × ~4min/op = ~24min wall.")
+    pc.add_argument("--node-churn-delta", type=int, default=5,
+                    help="Per-half-cycle scale delta. +N on scale-up, -N on scale-down. "
+                         "Default 5 → 20→25→20 cycles. Bounded above by AKS vCPU quota.")
+    pc.add_argument("--node-churn-settle-seconds", type=int, default=60,
+                    help="Sleep between consecutive nodepool ops to let cilium "
+                         "reconcile node identities + endpoints before next op.")
+    pc.add_argument("--node-churn-scale-duration-seconds", type=int, default=1800,
+                    help="CL2-side sleep window for node-churn-scale.yaml. Must be "
+                         "≥ expected churner wall time + settle margin. 1800s = 30min "
+                         "covers 3-cycle scale at ~24min churner wall.")
+    pc.add_argument("--node-churn-replace-duration-seconds", type=int, default=1500,
+                    help="CL2-side sleep window for node-churn-replace.yaml. "
+                         "1500s = 25min covers VMSS-delete-and-replace of ~10 instances "
+                         "in parallel (each drain+replace ~5-10min, parallelized).")
+    pc.add_argument("--node-churn-combined-duration-seconds", type=int, default=3300,
+                    help="CL2-side sleep window for node-churn-combined.yaml "
+                         "(scale phase + replace phase serially). Sum of the two "
+                         "individual windows plus margin.")
+    pc.add_argument("--node-replace-batch-size", type=int, default=10,
+                    help="Number of VMSS instances to drain+delete in the replace "
+                         "scenario. AKS auto-replaces to restore the desired count, "
+                         "yielding K new VMs with new IPs. 10 of 20 default nodes = "
+                         "50%% pool replacement; bounded above by --max-surge fraction "
+                         "Cilium can tolerate without endpoint floods saturating the mesh.")
+    pc.add_argument("--node-churn-ready-timeout-seconds", type=int, default=300,
+                    help="How long node-churner.sh waits for per-cluster CL2 ready "
+                         "sentinels before starting the first nodepool op. If quorum "
+                         "(all clusters' sentinels) isn't reached within this window, "
+                         "the churner aborts WITH cleanup (restores pool to original "
+                         "node count) and marks scenario_valid=false in the timing JSON.")
 
     # execute
     pe = subparsers.add_parser("execute", help="Run CL2 against a single cluster")
@@ -763,6 +938,15 @@ def main():
             apiserver_kill_recovery_timeout_seconds=args.apiserver_kill_recovery_timeout_seconds,
             apiserver_kill_observation_seconds=args.apiserver_kill_observation_seconds,
             ha_config_replicas=args.ha_config_replicas,
+            node_churn_target_context=args.node_churn_target_context,
+            node_churn_cycles=args.node_churn_cycles,
+            node_churn_delta=args.node_churn_delta,
+            node_churn_settle_seconds=args.node_churn_settle_seconds,
+            node_churn_scale_duration_seconds=args.node_churn_scale_duration_seconds,
+            node_churn_replace_duration_seconds=args.node_churn_replace_duration_seconds,
+            node_churn_combined_duration_seconds=args.node_churn_combined_duration_seconds,
+            node_replace_batch_size=args.node_replace_batch_size,
+            node_churn_ready_timeout_seconds=args.node_churn_ready_timeout_seconds,
         )
     elif args.command == "execute":
         execute_clusterloader2(

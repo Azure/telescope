@@ -59,6 +59,20 @@ steps:
       export CL2_APISERVER_KILL_OBSERVATION_SECONDS="${APISERVER_KILL_OBSERVATION_SECONDS:-60}"
       # Phase 4b — Scenario #7 (HA Configuration Validation) knob.
       export CL2_HA_CONFIG_REPLICAS="${HA_CONFIG_REPLICAS:-3}"
+      # Phase 4b — Scenario #3 (Node Churn / IP Churn) knobs.
+      # node-churner.sh (driven from this script, NOT Method:Exec — see
+      # config/node-churner.sh header for the design rationale) consumes
+      # these directly. scale.py configure also writes them into overrides.yaml
+      # so CL2 templates that reference CL2_NODE_CHURN_* can use them.
+      export CL2_NODE_CHURN_TARGET_CONTEXT="${NODE_CHURN_TARGET_CONTEXT:-${APISERVER_KILL_TARGET_CONTEXT:-clustermesh-1}}"
+      export CL2_NODE_CHURN_CYCLES="${NODE_CHURN_CYCLES:-3}"
+      export CL2_NODE_CHURN_DELTA="${NODE_CHURN_DELTA:-5}"
+      export CL2_NODE_CHURN_SETTLE_SECONDS="${NODE_CHURN_SETTLE_SECONDS:-60}"
+      export CL2_NODE_CHURN_SCALE_DURATION_SECONDS="${NODE_CHURN_SCALE_DURATION_SECONDS:-1800}"
+      export CL2_NODE_CHURN_REPLACE_DURATION_SECONDS="${NODE_CHURN_REPLACE_DURATION_SECONDS:-1500}"
+      export CL2_NODE_CHURN_COMBINED_DURATION_SECONDS="${NODE_CHURN_COMBINED_DURATION_SECONDS:-3300}"
+      export CL2_NODE_REPLACE_BATCH_SIZE="${NODE_REPLACE_BATCH_SIZE:-10}"
+      export CL2_NODE_CHURN_READY_TIMEOUT_SECONDS="${NODE_CHURN_READY_TIMEOUT_SECONDS:-300}"
 
       # Same discovery pattern as topology/clustermesh-scale/validate-resources.yml.
       # We re-run it here rather than relying on a step variable so this engine
@@ -117,6 +131,15 @@ steps:
         --apiserver-kill-recovery-timeout-seconds "$CL2_APISERVER_KILL_RECOVERY_TIMEOUT_SECONDS" \
         --apiserver-kill-observation-seconds "$CL2_APISERVER_KILL_OBSERVATION_SECONDS" \
         --ha-config-replicas "$CL2_HA_CONFIG_REPLICAS" \
+        --node-churn-target-context "$CL2_NODE_CHURN_TARGET_CONTEXT" \
+        --node-churn-cycles "$CL2_NODE_CHURN_CYCLES" \
+        --node-churn-delta "$CL2_NODE_CHURN_DELTA" \
+        --node-churn-settle-seconds "$CL2_NODE_CHURN_SETTLE_SECONDS" \
+        --node-churn-scale-duration-seconds "$CL2_NODE_CHURN_SCALE_DURATION_SECONDS" \
+        --node-churn-replace-duration-seconds "$CL2_NODE_CHURN_REPLACE_DURATION_SECONDS" \
+        --node-churn-combined-duration-seconds "$CL2_NODE_CHURN_COMBINED_DURATION_SECONDS" \
+        --node-replace-batch-size "$CL2_NODE_REPLACE_BATCH_SIZE" \
+        --node-churn-ready-timeout-seconds "$CL2_NODE_CHURN_READY_TIMEOUT_SECONDS" \
         --cl2_override_file "${CL2_CONFIG_DIR}/overrides.yaml"
 
       # Phase 4a — pre-stage kubectl into the CL2 config dir so the
@@ -182,6 +205,146 @@ steps:
       # to the single-scenario invocation that prod pipeline expects.
       overall_rc=0
 
+      # Scenarios that REQUIRE every cluster's CL2 (and its Prometheus
+      # scrape window) to overlap the target's stimulus window — bumping
+      # max_concurrent to mesh_size means all clusters start CL2
+      # simultaneously. Used for:
+      #   - isolation:        target's pod-churn kill loop runs ON target;
+      #                       peer Prometheus must scrape concurrently to
+      #                       prove peers stay flat.
+      #   - node-churn-*:     stimulus is OUTSIDE CL2 (host-side az aks
+      #                       nodepool scale / vmss delete-instances). The
+      #                       readiness barrier in node-churner.sh requires
+      #                       all clusters' CL2 sentinels to land before
+      #                       node ops start — that's only possible if all
+      #                       CL2's are running concurrently.
+      needs_mesh_wide_concurrency() {
+        local _scen="$1"
+        case "$_scen" in
+          isolation|node-churn-scale|node-churn-replace|node-churn-combined)
+            return 0
+            ;;
+        esac
+        return 1
+      }
+
+      # Scenarios that drive their stimulus via node-churner.sh on the AzDO
+      # agent (NOT Method:Exec). The launcher returns the PID; the caller
+      # `wait`s after execute-parallel completes so the timing file is
+      # finalized before collect runs.
+      is_node_churn_scenario() {
+        case "$1" in
+          node-churn-scale|node-churn-replace|node-churn-combined) return 0 ;;
+        esac
+        return 1
+      }
+
+      # Sentinel dir bind-mounted into every CL2 container at
+      # /root/perf-tests/clusterloader2/config/sentinels (CL2_CONFIG_DIR is
+      # bind-mounted at /root/perf-tests/clusterloader2/config). Per-cluster
+      # CL2 writes ready-<cluster_context> when it enters the measurement
+      # window; node-churner.sh polls for $cluster_count sentinel files
+      # before starting the first nodepool op. Cleared per scenario so
+      # stale sentinels from a previous scenario don't fool the barrier.
+      SENTINEL_DIR="${CL2_CONFIG_DIR}/sentinels"
+      mkdir -p "$SENTINEL_DIR"
+
+      # Launch node-churner.sh for the named scenario; populates
+      # NODE_CHURNER_PID. Caller must:
+      #   - mkdir -p the per-cluster target report dir BEFORE calling so
+      #     the churner has a writable place for NodeChurnTimings_*.json
+      #   - call `wait $NODE_CHURNER_PID` after execute-parallel returns
+      #   - unset NODE_CHURNER_PID after wait
+      launch_node_churner() {
+        local _scen="$1" _report_dir_base="$2"
+        # Discover target cluster name + RG from the clusters JSON.
+        local _target_role="${CL2_NODE_CHURN_TARGET_CONTEXT}"
+        # Map role → AKS name + RG. Our tfvars set aks_name == role-derived
+        # name (e.g., role=mesh-1 → name=clustermesh-1), and `az aks
+        # get-credentials` writes kubectl context = AKS name. So
+        # CL2_NODE_CHURN_TARGET_CONTEXT is the AKS cluster name.
+        local _target_row
+        _target_row=$(echo "$clusters" | jq -c --arg n "$_target_role" '.[] | select(.name==$n)')
+        if [ -z "$_target_row" ]; then
+          # Fallback: maybe the user set NODE_CHURN_TARGET_CONTEXT to a role.
+          _target_row=$(echo "$clusters" | jq -c --arg r "$_target_role" '.[] | select(.role==$r)')
+        fi
+        if [ -z "$_target_row" ]; then
+          echo "##vso[task.logissue type=warning;] node-churner: target cluster '${_target_role}' not found in discovered clusters; skipping scenario stimulus"
+          NODE_CHURNER_PID=""
+          return 0
+        fi
+        local _target_name _target_rg _target_role_field _target_kubeconfig
+        _target_name=$(echo "$_target_row" | jq -r '.name')
+        _target_rg=$(echo "$_target_row" | jq -r '.rg')
+        _target_role_field=$(echo "$_target_row" | jq -r '.role')
+        # The clusters JSON has each cluster's per-cluster kubeconfig from the
+        # earlier pre-fetch (line ~88 in this script). Use it directly so the
+        # churner doesn't have to derive a role→kubeconfig mapping.
+        _target_kubeconfig=$(echo "$_target_row" | jq -r '.kubeconfig // ""')
+
+        # Per-scenario expected duration (matches the CL2 sleep window).
+        local _expected_dur
+        case "$_scen" in
+          node-churn-scale)    _expected_dur="$CL2_NODE_CHURN_SCALE_DURATION_SECONDS" ;;
+          node-churn-replace)  _expected_dur="$CL2_NODE_CHURN_REPLACE_DURATION_SECONDS" ;;
+          node-churn-combined) _expected_dur="$CL2_NODE_CHURN_COMBINED_DURATION_SECONDS" ;;
+          *)                   _expected_dur=1500 ;;
+        esac
+
+        # Clear sentinels for THIS scenario so the prior scenario's
+        # leftovers (if any) don't pre-trigger the barrier.
+        rm -f "$SENTINEL_DIR"/ready-* 2>/dev/null || true
+
+        # Target report dir for NodeChurnTimings_*.json. Pre-create so
+        # node-churner.sh can write even before CL2 finishes for that
+        # cluster (CL2 lazy-creates report dirs).
+        local _target_report_dir="${_report_dir_base}/${_target_role_field}"
+        mkdir -p "$_target_report_dir"
+
+        local _churner_log="${_target_report_dir}/node-churner.log"
+        echo "===== node-churner launch: scenario=${_scen} target=${_target_name} rg=${_target_rg} =====" | tee -a "$_churner_log"
+
+        # Background subshell. The churner's EXIT trap restores the pool to
+        # original count regardless of how the script exits; finalizer
+        # outcome (cleanup_failed) lands in the timing JSON.
+        (
+          bash "$NODE_CHURNER_SCRIPT" \
+            "$_scen" \
+            "$_target_name" \
+            "$_target_rg" \
+            "default" \
+            "$_target_report_dir" \
+            "$SENTINEL_DIR" \
+            "$cluster_count" \
+            "$CL2_NODE_CHURN_CYCLES" \
+            "$CL2_NODE_CHURN_DELTA" \
+            "$CL2_NODE_CHURN_SETTLE_SECONDS" \
+            "$CL2_NODE_REPLACE_BATCH_SIZE" \
+            "$CL2_NODE_CHURN_READY_TIMEOUT_SECONDS" \
+            "$_expected_dur" \
+            "$_target_kubeconfig" 2>&1 | tee -a "$_churner_log"
+        ) &
+        NODE_CHURNER_PID=$!
+        echo "node-churner: launched PID=$NODE_CHURNER_PID for scenario=${_scen}; log=${_churner_log}"
+      }
+
+      # Wait helper — caller invokes after execute-parallel returns.
+      wait_node_churner() {
+        local _scen="$1"
+        if [ -z "${NODE_CHURNER_PID:-}" ]; then
+          return 0
+        fi
+        echo "node-churner: waiting on PID=$NODE_CHURNER_PID for scenario=${_scen}"
+        local _rc=0
+        wait "$NODE_CHURNER_PID" || _rc=$?
+        if [ "$_rc" -ne 0 ]; then
+          echo "##vso[task.logissue type=warning;] node-churner: scenario=${_scen} exited rc=${_rc}; check NodeChurnTimings_*.json for scenario_valid / cleanup_failed flags"
+        fi
+        NODE_CHURNER_PID=""
+        return 0
+      }
+
       if [ -n "${SHARE_INFRA_SCENARIOS:-}" ]; then
         # Trim whitespace from each entry, split on comma.
         IFS=',' read -ra SCENARIO_LIST <<< "$SHARE_INFRA_SCENARIOS"
@@ -232,21 +395,29 @@ steps:
           # (rather than colliding with the previous scenario's leftover
           # PodMonitor + scrape config).
           #
-          # Per-scenario max_concurrent override (Phase 4b — Scenario #5):
-          # the isolation scenario REQUIRES every peer cluster's Prometheus
+          # Per-scenario max_concurrent override:
+          # The isolation scenario REQUIRES every peer cluster's Prometheus
           # window to overlap the target's 10min churn window — otherwise
           # peers in later batches start CL2 AFTER target's churn has
           # ended and produce useless rows for the A/B. Bump concurrency to
           # mesh_size (== cluster_count) for isolation. Safe at n=20 because
           # peers SLEEP during the kill window — 1 heavy container + 19
-          # idle ones easily fits the agent. Other scenarios stay at the
-          # configured default (8 at n=20) to avoid all-clusters-working
-          # OOM contention.
-          if [ "${SCENARIO}" = "isolation" ]; then
+          # idle ones easily fits the agent. Same override applies to
+          # node-churn-* scenarios: node-churner.sh's ready-sentinel
+          # barrier requires every cluster's CL2 to be running before the
+          # first nodepool op fires.
+          if needs_mesh_wide_concurrency "$SCENARIO"; then
             EFFECTIVE_MAX_CONCURRENT="${cluster_count}"
-            echo "Scenario ${SCENARIO}: overriding max_concurrent ${CL2_MAX_CONCURRENT:-4} → ${EFFECTIVE_MAX_CONCURRENT} (mesh-wide observation required for valid peer A/B)"
+            echo "Scenario ${SCENARIO}: overriding max_concurrent ${CL2_MAX_CONCURRENT:-4} → ${EFFECTIVE_MAX_CONCURRENT} (mesh-wide observation required)"
           else
             EFFECTIVE_MAX_CONCURRENT="${CL2_MAX_CONCURRENT:-4}"
+          fi
+          # Launch the host-side stimulus driver for node-churn-* scenarios
+          # BEFORE execute-parallel so the churner is ready to consume CL2
+          # sentinels as soon as the per-cluster CL2 containers start.
+          NODE_CHURNER_PID=""
+          if is_node_churn_scenario "$SCENARIO"; then
+            launch_node_churner "$SCENARIO" "${CL2_REPORT_DIR}/${SCENARIO}"
           fi
           scenario_rc=0
           PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute-parallel \
@@ -261,6 +432,27 @@ steps:
             --python-script-file "$PYTHON_SCRIPT_FILE" \
             --python-workdir "$(pwd)" \
             --tear-down-prometheus || scenario_rc=$?
+
+          # Join node-churner BEFORE finalizing scenario_rc — the churner's
+          # finalizer must complete (pool restored to original count) before
+          # the next scenario starts, otherwise the next CL2 invocation
+          # could run against an in-flux topology.
+          wait_node_churner "$SCENARIO"
+
+          # Treat finalizer cleanup_failed as a hard fail of the share-infra
+          # loop — running additional scenarios against a half-scaled cluster
+          # would contaminate their data.
+          if is_node_churn_scenario "$SCENARIO"; then
+            _churner_timing_file="${CL2_REPORT_DIR}/${SCENARIO}/${CL2_NODE_CHURN_TARGET_CONTEXT}/NodeChurnTimings_${CL2_NODE_CHURN_TARGET_CONTEXT}.json"
+            if [ -f "$_churner_timing_file" ]; then
+              _cleanup_failed=$(jq -r '.cleanup_failed // false' "$_churner_timing_file")
+              if [ "$_cleanup_failed" = "true" ]; then
+                echo "##vso[task.logissue type=error;] node-churner finalizer FAILED for ${SCENARIO}; aborting remaining share-infra scenarios to avoid contaminating their data on a half-scaled cluster"
+                overall_rc=1
+                break
+              fi
+            fi
+          fi
 
           if [ "$scenario_rc" -ne 0 ]; then
             echo "##vso[task.logissue type=warning;] Scenario ${SCENARIO} exited rc=${scenario_rc}; subsequent scenarios will continue but the step's final exit reflects this failure"
@@ -315,14 +507,20 @@ steps:
       # it to 1 to recover sequential behavior if needed.
       #
       # Same per-scenario override as the share-infra loop above: isolation
-      # needs mesh-wide concurrent observation of target's churn window.
+      # and node-churn-* need mesh-wide concurrent observation.
       SINGLE_SCENARIO_BASENAME="${CL2_CONFIG_FILE%.yaml}"
-      if [ "${SINGLE_SCENARIO_BASENAME}" = "isolation" ]; then
+      if needs_mesh_wide_concurrency "$SINGLE_SCENARIO_BASENAME"; then
         EFFECTIVE_MAX_CONCURRENT="${cluster_count}"
-        echo "Single-scenario isolation: overriding max_concurrent ${CL2_MAX_CONCURRENT:-4} → ${EFFECTIVE_MAX_CONCURRENT} (mesh-wide observation required for valid peer A/B)"
+        echo "Single-scenario ${SINGLE_SCENARIO_BASENAME}: overriding max_concurrent ${CL2_MAX_CONCURRENT:-4} → ${EFFECTIVE_MAX_CONCURRENT} (mesh-wide observation required)"
       else
         EFFECTIVE_MAX_CONCURRENT="${CL2_MAX_CONCURRENT:-4}"
       fi
+      # Launch host-side stimulus for node-churn-* in single-scenario mode.
+      NODE_CHURNER_PID=""
+      if is_node_churn_scenario "$SINGLE_SCENARIO_BASENAME"; then
+        launch_node_churner "$SINGLE_SCENARIO_BASENAME" "${CL2_REPORT_DIR}"
+      fi
+      single_scenario_rc=0
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute-parallel \
         --clusters "$HOME/.kube/clustermesh-clusters.json" \
         --max-concurrent "${EFFECTIVE_MAX_CONCURRENT}" \
@@ -333,7 +531,15 @@ steps:
         --cl2-report-dir-base "${CL2_REPORT_DIR}" \
         --provider "${CLOUD}" \
         --python-script-file "$PYTHON_SCRIPT_FILE" \
-        --python-workdir "$(pwd)"
+        --python-workdir "$(pwd)" || single_scenario_rc=$?
+      wait_node_churner "$SINGLE_SCENARIO_BASENAME"
+      # In single-scenario prod mode we DON'T have a share-infra loop to
+      # break out of, but we still want the AzDO step to surface non-zero
+      # rc on CL2 failure (prod's existing contract). The churner-finalizer
+      # cleanup_failed state is logged via the timing JSON (Kusto-visible);
+      # we don't promote it to step failure here because terraform destroy
+      # will tear down the cluster regardless.
+      exit $single_scenario_rc
     workingDirectory: modules/python
     env:
       ${{ if eq(parameters.cloud, 'azure') }}:
@@ -348,4 +554,5 @@ steps:
       CL2_CONFIG_FILE: $(cl2_config_file)
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/results
       CL2_OPERATION_TIMEOUT: ${{ parameters.engine_input.operation_timeout }}
+      NODE_CHURNER_SCRIPT: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/config/node-churner.sh
     displayName: "Run CL2 across all clustermesh clusters"
