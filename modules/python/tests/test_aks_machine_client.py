@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Unit tests for AKSMachineClient (subclass of AKSClient).
 
-Mirrors tests/clients/test_aks_client.py mocking patterns. All public methods
-open an ``OperationContext`` (patched here) and write the result file via
-``Operation.save_to_file`` on context exit. Tests verify:
+All public methods open an ``OperationContext`` (patched here) and write the
+result file via ``Operation.save_to_file`` on context exit. Tests verify:
 - success path returns True and enriches ``op.add_metadata`` with the right keys
 - failure path raises (so the OperationContext records ``success=False``)
 - partial machine landing raises ``RuntimeError`` from ``scale_machine``
@@ -11,7 +10,7 @@ open an ``OperationContext`` (patched here) and write the result file via
 # pylint: disable=protected-access
 # Several tests intentionally exercise the static helper ``_get_machine_name_prefix``
 # directly; the leading underscore is conventional rather than semantic privacy.
-import os
+import tempfile
 import unittest
 from unittest import mock
 
@@ -46,8 +45,10 @@ class TestAKSMachineClient(unittest.TestCase):
         )
         self.mock_operation_context.return_value.__exit__.return_value = None
 
-        self.test_result_dir = "/tmp/test_results"
-        os.makedirs(self.test_result_dir, exist_ok=True)
+        # Hermetic per-test temp dir avoids cross-platform /tmp assumptions
+        # and parallel-run collisions.
+        self._tmp_dir = tempfile.TemporaryDirectory()
+        self.test_result_dir = self._tmp_dir.name
 
         self.client = AKSMachineClient(
             subscription_id="fake-sub",
@@ -68,6 +69,7 @@ class TestAKSMachineClient(unittest.TestCase):
 
     def tearDown(self):
         mock.patch.stopall()
+        self._tmp_dir.cleanup()
 
     # ---- create_machine_agentpool ----
 
