@@ -140,7 +140,12 @@ stages:
               # ha-config is BEFORE isolation so its scale-down restores
               # the apiserver Deployment to 1 replica before isolation's
               # heavy pod-churn loop runs on the target cluster.
-              share_infra_scenarios: "event-throughput,pod-churn-combined,apiserver-failure,ha-config,isolation"
+              #
+              # ITER-ONLY 2026-05-13: narrowed to isolation for fast smoke
+              # iteration on scenario #5. Restore full 5-scenario list
+              # before n=20 promotion:
+              #   "event-throughput,pod-churn-combined,apiserver-failure,ha-config,isolation"
+              share_infra_scenarios: "isolation"
               cl2_config_file: ""  # unused when share_infra_scenarios is set
               test_type: shared    # row-level test_type comes from each scenario at collect time
               namespaces: 5
