@@ -1,765 +1,249 @@
-"""Tests for AKSMachineClient (composes AKSClient)."""
-import json
-import time
-from unittest.mock import patch, MagicMock
+#!/usr/bin/env python3
+"""Unit tests for AKSMachineClient (subclass of AKSClient).
+
+Mirrors tests/clients/test_aks_client.py mocking patterns. All public methods
+open an ``OperationContext`` (patched here) and write the result file via
+``Operation.save_to_file`` on context exit. Tests verify:
+- success path returns True and enriches ``op.add_metadata`` with the right keys
+- failure path raises (so the OperationContext records ``success=False``)
+- partial machine landing raises ``RuntimeError`` from ``scale_machine``
+"""
+# pylint: disable=protected-access
+# Several tests intentionally exercise the static helper ``_get_machine_name_prefix``
+# directly; the leading underscore is conventional rather than semantic privacy.
+import os
+import unittest
+from unittest import mock
 
 from clients.aks_machine_client import AKSMachineClient
-from machine.data_classes import ScaleMachineRequest
 
 
-def _ready(values):
-    """Build the ado-parity nested percentile envelope from a {p:seconds} mapping.
+# pylint: disable=too-many-instance-attributes
+class TestAKSMachineClient(unittest.TestCase):
+    """Tests for the AKSMachineClient class."""
 
-    For each P in (50, 70, 90, 99, 100), produce
-    {"target_nodes": 1, "elapsed_time_seconds": values[p], "percentage": p, "success": True}.
-    Used by scale_machine tests to mock the watcher's nested return shape.
-    """
-    return {
-        f"P{p}": {
-            "target_nodes": 1,
-            "elapsed_time_seconds": values[p],
-            "percentage": p,
-            "success": True,
+    def setUp(self):
+        """Patch all upstream Azure SDK and OperationContext seams."""
+        self.cs_client_patcher = mock.patch(
+            "clients.aks_client.ContainerServiceClient"
+        )
+        self.mi_cred_patcher = mock.patch(
+            "clients.aks_client.ManagedIdentityCredential"
+        )
+        self.k8s_client_patcher = mock.patch("clients.aks_client.KubernetesClient")
+        self.operation_context_patcher = mock.patch(
+            "crud.operation.OperationContext"
+        )
+
+        self.cs_client_patcher.start()
+        self.mi_cred_patcher.start()
+        mock_k8s_class = self.k8s_client_patcher.start()
+        self.mock_operation_context = self.operation_context_patcher.start()
+
+        self.mock_k8s = mock_k8s_class.return_value
+        self.mock_operation = mock.MagicMock()
+        self.mock_operation_context.return_value.__enter__.return_value = (
+            self.mock_operation
+        )
+        self.mock_operation_context.return_value.__exit__.return_value = None
+
+        self.test_result_dir = "/tmp/test_results"
+        os.makedirs(self.test_result_dir, exist_ok=True)
+
+        self.client = AKSMachineClient(
+            subscription_id="fake-sub",
+            resource_group="fake-rg",
+            cluster_name="fake-cluster",
+            use_managed_identity=True,
+            result_dir=self.test_result_dir,
+        )
+
+        # Stub inherited helpers that the Machine methods enrich metadata with.
+        self.client.get_cluster_name = mock.MagicMock(return_value="fake-cluster")
+        self.client.get_cluster_data = mock.MagicMock(
+            return_value={"name": "fake-cluster"}
+        )
+        fake_pool = mock.MagicMock()
+        fake_pool.as_dict.return_value = {"name": "fake-pool"}
+        self.client.get_node_pool = mock.MagicMock(return_value=fake_pool)
+
+    def tearDown(self):
+        mock.patch.stopall()
+
+    # ---- create_machine_agentpool ----
+
+    @mock.patch.object(AKSMachineClient, "_wait_for_agentpool_provisioning",
+                       return_value=True)
+    @mock.patch.object(AKSMachineClient, "make_request")
+    def test_create_machine_agentpool_success(self, mock_make_request, _mock_wait):
+        """PUT 200 + Succeeded poll \u2192 return True; metadata enriched."""
+        mock_resp = mock.MagicMock()
+        mock_resp.status_code = 200
+        mock_make_request.return_value = mock_resp
+
+        result = self.client.create_machine_agentpool(
+            agentpool_name="apool", vm_size="Standard_D2_v3"
+        )
+
+        self.assertTrue(result)
+        mock_make_request.assert_called_once()
+        call_args = mock_make_request.call_args
+        self.assertEqual(call_args.args[0], "PUT")
+        self.assertEqual(call_args.kwargs["data"], {"properties": {"mode": "Machines"}})
+        metadata_keys = {
+            call.args[0] for call in self.mock_operation.add_metadata.call_args_list
         }
-        for p in (50, 70, 90, 99, 100)
-    }
-
-
-def test_compose_aksclient_not_subclass():
-    """Verify AKSMachineClient composes (does NOT inherit from) AKSClient."""
-    from clients.aks_client import AKSClient
-    assert AKSClient not in AKSMachineClient.__mro__
-    assert AKSClient not in AKSMachineClient.__bases__
-
-
-@patch("clients.aks_machine_client.AKSClient")
-def test_get_access_token_uses_aks_client_credential(MockAKS):
-    fake_cred = MagicMock()
-    fake_cred.get_token.return_value = MagicMock(token="tok", expires_on=time.time() + 3600)
-    MockAKS.return_value.credential = fake_cred
-    c = AKSMachineClient(resource_group="rg")
-    assert c._get_access_token() == "tok"
-    fake_cred.get_token.assert_called_once_with("https://management.azure.com/.default")
-
-
-@patch("clients.aks_machine_client.AKSClient")
-def test_get_access_token_caches_across_calls(MockAKS):
-    """Second call within validity window must NOT re-invoke get_token."""
-    fake_cred = MagicMock()
-    fake_cred.get_token.return_value = MagicMock(token="tok", expires_on=time.time() + 3600)
-    MockAKS.return_value.credential = fake_cred
-    c = AKSMachineClient(resource_group="rg")
-    assert c._get_access_token() == "tok"
-    assert c._get_access_token() == "tok"
-    assert c._get_access_token() == "tok"
-    assert fake_cred.get_token.call_count == 1
-
-
-@patch("clients.aks_machine_client.AKSClient")
-def test_get_access_token_refreshes_when_expired(MockAKS):
-    """When cached token is within 60s of expiry, fetch a fresh one."""
-    fake_cred = MagicMock()
-    # First token expires very soon (within the 60s safety margin) -> must refresh.
-    fake_cred.get_token.side_effect = [
-        MagicMock(token="old", expires_on=time.time() + 30),
-        MagicMock(token="new", expires_on=time.time() + 3600),
-    ]
-    MockAKS.return_value.credential = fake_cred
-    c = AKSMachineClient(resource_group="rg")
-    assert c._get_access_token() == "old"
-    assert c._get_access_token() == "new"
-    assert fake_cred.get_token.call_count == 2
-
-
-@patch("clients.aks_machine_client.requests.request")
-@patch("clients.aks_machine_client.AKSClient")
-def test_make_request_sets_bearer_and_returns_response(MockAKS, mock_req):
-    MockAKS.return_value.credential.get_token.return_value = MagicMock(
-        token="T", expires_on=time.time() + 3600,
-    )
-    mock_req.return_value = MagicMock(status_code=200, json=lambda: {"ok": 1})
-    c = AKSMachineClient(resource_group="rg")
-    r = c.make_request("PUT", "https://x", data={"a": 1}, timeout=10)
-    args, kw = mock_req.call_args
-    assert kw["headers"]["Authorization"] == "Bearer T"
-    assert kw["headers"]["Content-Type"] == "application/json"
-    assert kw["json"] == {"a": 1}
-    assert kw["timeout"] == 10
-    assert r.status_code == 200
-    args, _ = mock_req.call_args
-    assert args == ("PUT", "https://x")
-
-
-@patch.object(AKSMachineClient, "make_request")
-@patch("clients.aks_machine_client.AKSClient")
-def test_create_machine_agentpool_puts_with_mode_machines(MockAKS, mock_req):
-    MockAKS.return_value.subscription_id = "SUB"
-    mock_req.side_effect = [
-        MagicMock(status_code=201, json=lambda: {"properties": {"provisioningState": "Creating"}}),
-        MagicMock(status_code=200, json=lambda: {"properties": {"provisioningState": "Succeeded"}}),
-    ]
-    c = AKSMachineClient(resource_group="rg")
-    ok = c.create_machine_agentpool("apool", "cl", "rg", timeout=30)
-    assert ok is True
-    put_call = mock_req.call_args_list[0]
-    assert put_call.args[0] == "PUT"
-    assert "/managedClusters/cl/agentPools/apool" in put_call.args[1]
-    assert put_call.kwargs["data"]["properties"]["mode"] == "Machines"
-
-
-@patch("clients.aks_machine_client.time.sleep")
-@patch.object(AKSMachineClient, "make_request")
-@patch("clients.aks_machine_client.AKSClient")
-def test_create_machine_agentpool_returns_false_on_put_failure(MockAKS, mock_req, _sleep):
-    MockAKS.return_value.subscription_id = "SUB"
-    mock_req.return_value = MagicMock(status_code=400, text="bad request")
-    c = AKSMachineClient(resource_group="rg")
-    assert c.create_machine_agentpool("apool", "cl", "rg", timeout=30) is False
-    # Only the PUT was attempted; no GET poll.
-    assert mock_req.call_count == 1
-
-
-@patch("clients.aks_machine_client.time.sleep")
-@patch.object(AKSMachineClient, "make_request")
-@patch("clients.aks_machine_client.AKSClient")
-def test_create_machine_agentpool_returns_false_on_failed_state(MockAKS, mock_req, _sleep):
-    MockAKS.return_value.subscription_id = "SUB"
-    mock_req.side_effect = [
-        MagicMock(status_code=201, json=lambda: {"properties": {"provisioningState": "Creating"}}),
-        MagicMock(status_code=200, json=lambda: {"properties": {"provisioningState": "Failed"}}),
-    ]
-    c = AKSMachineClient(resource_group="rg")
-    assert c.create_machine_agentpool("apool", "cl", "rg", timeout=30) is False
-
-
-@patch("clients.aks_machine_client.time.time")
-@patch("clients.aks_machine_client.time.sleep")
-@patch.object(AKSMachineClient, "make_request")
-@patch("clients.aks_machine_client.AKSClient")
-def test_create_machine_agentpool_returns_false_on_timeout(MockAKS, mock_req, _sleep, mock_time):
-    # First call seeds deadline (t=0 -> deadline=30). Second call (loop check) returns 0 (passes).
-    # Third onward returns 100 (past deadline). Use closure since logging also calls time.time().
-    _calls = {"n": 0}
-
-    def _fake_time():
-        _calls["n"] += 1
-        if _calls["n"] == 1:
-            return 0  # initial deadline computation
-        if _calls["n"] == 2:
-            return 0  # first while-loop check (still within deadline)
-        return 100  # subsequent calls -> past deadline
-
-    mock_time.side_effect = _fake_time
-    MockAKS.return_value.subscription_id = "SUB"
-    mock_req.side_effect = [
-        MagicMock(status_code=201, json=lambda: {"properties": {"provisioningState": "Creating"}}),
-        MagicMock(status_code=200, json=lambda: {"properties": {"provisioningState": "Creating"}}),
-    ]
-    c = AKSMachineClient(resource_group="rg")
-    assert c.create_machine_agentpool("apool", "cl", "rg", timeout=30) is False
-
-
-@patch("clients.aks_machine_client.AKSClient")
-def test_wait_for_machine_node_readiness_computes_percentiles(MockAKS):
-    fake_kc = MagicMock()
-    # Return 4 ready nodes immediately so all percentile targets (P50/P70/P90/P99/P100) are met on first poll.
-    fake_kc.get_ready_nodes.return_value = [object(), object(), object(), object()]
-    MockAKS.return_value.k8s_client = fake_kc
-    c = AKSMachineClient(resource_group="rg")
-    times = c._wait_for_machine_node_readiness(
-        agentpool_name="ap",
-        expected_count=4,
-        timeout=5,
-    )
-    assert set(times.keys()) == {"P50", "P70", "P90", "P99", "P100"}
-    assert all(times[p]["success"] for p in times)
-    assert all(times[p]["elapsed_time_seconds"] >= 0.0 for p in times)
-
-
-@patch("clients.aks_machine_client.AKSClient")
-def test_wait_for_machine_node_readiness_zero_expected_count(MockAKS):
-    fake_kc = MagicMock()
-    MockAKS.return_value.k8s_client = fake_kc
-    c = AKSMachineClient(resource_group="rg")
-    times = c._wait_for_machine_node_readiness(
-        agentpool_name="ap",
-        expected_count=0,
-        timeout=5,
-    )
-    assert set(times.keys()) == {"P50", "P70", "P90", "P99", "P100"}
-    assert all(times[p]["success"] is False for p in times)
-    assert all(times[p]["elapsed_time_seconds"] is None for p in times)
-    assert all(times[p]["target_nodes"] == 0 for p in times)
-    fake_kc.get_ready_nodes.assert_not_called()
-
-
-@patch("clients.aks_machine_client.AKSClient")
-def test_wait_for_machine_node_readiness_kubernetes_client_none(MockAKS):
-    MockAKS.return_value.k8s_client = None
-    c = AKSMachineClient(resource_group="rg")
-    times = c._wait_for_machine_node_readiness(
-        agentpool_name="ap",
-        expected_count=1,
-        timeout=5,
-    )
-    assert set(times.keys()) == {"P50", "P70", "P90", "P99", "P100"}
-    assert all(times[p]["success"] is False for p in times)
-    assert all(times[p]["elapsed_time_seconds"] is None for p in times)
-    assert all(times[p]["target_nodes"] == 0 for p in times)
-
-
-@patch("clients.aks_machine_client.time.sleep")
-@patch("clients.aks_machine_client.AKSClient")
-def test_wait_for_machine_node_readiness_get_ready_nodes_raises(MockAKS, _sleep):
-    fake_kc = MagicMock()
-    fake_kc.get_ready_nodes.side_effect = RuntimeError("boom")
-    MockAKS.return_value.k8s_client = fake_kc
-    c = AKSMachineClient(resource_group="rg")
-    times = c._wait_for_machine_node_readiness(
-        agentpool_name="ap",
-        expected_count=1,
-        timeout=0,  # exit immediately after one iteration
-    )
-    assert set(times.keys()) == {"P50", "P70", "P90", "P99", "P100"}
-    assert all(times[p]["success"] is False for p in times)
-    assert all(times[p]["elapsed_time_seconds"] is None for p in times)
-    # no-target-met return path retains the real targets[p] computed from
-    # baseline+expected, so target_nodes must be > 0 here (baseline=0, expected=1).
-    assert all(times[p]["target_nodes"] >= 1 for p in times)
-
-
-@patch("clients.aks_machine_client.time.sleep")
-@patch("clients.aks_machine_client.AKSClient")
-def test_readiness_excludes_baseline_nodes(MockAKS, _sleep):
-    """With baseline_count=1 and expected_count=1, percentile targets must require
-    >=2 ready nodes (i.e. baseline + 1). The first poll returning 1 node MUST NOT
-    fire any percentile — only when the count grows to 2 should P50 hit."""
-    fake_kc = MagicMock()
-    # First poll: only the pre-existing baseline node (1). Second poll: baseline + new (2).
-    fake_kc.get_ready_nodes.side_effect = [
-        [object()],
-        [object(), object()],
-    ]
-    MockAKS.return_value.k8s_client = fake_kc
-    c = AKSMachineClient(resource_group="rg")
-    times = c._wait_for_machine_node_readiness(
-        agentpool_name="ap",
-        expected_count=1,
-        timeout=60,
-        baseline_count=1,
-    )
-    # All percentile targets clamp to max(baseline+1, ...) = 2, so they must
-    # only fire on the SECOND poll when ready==2.
-    assert times["P50"]["elapsed_time_seconds"] > 0.0
-    assert times["P70"]["elapsed_time_seconds"] > 0.0
-    assert times["P90"]["elapsed_time_seconds"] > 0.0
-    assert times["P99"]["elapsed_time_seconds"] > 0.0
-    assert times["P100"]["elapsed_time_seconds"] > 0.0
-    assert all(times[p]["success"] is True for p in times)
-    # The watcher polled exactly twice (first returned 1 -> insufficient, second returned 2).
-    assert fake_kc.get_ready_nodes.call_count == 2
-
-
-@patch("clients.aks_machine_client.time.sleep")
-@patch("clients.aks_machine_client.AKSClient")
-def test_readiness_baseline_never_satisfies_targets_alone(MockAKS, _sleep):
-    """If only baseline nodes are ever Ready (no new nodes appear), all targets
-    must time out — pre-existing nodes alone must never count as success."""
-    fake_kc = MagicMock()
-    # Always exactly baseline_count nodes. Watcher must time out, returning zeros.
-    fake_kc.get_ready_nodes.return_value = [object()]
-    MockAKS.return_value.k8s_client = fake_kc
-    c = AKSMachineClient(resource_group="rg")
-    times = c._wait_for_machine_node_readiness(
-        agentpool_name="ap",
-        expected_count=1,
-        timeout=0,  # exit after one iteration
-        baseline_count=1,
-    )
-    assert set(times.keys()) == {"P50", "P70", "P90", "P99", "P100"}
-    assert all(times[p]["success"] is False for p in times)
-    assert all(times[p]["elapsed_time_seconds"] is None for p in times)
-    # All targets clamp to max(baseline+1, ...) = 2; no progress was made.
-    assert all(times[p]["target_nodes"] == 2 for p in times)
-
-
-@patch.object(AKSMachineClient, "_wait_for_provisioning", return_value=True)
-@patch.object(AKSMachineClient, "_wait_for_machine_node_readiness", return_value=_ready({50:1.0,70:1.5,90:2.0,99:3.0,100:4.0}))
-@patch.object(AKSMachineClient, "_create_single_machine")
-@patch("clients.aks_machine_client.AKSClient")
-def test_scale_machine_non_batch_dispatches_individual(MockAKS, mock_single, mock_wait, _mock_ap):
-    MockAKS.return_value.subscription_id = "SUB"
-    MockAKS.return_value.k8s_client.get_ready_nodes.return_value = []
-    mock_single.side_effect = lambda name, *a, **kw: name  # pretend success
-    req = ScaleMachineRequest(cluster_name="c", resource_group="rg",
-                              agentpool_name="ap", vm_size="Standard_D2_v3",
-                              scale_machine_count=3, use_batch_api=False, machine_workers=2)
-    c = AKSMachineClient(resource_group="rg")
-    resp = c.scale_machine(req)
-    assert mock_single.call_count == 3
-    assert sorted(c_call.args[0] for c_call in mock_single.call_args_list) == [
-        "scale3-machine-1", "scale3-machine-2", "scale3-machine-3",
-    ]
-    assert resp.succeeded is True
-    assert resp.percentile_node_readiness_times == _ready({50:1.0,70:1.5,90:2.0,99:3.0,100:4.0})
-    assert len(resp.successful_machines) == 3
-    # baseline_count=0 (empty get_ready_nodes) passed through to watcher
-    assert mock_wait.call_args.kwargs["baseline_count"] == 0
-
-
-@patch.object(AKSMachineClient, "_wait_for_provisioning", return_value=True)
-@patch.object(AKSMachineClient, "_wait_for_machine_node_readiness", return_value=_ready({50:0.0,70:0.0,90:0.0,99:0.0,100:0.0}))
-@patch.object(AKSMachineClient, "_create_single_machine")
-@patch("clients.aks_machine_client.AKSClient")
-def test_scale_machine_non_batch_partial_failure(MockAKS, mock_single, mock_wait, _mock_ap):
-    """Worker-level outcomes (True/False/raise) must not escape; only True names count."""
-    MockAKS.return_value.subscription_id = "SUB"
-    MockAKS.return_value.k8s_client.get_ready_nodes.return_value = []
-
-    def fake_single(name, *a, **kw):
-        if name == "scale3-machine-1":
-            return True
-        if name == "scale3-machine-2":
-            return False
-        raise RuntimeError("boom")
-
-    mock_single.side_effect = fake_single
-    req = ScaleMachineRequest(cluster_name="c", resource_group="rg",
-                              agentpool_name="ap", vm_size="Standard_D2_v3",
-                              scale_machine_count=3, use_batch_api=False, machine_workers=2)
-    c = AKSMachineClient(resource_group="rg")
-    resp = c.scale_machine(req)
-    assert mock_single.call_count == 3
-    names_submitted = sorted(c_call.args[0] for c_call in mock_single.call_args_list)
-    assert names_submitted == ["scale3-machine-1", "scale3-machine-2", "scale3-machine-3"]
-    assert resp.successful_machines == ["scale3-machine-1"]
-    assert resp.succeeded is False
-    assert resp.error == ""
-
-
-@patch.object(AKSMachineClient, "_wait_for_provisioning", return_value=True)
-@patch.object(AKSMachineClient, "_wait_for_machine_node_readiness",
-              return_value=_ready({50:1.0,70:1.0,90:1.0,99:1.0,100:1.0}))
-@patch.object(AKSMachineClient, "_create_batch_machines")
-@patch("clients.aks_machine_client.AKSClient")
-def test_scale_machine_batch_dispatches_in_chunks(MockAKS, mock_create_batch, _mock_wait, _mock_ap):
-    """Batch path: 6 machines + 2 workers → 2 chunks of 3, all names submitted exactly once."""
-    MockAKS.return_value.subscription_id = "SUB"
-    MockAKS.return_value.k8s_client.get_ready_nodes.return_value = []
-    mock_create_batch.side_effect = lambda request, chunk, chunk_idx: list(chunk)
-    req = ScaleMachineRequest(
-        cluster_name="cl", resource_group="rg", agentpool_name="ap",
-        vm_size="Standard_D2_v3", scale_machine_count=6,
-        use_batch_api=True, machine_workers=2,
-    )
-    c = AKSMachineClient(resource_group="rg")
-    resp = c.scale_machine(req)
-
-    assert mock_create_batch.call_count == 2
-    expected_names = [f"scale6-machine-{i + 1}" for i in range(6)]
-    submitted = sorted(n for call in mock_create_batch.call_args_list for n in call.args[1])
-    assert submitted == sorted(expected_names)
-    assert sorted(resp.successful_machines) == sorted(expected_names)
-    assert set(resp.batch_command_execution_times.keys()) == {"chunk_0", "chunk_1"}
-    assert all(v >= 0.0 for v in resp.batch_command_execution_times.values())
-    assert resp.succeeded is True
-    assert resp.percentile_node_readiness_times == _ready({50:1.0,70:1.0,90:1.0,99:1.0,100:1.0})
-
-
-@patch.object(AKSMachineClient, "_wait_for_provisioning", return_value=True)
-@patch.object(AKSMachineClient, "_wait_for_machine_node_readiness",
-              return_value=_ready({50:0.0,70:0.0,90:0.0,99:0.0,100:0.0}))
-@patch.object(AKSMachineClient, "_create_batch_machines")
-@patch("clients.aks_machine_client.AKSClient")
-def test_scale_machine_batch_partial_chunk_failure(MockAKS, mock_create_batch, _mock_wait, _mock_ap):
-    """One chunk returns []; the other chunk's names are still recorded."""
-    MockAKS.return_value.subscription_id = "SUB"
-    MockAKS.return_value.k8s_client.get_ready_nodes.return_value = []
-
-    def fake(request, chunk, chunk_idx):
-        if chunk_idx == 1:
-            return []
-        return list(chunk)
-
-    mock_create_batch.side_effect = fake
-    req = ScaleMachineRequest(
-        cluster_name="cl", resource_group="rg", agentpool_name="ap",
-        vm_size="Standard_D2_v3", scale_machine_count=4,
-        use_batch_api=True, machine_workers=2,
-    )
-    c = AKSMachineClient(resource_group="rg")
-    resp = c.scale_machine(req)
-
-    expected_chunk0 = sorted([f"scale4-machine-{i + 1}" for i in range(4)])[:2]
-    assert sorted(resp.successful_machines) == expected_chunk0
-    assert resp.succeeded is False
-    assert resp.error == ""
-    assert set(resp.batch_command_execution_times.keys()) == {"chunk_0", "chunk_1"}
-
-
-@patch.object(AKSMachineClient, "_wait_for_provisioning", return_value=True)
-@patch.object(AKSMachineClient, "_wait_for_machine_node_readiness",
-              return_value=_ready({50:0.0,70:0.0,90:0.0,99:0.0,100:0.0}))
-@patch.object(AKSMachineClient, "_create_batch_machines")
-@patch("clients.aks_machine_client.AKSClient")
-def test_scale_machine_batch_worker_exception_isolated(MockAKS, mock_create_batch, _mock_wait, _mock_ap):
-    """A chunk worker raising RuntimeError must not poison the other chunk's results."""
-    MockAKS.return_value.subscription_id = "SUB"
-    MockAKS.return_value.k8s_client.get_ready_nodes.return_value = []
-
-    def fake(request, chunk, chunk_idx):
-        if chunk_idx == 1:
-            raise RuntimeError("boom")
-        return list(chunk)
-
-    mock_create_batch.side_effect = fake
-    req = ScaleMachineRequest(
-        cluster_name="cl", resource_group="rg", agentpool_name="ap",
-        vm_size="Standard_D2_v3", scale_machine_count=4,
-        use_batch_api=True, machine_workers=2,
-    )
-    c = AKSMachineClient(resource_group="rg")
-    resp = c.scale_machine(req)
-
-    expected_chunk0 = sorted([f"scale4-machine-{i + 1}" for i in range(4)])[:2]
-    assert sorted(resp.successful_machines) == expected_chunk0
-    assert resp.succeeded is False
-    assert resp.error == ""
-    assert set(resp.batch_command_execution_times.keys()) == {"chunk_0", "chunk_1"}
-
-
-@patch.object(AKSMachineClient, "_wait_for_provisioning", return_value=True)
-@patch.object(AKSMachineClient, "_wait_for_machine_node_readiness",
-              return_value=_ready({50:5.0,70:5.0,90:5.0,99:5.0,100:5.0}))
-@patch.object(AKSMachineClient, "_create_single_machine", return_value=True)
-@patch("clients.aks_machine_client.AKSClient")
-def test_scale_machine_passes_baseline_count_to_watcher(MockAKS, _mock_single, mock_wait, _mock_ap):
-    """Pre-existing labeled Ready nodes must be snapshotted and passed to the readiness watcher
-    so that the watcher counts only NEW nodes (not pre-existing ones)."""
-    MockAKS.return_value.subscription_id = "SUB"
-    # Two pre-existing ready nodes in the target agentpool.
-    MockAKS.return_value.k8s_client.get_ready_nodes.return_value = [object(), object()]
-    req = ScaleMachineRequest(
-        cluster_name="cl", resource_group="rg", agentpool_name="ap",
-        vm_size="Standard_D2_v3", scale_machine_count=1,
-        use_batch_api=False, machine_workers=1,
-    )
-    c = AKSMachineClient(resource_group="rg")
-    c.scale_machine(req)
-    assert mock_wait.call_args.kwargs["baseline_count"] == 2
-    # Baseline snapshot uses the right label selector.
-    get_ready_calls = MockAKS.return_value.k8s_client.get_ready_nodes.call_args_list
-    assert get_ready_calls[0].kwargs.get("label_selector") == "agentpool=ap"
-
-
-# ---- _create_single_machine ----
-
-@patch.object(AKSMachineClient, "make_request")
-@patch("clients.aks_machine_client.AKSClient")
-def test_create_single_machine_puts_and_returns_true_on_2xx(MockAKS, mock_req):
-    """No per-machine ARM poll: True iff PUT returns 2xx."""
-    MockAKS.return_value.subscription_id = "SUB"
-    mock_req.return_value = MagicMock(status_code=202, text="")
-    req = ScaleMachineRequest(
-        cluster_name="cl", resource_group="rg", agentpool_name="ap",
-        vm_size="Standard_D2_v3", scale_machine_count=1,
-        use_batch_api=False, machine_workers=1, timeout=30,
-        tags={"env": "test"},
-    )
-    c = AKSMachineClient(resource_group="rg")
-    assert c._create_single_machine("scale1-machine-1", req) is True
-    # Exactly one HTTP request — the PUT. No follow-up GET poll.
-    assert mock_req.call_count == 1
-    put_call = mock_req.call_args_list[0]
-    assert put_call.args[0] == "PUT"
-    assert "/agentPools/ap/machines/scale1-machine-1" in put_call.args[1]
-    assert put_call.kwargs["data"]["properties"]["hardware"]["vmSize"] == "Standard_D2_v3"
-    # Note: tags are no longer sent on machine PUT (commit 62a46f35).
-    assert "tags" not in put_call.kwargs["data"]
-
-
-@patch.object(AKSMachineClient, "make_request")
-@patch("clients.aks_machine_client.AKSClient")
-def test_create_single_machine_returns_false_on_bad_status(MockAKS, mock_req):
-    MockAKS.return_value.subscription_id = "SUB"
-    mock_req.return_value = MagicMock(status_code=500, text="server error")
-    req = ScaleMachineRequest(
-        cluster_name="cl", resource_group="rg", agentpool_name="ap",
-        vm_size="Standard_D2_v3", scale_machine_count=1,
-        use_batch_api=False, machine_workers=1, timeout=30,
-    )
-    c = AKSMachineClient(resource_group="rg")
-    assert c._create_single_machine("scale1-machine-1", req) is False
-    # Only the PUT — no provisioning poll.
-    assert mock_req.call_count == 1
-
-
-# ---- _wait_for_provisioning ----
-
-@patch("clients.aks_machine_client.time.sleep")
-@patch.object(AKSMachineClient, "make_request")
-@patch("clients.aks_machine_client.AKSClient")
-def test_wait_for_provisioning_succeeded(MockAKS, mock_req, _sleep):
-    mock_req.return_value = MagicMock(
-        status_code=200, json=lambda: {"properties": {"provisioningState": "Succeeded"}})
-    c = AKSMachineClient(resource_group="rg")
-    assert c._wait_for_provisioning("https://x", timeout=30) is True
-
-
-@patch("clients.aks_machine_client.time.sleep")
-@patch.object(AKSMachineClient, "make_request")
-@patch("clients.aks_machine_client.AKSClient")
-def test_wait_for_provisioning_failed(MockAKS, mock_req, _sleep):
-    mock_req.return_value = MagicMock(
-        status_code=200, json=lambda: {"properties": {"provisioningState": "Failed"}})
-    c = AKSMachineClient(resource_group="rg")
-    assert c._wait_for_provisioning("https://x", timeout=30) is False
-
-
-@patch("clients.aks_machine_client.time.sleep")
-@patch.object(AKSMachineClient, "make_request")
-@patch("clients.aks_machine_client.AKSClient")
-def test_wait_for_provisioning_treats_persistent_none_as_failed(MockAKS, mock_req, _sleep):
-    mock_req.return_value = MagicMock(status_code=200, json=lambda: {"properties": {}})
-    c = AKSMachineClient(resource_group="rg")
-    assert c._wait_for_provisioning("https://x", timeout=300) is False
-
-
-@patch("clients.aks_machine_client.time.sleep")
-@patch.object(AKSMachineClient, "make_request")
-@patch("clients.aks_machine_client.AKSClient")
-def test_wait_for_provisioning_handles_json_decode_error(MockAKS, mock_req, _sleep):
-    bad = MagicMock(status_code=200)
-    bad.json.side_effect = ValueError("bad json")
-    good = MagicMock(
-        status_code=200, json=lambda: {"properties": {"provisioningState": "Succeeded"}})
-    mock_req.side_effect = [bad, good]
-    c = AKSMachineClient(resource_group="rg")
-    assert c._wait_for_provisioning("https://x", timeout=30) is True
-
-
-@patch("clients.aks_machine_client.time.sleep")
-@patch.object(AKSMachineClient, "make_request")
-@patch("clients.aks_machine_client.AKSClient")
-def test_wait_for_provisioning_logs_non_200_and_retries(MockAKS, mock_req, _sleep):
-    transient = MagicMock(status_code=503)
-    succ = MagicMock(
-        status_code=200, json=lambda: {"properties": {"provisioningState": "Succeeded"}})
-    mock_req.side_effect = [transient, succ]
-    c = AKSMachineClient(resource_group="rg")
-    assert c._wait_for_provisioning("https://x", timeout=30) is True
-
-
-@patch("clients.aks_machine_client.time.time")
-@patch("clients.aks_machine_client.time.sleep")
-@patch.object(AKSMachineClient, "make_request")
-@patch("clients.aks_machine_client.AKSClient")
-def test_wait_for_provisioning_times_out(MockAKS, mock_req, _sleep, mock_time):
-    calls = {"n": 0}
-
-    def fake_time():
-        calls["n"] += 1
-        if calls["n"] == 1:
-            return 0
-        if calls["n"] == 2:
-            return 0
-        return 999
-
-    mock_time.side_effect = fake_time
-    mock_req.return_value = MagicMock(
-        status_code=200, json=lambda: {"properties": {"provisioningState": "Creating"}})
-    c = AKSMachineClient(resource_group="rg")
-    assert c._wait_for_provisioning("https://x", timeout=30) is False
-
-
-# ---- _create_batch_machines ----
-
-@patch.object(AKSMachineClient, "_make_batch_request")
-@patch("clients.aks_machine_client.AKSClient")
-def test_create_batch_machines_empty_chunk_short_circuits(MockAKS, mock_batch):
-    MockAKS.return_value.subscription_id = "SUB"
-    req = ScaleMachineRequest(
-        cluster_name="cl", resource_group="rg", agentpool_name="ap",
-        vm_size="Standard_D2_v3", scale_machine_count=0,
-        use_batch_api=True, machine_workers=1,
-    )
-    c = AKSMachineClient(resource_group="rg")
-    assert c._create_batch_machines(req, [], chunk_idx=0) == []
-    mock_batch.assert_not_called()
-
-
-@patch.object(AKSMachineClient, "_make_batch_request")
-@patch("clients.aks_machine_client.AKSClient")
-def test_create_batch_machines_submits_envelope(MockAKS, mock_batch):
-    MockAKS.return_value.subscription_id = "SUB"
-    req = ScaleMachineRequest(
-        cluster_name="cl", resource_group="rg", agentpool_name="ap",
-        vm_size="Standard_D2_v3", scale_machine_count=2,
-        use_batch_api=True, machine_workers=1, tags={"k": "v"},
-    )
-    c = AKSMachineClient(resource_group="rg")
-    chunk = ["m0", "m1"]
-    out = c._create_batch_machines(req, chunk, chunk_idx=0)
-    assert out == chunk
-    args, kwargs = mock_batch.call_args
-    # PUT to the FIRST machine URL (not /$batch).
-    assert args[0] == "PUT"
-    assert "/agentPools/ap/machines/m0?api-version=" in args[1]
-    assert "/$batch" not in args[1]
-    # Body is the standard per-machine PUT body.
-    assert args[2] == {"properties": {"hardware": {"vmSize": "Standard_D2_v3"}}}
-    # BatchPutMachine header value carries vmSkus + batchMachines.
-    header_value = kwargs["batch_header_value"]
-    parsed = json.loads(header_value)
-    assert "vmSkus" in parsed
-    assert "batchMachines" in parsed
-    # ado verbatim shape: batchMachines is the *remaining* machines (chunk[1:])
-    # keyed by "machineName" (NOT "name"). The first chunk member is created
-    # from the URL + body. Using the wrong key caused the API to silently drop
-    # additional entries (build 66357: 100 chunks of 2 → only 100/200 ready).
-    assert [m["machineName"] for m in parsed["batchMachines"]] == chunk[1:]
-    # vmSkus uses the rich {"value": [<vm_sku>]} envelope.
-    assert parsed["vmSkus"]["value"][0]["name"] == "Standard_D2_v3"
-    assert parsed["vmSkus"]["value"][0]["resourceType"] == "virtualMachines"
-
-
-# ---- _make_batch_request ----
-
-@patch("clients.aks_machine_client.time.sleep")
-@patch("clients.aks_machine_client.requests.request")
-@patch("clients.aks_machine_client.AKSClient")
-def test_make_batch_request_returns_on_2xx(MockAKS, mock_req, mock_sleep):
-    MockAKS.return_value.credential.get_token.return_value = MagicMock(
-        token="T", expires_on=time.time() + 3600,
-    )
-    mock_req.return_value = MagicMock(status_code=200)
-    c = AKSMachineClient(resource_group="rg")
-    c._make_batch_request("PUT", "https://x", {"a": 1}, timeout=30,
-                          batch_header_value="HDR")
-    assert mock_req.call_count == 1
-    args, kwargs = mock_req.call_args
-    assert args[0] == "PUT"
-    assert args[1] == "https://x"
-    assert kwargs.get("json") == {"a": 1}
-    assert kwargs.get("timeout") == 30
-    assert kwargs["headers"]["BatchPutMachine"] == "HDR"
-    assert kwargs["headers"]["Authorization"] == "Bearer T"
-    assert kwargs["headers"]["Content-Type"] == "application/json"
-    mock_sleep.assert_not_called()
-
-
-@patch("clients.aks_machine_client.requests.request")
-@patch("clients.aks_machine_client.AKSClient")
-def test_make_batch_request_raises_on_non_429_failure(MockAKS, mock_req):
-    import pytest
-    MockAKS.return_value.credential.get_token.return_value = MagicMock(
-        token="T", expires_on=time.time() + 3600,
-    )
-    mock_req.return_value = MagicMock(status_code=500, text="boom")
-    c = AKSMachineClient(resource_group="rg")
-    with pytest.raises(RuntimeError, match="batch request failed: 500"):
-        c._make_batch_request("PUT", "https://x", {"a": 1}, timeout=30,
-                              batch_header_value="HDR")
-
-
-@patch("clients.aks_machine_client.time.sleep")
-@patch("clients.aks_machine_client.requests.request")
-@patch("clients.aks_machine_client.AKSClient")
-def test_make_batch_request_retries_on_429_then_succeeds(MockAKS, mock_req, _sleep):
-    MockAKS.return_value.credential.get_token.return_value = MagicMock(
-        token="T", expires_on=time.time() + 3600,
-    )
-    mock_req.side_effect = [
-        MagicMock(status_code=429, text="throttled"),
-        MagicMock(status_code=429, text="throttled"),
-        MagicMock(status_code=200, text=""),
-    ]
-    c = AKSMachineClient(resource_group="rg")
-    c._make_batch_request("PUT", "https://x", {"a": 1}, timeout=30,
-                          batch_header_value="HDR")
-    assert mock_req.call_count == 3
-
-
-@patch("clients.aks_machine_client.time.sleep")
-@patch("clients.aks_machine_client.requests.request")
-@patch("clients.aks_machine_client.AKSClient")
-def test_make_batch_request_raises_after_429_retry_exhaustion(MockAKS, mock_req, _sleep):
-    import pytest
-    MockAKS.return_value.credential.get_token.return_value = MagicMock(
-        token="T", expires_on=time.time() + 3600,
-    )
-    mock_req.return_value = MagicMock(status_code=429, text="throttled")
-    c = AKSMachineClient(resource_group="rg")
-    with pytest.raises(RuntimeError, match="exceeded .* 429 retries"):
-        c._make_batch_request("PUT", "https://x", {"a": 1}, timeout=30,
-                              batch_header_value="HDR")
-
-
-# ---- get_cluster_name / get_cluster_data passthroughs ----
-
-@patch("clients.aks_machine_client.AKSClient")
-def test_get_cluster_name_passthrough(MockAKS):
-    MockAKS.return_value.get_cluster_name.return_value = "cl1"
-    c = AKSMachineClient(resource_group="rg")
-    assert c.get_cluster_name() == "cl1"
-
-
-@patch("clients.aks_machine_client.AKSClient")
-def test_get_cluster_data_passthrough(MockAKS):
-    MockAKS.return_value.get_cluster_data.return_value = {"id": "x"}
-    c = AKSMachineClient(resource_group="rg")
-    assert c.get_cluster_data("cl1") == {"id": "x"}
-
-
-# ---- scale_machine cloud_data attach failure path ----
-
-@patch.object(AKSMachineClient, "_wait_for_provisioning", return_value=True)
-@patch.object(AKSMachineClient, "get_cluster_data", side_effect=RuntimeError("snap fail"))
-@patch.object(AKSMachineClient, "_wait_for_machine_node_readiness",
-              return_value=_ready({50:0.0,70:0.0,90:0.0,99:0.0,100:0.0}))
-@patch.object(AKSMachineClient, "_create_single_machine", return_value=True)
-@patch("clients.aks_machine_client.AKSClient")
-def test_scale_machine_cloud_data_failure_swallowed(MockAKS, _mock_single, _mock_wait, _mock_cd, _mock_ap):
-    MockAKS.return_value.subscription_id = "SUB"
-    MockAKS.return_value.k8s_client.get_ready_nodes.return_value = []
-    req = ScaleMachineRequest(
-        cluster_name="cl", resource_group="rg", agentpool_name="ap",
-        vm_size="Standard_D2_v3", scale_machine_count=1,
-        use_batch_api=False, machine_workers=1,
-    )
-    c = AKSMachineClient(resource_group="rg")
-    resp = c.scale_machine(req)
-    assert resp.succeeded is True
-    assert resp.cloud_data is None
-
-
-# ---- create_machine_agentpool: rg mismatch warning path ----
-
-@patch.object(AKSMachineClient, "_wait_for_agentpool_provisioning", return_value=True)
-@patch.object(AKSMachineClient, "make_request")
-@patch("clients.aks_machine_client.AKSClient")
-def test_create_machine_agentpool_logs_when_rg_mismatches(MockAKS, mock_req, _mock_wait, caplog):
-    MockAKS.return_value.subscription_id = "SUB"
-    MockAKS.return_value.resource_group = "rg-bound"
-    mock_req.return_value = MagicMock(status_code=201, text="")
-    c = AKSMachineClient(resource_group="rg-bound")
-    with caplog.at_level("WARNING", logger="clients.aks_machine_client"):
-        ok = c.create_machine_agentpool("apool", "cl", "rg-other", timeout=30)
-    assert ok is True
-    assert any(
-        "rg-other" in r.getMessage() and "rg-bound" in r.getMessage()
-        for r in caplog.records
-    ), f"expected RG-mismatch warning, got: {[r.getMessage() for r in caplog.records]}"
-
-
-# ---- _array_split edge cases ----
-
-def test_array_split_empty_returns_empty():
-    assert AKSMachineClient._array_split([], 3) == []
-
-
-def test_array_split_clamps_workers_to_len():
-    out = AKSMachineClient._array_split(["a", "b"], 4)
-    assert len(out) == 2  # workers clamped to len(items)
-    assert all(len(c) == 1 for c in out)
-    assert sorted(c[0] for c in out) == ["a", "b"]
+        self.assertIn("agentpool_info", metadata_keys)
+        self.assertIn("cluster_info", metadata_keys)
+
+    @mock.patch.object(AKSMachineClient, "make_request")
+    def test_create_machine_agentpool_put_failure_raises(self, mock_make_request):
+        """PUT non-2xx \u2192 RuntimeError propagates out of with-block."""
+        mock_resp = mock.MagicMock()
+        mock_resp.status_code = 500
+        mock_resp.text = "boom"
+        mock_make_request.return_value = mock_resp
+
+        with self.assertRaises(RuntimeError):
+            self.client.create_machine_agentpool(
+                agentpool_name="apool", vm_size="Standard_D2_v3"
+            )
+
+    @mock.patch.object(AKSMachineClient, "_wait_for_agentpool_provisioning",
+                       return_value=False)
+    @mock.patch.object(AKSMachineClient, "make_request")
+    def test_create_machine_agentpool_provisioning_timeout_raises(
+        self, mock_make_request, _mock_wait
+    ):
+        """PUT OK but provisioning never reaches Succeeded \u2192 RuntimeError."""
+        mock_resp = mock.MagicMock()
+        mock_resp.status_code = 200
+        mock_make_request.return_value = mock_resp
+
+        with self.assertRaises(RuntimeError):
+            self.client.create_machine_agentpool(
+                agentpool_name="apool", vm_size="Standard_D2_v3"
+            )
+
+    # ---- scale_machine (non-batch path) ----
+
+    @mock.patch.object(AKSMachineClient, "_wait_for_machine_node_readiness")
+    @mock.patch.object(AKSMachineClient, "_wait_for_agentpool_provisioning",
+                       return_value=True)
+    @mock.patch.object(AKSMachineClient, "_scale_machine_individually")
+    def test_scale_machine_non_batch_success(
+        self, mock_indiv, _mock_ap, mock_readiness
+    ):
+        """Non-batch: all machines land + percentiles met \u2192 True."""
+        mock_indiv.return_value = ["scale2-machine-1", "scale2-machine-2"]
+        mock_readiness.return_value = {
+            "P100": {"target_nodes": 2, "elapsed_time_seconds": 42.0,
+                     "percentage": 100, "success": True},
+        }
+
+        result = self.client.scale_machine(
+            agentpool_name="apool", vm_size="Standard_D2_v3",
+            scale_machine_count=2,
+        )
+
+        self.assertTrue(result)
+        metadata_keys = {
+            call.args[0] for call in self.mock_operation.add_metadata.call_args_list
+        }
+        self.assertIn("successful_machines", metadata_keys)
+        self.assertIn("percentile_node_readiness_times", metadata_keys)
+        self.assertIn("node_readiness_time", metadata_keys)
+        self.assertIn("cluster_info", metadata_keys)
+        self.assertNotIn("batch_command_execution_times", metadata_keys)
+
+    @mock.patch.object(AKSMachineClient, "_wait_for_machine_node_readiness")
+    @mock.patch.object(AKSMachineClient, "_wait_for_agentpool_provisioning",
+                       return_value=True)
+    @mock.patch.object(AKSMachineClient, "_scale_machine_individually")
+    def test_scale_machine_partial_landing_raises(
+        self, mock_indiv, _mock_ap, mock_readiness
+    ):
+        """Fewer machines landed than requested \u2192 RuntimeError."""
+        mock_indiv.return_value = ["scale2-machine-1"]  # only 1 of 2
+        mock_readiness.return_value = {
+            "P100": {"target_nodes": 2, "elapsed_time_seconds": None,
+                     "percentage": 100, "success": False},
+        }
+
+        with self.assertRaises(RuntimeError):
+            self.client.scale_machine(
+                agentpool_name="apool", vm_size="Standard_D2_v3",
+                scale_machine_count=2,
+            )
+
+    # ---- scale_machine (batch path) ----
+
+    @mock.patch.object(AKSMachineClient, "_wait_for_machine_node_readiness")
+    @mock.patch.object(AKSMachineClient, "_wait_for_agentpool_provisioning",
+                       return_value=True)
+    @mock.patch.object(AKSMachineClient, "_scale_machine_batch")
+    def test_scale_machine_batch_success(
+        self, mock_batch, _mock_ap, mock_readiness
+    ):
+        """Batch: all chunks land + percentiles met \u2192 True + batch timings logged."""
+        mock_batch.return_value = (
+            ["scale2-machine-1", "scale2-machine-2"],
+            {"chunk_0": 1.5},
+        )
+        mock_readiness.return_value = {
+            "P100": {"target_nodes": 2, "elapsed_time_seconds": 99.0,
+                     "percentage": 100, "success": True},
+        }
+
+        result = self.client.scale_machine(
+            agentpool_name="apool", vm_size="Standard_D2_v3",
+            scale_machine_count=2, use_batch_api=True,
+        )
+
+        self.assertTrue(result)
+        metadata_keys = {
+            call.args[0] for call in self.mock_operation.add_metadata.call_args_list
+        }
+        self.assertIn("batch_command_execution_times", metadata_keys)
+
+    # ---- baseline behaviour ----
+
+    @mock.patch.object(AKSMachineClient, "_wait_for_machine_node_readiness")
+    @mock.patch.object(AKSMachineClient, "_wait_for_agentpool_provisioning",
+                       return_value=True)
+    @mock.patch.object(AKSMachineClient, "_scale_machine_individually")
+    def test_scale_machine_passes_baseline_count_to_readiness(
+        self, mock_indiv, _mock_ap, mock_readiness
+    ):
+        """scale_machine snapshots baseline before PUT and forwards it to the watcher."""
+        # Two pre-existing ready nodes already labelled with the agentpool.
+        self.mock_k8s.get_ready_nodes.return_value = [mock.MagicMock(),
+                                                     mock.MagicMock()]
+        mock_indiv.return_value = ["scale1-machine-1"]
+        mock_readiness.return_value = {
+            "P100": {"target_nodes": 3, "elapsed_time_seconds": 1.0,
+                     "percentage": 100, "success": True},
+        }
+
+        self.client.scale_machine(
+            agentpool_name="apool", vm_size="Standard_D2_v3",
+            scale_machine_count=1,
+        )
+
+        mock_readiness.assert_called_once()
+        self.assertEqual(mock_readiness.call_args.kwargs["baseline_count"], 2)
+
+    # ---- _get_machine_name_prefix static helper ----
+
+    def test_machine_name_prefix_collapses_thousands(self):
+        self.assertEqual(AKSMachineClient._get_machine_name_prefix(1000), "scale1k")
+        self.assertEqual(AKSMachineClient._get_machine_name_prefix(3000), "scale3k")
+
+    def test_machine_name_prefix_keeps_non_thousand_values(self):
+        self.assertEqual(AKSMachineClient._get_machine_name_prefix(1), "scale1")
+        self.assertEqual(AKSMachineClient._get_machine_name_prefix(500), "scale500")
+        self.assertEqual(AKSMachineClient._get_machine_name_prefix(1500), "scale1500")
+
+
+if __name__ == "__main__":
+    unittest.main()

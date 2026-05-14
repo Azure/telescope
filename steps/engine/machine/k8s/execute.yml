@@ -28,29 +28,27 @@ steps:
         --arg scenario "$SCENARIO_TYPE-$SCENARIO_NAME" \
         --arg owner aks \
         '{run_id:$run_id, deletion_due_time:$deletion_due_time, creation_time:$creation_time, scenario:$scenario, owner:$owner}')
-      python3 -m machine.main create \
+      python3 -m crud.main create-machine \
         --cloud "${{ parameters.cloud }}" \
         --run-id "$RUN_ID" \
-        --region "$REGION" \
-        --resource-group "$RUN_ID" \
         --node-pool-name "${{ parameters.pool_name }}" \
         --vm-size "${{ parameters.vm_size }}" \
-        --scale-machine-count "${{ parameters.scale_machine_count }}" \
-        --machine-workers "${{ parameters.machine_workers }}" \
-        --use-batch-api "${{ parameters.use_batch_api }}" \
         --step-timeout "${{ parameters.step_time_out }}" \
-        --result-dir "${{ parameters.result_dir }}" \
-        --tags "$tags"
-      python3 -m machine.main scale \
+        --result-dir "${{ parameters.result_dir }}"
+      USE_BATCH_FLAG=""
+      if [[ "${{ parameters.use_batch_api }}" == "true" ]]; then
+        USE_BATCH_FLAG="--use-batch-api"
+      fi
+      # shellcheck disable=SC2086
+      python3 -m crud.main scale-machine \
         --cloud "${{ parameters.cloud }}" \
         --run-id "$RUN_ID" \
         --region "$REGION" \
-        --resource-group "$RUN_ID" \
         --node-pool-name "${{ parameters.pool_name }}" \
         --vm-size "${{ parameters.vm_size }}" \
         --scale-machine-count "${{ parameters.scale_machine_count }}" \
         --machine-workers "${{ parameters.machine_workers }}" \
-        --use-batch-api "${{ parameters.use_batch_api }}" \
+        $USE_BATCH_FLAG \
         --step-timeout "${{ parameters.step_time_out }}" \
         --result-dir "${{ parameters.result_dir }}" \
         --tags "$tags"
