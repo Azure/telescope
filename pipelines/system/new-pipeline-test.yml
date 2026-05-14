@@ -131,84 +131,70 @@ stages:
             # path in execute.yml + collect.yml. Per-row test_type
             # attribution preserved in the JSONL. Single provision/destroy
             # = ~92% time reduction vs running two matrix entries.
-            n2_shared:
-              cluster_count: 2
-              mesh_size: 2
-              # Phase 4b — 5-scenario share-infra validation:
-              # event-throughput (#1), pod-churn-combined (#2),
-              # apiserver-failure (#4), ha-config (#7), isolation (#5),
-              # node-churn-combined (#3).
-              # ha-config is BEFORE isolation so its scale-down restores
-              # the apiserver Deployment to 1 replica before isolation's
-              # heavy pod-churn loop runs on the target cluster.
-              # node-churn-combined is LAST per rubber-duck design review
-              # #11 — node ops can leave the target cluster in a half-
-              # scaled state if the finalizer can't restore. Putting
-              # node-churn last means contamination affects no further
-              # scenarios in the share-infra lifecycle.
-              #
-              # ITER-ONLY 2026-05-13: narrowed to node-churn-combined
-              # ONLY for fast smoke iteration on scenario #3. Restore
-              # full 6-scenario list before n=20 promotion:
-              #   "event-throughput,pod-churn-combined,apiserver-failure,ha-config,isolation,node-churn-combined"
-              share_infra_scenarios: "node-churn-combined"
-              cl2_config_file: ""  # unused when share_infra_scenarios is set
-              test_type: shared    # row-level test_type comes from each scenario at collect time
-              namespaces: 5
-              deployments_per_namespace: 4
-              replicas_per_deployment: 10
-              hold_duration: 2m
-              warmup_duration: 30s
-              restart_count: 1
-              api_server_calls_per_second: 20
-              churn_cycles: 5
-              churn_up_duration: 60s
-              churn_down_duration: 60s
-              kill_duration: 10m
-              kill_duration_seconds: 600
-              kill_interval_seconds: 10
-              kill_batch: 5
-              kill_job_deadline_seconds: 660
-              # Phase 4b — Scenario #4 (ClusterMesh APIServer Failure) knobs.
-              # Default target context matches our tfvars cluster name pattern
-              # (clustermesh-1 is the first cluster's AKS name; az aks
-              # get-credentials writes context=AKS-name).
-              apiserver_kill_target_context: clustermesh-1
-              apiserver_kill_recovery_timeout_seconds: 240
-              apiserver_kill_observation_seconds: 60
-              # Phase 4b — Scenario #7 (HA Configuration Validation) knob.
-              # Each cluster scales clustermesh-apiserver to this count
-              # before ha-config measurements start; 3 is standard HA
-              # (etcd-quorum-friendly). ENO may revert; the scaler tags
-              # ha_replicas_honored in the timing JSON either way.
-              ha_config_replicas: 3
-              # Phase 4b — Scenario #3 (Node Churn / IP Churn) knobs.
-              # Build 67161 (K=1) proved the plumbing works but only replaces
-              # 1 of 20 nodes (5%) — too small to meaningfully exercise
-              # the spec's "Force node recreation" stimulus. Bumped K to
-              # 10 (50%) to match production tiers + the spec's intent of
-              # replacing a substantial fraction of the pool. Replace phase
-              # walltime at K=10: ~5min drain (sequential, 10 × ~30s) +
-              # ~3min vmss delete (batched, 1 az call) + ~10-15min refill
-              # + Ready wait = ~20min. Within the 1500s replace_wait cap
-              # and the 2700s combined sleep.
-              node_churn_target_context: clustermesh-1
-              node_churn_cycles: 2
-              node_churn_delta: 3
-              node_churn_settle_seconds: 60
-              node_churn_scale_duration_seconds: 1500
-              node_churn_replace_duration_seconds: 1500
-              node_churn_combined_duration_seconds: 2700
-              node_replace_batch_size: 10
-              node_churn_ready_timeout_seconds: 300
-              trigger_reason: ${{ variables['Build.Reason'] }}
+            #
+            # ITER-ONLY 2026-05-14: commented out for scenario #6 smoke.
+            # n2_shared was previously narrowed to "node-churn-combined"
+            # for #3 iteration; #3 is now green at K=10 (build 67185) so
+            # there's no need to re-run it alongside the #6 first smoke.
+            # Restore + widen this entry to the 5-scenario share-infra
+            # list AFTER #6 lands (planned post-#6 work per SETTLED DESIGN):
+            #   share_infra_scenarios: "event-throughput,pod-churn-combined,apiserver-failure,ha-config,isolation"
+            # n2_shared:
+            #   cluster_count: 2
+            #   mesh_size: 2
+            #   # Phase 4b — 5-scenario share-infra validation:
+            #   # event-throughput (#1), pod-churn-combined (#2),
+            #   # apiserver-failure (#4), ha-config (#7), isolation (#5),
+            #   # node-churn-combined (#3).
+            #   # ha-config is BEFORE isolation so its scale-down restores
+            #   # the apiserver Deployment to 1 replica before isolation's
+            #   # heavy pod-churn loop runs on the target cluster.
+            #   # node-churn-combined is LAST per rubber-duck design review
+            #   # #11 — node ops can leave the target cluster in a half-
+            #   # scaled state if the finalizer can't restore. Putting
+            #   # node-churn last means contamination affects no further
+            #   # scenarios in the share-infra lifecycle.
+            #   share_infra_scenarios: "node-churn-combined"
+            #   cl2_config_file: ""  # unused when share_infra_scenarios is set
+            #   test_type: shared    # row-level test_type comes from each scenario at collect time
+            #   namespaces: 5
+            #   deployments_per_namespace: 4
+            #   replicas_per_deployment: 10
+            #   hold_duration: 2m
+            #   warmup_duration: 30s
+            #   restart_count: 1
+            #   api_server_calls_per_second: 20
+            #   churn_cycles: 5
+            #   churn_up_duration: 60s
+            #   churn_down_duration: 60s
+            #   kill_duration: 10m
+            #   kill_duration_seconds: 600
+            #   kill_interval_seconds: 10
+            #   kill_batch: 5
+            #   kill_job_deadline_seconds: 660
+            #   # Phase 4b — Scenario #4 (ClusterMesh APIServer Failure) knobs.
+            #   apiserver_kill_target_context: clustermesh-1
+            #   apiserver_kill_recovery_timeout_seconds: 240
+            #   apiserver_kill_observation_seconds: 60
+            #   # Phase 4b — Scenario #7 (HA Configuration Validation) knob.
+            #   ha_config_replicas: 3
+            #   # Phase 4b — Scenario #3 (Node Churn / IP Churn) knobs.
+            #   node_churn_target_context: clustermesh-1
+            #   node_churn_cycles: 2
+            #   node_churn_delta: 3
+            #   node_churn_settle_seconds: 60
+            #   node_churn_scale_duration_seconds: 1500
+            #   node_churn_replace_duration_seconds: 1500
+            #   node_churn_combined_duration_seconds: 2700
+            #   node_replace_batch_size: 10
+            #   node_churn_ready_timeout_seconds: 300
+            #   trigger_reason: ${{ variables['Build.Reason'] }}
             # Phase 4b — Scenario #6 (Upper Bound / Saturation) standalone
             # smoke entry. Per SETTLED DESIGN in plan.md (line ~126), we do
             # NOT widen n2_shared to include #6 — the share-infra-list
-            # rollup happens AFTER #6 lands. Run this entry alongside (or
-            # instead of) n2_shared during #6 development; CL2 image,
-            # tfvars, and timeout budget are identical. Defaults match the
-            # prod pipeline so signals are directly comparable.
+            # rollup happens AFTER #6 lands. CL2 image, tfvars, and timeout
+            # budget are identical to the prod pipeline so signals are
+            # directly comparable.
             n2_upper_bound:
               cluster_count: 2
               mesh_size: 2
