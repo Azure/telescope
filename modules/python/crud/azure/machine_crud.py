@@ -54,7 +54,7 @@ class MachineCRUD:
                 cluster_name=self.cluster_name,
                 timeout=self.step_timeout,
             )
-        except Exception as e:  # pylint: disable=broad-except
+        except Exception as e:
             logger.error("create_machine_agentpool failed for %s: %s", agentpool_name, e)
             return False
 
@@ -79,6 +79,6 @@ class MachineCRUD:
                 readiness_wait_timeout=readiness_wait_timeout,
                 tags=tags,
             )
-        except Exception as e:  # pylint: disable=broad-except
+        except Exception as e:
             logger.error("scale_machine failed for %s: %s", agentpool_name, e)
             return False

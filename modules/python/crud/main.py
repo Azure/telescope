@@ -253,7 +253,7 @@ def handle_machine_operation(machine_crud, args):
             logger.error("Machine operation '%s' failed", command)
             return 1
         return 0
-    except Exception as e:  # pylint: disable=broad-except
+    except Exception as e:
         logger.error("Error during '%s' operation: %s", command, e)
         return 1
 

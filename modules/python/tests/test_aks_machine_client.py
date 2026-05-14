@@ -18,7 +18,6 @@ from unittest import mock
 from clients.aks_machine_client import AKSMachineClient
 
 
-# pylint: disable=too-many-instance-attributes
 class TestAKSMachineClient(unittest.TestCase):
     """Tests for the AKSMachineClient class."""
 
