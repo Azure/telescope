@@ -15,6 +15,8 @@ spec:
       containers:
         - name: {{LABEL_VALUE}}
           image: mcr.microsoft.com/oss/nginx/nginx:1.21.6
+          # nginx -t validates config and exits immediately (exit 0).
+          # Fast, deterministic exit so we measure CRUD latency, not workload runtime.
           command: ["nginx", "-t"]
           ports:
             - containerPort: 80
