@@ -27,8 +27,8 @@ metadata:
   name: cl2
   namespace: clusterloader2
 spec:
-  completions: 4
-  parallelism: 4
+  completions: 8
+  parallelism: 8
   backoffLimit: 0
   template:
     spec:
@@ -575,7 +575,7 @@ data:
     # so its CL2 measurement gather step runs and its report is captured. RunClusterLoader2
     # waits for both load + read to reach terminal, so don't set this larger than expected
     # load test runtime or the pipeline will idle waiting for read.
-    CL2_LIST_BENCHMARK_DURATION: "60m"
+    CL2_LIST_BENCHMARK_DURATION: "90m"
 ---
 # Override files mounted on top of the cl2 image's testing/list/ tree.
 # - config.yaml: parameterizes the upstream-hardcoded 5m Sleep so duration is tunable.
