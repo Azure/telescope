@@ -100,6 +100,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
             1  # scale_step_size != target_count, so progressive=True
         )
         mock_args.gpu_node_pool = False
+        mock_args.cni_daemonset_label = None
 
         # Configure mock to return success
         mock_azure_crud.scale_node_pool.return_value = True
@@ -129,6 +130,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
             3  # scale_step_size == target_count, so progressive=False
         )
         mock_args.gpu_node_pool = False
+        mock_args.cni_daemonset_label = None
 
         # Configure mock to return success
         mock_azure_crud.scale_node_pool.return_value = True
@@ -164,6 +166,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         mock_args.target_count = 10
         mock_args.scale_step_size = 2  # Progressive scaling
         mock_args.gpu_node_pool = False
+        mock_args.cni_daemonset_label = None
 
         # Configure mock to return False (scale failed but didn't raise exception)
         mock_azure_crud.scale_node_pool.return_value = False

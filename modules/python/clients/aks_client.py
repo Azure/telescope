@@ -382,6 +382,7 @@ class AKSClient:
         gpu_node_pool: bool = False,
         progressive: bool = False,
         scale_step_size: int = 1,
+        cni_daemonset_label: Optional[str] = None,
     ) -> Any:
         """
         Scale a node pool to the specified node count.
@@ -501,6 +502,25 @@ class AKSClient:
                     op.add_metadata("nvidia_driver_logs", pod_logs)
                 # Record node readiness info
                 op.add_metadata("ready_nodes", len(ready_nodes))
+
+                # Collect per-node startup latency if scaling up
+                if operation_type == "scale_up" and self.k8s_client:
+                    try:
+                        # Filter to only newly added nodes (those created after the scale call)
+                        new_nodes = [
+                            n for n in ready_nodes
+                            if n.metadata.creation_timestamp and
+                            n.metadata.creation_timestamp.strftime("%Y-%m-%dT%H:%M:%SZ") >= op.start_timestamp
+                        ]
+                        if new_nodes:
+                            startup_latency = self.k8s_client.collect_node_startup_latency(
+                                nodes=new_nodes,
+                                scale_api_call_timestamp=op.start_timestamp,
+                                cni_daemonset_label=cni_daemonset_label,
+                            )
+                            op.add_metadata("node_startup_latency", startup_latency)
+                    except Exception as latency_err:
+                        logger.warning(f"Failed to collect node startup latency: {latency_err}")
 
                 return True
 

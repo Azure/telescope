@@ -109,6 +109,7 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
             gpu_node_pool=False,
             progressive=False,
             scale_step_size=1,
+            cni_daemonset_label=None,
         )
 
     def test_scale_node_pool_down(self):
@@ -136,6 +137,7 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
             gpu_node_pool=False,
             progressive=False,
             scale_step_size=1,
+            cni_daemonset_label=None,
         )
 
     def test_delete_node_pool(self):

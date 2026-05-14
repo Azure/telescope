@@ -113,6 +113,8 @@ def handle_node_pool_operation(node_pool_crud, args):
                 "scale_step_size": args.scale_step_size,
                 "gpu_node_pool": args.gpu_node_pool,
             }
+            if hasattr(args, "cni_daemonset_label") and args.cni_daemonset_label:
+                scale_kwargs["cni_daemonset_label"] = args.cni_daemonset_label
 
             result = node_pool_crud.scale_node_pool(**scale_kwargs)
 
@@ -301,6 +303,12 @@ def main():
         type=int,
         default=30,
         help="Wait time in seconds between scaling steps",
+    )
+    scale_parser.add_argument(
+        "--cni-daemonset-label",
+        default=None,
+        help="Label selector for CNI daemonset pods to collect node startup latency "
+             "(e.g. 'k8s-app=cilium', 'k8s-app=azure-cni'). If not set, CNI timestamps are skipped.",
     )
     scale_parser.set_defaults(func=handle_node_pool_operation)
 

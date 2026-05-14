@@ -517,6 +517,200 @@ class KubernetesClient:
         pods = self.get_pods_by_namespace(namespace=namespace, field_selector=f"spec.nodeName={node_name}")
         return len(pods)
 
+    def _format_k8s_timestamp(self, ts):
+        """Format a Kubernetes datetime object to ISO 8601 string."""
+        if ts is None:
+            return None
+        return ts.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    def _get_condition_transition_time(self, conditions, condition_type):
+        """Get lastTransitionTime for a specific condition type from a list of conditions."""
+        if not conditions:
+            return None
+        for cond in conditions:
+            if cond.type == condition_type:
+                return self._format_k8s_timestamp(cond.last_transition_time)
+        return None
+
+    def collect_node_startup_timestamps(self, nodes):
+        """
+        Collect per-node startup timestamps from Kubernetes node objects.
+
+        For each node, extracts:
+          - node_name: the node's name
+          - node_created: node.metadata.creationTimestamp (T1)
+          - node_ready: Ready condition lastTransitionTime (T4)
+          - node_network_unavailable_cleared: NetworkUnavailable condition lastTransitionTime
+
+        Args:
+            nodes: List of V1Node objects (e.g. from wait_for_nodes_ready)
+
+        Returns:
+            List of dicts with per-node timestamp data
+        """
+        results = []
+        for node in nodes:
+            node_name = node.metadata.name
+            created = self._format_k8s_timestamp(node.metadata.creation_timestamp)
+            ready_time = self._get_condition_transition_time(
+                node.status.conditions, "Ready")
+            network_unavailable_time = self._get_condition_transition_time(
+                node.status.conditions, "NetworkUnavailable")
+
+            entry = {
+                "node_name": node_name,
+                "node_created": created,
+                "node_ready": ready_time,
+                "node_network_unavailable_cleared": network_unavailable_time,
+            }
+            logger.info("Node startup timestamps for '%s': %s", node_name, entry)
+            results.append(entry)
+        return results
+
+    def collect_cni_pod_timestamps(self, node_names, cni_daemonset_label, namespace="kube-system"):
+        """
+        Collect CNI agent pod timestamps for specific nodes.
+
+        For each node, finds the CNI daemonset pod and extracts:
+          - cni_container_started: first container's state.running.startedAt (T2)
+          - cni_pod_ready: Ready condition lastTransitionTime (T3)
+
+        Args:
+            node_names: List of node name strings
+            cni_daemonset_label: Label selector for the CNI daemonset pods
+                                 (e.g. "k8s-app=cilium" or "k8s-app=azure-cni")
+            namespace: Namespace where CNI pods run (default: kube-system)
+
+        Returns:
+            Dict mapping node_name -> CNI timestamp dict
+        """
+        results = {}
+        for node_name in node_names:
+            pods = self.get_pods_by_namespace(
+                namespace=namespace,
+                label_selector=cni_daemonset_label,
+                field_selector=f"spec.nodeName={node_name}",
+            )
+            if not pods:
+                logger.warning("No CNI pod found on node '%s' with label '%s'",
+                               node_name, cni_daemonset_label)
+                results[node_name] = {
+                    "cni_container_started": None,
+                    "cni_pod_ready": None,
+                }
+                continue
+
+            pod = pods[0]
+            # T2: first container started time
+            container_started = None
+            if pod.status.container_statuses:
+                for cs in pod.status.container_statuses:
+                    if cs.state and cs.state.running and cs.state.running.started_at:
+                        container_started = self._format_k8s_timestamp(
+                            cs.state.running.started_at)
+                        break
+
+            # T3: pod Ready condition transition time
+            cni_ready = self._get_condition_transition_time(
+                pod.status.conditions, "Ready")
+
+            entry = {
+                "cni_container_started": container_started,
+                "cni_pod_ready": cni_ready,
+            }
+            logger.info("CNI pod timestamps for node '%s': %s", node_name, entry)
+            results[node_name] = entry
+
+        return results
+
+    def collect_node_startup_latency(self, nodes, scale_api_call_timestamp,
+                                     cni_daemonset_label=None, namespace="kube-system"):
+        """
+        Collect full node startup latency metrics for a set of newly provisioned nodes.
+
+        Combines node-level timestamps (T0, T1, T4) and optional CNI timestamps (T2, T3)
+        into a single per-node result with computed latency KPIs.
+
+        Args:
+            nodes: List of V1Node objects for newly provisioned nodes
+            scale_api_call_timestamp: ISO 8601 string of when the scale API was called (T0)
+            cni_daemonset_label: Label selector for CNI pods (e.g. "k8s-app=cilium").
+                                 If None, CNI timestamps are skipped.
+            namespace: Namespace for CNI pods (default: kube-system)
+
+        Returns:
+            List of dicts, one per node, with all timestamps and computed latencies
+        """
+        node_timestamps = self.collect_node_startup_timestamps(nodes)
+        node_names = [n.metadata.name for n in nodes]
+
+        cni_timestamps = {}
+        if cni_daemonset_label:
+            cni_timestamps = self.collect_cni_pod_timestamps(
+                node_names, cni_daemonset_label, namespace)
+
+        results = []
+        for entry in node_timestamps:
+            node_name = entry["node_name"]
+            merged = {
+                "node_name": node_name,
+                "scale_api_call": scale_api_call_timestamp,
+                "node_created": entry["node_created"],
+                "node_ready": entry["node_ready"],
+                "node_network_unavailable_cleared": entry["node_network_unavailable_cleared"],
+            }
+
+            # Add CNI timestamps if available
+            cni = cni_timestamps.get(node_name, {})
+            merged["cni_container_started"] = cni.get("cni_container_started")
+            merged["cni_pod_ready"] = cni.get("cni_pod_ready")
+
+            # Compute latency KPIs (all in seconds)
+            merged["latencies"] = self._compute_latencies(merged)
+
+            logger.info("Node startup latency for '%s': %s", node_name, merged)
+            results.append(merged)
+
+        return results
+
+    def _compute_latencies(self, timestamps):
+        """Compute latency KPIs from collected timestamps."""
+        latencies = {}
+
+        def _diff_seconds(end_key, start_key):
+            end_val = timestamps.get(end_key)
+            start_val = timestamps.get(start_key)
+            if not end_val or not start_val:
+                return None
+            try:
+                from datetime import datetime, timezone
+                end_dt = datetime.fromisoformat(end_val.replace("Z", "+00:00"))
+                start_dt = datetime.fromisoformat(start_val.replace("Z", "+00:00"))
+                return (end_dt - start_dt).total_seconds()
+            except Exception:
+                return None
+
+        # Total node startup: T4 - T0
+        latencies["total_node_startup_seconds"] = _diff_seconds(
+            "node_ready", "scale_api_call")
+        # Cloud provisioning: T1 - T0
+        latencies["cloud_provisioning_seconds"] = _diff_seconds(
+            "node_created", "scale_api_call")
+        # Node initialization: T4 - T1
+        latencies["node_init_seconds"] = _diff_seconds(
+            "node_ready", "node_created")
+        # CNI initialization: T3 - T2
+        latencies["cni_init_seconds"] = _diff_seconds(
+            "cni_pod_ready", "cni_container_started")
+        # CNI-induced delay: max(0, T3 - T4)
+        cni_delay = _diff_seconds("cni_pod_ready", "node_ready")
+        if cni_delay is not None:
+            latencies["cni_induced_delay_seconds"] = max(0, cni_delay)
+        else:
+            latencies["cni_induced_delay_seconds"] = None
+
+        return latencies
+
     def set_context(self, context_name):
         """
         Switch to the specified Kubernetes context and reinitialize all API clients.

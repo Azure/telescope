@@ -1,0 +1,65 @@
+parameters:
+  result_dir: ""
+  vm_size: ""
+  create_node_count: ""
+  scale_node_count: ""
+  pool_name: ""
+  cloud: ""
+  step_time_out: 600
+  cni_daemonset_label: ""
+
+steps:
+- script: |
+    set -eo pipefail
+
+    CNI_LABEL_ARG=""
+    if [ -n "$CNI_DAEMONSET_LABEL" ]; then
+      CNI_LABEL_ARG="--cni-daemonset-label $CNI_DAEMONSET_LABEL"
+    fi
+
+    # Scale Up Node Pool (N -> N+1) and collect node startup latency
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" scale \
+      --cloud "$CLOUD" \
+      --run-id "$RUN_ID" \
+      --result-dir "$RESULT_DIR" \
+      --node-pool-name "$POOL_NAME" \
+      --target-count "$SCALE_NODE_COUNT" \
+      --scale-step-size 1 \
+      --step-timeout "$STEP_TIME_OUT" \
+      $CNI_LABEL_ARG
+
+  displayName: 'Scale Up & Collect Node Startup Latency for ${{ parameters.cloud }}'
+  workingDirectory: modules/python
+  env:
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/crud/main.py
+    VM_SIZE: ${{ parameters.vm_size }}
+    SCALE_NODE_COUNT: ${{ parameters.scale_node_count }}
+    POOL_NAME: ${{ parameters.pool_name }}
+    CLOUD: ${{ parameters.cloud }}
+    STEP_TIME_OUT: ${{ parameters.step_time_out }}
+    RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
+    CNI_DAEMONSET_LABEL: ${{ parameters.cni_daemonset_label }}
+
+- script: |
+    set -eo pipefail
+
+    # Scale Down Node Pool (back to original count)
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" scale \
+      --cloud "$CLOUD" \
+      --run-id "$RUN_ID" \
+      --result-dir "$RESULT_DIR" \
+      --node-pool-name "$POOL_NAME" \
+      --target-count "$CREATE_NODE_COUNT" \
+      --scale-step-size 1 \
+      --step-timeout "$STEP_TIME_OUT"
+
+  displayName: 'Scale Down Node Pool for ${{ parameters.cloud }}'
+  condition: always()
+  workingDirectory: modules/python
+  env:
+    PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/crud/main.py
+    CREATE_NODE_COUNT: ${{ parameters.create_node_count }}
+    POOL_NAME: ${{ parameters.pool_name }}
+    CLOUD: ${{ parameters.cloud }}
+    STEP_TIME_OUT: ${{ parameters.step_time_out }}
+    RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
