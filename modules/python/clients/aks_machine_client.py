@@ -208,9 +208,7 @@ class AKSMachineClient(AKSClient):
         logger.error("agentpool provisioning timed out after %ss", timeout)
         return False
 
-    # Disable too-many-locals: this is essentially a state machine over polling
-    # results; refactoring to fewer locals would just hide intermediate state.
-    def _wait_for_machine_node_readiness(  # pylint: disable=too-many-locals
+    def _wait_for_machine_node_readiness(
         self,
         agentpool_name: str,
         expected_count: int,
@@ -280,7 +278,7 @@ class AKSMachineClient(AKSClient):
         while time.time() < deadline and len(elapsed) < len(targets):
             try:
                 ready = len(kc.get_ready_nodes(label_selector=label_selector))
-            except Exception as e:  # pylint: disable=broad-except
+            except Exception as e:
                 logger.warning("get_ready_nodes(%s) failed: %s", label_selector, e)
                 ready = 0
             now_elapsed = time.time() - start
@@ -335,13 +333,7 @@ class AKSMachineClient(AKSClient):
                     json.dumps(result, indent=2))
         return result
 
-    # Disable too-many-arguments / too-many-positional-arguments / too-many-locals:
-    # this is the public scale entry point; argument fan-out matches
-    # ``AKSClient.scale_node_pool`` (also above limit) and the local var count
-    # tracks the pipeline (baseline snapshot, machine names, batch dispatch,
-    # readiness watcher). Wrapping in a request dataclass would just duplicate
-    # the argparse layer above.
-    def scale_machine(  # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals
+    def scale_machine(
         self,
         agentpool_name: str,
         vm_size: str,
@@ -419,7 +411,7 @@ class AKSMachineClient(AKSClient):
                             "baseline ready nodes in agentpool %s: %d",
                             agentpool_name, baseline_count,
                         )
-                    except Exception:  # pylint: disable=broad-except
+                    except Exception:
                         logger.warning(
                             "baseline node snapshot failed; readiness count may be inflated"
                         )
@@ -511,7 +503,7 @@ class AKSMachineClient(AKSClient):
                 try:
                     if fut.result():
                         successful.append(n)
-                except Exception:  # pylint: disable=broad-except
+                except Exception:
                     logger.exception("create_single_machine failed for %s", n)
         return successful
 
@@ -586,7 +578,7 @@ class AKSMachineClient(AKSClient):
             t0 = time.time()
             try:
                 created = self._create_batch_machines(request, chunk, idx)
-            except Exception:  # pylint: disable=broad-except
+            except Exception:
                 logger.exception("batch chunk %d failed", idx)
                 created = []
             elapsed = time.time() - t0
@@ -597,7 +589,7 @@ class AKSMachineClient(AKSClient):
             for fut in as_completed(futures):
                 try:
                     idx, created, elapsed = fut.result()
-                except Exception:  # pylint: disable=broad-except
+                except Exception:
                     # run_chunk already swallows; this is belt-and-suspenders.
                     logger.exception("unexpected error retrieving batch chunk result")
                     continue
@@ -669,7 +661,7 @@ class AKSMachineClient(AKSClient):
         )
         return list(chunk)
 
-    def _make_batch_request(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    def _make_batch_request(
         self,
         method: str,
         url: str,
