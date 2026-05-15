@@ -467,12 +467,9 @@ class AKSClient:
                 node_pool.count = node_count
 
                 logger.info(f"Scaling node pool {node_pool_name} to {node_count} nodes")
-                self.aks_client.agent_pools.begin_create_or_update(
-                    resource_group_name=self.resource_group,
-                    resource_name=cluster_name,
-                    agent_pool_name=node_pool_name,
-                    parameters=node_pool,
-                ).result()
+                self._scale_with_retry(
+                    node_pool_name, cluster_name, node_pool
+                )
 
                 logger.info(
                     f"Waiting for {node_count} nodes in pool {node_pool_name} to be ready..."
@@ -603,6 +600,44 @@ class AKSClient:
                 # The OperationContext will automatically record failure when exiting
                 raise
 
+    def _scale_with_retry(self, node_pool_name, cluster_name, node_pool, max_retries=12, retry_interval=30):
+        """
+        Scale a node pool with retry logic for OperationNotAllowed errors.
+
+        AKS can reject scale operations while background operations (e.g. extension installs)
+        are still in progress, even after provisioning state shows Succeeded.
+
+        Args:
+            node_pool_name: The name of the node pool
+            cluster_name: The name of the AKS cluster
+            node_pool: The node pool object with updated count
+            max_retries: Maximum number of retry attempts (default: 12 = ~6 minutes)
+            retry_interval: Seconds to wait between retries (default: 30)
+
+        Returns:
+            The result of the scale operation
+
+        Raises:
+            HttpResponseError: If the error is not OperationNotAllowed or retries are exhausted
+        """
+        for attempt in range(1, max_retries + 1):
+            try:
+                return self.aks_client.agent_pools.begin_create_or_update(
+                    resource_group_name=self.resource_group,
+                    resource_name=cluster_name,
+                    agent_pool_name=node_pool_name,
+                    parameters=node_pool,
+                ).result()
+            except HttpResponseError as e:
+                if "OperationNotAllowed" in str(e) and attempt < max_retries:
+                    logger.warning(
+                        f"Cluster has an in-progress operation, retrying in {retry_interval}s "
+                        f"(attempt {attempt}/{max_retries}): {str(e)[:200]}"
+                    )
+                    time.sleep(retry_interval)
+                else:
+                    raise
+
     def _progressive_scale(
         self,
         node_pool_name: str,
@@ -698,12 +733,9 @@ class AKSClient:
                         "cluster_info", self.get_cluster_data(cluster_name)
                     )
                     node_pool.count = step  # Update node count in the node pool object
-                    result = self.aks_client.agent_pools.begin_create_or_update(
-                        resource_group_name=self.resource_group,
-                        resource_name=cluster_name,
-                        agent_pool_name=node_pool_name,
-                        parameters=node_pool,
-                    ).result()
+                    result = self._scale_with_retry(
+                        node_pool_name, cluster_name, node_pool
+                    )
 
                     # Use agentpool=node_pool_name as default label if not specified
                     label_selector = f"agentpool={node_pool_name}"
