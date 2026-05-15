@@ -761,6 +761,56 @@ data:
                 cpu: {{$cpu}}
                 memory: {{$memory}}
 ---
+# Dedicated APF priority level for the read benchmark. nominalConcurrencyShares
+# 325 takes ~57% of the apiserver seat budget (~5474 of ~9600 total). Combined
+# with workload-low's reduced share (~1684 for load), our test reaches ~7160
+# combined seats — up from ~6000 today. lendablePercent: 0 keeps these seats
+# locked to this PL. Side effects: workload-low shrinks ~57% (load test slows
+# accordingly) and system PLs share ~2442 seats (scheduler/kubelet/controllers
+# tighter but functional). Acceptable on a dedicated benchmark cluster.
+apiVersion: flowcontrol.apiserver.k8s.io/v1
+kind: PriorityLevelConfiguration
+metadata:
+  name: cl2-read
+spec:
+  type: Limited
+  limited:
+    nominalConcurrencyShares: 325
+    lendablePercent: 0
+    limitResponse:
+      type: Queue
+      queuing:
+        queues: 64
+        handSize: 8
+        queueLengthLimit: 100
+---
+# Match the lister Deployment's pod identity (default SA in list-benchmark-0,
+# which CL2's testing/list/config.yaml creates) and route its LIST configmaps
+# requests to the dedicated PL above. matchingPrecedence < 9000 (the default
+# service-accounts FS precedence) ensures this rule wins.
+apiVersion: flowcontrol.apiserver.k8s.io/v1
+kind: FlowSchema
+metadata:
+  name: cl2-read
+spec:
+  matchingPrecedence: 100
+  priorityLevelConfiguration:
+    name: cl2-read
+  distinguisherMethod:
+    type: ByUser
+  rules:
+  - subjects:
+    - kind: ServiceAccount
+      serviceAccount:
+        name: default
+        namespace: list-benchmark-0
+    resourceRules:
+    - verbs: ["list", "get", "watch"]
+      apiGroups: [""]
+      resources: ["configmaps"]
+      clusterScope: true
+      namespaces: ["*"]
+---
 apiVersion: batch/v1
 kind: Job
 metadata:
