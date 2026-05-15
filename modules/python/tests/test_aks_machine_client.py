@@ -84,7 +84,7 @@ class TestAKSMachineClient(unittest.TestCase):
                        return_value=True)
     @mock.patch.object(AKSMachineClient, "make_request")
     def test_create_machine_agentpool_success(self, mock_make_request, _mock_wait):
-        """PUT 200 + Succeeded poll → returns; metadata enriched."""
+        """PUT 200 + Succeeded poll -> returns; metadata enriched."""
         mock_resp = mock.MagicMock()
         mock_resp.status_code = 200
         mock_make_request.return_value = mock_resp
