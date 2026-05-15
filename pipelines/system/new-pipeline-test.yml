@@ -21,14 +21,14 @@ variables:
 
 stages:
   - stage: acl_resource_consume
-    displayName: ACL CRI resource consume (westus2)
+    displayName: ACL CRI resource consume (westus3)
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
-            - westus2
+            - westus3
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
