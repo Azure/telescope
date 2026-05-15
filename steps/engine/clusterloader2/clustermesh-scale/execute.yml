@@ -77,11 +77,11 @@ steps:
       # upper-bound.yaml consumes these via CL2's DefaultParam template
       # func; non-saturation scenarios ignore them. Defaults mirror
       # scale.py configure's defaults so a forgotten matrix var falls
-      # through to the documented 4-rung sweep at 20/40/80/160 QPS.
-      export CL2_SATURATION_QPS_LIST="${SATURATION_QPS_LIST:-20,40,80,160}"
-      export CL2_SATURATION_RESTARTS_LIST="${SATURATION_RESTARTS_LIST:-1,2,3,4}"
-      export CL2_SATURATION_RUNG_DURATION_SECONDS="${SATURATION_RUNG_DURATION_SECONDS:-180}"
-      export CL2_SATURATION_SETTLE_SECONDS="${SATURATION_SETTLE_SECONDS:-60}"
+      # through to the documented 5-rung sweep at 100/500/1500/4000/10000 QPS.
+      export CL2_SATURATION_QPS_LIST="${SATURATION_QPS_LIST:-100,500,1500,4000,10000}"
+      export CL2_SATURATION_RESTARTS_LIST="${SATURATION_RESTARTS_LIST:-5,15,40,80,150}"
+      export CL2_SATURATION_RUNG_DURATION_SECONDS="${SATURATION_RUNG_DURATION_SECONDS:-240}"
+      export CL2_SATURATION_SETTLE_SECONDS="${SATURATION_SETTLE_SECONDS:-90}"
 
       # Same discovery pattern as topology/clustermesh-scale/validate-resources.yml.
       # We re-run it here rather than relying on a step variable so this engine

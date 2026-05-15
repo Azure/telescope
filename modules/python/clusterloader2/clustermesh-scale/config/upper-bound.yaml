@@ -71,12 +71,15 @@ name: clustermesh-upper-bound
 # Each rung lasts SaturationRungDurationSeconds + SaturationSettleSeconds.
 #
 # Defaults match scale.py's defaults so a forgotten matrix var falls
-# through to a safe-but-meaningful 4-rung sweep at 20/40/80/160 QPS with
-# 1/2/3/4 restarts per rung (4 rungs × 240s ≈ 16 min CL2 wall time).
-{{$saturationQpsListStr := DefaultParam .CL2_SATURATION_QPS_LIST "20,40,80,160"}}
-{{$saturationRestartsListStr := DefaultParam .CL2_SATURATION_RESTARTS_LIST "1,2,3,4"}}
-{{$saturationRungDurationSeconds := DefaultParam .CL2_SATURATION_RUNG_DURATION_SECONDS 180}}
-{{$saturationSettleSeconds := DefaultParam .CL2_SATURATION_SETTLE_SECONDS 60}}
+# through to a 5-rung sweep at 100/500/1500/4000/10000 QPS with
+# 5/15/40/80/150 restarts per rung (5 rungs × (240s hold + 90s settle)
+# ≈ 28 min CL2 wall time per cluster). Bumped 2026-05-15 after build
+# 67224 showed all signals at 1-15% of thresholds at the prior 4-rung
+# 20/40/80/160 sweep — actual saturation knee lies higher.
+{{$saturationQpsListStr := DefaultParam .CL2_SATURATION_QPS_LIST "100,500,1500,4000,10000"}}
+{{$saturationRestartsListStr := DefaultParam .CL2_SATURATION_RESTARTS_LIST "5,15,40,80,150"}}
+{{$saturationRungDurationSeconds := DefaultParam .CL2_SATURATION_RUNG_DURATION_SECONDS 240}}
+{{$saturationSettleSeconds := DefaultParam .CL2_SATURATION_SETTLE_SECONDS 90}}
 
 # Parse comma-separated strings into Go []string slices. StringSplit is
 # CL2's built-in. The arithmetic funcs (AddInt, MultiplyInt, etc.) accept

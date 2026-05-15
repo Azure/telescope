@@ -211,10 +211,10 @@ stages:
               # the first run doesn't trip Azure-side limits before the
               # classifier thresholds have been calibrated. Bump for prod
               # after first n=2 + n=20 greens.
-              saturation_qps_list: "20,40,80,160"
-              saturation_restarts_list: "1,2,3,4"
-              saturation_rung_duration_seconds: 180
-              saturation_settle_seconds: 60
+              saturation_qps_list: "100,500,1500,4000,10000"
+              saturation_restarts_list: "5,15,40,80,150"
+              saturation_rung_duration_seconds: 240
+              saturation_settle_seconds: 90
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           timeout_in_minutes: 120
@@ -368,10 +368,10 @@ stages:
               warmup_duration: 30s
               restart_count: 0
               api_server_calls_per_second: 20
-              saturation_qps_list: "20,40,80,160"
-              saturation_restarts_list: "1,2,3,4"
-              saturation_rung_duration_seconds: 180
-              saturation_settle_seconds: 60
+              saturation_qps_list: "100,500,1500,4000,10000"
+              saturation_restarts_list: "5,15,40,80,150"
+              saturation_rung_duration_seconds: 240
+              saturation_settle_seconds: 90
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           # 5-cluster provision adds ~10-15 min vs n2 (more terraform + fleet
@@ -527,10 +527,10 @@ stages:
               warmup_duration: 30s
               restart_count: 0
               api_server_calls_per_second: 20
-              saturation_qps_list: "20,40,80,160"
-              saturation_restarts_list: "1,2,3,4"
-              saturation_rung_duration_seconds: 180
-              saturation_settle_seconds: 60
+              saturation_qps_list: "100,500,1500,4000,10000"
+              saturation_restarts_list: "5,15,40,80,150"
+              saturation_rung_duration_seconds: 240
+              saturation_settle_seconds: 90
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           # 10-cluster provision adds ~10-15 min vs n5 (more terraform +
@@ -718,10 +718,10 @@ stages:
               warmup_duration: 30s
               restart_count: 0
               api_server_calls_per_second: 20
-              saturation_qps_list: "20,40,80,160"
-              saturation_restarts_list: "1,2,3,4"
-              saturation_rung_duration_seconds: 180
-              saturation_settle_seconds: 60
+              saturation_qps_list: "100,500,1500,4000,10000"
+              saturation_restarts_list: "5,15,40,80,150"
+              saturation_rung_duration_seconds: 240
+              saturation_settle_seconds: 90
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           timeout_in_minutes: 480

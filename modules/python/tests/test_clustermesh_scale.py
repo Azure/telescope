@@ -143,7 +143,7 @@ class TestConfigureClustermeshScale(unittest.TestCase):
             # Prometheus pod to the dedicated `prompool` node defined in
             # azure-2.tfvars (label prometheus=true).
             self.assertIn("CL2_PROMETHEUS_TOLERATE_MASTER: true", content)
-            self.assertIn("CL2_PROMETHEUS_MEMORY_LIMIT: 2Gi", content)
+            self.assertIn("CL2_PROMETHEUS_MEMORY_LIMIT: 4Gi", content)
             self.assertIn('CL2_PROMETHEUS_NODE_SELECTOR: "prometheus: \\"true\\""', content)
             self.assertIn("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true", content)
             self.assertIn("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true", content)
@@ -1428,10 +1428,10 @@ class TestMainArgumentParsing(unittest.TestCase):
             node_churn_combined_duration_seconds=3300,
             node_replace_batch_size=10,
             node_churn_ready_timeout_seconds=300,
-            saturation_qps_list="20,40,80,160",
-            saturation_restarts_list="1,2,3,4",
-            saturation_rung_duration_seconds=180,
-            saturation_settle_seconds=60,
+            saturation_qps_list="100,500,1500,4000,10000",
+            saturation_restarts_list="5,15,40,80,150",
+            saturation_rung_duration_seconds=240,
+            saturation_settle_seconds=90,
         )
 
     @patch.object(clustermesh_scale_module, "execute_clusterloader2")
@@ -1988,10 +1988,10 @@ class TestConfigureSaturationKnobs(unittest.TestCase):
             )
             with open(tmp_path, "r", encoding="utf-8") as f:
                 content = f.read()
-            self.assertIn('CL2_SATURATION_QPS_LIST: "20,40,80,160"', content)
-            self.assertIn('CL2_SATURATION_RESTARTS_LIST: "1,2,3,4"', content)
-            self.assertIn("CL2_SATURATION_RUNG_DURATION_SECONDS: 180", content)
-            self.assertIn("CL2_SATURATION_SETTLE_SECONDS: 60", content)
+            self.assertIn('CL2_SATURATION_QPS_LIST: "100,500,1500,4000,10000"', content)
+            self.assertIn('CL2_SATURATION_RESTARTS_LIST: "5,15,40,80,150"', content)
+            self.assertIn("CL2_SATURATION_RUNG_DURATION_SECONDS: 240", content)
+            self.assertIn("CL2_SATURATION_SETTLE_SECONDS: 90", content)
         finally:
             os.remove(tmp_path)
 

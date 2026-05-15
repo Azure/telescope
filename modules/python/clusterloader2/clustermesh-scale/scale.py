@@ -102,10 +102,10 @@ def configure_clusterloader2(
     node_churn_combined_duration_seconds=3300,
     node_replace_batch_size=10,
     node_churn_ready_timeout_seconds=300,
-    saturation_qps_list="20,40,80,160",
-    saturation_restarts_list="1,2,3,4",
-    saturation_rung_duration_seconds=180,
-    saturation_settle_seconds=60,
+    saturation_qps_list="100,500,1500,4000,10000",
+    saturation_restarts_list="5,15,40,80,150",
+    saturation_rung_duration_seconds=240,
+    saturation_settle_seconds=90,
 ):
     with open(override_file, "w", encoding="utf-8") as f:
         # Prometheus stack — keep the Cilium-scrape flags ON so the
@@ -116,7 +116,14 @@ def configure_clusterloader2(
         # IS honored as an overrides key and must be >= the request to satisfy
         # k8s admission.
         f.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
-        f.write("CL2_PROMETHEUS_MEMORY_LIMIT: 2Gi\n")
+        # Prometheus memory limit. Bumped 2Gi\u21924Gi 2026-05-15 after build
+        # 67224 showed prometheus-k8s-0 in CrashLoopBackOff (10 restarts in
+        # 52min) on the saturation runs — higher rungs push more series +
+        # samples than the 2Gi heap could hold. D8ds_v4 prompool has 32GB
+        # RAM so 4Gi is safe headroom. CL2_PROMETHEUS_MEMORY_LIMIT is
+        # honored as a CL2 overrides key (unlike the *_FACTOR knobs which
+        # are silently broken — see plan.md "What we built" item 16).
+        f.write("CL2_PROMETHEUS_MEMORY_LIMIT: 4Gi\n")
         # Pin Prometheus to the dedicated `prompool` node (label
         # prometheus=true is set in azure-2.tfvars extra_node_pool). Without
         # this, prometheus-k8s lands on the default workload pool and
@@ -1344,27 +1351,40 @@ def main():
     # (clean | latency_spike | queue_unbounded | cpu_exhaust |
     # mesh_failure_burst | etcd_tail). See SATURATION_THRESHOLDS at the
     # top of this module + plan.md Scenario #6 section.
-    pc.add_argument("--saturation-qps-list", type=str, default="20,40,80,160",
+    pc.add_argument("--saturation-qps-list", type=str, default="100,500,1500,4000,10000",
                     help="Comma-separated list of QPS values, one per saturation "
                          "rung. Length determines number of rungs; CL2's "
                          "upper-bound.yaml parses this via StringSplit. "
-                         "Defaults to a 4-rung sweep (20, 40, 80, 160 calls/sec).")
-    pc.add_argument("--saturation-restarts-list", type=str, default="1,2,3,4",
+                         "Default is a 5-rung sweep (100, 500, 1500, 4000, 10000 "
+                         "calls/sec) — bumped 2026-05-15 after build 67224 showed "
+                         "all signals at 1-15%% of thresholds at the prior top rung "
+                         "(qps=160, restarts=4). QPS above ~100 is effectively "
+                         "uncapped for our 20-deployment workload (CL2 apply "
+                         "throughput is the ceiling, not QPS itself); "
+                         "saturation_restarts_list is the real load lever.")
+    pc.add_argument("--saturation-restarts-list", type=str, default="5,15,40,80,150",
                     help="Comma-separated list of restart counts, one per saturation "
                          "rung (length must match --saturation-qps-list). Each rung's "
                          "workload is restart-bursted this many times so cumulative "
                          "event volume scales with rung index even when CL2's "
-                         "Deployment-apply QPS saturates.")
-    pc.add_argument("--saturation-rung-duration-seconds", type=int, default=180,
+                         "Deployment-apply QPS saturates. Restart count is the "
+                         "primary load lever: each restart triggers ~200 pod recreates "
+                         "(at n=2 with 200-pod workload), each emitting endpoint + "
+                         "identity + service events through the mesh.")
+    pc.add_argument("--saturation-rung-duration-seconds", type=int, default=240,
                     help="Wall-clock duration each rung holds after its restart-burst "
                          "before measurements are gathered. Drives the per-rung "
                          "measurement window (CL2 substitutes %%v in queries with "
-                         "wall time since the matching `start` action).")
-    pc.add_argument("--saturation-settle-seconds", type=int, default=60,
+                         "wall time since the matching `start` action). Bumped "
+                         "180s\u2192240s 2026-05-15 to give higher rungs time to "
+                         "accumulate meaningful signal at the post-burst tail.")
+    pc.add_argument("--saturation-settle-seconds", type=int, default=90,
                     help="Sleep between rungs so kvstore queues from rung r drain "
                          "before rung r+1's measurement window opens. Insufficient "
                          "settle biases later rungs' verdicts toward `queue_unbounded` "
-                         "even if the queue would have drained on its own.")
+                         "even if the queue would have drained on its own. Bumped "
+                         "60s\u219290s 2026-05-15 since higher restart bursts take "
+                         "longer to fully drain queues.")
 
     # execute
     pe = subparsers.add_parser("execute", help="Run CL2 against a single cluster")
