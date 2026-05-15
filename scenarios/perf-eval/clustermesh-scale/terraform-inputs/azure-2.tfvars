@@ -91,7 +91,7 @@ aks_cli_config_list = [
       { name = "max-pods", value = "110" },
     ]
 
-    # Default pool sizing: 20 nodes × D4s_v3 (4 vCPU / 16GB).
+    # Default pool sizing: 20 nodes × D4ds_v4 (4 vCPU / 16GB).
     #
     # 20 nodes per cluster is the spec baseline (scale testing.txt line 24:
     # "20-node clusters as the baseline unit"). Workload sits on this pool;
@@ -99,18 +99,23 @@ aks_cli_config_list = [
     # overcommit + Pending-pods we hit when Prometheus co-tenanted with the
     # workload at smaller node counts.
     #
-    # SKU choice — D4s_v3 instead of D4s_v5: same 4 vCPU / 16GB / Premium
-    # SSD; only difference is older Intel CPU generation. We use v3 because
-    # at 20 nodes/cluster × 20 clusters = 1,600 vCPU, the DSv5 family quota
-    # in eastus2euap (limit 1000) is too tight. DSv3 family limit is 5000
-    # vCPU (3,366 free at last check), comfortable for the full sweep.
+    # SKU choice — D4ds_v4 instead of D4s_v3 (iter-narrow for scenario #6
+    # smoke 2026-05-14): same 4 vCPU / 16GB / Premium SSD; only difference
+    # is CPU generation (Cascade Lake v4 vs Broadwell v3) + adds local NVMe
+    # SSD (the `d`). Switched because the DSv3 family hit
+    # OverconstrainedAllocationRequest in eastus2euap on build 67194 with
+    # 1656/5000 vCPU already in use by other tenants in the subscription
+    # → Azure couldn't physically allocate 40 more D4s_v3 VMs at once.
+    # DDSv4 family is at 0/4000 used — untouched physical pool, dodges the
+    # flake. Larger tiers (n5/n10/n20) keep D4s_v3 for the moment because
+    # plan.md note #21 sized them around DSv3 quota; revisit after #6 lands.
     # Performance for our workload (mostly idle pause pods + cilium-agent +
     # CL2 measurement client) is not bound on CPU generation.
     default_node_pool = {
       name                 = "default"
       node_count           = 20
       auto_scaling_enabled = false
-      vm_size              = "Standard_D4s_v3"
+      vm_size              = "Standard_D4ds_v4"
     }
     # Dedicated Prometheus node, labeled `prometheus=true`. CL2 is
     # configured (in modules/python/clusterloader2/clustermesh-scale/scale.py
@@ -118,15 +123,14 @@ aks_cli_config_list = [
     # only on this label, so it doesn't compete with workload pods. Mirrors
     # the `prompool` pattern from
     # scenarios/perf-eval/cnl-azurecni-overlay-cilium/terraform-inputs/azure.tfvars.
-    # D8s_v3 (8 vCPU / 32GB) is sized for our 1Gi-request Prometheus with
-    # ample headroom — much smaller than #1053's D32s_v5 because our
-    # workload spec is also much smaller.
+    # D8ds_v4 (8 vCPU / 32GB) is sized for our 1Gi-request Prometheus with
+    # ample headroom; matches the family swap of the default pool.
     extra_node_pool = [
       {
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8s_v3"
+        vm_size              = "Standard_D8ds_v4"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -153,14 +157,14 @@ aks_cli_config_list = [
       name                 = "default"
       node_count           = 20
       auto_scaling_enabled = false
-      vm_size              = "Standard_D4s_v3"
+      vm_size              = "Standard_D4ds_v4"
     }
     extra_node_pool = [
       {
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8s_v3"
+        vm_size              = "Standard_D8ds_v4"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
