@@ -43,7 +43,7 @@ aks_cli_config_list = [
             value = ""
           },
           {
-            name  = "nodepool-tags"
+            name  = "tags"
             value = "AzSecPackAutoConfigReady=true"
           }
         ]
@@ -70,7 +70,7 @@ aks_cli_config_list = [
             value = ""
           },
           {
-            name  = "nodepool-tags"
+            name  = "tags"
             value = "AzSecPackAutoConfigReady=true"
           },
           {
