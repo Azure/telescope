@@ -1920,17 +1920,26 @@ SATURATION_THRESHOLDS = clustermesh_scale_module.SATURATION_THRESHOLDS
 SATURATION_CLASSIFIER_VERSION = clustermesh_scale_module.SATURATION_CLASSIFIER_VERSION
 
 
-def _write_metric_file(report_dir, metric_name, suffix, metrics, fmt="prod"):
+def _write_metric_file(report_dir, metric_name, suffix, metrics, fmt="prod", shape="cl2"):
     """Write a CL2-shaped GenericPrometheusQuery JSON.
 
-    Two filename formats are supported (the classifier accepts both):
-      fmt="prod" — production format observed in build 67211:
-          GenericPrometheusQuery <metricName with spaces> <suffix>_<group>_<ts>.json
-      fmt="compact" — legacy/mock format with no spaces and an underscore
-        immediately after GenericPrometheusQuery:
-          GenericPrometheusQuery_<MetricNameNoSpaces><Suffix>_<group>_<ts>.json
+    Two AXES of variation:
 
-    For new tests prefer fmt="prod" — that's what real CL2 emits.
+    **Filename format** (`fmt`):
+      "prod" — build 67211+ production filename format:
+        `GenericPrometheusQuery <metricName with spaces> <suffix>_<group>_<ts>.json`
+      "compact" — legacy/mock filename with no spaces:
+        `GenericPrometheusQuery_<MetricNameNoSpaces><Suffix>_<group>_<ts>.json`
+
+    **Content shape** (`shape`):
+      "cl2" — build 67224 verified — one dataItem with named metric keys
+        in `data`, scalar values:
+          {"dataItems": [{"data": {"Max": 0, "Perc99": 0.5}, "unit": "#"}]}
+      "labels" — legacy / PodStartupLatency-style — one dataItem per
+        metric label, with `data.value` carrying the scalar:
+          {"dataItems": [{"labels": {"Metric": "Perc99"}, "data": {"value": 0.5}}]}
+
+    Defaults to fmt="prod", shape="cl2" — what real CL2 emits today.
     """
     if fmt == "prod":
         fname = (
@@ -1945,15 +1954,18 @@ def _write_metric_file(report_dir, metric_name, suffix, metrics, fmt="prod"):
         )
     else:
         raise ValueError(f"unknown fmt: {fmt!r}")
+    if shape == "cl2":
+        data_items = [{"data": dict(metrics), "unit": "#"}]
+    elif shape == "labels":
+        data_items = [
+            {"labels": {"Metric": label}, "data": {"value": value}}
+            for label, value in metrics.items()
+        ]
+    else:
+        raise ValueError(f"unknown shape: {shape!r}")
     path = os.path.join(report_dir, fname)
     with open(path, "w", encoding="utf-8") as f:
-        json.dump({
-            "version": "v1",
-            "dataItems": [
-                {"labels": {"Metric": label}, "data": {"value": value}}
-                for label, value in metrics.items()
-            ],
-        }, f)
+        json.dump({"version": "v1", "dataItems": data_items}, f)
     return path
 
 
@@ -2512,6 +2524,104 @@ class TestSaturationClassifier(unittest.TestCase):
         self.assertTrue(d["rung_completed"])
         self.assertEqual(d["verdict"], "clean")
         self.assertAlmostEqual(d["signals"]["latency_p99_ms"], 20.0, places=1)
+
+    def test_classifier_reads_build_67224_cl2_content_shape(self):
+        """REGRESSION: build 67224 (2nd n=2 upper-bound smoke 2026-05-15)
+        emitted measurement file content in the CL2 GenericPrometheusQuery
+        shape — one dataItem with query results as named keys in `data`:
+            {"dataItems": [{"data": {"Max": 0, "Perc99": 0.5}, "unit": "#"}]}
+        not the legacy labels shape
+            {"dataItems": [{"labels": {"Metric": "Perc99"}, "data": {"value": 0.5}}]}
+        The classifier was reading via labels.Metric, missing every value.
+        Pin BOTH content shapes here so the bug can't regress.
+        """
+        # shape="cl2" mirrors the actual on-disk content from build 67224.
+        suffix = "Rung0"
+        # Latency 600ms p99 (above 500ms threshold) → should trip latency_spike
+        _write_metric_file(
+            self.report_dir, "ClusterMesh Kvstore Operation Duration",
+            suffix, {"Perc50": 0.020, "Perc90": 0.300, "Perc99": 0.600},
+            fmt="prod", shape="cl2",
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMesh Kvstore Sync Queue Size",
+            suffix, {"Max": 50, "Perc50": 10, "Perc99": 30},
+            fmt="prod", shape="cl2",
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMesh APIServer Pod CPU",
+            suffix, {"TotalMax": 0.5, "TotalAvg": 0.3, "PerPodMax": 0.5},
+            fmt="prod", shape="cl2",
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMesh Remote Cluster Failure Rate",
+            suffix, {"Max": 0.05, "Perc50": 0.01},
+            fmt="prod", shape="cl2",
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMesh Etcd Backend Write Duration",
+            suffix, {"Perc50": 0.003, "Perc90": 0.005, "Perc99": 0.020},
+            fmt="prod", shape="cl2",
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMesh Kvstore Events Rate",
+            suffix, {"Perc50": 0, "Perc90": 5, "Perc99": 30, "TotalIncrease": 3000},
+            fmt="prod", shape="cl2",
+        )
+        lines = self._run_collect("20")
+        rung = next(r for r in lines if r.get("measurement") == "SaturationRung")
+        d = rung["result"]["data"]
+        # Pre-fix (build 67224): all signals returned None → verdict=clean
+        # rung_completed=False signals_found=0/7. Post-fix: every signal
+        # lands, latency trips threshold.
+        self.assertTrue(d["rung_completed"],
+                        f"rung must be completed; missing={d['measurement_missing']}")
+        self.assertEqual(d["measurement_missing"], [],
+                         f"all 7 signals should land; missing={d['measurement_missing']}")
+        self.assertAlmostEqual(d["signals"]["latency_p99_ms"], 600.0, places=1)
+        self.assertAlmostEqual(d["signals"]["queue_size_perc99"], 30.0, places=1)
+        self.assertAlmostEqual(d["signals"]["apiserver_max_cpu_cores"], 0.5, places=2)
+        self.assertAlmostEqual(d["signals"]["mesh_failure_rate_max"], 0.05, places=3)
+        self.assertEqual(d["verdict"], "latency_spike")
+
+    def test_classifier_reads_legacy_labels_content_shape(self):
+        """Backward-compat: even though build 67224 uses the cl2 shape,
+        legacy mocks (and PodStartupLatency-format files) use a
+        per-metric-labels shape. The classifier must still read those so
+        existing mock fixtures don't break."""
+        suffix = "Rung0"
+        _write_metric_file(
+            self.report_dir, "ClusterMesh Kvstore Operation Duration",
+            suffix, {"Perc99": 0.020}, fmt="prod", shape="labels",
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMesh Kvstore Sync Queue Size",
+            suffix, {"Max": 5, "Perc99": 3}, fmt="prod", shape="labels",
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMesh APIServer Pod CPU",
+            suffix, {"PerPodMax": 0.3, "TotalMax": 0.3, "TotalAvg": 0.2},
+            fmt="prod", shape="labels",
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMesh Remote Cluster Failure Rate",
+            suffix, {"Max": 0.01}, fmt="prod", shape="labels",
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMesh Etcd Backend Write Duration",
+            suffix, {"Perc99": 0.005}, fmt="prod", shape="labels",
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMesh Kvstore Events Rate",
+            suffix, {"Perc99": 15}, fmt="prod", shape="labels",
+        )
+        lines = self._run_collect("20")
+        rung = next(r for r in lines if r.get("measurement") == "SaturationRung")
+        d = rung["result"]["data"]
+        self.assertTrue(d["rung_completed"])
+        self.assertEqual(d["verdict"], "clean")
+        self.assertAlmostEqual(d["signals"]["latency_p99_ms"], 20.0, places=1)
+        self.assertAlmostEqual(d["signals"]["queue_size_perc99"], 3.0, places=1)
 
 
 if __name__ == "__main__":

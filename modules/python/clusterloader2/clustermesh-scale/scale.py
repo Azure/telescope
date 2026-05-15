@@ -749,7 +749,27 @@ def _emit_saturation_profile_rows(
         )
 
     def _read_metric(filepath, metric_label):
-        """Return the numeric `value` for a given Metric label, or None."""
+        """Return the numeric `value` for a given Metric label, or None.
+
+        Supports BOTH known CL2 dataItem shapes:
+
+          (A) CL2 GenericPrometheusQuery — one dataItem with all query
+              results as named keys in `data` (verified against build 67224):
+                {"dataItems": [{"data": {"Max": 0, "Perc99": 0.5}, "unit": "#"}]}
+              The metric_label is the query name from the YAML
+              (Max / Perc50 / Perc99 / etc.) and is looked up directly as a
+              dict key inside item.data.
+
+          (B) Legacy / PodStartupLatency-style — one dataItem per metric,
+              with labels.Metric naming the metric and data.value holding
+              the number:
+                {"dataItems": [
+                    {"labels": {"Metric": "Perc99"}, "data": {"value": 0.5}}
+                ]}
+
+        Returns the first match across all dataItems. None if the label
+        isn't present in any item or the file can't be parsed.
+        """
         try:
             with open(filepath, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -760,9 +780,27 @@ def _emit_saturation_profile_rows(
             )
             return None
         for item in data.get("dataItems", []) or []:
+            item_data = item.get("data") or {}
+            # Format A: query name (e.g. "Perc99") is a direct key in
+            # item.data. The value is the scalar number (not a {"value": N}
+            # wrapper). Skip dict-valued entries so we don't accidentally
+            # match a legacy nested structure.
+            if metric_label in item_data and not isinstance(
+                item_data[metric_label], (dict, list)
+            ):
+                val = item_data[metric_label]
+                if val is None or val == "":
+                    return None
+                try:
+                    return float(val)
+                except (TypeError, ValueError):
+                    return None
+            # Format B: labels.Metric carries the query name, data.value
+            # carries the scalar number. Backward-compatible with existing
+            # mock fixtures (PodStartupLatency mock_data).
             labels = item.get("labels") or {}
             if labels.get("Metric") == metric_label:
-                val = (item.get("data") or {}).get("value")
+                val = item_data.get("value")
                 if val is None or val == "":
                     return None
                 try:
