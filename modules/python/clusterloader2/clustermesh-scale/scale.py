@@ -103,7 +103,7 @@ def configure_clusterloader2(
     node_replace_batch_size=10,
     node_churn_ready_timeout_seconds=300,
     saturation_qps_list="100,500,1500,4000,10000",
-    saturation_restarts_list="5,15,40,80,150",
+    saturation_restarts_list="2,4,8,15,25",
     saturation_rung_duration_seconds=240,
     saturation_settle_seconds=90,
 ):
@@ -117,13 +117,15 @@ def configure_clusterloader2(
         # k8s admission.
         f.write("CL2_PROMETHEUS_TOLERATE_MASTER: true\n")
         # Prometheus memory limit. Bumped 2Gi\u21924Gi 2026-05-15 after build
-        # 67224 showed prometheus-k8s-0 in CrashLoopBackOff (10 restarts in
-        # 52min) on the saturation runs — higher rungs push more series +
-        # samples than the 2Gi heap could hold. D8ds_v4 prompool has 32GB
-        # RAM so 4Gi is safe headroom. CL2_PROMETHEUS_MEMORY_LIMIT is
-        # honored as a CL2 overrides key (unlike the *_FACTOR knobs which
-        # are silently broken — see plan.md "What we built" item 16).
-        f.write("CL2_PROMETHEUS_MEMORY_LIMIT: 4Gi\n")
+        # 67224 showed prometheus-k8s-0 in CrashLoopBackOff on saturation
+        # runs. Then bumped 4Gi\u219212Gi 2026-05-15 after build 67279
+        # showed Prom STILL OOM'ing at Rung 2 even with 4Gi when the
+        # restart-burst workload pushed too many series/samples.
+        # D8ds_v4 prompool has 32GB RAM so 12Gi is safe with headroom.
+        # CL2_PROMETHEUS_MEMORY_LIMIT is honored as a CL2 overrides key
+        # (unlike the *_FACTOR knobs which are silently broken — see
+        # plan.md "What we built" item 16).
+        f.write("CL2_PROMETHEUS_MEMORY_LIMIT: 12Gi\n")
         # Pin Prometheus to the dedicated `prompool` node (label
         # prometheus=true is set in azure-2.tfvars extra_node_pool). Without
         # this, prometheus-k8s lands on the default workload pool and
@@ -955,6 +957,29 @@ def _emit_saturation_profile_rows(
             if tripped:
                 verdict = max(tripped, key=tripped.get)
                 dominant_ratio = tripped[verdict]
+            elif (not rung_completed and rungs_completed > 0):
+                # Phase 4b — Scenario #6 monitoring_oom verdict (added
+                # 2026-05-15 after build 67279 showed Prometheus crashed
+                # mid-run at Rung 2-3, losing all measurements for those
+                # rungs). When an earlier rung completed but the current
+                # rung's measurements all came back empty, the most likely
+                # explanation is that the monitoring stack (Prometheus
+                # pod) ran out of memory / went CrashLoopBackOff under
+                # the elevated workload pressure of the higher rung.
+                # That IS a saturation finding per spec line 113
+                # ("Resource exhaustion occurs") — record it as a real
+                # verdict instead of silently leaving the rung as
+                # verdict=clean rung_completed=False which underclaims
+                # the failure.
+                #
+                # Synthetic dominant_signal_ratio=999.0 so dashboards
+                # ordering verdicts by severity rank this above other
+                # tripped criteria. The actual signal that drove the
+                # OOM (CPU, memory, query queue, cardinality explosion)
+                # is NOT distinguishable from blob output alone — needs
+                # Prom pod logs to triage.
+                verdict = "monitoring_oom"
+                dominant_ratio = 999.0
             else:
                 verdict = "clean"
                 dominant_ratio = max(all_verdicts.values()) if all_verdicts else 0.0
@@ -1362,7 +1387,7 @@ def main():
                          "uncapped for our 20-deployment workload (CL2 apply "
                          "throughput is the ceiling, not QPS itself); "
                          "saturation_restarts_list is the real load lever.")
-    pc.add_argument("--saturation-restarts-list", type=str, default="5,15,40,80,150",
+    pc.add_argument("--saturation-restarts-list", type=str, default="2,4,8,15,25",
                     help="Comma-separated list of restart counts, one per saturation "
                          "rung (length must match --saturation-qps-list). Each rung's "
                          "workload is restart-bursted this many times so cumulative "

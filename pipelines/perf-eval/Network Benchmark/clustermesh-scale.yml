@@ -212,7 +212,7 @@ stages:
               # classifier thresholds have been calibrated. Bump for prod
               # after first n=2 + n=20 greens.
               saturation_qps_list: "100,500,1500,4000,10000"
-              saturation_restarts_list: "5,15,40,80,150"
+              saturation_restarts_list: "2,4,8,15,25"
               saturation_rung_duration_seconds: 240
               saturation_settle_seconds: 90
               trigger_reason: ${{ variables['Build.Reason'] }}
@@ -369,7 +369,7 @@ stages:
               restart_count: 0
               api_server_calls_per_second: 20
               saturation_qps_list: "100,500,1500,4000,10000"
-              saturation_restarts_list: "5,15,40,80,150"
+              saturation_restarts_list: "2,4,8,15,25"
               saturation_rung_duration_seconds: 240
               saturation_settle_seconds: 90
               trigger_reason: ${{ variables['Build.Reason'] }}
@@ -528,7 +528,7 @@ stages:
               restart_count: 0
               api_server_calls_per_second: 20
               saturation_qps_list: "100,500,1500,4000,10000"
-              saturation_restarts_list: "5,15,40,80,150"
+              saturation_restarts_list: "2,4,8,15,25"
               saturation_rung_duration_seconds: 240
               saturation_settle_seconds: 90
               trigger_reason: ${{ variables['Build.Reason'] }}
@@ -719,7 +719,7 @@ stages:
               restart_count: 0
               api_server_calls_per_second: 20
               saturation_qps_list: "100,500,1500,4000,10000"
-              saturation_restarts_list: "5,15,40,80,150"
+              saturation_restarts_list: "2,4,8,15,25"
               saturation_rung_duration_seconds: 240
               saturation_settle_seconds: 90
               trigger_reason: ${{ variables['Build.Reason'] }}

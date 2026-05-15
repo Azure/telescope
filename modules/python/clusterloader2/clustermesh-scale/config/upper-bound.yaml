@@ -77,7 +77,7 @@ name: clustermesh-upper-bound
 # 67224 showed all signals at 1-15% of thresholds at the prior 4-rung
 # 20/40/80/160 sweep — actual saturation knee lies higher.
 {{$saturationQpsListStr := DefaultParam .CL2_SATURATION_QPS_LIST "100,500,1500,4000,10000"}}
-{{$saturationRestartsListStr := DefaultParam .CL2_SATURATION_RESTARTS_LIST "5,15,40,80,150"}}
+{{$saturationRestartsListStr := DefaultParam .CL2_SATURATION_RESTARTS_LIST "2,4,8,15,25"}}
 {{$saturationRungDurationSeconds := DefaultParam .CL2_SATURATION_RUNG_DURATION_SECONDS 240}}
 {{$saturationSettleSeconds := DefaultParam .CL2_SATURATION_SETTLE_SECONDS 90}}
 

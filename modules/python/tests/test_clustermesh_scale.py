@@ -143,7 +143,7 @@ class TestConfigureClustermeshScale(unittest.TestCase):
             # Prometheus pod to the dedicated `prompool` node defined in
             # azure-2.tfvars (label prometheus=true).
             self.assertIn("CL2_PROMETHEUS_TOLERATE_MASTER: true", content)
-            self.assertIn("CL2_PROMETHEUS_MEMORY_LIMIT: 4Gi", content)
+            self.assertIn("CL2_PROMETHEUS_MEMORY_LIMIT: 12Gi", content)
             self.assertIn('CL2_PROMETHEUS_NODE_SELECTOR: "prometheus: \\"true\\""', content)
             self.assertIn("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true", content)
             self.assertIn("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true", content)
@@ -1429,7 +1429,7 @@ class TestMainArgumentParsing(unittest.TestCase):
             node_replace_batch_size=10,
             node_churn_ready_timeout_seconds=300,
             saturation_qps_list="100,500,1500,4000,10000",
-            saturation_restarts_list="5,15,40,80,150",
+            saturation_restarts_list="2,4,8,15,25",
             saturation_rung_duration_seconds=240,
             saturation_settle_seconds=90,
         )
@@ -1989,7 +1989,7 @@ class TestConfigureSaturationKnobs(unittest.TestCase):
             with open(tmp_path, "r", encoding="utf-8") as f:
                 content = f.read()
             self.assertIn('CL2_SATURATION_QPS_LIST: "100,500,1500,4000,10000"', content)
-            self.assertIn('CL2_SATURATION_RESTARTS_LIST: "5,15,40,80,150"', content)
+            self.assertIn('CL2_SATURATION_RESTARTS_LIST: "2,4,8,15,25"', content)
             self.assertIn("CL2_SATURATION_RUNG_DURATION_SECONDS: 240", content)
             self.assertIn("CL2_SATURATION_SETTLE_SECONDS: 90", content)
         finally:
@@ -2421,6 +2421,57 @@ class TestSaturationClassifier(unittest.TestCase):
         self.assertEqual(rungs[0]["result"]["data"]["configured_restarts"], 1)
         self.assertEqual(rungs[1]["result"]["data"]["configured_restarts"], 2)
         self.assertEqual(rungs[2]["result"]["data"]["configured_restarts"], 1)
+
+    def test_monitoring_oom_verdict_when_prom_dies_mid_run(self):
+        """Phase 4b — Scenario #6 monitoring_oom verdict (added 2026-05-15
+        after build 67279). When an earlier rung successfully completed but
+        a later rung has zero signals, the most likely explanation is the
+        Prometheus stack OOM'ed under load. That IS a saturation finding
+        per spec line 113 ('Resource exhaustion occurs') so we record it
+        as verdict=monitoring_oom rather than silently leaving it as
+        verdict=clean rung_completed=False (which underclaims the failure).
+        """
+        # Rung 0: clean (Prom alive, all signals land)
+        self._write_clean_rung(0)
+        # Rung 1: NOTHING — Prom crashed mid-run before its gather phase
+        # (no files written for this rung). Classifier should detect
+        # "previous rung had signals, this one doesn't → monitoring_oom".
+        lines = self._run_collect("20,40")
+        rungs = sorted(
+            [r for r in lines if r.get("measurement") == "SaturationRung"],
+            key=lambda r: r["result"]["data"]["rung_index"],
+        )
+        self.assertEqual(rungs[0]["result"]["data"]["verdict"], "clean")
+        self.assertEqual(rungs[1]["result"]["data"]["verdict"], "monitoring_oom")
+        self.assertEqual(rungs[1]["result"]["data"]["dominant_signal_ratio"], 999.0)
+        self.assertFalse(rungs[1]["result"]["data"]["rung_completed"])
+        # Summary records monitoring_oom as the first failure mode.
+        summary = [r for r in lines if r.get("measurement") == "SaturationSummary"][0]
+        s = summary["result"]["data"]
+        self.assertEqual(s["max_clean_qps"], 20)
+        self.assertEqual(s["first_failure_mode"], "monitoring_oom")
+        self.assertEqual(s["first_failure_qps"], 40)
+
+    def test_monitoring_oom_not_emitted_when_no_prior_rung_completed(self):
+        """If even Rung 0 has zero signals, that's NOT monitoring_oom —
+        it's an upstream config / deployment problem (Prom never came up,
+        or scale.py was misconfigured). Stay at verdict=clean
+        rung_completed=False so postmortem investigates the right layer."""
+        # Don't write any files. Every rung will have zero signals.
+        lines = self._run_collect("20,40")
+        rungs = sorted(
+            [r for r in lines if r.get("measurement") == "SaturationRung"],
+            key=lambda r: r["result"]["data"]["rung_index"],
+        )
+        # Both rungs should be clean (not monitoring_oom) because no
+        # earlier rung established that Prom WAS working.
+        for r in rungs:
+            self.assertNotEqual(r["result"]["data"]["verdict"], "monitoring_oom",
+                                f"rung {r['result']['data']['rung_index']}: "
+                                f"monitoring_oom should only fire after a "
+                                f"prior rung completed")
+            self.assertEqual(r["result"]["data"]["verdict"], "clean")
+            self.assertFalse(r["result"]["data"]["rung_completed"])
 
     def test_classifier_matches_build_67211_production_filename_format(self):
         """REGRESSION: build 67211 (first n=2 upper-bound smoke 2026-05-14)
