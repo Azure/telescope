@@ -690,9 +690,15 @@ class KubernetesClient:
             except Exception:
                 return None
 
-        # Total node startup: T4 - T0
-        latencies["total_node_startup_seconds"] = _diff_seconds(
-            "node_ready", "scale_api_call")
+        # Total node startup: max(T4, T3) - T0
+        # Use the later of node_ready (T4) and cni_pod_ready (T3) so that
+        # total startup reflects the node being fully functional incl. CNI.
+        node_ready_secs = _diff_seconds("node_ready", "scale_api_call")
+        cni_ready_secs = _diff_seconds("cni_pod_ready", "scale_api_call")
+        if node_ready_secs is not None and cni_ready_secs is not None:
+            latencies["total_node_startup_seconds"] = max(node_ready_secs, cni_ready_secs)
+        else:
+            latencies["total_node_startup_seconds"] = node_ready_secs or cni_ready_secs
         # Cloud provisioning: T1 - T0
         latencies["cloud_provisioning_seconds"] = _diff_seconds(
             "node_created", "scale_api_call")
