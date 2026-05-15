@@ -7,15 +7,16 @@ result file via ``Operation.save_to_file`` on context exit. Tests verify:
   the right keys
 - failure path raises (so the OperationContext records ``success=False``)
 
-Only ``create_machine_agentpool`` has a full implementation on this scaffolding
-PR; ``scale_machine`` and the ``_get_machine_name_prefix`` naming helper raise
-``NotImplementedError`` and will be tested in a follow-up PR.
+This revision adds tests for the non-batch scale path. The batch dispatch
+(``use_batch_api=True``) is asserted to raise ``NotImplementedError`` until
+the follow-up PR lands.
 """
 # pylint: disable=protected-access
 # Tests intentionally exercise private helpers directly; the leading underscore
 # is conventional rather than semantic privacy.
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest import mock
 
 from clients.aks_machine_client import AKSMachineClient
@@ -105,7 +106,7 @@ class TestAKSMachineClient(unittest.TestCase):
 
     @mock.patch.object(AKSMachineClient, "make_request")
     def test_create_machine_agentpool_put_failure_raises(self, mock_make_request):
-        """PUT non-2xx \u2192 RuntimeError propagates out of with-block."""
+        """PUT non-2xx -> RuntimeError propagates out of with-block."""
         mock_resp = mock.MagicMock()
         mock_resp.status_code = 500
         mock_resp.text = "boom"
@@ -122,7 +123,7 @@ class TestAKSMachineClient(unittest.TestCase):
     def test_create_machine_agentpool_provisioning_timeout_raises(
         self, mock_make_request, _mock_wait
     ):
-        """PUT OK but provisioning never reaches Succeeded \u2192 RuntimeError."""
+        """PUT OK but provisioning never reaches Succeeded -> RuntimeError."""
         mock_resp = mock.MagicMock()
         mock_resp.status_code = 200
         mock_make_request.return_value = mock_resp
@@ -132,22 +133,166 @@ class TestAKSMachineClient(unittest.TestCase):
                 agentpool_name="apool", vm_size="Standard_D2_v3"
             )
 
-    # ---- scale_machine: stubbed on this PR ----
+    # ---- _get_machine_name_prefix ----
 
-    def test_scale_machine_raises_not_implemented(self):
-        """scale_machine is a stub on this PR; subsequent PR will implement it."""
-        with self.assertRaises(NotImplementedError):
+    def test_get_machine_name_prefix_small(self):
+        """Counts < 1000 emit literal scale<N>."""
+        self.assertEqual(AKSMachineClient._get_machine_name_prefix(1), "scale1")
+        self.assertEqual(AKSMachineClient._get_machine_name_prefix(500), "scale500")
+
+    def test_get_machine_name_prefix_thousand_multiples(self):
+        """Multiples of 1000 collapse to scale<N>k for stable Kusto keys."""
+        self.assertEqual(AKSMachineClient._get_machine_name_prefix(1000), "scale1k")
+        self.assertEqual(AKSMachineClient._get_machine_name_prefix(2000), "scale2k")
+
+    def test_get_machine_name_prefix_non_multiple_thousand(self):
+        """Non-multiple-of-1000 counts >= 1000 stay literal."""
+        self.assertEqual(AKSMachineClient._get_machine_name_prefix(1500), "scale1500")
+
+    # ---- scale_machine: non-batch path ----
+
+    @mock.patch.object(AKSMachineClient, "_wait_for_machine_node_readiness")
+    @mock.patch.object(AKSMachineClient, "_wait_for_agentpool_provisioning",
+                       return_value=True)
+    @mock.patch.object(AKSMachineClient, "_create_single_machine", return_value=True)
+    def test_scale_machine_non_batch_success(
+        self, _mock_create, _mock_wait_ap, mock_wait_ready
+    ):
+        """Non-batch path: all PUTs land, agentpool Succeeded, P100 success ->
+        returns and metadata is enriched with the expected keys."""
+        mock_wait_ready.return_value = {
+            f"P{p}": {
+                "target_nodes": 2,
+                "elapsed_time_seconds": 10.0,
+                "percentage": p,
+                "success": True,
+            }
+            for p in (50, 70, 90, 99, 100)
+        }
+        self.mock_k8s.get_ready_nodes.return_value = []
+
+        self.client.scale_machine(
+            agentpool_name="apool",
+            vm_size="Standard_D2_v3",
+            scale_machine_count=2,
+            machine_workers=2,
+        )
+
+        metadata_keys = {
+            call.args[0] for call in self.mock_operation.add_metadata.call_args_list
+        }
+        self.assertIn("successful_machines", metadata_keys)
+        self.assertIn("percentile_node_readiness_times", metadata_keys)
+        self.assertIn("node_readiness_time", metadata_keys)
+        self.assertIn("cluster_info", metadata_keys)
+
+    @mock.patch.object(AKSMachineClient, "_wait_for_machine_node_readiness")
+    @mock.patch.object(AKSMachineClient, "_wait_for_agentpool_provisioning",
+                       return_value=True)
+    @mock.patch.object(AKSMachineClient, "_create_single_machine")
+    def test_scale_machine_partial_landing_raises(
+        self, mock_create, _mock_wait_ap, mock_wait_ready
+    ):
+        """Non-batch path: if fewer machines land than requested,
+        scale_machine raises RuntimeError before returning."""
+        # Two PUTs requested, first lands, second fails.
+        mock_create.side_effect = [True, False]
+        mock_wait_ready.return_value = {
+            f"P{p}": {
+                "target_nodes": 2,
+                "elapsed_time_seconds": 10.0,
+                "percentage": p,
+                "success": True,
+            }
+            for p in (50, 70, 90, 99, 100)
+        }
+        self.mock_k8s.get_ready_nodes.return_value = []
+
+        with self.assertRaises(RuntimeError):
             self.client.scale_machine(
-                agentpool_name="apool", vm_size="Standard_D2_v3",
+                agentpool_name="apool",
+                vm_size="Standard_D2_v3",
                 scale_machine_count=2,
+                machine_workers=1,
             )
 
-    # ---- _get_machine_name_prefix: stubbed on this PR ----
+    @mock.patch.object(AKSMachineClient, "_wait_for_machine_node_readiness")
+    @mock.patch.object(AKSMachineClient, "_wait_for_agentpool_provisioning",
+                       return_value=True)
+    @mock.patch.object(AKSMachineClient, "_create_single_machine", return_value=True)
+    def test_scale_machine_passes_baseline_count_to_readiness(
+        self, _mock_create, _mock_wait_ap, mock_wait_ready
+    ):
+        """baseline_count snapshot is forwarded to _wait_for_machine_node_readiness."""
+        # Three pre-existing labeled Ready nodes.
+        self.mock_k8s.get_ready_nodes.return_value = [object(), object(), object()]
+        mock_wait_ready.return_value = {
+            f"P{p}": {
+                "target_nodes": 4,
+                "elapsed_time_seconds": 10.0,
+                "percentage": p,
+                "success": True,
+            }
+            for p in (50, 70, 90, 99, 100)
+        }
 
-    def test_get_machine_name_prefix_raises_not_implemented(self):
-        """_get_machine_name_prefix is a stub on this PR; lands with the scale path."""
+        self.client.scale_machine(
+            agentpool_name="apool",
+            vm_size="Standard_D2_v3",
+            scale_machine_count=1,
+            machine_workers=1,
+        )
+
+        mock_wait_ready.assert_called_once()
+        self.assertEqual(mock_wait_ready.call_args.kwargs["baseline_count"], 3)
+        self.assertEqual(mock_wait_ready.call_args.kwargs["expected_count"], 1)
+
+    def test_scale_machine_batch_path_raises_not_implemented(self):
+        """The use_batch_api=True branch is stubbed until the follow-up PR."""
         with self.assertRaises(NotImplementedError):
-            AKSMachineClient._get_machine_name_prefix(1000)
+            self.client.scale_machine(
+                agentpool_name="apool",
+                vm_size="Standard_D2_v3",
+                scale_machine_count=2,
+                use_batch_api=True,
+            )
+
+    # ---- _create_single_machine ----
+
+    @mock.patch.object(AKSMachineClient, "make_request")
+    def test_create_single_machine_2xx_returns_true(self, mock_make_request):
+        """Any 200/201/202 response counts as a successful PUT."""
+        request = SimpleNamespace(
+            agentpool_name="apool",
+            cluster_name="fake-cluster",
+            resource_group="fake-rg",
+            vm_size="Standard_D2_v3",
+            timeout=60,
+        )
+        for code in (200, 201, 202):
+            with self.subTest(status=code):
+                mock_resp = mock.MagicMock()
+                mock_resp.status_code = code
+                mock_make_request.return_value = mock_resp
+                self.assertTrue(
+                    self.client._create_single_machine("m1", request)
+                )
+
+    @mock.patch.object(AKSMachineClient, "make_request")
+    def test_create_single_machine_non_2xx_returns_false(self, mock_make_request):
+        """Non-2xx responses are logged and return False (never raise)."""
+        request = SimpleNamespace(
+            agentpool_name="apool",
+            cluster_name="fake-cluster",
+            resource_group="fake-rg",
+            vm_size="Standard_D2_v3",
+            timeout=60,
+        )
+        mock_resp = mock.MagicMock()
+        mock_resp.status_code = 500
+        mock_resp.text = "boom"
+        mock_make_request.return_value = mock_resp
+        self.assertFalse(self.client._create_single_machine("m1", request))
 
 
 if __name__ == "__main__":
