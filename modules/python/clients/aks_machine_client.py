@@ -180,14 +180,12 @@ class AKSMachineClient(AKSClient):
         ``timeout`` seconds have elapsed since invocation. 4xx GETs are raised
         immediately (e.g. 404 'agentpool not found', 401/403) since retrying
         won't change the outcome; 5xx and other transient failures are logged
-        and retried until the deadline. Missing ``provisioningState`` (which
-        ARM can transiently omit right after PUT acceptance) is tolerated for
-        the first half of ``timeout`` and then treated as Failed; this avoids
-        false negatives on slower control planes without infinite patience.
+        and retried until the deadline. By AKS contract a 200 GET on the
+        agentpool always includes ``properties.provisioningState``; if it is
+        absent on a 200 response, that is a Failed signal and we stop
+        immediately rather than waiting out the timeout.
         """
-        start = time.time()
-        deadline = start + timeout
-        none_grace_deadline = start + timeout / 2
+        deadline = time.time() + timeout
         while time.time() < deadline:
             r = self.make_request("GET", url, timeout=30)
             if r.status_code != 200:
@@ -210,11 +208,10 @@ class AKSMachineClient(AKSClient):
             if state == "Failed":
                 logger.error(f"agentpool provisioning failed: {body}")
                 return False
-            if state is None and time.time() >= none_grace_deadline:
-                logger.warning(
-                    f"agentpool provisioningState absent after "
-                    f"{time.time() - start:.0f}s (past half-budget grace); "
-                    f"treating as Failed."
+            if state is None:
+                logger.error(
+                    f"agentpool 200 GET returned without provisioningState; "
+                    f"treating as Failed. body={body}"
                 )
                 return False
             time.sleep(_POLL_INTERVAL_SECONDS)
