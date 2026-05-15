@@ -17,6 +17,7 @@ follow-up PR.
 """
 import json
 import logging
+import math
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -274,9 +275,10 @@ class AKSMachineClient(AKSClient):
         target_total = baseline_count + expected_count
         # Each percentile target must be STRICTLY GREATER than baseline_count so
         # we count only NEW nodes -- pre-existing labeled Ready nodes alone must
-        # never satisfy any threshold.
+        # never satisfy any threshold. Use math.ceil so e.g. P50 of 3 -> 2 (not 1)
+        # and P100 always equals target_total (ceil(1.0 * N) == N).
         targets = {
-            p: max(baseline_count + 1, int((p / 100.0) * target_total))
+            p: max(baseline_count + 1, math.ceil((p / 100.0) * target_total))
             for p in (50, 70, 90, 99, 100)
         }
         elapsed: Dict[int, float] = {}
@@ -334,10 +336,19 @@ class AKSMachineClient(AKSClient):
             else:
                 logger.info(f"  P{p} (target={targets[p]} nodes): TIMEOUT")
         max_elapsed = max(elapsed.values())
-        logger.info(
-            f"All target nodes became ready in {max_elapsed:.2f} seconds "
-            f"in agent pool {agentpool_name}"
-        )
+        if len(elapsed) == len(targets):
+            logger.info(
+                f"All target nodes became ready in {max_elapsed:.2f} seconds "
+                f"in agent pool {agentpool_name}"
+            )
+        else:
+            missed = [f"P{p}" for p in (50, 70, 90, 99, 100) if p not in elapsed]
+            logger.warning(
+                f"Partial readiness in agent pool {agentpool_name}: "
+                f"{len(elapsed)}/{len(targets)} percentiles met within "
+                f"{timeout}s; missed {missed}; last successful percentile at "
+                f"{max_elapsed:.2f}s"
+            )
         logger.info(f"Percentile node readiness data: {json.dumps(result, indent=2)}")
         return result
 
@@ -438,6 +449,15 @@ class AKSMachineClient(AKSClient):
                 successful = self._scale_machine_individually(request, names)
                 op.add_metadata("successful_machines", successful)
 
+                # Fail fast on partial landing BEFORE waiting on the agentpool
+                # or readiness against a reduced count -- otherwise the recorded
+                # percentile envelope and node_readiness_time describe a smaller
+                # target than the caller actually requested.
+                if len(successful) != scale_machine_count:
+                    raise RuntimeError(
+                        f"scale_machine landed {len(successful)}/{scale_machine_count} machines"
+                    )
+
                 # Single agentpool-level provisioning check.
                 agentpool_url = (
                     f"{_ARM_BASE}/subscriptions/{self.subscription_id}/resourceGroups/"
@@ -466,10 +486,6 @@ class AKSMachineClient(AKSClient):
                 )
                 op.add_metadata("cluster_info", self.get_cluster_data(cluster_name))
 
-                if len(successful) != scale_machine_count:
-                    raise RuntimeError(
-                        f"scale_machine landed {len(successful)}/{scale_machine_count} machines"
-                    )
                 if not agentpool_ok:
                     raise RuntimeError(
                         f"agentpool {agentpool_name} did not reach Succeeded within {timeout}s"
