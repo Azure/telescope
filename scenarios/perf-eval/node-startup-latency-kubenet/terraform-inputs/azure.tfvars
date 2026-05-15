@@ -29,7 +29,6 @@ aks_config_list = [
     sku_tier    = "Standard"
     network_profile = {
       network_plugin = "kubenet"
-      pod_cidr       = "10.0.0.0/8"
       service_cidr   = "192.168.0.0/16"
       dns_service_ip = "192.168.0.10"
     }
