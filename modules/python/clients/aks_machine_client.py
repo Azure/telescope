@@ -39,7 +39,6 @@ _ARM_BASE = "https://management.azure.com"
 _ARM_SCOPE = "https://management.azure.com/.default"
 _AGENTPOOL_API_VERSION = "2024-06-02-preview"
 _POLL_INTERVAL_SECONDS = 10
-_PROVISIONING_NONE_STATE_LIMIT = 5
 # Per-request HTTP timeout is capped so that a single slow PUT/GET cannot
 # consume the caller's whole ``timeout`` budget before the polling loop starts.
 # The remaining budget is reserved for ``_wait_for_agentpool_provisioning``.
@@ -111,10 +110,10 @@ class AKSMachineClient(AKSClient):
         vm_size: str,
         cluster_name: Optional[str] = None,
         timeout: int = 300,
-    ) -> bool:
+    ) -> None:
         """Convert an existing agentpool to Machines mode via PUT.
 
-        Opens an ``OperationContext`` here, enriches metadata, returns True on
+        Opens an ``OperationContext`` here, enriches metadata, returns on
         success, re-raises on failure (so the context records ``success=False``
         with traceback before the exception propagates to ``MachineCRUD``).
 
@@ -130,9 +129,6 @@ class AKSMachineClient(AKSClient):
                 The per-request HTTP timeout is capped at
                 ``_PER_REQUEST_TIMEOUT_CAP`` so a single slow PUT cannot consume
                 the whole budget before polling starts.
-
-        Returns:
-            True iff the agentpool reaches provisioningState='Succeeded'.
 
         Raises:
             RuntimeError: PUT non-2xx, ARM-reported Failed state, or timeout.
@@ -172,7 +168,6 @@ class AKSMachineClient(AKSClient):
                 op.add_metadata("agentpool_info", self.get_node_pool(
                     agentpool_name, cluster_name).as_dict())
                 op.add_metadata("cluster_info", self.get_cluster_data(cluster_name))
-                return True
             except Exception as e:
                 logger.error(f"Failed to create machine agentpool {agentpool_name}: {e}")
                 raise
@@ -182,20 +177,24 @@ class AKSMachineClient(AKSClient):
 
         Polls every ``_POLL_INTERVAL_SECONDS`` (10s) using a 30s per-request HTTP
         timeout. Returns True on 'Succeeded'. Returns False on 'Failed' or when
-        ``timeout`` seconds have elapsed since invocation. Transient non-200 GETs
-        are logged and retried until the deadline. Missing ``provisioningState``
-        (which ARM can transiently omit right after PUT acceptance) is tolerated
-        until BOTH ``_PROVISIONING_NONE_STATE_LIMIT`` consecutive polls AND at
-        least half of ``timeout`` have elapsed; only then is it treated as
-        Failed. This avoids false negatives on slower control planes.
+        ``timeout`` seconds have elapsed since invocation. 4xx GETs are raised
+        immediately (e.g. 404 'agentpool not found', 401/403) since retrying
+        won't change the outcome; 5xx and other transient failures are logged
+        and retried until the deadline. Missing ``provisioningState`` (which
+        ARM can transiently omit right after PUT acceptance) is tolerated for
+        the first half of ``timeout`` and then treated as Failed; this avoids
+        false negatives on slower control planes without infinite patience.
         """
         start = time.time()
         deadline = start + timeout
         none_grace_deadline = start + timeout / 2
-        none_count = 0
         while time.time() < deadline:
             r = self.make_request("GET", url, timeout=30)
             if r.status_code != 200:
+                if 400 <= r.status_code < 500:
+                    raise RuntimeError(
+                        f"agentpool GET {url} -> {r.status_code} {r.text[:500]}"
+                    )
                 logger.warning(f"agentpool GET {url} -> {r.status_code}")
                 time.sleep(_POLL_INTERVAL_SECONDS)
                 continue
@@ -211,21 +210,13 @@ class AKSMachineClient(AKSClient):
             if state == "Failed":
                 logger.error(f"agentpool provisioning failed: {body}")
                 return False
-            if state is None:
-                none_count += 1
-                # Only treat missing state as Failed once we're past the grace
-                # window AND have seen it for several consecutive polls.
-                if (
-                    none_count >= _PROVISIONING_NONE_STATE_LIMIT
-                    and time.time() >= none_grace_deadline
-                ):
-                    logger.warning(
-                        f"agentpool provisioningState absent for {none_count} consecutive polls "
-                        f"after {time.time() - start:.0f}s; treating as Failed."
-                    )
-                    return False
-            else:
-                none_count = 0
+            if state is None and time.time() >= none_grace_deadline:
+                logger.warning(
+                    f"agentpool provisioningState absent after "
+                    f"{time.time() - start:.0f}s (past half-budget grace); "
+                    f"treating as Failed."
+                )
+                return False
             time.sleep(_POLL_INTERVAL_SECONDS)
         logger.error(f"agentpool provisioning timed out after {timeout}s")
         return False

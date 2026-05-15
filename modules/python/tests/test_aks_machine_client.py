@@ -3,7 +3,8 @@
 
 All public methods open an ``OperationContext`` (patched here) and write the
 result file via ``Operation.save_to_file`` on context exit. Tests verify:
-- success path returns True and enriches ``op.add_metadata`` with the right keys
+- success path completes without raising and enriches ``op.add_metadata`` with
+  the right keys
 - failure path raises (so the OperationContext records ``success=False``)
 
 Only ``create_machine_agentpool`` has a full implementation on this scaffolding
@@ -83,16 +84,15 @@ class TestAKSMachineClient(unittest.TestCase):
                        return_value=True)
     @mock.patch.object(AKSMachineClient, "make_request")
     def test_create_machine_agentpool_success(self, mock_make_request, _mock_wait):
-        """PUT 200 + Succeeded poll \u2192 return True; metadata enriched."""
+        """PUT 200 + Succeeded poll → returns; metadata enriched."""
         mock_resp = mock.MagicMock()
         mock_resp.status_code = 200
         mock_make_request.return_value = mock_resp
 
-        result = self.client.create_machine_agentpool(
+        self.client.create_machine_agentpool(
             agentpool_name="apool", vm_size="Standard_D2_v3"
         )
 
-        self.assertTrue(result)
         mock_make_request.assert_called_once()
         call_args = mock_make_request.call_args
         self.assertEqual(call_args.args[0], "PUT")
