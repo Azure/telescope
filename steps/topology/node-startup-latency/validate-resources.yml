@@ -15,6 +15,36 @@ steps:
 - script: |
     set -euo pipefail
 
+    echo "Waiting for AKS cluster to finish all ongoing operations..."
+    aks_name=$(az resource list --resource-type Microsoft.ContainerService/managedClusters \
+      --location '${{ parameters.regions[0] }}' \
+      --query "[?(tags.run_id == '$(RUN_ID)' && tags.role == 'client')].name" --output tsv)
+    aks_rg=$(RUN_ID)
+
+    if [ -z "$aks_name" ]; then
+      echo "No AKS cluster found with run_id=$(RUN_ID) and role=client"
+      exit 1
+    fi
+    echo "Found AKS cluster: $aks_name in RG: $aks_rg"
+
+    for i in $(seq 1 30); do
+      state=$(az aks show -n "$aks_name" -g "$aks_rg" --query "provisioningState" -o tsv 2>/dev/null)
+      echo "Attempt $i/30: provisioningState=$state"
+      if [ "$state" = "Succeeded" ]; then
+        echo "Cluster is ready."
+        break
+      fi
+      if [ "$i" -eq 30 ]; then
+        echo "##[error]Cluster still not ready after 5 minutes"
+        exit 1
+      fi
+      sleep 10
+    done
+  displayName: "Wait for AKS cluster to settle"
+
+- script: |
+    set -euo pipefail
+
     echo "Installing upstream Cilium for BYOCNI cluster..."
     helm repo add cilium https://helm.cilium.io/
     helm repo update
