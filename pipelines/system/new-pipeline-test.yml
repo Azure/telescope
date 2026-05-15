@@ -1,8 +1,8 @@
 trigger: none
 
 variables:
-  SCENARIO_TYPE: system
-  SCENARIO_NAME: k8s-crud-job-test
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: k8s-gpu-cluster-crud
 
 stages:
   - stage: azure_australiaeast
