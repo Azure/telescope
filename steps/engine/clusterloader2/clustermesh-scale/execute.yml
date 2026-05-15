@@ -486,8 +486,11 @@ steps:
               echo "--- cluster ${_role} (${_name}) report dir: ${_report_dir} ---"
               echo "-- per-rung measurement file counts --"
               for _rung in 0 1 2 3 4 5 6 7; do
+                # CL2 emits filenames like "GenericPrometheusQuery <metricName> Rung<N>_<group>_<ts>.json"
+                # with a SPACE between method and metric name (build 67211 verified).
+                # Match both space and legacy underscore conventions via "GenericPrometheusQuery*".
                 local _count
-                _count=$(ls "${_report_dir}"/GenericPrometheusQuery_*Rung${_rung}_*.json 2>/dev/null | wc -l || echo 0)
+                _count=$(find "${_report_dir}" -maxdepth 1 -name "GenericPrometheusQuery*Rung${_rung}_*.json" 2>/dev/null | wc -l)
                 if [ "$_count" -gt 0 ]; then
                   echo "  Rung${_rung}: ${_count} measurement files"
                 fi

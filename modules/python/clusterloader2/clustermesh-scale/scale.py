@@ -710,9 +710,20 @@ def _emit_saturation_profile_rows(
     # so postmortem doesn't depend on the AzDO step's stdout being preserved.
     # User direction 2026-05-14: assume failure, keep debug logs baked in
     # until n=2 + n=20 are green; strip after.
+    #
+    # Match BOTH filename conventions:
+    #   prod:    "GenericPrometheusQuery <metricName>  Rung<N>_<group>_<ts>.json"
+    #            (space between method and metricName; verified build 67211)
+    #   compact: "GenericPrometheusQuery_<MetricName>Rung<N>_<group>_<ts>.json"
+    #            (no spaces; legacy mock convention)
+    # Pre-fix (build 67221) the diagnostic counted only compact-form files,
+    # so we'd see "0 found" even when files DID land via prod-form (the
+    # _find_file lookup correctly accepts both, but the diagnostic was
+    # misleading). Fix: count any GenericPrometheusQuery*.json with Rung<N>
+    # in the name.
     rung_files_seen = sorted([
         f for f in all_files
-        if f.startswith("GenericPrometheusQuery_")
+        if f.startswith("GenericPrometheusQuery")
         and "Rung" in f
         and f.endswith(".json")
     ])
@@ -722,12 +733,20 @@ def _emit_saturation_profile_rows(
         file=sys.stderr,
     )
     print(
-        f"[collect] saturation: {len(rung_files_seen)} per-rung measurement "
-        f"files found in {cl2_report_dir}",
+        f"[collect] saturation: cl2_report_dir={cl2_report_dir} "
+        f"total_files_in_dir={len(all_files)} "
+        f"rung_files_matching_pattern={len(rung_files_seen)}",
         file=sys.stderr,
     )
-    for fname in rung_files_seen:
-        print(f"[collect] saturation:   {fname}", file=sys.stderr)
+    # Print ALL files (not just rung ones) so if the prefix matcher has any
+    # encoding/whitespace surprise, the raw listing reveals it.
+    for fname in all_files[:30]:
+        print(f"[collect] saturation:   listdir: {fname!r}", file=sys.stderr)
+    if len(all_files) > 30:
+        print(
+            f"[collect] saturation:   ... and {len(all_files) - 30} more",
+            file=sys.stderr,
+        )
 
     def _read_metric(filepath, metric_label):
         """Return the numeric `value` for a given Metric label, or None."""
