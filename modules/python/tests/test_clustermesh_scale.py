@@ -1920,16 +1920,31 @@ SATURATION_THRESHOLDS = clustermesh_scale_module.SATURATION_THRESHOLDS
 SATURATION_CLASSIFIER_VERSION = clustermesh_scale_module.SATURATION_CLASSIFIER_VERSION
 
 
-def _write_metric_file(report_dir, identifier, suffix, metrics):
+def _write_metric_file(report_dir, metric_name, suffix, metrics, fmt="prod"):
     """Write a CL2-shaped GenericPrometheusQuery JSON.
 
-    File pattern matches what CL2 emits at gather time:
-    GenericPrometheusQuery_<Identifier><suffix>_<group>_<timestamp>.json
+    Two filename formats are supported (the classifier accepts both):
+      fmt="prod" — production format observed in build 67211:
+          GenericPrometheusQuery <metricName with spaces> <suffix>_<group>_<ts>.json
+      fmt="compact" — legacy/mock format with no spaces and an underscore
+        immediately after GenericPrometheusQuery:
+          GenericPrometheusQuery_<MetricNameNoSpaces><Suffix>_<group>_<ts>.json
+
+    For new tests prefer fmt="prod" — that's what real CL2 emits.
     """
-    fname = (
-        f"GenericPrometheusQuery_{identifier}{suffix}_"
-        f"saturation-test_2026-05-14T00:00:00Z.json"
-    )
+    if fmt == "prod":
+        fname = (
+            f"GenericPrometheusQuery {metric_name} {suffix}_"
+            f"saturation-test_2026-05-14T00:00:00Z.json"
+        )
+    elif fmt == "compact":
+        compact = metric_name.replace(" ", "")
+        fname = (
+            f"GenericPrometheusQuery_{compact}{suffix}_"
+            f"saturation-test_2026-05-14T00:00:00Z.json"
+        )
+    else:
+        raise ValueError(f"unknown fmt: {fmt!r}")
     path = os.path.join(report_dir, fname)
     with open(path, "w", encoding="utf-8") as f:
         json.dump({
@@ -2025,108 +2040,108 @@ class TestSaturationClassifier(unittest.TestCase):
     def _write_clean_rung(self, rung):
         suffix = f"Rung{rung}"
         _write_metric_file(
-            self.report_dir, "ClusterMeshKvstoreOperationDuration",
+            self.report_dir, "ClusterMesh Kvstore Operation Duration",
             suffix, {"Perc99": 0.020},
         )
         _write_metric_file(
-            self.report_dir, "ClusterMeshKvstoreSyncQueueSize",
+            self.report_dir, "ClusterMesh Kvstore Sync Queue Size",
             suffix, {"Max": 5, "Perc99": 3},
         )
         _write_metric_file(
-            self.report_dir, "ClusterMeshApiserverPodCPU",
+            self.report_dir, "ClusterMesh APIServer Pod CPU",
             suffix, {"PerPodMax": 0.3, "TotalMax": 0.3, "TotalAvg": 0.2},
         )
         _write_metric_file(
-            self.report_dir, "ClusterMeshRemoteClusterFailureRate",
+            self.report_dir, "ClusterMesh Remote Cluster Failure Rate",
             suffix, {"Max": 0.01},
         )
         _write_metric_file(
-            self.report_dir, "ClusterMeshEtcdBackendWriteDuration",
+            self.report_dir, "ClusterMesh Etcd Backend Write Duration",
             suffix, {"Perc99": 0.005},
         )
         _write_metric_file(
-            self.report_dir, "ClusterMeshKvstoreEventsRate",
+            self.report_dir, "ClusterMesh Kvstore Events Rate",
             suffix, {"Perc99": 15},
         )
 
     def _write_latency_tripped_rung(self, rung):
         suffix = f"Rung{rung}"
         _write_metric_file(
-            self.report_dir, "ClusterMeshKvstoreOperationDuration",
+            self.report_dir, "ClusterMesh Kvstore Operation Duration",
             suffix, {"Perc99": 0.900},
         )
         _write_metric_file(
-            self.report_dir, "ClusterMeshKvstoreSyncQueueSize",
+            self.report_dir, "ClusterMesh Kvstore Sync Queue Size",
             suffix, {"Max": 10, "Perc99": 5},
         )
         _write_metric_file(
-            self.report_dir, "ClusterMeshApiserverPodCPU",
+            self.report_dir, "ClusterMesh APIServer Pod CPU",
             suffix, {"PerPodMax": 0.4, "TotalMax": 0.4, "TotalAvg": 0.3},
         )
         _write_metric_file(
-            self.report_dir, "ClusterMeshRemoteClusterFailureRate",
+            self.report_dir, "ClusterMesh Remote Cluster Failure Rate",
             suffix, {"Max": 0.02},
         )
         _write_metric_file(
-            self.report_dir, "ClusterMeshEtcdBackendWriteDuration",
+            self.report_dir, "ClusterMesh Etcd Backend Write Duration",
             suffix, {"Perc99": 0.010},
         )
         _write_metric_file(
-            self.report_dir, "ClusterMeshKvstoreEventsRate",
+            self.report_dir, "ClusterMesh Kvstore Events Rate",
             suffix, {"Perc99": 50},
         )
 
     def _write_queue_unbounded_rung(self, rung):
         suffix = f"Rung{rung}"
         _write_metric_file(
-            self.report_dir, "ClusterMeshKvstoreOperationDuration",
+            self.report_dir, "ClusterMesh Kvstore Operation Duration",
             suffix, {"Perc99": 0.100},
         )
         _write_metric_file(
-            self.report_dir, "ClusterMeshKvstoreSyncQueueSize",
+            self.report_dir, "ClusterMesh Kvstore Sync Queue Size",
             suffix, {"Max": 8000, "Perc99": 5000},
         )
         _write_metric_file(
-            self.report_dir, "ClusterMeshApiserverPodCPU",
+            self.report_dir, "ClusterMesh APIServer Pod CPU",
             suffix, {"PerPodMax": 0.5, "TotalMax": 0.5, "TotalAvg": 0.4},
         )
         _write_metric_file(
-            self.report_dir, "ClusterMeshRemoteClusterFailureRate",
+            self.report_dir, "ClusterMesh Remote Cluster Failure Rate",
             suffix, {"Max": 0.02},
         )
         _write_metric_file(
-            self.report_dir, "ClusterMeshEtcdBackendWriteDuration",
+            self.report_dir, "ClusterMesh Etcd Backend Write Duration",
             suffix, {"Perc99": 0.020},
         )
         _write_metric_file(
-            self.report_dir, "ClusterMeshKvstoreEventsRate",
+            self.report_dir, "ClusterMesh Kvstore Events Rate",
             suffix, {"Perc99": 200},
         )
 
     def _write_cpu_exhaust_rung(self, rung):
         suffix = f"Rung{rung}"
         _write_metric_file(
-            self.report_dir, "ClusterMeshKvstoreOperationDuration",
+            self.report_dir, "ClusterMesh Kvstore Operation Duration",
             suffix, {"Perc99": 0.200},
         )
         _write_metric_file(
-            self.report_dir, "ClusterMeshKvstoreSyncQueueSize",
+            self.report_dir, "ClusterMesh Kvstore Sync Queue Size",
             suffix, {"Max": 50, "Perc99": 30},
         )
         _write_metric_file(
-            self.report_dir, "ClusterMeshApiserverPodCPU",
+            self.report_dir, "ClusterMesh APIServer Pod CPU",
             suffix, {"PerPodMax": 2.5, "TotalMax": 2.5, "TotalAvg": 2.0},
         )
         _write_metric_file(
-            self.report_dir, "ClusterMeshRemoteClusterFailureRate",
+            self.report_dir, "ClusterMesh Remote Cluster Failure Rate",
             suffix, {"Max": 0.05},
         )
         _write_metric_file(
-            self.report_dir, "ClusterMeshEtcdBackendWriteDuration",
+            self.report_dir, "ClusterMesh Etcd Backend Write Duration",
             suffix, {"Perc99": 0.050},
         )
         _write_metric_file(
-            self.report_dir, "ClusterMeshKvstoreEventsRate",
+            self.report_dir, "ClusterMesh Kvstore Events Rate",
             suffix, {"Perc99": 80},
         )
 
@@ -2284,7 +2299,7 @@ class TestSaturationClassifier(unittest.TestCase):
         """If a rung's measurement files are missing, measurement_missing
         lists the gaps. Latency present → rung_completed still true."""
         _write_metric_file(
-            self.report_dir, "ClusterMeshKvstoreOperationDuration",
+            self.report_dir, "ClusterMesh Kvstore Operation Duration",
             "Rung0", {"Perc99": 0.020},
         )
         lines = self._run_collect("20")
@@ -2300,23 +2315,23 @@ class TestSaturationClassifier(unittest.TestCase):
         """Latency is the gating signal — without it, rung is incomplete
         regardless of how many other signals landed."""
         _write_metric_file(
-            self.report_dir, "ClusterMeshKvstoreSyncQueueSize",
+            self.report_dir, "ClusterMesh Kvstore Sync Queue Size",
             "Rung0", {"Max": 5, "Perc99": 3},
         )
         _write_metric_file(
-            self.report_dir, "ClusterMeshApiserverPodCPU",
+            self.report_dir, "ClusterMesh APIServer Pod CPU",
             "Rung0", {"PerPodMax": 0.3, "TotalMax": 0.3, "TotalAvg": 0.2},
         )
         _write_metric_file(
-            self.report_dir, "ClusterMeshRemoteClusterFailureRate",
+            self.report_dir, "ClusterMesh Remote Cluster Failure Rate",
             "Rung0", {"Max": 0.01},
         )
         _write_metric_file(
-            self.report_dir, "ClusterMeshEtcdBackendWriteDuration",
+            self.report_dir, "ClusterMesh Etcd Backend Write Duration",
             "Rung0", {"Perc99": 0.005},
         )
         _write_metric_file(
-            self.report_dir, "ClusterMeshKvstoreEventsRate",
+            self.report_dir, "ClusterMesh Kvstore Events Rate",
             "Rung0", {"Perc99": 15},
         )
         lines = self._run_collect("20")
@@ -2394,6 +2409,109 @@ class TestSaturationClassifier(unittest.TestCase):
         self.assertEqual(rungs[0]["result"]["data"]["configured_restarts"], 1)
         self.assertEqual(rungs[1]["result"]["data"]["configured_restarts"], 2)
         self.assertEqual(rungs[2]["result"]["data"]["configured_restarts"], 1)
+
+    def test_classifier_matches_build_67211_production_filename_format(self):
+        """REGRESSION: build 67211 (first n=2 upper-bound smoke 2026-05-14)
+        emitted measurement files in the format
+            'GenericPrometheusQuery <metricName with spaces> <suffix>_<group>_<ts>.json'
+        but the classifier was matching the legacy compact format
+            'GenericPrometheusQuery_<MetricNameNoSpaces><Suffix>_<group>_<ts>.json'
+        → 0 files found, all 4 rungs classified as `clean` with 0 signals
+        despite all 20 signal files (5 signals × 4 rungs) being present on
+        disk. This test pins the production format so a future regression
+        fails locally instead of silently in CI.
+        """
+        # Use fmt="prod" — production format with spaces. Default in
+        # _write_metric_file is also "prod" but explicit here for clarity.
+        suffix = "Rung0"
+        # Latency: 600ms p99 (above 500ms threshold) → should trip latency_spike
+        _write_metric_file(
+            self.report_dir, "ClusterMesh Kvstore Operation Duration",
+            suffix, {"Perc99": 0.600}, fmt="prod",
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMesh Kvstore Sync Queue Size",
+            suffix, {"Max": 50, "Perc99": 30}, fmt="prod",
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMesh APIServer Pod CPU",
+            suffix, {"PerPodMax": 0.5, "TotalMax": 0.5, "TotalAvg": 0.4},
+            fmt="prod",
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMesh Remote Cluster Failure Rate",
+            suffix, {"Max": 0.05}, fmt="prod",
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMesh Etcd Backend Write Duration",
+            suffix, {"Perc99": 0.020}, fmt="prod",
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMesh Kvstore Events Rate",
+            suffix, {"Perc99": 30}, fmt="prod",
+        )
+        # Verify the file on disk matches the build-67211 pattern exactly.
+        on_disk = sorted(os.listdir(self.report_dir))
+        prod_pattern_files = [
+            f for f in on_disk
+            if f.startswith("GenericPrometheusQuery ClusterMesh ")
+            and "Rung0_" in f
+        ]
+        self.assertGreaterEqual(
+            len(prod_pattern_files), 6,
+            f"production-format files not on disk; got: {prod_pattern_files}",
+        )
+        lines = self._run_collect("20")
+        rung = next(r for r in lines if r.get("measurement") == "SaturationRung")
+        d = rung["result"]["data"]
+        # Classifier must FIND the files (production format) and apply the
+        # verdict. Pre-fix: all signals would be `None`, verdict=`clean`,
+        # rung_completed=False. Post-fix: latency value lands → latency_spike.
+        self.assertTrue(d["rung_completed"],
+                        f"rung must be completed; missing={d['measurement_missing']}")
+        self.assertEqual(d["measurement_missing"], [],
+                         f"all 7 signals should land; missing={d['measurement_missing']}")
+        self.assertAlmostEqual(d["signals"]["latency_p99_ms"], 600.0, places=1)
+        self.assertEqual(d["verdict"], "latency_spike")
+
+    def test_classifier_accepts_legacy_compact_filename_format(self):
+        """The classifier supports BOTH production (space) and legacy
+        (compact-underscore) filename formats so test mocks/older CL2
+        emissions don't silently fail. Pin both with this test."""
+        suffix = "Rung0"
+        # Write the same set in COMPACT format (no spaces, underscore after
+        # GenericPrometheusQuery).
+        _write_metric_file(
+            self.report_dir, "ClusterMesh Kvstore Operation Duration",
+            suffix, {"Perc99": 0.020}, fmt="compact",
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMesh Kvstore Sync Queue Size",
+            suffix, {"Max": 5, "Perc99": 3}, fmt="compact",
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMesh APIServer Pod CPU",
+            suffix, {"PerPodMax": 0.3, "TotalMax": 0.3, "TotalAvg": 0.2},
+            fmt="compact",
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMesh Remote Cluster Failure Rate",
+            suffix, {"Max": 0.01}, fmt="compact",
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMesh Etcd Backend Write Duration",
+            suffix, {"Perc99": 0.005}, fmt="compact",
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMesh Kvstore Events Rate",
+            suffix, {"Perc99": 15}, fmt="compact",
+        )
+        lines = self._run_collect("20")
+        rung = next(r for r in lines if r.get("measurement") == "SaturationRung")
+        d = rung["result"]["data"]
+        self.assertTrue(d["rung_completed"])
+        self.assertEqual(d["verdict"], "clean")
+        self.assertAlmostEqual(d["signals"]["latency_p99_ms"], 20.0, places=1)
 
 
 if __name__ == "__main__":

@@ -752,57 +752,72 @@ def _emit_saturation_profile_rows(
                     return None
         return None
 
-    def _find_file(rung_suffix, identifier_prefix):
-        """Locate the CL2-emitted JSON for a given Identifier prefix and
-        rung suffix. CL2's file pattern is
-        GenericPrometheusQuery_<Identifier>_<group>_<timestamp>.json
-        where Identifier includes our `{{$suffix}}` (e.g.
-        ClusterMeshKvstoreSyncQueueSizeRung0). We match on the prefix
-        Identifier name followed by the rung suffix followed by an
-        underscore so substring collisions across rung indices (Rung0
-        vs Rung00 vs Rung1) are avoided.
+    def _find_file(rung_suffix, metric_name_prefix):
+        """Locate the CL2-emitted JSON for a given metricName prefix and
+        rung suffix. CL2's actual file pattern (verified against build 67211)
+        is:
+            GenericPrometheusQuery <metricName with spaces> <suffix>_<group>_<timestamp>.json
+
+        e.g. for metricName "ClusterMesh Kvstore Sync Queue Size {{$suffix}}"
+        with suffix=Rung0:
+            GenericPrometheusQuery ClusterMesh Kvstore Sync Queue Size Rung0_clustermesh-upper-bound_2026-05-15T02:20:27Z.json
+
+        We match on the production format primarily, with a fallback to the
+        compact-no-space underscore format
+            GenericPrometheusQuery_<MetricNameNoSpaces><Suffix>_<group>_<ts>.json
+        for backward compat with mock fixtures + any other CL2 versions
+        that strip spaces.
         """
-        target = f"GenericPrometheusQuery_{identifier_prefix}{rung_suffix}_"
+        # Production format (build 67211 confirmed): space-separated, suffix
+        # immediately follows metric name with a space (because the YAML
+        # template `metricName: <name> {{$suffix}}` keeps the space).
+        prod_target = f"GenericPrometheusQuery {metric_name_prefix} {rung_suffix}_"
+        # Mock/compact fallback: drop spaces, no leading space after method.
+        compact_metric = metric_name_prefix.replace(" ", "")
+        compact_target = f"GenericPrometheusQuery_{compact_metric}{rung_suffix}_"
         matches = [
             f for f in all_files
-            if f.startswith(target) and f.endswith(".json")
+            if (f.startswith(prod_target) or f.startswith(compact_target))
+            and f.endswith(".json")
         ]
         if matches:
             return os.path.join(cl2_report_dir, matches[0])
         return None
 
-    # Identifier → (Metric label, transform). Transform converts the
-    # measurement's native unit into the classifier's threshold unit (e.g.
-    # seconds → milliseconds). The Identifier matches the Go-template
-    # `Identifier:` line in the measurement YAML, with the {{$suffix}}
-    # placeholder filled at runtime to RungN.
+    # Signal name → (metricName-from-YAML, metric-label, transform).
+    # The metricName is the YAML's `metricName:` field text (space-separated),
+    # which is what CL2 embeds in the emitted filename. Build 67211 verified
+    # the production filename pattern.
+    #
+    # Transform converts the measurement's native unit into the classifier's
+    # threshold unit (seconds → milliseconds where applicable).
     signal_map = {
         "latency_p99_ms": (
-            "ClusterMeshKvstoreOperationDuration", "Perc99",
+            "ClusterMesh Kvstore Operation Duration", "Perc99",
             lambda v: v * 1000.0,
         ),
         "queue_size_perc99": (
-            "ClusterMeshKvstoreSyncQueueSize", "Perc99",
+            "ClusterMesh Kvstore Sync Queue Size", "Perc99",
             lambda v: v,
         ),
         "queue_size_max": (
-            "ClusterMeshKvstoreSyncQueueSize", "Max",
+            "ClusterMesh Kvstore Sync Queue Size", "Max",
             lambda v: v,
         ),
         "apiserver_max_cpu_cores": (
-            "ClusterMeshApiserverPodCPU", "PerPodMax",
+            "ClusterMesh APIServer Pod CPU", "PerPodMax",
             lambda v: v,
         ),
         "mesh_failure_rate_max": (
-            "ClusterMeshRemoteClusterFailureRate", "Max",
+            "ClusterMesh Remote Cluster Failure Rate", "Max",
             lambda v: v,
         ),
         "etcd_commit_p99_ms": (
-            "ClusterMeshEtcdBackendWriteDuration", "Perc99",
+            "ClusterMesh Etcd Backend Write Duration", "Perc99",
             lambda v: v * 1000.0,
         ),
         "observed_event_rate_p99": (
-            "ClusterMeshKvstoreEventsRate", "Perc99",
+            "ClusterMesh Kvstore Events Rate", "Perc99",
             lambda v: v,
         ),
     }
