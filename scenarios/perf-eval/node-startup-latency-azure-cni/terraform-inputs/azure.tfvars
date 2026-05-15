@@ -35,7 +35,7 @@ aks_config_list = [
     }
     default_node_pool = {
       name                         = "default"
-      node_count                   = 3
+      node_count                   = 1
       vm_size                      = "Standard_D4ds_v5"
       os_disk_type                 = "Ephemeral"
       only_critical_addons_enabled = true
