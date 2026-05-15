@@ -297,8 +297,8 @@ class NodePoolCRUD:
         # Generate deployment name
         deployment_name = f"myapp-{node_pool_name}-{deployment_index}"
 
-        # Use per-deployment label to avoid selector collision
-        deployment_label = f"{label_selector.split('=', 1)[-1]}-{deployment_index}"
+        # Use per-deployment label to avoid selector collision across workload types
+        deployment_label = f"{label_selector.split('=', 1)[-1]}-deployment-{deployment_index}"
 
         # Create deployment template using k8s_client.create_template
         deployment_template = k8s_client.create_template(
@@ -434,8 +434,8 @@ class NodePoolCRUD:
         # Generate job name
         job_name = f"myapp-{node_pool_name}-{job_index}"
 
-        # Use per-job label to avoid selector collision
-        job_label = f"{label_selector.split('=', 1)[-1]}-{job_index}"
+        # Use per-job label to avoid selector collision across workload types
+        job_label = f"{label_selector.split('=', 1)[-1]}-job-{job_index}"
 
         # Create job template using k8s_client.create_template
         job_template = k8s_client.create_template(
