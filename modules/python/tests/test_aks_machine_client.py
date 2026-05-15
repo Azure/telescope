@@ -14,6 +14,7 @@ the follow-up PR lands.
 # pylint: disable=protected-access
 # Tests intentionally exercise private helpers directly; the leading underscore
 # is conventional rather than semantic privacy.
+import itertools
 import tempfile
 import unittest
 from types import SimpleNamespace
@@ -319,7 +320,6 @@ class TestAKSMachineClient(unittest.TestCase):
         # time.time() is called multiple times per iteration (start, deadline
         # check, elapsed). Use a long monotonic sequence and let StopIteration
         # be impossible by repeating the last value with itertools.chain.
-        import itertools  # local: only needed for this helper
         tick = itertools.chain(
             iter([float(i) for i in range(0, 1000)]),
             itertools.repeat(1000.0),
@@ -414,7 +414,6 @@ class TestAKSMachineClient(unittest.TestCase):
         # The function calls time.time() ~3 times per loop iteration plus once
         # for `start`. Provide a long monotonic sequence so P50 (target=2) is
         # met while well under the 100s deadline, then jump past it.
-        import itertools
         ticks = itertools.chain(
             iter([0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 200.0, 200.0]),
             itertools.repeat(200.0),
