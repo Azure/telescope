@@ -17,6 +17,7 @@ stages:
           engine: crud
           matrix:
             statefulset_crud:
+              gpu_node_pool: ""
               pool_name: testpool
               vm_size: Standard_D4s_v3
               create_node_count: 0

@@ -297,8 +297,8 @@ class NodePoolCRUD:
         # Generate deployment name
         deployment_name = f"myapp-{node_pool_name}-{deployment_index}"
 
-        # Use per-deployment label to avoid selector collision
-        deployment_label = f"{label_selector.split('=', 1)[-1]}-{deployment_index}"
+        # Use per-deployment label to avoid selector collision across workload types
+        deployment_label = f"{label_selector.split('=', 1)[-1]}-deployment-{deployment_index}"
 
         # Create deployment template using k8s_client.create_template
         deployment_template = k8s_client.create_template(
@@ -434,8 +434,8 @@ class NodePoolCRUD:
         # Generate StatefulSet name
         statefulset_name = f"myapp-{node_pool_name}-{statefulset_index}"
 
-        # Use per-statefulset label to avoid selector collision
-        statefulset_label = f"{label_selector.split('=', 1)[-1]}-{statefulset_index}"
+        # Use per-statefulset label to avoid selector collision across workload types
+        statefulset_label = f"{label_selector.split('=', 1)[-1]}-statefulset-{statefulset_index}"
 
         # Create StatefulSet template using k8s_client.create_template
         statefulset_template = k8s_client.create_template(
