@@ -442,6 +442,7 @@ class AKSClient:
                 cluster_name=cluster_name,
                 gpu_node_pool=gpu_node_pool,
                 node_pool=node_pool,
+                cni_daemonset_label=cni_daemonset_label,
             )
 
         # Create operation context to track the operation
@@ -648,6 +649,7 @@ class AKSClient:
         cluster_name: Optional[str] = None,
         gpu_node_pool: bool = False,
         node_pool: Optional[Any] = None,
+        cni_daemonset_label: Optional[str] = None,
     ) -> Any:
         """
         Scale a node pool progressively with specified step size
@@ -755,6 +757,28 @@ class AKSClient:
                     op.add_metadata(
                         "ready_nodes", len(ready_nodes) if ready_nodes else 0
                     )
+
+                    # Collect per-node startup latency if scaling up
+                    if operation_type == "scale_up" and self.k8s_client:
+                        try:
+                            new_nodes = [
+                                n for n in ready_nodes
+                                if n.metadata.creation_timestamp and
+                                n.metadata.creation_timestamp.strftime("%Y-%m-%dT%H:%M:%SZ") >= op.start_timestamp
+                            ]
+                            if new_nodes:
+                                startup_latency = self.k8s_client.collect_node_startup_latency(
+                                    nodes=new_nodes,
+                                    scale_api_call_timestamp=op.start_timestamp,
+                                    cni_daemonset_label=cni_daemonset_label,
+                                )
+                                op.add_metadata("node_startup_latency", startup_latency)
+                                logger.info(f"Collected node startup latency for {len(new_nodes)} new node(s)")
+                            else:
+                                logger.warning("No new nodes found for startup latency collection")
+                        except Exception as latency_err:
+                            logger.warning(f"Failed to collect node startup latency: {latency_err}")
+                            op.add_metadata("node_startup_latency_error", str(latency_err))
 
                     # Update our tracking of completed steps
                     completed_steps.append(step)
