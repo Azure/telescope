@@ -2586,6 +2586,36 @@ spec:
         mock_create_statefulset.assert_called_once_with(
             namespace="default", body=manifest)
 
+    @patch('kubernetes.client.BatchV1Api.create_namespaced_job')
+    def test_apply_single_manifest_job(self, mock_create_job):
+        """Test _apply_single_manifest with Job resource."""
+        manifest = {
+            "apiVersion": "batch/v1",
+            "kind": "Job",
+            "metadata": {"name": "test-job", "namespace": "test-namespace"},
+            "spec": {}
+        }
+
+        # pylint: disable=protected-access
+        self.client._apply_single_manifest(manifest)
+        mock_create_job.assert_called_once_with(
+            namespace="test-namespace", body=manifest)
+
+    @patch('kubernetes.client.BatchV1Api.create_namespaced_job')
+    def test_apply_single_manifest_job_no_namespace(self, mock_create_job):
+        """Test _apply_single_manifest with Job missing namespace uses 'default'."""
+        manifest = {
+            "apiVersion": "batch/v1",
+            "kind": "Job",
+            "metadata": {"name": "test-job"},
+            "spec": {}
+        }
+
+        # pylint: disable=protected-access
+        self.client._apply_single_manifest(manifest)
+        mock_create_job.assert_called_once_with(
+            namespace="default", body=manifest)
+
     @patch('kubernetes.client.CoreV1Api.create_namespaced_service')
     def test_apply_single_manifest_service(self, mock_create_service):
         """Test _apply_single_manifest with Service resource."""
@@ -3407,6 +3437,160 @@ spec:
                     )
                     self.assertTrue(result)
 
+    # Tests for wait_for_condition with job resource type
+
+    @patch('time.time')
+    def test_wait_for_condition_job_complete_success(self, mock_time):
+        """Test wait_for_condition for a completed job - success case"""
+        mock_time.side_effect = [0, 0, 1, 2, 2]
+
+        mock_job = MagicMock()
+        mock_job.status.completion_time = "2026-04-20T00:00:00Z"
+        mock_job.status.succeeded = 1
+        mock_job.status.failed = None
+        mock_job.status.active = None
+        mock_job.status.conditions = None
+
+        with patch.object(self.client, 'batch') as mock_batch, \
+             patch('time.sleep'):
+            mock_batch.read_namespaced_job.return_value = mock_job
+
+            result = self.client.wait_for_condition(
+                resource_type="job",
+                resource_name="test-job",
+                wait_condition_type="complete",
+                namespace="test-namespace",
+                timeout_seconds=5
+            )
+
+            self.assertTrue(result)
+            mock_batch.read_namespaced_job.assert_called_with(
+                name="test-job",
+                namespace="test-namespace"
+            )
+
+    @patch('time.time')
+    def test_wait_for_condition_job_complete_timeout(self, mock_time):
+        """Test wait_for_condition for a job - timeout when not yet complete"""
+        mock_time.side_effect = [0, 0, 2, 5, 6, 6]
+
+        mock_job = MagicMock()
+        mock_job.status.completion_time = None
+        mock_job.status.succeeded = 0
+        mock_job.status.failed = None
+        mock_job.status.active = 1
+        mock_job.status.conditions = None
+
+        with patch.object(self.client, 'batch') as mock_batch, \
+             patch('time.sleep'):
+            mock_batch.read_namespaced_job.return_value = mock_job
+
+            result = self.client.wait_for_condition(
+                resource_type="job",
+                resource_name="test-job",
+                wait_condition_type="complete",
+                namespace="test-namespace",
+                timeout_seconds=1
+            )
+
+            self.assertFalse(result)
+
+    @patch('time.time')
+    def test_wait_for_condition_job_failed_success(self, mock_time):
+        """Test wait_for_condition for a failed job - detects failure"""
+        mock_time.side_effect = [0, 0, 1, 2, 2]
+
+        mock_job = MagicMock()
+        mock_job.status.completion_time = None
+        mock_job.status.succeeded = 0
+        mock_job.status.failed = 3
+        mock_job.status.active = 0
+        mock_job.status.conditions = None
+
+        with patch.object(self.client, 'batch') as mock_batch, \
+             patch('time.sleep'):
+            mock_batch.read_namespaced_job.return_value = mock_job
+
+            result = self.client.wait_for_condition(
+                resource_type="job",
+                resource_name="test-job",
+                wait_condition_type="failed",
+                namespace="test-namespace",
+                timeout_seconds=5
+            )
+
+            self.assertTrue(result)
+
+    @patch('time.time')
+    def test_wait_for_condition_all_jobs_complete(self, mock_time):
+        """Test wait_for_condition for all jobs in a namespace - all complete"""
+        mock_time.side_effect = [0, 0, 1, 2, 2]
+
+        mock_job1 = MagicMock()
+        mock_job1.status.completion_time = "2026-04-20T00:00:00Z"
+        mock_job1.status.succeeded = 1
+        mock_job1.status.failed = None
+        mock_job1.status.active = None
+        mock_job1.status.conditions = None
+
+        mock_job2 = MagicMock()
+        mock_job2.status.completion_time = "2026-04-20T00:01:00Z"
+        mock_job2.status.succeeded = 2
+        mock_job2.status.failed = None
+        mock_job2.status.active = None
+        mock_job2.status.conditions = None
+
+        with patch.object(self.client, 'batch') as mock_batch, \
+             patch('time.sleep'):
+            mock_batch.list_namespaced_job.return_value.items = [mock_job1, mock_job2]
+
+            result = self.client.wait_for_condition(
+                resource_type="job",
+                resource_name=None,
+                wait_condition_type="complete",
+                namespace="test-namespace",
+                timeout_seconds=5,
+                wait_all=True
+            )
+
+            self.assertTrue(result)
+            mock_batch.list_namespaced_job.assert_called_with(namespace="test-namespace")
+
+    @patch('time.time')
+    def test_wait_for_condition_job_not_found(self, mock_time):
+        """Test wait_for_condition for a job that doesn't exist - times out"""
+        mock_time.side_effect = [0, 0, 2, 5, 6, 6]
+
+        api_exception = ApiException(status=404, reason="Not Found")
+
+        with patch.object(self.client, 'batch') as mock_batch, \
+             patch('time.sleep'):
+            mock_batch.read_namespaced_job.side_effect = api_exception
+
+            result = self.client.wait_for_condition(
+                resource_type="job",
+                resource_name="nonexistent-job",
+                wait_condition_type="complete",
+                namespace="test-namespace",
+                timeout_seconds=1
+            )
+
+            self.assertFalse(result)
+
+    def test_wait_for_condition_job_invalid_condition(self):
+        """Test wait_for_condition with invalid condition for job resource"""
+        with self.assertRaises(ValueError) as context:
+            self.client.wait_for_condition(
+                resource_type="job",
+                resource_name="test-job",
+                wait_condition_type="available",
+                namespace="test-namespace",
+                timeout_seconds=1
+            )
+
+        self.assertIn("Invalid condition 'available' for resource type 'job'", str(context.exception))
+        self.assertIn("Valid conditions: complete, failed", str(context.exception))
+
     # Tests for the enhanced apply_manifest_from_file method with folder support
     @patch('os.path.isdir')
     @patch('os.path.isfile')
@@ -4019,6 +4203,42 @@ spec:
             self.client._delete_single_manifest(manifest)
 
         self.assertIn("StatefulSet requires a namespace", str(context.exception))
+
+    def test_delete_single_manifest_job(self):
+        """Test deleting a single Job manifest."""
+        manifest = {
+            "apiVersion": "batch/v1",
+            "kind": "Job",
+            "metadata": {"name": "test-job", "namespace": "test-namespace"},
+            "spec": {}
+        }
+
+        with patch.object(self.client, 'batch') as mock_batch:
+            mock_batch.delete_namespaced_job.return_value = None
+
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest)
+
+            mock_batch.delete_namespaced_job.assert_called_once_with(
+                name="test-job",
+                namespace="test-namespace",
+                body=unittest.mock.ANY
+            )
+
+    def test_delete_single_manifest_job_no_namespace(self):
+        """Test _delete_single_manifest with Job missing namespace raises error."""
+        manifest = {
+            "apiVersion": "batch/v1",
+            "kind": "Job",
+            "metadata": {"name": "test-job"},
+            "spec": {}
+        }
+
+        with self.assertRaises(Exception) as context:
+            # pylint: disable=protected-access
+            self.client._delete_single_manifest(manifest)
+
+        self.assertIn("Job requires a namespace", str(context.exception))
 
     def test_delete_single_manifest_service(self):
         """Test deleting a single service manifest."""

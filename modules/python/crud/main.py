@@ -147,7 +147,7 @@ def handle_node_pool_operation(node_pool_crud, args):
         return 1
 
 def handle_workload_operations(node_pool_crud, args):
-    """Handle workload operations (deployment, statefulset, jobs) based on the command"""
+    """Handle workload operations (deployment, job) based on the command"""
     command = args.command
     result = None
 
@@ -167,6 +167,21 @@ def handle_workload_operations(node_pool_crud, args):
             }
 
             result = node_pool_crud.create_deployment(**deploy_kwargs)
+        elif command == "job":
+            if not hasattr(node_pool_crud, 'create_job'):
+                logger.error("Cloud provider does not support job workload operations")
+                return 1
+
+            # Prepare job arguments
+            job_kwargs = {
+                "node_pool_name": args.node_pool_name,
+                "completions": args.completions,
+                "manifest_dir": args.manifest_dir,
+                "number_of_jobs": args.count,
+                "label_selector": args.label_selector,
+            }
+
+            result = node_pool_crud.create_job(**job_kwargs)
         else:
             logger.error("Unknown workload command: '%s'", command)
             return 1
@@ -385,6 +400,20 @@ def main():
         help="create deployments"
     )
     deployment_parser.set_defaults(func=handle_workload_operations)
+
+    # Job command
+    job_parser = subparsers.add_parser(
+        "job",
+        parents=[common_parser, workload_common_parser],
+        help="create jobs"
+    )
+    job_parser.add_argument(
+        "--completions",
+        type=int,
+        default=1,
+        help="Number of job completions"
+    )
+    job_parser.set_defaults(func=handle_workload_operations)
 
     # Arguments provided, run node pool operations and collect benchmark results
     try:
