@@ -11,3 +11,20 @@ steps:
   parameters:
     role: client
     region: ${{ parameters.regions[0] }}
+
+- script: |
+    set -euo pipefail
+
+    echo "Installing upstream Cilium for BYOCNI cluster..."
+    helm repo add cilium https://helm.cilium.io/
+    helm repo update
+    helm install cilium cilium/cilium --namespace kube-system \
+      --set aksbyocni.enabled=true \
+      --set nodeinit.enabled=true \
+      --wait --timeout 5m
+
+    echo "Waiting for all nodes to become Ready..."
+    kubectl wait --for=condition=Ready node --all --timeout=300s
+    kubectl get nodes -o wide
+  displayName: "Install Cilium CNI (BYOCNI)"
+  condition: eq(variables['INSTALL_CILIUM'], 'true')

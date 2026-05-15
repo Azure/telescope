@@ -51,6 +51,7 @@ stages:
               scale_node_count: 2
               step_time_out: 600
               cni_daemonset_label: "k8s-app=cilium"
+              install_cilium: "true"
           max_parallel: 1
           timeout_in_minutes: 60
           credential_type: service_connection
