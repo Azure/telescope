@@ -128,6 +128,76 @@ steps:
       echo "All $cluster_count clustermesh-apiserver Deployments+LBs ready; Fleet can now push peer configs"
     displayName: "Wait for clustermesh-apiserver Deployments + LBs (parallel)"
 
+  # ----------------------------------------------------------------------------
+  # n=20 debug enhancement 2026-05-16: VNet peering inventory.
+  # At N=20 we expect N*(N-1) = 380 VNet peerings (one pair each way). Terraform
+  # `apply` returns success even when some peerings are still propagating or
+  # silently fail to reach `Connected` state (e.g. on regional VNet quota throttle
+  # or peering reconciler lag). A missing/Disconnected peering means cross-mesh
+  # data-path fails for THAT specific pair, which CL2 surfaces as latency_spike
+  # or mesh_failure_burst — but the root cause (peering not Connected) is buried.
+  # This step inventories peering state RIGHT AFTER terraform apply so we have
+  # a baseline; non-Connected peerings get flagged as Warning but don't fail
+  # the step (some lag is normal; the CL2 verdict surfaces real impact).
+  # ----------------------------------------------------------------------------
+  - script: |
+      set -uo pipefail
+      clusters=$(cat "$HOME/.kube/clustermesh-clusters.json")
+      cluster_count=$(echo "$clusters" | jq 'length')
+      expected_peerings=$(( cluster_count * (cluster_count - 1) ))
+
+      if [ "$cluster_count" -lt 3 ]; then
+        echo "VNet peering inventory: skipping (cluster_count=$cluster_count, not enough to be interesting)"
+        exit 0
+      fi
+      echo "VNet peering inventory: expected $expected_peerings peerings across $cluster_count clusters"
+
+      total_listed=0
+      total_disconnected=0
+      disconnected_pairs=""
+      for row in $(echo "$clusters" | jq -c '.[]'); do
+        name=$(echo "$row" | jq -r '.name')
+        rg=$(echo   "$row" | jq -r '.rg')
+        # VNet is named "${cluster_short_name}-vnet" by the terraform module.
+        # Use `az network vnet list` to be agnostic to the exact name pattern.
+        vnet=$(az network vnet list --resource-group "$rg" --query "[0].name" -o tsv --only-show-errors 2>/dev/null || echo "")
+        if [ -z "$vnet" ]; then
+          echo "[$name] WARNING: no VNet found in $rg (peering check skipped)"
+          continue
+        fi
+        peerings=$(az network vnet peering list \
+          --resource-group "$rg" --vnet-name "$vnet" \
+          --query "[].{name:name, state:peeringState, sync:peeringSyncLevel}" -o tsv \
+          --only-show-errors 2>/dev/null || echo "")
+        if [ -z "$peerings" ]; then
+          echo "[$name/$vnet] no peerings listed"
+          continue
+        fi
+        cluster_count_peerings=$(echo "$peerings" | wc -l)
+        bad=$(echo "$peerings" | awk -F'\t' '$2 != "Connected"' | wc -l)
+        total_listed=$((total_listed + cluster_count_peerings))
+        total_disconnected=$((total_disconnected + bad))
+        if [ "$bad" -gt 0 ]; then
+          disconnected_pairs="$disconnected_pairs\n[$name/$vnet] $bad/$cluster_count_peerings not Connected:\n$(echo "$peerings" | awk -F'\t' '$2 != "Connected" {print "  "$0}')"
+        fi
+      done
+
+      echo "VNet peering inventory: listed=$total_listed disconnected=$total_disconnected expected=$expected_peerings"
+      if [ "$total_listed" -lt "$expected_peerings" ]; then
+        echo "##vso[task.logissue type=warning;] VNet peering: only $total_listed of $expected_peerings expected pairs found (some VNets may not have been provisioned)"
+      fi
+      if [ "$total_disconnected" -gt 0 ]; then
+        # shellcheck disable=SC2059
+        printf "$disconnected_pairs\n"
+        echo "##vso[task.logissue type=warning;] VNet peering: $total_disconnected pair(s) not in Connected state — cross-mesh data-path may fail for those pairs"
+      fi
+      # Non-fatal: subsequent steps (clustermesh validate + CL2) will surface
+      # real impact via test verdicts. This inventory just gives us a fingerprint
+      # to correlate later failures against.
+      exit 0
+    displayName: "VNet peering inventory (n>=3 debug snapshot)"
+    condition: succeeded()
+
   - script: |
       set -euo pipefail
       set -x

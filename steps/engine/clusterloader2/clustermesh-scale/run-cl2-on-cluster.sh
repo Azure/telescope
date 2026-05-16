@@ -104,6 +104,52 @@ PROM_PATCH_LOG="$report_dir/prom-cr-patch.log"
 PROM_PATCH_PID=$!
 echo "  $role: spawned prometheus-cr-patcher (PID=$PROM_PATCH_PID, log=$PROM_PATCH_LOG)"
 
+# Background periodic snapshot daemon (n=20 debug enhancement 2026-05-16):
+# At n=20 a per-cluster clustermesh-apiserver receives 19x the cross-cluster
+# event traffic of n=2. A "post-run" snapshot misses the PEAK pressure window
+# where saturation actually happens. This daemon captures lightweight state
+# every 60s for the duration of CL2 so we can correlate verdicts with peak
+# resource use ("when did mesh-7's apiserver start OOMing?") rather than
+# guess from end-state. ~5KB per minute × ~40min CL2 ≈ 200KB per cluster —
+# cheap. Failure of any kubectl call inside the loop is non-fatal (|| true).
+SNAPSHOT_LOG="$report_dir/snapshots.log"
+{
+  echo "[snapshot] starting; will sample every 60s until SIGTERM"
+  while true; do
+    _ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    echo "===== snapshot @ $_ts ====="
+    # 1. clustermesh-apiserver pod state (restart count + status)
+    echo "--- clustermesh-apiserver pods ---"
+    KUBECONFIG="$kubeconfig" kubectl -n kube-system get pods \
+      -l k8s-app=clustermesh-apiserver \
+      -o custom-columns=NAME:.metadata.name,STATUS:.status.phase,RESTARTS:.status.containerStatuses[*].restartCount,READY:.status.containerStatuses[*].ready \
+      2>&1 || true
+    # 2. cilium-agent restart counts (only pods with >0 restarts, to bound output)
+    echo "--- cilium-agent pods with restarts ---"
+    KUBECONFIG="$kubeconfig" kubectl -n kube-system get pods -l k8s-app=cilium \
+      -o jsonpath='{range .items[?(@.status.containerStatuses[0].restartCount > 0)]}{.metadata.name}{"\t"}{.status.containerStatuses[0].restartCount}{"\n"}{end}' \
+      2>&1 || true
+    # 3. monitoring/prometheus state
+    echo "--- prometheus-k8s ---"
+    KUBECONFIG="$kubeconfig" kubectl -n monitoring get pods -l app.kubernetes.io/name=prometheus \
+      -o custom-columns=NAME:.metadata.name,STATUS:.status.phase,RESTARTS:.status.containerStatuses[*].restartCount \
+      2>&1 || true
+    # 4. kubectl top (requires metrics-server which CL2 deploys). Capture
+    # top-5 mem consumers in kube-system to spot OOM trajectories early.
+    echo "--- top mem in kube-system ---"
+    KUBECONFIG="$kubeconfig" kubectl top pods -n kube-system --sort-by=memory --no-headers 2>/dev/null | head -5 || echo "(kubectl top unavailable)"
+    echo ""
+    sleep 60
+  done
+} > "$SNAPSHOT_LOG" 2>&1 &
+SNAPSHOT_PID=$!
+echo "  $role: spawned snapshot-daemon (PID=$SNAPSHOT_PID, log=$SNAPSHOT_LOG)"
+
+# Ensure background daemons get terminated when this script exits, regardless
+# of CL2 outcome (otherwise they'd linger past job end and keep hitting kube-
+# api).
+trap 'kill $PROM_PATCH_PID $SNAPSHOT_PID 2>/dev/null || true' EXIT
+
 cl2_passed=0
 # Run CL2; collect outcome WITHOUT failing on a non-zero exit (so we can
 # also inspect junit.xml for internal test failures even when CL2 exits
@@ -203,6 +249,36 @@ if [ "$cl2_passed" -ne 1 ]; then
 
   echo "------- monitoring namespace events (recent) -------"
   KUBECONFIG="$kubeconfig" kubectl -n monitoring get events --sort-by='.lastTimestamp' 2>&1 | tail -30 || true
+
+  # n=20 debug enhancement 2026-05-16 — extra diagnostics that matter at
+  # higher mesh sizes. The current per-cluster diag misses (a) live resource
+  # use at failure time, (b) cluster-wide Warning events outside monitoring/,
+  # (c) cross-cluster peer pair state from each cluster's POV.
+  echo "------- kube-system top pods (memory-sorted, n=20 OOM tracker) -------"
+  KUBECONFIG="$kubeconfig" kubectl top pods -n kube-system --sort-by=memory --no-headers 2>&1 | head -20 || true
+
+  echo "------- cluster-wide Warning events (recent, sorted by time) -------"
+  KUBECONFIG="$kubeconfig" kubectl get events --all-namespaces \
+    --field-selector type=Warning --sort-by='.lastTimestamp' 2>&1 | tail -30 || true
+
+  echo "------- node resource pressure (Allocated + Conditions) -------"
+  KUBECONFIG="$kubeconfig" kubectl describe nodes 2>&1 | \
+    grep -E "^Name:|MemoryPressure|DiskPressure|PIDPressure|Allocated resources|^  cpu|^  memory" | head -60 || true
+
+  echo "------- cilium clustermesh status (peer pair view from $role) -------"
+  if command -v cilium-cli >/dev/null 2>&1 || [ -x /usr/local/bin/cilium ]; then
+    CILIUM_BIN=$(command -v cilium-cli || command -v cilium || echo /usr/local/bin/cilium)
+    KUBECONFIG="$kubeconfig" "$CILIUM_BIN" clustermesh status --wait=false 2>&1 | head -40 || true
+  else
+    echo "(cilium-cli not in PATH; skipping clustermesh status)"
+  fi
+
+  echo "------- pod-snapshot tail (last 200 lines from periodic daemon) -------"
+  if [ -f "$SNAPSHOT_LOG" ]; then
+    tail -200 "$SNAPSHOT_LOG" || true
+  else
+    echo "(snapshot log not found at $SNAPSHOT_LOG)"
+  fi
   echo "------- end CL2 FAILURE DIAG -------"
 
   echo "##vso[task.logissue type=warning;] $role: CL2 run failed (junit missing or has failures/errors at $report_dir/junit.xml)"
