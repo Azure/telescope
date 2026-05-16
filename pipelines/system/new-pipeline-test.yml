@@ -195,24 +195,29 @@ stages:
             # rollup happens AFTER #6 lands. CL2 image, tfvars, and timeout
             # budget are identical to the prod pipeline so signals are
             # directly comparable.
-            n2_upper_bound:
-              cluster_count: 2
-              mesh_size: 2
-              cl2_config_file: upper-bound.yaml
-              test_type: upper-bound
-              namespaces: 5
-              deployments_per_namespace: 4
-              replicas_per_deployment: 10
-              hold_duration: 2m
-              warmup_duration: 30s
-              restart_count: 0
-              api_server_calls_per_second: 20
-              saturation_qps_list: "100,500,1500,4000,10000"
-              saturation_restarts_list: "1,2,4,8,15"
-              saturation_ops_per_sec_list: "0,0,0,0,0"
-              saturation_rung_duration_seconds: 240
-              saturation_settle_seconds: 90
-              trigger_reason: ${{ variables['Build.Reason'] }}
+            # ITER-ONLY 2026-05-16: n2_upper_bound commented out — build 67377
+            # already proved >10x headroom at n=2 (no saturation reached), so
+            # default dev runs now exercise only n20_upper_bound (high-fan-out
+            # mesh where a verdict is expected to trip). Restore alongside n=20
+            # later if A/B comparison runs are needed.
+            # n2_upper_bound:
+            #   cluster_count: 2
+            #   mesh_size: 2
+            #   cl2_config_file: upper-bound.yaml
+            #   test_type: upper-bound
+            #   namespaces: 5
+            #   deployments_per_namespace: 4
+            #   replicas_per_deployment: 10
+            #   hold_duration: 2m
+            #   warmup_duration: 30s
+            #   restart_count: 0
+            #   api_server_calls_per_second: 20
+            #   saturation_qps_list: "100,500,1500,4000,10000"
+            #   saturation_restarts_list: "1,2,4,8,15"
+            #   saturation_ops_per_sec_list: "0,0,0,0,0"
+            #   saturation_rung_duration_seconds: 240
+            #   saturation_settle_seconds: 90
+            #   trigger_reason: ${{ variables['Build.Reason'] }}
             # 2026-05-16: n=20 entry added to dev pipeline so the saturation
             # sweep on a high-fan-out mesh runs against the same NEW-sub +
             # branch as n2_upper_bound. Build 67377 proved n=2 has >10x
