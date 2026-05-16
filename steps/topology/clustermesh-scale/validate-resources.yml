@@ -61,7 +61,10 @@ steps:
   # Empirically at N=20, ~25% of clustermesh-apiserver LBs are still pending
   # IP assignment when terraform apply returns success, because Azure LB
   # provisioning happens asynchronously after Service creation. Per-cluster
-  # budget is 30 min — longer than any LB tail we've observed.
+  # budget: 30min at N=2/5/10, 90min at N=20 (build 67384 found Fleet's
+  # ClusterMeshProfile reconciler at N=20 rolls out clustermesh-apiserver in
+  # waves — 12/20 were ready in 6min, the other 8 had deployment=<none> even
+  # at 30min mark; Fleet itself is the bottleneck, not LB provisioning).
   # ----------------------------------------------------------------------------
   - script: |
       set -euo pipefail
@@ -69,6 +72,17 @@ steps:
 
       clusters=$(cat "$HOME/.kube/clustermesh-clusters.json")
       cluster_count=$(echo "$clusters" | jq 'length')
+
+      # Per-cluster timeout scales with mesh size. At N=20 Fleet reconciles
+      # in waves and 30 min is not enough (build 67384 evidence). 90 min
+      # covers worst-case observed; if Fleet itself is wedged the deadline
+      # surfaces it as failure rather than hanging the job indefinitely.
+      if [ "$cluster_count" -ge 15 ]; then
+        WAIT_BUDGET_SECONDS=5400  # 90 min
+      else
+        WAIT_BUDGET_SECONDS=1800  # 30 min — original budget for N<=10
+      fi
+      echo "Wait-for-apiserver per-cluster budget: ${WAIT_BUDGET_SECONDS}s (cluster_count=$cluster_count)"
 
       # Sequential kubeconfig fetch — parallel `az aks get-credentials`
       # writes race on the shared ~/.azure MSAL token cache (same reason
@@ -83,30 +97,56 @@ steps:
       done
 
       # Parallel poll for clustermesh-apiserver readiness on every cluster.
-      # Each subshell gets a 30-min budget; we collect failures rather than
-      # fail-fast on the first one so the operator sees the full set of
-      # slow LBs in one shot instead of one cluster at a time.
+      # Each subshell gets WAIT_BUDGET_SECONDS; we collect failures rather
+      # than fail-fast on the first one so the operator sees the full set of
+      # slow Fleet reconciles in one shot instead of one cluster at a time.
+      #
+      # Periodic diagnostic dump every 5 min (build 67384 enhancement):
+      # if a cluster's deployment is still <none> after 5 min we log what
+      # Fleet's seen on that cluster so we can distinguish "Fleet hasn't
+      # pushed the config yet" from "config pushed but Helm release stuck".
       pids=()
       roles=()
       for row in $(echo "$clusters" | jq -c '.[]'); do
         role=$(echo "$row" | jq -r '.role')
         (
           kc="$HOME/.kube/$role.config"
-          deadline=$(( $(date +%s) + 1800 ))
+          deadline=$(( $(date +%s) + WAIT_BUDGET_SECONDS ))
+          start=$(date +%s)
           last_state=""
+          last_diag=$start
           while [ "$(date +%s)" -lt "$deadline" ]; do
             avail=$(KUBECONFIG="$kc" kubectl -n kube-system get deployment clustermesh-apiserver \
                 -o jsonpath='{.status.conditions[?(@.type=="Available")].status}' 2>/dev/null || true)
             ip=$(KUBECONFIG="$kc" kubectl -n kube-system get svc clustermesh-apiserver \
                 -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
             if [ "$avail" = "True" ] && [ -n "$ip" ]; then
-              echo "[$role] OK (deployment=Available, LB IP=$ip)"
+              elapsed=$(( $(date +%s) - start ))
+              echo "[$role] OK (deployment=Available, LB IP=$ip, elapsed=${elapsed}s)"
               exit 0
             fi
             last_state="deployment=${avail:-<none>}, LB=${ip:-<none>}"
+            # 5-min diagnostic snapshot if deployment hasn't appeared yet.
+            now=$(date +%s)
+            if [ "$avail" = "" ] && [ $(( now - last_diag )) -ge 300 ]; then
+              elapsed=$(( now - start ))
+              echo "[$role] DIAG @ t+${elapsed}s: clustermesh-apiserver deployment not yet created"
+              # Does the namespace at least have ANY clustermesh-* resources?
+              echo "[$role] DIAG: kube-system clustermesh-* resources:"
+              KUBECONFIG="$kc" kubectl -n kube-system get all -l app.kubernetes.io/name=clustermesh-apiserver 2>&1 | head -5 || true
+              # Has Cilium itself come up? (Fleet may have pushed Cilium values but not enabled clustermesh yet)
+              echo "[$role] DIAG: cilium-agent DaemonSet:"
+              KUBECONFIG="$kc" kubectl -n kube-system get ds cilium 2>&1 | head -3 || true
+              # Recent kube-system Warning events (e.g., ImagePullBackOff)
+              echo "[$role] DIAG: recent kube-system Warning events:"
+              KUBECONFIG="$kc" kubectl -n kube-system get events \
+                --field-selector type=Warning --sort-by='.lastTimestamp' 2>&1 | tail -5 || true
+              last_diag=$now
+            fi
             sleep 15
           done
-          echo "[$role] FAIL: clustermesh-apiserver not ready within 30 min ($last_state)" >&2
+          elapsed=$(( $(date +%s) - start ))
+          echo "[$role] FAIL: clustermesh-apiserver not ready within $(( WAIT_BUDGET_SECONDS / 60 )) min ($last_state, elapsed=${elapsed}s)" >&2
           exit 1
         ) &
         pids+=("$!")
@@ -116,7 +156,7 @@ steps:
       failed=0
       for i in "${!pids[@]}"; do
         if ! wait "${pids[$i]}"; then
-          echo "##vso[task.logissue type=error;] ${roles[$i]}: clustermesh-apiserver not ready within 30 min"
+          echo "##vso[task.logissue type=error;] ${roles[$i]}: clustermesh-apiserver not ready within $(( WAIT_BUDGET_SECONDS / 60 )) min"
           failed=$((failed + 1))
         fi
       done
