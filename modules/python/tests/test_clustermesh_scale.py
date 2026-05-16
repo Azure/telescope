@@ -1429,8 +1429,8 @@ class TestMainArgumentParsing(unittest.TestCase):
             node_replace_batch_size=10,
             node_churn_ready_timeout_seconds=300,
             saturation_qps_list="100,500,1500,4000,10000",
-            saturation_restarts_list="0,0,0,0,0",
-            saturation_ops_per_sec_list="1,10,100,1000,5000",
+            saturation_restarts_list="1,2,4,8,15",
+            saturation_ops_per_sec_list="0,0,0,0,0",
             saturation_rung_duration_seconds=240,
             saturation_settle_seconds=90,
         )
@@ -1991,8 +1991,8 @@ class TestConfigureSaturationKnobs(unittest.TestCase):
             with open(tmp_path, "r", encoding="utf-8") as f:
                 content = f.read()
             self.assertIn('CL2_SATURATION_QPS_LIST: "100,500,1500,4000,10000"', content)
-            self.assertIn('CL2_SATURATION_OPS_PER_SEC_LIST: "1,10,100,1000,5000"', content)
-            self.assertIn('CL2_SATURATION_RESTARTS_LIST: "0,0,0,0,0"', content)
+            self.assertIn('CL2_SATURATION_OPS_PER_SEC_LIST: "0,0,0,0,0"', content)
+            self.assertIn('CL2_SATURATION_RESTARTS_LIST: "1,2,4,8,15"', content)
             self.assertIn("CL2_SATURATION_RUNG_DURATION_SECONDS: 240", content)
             self.assertIn("CL2_SATURATION_SETTLE_SECONDS: 90", content)
         finally:

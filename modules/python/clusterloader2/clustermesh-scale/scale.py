@@ -119,8 +119,8 @@ def configure_clusterloader2(
     node_replace_batch_size=10,
     node_churn_ready_timeout_seconds=300,
     saturation_qps_list="100,500,1500,4000,10000",
-    saturation_restarts_list="0,0,0,0,0",
-    saturation_ops_per_sec_list="1,10,100,1000,5000",
+    saturation_restarts_list="1,2,4,8,15",
+    saturation_ops_per_sec_list="0,0,0,0,0",
     saturation_rung_duration_seconds=240,
     saturation_settle_seconds=90,
 ):
@@ -1491,26 +1491,27 @@ def main():
                          "uncapped for our 20-deployment workload (CL2 apply "
                          "throughput is the ceiling, not QPS itself); "
                          "saturation_restarts_list is the real load lever.")
-    pc.add_argument("--saturation-restarts-list", type=str, default="0,0,0,0,0",
-                    help="Comma-separated list of restart counts, one per saturation "
-                         "rung. Default ALL ZEROS in Phase B 2026-05-15 — restart-burst "
-                         "workload (Phase A) explodes Prometheus cardinality and OOMs "
-                         "the monitoring stack before reaching ClusterMesh SUT "
-                         "saturation. Phase B replaces restart-bursts with label-flip "
-                         "churn (see --saturation-ops-per-sec-list). Keep restarts=0 "
-                         "for pure Phase B; non-zero values run BOTH patterns per rung "
-                         "(useful for A/B comparison runs only).")
-    pc.add_argument("--saturation-ops-per-sec-list", type=str, default="1,10,100,1000,5000",
-                    help="Comma-separated list of target label-flip rates (ops/sec), "
-                         "one per saturation rung. Phase B 2026-05-15 — primary load "
-                         "axis. Each label flip = one kubectl call on a workload pod, "
-                         "triggering a Cilium identity recompute → kvstore event → "
-                         "cross-cluster propagation. Drives ClusterMesh events "
-                         "without exploding Prometheus cardinality (same pods, same "
-                         "IPs, same Prom series per rung). At high rates (>500/s) "
-                         "kubectl latency becomes the effective ceiling; the "
-                         "actual-ops-per-second emitted in LabelChurnTimings_*.json "
-                         "records what was achieved.")
+    pc.add_argument("--saturation-restarts-list", type=str, default="1,2,4,8,15",
+                    help="Comma-separated list of restart counts per saturation "
+                         "rung. PRIMARY LOAD AXIS in Phase C 2026-05-15 — drives "
+                         "rolling restarts on workload Deployments via the CL2-"
+                         "native event-throughput-workload module, rate-limited "
+                         "by saturation_qps_list[i] tuningSet. Default "
+                         "'1,2,4,8,15' keeps worst-case pod cardinality at "
+                         "200×15=3000 (well below the ~30k that OOM'd Prom in "
+                         "Phase A builds 67224/67279/67300).")
+    pc.add_argument("--saturation-ops-per-sec-list", type=str, default="0,0,0,0,0",
+                    help="Comma-separated list of target label-flip rates "
+                         "(ops/sec), one per saturation rung. RETAINED in "
+                         "Phase C as an optional hook for a future client-go "
+                         "(kube-burner-style) workload driver. Default all "
+                         "zeros = label-churner Method:Exec is OFF (kubectl "
+                         "shell-out capped at ~1 op/s in build 67322, not a "
+                         "useful saturation generator). When >0, runs the "
+                         "label-churner in addition to restart bursts; "
+                         "LabelChurnTimings_Rung<N>.json is picked up by "
+                         "collect's classifier into each SaturationRung row's "
+                         "label_churn block.")
     pc.add_argument("--saturation-rung-duration-seconds", type=int, default=240,
                     help="Wall-clock duration each rung holds after its restart-burst "
                          "before measurements are gathered. Drives the per-rung "
