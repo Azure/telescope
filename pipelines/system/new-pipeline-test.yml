@@ -213,6 +213,34 @@ stages:
               saturation_rung_duration_seconds: 240
               saturation_settle_seconds: 90
               trigger_reason: ${{ variables['Build.Reason'] }}
+            # 2026-05-16: n=20 entry added to dev pipeline so the saturation
+            # sweep on a high-fan-out mesh runs against the same NEW-sub +
+            # branch as n2_upper_bound. Build 67377 proved n=2 has >10x
+            # headroom on every signal (no saturation reached). At n=20 each
+            # clustermesh-apiserver receives 19x peer event traffic per local
+            # op, so identical workload defaults should trip a verdict on at
+            # least one of the higher rungs. tfvars azure-20 uses D4_v3 /
+            # D8_v3 (non-s SKU) — standardDv3Family on the NEW sub has 4992
+            # free vCPU (vs 384 on DSv3 family), comfortably fits the 1760
+            # vCPU footprint.
+            n20_upper_bound:
+              cluster_count: 20
+              mesh_size: 20
+              cl2_config_file: upper-bound.yaml
+              test_type: upper-bound
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              saturation_qps_list: "100,500,1500,4000,10000"
+              saturation_restarts_list: "1,2,4,8,15"
+              saturation_ops_per_sec_list: "0,0,0,0,0"
+              saturation_rung_duration_seconds: 240
+              saturation_settle_seconds: 90
+              trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           # n=2 share-infra (5 scenarios): provision (~15min) + validate (~5min)
           # + 5 × CL2 (~25min each, with 60s settle between) + destroy (~15min)
