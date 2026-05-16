@@ -280,13 +280,17 @@ def execute_clusterloader2(
         scrape_kubelets=True,
         scrape_ksm=True,
         scrape_metrics_server=True,
-        # CL2 default is 10Gi which doesn't fit a Standard_D4s_v4 / 16GB node
-        # after k8s + Cilium overhead. Override via the CLI flag rather than
-        # `CL2_PROMETHEUS_MEMORY_REQUEST` overrides.yaml key — that key is not
-        # honored by this CL2 image (verified via prometheus-operator log
-        # showing PrometheusMemoryRequest:10Gi at runtime). Pair this with
-        # CL2_PROMETHEUS_MEMORY_LIMIT in the overrides file so request <= limit.
-        prometheus_memory_request="1Gi",
+        # CL2's prometheus.go applies a hardcoded 2x request→limit ratio when
+        # creating the Prometheus CR. Passing request=6Gi yields limit=12Gi.
+        # Prom is pinned to the dedicated `prompool` node (selector at line
+        # ~152, all tiers use D8s_v3/v5 = 32GB RAM) so 12Gi limit leaves
+        # ~20GB headroom for kubelet + sidecars on that node. The
+        # `CL2_PROMETHEUS_MEMORY_LIMIT` overrides.yaml key written above is
+        # NOT honored by current CL2 image (verified in build 67335: Prom CR
+        # spec showed limit=2Gi despite overrides=12Gi → OOM crashloop mid-
+        # scenario). The `--prometheus-memory-request` CLI flag is the real
+        # control surface for memory budget.
+        prometheus_memory_request="6Gi",
     )
 
 
