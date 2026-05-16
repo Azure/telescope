@@ -1,0 +1,13 @@
+{
+  "version": "v1",
+  "dataItems": [
+    {
+      "labels": {
+        "Metric": "Perc99"
+      },
+      "data": {
+        "value": 99.9
+      }
+    }
+  ]
+}

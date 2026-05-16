@@ -1,0 +1,402 @@
+parameters:
+  - name: cloud
+    type: string
+  - name: engine
+    type: string
+  - name: regions
+    type: object
+
+steps:
+  # -----------------------------------------------------------------------------
+  # Per-cluster validation: enumerate every fleet member, fetch its kubeconfig,
+  # assert nodes are Ready, cilium agent is Running, and the cluster reports
+  # mesh state Connected to all (N-1) remote clusters.
+  #
+  # Cluster discovery uses the same tag-based pattern as
+  # /steps/cloud/azure/update-kubeconfig.yml — clusters are tagged
+  # role=mesh-N at terraform-apply time.
+  # -----------------------------------------------------------------------------
+  - script: |
+      set -euo pipefail
+      set -x
+
+      region=${{ parameters.regions[0] }}
+
+      # JSON list of {name, rg, role} for every clustermesh AKS cluster in this run.
+      clusters=$(az resource list \
+        --resource-type Microsoft.ContainerService/managedClusters \
+        --location "$region" \
+        --query "[?tags.run_id=='${RUN_ID}' && starts_with(tags.role, 'mesh-')].{name:name, rg:resourceGroup, role:tags.role}" \
+        -o json)
+
+      count=$(echo "$clusters" | jq 'length')
+      if [ "$count" -lt 2 ]; then
+        echo "##vso[task.logissue type=error;] Expected >=2 clustermesh AKS clusters tagged run_id=${RUN_ID}, found $count"
+        exit 1
+      fi
+
+      echo "Discovered $count clustermesh clusters:"
+      echo "$clusters" | jq -r '.[] | "  \(.role): \(.name) in \(.rg)"'
+
+      mkdir -p "$HOME/.kube"
+      echo "$clusters" > "$HOME/.kube/clustermesh-clusters.json"
+
+      echo "##vso[task.setvariable variable=CLUSTERMESH_COUNT]$count"
+    displayName: "Enumerate clustermesh clusters"
+
+  - script: |
+      set -euo pipefail
+      set -x
+
+      clusters=$(cat "$HOME/.kube/clustermesh-clusters.json")
+      expected_remote=$(( $(echo "$clusters" | jq 'length') - 1 ))
+
+      failures=0
+      for row in $(echo "$clusters" | jq -c '.[]'); do
+        name=$(echo "$row" | jq -r '.name')
+        rg=$(echo "$row"   | jq -r '.rg')
+        role=$(echo "$row" | jq -r '.role')
+
+        echo "===================================================================="
+        echo "  Validating $role ($name)"
+        echo "===================================================================="
+
+        # Per-cluster kubeconfig file at $HOME/.kube/<role>.config — keeps each
+        # cluster's auth state isolated so concurrent kubectl calls don't race.
+        kubeconfig="$HOME/.kube/$role.config"
+        KUBECONFIG="$kubeconfig" az aks get-credentials \
+          --resource-group "$rg" --name "$name" --overwrite-existing --only-show-errors
+
+        export KUBECONFIG="$kubeconfig"
+
+        echo "--- nodes ---"
+        kubectl get nodes -o wide
+        kubectl wait --for=condition=Ready nodes --all --timeout=5m
+
+        echo "--- cilium agent pods ---"
+        kubectl -n kube-system get pods -l k8s-app=cilium -o wide
+        kubectl -n kube-system rollout status ds/cilium --timeout=5m
+
+        echo "--- clustermesh-apiserver pod ---"
+        kubectl -n kube-system get pods -l k8s-app=clustermesh-apiserver -o wide || true
+
+        # Surface the apiserver/kvstoremesh container ports so we can confirm
+        # the PodMonitor scrape targets (expected: apiserver=9963, kvstoremesh=9964)
+        # without needing to drop into a pod. Informational only — does not gate.
+        echo "--- clustermesh-apiserver exposed ports ---"
+        kubectl -n kube-system get pod -l k8s-app=clustermesh-apiserver \
+          -o jsonpath='{range .items[*].spec.containers[*]}{.name}:{range .ports[*]}{.name}={.containerPort} {end}{"\n"}{end}' \
+          2>/dev/null || true
+        echo
+
+        echo "--- cilium-dbg status (ClusterMesh section) ---"
+        # Retry up to ~5 minutes — the mesh propagation can lag a few seconds
+        # past az fleet clustermeshprofile apply's return.
+        # We use `cilium-dbg status` (in-pod debug binary) rather than the
+        # external `cilium clustermesh status` so we don't require cilium-cli
+        # on the agent. cilium-dbg status includes a "ClusterMesh:" block of
+        # the form:
+        #   ClusterMesh:   2/2 remote clusters ready, 0 global-services
+        #      mesh-2: ready, ...
+        # Retry up to ~10 minutes — the AKS-managed Cilium operator publishes
+        # the per-agent `cilium-clustermesh` Secret asynchronously after Fleet
+        # finishes profile apply, and the clustermesh-apiserver may be
+        # recreated mid-validation (cert/config rotation), bumping the wait
+        # another ~30s for agents to reload. Empirically 5 min was too tight
+        # for whichever cluster gets validated first; 10 min covers it with
+        # margin.
+        #
+        # Note: `cilium-dbg status` (in-pod, agent's local view) and
+        # `cilium clustermesh status` (CLI, queries clustermesh-apiserver) can
+        # disagree for several minutes during this window — the CLI flips to
+        # "configured/connected" first because it counts apiserver clients,
+        # while the in-pod view requires the Secret to be reloaded. We gate on
+        # the in-pod view because the data path needs the agent's local state.
+        connected=0
+        for i in $(seq 1 60); do
+          out=$(kubectl -n kube-system exec ds/cilium -- cilium-dbg status 2>&1 || true)
+          echo "$out"
+          # Parse "<ready>/<total> remote clusters ready" line.
+          ready=$(echo "$out" | sed -nE 's/.*ClusterMesh:[[:space:]]+([0-9]+)\/[0-9]+ remote clusters ready.*/\1/p' | head -1)
+          ready=${ready:-0}
+          if [ "$ready" -ge "$expected_remote" ]; then
+            connected=1
+            break
+          fi
+
+          # ============== DEBUG-DUMP-BEGIN (REMOVE BEFORE MERGE) ==============
+          # Every 6 iterations dump richer state: in-pod cilium-cli view of the
+          # mesh, clustermesh-apiserver pod state, and Fleet-side member status.
+          # These help diagnose why convergence is stalling. Strip before final
+          # PR review.
+          if [ "$((i % 6))" -eq 0 ]; then
+            echo "------- [debug] retry $i: cilium clustermesh status (runner cli) -------"
+            cilium clustermesh status --context "$(kubectl config current-context)" --wait=false 2>&1 || true
+
+            echo "------- [debug] retry $i: clustermesh-apiserver pods -------"
+            kubectl -n kube-system get pods -l k8s-app=clustermesh-apiserver -o wide 2>&1 || true
+            kubectl -n kube-system describe pods -l k8s-app=clustermesh-apiserver 2>&1 | tail -40 || true
+
+            echo "------- [debug] retry $i: clustermesh-apiserver service -------"
+            # Service of type LoadBalancer for the clustermesh-apiserver. If
+            # EXTERNAL-IP stays "<pending>", the AKS control-plane identity is
+            # missing Network Contributor on the VNet (cloud-controller-manager
+            # cannot provision the internal LB). Look in describe events for
+            # AuthorizationFailed / forbidden messages.
+            kubectl -n kube-system get svc clustermesh-apiserver -o wide 2>&1 || true
+            kubectl -n kube-system describe svc clustermesh-apiserver 2>&1 | tail -25 || true
+
+            echo "------- [debug] retry $i: cilium agent restarts / readiness -------"
+            kubectl -n kube-system get pods -l k8s-app=cilium -o wide 2>&1 || true
+
+            echo "------- [debug] retry $i: Fleet ClusterMeshProfile profile-level status -------"
+            # Profile-level mesh state (NotConnected/Connecting/Connected/Failed)
+            # plus the last operation error if any. This is the authoritative
+            # control-plane view of whether the mesh has converged.
+            az fleet clustermeshprofile show \
+              --resource-group "$rg" \
+              --fleet-name clustermesh-flt \
+              --name clustermesh-cmp \
+              --query "{state:properties.status.state, provisioningState:properties.provisioningState, lastError:properties.status.lastOperationError}" \
+              -o jsonc 2>&1 || true
+
+            echo "------- [debug] retry $i: Fleet ClusterMeshProfile members (connection state) -------"
+            # Per-member: provisioningState is just ARM-level (join accepted);
+            # meshProperties.status.state is the actual Cilium connection state.
+            az fleet clustermeshprofile list-members \
+              --resource-group "$rg" \
+              --fleet-name clustermesh-flt \
+              --name clustermesh-cmp \
+              --query "[].{name:name, provisioning:properties.provisioningState, mesh:properties.meshProperties.status.state, lastUpdated:properties.meshProperties.status.lastUpdatedAt, error:properties.meshProperties.status.error.message}" \
+              -o table 2>&1 || true
+          fi
+          # =============== DEBUG-DUMP-END (REMOVE BEFORE MERGE) ===============
+
+          echo "  waiting for $expected_remote remote clusters to be ready (got $ready), retry $i/60..."
+          sleep 10
+        done
+
+        if [ "$connected" -ne 1 ]; then
+          echo "##vso[task.logissue type=error;] $role: clustermesh not Connected to $expected_remote remote clusters"
+          failures=$((failures + 1))
+        fi
+
+        echo "--- cilium clustermesh status (runner-side, richer diagnostics) ---"
+        # Best-effort, informational only — failures here don't fail the step
+        # because the in-pod check above is authoritative. cilium-cli reports
+        # per-remote connection state, endpoint counts, and version info.
+        cilium clustermesh status --context "$(kubectl config current-context)" --wait=false || true
+      done
+
+      if [ "$failures" -gt 0 ]; then
+        echo "##vso[task.logissue type=error;] $failures cluster(s) failed mesh validation"
+        exit 1
+      fi
+    displayName: "Validate Cilium + ClusterMesh on every cluster"
+
+  - script: |
+      set -euo pipefail
+      set -x
+
+      # Cross-cluster data-path smoke: deploy a `global` service backed by an
+      # echo pod in the first cluster, deploy a curl client in the second
+      # cluster, and curl the service by name. If global service load-balancing
+      # works, the request resolves cross-cluster via the mesh data path.
+      #
+      # Per plan.md Phase 1 exit criteria, we don't ship a "green" Phase 1 that
+      # only validated control plane.
+
+      clusters=$(cat "$HOME/.kube/clustermesh-clusters.json")
+      first_role=$(echo  "$clusters" | jq -r '.[0].role')
+      second_role=$(echo "$clusters" | jq -r '.[1].role')
+
+      kc_first="$HOME/.kube/$first_role.config"
+      kc_second="$HOME/.kube/$second_role.config"
+
+      ns="cm-smoke"
+
+      cleanup() {
+        KUBECONFIG="$kc_first"  kubectl delete ns "$ns" --ignore-not-found --wait=false || true
+        KUBECONFIG="$kc_second" kubectl delete ns "$ns" --ignore-not-found --wait=false || true
+      }
+      trap cleanup EXIT
+
+      cat <<'EOF' > /tmp/cm-smoke-server.yaml
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: cm-smoke
+        annotations:
+          # AKS managed Cilium gates clustermesh sync at the *namespace* level
+          # by default (CFP-39876, "managed Cilium" change). Without this,
+          # neither pod identities, endpoints, nor services in this namespace
+          # are synced across clusters — even with service.cilium.io/global on
+          # the Service. This is the load-bearing annotation here; the
+          # service-level one below is kept for explicitness.
+          clustermesh.cilium.io/global: "true"
+      ---
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: echo
+        namespace: cm-smoke
+      spec:
+        replicas: 1
+        selector:
+          matchLabels: { app: echo }
+        template:
+          metadata:
+            labels: { app: echo }
+          spec:
+            containers:
+              - name: echo
+                image: registry.k8s.io/e2e-test-images/agnhost:2.47
+                args: ["netexec", "--http-port=8080"]
+                ports: [{ containerPort: 8080 }]
+      ---
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: echo
+        namespace: cm-smoke
+        annotations:
+          # The namespace annotation above is what actually gates sync in AKS
+          # managed Cilium; this service-level annotation is kept for explicit
+          # intent and forward-compatibility.
+          service.cilium.io/global: "true"
+      spec:
+        selector: { app: echo }
+        ports:
+          - port: 80
+            targetPort: 8080
+      EOF
+
+      cat <<'EOF' > /tmp/cm-smoke-client.yaml
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: cm-smoke
+        annotations:
+          clustermesh.cilium.io/global: "true"
+      ---
+      # Cilium global services require the same Service name to exist in every
+      # participating cluster. The Service in cluster 2 has no local backends;
+      # cross-cluster lookup resolves to cluster 1's pods via the mesh.
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: echo
+        namespace: cm-smoke
+        annotations:
+          service.cilium.io/global: "true"
+      spec:
+        selector: { app: echo }
+        ports:
+          - port: 80
+            targetPort: 8080
+      ---
+      apiVersion: v1
+      kind: Pod
+      metadata:
+        name: curl
+        namespace: cm-smoke
+        labels: { app: curl }
+      spec:
+        restartPolicy: Never
+        containers:
+          - name: curl
+            image: curlimages/curl:8.10.1
+            command: ["sleep", "600"]
+      EOF
+
+      KUBECONFIG="$kc_first"  kubectl apply -f /tmp/cm-smoke-server.yaml
+      KUBECONFIG="$kc_second" kubectl apply -f /tmp/cm-smoke-client.yaml
+
+      KUBECONFIG="$kc_first"  kubectl -n "$ns" rollout status deploy/echo --timeout=3m
+      KUBECONFIG="$kc_second" kubectl -n "$ns" wait --for=condition=Ready pod/curl --timeout=3m
+
+      # Give Cilium clustermesh a moment to sync the new global Service from
+      # cluster 1 → cluster 2 before the first curl attempt. Empirically this
+      # is sub-second once mesh is converged, but we've already paid the cost
+      # of waiting for rollouts above so a small settle here doesn't matter.
+      sleep 15
+
+      # Try for 2 minutes — global service endpoints can take a few seconds
+      # to populate via the mesh.
+      ok=0
+      for i in $(seq 1 24); do
+        if KUBECONFIG="$kc_second" kubectl -n "$ns" exec curl -- \
+            curl -fsS -m 5 http://echo.cm-smoke.svc.cluster.local/hostname; then
+          ok=1
+          echo ""
+          echo "Cross-cluster curl succeeded on attempt $i"
+          break
+        fi
+        echo "  attempt $i/24 failed, retrying in 5s..."
+        sleep 5
+      done
+
+      if [ "$ok" -ne 1 ]; then
+        # ============== SMOKE-FAILURE-DEBUG-DUMP (REMOVE BEFORE MERGE) ==============
+        # On failure, dump enough state to distinguish Cilium global-service
+        # sync issues from cross-VNet pod-IP routing issues. Specifically:
+        #   1. cilium clustermesh status — should show "Global services: 1" if sync OK
+        #   2. cilium service list (in-pod) — should have an entry for cm-smoke/echo
+        #      with remote-cluster backends in cluster 2
+        #   3. kubectl describe svc / get endpoints echo — k8s view (cluster 2 should
+        #      have NO local endpoints, that's expected)
+        #   4. From inside the curl pod: DNS resolve, then direct-IP curl to a
+        #      cluster-1 echo pod IP — bypasses ClusterIP, tests raw L3 across VNets
+        echo
+        echo "================ SMOKE FAILURE DIAG (cluster $first_role -- backend) ================"
+        KUBECONFIG="$kc_first"  cilium clustermesh status --context "$(KUBECONFIG="$kc_first"  kubectl config current-context)" --wait=false 2>&1 || true
+        KUBECONFIG="$kc_first"  kubectl -n "$ns" describe svc echo 2>&1 || true
+        KUBECONFIG="$kc_first"  kubectl -n "$ns" get endpoints echo -o wide 2>&1 || true
+        KUBECONFIG="$kc_first"  kubectl -n "$ns" get pods -l app=echo -o wide 2>&1 || true
+        echo "------- $first_role: cilium-config (clustermesh-relevant flags) -------"
+        # Authoritative source for whether the cilium agent is configured to
+        # process global services. Look for: enable-cluster-mesh,
+        # cluster-mesh-shared-services, clustermesh-config, identity-allocation-mode,
+        # enable-services. AKS/ACNS may gate global services with a feature flag.
+        KUBECONFIG="$kc_first"  kubectl -n kube-system get cm cilium-config -o yaml 2>&1 \
+          | grep -iE 'cluster-mesh|clustermesh|service|global|identity' || true
+        echo "------- $first_role: cilium service list (full, head 40) -------"
+        KUBECONFIG="$kc_first"  kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium service list 2>&1 | head -40 || true
+        echo "------- $first_role: cilium-operator logs (tail 60) -------"
+        KUBECONFIG="$kc_first"  kubectl -n kube-system logs -l io.cilium/app=operator --tail=60 2>&1 \
+          | grep -iE 'global|clustermesh|cluster-mesh|cm-smoke|service' || true
+
+        echo
+        echo "================ SMOKE FAILURE DIAG (cluster $second_role -- client) ================"
+        KUBECONFIG="$kc_second" cilium clustermesh status --context "$(KUBECONFIG="$kc_second" kubectl config current-context)" --wait=false 2>&1 || true
+        KUBECONFIG="$kc_second" kubectl -n "$ns" describe svc echo 2>&1 || true
+        KUBECONFIG="$kc_second" kubectl -n "$ns" get endpoints echo -o wide 2>&1 || true
+        echo "------- $second_role: cilium-config (clustermesh-relevant flags) -------"
+        KUBECONFIG="$kc_second" kubectl -n kube-system get cm cilium-config -o yaml 2>&1 \
+          | grep -iE 'cluster-mesh|clustermesh|service|global|identity' || true
+        echo "------- $second_role: cilium service list (full, head 40) -------"
+        KUBECONFIG="$kc_second" kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium service list 2>&1 | head -40 || true
+        echo "------- $second_role: cilium-operator logs (tail 60) -------"
+        KUBECONFIG="$kc_second" kubectl -n kube-system logs -l io.cilium/app=operator --tail=60 2>&1 \
+          | grep -iE 'global|clustermesh|cluster-mesh|cm-smoke|service' || true
+
+        echo
+        echo "------- DNS + direct-pod-IP probe from curl pod (bypass ClusterIP) -------"
+        # ClusterIP plumbing is a Cilium-clustermesh concern; direct pod-IP
+        # connectivity is a VNet-peering concern. Hitting a backend pod IP
+        # directly disambiguates the two failure modes.
+        KUBECONFIG="$kc_second" kubectl -n "$ns" exec curl -- nslookup echo.cm-smoke.svc.cluster.local 2>&1 || true
+        backend_ip=$(KUBECONFIG="$kc_first" kubectl -n "$ns" get pod -l app=echo -o jsonpath='{.items[0].status.podIP}' 2>/dev/null || true)
+        echo "first cluster's echo pod IP: ${backend_ip:-<none>}"
+        if [ -n "${backend_ip:-}" ]; then
+          KUBECONFIG="$kc_second" kubectl -n "$ns" exec curl -- \
+            curl -fsS -m 5 "http://${backend_ip}:8080/hostname" 2>&1 || \
+            echo "  direct pod-IP curl ALSO failed → cross-VNet routing issue (peering / pod-CIDR routes)"
+        fi
+        echo "============================ END SMOKE DIAG ============================"
+        # =========================== END SMOKE-FAILURE-DEBUG-DUMP ===========================
+
+        echo "##vso[task.logissue type=error;] Cross-cluster data-path smoke failed: $second_role could not reach service in $first_role"
+        exit 1
+      fi
+    displayName: "Cross-cluster data-path smoke (global service curl)"

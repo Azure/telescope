@@ -33,15 +33,19 @@ stages:
           terraform_input_file_mapping:
             - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-2.tfvars"
           matrix:
-            # Mirror pipelines/perf-eval/Network Benchmark/clustermesh-scale.yml
-            # so dev runs use the same matrix-var plumbing as production.
-            # Auto-exported as uppercase env vars (NAMESPACES, MESH_SIZE, etc.)
-            # by AzDO and consumed in steps/engine/clusterloader2/clustermesh-scale/execute.yml.
-            #
-            # Production clustermesh-scale.yml also has an `n2` trivial-vertical-slice
-            # entry. We don't run it in dev — n2_event_throughput already exercises
-            # the full plumbing and per-run cost (full Fleet/AKS lifecycle ~15-20 min)
-            # makes a second axis expensive during iteration.
+            n2:
+              cluster_count: 2
+              mesh_size: 2
+              cl2_config_file: config.yaml
+              test_type: default-config
+              namespaces: 1
+              deployments_per_namespace: 2
+              replicas_per_deployment: 2
+              hold_duration: 30s
+              warmup_duration: 10s
+              restart_count: 0
+              api_server_calls_per_second: 5
+              trigger_reason: ${{ variables['Build.Reason'] }}
             n2_event_throughput:
               cluster_count: 2
               mesh_size: 2
@@ -60,7 +64,6 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
           # Iteration-only: skip uploading results to the telescope blob while
-          # we're still stabilizing the clustermesh-scale pipeline. Mirrors the
-          # same flag in pipelines/perf-eval/Network Benchmark/clustermesh-scale.yml.
-          # Flip to false (or remove) once results are meaningful.
+          # we're still stabilizing the clustermesh-scale pipeline. Flip to
+          # false (or remove) once results are meaningful.
           skip_publish: true
