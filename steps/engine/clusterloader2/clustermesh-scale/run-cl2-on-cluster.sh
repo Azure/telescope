@@ -54,6 +54,56 @@ echo "===================================================================="
 echo "  Running CL2 on $role"
 echo "===================================================================="
 
+# Background Prometheus memory-limit patcher (Phase D fix 2026-05-16):
+# CL2's bundled prometheus manifest hardcodes `resources.limits.memory: 2Gi`
+# AND CL2 exposes only `--prometheus-memory-request` (not -limit) as a CLI
+# knob. Build 67335 raised the request to 6Gi → k8s admission rejected the
+# Prom StatefulSet with `requests: "6Gi" must be <= memory limit of 2Gi`
+# → Prom was never created → every gather query returned "no endpoints
+# available". Build 67347 used a 1Gi request (so request<=limit holds) but
+# the 2Gi limit then OOM'd Prom under our cardinality, crashlooping mid-run.
+#
+# We can't change the CL2 image, but we CAN patch the Prometheus CR after
+# prometheus-operator creates it. Run a polling background process that
+# waits for the CR to exist, patches its `spec.resources.limits.memory` to
+# 12Gi, then exits. Prom-operator reconciles the StatefulSet within a few
+# seconds of the patch. The polling is cheap (1 kubectl get per 3s) and
+# safely no-ops if the CR never appears (e.g. enable_prometheus=False
+# scenarios).
+PROM_LIMIT="${CL2_PROMETHEUS_MEMORY_LIMIT_GI:-12}Gi"
+PROM_PATCH_LOG="$report_dir/prom-cr-patch.log"
+{
+  echo "[prom-patcher] starting; target limit=$PROM_LIMIT" >&2
+  _deadline=$(( $(date +%s) + 600 ))  # 10min budget — CL2 startup well under
+  _patched=0
+  while [ "$(date +%s)" -lt "$_deadline" ]; do
+    if KUBECONFIG="$kubeconfig" kubectl -n monitoring get prometheus k8s \
+         -o jsonpath='{.spec.resources.limits.memory}' 2>/dev/null | grep -q .; then
+      _current=$(KUBECONFIG="$kubeconfig" kubectl -n monitoring get prometheus k8s \
+                  -o jsonpath='{.spec.resources.limits.memory}' 2>/dev/null || echo "")
+      echo "[prom-patcher] found prometheus/k8s CR (current limit=$_current), patching to $PROM_LIMIT" >&2
+      if KUBECONFIG="$kubeconfig" kubectl -n monitoring patch prometheus k8s \
+           --type=merge -p "{\"spec\":{\"resources\":{\"limits\":{\"memory\":\"$PROM_LIMIT\"}}}}" >&2; then
+        echo "[prom-patcher] patch OK; verifying reconcile..." >&2
+        sleep 5
+        _new=$(KUBECONFIG="$kubeconfig" kubectl -n monitoring get prometheus k8s \
+                -o jsonpath='{.spec.resources.limits.memory}' 2>/dev/null || echo "")
+        echo "[prom-patcher] post-patch limit=$_new" >&2
+        _patched=1
+        break
+      else
+        echo "[prom-patcher] patch failed; will retry in 5s" >&2
+      fi
+    fi
+    sleep 3
+  done
+  if [ "$_patched" -eq 0 ]; then
+    echo "[prom-patcher] timed out after 10min waiting for prometheus/k8s CR; Prom may be disabled for this scenario (--enable-prometheus-server=False)" >&2
+  fi
+} > "$PROM_PATCH_LOG" 2>&1 &
+PROM_PATCH_PID=$!
+echo "  $role: spawned prometheus-cr-patcher (PID=$PROM_PATCH_PID, log=$PROM_PATCH_LOG)"
+
 cl2_passed=0
 # Run CL2; collect outcome WITHOUT failing on a non-zero exit (so we can
 # also inspect junit.xml for internal test failures even when CL2 exits
