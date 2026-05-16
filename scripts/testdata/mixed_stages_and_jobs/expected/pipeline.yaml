@@ -1,0 +1,8 @@
+name: Mixed
+pool: TestPool
+stages:
+- stage: big_stage
+  displayName: Big Stage
+  jobs:
+  - template: pipeline_1.yaml
+  - template: pipeline_2.yaml

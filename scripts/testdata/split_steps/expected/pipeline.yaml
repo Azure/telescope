@@ -1,0 +1,12 @@
+name: Test Pipeline
+pool: TestPool
+trigger:
+- main
+stages:
+- stage: main_stage
+  jobs:
+  - job: main_job
+    displayName: Main Job
+    steps:
+    - template: pipeline_1.yaml
+    - template: pipeline_2.yaml

@@ -1,0 +1,11 @@
+name: Test Pipeline
+pool: TestPool
+trigger:
+- main
+parameters:
+- name: env
+  type: string
+  default: dev
+stages:
+- template: pipeline_1.yaml
+- template: pipeline_2.yaml

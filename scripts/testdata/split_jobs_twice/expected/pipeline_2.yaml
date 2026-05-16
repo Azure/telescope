@@ -1,0 +1,6 @@
+stages:
+- stage: stage_1
+  displayName: Stage 1
+  jobs:
+  - template: pipeline_2_1.yaml
+  - template: pipeline_2_2.yaml

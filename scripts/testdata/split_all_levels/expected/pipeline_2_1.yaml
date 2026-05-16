@@ -1,0 +1,6 @@
+jobs:
+- job: job_1_0
+  displayName: Job 1-0
+  steps:
+  - template: pipeline_2_1_1.yaml
+  - template: pipeline_2_1_2.yaml

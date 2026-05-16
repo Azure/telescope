@@ -1,0 +1,67 @@
+name: Stages Then Jobs Pipeline
+pool: TestPool
+trigger:
+- main
+stages:
+- stage: stage_0
+  displayName: Stage 0
+  jobs:
+  - job: job_0
+    displayName: Job 0
+    steps:
+    - bash: echo s0 j0 step0 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 0-0
+    - bash: echo s0 j0 step1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 0-1
+  - job: job_1
+    displayName: Job 1
+    steps:
+    - bash: echo s0 j1 step0 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 1-0
+    - bash: echo s0 j1 step1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 1-1
+  - job: job_2
+    displayName: Job 2
+    steps:
+    - bash: echo s0 j2 step0 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 2-0
+    - bash: echo s0 j2 step1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 2-1
+  - job: job_3
+    displayName: Job 3
+    steps:
+    - bash: echo s0 j3 step0 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 3-0
+    - bash: echo s0 j3 step1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 3-1
+- stage: stage_1
+  displayName: Stage 1
+  jobs:
+  - job: job_0
+    displayName: Job 0
+    steps:
+    - bash: echo s1 j0 step0 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 0-0
+    - bash: echo s1 j0 step1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 0-1
+  - job: job_1
+    displayName: Job 1
+    steps:
+    - bash: echo s1 j1 step0 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 1-0
+    - bash: echo s1 j1 step1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 1-1
+  - job: job_2
+    displayName: Job 2
+    steps:
+    - bash: echo s1 j2 step0 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 2-0
+    - bash: echo s1 j2 step1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 2-1
+  - job: job_3
+    displayName: Job 3
+    steps:
+    - bash: echo s1 j3 step0 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 3-0
+    - bash: echo s1 j3 step1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 3-1

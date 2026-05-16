@@ -1,0 +1,12 @@
+name: Small Pipeline
+pool: TestPool
+trigger:
+- main
+stages:
+- stage: stage_0
+  displayName: Stage 0
+  jobs:
+  - job: job_0
+    steps:
+    - bash: echo hello
+      displayName: Step 0

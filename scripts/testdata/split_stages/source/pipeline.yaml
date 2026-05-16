@@ -1,0 +1,41 @@
+name: Test Pipeline
+pool: TestPool
+trigger:
+- main
+parameters:
+- name: env
+  type: string
+  default: dev
+stages:
+- stage: stage_0
+  displayName: Stage 0
+  jobs:
+  - job: job_0
+    displayName: Job 0
+    steps:
+    - bash: echo stage 0 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 0
+- stage: stage_1
+  displayName: Stage 1
+  jobs:
+  - job: job_1
+    displayName: Job 1
+    steps:
+    - bash: echo stage 1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 1
+- stage: stage_2
+  displayName: Stage 2
+  jobs:
+  - job: job_2
+    displayName: Job 2
+    steps:
+    - bash: echo stage 2 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 2
+- stage: stage_3
+  displayName: Stage 3
+  jobs:
+  - job: job_3
+    displayName: Job 3
+    steps:
+    - bash: echo stage 3 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 3

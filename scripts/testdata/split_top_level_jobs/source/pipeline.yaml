@@ -1,0 +1,25 @@
+name: Test Pipeline
+pool: TestPool
+trigger:
+- main
+jobs:
+- job: job_0
+  displayName: Job 0
+  steps:
+  - bash: echo job 0 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    displayName: Step 0
+- job: job_1
+  displayName: Job 1
+  steps:
+  - bash: echo job 1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    displayName: Step 1
+- job: job_2
+  displayName: Job 2
+  steps:
+  - bash: echo job 2 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    displayName: Step 2
+- job: job_3
+  displayName: Job 3
+  steps:
+  - bash: echo job 3 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    displayName: Step 3
