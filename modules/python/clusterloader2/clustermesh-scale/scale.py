@@ -75,6 +75,22 @@ SATURATION_THRESHOLDS = {
 }
 
 
+def _pad_csv_list(csv_str, target_len, pad_value):
+    """Pad/truncate a comma-separated string to exactly target_len entries.
+
+    Used to align saturation_ops_per_sec_list / saturation_restarts_list
+    with saturation_qps_list before they're written to overrides.yaml.
+    CL2's template engine's `index $list $i` panics on out-of-range, so
+    pre-padding here is the safety net (and 'pad_value' is chosen so the
+    extra entries are a no-op for the downstream consumer).
+    """
+    parts = [x.strip() for x in (csv_str or "").split(",") if x.strip()]
+    if len(parts) >= target_len:
+        return ",".join(parts[:target_len])
+    parts.extend([pad_value] * (target_len - len(parts)))
+    return ",".join(parts)
+
+
 def configure_clusterloader2(
     namespaces,
     deployments_per_namespace,
@@ -103,7 +119,8 @@ def configure_clusterloader2(
     node_replace_batch_size=10,
     node_churn_ready_timeout_seconds=300,
     saturation_qps_list="100,500,1500,4000,10000",
-    saturation_restarts_list="2,4,8,15,25",
+    saturation_restarts_list="0,0,0,0,0",
+    saturation_ops_per_sec_list="1,10,100,1000,5000",
     saturation_rung_duration_seconds=240,
     saturation_settle_seconds=90,
 ):
@@ -197,14 +214,37 @@ def configure_clusterloader2(
 
         # Phase 4b — Scenario #6 (Upper Bound / Saturation) knobs.
         # upper-bound.yaml CL2 config consumes these to drive the per-rung
-        # QPS ramp + restart amplitude. Written unconditionally with the
-        # same defaulted-pattern as scenario #2-#5 knobs: non-saturation
-        # CL2 configs simply ignore them (CL2 doesn't fail on unknown
-        # overrides keys). The qps and restarts lists are written as
-        # comma-separated strings; upper-bound.yaml uses CL2's
-        # StringSplit template func to parse.
+        # ramp. Written unconditionally with the same defaulted-pattern as
+        # scenario #2-#5 knobs: non-saturation CL2 configs simply ignore
+        # them (CL2 doesn't fail on unknown overrides keys).
+        #
+        # Phase B (2026-05-15): primary load axis is now CL2_SATURATION_
+        # OPS_PER_SEC_LIST — per-rung target rate for the label-churn
+        # workload (kubectl label flips on existing pods). This pattern
+        # drives ClusterMesh identity events at controllable, sustained
+        # rate WITHOUT exploding Prometheus cardinality (the Phase A
+        # restart-burst workload made Prom OOM at high rungs — builds
+        # 67224/67279/67300).
+        #
+        # CL2_SATURATION_RESTARTS_LIST defaults to all-zeros (no
+        # restart-bursts). Backward-compat: matrix entries that explicitly
+        # set RESTARTS will still get Phase A restart-burst behavior on
+        # top of Phase B label churn (useful for A/B comparisons).
+        #
+        # Pad ops_per_sec_list + restarts_list to match the length of
+        # qps_list. CL2's template engine does NOT validate slice lengths
+        # before `index $list $i` — a short list panics with "index out
+        # of range" inside the per-rung loop, which is a confusing failure
+        # mode at runtime. Pad with 0 (interpreted by the label-churner
+        # script as "no-op skip" and by the restart-burst module as
+        # "zero iterations") so any rung past the supplied list is a
+        # genuine no-op rather than a template crash.
+        qps_count = len([x for x in saturation_qps_list.split(",") if x.strip()])
+        ops_padded = _pad_csv_list(saturation_ops_per_sec_list, qps_count, "0")
+        restarts_padded = _pad_csv_list(saturation_restarts_list, qps_count, "0")
         f.write(f"CL2_SATURATION_QPS_LIST: \"{saturation_qps_list}\"\n")
-        f.write(f"CL2_SATURATION_RESTARTS_LIST: \"{saturation_restarts_list}\"\n")
+        f.write(f"CL2_SATURATION_OPS_PER_SEC_LIST: \"{ops_padded}\"\n")
+        f.write(f"CL2_SATURATION_RESTARTS_LIST: \"{restarts_padded}\"\n")
         f.write(f"CL2_SATURATION_RUNG_DURATION_SECONDS: {saturation_rung_duration_seconds}\n")
         f.write(f"CL2_SATURATION_SETTLE_SECONDS: {saturation_settle_seconds}\n")
 
@@ -495,6 +535,7 @@ def collect_clusterloader2(
     kill_batch=0,
     saturation_qps_list="",
     saturation_restarts_list="",
+    saturation_ops_per_sec_list="",
 ):
     details = parse_xml_to_json(os.path.join(cl2_report_dir, "junit.xml"), indent=2)
     json_data = json.loads(details)
@@ -630,12 +671,14 @@ def collect_clusterloader2(
     _emit_saturation_profile_rows(
         cl2_report_dir, template, result_file,
         saturation_qps_list, saturation_restarts_list,
+        saturation_ops_per_sec_list,
     )
 
 
 def _emit_saturation_profile_rows(
     cl2_report_dir, template, result_file,
     saturation_qps_list, saturation_restarts_list,
+    saturation_ops_per_sec_list="",
 ):
     """Append SaturationRung + SaturationSummary JSONL rows.
 
@@ -672,8 +715,10 @@ def _emit_saturation_profile_rows(
             "rungs_configured": int,
             "rungs_completed": int,
             "max_clean_qps": int|None,  # highest QPS in contiguous clean prefix
+            "max_clean_ops_per_sec": int|None,  # Phase B load-axis equivalent
             "first_failure_rung_index": int|None,
             "first_failure_qps": int|None,
+            "first_failure_ops_per_sec": int|None,
             "first_failure_mode": str|None,
             "second_failure_mode": str|None,
             "classifier_version": str,
@@ -705,6 +750,19 @@ def _emit_saturation_profile_rows(
     while len(restarts_list) < len(qps_list):
         restarts_list.append(1)
     restarts_list = restarts_list[: len(qps_list)]
+
+    # Phase B 2026-05-15: parse ops_per_sec list (label-flip rate per rung).
+    # Optional — if not set, Phase A semantics apply (restarts only).
+    try:
+        ops_per_sec_list = [
+            int(x) for x in (saturation_ops_per_sec_list or "").split(",")
+            if x.strip()
+        ]
+    except ValueError:
+        ops_per_sec_list = []
+    while len(ops_per_sec_list) < len(qps_list):
+        ops_per_sec_list.append(0)
+    ops_per_sec_list = ops_per_sec_list[: len(qps_list)]
 
     if not os.path.isdir(cl2_report_dir):
         print(
@@ -901,15 +959,39 @@ def _emit_saturation_profile_rows(
     rungs_completed = 0
     first_failure_index = None
     first_failure_qps = None
+    first_failure_ops_per_sec = None
     first_failure_mode = None
     second_failure_mode = None
     max_clean_qps = None
+    max_clean_ops_per_sec = None
     clean_streak_broken = False
 
     with open(result_file, "a", encoding="utf-8") as out:
         for rung_idx, qps in enumerate(qps_list):
             suffix = f"Rung{rung_idx}"
             restarts = restarts_list[rung_idx]
+            ops_per_sec_target = ops_per_sec_list[rung_idx] if rung_idx < len(ops_per_sec_list) else 0
+
+            # Phase B 2026-05-15: pick up label-churner timing JSON if
+            # present. The upper-bound.yaml Method:Exec writes one file
+            # per rung at /root/.../results/LabelChurnTimings_Rung<N>.json
+            # (visible on host at <cl2_report_dir>/LabelChurnTimings_Rung<N>.json).
+            # Records actual achieved ops/sec — diverges from target when
+            # kubectl latency caps the rate at high rungs.
+            churn_timing = None
+            churn_path = os.path.join(
+                cl2_report_dir, f"LabelChurnTimings_{suffix}.json",
+            )
+            if os.path.isfile(churn_path):
+                try:
+                    with open(churn_path, "r", encoding="utf-8") as f:
+                        churn_timing = json.load(f)
+                except (OSError, json.JSONDecodeError) as e:
+                    print(
+                        f"[collect] WARN: failed to read {churn_path}: {e}",
+                        file=sys.stderr,
+                    )
+                    churn_timing = None
 
             signals = {}
             measurement_missing = []
@@ -988,16 +1070,21 @@ def _emit_saturation_profile_rows(
             # highest qps in a CONTIGUOUS clean+completed prefix — once
             # a non-clean rung lands we stop extending it (a brief
             # later-rung "false clean" shouldn't disqualify the genuine
-            # earlier failure).
+            # earlier failure). max_clean_ops_per_sec tracks the same
+            # contiguous prefix on the Phase B load axis.
             if verdict == "clean" and rung_completed and not clean_streak_broken:
                 if max_clean_qps is None or qps > max_clean_qps:
                     max_clean_qps = qps
+                if (max_clean_ops_per_sec is None
+                        or ops_per_sec_target > max_clean_ops_per_sec):
+                    max_clean_ops_per_sec = ops_per_sec_target
             else:
                 clean_streak_broken = True
                 if verdict != "clean":
                     if first_failure_index is None:
                         first_failure_index = rung_idx
                         first_failure_qps = qps
+                        first_failure_ops_per_sec = ops_per_sec_target
                         first_failure_mode = verdict
                     elif (second_failure_mode is None
                           and verdict != first_failure_mode):
@@ -1006,22 +1093,34 @@ def _emit_saturation_profile_rows(
             rung_row = json.loads(json.dumps(template))
             rung_row["measurement"] = "SaturationRung"
             rung_row["group"] = "upper-bound"
-            rung_row["result"] = {
-                "data": {
-                    "rung_index": rung_idx,
-                    "configured_qps": qps,
-                    "configured_restarts": restarts,
-                    "classifier_version": SATURATION_CLASSIFIER_VERSION,
-                    "thresholds": SATURATION_THRESHOLDS,
-                    "verdict": verdict,
-                    "dominant_signal_ratio": dominant_ratio,
-                    "rung_completed": rung_completed,
-                    "measurement_missing": measurement_missing,
-                    "signals": signals,
-                    "all_verdicts": all_verdicts,
-                },
-                "unit": "verdict",
+            rung_row_data = {
+                "rung_index": rung_idx,
+                "configured_qps": qps,
+                "configured_restarts": restarts,
+                "configured_ops_per_sec": ops_per_sec_target,
+                "classifier_version": SATURATION_CLASSIFIER_VERSION,
+                "thresholds": SATURATION_THRESHOLDS,
+                "verdict": verdict,
+                "dominant_signal_ratio": dominant_ratio,
+                "rung_completed": rung_completed,
+                "measurement_missing": measurement_missing,
+                "signals": signals,
+                "all_verdicts": all_verdicts,
             }
+            # Phase B: surface label-churn actual vs target rate into the
+            # rung's data block. Lets dashboards plot "did we drive the
+            # event rate we asked for, or did kubectl latency throttle us?"
+            if churn_timing is not None:
+                rung_row_data["label_churn"] = {
+                    "target_ops_per_second": churn_timing.get("target_ops_per_second"),
+                    "actual_ops_per_second": churn_timing.get("actual_ops_per_second"),
+                    "ops_attempted": churn_timing.get("ops_attempted"),
+                    "ops_succeeded": churn_timing.get("ops_succeeded"),
+                    "ops_failed": churn_timing.get("ops_failed"),
+                    "duration_seconds": churn_timing.get("duration_seconds"),
+                    "first_error": churn_timing.get("first_error", ""),
+                }
+            rung_row["result"] = {"data": rung_row_data, "unit": "verdict"}
             out.write(json.dumps(rung_row) + "\n")
 
             # Per-rung stderr summary: greppable line for AzDO postmortem
@@ -1045,12 +1144,15 @@ def _emit_saturation_profile_rows(
                 "rungs_configured": len(qps_list),
                 "rungs_completed": rungs_completed,
                 "max_clean_qps": max_clean_qps,
+                "max_clean_ops_per_sec": max_clean_ops_per_sec,
                 "first_failure_rung_index": first_failure_index,
                 "first_failure_qps": first_failure_qps,
+                "first_failure_ops_per_sec": first_failure_ops_per_sec,
                 "first_failure_mode": first_failure_mode,
                 "second_failure_mode": second_failure_mode,
                 "configured_qps_list": qps_list,
                 "configured_restarts_list": restarts_list,
+                "configured_ops_per_sec_list": ops_per_sec_list,
                 "classifier_version": SATURATION_CLASSIFIER_VERSION,
                 "thresholds": SATURATION_THRESHOLDS,
             },
@@ -1062,7 +1164,9 @@ def _emit_saturation_profile_rows(
         print(
             f"[collect] saturation: SUMMARY rungs_completed={rungs_completed}/{len(qps_list)} "
             f"max_clean_qps={max_clean_qps} "
+            f"max_clean_ops_per_sec={max_clean_ops_per_sec} "
             f"first_failure_qps={first_failure_qps} "
+            f"first_failure_ops_per_sec={first_failure_ops_per_sec} "
             f"first_failure_mode={first_failure_mode} "
             f"second_failure_mode={second_failure_mode} "
             f"classifier_version={SATURATION_CLASSIFIER_VERSION}",
@@ -1387,15 +1491,26 @@ def main():
                          "uncapped for our 20-deployment workload (CL2 apply "
                          "throughput is the ceiling, not QPS itself); "
                          "saturation_restarts_list is the real load lever.")
-    pc.add_argument("--saturation-restarts-list", type=str, default="2,4,8,15,25",
+    pc.add_argument("--saturation-restarts-list", type=str, default="0,0,0,0,0",
                     help="Comma-separated list of restart counts, one per saturation "
-                         "rung (length must match --saturation-qps-list). Each rung's "
-                         "workload is restart-bursted this many times so cumulative "
-                         "event volume scales with rung index even when CL2's "
-                         "Deployment-apply QPS saturates. Restart count is the "
-                         "primary load lever: each restart triggers ~200 pod recreates "
-                         "(at n=2 with 200-pod workload), each emitting endpoint + "
-                         "identity + service events through the mesh.")
+                         "rung. Default ALL ZEROS in Phase B 2026-05-15 — restart-burst "
+                         "workload (Phase A) explodes Prometheus cardinality and OOMs "
+                         "the monitoring stack before reaching ClusterMesh SUT "
+                         "saturation. Phase B replaces restart-bursts with label-flip "
+                         "churn (see --saturation-ops-per-sec-list). Keep restarts=0 "
+                         "for pure Phase B; non-zero values run BOTH patterns per rung "
+                         "(useful for A/B comparison runs only).")
+    pc.add_argument("--saturation-ops-per-sec-list", type=str, default="1,10,100,1000,5000",
+                    help="Comma-separated list of target label-flip rates (ops/sec), "
+                         "one per saturation rung. Phase B 2026-05-15 — primary load "
+                         "axis. Each label flip = one kubectl call on a workload pod, "
+                         "triggering a Cilium identity recompute → kvstore event → "
+                         "cross-cluster propagation. Drives ClusterMesh events "
+                         "without exploding Prometheus cardinality (same pods, same "
+                         "IPs, same Prom series per rung). At high rates (>500/s) "
+                         "kubectl latency becomes the effective ceiling; the "
+                         "actual-ops-per-second emitted in LabelChurnTimings_*.json "
+                         "records what was achieved.")
     pc.add_argument("--saturation-rung-duration-seconds", type=int, default=240,
                     help="Wall-clock duration each rung holds after its restart-burst "
                          "before measurements are gathered. Drives the per-rung "
@@ -1486,14 +1601,19 @@ def main():
     # Optional; default to empty string so non-saturation test_types skip
     # the classifier entirely (zero overhead). For upper-bound test_types,
     # collect.yml plumbs the matrix-configured saturation_qps_list +
-    # saturation_restarts_list into these args so the classifier records
-    # the actual QPS and restart values that drove each rung.
+    # saturation_restarts_list + saturation_ops_per_sec_list into these
+    # args so the classifier records the actual rung settings.
     pco.add_argument("--saturation-qps-list", type=str, default="",
                      help="Comma-separated QPS values from the upper-bound run. "
                           "Empty = not an upper-bound run; classifier is no-op.")
     pco.add_argument("--saturation-restarts-list", type=str, default="",
                      help="Comma-separated restart counts from the upper-bound run "
                           "(length must match --saturation-qps-list).")
+    pco.add_argument("--saturation-ops-per-sec-list", type=str, default="",
+                     help="Comma-separated label-flip target rates (Phase B, "
+                          "2026-05-15) from the upper-bound run. Recorded into "
+                          "each SaturationRung row alongside actual-ops-per-second "
+                          "from LabelChurnTimings_Rung<N>.json if present.")
 
     args = parser.parse_args()
 
@@ -1527,6 +1647,7 @@ def main():
             node_churn_ready_timeout_seconds=args.node_churn_ready_timeout_seconds,
             saturation_qps_list=args.saturation_qps_list,
             saturation_restarts_list=args.saturation_restarts_list,
+            saturation_ops_per_sec_list=args.saturation_ops_per_sec_list,
             saturation_rung_duration_seconds=args.saturation_rung_duration_seconds,
             saturation_settle_seconds=args.saturation_settle_seconds,
         )
@@ -1579,6 +1700,7 @@ def main():
             kill_batch=args.kill_batch,
             saturation_qps_list=args.saturation_qps_list,
             saturation_restarts_list=args.saturation_restarts_list,
+            saturation_ops_per_sec_list=args.saturation_ops_per_sec_list,
         )
     else:
         parser.print_help()

@@ -212,7 +212,8 @@ stages:
               # classifier thresholds have been calibrated. Bump for prod
               # after first n=2 + n=20 greens.
               saturation_qps_list: "100,500,1500,4000,10000"
-              saturation_restarts_list: "2,4,8,15,25"
+              saturation_ops_per_sec_list: "1,10,100,1000,5000"
+              saturation_restarts_list: "0,0,0,0,0"
               saturation_rung_duration_seconds: 240
               saturation_settle_seconds: 90
               trigger_reason: ${{ variables['Build.Reason'] }}
@@ -369,7 +370,8 @@ stages:
               restart_count: 0
               api_server_calls_per_second: 20
               saturation_qps_list: "100,500,1500,4000,10000"
-              saturation_restarts_list: "2,4,8,15,25"
+              saturation_ops_per_sec_list: "1,10,100,1000,5000"
+              saturation_restarts_list: "0,0,0,0,0"
               saturation_rung_duration_seconds: 240
               saturation_settle_seconds: 90
               trigger_reason: ${{ variables['Build.Reason'] }}
@@ -528,7 +530,8 @@ stages:
               restart_count: 0
               api_server_calls_per_second: 20
               saturation_qps_list: "100,500,1500,4000,10000"
-              saturation_restarts_list: "2,4,8,15,25"
+              saturation_ops_per_sec_list: "1,10,100,1000,5000"
+              saturation_restarts_list: "0,0,0,0,0"
               saturation_rung_duration_seconds: 240
               saturation_settle_seconds: 90
               trigger_reason: ${{ variables['Build.Reason'] }}
@@ -719,7 +722,8 @@ stages:
               restart_count: 0
               api_server_calls_per_second: 20
               saturation_qps_list: "100,500,1500,4000,10000"
-              saturation_restarts_list: "2,4,8,15,25"
+              saturation_ops_per_sec_list: "1,10,100,1000,5000"
+              saturation_restarts_list: "0,0,0,0,0"
               saturation_rung_duration_seconds: 240
               saturation_settle_seconds: 90
               trigger_reason: ${{ variables['Build.Reason'] }}

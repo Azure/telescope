@@ -1429,7 +1429,8 @@ class TestMainArgumentParsing(unittest.TestCase):
             node_replace_batch_size=10,
             node_churn_ready_timeout_seconds=300,
             saturation_qps_list="100,500,1500,4000,10000",
-            saturation_restarts_list="2,4,8,15,25",
+            saturation_restarts_list="0,0,0,0,0",
+            saturation_ops_per_sec_list="1,10,100,1000,5000",
             saturation_rung_duration_seconds=240,
             saturation_settle_seconds=90,
         )
@@ -1505,6 +1506,7 @@ class TestMainArgumentParsing(unittest.TestCase):
             kill_batch=0,
             saturation_qps_list="",
             saturation_restarts_list="",
+            saturation_ops_per_sec_list="",
         )
 
     @patch.object(clustermesh_scale_module, "execute_parallel")
@@ -1989,7 +1991,8 @@ class TestConfigureSaturationKnobs(unittest.TestCase):
             with open(tmp_path, "r", encoding="utf-8") as f:
                 content = f.read()
             self.assertIn('CL2_SATURATION_QPS_LIST: "100,500,1500,4000,10000"', content)
-            self.assertIn('CL2_SATURATION_RESTARTS_LIST: "2,4,8,15,25"', content)
+            self.assertIn('CL2_SATURATION_OPS_PER_SEC_LIST: "1,10,100,1000,5000"', content)
+            self.assertIn('CL2_SATURATION_RESTARTS_LIST: "0,0,0,0,0"', content)
             self.assertIn("CL2_SATURATION_RUNG_DURATION_SECONDS: 240", content)
             self.assertIn("CL2_SATURATION_SETTLE_SECONDS: 90", content)
         finally:
@@ -2016,6 +2019,83 @@ class TestConfigureSaturationKnobs(unittest.TestCase):
             self.assertIn('CL2_SATURATION_RESTARTS_LIST: "1,1,2,3,5"', content)
             self.assertIn("CL2_SATURATION_RUNG_DURATION_SECONDS: 240", content)
             self.assertIn("CL2_SATURATION_SETTLE_SECONDS: 90", content)
+        finally:
+            os.remove(tmp_path)
+
+    def test_saturation_ops_per_sec_list_passthrough(self):
+        """Phase B (2026-05-15) label-flip rate-per-rung knob propagates
+        to overrides.yaml so the CL2 template engine sees it."""
+        with tempfile.NamedTemporaryFile(delete=False, mode="w+", encoding="utf-8") as tmp:
+            tmp_path = tmp.name
+        try:
+            configure_clusterloader2(
+                namespaces=1,
+                deployments_per_namespace=1,
+                replicas_per_deployment=1,
+                operation_timeout="15m",
+                override_file=tmp_path,
+                saturation_qps_list="100,500,1500,4000,10000",
+                saturation_ops_per_sec_list="2,20,200,2000,20000",
+                saturation_restarts_list="0,0,0,0,0",
+            )
+            with open(tmp_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            self.assertIn('CL2_SATURATION_OPS_PER_SEC_LIST: "2,20,200,2000,20000"', content)
+        finally:
+            os.remove(tmp_path)
+
+    def test_saturation_lists_pad_to_qps_length_for_template_safety(self):
+        """CL2 template engine's `index $list $i` panics if a slice is
+        shorter than the rung loop expects. configure pads shorter
+        ops_per_sec / restarts lists with '0' (no-op for both consumers)
+        so users supplying e.g. 3 ops entries with 5 qps rungs get a
+        valid run rather than a confusing template-engine panic.
+        """
+        with tempfile.NamedTemporaryFile(delete=False, mode="w+", encoding="utf-8") as tmp:
+            tmp_path = tmp.name
+        try:
+            configure_clusterloader2(
+                namespaces=1,
+                deployments_per_namespace=1,
+                replicas_per_deployment=1,
+                operation_timeout="15m",
+                override_file=tmp_path,
+                saturation_qps_list="100,500,1500,4000,10000",
+                saturation_ops_per_sec_list="10,100,1000",
+                saturation_restarts_list="2",
+            )
+            with open(tmp_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            # ops_per_sec gets padded with 0,0 (no-op skip path in the script)
+            self.assertIn('CL2_SATURATION_OPS_PER_SEC_LIST: "10,100,1000,0,0"', content)
+            # restarts gets padded with 0,0,0,0 (no-op = zero restart-bursts)
+            self.assertIn('CL2_SATURATION_RESTARTS_LIST: "2,0,0,0,0"', content)
+        finally:
+            os.remove(tmp_path)
+
+    def test_saturation_lists_truncate_when_longer_than_qps(self):
+        """Symmetrically: if user supplies MORE entries than qps rungs
+        (e.g., copy-paste error), configure truncates to match qps so
+        downstream loop indices stay valid and the excess entries are
+        silently discarded.
+        """
+        with tempfile.NamedTemporaryFile(delete=False, mode="w+", encoding="utf-8") as tmp:
+            tmp_path = tmp.name
+        try:
+            configure_clusterloader2(
+                namespaces=1,
+                deployments_per_namespace=1,
+                replicas_per_deployment=1,
+                operation_timeout="15m",
+                override_file=tmp_path,
+                saturation_qps_list="100,500,1500",
+                saturation_ops_per_sec_list="10,100,1000,5000,10000",
+                saturation_restarts_list="0,0,0,0,0",
+            )
+            with open(tmp_path, "r", encoding="utf-8") as f:
+                content = f.read()
+            self.assertIn('CL2_SATURATION_OPS_PER_SEC_LIST: "10,100,1000"', content)
+            self.assertIn('CL2_SATURATION_RESTARTS_LIST: "0,0,0"', content)
         finally:
             os.remove(tmp_path)
 
@@ -2157,9 +2237,11 @@ class TestSaturationClassifier(unittest.TestCase):
             suffix, {"Perc99": 80},
         )
 
-    def _run_collect(self, qps_list, restarts_list=None):
+    def _run_collect(self, qps_list, restarts_list=None, ops_per_sec_list=None):
         if restarts_list is None:
             restarts_list = ",".join(["1"] * len(qps_list.split(",")))
+        if ops_per_sec_list is None:
+            ops_per_sec_list = ""
         collect_clusterloader2(
             cl2_report_dir=self.report_dir,
             cloud_info="",
@@ -2177,6 +2259,7 @@ class TestSaturationClassifier(unittest.TestCase):
             trigger_reason="Manual",
             saturation_qps_list=qps_list,
             saturation_restarts_list=restarts_list,
+            saturation_ops_per_sec_list=ops_per_sec_list,
         )
         with open(self.result_file, "r", encoding="utf-8") as f:
             return [json.loads(l) for l in f.read().strip().split("\n") if l]
@@ -2673,6 +2756,119 @@ class TestSaturationClassifier(unittest.TestCase):
         self.assertEqual(d["verdict"], "clean")
         self.assertAlmostEqual(d["signals"]["latency_p99_ms"], 20.0, places=1)
         self.assertAlmostEqual(d["signals"]["queue_size_perc99"], 3.0, places=1)
+
+    def test_label_churn_timing_picked_up_into_rung_row(self):
+        """Phase B (2026-05-15): when LabelChurnTimings_Rung<N>.json is
+        present in cl2_report_dir, the per-rung SaturationRung row's
+        data block must surface target/actual ops/sec + ops_attempted/
+        succeeded/failed so dashboards can plot achieved vs requested
+        rate. Diverges from configured_ops_per_sec because kubectl
+        latency throttles real-world rate at high rungs.
+        """
+        self._write_clean_rung(0)
+        self._write_clean_rung(1)
+        # Mock label-churn driver output for rung 0: hit target.
+        with open(os.path.join(self.report_dir, "LabelChurnTimings_Rung0.json"), "w",
+                  encoding="utf-8") as f:
+            json.dump({
+                "target_ops_per_second": 10,
+                "actual_ops_per_second": 9.87,
+                "ops_attempted": 2400,
+                "ops_succeeded": 2400,
+                "ops_failed": 0,
+                "duration_seconds": 243.1,
+                "first_error": "",
+            }, f)
+        # Mock label-churn driver output for rung 1: throttled by kubectl latency.
+        with open(os.path.join(self.report_dir, "LabelChurnTimings_Rung1.json"), "w",
+                  encoding="utf-8") as f:
+            json.dump({
+                "target_ops_per_second": 5000,
+                "actual_ops_per_second": 873.4,
+                "ops_attempted": 1200000,
+                "ops_succeeded": 212301,
+                "ops_failed": 987699,
+                "duration_seconds": 243.0,
+                "first_error": "kubectl: connection refused",
+            }, f)
+        rows = self._run_collect(
+            "100,500", restarts_list="0,0",
+            ops_per_sec_list="10,5000",
+        )
+        rungs = [r for r in rows if r["measurement"] == "SaturationRung"]
+        self.assertEqual(len(rungs), 2)
+        d0 = rungs[0]["result"]["data"]
+        self.assertEqual(d0["configured_ops_per_sec"], 10)
+        self.assertIn("label_churn", d0)
+        self.assertEqual(d0["label_churn"]["target_ops_per_second"], 10)
+        self.assertAlmostEqual(d0["label_churn"]["actual_ops_per_second"], 9.87, places=2)
+        self.assertEqual(d0["label_churn"]["ops_failed"], 0)
+        d1 = rungs[1]["result"]["data"]
+        self.assertEqual(d1["configured_ops_per_sec"], 5000)
+        self.assertEqual(d1["label_churn"]["target_ops_per_second"], 5000)
+        self.assertAlmostEqual(d1["label_churn"]["actual_ops_per_second"], 873.4, places=1)
+        self.assertEqual(d1["label_churn"]["ops_failed"], 987699)
+        self.assertIn("connection refused", d1["label_churn"]["first_error"])
+
+    def test_label_churn_timing_absent_does_not_break_rung_row(self):
+        """When the Phase B label-churn driver wasn't used (or didn't
+        write a timing file), the rung row must still emit normally —
+        just without the label_churn sub-dict."""
+        self._write_clean_rung(0)
+        rows = self._run_collect("100", restarts_list="0", ops_per_sec_list="10")
+        rungs = [r for r in rows if r["measurement"] == "SaturationRung"]
+        self.assertEqual(len(rungs), 1)
+        d = rungs[0]["result"]["data"]
+        self.assertEqual(d["configured_ops_per_sec"], 10)
+        self.assertNotIn("label_churn", d)
+        self.assertEqual(d["verdict"], "clean")
+
+    def test_summary_includes_configured_ops_per_sec_list(self):
+        """Phase B: SaturationSummary must echo the configured
+        ops_per_sec_list so consumers see what was requested even when
+        the per-rung label_churn block is missing.
+        """
+        self._write_clean_rung(0)
+        self._write_clean_rung(1)
+        rows = self._run_collect(
+            "100,500", restarts_list="0,0", ops_per_sec_list="10,100",
+        )
+        summary = [r for r in rows if r["measurement"] == "SaturationSummary"]
+        self.assertEqual(len(summary), 1)
+        d = summary[0]["result"]["data"]
+        self.assertEqual(d["configured_ops_per_sec_list"], [10, 100])
+        self.assertEqual(d["configured_qps_list"], [100, 500])
+        self.assertEqual(d["configured_restarts_list"], [0, 0])
+
+    def test_summary_tracks_max_clean_and_first_failure_ops_per_sec(self):
+        """Phase B (rubber-duck non-blocking #4): in Phase B the load axis
+        is ops_per_sec, not qps. SaturationSummary surfaces the load-axis
+        equivalents `max_clean_ops_per_sec` + `first_failure_ops_per_sec`
+        alongside the original qps fields so the upper-bound headline is
+        readable on either axis.
+        """
+        self._write_clean_rung(0)
+        self._write_clean_rung(1)
+        self._write_latency_tripped_rung(2)
+        self._write_cpu_exhaust_rung(3)
+        rows = self._run_collect(
+            "100,500,1500,4000",
+            restarts_list="0,0,0,0",
+            ops_per_sec_list="10,100,1000,5000",
+        )
+        summary = [r for r in rows if r["measurement"] == "SaturationSummary"]
+        self.assertEqual(len(summary), 1)
+        d = summary[0]["result"]["data"]
+        # max_clean prefix: rungs 0+1 are clean → 100 ops/sec is the cap.
+        self.assertEqual(d["max_clean_qps"], 500)
+        self.assertEqual(d["max_clean_ops_per_sec"], 100)
+        # First failure: rung 2 (latency_spike at qps=1500, ops/sec=1000).
+        self.assertEqual(d["first_failure_rung_index"], 2)
+        self.assertEqual(d["first_failure_qps"], 1500)
+        self.assertEqual(d["first_failure_ops_per_sec"], 1000)
+        self.assertEqual(d["first_failure_mode"], "latency_spike")
+        # Second-failure: rung 3 (cpu_exhaust) — different mode from #1.
+        self.assertEqual(d["second_failure_mode"], "cpu_exhaust")
 
 
 if __name__ == "__main__":

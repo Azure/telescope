@@ -49,6 +49,7 @@ steps:
       # SaturationSummary rows tagging which signal tripped per rung.
       export CL2_SATURATION_QPS_LIST="${SATURATION_QPS_LIST:-}"
       export CL2_SATURATION_RESTARTS_LIST="${SATURATION_RESTARTS_LIST:-}"
+      export CL2_SATURATION_OPS_PER_SEC_LIST="${SATURATION_OPS_PER_SEC_LIST:-}"
 
       clusters=$(cat "$HOME/.kube/clustermesh-clusters.json")
       cluster_count=$(echo "$clusters" | jq 'length')
@@ -76,10 +77,11 @@ steps:
       #   $11 scenario_start_timestamp value
       #   $12 saturation_qps_list value ("" for non-saturation scenarios)
       #   $13 saturation_restarts_list value ("" for non-saturation scenarios)
+      #   $14 saturation_ops_per_sec_list value ("" for non-saturation; Phase B)
       collect_one() {
         local _scen="$1" _role="$2" _report="$3" _out="$4"
         local _cc="$5" _cu="$6" _cd="$7" _kds="$8" _kis="$9" _kb="${10}" _st="${11}"
-        local _sqps="${12:-}" _sres="${13:-}"
+        local _sqps="${12:-}" _sres="${13:-}" _sops="${14:-}"
         if [ ! -d "$_report" ]; then
           echo "##vso[task.logissue type=warning;] $_scen/$_role: missing report dir $_report, skipping"
           return 1
@@ -111,6 +113,7 @@ steps:
           --kill-batch "$_kb" \
           --saturation-qps-list "$_sqps" \
           --saturation-restarts-list "$_sres" \
+          --saturation-ops-per-sec-list "$_sops" \
           --trigger_reason "${TRIGGER_REASON:-}" || _rc=$?
         if [ "$_rc" -ne 0 ]; then
           echo "##vso[task.logissue type=warning;] $_scen/$_role: scale.py collect exited $_rc; skipping aggregation"
@@ -150,6 +153,7 @@ steps:
             kb="$CL2_KILL_BATCH"
             sqps=""
             sres=""
+            sops=""
             ;;
           upper-bound)
             cc=0
@@ -160,6 +164,7 @@ steps:
             kb=0
             sqps="$CL2_SATURATION_QPS_LIST"
             sres="$CL2_SATURATION_RESTARTS_LIST"
+            sops="$CL2_SATURATION_OPS_PER_SEC_LIST"
             ;;
           *)
             cc=0
@@ -170,6 +175,7 @@ steps:
             kb=0
             sqps=""
             sres=""
+            sops=""
             ;;
         esac
         st="$_st"
@@ -214,7 +220,7 @@ steps:
             fi
             if collect_one "$SCENARIO" "$role" "$report_dir" "$per_cluster_result" \
                 "$cc_row" "$cu_row" "$cd_row" "$kds_row" "$kis_row" "$kb_row" "$st" \
-                "$sqps" "$sres"; then
+                "$sqps" "$sres" "$sops"; then
               cat "$per_cluster_result" >> "$TEST_RESULTS_FILE"
             fi
           done
@@ -228,7 +234,7 @@ steps:
           per_cluster_result="${TEST_RESULTS_FILE%.*}.${role}.${TEST_RESULTS_FILE##*.}"
           if collect_one "$TEST_TYPE" "$role" "$report_dir" "$per_cluster_result" \
               "$cc" "$cu" "$cd_v" "$kds" "$kis" "$kb" "$st" \
-              "$sqps" "$sres"; then
+              "$sqps" "$sres" "$sops"; then
             cat "$per_cluster_result" >> "$TEST_RESULTS_FILE"
           fi
         done

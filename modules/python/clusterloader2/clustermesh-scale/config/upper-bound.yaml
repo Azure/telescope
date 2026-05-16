@@ -64,20 +64,36 @@ name: clustermesh-upper-bound
 {{$replicasPerDeployment := DefaultParam .CL2_REPLICAS_PER_DEPLOYMENT 10}}
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "20m"}}
 
-# Saturation knobs. SaturationQpsList is a comma-separated list of QPS
-# values, one per rung. SaturationRestartsList is the per-rung restart
-# count (length must match SaturationQpsList) — driven separately so
-# dashboards can distinguish "QPS axis" from "workload-amplitude axis".
-# Each rung lasts SaturationRungDurationSeconds + SaturationSettleSeconds.
+# Saturation knobs (Phase B 2026-05-15: label-churn workload).
 #
-# Defaults match scale.py's defaults so a forgotten matrix var falls
-# through to a 5-rung sweep at 100/500/1500/4000/10000 QPS with
-# 5/15/40/80/150 restarts per rung (5 rungs × (240s hold + 90s settle)
-# ≈ 28 min CL2 wall time per cluster). Bumped 2026-05-15 after build
-# 67224 showed all signals at 1-15% of thresholds at the prior 4-rung
-# 20/40/80/160 sweep — actual saturation knee lies higher.
+# SaturationQpsList = per-rung CL2 deployment-apply rate (used only for the
+# baseline workload create at start; rungs no longer apply Deployments,
+# they only flip pod labels). Kept for backward-compat + matrix-var stability.
+#
+# SaturationOpsPerSecList = per-rung target rate of label flips (kubectl
+# label pod ... ub-churn-tag=<toggle> --overwrite). Each label flip
+# triggers a Cilium identity recompute → kvstore event → cross-cluster
+# propagation. This is the **primary load axis** in Phase B — drives
+# ClusterMesh events at a sustained, controllable rate WITHOUT exploding
+# Prometheus cardinality (same pods, same IPs, same series per rung).
+#
+# Why Phase B replaced restart-bursts (Phase A): builds 67224/67279/67300
+# all saturated the MONITORING stack (Prometheus OOM at high cardinality
+# from per-pod-IP cAdvisor series) before reaching ClusterMesh SUT
+# saturation. Restart workload created ~50 new pod-name series per rolling
+# wave on a 200-pod workload → cardinality explosion. Label-flip workload
+# keeps the same pods, only flipping a single label, so cAdvisor series
+# stay constant. See plan.md "Phase 4b notes for Scenario #6" Phase B
+# design.
+#
+# SaturationRestartsList is RETAINED as a fallback knob for backward
+# compat with older matrix entries. If both ops_per_sec and restarts are
+# set, ops_per_sec wins.
+#
+# Each rung lasts SaturationRungDurationSeconds + SaturationSettleSeconds.
 {{$saturationQpsListStr := DefaultParam .CL2_SATURATION_QPS_LIST "100,500,1500,4000,10000"}}
-{{$saturationRestartsListStr := DefaultParam .CL2_SATURATION_RESTARTS_LIST "2,4,8,15,25"}}
+{{$saturationOpsPerSecListStr := DefaultParam .CL2_SATURATION_OPS_PER_SEC_LIST "1,10,100,1000,5000"}}
+{{$saturationRestartsListStr := DefaultParam .CL2_SATURATION_RESTARTS_LIST "0,0,0,0,0"}}
 {{$saturationRungDurationSeconds := DefaultParam .CL2_SATURATION_RUNG_DURATION_SECONDS 240}}
 {{$saturationSettleSeconds := DefaultParam .CL2_SATURATION_SETTLE_SECONDS 90}}
 
@@ -86,6 +102,7 @@ name: clustermesh-upper-bound
 # string args and parse them via toFloat64, so we can pass slice elements
 # directly without an atoi step.
 {{$qpsList := StringSplit $saturationQpsListStr}}
+{{$opsPerSecList := StringSplit $saturationOpsPerSecListStr}}
 {{$restartsList := StringSplit $saturationRestartsListStr}}
 
 namespace:
@@ -167,19 +184,19 @@ steps:
         Params:
           duration: 30s
 
-  # ----- Saturation rung loop -----
-  # Each rung: start measurements with Rung<i> suffix → restart-burst the
-  # workload restartsList[i] times at qpsList[i] QPS → sleep rung duration
-  # so the gather window captures both burst and tail → gather measurements
-  # → settle before next rung.
+  # ----- Saturation rung loop (Phase B: label-churn workload) -----
+  # Each rung: start measurements with Rung<i> suffix → kick off label
+  # churner at opsPerSecList[i] ops/sec for rung_duration_seconds → gather
+  # measurements → settle before next rung.
   #
-  # Restart generations are offset per rung by 1000*(rung+1) so the
-  # pod-template annotation values are strictly monotonic across rungs
-  # (avoids a rollout being skipped because the same generation was used
-  # in a prior rung).
+  # The label churner runs via Method:Exec from inside the CL2 container.
+  # It blocks for rung_duration_seconds (its internal duration arg matches
+  # the rung's hold duration), so we don't need a separate Sleep step. The
+  # gather queries fire AFTER the churner exits, capturing the churn-rate
+  # window via PromQL's %v placeholder.
   {{range $i, $qps := $qpsList}}
 
-  # ===== Rung {{$i}} (qps={{$qps}}, restarts={{index $restartsList $i}}) =====
+  # ===== Rung {{$i}} (qps={{$qps}}, ops/sec={{index $opsPerSecList $i}}) =====
   - module:
       path: /modules/measurements/control-plane.yaml
       params:
@@ -217,10 +234,43 @@ steps:
         action: start
         suffix: Rung{{$i}}
 
-  # Rung {{$i}} workload: restart-burst the population N times. Each
-  # restart bumps the pod-template annotation to a unique generation so
-  # the rolling-recreate fires. Generation = 1000*(rung+1) + r so cross-
-  # rung values never collide.
+  # Rung {{$i}} workload: kubectl label flip rate driver. The script runs
+  # for rung_duration_seconds, attempting `ops/sec` label flips per second
+  # on randomly-selected workload pods. Each flip → Cilium identity
+  # recompute → kvstore event with scope=identities/v1 + ip/v1 (endpoint
+  # re-keyed). Same pods, same IPs, same Prom series → no cardinality
+  # explosion. Timing JSON written to LabelChurnTimings_<context>Rung<i>.json
+  # so scale.py collect can record target vs actual ops/sec achieved.
+  #
+  # Method:Exec's timeout MUST exceed rung_duration_seconds so the
+  # script's internal duration loop completes (kubectl latency drives
+  # the actual achieved rate, which can be much lower than target at
+  # high ops/sec — script logs progress every 5s to surface this).
+  - name: Rung {{$i}} label churn (target={{index $opsPerSecList $i}} ops/s)
+    measurements:
+      - Identifier: SaturationRung{{$i}}LabelChurn
+        Method: Exec
+        Params:
+          streamOutput: true
+          timeout: {{AddInt $saturationRungDurationSeconds 120}}s
+          command:
+          - bash
+          - /root/perf-tests/clusterloader2/config/upper-bound-label-churner.sh
+          # First arg "auto" tells the script to discover the kubectl
+          # context from /root/.kube/config via `kubectl config
+          # current-context`. Method:Exec's command array doesn't process
+          # shell $(...) substitution so we can't compute it inline here.
+          - "auto"
+          - "{{index $opsPerSecList $i}}"
+          - "{{$saturationRungDurationSeconds}}"
+          - "clustermesh-ub"
+          - "{{$namespaces}}"
+          - "/root/perf-tests/clusterloader2/results/LabelChurnTimings_Rung{{$i}}.json"
+
+  # Backward-compat: if SaturationRestartsList[$i] > 0, also run the
+  # legacy restart-burst workload (Phase A behavior). Default is 0/0/0/0/0
+  # so this block is a no-op unless explicitly enabled. Useful for A/B
+  # validation runs comparing Phase A vs Phase B load.
   {{range $r := Loop (index $restartsList $i)}}
   - module:
       path: /modules/event-throughput-workload.yaml
@@ -235,16 +285,21 @@ steps:
         phaseSuffix: Rung{{$i}}Restart{{$r}}
   {{end}}
 
-  # Rung-{{$i}} hold: keep the measurement window open after the burst so
-  # the gather queries capture peak + tail. CL2's %v in queries resolves
-  # to the wall time since the matching `start`, so this Sleep determines
-  # the measurement window width for rung {{$i}}.
-  - name: Rung {{$i}} hold (qps={{$qps}}, restarts={{index $restartsList $i}})
+  # Rung-{{$i}} hold: short tail (30s) after the label-churn workload exits
+  # to let final kvstore events flush through the mesh before gather queries
+  # run. CL2's `%v` in PromQL templates resolves to the wall time since the
+  # matching `start`, so this Sleep extends the measurement window for the
+  # rung. Phase A used a full $saturationRungDurationSeconds tail because
+  # the restart-burst workload's effects were async and the burst module
+  # returned before propagation completed; Phase B's label-churner blocks
+  # in-process for the full duration so by the time it exits, the workload
+  # is genuinely done — a much shorter tail suffices.
+  - name: Rung {{$i}} hold (qps={{$qps}}, ops/sec={{index $opsPerSecList $i}}, restarts={{index $restartsList $i}})
     measurements:
       - Identifier: SaturationRung{{$i}}Hold
         Method: Sleep
         Params:
-          duration: {{$saturationRungDurationSeconds}}s
+          duration: 30s
 
   # Gather rung-{{$i}} measurements. The suffix=Rung{{$i}} param threads
   # through every GenericPrometheusQuery's Identifier and metricName so
