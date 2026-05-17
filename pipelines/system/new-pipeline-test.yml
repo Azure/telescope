@@ -441,6 +441,15 @@ stages:
             install: false
             operation_timeout: 15m
           topology: clustermesh-scale
+          # 2026-05-17: opt into terraform-state-preserving apply retry at
+          # this stage only (n=20). Build 67467 showed default scorched-
+          # earth cleanup turns a single recoverable VNet-peering flake at
+          # N=20 into 3 cascading "already exists" / "AnotherOperationIn-
+          # Progress" failures because `az resource delete` is async and
+          # the next retry beats Azure to the punch. With this opt-in, on
+          # apply failure we keep the state file and let terraform retry
+          # reconcile against existing resources.
+          preserve_state_on_apply_failure: "true"
           terraform_input_file_mapping:
             - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-20.tfvars"
           matrix:
