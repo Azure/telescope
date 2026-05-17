@@ -61,10 +61,16 @@ steps:
   # Empirically at N=20, ~25% of clustermesh-apiserver LBs are still pending
   # IP assignment when terraform apply returns success, because Azure LB
   # provisioning happens asynchronously after Service creation. Per-cluster
-  # budget: 30min at N=2/5/10, 90min at N=20 (build 67384 found Fleet's
-  # ClusterMeshProfile reconciler at N=20 rolls out clustermesh-apiserver in
-  # waves — 12/20 were ready in 6min, the other 8 had deployment=<none> even
-  # at 30min mark; Fleet itself is the bottleneck, not LB provisioning).
+  # budget: 30min at N=2/5/10, 120min at N=20 (build 67404 found Fleet's
+  # ClusterMeshProfile reconciler at N=20 leaves 8/20 clusters with NO
+  # clustermesh-apiserver Deployment even after 90min — Cilium itself was
+  # 21/21 ready on those clusters, just Fleet's helm-release push got stuck).
+  #
+  # n=20 mitigation: a background re-applier re-issues `az fleet
+  # clustermeshprofile apply` every 10 min during the wait. This nudges
+  # the Fleet RP reconciler to retry pushing the clustermesh-apiserver
+  # helm release to any member it dropped on the first pass. The apply
+  # is idempotent so the 12 already-ready clusters won't be disturbed.
   # ----------------------------------------------------------------------------
   - script: |
       set -euo pipefail
@@ -74,11 +80,12 @@ steps:
       cluster_count=$(echo "$clusters" | jq 'length')
 
       # Per-cluster timeout scales with mesh size. At N=20 Fleet reconciles
-      # in waves and 30 min is not enough (build 67384 evidence). 90 min
-      # covers worst-case observed; if Fleet itself is wedged the deadline
-      # surfaces it as failure rather than hanging the job indefinitely.
+      # in waves and 30 min is not enough; even 90 min wasn't enough without
+      # an active re-apply (build 67404 evidence). 120 min + periodic
+      # re-apply at N>=15 surfaces wedged states as failure rather than
+      # hanging the job indefinitely.
       if [ "$cluster_count" -ge 15 ]; then
-        WAIT_BUDGET_SECONDS=5400  # 90 min
+        WAIT_BUDGET_SECONDS=7200  # 120 min
       else
         WAIT_BUDGET_SECONDS=1800  # 30 min — original budget for N<=10
       fi
@@ -96,6 +103,50 @@ steps:
           --resource-group "$rg" --name "$name" --overwrite-existing --only-show-errors
       done
 
+      # Fleet RG = same as cluster RG (terraform module.fleet runs in the
+      # same RG as the AKS clusters). Pull from the first cluster.
+      FLEET_RG=$(echo "$clusters" | jq -r '.[0].rg')
+      FLEET_NAME="clustermesh-flt"          # hardcoded by terraform module.fleet
+      FLEET_PROFILE="clustermesh-cmp"       # hardcoded by terraform module.fleet
+      echo "Fleet RG=$FLEET_RG fleet=$FLEET_NAME profile=$FLEET_PROFILE"
+
+      # Background ClusterMeshProfile re-applier (N>=15 only). At smaller
+      # mesh sizes the first apply reliably reaches all members within a
+      # few minutes, so the re-apply just adds noise.
+      REAPPLY_LOG="$(pwd)/clustermeshprofile-reapply.log"
+      if [ "$cluster_count" -ge 15 ]; then
+        {
+          echo "[reapplier] starting; re-issuing fleet clustermeshprofile apply every 600s"
+          # Wait 5 min before first re-apply so we don't double-trigger
+          # the initial apply that terraform just did 0-15s ago.
+          sleep 300
+          while true; do
+            _ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+            echo "[reapplier] $_ts re-applying clustermeshprofile..."
+            if az fleet clustermeshprofile apply \
+                 --resource-group "$FLEET_RG" \
+                 --fleet-name "$FLEET_NAME" \
+                 --name "$FLEET_PROFILE" \
+                 --output none --only-show-errors 2>&1; then
+              echo "[reapplier] $_ts re-apply OK"
+            else
+              echo "[reapplier] $_ts re-apply FAILED (Fleet RP may be busy; will retry)"
+            fi
+            # Optional: dump current profile state for diagnostics
+            az fleet clustermeshprofile show \
+              --resource-group "$FLEET_RG" \
+              --fleet-name "$FLEET_NAME" \
+              --name "$FLEET_PROFILE" \
+              --query "{provisioningState:properties.provisioningState, members:properties.memberClusters}" \
+              -o yaml --only-show-errors 2>&1 || true
+            sleep 600
+          done
+        } > "$REAPPLY_LOG" 2>&1 &
+        REAPPLY_PID=$!
+        echo "Spawned clustermeshprofile re-applier (PID=$REAPPLY_PID, log=$REAPPLY_LOG)"
+        trap 'kill $REAPPLY_PID 2>/dev/null || true' EXIT
+      fi
+
       # Parallel poll for clustermesh-apiserver readiness on every cluster.
       # Each subshell gets WAIT_BUDGET_SECONDS; we collect failures rather
       # than fail-fast on the first one so the operator sees the full set of
@@ -109,6 +160,7 @@ steps:
       roles=()
       for row in $(echo "$clusters" | jq -c '.[]'); do
         role=$(echo "$row" | jq -r '.role')
+        name=$(echo "$row" | jq -r '.name')
         (
           kc="$HOME/.kube/$role.config"
           deadline=$(( $(date +%s) + WAIT_BUDGET_SECONDS ))
@@ -134,13 +186,23 @@ steps:
               # Does the namespace at least have ANY clustermesh-* resources?
               echo "[$role] DIAG: kube-system clustermesh-* resources:"
               KUBECONFIG="$kc" kubectl -n kube-system get all -l app.kubernetes.io/name=clustermesh-apiserver 2>&1 | head -5 || true
-              # Has Cilium itself come up? (Fleet may have pushed Cilium values but not enabled clustermesh yet)
+              # Has Cilium itself come up?
               echo "[$role] DIAG: cilium-agent DaemonSet:"
               KUBECONFIG="$kc" kubectl -n kube-system get ds cilium 2>&1 | head -3 || true
               # Recent kube-system Warning events (e.g., ImagePullBackOff)
               echo "[$role] DIAG: recent kube-system Warning events:"
               KUBECONFIG="$kc" kubectl -n kube-system get events \
                 --field-selector type=Warning --sort-by='.lastTimestamp' 2>&1 | tail -5 || true
+              # Fleet-side view of this member (n=20 debug 2026-05-17): if
+              # Fleet thinks this member is missing or has bad state, the
+              # reconciler will never push clustermesh-apiserver to it.
+              echo "[$role] DIAG: fleet member $role state (from Fleet RP):"
+              az fleet member show \
+                --resource-group "$FLEET_RG" \
+                --fleet-name "$FLEET_NAME" \
+                --name "$role" \
+                --query "{provisioningState:provisioningState, clusterResourceId:clusterResourceId, labels:labels}" \
+                -o yaml --only-show-errors 2>&1 | head -10 || true
               last_diag=$now
             fi
             sleep 15
@@ -160,6 +222,14 @@ steps:
           failed=$((failed + 1))
         fi
       done
+
+      # Dump the re-applier's accumulated log so it shows up in the AzDO
+      # step output (the background daemon's stdout went to a file).
+      if [ -f "$REAPPLY_LOG" ]; then
+        echo "------- clustermeshprofile re-applier log -------"
+        cat "$REAPPLY_LOG" || true
+        echo "------- end re-applier log -------"
+      fi
 
       if [ "$failed" -gt 0 ]; then
         echo "##vso[task.logissue type=error;] $failed of $cluster_count clustermesh-apiserver(s) not ready; peering will not converge"
