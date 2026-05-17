@@ -14,15 +14,6 @@ variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: clustermesh-scale
   OWNER: aks
-  # 2026-05-17: opt-in to terraform-state-preserving apply retry. Build 67467
-  # showed the default scorched-earth cleanup turns a single recoverable
-  # peering flake at N=20 into 3 cascading "already exists" failures because
-  # `az resource delete` is async and the next retry beats Azure to the punch.
-  # With this opt-in, on apply failure we KEEP the state file and let
-  # terraform reconcile against existing resources on retry (idempotent for
-  # successful ones, only re-attempts failed/missing ones). See
-  # steps/terraform/run-command.yml for full rationale.
-  PRESERVE_STATE_ON_APPLY_FAILURE: 'true'
 
 stages:
   # 2026-05-13: Phase 4b smoke at n=2 to validate Option B++ fix

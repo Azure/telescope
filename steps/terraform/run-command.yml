@@ -16,6 +16,9 @@ parameters:
 - name: skip_resource_deletion
   type: string
   default: "false"
+- name: preserve_state_on_apply_failure
+  type: string
+  default: "false"
 
 steps:
 - script: |
@@ -56,8 +59,8 @@ steps:
           # already-created resources and only retries the failed ones, which
           # is the standard hashicorp-recommended pattern for partial apply.
           if [[ ${{ parameters.command }} == "apply" && "$CLOUD" == "azure" ]]; then
-            if [[ "${PRESERVE_STATE_ON_APPLY_FAILURE:-false}" == "true" ]]; then
-              echo "PRESERVE_STATE_ON_APPLY_FAILURE=true; skipping scorched-earth cleanup so terraform retry can reconcile from existing state"
+            if [[ "${{ parameters.preserve_state_on_apply_failure }}" == "true" ]]; then
+              echo "preserve_state_on_apply_failure=true; skipping scorched-earth cleanup so terraform retry can reconcile from existing state"
             else
               echo "Delete resources and remove state file before retrying"
               ids=$(az resource list --location $region --resource-group $RUN_ID --query [*].id -o tsv)
@@ -110,8 +113,3 @@ steps:
     CLOUD: ${{ parameters.cloud }}
     ARM_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
     BUILD_REASON: $(Build.Reason)
-    # Opt-in for scenarios that prefer terraform-state-preserving retries
-    # over scorched-earth cleanup. Pipeline-level variable; defaults to
-    # false (preserves existing behavior for all scenarios that haven't
-    # explicitly opted in).
-    PRESERVE_STATE_ON_APPLY_FAILURE: $(PRESERVE_STATE_ON_APPLY_FAILURE)
