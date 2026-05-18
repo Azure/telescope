@@ -643,73 +643,85 @@ stages:
           terraform_input_file_mapping:
             - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-20.tfvars"
           matrix:
-            # Phase 4b — n=20 share-infra overnight run.
-            # Runs 3 scenarios in ONE provision/destroy lifecycle:
-            #   1. event-throughput (scenario #1 baseline with CFP-39876 fix)
-            #   2. pod-churn-combined (scenario #2 scale + kill phases)
-            #   3. apiserver-failure (scenario #4 — Phase 4b's new scenario)
-            # Compresses what would be 3 × 6h = 18h of separate lifecycles
-            # into ~7-8h shared.
+            # ====================================================================
+            # 2026-05-18: n=20 all-scenarios run (mirrors n=5 / n=10 layout).
+            # Three matrix entries, each its own mesh-20 lifecycle:
+            #   n20_shared              — 5-scenario share-infra rollup (#1,#2,#4,#7,#5)
+            #   n20_node_churn_combined — #3 standalone (OUT of share-infra
+            #                             per SETTLED DESIGN — topology
+            #                             mutations can leave residue if
+            #                             finalizer fails)
+            #   n20_upper_bound         — #6 standalone (already validated
+            #                             green in build 67579)
             #
-            # cl2_max_concurrent=8: bumped from default 4 so more peer
-            # clusters' Prometheus are running during scenario #4's kill
-            # window. At default 4, only 3 of 19 peers would be in flight
-            # when mesh-1 is killed. At 8: ~7 peers. Marginal agent memory
-            # increase, much better peer coverage.
-            #
-            # SMOKE-ONLY: solo-scenario matrix entries below commented out
-            # so this overnight run produces exactly one results blob from
-            # the shared lifecycle. Uncomment for solo iteration.
-            # n20_event_throughput: ...
-            # n20_pod_churn_combined: ...
-            #
-            # 2026-05-16: n20_shared also commented out so the n=20 stage
-            # runs ONLY n20_upper_bound (scenario #6 saturation sweep on
-            # high-fan-out mesh). Re-enable n20_shared later for the
-            # post-#6 share-infra rollup work.
-            # n20_shared:
-            #   cluster_count: 20
-            #   mesh_size: 20
-            #   share_infra_scenarios: "event-throughput,pod-churn-combined,apiserver-failure,ha-config,isolation,node-churn-combined"
-            #   cl2_config_file: ""  # unused in share-infra mode
-            #   test_type: shared    # row-level test_type comes from each scenario
-            #   cl2_max_concurrent: 8
-            #   namespaces: 5
-            #   deployments_per_namespace: 4
-            #   replicas_per_deployment: 10
-            #   hold_duration: 2m
-            #   warmup_duration: 30s
-            #   restart_count: 1
-            #   api_server_calls_per_second: 20
-            #   churn_cycles: 5
-            #   churn_up_duration: 60s
-            #   churn_down_duration: 60s
-            #   kill_duration: 10m
-            #   kill_duration_seconds: 600
-            #   kill_interval_seconds: 10
-            #   kill_batch: 5
-            #   kill_job_deadline_seconds: 660
-            #   apiserver_kill_target_context: clustermesh-1
-            #   apiserver_kill_recovery_timeout_seconds: 240
-            #   apiserver_kill_observation_seconds: 60
-            #   ha_config_replicas: 3
-            #   # Phase 4b — Scenario #3 (Node Churn / IP Churn) knobs at n=20.
-            #   node_churn_target_context: clustermesh-1
-            #   node_churn_cycles: 3
-            #   node_churn_delta: 5
-            #   node_churn_settle_seconds: 60
-            #   node_churn_scale_duration_seconds: 1800
-            #   node_churn_replace_duration_seconds: 1500
-            #   node_churn_combined_duration_seconds: 3300
-            #   node_replace_batch_size: 10
-            #   node_churn_ready_timeout_seconds: 300
-            #   trigger_reason: ${{ variables['Build.Reason'] }}
+            # max_parallel=1: each n=20 entry uses 1760 vCPU peak (20 ×
+            # 88). At max_parallel=1, total n=20 footprint stays at 1760
+            # which fits alongside n=5 (max 3×440=1320) and n=10 (max
+            # 2×880=1760) for an aggregate 4840 vCPU < 5000 Dv3 limit.
+            # Bumping to max_parallel=2 would push to 6600 (over). When
+            # n=5/n=10 stages are disabled at trigger time, max_parallel
+            # could safely be bumped to 2 manually.
+            # ====================================================================
+            n20_shared:
+              cluster_count: 20
+              mesh_size: 20
+              share_infra_scenarios: "event-throughput,pod-churn-combined,apiserver-failure,ha-config,isolation"
+              cl2_config_file: ""  # unused when share_infra_scenarios is set
+              test_type: shared    # row-level test_type comes from each scenario
+              cl2_max_concurrent: 8
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 1
+              api_server_calls_per_second: 20
+              churn_cycles: 5
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              apiserver_kill_target_context: clustermesh-1
+              apiserver_kill_recovery_timeout_seconds: 240
+              apiserver_kill_observation_seconds: 60
+              ha_config_replicas: 3
+              trigger_reason: ${{ variables['Build.Reason'] }}
+            # Scenario #3 (Node Churn / IP Churn) standalone — OUT of
+            # share-infra per SETTLED DESIGN. K=10 nodes target on
+            # clustermesh-1; same cycles/delta as n=10 for apples-to-
+            # apples scaling-curve comparison.
+            n20_node_churn_combined:
+              cluster_count: 20
+              mesh_size: 20
+              cl2_config_file: node-churn-combined.yaml
+              test_type: node-churn-combined
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 1
+              api_server_calls_per_second: 20
+              node_churn_target_context: clustermesh-1
+              node_churn_cycles: 2
+              node_churn_delta: 3
+              node_churn_settle_seconds: 60
+              node_churn_scale_duration_seconds: 1500
+              node_churn_replace_duration_seconds: 1500
+              node_churn_combined_duration_seconds: 2700
+              node_replace_batch_size: 10
+              node_churn_ready_timeout_seconds: 300
+              trigger_reason: ${{ variables['Build.Reason'] }}
             # Scenario #6 (Upper Bound / Saturation) at n=20. Each cluster's
             # clustermesh-apiserver fans events to 19 peers, ~19× the local
             # event-rate pressure of n=2. Build 67377 showed n=2 had >10×
-            # headroom on every signal — at n=20 the same workload knobs
-            # should trip a verdict on at least one rung. tfvars azure-20
-            # uses D4_v3/D8_v3 (non-s SKU) for quota headroom.
+            # headroom on every signal — at n=20 (build 67579) 19/100
+            # rungs hit etcd_tail (with 7/20 at peak rung), giving the
+            # real scaling-curve signal. tfvars azure-20 uses D4_v3/D8_v3
+            # (non-s SKU) for quota headroom.
             n20_upper_bound:
               cluster_count: 20
               mesh_size: 20
