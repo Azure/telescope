@@ -37,12 +37,14 @@ WaitForNodePoolSucceeded = lambda serviceConnection: str, cluster: str, resource
     )
 }
 
-# WaitForAllWorkerNodesReady waits for every pool in poolToNodes (a map of
-# poolName -> expectedNodeCount) to reach provisioningState=Succeeded, then
-# waits for the matching total number of worker nodes to be Ready via kubectl.
-WaitForAllWorkerNodesReady = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, poolToNodes: {str:int} -> steps.Step {
-    poolNames = [name for name in poolToNodes]
-    expectedTotal = sum([poolToNodes[name] for name in poolNames], 0)
+# WaitForAllWorkerNodesReady waits for every pool in pools (typically the
+# [PoolEntry] returned by PlanNodePools / produced by CreateNodePools) to reach
+# provisioningState=Succeeded, then waits for the matching total number of
+# worker nodes to be Ready via kubectl. The caller must have run
+# GetCredentials earlier in the job so kubectl is configured.
+WaitForAllWorkerNodesReady = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, pools: [PoolEntry] -> steps.Step {
+    poolNames = [p.name for p in pools]
+    expectedTotal = sum([p.count for p in pools], 0)
     # Regex alternation of "aks-<pool>-" prefixes, e.g. "^aks-(workerpool0|workerpool1)-".
     poolPrefixRegex = "^aks-(" + "|".join(poolNames) + ")-"
     script = """
