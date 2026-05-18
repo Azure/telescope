@@ -1,0 +1,544 @@
+name: API Server List Configmaps
+pool: AKS-Telescope-Airlock
+trigger: none
+stages:
+- stage: workload_low
+  displayName: workload_low
+  jobs:
+  - job: benchmark_workload_low
+    displayName: Benchmark (workload_low)
+    timeoutInMinutes: 360
+    steps:
+    - bash: |2
+
+        set -eo pipefail
+
+        job_id="$(System.JobId)"
+        RUN_ID=$(Build.BuildId)-${job_id:0:8}
+        echo "Run ID: $RUN_ID"
+
+        echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
+      displayName: Set Run ID
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+          az config set defaults.location="uksouth"
+          az account show
+      displayName: Login to Azure
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az group create --name "$(RUN_ID)" --location "uksouth" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+      displayName: Create resource group $(RUN_ID) in uksouth (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az rest \
+            --method put \
+            --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/configmaps100?api-version=2026-01-02-preview" \
+            --body "
+          {
+              \"location\": \"uksouth\",
+              \"identity\": { \"type\": \"SystemAssigned\" },
+              \"sku\": {
+                \"name\": \"Base\",
+                \"tier\": \"Standard\"
+              },
+              \"tags\": {
+                \"SkipAKSCluster\": \"true\",
+                \"SkipASMAzSecPackAutoConfig\": \"true\",
+                \"SkipLinuxAzSecPack\": \"true\"
+              },
+              \"properties\": {
+                \"kubernetesVersion\": \"1.35\",
+                \"dnsPrefix\": \"configmaps100-dns\",
+                \"agentPoolProfiles\": [
+                  {
+                    \"name\": \"default\",
+                    \"mode\": \"System\",
+                    \"count\": 2,
+                    \"vmSize\": \"Standard_D2s_v3\",
+                    \"osType\": \"Linux\",
+                    \"nodeTaints\": [\"CriticalAddonsOnly=true:NoSchedule\"]
+                  }
+                ],
+                \"networkProfile\": {
+                  \"networkPlugin\": \"azure\",
+                  \"networkPluginMode\": \"overlay\"
+                }
+              }
+            }"
+      displayName: Create cluster
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          while true; do
+            STATE=$(az aks show \
+              --name "configmaps100" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --query "provisioningState" \
+              --output tsv)
+            echo "Cluster provisioning state: $STATE"
+            if [ "$STATE" = "Succeeded" ]; then
+              echo "Cluster is ready."
+              break
+            elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+              echo "Cluster failed with state: $STATE."
+              exit 1
+            else
+              echo "Provisioning state: $STATE. Retry in 30 seconds"
+            fi
+            sleep 30
+          done
+      displayName: Wait for cluster to succeed
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az aks get-credentials \
+            --name "configmaps100" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --overwrite-existing
+      displayName: Get credentials for configmaps100
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: "set -exo pipefail\n\naz aks nodepool add \\\n  --cluster-name \"configmaps100\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"runner\" \\\n  --node-count 3 \\\n  --node-vm-size \"Standard_D16s_v3\" \\\n  --mode User \\\n   \\\n  \n"
+      displayName: Create node pool runner
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          while true; do
+            STATE=$(az aks nodepool show \
+              --cluster-name "configmaps100" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --name "runner" \
+              --query "provisioningState" \
+              --output tsv)
+            echo "Node pool provisioning state: $STATE"
+            if [ "$STATE" = "Succeeded" ]; then
+              echo "Node pool is ready."
+              break
+            elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+              echo "Node pool failed with state: $STATE."
+              exit 1
+            else
+              echo "Provisioning state: $STATE. Retry in 30 seconds"
+            fi
+            sleep 30
+          done
+      displayName: Wait for node pool runner to succeed
+    - script: |2
+
+        set -euo pipefail
+        set -x
+
+        temp_dir=$(mktemp -p /tmp -d kperfinstall.XXXX)
+        docker rmi ghcr.io/azure/kperf:0.3.4 2>/dev/null || true
+        docker pull ghcr.io/azure/kperf:0.3.4
+        docker run --rm -v $temp_dir:/install-dir \
+          ghcr.io/azure/kperf:0.3.4 bash -c "set -x; install /kperf /runkperf /install-dir"
+
+        sudo install $temp_dir/kperf $temp_dir/runkperf /usr/local/bin
+        rm -rf $temp_dir
+        docker rmi ghcr.io/azure/kperf:0.3.4 2>/dev/null || true
+      displayName: Install runkperf binary
+    - script: |2
+
+        set -euo pipefail
+        set -x
+
+        sudo -E $(command -v runkperf) -v 3 bench \
+          --kubeconfig ~/.kube/config \
+          --runner-image="ghcr.io/azure/kperf:0.3.4" \
+          --runner-flowcontrol="workload-low:1000" \
+          --result /tmp/tmp_results.json \
+          list_configmaps --total 10000 --size=1024 --group-size=10 --configmap-amount=100
+      displayName: Run kperf benchmark (list_configmaps, flowcontrol=workload-low:1000)
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          # Collect cloud info
+          aks_info=$(az aks show --resource-group "$(RUN_ID)" --name "configmaps100" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --output json)
+          cloud_info=$(jq -n \
+            --arg cloud "azure" \
+            --arg region "$(echo $aks_info | jq -r .location)" \
+            --arg fqdn "$(echo $aks_info | jq -r .fqdn)" \
+            --arg private_fqdn "$(echo $aks_info | jq -r '.privateFqdn // empty')" \
+            --arg k8s_version "$(echo $aks_info | jq -r .currentKubernetesVersion)" \
+            --arg sku_tier "$(echo $aks_info | jq -r .sku.tier)" \
+            --arg subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --arg network_profile "$(echo $aks_info | jq -r .networkProfile)" \
+            --arg agentpool_profile "$(echo $aks_info | jq -r .agentPoolProfiles)" \
+            '{
+              cloud: $cloud,
+              region: $region,
+              fqdn: $fqdn,
+              private_fqdn: $private_fqdn,
+              k8s_version: $k8s_version,
+              sku_tier: $sku_tier,
+              subscription: $subscription,
+              network_profile: $network_profile,
+              agentpool_profile: $agentpool_profile
+            }')
+
+          # Check for errors and upload error raw data if error rate is too high
+          errors_number=$(jq -r '.result.errors | length' /tmp/tmp_results.json)
+          error_rate_too_high=$(jq -r '(1 - .result.total / (.loadSpec.count * .loadSpec.loadProfile.spec.total)) > 0' /tmp/tmp_results.json)
+          if [[ "$errors_number" != "0" && "$error_rate_too_high" == "true" ]]; then
+            cat /tmp/tmp_results.json \
+              | jq -cr ".result.errors | map(. + {runID: \"$(RUN_ID)\", cloud: \"azure\"}) | .[]" > /tmp/errors_raw_data.json
+            echo "Error raw data:"
+            cat /tmp/errors_raw_data.json
+          fi
+
+          # Collect final result
+          cat /tmp/tmp_results.json \
+            | jq 'del(.result.errors)' \
+            | jq -c ".info += { flowcontrol: \"workload-low:1000\", subcmdArgs: \"--total 10000 --size=1024 --group-size=10 --configmap-amount=100\" }" \
+            | jq -c ". += { timestamp: \"$TIMESTAMP\" }" \
+            | jq -c ". += { runID: \"$(RUN_ID)\", runURL: \"$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)\", cloud: \"azure\", extraInfos: $cloud_info }" \
+            > /tmp/run-result.json
+
+          echo "Collected result:"
+          cat /tmp/run-result.json | jq .
+      displayName: Collect kperf benchmark result
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az storage blob upload \
+            --account-name "telescopev2" \
+            --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
+            --container-name "aks" \
+            --name "$(RUN_ID)/run-result.json" \
+            --file /tmp/run-result.json \
+            --auth-mode key
+      displayName: Upload result to storage account
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+      condition: always()
+      displayName: Delete resource group $(RUN_ID) (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+- stage: exempt
+  displayName: exempt
+  jobs:
+  - job: benchmark_exempt
+    displayName: Benchmark (exempt)
+    timeoutInMinutes: 360
+    steps:
+    - bash: |2
+
+        set -eo pipefail
+
+        job_id="$(System.JobId)"
+        RUN_ID=$(Build.BuildId)-${job_id:0:8}
+        echo "Run ID: $RUN_ID"
+
+        echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
+      displayName: Set Run ID
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+          az config set defaults.location="uksouth"
+          az account show
+      displayName: Login to Azure
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az group create --name "$(RUN_ID)" --location "uksouth" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+      displayName: Create resource group $(RUN_ID) in uksouth (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az rest \
+            --method put \
+            --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/configmaps100?api-version=2026-01-02-preview" \
+            --body "
+          {
+              \"location\": \"uksouth\",
+              \"identity\": { \"type\": \"SystemAssigned\" },
+              \"sku\": {
+                \"name\": \"Base\",
+                \"tier\": \"Standard\"
+              },
+              \"tags\": {
+                \"SkipAKSCluster\": \"true\",
+                \"SkipASMAzSecPackAutoConfig\": \"true\",
+                \"SkipLinuxAzSecPack\": \"true\"
+              },
+              \"properties\": {
+                \"kubernetesVersion\": \"1.35\",
+                \"dnsPrefix\": \"configmaps100-dns\",
+                \"agentPoolProfiles\": [
+                  {
+                    \"name\": \"default\",
+                    \"mode\": \"System\",
+                    \"count\": 2,
+                    \"vmSize\": \"Standard_D2s_v3\",
+                    \"osType\": \"Linux\",
+                    \"nodeTaints\": [\"CriticalAddonsOnly=true:NoSchedule\"]
+                  }
+                ],
+                \"networkProfile\": {
+                  \"networkPlugin\": \"azure\",
+                  \"networkPluginMode\": \"overlay\"
+                }
+              }
+            }"
+      displayName: Create cluster
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          while true; do
+            STATE=$(az aks show \
+              --name "configmaps100" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --query "provisioningState" \
+              --output tsv)
+            echo "Cluster provisioning state: $STATE"
+            if [ "$STATE" = "Succeeded" ]; then
+              echo "Cluster is ready."
+              break
+            elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+              echo "Cluster failed with state: $STATE."
+              exit 1
+            else
+              echo "Provisioning state: $STATE. Retry in 30 seconds"
+            fi
+            sleep 30
+          done
+      displayName: Wait for cluster to succeed
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az aks get-credentials \
+            --name "configmaps100" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --overwrite-existing
+      displayName: Get credentials for configmaps100
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: "set -exo pipefail\n\naz aks nodepool add \\\n  --cluster-name \"configmaps100\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"runner\" \\\n  --node-count 3 \\\n  --node-vm-size \"Standard_D16s_v3\" \\\n  --mode User \\\n   \\\n  \n"
+      displayName: Create node pool runner
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          while true; do
+            STATE=$(az aks nodepool show \
+              --cluster-name "configmaps100" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --name "runner" \
+              --query "provisioningState" \
+              --output tsv)
+            echo "Node pool provisioning state: $STATE"
+            if [ "$STATE" = "Succeeded" ]; then
+              echo "Node pool is ready."
+              break
+            elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+              echo "Node pool failed with state: $STATE."
+              exit 1
+            else
+              echo "Provisioning state: $STATE. Retry in 30 seconds"
+            fi
+            sleep 30
+          done
+      displayName: Wait for node pool runner to succeed
+    - script: |2
+
+        set -euo pipefail
+        set -x
+
+        temp_dir=$(mktemp -p /tmp -d kperfinstall.XXXX)
+        docker rmi ghcr.io/azure/kperf:0.3.4 2>/dev/null || true
+        docker pull ghcr.io/azure/kperf:0.3.4
+        docker run --rm -v $temp_dir:/install-dir \
+          ghcr.io/azure/kperf:0.3.4 bash -c "set -x; install /kperf /runkperf /install-dir"
+
+        sudo install $temp_dir/kperf $temp_dir/runkperf /usr/local/bin
+        rm -rf $temp_dir
+        docker rmi ghcr.io/azure/kperf:0.3.4 2>/dev/null || true
+      displayName: Install runkperf binary
+    - script: |2
+
+        set -euo pipefail
+        set -x
+
+        sudo -E $(command -v runkperf) -v 3 bench \
+          --kubeconfig ~/.kube/config \
+          --runner-image="ghcr.io/azure/kperf:0.3.4" \
+          --runner-flowcontrol="exempt:5" \
+          --result /tmp/tmp_results.json \
+          list_configmaps --total 10000 --size=1024 --group-size=10 --configmap-amount=100
+      displayName: Run kperf benchmark (list_configmaps, flowcontrol=exempt:5)
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          # Collect cloud info
+          aks_info=$(az aks show --resource-group "$(RUN_ID)" --name "configmaps100" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --output json)
+          cloud_info=$(jq -n \
+            --arg cloud "azure" \
+            --arg region "$(echo $aks_info | jq -r .location)" \
+            --arg fqdn "$(echo $aks_info | jq -r .fqdn)" \
+            --arg private_fqdn "$(echo $aks_info | jq -r '.privateFqdn // empty')" \
+            --arg k8s_version "$(echo $aks_info | jq -r .currentKubernetesVersion)" \
+            --arg sku_tier "$(echo $aks_info | jq -r .sku.tier)" \
+            --arg subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --arg network_profile "$(echo $aks_info | jq -r .networkProfile)" \
+            --arg agentpool_profile "$(echo $aks_info | jq -r .agentPoolProfiles)" \
+            '{
+              cloud: $cloud,
+              region: $region,
+              fqdn: $fqdn,
+              private_fqdn: $private_fqdn,
+              k8s_version: $k8s_version,
+              sku_tier: $sku_tier,
+              subscription: $subscription,
+              network_profile: $network_profile,
+              agentpool_profile: $agentpool_profile
+            }')
+
+          # Check for errors and upload error raw data if error rate is too high
+          errors_number=$(jq -r '.result.errors | length' /tmp/tmp_results.json)
+          error_rate_too_high=$(jq -r '(1 - .result.total / (.loadSpec.count * .loadSpec.loadProfile.spec.total)) > 0' /tmp/tmp_results.json)
+          if [[ "$errors_number" != "0" && "$error_rate_too_high" == "true" ]]; then
+            cat /tmp/tmp_results.json \
+              | jq -cr ".result.errors | map(. + {runID: \"$(RUN_ID)\", cloud: \"azure\"}) | .[]" > /tmp/errors_raw_data.json
+            echo "Error raw data:"
+            cat /tmp/errors_raw_data.json
+          fi
+
+          # Collect final result
+          cat /tmp/tmp_results.json \
+            | jq 'del(.result.errors)' \
+            | jq -c ".info += { flowcontrol: \"exempt:5\", subcmdArgs: \"--total 10000 --size=1024 --group-size=10 --configmap-amount=100\" }" \
+            | jq -c ". += { timestamp: \"$TIMESTAMP\" }" \
+            | jq -c ". += { runID: \"$(RUN_ID)\", runURL: \"$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)\", cloud: \"azure\", extraInfos: $cloud_info }" \
+            > /tmp/run-result.json
+
+          echo "Collected result:"
+          cat /tmp/run-result.json | jq .
+      displayName: Collect kperf benchmark result
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az storage blob upload \
+            --account-name "telescopev2" \
+            --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
+            --container-name "aks" \
+            --name "$(RUN_ID)/run-result.json" \
+            --file /tmp/run-result.json \
+            --auth-mode key
+      displayName: Upload result to storage account
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+      condition: always()
+      displayName: Delete resource group $(RUN_ID) (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
