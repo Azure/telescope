@@ -630,10 +630,12 @@ class AKSClient:
                     parameters=node_pool,
                 ).result()
             except HttpResponseError as e:
-                if "OperationNotAllowed" in str(e) and attempt < max_retries:
+                error_str = str(e)
+                is_retryable = ("OperationNotAllowed" in error_str or "EtagMismatch" in error_str)
+                if is_retryable and attempt < max_retries:
                     logger.warning(
                         f"Cluster has an in-progress operation, retrying in {retry_interval}s "
-                        f"(attempt {attempt}/{max_retries}): {str(e)[:200]}"
+                        f"(attempt {attempt}/{max_retries}): {error_str[:200]}"
                     )
                     time.sleep(retry_interval)
                 else:
