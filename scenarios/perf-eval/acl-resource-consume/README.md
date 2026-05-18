@@ -49,6 +49,6 @@ ACL_IMAGE_NAME=acl-aks-arm64
 ACL_IMAGE_VERSION=1.1776195556.10516
 ```
 
-## First Run
+## Benchmark Matrix
 
-The initial matrix intentionally runs only `n10-p300-memory`. After it creates an AKS cluster, runs ClusterLoader2, publishes JUnit, uploads results, and cleans up reliably, add the higher pressure cases from `azurelinux-resource-consume`.
+The ACL pipeline runs the same initial Linux memory pressure cases as `azurelinux-resource-consume`: `n10-p300-memory`, `n10-p700-memory`, and `n10-p1100-memory`.
