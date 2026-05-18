@@ -22,12 +22,11 @@ stages:
   # this lands clean.
   - stage: azure_eastus2euap
     dependsOn: []
-    # ITER-DISABLED 2026-05-18: n=20 saturation re-iteration with soft-fail
-    # fix for upper-bound (build 67497 mesh-1 had 2 Patch http2 errors during
-    # restart-burst — the strict junit check threw away data for all 20
-    # clusters; now upper-bound tolerates junit failures and still uploads
-    # blob). n=2 all-scenarios re-enable later for the share-infra rollup.
-    condition: false
+    # 2026-05-18: BOTH n=2 + n=20 stages enabled. Operator disables one
+    # stage manually in the AzDO UI when triggering a run, depending on
+    # what data they want. n=2 captures n2_shared (5-scenario rollup
+    # #1,#2,#4,#7,#5) + n2_node_churn_combined (#3 standalone). #6 already
+    # validated at n=2 in build 67377 (blob 67377-bb8fe90b.json).
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
