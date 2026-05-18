@@ -346,6 +346,76 @@ steps:
           --name "$FLEET_PROFILE" \
           -o yaml --only-show-errors 2>&1 | head -80 || true
         echo ""
+
+        # ====================================================================
+        # KEY DIAGNOSTIC: cilium-config cluster-id + cluster-name table.
+        # ====================================================================
+        # Build 67525 evidence (Azure Fleet RP bug at n=20 on the
+        # standalone-test sub): Fleet's reconciler renders Cilium's
+        # `cluster-name` field as `<fleet-member-name><cluster-id>`
+        # CONCATENATED (e.g., mesh-1 with cluster-id=4 → cluster-name
+        # "mesh-14" instead of "mesh-1"). And it sometimes skips reconciling
+        # 1-3 clusters entirely, leaving their cluster-name at the default
+        # AKS-derived "clustermesh<N>" (no dash) and cluster-id="0".
+        #
+        # Both bugs are 100% visible from the cilium-config ConfigMap on
+        # each cluster — we just need to pull it. The expected value is
+        # cluster-name=<member-name> (e.g. "mesh-1"). Anything else flags
+        # the bug. Tabulating across all clusters makes the pattern jump
+        # out instantly.
+        #
+        # This runs BEFORE the per-cluster validate loop because Fleet
+        # state is set at provision time — no point polling for mesh
+        # convergence if Fleet already broke the configs.
+        echo "===================================================================="
+        echo "  cluster-id / cluster-name table — Fleet reconcile sanity check"
+        echo "===================================================================="
+        echo ""
+        printf "  %-12s %-12s %-12s %-25s %s\n" "AKS_cluster" "Fleet_role" "cluster-id" "cluster-name(claimed)" "Status"
+        printf "  %-12s %-12s %-12s %-25s %s\n" "---------" "---------" "---------" "---------------------" "------"
+        fleet_bug_count=0
+        fleet_skip_count=0
+        for _row in $(echo "$clusters" | jq -c '.[]'); do
+          _name=$(echo "$_row" | jq -r '.name')
+          _rg=$(echo "$_row" | jq -r '.rg')
+          _role=$(echo "$_row" | jq -r '.role')
+          _kc="$HOME/.kube/${_role}.config"
+          # Ensure kubeconfig exists. The per-cluster validate loop fetches
+          # them, but we run BEFORE that loop. Fetch sequentially here too.
+          if [ ! -f "$_kc" ]; then
+            KUBECONFIG="$_kc" az aks get-credentials \
+              --resource-group "$_rg" --name "$_name" --overwrite-existing \
+              --only-show-errors >/dev/null 2>&1 || true
+          fi
+          _cid=$(KUBECONFIG="$_kc" kubectl -n kube-system get cm cilium-config \
+                   -o jsonpath='{.data.cluster-id}' 2>/dev/null || echo "?")
+          _cn=$(KUBECONFIG="$_kc" kubectl -n kube-system get cm cilium-config \
+                  -o jsonpath='{.data.cluster-name}' 2>/dev/null || echo "?")
+          # The Fleet member name (e.g., "mesh-1") is what cluster-name
+          # SHOULD be set to. Anything else flags one of two bug modes:
+          # (a) concatenation bug: cluster-name = mesh-N + cluster-id
+          # (b) reconcile-skipped: cluster-name = clustermesh<N> + cluster-id=0
+          _status="OK"
+          if [ "$_cn" = "$_role" ]; then
+            _status="OK"
+          elif [ "$_cid" = "0" ]; then
+            _status="FLEET-SKIPPED (cluster-id=0, default name)"
+            fleet_skip_count=$((fleet_skip_count + 1))
+          elif [ "$_cn" = "${_role}${_cid}" ]; then
+            _status="FLEET-CONCAT-BUG (name = ${_role} + ${_cid})"
+            fleet_bug_count=$((fleet_bug_count + 1))
+          else
+            _status="UNEXPECTED (name='${_cn}', id='${_cid}')"
+          fi
+          printf "  %-12s %-12s %-12s %-25s %s\n" "$_name" "$_role" "$_cid" "$_cn" "$_status"
+        done
+        echo ""
+        if [ "$fleet_bug_count" -gt 0 ] || [ "$fleet_skip_count" -gt 0 ]; then
+          echo "##vso[task.logissue type=warning;] AZURE FLEET BUG DETECTED at N=$cluster_count: ${fleet_bug_count} cluster(s) have CONCAT-BUG cluster-name, ${fleet_skip_count} cluster(s) were SKIPPED by Fleet reconciler (cluster-id=0). Mesh convergence WILL fail — see Phase 4b plan.md / files/fleet-clustermeshprofile-bug-67525.md for evidence + workarounds (n<=10, or move to OLD sub)."
+        else
+          echo "Fleet reconcile state: clean (all cluster-name values match Fleet member names)"
+        fi
+        echo ""
       fi
 
       failures=0
