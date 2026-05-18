@@ -450,8 +450,11 @@ stages:
   # (10x default-pool D4s_v5 + 10x prompool D8s_v3). 90 VNet peerings.
   - stage: azure_eastus2euap_n10
     dependsOn: []
-    # ITER-DISABLED 2026-05-08
-    condition: false
+    # 2026-05-18: re-enabled for n=10 all-scenarios run, mirroring n=5 layout
+    # (n5_shared + n5_node_churn_combined + n5_upper_bound). Inherits all
+    # clustermesh-scale-wide fixes: preserve_state_on_apply_failure,
+    # soft-fail-on-junit, snapshot daemon, Fleet bug detector at N>=3.
+    #
     # Lower terraform apply parallelism from default 10 to 4. At default,
     # all 10 `az aks create` calls fire simultaneously and the regional AKS
     # RP throttles severely — observed N=10 first run had every cluster
@@ -469,6 +472,10 @@ stages:
           cloud: azure
           regions:
             - eastus2euap
+          # Opt into terraform-state-preserving apply retry. n=10 = 10
+          # clusters + 90 VNet peerings; transient peering flakes are
+          # common and scorched-earth retry cleanup costs ~30min/retry.
+          preserve_state_on_apply_failure: "true"
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
@@ -478,11 +485,28 @@ stages:
           terraform_input_file_mapping:
             - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-10.tfvars"
           matrix:
-            n10_event_throughput:
+            # ====================================================================
+            # 2026-05-18: n=10 all-scenarios run (mirrors n=5 layout).
+            #
+            # Three matrix entries run in parallel against THREE separate
+            # mesh-10 lifecycles (max_parallel=3). Each entry provisions its
+            # own pair of 10 clusters; total quota footprint = 3 × 440 vCPU
+            # ≈ 1320 vCPU on Dv3 family (limit 5000, headroom).
+            #
+            #   n10_shared              — 5-scenario share-infra rollup
+            #                              (#1,#2,#4,#7,#5)
+            #   n10_node_churn_combined  — #3 standalone (out of share-infra
+            #                              per SETTLED DESIGN)
+            #   n10_upper_bound          — #6 standalone. At n=10 each
+            #                              cluster fans out to 9 peers vs
+            #                              1 at n=2 → ~9× propagation load.
+            # ====================================================================
+            n10_shared:
               cluster_count: 10
               mesh_size: 10
-              cl2_config_file: event-throughput.yaml
-              test_type: event-throughput
+              share_infra_scenarios: "event-throughput,pod-churn-combined,apiserver-failure,ha-config,isolation"
+              cl2_config_file: ""  # unused when share_infra_scenarios is set
+              test_type: shared    # row-level test_type comes from each scenario
               namespaces: 5
               deployments_per_namespace: 4
               replicas_per_deployment: 10
@@ -490,47 +514,74 @@ stages:
               warmup_duration: 30s
               restart_count: 1
               api_server_calls_per_second: 20
-              trigger_reason: ${{ variables['Build.Reason'] }}
-            # Phase 4a — Scenario #2 (Pod Churn Stress).
-            n10_pod_churn_scale:
-              cluster_count: 10
-              mesh_size: 10
-              cl2_config_file: pod-churn-scale.yaml
-              test_type: pod-churn-scale
-              namespaces: 5
-              deployments_per_namespace: 4
-              replicas_per_deployment: 10
-              hold_duration: 2m
-              warmup_duration: 30s
-              restart_count: 0
-              api_server_calls_per_second: 20
               churn_cycles: 5
               churn_up_duration: 60s
               churn_down_duration: 60s
-              trigger_reason: ${{ variables['Build.Reason'] }}
-            n10_pod_churn_kill:
-              cluster_count: 10
-              mesh_size: 10
-              cl2_config_file: pod-churn-kill.yaml
-              test_type: pod-churn-kill
-              namespaces: 5
-              deployments_per_namespace: 4
-              replicas_per_deployment: 10
-              hold_duration: 2m
-              warmup_duration: 30s
-              restart_count: 0
-              api_server_calls_per_second: 20
               kill_duration: 10m
               kill_duration_seconds: 600
               kill_interval_seconds: 10
               kill_batch: 5
               kill_job_deadline_seconds: 660
+              # Phase 4b — Scenario #4 (ClusterMesh APIServer Failure) knobs.
+              apiserver_kill_target_context: clustermesh-1
+              apiserver_kill_recovery_timeout_seconds: 240
+              apiserver_kill_observation_seconds: 60
+              # Phase 4b — Scenario #7 (HA Configuration Validation) knob.
+              ha_config_replicas: 3
               trigger_reason: ${{ variables['Build.Reason'] }}
-          max_parallel: 1
-          # 10-cluster provision adds ~10-15 min vs n5 (more terraform +
-          # fleet member creates + ARM throughput); CL2 fan-out itself
-          # stays bounded at concurrency 4 (10/4 batches sequentially).
-          timeout_in_minutes: 240
+            # Scenario #3 (Node Churn / IP Churn) standalone — OUT of
+            # share-infra per SETTLED DESIGN. Target mesh-1 with K=10 nodes.
+            n10_node_churn_combined:
+              cluster_count: 10
+              mesh_size: 10
+              cl2_config_file: node-churn-combined.yaml
+              test_type: node-churn-combined
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 1
+              api_server_calls_per_second: 20
+              node_churn_target_context: clustermesh-1
+              node_churn_cycles: 2
+              node_churn_delta: 3
+              node_churn_settle_seconds: 60
+              node_churn_scale_duration_seconds: 1500
+              node_churn_replace_duration_seconds: 1500
+              node_churn_combined_duration_seconds: 2700
+              node_replace_batch_size: 10
+              node_churn_ready_timeout_seconds: 300
+              trigger_reason: ${{ variables['Build.Reason'] }}
+            # Scenario #6 (Upper Bound / Saturation) at n=10. Each cluster
+            # fans out to 9 peers vs 1 at n=2 → ~9× per-cluster propagation
+            # load. Same workload knobs as n2/n5 upper_bound so verdict
+            # comparison across N is apples-to-apples.
+            n10_upper_bound:
+              cluster_count: 10
+              mesh_size: 10
+              cl2_config_file: upper-bound.yaml
+              test_type: upper-bound
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              saturation_qps_list: "100,500,1500,4000,10000"
+              saturation_restarts_list: "1,2,4,8,15"
+              saturation_ops_per_sec_list: "0,0,0,0,0"
+              saturation_rung_duration_seconds: 240
+              saturation_settle_seconds: 90
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 3
+          # n=10 share-infra (5 scenarios): provision (~35min with parallelism=4)
+          # + validate (~10min) + 5 × CL2 (~30min each, 60s settle) + destroy
+          # (~30min) ≈ ~230min. n=10 node-churn standalone: ~80min. n=10
+          # upper-bound standalone: ~60min. All three run in parallel
+          # (max_parallel=3). 480min buffer for AKS RP throttle / retries.
+          timeout_in_minutes: 480
           credential_type: service_connection
           ssh_key_enabled: false
           skip_publish: false
