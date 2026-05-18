@@ -315,6 +315,39 @@ steps:
       clusters=$(cat "$HOME/.kube/clustermesh-clusters.json")
       expected_remote=$(( $(echo "$clusters" | jq 'length') - 1 ))
 
+      # Fleet-side peer-list dump (N>=10 only — at smaller N Fleet always
+      # converges cleanly so the noise isn't worth it). Build 67525 evidence:
+      # at N=20 Fleet pushed 3 mangled peer entries (e.g., "mesh-2013",
+      # "mesh-1515", "mesh-115" — digit-pair concatenations) to every
+      # cluster's Cilium config. Those mangled peers' etcd lookups fail
+      # ("cluster configuration: not found") and the mesh never converges.
+      # This dump captures: (1) Fleet's view via az fleet APIs, (2) the
+      # actual peer list Cilium received via the cilium-config ConfigMap.
+      # The configmap is the smoking gun — it shows the exact peer-name
+      # entries Fleet pushed, mangling and all, so we can correlate Fleet
+      # RP behavior with the on-cluster state.
+      cluster_count=$(echo "$clusters" | jq 'length')
+      if [ "$cluster_count" -ge 10 ]; then
+        FLEET_RG=$(echo "$clusters" | jq -r '.[0].rg')
+        FLEET_NAME="clustermesh-flt"
+        FLEET_PROFILE="clustermesh-cmp"
+        echo "===================================================================="
+        echo "  Fleet ClusterMeshProfile state (N=$cluster_count, debug dump)"
+        echo "===================================================================="
+        echo "--- az fleet member list (Fleet's view of members + assigned IDs) ---"
+        az fleet member list \
+          --resource-group "$FLEET_RG" --fleet-name "$FLEET_NAME" \
+          --query "[].{name:name, provisioningState:provisioningState, clusterResourceId:clusterResourceId}" \
+          -o table --only-show-errors 2>&1 || true
+        echo ""
+        echo "--- az fleet clustermeshprofile show (profile state) ---"
+        az fleet clustermeshprofile show \
+          --resource-group "$FLEET_RG" --fleet-name "$FLEET_NAME" \
+          --name "$FLEET_PROFILE" \
+          -o yaml --only-show-errors 2>&1 | head -80 || true
+        echo ""
+      fi
+
       failures=0
       for row in $(echo "$clusters" | jq -c '.[]'); do
         name=$(echo "$row" | jq -r '.name')
@@ -433,6 +466,28 @@ steps:
         if [ "$connected" -ne 1 ]; then
           echo "##vso[task.logissue type=error;] $role: clustermesh not Connected to $expected_remote remote clusters"
           failures=$((failures + 1))
+          # Build 67525 debug dump (Fleet n=20 mangled-peer bug). On mesh-
+          # convergence failure, capture the actual peer list Cilium has
+          # so we can identify mangled-name entries — the smoking gun for
+          # the Fleet RP bug. Dump: (1) cilium-config ConfigMap's
+          # clustermesh-related fields, (2) any clustermesh-related
+          # Secret keys, (3) endpoint list. All on a best-effort basis.
+          echo "--- $role: PEER-LIST DEBUG DUMP (mesh-convergence failure) ---"
+          echo "--- cilium-config ConfigMap (clustermesh.config) ---"
+          kubectl -n kube-system get cm cilium-config -o yaml 2>&1 \
+            | grep -E 'clustermesh|^[^[:space:]]+: |^  [a-z][a-z-]+:' \
+            | head -100 || true
+          echo "--- Secrets in kube-system matching clustermesh* ---"
+          kubectl -n kube-system get secrets -o name 2>&1 \
+            | grep -iE 'clustermesh|cilium-clustermesh' || echo "(no clustermesh-related secrets)"
+          echo "--- cilium-clustermesh Secret keys (just keys, NOT contents) ---"
+          kubectl -n kube-system get secret cilium-clustermesh -o jsonpath='{.data}' 2>&1 \
+            | python3 -c "import sys,json; d=json.loads(sys.stdin.read()) if sys.stdin else {}; [print(f'  key: {k}') for k in sorted(d.keys())]" 2>&1 \
+            || echo "(cilium-clustermesh secret not present)"
+          echo "--- cilium-dbg status REMOTE CLUSTERS (full output, not just summary) ---"
+          kubectl -n kube-system exec ds/cilium -- cilium-dbg status --verbose 2>&1 \
+            | grep -A 4 -E '^[[:space:]]+(mesh-|remote-)' | head -80 || true
+          echo "--- end PEER-LIST DEBUG DUMP for $role ---"
         fi
 
         echo "--- cilium clustermesh status (runner-side, richer diagnostics) ---"
