@@ -137,9 +137,13 @@ makeStage = lambda flowcontrol: str, flowcontrolLabel: str -> ap.Stage {
 output = ap.Pipeline {
     name = "API Server List Configmaps"
 
-    # TODO: Add daily schedule (V1 ran at 3:00 UTC daily)
-    # schedules = [{ cron: "0 3 * * *", branches: ["v2"], always: True }]
     trigger = "none"
+    schedules = [ap.Cron {
+        cron = "0 3 * * *"
+        displayName = "Daily 3AM UTC"
+        branches = ["v2"]
+        always = True
+    }]
     pool = const.DEFAULT_POOL
 
     stages = [
