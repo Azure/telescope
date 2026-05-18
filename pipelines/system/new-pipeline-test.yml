@@ -22,11 +22,10 @@ stages:
   # this lands clean.
   - stage: azure_eastus2euap
     dependsOn: []
-    # ITER-DISABLED 2026-05-16: n=2 saturation already validated (build
-    # 67377 showed >10x headroom on every signal — no verdict tripped).
-    # Default dev runs now target the n=20 stage below where fan-out is
-    # expected to actually saturate the SUT. Re-enable for A/B runs.
-    condition: false
+    # 2026-05-17: re-enabled for n=2 all-scenarios run (#6 already validated
+    # at n=2 in build 67377 — blob clustermesh-scale/clustermesh-scale-2/
+    # 67377-bb8fe90b.json; 5/5 rungs clean, 10x headroom on every signal).
+    # This stage runs in parallel with the n=20 stage when both are enabled.
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -194,38 +193,97 @@ stages:
             #   node_replace_batch_size: 10
             #   node_churn_ready_timeout_seconds: 300
             #   trigger_reason: ${{ variables['Build.Reason'] }}
-            # Phase 4b — Scenario #6 (Upper Bound / Saturation) standalone
-            # smoke entry. Per SETTLED DESIGN in plan.md (line ~126), we do
-            # NOT widen n2_shared to include #6 — the share-infra-list
-            # rollup happens AFTER #6 lands. CL2 image, tfvars, and timeout
-            # budget are identical to the prod pipeline so signals are
-            # directly comparable.
-            # ITER-ONLY 2026-05-16: kept here as the n=2 stage's matrix entry
-            # so the disabled stage parses cleanly. Stage is condition:false
-            # above so this won't actually run. Default dev now targets the
-            # n=20 stage below.
-            n2_upper_bound:
+            # ====================================================================
+            # 2026-05-17: n=2 all-scenarios run, isolation respected per
+            # SETTLED DESIGN.
+            #
+            # Three matrix entries run in parallel against THREE separate
+            # mesh-2 lifecycles (each entry provisions its own pair of
+            # clusters, runs its scenarios, destroys):
+            #
+            #   n2_shared             — 5-scenario share-infra rollup
+            #                            (#1 event-throughput, #2 pod-churn-combined,
+            #                             #4 apiserver-failure, #7 ha-config, #5 isolation)
+            #                            sequentially against ONE provision/destroy
+            #   n2_node_churn_combined — #3 standalone (out of share-infra per
+            #                            SETTLED DESIGN — node topology
+            #                            mutations can leave residue if the
+            #                            finalizer fails)
+            #
+            # Scenario #6 (Upper Bound / Saturation) skipped at n=2 in this
+            # iteration: ALREADY VALIDATED in build 67377, blob
+            #   clustermesh-scale/clustermesh-scale-2/67377-bb8fe90b.json
+            # 5/5 rungs clean, >10x headroom on every signal (no saturation
+            # reached at n=2 — fan-out at n=20 is the real saturation case).
+            # ====================================================================
+            # ha-config is BEFORE isolation so its scale-down restores the
+            # apiserver Deployment to 1 replica before isolation's heavy
+            # pod-churn loop runs on the target cluster. Per rubber-duck
+            # design review #11 — if/when node-churn is added to share_infra,
+            # it goes LAST so its finalizer's blast radius is contained.
+            n2_shared:
               cluster_count: 2
               mesh_size: 2
-              cl2_config_file: upper-bound.yaml
-              test_type: upper-bound
+              share_infra_scenarios: "event-throughput,pod-churn-combined,apiserver-failure,ha-config,isolation"
+              cl2_config_file: ""  # unused when share_infra_scenarios is set
+              test_type: shared    # row-level test_type comes from each scenario
               namespaces: 5
               deployments_per_namespace: 4
               replicas_per_deployment: 10
               hold_duration: 2m
               warmup_duration: 30s
-              restart_count: 0
+              restart_count: 1
               api_server_calls_per_second: 20
-              saturation_qps_list: "100,500,1500,4000,10000"
-              saturation_restarts_list: "1,2,4,8,15"
-              saturation_ops_per_sec_list: "0,0,0,0,0"
-              saturation_rung_duration_seconds: 240
-              saturation_settle_seconds: 90
+              churn_cycles: 5
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              # Phase 4b — Scenario #4 (ClusterMesh APIServer Failure) knobs.
+              apiserver_kill_target_context: clustermesh-1
+              apiserver_kill_recovery_timeout_seconds: 240
+              apiserver_kill_observation_seconds: 60
+              # Phase 4b — Scenario #7 (HA Configuration Validation) knob.
+              ha_config_replicas: 3
               trigger_reason: ${{ variables['Build.Reason'] }}
-          max_parallel: 1
+            # Scenario #3 (Node Churn / IP Churn) standalone — OUT of
+            # share-infra per SETTLED DESIGN. Last validated at K=10 in
+            # build 67185 (blob: 67185-d719b01c.json; sentinel barrier ✓,
+            # scale-phase 4/4 ops, replace-phase 10/20 nodes recreated,
+            # finalizer cleanup_failed=false, scenario_valid: true).
+            n2_node_churn_combined:
+              cluster_count: 2
+              mesh_size: 2
+              cl2_config_file: node-churn-combined.yaml
+              test_type: node-churn-combined
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 1
+              api_server_calls_per_second: 20
+              # Scenario #3 knobs (n=2 smoke values — K=10 nodes/cluster).
+              node_churn_target_context: clustermesh-1
+              node_churn_cycles: 2
+              node_churn_delta: 3
+              node_churn_settle_seconds: 60
+              node_churn_scale_duration_seconds: 1500
+              node_churn_replace_duration_seconds: 1500
+              node_churn_combined_duration_seconds: 2700
+              node_replace_batch_size: 10
+              node_churn_ready_timeout_seconds: 300
+              trigger_reason: ${{ variables['Build.Reason'] }}
+            # n2_upper_bound (Scenario #6) — SKIPPED in this iteration; see
+            # comment block above. Reference blob 67377-bb8fe90b.json.
+          max_parallel: 2
           # n=2 share-infra (5 scenarios): provision (~15min) + validate (~5min)
           # + 5 × CL2 (~25min each, with 60s settle between) + destroy (~15min)
-          # ≈ ~170min. Buffer to 360 for LB-tail / apply retries.
+          # ≈ ~170min. n=2 node-churn-combined standalone: ~60min. Both run
+          # in parallel (max_parallel=2). Buffer to 360 for LB-tail / retries.
           timeout_in_minutes: 360
           credential_type: service_connection
           ssh_key_enabled: false
@@ -423,6 +481,11 @@ stages:
   #     parallelism=4. Fallback if this fails: drop back to parallelism=4.
   - stage: azure_eastus2euap_n20
     dependsOn: []
+    # ITER-DISABLED 2026-05-17: an n=20 saturation run (build 67477) is
+    # already in flight on commit 936ba57; disable here so triggering a
+    # build for the n=2 all-scenarios run doesn't kick off a redundant
+    # second n=20 lifecycle in parallel. Re-enable for next n=20 iteration.
+    condition: false
     # 2026-05-16: re-enabled to run scenario #6 saturation sweep at n=20.
     # n=2 stage above is now condition:false. The matrix below is narrowed
     # to ONLY n20_upper_bound for this iteration; n20_shared is commented
