@@ -763,27 +763,19 @@ data:
 ---
 # Dedicated APF priority level for ALL of our test traffic — both the lister's
 # LIST configmaps and the cl2 load driver's writes (see the matching FlowSchema
-# below). nominalConcurrencyShares 325 takes ~57% of the apiserver seat budget
-# (~5474 of ~9600 total). With borrow from idle PLs (~1200), this PL can flex
-# to ~6700 in practice. lendablePercent: 0 keeps these seats locked here.
-# Side effect: every other PL shrinks ~57% — workload-low (now mostly used by
-# system service-accounts) and system PLs (scheduler/kubelet/controllers) get
-# tighter but stay functional. Acceptable on a dedicated benchmark cluster.
+# below). Type: Exempt means no seat limit and no queuing — requests bypass APF
+# accounting entirely, bounded only by the apiserver's physical CPU/etcd/network
+# capacity. This avoids two problems with a Limited PL: (1) writes hog seat-time
+# within a shared PL and starve reads, and (2) taking a big nominalShares slice
+# shrinks every other PL, throttling system controllers so the benchmark can't
+# even reach steady state. Exempt costs no shares — other PLs stay at default
+# nominal. WARNING: no protection against overload; do not use in production.
 apiVersion: flowcontrol.apiserver.k8s.io/v1
 kind: PriorityLevelConfiguration
 metadata:
   name: cl2-read
 spec:
-  type: Limited
-  limited:
-    nominalConcurrencyShares: 325
-    lendablePercent: 0
-    limitResponse:
-      type: Queue
-      queuing:
-        queues: 64
-        handSize: 8
-        queueLengthLimit: 100
+  type: Exempt
 ---
 # Route ALL of our test traffic to the cl2-read PL — both the lister's LIST
 # configmaps AND the cl2 load driver's CREATE/UPDATE/DELETE/PATCH writes plus
