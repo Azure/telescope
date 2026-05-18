@@ -4,20 +4,6 @@ pr: none
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: acl-resource-consume
-  ACL_IMAGE_SUBSCRIPTION_ID: b3e01d89-bd55-414f-bbb4-cdfeb2628caa
-  ACL_IMAGE_RESOURCE_GROUP: ACL-IMAGES
-  ACL_IMAGE_GALLERY: acl
-  ACL_IMAGE_NAME: acl-aks
-  ACL_IMAGE_VERSION: 1.1775601122.6691
-  AKS_CLI_CUSTOM_HEADERS: >-
-    AKSHTTPCustomFeatures=Microsoft.ContainerService/UseCustomizedOSImage,
-    OSImageSubscriptionID=$(ACL_IMAGE_SUBSCRIPTION_ID),
-    OSImageResourceGroup=$(ACL_IMAGE_RESOURCE_GROUP),
-    OSImageGallery=$(ACL_IMAGE_GALLERY),
-    OSImageName=$(ACL_IMAGE_NAME),
-    OSImageVersion=$(ACL_IMAGE_VERSION),
-    OSSKU=AzureContainerLinux,
-    OSDistro=CustomizedImageLinuxGuard
 
 stages:
   - stage: acl_resource_consume

@@ -4,9 +4,8 @@ deletion_delay = "2h"
 owner          = "aks"
 
 # This scenario intentionally uses the AKS CLI Terraform path instead of the
-# azurerm AKS resource path. ACL Beta uses AKS BYOI custom headers to select the
-# Azure Compute Gallery image, while ACL Alpha can use the same shape with the
-# custom headers omitted and --os-sku AzureContainerLinux.
+# azurerm AKS resource path so it can pass ACL-specific AKS CLI options such as
+# --os-sku AzureContainerLinux.
 aks_cli_config_list = [
   {
     role                          = "client"
