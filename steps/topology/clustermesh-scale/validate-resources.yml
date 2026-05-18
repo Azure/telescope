@@ -327,7 +327,7 @@ steps:
       # entries Fleet pushed, mangling and all, so we can correlate Fleet
       # RP behavior with the on-cluster state.
       cluster_count=$(echo "$clusters" | jq 'length')
-      if [ "$cluster_count" -ge 10 ]; then
+      if [ "$cluster_count" -ge 3 ]; then
         FLEET_RG=$(echo "$clusters" | jq -r '.[0].rg')
         FLEET_NAME="clustermesh-flt"
         FLEET_PROFILE="clustermesh-cmp"

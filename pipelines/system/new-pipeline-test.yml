@@ -22,11 +22,11 @@ stages:
   # this lands clean.
   - stage: azure_eastus2euap
     dependsOn: []
-    # 2026-05-18: BOTH n=2 + n=20 stages enabled. Operator disables one
-    # stage manually in the AzDO UI when triggering a run, depending on
-    # what data they want. n=2 captures n2_shared (5-scenario rollup
-    # #1,#2,#4,#7,#5) + n2_node_churn_combined (#3 standalone). #6 already
-    # validated at n=2 in build 67377 (blob 67377-bb8fe90b.json).
+    # ITER-DISABLED 2026-05-18: n=2 all-scenarios validated (build 67578
+    # blobs 67578-d719b01c.json + 67578-9f065584.json + 67377-bb8fe90b.json
+    # cover all 7 scenarios). Default now targets n=5 stage below. Re-enable
+    # for n=2 A/B comparisons.
+    condition: false
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -301,16 +301,27 @@ stages:
   # out either stage during iteration if the dual cost matters.
   - stage: azure_eastus2euap_n5
     dependsOn: []
-    # ITER-DISABLED 2026-05-08 (inline comments on `condition:` are unsafe —
-    # AzDO doesn't always strip them, leaving the truthy string
-    # "false # ..." as the expression. Keep the marker on its own line.)
-    condition: false
+    # 2026-05-18: re-enabled for n=5 all-scenarios run, mirroring the n=2
+    # structure (5-scenario share-infra rollup + #3 node-churn standalone).
+    # Inherits all clustermesh-scale-wide improvements landed for n=2:
+    # preserve_state_on_apply_failure (template-param-gated), soft-fail-on-
+    # junit-failures, scenario_failure_diag fixes, validate-cilium debug
+    # dumps. #6 (upper-bound) intentionally skipped — already validated at
+    # n=2 in build 67377; cluster-axis scaling-curve data for #6 would
+    # come from running n=5/10/20_upper_bound as separate matrix entries
+    # in a later iteration.
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
             - eastus2euap
+          # Opt into terraform-state-preserving apply retry (same as n=20).
+          # Apply at n=5 = 5 clusters + 20 VNet peerings + Fleet; transient
+          # peering flakes are common enough that the scorched-earth retry
+          # cleanup (default) costs ~30min per retry. State-preserving
+          # retry typically recovers in 1-2min.
+          preserve_state_on_apply_failure: "true"
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
@@ -320,11 +331,37 @@ stages:
           terraform_input_file_mapping:
             - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-5.tfvars"
           matrix:
-            n5_event_throughput:
+            # ====================================================================
+            # 2026-05-18: n=5 all-scenarios run, isolation respected per
+            # SETTLED DESIGN (mirrors the n=2 layout that just landed all 7
+            # scenarios green in build 67578).
+            #
+            # Three matrix entries CAN run in parallel against three separate
+            # mesh-5 lifecycles — currently set to ONE-AT-A-TIME (max_parallel=1)
+            # because n=5 quota footprint is ~12 vCPU/cluster × 5 clusters x 2
+            # parallel matrix entries = 120 vCPU, comfortably within Dv3 family
+            # quota of 5000. Set max_parallel: 2 if pool agent capacity allows
+            # the parallel runs.
+            #
+            #   n5_shared              — 5-scenario share-infra rollup
+            #                             (#1 event-throughput, #2 pod-churn-combined,
+            #                              #4 apiserver-failure, #7 ha-config, #5 isolation)
+            #   n5_node_churn_combined  — #3 standalone (out of share-infra
+            #                             per SETTLED DESIGN — node topology
+            #                             mutations can leave residue if the
+            #                             finalizer fails)
+            #   n5_upper_bound          — #6 standalone (saturation scaling
+            #                             curve at higher fan-out than n=2;
+            #                             at n=5 each cluster fans out events
+            #                             to 4 peers vs 1 at n=2 → 4× the
+            #                             per-cluster propagation load)
+            # ====================================================================
+            n5_shared:
               cluster_count: 5
               mesh_size: 5
-              cl2_config_file: event-throughput.yaml
-              test_type: event-throughput
+              share_infra_scenarios: "event-throughput,pod-churn-combined,apiserver-failure,ha-config,isolation"
+              cl2_config_file: ""  # unused when share_infra_scenarios is set
+              test_type: shared    # row-level test_type comes from each scenario
               namespaces: 5
               deployments_per_namespace: 4
               replicas_per_deployment: 10
@@ -332,44 +369,78 @@ stages:
               warmup_duration: 30s
               restart_count: 1
               api_server_calls_per_second: 20
-              trigger_reason: ${{ variables['Build.Reason'] }}
-            # Phase 4a — Scenario #2 (Pod Churn Stress).
-            n5_pod_churn_scale:
-              cluster_count: 5
-              mesh_size: 5
-              cl2_config_file: pod-churn-scale.yaml
-              test_type: pod-churn-scale
-              namespaces: 5
-              deployments_per_namespace: 4
-              replicas_per_deployment: 10
-              hold_duration: 2m
-              warmup_duration: 30s
-              restart_count: 0
-              api_server_calls_per_second: 20
               churn_cycles: 5
               churn_up_duration: 60s
               churn_down_duration: 60s
-              trigger_reason: ${{ variables['Build.Reason'] }}
-            n5_pod_churn_kill:
-              cluster_count: 5
-              mesh_size: 5
-              cl2_config_file: pod-churn-kill.yaml
-              test_type: pod-churn-kill
-              namespaces: 5
-              deployments_per_namespace: 4
-              replicas_per_deployment: 10
-              hold_duration: 2m
-              warmup_duration: 30s
-              restart_count: 0
-              api_server_calls_per_second: 20
               kill_duration: 10m
               kill_duration_seconds: 600
               kill_interval_seconds: 10
               kill_batch: 5
               kill_job_deadline_seconds: 660
+              # Phase 4b — Scenario #4 (ClusterMesh APIServer Failure) knobs.
+              apiserver_kill_target_context: clustermesh-1
+              apiserver_kill_recovery_timeout_seconds: 240
+              apiserver_kill_observation_seconds: 60
+              # Phase 4b — Scenario #7 (HA Configuration Validation) knob.
+              ha_config_replicas: 3
               trigger_reason: ${{ variables['Build.Reason'] }}
-          max_parallel: 1
-          timeout_in_minutes: 180
+            # Scenario #3 (Node Churn / IP Churn) standalone — OUT of
+            # share-infra per SETTLED DESIGN. At n=5 we target mesh-1 with
+            # the same per-cluster K=10 sizing that worked at n=2 (build 67578
+            # node-churn-combined: 17 ops, scenario_valid=True).
+            n5_node_churn_combined:
+              cluster_count: 5
+              mesh_size: 5
+              cl2_config_file: node-churn-combined.yaml
+              test_type: node-churn-combined
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 1
+              api_server_calls_per_second: 20
+              node_churn_target_context: clustermesh-1
+              node_churn_cycles: 2
+              node_churn_delta: 3
+              node_churn_settle_seconds: 60
+              node_churn_scale_duration_seconds: 1500
+              node_churn_replace_duration_seconds: 1500
+              node_churn_combined_duration_seconds: 2700
+              node_replace_batch_size: 10
+              node_churn_ready_timeout_seconds: 300
+              trigger_reason: ${{ variables['Build.Reason'] }}
+            # Scenario #6 (Upper Bound / Saturation) standalone. At n=5
+            # each cluster's clustermesh-apiserver fans events to 4 peers
+            # vs 1 at n=2 → ~4× per-cluster propagation load. Same workload
+            # knobs as n2_upper_bound (build 67377 baseline) so verdict
+            # comparison across N is apples-to-apples; expected: more
+            # signals trip closer to thresholds (or fully trip a verdict).
+            n5_upper_bound:
+              cluster_count: 5
+              mesh_size: 5
+              cl2_config_file: upper-bound.yaml
+              test_type: upper-bound
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              saturation_qps_list: "100,500,1500,4000,10000"
+              saturation_restarts_list: "1,2,4,8,15"
+              saturation_ops_per_sec_list: "0,0,0,0,0"
+              saturation_rung_duration_seconds: 240
+              saturation_settle_seconds: 90
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 3
+          # n=5 share-infra (5 scenarios): provision (~25min) + validate (~5min)
+          # + 5 × CL2 (~25min each, with 60s settle between) + destroy (~25min)
+          # ≈ ~180min. n=5 node-churn standalone: ~70min. n=5 upper-bound
+          # standalone: ~50min. All three run in parallel (max_parallel=3).
+          # Buffer to 360 for LB-tail / retries.
+          timeout_in_minutes: 360
           credential_type: service_connection
           ssh_key_enabled: false
           skip_publish: false
