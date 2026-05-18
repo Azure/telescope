@@ -575,12 +575,19 @@ stages:
               saturation_rung_duration_seconds: 240
               saturation_settle_seconds: 90
               trigger_reason: ${{ variables['Build.Reason'] }}
-          max_parallel: 3
+          max_parallel: 2
+          # 2026-05-18: dropped max_parallel 3→2 to fit Dv3 quota when n=5
+          # + n=20 are running concurrently (peak n=10 footprint 2×880=1760
+          # vCPU vs 2640 at max_parallel=3; total Dv3 with n=5+n=20 sharing
+          # this sub stays under 5000-limit). Wall-clock unchanged because
+          # n10_shared (~4h) is the long pole; the 3rd entry queues briefly
+          # behind node-churn (~80min) or upper-bound (~30min).
+          #
           # n=10 share-infra (5 scenarios): provision (~35min with parallelism=4)
           # + validate (~10min) + 5 × CL2 (~30min each, 60s settle) + destroy
           # (~30min) ≈ ~230min. n=10 node-churn standalone: ~80min. n=10
-          # upper-bound standalone: ~60min. All three run in parallel
-          # (max_parallel=3). 480min buffer for AKS RP throttle / retries.
+          # upper-bound standalone: ~60min. 480min buffer for AKS RP throttle
+          # / retries.
           timeout_in_minutes: 480
           credential_type: service_connection
           ssh_key_enabled: false
