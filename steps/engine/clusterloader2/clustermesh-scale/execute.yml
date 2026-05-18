@@ -451,12 +451,23 @@ steps:
           echo ""
           if is_node_churn_scenario "$_scen"; then
             echo "-- node-churn timing files + logs --"
-            find "${CL2_REPORT_DIR}/${_scen}" -name 'NodeChurnTimings_*.json' \
-              -o -name 'node-churner*.log' 2>/dev/null | while IFS= read -r _f; do
+            # Two report-dir layouts exist:
+            #   share-infra mode: <CL2_REPORT_DIR>/<scen>/<role>/...
+            #   solo-scenario mode: <CL2_REPORT_DIR>/<role>/...
+            # Search BOTH from CL2_REPORT_DIR root so we pick up
+            # NodeChurnTimings_*.json regardless of layout. Trailing
+            # `|| true` so an empty find (no files match) doesn't
+            # propagate non-zero through pipefail → set -e (build 67542
+            # solo-scenario n2_node_churn_combined exited 1 here even
+            # though both clusters' CL2 succeeded — find returned 1
+            # because the share-infra-style path didn't exist).
+            find "${CL2_REPORT_DIR}" \
+              \( -name 'NodeChurnTimings_*.json' -o -name 'node-churner*.log' \) \
+              2>/dev/null | while IFS= read -r _f; do
               echo "--- ${_f} ---"
               cat "$_f" 2>&1 || true
               echo ""
-            done
+            done || true
           fi
           if is_upper_bound_scenario "$_scen"; then
             echo "-- upper-bound scenario state --"
