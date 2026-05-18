@@ -183,6 +183,20 @@ if [ -f "$report_dir/junit.xml" ]; then
   junit_errors=${junit_errors:-0}
   if [ "$junit_failures" -eq 0 ] && [ "$junit_errors" -eq 0 ]; then
     cl2_passed=1
+  elif [ "${TEST_TYPE:-}" = "upper-bound" ]; then
+    # Scenario #6 (Upper Bound / Saturation) — soft-fail policy 2026-05-18.
+    # The whole point of this scenario is to push the SUT until things
+    # start failing. Workload-side errors (CL2 Patch operations dropping
+    # the http2 connection to the AKS apiserver mid-restart-burst, see
+    # build 67497 mesh-1) are EXPECTED saturation signals, not test-
+    # framework failures. The classifier in scale.py reads PromQL signals
+    # independently of CL2's per-step success — its verdicts are the
+    # authoritative result. Treat junit failures as a soft-fail signal:
+    # log them as a warning, mark cl2_passed=1, let collect run + upload
+    # the blob. The classifier will record signals + verdicts for all
+    # rungs that completed measurement gather (independent of workload).
+    echo "##vso[task.logissue type=warning;] $role: junit.xml reports failures=$junit_failures errors=$junit_errors (upper-bound: soft-fail; signal-based classifier verdicts are authoritative)"
+    cl2_passed=1
   else
     echo "##vso[task.logissue type=warning;] $role: junit.xml reports failures=$junit_failures errors=$junit_errors"
   fi

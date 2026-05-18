@@ -22,10 +22,12 @@ stages:
   # this lands clean.
   - stage: azure_eastus2euap
     dependsOn: []
-    # 2026-05-17: re-enabled for n=2 all-scenarios run (#6 already validated
-    # at n=2 in build 67377 — blob clustermesh-scale/clustermesh-scale-2/
-    # 67377-bb8fe90b.json; 5/5 rungs clean, 10x headroom on every signal).
-    # This stage runs in parallel with the n=20 stage when both are enabled.
+    # ITER-DISABLED 2026-05-18: n=20 saturation re-iteration with soft-fail
+    # fix for upper-bound (build 67497 mesh-1 had 2 Patch http2 errors during
+    # restart-burst — the strict junit check threw away data for all 20
+    # clusters; now upper-bound tolerates junit failures and still uploads
+    # blob). n=2 all-scenarios re-enable later for the share-infra rollup.
+    condition: false
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -481,15 +483,12 @@ stages:
   #     parallelism=4. Fallback if this fails: drop back to parallelism=4.
   - stage: azure_eastus2euap_n20
     dependsOn: []
-    # ITER-DISABLED 2026-05-17: an n=20 saturation run (build 67477) is
-    # already in flight on commit 936ba57; disable here so triggering a
-    # build for the n=2 all-scenarios run doesn't kick off a redundant
-    # second n=20 lifecycle in parallel. Re-enable for next n=20 iteration.
-    condition: false
-    # 2026-05-16: re-enabled to run scenario #6 saturation sweep at n=20.
-    # n=2 stage above is now condition:false. The matrix below is narrowed
-    # to ONLY n20_upper_bound for this iteration; n20_shared is commented
-    # out so the run produces exactly one saturation-scenario blob.
+    # 2026-05-18: re-enabled for scenario #6 re-iteration after soft-fail
+    # fix landed in run-cl2-on-cluster.sh (build 67497 mesh-1 had 2 Patch
+    # http2:client-connection-lost errors during restart-burst — saturation
+    # signal — but the strict junit check killed the run and threw away
+    # data for all 20 clusters). Now upper-bound tolerates junit failures
+    # and still uploads blob. n=2 stage above is condition:false.
     variables:
       TF_CLI_ARGS_apply: "-parallelism=8"
     jobs:
