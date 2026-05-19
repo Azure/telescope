@@ -7,9 +7,10 @@ result file via ``Operation.save_to_file`` on context exit. Tests verify:
   the right keys
 - failure path raises (so the OperationContext records ``success=False``)
 
-This revision adds tests for the non-batch scale path. The batch dispatch
-(``use_batch_api=True``) is asserted to raise ``NotImplementedError`` until
-the follow-up PR lands.
+This revision adds tests for both scale paths (non-batch individual PUTs and
+the BatchPutMachine-headered chunked path) plus the batch-path helpers
+``_scale_machine_batch``, ``_create_batch_machines``, and
+``_make_batch_request``.
 """
 # pylint: disable=protected-access
 # Tests intentionally exercise private helpers directly; the leading underscore
@@ -256,15 +257,46 @@ class TestAKSMachineClient(unittest.TestCase):
         self.assertEqual(mock_wait_ready.call_args.kwargs["baseline_count"], 3)
         self.assertEqual(mock_wait_ready.call_args.kwargs["expected_count"], 1)
 
-    def test_scale_machine_batch_path_raises_not_implemented(self):
-        """The use_batch_api=True branch is stubbed until the follow-up PR."""
-        with self.assertRaises(NotImplementedError):
+    def test_scale_machine_batch_path_dispatches_to_batch(self):
+        """The use_batch_api=True branch calls _scale_machine_batch (not _individually)
+        and records batch_command_execution_times in operation metadata."""
+        names = [f"scale2-machine-{i+1}" for i in range(2)]
+        with mock.patch.object(
+            AKSMachineClient,
+            "_scale_machine_batch",
+            return_value=(names, {"chunk_0": 1.5}),
+        ) as mock_batch, mock.patch.object(
+            AKSMachineClient, "_scale_machine_individually"
+        ) as mock_individual, mock.patch.object(
+            AKSMachineClient, "_wait_for_agentpool_provisioning", return_value=True
+        ), mock.patch.object(
+            AKSMachineClient,
+            "_wait_for_machine_node_readiness",
+            return_value={
+                f"P{p}": {
+                    "target_nodes": 2,
+                    "elapsed_time_seconds": 12.0,
+                    "percentage": p,
+                    "success": True,
+                }
+                for p in (50, 70, 90, 99, 100)
+            },
+        ):
+            self.mock_k8s.get_ready_nodes.return_value = []
             self.client.scale_machine(
                 agentpool_name="apool",
                 vm_size="Standard_D2_v3",
                 scale_machine_count=2,
                 use_batch_api=True,
+                machine_workers=2,
             )
+        mock_batch.assert_called_once()
+        mock_individual.assert_not_called()
+        # batch_command_execution_times must be added to operation metadata.
+        added_keys = {
+            call.args[0] for call in self.mock_operation.add_metadata.call_args_list
+        }
+        self.assertIn("batch_command_execution_times", added_keys)
 
     # ---- _create_single_machine ----
 
@@ -476,6 +508,201 @@ class TestAKSMachineClient(unittest.TestCase):
         for p in (50, 70, 90, 99, 100):
             self.assertFalse(env[f"P{p}"]["success"])
             self.assertEqual(env[f"P{p}"]["target_nodes"], 0)
+
+    # ---- _scale_machine_batch ----
+
+    def test_scale_machine_batch_partitions_and_aggregates(self):
+        """Names sharded across machine_workers; per-worker wall time captured."""
+        request = SimpleNamespace(
+            agentpool_name="apool",
+            cluster_name="fake-cluster",
+            resource_group="fake-rg",
+            vm_size="Standard_D2_v3",
+            timeout=60,
+            machine_workers=2,
+        )
+        names = ["m-1", "m-2", "m-3", "m-4"]
+        with mock.patch.object(
+            AKSMachineClient,
+            "_create_batch_machines",
+            side_effect=lambda req, chunk, worker_id: list(chunk),
+        ) as mock_create_batch:
+            successful, batch_times = self.client._scale_machine_batch(request, names)
+        self.assertEqual(set(successful), set(names))
+        self.assertEqual(set(batch_times.keys()), {"chunk_0", "chunk_1"})
+        # 2 workers, each handling per_worker = 4 // 2 = 2 names
+        self.assertEqual(mock_create_batch.call_count, 2)
+
+    def test_scale_machine_batch_per_worker_failure_isolated(self):
+        """One worker raising does not poison the other worker's success list."""
+        request = SimpleNamespace(
+            agentpool_name="apool",
+            cluster_name="fake-cluster",
+            resource_group="fake-rg",
+            vm_size="Standard_D2_v3",
+            timeout=60,
+            machine_workers=2,
+        )
+        names = ["m-1", "m-2", "m-3", "m-4"]
+        counter = itertools.count()
+
+        def fake_create(req, chunk, worker_id):  # pylint: disable=unused-argument
+            if next(counter) == 0:
+                raise RuntimeError("first worker boom")
+            return list(chunk)
+
+        with mock.patch.object(
+            AKSMachineClient, "_create_batch_machines", side_effect=fake_create
+        ):
+            successful, batch_times = self.client._scale_machine_batch(request, names)
+        # Exactly one worker's slice survives.
+        self.assertEqual(len(successful), 2)
+        # But both workers recorded wall time.
+        self.assertEqual(set(batch_times.keys()), {"chunk_0", "chunk_1"})
+
+    def test_scale_machine_batch_rejects_non_exact_multiple(self):
+        """scale_machine_count must be an exact multiple of machine_workers."""
+        request = SimpleNamespace(
+            agentpool_name="apool",
+            cluster_name="fake-cluster",
+            resource_group="fake-rg",
+            vm_size="Standard_D2_v3",
+            timeout=60,
+            machine_workers=3,
+        )
+        names = ["m-1", "m-2", "m-3", "m-4"]  # 4 not divisible by 3
+        with self.assertRaises(ValueError):
+            self.client._scale_machine_batch(request, names)
+
+    # ---- _create_batch_machines ----
+
+    def test_create_batch_machines_empty_chunk_returns_empty(self):
+        """Empty chunk -> early return, no HTTP call."""
+        request = SimpleNamespace(
+            agentpool_name="apool",
+            cluster_name="fake-cluster",
+            resource_group="fake-rg",
+            vm_size="Standard_D2_v3",
+            timeout=60,
+        )
+        with mock.patch.object(
+            AKSMachineClient, "_make_batch_request"
+        ) as mock_make_batch:
+            result = self.client._create_batch_machines(request, [], 0)
+        self.assertEqual(result, [])
+        mock_make_batch.assert_not_called()
+
+    def test_create_batch_machines_header_shape(self):
+        """BatchPutMachine header carries vmSkus envelope + batchMachines
+        using machineName (NOT name) keys for the *additional* machines only."""
+        request = SimpleNamespace(
+            agentpool_name="apool",
+            cluster_name="fake-cluster",
+            resource_group="fake-rg",
+            vm_size="Standard_D2_v3",
+            timeout=60,
+        )
+        with mock.patch.object(
+            AKSMachineClient, "_make_batch_request"
+        ) as mock_make_batch:
+            result = self.client._create_batch_machines(
+                request, ["m-1", "m-2", "m-3"], chunk_idx=0
+            )
+        self.assertEqual(result, ["m-1", "m-2", "m-3"])
+        mock_make_batch.assert_called_once()
+        # Inspect the batch_header_value kwarg.
+        import json as _json  # pylint: disable=import-outside-toplevel
+        kwargs = mock_make_batch.call_args.kwargs
+        header_value = kwargs["batch_header_value"]
+        parsed = _json.loads(header_value)
+        # vmSkus is wrapped in {"value": [...]}
+        self.assertIn("vmSkus", parsed)
+        self.assertIn("value", parsed["vmSkus"])
+        self.assertEqual(len(parsed["vmSkus"]["value"]), 1)
+        self.assertEqual(
+            parsed["vmSkus"]["value"][0]["name"], "Standard_D2_v3"
+        )
+        # First machine of chunk is created from the URL+body; only the rest
+        # appear in batchMachines.
+        self.assertEqual(
+            parsed["batchMachines"],
+            [{"machineName": "m-2"}, {"machineName": "m-3"}],
+        )
+
+    # ---- _make_batch_request ----
+
+    def test_make_batch_request_2xx_returns(self):
+        """2xx response returns without raising; one HTTP call made."""
+        with mock.patch(
+            "clients.aks_machine_client.requests.request"
+        ) as mock_request:
+            mock_request.return_value.status_code = 200
+            self.client._make_batch_request(
+                "PUT",
+                "https://fake/url",
+                {"k": "v"},
+                timeout=30,
+                batch_header_value="{}",
+            )
+        mock_request.assert_called_once()
+
+    def test_make_batch_request_non_2xx_non_429_raises(self):
+        """500 -> RuntimeError, no retry."""
+        with mock.patch(
+            "clients.aks_machine_client.requests.request"
+        ) as mock_request:
+            mock_request.return_value.status_code = 500
+            mock_request.return_value.text = "boom"
+            with self.assertRaises(RuntimeError):
+                self.client._make_batch_request(
+                    "PUT",
+                    "https://fake/url",
+                    {},
+                    timeout=30,
+                    batch_header_value="{}",
+                )
+        self.assertEqual(mock_request.call_count, 1)
+
+    def test_make_batch_request_429_then_success(self):
+        """429 then 200 -> succeeds after 1 retry."""
+        responses = [
+            mock.MagicMock(status_code=429),
+            mock.MagicMock(status_code=201),
+        ]
+        with mock.patch(
+            "clients.aks_machine_client.requests.request",
+            side_effect=responses,
+        ) as mock_request, mock.patch(
+            "clients.aks_machine_client.time.sleep"
+        ):
+            self.client._make_batch_request(
+                "PUT",
+                "https://fake/url",
+                {},
+                timeout=30,
+                batch_header_value="{}",
+            )
+        self.assertEqual(mock_request.call_count, 2)
+
+    def test_make_batch_request_429_exhausted_raises(self):
+        """429 across the full retry budget -> RuntimeError."""
+        with mock.patch(
+            "clients.aks_machine_client.requests.request"
+        ) as mock_request, mock.patch(
+            "clients.aks_machine_client.time.sleep"
+        ):
+            mock_request.return_value.status_code = 429
+            mock_request.return_value.text = "rate limited"
+            with self.assertRaises(RuntimeError):
+                self.client._make_batch_request(
+                    "PUT",
+                    "https://fake/url",
+                    {},
+                    timeout=30,
+                    batch_header_value="{}",
+                )
+        # _BATCH_429_MAX_RETRIES == 3
+        self.assertEqual(mock_request.call_count, 3)
 
 
 if __name__ == "__main__":

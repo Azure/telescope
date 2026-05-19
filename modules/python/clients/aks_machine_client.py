@@ -22,7 +22,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from types import SimpleNamespace
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
@@ -47,6 +47,12 @@ _POLL_INTERVAL_SECONDS = 10
 # consume the caller's whole ``timeout`` budget before the polling loop starts.
 # The remaining budget is reserved for ``_wait_for_agentpool_provisioning``.
 _PER_REQUEST_TIMEOUT_CAP = 60
+# Bounded 429 retry budget for ``_scale_machine_batch``. The AKS RP throttles
+# BatchPutMachine independently of normal PUTs; small bursts at the start of a
+# scale-out are common, so a short exponential backoff (1s, 2s, 4s) usually
+# clears them without ballooning the chunk's wall-time.
+_BATCH_429_MAX_RETRIES = 3
+_BATCH_429_INITIAL_BACKOFF_SECONDS = 1.0
 
 
 class AKSMachineClient(AKSClient):
@@ -384,19 +390,16 @@ class AKSMachineClient(AKSClient):
         ``tags`` is currently unused (Machine API rejects top-level tags on the
         machine PUT body; machines inherit tags from the parent agentpool).
 
-        The ``use_batch_api=True`` branch is stubbed on this PR and raises
-        ``NotImplementedError``; it will land in a follow-up PR.
+        When ``use_batch_api=True`` the work is sharded across
+        ``machine_workers`` chunks and each chunk is submitted via a single
+        ``BatchPutMachine``-headered PUT (see ``_create_batch_machines``); when
+        False each machine is PUT individually.
 
         Raises:
-            NotImplementedError: ``use_batch_api=True``.
             RuntimeError: fewer machines landed than requested, agentpool did
                 not reach Succeeded within ``timeout``, or P100 readiness did
                 not complete within ``readiness_wait_timeout``.
         """
-        if use_batch_api:
-            raise NotImplementedError(
-                "scale_machine batch path (use_batch_api=True) lands in a follow-up PR"
-            )
         cluster_name = cluster_name or self.get_cluster_name()
         metadata = {
             "cluster_name": cluster_name,
@@ -446,7 +449,11 @@ class AKSMachineClient(AKSClient):
                 names = [
                     f"{prefix}-machine-{i + 1}" for i in range(scale_machine_count)
                 ]
-                successful = self._scale_machine_individually(request, names)
+                if use_batch_api:
+                    successful, batch_times = self._scale_machine_batch(request, names)
+                    op.add_metadata("batch_command_execution_times", batch_times)
+                else:
+                    successful = self._scale_machine_individually(request, names)
                 op.add_metadata("successful_machines", successful)
 
                 # Fail fast on partial landing BEFORE waiting on the agentpool
@@ -573,3 +580,179 @@ class AKSMachineClient(AKSClient):
             logger.error(f"PUT machine {name} -> {resp.status_code} {resp.text[:500]}")
             return False
         return True
+
+    # ---- Machine API: batch scale path ----
+    def _scale_machine_batch(
+        self,
+        request: SimpleNamespace,
+        names: List[str],
+    ) -> Tuple[List[str], Dict[str, float]]:
+        """Dispatch ``names`` across ``machine_workers`` worker slices via the Batch API.
+
+        Each worker submits exactly one ``BatchPutMachine``-headered PUT carrying a
+        contiguous slice of ``names``. Slices are computed by arithmetic from the
+        ``worker_id`` (no partition helper) to match ado-telescope's per-worker
+        contract: every worker handles exactly ``scale_machine_count //
+        machine_workers`` machines, so chunk boundaries -- and the resulting
+        ``chunk_0/chunk_1/...`` Kusto correlation keys -- are byte-identical to
+        ado runs.
+
+        ``scale_machine_count`` MUST be an exact multiple of ``machine_workers``;
+        ``ValueError`` is raised otherwise so the failure surfaces at the
+        ``MachineCRUD`` boundary instead of producing a short final chunk that
+        would skew per-chunk latency dashboards.
+
+        Per-chunk wall time is captured under ``chunk_<worker_id>`` regardless
+        of success/failure. Per-worker exceptions are caught and logged; the
+        worker's slice is excluded from the returned ``successful`` list. The
+        input ``request`` is not mutated.
+        """
+        n = len(names)
+        workers = request.machine_workers
+        if workers <= 0:
+            raise ValueError(f"machine_workers must be positive (got {workers})")
+        if n % workers != 0:
+            raise ValueError(
+                f"scale_machine_count ({n}) must be an exact multiple of "
+                f"machine_workers ({workers}) when use_batch_api=True; "
+                f"got remainder {n % workers}"
+            )
+        per_worker = n // workers
+        successful: List[str] = []
+        batch_times: Dict[str, float] = {}
+
+        def run_worker(worker_id: int):
+            start = worker_id * per_worker
+            chunk = names[start:start + per_worker]
+            t0 = time.time()
+            try:
+                created = self._create_batch_machines(request, chunk, worker_id)
+            except Exception:
+                logger.exception(f"batch worker {worker_id} failed")
+                created = []
+            return worker_id, created, time.time() - t0
+
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            futures = [ex.submit(run_worker, w) for w in range(workers)]
+            for fut in as_completed(futures):
+                try:
+                    worker_id, created, elapsed = fut.result()
+                except Exception:
+                    # run_worker already swallows; this is belt-and-suspenders.
+                    logger.exception("unexpected error retrieving batch worker result")
+                    continue
+                batch_times[f"chunk_{worker_id}"] = elapsed
+                successful.extend(created)
+        return successful, batch_times
+
+    def _create_batch_machines(
+        self,
+        request: SimpleNamespace,
+        chunk: List[str],
+        chunk_idx: int,
+    ) -> List[str]:
+        """Submit a batch-PUT request creating every machine in ``chunk``.
+
+        Uses the AKS Machine API ``BatchPutMachine`` HEADER pattern (NOT the
+        non-existent ARM ``/$batch`` envelope): a single PUT to the first
+        machine name in ``chunk`` carrying a ``BatchPutMachine`` header whose
+        value is JSON containing ``vmSkus`` and ``batchMachines`` lists.
+
+        ``batchMachines`` lists ONLY the *additional* machines; the first one
+        is created from the URL + body. Each entry uses the key
+        ``machineName`` -- the wrong key (e.g. ``name``) causes the API to
+        silently ignore the extras and create only the URL-pointed machine.
+
+        ``vmSkus`` is a ``{"value": [<rich vm_sku obj>]}`` envelope (not a
+        flat list); the inner object describes the SKU shape the Batch API
+        expects to validate against.
+
+        Returns the list of machine names submitted on 2xx. Raises
+        ``RuntimeError`` (from ``_make_batch_request``) if the request
+        exhausts 429 retries or returns a non-2xx. Caller catches and
+        excludes failed chunks from the success list.
+        """
+        if not chunk:
+            return []
+        sub = self.subscription_id
+        first_machine_name = chunk[0]
+        url = (
+            f"{_ARM_BASE}/subscriptions/{sub}/resourceGroups/{request.resource_group}"
+            f"/providers/Microsoft.ContainerService/managedClusters/{request.cluster_name}"
+            f"/agentPools/{request.agentpool_name}/machines/{first_machine_name}"
+            f"?api-version={_MACHINE_API_VERSION}"
+        )
+        body: Dict[str, Any] = {"properties": {"hardware": {"vmSize": request.vm_size}}}
+        remaining_machines = chunk[1:]
+        batch_machines = [{"machineName": name} for name in remaining_machines]
+        vm_sku = {
+            "name": request.vm_size,
+            "resourceType": "virtualMachines",
+            "family": "standardDv3Family",
+            "locations": ["westus", "eastus", "westeurope"],
+            "capabilities": [
+                {"name": "vCPUs", "value": "2"},
+                {"name": "MemoryGB", "value": "8"},
+            ],
+            "restrictions": [],
+        }
+        batch_header_value = json.dumps({
+            "vmSkus": {"value": [vm_sku]},
+            "batchMachines": batch_machines,
+        })
+        logger.info(
+            f"chunk {chunk_idx}: submitting BatchPutMachine PUT for {len(chunk)} machines "
+            f"(target={first_machine_name})"
+        )
+        self._make_batch_request(
+            "PUT", url, body, request.timeout, batch_header_value=batch_header_value,
+        )
+        return list(chunk)
+
+    def _make_batch_request(
+        self,
+        method: str,
+        url: str,
+        data: Dict[str, Any],
+        timeout: int,
+        batch_header_value: str,
+    ) -> None:
+        """Send a ``BatchPutMachine``-headered request with bounded 429 backoff.
+
+        Sends the request directly (NOT via ``make_request``) so we can attach
+        the ``BatchPutMachine`` header alongside the standard auth/content-type
+        headers. Retries on HTTP 429 up to ``_BATCH_429_MAX_RETRIES`` attempts
+        with exponential backoff starting at
+        ``_BATCH_429_INITIAL_BACKOFF_SECONDS`` and doubling each attempt
+        (1s, 2s, 4s by default). All other non-2xx responses raise immediately.
+        """
+        backoff = _BATCH_429_INITIAL_BACKOFF_SECONDS
+        last_resp: Optional[requests.Response] = None
+        for attempt in range(_BATCH_429_MAX_RETRIES):
+            headers = {
+                "Authorization": f"Bearer {self._get_access_token()}",
+                "Content-Type": "application/json",
+                "BatchPutMachine": batch_header_value,
+            }
+            resp = requests.request(
+                method, url, headers=headers, json=data, timeout=timeout,
+            )
+            last_resp = resp
+            if resp.status_code in (200, 201, 202, 204):
+                return
+            if resp.status_code != 429:
+                raise RuntimeError(
+                    f"batch request failed: {resp.status_code} {resp.text[:500]}"
+                )
+            if attempt == _BATCH_429_MAX_RETRIES - 1:
+                break
+            logger.warning(
+                f"batch request 429; retrying in {backoff:.1f}s "
+                f"(attempt {attempt + 1}/{_BATCH_429_MAX_RETRIES})"
+            )
+            time.sleep(backoff)
+            backoff *= 2
+        text = last_resp.text[:500] if last_resp is not None else ""
+        raise RuntimeError(
+            f"batch request exceeded {_BATCH_429_MAX_RETRIES} 429 retries; last text={text}"
+        )
