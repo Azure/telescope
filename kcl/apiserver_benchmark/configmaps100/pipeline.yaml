@@ -1,6 +1,12 @@
 name: API Server List Configmaps
 pool: AKS-Telescope-Airlock
 trigger: none
+schedules:
+- cron: '0 3 * * *'
+  displayName: Daily 3AM UTC
+  branches:
+  - v2
+  always: true
 stages:
 - stage: workload_low
   displayName: workload_low
