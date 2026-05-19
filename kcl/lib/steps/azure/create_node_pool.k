@@ -2,8 +2,8 @@ import azure_pipelines.ap.steps
 
 MAX_NODES_PER_POOL = 800
 
-# PoolEntry describes a single AKS node pool: a unique pool name, the VM SKU, and the desired node count.
-schema PoolEntry:
+# NodePool describes a single AKS node pool: a unique pool name, the VM SKU, and the desired node count.
+schema NodePool:
     name: str
     sku: str
     count: int
@@ -29,10 +29,10 @@ az aks nodepool add \\
 }
 
 # PlanNodePools expands a {sku: totalNodes} map into an ordered list of
-# PoolEntry values, one per node pool to create. Each SKU is split into
+# NodePool values, one per node pool to create. Each SKU is split into
 # ceil(totalNodes / MAX_NODES_PER_POOL) pools, with the last pool possibly
 # smaller. Pool names are assigned globally as workerpool0, workerpool1, ...
-PlanNodePools = lambda skuToNodes: {str:int} -> [PoolEntry] {
+PlanNodePools = lambda skuToNodes: {str:int} -> [NodePool] {
     skuList = [sku for sku in skuToNodes if skuToNodes[sku] > 0]
     skusNested = [
         [sku for i in range((skuToNodes[sku] + MAX_NODES_PER_POOL - 1) // MAX_NODES_PER_POOL)]
@@ -47,18 +47,18 @@ PlanNodePools = lambda skuToNodes: {str:int} -> [PoolEntry] {
     ]
     skus = sum(skusNested, [])
     counts = sum(countsNested, [])
-    [PoolEntry {
+    [NodePool {
         name = "workerpool${idx}"
         sku = skus[idx]
         count = counts[idx]
     } for idx in range(len(skus))]
 }
 
-# CreateNodePools emits one `az aks nodepool add --no-wait` step per PoolEntry,
+# CreateNodePools emits one `az aks nodepool add --no-wait` step per NodePool,
 # so all pools provision in parallel. Typical usage is to pass the
-# [PoolEntry] returned by PlanNodePools, then pair this with
-# WaitForAllWorkerNodesReady (with the same [PoolEntry]) to gate on completion.
-CreateNodePools = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, pools: [PoolEntry], taintPrefix: str = "", labels: str = "" -> [steps.Step] {
+# [NodePool] returned by PlanNodePools, then pair this with
+# WaitForAllWorkerNodesReady (with the same [NodePool]) to gate on completion.
+CreateNodePools = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, pools: [NodePool], taintPrefix: str = "", labels: str = "" -> [steps.Step] {
     [
         CreateNodePool(
             serviceConnection,

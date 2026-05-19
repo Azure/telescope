@@ -37,35 +37,36 @@ WaitForNodePoolSucceeded = lambda serviceConnection: str, cluster: str, resource
     )
 }
 
-# WaitForAllWorkerNodesReady waits for every pool in pools (typically the
-# [PoolEntry] returned by PlanNodePools / produced by CreateNodePools) to reach
-# provisioningState=Succeeded, then waits for the matching total number of
-# worker nodes to be Ready via kubectl. The caller must have run
-# GetCredentials earlier in the job so kubectl is configured.
-WaitForAllWorkerNodesReady = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, pools: [PoolEntry] -> steps.Step {
-    poolNames = [p.name for p in pools]
-    expectedTotal = sum([p.count for p in pools], 0)
-    # Regex alternation of "aks-<pool>-" prefixes, e.g. "^aks-(workerpool0|workerpool1)-".
-    poolPrefixRegex = "^aks-(" + "|".join(poolNames) + ")-"
-    script = """
-set -euo pipefail
-
-# Wait for all node pools to reach provisioningState=Succeeded
-${"".join([waitForNodePoolScript(cluster, resourceGroup, subscription, name) for name in poolNames])}
-
-echo "All node pools provisioned. Waiting for ${expectedTotal} worker nodes to be Ready..."
+# bash snippet that polls `kubectl get nodes` until expectedCount nodes from the given AKS pool are Ready
+waitForPoolNodesReadyScript = lambda poolName: str, expectedCount: int -> str {
+    """
+echo "Waiting for ${expectedCount} nodes in pool ${poolName} to be Ready..."
 while true; do
-  # AKS node names follow the pattern aks-<poolname>-..., so filter on the
-  # configured pool prefixes to count only nodes from the requested pools.
   READY=$(kubectl get nodes --no-headers 2>/dev/null \\
-    | awk '$1 ~ /${poolPrefixRegex}/ && $2 == "Ready" {c++} END {print c+0}')
-  echo "Ready worker nodes: $READY / ${expectedTotal}"
-  if [ "$READY" -ge "${expectedTotal}" ]; then
-    echo "All worker nodes are Ready."
+    | awk '$1 ~ /^aks-${poolName}-/ && $2 == "Ready" {c++} END {print c+0}')
+  NOT_READY=$(( ${expectedCount} - READY ))
+  if [ "$NOT_READY" -le 0 ]; then
+    echo "Pool ${poolName}: all ${expectedCount} nodes are Ready."
     break
   fi
+  echo "Pool ${poolName}: $READY / ${expectedCount} Ready ($NOT_READY not ready). Retry in 30 seconds"
   sleep 30
 done
+"""
+}
+
+# Wait for each NodePool in pools to reach provisioningState=Succeeded and then have its
+# expected number of nodes Ready via kubectl. The caller must have run
+# GetCredentials earlier in the job so kubectl is configured.
+WaitForAllWorkerNodesReady = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, pools: [NodePool] -> steps.Step {
+    waitOnePool = lambda p: NodePool -> str {
+        waitForNodePoolScript(cluster, resourceGroup, subscription, p.name) + waitForPoolNodesReadyScript(p.name, p.count)
+    }
+    perPoolBlocks = "".join([waitOnePool(p) for p in pools])
+    script = """
+set -euo pipefail
+${perPoolBlocks}
+echo "All worker node pools are provisioned and Ready."
 """
     AzCli(serviceConnection, "Wait for all worker nodes to be ready", script)
 }
