@@ -375,6 +375,7 @@ steps:
         printf "  %-12s %-12s %-12s %-25s %s\n" "---------" "---------" "---------" "---------------------" "------"
         fleet_bug_count=0
         fleet_skip_count=0
+        fleet_unexpected_count=0
         for _row in $(echo "$clusters" | jq -c '.[]'); do
           _name=$(echo "$_row" | jq -r '.name')
           _rg=$(echo "$_row" | jq -r '.rg')
@@ -399,19 +400,38 @@ steps:
           if [ "$_cn" = "$_role" ]; then
             _status="OK"
           elif [ "$_cid" = "0" ]; then
+            # Reconciler skip: clustermesh-apiserver never installed on this
+            # cluster, cluster-id stays at default 0, cluster-name falls back
+            # to the auto-derived "clustermesh<N>". This is the REAL Fleet
+            # bug — convergence breaks because peers can't find this cluster
+            # under any expected name.
             _status="FLEET-SKIPPED (cluster-id=0, default name)"
             fleet_skip_count=$((fleet_skip_count + 1))
           elif [ "$_cn" = "${_role}${_cid}" ]; then
-            _status="FLEET-CONCAT-BUG (name = ${_role} + ${_cid})"
+            # By-design Fleet rendering: cluster-name = <member-name><cluster-id>.
+            # When ALL clusters get this treatment consistently, mesh
+            # convergence works fine (everyone advertises + references peers
+            # under the same naming scheme). Build 67608 (n=10) had this on
+            # all 10/10 clusters and converged cleanly. Only flagged as
+            # warning when mixed with SKIPPED below.
+            _status="FLEET-CONCAT (by-design)"
             fleet_bug_count=$((fleet_bug_count + 1))
           else
             _status="UNEXPECTED (name='${_cn}', id='${_cid}')"
+            fleet_unexpected_count=$((fleet_unexpected_count + 1))
           fi
           printf "  %-12s %-12s %-12s %-25s %s\n" "$_name" "$_role" "$_cid" "$_cn" "$_status"
         done
         echo ""
-        if [ "$fleet_bug_count" -gt 0 ] || [ "$fleet_skip_count" -gt 0 ]; then
-          echo "##vso[task.logissue type=warning;] AZURE FLEET BUG DETECTED at N=$cluster_count: ${fleet_bug_count} cluster(s) have CONCAT-BUG cluster-name, ${fleet_skip_count} cluster(s) were SKIPPED by Fleet reconciler (cluster-id=0). Mesh convergence WILL fail — see Phase 4b plan.md / files/fleet-clustermeshprofile-bug-67525.md for evidence + workarounds (n<=10, or move to OLD sub)."
+        if [ "$fleet_skip_count" -gt 0 ] || [ "$fleet_unexpected_count" -gt 0 ]; then
+          # REAL bug pattern: some clusters skipped or in unexpected state.
+          # Build 67525 (n=20) had 17 CONCAT + 3 SKIPPED → mesh stuck at 16/19
+          # peers because the 3 skipped clusters never advertised.
+          echo "##vso[task.logissue type=warning;] AZURE FLEET RP BUG DETECTED at N=$cluster_count: ${fleet_skip_count} cluster(s) SKIPPED by reconciler (cluster-id=0, no clustermesh-apiserver), ${fleet_unexpected_count} cluster(s) in unexpected state, ${fleet_bug_count} cluster(s) with concat-naming (by-design). Mesh convergence WILL fail due to skipped/unexpected clusters — see Phase 4b plan.md / files/fleet-clustermeshprofile-bug-67525.md for evidence + workarounds (n<=10, or move to OLD sub)."
+        elif [ "$fleet_bug_count" -gt 0 ]; then
+          # All clusters that aren't OK are CONCAT-by-design. Internally
+          # consistent → mesh converges. Emit info-only line; no warning.
+          echo "Fleet reconcile state: by-design — ${fleet_bug_count}/${cluster_count} clusters use Fleet concat-naming (cluster-name = <member>+<cluster-id>), 0 skipped, 0 unexpected. Mesh convergence OK (validated at n=10 build 67608)."
         else
           echo "Fleet reconcile state: clean (all cluster-name values match Fleet member names)"
         fi
