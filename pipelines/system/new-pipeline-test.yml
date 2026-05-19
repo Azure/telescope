@@ -329,7 +329,18 @@ stages:
               cluster_count: 2
               mesh_size: 2
               cl2_config_file: pod-churn-combined.yaml
-              test_type: pod-churn-combined
+              # test_type carries the `-shared-vnet` suffix so blob rows are
+              # cleanly separated from peered runs in Kusto WITHOUT requiring
+              # a schema-level topology column (the existing Kusto table has
+              # a strict schema controlled by an admin we don't own).
+              # Existing dashboards filtering `test_type=='pod-churn-combined'`
+              # see ONLY peered runs — automatic isolation, zero pollution.
+              # Cross-topology comparisons use `test_type startswith
+              # 'pod-churn-combined'`. The `pod-churn-*` glob match in
+              # execute.yml + collect.yml dispatch logic (set_churn_args_for_scenario
+              # case statement) still routes correctly because the suffix
+              # preserves the `pod-churn-` prefix.
+              test_type: pod-churn-combined-shared-vnet
               namespaces: 5
               deployments_per_namespace: 4
               replicas_per_deployment: 10
