@@ -7,15 +7,17 @@ result file via ``Operation.save_to_file`` on context exit. Tests verify:
   the right keys
 - failure path raises (so the OperationContext records ``success=False``)
 
-Only ``create_machine_agentpool`` has a full implementation on this scaffolding
-PR; ``scale_machine`` and the ``_get_machine_name_prefix`` naming helper raise
-``NotImplementedError`` and will be tested in a follow-up PR.
+This revision adds tests for the non-batch scale path. The batch dispatch
+(``use_batch_api=True``) is asserted to raise ``NotImplementedError`` until
+the follow-up PR lands.
 """
 # pylint: disable=protected-access
 # Tests intentionally exercise private helpers directly; the leading underscore
 # is conventional rather than semantic privacy.
+import itertools
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest import mock
 
 from clients.aks_machine_client import AKSMachineClient
@@ -105,7 +107,7 @@ class TestAKSMachineClient(unittest.TestCase):
 
     @mock.patch.object(AKSMachineClient, "make_request")
     def test_create_machine_agentpool_put_failure_raises(self, mock_make_request):
-        """PUT non-2xx \u2192 RuntimeError propagates out of with-block."""
+        """PUT non-2xx -> RuntimeError propagates out of with-block."""
         mock_resp = mock.MagicMock()
         mock_resp.status_code = 500
         mock_resp.text = "boom"
@@ -122,7 +124,7 @@ class TestAKSMachineClient(unittest.TestCase):
     def test_create_machine_agentpool_provisioning_timeout_raises(
         self, mock_make_request, _mock_wait
     ):
-        """PUT OK but provisioning never reaches Succeeded \u2192 RuntimeError."""
+        """PUT OK but provisioning never reaches Succeeded -> RuntimeError."""
         mock_resp = mock.MagicMock()
         mock_resp.status_code = 200
         mock_make_request.return_value = mock_resp
@@ -132,22 +134,348 @@ class TestAKSMachineClient(unittest.TestCase):
                 agentpool_name="apool", vm_size="Standard_D2_v3"
             )
 
-    # ---- scale_machine: stubbed on this PR ----
+    # ---- _get_machine_name_prefix ----
 
-    def test_scale_machine_raises_not_implemented(self):
-        """scale_machine is a stub on this PR; subsequent PR will implement it."""
-        with self.assertRaises(NotImplementedError):
+    def test_get_machine_name_prefix_small(self):
+        """Counts < 1000 emit literal scale<N>."""
+        self.assertEqual(AKSMachineClient._get_machine_name_prefix(1), "scale1")
+        self.assertEqual(AKSMachineClient._get_machine_name_prefix(500), "scale500")
+
+    def test_get_machine_name_prefix_thousand_multiples(self):
+        """Multiples of 1000 collapse to scale<N>k for stable Kusto keys."""
+        self.assertEqual(AKSMachineClient._get_machine_name_prefix(1000), "scale1k")
+        self.assertEqual(AKSMachineClient._get_machine_name_prefix(2000), "scale2k")
+
+    def test_get_machine_name_prefix_non_multiple_thousand(self):
+        """Non-multiple-of-1000 counts >= 1000 stay literal."""
+        self.assertEqual(AKSMachineClient._get_machine_name_prefix(1500), "scale1500")
+
+    # ---- scale_machine: non-batch path ----
+
+    @mock.patch.object(AKSMachineClient, "_wait_for_machine_node_readiness")
+    @mock.patch.object(AKSMachineClient, "_wait_for_agentpool_provisioning",
+                       return_value=True)
+    @mock.patch.object(AKSMachineClient, "_create_single_machine", return_value=True)
+    def test_scale_machine_non_batch_success(
+        self, _mock_create, _mock_wait_ap, mock_wait_ready
+    ):
+        """Non-batch path: all PUTs land, agentpool Succeeded, P100 success ->
+        returns and metadata is enriched with the expected keys."""
+        mock_wait_ready.return_value = {
+            f"P{p}": {
+                "target_nodes": 2,
+                "elapsed_time_seconds": 10.0,
+                "percentage": p,
+                "success": True,
+            }
+            for p in (50, 70, 90, 99, 100)
+        }
+        self.mock_k8s.get_ready_nodes.return_value = []
+
+        self.client.scale_machine(
+            agentpool_name="apool",
+            vm_size="Standard_D2_v3",
+            scale_machine_count=2,
+            machine_workers=2,
+        )
+
+        metadata_keys = {
+            call.args[0] for call in self.mock_operation.add_metadata.call_args_list
+        }
+        self.assertIn("successful_machines", metadata_keys)
+        self.assertIn("percentile_node_readiness_times", metadata_keys)
+        self.assertIn("node_readiness_time", metadata_keys)
+        self.assertIn("cluster_info", metadata_keys)
+
+    @mock.patch.object(AKSMachineClient, "_wait_for_machine_node_readiness")
+    @mock.patch.object(AKSMachineClient, "_wait_for_agentpool_provisioning",
+                       return_value=True)
+    @mock.patch.object(AKSMachineClient, "_create_single_machine")
+    def test_scale_machine_partial_landing_raises(
+        self, mock_create, mock_wait_ap, mock_wait_ready
+    ):
+        """Non-batch path: if fewer machines land than requested,
+        scale_machine raises RuntimeError BEFORE waiting on agentpool
+        provisioning or node readiness -- otherwise the recorded percentile
+        envelope and node_readiness_time describe a smaller target than
+        requested."""
+        # Two PUTs requested, first lands, second fails.
+        mock_create.side_effect = [True, False]
+        self.mock_k8s.get_ready_nodes.return_value = []
+
+        with self.assertRaises(RuntimeError):
             self.client.scale_machine(
-                agentpool_name="apool", vm_size="Standard_D2_v3",
+                agentpool_name="apool",
+                vm_size="Standard_D2_v3",
                 scale_machine_count=2,
+                machine_workers=1,
             )
 
-    # ---- _get_machine_name_prefix: stubbed on this PR ----
+        # Fail-fast: neither the agentpool wait nor the readiness wait should
+        # have been reached.
+        mock_wait_ap.assert_not_called()
+        mock_wait_ready.assert_not_called()
+        # successful_machines metadata IS recorded so operators can see which
+        # PUTs landed; downstream readiness/cluster_info metadata is not.
+        metadata_keys = {
+            call.args[0] for call in self.mock_operation.add_metadata.call_args_list
+        }
+        self.assertIn("successful_machines", metadata_keys)
+        self.assertNotIn("percentile_node_readiness_times", metadata_keys)
+        self.assertNotIn("node_readiness_time", metadata_keys)
+        self.assertNotIn("cluster_info", metadata_keys)
 
-    def test_get_machine_name_prefix_raises_not_implemented(self):
-        """_get_machine_name_prefix is a stub on this PR; lands with the scale path."""
+    @mock.patch.object(AKSMachineClient, "_wait_for_machine_node_readiness")
+    @mock.patch.object(AKSMachineClient, "_wait_for_agentpool_provisioning",
+                       return_value=True)
+    @mock.patch.object(AKSMachineClient, "_create_single_machine", return_value=True)
+    def test_scale_machine_passes_baseline_count_to_readiness(
+        self, _mock_create, _mock_wait_ap, mock_wait_ready
+    ):
+        """baseline_count snapshot is forwarded to _wait_for_machine_node_readiness."""
+        # Three pre-existing labeled Ready nodes.
+        self.mock_k8s.get_ready_nodes.return_value = [object(), object(), object()]
+        mock_wait_ready.return_value = {
+            f"P{p}": {
+                "target_nodes": 4,
+                "elapsed_time_seconds": 10.0,
+                "percentage": p,
+                "success": True,
+            }
+            for p in (50, 70, 90, 99, 100)
+        }
+
+        self.client.scale_machine(
+            agentpool_name="apool",
+            vm_size="Standard_D2_v3",
+            scale_machine_count=1,
+            machine_workers=1,
+        )
+
+        mock_wait_ready.assert_called_once()
+        self.assertEqual(mock_wait_ready.call_args.kwargs["baseline_count"], 3)
+        self.assertEqual(mock_wait_ready.call_args.kwargs["expected_count"], 1)
+
+    def test_scale_machine_batch_path_raises_not_implemented(self):
+        """The use_batch_api=True branch is stubbed until the follow-up PR."""
         with self.assertRaises(NotImplementedError):
-            AKSMachineClient._get_machine_name_prefix(1000)
+            self.client.scale_machine(
+                agentpool_name="apool",
+                vm_size="Standard_D2_v3",
+                scale_machine_count=2,
+                use_batch_api=True,
+            )
+
+    # ---- _create_single_machine ----
+
+    @mock.patch.object(AKSMachineClient, "make_request")
+    def test_create_single_machine_2xx_returns_true(self, mock_make_request):
+        """Any 200/201/202 response counts as a successful PUT."""
+        request = SimpleNamespace(
+            agentpool_name="apool",
+            cluster_name="fake-cluster",
+            resource_group="fake-rg",
+            vm_size="Standard_D2_v3",
+            timeout=60,
+        )
+        for code in (200, 201, 202):
+            with self.subTest(status=code):
+                mock_resp = mock.MagicMock()
+                mock_resp.status_code = code
+                mock_make_request.return_value = mock_resp
+                self.assertTrue(
+                    self.client._create_single_machine("m1", request)
+                )
+
+    @mock.patch.object(AKSMachineClient, "make_request")
+    def test_create_single_machine_non_2xx_returns_false(self, mock_make_request):
+        """Non-2xx responses are logged and return False (never raise)."""
+        request = SimpleNamespace(
+            agentpool_name="apool",
+            cluster_name="fake-cluster",
+            resource_group="fake-rg",
+            vm_size="Standard_D2_v3",
+            timeout=60,
+        )
+        mock_resp = mock.MagicMock()
+        mock_resp.status_code = 500
+        mock_resp.text = "boom"
+        mock_make_request.return_value = mock_resp
+        self.assertFalse(self.client._create_single_machine("m1", request))
+
+    # ---- _wait_for_machine_node_readiness ----
+
+    def _make_readiness_envelope(self, ready_counts):
+        """Helper: drive _wait_for_machine_node_readiness with a scripted
+        sequence of get_ready_nodes results.
+
+        ``ready_counts`` is an iterable of ints; each item is the integer
+        returned by len(get_ready_nodes(...)) on each poll. ``time.sleep`` is
+        patched out and ``time.time`` is advanced 1s per call so the loop's
+        elapsed-time bookkeeping is deterministic.
+        """
+        self.mock_k8s.get_ready_nodes.side_effect = [
+            [object()] * c for c in ready_counts
+        ]
+        # time.time() is called multiple times per iteration (start, deadline
+        # check, elapsed). Use a long monotonic sequence and let StopIteration
+        # be impossible by repeating the last value with itertools.chain.
+        tick = itertools.chain(
+            iter([float(i) for i in range(0, 1000)]),
+            itertools.repeat(1000.0),
+        )
+
+        def fake_time():
+            return next(tick)
+
+        return fake_time
+
+    def test_wait_readiness_ceil_rounding_target_total_3(self):
+        """target_total=3 with baseline=0 expected=3 -> percentile targets use
+        math.ceil: P50=2, P70=3, P90=3, P99=3, P100=3 (P100 always equals
+        target_total)."""
+        fake_time = self._make_readiness_envelope(
+            # 0 ready -> 1 -> 2 -> 3 ready: at 3 ready all targets met.
+            [0, 1, 2, 3]
+        )
+        with mock.patch("clients.aks_machine_client.time.sleep"), \
+             mock.patch("clients.aks_machine_client.time.time", side_effect=fake_time):
+            env = self.client._wait_for_machine_node_readiness(
+                agentpool_name="apool",
+                expected_count=3,
+                timeout=600,
+                baseline_count=0,
+            )
+        self.assertEqual(env["P50"]["target_nodes"], 2)
+        self.assertEqual(env["P70"]["target_nodes"], 3)
+        self.assertEqual(env["P90"]["target_nodes"], 3)
+        self.assertEqual(env["P99"]["target_nodes"], 3)
+        # P100 == target_total invariant: ceil(1.0 * 3) == 3.
+        self.assertEqual(env["P100"]["target_nodes"], 3)
+        for p in (50, 70, 90, 99, 100):
+            self.assertTrue(env[f"P{p}"]["success"])
+
+    def test_wait_readiness_baseline_clamp(self):
+        """When baseline_count is large relative to expected, the clamp
+        baseline_count+1 dominates: every percentile target == baseline+1 so
+        pre-existing nodes alone can never satisfy any threshold."""
+        # baseline=10, expected=1 -> target_total=11. ceil-based percentile
+        # targets would be P50=6, P70=8, P90=10, P99=11, P100=11, but the
+        # baseline+1 clamp (11) overrides P50/P70/P90 (and meets P99/P100).
+        fake_time = self._make_readiness_envelope([10, 11])
+        with mock.patch("clients.aks_machine_client.time.sleep"), \
+             mock.patch("clients.aks_machine_client.time.time", side_effect=fake_time):
+            env = self.client._wait_for_machine_node_readiness(
+                agentpool_name="apool",
+                expected_count=1,
+                timeout=600,
+                baseline_count=10,
+            )
+        for p in (50, 70, 90, 99, 100):
+            self.assertEqual(env[f"P{p}"]["target_nodes"], 11)
+            self.assertTrue(env[f"P{p}"]["success"])
+
+    def test_wait_readiness_no_target_met_returns_failure_envelope(self):
+        """No percentile target met within the deadline -> envelope with
+        success=False, elapsed_time_seconds=None, target_nodes preserved."""
+        # Always 0 ready; time.time eventually crosses the deadline.
+        self.mock_k8s.get_ready_nodes.return_value = []
+        # Force the loop to exit immediately: start=0, every subsequent call
+        # returns 1000.0 which is past the deadline of start+timeout=10.
+        time_seq = iter([0.0, 1000.0, 1000.0, 1000.0])
+        with mock.patch("clients.aks_machine_client.time.sleep"), \
+             mock.patch("clients.aks_machine_client.time.time",
+                        side_effect=lambda: next(time_seq, 1000.0)):
+            env = self.client._wait_for_machine_node_readiness(
+                agentpool_name="apool",
+                expected_count=3,
+                timeout=10,
+                baseline_count=0,
+            )
+        for p in (50, 70, 90, 99, 100):
+            self.assertFalse(env[f"P{p}"]["success"])
+            self.assertIsNone(env[f"P{p}"]["elapsed_time_seconds"])
+        # target_nodes still reflects what we were aiming for so operators can
+        # see "we wanted 3, got 0".
+        self.assertEqual(env["P100"]["target_nodes"], 3)
+        self.assertEqual(env["P50"]["target_nodes"], 2)
+
+    def test_wait_readiness_partial_timeout(self):
+        """Some percentiles hit, then deadline elapses -> hit percentiles have
+        success=True with elapsed_time_seconds; missed percentiles have
+        success=False with elapsed_time_seconds=None. Crucially the
+        'all became ready' summary log does NOT fire."""
+        # target_total=3 (baseline=0, expected=3). Sequence: ready=0,1,2 then
+        # deadline crosses before reaching 3.
+        ready_seq = iter([[], [object()], [object()] * 2, [object()] * 2])
+        self.mock_k8s.get_ready_nodes.side_effect = lambda label_selector: next(
+            ready_seq, [object()] * 2
+        )
+        # The function calls time.time() ~3 times per loop iteration plus once
+        # for `start`. Provide a long monotonic sequence so P50 (target=2) is
+        # met while well under the 100s deadline, then jump past it.
+        ticks = itertools.chain(
+            iter([0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 200.0, 200.0]),
+            itertools.repeat(200.0),
+        )
+        with mock.patch("clients.aks_machine_client.time.sleep"), \
+             mock.patch("clients.aks_machine_client.time.time",
+                        side_effect=lambda: next(ticks)), \
+             mock.patch("clients.aks_machine_client.logger") as mock_logger:
+            env = self.client._wait_for_machine_node_readiness(
+                agentpool_name="apool",
+                expected_count=3,
+                timeout=100,
+                baseline_count=0,
+            )
+        # P50 (target=2) was hit; P70/P90/P99/P100 (target=3) were not.
+        self.assertTrue(env["P50"]["success"])
+        self.assertIsNotNone(env["P50"]["elapsed_time_seconds"])
+        for p in (70, 90, 99, 100):
+            self.assertFalse(env[f"P{p}"]["success"])
+            self.assertIsNone(env[f"P{p}"]["elapsed_time_seconds"])
+        # The unconditional "All target nodes became ready" log must NOT fire
+        # on partial completion; a partial-readiness warning takes its place.
+        info_msgs = [
+            c.args[0] for c in mock_logger.info.call_args_list if c.args
+        ]
+        warning_msgs = [
+            c.args[0] for c in mock_logger.warning.call_args_list if c.args
+        ]
+        self.assertFalse(
+            any("All target nodes became ready" in m for m in info_msgs),
+            f"unexpected all-ready log on partial completion: {info_msgs}",
+        )
+        self.assertTrue(
+            any("Partial readiness" in m for m in warning_msgs),
+            f"expected partial-readiness warning, got: {warning_msgs}",
+        )
+
+    def test_wait_readiness_expected_count_zero_short_circuits(self):
+        """expected_count<=0 -> empty envelope, no Kubernetes calls."""
+        env = self.client._wait_for_machine_node_readiness(
+            agentpool_name="apool",
+            expected_count=0,
+            timeout=600,
+            baseline_count=0,
+        )
+        for p in (50, 70, 90, 99, 100):
+            self.assertFalse(env[f"P{p}"]["success"])
+            self.assertEqual(env[f"P{p}"]["target_nodes"], 0)
+        self.mock_k8s.get_ready_nodes.assert_not_called()
+
+    def test_wait_readiness_no_k8s_client_short_circuits(self):
+        """k8s_client is None -> empty envelope, no polling."""
+        self.client.k8s_client = None
+        env = self.client._wait_for_machine_node_readiness(
+            agentpool_name="apool",
+            expected_count=5,
+            timeout=600,
+            baseline_count=0,
+        )
+        for p in (50, 70, 90, 99, 100):
+            self.assertFalse(env[f"P{p}"]["success"])
+            self.assertEqual(env[f"P{p}"]["target_nodes"], 0)
 
 
 if __name__ == "__main__":
