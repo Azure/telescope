@@ -137,12 +137,12 @@ output = ap.Pipeline {
     name = "API Server List Configmaps"
 
     trigger = "none"
-    schedules = [ap.Cron {
-        cron = "0 3 * * *"
-        displayName = "Daily 3AM UTC"
-        branches = ["v2"]
-        always = True
-    }]
+    # schedules = [ap.Cron {
+    #     cron = "0 3 * * *"
+    #     displayName = "Daily 3AM UTC"
+    #     branches = ["v2"]
+    #     always = True
+    # }]
     pool = const.DEFAULT_POOL
 
     stages = [
