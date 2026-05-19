@@ -109,7 +109,6 @@ makeBenchmarkJob = lambda flowcontrol: str, flowcontrolLabel: str -> job.Job {
                 const.DEFAULT_SERVICE_CONNECTION,
                 flowcontrol,
                 "--total 10000 --size=1024 --group-size=10 --configmap-amount=100",
-                LOCATION,
                 CLUSTER,
                 RESOURCE_GROUP,
                 SUBSCRIPTION_ID),

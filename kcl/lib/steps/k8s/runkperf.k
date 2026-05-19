@@ -102,7 +102,7 @@ sudo -E $(command -v runkperf) -v 3 bench \\
 # CollectKperfResult reads the raw kperf benchmark output, uploads error data
 # if error rate is too high, collects cloud info, and writes the formatted
 # result to /tmp/run-result.json for upload.
-CollectKperfResult = lambda serviceConnection: str, flowcontrol: str, subcmdArgs: str, region: str, cluster: str, resourceGroup: str, subscription: str -> steps.Step {
+CollectKperfResult = lambda serviceConnection: str, flowcontrol: str, subcmdArgs: str, cluster: str, resourceGroup: str, subscription: str -> steps.Step {
     azure.AzCli(serviceConnection, "Collect kperf benchmark result", """
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
@@ -133,17 +133,16 @@ errors_number=$(jq -r '.result.errors | length' /tmp/tmp_results.json)
 error_rate_too_high=$(jq -r '(1 - .result.total / (.loadSpec.count * .loadSpec.loadProfile.spec.total)) > 0' /tmp/tmp_results.json)
 if [[ "$errors_number" != "0" && "$error_rate_too_high" == "true" ]]; then
   cat /tmp/tmp_results.json \\
-    | jq -cr ".result.errors | map(. + {runID: \\"$(RUN_ID)\\", cloud: \\"azure\\"}) | .[]" > /tmp/errors_raw_data.json
+    | jq -cr ".result.errors | map(. + {run_id: \\"$(RUN_ID)\\", cloud: \\"azure\\"}) | .[]" > /tmp/errors_raw_data.json
   echo "Error raw data:"
   cat /tmp/errors_raw_data.json
 fi
 
-# Collect final result
+# Collect final result — pack everything into the "result" field so Kusto ingests it all
 cat /tmp/tmp_results.json \\
   | jq 'del(.result.errors)' \\
-  | jq -c ".info += { flowcontrol: \\"${flowcontrol}\\", subcmdArgs: \\"${subcmdArgs}\\" }" \\
-  | jq -c ". += { timestamp: \\"$TIMESTAMP\\" }" \\
-  | jq -c ". += { runID: \\"$(RUN_ID)\\", runURL: \\"$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)\\", cloud: \\"azure\\", extraInfos: $cloud_info }" \\
+  | jq -c --argjson ci "$cloud_info" '{ cloud: $ci.cloud, region: $ci.region, fqdn: $ci.fqdn, private_fqdn: $ci.private_fqdn, k8s_version: $ci.k8s_version, sku_tier: $ci.sku_tier, subscription: $ci.subscription, cluster_id: $ci.cluster_id, flowcontrol: "${flowcontrol}", subcmdArgs: "${subcmdArgs}" } + .result | { result: . }' \\
+  | jq -c '. + { timestamp: "'"$TIMESTAMP"'", run_id: "$(RUN_ID)", run_url: "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)", pipeline: "$(Build.DefinitionName)" }' \\
   > /tmp/run-result.json
 
 echo "Collected result:"
