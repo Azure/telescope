@@ -295,11 +295,14 @@ resource "terraform_data" "clustermeshprofile" {
       # 3. Poll the profile's APPLIED member count until it reaches 0. Re-issue
       # `apply` periodically as a nudge in case the first one was a no-op
       # (e.g. Fleet RP hadn't yet observed the relabeled members).
-      # Budget: 120 x 5s = 10 min.
+      # Budget: 360 x 5s = 30 min. Bumped from 120 (10 min) for N=100 — at
+      # 100 members Fleet RP reconcile-after-relabel can take 15-25 min in
+      # the worst case based on N=20 timing (3-5 min observed). Cheap
+      # insurance vs a failed destroy.
       drained=false
-      for i in $(seq 1 120); do
+      for i in $(seq 1 360); do
         count=$(eval "${self.input.list_applied_count_command}" 2>/dev/null | tr -d '[:space:]')
-        echo "[poll-members] attempt $i/120: applied count='$count'"
+        echo "[poll-members] attempt $i/360: applied count='$count'"
         if [ "$count" = "0" ]; then
           drained=true
           break
@@ -318,18 +321,20 @@ resource "terraform_data" "clustermeshprofile" {
 
       # 4. Delete the profile. Brief retry as a backstop in case there's still
       # propagation lag between list-members showing 0 and delete being allowed.
+      # Bumped 30 → 60 attempts (5 min) for N=100 — same rationale as the
+      # poll-members bump above.
       echo "[delete-profile] ${self.input.delete_command}"
-      for i in $(seq 1 30); do
+      for i in $(seq 1 60); do
         if eval "${self.input.delete_command}"; then
           echo "[delete-profile] succeeded on attempt $i"
           exit 0
         fi
-        if [ "$i" -lt 30 ]; then
-          echo "[delete-profile] retry $i/30 in 5s"
+        if [ "$i" -lt 60 ]; then
+          echo "[delete-profile] retry $i/60 in 5s"
           sleep 5
         fi
       done
-      echo "[delete-profile] gave up after 30 attempts; downstream cleanup will proceed"
+      echo "[delete-profile] gave up after 60 attempts; downstream cleanup will proceed"
       exit 0
     EOT
   }
