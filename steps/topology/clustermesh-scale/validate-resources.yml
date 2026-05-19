@@ -436,6 +436,63 @@ steps:
           echo "Fleet reconcile state: clean (all cluster-name values match Fleet member names)"
         fi
         echo ""
+
+        # ====================================================================
+        # Fail-fast confirmation for the SKIP-BUG (cluster-id=0).
+        # ====================================================================
+        # Cilium ClusterMesh requires cluster-id ∈ [1, 255]. cluster-id=0 after
+        # wait-for-apiserver has succeeded means Fleet's reconciler never ran
+        # for this cluster — the exact signature from build 67525 (3/20
+        # SKIPPED, mesh stuck at 16/19 peers, build timed out at 12h).
+        #
+        # Concat-naming (fleet_bug_count) is by-design and convergence-safe;
+        # only fleet_skip_count drives this fail-fast. Unexpected state is
+        # flagged separately above but doesn't drive fail-fast (lower
+        # confidence of cause without forensic data).
+        #
+        # 3 × 60s confirmation rides out rare ConfigMap-write lag (Fleet RP
+        # can be slow to push cluster-id even after clustermesh-apiserver is
+        # Available). If clusters recover within ~3 min, validate-cilium
+        # below can proceed normally.
+        if [ "$fleet_skip_count" -gt 0 ]; then
+          echo "===================================================================="
+          echo "  Fleet SKIP-BUG confirmation loop"
+          echo "===================================================================="
+          echo "Upfront detector saw ${fleet_skip_count} cluster(s) with cluster-id=0;"
+          echo "confirming across 3 retries (60s apart) before failing fast..."
+          for round in 1 2 3; do
+            round_skip=0
+            for _row in $(echo "$clusters" | jq -c '.[]'); do
+              _role=$(echo "$_row" | jq -r '.role')
+              _kc="$HOME/.kube/${_role}.config"
+              _cid=$(KUBECONFIG="$_kc" kubectl -n kube-system get cm cilium-config \
+                       -o jsonpath='{.data.cluster-id}' 2>/dev/null || echo "")
+              if [ "$_cid" = "0" ]; then
+                round_skip=$((round_skip + 1))
+              fi
+            done
+            if [ "$round_skip" -eq 0 ]; then
+              echo "Round ${round}: all clusters recovered (no cluster-id=0). Continuing to validate-cilium loop."
+              fleet_skip_count=0
+              break
+            fi
+            echo "Round ${round}: ${round_skip} cluster(s) still have cluster-id=0; waiting 60s..."
+            fleet_skip_count=$round_skip
+            if [ "$round" -lt 3 ]; then sleep 60; fi
+          done
+
+          if [ "$fleet_skip_count" -gt 0 ]; then
+            # The per-cluster validate-cilium loop below times out at 30 min
+            # per stuck cluster — letting it run at N=100 would waste up to
+            # ${fleet_skip_count} × 30 min on hopeless retries. Exit non-zero
+            # so destroy fires immediately. cleanup-resources condition is
+            # `ne(SKIP_RESOURCE_MANAGEMENT, 'true')` (no `succeeded()`), so
+            # the RG still gets cleaned up.
+            echo "##vso[task.logissue type=error;] Fleet RP SKIP-BUG CONFIRMED at N=${cluster_count}: ${fleet_skip_count} cluster(s) have cluster-id=0 after wait-for-apiserver succeeded + 3 min of retries. This is the build-67525 pattern. Failing fast to release infra ~$((fleet_skip_count * 30))min sooner than validate-cilium per-cluster timeout loop would. Destroy step (no succeeded() predicate) will still run."
+            exit 1
+          fi
+          echo ""
+        fi
       fi
 
       failures=0
