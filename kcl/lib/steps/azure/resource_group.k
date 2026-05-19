@@ -6,7 +6,7 @@ az group create --name "${name}" --location "${location}" --subscription "${subs
 """
     AzCli(
         serviceConnection,
-        "Create resource group ${name} in ${location} (${subscription})",
+        "Create resource group in ${location}",
         script)
 }
 
@@ -16,7 +16,7 @@ az group delete --name "${name}" --subscription "${subscription}" --yes
 """
     AzCli(
         serviceConnection,
-        "Delete resource group ${name} (${subscription})",
+        "Delete resource group",
         script,
         condition = "always()")
 }
