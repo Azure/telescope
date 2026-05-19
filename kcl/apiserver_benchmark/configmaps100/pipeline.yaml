@@ -216,8 +216,7 @@ stages:
             --arg k8s_version "$(echo $aks_info | jq -r .currentKubernetesVersion)" \
             --arg sku_tier "$(echo $aks_info | jq -r .sku.tier)" \
             --arg subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-            --arg network_profile "$(echo $aks_info | jq -r .networkProfile)" \
-            --arg agentpool_profile "$(echo $aks_info | jq -r .agentPoolProfiles)" \
+            --arg cluster_id "$(echo $aks_info | jq -r .resourceUid)" \
             '{
               cloud: $cloud,
               region: $region,
@@ -226,8 +225,7 @@ stages:
               k8s_version: $k8s_version,
               sku_tier: $sku_tier,
               subscription: $subscription,
-              network_profile: $network_profile,
-              agentpool_profile: $agentpool_profile
+              cluster_id: $cluster_id
             }')
 
           # Check for errors and upload error raw data if error rate is too high
@@ -486,8 +484,7 @@ stages:
             --arg k8s_version "$(echo $aks_info | jq -r .currentKubernetesVersion)" \
             --arg sku_tier "$(echo $aks_info | jq -r .sku.tier)" \
             --arg subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-            --arg network_profile "$(echo $aks_info | jq -r .networkProfile)" \
-            --arg agentpool_profile "$(echo $aks_info | jq -r .agentPoolProfiles)" \
+            --arg cluster_id "$(echo $aks_info | jq -r .resourceUid)" \
             '{
               cloud: $cloud,
               region: $region,
@@ -496,8 +493,7 @@ stages:
               k8s_version: $k8s_version,
               sku_tier: $sku_tier,
               subscription: $subscription,
-              network_profile: $network_profile,
-              agentpool_profile: $agentpool_profile
+              cluster_id: $cluster_id
             }')
 
           # Check for errors and upload error raw data if error rate is too high
