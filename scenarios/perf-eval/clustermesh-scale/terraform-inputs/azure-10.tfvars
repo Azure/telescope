@@ -38,6 +38,13 @@ network_config_list = [
       {
         name           = "clustermesh-1-pod"
         address_prefix = "10.1.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
       }
     ]
     network_security_group_name = ""
@@ -56,6 +63,13 @@ network_config_list = [
       {
         name           = "clustermesh-2-pod"
         address_prefix = "10.2.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
       }
     ]
     network_security_group_name = ""
@@ -74,6 +88,13 @@ network_config_list = [
       {
         name           = "clustermesh-3-pod"
         address_prefix = "10.3.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
       }
     ]
     network_security_group_name = ""
@@ -92,6 +113,13 @@ network_config_list = [
       {
         name           = "clustermesh-4-pod"
         address_prefix = "10.4.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
       }
     ]
     network_security_group_name = ""
@@ -110,6 +138,13 @@ network_config_list = [
       {
         name           = "clustermesh-5-pod"
         address_prefix = "10.5.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
       }
     ]
     network_security_group_name = ""
@@ -128,6 +163,13 @@ network_config_list = [
       {
         name           = "clustermesh-6-pod"
         address_prefix = "10.6.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
       }
     ]
     network_security_group_name = ""
@@ -146,6 +188,13 @@ network_config_list = [
       {
         name           = "clustermesh-7-pod"
         address_prefix = "10.7.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
       }
     ]
     network_security_group_name = ""
@@ -164,6 +213,13 @@ network_config_list = [
       {
         name           = "clustermesh-8-pod"
         address_prefix = "10.8.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
       }
     ]
     network_security_group_name = ""
@@ -182,6 +238,13 @@ network_config_list = [
       {
         name           = "clustermesh-9-pod"
         address_prefix = "10.9.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
       }
     ]
     network_security_group_name = ""
@@ -200,6 +263,13 @@ network_config_list = [
       {
         name           = "clustermesh-10-pod"
         address_prefix = "10.10.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
       }
     ]
     network_security_group_name = ""
