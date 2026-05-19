@@ -9,9 +9,12 @@ schema NodePool:
     count: int
 
 CreateNodePool = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, poolName: str, vmSize: str, count: int, taintPrefix: str = "", labels: str = "", noWait: bool = False -> steps.Step {
-    taintFlag = "--node-taints ${taintPrefix}=true:NoSchedule" if taintPrefix else ""
-    labelFlag = "--labels \"${labels}\"" if labels else ""
-    noWaitFlag = "--no-wait" if noWait else ""
+    flagDecision = [
+        "--node-taints ${taintPrefix}=true:NoSchedule" if taintPrefix else "",
+        "--labels \"${labels}\"" if labels else "",
+        "--no-wait" if noWait else "",
+    ]
+    flags = " ".join([f for f in flagDecision if f])
     script = """
 az aks nodepool add \\
   --cluster-name "${cluster}" \\
@@ -21,9 +24,7 @@ az aks nodepool add \\
   --node-count ${count} \\
   --node-vm-size "${vmSize}" \\
   --mode User \\
-  ${taintFlag} \\
-  ${labelFlag} \\
-  ${noWaitFlag}
+  ${flags}
 """
     AzCli(serviceConnection, "Create node pool ${poolName}", script)
 }
