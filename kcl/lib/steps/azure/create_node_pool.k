@@ -1,7 +1,5 @@
 import azure_pipelines.ap.steps
 
-MAX_NODES_PER_POOL = 800
-
 # NodePool describes a single AKS node pool: a unique pool name, the VM SKU, and the desired node count.
 schema NodePool:
     name: str
@@ -31,18 +29,18 @@ az aks nodepool add \\
 
 # PlanNodePools expands a {sku: totalNodes} map into an ordered list of
 # NodePool values, one per node pool to create. Each SKU is split into
-# ceil(totalNodes / MAX_NODES_PER_POOL) pools, with the last pool possibly
+# ceil(totalNodes / maxNodesPerPool) pools, with the last pool possibly
 # smaller. Pool names are assigned globally as workerpool0, workerpool1, ...
-PlanNodePools = lambda skuToNodes: {str:int} -> [NodePool] {
+PlanNodePools = lambda skuToNodes: {str:int}, maxNodesPerPool: int = 800 -> [NodePool] {
     skuList = [sku for sku in skuToNodes if skuToNodes[sku] > 0]
     skusNested = [
-        [sku for i in range((skuToNodes[sku] + MAX_NODES_PER_POOL - 1) // MAX_NODES_PER_POOL)]
+        [sku for i in range((skuToNodes[sku] + maxNodesPerPool - 1) // maxNodesPerPool)]
         for sku in skuList
     ]
     countsNested = [
         [
-            MAX_NODES_PER_POOL if i < (skuToNodes[sku] + MAX_NODES_PER_POOL - 1) // MAX_NODES_PER_POOL - 1 else skuToNodes[sku] - i * MAX_NODES_PER_POOL
-            for i in range((skuToNodes[sku] + MAX_NODES_PER_POOL - 1) // MAX_NODES_PER_POOL)
+            maxNodesPerPool if i < (skuToNodes[sku] + maxNodesPerPool - 1) // maxNodesPerPool - 1 else skuToNodes[sku] - i * maxNodesPerPool
+            for i in range((skuToNodes[sku] + maxNodesPerPool - 1) // maxNodesPerPool)
         ]
         for sku in skuList
     ]
