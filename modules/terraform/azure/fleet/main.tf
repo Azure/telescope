@@ -249,9 +249,41 @@ resource "terraform_data" "clustermeshprofile" {
 
   # create + apply are two separate az calls. Use bash with `set -euo pipefail`
   # so any failure aborts the chain.
+  #
+  # Apply-with-retry (N=100 hardening): the `apply` operation is a Fleet RP
+  # LRO that pushes peer kubeconfigs to every member's cilium-config. At
+  # N=20 this typically completes in 3-10 min. At N=100 the work scales
+  # roughly linearly with member count (each member needs its config patched
+  # with the other 99 peers), so an apply can take 30-60 min and `az`'s
+  # default CLI timeout can fire mid-LRO. The retry wrapper handles:
+  #   - Transient Fleet RP busy errors (the RP serializes profile applies
+  #     across the regional Fleet — concurrent applies from other tests
+  #     would block ours briefly)
+  #   - CLI-side LRO timeout (azure-cli default is generous but not infinite)
+  # 5 attempts × 60s backoff between tries = ~5min of retry budget. If the
+  # apply genuinely succeeded by the 2nd or 3rd retry, the profile reconcile
+  # is idempotent (Fleet just reapplies the same selector → same member set).
   provisioner "local-exec" {
     interpreter = ["bash", "-c"]
-    command     = "set -euo pipefail; ${self.input.create_command}; ${self.input.apply_command}"
+    command     = <<-EOT
+      set -euo pipefail
+      echo "[clustermeshprofile] create: ${self.input.create_command}"
+      ${self.input.create_command}
+      apply_max=5
+      for i in $(seq 1 $apply_max); do
+        echo "[clustermeshprofile] apply attempt $i/$apply_max: ${self.input.apply_command}"
+        if ${self.input.apply_command}; then
+          echo "[clustermeshprofile] apply succeeded on attempt $i"
+          exit 0
+        fi
+        if [ "$i" -lt "$apply_max" ]; then
+          echo "[clustermeshprofile] apply attempt $i failed, retrying in 60s..."
+          sleep 60
+        fi
+      done
+      echo "[clustermeshprofile] apply failed after $apply_max attempts" >&2
+      exit 1
+    EOT
   }
 
   # Destroy-time: Fleet's API has a chicken-and-egg between member-delete
