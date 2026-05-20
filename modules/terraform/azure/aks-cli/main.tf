@@ -391,7 +391,18 @@ resource "terraform_data" "aks_cli" {
         out=$(eval "$cmd" 2>&1) && { echo "$out"; exit 0; }
         rc=$?
         echo "$out"
-        if echo "$out" | grep -qE "ReferencedResourceNotProvisioned|OperationNotAllowed|AnotherOperationInProgress|RetryableError"; then
+        # Retryable Azure RP errors. All point to transient resource-busy
+        # / serialization conditions that recover once the queue drains:
+        #   - ReferencedResourceNotProvisioned: subnet (or other) in Updating
+        #     state when AKS tried to use it.
+        #   - VirtualNetworkNotInSucceededState: VNet itself in Updating
+        #     state during AKS create — broader cousin of the above
+        #     (build 67775 evidence at N=100 shared-VNet).
+        #   - OperationNotAllowed / AnotherOperationInProgress: another
+        #     in-progress op on AKS/VNet/RG blocks the create (same race
+        #     pattern as aks_nodepool_cli below).
+        #   - RetryableError: catch-all from azure-cli's own classifier.
+        if echo "$out" | grep -qE "ReferencedResourceNotProvisioned|VirtualNetworkNotInSucceededState|OperationNotAllowed|AnotherOperationInProgress|RetryableError"; then
           echo "[aks_cli retry $i/30] transient Azure RP error; sleeping 60s before retry"
           sleep 60
           continue
@@ -461,6 +472,14 @@ resource "terraform_data" "aks_wait_succeeded" {
       # purely from AKS RP throttling under concurrency. Strictly additive
       # — fast clusters exit early at ~1m via the 3-consecutive-Succeeded
       # check; only slow outliers pay the longer ceiling.
+      #
+      # Fail-fast on terminal Failed state (build 67775 evidence at N=100):
+      # async ACNS addon PUTs can move a cluster from Updating → Failed AFTER
+      # `az aks create` returned. Without this fail-fast, the poll loop
+      # wastes the full 30 min before exiting 1, then preserve_state retries
+      # the wait twice more = 1.5h burned per failed cluster. Detecting
+      # Failed early lets terraform surface the error in ~1 min so the
+      # operator can react (drop parallelism, taint, etc.).
       for i in $(seq 1 90); do
         state=$(az aks show -g "$rg" -n "$name" --query provisioningState -o tsv 2>/dev/null || echo "Unknown")
         if [ "$state" = "Succeeded" ]; then
@@ -469,6 +488,12 @@ resource "terraform_data" "aks_wait_succeeded" {
             echo "AKS $name stable in Succeeded ($got consecutive checks). Continuing."
             exit 0
           fi
+        elif [ "$state" = "Failed" ]; then
+          # Terminal failure — no point polling further. Recovery (delete +
+          # recreate, or `az aks update` per the AKS RP error message) is
+          # outside this wait's contract; surface the error now.
+          echo "AKS $name is in terminal Failed state — fail-fast (not polling further)"
+          exit 1
         else
           if [ "$got" -gt 0 ]; then
             echo "AKS $name re-entered '$state' after Succeeded streak; resetting counter"

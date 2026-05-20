@@ -873,7 +873,15 @@ stages:
   - stage: azure_eastus2euap_n100
     dependsOn: []
     variables:
-      TF_CLI_ARGS_apply: "-parallelism=8"
+      # 2026-05-19 22:30 PT: build 67775 evidence — at parallelism=8 with 100
+      # concurrent AKS creates, Azure RP capacity was exceeded: 10 of 60
+      # clusters reached Failed state (17% rate, mix of VirtualNetworkNot-
+      # InSucceededState + async ACNS addon PatchResourceNotFound + lost
+      # control plane). Dropping to parallelism=4 to halve the concurrent
+      # stress (matches plan.md guidance for n=10). Adds ~1h to apply wall-
+      # clock but should dramatically reduce failure rate (which otherwise
+      # makes the apply step time out after 3 retries × 30 min/failure).
+      TF_CLI_ARGS_apply: "-parallelism=4"
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
