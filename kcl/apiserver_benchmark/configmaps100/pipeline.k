@@ -20,15 +20,14 @@ az aks create \\
   --subscription "${SUBSCRIPTION_ID}" \\
   --location "${LOCATION}" \\
   --kubernetes-version "1.35" \\
-  --node-count 1 \\
-  --node-vm-size "Standard_B2s" \\
+  --node-count 2 \\
+  --node-vm-size "Standard_D2s_v3" \\
   --network-plugin azure \\
   --network-plugin-mode overlay \\
   --nodepool-taints "CriticalAddonsOnly=true:NoSchedule" \\
   --tier standard \\
   --tags SkipAKSCluster=true SkipASMAzSecPackAutoConfig=true SkipLinuxAzSecPack=true
 """
-# TODO: restore cluster to --node-count 2 --node-vm-size "Standard_D2s_v3"
 
 makeBenchmarkJob = lambda flowcontrol: str, flowcontrolLabel: str -> job.Job {
     job.Job {
@@ -65,14 +64,12 @@ makeBenchmarkJob = lambda flowcontrol: str, flowcontrolLabel: str -> job.Job {
                 RESOURCE_GROUP,
                 SUBSCRIPTION_ID,
                 "runner",
-                # TODO: restore to 3 nodes after testing
                 "Standard_D16s_v3",
-                1),
+                3),
             runkperf.RunKperfBenchmark(
                 RUNNER_IMAGE,
                 "list_configmaps",
-                # TODO: restore to --total 10000 --configmap-amount=100 after testing
-                "--total 10 --size=1024 --group-size=10 --configmap-amount=10",
+                "--total 10000 --size=1024 --group-size=10 --configmap-amount=100",
                 "$(Pipeline.Workspace)/kubeconfig",
                 flowcontrol = flowcontrol,
                 target = "kperf",
@@ -80,8 +77,7 @@ makeBenchmarkJob = lambda flowcontrol: str, flowcontrolLabel: str -> job.Job {
             azure.CollectKperfResult(
                 const.DEFAULT_SERVICE_CONNECTION,
                 flowcontrol,
-                # TODO: restore to --total 10000 --configmap-amount=100 after testing
-                "--total 10 --size=1024 --group-size=10 --configmap-amount=10",
+                "--total 10000 --size=1024 --group-size=10 --configmap-amount=100",
                 CLUSTER,
                 RESOURCE_GROUP,
                 SUBSCRIPTION_ID,
