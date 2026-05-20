@@ -867,9 +867,11 @@ stages:
   # enabled in the AzDO UI at trigger time (Stages picker) OR by flipping
   # this condition to true in a follow-up commit. This guards against the
   # ~$500-1000 cost of accidental trigger from a routine pipeline run.
+  # 2026-05-19: ENABLED for the May-21st release N=100 push. Other stages
+  # should be unchecked in the AzDO UI at trigger time to avoid Dv3 quota
+  # collision (only 192 vCPU headroom above the 4800 N=100 needs).
   - stage: azure_eastus2euap_n100
     dependsOn: []
-    condition: false
     variables:
       TF_CLI_ARGS_apply: "-parallelism=8"
     jobs:
