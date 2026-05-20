@@ -4,5 +4,33 @@ stages:
 - stage: big_stage
   displayName: Big Stage
   jobs:
-  - template: pipeline_1.yaml
-  - template: pipeline_2.yaml
+  - job: job_0
+    displayName: Job 0
+    steps:
+    - bash: echo 0 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 0
+  - job: job_1
+    displayName: Job 1
+    steps:
+    - bash: echo 1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 1
+  - job: job_2
+    displayName: Job 2
+    steps:
+    - bash: echo 2 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 2
+  - job: job_3
+    displayName: Job 3
+    steps:
+    - bash: echo 3 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 3
+  - job: job_4
+    displayName: Job 4
+    steps:
+    - bash: echo 4 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 4
+  - job: job_5
+    displayName: Job 5
+    steps:
+    - bash: echo 5 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 5

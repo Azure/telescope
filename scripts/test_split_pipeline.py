@@ -54,15 +54,14 @@ def make_test(case_dir: str):
                 shutil.copy2(os.path.join(source_dir, name), os.path.join(tmpdir, name))
 
             pipeline_path = os.path.join(tmpdir, "pipeline.yaml")
-            splitter = PipelineSplitter(max_size_bytes=max_size, max_files=max_files)
+            splitter = PipelineSplitter(max_size_bytes=max_size, max_files=max_files, repo_root=tmpdir)
 
             if expect_error:
                 with self.assertRaises(SplitError) as ctx:
                     splitter.split(pipeline_path)
                 self.assertIn(expect_error, str(ctx.exception))
-                return
-
-            splitter.split(pipeline_path)
+            else:
+                splitter.split(pipeline_path)
 
             # Compare all expected files with actual output
             expected_files = list_yaml_files(expected_dir)
@@ -78,7 +77,7 @@ def make_test(case_dir: str):
                 actual_data = load_yaml(os.path.join(tmpdir, name))
                 self.assertEqual(
                     actual_data, expected_data,
-                    f"Content mismatch in {name}"
+                    f"Content mismatch in {name}.\nExpected: {expected_data}\nActual: {actual_data}"
                 )
 
     return test_method

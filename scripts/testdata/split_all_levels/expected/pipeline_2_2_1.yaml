@@ -1,3 +1,0 @@
-steps:
-- bash: echo s1 j1 step0 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-  displayName: Step 1-1-0

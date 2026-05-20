@@ -1,6 +1,15 @@
-stages:
-- stage: stage_0
-  displayName: Stage 0
-  jobs:
-  - template: pipeline_1_1.yaml
-  - template: pipeline_1_2.yaml
+jobs:
+- job: job_0
+  displayName: Job 0
+  steps:
+  - bash: echo s0 j0 step0 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    displayName: Step 0-0
+  - bash: echo s0 j0 step1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    displayName: Step 0-1
+- job: job_1
+  displayName: Job 1
+  steps:
+  - bash: echo s0 j1 step0 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    displayName: Step 1-0
+  - bash: echo s0 j1 step1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    displayName: Step 1-1

@@ -1,8 +1,0 @@
-jobs:
-- job: job_0
-  displayName: Job 0
-  steps:
-  - bash: echo s0 j0 step0 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-    displayName: Step 0-0
-  - bash: echo s0 j0 step1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-    displayName: Step 0-1

@@ -1,4 +1,5 @@
 stages:
+- template: $(Pipeline.Workspace)/s/pipeline_1.yaml
 - stage: stage_2
   displayName: Stage 2
   jobs:
@@ -7,11 +8,3 @@ stages:
     steps:
     - bash: echo stage 2 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
       displayName: Step 2
-- stage: stage_3
-  displayName: Stage 3
-  jobs:
-  - job: job_3
-    displayName: Job 3
-    steps:
-    - bash: echo stage 3 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-      displayName: Step 3

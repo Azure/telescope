@@ -1,4 +1,5 @@
 jobs:
+- template: $(Pipeline.Workspace)/s/pipeline_3.yaml
 - job: job_2
   displayName: Job 2
   steps:

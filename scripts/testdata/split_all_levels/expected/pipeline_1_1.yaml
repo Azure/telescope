@@ -1,6 +1,0 @@
-jobs:
-- job: job_0_0
-  displayName: Job 0-0
-  steps:
-  - template: pipeline_1_1_1.yaml
-  - template: pipeline_1_1_2.yaml
