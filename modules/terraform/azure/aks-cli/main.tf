@@ -359,7 +359,49 @@ resource "terraform_data" "aks_cli" {
   }
 
   provisioner "local-exec" {
-    command = self.input.aks_cli_command
+    # Wrap `az aks create` in a retry loop for transient Azure RP errors
+    # that are recoverable by waiting:
+    #
+    #   - ReferencedResourceNotProvisioned: subnet (or other referenced
+    #     resource) is in `Updating` state when AKS tries to use it. At
+    #     shared-VNet scale (200 subnets / 100 AKS in clustermesh-scale
+    #     N=100), Azure serializes ALL subnet operations per-VNet — only
+    #     one PutSubnetOperation can be in flight at a time. With 100
+    #     concurrent AKS creates all attaching to different subnets in
+    #     the same shared VNet, the per-VNet serialization queue forces
+    #     some AKS creates to see a peer cluster's subnet PUT mid-flight
+    #     and reject with this error. Retry resolves it once the queue
+    #     drains.
+    #   - OperationNotAllowed / AnotherOperationInProgress: same race
+    #     pattern as aks_nodepool_cli below; another in-progress operation
+    #     on the AKS / VNet / RG blocks the create. Retry.
+    #
+    # Strictly additive: first attempt = original behavior. Other
+    # Telescope scenarios (single-cluster, peered, etc.) hit zero retries
+    # on the happy path. Only the few clusters that lose the serialization
+    # race at N=100 shared-VNet pay the retry cost.
+    #
+    # Budget: 30 retries × 60s = 30 min. Enough for the worst Azure VNet
+    # propagation tail observed in clustermesh-scale runs.
+    interpreter = ["bash", "-c"]
+    command     = <<-EOT
+      set -uo pipefail
+      cmd=${jsonencode(self.input.aks_cli_command)}
+      for i in $(seq 1 30); do
+        out=$(eval "$cmd" 2>&1) && { echo "$out"; exit 0; }
+        rc=$?
+        echo "$out"
+        if echo "$out" | grep -qE "ReferencedResourceNotProvisioned|OperationNotAllowed|AnotherOperationInProgress|RetryableError"; then
+          echo "[aks_cli retry $i/30] transient Azure RP error; sleeping 60s before retry"
+          sleep 60
+          continue
+        fi
+        # Non-retryable failure (quota, invalid args, auth, etc.) — fail fast.
+        exit $rc
+      done
+      echo "[aks_cli] gave up after 30 retries (~30 min) — Azure RP queue did not drain" >&2
+      exit 1
+    EOT
   }
 
   provisioner "local-exec" {
