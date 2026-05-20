@@ -633,8 +633,8 @@ class TestAKSMachineClient(unittest.TestCase):
 
     def test_make_batch_request_2xx_returns(self):
         """2xx response returns without raising; one HTTP call made."""
-        with mock.patch(
-            "clients.aks_machine_client.requests.request"
+        with mock.patch.object(
+            self.client._session, "request"
         ) as mock_request:
             mock_request.return_value.status_code = 200
             self.client._make_batch_request(
@@ -648,8 +648,8 @@ class TestAKSMachineClient(unittest.TestCase):
 
     def test_make_batch_request_non_2xx_non_429_raises(self):
         """500 -> RuntimeError, no retry."""
-        with mock.patch(
-            "clients.aks_machine_client.requests.request"
+        with mock.patch.object(
+            self.client._session, "request"
         ) as mock_request:
             mock_request.return_value.status_code = 500
             mock_request.return_value.text = "boom"
@@ -669,9 +669,8 @@ class TestAKSMachineClient(unittest.TestCase):
             mock.MagicMock(status_code=429),
             mock.MagicMock(status_code=201),
         ]
-        with mock.patch(
-            "clients.aks_machine_client.requests.request",
-            side_effect=responses,
+        with mock.patch.object(
+            self.client._session, "request", side_effect=responses,
         ) as mock_request, mock.patch(
             "clients.aks_machine_client.time.sleep"
         ):
@@ -686,8 +685,8 @@ class TestAKSMachineClient(unittest.TestCase):
 
     def test_make_batch_request_429_exhausted_raises(self):
         """429 across the full retry budget -> RuntimeError."""
-        with mock.patch(
-            "clients.aks_machine_client.requests.request"
+        with mock.patch.object(
+            self.client._session, "request"
         ) as mock_request, mock.patch(
             "clients.aks_machine_client.time.sleep"
         ):

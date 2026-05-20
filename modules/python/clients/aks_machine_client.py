@@ -704,7 +704,13 @@ class AKSMachineClient(AKSClient):
         # the individual machine PUT site.
         put_timeout = min(request.timeout, _PER_REQUEST_TIMEOUT_CAP)
         self._make_batch_request(
-            "PUT", url, body, put_timeout, batch_header_value=batch_header_value,
+            "PUT",
+            url,
+            body,
+            put_timeout,
+            batch_header_value=batch_header_value,
+            chunk_idx=chunk_idx,
+            first_machine_name=first_machine_name,
         )
         return list(chunk)
 
@@ -715,6 +721,8 @@ class AKSMachineClient(AKSClient):
         data: Dict[str, Any],
         timeout: int,
         batch_header_value: str,
+        chunk_idx: Optional[int] = None,
+        first_machine_name: Optional[str] = None,
     ) -> None:
         """Send a ``BatchPutMachine``-headered request with bounded 429 backoff.
 
@@ -725,6 +733,12 @@ class AKSMachineClient(AKSClient):
         ``_BATCH_429_INITIAL_BACKOFF_SECONDS`` and doubling each attempt
         (1s, 2s, 4s by default). All other non-2xx responses raise immediately.
         """
+        # Compact prefix so every error/log line is self-identifying in Kusto
+        # (chunk_idx + first machine name pinpoint the failing slice without
+        # cross-referencing the per-worker log).
+        ctx = (
+            f"chunk={chunk_idx} target={first_machine_name} {method} {url}"
+        )
         backoff = _BATCH_429_INITIAL_BACKOFF_SECONDS
         last_resp: Optional[requests.Response] = None
         for attempt in range(_BATCH_429_MAX_RETRIES):
@@ -733,7 +747,11 @@ class AKSMachineClient(AKSClient):
                 "Content-Type": "application/json",
                 "BatchPutMachine": batch_header_value,
             }
-            resp = requests.request(
+            # Use the client's shared Session so this batch path reuses the
+            # same pooled TCP/TLS connections (and adapters/proxies) as the
+            # individual ``make_request`` path; avoids per-PUT handshakes
+            # during large scales.
+            resp = self._session.request(
                 method, url, headers=headers, json=data, timeout=timeout,
             )
             last_resp = resp
@@ -741,17 +759,19 @@ class AKSMachineClient(AKSClient):
                 return
             if resp.status_code != 429:
                 raise RuntimeError(
-                    f"batch request failed: {resp.status_code} {resp.text[:500]}"
+                    f"batch request failed [{ctx}]: "
+                    f"{resp.status_code} {resp.text[:500]}"
                 )
             if attempt == _BATCH_429_MAX_RETRIES - 1:
                 break
             logger.warning(
-                f"batch request 429; retrying in {backoff:.1f}s "
+                f"batch request 429 [{ctx}]; retrying in {backoff:.1f}s "
                 f"(attempt {attempt + 1}/{_BATCH_429_MAX_RETRIES})"
             )
             time.sleep(backoff)
             backoff *= 2
         text = last_resp.text[:500] if last_resp is not None else ""
         raise RuntimeError(
-            f"batch request exceeded {_BATCH_429_MAX_RETRIES} 429 retries; last text={text}"
+            f"batch request exceeded {_BATCH_429_MAX_RETRIES} 429 retries "
+            f"[{ctx}]; last text={text}"
         )
