@@ -88,9 +88,12 @@ set -euo pipefail
 set -x
 
 # Install kubectl and ensure runkperf is in PATH
-curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-install kubectl /usr/local/bin/kubectl
-export PATH="/:$PATH"
+export PATH="/:$HOME/.local/bin:$PATH"
+mkdir -p $HOME/.local/bin
+ln -sf /runkperf $HOME/.local/bin/runkperf
+ln -sf /kperf $HOME/.local/bin/kperf
+curl -sLo $HOME/.local/bin/kubectl "https://dl.k8s.io/release/$(curl -sL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+chmod +x $HOME/.local/bin/kubectl
 
 /runkperf -v 3 bench \\
   --runner-image="${runnerImage}" \\

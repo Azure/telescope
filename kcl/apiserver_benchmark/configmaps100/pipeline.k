@@ -114,7 +114,7 @@ output = ap.Pipeline {
         containers = [res_container.Container {
             container = "kperf"
             image = RUNNER_IMAGE
-            volumes = ["/home/vsts/.kube:/root/.kube"]
+            volumes = ["/home/vsts/.kube:/home/AzDevOps_azpcontainer/.kube"]
         }]
     }
 
