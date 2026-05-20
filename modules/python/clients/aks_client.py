@@ -447,6 +447,7 @@ class AKSClient:
                 gpu_node_pool=gpu_node_pool,
                 node_pool=node_pool,
                 cni_daemonset_label=cni_daemonset_label,
+                measure_pod_startup=measure_pod_startup,
             )
 
         # Create operation context to track the operation
@@ -693,6 +694,7 @@ class AKSClient:
         gpu_node_pool: bool = False,
         node_pool: Optional[Any] = None,
         cni_daemonset_label: Optional[str] = None,
+        measure_pod_startup: bool = False,
     ) -> Any:
         """
         Scale a node pool progressively with specified step size
@@ -778,6 +780,15 @@ class AKSClient:
                         "cluster_info", self.get_cluster_data(cluster_name)
                     )
                     node_pool.count = step  # Update node count in the node pool object
+
+                    # Deploy probe pod before scaling if pod startup measurement is enabled
+                    if measure_pod_startup and operation_type == "scale_up":
+                        try:
+                            self.k8s_client.deploy_probe_pod(node_pool_name=node_pool_name)
+                            logger.info("Probe pod deployed, will measure pod startup latency after scale")
+                        except Exception as probe_err:
+                            logger.warning(f"Failed to deploy probe pod: {probe_err}")
+
                     result = self._scale_with_retry(
                         node_pool_name, cluster_name, node_pool
                     )
@@ -817,6 +828,31 @@ class AKSClient:
                                 )
                                 op.add_metadata("node_startup_latency", startup_latency)
                                 logger.info(f"Collected node startup latency for {len(new_nodes)} new node(s)")
+
+                                # Collect pod startup latency if probe pod was deployed
+                                if measure_pod_startup:
+                                    try:
+                                        node_ready_ts = None
+                                        if startup_latency:
+                                            node_ready_ts = startup_latency[0].get("node_ready")
+
+                                        self.k8s_client.wait_for_probe_pod_running(
+                                            operation_timeout_in_minutes=self.operation_timeout_minutes,
+                                        )
+
+                                        pod_latency = self.k8s_client.collect_pod_startup_latency(
+                                            scale_api_call_timestamp=op.start_timestamp,
+                                            node_ready_timestamp=node_ready_ts,
+                                        )
+                                        op.add_metadata("pod_startup_latency", pod_latency)
+                                    except Exception as pod_err:
+                                        logger.warning(f"Failed to collect pod startup latency: {pod_err}")
+                                    finally:
+                                        try:
+                                            self.k8s_client.delete_probe_pod()
+                                        except Exception:
+                                            pass
+
                             else:
                                 logger.warning("No new nodes found for startup latency collection")
                         except Exception as latency_err:
