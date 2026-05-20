@@ -22,6 +22,8 @@ owner          = "aks"
 #   - 1 shared VNet 10.0.0.0/8 (16M IPs, packs 255 clusters cleanly)
 #   - 200 subnets: per cluster id X∈[1..100], node `clustermesh-X-node` at
 #     10.<X>.0.0/24 + pod `clustermesh-X-pod` at 10.<X>.4.0/22.
+#   - Pod subnets carry the Microsoft.ContainerService/managedClusters
+#     delegation (required in eastus2euap per commit 0c0677e / build 67743).
 #   - 0 VNet peerings (vnet_peering_config.enabled = false). Pod-to-pod
 #     routing is native L3 within the shared VNet.
 #   - AKS service-cidr 192.168.0.0/24 + dns-service-ip 192.168.0.10 on every
@@ -55,206 +57,1507 @@ network_config_list = [
     vnet_name          = "clustermesh-shared-vnet"
     vnet_address_space = "10.0.0.0/8"
     subnet = [
-      { name = "clustermesh-1-node", address_prefix = "10.1.0.0/24" },
-      { name = "clustermesh-1-pod", address_prefix = "10.1.4.0/22" },
-      { name = "clustermesh-2-node", address_prefix = "10.2.0.0/24" },
-      { name = "clustermesh-2-pod", address_prefix = "10.2.4.0/22" },
-      { name = "clustermesh-3-node", address_prefix = "10.3.0.0/24" },
-      { name = "clustermesh-3-pod", address_prefix = "10.3.4.0/22" },
-      { name = "clustermesh-4-node", address_prefix = "10.4.0.0/24" },
-      { name = "clustermesh-4-pod", address_prefix = "10.4.4.0/22" },
-      { name = "clustermesh-5-node", address_prefix = "10.5.0.0/24" },
-      { name = "clustermesh-5-pod", address_prefix = "10.5.4.0/22" },
-      { name = "clustermesh-6-node", address_prefix = "10.6.0.0/24" },
-      { name = "clustermesh-6-pod", address_prefix = "10.6.4.0/22" },
-      { name = "clustermesh-7-node", address_prefix = "10.7.0.0/24" },
-      { name = "clustermesh-7-pod", address_prefix = "10.7.4.0/22" },
-      { name = "clustermesh-8-node", address_prefix = "10.8.0.0/24" },
-      { name = "clustermesh-8-pod", address_prefix = "10.8.4.0/22" },
-      { name = "clustermesh-9-node", address_prefix = "10.9.0.0/24" },
-      { name = "clustermesh-9-pod", address_prefix = "10.9.4.0/22" },
-      { name = "clustermesh-10-node", address_prefix = "10.10.0.0/24" },
-      { name = "clustermesh-10-pod", address_prefix = "10.10.4.0/22" },
-      { name = "clustermesh-11-node", address_prefix = "10.11.0.0/24" },
-      { name = "clustermesh-11-pod", address_prefix = "10.11.4.0/22" },
-      { name = "clustermesh-12-node", address_prefix = "10.12.0.0/24" },
-      { name = "clustermesh-12-pod", address_prefix = "10.12.4.0/22" },
-      { name = "clustermesh-13-node", address_prefix = "10.13.0.0/24" },
-      { name = "clustermesh-13-pod", address_prefix = "10.13.4.0/22" },
-      { name = "clustermesh-14-node", address_prefix = "10.14.0.0/24" },
-      { name = "clustermesh-14-pod", address_prefix = "10.14.4.0/22" },
-      { name = "clustermesh-15-node", address_prefix = "10.15.0.0/24" },
-      { name = "clustermesh-15-pod", address_prefix = "10.15.4.0/22" },
-      { name = "clustermesh-16-node", address_prefix = "10.16.0.0/24" },
-      { name = "clustermesh-16-pod", address_prefix = "10.16.4.0/22" },
-      { name = "clustermesh-17-node", address_prefix = "10.17.0.0/24" },
-      { name = "clustermesh-17-pod", address_prefix = "10.17.4.0/22" },
-      { name = "clustermesh-18-node", address_prefix = "10.18.0.0/24" },
-      { name = "clustermesh-18-pod", address_prefix = "10.18.4.0/22" },
-      { name = "clustermesh-19-node", address_prefix = "10.19.0.0/24" },
-      { name = "clustermesh-19-pod", address_prefix = "10.19.4.0/22" },
-      { name = "clustermesh-20-node", address_prefix = "10.20.0.0/24" },
-      { name = "clustermesh-20-pod", address_prefix = "10.20.4.0/22" },
-      { name = "clustermesh-21-node", address_prefix = "10.21.0.0/24" },
-      { name = "clustermesh-21-pod", address_prefix = "10.21.4.0/22" },
-      { name = "clustermesh-22-node", address_prefix = "10.22.0.0/24" },
-      { name = "clustermesh-22-pod", address_prefix = "10.22.4.0/22" },
-      { name = "clustermesh-23-node", address_prefix = "10.23.0.0/24" },
-      { name = "clustermesh-23-pod", address_prefix = "10.23.4.0/22" },
-      { name = "clustermesh-24-node", address_prefix = "10.24.0.0/24" },
-      { name = "clustermesh-24-pod", address_prefix = "10.24.4.0/22" },
-      { name = "clustermesh-25-node", address_prefix = "10.25.0.0/24" },
-      { name = "clustermesh-25-pod", address_prefix = "10.25.4.0/22" },
-      { name = "clustermesh-26-node", address_prefix = "10.26.0.0/24" },
-      { name = "clustermesh-26-pod", address_prefix = "10.26.4.0/22" },
-      { name = "clustermesh-27-node", address_prefix = "10.27.0.0/24" },
-      { name = "clustermesh-27-pod", address_prefix = "10.27.4.0/22" },
-      { name = "clustermesh-28-node", address_prefix = "10.28.0.0/24" },
-      { name = "clustermesh-28-pod", address_prefix = "10.28.4.0/22" },
-      { name = "clustermesh-29-node", address_prefix = "10.29.0.0/24" },
-      { name = "clustermesh-29-pod", address_prefix = "10.29.4.0/22" },
-      { name = "clustermesh-30-node", address_prefix = "10.30.0.0/24" },
-      { name = "clustermesh-30-pod", address_prefix = "10.30.4.0/22" },
-      { name = "clustermesh-31-node", address_prefix = "10.31.0.0/24" },
-      { name = "clustermesh-31-pod", address_prefix = "10.31.4.0/22" },
-      { name = "clustermesh-32-node", address_prefix = "10.32.0.0/24" },
-      { name = "clustermesh-32-pod", address_prefix = "10.32.4.0/22" },
-      { name = "clustermesh-33-node", address_prefix = "10.33.0.0/24" },
-      { name = "clustermesh-33-pod", address_prefix = "10.33.4.0/22" },
-      { name = "clustermesh-34-node", address_prefix = "10.34.0.0/24" },
-      { name = "clustermesh-34-pod", address_prefix = "10.34.4.0/22" },
-      { name = "clustermesh-35-node", address_prefix = "10.35.0.0/24" },
-      { name = "clustermesh-35-pod", address_prefix = "10.35.4.0/22" },
-      { name = "clustermesh-36-node", address_prefix = "10.36.0.0/24" },
-      { name = "clustermesh-36-pod", address_prefix = "10.36.4.0/22" },
-      { name = "clustermesh-37-node", address_prefix = "10.37.0.0/24" },
-      { name = "clustermesh-37-pod", address_prefix = "10.37.4.0/22" },
-      { name = "clustermesh-38-node", address_prefix = "10.38.0.0/24" },
-      { name = "clustermesh-38-pod", address_prefix = "10.38.4.0/22" },
-      { name = "clustermesh-39-node", address_prefix = "10.39.0.0/24" },
-      { name = "clustermesh-39-pod", address_prefix = "10.39.4.0/22" },
-      { name = "clustermesh-40-node", address_prefix = "10.40.0.0/24" },
-      { name = "clustermesh-40-pod", address_prefix = "10.40.4.0/22" },
-      { name = "clustermesh-41-node", address_prefix = "10.41.0.0/24" },
-      { name = "clustermesh-41-pod", address_prefix = "10.41.4.0/22" },
-      { name = "clustermesh-42-node", address_prefix = "10.42.0.0/24" },
-      { name = "clustermesh-42-pod", address_prefix = "10.42.4.0/22" },
-      { name = "clustermesh-43-node", address_prefix = "10.43.0.0/24" },
-      { name = "clustermesh-43-pod", address_prefix = "10.43.4.0/22" },
-      { name = "clustermesh-44-node", address_prefix = "10.44.0.0/24" },
-      { name = "clustermesh-44-pod", address_prefix = "10.44.4.0/22" },
-      { name = "clustermesh-45-node", address_prefix = "10.45.0.0/24" },
-      { name = "clustermesh-45-pod", address_prefix = "10.45.4.0/22" },
-      { name = "clustermesh-46-node", address_prefix = "10.46.0.0/24" },
-      { name = "clustermesh-46-pod", address_prefix = "10.46.4.0/22" },
-      { name = "clustermesh-47-node", address_prefix = "10.47.0.0/24" },
-      { name = "clustermesh-47-pod", address_prefix = "10.47.4.0/22" },
-      { name = "clustermesh-48-node", address_prefix = "10.48.0.0/24" },
-      { name = "clustermesh-48-pod", address_prefix = "10.48.4.0/22" },
-      { name = "clustermesh-49-node", address_prefix = "10.49.0.0/24" },
-      { name = "clustermesh-49-pod", address_prefix = "10.49.4.0/22" },
-      { name = "clustermesh-50-node", address_prefix = "10.50.0.0/24" },
-      { name = "clustermesh-50-pod", address_prefix = "10.50.4.0/22" },
-      { name = "clustermesh-51-node", address_prefix = "10.51.0.0/24" },
-      { name = "clustermesh-51-pod", address_prefix = "10.51.4.0/22" },
-      { name = "clustermesh-52-node", address_prefix = "10.52.0.0/24" },
-      { name = "clustermesh-52-pod", address_prefix = "10.52.4.0/22" },
-      { name = "clustermesh-53-node", address_prefix = "10.53.0.0/24" },
-      { name = "clustermesh-53-pod", address_prefix = "10.53.4.0/22" },
-      { name = "clustermesh-54-node", address_prefix = "10.54.0.0/24" },
-      { name = "clustermesh-54-pod", address_prefix = "10.54.4.0/22" },
-      { name = "clustermesh-55-node", address_prefix = "10.55.0.0/24" },
-      { name = "clustermesh-55-pod", address_prefix = "10.55.4.0/22" },
-      { name = "clustermesh-56-node", address_prefix = "10.56.0.0/24" },
-      { name = "clustermesh-56-pod", address_prefix = "10.56.4.0/22" },
-      { name = "clustermesh-57-node", address_prefix = "10.57.0.0/24" },
-      { name = "clustermesh-57-pod", address_prefix = "10.57.4.0/22" },
-      { name = "clustermesh-58-node", address_prefix = "10.58.0.0/24" },
-      { name = "clustermesh-58-pod", address_prefix = "10.58.4.0/22" },
-      { name = "clustermesh-59-node", address_prefix = "10.59.0.0/24" },
-      { name = "clustermesh-59-pod", address_prefix = "10.59.4.0/22" },
-      { name = "clustermesh-60-node", address_prefix = "10.60.0.0/24" },
-      { name = "clustermesh-60-pod", address_prefix = "10.60.4.0/22" },
-      { name = "clustermesh-61-node", address_prefix = "10.61.0.0/24" },
-      { name = "clustermesh-61-pod", address_prefix = "10.61.4.0/22" },
-      { name = "clustermesh-62-node", address_prefix = "10.62.0.0/24" },
-      { name = "clustermesh-62-pod", address_prefix = "10.62.4.0/22" },
-      { name = "clustermesh-63-node", address_prefix = "10.63.0.0/24" },
-      { name = "clustermesh-63-pod", address_prefix = "10.63.4.0/22" },
-      { name = "clustermesh-64-node", address_prefix = "10.64.0.0/24" },
-      { name = "clustermesh-64-pod", address_prefix = "10.64.4.0/22" },
-      { name = "clustermesh-65-node", address_prefix = "10.65.0.0/24" },
-      { name = "clustermesh-65-pod", address_prefix = "10.65.4.0/22" },
-      { name = "clustermesh-66-node", address_prefix = "10.66.0.0/24" },
-      { name = "clustermesh-66-pod", address_prefix = "10.66.4.0/22" },
-      { name = "clustermesh-67-node", address_prefix = "10.67.0.0/24" },
-      { name = "clustermesh-67-pod", address_prefix = "10.67.4.0/22" },
-      { name = "clustermesh-68-node", address_prefix = "10.68.0.0/24" },
-      { name = "clustermesh-68-pod", address_prefix = "10.68.4.0/22" },
-      { name = "clustermesh-69-node", address_prefix = "10.69.0.0/24" },
-      { name = "clustermesh-69-pod", address_prefix = "10.69.4.0/22" },
-      { name = "clustermesh-70-node", address_prefix = "10.70.0.0/24" },
-      { name = "clustermesh-70-pod", address_prefix = "10.70.4.0/22" },
-      { name = "clustermesh-71-node", address_prefix = "10.71.0.0/24" },
-      { name = "clustermesh-71-pod", address_prefix = "10.71.4.0/22" },
-      { name = "clustermesh-72-node", address_prefix = "10.72.0.0/24" },
-      { name = "clustermesh-72-pod", address_prefix = "10.72.4.0/22" },
-      { name = "clustermesh-73-node", address_prefix = "10.73.0.0/24" },
-      { name = "clustermesh-73-pod", address_prefix = "10.73.4.0/22" },
-      { name = "clustermesh-74-node", address_prefix = "10.74.0.0/24" },
-      { name = "clustermesh-74-pod", address_prefix = "10.74.4.0/22" },
-      { name = "clustermesh-75-node", address_prefix = "10.75.0.0/24" },
-      { name = "clustermesh-75-pod", address_prefix = "10.75.4.0/22" },
-      { name = "clustermesh-76-node", address_prefix = "10.76.0.0/24" },
-      { name = "clustermesh-76-pod", address_prefix = "10.76.4.0/22" },
-      { name = "clustermesh-77-node", address_prefix = "10.77.0.0/24" },
-      { name = "clustermesh-77-pod", address_prefix = "10.77.4.0/22" },
-      { name = "clustermesh-78-node", address_prefix = "10.78.0.0/24" },
-      { name = "clustermesh-78-pod", address_prefix = "10.78.4.0/22" },
-      { name = "clustermesh-79-node", address_prefix = "10.79.0.0/24" },
-      { name = "clustermesh-79-pod", address_prefix = "10.79.4.0/22" },
-      { name = "clustermesh-80-node", address_prefix = "10.80.0.0/24" },
-      { name = "clustermesh-80-pod", address_prefix = "10.80.4.0/22" },
-      { name = "clustermesh-81-node", address_prefix = "10.81.0.0/24" },
-      { name = "clustermesh-81-pod", address_prefix = "10.81.4.0/22" },
-      { name = "clustermesh-82-node", address_prefix = "10.82.0.0/24" },
-      { name = "clustermesh-82-pod", address_prefix = "10.82.4.0/22" },
-      { name = "clustermesh-83-node", address_prefix = "10.83.0.0/24" },
-      { name = "clustermesh-83-pod", address_prefix = "10.83.4.0/22" },
-      { name = "clustermesh-84-node", address_prefix = "10.84.0.0/24" },
-      { name = "clustermesh-84-pod", address_prefix = "10.84.4.0/22" },
-      { name = "clustermesh-85-node", address_prefix = "10.85.0.0/24" },
-      { name = "clustermesh-85-pod", address_prefix = "10.85.4.0/22" },
-      { name = "clustermesh-86-node", address_prefix = "10.86.0.0/24" },
-      { name = "clustermesh-86-pod", address_prefix = "10.86.4.0/22" },
-      { name = "clustermesh-87-node", address_prefix = "10.87.0.0/24" },
-      { name = "clustermesh-87-pod", address_prefix = "10.87.4.0/22" },
-      { name = "clustermesh-88-node", address_prefix = "10.88.0.0/24" },
-      { name = "clustermesh-88-pod", address_prefix = "10.88.4.0/22" },
-      { name = "clustermesh-89-node", address_prefix = "10.89.0.0/24" },
-      { name = "clustermesh-89-pod", address_prefix = "10.89.4.0/22" },
-      { name = "clustermesh-90-node", address_prefix = "10.90.0.0/24" },
-      { name = "clustermesh-90-pod", address_prefix = "10.90.4.0/22" },
-      { name = "clustermesh-91-node", address_prefix = "10.91.0.0/24" },
-      { name = "clustermesh-91-pod", address_prefix = "10.91.4.0/22" },
-      { name = "clustermesh-92-node", address_prefix = "10.92.0.0/24" },
-      { name = "clustermesh-92-pod", address_prefix = "10.92.4.0/22" },
-      { name = "clustermesh-93-node", address_prefix = "10.93.0.0/24" },
-      { name = "clustermesh-93-pod", address_prefix = "10.93.4.0/22" },
-      { name = "clustermesh-94-node", address_prefix = "10.94.0.0/24" },
-      { name = "clustermesh-94-pod", address_prefix = "10.94.4.0/22" },
-      { name = "clustermesh-95-node", address_prefix = "10.95.0.0/24" },
-      { name = "clustermesh-95-pod", address_prefix = "10.95.4.0/22" },
-      { name = "clustermesh-96-node", address_prefix = "10.96.0.0/24" },
-      { name = "clustermesh-96-pod", address_prefix = "10.96.4.0/22" },
-      { name = "clustermesh-97-node", address_prefix = "10.97.0.0/24" },
-      { name = "clustermesh-97-pod", address_prefix = "10.97.4.0/22" },
-      { name = "clustermesh-98-node", address_prefix = "10.98.0.0/24" },
-      { name = "clustermesh-98-pod", address_prefix = "10.98.4.0/22" },
-      { name = "clustermesh-99-node", address_prefix = "10.99.0.0/24" },
-      { name = "clustermesh-99-pod", address_prefix = "10.99.4.0/22" },
-      { name = "clustermesh-100-node", address_prefix = "10.100.0.0/24" },
-      { name = "clustermesh-100-pod", address_prefix = "10.100.4.0/22" }
+      {
+        name           = "clustermesh-1-node"
+        address_prefix = "10.1.0.0/24"
+      },
+      {
+        name           = "clustermesh-1-pod"
+        address_prefix = "10.1.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-2-node"
+        address_prefix = "10.2.0.0/24"
+      },
+      {
+        name           = "clustermesh-2-pod"
+        address_prefix = "10.2.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-3-node"
+        address_prefix = "10.3.0.0/24"
+      },
+      {
+        name           = "clustermesh-3-pod"
+        address_prefix = "10.3.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-4-node"
+        address_prefix = "10.4.0.0/24"
+      },
+      {
+        name           = "clustermesh-4-pod"
+        address_prefix = "10.4.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-5-node"
+        address_prefix = "10.5.0.0/24"
+      },
+      {
+        name           = "clustermesh-5-pod"
+        address_prefix = "10.5.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-6-node"
+        address_prefix = "10.6.0.0/24"
+      },
+      {
+        name           = "clustermesh-6-pod"
+        address_prefix = "10.6.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-7-node"
+        address_prefix = "10.7.0.0/24"
+      },
+      {
+        name           = "clustermesh-7-pod"
+        address_prefix = "10.7.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-8-node"
+        address_prefix = "10.8.0.0/24"
+      },
+      {
+        name           = "clustermesh-8-pod"
+        address_prefix = "10.8.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-9-node"
+        address_prefix = "10.9.0.0/24"
+      },
+      {
+        name           = "clustermesh-9-pod"
+        address_prefix = "10.9.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-10-node"
+        address_prefix = "10.10.0.0/24"
+      },
+      {
+        name           = "clustermesh-10-pod"
+        address_prefix = "10.10.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-11-node"
+        address_prefix = "10.11.0.0/24"
+      },
+      {
+        name           = "clustermesh-11-pod"
+        address_prefix = "10.11.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-12-node"
+        address_prefix = "10.12.0.0/24"
+      },
+      {
+        name           = "clustermesh-12-pod"
+        address_prefix = "10.12.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-13-node"
+        address_prefix = "10.13.0.0/24"
+      },
+      {
+        name           = "clustermesh-13-pod"
+        address_prefix = "10.13.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-14-node"
+        address_prefix = "10.14.0.0/24"
+      },
+      {
+        name           = "clustermesh-14-pod"
+        address_prefix = "10.14.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-15-node"
+        address_prefix = "10.15.0.0/24"
+      },
+      {
+        name           = "clustermesh-15-pod"
+        address_prefix = "10.15.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-16-node"
+        address_prefix = "10.16.0.0/24"
+      },
+      {
+        name           = "clustermesh-16-pod"
+        address_prefix = "10.16.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-17-node"
+        address_prefix = "10.17.0.0/24"
+      },
+      {
+        name           = "clustermesh-17-pod"
+        address_prefix = "10.17.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-18-node"
+        address_prefix = "10.18.0.0/24"
+      },
+      {
+        name           = "clustermesh-18-pod"
+        address_prefix = "10.18.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-19-node"
+        address_prefix = "10.19.0.0/24"
+      },
+      {
+        name           = "clustermesh-19-pod"
+        address_prefix = "10.19.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-20-node"
+        address_prefix = "10.20.0.0/24"
+      },
+      {
+        name           = "clustermesh-20-pod"
+        address_prefix = "10.20.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-21-node"
+        address_prefix = "10.21.0.0/24"
+      },
+      {
+        name           = "clustermesh-21-pod"
+        address_prefix = "10.21.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-22-node"
+        address_prefix = "10.22.0.0/24"
+      },
+      {
+        name           = "clustermesh-22-pod"
+        address_prefix = "10.22.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-23-node"
+        address_prefix = "10.23.0.0/24"
+      },
+      {
+        name           = "clustermesh-23-pod"
+        address_prefix = "10.23.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-24-node"
+        address_prefix = "10.24.0.0/24"
+      },
+      {
+        name           = "clustermesh-24-pod"
+        address_prefix = "10.24.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-25-node"
+        address_prefix = "10.25.0.0/24"
+      },
+      {
+        name           = "clustermesh-25-pod"
+        address_prefix = "10.25.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-26-node"
+        address_prefix = "10.26.0.0/24"
+      },
+      {
+        name           = "clustermesh-26-pod"
+        address_prefix = "10.26.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-27-node"
+        address_prefix = "10.27.0.0/24"
+      },
+      {
+        name           = "clustermesh-27-pod"
+        address_prefix = "10.27.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-28-node"
+        address_prefix = "10.28.0.0/24"
+      },
+      {
+        name           = "clustermesh-28-pod"
+        address_prefix = "10.28.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-29-node"
+        address_prefix = "10.29.0.0/24"
+      },
+      {
+        name           = "clustermesh-29-pod"
+        address_prefix = "10.29.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-30-node"
+        address_prefix = "10.30.0.0/24"
+      },
+      {
+        name           = "clustermesh-30-pod"
+        address_prefix = "10.30.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-31-node"
+        address_prefix = "10.31.0.0/24"
+      },
+      {
+        name           = "clustermesh-31-pod"
+        address_prefix = "10.31.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-32-node"
+        address_prefix = "10.32.0.0/24"
+      },
+      {
+        name           = "clustermesh-32-pod"
+        address_prefix = "10.32.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-33-node"
+        address_prefix = "10.33.0.0/24"
+      },
+      {
+        name           = "clustermesh-33-pod"
+        address_prefix = "10.33.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-34-node"
+        address_prefix = "10.34.0.0/24"
+      },
+      {
+        name           = "clustermesh-34-pod"
+        address_prefix = "10.34.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-35-node"
+        address_prefix = "10.35.0.0/24"
+      },
+      {
+        name           = "clustermesh-35-pod"
+        address_prefix = "10.35.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-36-node"
+        address_prefix = "10.36.0.0/24"
+      },
+      {
+        name           = "clustermesh-36-pod"
+        address_prefix = "10.36.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-37-node"
+        address_prefix = "10.37.0.0/24"
+      },
+      {
+        name           = "clustermesh-37-pod"
+        address_prefix = "10.37.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-38-node"
+        address_prefix = "10.38.0.0/24"
+      },
+      {
+        name           = "clustermesh-38-pod"
+        address_prefix = "10.38.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-39-node"
+        address_prefix = "10.39.0.0/24"
+      },
+      {
+        name           = "clustermesh-39-pod"
+        address_prefix = "10.39.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-40-node"
+        address_prefix = "10.40.0.0/24"
+      },
+      {
+        name           = "clustermesh-40-pod"
+        address_prefix = "10.40.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-41-node"
+        address_prefix = "10.41.0.0/24"
+      },
+      {
+        name           = "clustermesh-41-pod"
+        address_prefix = "10.41.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-42-node"
+        address_prefix = "10.42.0.0/24"
+      },
+      {
+        name           = "clustermesh-42-pod"
+        address_prefix = "10.42.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-43-node"
+        address_prefix = "10.43.0.0/24"
+      },
+      {
+        name           = "clustermesh-43-pod"
+        address_prefix = "10.43.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-44-node"
+        address_prefix = "10.44.0.0/24"
+      },
+      {
+        name           = "clustermesh-44-pod"
+        address_prefix = "10.44.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-45-node"
+        address_prefix = "10.45.0.0/24"
+      },
+      {
+        name           = "clustermesh-45-pod"
+        address_prefix = "10.45.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-46-node"
+        address_prefix = "10.46.0.0/24"
+      },
+      {
+        name           = "clustermesh-46-pod"
+        address_prefix = "10.46.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-47-node"
+        address_prefix = "10.47.0.0/24"
+      },
+      {
+        name           = "clustermesh-47-pod"
+        address_prefix = "10.47.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-48-node"
+        address_prefix = "10.48.0.0/24"
+      },
+      {
+        name           = "clustermesh-48-pod"
+        address_prefix = "10.48.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-49-node"
+        address_prefix = "10.49.0.0/24"
+      },
+      {
+        name           = "clustermesh-49-pod"
+        address_prefix = "10.49.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-50-node"
+        address_prefix = "10.50.0.0/24"
+      },
+      {
+        name           = "clustermesh-50-pod"
+        address_prefix = "10.50.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-51-node"
+        address_prefix = "10.51.0.0/24"
+      },
+      {
+        name           = "clustermesh-51-pod"
+        address_prefix = "10.51.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-52-node"
+        address_prefix = "10.52.0.0/24"
+      },
+      {
+        name           = "clustermesh-52-pod"
+        address_prefix = "10.52.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-53-node"
+        address_prefix = "10.53.0.0/24"
+      },
+      {
+        name           = "clustermesh-53-pod"
+        address_prefix = "10.53.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-54-node"
+        address_prefix = "10.54.0.0/24"
+      },
+      {
+        name           = "clustermesh-54-pod"
+        address_prefix = "10.54.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-55-node"
+        address_prefix = "10.55.0.0/24"
+      },
+      {
+        name           = "clustermesh-55-pod"
+        address_prefix = "10.55.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-56-node"
+        address_prefix = "10.56.0.0/24"
+      },
+      {
+        name           = "clustermesh-56-pod"
+        address_prefix = "10.56.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-57-node"
+        address_prefix = "10.57.0.0/24"
+      },
+      {
+        name           = "clustermesh-57-pod"
+        address_prefix = "10.57.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-58-node"
+        address_prefix = "10.58.0.0/24"
+      },
+      {
+        name           = "clustermesh-58-pod"
+        address_prefix = "10.58.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-59-node"
+        address_prefix = "10.59.0.0/24"
+      },
+      {
+        name           = "clustermesh-59-pod"
+        address_prefix = "10.59.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-60-node"
+        address_prefix = "10.60.0.0/24"
+      },
+      {
+        name           = "clustermesh-60-pod"
+        address_prefix = "10.60.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-61-node"
+        address_prefix = "10.61.0.0/24"
+      },
+      {
+        name           = "clustermesh-61-pod"
+        address_prefix = "10.61.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-62-node"
+        address_prefix = "10.62.0.0/24"
+      },
+      {
+        name           = "clustermesh-62-pod"
+        address_prefix = "10.62.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-63-node"
+        address_prefix = "10.63.0.0/24"
+      },
+      {
+        name           = "clustermesh-63-pod"
+        address_prefix = "10.63.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-64-node"
+        address_prefix = "10.64.0.0/24"
+      },
+      {
+        name           = "clustermesh-64-pod"
+        address_prefix = "10.64.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-65-node"
+        address_prefix = "10.65.0.0/24"
+      },
+      {
+        name           = "clustermesh-65-pod"
+        address_prefix = "10.65.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-66-node"
+        address_prefix = "10.66.0.0/24"
+      },
+      {
+        name           = "clustermesh-66-pod"
+        address_prefix = "10.66.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-67-node"
+        address_prefix = "10.67.0.0/24"
+      },
+      {
+        name           = "clustermesh-67-pod"
+        address_prefix = "10.67.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-68-node"
+        address_prefix = "10.68.0.0/24"
+      },
+      {
+        name           = "clustermesh-68-pod"
+        address_prefix = "10.68.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-69-node"
+        address_prefix = "10.69.0.0/24"
+      },
+      {
+        name           = "clustermesh-69-pod"
+        address_prefix = "10.69.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-70-node"
+        address_prefix = "10.70.0.0/24"
+      },
+      {
+        name           = "clustermesh-70-pod"
+        address_prefix = "10.70.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-71-node"
+        address_prefix = "10.71.0.0/24"
+      },
+      {
+        name           = "clustermesh-71-pod"
+        address_prefix = "10.71.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-72-node"
+        address_prefix = "10.72.0.0/24"
+      },
+      {
+        name           = "clustermesh-72-pod"
+        address_prefix = "10.72.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-73-node"
+        address_prefix = "10.73.0.0/24"
+      },
+      {
+        name           = "clustermesh-73-pod"
+        address_prefix = "10.73.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-74-node"
+        address_prefix = "10.74.0.0/24"
+      },
+      {
+        name           = "clustermesh-74-pod"
+        address_prefix = "10.74.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-75-node"
+        address_prefix = "10.75.0.0/24"
+      },
+      {
+        name           = "clustermesh-75-pod"
+        address_prefix = "10.75.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-76-node"
+        address_prefix = "10.76.0.0/24"
+      },
+      {
+        name           = "clustermesh-76-pod"
+        address_prefix = "10.76.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-77-node"
+        address_prefix = "10.77.0.0/24"
+      },
+      {
+        name           = "clustermesh-77-pod"
+        address_prefix = "10.77.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-78-node"
+        address_prefix = "10.78.0.0/24"
+      },
+      {
+        name           = "clustermesh-78-pod"
+        address_prefix = "10.78.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-79-node"
+        address_prefix = "10.79.0.0/24"
+      },
+      {
+        name           = "clustermesh-79-pod"
+        address_prefix = "10.79.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-80-node"
+        address_prefix = "10.80.0.0/24"
+      },
+      {
+        name           = "clustermesh-80-pod"
+        address_prefix = "10.80.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-81-node"
+        address_prefix = "10.81.0.0/24"
+      },
+      {
+        name           = "clustermesh-81-pod"
+        address_prefix = "10.81.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-82-node"
+        address_prefix = "10.82.0.0/24"
+      },
+      {
+        name           = "clustermesh-82-pod"
+        address_prefix = "10.82.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-83-node"
+        address_prefix = "10.83.0.0/24"
+      },
+      {
+        name           = "clustermesh-83-pod"
+        address_prefix = "10.83.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-84-node"
+        address_prefix = "10.84.0.0/24"
+      },
+      {
+        name           = "clustermesh-84-pod"
+        address_prefix = "10.84.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-85-node"
+        address_prefix = "10.85.0.0/24"
+      },
+      {
+        name           = "clustermesh-85-pod"
+        address_prefix = "10.85.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-86-node"
+        address_prefix = "10.86.0.0/24"
+      },
+      {
+        name           = "clustermesh-86-pod"
+        address_prefix = "10.86.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-87-node"
+        address_prefix = "10.87.0.0/24"
+      },
+      {
+        name           = "clustermesh-87-pod"
+        address_prefix = "10.87.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-88-node"
+        address_prefix = "10.88.0.0/24"
+      },
+      {
+        name           = "clustermesh-88-pod"
+        address_prefix = "10.88.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-89-node"
+        address_prefix = "10.89.0.0/24"
+      },
+      {
+        name           = "clustermesh-89-pod"
+        address_prefix = "10.89.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-90-node"
+        address_prefix = "10.90.0.0/24"
+      },
+      {
+        name           = "clustermesh-90-pod"
+        address_prefix = "10.90.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-91-node"
+        address_prefix = "10.91.0.0/24"
+      },
+      {
+        name           = "clustermesh-91-pod"
+        address_prefix = "10.91.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-92-node"
+        address_prefix = "10.92.0.0/24"
+      },
+      {
+        name           = "clustermesh-92-pod"
+        address_prefix = "10.92.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-93-node"
+        address_prefix = "10.93.0.0/24"
+      },
+      {
+        name           = "clustermesh-93-pod"
+        address_prefix = "10.93.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-94-node"
+        address_prefix = "10.94.0.0/24"
+      },
+      {
+        name           = "clustermesh-94-pod"
+        address_prefix = "10.94.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-95-node"
+        address_prefix = "10.95.0.0/24"
+      },
+      {
+        name           = "clustermesh-95-pod"
+        address_prefix = "10.95.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-96-node"
+        address_prefix = "10.96.0.0/24"
+      },
+      {
+        name           = "clustermesh-96-pod"
+        address_prefix = "10.96.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-97-node"
+        address_prefix = "10.97.0.0/24"
+      },
+      {
+        name           = "clustermesh-97-pod"
+        address_prefix = "10.97.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-98-node"
+        address_prefix = "10.98.0.0/24"
+      },
+      {
+        name           = "clustermesh-98-pod"
+        address_prefix = "10.98.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-99-node"
+        address_prefix = "10.99.0.0/24"
+      },
+      {
+        name           = "clustermesh-99-pod"
+        address_prefix = "10.99.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      },
+      {
+        name           = "clustermesh-100-node"
+        address_prefix = "10.100.0.0/24"
+      },
+      {
+        name           = "clustermesh-100-pod"
+        address_prefix = "10.100.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
+      }
+
     ]
     network_security_group_name = ""
     nic_public_ip_associations  = []
