@@ -22,7 +22,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from types import SimpleNamespace
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import requests
 
@@ -381,8 +381,10 @@ class AKSMachineClient(AKSClient):
         Flow:
           1. Snapshot the current Ready+labeled node count in the agentpool
              (``baseline_count``) so the readiness watcher counts only NEW nodes.
-          2. Submit machine PUTs individually (per-machine ARM polling is
-             intentionally NOT performed).
+          2. Submit machine PUTs -- individually by default, or sharded into
+             ``machine_workers`` chunks where each chunk is sent as a single
+             ``BatchPutMachine``-headered PUT when ``use_batch_api=True`` (per-
+             machine ARM polling is intentionally NOT performed in either path).
           3. Wait ONCE on the agentpool-level provisioningState.
           4. Wait for nodes labeled ``agentpool=<pool>`` to surpass
              ``baseline_count`` by enough to satisfy P50/P70/P90/P99/P100 targets.
@@ -390,10 +392,8 @@ class AKSMachineClient(AKSClient):
         ``tags`` is currently unused (Machine API rejects top-level tags on the
         machine PUT body; machines inherit tags from the parent agentpool).
 
-        When ``use_batch_api=True`` the work is sharded across
-        ``machine_workers`` chunks and each chunk is submitted via a single
-        ``BatchPutMachine``-headered PUT (see ``_create_batch_machines``); when
-        False each machine is PUT individually.
+        See ``_create_batch_machines`` for the batch chunking contract and the
+        ``BatchPutMachine`` header schema.
 
         Raises:
             RuntimeError: fewer machines landed than requested, agentpool did
@@ -451,8 +451,7 @@ class AKSMachineClient(AKSClient):
                 ]
                 command_t0 = time.time()
                 if use_batch_api:
-                    successful, batch_times = self._scale_machine_batch(request, names)
-                    op.add_metadata("batch_command_execution_times", batch_times)
+                    successful = self._scale_machine_batch(request, names)
                 else:
                     successful = self._scale_machine_individually(request, names)
                 op.add_metadata("command_execution_time", time.time() - command_t0)
@@ -588,7 +587,7 @@ class AKSMachineClient(AKSClient):
         self,
         request: SimpleNamespace,
         names: List[str],
-    ) -> Tuple[List[str], Dict[str, float]]:
+    ) -> List[str]:
         """Dispatch ``names`` across ``machine_workers`` worker slices via the Batch API.
 
         Each worker submits exactly one ``BatchPutMachine``-headered PUT carrying a
@@ -600,10 +599,9 @@ class AKSMachineClient(AKSClient):
         ``MachineCRUD`` boundary instead of producing a short final chunk that
         would skew per-chunk latency dashboards.
 
-        Per-chunk wall time is captured under ``chunk_<worker_id>`` regardless
-        of success/failure. Per-worker exceptions are caught and logged; the
-        worker's slice is excluded from the returned ``successful`` list. The
-        input ``request`` is not mutated.
+        Per-worker exceptions are caught and logged; the worker's slice is
+        excluded from the returned ``successful`` list. The input ``request``
+        is not mutated.
         """
         n = len(names)
         workers = request.machine_workers
@@ -617,31 +615,27 @@ class AKSMachineClient(AKSClient):
             )
         per_worker = n // workers
         successful: List[str] = []
-        batch_times: Dict[str, float] = {}
 
-        def run_worker(worker_id: int):
+        def run_worker(worker_id: int) -> List[str]:
             start = worker_id * per_worker
             chunk = names[start:start + per_worker]
-            t0 = time.time()
             try:
-                created = self._create_batch_machines(request, chunk, worker_id)
+                return self._create_batch_machines(request, chunk, worker_id)
             except Exception:
                 logger.exception(f"batch worker {worker_id} failed")
-                created = []
-            return worker_id, created, time.time() - t0
+                return []
 
         with ThreadPoolExecutor(max_workers=workers) as ex:
             futures = [ex.submit(run_worker, w) for w in range(workers)]
             for fut in as_completed(futures):
                 try:
-                    worker_id, created, elapsed = fut.result()
+                    created = fut.result()
                 except Exception:
                     # run_worker already swallows; this is belt-and-suspenders.
                     logger.exception("unexpected error retrieving batch worker result")
                     continue
-                batch_times[f"chunk_{worker_id}"] = elapsed
                 successful.extend(created)
-        return successful, batch_times
+        return successful
 
     def _create_batch_machines(
         self,

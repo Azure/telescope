@@ -259,12 +259,12 @@ class TestAKSMachineClient(unittest.TestCase):
 
     def test_scale_machine_batch_path_dispatches_to_batch(self):
         """The use_batch_api=True branch calls _scale_machine_batch (not _individually)
-        and records batch_command_execution_times in operation metadata."""
+        and records command_execution_time in operation metadata."""
         names = [f"scale2-machine-{i+1}" for i in range(2)]
         with mock.patch.object(
             AKSMachineClient,
             "_scale_machine_batch",
-            return_value=(names, {"chunk_0": 1.5}),
+            return_value=names,
         ) as mock_batch, mock.patch.object(
             AKSMachineClient, "_scale_machine_individually"
         ) as mock_individual, mock.patch.object(
@@ -292,11 +292,11 @@ class TestAKSMachineClient(unittest.TestCase):
             )
         mock_batch.assert_called_once()
         mock_individual.assert_not_called()
-        # batch_command_execution_times must be added to operation metadata.
+        # command_execution_time must be added to operation metadata.
         added_keys = {
             call.args[0] for call in self.mock_operation.add_metadata.call_args_list
         }
-        self.assertIn("batch_command_execution_times", added_keys)
+        self.assertIn("command_execution_time", added_keys)
 
     # ---- _create_single_machine ----
 
@@ -512,7 +512,7 @@ class TestAKSMachineClient(unittest.TestCase):
     # ---- _scale_machine_batch ----
 
     def test_scale_machine_batch_partitions_and_aggregates(self):
-        """Names sharded across machine_workers; per-worker wall time captured."""
+        """Names sharded across machine_workers; all successful slices aggregated."""
         request = SimpleNamespace(
             agentpool_name="apool",
             cluster_name="fake-cluster",
@@ -527,9 +527,8 @@ class TestAKSMachineClient(unittest.TestCase):
             "_create_batch_machines",
             side_effect=lambda req, chunk, worker_id: list(chunk),
         ) as mock_create_batch:
-            successful, batch_times = self.client._scale_machine_batch(request, names)
+            successful = self.client._scale_machine_batch(request, names)
         self.assertEqual(set(successful), set(names))
-        self.assertEqual(set(batch_times.keys()), {"chunk_0", "chunk_1"})
         # 2 workers, each handling per_worker = 4 // 2 = 2 names
         self.assertEqual(mock_create_batch.call_count, 2)
 
@@ -554,11 +553,9 @@ class TestAKSMachineClient(unittest.TestCase):
         with mock.patch.object(
             AKSMachineClient, "_create_batch_machines", side_effect=fake_create
         ):
-            successful, batch_times = self.client._scale_machine_batch(request, names)
+            successful = self.client._scale_machine_batch(request, names)
         # Exactly one worker's slice survives.
         self.assertEqual(len(successful), 2)
-        # But both workers recorded wall time.
-        self.assertEqual(set(batch_times.keys()), {"chunk_0", "chunk_1"})
 
     def test_scale_machine_batch_rejects_non_exact_multiple(self):
         """scale_machine_count must be an exact multiple of machine_workers."""
@@ -664,7 +661,7 @@ class TestAKSMachineClient(unittest.TestCase):
         self.assertEqual(mock_request.call_count, 1)
 
     def test_make_batch_request_429_then_success(self):
-        """429 then 200 -> succeeds after 1 retry."""
+        """429 then 2xx (201) -> succeeds after 1 retry."""
         responses = [
             mock.MagicMock(status_code=429),
             mock.MagicMock(status_code=201),
