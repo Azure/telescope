@@ -791,9 +791,7 @@ class KubernetesClient:
                 ],
                 tolerations=[
                     client.V1Toleration(
-                        key="node.kubernetes.io/not-ready",
                         operator="Exists",
-                        effect="NoSchedule",
                     ),
                 ],
             ),
