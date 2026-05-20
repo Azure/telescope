@@ -390,45 +390,28 @@ resource "terraform_data" "aks_cli" {
       rg="${var.resource_group_name}"
       name="${var.aks_cli_config.aks_name}"
       for i in $(seq 1 15); do
-        out=$(eval "$cmd" 2>&1) && { echo "$out"; exit 0; }
-        rc=$?
-        echo "$out"
-        # Retryable Azure RP errors. All point to transient resource-busy
-        # / serialization conditions that recover once the queue drains:
-        #   - ReferencedResourceNotProvisioned: subnet (or other) in Updating
-        #     state when AKS tried to use it.
-        #   - VirtualNetworkNotInSucceededState: VNet itself in Updating
-        #     state during AKS create — broader cousin of the above
-        #     (build 67775 + 67788 evidence at N=100 shared-VNet).
-        #   - OperationNotAllowed / AnotherOperationInProgress: another
-        #     in-progress op on AKS/VNet/RG blocks the create (same race
-        #     pattern as aks_nodepool_cli below).
-        #   - RetryableError: catch-all from azure-cli's own classifier.
-        #   - ResourceAlreadyExists: prior attempt half-created the cluster
-        #     before failing. We MUST delete it before retrying — without
-        #     the delete, every subsequent `az aks create` for the same
-        #     name returns AlreadyExists and we never recover.
-        retryable=0
-        if echo "$out" | grep -qE "ReferencedResourceNotProvisioned|VirtualNetworkNotInSucceededState|OperationNotAllowed|AnotherOperationInProgress|RetryableError|ResourceAlreadyExists|AlreadyExists"; then
-          retryable=1
-        fi
-        if [ "$retryable" -eq 0 ]; then
-          # Non-retryable failure (quota, invalid args, auth, etc.) — fail fast.
-          exit $rc
-        fi
-
-        # Build 67788 evidence: VirtualNetworkNotInSucceededState during
-        # `az aks create` at N=100 shared-VNet leaves the cluster half-
-        # created in Failed state. On retry, az aks create returns
-        # AlreadyExists and we're stuck. Detect the Failed (or any non-
-        # Succeeded existing) cluster and DELETE it before retrying.
+        # Idempotency precheck (build 67798 evidence): under
+        # preserve_state_on_apply_failure + AzDO retryCountOnTaskFailure,
+        # terraform may re-run this local-exec against a cluster that the
+        # previous attempt ALREADY created. Without this precheck the
+        # second `az aks create` returns "already exists" and the build
+        # fails with no recovery. Three cases:
+        #   - Cluster exists in Succeeded: nothing to do, return success
+        #   - Cluster exists in non-Succeeded (Failed/Updating/Creating):
+        #     stale half-created state from a prior attempt — delete and
+        #     re-create
+        #   - Cluster absent: proceed with create
         existing_state=$(az aks show -g "$rg" -n "$name" --query provisioningState -o tsv --only-show-errors 2>/dev/null || echo "absent")
-        if [ "$existing_state" != "absent" ] && [ "$existing_state" != "Succeeded" ]; then
-          echo "[aks_cli retry $i/15] $name exists in state '$existing_state' from failed prior attempt; deleting before retry"
+        if [ "$existing_state" = "Succeeded" ]; then
+          echo "[aks_cli retry $i/15] $name already exists in Succeeded state from prior apply attempt; nothing to do"
+          exit 0
+        fi
+        if [ "$existing_state" != "absent" ]; then
+          echo "[aks_cli retry $i/15] $name exists in state '$existing_state' (stale half-created); deleting before recreate"
           az aks delete -g "$rg" -n "$name" --yes --only-show-errors 2>&1 || \
             echo "[aks_cli retry $i/15] az aks delete reported error; continuing anyway"
-          # Confirm delete completed (or at least the cluster is no longer
-          # listable). Up to 10 min budget — typical AKS delete is 3-5 min.
+          # Confirm delete completed (or at least no longer listable).
+          # Up to 10 min budget — typical AKS delete is 3-5 min.
           for j in $(seq 1 30); do
             cur=$(az aks show -g "$rg" -n "$name" --query provisioningState -o tsv --only-show-errors 2>/dev/null || echo "absent")
             if [ "$cur" = "absent" ]; then
@@ -439,8 +422,34 @@ resource "terraform_data" "aks_cli" {
             sleep 20
           done
         fi
-        echo "[aks_cli retry $i/15] transient Azure RP error; sleeping 60s before retry"
-        sleep 60
+
+        out=$(eval "$cmd" 2>&1) && { echo "$out"; exit 0; }
+        rc=$?
+        echo "$out"
+        # Retryable Azure RP errors. All point to transient resource-busy
+        # / serialization conditions that recover once the queue drains.
+        # Match BOTH the CamelCase code text (in JSON details[]) AND the
+        # az CLI's friendlier English text (e.g. "already exists") via
+        # case-insensitive grep.
+        #   - ReferencedResourceNotProvisioned: subnet (or other) in Updating
+        #     state when AKS tried to use it.
+        #   - VirtualNetworkNotInSucceededState: VNet itself in Updating
+        #     state during AKS create — broader cousin of the above
+        #     (build 67775 + 67788 evidence at N=100 shared-VNet).
+        #   - OperationNotAllowed / AnotherOperationInProgress: another
+        #     in-progress op on AKS/VNet/RG blocks the create.
+        #   - RetryableError: catch-all from azure-cli's own classifier.
+        #   - already exists: friendly English text for ResourceAlreadyExists
+        #     (build 67798 evidence: az CLI emits "The cluster 'X' under
+        #     resource group 'Y' already exists" not "ResourceAlreadyExists"
+        #     in stdout — original CamelCase-only grep missed this).
+        if echo "$out" | grep -qiE "ReferencedResourceNotProvisioned|VirtualNetworkNotInSucceededState|OperationNotAllowed|AnotherOperationInProgress|RetryableError|already[[:space:]]*exists"; then
+          echo "[aks_cli retry $i/15] transient Azure RP error; sleeping 60s before retry"
+          sleep 60
+          continue
+        fi
+        # Non-retryable failure (quota, invalid args, auth, etc.) — fail fast.
+        exit $rc
       done
       echo "[aks_cli] gave up after 15 retries — Azure RP not stabilizing" >&2
       exit 1
