@@ -694,10 +694,10 @@ class AKSMachineClient(AKSClient):
             f"chunk {chunk_idx}: submitting BatchPutMachine PUT for {len(chunk)} machines "
             f"(target={first_machine_name})"
         )
-        # Cap per-request timeout so a single batch PUT (plus 429 backoff)
-        # cannot consume the whole operation budget that downstream
-        # provisioning/readiness waits depend on. Mirrors the cap applied
-        # inside ``put_machine`` (the per-machine PUT helper).
+        # Cap the timeout value passed to this batch PUT attempt. This limits
+        # the per-attempt request timeout given to ``_make_batch_request``,
+        # but it does not bound total wall time for the chunk because retry
+        # and backoff handling can still extend the overall elapsed time.
         put_timeout = min(request.timeout, _PER_REQUEST_TIMEOUT_CAP)
         self._make_batch_request(
             "PUT",
