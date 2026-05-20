@@ -1,11 +1,11 @@
 name: API Server List Configmaps
 pool: AKS-Telescope-Airlock
-schedules:
-- cron: '0 3 * * *'
-  displayName: Daily 3AM UTC
-  branches:
-  - v2
-  always: true
+resources:
+  containers:
+  - container: kperf
+    image: ghcr.io/azure/kperf:0.3.4
+    volumes:
+    - /home/vsts/.kube:/root/.kube
 stages:
 - stage: workload_low
   displayName: workload_low
@@ -152,27 +152,13 @@ stages:
         set -euo pipefail
         set -x
 
-        temp_dir=$(mktemp -p /tmp -d kperfinstall.XXXX)
-        docker rmi ghcr.io/azure/kperf:0.3.4 2>/dev/null || true
-        docker pull ghcr.io/azure/kperf:0.3.4
-        docker run --rm -v $temp_dir:/install-dir \
-          ghcr.io/azure/kperf:0.3.4 bash -c "set -x; install /kperf /runkperf /install-dir"
-
-        sudo install $temp_dir/kperf $temp_dir/runkperf /usr/local/bin
-        rm -rf $temp_dir
-        docker rmi ghcr.io/azure/kperf:0.3.4 2>/dev/null || true
-      displayName: Install runkperf binary
-    - script: |2
-
-        set -euo pipefail
-        set -x
-
         runkperf -v 3 bench \
           --runner-image="ghcr.io/azure/kperf:0.3.4" \
           --runner-flowcontrol="workload-low:1000" \
           --result /tmp/tmp_results.json \
-          list_configmaps --total 10000 --size=1024 --group-size=10 --configmap-amount=100
+          list_configmaps --total 10 --size=1024 --group-size=10 --configmap-amount=10
       displayName: Run kperf benchmark (list_configmaps, flowcontrol=workload-low:1000)
+      target: kperf
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -217,7 +203,7 @@ stages:
           # Collect final result — pack everything into the "result" field so Kusto ingests it all
           cat /tmp/tmp_results.json \
             | jq 'del(.result.errors)' \
-            | jq -c --argjson ci "$cloud_info" '{ cloud: $ci.cloud, region: $ci.region, fqdn: $ci.fqdn, private_fqdn: $ci.private_fqdn, k8s_version: $ci.k8s_version, sku_tier: $ci.sku_tier, subscription: $ci.subscription, cluster_id: $ci.cluster_id, flowcontrol: "workload-low:1000", benchmark_subcmd_args: "--total 10000 --size=1024 --group-size=10 --configmap-amount=100" } + .result | { result: . }' \
+            | jq -c --argjson ci "$cloud_info" '{ cloud: $ci.cloud, region: $ci.region, fqdn: $ci.fqdn, private_fqdn: $ci.private_fqdn, k8s_version: $ci.k8s_version, sku_tier: $ci.sku_tier, subscription: $ci.subscription, cluster_id: $ci.cluster_id, flowcontrol: "workload-low:1000", benchmark_subcmd_args: "--total 10 --size=1024 --group-size=10 --configmap-amount=10" } + .result | { result: . }' \
             | jq -c '. + { timestamp: "'"$TIMESTAMP"'", run_id: "$(RUN_ID)", run_url: "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)", pipeline: "$(Build.DefinitionName)" }' \
             > /tmp/run-result.json
 
@@ -396,27 +382,13 @@ stages:
         set -euo pipefail
         set -x
 
-        temp_dir=$(mktemp -p /tmp -d kperfinstall.XXXX)
-        docker rmi ghcr.io/azure/kperf:0.3.4 2>/dev/null || true
-        docker pull ghcr.io/azure/kperf:0.3.4
-        docker run --rm -v $temp_dir:/install-dir \
-          ghcr.io/azure/kperf:0.3.4 bash -c "set -x; install /kperf /runkperf /install-dir"
-
-        sudo install $temp_dir/kperf $temp_dir/runkperf /usr/local/bin
-        rm -rf $temp_dir
-        docker rmi ghcr.io/azure/kperf:0.3.4 2>/dev/null || true
-      displayName: Install runkperf binary
-    - script: |2
-
-        set -euo pipefail
-        set -x
-
         runkperf -v 3 bench \
           --runner-image="ghcr.io/azure/kperf:0.3.4" \
           --runner-flowcontrol="exempt:5" \
           --result /tmp/tmp_results.json \
-          list_configmaps --total 10000 --size=1024 --group-size=10 --configmap-amount=100
+          list_configmaps --total 10 --size=1024 --group-size=10 --configmap-amount=10
       displayName: Run kperf benchmark (list_configmaps, flowcontrol=exempt:5)
+      target: kperf
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -461,7 +433,7 @@ stages:
           # Collect final result — pack everything into the "result" field so Kusto ingests it all
           cat /tmp/tmp_results.json \
             | jq 'del(.result.errors)' \
-            | jq -c --argjson ci "$cloud_info" '{ cloud: $ci.cloud, region: $ci.region, fqdn: $ci.fqdn, private_fqdn: $ci.private_fqdn, k8s_version: $ci.k8s_version, sku_tier: $ci.sku_tier, subscription: $ci.subscription, cluster_id: $ci.cluster_id, flowcontrol: "exempt:5", benchmark_subcmd_args: "--total 10000 --size=1024 --group-size=10 --configmap-amount=100" } + .result | { result: . }' \
+            | jq -c --argjson ci "$cloud_info" '{ cloud: $ci.cloud, region: $ci.region, fqdn: $ci.fqdn, private_fqdn: $ci.private_fqdn, k8s_version: $ci.k8s_version, sku_tier: $ci.sku_tier, subscription: $ci.subscription, cluster_id: $ci.cluster_id, flowcontrol: "exempt:5", benchmark_subcmd_args: "--total 10 --size=1024 --group-size=10 --configmap-amount=10" } + .result | { result: . }' \
             | jq -c '. + { timestamp: "'"$TIMESTAMP"'", run_id: "$(RUN_ID)", run_url: "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)", pipeline: "$(Build.DefinitionName)" }' \
             > /tmp/run-result.json
 

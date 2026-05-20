@@ -81,7 +81,7 @@ echo "Ingest complete: $completed ${dataType}s created."
 
 # RunKperfBenchmark runs runkperf bench with the given subcommand and flow control settings.
 # Results are written to resultPath (default /tmp/tmp_results.json) for collection by CollectKperfResult.
-RunKperfBenchmark = lambda runnerImage: str, flowcontrol: str, benchmark_subcmd: str, benchmark_subcmd_args: str, resultPath: str = "/tmp/tmp_results.json" -> steps.Step {
+RunKperfBenchmark = lambda runnerImage: str, flowcontrol: str, benchmark_subcmd: str, benchmark_subcmd_args: str, resultPath: str = "/tmp/tmp_results.json", target: str = None -> steps.Step {
     steps.Script {
         script = """
 set -euo pipefail
@@ -94,5 +94,6 @@ runkperf -v 3 bench \\
   ${benchmark_subcmd} ${benchmark_subcmd_args}
 """
         displayName = "Run kperf benchmark (${benchmark_subcmd}, flowcontrol=${flowcontrol})"
+        target = target
     }
 }

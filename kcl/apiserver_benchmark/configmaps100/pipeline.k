@@ -1,5 +1,7 @@
 import azure_pipelines.ap
 import azure_pipelines.ap.jobs.job
+import azure_pipelines.ap.resources
+import azure_pipelines.ap.resources.container as res_container
 import lib.const
 import lib.steps.azure
 import lib.steps.common
@@ -75,16 +77,18 @@ makeBenchmarkJob = lambda flowcontrol: str, flowcontrolLabel: str -> job.Job {
                 RESOURCE_GROUP,
                 SUBSCRIPTION_ID,
                 "runner"),
-            runkperf.InstallRunkperf(RUNNER_IMAGE),
             runkperf.RunKperfBenchmark(
                 RUNNER_IMAGE,
                 flowcontrol,
                 "list_configmaps",
-                "--total 10000 --size=1024 --group-size=10 --configmap-amount=100"),
+                # TODO: restore to --total 10000 --configmap-amount=100 after testing
+                "--total 10 --size=1024 --group-size=10 --configmap-amount=10",
+                target = "kperf"),
             azure.CollectKperfResult(
                 const.DEFAULT_SERVICE_CONNECTION,
                 flowcontrol,
-                "--total 10000 --size=1024 --group-size=10 --configmap-amount=100",
+                # TODO: restore to --total 10000 --configmap-amount=100 after testing
+                "--total 10 --size=1024 --group-size=10 --configmap-amount=10",
                 CLUSTER,
                 RESOURCE_GROUP,
                 SUBSCRIPTION_ID),
@@ -112,12 +116,21 @@ makeStage = lambda flowcontrol: str, flowcontrolLabel: str -> ap.Stage {
 output = ap.Pipeline {
     name = "API Server List Configmaps"
 
-    schedules = [ap.Cron {
-        cron = "0 3 * * *"
-        displayName = "Daily 3AM UTC"
-        branches = ["v2"]
-        always = True
-    }]
+    resources = resources.Resources {
+        containers = [res_container.Container {
+            container = "kperf"
+            image = RUNNER_IMAGE
+            volumes = ["/home/vsts/.kube:/root/.kube"]
+        }]
+    }
+
+    # TODO: restore schedule after testing
+    # schedules = [ap.Cron {
+    #     cron = "0 3 * * *"
+    #     displayName = "Daily 3AM UTC"
+    #     branches = ["v2"]
+    #     always = True
+    # }]
     pool = const.DEFAULT_POOL
 
     stages = [
