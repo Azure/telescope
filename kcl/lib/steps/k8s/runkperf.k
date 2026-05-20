@@ -87,6 +87,11 @@ RunKperfBenchmark = lambda runnerImage: str, flowcontrol: str, benchmark_subcmd:
 set -euo pipefail
 set -x
 
+# Install kubectl and ensure runkperf is in PATH
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+install kubectl /usr/local/bin/kubectl
+export PATH="/:$PATH"
+
 /runkperf -v 3 bench \\
   --runner-image="${runnerImage}" \\
   --runner-flowcontrol="${flowcontrol}" \\

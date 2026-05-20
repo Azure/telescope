@@ -123,6 +123,11 @@ stages:
         set -euo pipefail
         set -x
 
+        # Install kubectl and ensure runkperf is in PATH
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        install kubectl /usr/local/bin/kubectl
+        export PATH="/:$PATH"
+
         /runkperf -v 3 bench \
           --runner-image="ghcr.io/azure/kperf:0.3.4" \
           --runner-flowcontrol="workload-low:1000" \
@@ -323,6 +328,11 @@ stages:
 
         set -euo pipefail
         set -x
+
+        # Install kubectl and ensure runkperf is in PATH
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        install kubectl /usr/local/bin/kubectl
+        export PATH="/:$PATH"
 
         /runkperf -v 3 bench \
           --runner-image="ghcr.io/azure/kperf:0.3.4" \
