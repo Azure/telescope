@@ -7,7 +7,7 @@ stages:
   # Azure CNI Overlay + Cilium dataplane
   - stage: azure_cilium
     variables:
-      SCENARIO_NAME: node-startup-latency-cilium
+      SCENARIO_NAME: node-startup-latency-cilium-test
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -25,6 +25,7 @@ stages:
               scale_node_count: 2
               step_time_out: 600
               cni_daemonset_label: "k8s-app=cilium"
+              measure_pod_startup: "true"
           max_parallel: 1
           timeout_in_minutes: 60
           credential_type: service_connection
@@ -33,7 +34,7 @@ stages:
   # BYOCNI + upstream Cilium
   - stage: azure_cilium_byocni
     variables:
-      SCENARIO_NAME: node-startup-latency-cilium-byocni
+      SCENARIO_NAME: node-startup-latency-cilium-byocni-test
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -52,6 +53,7 @@ stages:
               step_time_out: 600
               cni_daemonset_label: "k8s-app=cilium"
               install_cilium: "true"
+              measure_pod_startup: "true"
           max_parallel: 1
           timeout_in_minutes: 60
           credential_type: service_connection
@@ -60,7 +62,7 @@ stages:
   # Kubenet (no CNI daemonset)
   - stage: azure_kubenet
     variables:
-      SCENARIO_NAME: node-startup-latency-kubenet
+      SCENARIO_NAME: node-startup-latency-kubenet-test
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -78,6 +80,7 @@ stages:
               scale_node_count: 2
               step_time_out: 600
               cni_daemonset_label: ""
+              measure_pod_startup: "true"
           max_parallel: 1
           timeout_in_minutes: 60
           credential_type: service_connection
@@ -86,7 +89,7 @@ stages:
   # Azure CNI Overlay (no Cilium)
   - stage: azure_cni
     variables:
-      SCENARIO_NAME: node-startup-latency-azure-cni
+      SCENARIO_NAME: node-startup-latency-azure-cni-test
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -104,6 +107,7 @@ stages:
               scale_node_count: 2
               step_time_out: 600
               cni_daemonset_label: ""
+              measure_pod_startup: "true"
           max_parallel: 1
           timeout_in_minutes: 60
           credential_type: service_connection

@@ -717,6 +717,238 @@ class KubernetesClient:
 
         return latencies
 
+    def deploy_probe_pod(self, node_pool_name, namespace="default",
+                         pod_name="latency-probe", image="mcr.microsoft.com/oss/nginx/nginx:1.21"):
+        """
+        Deploy a probe pod with anti-affinity against existing nodes in the pool.
+
+        The pod uses a nodeSelector for the target pool and a podAntiAffinity against
+        itself on the existing node, ensuring it stays Pending until a new node is added.
+
+        Args:
+            node_pool_name: The node pool to target (agentpool label)
+            namespace: Namespace for the probe pod (default: "default")
+            pod_name: Name of the probe pod
+            image: Container image to use
+
+        Returns:
+            The created pod name
+        """
+        # Get existing nodes in the pool to build anti-affinity
+        existing_nodes = self.get_ready_nodes(label_selector=f"agentpool={node_pool_name}")
+        existing_node_names = [n.metadata.name for n in existing_nodes]
+
+        logger.info("Deploying probe pod '%s' with anti-affinity against nodes: %s",
+                    pod_name, existing_node_names)
+
+        # Build nodeAffinity to NOT schedule on existing nodes
+        node_selector_terms = []
+        if existing_node_names:
+            node_selector_terms = [
+                client.V1NodeSelectorTerm(
+                    match_expressions=[
+                        client.V1NodeSelectorRequirement(
+                            key="kubernetes.io/hostname",
+                            operator="NotIn",
+                            values=existing_node_names,
+                        ),
+                        client.V1NodeSelectorRequirement(
+                            key="agentpool",
+                            operator="In",
+                            values=[node_pool_name],
+                        ),
+                    ]
+                )
+            ]
+
+        affinity = client.V1Affinity(
+            node_affinity=client.V1NodeAffinity(
+                required_during_scheduling_ignored_during_execution=client.V1NodeSelector(
+                    node_selector_terms=node_selector_terms
+                )
+            )
+        )
+
+        pod_manifest = client.V1Pod(
+            api_version="v1",
+            kind="Pod",
+            metadata=client.V1ObjectMeta(
+                name=pod_name,
+                namespace=namespace,
+                labels={"app": "latency-probe"},
+            ),
+            spec=client.V1PodSpec(
+                node_selector={"agentpool": node_pool_name},
+                affinity=affinity,
+                containers=[
+                    client.V1Container(
+                        name="probe",
+                        image=image,
+                        resources=client.V1ResourceRequirements(
+                            requests={"cpu": "100m", "memory": "64Mi"},
+                        ),
+                    )
+                ],
+                tolerations=[
+                    client.V1Toleration(
+                        key="node.kubernetes.io/not-ready",
+                        operator="Exists",
+                        effect="NoSchedule",
+                    ),
+                ],
+            ),
+        )
+
+        try:
+            self.api.create_namespaced_pod(namespace=namespace, body=pod_manifest)
+            logger.info("Probe pod '%s' created in namespace '%s'", pod_name, namespace)
+        except client.rest.ApiException as e:
+            if e.status == 409:
+                # Pod already exists, delete and recreate
+                logger.info("Probe pod '%s' already exists, recreating", pod_name)
+                self.api.delete_namespaced_pod(name=pod_name, namespace=namespace)
+                time.sleep(2)
+                self.api.create_namespaced_pod(namespace=namespace, body=pod_manifest)
+            else:
+                raise
+
+        return pod_name
+
+    def wait_for_probe_pod_running(self, pod_name="latency-probe", namespace="default",
+                                   operation_timeout_in_minutes=10):
+        """
+        Wait for the probe pod to transition to Running phase with Ready condition.
+
+        Args:
+            pod_name: Name of the probe pod
+            namespace: Namespace of the probe pod
+            operation_timeout_in_minutes: Timeout in minutes
+
+        Returns:
+            The pod object once it's Running and Ready
+        """
+        timeout = time.time() + (operation_timeout_in_minutes * 60)
+        logger.info("Waiting for probe pod '%s' to become Running...", pod_name)
+
+        while time.time() < timeout:
+            pod = self.api.read_namespaced_pod(name=pod_name, namespace=namespace)
+            phase = pod.status.phase if pod.status else None
+
+            if phase == "Running":
+                # Check Ready condition
+                if pod.status.conditions:
+                    for cond in pod.status.conditions:
+                        if cond.type == "Ready" and cond.status == "True":
+                            logger.info("Probe pod '%s' is Running and Ready", pod_name)
+                            return pod
+
+            logger.info("Probe pod '%s' phase: %s, waiting...", pod_name, phase)
+            time.sleep(2)
+
+        raise Exception(
+            f"Probe pod '{pod_name}' did not become Running within {operation_timeout_in_minutes} minutes"
+        )
+
+    def collect_pod_startup_latency(self, pod_name="latency-probe", namespace="default",
+                                    scale_api_call_timestamp=None, node_ready_timestamp=None):
+        """
+        Collect pod startup latency timestamps from a probe pod.
+
+        Extracts:
+          - pod_scheduled: PodScheduled condition lastTransitionTime
+          - pod_initialized: Initialized condition lastTransitionTime
+          - containers_ready: ContainersReady condition lastTransitionTime
+          - pod_ready: Ready condition lastTransitionTime
+          - container_started: first container's state.running.startedAt
+
+        Computes:
+          - pod_scheduling_seconds: time from node Ready to pod Scheduled
+          - pod_init_seconds: time from pod Scheduled to container started
+          - pod_ready_seconds: time from container started to pod Ready
+          - total_pod_startup_seconds: time from scale API call to pod Ready
+
+        Args:
+            pod_name: Name of the probe pod
+            namespace: Namespace of the probe pod
+            scale_api_call_timestamp: ISO 8601 string of when scale API was called (T0)
+            node_ready_timestamp: ISO 8601 string of when the new node became Ready
+
+        Returns:
+            Dict with pod timestamps and computed latencies
+        """
+        pod = self.api.read_namespaced_pod(name=pod_name, namespace=namespace)
+
+        # Extract condition timestamps
+        pod_scheduled = self._get_condition_transition_time(pod.status.conditions, "PodScheduled")
+        pod_initialized = self._get_condition_transition_time(pod.status.conditions, "Initialized")
+        containers_ready = self._get_condition_transition_time(pod.status.conditions, "ContainersReady")
+        pod_ready = self._get_condition_transition_time(pod.status.conditions, "Ready")
+
+        # Extract container started time
+        container_started = None
+        if pod.status.container_statuses:
+            for cs in pod.status.container_statuses:
+                if cs.state and cs.state.running and cs.state.running.started_at:
+                    container_started = self._format_k8s_timestamp(cs.state.running.started_at)
+                    break
+
+        timestamps = {
+            "pod_name": pod_name,
+            "node_name": pod.spec.node_name,
+            "scale_api_call": scale_api_call_timestamp,
+            "node_ready": node_ready_timestamp,
+            "pod_scheduled": pod_scheduled,
+            "pod_initialized": pod_initialized,
+            "container_started": container_started,
+            "containers_ready": containers_ready,
+            "pod_ready": pod_ready,
+        }
+
+        # Compute latencies
+        timestamps["latencies"] = self._compute_pod_latencies(timestamps)
+
+        logger.info("Pod startup latency for '%s': %s", pod_name, timestamps)
+        return timestamps
+
+    def _compute_pod_latencies(self, timestamps):
+        """Compute pod latency KPIs from collected timestamps."""
+        latencies = {}
+
+        def _diff_seconds(end_key, start_key):
+            end_val = timestamps.get(end_key)
+            start_val = timestamps.get(start_key)
+            if not end_val or not start_val:
+                return None
+            try:
+                from datetime import datetime
+                end_dt = datetime.fromisoformat(end_val.replace("Z", "+00:00"))
+                start_dt = datetime.fromisoformat(start_val.replace("Z", "+00:00"))
+                return (end_dt - start_dt).total_seconds()
+            except Exception:
+                return None
+
+        # Pod scheduling delay: time from node Ready to pod Scheduled
+        latencies["pod_scheduling_seconds"] = _diff_seconds("pod_scheduled", "node_ready")
+        # Pod init: time from pod Scheduled to container started
+        latencies["pod_init_seconds"] = _diff_seconds("container_started", "pod_scheduled")
+        # Pod ready: time from container started to pod Ready
+        latencies["pod_ready_seconds"] = _diff_seconds("pod_ready", "container_started")
+        # Total pod startup: time from scale API call to pod Ready
+        latencies["total_pod_startup_seconds"] = _diff_seconds("pod_ready", "scale_api_call")
+
+        return latencies
+
+    def delete_probe_pod(self, pod_name="latency-probe", namespace="default"):
+        """Delete the probe pod used for latency measurement."""
+        try:
+            self.api.delete_namespaced_pod(name=pod_name, namespace=namespace)
+            logger.info("Probe pod '%s' deleted", pod_name)
+        except client.rest.ApiException as e:
+            if e.status == 404:
+                logger.info("Probe pod '%s' not found (already deleted)", pod_name)
+            else:
+                raise
+
     def set_context(self, context_name):
         """
         Switch to the specified Kubernetes context and reinitialize all API clients.

@@ -115,6 +115,8 @@ def handle_node_pool_operation(node_pool_crud, args):
             }
             if hasattr(args, "cni_daemonset_label") and args.cni_daemonset_label:
                 scale_kwargs["cni_daemonset_label"] = args.cni_daemonset_label
+            if hasattr(args, "measure_pod_startup") and args.measure_pod_startup:
+                scale_kwargs["measure_pod_startup"] = args.measure_pod_startup
 
             result = node_pool_crud.scale_node_pool(**scale_kwargs)
 
@@ -309,6 +311,12 @@ def main():
         default=None,
         help="Label selector for CNI daemonset pods to collect node startup latency "
              "(e.g. 'k8s-app=cilium', 'k8s-app=azure-cni'). If not set, CNI timestamps are skipped.",
+    )
+    scale_parser.add_argument(
+        "--measure-pod-startup",
+        action="store_true",
+        default=False,
+        help="Deploy a probe pod before scaling and measure pod scheduling + startup latency.",
     )
     scale_parser.set_defaults(func=handle_node_pool_operation)
 

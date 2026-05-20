@@ -88,6 +88,7 @@ class NodePoolCRUD:
         scale_step_size=1,
         gpu_node_pool=False,
         cni_daemonset_label=None,
+        measure_pod_startup=False,
     ):
         """
         Scale a node pool to specified count
@@ -99,6 +100,7 @@ class NodePoolCRUD:
             scale_step_size: Number of nodes to add/remove in each step if progressive (default: 1)
             gpu_node_pool: Whether this is a GPU-enabled node pool (default: False)
             cni_daemonset_label: Label selector for CNI daemonset pods to collect startup latency
+            measure_pod_startup: Whether to measure pod scheduling + startup latency (default: False)
 
         Returns:
             The scaled node pool object or False if scaling failed
@@ -115,6 +117,7 @@ class NodePoolCRUD:
                 progressive=progressive,
                 scale_step_size=scale_step_size,
                 cni_daemonset_label=cni_daemonset_label,
+                measure_pod_startup=measure_pod_startup,
             )
 
             if result is not None:
