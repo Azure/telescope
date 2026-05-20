@@ -20,14 +20,15 @@ az aks create \\
   --subscription "${SUBSCRIPTION_ID}" \\
   --location "${LOCATION}" \\
   --kubernetes-version "1.35" \\
-  --node-count 2 \\
-  --node-vm-size "Standard_D2s_v3" \\
+  --node-count 1 \\
+  --node-vm-size "Standard_B2s" \\
   --network-plugin azure \\
   --network-plugin-mode overlay \\
   --nodepool-taints "CriticalAddonsOnly=true:NoSchedule" \\
   --tier standard \\
   --tags SkipAKSCluster=true SkipASMAzSecPackAutoConfig=true SkipLinuxAzSecPack=true
 """
+# TODO: restore cluster to --node-count 2 --node-vm-size "Standard_D2s_v3"
 
 makeBenchmarkJob = lambda flowcontrol: str, flowcontrolLabel: str -> job.Job {
     job.Job {
@@ -56,28 +57,26 @@ makeBenchmarkJob = lambda flowcontrol: str, flowcontrolLabel: str -> job.Job {
                 const.DEFAULT_SERVICE_CONNECTION,
                 CLUSTER,
                 RESOURCE_GROUP,
-                SUBSCRIPTION_ID),
+                SUBSCRIPTION_ID,
+                file = "$(Pipeline.Workspace)/kubeconfig"),
             azure.CreateNodePool(
                 const.DEFAULT_SERVICE_CONNECTION,
                 CLUSTER,
                 RESOURCE_GROUP,
                 SUBSCRIPTION_ID,
                 "runner",
+                # TODO: restore to 3 nodes after testing
                 "Standard_D16s_v3",
-                3),
-            azure.WaitForNodePoolSucceeded(
-                const.DEFAULT_SERVICE_CONNECTION,
-                CLUSTER,
-                RESOURCE_GROUP,
-                SUBSCRIPTION_ID,
-                "runner"),
+                1),
             runkperf.RunKperfBenchmark(
                 RUNNER_IMAGE,
-                flowcontrol,
                 "list_configmaps",
                 # TODO: restore to --total 10000 --configmap-amount=100 after testing
                 "--total 10 --size=1024 --group-size=10 --configmap-amount=10",
-                target = "kperf"),
+                "$(Pipeline.Workspace)/kubeconfig",
+                flowcontrol = flowcontrol,
+                target = "kperf",
+                resultPath = "$(Pipeline.Workspace)/tmp_results.json"),
             azure.CollectKperfResult(
                 const.DEFAULT_SERVICE_CONNECTION,
                 flowcontrol,
@@ -85,7 +84,8 @@ makeBenchmarkJob = lambda flowcontrol: str, flowcontrolLabel: str -> job.Job {
                 "--total 10 --size=1024 --group-size=10 --configmap-amount=10",
                 CLUSTER,
                 RESOURCE_GROUP,
-                SUBSCRIPTION_ID),
+                SUBSCRIPTION_ID,
+                inputPath = "$(Pipeline.Workspace)/tmp_results.json"),
             common.UploadResult(
                 const.DEFAULT_SERVICE_CONNECTION,
                 const.DEFAULT_STORAGE_ACCOUNT,
@@ -114,14 +114,14 @@ output = ap.Pipeline {
         containers = [res_container.Container {
             container = "kperf"
             image = RUNNER_IMAGE
-            volumes = ["/home/vsts/.kube:/home/AzDevOps_azpcontainer/.kube"]
+            volumes = ["/usr/bin/kubectl:/usr/local/bin/kubectl"]
         }]
     }
 
     # TODO: restore schedule after testing
     # schedules = [ap.Cron {
-    #     cron = "0 3 * * *"
-    #     displayName = "Daily 3AM UTC"
+    #     cron = "0 3 * * 0"
+    #     displayName = "Weekly Sunday 3AM UTC"
     #     branches = ["v2"]
     #     always = True
     # }]

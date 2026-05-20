@@ -81,27 +81,22 @@ echo "Ingest complete: $completed ${dataType}s created."
 
 # RunKperfBenchmark runs runkperf bench with the given subcommand and flow control settings.
 # Results are written to resultPath (default /tmp/tmp_results.json) for collection by CollectKperfResult.
-RunKperfBenchmark = lambda runnerImage: str, flowcontrol: str, benchmark_subcmd: str, benchmark_subcmd_args: str, resultPath: str = "/tmp/tmp_results.json", target: str = None -> steps.Step {
+RunKperfBenchmark = lambda runnerImage: str, benchmarkSubcmd: str, benchmarkSubcmdArgs: str, kubeconfig: str, flowcontrol: str = "exempt:5", resultPath: str = "/tmp/tmp_results.json", target: str = None -> steps.Step {
     steps.Script {
         script = """
 set -euo pipefail
 set -x
 
-# Install kubectl and ensure runkperf is in PATH
-export PATH="/:$HOME/.local/bin:$PATH"
-mkdir -p $HOME/.local/bin
-ln -sf /runkperf $HOME/.local/bin/runkperf
-ln -sf /kperf $HOME/.local/bin/kperf
-curl -sLo $HOME/.local/bin/kubectl "https://dl.k8s.io/release/$(curl -sL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-chmod +x $HOME/.local/bin/kubectl
+export PATH="/:$PATH"
 
-/runkperf -v 3 bench \\
+runkperf -v 3 bench \\
+  --kubeconfig=${kubeconfig} \\
   --runner-image="${runnerImage}" \\
   --runner-flowcontrol="${flowcontrol}" \\
   --result ${resultPath} \\
-  ${benchmark_subcmd} ${benchmark_subcmd_args}
+  ${benchmarkSubcmd} ${benchmarkSubcmdArgs}
 """
-        displayName = "Run kperf benchmark (${benchmark_subcmd}, flowcontrol=${flowcontrol})"
+        displayName = "Run kperf benchmark (${benchmarkSubcmd}, flowcontrol=${flowcontrol})"
         target = target
     }
 }

@@ -5,7 +5,7 @@ resources:
   - container: kperf
     image: ghcr.io/azure/kperf:0.3.4
     volumes:
-    - /home/vsts/.kube:/home/AzDevOps_azpcontainer/.kube
+    - /usr/bin/kubectl:/usr/local/bin/kubectl
 stages:
 - stage: workload_low
   displayName: workload_low
@@ -60,8 +60,8 @@ stages:
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --location "uksouth" \
             --kubernetes-version "1.35" \
-            --node-count 2 \
-            --node-vm-size "Standard_D2s_v3" \
+            --node-count 1 \
+            --node-vm-size "Standard_B2s" \
             --network-plugin azure \
             --network-plugin-mode overlay \
             --nodepool-taints "CriticalAddonsOnly=true:NoSchedule" \
@@ -80,61 +80,27 @@ stages:
             --name "configmaps100" \
             --resource-group "$(RUN_ID)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-            --overwrite-existing
+            --overwrite-existing -f $(Pipeline.Workspace)/kubeconfig
       displayName: Get credentials for configmaps100
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
         scriptType: bash
         scriptLocation: inlineScript
-        inlineScript: "set -exo pipefail\n\naz aks nodepool add \\\n  --cluster-name \"configmaps100\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"runner\" \\\n  --node-count 3 \\\n  --node-vm-size \"Standard_D16s_v3\" \\\n  --mode User \\\n   \\\n  \n"
+        inlineScript: "set -exo pipefail\n\naz aks nodepool add \\\n  --cluster-name \"configmaps100\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"runner\" \\\n  --node-count 1 \\\n  --node-vm-size \"Standard_D16s_v3\" \\\n  --mode User \\\n   \\\n  \n"
       displayName: Create node pool runner
-    - task: AzureCLI@2
-      inputs:
-        azureSubscription: Azure-for-Telescope-internal
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          set -exo pipefail
-
-          while true; do
-            STATE=$(az aks nodepool show \
-              --cluster-name "configmaps100" \
-              --resource-group "$(RUN_ID)" \
-              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-              --name "runner" \
-              --query "provisioningState" \
-              --output tsv)
-            echo "Node pool provisioning state: $STATE"
-            if [ "$STATE" = "Succeeded" ]; then
-              echo "Node pool is ready."
-              break
-            elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
-              echo "Node pool failed with state: $STATE."
-              exit 1
-            else
-              echo "Provisioning state: $STATE. Retry in 30 seconds"
-            fi
-            sleep 30
-          done
-      displayName: Wait for node pool runner to succeed
     - script: |2
 
         set -euo pipefail
         set -x
 
-        # Install kubectl and ensure runkperf is in PATH
-        export PATH="/:$HOME/.local/bin:$PATH"
-        mkdir -p $HOME/.local/bin
-        ln -sf /runkperf $HOME/.local/bin/runkperf
-        ln -sf /kperf $HOME/.local/bin/kperf
-        curl -sLo $HOME/.local/bin/kubectl "https://dl.k8s.io/release/$(curl -sL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-        chmod +x $HOME/.local/bin/kubectl
+        export PATH="/:$PATH"
 
-        /runkperf -v 3 bench \
+        runkperf -v 3 bench \
+          --kubeconfig=$(Pipeline.Workspace)/kubeconfig \
           --runner-image="ghcr.io/azure/kperf:0.3.4" \
           --runner-flowcontrol="workload-low:1000" \
-          --result /tmp/tmp_results.json \
+          --result $(Pipeline.Workspace)/tmp_results.json \
           list_configmaps --total 10 --size=1024 --group-size=10 --configmap-amount=10
       displayName: Run kperf benchmark (list_configmaps, flowcontrol=workload-low:1000)
       target: kperf
@@ -170,19 +136,18 @@ stages:
               cluster_id: $cluster_id
             }')
 
-          # Check for errors and print error details if error rate exceeds 10%
-          errors_number=$(jq -r '.result.errors | length' /tmp/tmp_results.json)
-          error_rate=$(jq -r '1 - .result.total / (.loadSpec.count * .loadSpec.loadProfile.spec.total)' /tmp/tmp_results.json)
-          error_rate_too_high=$(echo "$error_rate > 0.1" | bc -l)
-          if [[ "$errors_number" != "0" && "$error_rate_too_high" == "1" ]]; then
-            echo "Error rate: $error_rate (>0.1), printing error details:"
-            jq -r ".result.errors | map(. + {run_id: \"$(RUN_ID)\", cloud: \"azure\"}) | .[]" /tmp/tmp_results.json
+          # Check for errors and print error details if error rate exceeds threshold
+          errors_number=$(jq -r '.result.errors | length' $(Pipeline.Workspace)/tmp_results.json)
+          error_rate_too_high=$(jq -r '(1 - .result.total / (.loadSpec.count * .loadSpec.loadProfile.spec.total)) > 0.1' $(Pipeline.Workspace)/tmp_results.json)
+          if [[ "$errors_number" != "0" && "$error_rate_too_high" == "true" ]]; then
+            echo "Error rate exceeds 0.1, printing error details:"
+            jq -r ".result.errors | map(. + {run_id: \"$(RUN_ID)\", cloud: \"azure\"}) | .[]" $(Pipeline.Workspace)/tmp_results.json
           fi
 
           # Collect final result — pack everything into the "result" field so Kusto ingests it all
-          cat /tmp/tmp_results.json \
+          cat $(Pipeline.Workspace)/tmp_results.json \
             | jq 'del(.result.errors)' \
-            | jq -c --argjson ci "$cloud_info" '{ cloud: $ci.cloud, region: $ci.region, fqdn: $ci.fqdn, private_fqdn: $ci.private_fqdn, k8s_version: $ci.k8s_version, sku_tier: $ci.sku_tier, subscription: $ci.subscription, cluster_id: $ci.cluster_id, flowcontrol: "workload-low:1000", benchmark_subcmd_args: "--total 10 --size=1024 --group-size=10 --configmap-amount=10" } + .result | { result: . }' \
+            | jq -c --argjson ci "$cloud_info" '{ cloud: $ci.cloud, region: $ci.region, fqdn: $ci.fqdn, private_fqdn: $ci.private_fqdn, k8s_version: $ci.k8s_version, sku_tier: $ci.sku_tier, subscription: $ci.subscription, cluster_id: $ci.cluster_id, flowcontrol: "workload-low:1000", benchmarkSubcmdArgs: "--total 10 --size=1024 --group-size=10 --configmap-amount=10" } + .result | { result: . }' \
             | jq -c '. + { timestamp: "'"$TIMESTAMP"'", run_id: "$(RUN_ID)", run_url: "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)", pipeline: "$(Build.DefinitionName)" }' \
             > /tmp/run-result.json
 
@@ -269,8 +234,8 @@ stages:
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --location "uksouth" \
             --kubernetes-version "1.35" \
-            --node-count 2 \
-            --node-vm-size "Standard_D2s_v3" \
+            --node-count 1 \
+            --node-vm-size "Standard_B2s" \
             --network-plugin azure \
             --network-plugin-mode overlay \
             --nodepool-taints "CriticalAddonsOnly=true:NoSchedule" \
@@ -289,61 +254,27 @@ stages:
             --name "configmaps100" \
             --resource-group "$(RUN_ID)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-            --overwrite-existing
+            --overwrite-existing -f $(Pipeline.Workspace)/kubeconfig
       displayName: Get credentials for configmaps100
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
         scriptType: bash
         scriptLocation: inlineScript
-        inlineScript: "set -exo pipefail\n\naz aks nodepool add \\\n  --cluster-name \"configmaps100\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"runner\" \\\n  --node-count 3 \\\n  --node-vm-size \"Standard_D16s_v3\" \\\n  --mode User \\\n   \\\n  \n"
+        inlineScript: "set -exo pipefail\n\naz aks nodepool add \\\n  --cluster-name \"configmaps100\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"runner\" \\\n  --node-count 1 \\\n  --node-vm-size \"Standard_D16s_v3\" \\\n  --mode User \\\n   \\\n  \n"
       displayName: Create node pool runner
-    - task: AzureCLI@2
-      inputs:
-        azureSubscription: Azure-for-Telescope-internal
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          set -exo pipefail
-
-          while true; do
-            STATE=$(az aks nodepool show \
-              --cluster-name "configmaps100" \
-              --resource-group "$(RUN_ID)" \
-              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-              --name "runner" \
-              --query "provisioningState" \
-              --output tsv)
-            echo "Node pool provisioning state: $STATE"
-            if [ "$STATE" = "Succeeded" ]; then
-              echo "Node pool is ready."
-              break
-            elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
-              echo "Node pool failed with state: $STATE."
-              exit 1
-            else
-              echo "Provisioning state: $STATE. Retry in 30 seconds"
-            fi
-            sleep 30
-          done
-      displayName: Wait for node pool runner to succeed
     - script: |2
 
         set -euo pipefail
         set -x
 
-        # Install kubectl and ensure runkperf is in PATH
-        export PATH="/:$HOME/.local/bin:$PATH"
-        mkdir -p $HOME/.local/bin
-        ln -sf /runkperf $HOME/.local/bin/runkperf
-        ln -sf /kperf $HOME/.local/bin/kperf
-        curl -sLo $HOME/.local/bin/kubectl "https://dl.k8s.io/release/$(curl -sL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-        chmod +x $HOME/.local/bin/kubectl
+        export PATH="/:$PATH"
 
-        /runkperf -v 3 bench \
+        runkperf -v 3 bench \
+          --kubeconfig=$(Pipeline.Workspace)/kubeconfig \
           --runner-image="ghcr.io/azure/kperf:0.3.4" \
           --runner-flowcontrol="exempt:5" \
-          --result /tmp/tmp_results.json \
+          --result $(Pipeline.Workspace)/tmp_results.json \
           list_configmaps --total 10 --size=1024 --group-size=10 --configmap-amount=10
       displayName: Run kperf benchmark (list_configmaps, flowcontrol=exempt:5)
       target: kperf
@@ -379,19 +310,18 @@ stages:
               cluster_id: $cluster_id
             }')
 
-          # Check for errors and print error details if error rate exceeds 10%
-          errors_number=$(jq -r '.result.errors | length' /tmp/tmp_results.json)
-          error_rate=$(jq -r '1 - .result.total / (.loadSpec.count * .loadSpec.loadProfile.spec.total)' /tmp/tmp_results.json)
-          error_rate_too_high=$(echo "$error_rate > 0.1" | bc -l)
-          if [[ "$errors_number" != "0" && "$error_rate_too_high" == "1" ]]; then
-            echo "Error rate: $error_rate (>0.1), printing error details:"
-            jq -r ".result.errors | map(. + {run_id: \"$(RUN_ID)\", cloud: \"azure\"}) | .[]" /tmp/tmp_results.json
+          # Check for errors and print error details if error rate exceeds threshold
+          errors_number=$(jq -r '.result.errors | length' $(Pipeline.Workspace)/tmp_results.json)
+          error_rate_too_high=$(jq -r '(1 - .result.total / (.loadSpec.count * .loadSpec.loadProfile.spec.total)) > 0.1' $(Pipeline.Workspace)/tmp_results.json)
+          if [[ "$errors_number" != "0" && "$error_rate_too_high" == "true" ]]; then
+            echo "Error rate exceeds 0.1, printing error details:"
+            jq -r ".result.errors | map(. + {run_id: \"$(RUN_ID)\", cloud: \"azure\"}) | .[]" $(Pipeline.Workspace)/tmp_results.json
           fi
 
           # Collect final result — pack everything into the "result" field so Kusto ingests it all
-          cat /tmp/tmp_results.json \
+          cat $(Pipeline.Workspace)/tmp_results.json \
             | jq 'del(.result.errors)' \
-            | jq -c --argjson ci "$cloud_info" '{ cloud: $ci.cloud, region: $ci.region, fqdn: $ci.fqdn, private_fqdn: $ci.private_fqdn, k8s_version: $ci.k8s_version, sku_tier: $ci.sku_tier, subscription: $ci.subscription, cluster_id: $ci.cluster_id, flowcontrol: "exempt:5", benchmark_subcmd_args: "--total 10 --size=1024 --group-size=10 --configmap-amount=10" } + .result | { result: . }' \
+            | jq -c --argjson ci "$cloud_info" '{ cloud: $ci.cloud, region: $ci.region, fqdn: $ci.fqdn, private_fqdn: $ci.private_fqdn, k8s_version: $ci.k8s_version, sku_tier: $ci.sku_tier, subscription: $ci.subscription, cluster_id: $ci.cluster_id, flowcontrol: "exempt:5", benchmarkSubcmdArgs: "--total 10 --size=1024 --group-size=10 --configmap-amount=10" } + .result | { result: . }' \
             | jq -c '. + { timestamp: "'"$TIMESTAMP"'", run_id: "$(RUN_ID)", run_url: "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)", pipeline: "$(Build.DefinitionName)" }' \
             > /tmp/run-result.json
 
