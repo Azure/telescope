@@ -911,6 +911,14 @@ stages:
               cl2_config_file: pod-churn-combined.yaml
               test_type: pod-churn-combined-shared-vnet
               cl2_max_concurrent: 8
+              # Per-worker watchdog: 4h ceiling on any single cluster's CL2.
+              # Pod-churn-combined normally runs ~25-30 min/cluster. 4h is
+              # ~8× normal — anything beyond that is a hang we MUST break
+              # out of so the other workers + collect+upload still complete.
+              # Without this, a stuck docker exec / az / kubectl in one
+              # worker would block the AzDO step until the 30h job timeout
+              # (losing all other workers' data + the blob upload).
+              worker_timeout_seconds: 14400
               namespaces: 5
               deployments_per_namespace: 4
               replicas_per_deployment: 10
