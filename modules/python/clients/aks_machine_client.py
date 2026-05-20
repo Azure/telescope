@@ -769,6 +769,6 @@ class AKSMachineClient(AKSClient):
             backoff *= 2
         text = last_resp.text[:500] if last_resp is not None else ""
         raise RuntimeError(
-            f"batch request exceeded {_BATCH_429_MAX_RETRIES} 429 retries "
-            f"[{ctx}]; last text={text}"
+            f"batch request exceeded {_BATCH_429_MAX_RETRIES} attempts "
+            f"after HTTP 429 responses [{ctx}]; last text={text}"
         )
