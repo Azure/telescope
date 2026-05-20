@@ -449,11 +449,13 @@ class AKSMachineClient(AKSClient):
                 names = [
                     f"{prefix}-machine-{i + 1}" for i in range(scale_machine_count)
                 ]
+                command_t0 = time.time()
                 if use_batch_api:
                     successful, batch_times = self._scale_machine_batch(request, names)
                     op.add_metadata("batch_command_execution_times", batch_times)
                 else:
                     successful = self._scale_machine_individually(request, names)
+                op.add_metadata("command_execution_time", time.time() - command_t0)
                 op.add_metadata("successful_machines", successful)
 
                 # Fail fast on partial landing BEFORE waiting on the agentpool
@@ -591,11 +593,7 @@ class AKSMachineClient(AKSClient):
 
         Each worker submits exactly one ``BatchPutMachine``-headered PUT carrying a
         contiguous slice of ``names``. Slices are computed by arithmetic from the
-        ``worker_id`` (no partition helper) to match ado-telescope's per-worker
-        contract: every worker handles exactly ``scale_machine_count //
-        machine_workers`` machines, so chunk boundaries -- and the resulting
-        ``chunk_0/chunk_1/...`` Kusto correlation keys -- are byte-identical to
-        ado runs.
+        ``worker_id``.
 
         ``scale_machine_count`` MUST be an exact multiple of ``machine_workers``;
         ``ValueError`` is raised otherwise so the failure surfaces at the
@@ -653,8 +651,8 @@ class AKSMachineClient(AKSClient):
     ) -> List[str]:
         """Submit a batch-PUT request creating every machine in ``chunk``.
 
-        Uses the AKS Machine API ``BatchPutMachine`` HEADER pattern (NOT the
-        non-existent ARM ``/$batch`` envelope): a single PUT to the first
+        Uses the AKS Machine API ``BatchPutMachine`` HEADER pattern (implicit
+        contract with AKS NAP, not publicly available): a single PUT to the first
         machine name in ``chunk`` carrying a ``BatchPutMachine`` header whose
         value is JSON containing ``vmSkus`` and ``batchMachines`` lists.
 
@@ -663,9 +661,12 @@ class AKSMachineClient(AKSClient):
         ``machineName`` -- the wrong key (e.g. ``name``) causes the API to
         silently ignore the extras and create only the URL-pointed machine.
 
-        ``vmSkus`` is a ``{"value": [<rich vm_sku obj>]}`` envelope (not a
-        flat list); the inner object describes the SKU shape the Batch API
-        expects to validate against.
+        ``vmSkus`` is a ``{"value": [<vm_sku obj>]}`` envelope (not a flat
+        list); the inner object only needs ``name`` (the requested VM size)
+        and ``resourceType`` -- the AKS NAP Batch endpoint validates the
+        rest server-side. We deliberately omit speculative SKU shape fields
+        (family, locations, capabilities) so the header schema stays
+        consistent across all VM sizes.
 
         Returns the list of machine names submitted on 2xx. Raises
         ``RuntimeError`` (from ``_make_batch_request``) if the request
@@ -688,13 +689,6 @@ class AKSMachineClient(AKSClient):
         vm_sku = {
             "name": request.vm_size,
             "resourceType": "virtualMachines",
-            "family": "standardDv3Family",
-            "locations": ["westus", "eastus", "westeurope"],
-            "capabilities": [
-                {"name": "vCPUs", "value": "2"},
-                {"name": "MemoryGB", "value": "8"},
-            ],
-            "restrictions": [],
         }
         batch_header_value = json.dumps({
             "vmSkus": {"value": [vm_sku]},
@@ -704,8 +698,13 @@ class AKSMachineClient(AKSClient):
             f"chunk {chunk_idx}: submitting BatchPutMachine PUT for {len(chunk)} machines "
             f"(target={first_machine_name})"
         )
+        # Cap per-request timeout so a single batch PUT (plus 429 backoff)
+        # cannot consume the whole operation budget that downstream
+        # provisioning/readiness waits depend on. Mirrors the cap applied at
+        # the individual machine PUT site.
+        put_timeout = min(request.timeout, _PER_REQUEST_TIMEOUT_CAP)
         self._make_batch_request(
-            "PUT", url, body, request.timeout, batch_header_value=batch_header_value,
+            "PUT", url, body, put_timeout, batch_header_value=batch_header_value,
         )
         return list(chunk)
 
