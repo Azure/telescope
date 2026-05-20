@@ -29,6 +29,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from datetime import datetime, timezone
 
 from clusterloader2.utils import parse_xml_to_json, run_cl2_command, process_cl2_reports
@@ -322,12 +323,23 @@ def _emit_prefixed_line(role, line):
         sys.stdout.flush()
 
 
-def _run_one_cluster(role, worker_script, worker_args, env=None):
+def _run_one_cluster(role, worker_script, worker_args, env=None,
+                     timeout_seconds=None):
     """Spawn the per-cluster worker script and stream its merged stdout/stderr.
 
     Returns (role, exit_code). Exit code is the worker script's exit (which
     is the authoritative pass/fail per cluster — the script does its own
     junit gate + log capture + failure diag).
+
+    If `timeout_seconds` is set and the worker hasn't completed within that
+    budget, the child process is terminated and exit code 124 is returned
+    (mirrors `coreutils timeout`'s 124 = timed out). This is a watchdog for
+    pathological hangs in CL2 docker / kubectl / az calls that would
+    otherwise block the AzDO step until the job-level 30h timeout fires —
+    losing all other workers' completed work + the collect+upload step.
+    Per-worker timeout SHOULD comfortably exceed normal CL2 wall-clock for
+    the scenario; at N=100 pod-churn-combined runs ~30-45 min per worker
+    so a 3h ceiling is generous.
     """
     cmd = ["bash", worker_script, role, *worker_args]
     # bufsize=1 + text=True gives us line-buffered text reads so the prefix
@@ -351,6 +363,46 @@ def _run_one_cluster(role, worker_script, worker_args, env=None):
     )
     with _PARALLEL_LIVE_POPENS_LOCK:
         _PARALLEL_LIVE_POPENS.append(proc)
+    # Watchdog: when timeout_seconds is set, a daemon thread terminates the
+    # child if it overruns. Streaming the child's stdout below blocks on
+    # readline; without an external watchdog we cannot interrupt a stuck
+    # docker exec / az / kubectl call from the same thread.
+    watchdog_fired = threading.Event()
+    watchdog = None
+    if timeout_seconds is not None and timeout_seconds > 0:
+        def _watchdog():
+            # poll() returns None while alive. We exit early either when the
+            # process completes (no termination needed) or when we exceed the
+            # timeout (terminate then escalate to kill).
+            deadline = time.monotonic() + timeout_seconds
+            while time.monotonic() < deadline:
+                if proc.poll() is not None:
+                    return
+                time.sleep(5)
+            # Timed out. Mark + terminate.
+            watchdog_fired.set()
+            _emit_prefixed_line(
+                role,
+                f"##vso[task.logissue type=error;] worker exceeded "
+                f"timeout_seconds={timeout_seconds}; sending SIGTERM\n",
+            )
+            try:
+                proc.terminate()
+            except ProcessLookupError:
+                return
+            # Give the worker 30s to handle SIGTERM gracefully (it has
+            # log-capture cleanup); escalate to SIGKILL if it ignores us.
+            for _ in range(30):
+                if proc.poll() is not None:
+                    return
+                time.sleep(1)
+            try:
+                proc.kill()
+            except ProcessLookupError:
+                pass
+
+        watchdog = threading.Thread(target=_watchdog, daemon=True)
+        watchdog.start()
     try:
         assert proc.stdout is not None
         for line in proc.stdout:
@@ -362,6 +414,15 @@ def _run_one_cluster(role, worker_script, worker_args, env=None):
                 _PARALLEL_LIVE_POPENS.remove(proc)
             except ValueError:
                 pass
+        if watchdog is not None:
+            watchdog.join(timeout=5)
+    # If the watchdog fired, force exit code 124 even if the process happened
+    # to return 0 after SIGTERM (e.g. CL2's trap cleanup exited cleanly).
+    # Treating a timeout as a worker failure keeps the run failed at the
+    # cluster level, but the AzDO step still completes and the other 99
+    # workers' data + collect+upload run.
+    if watchdog_fired.is_set():
+        return role, 124
     return role, proc.returncode
 
 
@@ -410,6 +471,7 @@ def execute_parallel(
     python_script_file,
     python_workdir,
     tear_down_prometheus=False,
+    worker_timeout_seconds=None,
 ):
     """Fan out CL2 across N clusters with bounded concurrency.
 
@@ -486,7 +548,8 @@ def execute_parallel(
                 "1" if tear_down_prometheus else "0",
             ]
             fut = executor.submit(
-                _run_one_cluster, role, worker_script, worker_args
+                _run_one_cluster, role, worker_script, worker_args,
+                timeout_seconds=worker_timeout_seconds,
             )
             futures[fut] = role
 
@@ -1578,6 +1641,14 @@ def main():
                      help="Pass through to each per-cluster CL2 invocation; used in "
                           "share-infra mode where multiple scenarios share infra and "
                           "each needs a clean Prometheus deploy.")
+    pep.add_argument("--worker-timeout-seconds", type=int, default=0,
+                     help="Per-worker wall-clock timeout (0 = unbounded, original "
+                          "behavior). When set and a worker exceeds the budget, the "
+                          "child is SIGTERM-ed (then SIGKILL after 30s) and the "
+                          "worker is recorded as exit 124. Watchdog for pathological "
+                          "CL2 / docker / kubectl hangs that would otherwise block "
+                          "the whole AzDO step until the 30h job timeout. "
+                          "Recommend ~3-4× normal CL2 wall-clock for the scenario.")
 
     # collect
     pco = subparsers.add_parser("collect", help="Collect results for one cluster")
@@ -1685,6 +1756,11 @@ def main():
             python_script_file=args.python_script_file,
             python_workdir=args.python_workdir,
             tear_down_prometheus=args.tear_down_prometheus,
+            worker_timeout_seconds=(
+                args.worker_timeout_seconds
+                if args.worker_timeout_seconds > 0
+                else None
+            ),
         )
         sys.exit(rc)
     elif args.command == "collect":

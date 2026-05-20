@@ -53,6 +53,14 @@ steps:
       export CL2_KILL_BATCH="${KILL_BATCH:-5}"
       export CL2_KILL_DURATION_SECONDS="${KILL_DURATION_SECONDS:-600}"
       export CL2_KILL_JOB_DEADLINE_SECONDS="${KILL_JOB_DEADLINE_SECONDS:-660}"
+      # Per-worker watchdog timeout for execute-parallel (N=100 hardening,
+      # commit added 2026-05-19). Matrix entry can set worker_timeout_seconds
+      # (auto-exported as WORKER_TIMEOUT_SECONDS); default 0 = unbounded,
+      # which preserves all existing tier behavior (n=2/5/10/20). The
+      # watchdog SIGTERMs (then SIGKILLs) a worker that exceeds the budget,
+      # recording exit 124 — guards against pathological CL2/docker/kubectl
+      # hangs blocking the whole AzDO step until the 30h job timeout.
+      export CL2_WORKER_TIMEOUT_SECONDS="${WORKER_TIMEOUT_SECONDS:-0}"
       # Phase 4b — Scenario #4 (ClusterMesh APIServer Failure) knobs.
       export CL2_APISERVER_KILL_TARGET_CONTEXT="${APISERVER_KILL_TARGET_CONTEXT:-clustermesh-1}"
       export CL2_APISERVER_KILL_RECOVERY_TIMEOUT_SECONDS="${APISERVER_KILL_RECOVERY_TIMEOUT_SECONDS:-240}"
@@ -620,6 +628,7 @@ steps:
             --provider "${CLOUD}" \
             --python-script-file "$PYTHON_SCRIPT_FILE" \
             --python-workdir "$(pwd)" \
+            --worker-timeout-seconds "${CL2_WORKER_TIMEOUT_SECONDS:-0}" \
             --tear-down-prometheus || scenario_rc=$?
 
           # Join node-churner BEFORE finalizing scenario_rc — the churner's
@@ -729,7 +738,8 @@ steps:
         --cl2-report-dir-base "${CL2_REPORT_DIR}" \
         --provider "${CLOUD}" \
         --python-script-file "$PYTHON_SCRIPT_FILE" \
-        --python-workdir "$(pwd)" || single_scenario_rc=$?
+        --python-workdir "$(pwd)" \
+        --worker-timeout-seconds "${CL2_WORKER_TIMEOUT_SECONDS:-0}" || single_scenario_rc=$?
       wait_node_churner "$SINGLE_SCENARIO_BASENAME"
       # Proactive failure debug dump for single-scenario mode too. Run
       # unconditionally for node-churn AND upper-bound (rich state worth

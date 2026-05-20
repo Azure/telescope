@@ -1543,6 +1543,7 @@ class TestMainArgumentParsing(unittest.TestCase):
             python_script_file="/path/to/scale.py",
             python_workdir="/path/to/modules/python",
             tear_down_prometheus=False,
+            worker_timeout_seconds=None,
         )
 
     @patch.object(clustermesh_scale_module, "execute_parallel")
@@ -1684,6 +1685,18 @@ class _FakePopen:
             self.__class__.active_now -= 1
         self.returncode = self.exit_code
         return self.exit_code
+
+    def poll(self):
+        # Watchdog (when worker_timeout_seconds is set) calls poll() to
+        # check liveness without blocking. Mirror real subprocess.Popen:
+        # returns None while alive, returncode after exit. _run_one_cluster
+        # always wait()s after streaming stdout, so by the time the watchdog
+        # could observe a stale poll() the wait has set returncode.
+        return self.returncode
+
+    def kill(self):
+        # SIGKILL escalation path. No-op for tests.
+        self.returncode = -9
 
     def terminate(self):
         # No-op for tests — execute_parallel only terminates on signal,
@@ -1909,6 +1922,77 @@ class TestExecuteParallel(unittest.TestCase):
                 rc = self._call_execute_parallel(cf)
             self.assertEqual(rc, 0)
             self.assertEqual(len(_FakePopen.instances), 2)
+        finally:
+            os.remove(cf)
+
+    def test_worker_timeout_seconds_default_none_preserves_unbounded_wait(self):
+        """When worker_timeout_seconds is omitted, watchdog stays off — the
+        original behavior at tiers n=2/5/10/20 is preserved.
+
+        Regression guard for the N=100 watchdog addition: smaller tiers MUST
+        keep their original semantics (no SIGTERM, returncode mirrors the
+        child's exit). Asserts the watchdog thread isn't spawned and exit
+        code passes through.
+        """
+        clusters = [{"role": "mesh-1", "kubeconfig": "/k1"}]
+        cf = self._write_clusters(clusters)
+        try:
+            _FakePopen.reset(wait_seconds=0, default_exit=0)
+            with patch.object(clustermesh_scale_module.subprocess, "Popen", _FakePopen):
+                rc = clustermesh_scale_module.execute_parallel(
+                    clusters_file=cf,
+                    max_concurrent=1,
+                    worker_script="/w.sh",
+                    cl2_image="img",
+                    cl2_config_dir="/cfg",
+                    cl2_config_file="config.yaml",
+                    cl2_report_dir_base="/r",
+                    provider="aks",
+                    python_script_file="/scale.py",
+                    python_workdir="/wd",
+                    # worker_timeout_seconds NOT passed → None
+                )
+            self.assertEqual(rc, 0)
+        finally:
+            os.remove(cf)
+
+    def test_worker_timeout_seconds_kills_hung_worker_and_records_124(self):
+        """N=100 hardening — a worker that exceeds worker_timeout_seconds is
+        SIGTERM-ed (then SIGKILL after 30s) and its result is recorded as
+        exit 124 (timeout) regardless of what the process eventually returns.
+
+        Without this, a single stuck CL2 container at N=100 would block the
+        whole AzDO step until the 30h job timeout — losing all other 99
+        workers' completed work + the collect+upload step.
+
+        Test models the hang by setting wait_seconds well above
+        worker_timeout_seconds. _FakePopen.poll() returns None until wait()
+        completes, so the watchdog sees a live process for the duration and
+        fires after timeout_seconds.
+        """
+        clusters = [{"role": "mesh-1", "kubeconfig": "/k1"}]
+        cf = self._write_clusters(clusters)
+        try:
+            # Fake "hang" — wait sleeps 3s. Watchdog fires at 1s (rounded up
+            # to nearest 5s loop iteration → ~5s).
+            _FakePopen.reset(wait_seconds=3, default_exit=0)
+            with patch.object(clustermesh_scale_module.subprocess, "Popen", _FakePopen):
+                rc = clustermesh_scale_module.execute_parallel(
+                    clusters_file=cf,
+                    max_concurrent=1,
+                    worker_script="/w.sh",
+                    cl2_image="img",
+                    cl2_config_dir="/cfg",
+                    cl2_config_file="config.yaml",
+                    cl2_report_dir_base="/r",
+                    provider="aks",
+                    python_script_file="/scale.py",
+                    python_workdir="/wd",
+                    worker_timeout_seconds=1,
+                )
+            # Overall RC is 1 (any non-zero worker fails the run); the
+            # watchdog-fired flag forces exit 124 for the timed-out worker.
+            self.assertEqual(rc, 1)
         finally:
             os.remove(cf)
 
