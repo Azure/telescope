@@ -250,6 +250,13 @@ resource "terraform_data" "clustermeshprofile" {
   # create + apply are two separate az calls. Use bash with `set -euo pipefail`
   # so any failure aborts the chain.
   #
+  # Idempotent create: under `preserve_state_on_apply_failure: true` (set on
+  # N>=20 clustermesh-scale runs), terraform may re-run this provisioner if
+  # the previous attempt failed at `apply`. `az fleet clustermeshprofile
+  # create` would then fail with "already exists" and never reach `apply`,
+  # leaving the profile unconfigured. Guard the create with a `show`
+  # precheck so retries succeed.
+  #
   # Apply-with-retry (N=100 hardening): the `apply` operation is a Fleet RP
   # LRO that pushes peer kubeconfigs to every member's cilium-config. At
   # N=20 this typically completes in 3-10 min. At N=100 the work scales
@@ -267,8 +274,15 @@ resource "terraform_data" "clustermeshprofile" {
     interpreter = ["bash", "-c"]
     command     = <<-EOT
       set -euo pipefail
-      echo "[clustermeshprofile] create: ${self.input.create_command}"
-      ${self.input.create_command}
+      # Idempotent create: skip if the profile already exists from a prior
+      # apply attempt that landed under preserve_state_on_apply_failure.
+      _show='az fleet clustermeshprofile show --subscription ${var.subscription_id} --resource-group ${var.resource_group_name} --fleet-name ${var.fleet_name} --name ${var.cmp_name} --only-show-errors'
+      if $_show >/dev/null 2>&1; then
+        echo "[clustermeshprofile] already exists (likely retry after preserved state); skipping create"
+      else
+        echo "[clustermeshprofile] create: ${self.input.create_command}"
+        ${self.input.create_command}
+      fi
       apply_max=5
       for i in $(seq 1 $apply_max); do
         echo "[clustermeshprofile] apply attempt $i/$apply_max: ${self.input.apply_command}"
