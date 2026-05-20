@@ -694,8 +694,8 @@ class AKSMachineClient(AKSClient):
         )
         # Cap per-request timeout so a single batch PUT (plus 429 backoff)
         # cannot consume the whole operation budget that downstream
-        # provisioning/readiness waits depend on. Mirrors the cap applied at
-        # the individual machine PUT site.
+        # provisioning/readiness waits depend on. Mirrors the cap applied
+        # inside ``put_machine`` (the per-machine PUT helper).
         put_timeout = min(request.timeout, _PER_REQUEST_TIMEOUT_CAP)
         self._make_batch_request(
             "PUT",
@@ -722,10 +722,11 @@ class AKSMachineClient(AKSClient):
 
         Sends the request directly (NOT via ``make_request``) so we can attach
         the ``BatchPutMachine`` header alongside the standard auth/content-type
-        headers. Retries on HTTP 429 up to ``_BATCH_429_MAX_RETRIES`` attempts
-        with exponential backoff starting at
-        ``_BATCH_429_INITIAL_BACKOFF_SECONDS`` and doubling each attempt
-        (1s, 2s, 4s by default). All other non-2xx responses raise immediately.
+        headers. On HTTP 429, retries up to ``_BATCH_429_MAX_RETRIES`` times
+        (total ``1 + _BATCH_429_MAX_RETRIES`` attempts) with exponential
+        backoff starting at ``_BATCH_429_INITIAL_BACKOFF_SECONDS`` and
+        doubling each retry (1s, 2s, 4s by default). All other non-2xx
+        responses raise immediately.
         """
         # Compact prefix so every error/log line is self-identifying in Kusto
         # (chunk_idx + first machine name pinpoint the failing slice without
@@ -735,7 +736,8 @@ class AKSMachineClient(AKSClient):
         )
         backoff = _BATCH_429_INITIAL_BACKOFF_SECONDS
         last_resp: Optional[requests.Response] = None
-        for attempt in range(_BATCH_429_MAX_RETRIES):
+        max_attempts = 1 + _BATCH_429_MAX_RETRIES
+        for attempt in range(max_attempts):
             headers = {
                 "Authorization": f"Bearer {self._get_access_token()}",
                 "Content-Type": "application/json",
@@ -756,11 +758,11 @@ class AKSMachineClient(AKSClient):
                     f"batch request failed [{ctx}]: "
                     f"{resp.status_code} {resp.text[:500]}"
                 )
-            if attempt == _BATCH_429_MAX_RETRIES - 1:
+            if attempt == max_attempts - 1:
                 break
             logger.warning(
                 f"batch request 429 [{ctx}]; retrying in {backoff:.1f}s "
-                f"(attempt {attempt + 1}/{_BATCH_429_MAX_RETRIES})"
+                f"(retry {attempt + 1}/{_BATCH_429_MAX_RETRIES})"
             )
             time.sleep(backoff)
             backoff *= 2
