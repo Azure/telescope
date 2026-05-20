@@ -4,52 +4,28 @@ import lib.const
 import lib.steps.azure
 import lib.steps.common
 import lib.steps.k8s.runkperf
-import lib.util
 
-SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+SUBSCRIPTION_ID = const.DEFAULT_SUBSCRIPTION_ID
 RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "uksouth"
 CLUSTER = "configmaps100"
 RUNNER_IMAGE = "ghcr.io/azure/kperf:0.3.4"
 
-requestBody = util.escapeStr("""
-{
-    "location": "${LOCATION}",
-    "identity": { "type": "SystemAssigned" },
-    "sku": {
-      "name": "Base",
-      "tier": "Standard"
-    },
-    "tags": {
-      "SkipAKSCluster": "true",
-      "SkipASMAzSecPackAutoConfig": "true",
-      "SkipLinuxAzSecPack": "true"
-    },
-    "properties": {
-      "kubernetesVersion": "1.35",
-      "dnsPrefix": "${CLUSTER}-dns",
-      "agentPoolProfiles": [
-        {
-          "name": "default",
-          "mode": "System",
-          "count": 2,
-          "vmSize": "Standard_D2s_v3",
-          "osType": "Linux",
-          "nodeTaints": ["CriticalAddonsOnly=true:NoSchedule"]
-        }
-      ],
-      "networkProfile": {
-        "networkPlugin": "azure",
-        "networkPluginMode": "overlay"
-      }
-    }
-  }""")
-
 createClusterScript = """
-az rest \\
-  --method put \\
-  --uri "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.ContainerService/managedClusters/${CLUSTER}?api-version=2026-01-02-preview" \\
-  --body "${requestBody}"
+az aks create \\
+  --name "${CLUSTER}" \\
+  --resource-group "${RESOURCE_GROUP}" \\
+  --subscription "${SUBSCRIPTION_ID}" \\
+  --location "${LOCATION}" \\
+  --kubernetes-version "1.35" \\
+  --dns-prefix "${CLUSTER}-dns" \\
+  --node-count 2 \\
+  --node-vm-size "Standard_D2s_v3" \\
+  --network-plugin azure \\
+  --network-plugin-mode overlay \\
+  --nodepool-taints "CriticalAddonsOnly=true:NoSchedule" \\
+  --tier standard \\
+  --tags SkipAKSCluster=true SkipASMAzSecPackAutoConfig=true SkipLinuxAzSecPack=true
 """
 
 makeBenchmarkJob = lambda flowcontrol: str, flowcontrolLabel: str -> job.Job {
@@ -105,7 +81,7 @@ makeBenchmarkJob = lambda flowcontrol: str, flowcontrolLabel: str -> job.Job {
                 flowcontrol,
                 "list_configmaps",
                 "--total 10000 --size=1024 --group-size=10 --configmap-amount=100"),
-            runkperf.CollectKperfResult(
+            azure.CollectKperfResult(
                 const.DEFAULT_SERVICE_CONNECTION,
                 flowcontrol,
                 "--total 10000 --size=1024 --group-size=10 --configmap-amount=100",
@@ -114,9 +90,9 @@ makeBenchmarkJob = lambda flowcontrol: str, flowcontrolLabel: str -> job.Job {
                 SUBSCRIPTION_ID),
             common.UploadResult(
                 const.DEFAULT_SERVICE_CONNECTION,
-                "telescopev2",
-                "137f0351-8235-42a6-ac7a-6b46be2d21c7",
-                "aks"),
+                const.DEFAULT_STORAGE_ACCOUNT,
+                const.DEFAULT_STORAGE_SUBSCRIPTION_ID,
+                const.DEFAULT_STORAGE_CONTAINER),
             azure.DeleteResourceGroup(
                 const.DEFAULT_SERVICE_CONNECTION,
                 RESOURCE_GROUP,
@@ -136,7 +112,6 @@ makeStage = lambda flowcontrol: str, flowcontrolLabel: str -> ap.Stage {
 output = ap.Pipeline {
     name = "API Server List Configmaps"
 
-    trigger = "none"
     schedules = [ap.Cron {
         cron = "0 3 * * *"
         displayName = "Daily 3AM UTC"

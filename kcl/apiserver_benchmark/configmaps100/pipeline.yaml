@@ -1,6 +1,5 @@
 name: API Server List Configmaps
 pool: AKS-Telescope-Airlock
-trigger: none
 schedules:
 - cron: '0 3 * * *'
   displayName: Daily 3AM UTC
@@ -46,7 +45,7 @@ stages:
           set -exo pipefail
 
           az group create --name "$(RUN_ID)" --location "uksouth" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
-      displayName: Create resource group in uksouth
+      displayName: Create resource group in uksouth (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -55,41 +54,20 @@ stages:
         inlineScript: |
           set -exo pipefail
 
-          az rest \
-            --method put \
-            --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/configmaps100?api-version=2026-01-02-preview" \
-            --body "
-          {
-              \"location\": \"uksouth\",
-              \"identity\": { \"type\": \"SystemAssigned\" },
-              \"sku\": {
-                \"name\": \"Base\",
-                \"tier\": \"Standard\"
-              },
-              \"tags\": {
-                \"SkipAKSCluster\": \"true\",
-                \"SkipASMAzSecPackAutoConfig\": \"true\",
-                \"SkipLinuxAzSecPack\": \"true\"
-              },
-              \"properties\": {
-                \"kubernetesVersion\": \"1.35\",
-                \"dnsPrefix\": \"configmaps100-dns\",
-                \"agentPoolProfiles\": [
-                  {
-                    \"name\": \"default\",
-                    \"mode\": \"System\",
-                    \"count\": 2,
-                    \"vmSize\": \"Standard_D2s_v3\",
-                    \"osType\": \"Linux\",
-                    \"nodeTaints\": [\"CriticalAddonsOnly=true:NoSchedule\"]
-                  }
-                ],
-                \"networkProfile\": {
-                  \"networkPlugin\": \"azure\",
-                  \"networkPluginMode\": \"overlay\"
-                }
-              }
-            }"
+          az aks create \
+            --name "configmaps100" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --location "uksouth" \
+            --kubernetes-version "1.35" \
+            --dns-prefix "configmaps100-dns" \
+            --node-count 2 \
+            --node-vm-size "Standard_D2s_v3" \
+            --network-plugin azure \
+            --network-plugin-mode overlay \
+            --nodepool-taints "CriticalAddonsOnly=true:NoSchedule" \
+            --tier standard \
+            --tags SkipAKSCluster=true SkipASMAzSecPackAutoConfig=true SkipLinuxAzSecPack=true
       displayName: Create cluster
     - task: AzureCLI@2
       inputs:
@@ -189,8 +167,7 @@ stages:
         set -euo pipefail
         set -x
 
-        sudo -E $(command -v runkperf) -v 3 bench \
-          --kubeconfig ~/.kube/config \
+        runkperf -v 3 bench \
           --runner-image="ghcr.io/azure/kperf:0.3.4" \
           --runner-flowcontrol="workload-low:1000" \
           --result /tmp/tmp_results.json \
@@ -228,20 +205,19 @@ stages:
               cluster_id: $cluster_id
             }')
 
-          # Check for errors and upload error raw data if error rate is too high
+          # Check for errors and print error details if error rate exceeds 10%
           errors_number=$(jq -r '.result.errors | length' /tmp/tmp_results.json)
-          error_rate_too_high=$(jq -r '(1 - .result.total / (.loadSpec.count * .loadSpec.loadProfile.spec.total)) > 0' /tmp/tmp_results.json)
-          if [[ "$errors_number" != "0" && "$error_rate_too_high" == "true" ]]; then
-            cat /tmp/tmp_results.json \
-              | jq -cr ".result.errors | map(. + {run_id: \"$(RUN_ID)\", cloud: \"azure\"}) | .[]" > /tmp/errors_raw_data.json
-            echo "Error raw data:"
-            cat /tmp/errors_raw_data.json
+          error_rate=$(jq -r '1 - .result.total / (.loadSpec.count * .loadSpec.loadProfile.spec.total)' /tmp/tmp_results.json)
+          error_rate_too_high=$(echo "$error_rate > 0.1" | bc -l)
+          if [[ "$errors_number" != "0" && "$error_rate_too_high" == "1" ]]; then
+            echo "Error rate: $error_rate (>0.1), printing error details:"
+            jq -r ".result.errors | map(. + {run_id: \"$(RUN_ID)\", cloud: \"azure\"}) | .[]" /tmp/tmp_results.json
           fi
 
           # Collect final result — pack everything into the "result" field so Kusto ingests it all
           cat /tmp/tmp_results.json \
             | jq 'del(.result.errors)' \
-            | jq -c --argjson ci "$cloud_info" '{ cloud: $ci.cloud, region: $ci.region, fqdn: $ci.fqdn, private_fqdn: $ci.private_fqdn, k8s_version: $ci.k8s_version, sku_tier: $ci.sku_tier, subscription: $ci.subscription, cluster_id: $ci.cluster_id, flowcontrol: "workload-low:1000", subcmdArgs: "--total 10000 --size=1024 --group-size=10 --configmap-amount=100" } + .result | { result: . }' \
+            | jq -c --argjson ci "$cloud_info" '{ cloud: $ci.cloud, region: $ci.region, fqdn: $ci.fqdn, private_fqdn: $ci.private_fqdn, k8s_version: $ci.k8s_version, sku_tier: $ci.sku_tier, subscription: $ci.subscription, cluster_id: $ci.cluster_id, flowcontrol: "workload-low:1000", benchmark_subcmd_args: "--total 10000 --size=1024 --group-size=10 --configmap-amount=100" } + .result | { result: . }' \
             | jq -c '. + { timestamp: "'"$TIMESTAMP"'", run_id: "$(RUN_ID)", run_url: "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)", pipeline: "$(Build.DefinitionName)" }' \
             > /tmp/run-result.json
 
@@ -274,7 +250,7 @@ stages:
 
           az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
       condition: always()
-      displayName: Delete resource group
+      displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
 - stage: exempt
   displayName: exempt
   jobs:
@@ -313,7 +289,7 @@ stages:
           set -exo pipefail
 
           az group create --name "$(RUN_ID)" --location "uksouth" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
-      displayName: Create resource group in uksouth
+      displayName: Create resource group in uksouth (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -322,41 +298,20 @@ stages:
         inlineScript: |
           set -exo pipefail
 
-          az rest \
-            --method put \
-            --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/configmaps100?api-version=2026-01-02-preview" \
-            --body "
-          {
-              \"location\": \"uksouth\",
-              \"identity\": { \"type\": \"SystemAssigned\" },
-              \"sku\": {
-                \"name\": \"Base\",
-                \"tier\": \"Standard\"
-              },
-              \"tags\": {
-                \"SkipAKSCluster\": \"true\",
-                \"SkipASMAzSecPackAutoConfig\": \"true\",
-                \"SkipLinuxAzSecPack\": \"true\"
-              },
-              \"properties\": {
-                \"kubernetesVersion\": \"1.35\",
-                \"dnsPrefix\": \"configmaps100-dns\",
-                \"agentPoolProfiles\": [
-                  {
-                    \"name\": \"default\",
-                    \"mode\": \"System\",
-                    \"count\": 2,
-                    \"vmSize\": \"Standard_D2s_v3\",
-                    \"osType\": \"Linux\",
-                    \"nodeTaints\": [\"CriticalAddonsOnly=true:NoSchedule\"]
-                  }
-                ],
-                \"networkProfile\": {
-                  \"networkPlugin\": \"azure\",
-                  \"networkPluginMode\": \"overlay\"
-                }
-              }
-            }"
+          az aks create \
+            --name "configmaps100" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --location "uksouth" \
+            --kubernetes-version "1.35" \
+            --dns-prefix "configmaps100-dns" \
+            --node-count 2 \
+            --node-vm-size "Standard_D2s_v3" \
+            --network-plugin azure \
+            --network-plugin-mode overlay \
+            --nodepool-taints "CriticalAddonsOnly=true:NoSchedule" \
+            --tier standard \
+            --tags SkipAKSCluster=true SkipASMAzSecPackAutoConfig=true SkipLinuxAzSecPack=true
       displayName: Create cluster
     - task: AzureCLI@2
       inputs:
@@ -456,8 +411,7 @@ stages:
         set -euo pipefail
         set -x
 
-        sudo -E $(command -v runkperf) -v 3 bench \
-          --kubeconfig ~/.kube/config \
+        runkperf -v 3 bench \
           --runner-image="ghcr.io/azure/kperf:0.3.4" \
           --runner-flowcontrol="exempt:5" \
           --result /tmp/tmp_results.json \
@@ -495,20 +449,19 @@ stages:
               cluster_id: $cluster_id
             }')
 
-          # Check for errors and upload error raw data if error rate is too high
+          # Check for errors and print error details if error rate exceeds 10%
           errors_number=$(jq -r '.result.errors | length' /tmp/tmp_results.json)
-          error_rate_too_high=$(jq -r '(1 - .result.total / (.loadSpec.count * .loadSpec.loadProfile.spec.total)) > 0' /tmp/tmp_results.json)
-          if [[ "$errors_number" != "0" && "$error_rate_too_high" == "true" ]]; then
-            cat /tmp/tmp_results.json \
-              | jq -cr ".result.errors | map(. + {run_id: \"$(RUN_ID)\", cloud: \"azure\"}) | .[]" > /tmp/errors_raw_data.json
-            echo "Error raw data:"
-            cat /tmp/errors_raw_data.json
+          error_rate=$(jq -r '1 - .result.total / (.loadSpec.count * .loadSpec.loadProfile.spec.total)' /tmp/tmp_results.json)
+          error_rate_too_high=$(echo "$error_rate > 0.1" | bc -l)
+          if [[ "$errors_number" != "0" && "$error_rate_too_high" == "1" ]]; then
+            echo "Error rate: $error_rate (>0.1), printing error details:"
+            jq -r ".result.errors | map(. + {run_id: \"$(RUN_ID)\", cloud: \"azure\"}) | .[]" /tmp/tmp_results.json
           fi
 
           # Collect final result — pack everything into the "result" field so Kusto ingests it all
           cat /tmp/tmp_results.json \
             | jq 'del(.result.errors)' \
-            | jq -c --argjson ci "$cloud_info" '{ cloud: $ci.cloud, region: $ci.region, fqdn: $ci.fqdn, private_fqdn: $ci.private_fqdn, k8s_version: $ci.k8s_version, sku_tier: $ci.sku_tier, subscription: $ci.subscription, cluster_id: $ci.cluster_id, flowcontrol: "exempt:5", subcmdArgs: "--total 10000 --size=1024 --group-size=10 --configmap-amount=100" } + .result | { result: . }' \
+            | jq -c --argjson ci "$cloud_info" '{ cloud: $ci.cloud, region: $ci.region, fqdn: $ci.fqdn, private_fqdn: $ci.private_fqdn, k8s_version: $ci.k8s_version, sku_tier: $ci.sku_tier, subscription: $ci.subscription, cluster_id: $ci.cluster_id, flowcontrol: "exempt:5", benchmark_subcmd_args: "--total 10000 --size=1024 --group-size=10 --configmap-amount=100" } + .result | { result: . }' \
             | jq -c '. + { timestamp: "'"$TIMESTAMP"'", run_id: "$(RUN_ID)", run_url: "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)", pipeline: "$(Build.DefinitionName)" }' \
             > /tmp/run-result.json
 
@@ -541,4 +494,4 @@ stages:
 
           az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
       condition: always()
-      displayName: Delete resource group
+      displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)

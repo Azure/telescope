@@ -43,7 +43,7 @@ jobs:
         set -exo pipefail
 
         az group create --name "$(RUN_ID)" --location "westus2" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
-    displayName: Create resource group $(RUN_ID) in westus2 (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+    displayName: Create resource group in westus2 (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -277,4 +277,4 @@ jobs:
 
         az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
     condition: always()
-    displayName: Delete resource group $(RUN_ID) (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+    displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)

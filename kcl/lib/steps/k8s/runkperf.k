@@ -1,5 +1,4 @@
 import azure_pipelines.ap.steps
-import lib.steps.azure
 
 # Default constants for kperf data ingestion
 DEFAULT_QPS = 80
@@ -81,71 +80,19 @@ echo "Ingest complete: $completed ${dataType}s created."
 }
 
 # RunKperfBenchmark runs runkperf bench with the given subcommand and flow control settings.
-# Results are written to /tmp/tmp_results.json for collection by CollectKperfResult.
-RunKperfBenchmark = lambda runnerImage: str, flowcontrol: str, subcmd: str, subcmdArgs: str -> steps.Step {
+# Results are written to resultPath (default /tmp/tmp_results.json) for collection by CollectKperfResult.
+RunKperfBenchmark = lambda runnerImage: str, flowcontrol: str, benchmark_subcmd: str, benchmark_subcmd_args: str, resultPath: str = "/tmp/tmp_results.json" -> steps.Step {
     steps.Script {
         script = """
 set -euo pipefail
 set -x
 
-sudo -E $(command -v runkperf) -v 3 bench \\
-  --kubeconfig ~/.kube/config \\
+runkperf -v 3 bench \\
   --runner-image="${runnerImage}" \\
   --runner-flowcontrol="${flowcontrol}" \\
-  --result /tmp/tmp_results.json \\
-  ${subcmd} ${subcmdArgs}
+  --result ${resultPath} \\
+  ${benchmark_subcmd} ${benchmark_subcmd_args}
 """
-        displayName = "Run kperf benchmark (${subcmd}, flowcontrol=${flowcontrol})"
+        displayName = "Run kperf benchmark (${benchmark_subcmd}, flowcontrol=${flowcontrol})"
     }
-}
-
-# CollectKperfResult reads the raw kperf benchmark output, uploads error data
-# if error rate is too high, collects cloud info, and writes the formatted
-# result to /tmp/run-result.json for upload.
-CollectKperfResult = lambda serviceConnection: str, flowcontrol: str, subcmdArgs: str, cluster: str, resourceGroup: str, subscription: str -> steps.Step {
-    azure.AzCli(serviceConnection, "Collect kperf benchmark result", """
-TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
-# Collect cloud info
-aks_info=$(az aks show --resource-group "${resourceGroup}" --name "${cluster}" --subscription "${subscription}" --output json)
-cloud_info=$(jq -n \\
-  --arg cloud "azure" \\
-  --arg region "$(echo $aks_info | jq -r .location)" \\
-  --arg fqdn "$(echo $aks_info | jq -r .fqdn)" \\
-  --arg private_fqdn "$(echo $aks_info | jq -r '.privateFqdn // empty')" \\
-  --arg k8s_version "$(echo $aks_info | jq -r .currentKubernetesVersion)" \\
-  --arg sku_tier "$(echo $aks_info | jq -r .sku.tier)" \\
-  --arg subscription "${subscription}" \\
-  --arg cluster_id "$(echo $aks_info | jq -r .resourceUid)" \\
-  '{
-    cloud: $cloud,
-    region: $region,
-    fqdn: $fqdn,
-    private_fqdn: $private_fqdn,
-    k8s_version: $k8s_version,
-    sku_tier: $sku_tier,
-    subscription: $subscription,
-    cluster_id: $cluster_id
-  }')
-
-# Check for errors and upload error raw data if error rate is too high
-errors_number=$(jq -r '.result.errors | length' /tmp/tmp_results.json)
-error_rate_too_high=$(jq -r '(1 - .result.total / (.loadSpec.count * .loadSpec.loadProfile.spec.total)) > 0' /tmp/tmp_results.json)
-if [[ "$errors_number" != "0" && "$error_rate_too_high" == "true" ]]; then
-  cat /tmp/tmp_results.json \\
-    | jq -cr ".result.errors | map(. + {run_id: \\"$(RUN_ID)\\", cloud: \\"azure\\"}) | .[]" > /tmp/errors_raw_data.json
-  echo "Error raw data:"
-  cat /tmp/errors_raw_data.json
-fi
-
-# Collect final result — pack everything into the "result" field so Kusto ingests it all
-cat /tmp/tmp_results.json \\
-  | jq 'del(.result.errors)' \\
-  | jq -c --argjson ci "$cloud_info" '{ cloud: $ci.cloud, region: $ci.region, fqdn: $ci.fqdn, private_fqdn: $ci.private_fqdn, k8s_version: $ci.k8s_version, sku_tier: $ci.sku_tier, subscription: $ci.subscription, cluster_id: $ci.cluster_id, flowcontrol: "${flowcontrol}", subcmdArgs: "${subcmdArgs}" } + .result | { result: . }' \\
-  | jq -c '. + { timestamp: "'"$TIMESTAMP"'", run_id: "$(RUN_ID)", run_url: "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)", pipeline: "$(Build.DefinitionName)" }' \\
-  > /tmp/run-result.json
-
-echo "Collected result:"
-cat /tmp/run-result.json | jq .
-""")
 }
