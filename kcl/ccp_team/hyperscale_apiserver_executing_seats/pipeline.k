@@ -12,6 +12,9 @@ LOCATION = "westus2"
 CONTROL_PLANE_SCALING_SIZE = "H8"
 CLUSTER = "stg-${CONTROL_PLANE_SCALING_SIZE}-hyperscale-apiserver-seats"
 
+CL2_POOL = azure.NodePool { name = "cl2pool", sku = "Standard_D16S_v4", count = 10, taintPrefix = "cl2pool" }
+KWOK_POOL = azure.NodePool { name = "kwokpool", sku = "Standard_D8_v3", count = 60, taintPrefix = "kwok", labels = "kwok=true" }
+
 requestBody = util.escapeStr("""
 {
     "location": "${LOCATION}",
@@ -104,32 +107,25 @@ output = ap.Pipeline {
                   CLUSTER,
                   RESOURCE_GROUP,
                   SUBSCRIPTION_ID,
-                  "cl2pool",
-                  "Standard_D16S_v4",
-                  10,
-                  "cl2pool"),
+                  CL2_POOL),
                 azure.WaitForNodePoolSucceeded(
                   const.DEFAULT_SERVICE_CONNECTION,
                   CLUSTER,
                   RESOURCE_GROUP,
                   SUBSCRIPTION_ID,
-                  "cl2pool"),
+                  CL2_POOL.name),
                 azure.CreateNodePool(
                     const.DEFAULT_SERVICE_CONNECTION,
                     CLUSTER,
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID,
-                    "kwokpool",
-                    "Standard_D8_v3",
-                    60,
-                    "kwok",
-                    "kwok=true"),
+                    KWOK_POOL),
                 azure.WaitForNodePoolSucceeded(
                     const.DEFAULT_SERVICE_CONNECTION,
                     CLUSTER,
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID,
-                    "kwokpool"),
+                    KWOK_POOL.name),
                 *k8s.CreateKwokNodes(
                   15000,
                   continueOnError = True,

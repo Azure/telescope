@@ -1,30 +1,33 @@
 import azure_pipelines.ap.steps
 
-# NodePool describes a single AKS node pool: a unique pool name, the VM SKU, and the desired node count.
+# NodePool describes a single AKS node pool: a unique pool name, the VM SKU,
+# the desired node count, and optional taint/labels
 schema NodePool:
     name: str
     sku: str
     count: int
+    taintPrefix: str = ""
+    labels: str = ""
 
-CreateNodePool = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, poolName: str, vmSize: str, count: int, taintPrefix: str = "", labels: str = "", noWait: bool = False -> steps.Step {
+CreateNodePool = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, pool: NodePool, noWait: bool = False -> steps.Step {
     flagDecision = [
-        "--node-taints ${taintPrefix}=true:NoSchedule" if taintPrefix else "",
-        "--labels \"${labels}\"" if labels else "",
+        "--node-taints ${pool.taintPrefix}=true:NoSchedule" if pool.taintPrefix else "",
+        "--labels \"${pool.labels}\"" if pool.labels else "",
         "--no-wait" if noWait else "",
     ]
-    flags = " ".join([f for f in flagDecision if f])
+    flags = " \\\n  ".join([f for f in flagDecision if f])
     script = """
 az aks nodepool add \\
   --cluster-name "${cluster}" \\
   --resource-group "${resourceGroup}" \\
   --subscription "${subscription}" \\
-  --name "${poolName}" \\
-  --node-count ${count} \\
-  --node-vm-size "${vmSize}" \\
+  --name "${pool.name}" \\
+  --node-count ${pool.count} \\
+  --node-vm-size "${pool.sku}" \\
   --mode User \\
   ${flags}
 """
-    AzCli(serviceConnection, "Create node pool ${poolName}", script)
+    AzCli(serviceConnection, "Create node pool ${pool.name}", script)
 }
 
 # PlanNodePools expands a {sku: totalNodes} map into an ordered list of
@@ -51,26 +54,4 @@ PlanNodePools = lambda skuToNodes: {str:int}, maxNodesPerPool: int = 800 -> [Nod
         sku = skus[idx]
         count = counts[idx]
     } for idx in range(len(skus))]
-}
-
-# CreateNodePools emits one `az aks nodepool add --no-wait` step per NodePool,
-# so all pools provision in parallel. Typical usage is to pass the
-# [NodePool] returned by PlanNodePools, then pair this with
-# WaitForAllWorkerNodesReady (with the same [NodePool]) to gate on completion.
-CreateNodePools = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, pools: [NodePool], taintPrefix: str = "", labels: str = "" -> [steps.Step] {
-    [
-        CreateNodePool(
-            serviceConnection,
-            cluster,
-            resourceGroup,
-            subscription,
-            entry.name,
-            entry.sku,
-            entry.count,
-            taintPrefix,
-            labels,
-            True,
-        )
-        for entry in pools
-    ]
 }
