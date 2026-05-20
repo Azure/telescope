@@ -20,7 +20,6 @@ az aks create \\
   --subscription "${SUBSCRIPTION_ID}" \\
   --location "${LOCATION}" \\
   --kubernetes-version "1.35" \\
-  --dns-prefix "${CLUSTER}-dns" \\
   --node-count 2 \\
   --node-vm-size "Standard_D2s_v3" \\
   --network-plugin azure \\

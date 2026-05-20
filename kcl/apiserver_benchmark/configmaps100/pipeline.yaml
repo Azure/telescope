@@ -60,7 +60,6 @@ stages:
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --location "uksouth" \
             --kubernetes-version "1.35" \
-            --dns-prefix "configmaps100-dns" \
             --node-count 2 \
             --node-vm-size "Standard_D2s_v3" \
             --network-plugin azure \
@@ -290,7 +289,6 @@ stages:
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --location "uksouth" \
             --kubernetes-version "1.35" \
-            --dns-prefix "configmaps100-dns" \
             --node-count 2 \
             --node-vm-size "Standard_D2s_v3" \
             --network-plugin azure \
