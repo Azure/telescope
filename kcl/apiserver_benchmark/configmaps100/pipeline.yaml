@@ -76,34 +76,6 @@ stages:
         inlineScript: |
           set -exo pipefail
 
-          while true; do
-            STATE=$(az aks show \
-              --name "configmaps100" \
-              --resource-group "$(RUN_ID)" \
-              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-              --query "provisioningState" \
-              --output tsv)
-            echo "Cluster provisioning state: $STATE"
-            if [ "$STATE" = "Succeeded" ]; then
-              echo "Cluster is ready."
-              break
-            elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
-              echo "Cluster failed with state: $STATE."
-              exit 1
-            else
-              echo "Provisioning state: $STATE. Retry in 30 seconds"
-            fi
-            sleep 30
-          done
-      displayName: Wait for cluster to succeed
-    - task: AzureCLI@2
-      inputs:
-        azureSubscription: Azure-for-Telescope-internal
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          set -exo pipefail
-
           az aks get-credentials \
             --name "configmaps100" \
             --resource-group "$(RUN_ID)" \
@@ -151,7 +123,7 @@ stages:
         set -euo pipefail
         set -x
 
-        runkperf -v 3 bench \
+        /runkperf -v 3 bench \
           --runner-image="ghcr.io/azure/kperf:0.3.4" \
           --runner-flowcontrol="workload-low:1000" \
           --result /tmp/tmp_results.json \
@@ -305,34 +277,6 @@ stages:
         inlineScript: |
           set -exo pipefail
 
-          while true; do
-            STATE=$(az aks show \
-              --name "configmaps100" \
-              --resource-group "$(RUN_ID)" \
-              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-              --query "provisioningState" \
-              --output tsv)
-            echo "Cluster provisioning state: $STATE"
-            if [ "$STATE" = "Succeeded" ]; then
-              echo "Cluster is ready."
-              break
-            elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
-              echo "Cluster failed with state: $STATE."
-              exit 1
-            else
-              echo "Provisioning state: $STATE. Retry in 30 seconds"
-            fi
-            sleep 30
-          done
-      displayName: Wait for cluster to succeed
-    - task: AzureCLI@2
-      inputs:
-        azureSubscription: Azure-for-Telescope-internal
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          set -exo pipefail
-
           az aks get-credentials \
             --name "configmaps100" \
             --resource-group "$(RUN_ID)" \
@@ -380,7 +324,7 @@ stages:
         set -euo pipefail
         set -x
 
-        runkperf -v 3 bench \
+        /runkperf -v 3 bench \
           --runner-image="ghcr.io/azure/kperf:0.3.4" \
           --runner-flowcontrol="exempt:5" \
           --result /tmp/tmp_results.json \

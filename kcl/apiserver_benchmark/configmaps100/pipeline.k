@@ -52,11 +52,6 @@ makeBenchmarkJob = lambda flowcontrol: str, flowcontrolLabel: str -> job.Job {
                 const.DEFAULT_SERVICE_CONNECTION,
                 "Create cluster",
                 createClusterScript),
-            azure.WaitForClusterSucceeded(
-                const.DEFAULT_SERVICE_CONNECTION,
-                CLUSTER,
-                RESOURCE_GROUP,
-                SUBSCRIPTION_ID),
             azure.GetCredentials(
                 const.DEFAULT_SERVICE_CONNECTION,
                 CLUSTER,

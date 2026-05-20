@@ -87,7 +87,7 @@ RunKperfBenchmark = lambda runnerImage: str, flowcontrol: str, benchmark_subcmd:
 set -euo pipefail
 set -x
 
-runkperf -v 3 bench \\
+/runkperf -v 3 bench \\
   --runner-image="${runnerImage}" \\
   --runner-flowcontrol="${flowcontrol}" \\
   --result ${resultPath} \\
