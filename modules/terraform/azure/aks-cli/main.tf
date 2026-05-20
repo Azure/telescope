@@ -412,7 +412,14 @@ resource "terraform_data" "aks_wait_succeeded" {
       sleep 60
       required=3
       got=0
-      for i in $(seq 1 60); do
+      # 90 attempts × 20s = 30 min budget. Bumped from 60 (20m) for N=100
+      # ClusterMesh runs — plan.md deferred #10 observed a single cluster
+      # oscillate Updating/Succeeded for ~17 min at N=20. With 100 concurrent
+      # creates we expect a handful of clusters to exceed the old 20m budget
+      # purely from AKS RP throttling under concurrency. Strictly additive
+      # — fast clusters exit early at ~1m via the 3-consecutive-Succeeded
+      # check; only slow outliers pay the longer ceiling.
+      for i in $(seq 1 90); do
         state=$(az aks show -g "$rg" -n "$name" --query provisioningState -o tsv 2>/dev/null || echo "Unknown")
         if [ "$state" = "Succeeded" ]; then
           got=$((got + 1))
@@ -429,7 +436,7 @@ resource "terraform_data" "aks_wait_succeeded" {
         echo "AKS $name provisioningState=$state (Succeeded streak=$got/$required)"
         sleep 20
       done
-      echo "Timeout: AKS $name did not reach sustained Succeeded after ~20m"
+      echo "Timeout: AKS $name did not reach sustained Succeeded after ~30m"
       exit 1
     EOT
   }
@@ -451,7 +458,10 @@ resource "terraform_data" "aks_nodepool_cli" {
   # observed at N>=5 cluster create concurrency where the regional RP queues
   # addon installs minutes behind the parent cluster create. The retry catches
   # that race; keeping the wait avoids noisy first-attempt failures in the
-  # common (non-lazy) case. 30 retries * 30s = 15min budget.
+  # common (non-lazy) case. 60 retries * 30s = 30min budget. Bumped from
+  # 30 (15min) for N=100 ClusterMesh runs — at 100 concurrent cluster
+  # creates the AKS RP queue can hold nodepool-add operations behind
+  # cluster-create operations far longer than at smaller N.
   provisioner "local-exec" {
     interpreter = ["bash", "-c"]
     command     = <<-EOT
@@ -459,10 +469,10 @@ resource "terraform_data" "aks_nodepool_cli" {
       cmd=${jsonencode(local.extra_pool_commands[each.key])}
       pool="${each.value.name}"
       cluster="${var.aks_cli_config.aks_name}"
-      for i in $(seq 1 30); do
+      for i in $(seq 1 60); do
         out=$(eval "$cmd" 2>&1) && { echo "$out"; exit 0; }
         if echo "$out" | grep -qE "OperationNotAllowed|AnotherOperationInProgress"; then
-          echo "[retry $i/30] $cluster nodepool $pool create blocked by in-progress AKS RP operation; sleeping 30s"
+          echo "[retry $i/60] $cluster nodepool $pool create blocked by in-progress AKS RP operation; sleeping 30s"
           sleep 30
           continue
         fi
@@ -470,7 +480,7 @@ resource "terraform_data" "aks_nodepool_cli" {
         echo "$out" >&2
         exit 1
       done
-      echo "Timeout: $cluster nodepool $pool create still blocked after 30 retries (~15m)" >&2
+      echo "Timeout: $cluster nodepool $pool create still blocked after 60 retries (~30m)" >&2
       exit 1
     EOT
   }
