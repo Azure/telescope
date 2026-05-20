@@ -86,6 +86,33 @@ steps:
       REPLICAS: ${{ parameters.replicas }}
       MANIFEST_DIR: ${{ parameters.manifest_dir }}
 
+  - script: |
+      set -eo pipefail
+
+      # Deploy StatefulSets
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" statefulset \
+        --cloud "$CLOUD" \
+        --run-id "$RUN_ID" \
+        --result-dir "$RESULT_DIR" \
+        --node-pool-name "$POOL_NAME" \
+        --count "$COUNT" \
+        --replicas "$REPLICAS" \
+        ${MANIFEST_DIR:+--manifest-dir "$MANIFEST_DIR"} \
+        --step-timeout "$STEP_TIME_OUT" \
+        ${GPU_NODE_POOL:+--gpu-node-pool}
+    displayName: 'Execute K8s StatefulSet operations for ${{ parameters.cloud }}'
+    workingDirectory: modules/python
+    env:
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/crud/main.py
+      POOL_NAME: ${{ parameters.pool_name }}
+      CLOUD: ${{ parameters.cloud }}
+      STEP_TIME_OUT: ${{ parameters.step_time_out }}
+      RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
+      GPU_NODE_POOL: ${{ parameters.gpu_node_pool }}
+      COUNT: ${{ parameters.count }}
+      REPLICAS: ${{ parameters.replicas }}
+      MANIFEST_DIR: ${{ parameters.manifest_dir }}
+
 - script: |
     set -eo pipefail
 

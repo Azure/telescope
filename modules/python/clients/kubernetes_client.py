@@ -975,7 +975,8 @@ class KubernetesClient:
         valid_conditions = {
             'deployment': ['available', 'progressing', 'replicafailure', 'ready'],
             'deployments': ['available', 'progressing', 'replicafailure', 'ready'],
-            # Add more resource types as needed
+            'statefulset': ['ready'],
+            'statefulsets': ['ready'],
         }
 
         # Validate wait_condition_type format and type
@@ -1049,6 +1050,9 @@ class KubernetesClient:
             if resource_type_lower in ['deployment', 'deployments']:
                 return self._check_deployment_condition(resource_name, condition_type, namespace, wait_all)
 
+            if resource_type_lower in ['statefulset', 'statefulsets']:
+                return self._check_statefulset_condition(resource_name, namespace, wait_all)
+
             logger.warning(f"Unsupported resource type for condition checking: {resource_type}")
             return False
 
@@ -1078,6 +1082,38 @@ class KubernetesClient:
                 logger.debug("Deployment not found, waiting...")
                 return False
             raise e
+
+    def _check_statefulset_condition(self, resource_name: str, namespace: str, wait_all: bool) -> bool:
+        """Check statefulset condition (e.g., 'ready')."""
+        try:
+            if wait_all or not resource_name:
+                statefulsets = self.app.list_namespaced_stateful_set(namespace=namespace).items
+            else:
+                statefulset = self.app.read_namespaced_stateful_set(name=resource_name, namespace=namespace)
+                statefulsets = [statefulset]
+
+            for statefulset in statefulsets:
+                if not self._is_statefulset_ready(statefulset):
+                    return False
+
+            return True
+
+        except client.rest.ApiException as e:
+            if e.status == 404:
+                logger.debug("StatefulSet not found, waiting...")
+                return False
+            raise e
+
+    def _is_statefulset_ready(self, statefulset) -> bool:
+        """Check if a statefulset has all replicas ready."""
+        status = statefulset.status
+        spec_replicas = statefulset.spec.replicas or 0
+        return (
+            status is not None
+            and status.ready_replicas is not None
+            and status.ready_replicas == spec_replicas
+            and spec_replicas > 0
+        )
 
     def _is_deployment_condition_met(self, deployment, condition_type: str) -> bool:
         """Check if a deployment meets the specified condition."""
