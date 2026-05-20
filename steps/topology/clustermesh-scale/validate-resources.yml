@@ -260,6 +260,20 @@ steps:
         echo "VNet peering inventory: skipping (cluster_count=$cluster_count, not enough to be interesting)"
         exit 0
       fi
+
+      # Shared-VNet detection: in shared-VNet topology there is ONE VNet
+      # for all N clusters and 0 peerings expected. Listing peerings across
+      # N clusters in this mode is wasted work (~15 min of az calls at N=100)
+      # AND triggers a misleading "9900 expected pairs not found" warning.
+      # Probe the first cluster's RG: if there's only 1 VNet in the RG, we're
+      # in shared mode; skip the inventory.
+      first_rg=$(echo "$clusters" | jq -r '.[0].rg')
+      vnet_count_in_rg=$(az network vnet list --resource-group "$first_rg" --query 'length(@)' -o tsv --only-show-errors 2>/dev/null || echo "0")
+      if [ "$vnet_count_in_rg" = "1" ] && [ "$cluster_count" -gt 1 ]; then
+        echo "VNet peering inventory: shared-VNet topology detected (1 VNet in RG $first_rg, $cluster_count clusters); skipping per-cluster peering enumeration. Expected peerings: 0."
+        exit 0
+      fi
+
       echo "VNet peering inventory: expected $expected_peerings peerings across $cluster_count clusters"
 
       total_listed=0
@@ -376,6 +390,11 @@ steps:
         fleet_bug_count=0
         fleet_skip_count=0
         fleet_unexpected_count=0
+        # Accumulator for concat-mode rendered names so we can spot collisions
+        # at N=100 (e.g. mesh-1+id=15 vs mesh-11+id=5 both render as
+        # "mesh-115"). Cilium ClusterMesh requires unique cluster-name values
+        # across the mesh — duplicates silently break peer resolution.
+        _concat_names_table=""
         for _row in $(echo "$clusters" | jq -c '.[]'); do
           _name=$(echo "$_row" | jq -r '.name')
           _rg=$(echo "$_row" | jq -r '.rg')
@@ -416,6 +435,9 @@ steps:
             # warning when mixed with SKIPPED below.
             _status="FLEET-CONCAT (by-design)"
             fleet_bug_count=$((fleet_bug_count + 1))
+            # Track the rendered name to detect collisions at N=100. Appended
+            # one-per-line so `sort | uniq -d` finds duplicates.
+            _concat_names_table=$(printf "%s\n%s" "$_concat_names_table" "$_cn")
           else
             _status="UNEXPECTED (name='${_cn}', id='${_cid}')"
             fleet_unexpected_count=$((fleet_unexpected_count + 1))
@@ -430,8 +452,19 @@ steps:
           echo "##vso[task.logissue type=warning;] AZURE FLEET RP BUG DETECTED at N=$cluster_count: ${fleet_skip_count} cluster(s) SKIPPED by reconciler (cluster-id=0, no clustermesh-apiserver), ${fleet_unexpected_count} cluster(s) in unexpected state, ${fleet_bug_count} cluster(s) with concat-naming (by-design). Mesh convergence WILL fail due to skipped/unexpected clusters — see Phase 4b plan.md / files/fleet-clustermeshprofile-bug-67525.md for evidence + workarounds (n<=10, or move to OLD sub)."
         elif [ "$fleet_bug_count" -gt 0 ]; then
           # All clusters that aren't OK are CONCAT-by-design. Internally
-          # consistent → mesh converges. Emit info-only line; no warning.
-          echo "Fleet reconcile state: by-design — ${fleet_bug_count}/${cluster_count} clusters use Fleet concat-naming (cluster-name = <member>+<cluster-id>), 0 skipped, 0 unexpected. Mesh convergence OK (validated at n=10 build 67608)."
+          # consistent → mesh converges IFF the rendered cluster-names are
+          # unique. At N=100, two distinct (member, cluster-id) pairs can
+          # produce the same concat string — e.g. "mesh-1"+"15" =
+          # "mesh-115" = "mesh-11"+"5". Cilium ClusterMesh requires unique
+          # cluster-names; collisions silently break peer resolution.
+          dup_concat=$(echo "$_concat_names_table" | sort | uniq -d)
+          if [ -n "$dup_concat" ]; then
+            echo "##vso[task.logissue type=error;] FLEET concat-naming COLLISION at N=$cluster_count: the following cluster-name values appear on >1 cluster, which Cilium ClusterMesh cannot resolve. Failing fast. Duplicates:"
+            echo "$dup_concat"
+            exit 1
+          fi
+          # All concat-rendered names are unique → convergence-safe.
+          echo "Fleet reconcile state: by-design — ${fleet_bug_count}/${cluster_count} clusters use Fleet concat-naming (cluster-name = <member>+<cluster-id>), 0 skipped, 0 unexpected, 0 duplicate rendered names. Mesh convergence OK (validated at n=10 build 67608)."
         else
           echo "Fleet reconcile state: clean (all cluster-name values match Fleet member names)"
         fi
