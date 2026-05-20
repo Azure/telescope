@@ -697,8 +697,8 @@ class TestAKSMachineClient(unittest.TestCase):
                     timeout=30,
                     batch_header_value="{}",
                 )
-        # 1 initial attempt + _BATCH_429_MAX_RETRIES (3) retries = 4 calls
-        self.assertEqual(mock_request.call_count, 4)
+        # _BATCH_429_MAX_RETRIES == 5 total attempts (no extra initial call)
+        self.assertEqual(mock_request.call_count, 5)
 
 
 if __name__ == "__main__":

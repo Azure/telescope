@@ -47,11 +47,13 @@ _POLL_INTERVAL_SECONDS = 10
 # consume the caller's whole ``timeout`` budget before the polling loop starts.
 # The remaining budget is reserved for ``_wait_for_agentpool_provisioning``.
 _PER_REQUEST_TIMEOUT_CAP = 60
-# Bounded 429 retry budget for ``_scale_machine_batch``. The AKS RP throttles
-# BatchPutMachine independently of normal PUTs; small bursts at the start of a
-# scale-out are common, so a short exponential backoff (1s, 2s, 4s) usually
-# clears them without ballooning the chunk's wall-time.
-_BATCH_429_MAX_RETRIES = 3
+# Bounded 429 retry budget for ``_scale_machine_batch``. Total number of
+# attempts (NOT additional retries on top of an initial call). The AKS RP
+# throttles BatchPutMachine independently of normal PUTs; small bursts at
+# the start of a scale-out are common, so a short exponential backoff
+# (1s, 2s, 4s, 8s between the five attempts) usually clears them without
+# ballooning the chunk's wall-time.
+_BATCH_429_MAX_RETRIES = 5
 _BATCH_429_INITIAL_BACKOFF_SECONDS = 1.0
 
 
@@ -722,11 +724,11 @@ class AKSMachineClient(AKSClient):
 
         Sends the request directly (NOT via ``make_request``) so we can attach
         the ``BatchPutMachine`` header alongside the standard auth/content-type
-        headers. On HTTP 429, retries up to ``_BATCH_429_MAX_RETRIES`` times
-        (total ``1 + _BATCH_429_MAX_RETRIES`` attempts) with exponential
-        backoff starting at ``_BATCH_429_INITIAL_BACKOFF_SECONDS`` and
-        doubling each retry (1s, 2s, 4s by default). All other non-2xx
-        responses raise immediately.
+        headers. Calls the endpoint up to ``_BATCH_429_MAX_RETRIES`` total
+        times on HTTP 429, sleeping between attempts with exponential backoff
+        starting at ``_BATCH_429_INITIAL_BACKOFF_SECONDS`` and doubling each
+        time (1s, 2s, 4s, 8s by default). All other non-2xx responses raise
+        immediately.
         """
         # Compact prefix so every error/log line is self-identifying in Kusto
         # (chunk_idx + first machine name pinpoint the failing slice without
@@ -736,8 +738,7 @@ class AKSMachineClient(AKSClient):
         )
         backoff = _BATCH_429_INITIAL_BACKOFF_SECONDS
         last_resp: Optional[requests.Response] = None
-        max_attempts = 1 + _BATCH_429_MAX_RETRIES
-        for attempt in range(max_attempts):
+        for attempt in range(_BATCH_429_MAX_RETRIES):
             headers = {
                 "Authorization": f"Bearer {self._get_access_token()}",
                 "Content-Type": "application/json",
@@ -758,11 +759,11 @@ class AKSMachineClient(AKSClient):
                     f"batch request failed [{ctx}]: "
                     f"{resp.status_code} {resp.text[:500]}"
                 )
-            if attempt == max_attempts - 1:
+            if attempt == _BATCH_429_MAX_RETRIES - 1:
                 break
             logger.warning(
                 f"batch request 429 [{ctx}]; retrying in {backoff:.1f}s "
-                f"(retry {attempt + 1}/{_BATCH_429_MAX_RETRIES})"
+                f"(attempt {attempt + 1}/{_BATCH_429_MAX_RETRIES})"
             )
             time.sleep(backoff)
             backoff *= 2
