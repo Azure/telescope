@@ -11,6 +11,41 @@ locals {
     pool.name => pool
   }
 
+  # Pre-built `az aks nodepool add` command per extra pool. Pulled into a
+  # local so the terraform_data.aks_nodepool_cli heredoc body stays readable
+  # (avoids a multi-line interpolation inside the bash retry-loop heredoc,
+  # which `terraform fmt` otherwise mangles).
+  extra_pool_commands = {
+    for pool in var.aks_cli_config.extra_node_pool : pool.name => join(" ", [
+      "az",
+      "aks",
+      "nodepool",
+      "add",
+      "-g", var.resource_group_name,
+      "--cluster-name", var.aks_cli_config.aks_name,
+      "--nodepool-name", pool.name,
+      "--node-count", pool.node_count,
+      "--node-vm-size", pool.vm_size,
+      "--vm-set-type", pool.vm_set_type,
+      "--node-osdisk-type", pool.os_disk_type,
+      local.aks_custom_headers_flags,
+      # If the default pool uses --pod-subnet-id (Azure CNI dynamic IP
+      # allocation), AKS requires ALL agent pools to set it (or none).
+      # Without this, `az aks nodepool add` on extra pools fails with
+      # `InvalidParameter: All or none of the agentpools should set
+      # podsubnet`. Reuse the same pod subnet as the default pool — extra
+      # pools (e.g. prompool) host non-workload pods so the per-pool pod
+      # IP separation isn't meaningful here.
+      local.pod_subnet_id_parameter,
+      length(pool.optional_parameters) == 0 ?
+      "" :
+      join(" ", [
+        for param in pool.optional_parameters :
+        format("--%s %s", param.name, param.value)
+      ]),
+    ])
+  }
+
   key_management_service = (
     var.aks_cli_config.kms_config != null
     ) ? {
@@ -324,7 +359,101 @@ resource "terraform_data" "aks_cli" {
   }
 
   provisioner "local-exec" {
-    command = self.input.aks_cli_command
+    # Wrap `az aks create` in a retry loop for transient Azure RP errors
+    # that are recoverable by waiting:
+    #
+    #   - ReferencedResourceNotProvisioned: subnet (or other referenced
+    #     resource) is in `Updating` state when AKS tries to use it. At
+    #     shared-VNet scale (200 subnets / 100 AKS in clustermesh-scale
+    #     N=100), Azure serializes ALL subnet operations per-VNet — only
+    #     one PutSubnetOperation can be in flight at a time. With 100
+    #     concurrent AKS creates all attaching to different subnets in
+    #     the same shared VNet, the per-VNet serialization queue forces
+    #     some AKS creates to see a peer cluster's subnet PUT mid-flight
+    #     and reject with this error. Retry resolves it once the queue
+    #     drains.
+    #   - OperationNotAllowed / AnotherOperationInProgress: same race
+    #     pattern as aks_nodepool_cli below; another in-progress operation
+    #     on the AKS / VNet / RG blocks the create. Retry.
+    #
+    # Strictly additive: first attempt = original behavior. Other
+    # Telescope scenarios (single-cluster, peered, etc.) hit zero retries
+    # on the happy path. Only the few clusters that lose the serialization
+    # race at N=100 shared-VNet pay the retry cost.
+    #
+    # Budget: 30 retries × 60s = 30 min. Enough for the worst Azure VNet
+    # propagation tail observed in clustermesh-scale runs.
+    interpreter = ["bash", "-c"]
+    command     = <<-EOT
+      set -uo pipefail
+      cmd=${jsonencode(self.input.aks_cli_command)}
+      rg="${var.resource_group_name}"
+      name="${var.aks_cli_config.aks_name}"
+      for i in $(seq 1 15); do
+        # Idempotency precheck (build 67798 evidence): under
+        # preserve_state_on_apply_failure + AzDO retryCountOnTaskFailure,
+        # terraform may re-run this local-exec against a cluster that the
+        # previous attempt ALREADY created. Without this precheck the
+        # second `az aks create` returns "already exists" and the build
+        # fails with no recovery. Three cases:
+        #   - Cluster exists in Succeeded: nothing to do, return success
+        #   - Cluster exists in non-Succeeded (Failed/Updating/Creating):
+        #     stale half-created state from a prior attempt — delete and
+        #     re-create
+        #   - Cluster absent: proceed with create
+        existing_state=$(az aks show -g "$rg" -n "$name" --query provisioningState -o tsv --only-show-errors 2>/dev/null || echo "absent")
+        if [ "$existing_state" = "Succeeded" ]; then
+          echo "[aks_cli retry $i/15] $name already exists in Succeeded state from prior apply attempt; nothing to do"
+          exit 0
+        fi
+        if [ "$existing_state" != "absent" ]; then
+          echo "[aks_cli retry $i/15] $name exists in state '$existing_state' (stale half-created); deleting before recreate"
+          az aks delete -g "$rg" -n "$name" --yes --only-show-errors 2>&1 || \
+            echo "[aks_cli retry $i/15] az aks delete reported error; continuing anyway"
+          # Confirm delete completed (or at least no longer listable).
+          # Up to 10 min budget — typical AKS delete is 3-5 min.
+          for j in $(seq 1 30); do
+            cur=$(az aks show -g "$rg" -n "$name" --query provisioningState -o tsv --only-show-errors 2>/dev/null || echo "absent")
+            if [ "$cur" = "absent" ]; then
+              echo "[aks_cli retry $i/15] $name fully deleted; proceeding with recreate"
+              break
+            fi
+            echo "[aks_cli retry $i/15] $name still present (state=$cur), waiting 20s..."
+            sleep 20
+          done
+        fi
+
+        out=$(eval "$cmd" 2>&1) && { echo "$out"; exit 0; }
+        rc=$?
+        echo "$out"
+        # Retryable Azure RP errors. All point to transient resource-busy
+        # / serialization conditions that recover once the queue drains.
+        # Match BOTH the CamelCase code text (in JSON details[]) AND the
+        # az CLI's friendlier English text (e.g. "already exists") via
+        # case-insensitive grep.
+        #   - ReferencedResourceNotProvisioned: subnet (or other) in Updating
+        #     state when AKS tried to use it.
+        #   - VirtualNetworkNotInSucceededState: VNet itself in Updating
+        #     state during AKS create — broader cousin of the above
+        #     (build 67775 + 67788 evidence at N=100 shared-VNet).
+        #   - OperationNotAllowed / AnotherOperationInProgress: another
+        #     in-progress op on AKS/VNet/RG blocks the create.
+        #   - RetryableError: catch-all from azure-cli's own classifier.
+        #   - already exists: friendly English text for ResourceAlreadyExists
+        #     (build 67798 evidence: az CLI emits "The cluster 'X' under
+        #     resource group 'Y' already exists" not "ResourceAlreadyExists"
+        #     in stdout — original CamelCase-only grep missed this).
+        if echo "$out" | grep -qiE "ReferencedResourceNotProvisioned|VirtualNetworkNotInSucceededState|OperationNotAllowed|AnotherOperationInProgress|RetryableError|already[[:space:]]*exists"; then
+          echo "[aks_cli retry $i/15] transient Azure RP error; sleeping 60s before retry"
+          sleep 60
+          continue
+        fi
+        # Non-retryable failure (quota, invalid args, auth, etc.) — fail fast.
+        exit $rc
+      done
+      echo "[aks_cli] gave up after 15 retries — Azure RP not stabilizing" >&2
+      exit 1
+    EOT
   }
 
   provisioner "local-exec" {
@@ -333,34 +462,135 @@ resource "terraform_data" "aks_cli" {
   }
 }
 
+# Gate any subsequent `az aks ...` operations (extra node pools, post-create
+# updates) on the cluster reaching a stable provisioningState=Succeeded.
+#
+# Why this exists: `az aks create --enable-acns` (and similar addon flags
+# like --enable-azure-monitor-metrics) kicks off a PutExtensionAddonHandler
+# PUT operation that runs ASYNCHRONOUSLY after `az aks create` returns. While
+# that operation is in flight, any downstream `az aks nodepool add` (e.g. our
+# extra_node_pool / prompool) fails with:
+#   ERROR: (OperationNotAllowed) Operation is not allowed because there's an
+#   in progress PutExtensionAddonHandler.PUT operation ... Please wait for it
+#   to finish before starting a new operation.
+# The race is timing-dependent and rarely manifests with 1-2 concurrent
+# cluster creates, but is deterministic at N>=5 (regional AKS RP queues the
+# extension installs and the slowest cluster's PUT lags `az aks create` return
+# by several minutes — observed in the clustermesh-scale n5 tier).
+#
+# Polling logic: require 3 consecutive Succeeded readings 20s apart, with a
+# 60s initial buffer so any queued extension install has time to transition
+# the cluster into Updating. The consecutive requirement defends against the
+# brief Succeeded window between create-finish and extension-start. Total
+# budget ~20m.
+resource "terraform_data" "aks_wait_succeeded" {
+  count = var.aks_cli_config.dry_run ? 0 : 1
+
+  depends_on = [terraform_data.aks_cli]
+
+  input = {
+    resource_group_name = var.resource_group_name
+    aks_name            = var.aks_cli_config.aks_name
+  }
+
+  provisioner "local-exec" {
+    # local-exec defaults to /bin/sh which on Ubuntu agents is dash; dash
+    # rejects `set -o pipefail` (bash-only). Explicitly select bash so the
+    # script's safety options work as written.
+    interpreter = ["bash", "-c"]
+    command     = <<-EOT
+      set -eo pipefail
+      rg="${self.input.resource_group_name}"
+      name="${self.input.aks_name}"
+      echo "Waiting for AKS $name to reach a stable Succeeded state..."
+      sleep 60
+      required=3
+      got=0
+      # 90 attempts × 20s = 30 min budget. Bumped from 60 (20m) for N=100
+      # ClusterMesh runs — plan.md deferred #10 observed a single cluster
+      # oscillate Updating/Succeeded for ~17 min at N=20. With 100 concurrent
+      # creates we expect a handful of clusters to exceed the old 20m budget
+      # purely from AKS RP throttling under concurrency. Strictly additive
+      # — fast clusters exit early at ~1m via the 3-consecutive-Succeeded
+      # check; only slow outliers pay the longer ceiling.
+      #
+      # Fail-fast on terminal Failed state (build 67775 evidence at N=100):
+      # async ACNS addon PUTs can move a cluster from Updating → Failed AFTER
+      # `az aks create` returned. Without this fail-fast, the poll loop
+      # wastes the full 30 min before exiting 1, then preserve_state retries
+      # the wait twice more = 1.5h burned per failed cluster. Detecting
+      # Failed early lets terraform surface the error in ~1 min so the
+      # operator can react (drop parallelism, taint, etc.).
+      for i in $(seq 1 90); do
+        state=$(az aks show -g "$rg" -n "$name" --query provisioningState -o tsv 2>/dev/null || echo "Unknown")
+        if [ "$state" = "Succeeded" ]; then
+          got=$((got + 1))
+          if [ "$got" -ge "$required" ]; then
+            echo "AKS $name stable in Succeeded ($got consecutive checks). Continuing."
+            exit 0
+          fi
+        elif [ "$state" = "Failed" ]; then
+          # Terminal failure — no point polling further. Recovery (delete +
+          # recreate, or `az aks update` per the AKS RP error message) is
+          # outside this wait's contract; surface the error now.
+          echo "AKS $name is in terminal Failed state — fail-fast (not polling further)"
+          exit 1
+        else
+          if [ "$got" -gt 0 ]; then
+            echo "AKS $name re-entered '$state' after Succeeded streak; resetting counter"
+          fi
+          got=0
+        fi
+        echo "AKS $name provisioningState=$state (Succeeded streak=$got/$required)"
+        sleep 20
+      done
+      echo "Timeout: AKS $name did not reach sustained Succeeded after ~30m"
+      exit 1
+    EOT
+  }
+}
+
 resource "terraform_data" "aks_nodepool_cli" {
   depends_on = [
-    terraform_data.aks_cli
+    terraform_data.aks_cli,
+    terraform_data.aks_wait_succeeded,
   ]
 
   for_each = local.extra_pool_map
 
+  # Wrap the underlying `az aks nodepool add` (built in locals.extra_pool_commands)
+  # in a bash retry loop that handles the OperationNotAllowed / AnotherOperationInProgress
+  # AKS RP race window. Even with terraform_data.aks_wait_succeeded gating
+  # this on a stable cluster Succeeded state, the AKS RP can lazily start
+  # post-create extension PUTs (e.g. --enable-acns) AFTER the wait exits —
+  # observed at N>=5 cluster create concurrency where the regional RP queues
+  # addon installs minutes behind the parent cluster create. The retry catches
+  # that race; keeping the wait avoids noisy first-attempt failures in the
+  # common (non-lazy) case. 60 retries * 30s = 30min budget. Bumped from
+  # 30 (15min) for N=100 ClusterMesh runs — at 100 concurrent cluster
+  # creates the AKS RP queue can hold nodepool-add operations behind
+  # cluster-create operations far longer than at smaller N.
   provisioner "local-exec" {
-    command = join(" ", [
-      "az",
-      "aks",
-      "nodepool",
-      "add",
-      "-g", var.resource_group_name,
-      "--cluster-name", var.aks_cli_config.aks_name,
-      "--nodepool-name", each.value.name,
-      "--node-count", each.value.node_count,
-      "--node-vm-size", each.value.vm_size,
-      "--vm-set-type", each.value.vm_set_type,
-      "--node-osdisk-type", each.value.os_disk_type,
-      local.aks_custom_headers_flags,
-      length(each.value.optional_parameters) == 0 ?
-      "" :
-      join(" ", [
-        for param in each.value.optional_parameters :
-        format("--%s %s", param.name, param.value)
-      ]),
-    ])
+    interpreter = ["bash", "-c"]
+    command     = <<-EOT
+      set -eo pipefail
+      cmd=${jsonencode(local.extra_pool_commands[each.key])}
+      pool="${each.value.name}"
+      cluster="${var.aks_cli_config.aks_name}"
+      for i in $(seq 1 60); do
+        out=$(eval "$cmd" 2>&1) && { echo "$out"; exit 0; }
+        if echo "$out" | grep -qE "OperationNotAllowed|AnotherOperationInProgress"; then
+          echo "[retry $i/60] $cluster nodepool $pool create blocked by in-progress AKS RP operation; sleeping 30s"
+          sleep 30
+          continue
+        fi
+        # Some other failure (quota, invalid args, etc.) — fail fast.
+        echo "$out" >&2
+        exit 1
+      done
+      echo "Timeout: $cluster nodepool $pool create still blocked after 60 retries (~30m)" >&2
+      exit 1
+    EOT
   }
 }
 

@@ -1,0 +1,264 @@
+name: clustermesh-ha-config
+
+# Scale scenario #7: HA Configuration Validation.
+#
+# Goal (scale testing.txt line 115-126): compare identical workloads with
+# clustermesh-apiserver replicas=1 (baseline = scenario #4) vs replicas=N
+# (HA on). Measure resource overhead, failover time, event duplication.
+#
+# Design: this scenario clones scenario #4 (apiserver-failure) and adds two
+# new pre/post steps:
+#   - BEFORE measurements start: scale clustermesh-apiserver Deployment on
+#     EVERY cluster to CL2_HA_CONFIG_REPLICAS (default 3). Mesh-wide HA is
+#     the realistic production config; scaling only the target cluster would
+#     conflate HA-overhead measurements with single-cluster outliers.
+#   - AFTER gather: scale back to 1 replica (cleanup). Best-effort; the
+#     cluster is destroyed shortly after anyway.
+#
+# Cross-scenario A/B in Kusto: query rows where test_type in
+# ("apiserver-failure","ha-config"), join on cluster + measurement.
+#
+# - apiserver-failure-killer.sh is reused for the kill phase. It correctly
+#   handles HA replicas now (pre-kill UID set capture + Ready filter against
+#   that set — see commit "phase 4b: fix apiserver-failure killer
+#   false-success with HA replicas").
+# - ha-config-scaler.sh handles the scale-up/scale-down + ENO-revert
+#   detection (timing JSON tags ha_replicas_honored true|false).
+#
+# Sequence:
+#   1. Annotate workload namespaces (CFP-39876 opt-in).
+#   2. HA SCALE-UP: every cluster scales clustermesh-apiserver to N replicas.
+#   3. Start measurements.
+#   4. Deploy PodMonitor + workload (200 pods + global services).
+#   5. Initial WaitForControlledPodsRunning gate.
+#   6. Warmup sleep.
+#   7. Method:Exec → apiserver-failure-killer.sh. On target cluster: kills
+#      ONE of N pods; survivors should continue serving (HA invariant).
+#      On non-target clusters: no-op.
+#   8. Observation sleep.
+#   9. Settle sleep.
+#   10. Gather measurements.
+#   11. HA SCALE-DOWN: every cluster scales back to 1 (cleanup).
+#   12. Teardown.
+
+{{$namespaces := DefaultParam .CL2_NAMESPACES 5}}
+{{$deploymentsPerNamespace := DefaultParam .CL2_DEPLOYMENTS_PER_NAMESPACE 4}}
+{{$replicasPerDeployment := DefaultParam .CL2_REPLICAS_PER_DEPLOYMENT 10}}
+{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "20m"}}
+{{$apiServerCallsPerSecond := DefaultParam .CL2_API_SERVER_CALLS_PER_SECOND 20}}
+{{$warmupDuration := DefaultParam .CL2_WARMUP_DURATION "60s"}}
+{{$holdDuration := DefaultParam .CL2_HOLD_DURATION "60s"}}
+{{$apiserverKillTargetContext := DefaultParam .CL2_APISERVER_KILL_TARGET_CONTEXT "clustermesh-1"}}
+{{$apiserverKillRecoveryTimeoutSeconds := DefaultParam .CL2_APISERVER_KILL_RECOVERY_TIMEOUT_SECONDS 240}}
+{{$apiserverKillObservationSeconds := DefaultParam .CL2_APISERVER_KILL_OBSERVATION_SECONDS 60}}
+{{$haConfigReplicas := DefaultParam .CL2_HA_CONFIG_REPLICAS 3}}
+
+{{$workloadGroup := "clustermesh-ha-config"}}
+{{$workloadBasename := "ha"}}
+
+namespace:
+  number: {{$namespaces}}
+  prefix: clustermesh-ha
+  deleteStaleNamespaces: true
+  deleteAutomanagedNamespaces: true
+  enableExistingNamespaces: false
+  deleteNamespaceTimeout: 20m
+
+tuningSets:
+  - name: Sequence
+    parallelismLimitedLoad:
+      parallelismLimit: 1
+  - name: DeploymentCreateQps
+    qpsLoad:
+      qps: {{$apiServerCallsPerSecond}}
+
+steps:
+  # ----- CFP-39876 opt-in: annotate workload namespaces -----
+  - name: Annotate workload namespaces for ACNS cross-cluster sync
+    measurements:
+      - Identifier: AnnotateNamespacesForGlobalSync
+        Method: Exec
+        Params:
+          streamOutput: true
+          timeout: 1m
+          command:
+          - bash
+          - /root/perf-tests/clusterloader2/config/annotate-namespaces.sh
+          - "{{$namespaces}}"
+          - "clustermesh-ha"
+
+  # ----- HA scale-up (BEFORE start measurements so steady-state HA values
+  # are captured). Every cluster scales its own clustermesh-apiserver.
+  - name: Scale clustermesh-apiserver to HA replicas
+    measurements:
+      - Identifier: HAConfigScaler-up
+        Method: Exec
+        Params:
+          streamOutput: true
+          # Generous timeout: 240s rollout + 30s revert-check + slack.
+          timeout: 6m
+          command:
+          - bash
+          - /root/perf-tests/clusterloader2/config/ha-config-scaler.sh
+          - scale-up
+          - "{{$haConfigReplicas}}"
+
+  # ----- Start measurements (with HA replicas already in place) -----
+  - module:
+      path: /modules/measurements/control-plane.yaml
+      params:
+        action: start
+        group: {{$workloadGroup}}
+
+  - module:
+      path: /modules/measurements/cilium.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/clustermesh-metrics.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/etcd-metrics.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/apiserver-failure.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/clustermesh.yaml
+      params:
+        actionName: create
+        tuningSet: DeploymentCreateQps
+
+  # ----- Workload deploy + initial settle -----
+  - name: Start tracking ha-config Deployments
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-ha-initial
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: start
+          apiVersion: apps/v1
+          kind: Deployment
+          checkIfPodsAreUpdated: true
+          labelSelector: group = {{$workloadGroup}}
+          operationTimeout: {{$operationTimeout}}
+
+  - module:
+      path: /modules/pod-churn-workload.yaml
+      params:
+        actionName: apply
+        replicas: {{$replicasPerDeployment}}
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        tuningSet: DeploymentCreateQps
+        group: {{$workloadGroup}}
+        basename: {{$workloadBasename}}
+
+  - name: Wait for initial ha-config pods to be Running
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-ha-initial
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+
+  - name: Warmup before kill
+    measurements:
+      - Identifier: WarmupSleep
+        Method: Sleep
+        Params:
+          duration: {{$warmupDuration}}
+
+  # ----- KILL one of N apiserver replicas (target cluster only) -----
+  - name: Kill apiserver on target cluster (1 of N replicas)
+    measurements:
+      - Identifier: ApiserverFailureKiller
+        Method: Exec
+        Params:
+          streamOutput: true
+          timeout: 5m
+          command:
+          - bash
+          - /root/perf-tests/clusterloader2/config/apiserver-failure-killer.sh
+          - "{{$apiserverKillTargetContext}}"
+          - "{{$apiserverKillRecoveryTimeoutSeconds}}"
+
+  # ----- Observation: HA invariant should keep remote-clusters-connected
+  # at max (cluster_count-1) throughout; scenario #4 baseline dips during
+  # the kill window.
+  - name: Observe during failure + recovery (HA invariant test)
+    measurements:
+      - Identifier: ObservationSleep
+        Method: Sleep
+        Params:
+          duration: {{$apiserverKillObservationSeconds}}s
+
+  - name: Settle for backlog drain
+    measurements:
+      - Identifier: SettleSleep
+        Method: Sleep
+        Params:
+          duration: {{$holdDuration}}
+
+  # ----- Gather measurements (HA still active) -----
+  - module:
+      path: /modules/measurements/control-plane.yaml
+      params:
+        action: gather
+        group: {{$workloadGroup}}
+
+  - module:
+      path: /modules/measurements/cilium.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/clustermesh-metrics.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/etcd-metrics.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/apiserver-failure.yaml
+      params:
+        action: gather
+
+  # ----- HA scale-down (cleanup) -----
+  - name: Scale clustermesh-apiserver back to 1 replica
+    measurements:
+      - Identifier: HAConfigScaler-down
+        Method: Exec
+        Params:
+          streamOutput: true
+          timeout: 3m
+          command:
+          - bash
+          - /root/perf-tests/clusterloader2/config/ha-config-scaler.sh
+          - scale-down
+
+  # ----- Teardown -----
+  - module:
+      path: /modules/pod-churn-workload.yaml
+      params:
+        actionName: delete
+        replicas: 0
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        tuningSet: DeploymentCreateQps
+        group: {{$workloadGroup}}
+        basename: {{$workloadBasename}}
+
+  - module:
+      path: /modules/clustermesh.yaml
+      params:
+        actionName: delete
+        tuningSet: DeploymentCreateQps

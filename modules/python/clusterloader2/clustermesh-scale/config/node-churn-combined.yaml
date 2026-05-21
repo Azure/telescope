@@ -1,0 +1,221 @@
+name: clustermesh-node-churn-combined
+
+# Scale scenario #3 (Node Churn / IP Churn) — combined flavor.
+#
+# Both spec stimuli (scale + replace) driven serially by the SAME
+# host-side node-churner.sh invocation (mode=node-churn-combined),
+# against the same provisioned clusters. Used for share-infra runs to
+# maximize signal per expensive n=20 provision lifecycle.
+#
+# Sequence on the host (executed by node-churner.sh):
+#   1. Wait for ready-sentinels from all clusters.
+#   2. Run scale phase ($NODE_CHURN_CYCLES cycles of ±$NODE_CHURN_DELTA).
+#   3. Settle $NODE_CHURN_SETTLE_SECONDS.
+#   4. Run replace phase (drain + VMSS delete K instances, wait refill).
+#   5. EXIT trap restores pool to original_node_count.
+#
+# CL2-side behavior is identical to node-churn-scale.yaml /
+# node-churn-replace.yaml — workload deploy + ready-sentinel + sleep +
+# gather — but with a longer sleep window equal to scale + replace
+# phase walltimes summed plus settle margin.
+
+{{$namespaces := DefaultParam .CL2_NAMESPACES 5}}
+{{$deploymentsPerNamespace := DefaultParam .CL2_DEPLOYMENTS_PER_NAMESPACE 4}}
+{{$replicasPerDeployment := DefaultParam .CL2_REPLICAS_PER_DEPLOYMENT 10}}
+{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "20m"}}
+{{$apiServerCallsPerSecond := DefaultParam .CL2_API_SERVER_CALLS_PER_SECOND 20}}
+{{$warmupDuration := DefaultParam .CL2_WARMUP_DURATION "30s"}}
+{{$holdDuration := DefaultParam .CL2_HOLD_DURATION "2m"}}
+
+# Default 3300s = 55min: 30min scale phase + 25min replace phase + margin.
+{{$combinedDurationSeconds := DefaultParam .CL2_NODE_CHURN_COMBINED_DURATION_SECONDS 3300}}
+
+{{$group := "clustermesh-node-churn-combined"}}
+{{$basename := "ncc"}}
+
+namespace:
+  number: {{$namespaces}}
+  prefix: clustermesh-ncc
+  deleteStaleNamespaces: true
+  deleteAutomanagedNamespaces: true
+  enableExistingNamespaces: false
+  deleteNamespaceTimeout: 20m
+
+tuningSets:
+  - name: Sequence
+    parallelismLimitedLoad:
+      parallelismLimit: 1
+  - name: DeploymentCreateQps
+    qpsLoad:
+      qps: {{$apiServerCallsPerSecond}}
+
+steps:
+  - name: Annotate workload namespaces for ACNS cross-cluster sync
+    measurements:
+      - Identifier: AnnotateNamespacesForGlobalSync
+        Method: Exec
+        Params:
+          streamOutput: true
+          timeout: 1m
+          command:
+          - bash
+          - /root/perf-tests/clusterloader2/config/annotate-namespaces.sh
+          - "{{$namespaces}}"
+          - "clustermesh-ncc"
+
+  - module:
+      path: /modules/measurements/control-plane.yaml
+      params:
+        action: start
+        group: {{$group}}
+
+  - module:
+      path: /modules/measurements/cilium.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/clustermesh-metrics.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/etcd-metrics.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/node-churn.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/clustermesh.yaml
+      params:
+        actionName: create
+        tuningSet: DeploymentCreateQps
+
+  - name: Start tracking node-churn-combined Deployments
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-node-churn-combined
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: start
+          apiVersion: apps/v1
+          kind: Deployment
+          checkIfPodsAreUpdated: true
+          labelSelector: group = {{$group}}
+          operationTimeout: {{$operationTimeout}}
+
+  - module:
+      path: /modules/pod-churn-workload.yaml
+      params:
+        actionName: apply
+        replicas: {{$replicasPerDeployment}}
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        tuningSet: DeploymentCreateQps
+        group: {{$group}}
+        basename: {{$basename}}
+
+  - name: Wait for initial node-churn-combined pods to be Running
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-node-churn-combined
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+
+  - name: Warmup before node-churn-combined stimulus window
+    measurements:
+      - Identifier: WarmupSleep
+        Method: Sleep
+        Params:
+          duration: {{$warmupDuration}}
+
+  - name: Signal CL2 ready to host-side node-churner
+    measurements:
+      - Identifier: NodeChurnReadySentinel
+        Method: Exec
+        Params:
+          streamOutput: true
+          timeout: 30s
+          command:
+          - bash
+          - /root/perf-tests/clusterloader2/config/write-ready-sentinel.sh
+          - /root/perf-tests/clusterloader2/config/sentinels
+
+  - name: Observe node-churn-combined stimulus window
+    measurements:
+      - Identifier: NodeChurnObservationSleep
+        Method: Sleep
+        Params:
+          duration: {{$combinedDurationSeconds}}s
+
+  - name: Wait for post-node-churn-combined pods to be Running
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-node-churn-combined-final
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: start
+          apiVersion: apps/v1
+          kind: Deployment
+          checkIfPodsAreUpdated: true
+          labelSelector: group = {{$group}}
+          operationTimeout: {{$operationTimeout}}
+
+  - name: Final wait for pods to converge after node-churn-combined
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-node-churn-combined-final
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+
+  - name: Settle after node-churn-combined
+    measurements:
+      - Identifier: SettleSleep
+        Method: Sleep
+        Params:
+          duration: {{$holdDuration}}
+
+  - module:
+      path: /modules/measurements/control-plane.yaml
+      params:
+        action: gather
+        group: {{$group}}
+
+  - module:
+      path: /modules/measurements/cilium.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/clustermesh-metrics.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/etcd-metrics.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/node-churn.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/pod-churn-workload.yaml
+      params:
+        actionName: delete
+        replicas: 0
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        tuningSet: DeploymentCreateQps
+        group: {{$group}}
+        basename: {{$basename}}
+
+  - module:
+      path: /modules/clustermesh.yaml
+      params:
+        actionName: delete
+        tuningSet: DeploymentCreateQps

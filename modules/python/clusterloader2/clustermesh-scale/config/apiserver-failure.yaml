@@ -1,0 +1,231 @@
+name: clustermesh-apiserver-failure
+
+# Scale scenario #4: ClusterMesh APIServer Failure.
+#
+# Goal (scale testing.txt line 80-91): validate resilience and recovery
+# behavior when ONE clustermesh-apiserver pod dies in a meshed cluster.
+# Measure detection time (how fast peers notice), recovery time (how fast
+# the pod is replaced + serving), backlog drain time (how fast queues
+# clear after recovery).
+#
+# Single-cluster failure pattern: kill the apiserver pod on a designated
+# target cluster (default "clustermesh-1"). Other clusters' CL2 invocations
+# run the same script but no-op based on `kubectl config current-context`
+# comparison. The target cluster's killer records t0/t1 timestamps in a
+# JSON file at the report dir; scale.py collect picks it up and surfaces
+# the timing as an `ApiserverFailureRecoveryTiming` row in the JSONL.
+#
+# Per-cluster Prometheus must be running on every cluster DURING the kill
+# for peer-side observations to land. With CL2_MAX_CONCURRENT < mesh_size,
+# only some clusters' Prom are active simultaneously; at n=2/n=5 this is
+# fine (concurrency=4 default >= cluster count), but at n=20 we may need
+# to bump max_concurrent or accept partial peer observation. See plan.md
+# Phase 4b notes.
+#
+# Sequence:
+#   1. Annotate workload namespaces (CFP-39876 opt-in).
+#   2. Start measurements.
+#   3. Deploy PodMonitor + workload (200 pods + global services, same
+#      pattern as event-throughput).
+#   4. Initial WaitForControlledPodsRunning gate.
+#   5. Warmup sleep — mesh stabilizes.
+#   6. Method:Exec → apiserver-failure-killer.sh. On target cluster:
+#      verifies pod identity, hard-kills it, waits for new Ready pod,
+#      writes timing JSON. On non-target clusters: no-op.
+#   7. Observation sleep — let detection + recovery happen.
+#   8. Settle sleep — backlog drain.
+#   9. Gather measurements (mirrors start).
+#   10. Teardown.
+
+{{$namespaces := DefaultParam .CL2_NAMESPACES 5}}
+{{$deploymentsPerNamespace := DefaultParam .CL2_DEPLOYMENTS_PER_NAMESPACE 4}}
+{{$replicasPerDeployment := DefaultParam .CL2_REPLICAS_PER_DEPLOYMENT 10}}
+{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "20m"}}
+{{$apiServerCallsPerSecond := DefaultParam .CL2_API_SERVER_CALLS_PER_SECOND 20}}
+{{$warmupDuration := DefaultParam .CL2_WARMUP_DURATION "60s"}}
+{{$holdDuration := DefaultParam .CL2_HOLD_DURATION "60s"}}
+{{$apiserverKillTargetContext := DefaultParam .CL2_APISERVER_KILL_TARGET_CONTEXT "clustermesh-1"}}
+{{$apiserverKillRecoveryTimeoutSeconds := DefaultParam .CL2_APISERVER_KILL_RECOVERY_TIMEOUT_SECONDS 240}}
+{{$apiserverKillObservationSeconds := DefaultParam .CL2_APISERVER_KILL_OBSERVATION_SECONDS 60}}
+
+{{$workloadGroup := "clustermesh-apiserver-failure"}}
+{{$workloadBasename := "apf"}}
+
+namespace:
+  number: {{$namespaces}}
+  prefix: clustermesh-apf
+  deleteStaleNamespaces: true
+  deleteAutomanagedNamespaces: true
+  enableExistingNamespaces: false
+  deleteNamespaceTimeout: 20m
+
+tuningSets:
+  - name: Sequence
+    parallelismLimitedLoad:
+      parallelismLimit: 1
+  - name: DeploymentCreateQps
+    qpsLoad:
+      qps: {{$apiServerCallsPerSecond}}
+
+steps:
+  # ----- CFP-39876 opt-in: annotate workload namespaces -----
+  - name: Annotate workload namespaces for ACNS cross-cluster sync
+    measurements:
+      - Identifier: AnnotateNamespacesForGlobalSync
+        Method: Exec
+        Params:
+          streamOutput: true
+          timeout: 1m
+          command:
+          - bash
+          - /root/perf-tests/clusterloader2/config/annotate-namespaces.sh
+          - "{{$namespaces}}"
+          - "clustermesh-apf"
+
+  # ----- Start measurements -----
+  - module:
+      path: /modules/measurements/control-plane.yaml
+      params:
+        action: start
+        group: {{$workloadGroup}}
+
+  - module:
+      path: /modules/measurements/cilium.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/clustermesh-metrics.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/etcd-metrics.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/apiserver-failure.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/clustermesh.yaml
+      params:
+        actionName: create
+        tuningSet: DeploymentCreateQps
+
+  # ----- Workload deploy + initial settle -----
+  - name: Start tracking apiserver-failure Deployments
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-apf-initial
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: start
+          apiVersion: apps/v1
+          kind: Deployment
+          checkIfPodsAreUpdated: true
+          labelSelector: group = {{$workloadGroup}}
+          operationTimeout: {{$operationTimeout}}
+
+  - module:
+      path: /modules/pod-churn-workload.yaml
+      params:
+        actionName: apply
+        replicas: {{$replicasPerDeployment}}
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        tuningSet: DeploymentCreateQps
+        group: {{$workloadGroup}}
+        basename: {{$workloadBasename}}
+
+  - name: Wait for initial apiserver-failure pods to be Running
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-apf-initial
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+
+  - name: Warmup before kill
+    measurements:
+      - Identifier: WarmupSleep
+        Method: Sleep
+        Params:
+          duration: {{$warmupDuration}}
+
+  # ----- KILL APISERVER (target cluster only) -----
+  - name: Kill apiserver on target cluster
+    measurements:
+      - Identifier: ApiserverFailureKiller
+        Method: Exec
+        Params:
+          streamOutput: true
+          # Generous timeout: covers warmup-budget-exceeded + recovery_timeout
+          # + slow pod schedule. Worst-case ~3min.
+          timeout: 5m
+          command:
+          - bash
+          - /root/perf-tests/clusterloader2/config/apiserver-failure-killer.sh
+          - "{{$apiserverKillTargetContext}}"
+          - "{{$apiserverKillRecoveryTimeoutSeconds}}"
+
+  # ----- Observation window: peers detect failure, then see recovery -----
+  - name: Observe during failure + recovery
+    measurements:
+      - Identifier: ObservationSleep
+        Method: Sleep
+        Params:
+          duration: {{$apiserverKillObservationSeconds}}s
+
+  # ----- Settle: backlog drain post-recovery -----
+  - name: Settle for backlog drain
+    measurements:
+      - Identifier: SettleSleep
+        Method: Sleep
+        Params:
+          duration: {{$holdDuration}}
+
+  # ----- Gather measurements -----
+  - module:
+      path: /modules/measurements/control-plane.yaml
+      params:
+        action: gather
+        group: {{$workloadGroup}}
+
+  - module:
+      path: /modules/measurements/cilium.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/clustermesh-metrics.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/etcd-metrics.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/apiserver-failure.yaml
+      params:
+        action: gather
+
+  # ----- Teardown -----
+  - module:
+      path: /modules/pod-churn-workload.yaml
+      params:
+        actionName: delete
+        replicas: 0
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        tuningSet: DeploymentCreateQps
+        group: {{$workloadGroup}}
+        basename: {{$workloadBasename}}
+
+  - module:
+      path: /modules/clustermesh.yaml
+      params:
+        actionName: delete
+        tuningSet: DeploymentCreateQps
