@@ -47,6 +47,14 @@ _POLL_INTERVAL_SECONDS = 10
 # consume the caller's whole ``timeout`` budget before the polling loop starts.
 # The remaining budget is reserved for ``_wait_for_agentpool_provisioning``.
 _PER_REQUEST_TIMEOUT_CAP = 60
+# Bounded 429 retry budget for ``_scale_machine_batch``. Total number of
+# attempts (NOT additional retries on top of an initial call). The AKS RP
+# throttles BatchPutMachine independently of normal PUTs; small bursts at
+# the start of a scale-out are common, so a short exponential backoff
+# (1s, 2s, 4s, 8s between the five attempts) usually clears them without
+# ballooning the chunk's wall-time.
+_BATCH_429_MAX_RETRIES = 5
+_BATCH_429_INITIAL_BACKOFF_SECONDS = 1.0
 
 
 class AKSMachineClient(AKSClient):
@@ -375,8 +383,10 @@ class AKSMachineClient(AKSClient):
         Flow:
           1. Snapshot the current Ready+labeled node count in the agentpool
              (``baseline_count``) so the readiness watcher counts only NEW nodes.
-          2. Submit machine PUTs individually (per-machine ARM polling is
-             intentionally NOT performed).
+          2. Submit machine PUTs -- individually by default, or sharded into
+             ``machine_workers`` chunks where each chunk is sent as a single
+             ``BatchPutMachine``-headered PUT when ``use_batch_api=True`` (per-
+             machine ARM polling is intentionally NOT performed in either path).
           3. Wait ONCE on the agentpool-level provisioningState.
           4. Wait for nodes labeled ``agentpool=<pool>`` to surpass
              ``baseline_count`` by enough to satisfy P50/P70/P90/P99/P100 targets.
@@ -384,19 +394,14 @@ class AKSMachineClient(AKSClient):
         ``tags`` is currently unused (Machine API rejects top-level tags on the
         machine PUT body; machines inherit tags from the parent agentpool).
 
-        The ``use_batch_api=True`` branch is stubbed on this PR and raises
-        ``NotImplementedError``; it will land in a follow-up PR.
+        See ``_create_batch_machines`` for the batch chunking contract and the
+        ``BatchPutMachine`` header schema.
 
         Raises:
-            NotImplementedError: ``use_batch_api=True``.
             RuntimeError: fewer machines landed than requested, agentpool did
                 not reach Succeeded within ``timeout``, or P100 readiness did
                 not complete within ``readiness_wait_timeout``.
         """
-        if use_batch_api:
-            raise NotImplementedError(
-                "scale_machine batch path (use_batch_api=True) lands in a follow-up PR"
-            )
         cluster_name = cluster_name or self.get_cluster_name()
         metadata = {
             "cluster_name": cluster_name,
@@ -446,7 +451,12 @@ class AKSMachineClient(AKSClient):
                 names = [
                     f"{prefix}-machine-{i + 1}" for i in range(scale_machine_count)
                 ]
-                successful = self._scale_machine_individually(request, names)
+                command_t0 = time.time()
+                if use_batch_api:
+                    successful = self._scale_machine_batch(request, names)
+                else:
+                    successful = self._scale_machine_individually(request, names)
+                op.add_metadata("command_execution_time", time.time() - command_t0)
                 op.add_metadata("successful_machines", successful)
 
                 # Fail fast on partial landing BEFORE waiting on the agentpool
@@ -573,3 +583,192 @@ class AKSMachineClient(AKSClient):
             logger.error(f"PUT machine {name} -> {resp.status_code} {resp.text[:500]}")
             return False
         return True
+
+    # ---- Machine API: batch scale path ----
+    def _scale_machine_batch(
+        self,
+        request: SimpleNamespace,
+        names: List[str],
+    ) -> List[str]:
+        """Dispatch ``names`` across ``machine_workers`` worker slices via the Batch API.
+
+        Each worker submits exactly one ``BatchPutMachine``-headered PUT carrying a
+        contiguous slice of ``names``. Slices are computed by arithmetic from the
+        ``worker_id``.
+
+        ``scale_machine_count`` MUST be an exact multiple of ``machine_workers``;
+        ``ValueError`` is raised otherwise so the failure surfaces at the
+        ``MachineCRUD`` boundary instead of producing a short final chunk that
+        would skew per-chunk latency dashboards.
+
+        Per-worker exceptions are caught and logged; the worker's slice is
+        excluded from the returned ``successful`` list. The input ``request``
+        is not mutated.
+        """
+        n = len(names)
+        workers = request.machine_workers
+        if workers <= 0:
+            raise ValueError(f"machine_workers must be positive (got {workers})")
+        if n % workers != 0:
+            raise ValueError(
+                f"scale_machine_count ({n}) must be an exact multiple of "
+                f"machine_workers ({workers}) when use_batch_api=True; "
+                f"got remainder {n % workers}"
+            )
+        per_worker = n // workers
+        successful: List[str] = []
+
+        def run_worker(worker_id: int) -> List[str]:
+            start = worker_id * per_worker
+            chunk = names[start:start + per_worker]
+            try:
+                return self._create_batch_machines(request, chunk, worker_id)
+            except Exception:
+                logger.exception(f"batch worker {worker_id} failed")
+                return []
+
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            futures = [ex.submit(run_worker, w) for w in range(workers)]
+            for fut in as_completed(futures):
+                try:
+                    created = fut.result()
+                except Exception:
+                    # run_worker already swallows; this is belt-and-suspenders.
+                    logger.exception("unexpected error retrieving batch worker result")
+                    continue
+                successful.extend(created)
+        return successful
+
+    def _create_batch_machines(
+        self,
+        request: SimpleNamespace,
+        chunk: List[str],
+        chunk_idx: int,
+    ) -> List[str]:
+        """Submit a batch-PUT request creating every machine in ``chunk``.
+
+        Uses the AKS Machine API ``BatchPutMachine`` HEADER pattern (implicit
+        contract with AKS NAP, not publicly available): a single PUT to the first
+        machine name in ``chunk`` carrying a ``BatchPutMachine`` header whose
+        value is JSON containing ``vmSkus`` and ``batchMachines`` lists.
+
+        ``batchMachines`` lists ONLY the *additional* machines; the first one
+        is created from the URL + body. Each entry uses the key
+        ``machineName`` -- the wrong key (e.g. ``name``) causes the API to
+        silently ignore the extras and create only the URL-pointed machine.
+
+        ``vmSkus`` is a ``{"value": [<vm_sku obj>]}`` envelope (not a flat
+        list); the inner object only needs ``name`` (the requested VM size)
+        and ``resourceType`` -- the AKS NAP Batch endpoint validates the
+        rest server-side. We deliberately omit speculative SKU shape fields
+        (family, locations, capabilities) so the header schema stays
+        consistent across all VM sizes.
+
+        Returns the list of machine names submitted on 2xx. Raises
+        ``RuntimeError`` (from ``_make_batch_request``) if the request
+        exhausts 429 retries or returns a non-2xx. Caller catches and
+        excludes failed chunks from the success list.
+        """
+        if not chunk:
+            return []
+        sub = self.subscription_id
+        first_machine_name = chunk[0]
+        url = (
+            f"{_ARM_BASE}/subscriptions/{sub}/resourceGroups/{request.resource_group}"
+            f"/providers/Microsoft.ContainerService/managedClusters/{request.cluster_name}"
+            f"/agentPools/{request.agentpool_name}/machines/{first_machine_name}"
+            f"?api-version={_MACHINE_API_VERSION}"
+        )
+        body: Dict[str, Any] = {"properties": {"hardware": {"vmSize": request.vm_size}}}
+        remaining_machines = chunk[1:]
+        batch_machines = [{"machineName": name} for name in remaining_machines]
+        vm_sku = {
+            "name": request.vm_size,
+            "resourceType": "virtualMachines",
+        }
+        batch_header_value = json.dumps({
+            "vmSkus": {"value": [vm_sku]},
+            "batchMachines": batch_machines,
+        })
+        logger.info(
+            f"chunk {chunk_idx}: submitting BatchPutMachine PUT for {len(chunk)} machines "
+            f"(target={first_machine_name})"
+        )
+        # Cap the timeout value passed to this batch PUT attempt. This limits
+        # the per-attempt request timeout given to ``_make_batch_request``,
+        # but it does not bound total wall time for the chunk because retry
+        # and backoff handling can still extend the overall elapsed time.
+        put_timeout = min(request.timeout, _PER_REQUEST_TIMEOUT_CAP)
+        self._make_batch_request(
+            "PUT",
+            url,
+            body,
+            put_timeout,
+            batch_header_value=batch_header_value,
+            chunk_idx=chunk_idx,
+            first_machine_name=first_machine_name,
+        )
+        return list(chunk)
+
+    def _make_batch_request(
+        self,
+        method: str,
+        url: str,
+        data: Dict[str, Any],
+        timeout: int,
+        batch_header_value: str,
+        chunk_idx: Optional[int] = None,
+        first_machine_name: Optional[str] = None,
+    ) -> None:
+        """Send a ``BatchPutMachine``-headered request with bounded 429 backoff.
+
+        Sends the request directly (NOT via ``make_request``) so we can attach
+        the ``BatchPutMachine`` header alongside the standard auth/content-type
+        headers. Calls the endpoint up to ``_BATCH_429_MAX_RETRIES`` total
+        times on HTTP 429, sleeping between attempts with exponential backoff
+        starting at ``_BATCH_429_INITIAL_BACKOFF_SECONDS`` and doubling each
+        time (1s, 2s, 4s, 8s by default). All other non-2xx responses raise
+        immediately.
+        """
+        # Compact prefix so every error/log line is self-identifying in Kusto
+        # (chunk_idx + first machine name pinpoint the failing slice without
+        # cross-referencing the per-worker log).
+        ctx = (
+            f"chunk={chunk_idx} target={first_machine_name} {method} {url}"
+        )
+        backoff = _BATCH_429_INITIAL_BACKOFF_SECONDS
+        last_resp: Optional[requests.Response] = None
+        for attempt in range(_BATCH_429_MAX_RETRIES):
+            headers = {
+                "Authorization": f"Bearer {self._get_access_token()}",
+                "Content-Type": "application/json",
+                "BatchPutMachine": batch_header_value,
+            }
+            # Use the client's shared Session so this batch path reuses the
+            # same pooled TCP/TLS connections (and adapters/proxies) as the
+            # individual ``make_request`` path; avoids per-PUT handshakes
+            # during large scales.
+            resp = self._session.request(
+                method, url, headers=headers, json=data, timeout=timeout,
+            )
+            last_resp = resp
+            if resp.status_code in (200, 201, 202, 204):
+                return
+            if resp.status_code != 429:
+                raise RuntimeError(
+                    f"batch request failed [{ctx}]: "
+                    f"{resp.status_code} {resp.text[:500]}"
+                )
+            if attempt == _BATCH_429_MAX_RETRIES - 1:
+                break
+            logger.warning(
+                f"batch request 429 [{ctx}]; retrying in {backoff:.1f}s "
+                f"(attempt {attempt + 1}/{_BATCH_429_MAX_RETRIES})"
+            )
+            time.sleep(backoff)
+            backoff *= 2
+        text = last_resp.text[:500] if last_resp is not None else ""
+        raise RuntimeError(
+            f"batch request exceeded {_BATCH_429_MAX_RETRIES} attempts "
+            f"after HTTP 429 responses [{ctx}]; last text={text}"
+        )
