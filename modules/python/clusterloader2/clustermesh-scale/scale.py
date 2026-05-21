@@ -98,6 +98,7 @@ def configure_clusterloader2(
     replicas_per_deployment,
     operation_timeout,
     override_file,
+    global_namespace_count=None,
     churn_cycles=5,
     churn_up_duration="60s",
     churn_down_duration="60s",
@@ -163,6 +164,17 @@ def configure_clusterloader2(
 
         # Topology knobs — trivial defaults for Phase 1 vertical slice.
         f.write(f"CL2_NAMESPACES: {namespaces}\n")
+        # CL2_GLOBAL_NAMESPACE_COUNT controls how many of the N namespaces
+        # are annotated with `clustermesh.cilium.io/global=true`. Used by
+        # the %global variation experiment (Hemanth/Anubhab feedback):
+        # vary mesh density (endpoints crossing cluster boundaries) without
+        # touching pod count or cluster count. Defaults to N (all NS global
+        # = backward-compatible behavior matching pre-experiment runs).
+        # Honored by config/pod-churn-combined.yaml via DefaultParam +
+        # passed as 3rd positional arg to annotate-namespaces.sh.
+        if global_namespace_count is None:
+            global_namespace_count = namespaces
+        f.write(f"CL2_GLOBAL_NAMESPACE_COUNT: {global_namespace_count}\n")
         f.write(f"CL2_DEPLOYMENTS_PER_NAMESPACE: {deployments_per_namespace}\n")
         f.write(f"CL2_REPLICAS_PER_DEPLOYMENT: {replicas_per_deployment}\n")
         f.write(f"CL2_OPERATION_TIMEOUT: {operation_timeout}\n")
@@ -1456,6 +1468,11 @@ def main():
     # configure
     pc = subparsers.add_parser("configure", help="Write CL2 overrides file")
     pc.add_argument("--namespaces", type=int, required=True)
+    pc.add_argument("--global-namespace-count", type=int, default=None,
+                    help="How many of the N namespaces to annotate as global "
+                         "(clustermesh.cilium.io/global=true). Defaults to "
+                         "--namespaces (100%% global, backward-compatible). "
+                         "Use 0 for the pure ClusterMesh overhead baseline.")
     pc.add_argument("--deployments-per-namespace", type=int, required=True)
     pc.add_argument("--replicas-per-deployment", type=int, required=True)
     pc.add_argument("--operation-timeout", type=str, default="15m")
@@ -1706,6 +1723,7 @@ def main():
             args.replicas_per_deployment,
             args.operation_timeout,
             args.cl2_override_file,
+            global_namespace_count=args.global_namespace_count,
             churn_cycles=args.churn_cycles,
             churn_up_duration=args.churn_up_duration,
             churn_down_duration=args.churn_down_duration,

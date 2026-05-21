@@ -705,8 +705,14 @@ steps:
       ns="cm-smoke"
 
       cleanup() {
-        KUBECONFIG="$kc_first"  kubectl delete ns "$ns" --ignore-not-found --wait=false || true
-        KUBECONFIG="$kc_second" kubectl delete ns "$ns" --ignore-not-found --wait=false || true
+        # WAIT for delete (was --wait=false 2026-05-20). The %global=0
+        # experiment cell requires NO global services to exist when CL2
+        # starts measurements; async deletion can leave the cm-smoke
+        # global service alive during the first ~30s of the workload
+        # window, contaminating the 0%-global baseline measurement.
+        # 60s wait covers the typical finalizer drain on a healthy mesh.
+        KUBECONFIG="$kc_first"  kubectl delete ns "$ns" --ignore-not-found --wait=true --timeout=60s || true
+        KUBECONFIG="$kc_second" kubectl delete ns "$ns" --ignore-not-found --wait=true --timeout=60s || true
       }
       trap cleanup EXIT
 

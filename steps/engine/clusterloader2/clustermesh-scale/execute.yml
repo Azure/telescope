@@ -34,6 +34,11 @@ steps:
       # steps/engine/clusterloader2/network-scale/execute.yml which references
       # the auto-exported names directly.
       export CL2_NAMESPACES="$NAMESPACES"
+      # %global variation knob (Hemanth/Anubhab feedback experiment): how many
+      # of the N namespaces get the `clustermesh.cilium.io/global=true` annotation.
+      # Default to NAMESPACES (100% global, backward-compatible). Matrix entries
+      # for the %global sweep set `global_namespace_count` explicitly.
+      export CL2_GLOBAL_NAMESPACE_COUNT="${GLOBAL_NAMESPACE_COUNT:-$NAMESPACES}"
       export CL2_DEPLOYMENTS_PER_NAMESPACE="$DEPLOYMENTS_PER_NAMESPACE"
       export CL2_REPLICAS_PER_DEPLOYMENT="$REPLICAS_PER_DEPLOYMENT"
       export CL2_API_SERVER_CALLS_PER_SECOND="$API_SERVER_CALLS_PER_SECOND"
@@ -134,6 +139,7 @@ steps:
       # in this run (the per-cluster variation is which kubeconfig CL2 hits).
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE configure \
         --namespaces "$CL2_NAMESPACES" \
+        --global-namespace-count "${CL2_GLOBAL_NAMESPACE_COUNT:-$CL2_NAMESPACES}" \
         --deployments-per-namespace "$CL2_DEPLOYMENTS_PER_NAMESPACE" \
         --replicas-per-deployment "$CL2_REPLICAS_PER_DEPLOYMENT" \
         --operation-timeout "${CL2_OPERATION_TIMEOUT:-15m}" \

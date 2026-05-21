@@ -1012,3 +1012,137 @@ stages:
               docker info 2>/dev/null | grep -iE "cpus|memory|kernel|operating" | head -10
               echo "=========================================="
             displayName: "Dump agent VM specs"
+
+  # ============================================================================
+  # %global variation experiment — Phase 1 SMOKE
+  # ============================================================================
+  # Validates the new --global-namespace-count plumbing end-to-end at n=2
+  # before committing to the 3-day N=20/50/100 matrix. The 4 matrix entries
+  # exercise each distinct annotate-namespaces.sh code path:
+  #   g0   — 0 namespaces annotated (skip-loop edge case)
+  #   g20  — 1 of 5 annotated (1-iteration partial)
+  #   g60  — 3 of 5 annotated (multi-iteration partial)
+  #   g100 — 5 of 5 annotated (default-arg backward-compat path)
+  #
+  # All 4 cells run in PARALLEL (4 × 96 = 384 vCPU, trivial vs 5000 Dv3 quota).
+  # Wall clock: ~1.5h. Total cost: ~$5-10.
+  #
+  # Each cell uses the existing azure-2-shared.tfvars (1 VNet, 4 subnets, 2 AKS
+  # clusters, shared-VNet topology — same as today's n=2 smoke baseline).
+  #
+  # SAFETY: condition: false default. Flip to true in a 1-line commit when
+  # ready to trigger. Other stages should be uncommented similarly per phase.
+  - stage: azure_eastus2euap_n2_global_smoke
+    dependsOn: []
+    condition: false
+    displayName: "n=2 %global smoke (validates annotate plumbing across 0/20/60/100)"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 15m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-2-shared.tfvars"
+          matrix:
+            n2_global_g0:
+              cluster_count: 2
+              mesh_size: 2
+              cl2_config_file: pod-churn-combined.yaml
+              test_type: pod-churn-combined-shared-vnet-g0
+              global_namespace_count: 0
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              churn_cycles: 5
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
+            n2_global_g20:
+              cluster_count: 2
+              mesh_size: 2
+              cl2_config_file: pod-churn-combined.yaml
+              test_type: pod-churn-combined-shared-vnet-g20
+              global_namespace_count: 1
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              churn_cycles: 5
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
+            n2_global_g60:
+              cluster_count: 2
+              mesh_size: 2
+              cl2_config_file: pod-churn-combined.yaml
+              test_type: pod-churn-combined-shared-vnet-g60
+              global_namespace_count: 3
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              churn_cycles: 5
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
+            n2_global_g100:
+              cluster_count: 2
+              mesh_size: 2
+              cl2_config_file: pod-churn-combined.yaml
+              test_type: pod-churn-combined-shared-vnet-g100
+              global_namespace_count: 5
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              churn_cycles: 5
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          # All 4 cells in parallel — 4 × 96 = 384 vCPU, easily fits 5000 quota.
+          max_parallel: 4
+          timeout_in_minutes: 180
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
