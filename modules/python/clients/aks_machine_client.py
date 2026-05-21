@@ -6,32 +6,33 @@ node-pool CRUD methods. Adds raw REST methods for the Machine API which is not
 yet exposed in the Azure SDK.
 
 Public methods (``create_machine_agentpool``, ``scale_machine``) wrap their work
-in ``OperationContext`` exactly like ``AKSClient.create_node_pool`` /
-``AKSClient.scale_node_pool``: the context is opened inside the client method,
+in ``OperationContext``: the context is opened inside the client method,
 metadata is enriched with ``op.add_metadata`` along the way, success returns
-True, failures are logged and re-raised so ``OperationContext`` records them.
-``MachineCRUD`` therefore stays a thin try/except wrapper, mirroring
-``crud/azure/node_pool_crud.py``.
+None, failures are logged and re-raised so ``OperationContext`` records them.
+``MachineCRUD`` therefore stays a thin try/except wrapper.
 
-Ported from ado-telescope/modules/python/k8s/cloud_providers/azure.py.
+This revision adds the non-batch scale path. The batch dispatch
+(``use_batch_api=True``) still raises ``NotImplementedError`` and will land in a
+follow-up PR.
 """
 import json
 import logging
+import math
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from types import SimpleNamespace
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import requests
 
 from clients.aks_client import AKSClient
 from utils.logger_config import get_logger, setup_logging
 
-# Configure logging (mirrors clients/aks_client.py / crud/azure/node_pool_crud.py).
+# Configure logging.
 setup_logging()
 logger = get_logger(__name__)
-# Suppress noisy Azure SDK logs (mirror clients/aks_client.py).
+# Suppress noisy Azure SDK logs.
 get_logger("azure.core.pipeline.policies.http_logging_policy").setLevel(logging.ERROR)
 get_logger("azure.identity").setLevel(logging.ERROR)
 get_logger("azure.core.pipeline").setLevel(logging.ERROR)
@@ -39,11 +40,20 @@ get_logger("msal").setLevel(logging.ERROR)
 
 _ARM_BASE = "https://management.azure.com"
 _ARM_SCOPE = "https://management.azure.com/.default"
-_AGENTPOOL_API_VERSION = "2024-06-02-preview"  # per ado azure.py — agentpool sub-resource
-_MACHINE_API_VERSION = "2025-06-02-preview"  # per ado azure.py — machines sub-resource
+_AGENTPOOL_API_VERSION = "2024-06-02-preview"
+_MACHINE_API_VERSION = "2025-06-02-preview"
 _POLL_INTERVAL_SECONDS = 10
-_PROVISIONING_NONE_STATE_LIMIT = 5
-_BATCH_429_MAX_RETRIES = 3
+# Per-request HTTP timeout is capped so that a single slow PUT/GET cannot
+# consume the caller's whole ``timeout`` budget before the polling loop starts.
+# The remaining budget is reserved for ``_wait_for_agentpool_provisioning``.
+_PER_REQUEST_TIMEOUT_CAP = 60
+# Bounded 429 retry budget for ``_scale_machine_batch``. Total number of
+# attempts (NOT additional retries on top of an initial call). The AKS RP
+# throttles BatchPutMachine independently of normal PUTs; small bursts at
+# the start of a scale-out are common, so a short exponential backoff
+# (1s, 2s, 4s, 8s between the five attempts) usually clears them without
+# ballooning the chunk's wall-time.
+_BATCH_429_MAX_RETRIES = 5
 _BATCH_429_INITIAL_BACKOFF_SECONDS = 1.0
 
 
@@ -62,6 +72,10 @@ class AKSMachineClient(AKSClient):
         self._token_cache_value: Optional[str] = None
         self._token_cache_expiry: float = 0.0  # unix epoch seconds
         self._token_lock = threading.Lock()
+        # Pool TCP/TLS across calls. ``requests.Session`` is thread-safe for
+        # sending requests (each request creates its own urllib3 connection
+        # from the shared pool), so this is safe for the parallel scale path.
+        self._session = requests.Session()
 
     # ---- auth + REST plumbing ----
     def _get_access_token(self) -> str:
@@ -85,15 +99,20 @@ class AKSMachineClient(AKSClient):
         """Send an authenticated ARM REST request and return the raw Response.
 
         Callers are responsible for checking ``response.status_code`` (or
-        calling ``raise_for_status()``) — this method does NOT raise on HTTP
+        calling ``raise_for_status()``) -- this method does NOT raise on HTTP
         errors. Long-running Machine API operations return 200/202 with a
         Location header that callers must follow.
+
+        Uses ``self._session`` for connection pooling so TCP/TLS handshakes
+        are reused across polls and parallel scale-path workers.
         """
         headers = {
             "Authorization": f"Bearer {self._get_access_token()}",
             "Content-Type": "application/json",
         }
-        return requests.request(method, url, headers=headers, json=data, timeout=timeout)
+        return self._session.request(
+            method, url, headers=headers, json=data, timeout=timeout
+        )
 
     # ---- Machine API: agent pool provisioning ----
     def create_machine_agentpool(
@@ -102,13 +121,12 @@ class AKSMachineClient(AKSClient):
         vm_size: str,
         cluster_name: Optional[str] = None,
         timeout: int = 300,
-    ) -> bool:
+    ) -> None:
         """Convert an existing agentpool to Machines mode via PUT.
 
-        Mirrors ``AKSClient.create_node_pool`` convention: opens an
-        ``OperationContext`` here, enriches metadata, returns True on success,
-        re-raises on failure (so the context records ``success=False`` with
-        traceback before the exception propagates to ``MachineCRUD``).
+        Opens an ``OperationContext`` here, enriches metadata, returns on
+        success, re-raises on failure (so the context records ``success=False``
+        with traceback before the exception propagates to ``MachineCRUD``).
 
         Args:
             agentpool_name: Target agentpool name.
@@ -117,11 +135,11 @@ class AKSMachineClient(AKSClient):
                 downstream Kusto rows can attribute the agentpool to a SKU.
             cluster_name: Parent AKS cluster name. Defaults to
                 ``self.get_cluster_name()`` (matches ``create_node_pool``).
-            timeout: Total budget (seconds) used as both the PUT HTTP timeout
-                AND the polling deadline for ``_wait_for_agentpool_provisioning``.
-
-        Returns:
-            True iff the agentpool reaches provisioningState='Succeeded'.
+            timeout: Total wall-clock budget (seconds) for this operation.
+                Used as the polling deadline for ``_wait_for_agentpool_provisioning``.
+                The per-request HTTP timeout is capped at
+                ``_PER_REQUEST_TIMEOUT_CAP`` so a single slow PUT cannot consume
+                the whole budget before polling starts.
 
         Raises:
             RuntimeError: PUT non-2xx, ARM-reported Failed state, or timeout.
@@ -143,8 +161,13 @@ class AKSMachineClient(AKSClient):
                     f"/agentPools/{agentpool_name}?api-version={_AGENTPOOL_API_VERSION}"
                 )
                 body = {"properties": {"mode": "Machines"}}
-                resp = self.make_request("PUT", url, data=body, timeout=timeout)
-                if resp.status_code not in (200, 201):
+                # Cap the PUT timeout so the bulk of ``timeout`` is preserved
+                # for the polling loop below.
+                put_timeout = min(timeout, _PER_REQUEST_TIMEOUT_CAP)
+                resp = self.make_request("PUT", url, data=body, timeout=put_timeout)
+                # ARM async PUT acceptance returns 200/201/202; the agentpool
+                # provisioning poll below is the real completion gate.
+                if resp.status_code not in (200, 201, 202):
                     raise RuntimeError(
                         f"create_machine_agentpool PUT failed: "
                         f"{resp.status_code} {resp.text[:500]}"
@@ -156,11 +179,8 @@ class AKSMachineClient(AKSClient):
                 op.add_metadata("agentpool_info", self.get_node_pool(
                     agentpool_name, cluster_name).as_dict())
                 op.add_metadata("cluster_info", self.get_cluster_data(cluster_name))
-                return True
             except Exception as e:
-                logger.error(
-                    "Failed to create machine agentpool %s: %s", agentpool_name, e
-                )
+                logger.error(f"Failed to create machine agentpool {agentpool_name}: {e}")
                 raise
 
     def _wait_for_agentpool_provisioning(self, url: str, timeout: int) -> bool:
@@ -168,46 +188,48 @@ class AKSMachineClient(AKSClient):
 
         Polls every ``_POLL_INTERVAL_SECONDS`` (10s) using a 30s per-request HTTP
         timeout. Returns True on 'Succeeded'. Returns False on 'Failed' or when
-        ``timeout`` seconds have elapsed since invocation. Transient non-200 GETs
-        are logged and retried until the deadline. Also handles missing
-        provisioningState (treats absence for ``_PROVISIONING_NONE_STATE_LIMIT``
-        consecutive polls as Failed).
+        ``timeout`` seconds have elapsed since invocation. 4xx GETs are raised
+        immediately (e.g. 404 'agentpool not found', 401/403) since retrying
+        won't change the outcome; 5xx and other transient failures are logged
+        and retried until the deadline. By AKS contract a 200 GET on the
+        agentpool always includes ``properties.provisioningState``; if it is
+        absent on a 200 response, that is a Failed signal and we stop
+        immediately rather than waiting out the timeout.
         """
         deadline = time.time() + timeout
-        none_count = 0
         while time.time() < deadline:
             r = self.make_request("GET", url, timeout=30)
             if r.status_code != 200:
-                logger.warning("agentpool GET %s -> %s", url, r.status_code)
+                if 400 <= r.status_code < 500:
+                    raise RuntimeError(
+                        f"agentpool GET {url} -> {r.status_code} {r.text[:500]}"
+                    )
+                logger.warning(f"agentpool GET {url} -> {r.status_code}")
                 time.sleep(_POLL_INTERVAL_SECONDS)
                 continue
             try:
                 body = r.json()
             except (ValueError, TypeError) as exc:
-                logger.warning("agentpool poll JSON parse failed: %s", exc)
+                logger.warning(f"agentpool poll JSON parse failed: {exc}")
                 time.sleep(_POLL_INTERVAL_SECONDS)
                 continue
             state = body.get("properties", {}).get("provisioningState")
             if state == "Succeeded":
                 return True
             if state == "Failed":
-                logger.error("agentpool provisioning failed: %s", body)
+                logger.error(f"agentpool provisioning failed: {body}")
                 return False
             if state is None:
-                none_count += 1
-                if none_count >= _PROVISIONING_NONE_STATE_LIMIT:
-                    logger.warning(
-                        "agentpool provisioningState absent for %d consecutive polls; "
-                        "treating as Failed.",
-                        none_count,
-                    )
-                    return False
-            else:
-                none_count = 0
+                logger.error(
+                    f"agentpool 200 GET returned without provisioningState; "
+                    f"treating as Failed. body={body}"
+                )
+                return False
             time.sleep(_POLL_INTERVAL_SECONDS)
-        logger.error("agentpool provisioning timed out after %ss", timeout)
+        logger.error(f"agentpool provisioning timed out after {timeout}s")
         return False
 
+    # ---- Machine API: node readiness ----
     def _wait_for_machine_node_readiness(
         self,
         agentpool_name: str,
@@ -215,7 +237,7 @@ class AKSMachineClient(AKSClient):
         timeout: int,
         baseline_count: int = 0,
     ) -> Dict[str, Dict[str, Any]]:
-        """Wait for ``expected_count`` NEW Ready nodes; return ado-parity nested percentile dict.
+        """Wait for ``expected_count`` NEW Ready nodes; return nested percentile dict.
 
         AKS Machine ARM resource names (e.g. ``scale100-machine-1``) are NOT the
         same as the underlying k8s Node names (``aks-<pool>-<rand>-vmss<i>``), so
@@ -237,7 +259,7 @@ class AKSMachineClient(AKSClient):
         percentile target is met within ``timeout``. Polling exceptions are
         logged and treated as 0 ready this tick. Never raises.
         """
-        # ado-parity empty-state envelope: nested dict per P-key with
+        # Empty-state envelope: nested dict per P-key with
         # `target_nodes`, `elapsed_time_seconds`, `percentage`, `success` so
         # the Kusto schema sees consistent shape regardless of outcome.
         empty_envelope: Dict[str, Dict[str, Any]] = {
@@ -260,41 +282,40 @@ class AKSMachineClient(AKSClient):
         label_selector = f"agentpool={agentpool_name}"
         target_total = baseline_count + expected_count
         # Each percentile target must be STRICTLY GREATER than baseline_count so
-        # we count only NEW nodes — pre-existing labeled Ready nodes alone must
-        # never satisfy any threshold.
+        # we count only NEW nodes -- pre-existing labeled Ready nodes alone must
+        # never satisfy any threshold. Use math.ceil so e.g. P50 of 3 -> 2 (not 1)
+        # and P100 always equals target_total (ceil(1.0 * N) == N).
         targets = {
-            p: max(baseline_count + 1, int((p / 100.0) * target_total))
+            p: max(baseline_count + 1, math.ceil((p / 100.0) * target_total))
             for p in (50, 70, 90, 99, 100)
         }
         elapsed: Dict[int, float] = {}
         start = time.time()
         deadline = start + timeout
         logger.info(
-            "Waiting for nodes in agentpool %s (label %s) - "
-            "targets %s, baseline=%d, expected=%d, timeout %ss",
-            agentpool_name, label_selector, targets,
-            baseline_count, expected_count, timeout,
+            f"Waiting for nodes in agentpool {agentpool_name} (label {label_selector}) - "
+            f"targets {targets}, baseline={baseline_count}, expected={expected_count}, "
+            f"timeout {timeout}s"
         )
         while time.time() < deadline and len(elapsed) < len(targets):
             try:
                 ready = len(kc.get_ready_nodes(label_selector=label_selector))
             except Exception as e:
-                logger.warning("get_ready_nodes(%s) failed: %s", label_selector, e)
+                logger.warning(f"get_ready_nodes({label_selector}) failed: {e}")
                 ready = 0
             now_elapsed = time.time() - start
             for p, target in targets.items():
                 if p not in elapsed and ready >= target:
                     elapsed[p] = now_elapsed
                     logger.info(
-                        "P%d hit: %d/%d ready (target=%d, baseline=%d) at %.2fs",
-                        p, ready, target_total, target, baseline_count, now_elapsed,
+                        f"P{p} hit: {ready}/{target_total} ready "
+                        f"(target={target}, baseline={baseline_count}) at {now_elapsed:.2f}s"
                     )
             if len(elapsed) < len(targets):
                 time.sleep(2)
         if not elapsed:
             logger.warning(
-                "No percentile target met within %ss for agentpool %s",
-                timeout, agentpool_name,
+                f"No percentile target met within {timeout}s for agentpool {agentpool_name}"
             )
             return {
                 f"P{p}": {
@@ -314,25 +335,32 @@ class AKSMachineClient(AKSClient):
             }
             for p in (50, 70, 90, 99, 100)
         }
-        # ado-parity stdout logging: percentile summary including P100, which is
-        # the wall-clock elapsed until ALL target nodes are Ready. This matches
-        # ado's `response.node_readiness_time = percentile_times[100]` exactly.
-        logger.info("Node Readiness Percentile Summary for agentpool %s:", agentpool_name)
+        # Log percentile summary including P100, which is the wall-clock
+        # elapsed until ALL target nodes are Ready.
+        logger.info(f"Node Readiness Percentile Summary for agentpool {agentpool_name}:")
         for p in (50, 70, 90, 99, 100):
             if p in elapsed:
-                logger.info("  P%d (target=%d nodes): %.2f seconds",
-                            p, targets[p], elapsed[p])
+                logger.info(f"  P{p} (target={targets[p]} nodes): {elapsed[p]:.2f} seconds")
             else:
-                logger.info("  P%d (target=%d nodes): TIMEOUT", p, targets[p])
+                logger.info(f"  P{p} (target={targets[p]} nodes): TIMEOUT")
         max_elapsed = max(elapsed.values())
-        logger.info(
-            "All target nodes became ready in %.2f seconds in agent pool %s",
-            max_elapsed, agentpool_name,
-        )
-        logger.info("Percentile node readiness data: %s",
-                    json.dumps(result, indent=2))
+        if len(elapsed) == len(targets):
+            logger.info(
+                f"All target nodes became ready in {max_elapsed:.2f} seconds "
+                f"in agent pool {agentpool_name}"
+            )
+        else:
+            missed = [f"P{p}" for p in (50, 70, 90, 99, 100) if p not in elapsed]
+            logger.warning(
+                f"Partial readiness in agent pool {agentpool_name}: "
+                f"{len(elapsed)}/{len(targets)} percentiles met within "
+                f"{timeout}s; missed {missed}; last successful percentile at "
+                f"{max_elapsed:.2f}s"
+            )
+        logger.info(f"Percentile node readiness data: {json.dumps(result, indent=2)}")
         return result
 
+    # ---- Machine API: scale path ----
     def scale_machine(
         self,
         agentpool_name: str,
@@ -344,21 +372,21 @@ class AKSMachineClient(AKSClient):
         timeout: int = 600,
         readiness_wait_timeout: int = 1200,
         tags: Optional[Dict[str, str]] = None,  # pylint: disable=unused-argument
-    ) -> bool:
+    ) -> None:
         """Scale a Machine-mode agentpool by creating ``scale_machine_count`` machines.
 
-        Mirrors ``AKSClient.scale_node_pool`` convention: opens an
-        ``OperationContext`` here, enriches with successful machine names,
-        per-percentile readiness envelope, batch chunk timings, and the cluster
-        snapshot. Returns True iff every requested machine landed AND every
-        readiness percentile target was hit. Re-raises on failure so the
-        context records the trace.
+        Opens an ``OperationContext`` here, enriches with successful machine
+        names, per-percentile readiness envelope, and the cluster snapshot.
+        Returns on success; re-raises on failure so the context records the
+        trace.
 
-        Flow (both batch and non-batch):
+        Flow:
           1. Snapshot the current Ready+labeled node count in the agentpool
              (``baseline_count``) so the readiness watcher counts only NEW nodes.
-          2. Submit machine PUTs (individually or via the batch header pattern).
-             Per-machine ARM polling is intentionally NOT performed.
+          2. Submit machine PUTs -- individually by default, or sharded into
+             ``machine_workers`` chunks where each chunk is sent as a single
+             ``BatchPutMachine``-headered PUT when ``use_batch_api=True`` (per-
+             machine ARM polling is intentionally NOT performed in either path).
           3. Wait ONCE on the agentpool-level provisioningState.
           4. Wait for nodes labeled ``agentpool=<pool>`` to surpass
              ``baseline_count`` by enough to satisfy P50/P70/P90/P99/P100 targets.
@@ -366,8 +394,13 @@ class AKSMachineClient(AKSClient):
         ``tags`` is currently unused (Machine API rejects top-level tags on the
         machine PUT body; machines inherit tags from the parent agentpool).
 
+        See ``_create_batch_machines`` for the batch chunking contract and the
+        ``BatchPutMachine`` header schema.
+
         Raises:
-            RuntimeError: fewer machines landed than requested.
+            RuntimeError: fewer machines landed than requested, agentpool did
+                not reach Succeeded within ``timeout``, or P100 readiness did
+                not complete within ``readiness_wait_timeout``.
         """
         cluster_name = cluster_name or self.get_cluster_name()
         metadata = {
@@ -379,8 +412,7 @@ class AKSMachineClient(AKSClient):
             "machine_workers": machine_workers,
         }
         # Bundle into a SimpleNamespace so the helpers retain the
-        # ``request.foo`` shape ported verbatim from ado-telescope without
-        # exposing yet another module-level data class.
+        # ``request.foo`` shape without exposing yet another module-level data class.
         request = SimpleNamespace(
             agentpool_name=agentpool_name,
             cluster_name=cluster_name,
@@ -408,25 +440,33 @@ class AKSMachineClient(AKSClient):
                             )
                         )
                         logger.info(
-                            "baseline ready nodes in agentpool %s: %d",
-                            agentpool_name, baseline_count,
+                            f"baseline ready nodes in agentpool {agentpool_name}: {baseline_count}"
                         )
                     except Exception:
                         logger.warning(
                             "baseline node snapshot failed; readiness count may be inflated"
                         )
 
-                # Naming parity with ado-telescope.
                 prefix = self._get_machine_name_prefix(scale_machine_count)
                 names = [
                     f"{prefix}-machine-{i + 1}" for i in range(scale_machine_count)
                 ]
+                command_t0 = time.time()
                 if use_batch_api:
-                    successful, batch_times = self._scale_machine_batch(request, names)
-                    op.add_metadata("batch_command_execution_times", batch_times)
+                    successful = self._scale_machine_batch(request, names)
                 else:
                     successful = self._scale_machine_individually(request, names)
+                op.add_metadata("command_execution_time", time.time() - command_t0)
                 op.add_metadata("successful_machines", successful)
+
+                # Fail fast on partial landing BEFORE waiting on the agentpool
+                # or readiness against a reduced count -- otherwise the recorded
+                # percentile envelope and node_readiness_time describe a smaller
+                # target than the caller actually requested.
+                if len(successful) != scale_machine_count:
+                    raise RuntimeError(
+                        f"scale_machine landed {len(successful)}/{scale_machine_count} machines"
+                    )
 
                 # Single agentpool-level provisioning check.
                 agentpool_url = (
@@ -439,9 +479,8 @@ class AKSMachineClient(AKSClient):
                     agentpool_url, timeout
                 )
                 logger.info(
-                    "agentpool %s provisioning %s",
-                    agentpool_name,
-                    "Succeeded" if agentpool_ok else "Failed/Timeout",
+                    f"agentpool {agentpool_name} provisioning "
+                    f"{'Succeeded' if agentpool_ok else 'Failed/Timeout'}"
                 )
 
                 percentile_envelope = self._wait_for_machine_node_readiness(
@@ -457,25 +496,27 @@ class AKSMachineClient(AKSClient):
                 )
                 op.add_metadata("cluster_info", self.get_cluster_data(cluster_name))
 
-                if len(successful) != scale_machine_count:
+                if not agentpool_ok:
                     raise RuntimeError(
-                        f"scale_machine landed {len(successful)}/{scale_machine_count} machines"
+                        f"agentpool {agentpool_name} did not reach Succeeded within {timeout}s"
                     )
-                return True
+                # P100 is the strictest readiness envelope (all target nodes
+                # Ready); if it succeeded, every lower percentile did too.
+                if not p100.get("success", False):
+                    raise RuntimeError(
+                        f"node readiness P100 did not complete within "
+                        f"{readiness_wait_timeout}s for agentpool {agentpool_name}"
+                    )
             except Exception as e:
-                logger.error(
-                    "Failed to scale machine agentpool %s: %s", agentpool_name, e
-                )
+                logger.error(f"Failed to scale machine agentpool {agentpool_name}: {e}")
                 raise
-
 
     @staticmethod
     def _get_machine_name_prefix(scale_machine_count: int) -> str:
-        """Generate the ado-compatible machine-name prefix for a given scale count.
+        """Generate the machine-name prefix for a given scale count.
 
-        Mirrors ado-telescope ``azure.py::_get_machine_name_prefix`` exactly so
-        that the resulting machine ARM resource names match across repos and
-        cross-repo Kusto dashboards keyed on machine name continue to correlate.
+        The prefix is part of the machine ARM resource name; cross-repo Kusto
+        dashboards key on machine name, so this scheme is kept stable.
 
         - ``scale1000`` -> ``scale1k`` (any multiple of 1000 >= 1000 collapses)
         - ``scale500``  -> ``scale500``
@@ -491,12 +532,17 @@ class AKSMachineClient(AKSClient):
         """Submit per-machine PUTs concurrently via ThreadPoolExecutor.
 
         Each worker calls ``_create_single_machine(name, request)`` which PUTs
-        the machine and waits for its provisioning to terminate. Returns the
-        list of names that reported True. Per-machine exceptions are logged
-        and treated as failure (name omitted from result).
+        the machine and returns True on any 2xx response. Per-machine
+        provisioningState is intentionally NOT polled (see
+        ``_create_single_machine`` for why); the agentpool-level poll in
+        ``scale_machine`` is the real completion signal. Returns the list of
+        names that reported True. Per-machine exceptions are logged and
+        treated as failure (name omitted from result).
         """
         successful: List[str] = []
-        with ThreadPoolExecutor(max_workers=request.machine_workers) as ex:
+        # Clamp workers to >=1 so a misconfigured request (0 or negative) cannot
+        # crash ThreadPoolExecutor with ValueError.
+        with ThreadPoolExecutor(max_workers=max(1, request.machine_workers)) as ex:
             futures = {ex.submit(self._create_single_machine, n, request): n for n in names}
             for fut in as_completed(futures):
                 n = futures[fut]
@@ -504,7 +550,7 @@ class AKSMachineClient(AKSClient):
                     if fut.result():
                         successful.append(n)
                 except Exception:
-                    logger.exception("create_single_machine failed for %s", n)
+                    logger.exception(f"create_single_machine failed for {n}")
         return successful
 
     def _create_single_machine(self, name: str, request: SimpleNamespace) -> bool:
@@ -516,7 +562,7 @@ class AKSMachineClient(AKSClient):
 
         Intentionally does NOT poll the per-machine ARM provisioningState. The
         AKS RP reports per-machine ``provisioningState='Succeeded'`` essentially
-        as soon as the agentpool admits the request — well before the underlying
+        as soon as the agentpool admits the request -- well before the underlying
         VM is created. Polling here therefore returns spuriously early and only
         adds N round-trips of latency without surfacing useful signal. The
         canonical completion signal is the agentpool-level provisioningState,
@@ -534,68 +580,64 @@ class AKSMachineClient(AKSClient):
         body: Dict[str, Any] = {"properties": {"hardware": {"vmSize": request.vm_size}}}
         resp = self.make_request("PUT", url, data=body, timeout=request.timeout)
         if resp.status_code not in (200, 201, 202):
-            logger.error("PUT machine %s -> %s %s", name, resp.status_code, resp.text[:500])
+            logger.error(f"PUT machine {name} -> {resp.status_code} {resp.text[:500]}")
             return False
         return True
 
     # ---- Machine API: batch scale path ----
-    @staticmethod
-    def _array_split(items: List[str], n: int) -> List[List[str]]:
-        """Split ``items`` into ``n`` chunks of as-equal-as-possible size.
-
-        Equivalent to ``numpy.array_split`` semantics with pure Python. ``n`` is
-        clamped to ``[1, len(items)]`` so empty/oversized worker counts degrade
-        gracefully. Returns at most ``len(items)`` chunks; never returns empty
-        chunks unless ``items`` itself is empty.
-        """
-        if not items:
-            return []
-        n = max(1, min(n, len(items)))
-        k, m = divmod(len(items), n)
-        return [items[i * k + min(i, m):(i + 1) * k + min(i + 1, m)] for i in range(n)]
-
     def _scale_machine_batch(
         self,
         request: SimpleNamespace,
         names: List[str],
-    ) -> Tuple[List[str], Dict[str, float]]:
-        """Dispatch ``names`` across ``request.machine_workers`` chunks via the AKS Batch API.
+    ) -> List[str]:
+        """Dispatch ``names`` across ``machine_workers`` worker slices via the Batch API.
 
-        Splits ``names`` into up to ``request.machine_workers`` chunks
-        (``_array_split`` semantics) and submits each chunk to a
-        ``ThreadPoolExecutor``. Each worker calls ``_create_batch_machines``,
-        whose return value is the list of names that landed successfully in
-        that chunk. Per-chunk wall time is captured under ``chunk_<idx>``
-        regardless of success/failure. Per-chunk worker exceptions are caught
-        and logged; the chunk's names are excluded from the returned
-        ``successful`` list. The input ``request`` is not mutated.
+        Each worker submits exactly one ``BatchPutMachine``-headered PUT carrying a
+        contiguous slice of ``names``. Slices are computed by arithmetic from the
+        ``worker_id``.
+
+        ``scale_machine_count`` MUST be an exact multiple of ``machine_workers``;
+        ``ValueError`` is raised otherwise so the failure surfaces at the
+        ``MachineCRUD`` boundary instead of producing a short final chunk that
+        would skew per-chunk latency dashboards.
+
+        Per-worker exceptions are caught and logged; the worker's slice is
+        excluded from the returned ``successful`` list. The input ``request``
+        is not mutated.
         """
-        chunks = self._array_split(names, request.machine_workers)
+        n = len(names)
+        workers = request.machine_workers
+        if workers <= 0:
+            raise ValueError(f"machine_workers must be positive (got {workers})")
+        if n % workers != 0:
+            raise ValueError(
+                f"scale_machine_count ({n}) must be an exact multiple of "
+                f"machine_workers ({workers}) when use_batch_api=True; "
+                f"got remainder {n % workers}"
+            )
+        per_worker = n // workers
         successful: List[str] = []
-        batch_times: Dict[str, float] = {}
 
-        def run_chunk(idx: int, chunk: List[str]):
-            t0 = time.time()
+        def run_worker(worker_id: int) -> List[str]:
+            start = worker_id * per_worker
+            chunk = names[start:start + per_worker]
             try:
-                created = self._create_batch_machines(request, chunk, idx)
+                return self._create_batch_machines(request, chunk, worker_id)
             except Exception:
-                logger.exception("batch chunk %d failed", idx)
-                created = []
-            elapsed = time.time() - t0
-            return idx, created, elapsed
+                logger.exception(f"batch worker {worker_id} failed")
+                return []
 
-        with ThreadPoolExecutor(max_workers=max(1, request.machine_workers)) as ex:
-            futures = [ex.submit(run_chunk, i, chunk) for i, chunk in enumerate(chunks)]
+        with ThreadPoolExecutor(max_workers=workers) as ex:
+            futures = [ex.submit(run_worker, w) for w in range(workers)]
             for fut in as_completed(futures):
                 try:
-                    idx, created, elapsed = fut.result()
+                    created = fut.result()
                 except Exception:
-                    # run_chunk already swallows; this is belt-and-suspenders.
-                    logger.exception("unexpected error retrieving batch chunk result")
+                    # run_worker already swallows; this is belt-and-suspenders.
+                    logger.exception("unexpected error retrieving batch worker result")
                     continue
-                batch_times[f"chunk_{idx}"] = elapsed
                 successful.extend(created)
-        return successful, batch_times
+        return successful
 
     def _create_batch_machines(
         self,
@@ -605,15 +647,27 @@ class AKSMachineClient(AKSClient):
     ) -> List[str]:
         """Submit a batch-PUT request creating every machine in ``chunk``.
 
-        Uses the AKS Machine API ``BatchPutMachine`` HEADER pattern (NOT the
-        non-existent ARM ``/$batch`` envelope): a single PUT to the first
+        Uses the AKS Machine API ``BatchPutMachine`` HEADER pattern (implicit
+        contract with AKS NAP, not publicly available): a single PUT to the first
         machine name in ``chunk`` carrying a ``BatchPutMachine`` header whose
         value is JSON containing ``vmSkus`` and ``batchMachines`` lists.
 
+        ``batchMachines`` lists ONLY the *additional* machines; the first one
+        is created from the URL + body. Each entry uses the key
+        ``machineName`` -- the wrong key (e.g. ``name``) causes the API to
+        silently ignore the extras and create only the URL-pointed machine.
+
+        ``vmSkus`` is a ``{"value": [<vm_sku obj>]}`` envelope (not a flat
+        list); the inner object only needs ``name`` (the requested VM size)
+        and ``resourceType`` -- the AKS NAP Batch endpoint validates the
+        rest server-side. We deliberately omit speculative SKU shape fields
+        (family, locations, capabilities) so the header schema stays
+        consistent across all VM sizes.
+
         Returns the list of machine names submitted on 2xx. Raises
-        ``RuntimeError`` (from ``_make_batch_request``) if the request exhausts
-        429 retries or returns a non-2xx. Caller catches and excludes failed
-        chunks from the success list.
+        ``RuntimeError`` (from ``_make_batch_request``) if the request
+        exhausts 429 retries or returns a non-2xx. Caller catches and
+        excludes failed chunks from the success list.
         """
         if not chunk:
             return []
@@ -626,38 +680,33 @@ class AKSMachineClient(AKSClient):
             f"?api-version={_MACHINE_API_VERSION}"
         )
         body: Dict[str, Any] = {"properties": {"hardware": {"vmSize": request.vm_size}}}
-        # ado-telescope verbatim envelope shape (azure.py:1268-1298). The Machine
-        # API expects:
-        #   - batchMachines[].machineName  (NOT "name") — using the wrong key
-        #     causes the API to silently ignore the entries, creating only the
-        #     URL-pointed machine. This was the root cause of build 66357
-        #     reporting succeeded=true but only 100/200 (== worker count) ready.
-        #   - batchMachines lists ONLY the *additional* machines; the first one
-        #     is created from the URL + body.
-        #   - vmSkus is a {"value": [<rich vm_sku obj>]} envelope, not a flat list.
         remaining_machines = chunk[1:]
         batch_machines = [{"machineName": name} for name in remaining_machines]
         vm_sku = {
             "name": request.vm_size,
             "resourceType": "virtualMachines",
-            "family": "standardDv3Family",
-            "locations": ["westus", "eastus", "westeurope"],
-            "capabilities": [
-                {"name": "vCPUs", "value": "2"},
-                {"name": "MemoryGB", "value": "8"},
-            ],
-            "restrictions": [],
         }
         batch_header_value = json.dumps({
             "vmSkus": {"value": [vm_sku]},
             "batchMachines": batch_machines,
         })
         logger.info(
-            "chunk %d: submitting BatchPutMachine PUT for %d machines (target=%s)",
-            chunk_idx, len(chunk), first_machine_name,
+            f"chunk {chunk_idx}: submitting BatchPutMachine PUT for {len(chunk)} machines "
+            f"(target={first_machine_name})"
         )
+        # Cap the timeout value passed to this batch PUT attempt. This limits
+        # the per-attempt request timeout given to ``_make_batch_request``,
+        # but it does not bound total wall time for the chunk because retry
+        # and backoff handling can still extend the overall elapsed time.
+        put_timeout = min(request.timeout, _PER_REQUEST_TIMEOUT_CAP)
         self._make_batch_request(
-            "PUT", url, body, request.timeout, batch_header_value=batch_header_value,
+            "PUT",
+            url,
+            body,
+            put_timeout,
+            batch_header_value=batch_header_value,
+            chunk_idx=chunk_idx,
+            first_machine_name=first_machine_name,
         )
         return list(chunk)
 
@@ -668,16 +717,25 @@ class AKSMachineClient(AKSClient):
         data: Dict[str, Any],
         timeout: int,
         batch_header_value: str,
+        chunk_idx: Optional[int] = None,
+        first_machine_name: Optional[str] = None,
     ) -> None:
         """Send a ``BatchPutMachine``-headered request with bounded 429 backoff.
 
         Sends the request directly (NOT via ``make_request``) so we can attach
         the ``BatchPutMachine`` header alongside the standard auth/content-type
-        headers. Retries on HTTP 429 up to ``_BATCH_429_MAX_RETRIES`` attempts
-        with exponential backoff starting at
-        ``_BATCH_429_INITIAL_BACKOFF_SECONDS`` and doubling each attempt
-        (1s, 2s, 4s by default). All other non-2xx responses raise immediately.
+        headers. Calls the endpoint up to ``_BATCH_429_MAX_RETRIES`` total
+        times on HTTP 429, sleeping between attempts with exponential backoff
+        starting at ``_BATCH_429_INITIAL_BACKOFF_SECONDS`` and doubling each
+        time (1s, 2s, 4s, 8s by default). All other non-2xx responses raise
+        immediately.
         """
+        # Compact prefix so every error/log line is self-identifying in Kusto
+        # (chunk_idx + first machine name pinpoint the failing slice without
+        # cross-referencing the per-worker log).
+        ctx = (
+            f"chunk={chunk_idx} target={first_machine_name} {method} {url}"
+        )
         backoff = _BATCH_429_INITIAL_BACKOFF_SECONDS
         last_resp: Optional[requests.Response] = None
         for attempt in range(_BATCH_429_MAX_RETRIES):
@@ -686,7 +744,11 @@ class AKSMachineClient(AKSClient):
                 "Content-Type": "application/json",
                 "BatchPutMachine": batch_header_value,
             }
-            resp = requests.request(
+            # Use the client's shared Session so this batch path reuses the
+            # same pooled TCP/TLS connections (and adapters/proxies) as the
+            # individual ``make_request`` path; avoids per-PUT handshakes
+            # during large scales.
+            resp = self._session.request(
                 method, url, headers=headers, json=data, timeout=timeout,
             )
             last_resp = resp
@@ -694,17 +756,19 @@ class AKSMachineClient(AKSClient):
                 return
             if resp.status_code != 429:
                 raise RuntimeError(
-                    f"batch request failed: {resp.status_code} {resp.text[:500]}"
+                    f"batch request failed [{ctx}]: "
+                    f"{resp.status_code} {resp.text[:500]}"
                 )
             if attempt == _BATCH_429_MAX_RETRIES - 1:
                 break
             logger.warning(
-                "batch request 429; retrying in %.1fs (attempt %d/%d)",
-                backoff, attempt + 1, _BATCH_429_MAX_RETRIES,
+                f"batch request 429 [{ctx}]; retrying in {backoff:.1f}s "
+                f"(attempt {attempt + 1}/{_BATCH_429_MAX_RETRIES})"
             )
             time.sleep(backoff)
             backoff *= 2
         text = last_resp.text[:500] if last_resp is not None else ""
         raise RuntimeError(
-            f"batch request exceeded {_BATCH_429_MAX_RETRIES} 429 retries; last text={text}"
+            f"batch request exceeded {_BATCH_429_MAX_RETRIES} attempts "
+            f"after HTTP 429 responses [{ctx}]; last text={text}"
         )
