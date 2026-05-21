@@ -830,18 +830,36 @@ class KubernetesClient:
             logger.info("Probe pod '%s' created at %s, waiting for autoscaler to scale up...",
                        pod_name, pod_created)
 
-            # Watch for new node and capture intermediate states
-            intermediate_states = self._watch_node_transitions(
-                existing_nodes=existing_nodes,
-                node_pool_name=node_pool_name,
-                cni_blocking_taint=cni_blocking_taint,
-                timeout_minutes=operation_timeout_in_minutes,
-            )
+            # Watch for new node in a background thread so it runs concurrently
+            # with the pod scheduling. This avoids blocking if the watch doesn't
+            # terminate promptly (e.g. Kubenet NetworkUnavailable delay).
+            import threading
+            stop_event = threading.Event()
+            watch_container = {}
+
+            def _run_watch():
+                watch_container["result"] = self._watch_node_transitions(
+                    existing_nodes=existing_nodes,
+                    node_pool_name=node_pool_name,
+                    cni_blocking_taint=cni_blocking_taint,
+                    timeout_minutes=operation_timeout_in_minutes,
+                    stop_event=stop_event,
+                )
+
+            watch_thread = threading.Thread(target=_run_watch, daemon=True)
+            watch_thread.start()
 
             # Wait for the probe pod to become Running
             pod = self.wait_for_probe_pod_running(
                 pod_name=pod_name, namespace=namespace,
                 operation_timeout_in_minutes=operation_timeout_in_minutes)
+
+            # Signal watch to stop and wait for it to finish
+            stop_event.set()
+            watch_thread.join(timeout=15)
+            intermediate_states = watch_container.get("result", {
+                "events": [], "not_ready_taint_cleared": None, "cni_taint_cleared": None,
+            })
 
             # Collect TriggeredScaleUp event timestamp from pod events
             triggered_scale_up = self._get_triggered_scale_up_timestamp(
@@ -921,21 +939,23 @@ class KubernetesClient:
                 pass
 
     def _watch_node_transitions(self, existing_nodes, node_pool_name,
-                                cni_blocking_taint=None, timeout_minutes=15):
+                                cni_blocking_taint=None, timeout_minutes=15,
+                                stop_event=None):
         """
         Watch for a new node in the pool and capture intermediate state transitions.
 
         Tracks:
           - Node appearance (registration)
-          - not-ready taint cleared (node.kubernetes.io/not-ready removed)
+          - not-ready taint cleared (node.kubernetes.io/not-ready:NoSchedule removed)
           - CNI blocking taint cleared (e.g. node.cilium.io/agent-not-ready removed)
-          - Node Ready condition transitions
+          - Node Ready condition transition (first time only)
 
         Args:
             existing_nodes: Set of node names that existed before scale-up
             node_pool_name: Label value to filter nodes
             cni_blocking_taint: Optional CNI-specific taint key to track
             timeout_minutes: Watch timeout
+            stop_event: Optional threading.Event to signal early termination
 
         Returns:
             Dict with taint-clearing timestamps and event log
@@ -953,6 +973,7 @@ class KubernetesClient:
         new_node_name = None
         saw_not_ready_taint = False
         saw_cni_taint = False
+        node_ready_recorded = False
 
         w = watch.Watch()
         try:
@@ -963,9 +984,11 @@ class KubernetesClient:
             ):
                 if time.time() > deadline:
                     break
+                if stop_event and stop_event.is_set():
+                    logger.info("Watch: stop signal received, terminating")
+                    break
 
                 node = event["object"]
-                event_type = event["type"]
                 node_name = node.metadata.name
 
                 # Only track the new node
@@ -986,12 +1009,15 @@ class KubernetesClient:
                     })
                     logger.info("Watch: new node '%s' registered", node_name)
 
-                # Track taints
-                current_taints = {t.key for t in (node.spec.taints or [])}
+                # Track taints using (key, effect) pairs for precision
+                current_taints = {
+                    (t.key, t.effect) for t in (node.spec.taints or [])
+                }
 
-                # Track not-ready taint
+                # Track not-ready taint (NoSchedule effect is the scheduling gate)
                 not_ready_key = "node.kubernetes.io/not-ready"
-                if not_ready_key in current_taints:
+                not_ready_noschedule = (not_ready_key, "NoSchedule")
+                if not_ready_noschedule in current_taints:
                     if not saw_not_ready_taint:
                         saw_not_ready_taint = True
                         result["events"].append({
@@ -1009,9 +1035,13 @@ class KubernetesClient:
                     })
                     logger.info("Watch: not-ready taint cleared on '%s'", node_name)
 
-                # Track CNI-specific taint
+                # Track CNI-specific taint (any effect)
                 if cni_blocking_taint:
-                    if cni_blocking_taint in current_taints:
+                    cni_taint_present = any(
+                        t.key == cni_blocking_taint
+                        for t in (node.spec.taints or [])
+                    )
+                    if cni_taint_present:
                         if not saw_cni_taint:
                             saw_cni_taint = True
                             result["events"].append({
@@ -1033,23 +1063,21 @@ class KubernetesClient:
                         logger.info("Watch: CNI taint '%s' cleared on '%s'",
                                    cni_blocking_taint, node_name)
 
-                # Track Ready condition
-                for cond in (node.status.conditions or []):
-                    if cond.type == "Ready":
-                        if cond.status == "True":
-                            result["events"].append({
-                                "event": "node_ready",
-                                "node": node_name,
-                                "observed_at": now_iso,
-                                "last_transition_time": self._format_k8s_timestamp(
-                                    cond.last_transition_time),
-                            })
-                            logger.info("Watch: node '%s' is Ready", node_name)
-                            # Once node is ready and relevant taints cleared, stop watching
-                            if not cni_blocking_taint or result["cni_taint_cleared"]:
-                                w.stop()
-                                return result
-                        break
+                # Track Ready condition — only record the first transition
+                if not node_ready_recorded:
+                    for cond in (node.status.conditions or []):
+                        if cond.type == "Ready":
+                            if cond.status == "True":
+                                node_ready_recorded = True
+                                result["events"].append({
+                                    "event": "node_ready",
+                                    "node": node_name,
+                                    "observed_at": now_iso,
+                                    "last_transition_time": self._format_k8s_timestamp(
+                                        cond.last_transition_time),
+                                })
+                                logger.info("Watch: node '%s' is Ready", node_name)
+                            break
 
         except Exception as e:
             logger.warning("Node watch ended: %s", e)
