@@ -841,6 +841,24 @@ class KubernetesClient:
             logger.info("Probe pod '%s' phase: %s, waiting...", pod_name, phase)
             time.sleep(2)
 
+        # Log diagnostic info before raising
+        try:
+            pod = self.api.read_namespaced_pod(name=pod_name, namespace=namespace)
+            logger.warning("Probe pod '%s' final state - phase: %s, node: %s, conditions: %s",
+                          pod_name, pod.status.phase, pod.spec.node_name,
+                          [(c.type, c.status, c.reason, c.message) for c in (pod.status.conditions or [])])
+            # Get scheduler events for the pod
+            events = self.api.list_namespaced_event(
+                namespace=namespace,
+                field_selector=f"involvedObject.name={pod_name},involvedObject.kind=Pod"
+            )
+            for event in events.items:
+                logger.warning("Probe pod event: %s - %s: %s",
+                              event.reason, event.source.component if event.source else "unknown",
+                              event.message)
+        except Exception as diag_err:
+            logger.warning("Failed to collect probe pod diagnostics: %s", diag_err)
+
         raise Exception(
             f"Probe pod '{pod_name}' did not become Running within {operation_timeout_in_minutes} minutes"
         )
