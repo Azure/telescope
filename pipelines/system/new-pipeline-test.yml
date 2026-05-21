@@ -1038,10 +1038,12 @@ stages:
   # ready to trigger. Other stages should be uncommented similarly per phase.
   - stage: azure_eastus2euap_n2_global_smoke
     dependsOn: []
-    # 2026-05-21: ENABLED for Option E (multi-scenario) smoke trigger. Disable
-    # again (flip back to `condition: false`) once smoke results are validated
-    # to prevent accidental re-trigger.
-    # condition: false
+    # 2026-05-21: DISABLED after Option E smoke validated (builds 67954 +
+    # 67959). Per-cell global services values matched expectations exactly:
+    # g0=0, g20=4, g60=12, g100=20 across all 3 scenarios (event-throughput,
+    # pod-churn-combined, isolation). Re-enable only if smoke-level
+    # validation is needed for a future code change.
+    condition: false
     displayName: "n=2 %global smoke (Option E: 3-scenario share-infra across 0/20/60/100)"
     jobs:
       - template: /jobs/competitive-test.yml
@@ -1174,8 +1176,12 @@ stages:
   # prevent accidental re-trigger.
   - stage: azure_eastus2euap_n20_global_sweep
     dependsOn: []
-    condition: false
-    displayName: "n=20 %global sweep (0/20/60/100, parallel)"
+    # 2026-05-21: ENABLED for Option E N=20 sweep trigger. Smoke validation
+    # (builds 67954 + 67959) confirmed Global Services scales linearly with
+    # %global (0→0, 20→4, 60→12, 100→20). Disable (flip back to
+    # `condition: false`) after this sweep completes.
+    # condition: false
+    displayName: "n=20 %global sweep (Option E: 3-scenario, 0/20/60/100, 4 parallel)"
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
