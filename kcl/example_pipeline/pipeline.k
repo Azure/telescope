@@ -15,6 +15,7 @@ CL2_TAINT_PREFIX = "cl2pool"
 CL2_NAMESPACE = "clusterloader2"
 KWOK_NODE_COUNT = 100
 
+# SkipAKSCluster disables Gatekeeper on ephemeral clusters
 requestBody = util.escapeStr("""
 {
     "location": "${LOCATION}",

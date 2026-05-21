@@ -13,6 +13,7 @@ LOCATION = "uksouth"
 CLUSTER = "configmaps100"
 RUNNER_IMAGE = "ghcr.io/azure/kperf:0.3.4"
 
+# SkipAKSCluster disables Gatekeeper on ephemeral benchmark clusters
 createClusterScript = """
 az aks create \\
   --name "${CLUSTER}" \\
@@ -52,6 +53,11 @@ makeBenchmarkJob = lambda flowcontrol: str, flowcontrolLabel: str -> job.Job {
                 const.DEFAULT_SERVICE_CONNECTION,
                 "Create cluster",
                 createClusterScript),
+            azure.WaitForClusterSucceeded(
+                const.DEFAULT_SERVICE_CONNECTION,
+                CLUSTER,
+                RESOURCE_GROUP,
+                SUBSCRIPTION_ID),
             azure.GetCredentials(
                 const.DEFAULT_SERVICE_CONNECTION,
                 CLUSTER,
@@ -66,6 +72,12 @@ makeBenchmarkJob = lambda flowcontrol: str, flowcontrolLabel: str -> job.Job {
                 "runner",
                 "Standard_D16s_v3",
                 3),
+            azure.WaitForNodePoolSucceeded(
+                const.DEFAULT_SERVICE_CONNECTION,
+                CLUSTER,
+                RESOURCE_GROUP,
+                SUBSCRIPTION_ID,
+                "runner"),
             runkperf.RunKperfBenchmark(
                 RUNNER_IMAGE,
                 "list_configmaps",
