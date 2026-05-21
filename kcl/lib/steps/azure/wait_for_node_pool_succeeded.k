@@ -1,9 +1,5 @@
 import azure_pipelines.ap.steps
 
-# waitForNodePoolScript renders a bash snippet that polls a single AKS node
-# pool's provisioningState every 30s, exiting 0 on Succeeded and 1 on
-# Failed/Canceled. The pool name is expanded at KCL render time so the emitted
-# script has no shell parameters.
 waitForNodePoolScript = lambda cluster: str, resourceGroup: str, subscription: str, poolName: str -> str {
     """
 while true; do
