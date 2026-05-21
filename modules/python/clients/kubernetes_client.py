@@ -1117,7 +1117,20 @@ class KubernetesClient:
         if node_ready_secs is not None and cni_ready_secs is not None:
             latencies["total_node_startup_seconds"] = max(node_ready_secs, cni_ready_secs)
         else:
-            latencies["total_node_startup_seconds"] = node_ready_secs or cni_ready_secs
+            latencies["total_node_startup_seconds"] = (
+                node_ready_secs if node_ready_secs is not None else cni_ready_secs
+            )
+        # Node workload-ready: time from node_registered until all scheduling
+        # gates clear (max of node_ready, network_unavailable_cleared, cni_pod_ready)
+        workload_ready_candidates = [
+            node_ready_secs,
+            _diff_seconds("node_network_unavailable_cleared", "node_registered"),
+            cni_ready_secs,
+        ]
+        valid_candidates = [c for c in workload_ready_candidates if c is not None]
+        latencies["node_workload_ready_seconds"] = (
+            max(valid_candidates) if valid_candidates else None
+        )
         # CNI init: time for CNI pod to become Ready
         latencies["cni_init_seconds"] = _diff_seconds(
             "cni_pod_ready", "cni_container_started")
@@ -1133,9 +1146,12 @@ class KubernetesClient:
         # CNI taint clearing: time from node registered to CNI taint cleared
         latencies["cni_taint_seconds"] = _diff_seconds(
             "cni_taint_cleared", "node_registered")
-        # Pod scheduling: time from node Ready to pod Scheduled (taint-gated delay)
+        # Pod scheduling: time from pod_scheduled - node_ready (taint-gated delay)
         latencies["pod_scheduling_seconds"] = _diff_seconds(
             "pod_scheduled", "node_ready")
+        # Network unavailable clearing: time from node_registered
+        latencies["network_unavailable_seconds"] = _diff_seconds(
+            "node_network_unavailable_cleared", "node_registered")
         # Pod init: time from pod Scheduled to container started
         latencies["pod_init_seconds"] = _diff_seconds(
             "container_started", "pod_scheduled")
