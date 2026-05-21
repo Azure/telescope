@@ -422,8 +422,14 @@ class AKSMachineClient(AKSClient):
 
         Raises:
             RuntimeError: fewer machines landed than requested, agentpool did
-                not reach Succeeded within ``timeout``, or P100 readiness did
-                not complete within ``readiness_wait_timeout``.
+                not reach Succeeded within ``timeout``, or P99 readiness did
+                not complete within ``readiness_wait_timeout``. P100 is
+                recorded in metadata for trending but is intentionally NOT
+                part of the hard gate: a single straggler node (slow kubelet
+                bootstrap, image-pull contention) on a large fan-out would
+                otherwise fail an otherwise-healthy run. All reached
+                percentiles (including P100 when it succeeds) are still
+                logged and emitted to ``percentile_node_readiness_times``.
         """
         cluster_name = cluster_name or self.get_cluster_name()
         metadata = {
@@ -523,12 +529,21 @@ class AKSMachineClient(AKSClient):
                     raise RuntimeError(
                         f"agentpool {agentpool_name} did not reach Succeeded within {timeout}s"
                     )
-                # P100 is the strictest readiness envelope (all target nodes
-                # Ready); if it succeeded, every lower percentile did too.
-                if not p100.get("success", False):
+                # Gate on P99 -- a single straggler node on a large fan-out
+                # (slow kubelet bootstrap, image-pull contention) should not
+                # fail an otherwise-healthy run. P100 elapsed/success is still
+                # recorded in ``percentile_node_readiness_times`` for trending.
+                p99 = percentile_envelope.get("P99", {})
+                if not p99.get("success", False):
                     raise RuntimeError(
-                        f"node readiness P100 did not complete within "
+                        f"node readiness P99 did not complete within "
                         f"{readiness_wait_timeout}s for agentpool {agentpool_name}"
+                    )
+                if not p100.get("success", False):
+                    logger.warning(
+                        f"node readiness P100 did not complete within "
+                        f"{readiness_wait_timeout}s for agentpool {agentpool_name}; "
+                        f"P99 was met -- treating as straggler tail, not a failure"
                     )
             except Exception as e:
                 logger.error(f"Failed to scale machine agentpool {agentpool_name}: {e}")
