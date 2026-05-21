@@ -25,6 +25,7 @@ from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 
 import requests
+from requests.adapters import HTTPAdapter
 
 from clients.aks_client import AKSClient
 from utils.logger_config import get_logger, setup_logging
@@ -55,6 +56,17 @@ _PER_REQUEST_TIMEOUT_CAP = 60
 # ballooning the chunk's wall-time.
 _BATCH_429_MAX_RETRIES = 5
 _BATCH_429_INITIAL_BACKOFF_SECONDS = 1.0
+# urllib3's default ``HTTPAdapter`` (mounted implicitly by ``requests.Session``)
+# caps each host's connection pool at ``pool_maxsize=10``. The parallel scale
+# paths fan out far beyond that (up to ``machine_workers`` concurrent PUTs
+# against ``management.azure.com``), which triggers
+# ``WARNING - Connection pool is full, discarding connection`` and forces
+# urllib3 to tear down and re-establish TLS for every excess request.
+# We mount an explicitly-sized adapter so the pool can retain one warm
+# connection per worker thread; 64 covers the current pipeline maxima
+# (50 individual workers, 4 batch workers) with comfortable headroom and
+# stays well below ARM's per-client connection ceilings.
+_HTTPS_POOL_SIZE = 64
 
 
 class AKSMachineClient(AKSClient):
@@ -75,7 +87,18 @@ class AKSMachineClient(AKSClient):
         # Pool TCP/TLS across calls. ``requests.Session`` is thread-safe for
         # sending requests (each request creates its own urllib3 connection
         # from the shared pool), so this is safe for the parallel scale path.
+        # Explicitly mount a sized adapter so the per-host pool can hold one
+        # warm connection per worker thread; otherwise the default
+        # ``pool_maxsize=10`` causes ``WARNING - Connection pool is full,
+        # discarding connection`` once worker fan-out exceeds 10.
         self._session = requests.Session()
+        _https_adapter = HTTPAdapter(
+            pool_connections=_HTTPS_POOL_SIZE,
+            pool_maxsize=_HTTPS_POOL_SIZE,
+            pool_block=False,
+        )
+        self._session.mount("https://", _https_adapter)
+        self._session.mount("http://", _https_adapter)
 
     # ---- auth + REST plumbing ----
     def _get_access_token(self) -> str:
