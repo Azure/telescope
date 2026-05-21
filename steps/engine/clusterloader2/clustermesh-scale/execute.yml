@@ -759,7 +759,23 @@ steps:
       # cleanup_failed state is logged via the timing JSON (Kusto-visible);
       # we don't promote it to step failure here because terraform destroy
       # will tear down the cluster regardless.
-      exit $single_scenario_rc
+      #
+      # 2026-05-21 (%global matrix experiment): mirror the share-infra
+      # behavior. At cl2_max_concurrent>=12, a SINGLE worker OOM/timeout
+      # would otherwise exit non-zero here, which causes AzDO's default
+      # `succeeded()` gate to skip the next steps (Collect + Upload Test
+      # Results to telescopedata). That loses ALL 99 successful workers'
+      # data for the cell. By emitting SucceededWithIssues and exit 0,
+      # collect/upload still run and per-row failures remain visible in
+      # the blob's `status` field + the warning logissue emitted by
+      # scale.py for the failed worker. Genuinely catastrophic
+      # pre-execute-parallel failures still exit 1 above this block
+      # (they happen before any data is gathered).
+      if [ "$single_scenario_rc" -ne 0 ]; then
+        echo "##vso[task.logissue type=warning;] Single-scenario CL2 exited rc=${single_scenario_rc} — some workers failed. Per-worker details in scale.py output above; per-cluster rows in blob carry status field. Emitting SucceededWithIssues so collect/upload still runs and successful workers' data is preserved."
+        echo "##vso[task.complete result=SucceededWithIssues;]"
+      fi
+      exit 0
     workingDirectory: modules/python
     env:
       ${{ if eq(parameters.cloud, 'azure') }}:
