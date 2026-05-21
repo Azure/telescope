@@ -30,6 +30,29 @@ az aks create \\
   --tags SkipAKSCluster=true SkipASMAzSecPackAutoConfig=true SkipLinuxAzSecPack=true
 """
 
+collectCloudInfoScript = """
+aks_info=$(az aks show --resource-group "${RESOURCE_GROUP}" --name "${CLUSTER}" --subscription "${SUBSCRIPTION_ID}" --output json)
+jq -n \\
+  --arg cloud "azure" \\
+  --arg region "$(echo $aks_info | jq -r .location)" \\
+  --arg fqdn "$(echo $aks_info | jq -r .fqdn)" \\
+  --arg private_fqdn "$(echo $aks_info | jq -r '.privateFqdn // empty')" \\
+  --arg k8s_version "$(echo $aks_info | jq -r .currentKubernetesVersion)" \\
+  --arg sku_tier "$(echo $aks_info | jq -r .sku.tier)" \\
+  --arg subscription "${SUBSCRIPTION_ID}" \\
+  --arg cluster_id "$(echo $aks_info | jq -r .resourceUid)" \\
+  '{
+    cloud: $cloud,
+    region: $region,
+    fqdn: $fqdn,
+    private_fqdn: $private_fqdn,
+    k8s_version: $k8s_version,
+    sku_tier: $sku_tier,
+    subscription: $subscription,
+    cluster_id: $cluster_id
+  }' > $(Pipeline.Workspace)/cloud_info.json
+"""
+
 makeBenchmarkJob = lambda flowcontrol: str, flowcontrolLabel: str -> job.Job {
     job.Job {
         job = "benchmark_${flowcontrolLabel}"
@@ -53,11 +76,6 @@ makeBenchmarkJob = lambda flowcontrol: str, flowcontrolLabel: str -> job.Job {
                 const.DEFAULT_SERVICE_CONNECTION,
                 "Create cluster",
                 createClusterScript),
-            azure.WaitForClusterSucceeded(
-                const.DEFAULT_SERVICE_CONNECTION,
-                CLUSTER,
-                RESOURCE_GROUP,
-                SUBSCRIPTION_ID),
             azure.GetCredentials(
                 const.DEFAULT_SERVICE_CONNECTION,
                 CLUSTER,
@@ -72,12 +90,6 @@ makeBenchmarkJob = lambda flowcontrol: str, flowcontrolLabel: str -> job.Job {
                 "runner",
                 "Standard_D16s_v3",
                 3),
-            azure.WaitForNodePoolSucceeded(
-                const.DEFAULT_SERVICE_CONNECTION,
-                CLUSTER,
-                RESOURCE_GROUP,
-                SUBSCRIPTION_ID,
-                "runner"),
             runkperf.RunKperfBenchmark(
                 RUNNER_IMAGE,
                 "list_configmaps",
@@ -86,13 +98,14 @@ makeBenchmarkJob = lambda flowcontrol: str, flowcontrolLabel: str -> job.Job {
                 flowcontrol = flowcontrol,
                 target = "kperf",
                 resultPath = "$(Pipeline.Workspace)/tmp_results.json"),
-            azure.CollectKperfResult(
+            azure.AzCli(
                 const.DEFAULT_SERVICE_CONNECTION,
+                "Collect cloud info",
+                collectCloudInfoScript),
+            runkperf.CollectKperfResult(
                 flowcontrol,
                 "--total 10000 --size=1024 --group-size=10 --configmap-amount=100",
-                CLUSTER,
-                RESOURCE_GROUP,
-                SUBSCRIPTION_ID,
+                "$(Pipeline.Workspace)/cloud_info.json",
                 inputPath = "$(Pipeline.Workspace)/tmp_results.json"),
             common.UploadResult(
                 const.DEFAULT_SERVICE_CONNECTION,
@@ -126,13 +139,12 @@ output = ap.Pipeline {
         }]
     }
 
-    # TODO: restore schedule after testing
-    # schedules = [ap.Cron {
-    #     cron = "0 3 * * 0"
-    #     displayName = "Weekly Sunday 3AM UTC"
-    #     branches = ["v2"]
-    #     always = True
-    # }]
+    schedules = [ap.Cron {
+        cron = "0 3 * * 0"
+        displayName = "Weekly Sunday 3AM UTC"
+        branches = {include = ["v2"]}
+        always = True
+    }]
     pool = const.DEFAULT_POOL
 
     stages = [
