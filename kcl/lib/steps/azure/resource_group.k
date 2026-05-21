@@ -10,7 +10,7 @@ az group create --name "${name}" --location "${location}" --subscription "${subs
         script)
 }
 
-DeleteResourceGroup = lambda serviceConnection: str, name: str, subscription: str -> steps.Step {
+DeleteResourceGroup = lambda serviceConnection: str, name: str, subscription: str, condition: str = "always()" -> steps.Step {
     script = """
 az group delete --name "${name}" --subscription "${subscription}" --yes
 """
@@ -18,5 +18,5 @@ az group delete --name "${name}" --subscription "${subscription}" --yes
         serviceConnection,
         "Delete resource group ${name} (${subscription})",
         script,
-        condition = "always()")
+        condition = condition)
 }
