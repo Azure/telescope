@@ -734,40 +734,38 @@ class KubernetesClient:
         Returns:
             The created pod name
         """
-        # Get existing nodes in the pool to build anti-affinity
-        existing_nodes = self.get_ready_nodes(label_selector=f"agentpool={node_pool_name}")
+        # Get ALL existing nodes in the pool (not just ready ones) to build anti-affinity
+        existing_nodes = self.get_nodes(label_selector=f"agentpool={node_pool_name}")
         existing_node_names = [n.metadata.name for n in existing_nodes]
 
         logger.info("Deploying probe pod '%s' with anti-affinity against nodes: %s",
                     pod_name, existing_node_names)
 
         # Build nodeAffinity to NOT schedule on existing nodes
-        node_selector_terms = []
+        affinity = None
         if existing_node_names:
-            node_selector_terms = [
-                client.V1NodeSelectorTerm(
-                    match_expressions=[
-                        client.V1NodeSelectorRequirement(
-                            key="kubernetes.io/hostname",
-                            operator="NotIn",
-                            values=existing_node_names,
-                        ),
-                        client.V1NodeSelectorRequirement(
-                            key="agentpool",
-                            operator="In",
-                            values=[node_pool_name],
-                        ),
-                    ]
-                )
-            ]
-
-        affinity = client.V1Affinity(
-            node_affinity=client.V1NodeAffinity(
-                required_during_scheduling_ignored_during_execution=client.V1NodeSelector(
-                    node_selector_terms=node_selector_terms
+            affinity = client.V1Affinity(
+                node_affinity=client.V1NodeAffinity(
+                    required_during_scheduling_ignored_during_execution=client.V1NodeSelector(
+                        node_selector_terms=[
+                            client.V1NodeSelectorTerm(
+                                match_expressions=[
+                                    client.V1NodeSelectorRequirement(
+                                        key="kubernetes.io/hostname",
+                                        operator="NotIn",
+                                        values=existing_node_names,
+                                    ),
+                                    client.V1NodeSelectorRequirement(
+                                        key="agentpool",
+                                        operator="In",
+                                        values=[node_pool_name],
+                                    ),
+                                ]
+                            )
+                        ]
+                    )
                 )
             )
-        )
 
         pod_manifest = client.V1Pod(
             api_version="v1",

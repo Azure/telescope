@@ -473,9 +473,11 @@ class AKSClient:
                 node_pool.count = node_count
 
                 # Deploy probe pod before scaling if pod startup measurement is enabled
+                probe_pod_deployed = False
                 if measure_pod_startup and operation_type == "scale_up":
                     try:
                         self.k8s_client.deploy_probe_pod(node_pool_name=node_pool_name)
+                        probe_pod_deployed = True
                         logger.info("Probe pod deployed, will measure pod startup latency after scale")
                     except Exception as probe_err:
                         logger.warning(f"Failed to deploy probe pod: {probe_err}")
@@ -532,7 +534,7 @@ class AKSClient:
                             op.add_metadata("node_startup_latency", startup_latency)
 
                             # Collect pod startup latency if probe pod was deployed
-                            if measure_pod_startup and new_nodes:
+                            if probe_pod_deployed and new_nodes:
                                 try:
                                     # Get node_ready timestamp from the first new node
                                     node_ready_ts = None
@@ -782,9 +784,11 @@ class AKSClient:
                     node_pool.count = step  # Update node count in the node pool object
 
                     # Deploy probe pod before scaling if pod startup measurement is enabled
+                    probe_pod_deployed = False
                     if measure_pod_startup and operation_type == "scale_up":
                         try:
                             self.k8s_client.deploy_probe_pod(node_pool_name=node_pool_name)
+                            probe_pod_deployed = True
                             logger.info("Probe pod deployed, will measure pod startup latency after scale")
                         except Exception as probe_err:
                             logger.warning(f"Failed to deploy probe pod: {probe_err}")
@@ -830,7 +834,7 @@ class AKSClient:
                                 logger.info(f"Collected node startup latency for {len(new_nodes)} new node(s)")
 
                                 # Collect pod startup latency if probe pod was deployed
-                                if measure_pod_startup:
+                                if probe_pod_deployed:
                                     try:
                                         node_ready_ts = None
                                         if startup_latency:
