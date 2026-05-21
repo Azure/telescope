@@ -21,11 +21,8 @@ stages:
             cilium_node_startup:
               pool_name: userpool
               vm_size: Standard_D4s_v5
-              create_node_count: 1
-              scale_node_count: 2
               step_time_out: 600
               cni_daemonset_label: "k8s-app=cilium"
-              measure_pod_startup: "true"
           max_parallel: 1
           timeout_in_minutes: 60
           credential_type: service_connection
@@ -48,12 +45,9 @@ stages:
             byocni_node_startup:
               pool_name: userpool
               vm_size: Standard_D4s_v5
-              create_node_count: 1
-              scale_node_count: 2
               step_time_out: 600
               cni_daemonset_label: "k8s-app=cilium"
               install_cilium: "true"
-              measure_pod_startup: "true"
           max_parallel: 1
           timeout_in_minutes: 60
           credential_type: service_connection
@@ -76,11 +70,8 @@ stages:
             kubenet_node_startup:
               pool_name: userpool
               vm_size: Standard_D4s_v5
-              create_node_count: 1
-              scale_node_count: 2
               step_time_out: 600
               cni_daemonset_label: ""
-              measure_pod_startup: "true"
           max_parallel: 1
           timeout_in_minutes: 60
           credential_type: service_connection
@@ -103,11 +94,8 @@ stages:
             azure_cni_node_startup:
               pool_name: userpool
               vm_size: Standard_D4s_v5
-              create_node_count: 1
-              scale_node_count: 2
               step_time_out: 600
               cni_daemonset_label: ""
-              measure_pod_startup: "true"
           max_parallel: 1
           timeout_in_minutes: 60
           credential_type: service_connection

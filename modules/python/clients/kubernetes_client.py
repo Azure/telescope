@@ -538,7 +538,7 @@ class KubernetesClient:
 
         For each node, extracts:
           - node_name: the node's name
-          - node_created: node.metadata.creationTimestamp (T1)
+          - node_registered: node.metadata.creationTimestamp (T1) — when kubelet registers the node object
           - node_ready: Ready condition lastTransitionTime (T4)
           - node_network_unavailable_cleared: NetworkUnavailable condition lastTransitionTime
 
@@ -559,7 +559,7 @@ class KubernetesClient:
 
             entry = {
                 "node_name": node_name,
-                "node_created": created,
+                "node_registered": created,
                 "node_ready": ready_time,
                 "node_network_unavailable_cleared": network_unavailable_time,
             }
@@ -623,102 +623,8 @@ class KubernetesClient:
 
         return results
 
-    def collect_node_startup_latency(self, nodes, scale_api_call_timestamp,
-                                     cni_daemonset_label=None, namespace="kube-system"):
-        """
-        Collect full node startup latency metrics for a set of newly provisioned nodes.
-
-        Combines node-level timestamps (T0, T1, T4) and optional CNI timestamps (T2, T3)
-        into a single per-node result with computed latency KPIs.
-
-        Args:
-            nodes: List of V1Node objects for newly provisioned nodes
-            scale_api_call_timestamp: ISO 8601 string of when the scale API was called (T0)
-            cni_daemonset_label: Label selector for CNI pods (e.g. "k8s-app=cilium").
-                                 If None, CNI timestamps are skipped.
-            namespace: Namespace for CNI pods (default: kube-system)
-
-        Returns:
-            List of dicts, one per node, with all timestamps and computed latencies
-        """
-        node_timestamps = self.collect_node_startup_timestamps(nodes)
-        node_names = [n.metadata.name for n in nodes]
-
-        cni_timestamps = {}
-        if cni_daemonset_label:
-            cni_timestamps = self.collect_cni_pod_timestamps(
-                node_names, cni_daemonset_label, namespace)
-
-        results = []
-        for entry in node_timestamps:
-            node_name = entry["node_name"]
-            merged = {
-                "node_name": node_name,
-                "scale_api_call": scale_api_call_timestamp,
-                "node_created": entry["node_created"],
-                "node_ready": entry["node_ready"],
-                "node_network_unavailable_cleared": entry["node_network_unavailable_cleared"],
-            }
-
-            # Add CNI timestamps if available
-            cni = cni_timestamps.get(node_name, {})
-            merged["cni_container_started"] = cni.get("cni_container_started")
-            merged["cni_pod_ready"] = cni.get("cni_pod_ready")
-
-            # Compute latency KPIs (all in seconds)
-            merged["latencies"] = self._compute_latencies(merged)
-
-            logger.info("Node startup latency for '%s': %s", node_name, merged)
-            results.append(merged)
-
-        return results
-
-    def _compute_latencies(self, timestamps):
-        """Compute latency KPIs from collected timestamps."""
-        latencies = {}
-
-        def _diff_seconds(end_key, start_key):
-            end_val = timestamps.get(end_key)
-            start_val = timestamps.get(start_key)
-            if not end_val or not start_val:
-                return None
-            try:
-                from datetime import datetime, timezone
-                end_dt = datetime.fromisoformat(end_val.replace("Z", "+00:00"))
-                start_dt = datetime.fromisoformat(start_val.replace("Z", "+00:00"))
-                return (end_dt - start_dt).total_seconds()
-            except Exception:
-                return None
-
-        # Total node startup: max(T4, T3) - T0
-        # Use the later of node_ready (T4) and cni_pod_ready (T3) so that
-        # total startup reflects the node being fully functional incl. CNI.
-        node_ready_secs = _diff_seconds("node_ready", "scale_api_call")
-        cni_ready_secs = _diff_seconds("cni_pod_ready", "scale_api_call")
-        if node_ready_secs is not None and cni_ready_secs is not None:
-            latencies["total_node_startup_seconds"] = max(node_ready_secs, cni_ready_secs)
-        else:
-            latencies["total_node_startup_seconds"] = node_ready_secs or cni_ready_secs
-        # Cloud provisioning: T1 - T0
-        latencies["cloud_provisioning_seconds"] = _diff_seconds(
-            "node_created", "scale_api_call")
-        # Node initialization: T4 - T1
-        latencies["node_init_seconds"] = _diff_seconds(
-            "node_ready", "node_created")
-        # CNI initialization: T3 - T2
-        latencies["cni_init_seconds"] = _diff_seconds(
-            "cni_pod_ready", "cni_container_started")
-        # CNI-induced delay: max(0, T3 - T4)
-        cni_delay = _diff_seconds("cni_pod_ready", "node_ready")
-        if cni_delay is not None:
-            latencies["cni_induced_delay_seconds"] = max(0, cni_delay)
-        else:
-            latencies["cni_induced_delay_seconds"] = None
-
-        return latencies
-
     def deploy_probe_pod(self, node_pool_name, namespace="default",
-                         pod_name="latency-probe", image="mcr.microsoft.com/oss/nginx/nginx:1.21"):
+                         pod_name="latency-probe", image="mcr.microsoft.com/oss/kubernetes/pause:3.9"):
         """
         Deploy a probe pod with anti-affinity against existing nodes in the pool.
 
@@ -863,69 +769,166 @@ class KubernetesClient:
             f"Probe pod '{pod_name}' did not become Running within {operation_timeout_in_minutes} minutes"
         )
 
-    def collect_pod_startup_latency(self, pod_name="latency-probe", namespace="default",
-                                    scale_api_call_timestamp=None, node_ready_timestamp=None):
+    def delete_probe_pod(self, pod_name="latency-probe", namespace="default"):
+        """Delete the probe pod used for latency measurement."""
+        try:
+            self.api.delete_namespaced_pod(name=pod_name, namespace=namespace)
+            logger.info("Probe pod '%s' deleted", pod_name)
+        except client.rest.ApiException as e:
+            if e.status == 404:
+                logger.info("Probe pod '%s' not found (already deleted)", pod_name)
+            else:
+                raise
+
+    def collect_autoscale_latency(self, node_pool_name, cni_daemonset_label=None,
+                                  namespace="default", pod_name="latency-probe",
+                                  operation_timeout_in_minutes=15):
         """
-        Collect pod startup latency timestamps from a probe pod.
+        Measure node and pod startup latency via cluster autoscaler.
 
-        Extracts:
-          - pod_scheduled: PodScheduled condition lastTransitionTime
-          - pod_initialized: Initialized condition lastTransitionTime
-          - containers_ready: ContainersReady condition lastTransitionTime
-          - pod_ready: Ready condition lastTransitionTime
-          - container_started: first container's state.running.startedAt
+        Deploys a probe pod that cannot schedule on existing nodes, forcing the
+        cluster autoscaler to scale up. Collects all timestamps once the pod is Running.
 
-        Computes:
-          - pod_scheduling_seconds: time from node Ready to pod Scheduled
-          - pod_init_seconds: time from pod Scheduled to container started
-          - pod_ready_seconds: time from container started to pod Ready
-          - total_pod_startup_seconds: time from scale API call to pod Ready
+        Timestamps collected:
+          - pod_created: probe pod creationTimestamp (trigger moment)
+          - triggered_scale_up: TriggeredScaleUp event timestamp from cluster autoscaler
+          - node_registered: new node's creationTimestamp
+          - node_ready: new node's Ready condition lastTransitionTime
+          - cni_container_started: CNI pod container startedAt (if cni_daemonset_label set)
+          - cni_pod_ready: CNI pod Ready condition lastTransitionTime (if cni_daemonset_label set)
+          - pod_scheduled: probe pod PodScheduled condition lastTransitionTime
+          - container_started: probe pod container startedAt
+          - pod_ready: probe pod Ready condition lastTransitionTime
 
         Args:
+            node_pool_name: The node pool to target (agentpool label)
+            cni_daemonset_label: Label selector for CNI pods (e.g. "k8s-app=cilium")
+            namespace: Namespace for the probe pod
             pod_name: Name of the probe pod
-            namespace: Namespace of the probe pod
-            scale_api_call_timestamp: ISO 8601 string of when scale API was called (T0)
-            node_ready_timestamp: ISO 8601 string of when the new node became Ready
+            operation_timeout_in_minutes: Timeout for the entire operation
 
         Returns:
-            Dict with pod timestamps and computed latencies
+            Dict with all timestamps and computed latency metrics
         """
-        pod = self.api.read_namespaced_pod(name=pod_name, namespace=namespace)
+        try:
+            # Deploy probe pod — this triggers the autoscaler
+            self.deploy_probe_pod(node_pool_name=node_pool_name,
+                                  namespace=namespace, pod_name=pod_name)
 
-        # Extract condition timestamps
-        pod_scheduled = self._get_condition_transition_time(pod.status.conditions, "PodScheduled")
-        pod_initialized = self._get_condition_transition_time(pod.status.conditions, "Initialized")
-        containers_ready = self._get_condition_transition_time(pod.status.conditions, "ContainersReady")
-        pod_ready = self._get_condition_transition_time(pod.status.conditions, "Ready")
+            # Get pod_created timestamp
+            pod = self.api.read_namespaced_pod(name=pod_name, namespace=namespace)
+            pod_created = self._format_k8s_timestamp(pod.metadata.creation_timestamp)
+            logger.info("Probe pod '%s' created at %s, waiting for autoscaler to scale up...",
+                       pod_name, pod_created)
 
-        # Extract container started time
-        container_started = None
-        if pod.status.container_statuses:
-            for cs in pod.status.container_statuses:
-                if cs.state and cs.state.running and cs.state.running.started_at:
-                    container_started = self._format_k8s_timestamp(cs.state.running.started_at)
-                    break
+            # Wait for the probe pod to become Running
+            pod = self.wait_for_probe_pod_running(
+                pod_name=pod_name, namespace=namespace,
+                operation_timeout_in_minutes=operation_timeout_in_minutes)
 
-        timestamps = {
-            "pod_name": pod_name,
-            "node_name": pod.spec.node_name,
-            "scale_api_call": scale_api_call_timestamp,
-            "node_ready": node_ready_timestamp,
-            "pod_scheduled": pod_scheduled,
-            "pod_initialized": pod_initialized,
-            "container_started": container_started,
-            "containers_ready": containers_ready,
-            "pod_ready": pod_ready,
-        }
+            # Collect TriggeredScaleUp event timestamp from pod events
+            triggered_scale_up = self._get_triggered_scale_up_timestamp(
+                pod_name=pod_name, namespace=namespace)
 
-        # Compute latencies
-        timestamps["latencies"] = self._compute_pod_latencies(timestamps)
+            # Identify the new node (the one the pod was scheduled on)
+            new_node_name = pod.spec.node_name
+            logger.info("Probe pod scheduled on node '%s'", new_node_name)
 
-        logger.info("Pod startup latency for '%s': %s", pod_name, timestamps)
-        return timestamps
+            # Collect node timestamps
+            new_node = self.api.read_node(name=new_node_name)
+            node_registered = self._format_k8s_timestamp(new_node.metadata.creation_timestamp)
+            node_ready = self._get_condition_transition_time(
+                new_node.status.conditions, "Ready")
+            node_network_unavailable_cleared = self._get_condition_transition_time(
+                new_node.status.conditions, "NetworkUnavailable")
 
-    def _compute_pod_latencies(self, timestamps):
-        """Compute pod latency KPIs from collected timestamps."""
+            # Collect CNI timestamps if applicable
+            cni_container_started = None
+            cni_pod_ready = None
+            if cni_daemonset_label:
+                cni_timestamps = self.collect_cni_pod_timestamps(
+                    [new_node_name], cni_daemonset_label)
+                cni_info = cni_timestamps.get(new_node_name, {})
+                cni_container_started = cni_info.get("cni_container_started")
+                cni_pod_ready = cni_info.get("cni_pod_ready")
+
+            # Collect pod timestamps
+            pod_scheduled = self._get_condition_transition_time(
+                pod.status.conditions, "PodScheduled")
+            pod_initialized = self._get_condition_transition_time(
+                pod.status.conditions, "Initialized")
+            containers_ready = self._get_condition_transition_time(
+                pod.status.conditions, "ContainersReady")
+            pod_ready = self._get_condition_transition_time(
+                pod.status.conditions, "Ready")
+
+            container_started = None
+            if pod.status.container_statuses:
+                for cs in pod.status.container_statuses:
+                    if cs.state and cs.state.running and cs.state.running.started_at:
+                        container_started = self._format_k8s_timestamp(cs.state.running.started_at)
+                        break
+
+            # Build result
+            timestamps = {
+                "node_name": new_node_name,
+                "pod_name": pod_name,
+                "pod_created": pod_created,
+                "triggered_scale_up": triggered_scale_up,
+                "node_registered": node_registered,
+                "node_ready": node_ready,
+                "node_network_unavailable_cleared": node_network_unavailable_cleared,
+                "cni_container_started": cni_container_started,
+                "cni_pod_ready": cni_pod_ready,
+                "pod_scheduled": pod_scheduled,
+                "pod_initialized": pod_initialized,
+                "container_started": container_started,
+                "containers_ready": containers_ready,
+                "pod_ready": pod_ready,
+            }
+
+            # Compute latencies
+            timestamps["latencies"] = self._compute_autoscale_latencies(timestamps)
+
+            logger.info("Autoscale latency results: %s", timestamps)
+            return timestamps
+
+        finally:
+            # Always clean up the probe pod
+            try:
+                self.delete_probe_pod(pod_name=pod_name, namespace=namespace)
+            except Exception:
+                pass
+
+    def _get_triggered_scale_up_timestamp(self, pod_name, namespace="default"):
+        """
+        Get the timestamp of the TriggeredScaleUp event for the probe pod.
+
+        The cluster autoscaler posts this event on unschedulable pods when it
+        decides to scale up a node group.
+
+        Returns:
+            ISO 8601 timestamp string, or None if not found
+        """
+        try:
+            events = self.api.list_namespaced_event(
+                namespace=namespace,
+                field_selector=f"involvedObject.name={pod_name},involvedObject.kind=Pod"
+            )
+            for event in events.items:
+                if event.reason == "TriggeredScaleUp":
+                    # Use event's first timestamp
+                    ts = event.first_timestamp or event.metadata.creation_timestamp
+                    if ts:
+                        return self._format_k8s_timestamp(ts)
+            logger.warning("No TriggeredScaleUp event found for pod '%s'", pod_name)
+            return None
+        except Exception as e:
+            logger.warning("Failed to get TriggeredScaleUp event: %s", e)
+            return None
+
+    def _compute_autoscale_latencies(self, timestamps):
+        """Compute latency KPIs for autoscaler-triggered scaling."""
         latencies = {}
 
         def _diff_seconds(end_key, start_key):
@@ -941,27 +944,45 @@ class KubernetesClient:
             except Exception:
                 return None
 
-        # Pod scheduling delay: time from node Ready to pod Scheduled
-        latencies["pod_scheduling_seconds"] = _diff_seconds("pod_scheduled", "node_ready")
+        # Autoscaler reaction: time from pod created to scale-up triggered
+        latencies["autoscaler_reaction_seconds"] = _diff_seconds(
+            "triggered_scale_up", "pod_created")
+        # Cloud provisioning: time from scale-up triggered to node registered
+        latencies["cloud_provisioning_seconds"] = _diff_seconds(
+            "node_registered", "triggered_scale_up")
+        # Node init: time from node registered to node Ready
+        latencies["node_init_seconds"] = _diff_seconds(
+            "node_ready", "node_registered")
+        # Total node startup: max(node_ready, cni_pod_ready) - node_registered
+        node_ready_secs = _diff_seconds("node_ready", "node_registered")
+        cni_ready_secs = _diff_seconds("cni_pod_ready", "node_registered")
+        if node_ready_secs is not None and cni_ready_secs is not None:
+            latencies["total_node_startup_seconds"] = max(node_ready_secs, cni_ready_secs)
+        else:
+            latencies["total_node_startup_seconds"] = node_ready_secs or cni_ready_secs
+        # CNI init: time for CNI pod to become Ready
+        latencies["cni_init_seconds"] = _diff_seconds(
+            "cni_pod_ready", "cni_container_started")
+        # CNI-induced delay: extra time CNI adds after node Ready
+        cni_delay = _diff_seconds("cni_pod_ready", "node_ready")
+        if cni_delay is not None:
+            latencies["cni_induced_delay_seconds"] = max(0, cni_delay)
+        else:
+            latencies["cni_induced_delay_seconds"] = None
+        # Pod scheduling: time from node Ready to pod Scheduled
+        latencies["pod_scheduling_seconds"] = _diff_seconds(
+            "pod_scheduled", "node_ready")
         # Pod init: time from pod Scheduled to container started
-        latencies["pod_init_seconds"] = _diff_seconds("container_started", "pod_scheduled")
+        latencies["pod_init_seconds"] = _diff_seconds(
+            "container_started", "pod_scheduled")
         # Pod ready: time from container started to pod Ready
-        latencies["pod_ready_seconds"] = _diff_seconds("pod_ready", "container_started")
-        # Total pod startup: time from scale API call to pod Ready
-        latencies["total_pod_startup_seconds"] = _diff_seconds("pod_ready", "scale_api_call")
+        latencies["pod_ready_seconds"] = _diff_seconds(
+            "pod_ready", "container_started")
+        # Total end-to-end: pod_ready - pod_created
+        latencies["total_e2e_seconds"] = _diff_seconds(
+            "pod_ready", "pod_created")
 
         return latencies
-
-    def delete_probe_pod(self, pod_name="latency-probe", namespace="default"):
-        """Delete the probe pod used for latency measurement."""
-        try:
-            self.api.delete_namespaced_pod(name=pod_name, namespace=namespace)
-            logger.info("Probe pod '%s' deleted", pod_name)
-        except client.rest.ApiException as e:
-            if e.status == 404:
-                logger.info("Probe pod '%s' not found (already deleted)", pod_name)
-            else:
-                raise
 
     def set_context(self, context_name):
         """

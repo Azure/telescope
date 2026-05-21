@@ -14,10 +14,7 @@ steps:
   parameters:
     cloud: ${{ parameters.cloud }}
     vm_size: $(VM_SIZE)
-    create_node_count: $(CREATE_NODE_COUNT)
-    scale_node_count: $(SCALE_NODE_COUNT)
     pool_name: $(POOL_NAME)
     step_time_out: $(STEP_TIME_OUT)
     result_dir: $(System.DefaultWorkingDirectory)/$(RUN_ID)
     cni_daemonset_label: $(CNI_DAEMONSET_LABEL)
-    measure_pod_startup: $(MEASURE_POD_STARTUP)

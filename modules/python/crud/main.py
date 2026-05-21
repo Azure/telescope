@@ -113,10 +113,6 @@ def handle_node_pool_operation(node_pool_crud, args):
                 "scale_step_size": args.scale_step_size,
                 "gpu_node_pool": args.gpu_node_pool,
             }
-            if hasattr(args, "cni_daemonset_label") and args.cni_daemonset_label:
-                scale_kwargs["cni_daemonset_label"] = args.cni_daemonset_label
-            if hasattr(args, "measure_pod_startup") and args.measure_pod_startup:
-                scale_kwargs["measure_pod_startup"] = args.measure_pod_startup
 
             result = node_pool_crud.scale_node_pool(**scale_kwargs)
 
@@ -149,6 +145,39 @@ def handle_node_pool_operation(node_pool_crud, args):
     except Exception as e:
         logger.error(f"Error during '{command}' operation: {str(e)}")
         return 1
+
+
+def handle_autoscale_latency(node_pool_crud, args):
+    """Measure node and pod startup latency via cluster autoscaler."""
+    try:
+        # Get the kubernetes client from the cloud-specific CRUD class
+        if args.cloud == "azure":
+            k8s_client = node_pool_crud.aks_client.k8s_client
+        else:
+            logger.error(f"autoscale-latency not supported for cloud: {args.cloud}")
+            return 1
+
+        if not k8s_client:
+            logger.error("Kubernetes client not available")
+            return 1
+
+        cni_label = args.cni_daemonset_label if args.cni_daemonset_label else None
+
+        with OperationContext(
+            "autoscale_latency", args.cloud, {}, result_dir=args.result_dir
+        ) as op:
+            result = k8s_client.collect_autoscale_latency(
+                node_pool_name=args.node_pool_name,
+                cni_daemonset_label=cni_label,
+                operation_timeout_in_minutes=args.step_timeout // 60 or 15,
+            )
+            op.add_metadata("autoscale_latency", result)
+
+        return 0
+    except Exception as e:
+        logger.error(f"Error during autoscale-latency operation: {str(e)}")
+        return 1
+
 
 def handle_workload_operations(node_pool_crud, args):
     """Handle workload operations (deployment, statefulset, jobs) based on the command"""
@@ -306,18 +335,6 @@ def main():
         default=30,
         help="Wait time in seconds between scaling steps",
     )
-    scale_parser.add_argument(
-        "--cni-daemonset-label",
-        default=None,
-        help="Label selector for CNI daemonset pods to collect node startup latency "
-             "(e.g. 'k8s-app=cilium', 'k8s-app=azure-cni'). If not set, CNI timestamps are skipped.",
-    )
-    scale_parser.add_argument(
-        "--measure-pod-startup",
-        action="store_true",
-        default=False,
-        help="Deploy a probe pod before scaling and measure pod scheduling + startup latency.",
-    )
     scale_parser.set_defaults(func=handle_node_pool_operation)
 
     # Delete command
@@ -401,6 +418,20 @@ def main():
         help="create deployments"
     )
     deployment_parser.set_defaults(func=handle_workload_operations)
+
+    # Autoscale latency command
+    autoscale_parser = subparsers.add_parser(
+        "autoscale-latency",
+        parents=[common_parser],
+        help="Measure node and pod startup latency via cluster autoscaler",
+    )
+    autoscale_parser.add_argument("--node-pool-name", required=True, help="Node pool name")
+    autoscale_parser.add_argument(
+        "--cni-daemonset-label",
+        default=None,
+        help="Label selector for CNI daemonset pods (e.g. 'k8s-app=cilium')",
+    )
+    autoscale_parser.set_defaults(func=handle_autoscale_latency)
 
     # Arguments provided, run node pool operations and collect benchmark results
     try:

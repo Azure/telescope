@@ -44,7 +44,9 @@ aks_config_list = [
       {
         name                 = "userpool"
         node_count           = 1
-        auto_scaling_enabled = false
+        auto_scaling_enabled = true
+        min_count            = 1
+        max_count            = 2
         vm_size              = "Standard_D4ds_v5"
         os_disk_type         = "Ephemeral"
         node_labels          = { "node-startup-latency" = "true" }

@@ -1,13 +1,10 @@
 parameters:
   result_dir: ""
   vm_size: ""
-  create_node_count: ""
-  scale_node_count: ""
   pool_name: ""
   cloud: ""
   step_time_out: 600
   cni_daemonset_label: ""
-  measure_pod_startup: ""
 
 steps:
 - script: |
@@ -18,34 +15,24 @@ steps:
       CNI_LABEL_ARG="--cni-daemonset-label $CNI_DAEMONSET_LABEL"
     fi
 
-    MEASURE_POD_ARG=""
-    if [ "$MEASURE_POD_STARTUP" = "true" ]; then
-      MEASURE_POD_ARG="--measure-pod-startup"
-    fi
-
-    # Scale Up Node Pool (N -> N+1) and collect node startup latency
-    PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" scale \
+    # Trigger autoscaler by deploying probe pod and collect latency metrics
+    PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" autoscale-latency \
       --cloud "$CLOUD" \
       --run-id "$RUN_ID" \
       --result-dir "$RESULT_DIR" \
       --node-pool-name "$POOL_NAME" \
-      --target-count "$SCALE_NODE_COUNT" \
-      --scale-step-size 1 \
       --step-timeout "$STEP_TIME_OUT" \
-      $CNI_LABEL_ARG \
-      $MEASURE_POD_ARG
+      $CNI_LABEL_ARG
 
-  displayName: 'Scale Up & Collect Node Startup Latency for ${{ parameters.cloud }}'
+  displayName: 'Autoscale Latency for ${{ parameters.cloud }}'
   workingDirectory: modules/python
   env:
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/crud/main.py
     VM_SIZE: ${{ parameters.vm_size }}
-    SCALE_NODE_COUNT: ${{ parameters.scale_node_count }}
     POOL_NAME: ${{ parameters.pool_name }}
     CLOUD: ${{ parameters.cloud }}
     STEP_TIME_OUT: ${{ parameters.step_time_out }}
     RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
     CNI_DAEMONSET_LABEL: ${{ parameters.cni_daemonset_label }}
-    MEASURE_POD_STARTUP: ${{ parameters.measure_pod_startup }}
 
 
