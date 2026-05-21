@@ -955,3 +955,60 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
           skip_publish: false
+
+  # 2026-05-20: Diagnostic stage to dump AKS-Telescope-Airlock agent VM specs
+  # (memory/vCPU/SKU). Used to inform cl2_max_concurrent tuning — the agent
+  # VMSS lives in subscription 137f0351 / SELF-HOSTED RG which we don't have
+  # RBAC to read directly, so this is the easiest way to discover specs.
+  # Runtime: ~30s, zero Azure quota, no resources created.
+  # To use: trigger the pipeline with ONLY this stage checked in the AzDO UI
+  # (Stages picker) — others will be skipped.
+  - stage: agent_specs_diag
+    dependsOn: []
+    displayName: "Agent VM specs diagnostic (no infra)"
+    jobs:
+      - job: dump_specs
+        timeoutInMinutes: 5
+        steps:
+          - bash: |
+              set +e
+              echo "=========================================="
+              echo "=== AGENT POOL DIAGNOSTIC ==="
+              echo "=========================================="
+              echo "Agent: $(hostname)"
+              echo "Date:  $(date -u)"
+              echo ""
+              echo "--- MEMORY (free -h) ---"
+              free -h
+              echo ""
+              echo "--- /proc/meminfo (head) ---"
+              head -5 /proc/meminfo
+              echo ""
+              echo "--- CPU ---"
+              echo "nproc: $(nproc)"
+              lscpu | head -20
+              echo ""
+              echo "--- DISK ---"
+              df -h / 2>/dev/null
+              df -h /agent 2>/dev/null || true
+              df -h /mnt 2>/dev/null || true
+              echo ""
+              echo "--- VM METADATA (Azure IMDS) ---"
+              # Azure Instance Metadata Service — authoritative VM SKU
+              IMDS_JSON=$(curl -s -H "Metadata: true" --max-time 5 \
+                "http://169.254.169.254/metadata/instance?api-version=2021-02-01" 2>/dev/null)
+              if [ -n "$IMDS_JSON" ]; then
+                echo "$IMDS_JSON" | python3 -m json.tool 2>/dev/null | \
+                  grep -iE "vmSize|name|location|sku|osType|vmId|resourceGroupName" | head -15
+              else
+                echo "IMDS unreachable (not Azure VM, or blocked)"
+              fi
+              echo ""
+              echo "--- UPTIME / LOAD ---"
+              uptime
+              echo ""
+              echo "--- DOCKER ---"
+              docker --version 2>/dev/null || echo "docker not installed"
+              docker info 2>/dev/null | grep -iE "cpus|memory|kernel|operating" | head -10
+              echo "=========================================="
+            displayName: "Dump agent VM specs"
