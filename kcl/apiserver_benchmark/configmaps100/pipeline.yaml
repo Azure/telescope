@@ -1,5 +1,12 @@
 name: API Server List Configmaps
 pool: AKS-Telescope-Airlock
+schedules:
+- cron: '0 3 * * 0'
+  displayName: Weekly Sunday 3AM UTC
+  branches:
+    include:
+    - v2
+  always: true
 resources:
   containers:
   - container: kperf
@@ -76,6 +83,34 @@ stages:
         inlineScript: |
           set -exo pipefail
 
+          while true; do
+            STATE=$(az aks show \
+              --name "configmaps100" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --query "provisioningState" \
+              --output tsv)
+            echo "Cluster provisioning state: $STATE"
+            if [ "$STATE" = "Succeeded" ]; then
+              echo "Cluster is ready."
+              break
+            elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+              echo "Cluster failed with state: $STATE."
+              exit 1
+            else
+              echo "Provisioning state: $STATE. Retry in 30 seconds"
+            fi
+            sleep 30
+          done
+      displayName: Wait for cluster to succeed
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
           az aks get-credentials \
             --name "configmaps100" \
             --resource-group "$(RUN_ID)" \
@@ -90,6 +125,35 @@ stages:
         scriptLocation: inlineScript
         inlineScript: "set -exo pipefail\n\naz aks nodepool add \\\n  --cluster-name \"configmaps100\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"runner\" \\\n  --node-count 3 \\\n  --node-vm-size \"Standard_D16s_v3\" \\\n  --mode User \\\n   \\\n  \n"
       displayName: Create node pool runner
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          while true; do
+            STATE=$(az aks nodepool show \
+              --cluster-name "configmaps100" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --name "runner" \
+              --query "provisioningState" \
+              --output tsv)
+            echo "Node pool provisioning state: $STATE"
+            if [ "$STATE" = "Succeeded" ]; then
+              echo "Node pool is ready."
+              break
+            elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+              echo "Node pool failed with state: $STATE."
+              exit 1
+            else
+              echo "Provisioning state: $STATE. Retry in 30 seconds"
+            fi
+            sleep 30
+          done
+      displayName: Wait for node pool runner to succeed
     - script: |2
 
         set -euo pipefail
@@ -113,11 +177,8 @@ stages:
         inlineScript: |
           set -exo pipefail
 
-          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
-          # Collect cloud info
           aks_info=$(az aks show --resource-group "$(RUN_ID)" --name "configmaps100" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --output json)
-          cloud_info=$(jq -n \
+          jq -n \
             --arg cloud "azure" \
             --arg region "$(echo $aks_info | jq -r .location)" \
             --arg fqdn "$(echo $aks_info | jq -r .fqdn)" \
@@ -135,25 +196,33 @@ stages:
               sku_tier: $sku_tier,
               subscription: $subscription,
               cluster_id: $cluster_id
-            }')
+            }' > $(Pipeline.Workspace)/cloud_info.json
+      displayName: Collect cloud info
+    - script: |2
 
-          # Check for errors and print error details if error rate exceeds threshold
-          errors_number=$(jq -r '.result.errors | length' $(Pipeline.Workspace)/tmp_results.json)
-          error_rate_too_high=$(jq -r '(1 - .result.total / (.loadSpec.count * .loadSpec.loadProfile.spec.total)) > 0.1' $(Pipeline.Workspace)/tmp_results.json)
-          if [[ "$errors_number" != "0" && "$error_rate_too_high" == "true" ]]; then
-            echo "Error rate exceeds 0.1, printing error details:"
-            jq -r ".result.errors | map(. + {run_id: \"$(RUN_ID)\", cloud: \"azure\"}) | .[]" $(Pipeline.Workspace)/tmp_results.json
-          fi
+        set -euo pipefail
 
-          # Collect final result — pack everything into the "result" field so Kusto ingests it all
-          cat $(Pipeline.Workspace)/tmp_results.json \
-            | jq 'del(.result.errors)' \
-            | jq -c --argjson ci "$cloud_info" '{ cloud: $ci.cloud, region: $ci.region, fqdn: $ci.fqdn, private_fqdn: $ci.private_fqdn, k8s_version: $ci.k8s_version, sku_tier: $ci.sku_tier, subscription: $ci.subscription, cluster_id: $ci.cluster_id, flowcontrol: "workload-low:1000", benchmarkSubcmdArgs: "--total 10000 --size=1024 --group-size=10 --configmap-amount=100" } + .result | { result: . }' \
-            | jq -c '. + { timestamp: "'"$TIMESTAMP"'", run_id: "$(RUN_ID)", run_url: "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)", pipeline: "$(Build.DefinitionName)" }' \
-            > /tmp/run-result.json
+        TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-          echo "Collected result:"
-          cat /tmp/run-result.json | jq .
+        cloud_info=$(cat $(Pipeline.Workspace)/cloud_info.json)
+
+        # Check for errors and print error details if error rate exceeds threshold
+        errors_number=$(jq -r '.result.errors | length' $(Pipeline.Workspace)/tmp_results.json)
+        error_rate_too_high=$(jq -r '(1 - .result.total / (.loadSpec.count * .loadSpec.loadProfile.spec.total)) > 0.1' $(Pipeline.Workspace)/tmp_results.json)
+        if [[ "$errors_number" != "0" && "$error_rate_too_high" == "true" ]]; then
+          echo "Error rate exceeds 0.1, printing error details:"
+          jq -r ".result.errors | map(. + {run_id: \"$(RUN_ID)\", cloud: \"azure\"}) | .[]" $(Pipeline.Workspace)/tmp_results.json
+        fi
+
+        # Collect final result
+        cat $(Pipeline.Workspace)/tmp_results.json \
+          | jq 'del(.result.errors)' \
+          | jq -c --argjson ci "$cloud_info" '{ cloud: $ci.cloud, region: $ci.region, fqdn: $ci.fqdn, private_fqdn: $ci.private_fqdn, k8s_version: $ci.k8s_version, sku_tier: $ci.sku_tier, subscription: $ci.subscription, cluster_id: $ci.cluster_id, flowcontrol: "workload-low:1000", benchmarkSubcmdArgs: "--total 10000 --size=1024 --group-size=10 --configmap-amount=100" } + .result | { result: . }' \
+          | jq -c '. + { timestamp: "'"$TIMESTAMP"'", run_id: "$(RUN_ID)", run_url: "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)", pipeline: "$(Build.DefinitionName)" }' \
+          > /tmp/run-result.json
+
+        echo "Collected result:"
+        cat /tmp/run-result.json | jq .
       displayName: Collect kperf benchmark result
     - task: AzureCLI@2
       inputs:
@@ -251,6 +320,34 @@ stages:
         inlineScript: |
           set -exo pipefail
 
+          while true; do
+            STATE=$(az aks show \
+              --name "configmaps100" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --query "provisioningState" \
+              --output tsv)
+            echo "Cluster provisioning state: $STATE"
+            if [ "$STATE" = "Succeeded" ]; then
+              echo "Cluster is ready."
+              break
+            elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+              echo "Cluster failed with state: $STATE."
+              exit 1
+            else
+              echo "Provisioning state: $STATE. Retry in 30 seconds"
+            fi
+            sleep 30
+          done
+      displayName: Wait for cluster to succeed
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
           az aks get-credentials \
             --name "configmaps100" \
             --resource-group "$(RUN_ID)" \
@@ -265,6 +362,35 @@ stages:
         scriptLocation: inlineScript
         inlineScript: "set -exo pipefail\n\naz aks nodepool add \\\n  --cluster-name \"configmaps100\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"runner\" \\\n  --node-count 3 \\\n  --node-vm-size \"Standard_D16s_v3\" \\\n  --mode User \\\n   \\\n  \n"
       displayName: Create node pool runner
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          while true; do
+            STATE=$(az aks nodepool show \
+              --cluster-name "configmaps100" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --name "runner" \
+              --query "provisioningState" \
+              --output tsv)
+            echo "Node pool provisioning state: $STATE"
+            if [ "$STATE" = "Succeeded" ]; then
+              echo "Node pool is ready."
+              break
+            elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+              echo "Node pool failed with state: $STATE."
+              exit 1
+            else
+              echo "Provisioning state: $STATE. Retry in 30 seconds"
+            fi
+            sleep 30
+          done
+      displayName: Wait for node pool runner to succeed
     - script: |2
 
         set -euo pipefail
@@ -288,11 +414,8 @@ stages:
         inlineScript: |
           set -exo pipefail
 
-          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-
-          # Collect cloud info
           aks_info=$(az aks show --resource-group "$(RUN_ID)" --name "configmaps100" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --output json)
-          cloud_info=$(jq -n \
+          jq -n \
             --arg cloud "azure" \
             --arg region "$(echo $aks_info | jq -r .location)" \
             --arg fqdn "$(echo $aks_info | jq -r .fqdn)" \
@@ -310,25 +433,33 @@ stages:
               sku_tier: $sku_tier,
               subscription: $subscription,
               cluster_id: $cluster_id
-            }')
+            }' > $(Pipeline.Workspace)/cloud_info.json
+      displayName: Collect cloud info
+    - script: |2
 
-          # Check for errors and print error details if error rate exceeds threshold
-          errors_number=$(jq -r '.result.errors | length' $(Pipeline.Workspace)/tmp_results.json)
-          error_rate_too_high=$(jq -r '(1 - .result.total / (.loadSpec.count * .loadSpec.loadProfile.spec.total)) > 0.1' $(Pipeline.Workspace)/tmp_results.json)
-          if [[ "$errors_number" != "0" && "$error_rate_too_high" == "true" ]]; then
-            echo "Error rate exceeds 0.1, printing error details:"
-            jq -r ".result.errors | map(. + {run_id: \"$(RUN_ID)\", cloud: \"azure\"}) | .[]" $(Pipeline.Workspace)/tmp_results.json
-          fi
+        set -euo pipefail
 
-          # Collect final result — pack everything into the "result" field so Kusto ingests it all
-          cat $(Pipeline.Workspace)/tmp_results.json \
-            | jq 'del(.result.errors)' \
-            | jq -c --argjson ci "$cloud_info" '{ cloud: $ci.cloud, region: $ci.region, fqdn: $ci.fqdn, private_fqdn: $ci.private_fqdn, k8s_version: $ci.k8s_version, sku_tier: $ci.sku_tier, subscription: $ci.subscription, cluster_id: $ci.cluster_id, flowcontrol: "exempt:5", benchmarkSubcmdArgs: "--total 10000 --size=1024 --group-size=10 --configmap-amount=100" } + .result | { result: . }' \
-            | jq -c '. + { timestamp: "'"$TIMESTAMP"'", run_id: "$(RUN_ID)", run_url: "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)", pipeline: "$(Build.DefinitionName)" }' \
-            > /tmp/run-result.json
+        TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-          echo "Collected result:"
-          cat /tmp/run-result.json | jq .
+        cloud_info=$(cat $(Pipeline.Workspace)/cloud_info.json)
+
+        # Check for errors and print error details if error rate exceeds threshold
+        errors_number=$(jq -r '.result.errors | length' $(Pipeline.Workspace)/tmp_results.json)
+        error_rate_too_high=$(jq -r '(1 - .result.total / (.loadSpec.count * .loadSpec.loadProfile.spec.total)) > 0.1' $(Pipeline.Workspace)/tmp_results.json)
+        if [[ "$errors_number" != "0" && "$error_rate_too_high" == "true" ]]; then
+          echo "Error rate exceeds 0.1, printing error details:"
+          jq -r ".result.errors | map(. + {run_id: \"$(RUN_ID)\", cloud: \"azure\"}) | .[]" $(Pipeline.Workspace)/tmp_results.json
+        fi
+
+        # Collect final result
+        cat $(Pipeline.Workspace)/tmp_results.json \
+          | jq 'del(.result.errors)' \
+          | jq -c --argjson ci "$cloud_info" '{ cloud: $ci.cloud, region: $ci.region, fqdn: $ci.fqdn, private_fqdn: $ci.private_fqdn, k8s_version: $ci.k8s_version, sku_tier: $ci.sku_tier, subscription: $ci.subscription, cluster_id: $ci.cluster_id, flowcontrol: "exempt:5", benchmarkSubcmdArgs: "--total 10000 --size=1024 --group-size=10 --configmap-amount=100" } + .result | { result: . }' \
+          | jq -c '. + { timestamp: "'"$TIMESTAMP"'", run_id: "$(RUN_ID)", run_url: "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)", pipeline: "$(Build.DefinitionName)" }' \
+          > /tmp/run-result.json
+
+        echo "Collected result:"
+        cat /tmp/run-result.json | jq .
       displayName: Collect kperf benchmark result
     - task: AzureCLI@2
       inputs:

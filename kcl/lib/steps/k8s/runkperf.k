@@ -100,3 +100,37 @@ runkperf -v 3 bench \\
         target = target
     }
 }
+
+# CollectKperfResult reads the raw kperf benchmark output from inputPath,
+# prints error details if error rate exceeds errorRateThreshold (default 10%),
+# merges cloud info from cloudInfoPath, and writes the formatted result to outputPath for upload.
+CollectKperfResult = lambda flowcontrol: str, benchmarkSubcmdArgs: str, cloudInfoPath: str, inputPath: str = "/tmp/tmp_results.json", outputPath: str = "/tmp/run-result.json", errorRateThreshold: float = 0.1 -> steps.Step {
+    steps.Script {
+        script = """
+set -euo pipefail
+
+TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+cloud_info=$(cat ${cloudInfoPath})
+
+# Check for errors and print error details if error rate exceeds threshold
+errors_number=$(jq -r '.result.errors | length' ${inputPath})
+error_rate_too_high=$(jq -r '(1 - .result.total / (.loadSpec.count * .loadSpec.loadProfile.spec.total)) > ${errorRateThreshold}' ${inputPath})
+if [[ "$errors_number" != "0" && "$error_rate_too_high" == "true" ]]; then
+  echo "Error rate exceeds ${errorRateThreshold}, printing error details:"
+  jq -r ".result.errors | map(. + {run_id: \\"$(RUN_ID)\\", cloud: \\"azure\\"}) | .[]" ${inputPath}
+fi
+
+# Collect final result
+cat ${inputPath} \\
+  | jq 'del(.result.errors)' \\
+  | jq -c --argjson ci "$cloud_info" '{ cloud: $ci.cloud, region: $ci.region, fqdn: $ci.fqdn, private_fqdn: $ci.private_fqdn, k8s_version: $ci.k8s_version, sku_tier: $ci.sku_tier, subscription: $ci.subscription, cluster_id: $ci.cluster_id, flowcontrol: "${flowcontrol}", benchmarkSubcmdArgs: "${benchmarkSubcmdArgs}" } + .result | { result: . }' \\
+  | jq -c '. + { timestamp: "'"$TIMESTAMP"'", run_id: "$(RUN_ID)", run_url: "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)", pipeline: "$(Build.DefinitionName)" }' \\
+  > ${outputPath}
+
+echo "Collected result:"
+cat ${outputPath} | jq .
+"""
+        displayName = "Collect kperf benchmark result"
+    }
+}
