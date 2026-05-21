@@ -34,6 +34,7 @@ name: clustermesh-isolation
 #   9. Teardown.
 
 {{$namespaces := DefaultParam .CL2_NAMESPACES 5}}
+{{$globalNamespaces := DefaultParam .CL2_GLOBAL_NAMESPACE_COUNT $namespaces}}
 {{$deploymentsPerNamespace := DefaultParam .CL2_DEPLOYMENTS_PER_NAMESPACE 4}}
 {{$replicasPerDeployment := DefaultParam .CL2_REPLICAS_PER_DEPLOYMENT 10}}
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "20m"}}
@@ -89,6 +90,7 @@ steps:
           - /root/perf-tests/clusterloader2/config/annotate-namespaces.sh
           - "{{$namespaces}}"
           - "clustermesh-iso"
+          - "{{$globalNamespaces}}"
 
   # ----- Start measurements -----
   - module:

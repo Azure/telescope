@@ -39,6 +39,10 @@ steps:
       # Default to NAMESPACES (100% global, backward-compatible). Matrix entries
       # for the %global sweep set `global_namespace_count` explicitly.
       export CL2_GLOBAL_NAMESPACE_COUNT="${GLOBAL_NAMESPACE_COUNT:-$NAMESPACES}"
+      # test_type suffix for share-infra %global cells. See collect.yml header
+      # comment; this is exported here so the env propagates to downstream
+      # collect step in the same job. Empty string for non-matrix runs.
+      export TEST_TYPE_SUFFIX="${TEST_TYPE_SUFFIX:-}"
       export CL2_DEPLOYMENTS_PER_NAMESPACE="$DEPLOYMENTS_PER_NAMESPACE"
       export CL2_REPLICAS_PER_DEPLOYMENT="$REPLICAS_PER_DEPLOYMENT"
       export CL2_API_SERVER_CALLS_PER_SECOND="$API_SERVER_CALLS_PER_SECOND"

@@ -1014,31 +1014,35 @@ stages:
             displayName: "Dump agent VM specs"
 
   # ============================================================================
-  # %global variation experiment — Phase 1 SMOKE
+  # %global variation experiment — Phase 1 SMOKE (Option E: 3 scenarios)
   # ============================================================================
-  # Validates the new --global-namespace-count plumbing end-to-end at n=2
-  # before committing to the 3-day N=20/50/100 matrix. The 4 matrix entries
-  # exercise each distinct annotate-namespaces.sh code path:
+  # Validates the new --global-namespace-count plumbing AND share-infra
+  # multi-scenario plumbing end-to-end at n=2 before committing to the full
+  # 3-scenario N=20/50/100 matrix. Each cell runs 3 scenarios in share-infra
+  # mode (event-throughput, pod-churn-combined, isolation) — the 3 most
+  # ClusterMesh-relevant probes:
+  #   event-throughput  — global service propagation rate
+  #   pod-churn-combined — endpoint propagation under pod churn
+  #   isolation         — cross-cluster connectivity behavior
+  #
+  # The 4 matrix entries exercise each annotate-namespaces.sh code path:
   #   g0   — 0 namespaces annotated (skip-loop edge case)
   #   g20  — 1 of 5 annotated (1-iteration partial)
   #   g60  — 3 of 5 annotated (multi-iteration partial)
   #   g100 — 5 of 5 annotated (default-arg backward-compat path)
   #
   # All 4 cells run in PARALLEL (4 × 96 = 384 vCPU, trivial vs 5000 Dv3 quota).
-  # Wall clock: ~1.5h. Total cost: ~$5-10.
-  #
-  # Each cell uses the existing azure-2-shared.tfvars (1 VNet, 4 subnets, 2 AKS
-  # clusters, shared-VNet topology — same as today's n=2 smoke baseline).
+  # Wall clock: ~1.5h (3 scenarios at n=2 take ~20m each + overhead).
   #
   # SAFETY: condition: false default. Flip to true in a 1-line commit when
   # ready to trigger. Other stages should be uncommented similarly per phase.
   - stage: azure_eastus2euap_n2_global_smoke
     dependsOn: []
-    # 2026-05-21: ENABLED for first %global smoke trigger. Disable again
-    # (flip back to `condition: false`) once smoke results are validated
+    # 2026-05-21: ENABLED for Option E (multi-scenario) smoke trigger. Disable
+    # again (flip back to `condition: false`) once smoke results are validated
     # to prevent accidental re-trigger.
     # condition: false
-    displayName: "n=2 %global smoke (validates annotate plumbing across 0/20/60/100)"
+    displayName: "n=2 %global smoke (Option E: 3-scenario share-infra across 0/20/60/100)"
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -1058,8 +1062,10 @@ stages:
             n2_global_g0:
               cluster_count: 2
               mesh_size: 2
-              cl2_config_file: pod-churn-combined.yaml
-              test_type: pod-churn-combined-shared-vnet-g0
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-g0"
               global_namespace_count: 0
               namespaces: 5
               deployments_per_namespace: 4
@@ -1080,8 +1086,10 @@ stages:
             n2_global_g20:
               cluster_count: 2
               mesh_size: 2
-              cl2_config_file: pod-churn-combined.yaml
-              test_type: pod-churn-combined-shared-vnet-g20
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-g20"
               global_namespace_count: 1
               namespaces: 5
               deployments_per_namespace: 4
@@ -1102,8 +1110,10 @@ stages:
             n2_global_g60:
               cluster_count: 2
               mesh_size: 2
-              cl2_config_file: pod-churn-combined.yaml
-              test_type: pod-churn-combined-shared-vnet-g60
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-g60"
               global_namespace_count: 3
               namespaces: 5
               deployments_per_namespace: 4
@@ -1124,8 +1134,10 @@ stages:
             n2_global_g100:
               cluster_count: 2
               mesh_size: 2
-              cl2_config_file: pod-churn-combined.yaml
-              test_type: pod-churn-combined-shared-vnet-g100
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-g100"
               global_namespace_count: 5
               namespaces: 5
               deployments_per_namespace: 4
@@ -1183,8 +1195,10 @@ stages:
             n20_g0:
               cluster_count: 20
               mesh_size: 20
-              cl2_config_file: pod-churn-combined.yaml
-              test_type: pod-churn-combined-shared-vnet-g0
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-g0"
               global_namespace_count: 0
               namespaces: 5
               deployments_per_namespace: 4
@@ -1207,8 +1221,10 @@ stages:
             n20_g20:
               cluster_count: 20
               mesh_size: 20
-              cl2_config_file: pod-churn-combined.yaml
-              test_type: pod-churn-combined-shared-vnet-g20
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-g20"
               global_namespace_count: 1
               namespaces: 5
               deployments_per_namespace: 4
@@ -1231,8 +1247,10 @@ stages:
             n20_g60:
               cluster_count: 20
               mesh_size: 20
-              cl2_config_file: pod-churn-combined.yaml
-              test_type: pod-churn-combined-shared-vnet-g60
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-g60"
               global_namespace_count: 3
               namespaces: 5
               deployments_per_namespace: 4
@@ -1255,8 +1273,10 @@ stages:
             n20_g100:
               cluster_count: 20
               mesh_size: 20
-              cl2_config_file: pod-churn-combined.yaml
-              test_type: pod-churn-combined-shared-vnet-g100
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-g100"
               global_namespace_count: 5
               namespaces: 5
               deployments_per_namespace: 4
@@ -1315,8 +1335,10 @@ stages:
             n50_g0:
               cluster_count: 50
               mesh_size: 50
-              cl2_config_file: pod-churn-combined.yaml
-              test_type: pod-churn-combined-shared-vnet-g0
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-g0"
               global_namespace_count: 0
               namespaces: 5
               deployments_per_namespace: 4
@@ -1339,8 +1361,10 @@ stages:
             n50_g20:
               cluster_count: 50
               mesh_size: 50
-              cl2_config_file: pod-churn-combined.yaml
-              test_type: pod-churn-combined-shared-vnet-g20
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-g20"
               global_namespace_count: 1
               namespaces: 5
               deployments_per_namespace: 4
@@ -1363,8 +1387,10 @@ stages:
             n50_g60:
               cluster_count: 50
               mesh_size: 50
-              cl2_config_file: pod-churn-combined.yaml
-              test_type: pod-churn-combined-shared-vnet-g60
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-g60"
               global_namespace_count: 3
               namespaces: 5
               deployments_per_namespace: 4
@@ -1387,8 +1413,10 @@ stages:
             n50_g100:
               cluster_count: 50
               mesh_size: 50
-              cl2_config_file: pod-churn-combined.yaml
-              test_type: pod-churn-combined-shared-vnet-g100
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-g100"
               global_namespace_count: 5
               namespaces: 5
               deployments_per_namespace: 4
@@ -1452,8 +1480,10 @@ stages:
             a_n100_g100:
               cluster_count: 100
               mesh_size: 100
-              cl2_config_file: pod-churn-combined.yaml
-              test_type: pod-churn-combined-shared-vnet-g100
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-g100"
               global_namespace_count: 5
               namespaces: 5
               deployments_per_namespace: 4
@@ -1476,8 +1506,10 @@ stages:
             b_n100_g20:
               cluster_count: 100
               mesh_size: 100
-              cl2_config_file: pod-churn-combined.yaml
-              test_type: pod-churn-combined-shared-vnet-g20
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-g20"
               global_namespace_count: 1
               namespaces: 5
               deployments_per_namespace: 4
@@ -1500,8 +1532,10 @@ stages:
             c_n100_g60:
               cluster_count: 100
               mesh_size: 100
-              cl2_config_file: pod-churn-combined.yaml
-              test_type: pod-churn-combined-shared-vnet-g60
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-g60"
               global_namespace_count: 3
               namespaces: 5
               deployments_per_namespace: 4
@@ -1524,8 +1558,10 @@ stages:
             d_n100_g0:
               cluster_count: 100
               mesh_size: 100
-              cl2_config_file: pod-churn-combined.yaml
-              test_type: pod-churn-combined-shared-vnet-g0
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-g0"
               global_namespace_count: 0
               namespaces: 5
               deployments_per_namespace: 4

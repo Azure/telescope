@@ -25,6 +25,20 @@ steps:
       export CL2_REPLICAS_PER_DEPLOYMENT="$REPLICAS_PER_DEPLOYMENT"
       export MESH_SIZE="${MESH_SIZE:-$CLUSTERMESH_COUNT}"
       export TEST_TYPE="${TEST_TYPE:-default-config}"
+      # %global matrix experiment: share-infra mode emits one row per scenario
+      # with test_type=<scenario_basename>. To discriminate cells of the
+      # 3×4 (N × %global) matrix in Kusto WITHOUT a schema change, the
+      # matrix entry sets `test_type_suffix: -shared-vnet-gXX` (auto-exported
+      # as TEST_TYPE_SUFFIX). The share-infra collect loop below APPENDS
+      # this suffix to each per-row test_type, producing rows like
+      # `event-throughput-shared-vnet-g20`, `pod-churn-combined-shared-vnet-g20`,
+      # `isolation-shared-vnet-g20` — fully Kusto-discriminable.
+      #
+      # Single-scenario cells set test_type directly (e.g. pod-churn-combined-
+      # shared-vnet-g20) and leave TEST_TYPE_SUFFIX empty so no double-
+      # suffixing occurs. The single-scenario branch below does NOT apply
+      # the suffix; only the share-infra branch does.
+      export TEST_TYPE_SUFFIX="${TEST_TYPE_SUFFIX:-}"
       export TRIGGER_REASON="${TRIGGER_REASON:-$BUILD_REASON}"
       # Phase 4a — pod-churn knobs recorded in each JSONL row so Kusto can
       # filter/group on the exact stressor parameters. Non-churn matrix
@@ -218,7 +232,7 @@ steps:
               kis_row="$CL2_KILL_INTERVAL_SECONDS"
               kb_row="$CL2_KILL_BATCH"
             fi
-            if collect_one "$SCENARIO" "$role" "$report_dir" "$per_cluster_result" \
+            if collect_one "${SCENARIO}${TEST_TYPE_SUFFIX}" "$role" "$report_dir" "$per_cluster_result" \
                 "$cc_row" "$cu_row" "$cd_row" "$kds_row" "$kis_row" "$kb_row" "$st" \
                 "$sqps" "$sres" "$sops"; then
               cat "$per_cluster_result" >> "$TEST_RESULTS_FILE"
