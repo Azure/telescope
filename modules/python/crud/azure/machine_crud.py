@@ -55,7 +55,7 @@ class MachineCRUD:
                 timeout=self.step_timeout,
             )
         except Exception as e:
-            logger.error("create_machine_agentpool failed for %s: %s", agentpool_name, e)
+            logger.error(f"create_machine_agentpool failed for {agentpool_name}: {e}")
             return False
 
     def scale_machine(self, agentpool_name, vm_size, scale_machine_count,
@@ -80,5 +80,5 @@ class MachineCRUD:
                 tags=tags,
             )
         except Exception as e:
-            logger.error("scale_machine failed for %s: %s", agentpool_name, e)
+            logger.error(f"scale_machine failed for {agentpool_name}: {e}")
             return False

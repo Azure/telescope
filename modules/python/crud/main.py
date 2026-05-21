@@ -70,30 +70,6 @@ def get_machine_crud_class(cloud_provider):
     )
 
 
-def _env_int_override(name, default):
-    """Return ``int(os.environ[name])`` if set to a usable value, else ``default``.
-
-    ADO pipelines may leave variable substitutions like ``$(VAR)`` unresolved;
-    such tokens (and empty strings) are treated as missing.
-    """
-    raw = os.environ.get(name, "")
-    if not raw or raw.startswith("$("):
-        return default
-    try:
-        return int(raw)
-    except ValueError:
-        logger.warning("Env var %s=%r is not an int; using default %r", name, raw, default)
-        return default
-
-
-def _env_bool_override(name, default):
-    """Return ``bool(os.environ[name])`` if set to a usable value, else ``default``."""
-    raw = os.environ.get(name, "")
-    if not raw or raw.startswith("$("):
-        return default
-    return raw.strip().lower() in ("1", "true", "yes", "y", "on")
-
-
 def collect_benchmark_results():
     """Main function to process Cluster Crud benchmark results."""
     result_dir = get_env_vars("RESULT_DIR")
@@ -262,31 +238,25 @@ def handle_machine_operation(machine_crud, args):
                 try:
                     tags = json.loads(args.tags)
                 except (ValueError, TypeError) as e:
-                    logger.warning("Failed to parse --tags %r as JSON: %s", args.tags, e)
+                    logger.warning(f"Failed to parse --tags {args.tags!r} as JSON: {e}")
             result = machine_crud.scale_machine(
                 agentpool_name=args.node_pool_name,
                 vm_size=args.vm_size,
-                scale_machine_count=_env_int_override(
-                    "ENV_SCALE_MACHINE_COUNT", args.scale_machine_count
-                ),
-                use_batch_api=_env_bool_override(
-                    "ENV_USE_BATCH_API", args.use_batch_api
-                ),
-                machine_workers=_env_int_override(
-                    "ENV_MACHINE_WORKERS", args.machine_workers
-                ),
+                scale_machine_count=args.scale_machine_count,
+                use_batch_api=args.use_batch_api,
+                machine_workers=args.machine_workers,
                 readiness_wait_timeout=args.readiness_wait_timeout,
                 tags=tags,
             )
         else:
-            logger.error("Unsupported machine command: %s", command)
+            logger.error(f"Unsupported machine command: {command}")
             return 1
         if result is False:
-            logger.error("Machine operation '%s' failed", command)
+            logger.error(f"Machine operation '{command}' failed")
             return 1
         return 0
     except Exception as e:
-        logger.error("Error during '%s' operation: %s", command, e)
+        logger.error(f"Error during '{command}' operation: {e}")
         return 1
 
 
@@ -516,7 +486,7 @@ def main():
         # Handle machine API commands on their own dispatch path
         if args.command in ["create-machine", "scale-machine"]:
             machine_crud_class = get_machine_crud_class(args.cloud)
-            logger.info("Using MachineCRUD class for cloud provider: %s", args.cloud)
+            logger.info(f"Using MachineCRUD class for cloud provider: {args.cloud}")
             machine_crud = machine_crud_class(
                 resource_group=args.run_id,
                 kube_config_file=args.kube_config,

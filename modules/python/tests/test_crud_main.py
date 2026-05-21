@@ -1,11 +1,10 @@
 """Tests for crud/main.py machine-API additions.
 
-Covers the helpers and dispatchers introduced for the Machine API alongside
-the existing node-pool flow:
+Covers the dispatchers introduced for the Machine API alongside the existing
+node-pool flow:
 - ``get_machine_crud_class`` cloud-provider dispatch.
-- ``_env_int_override`` / ``_env_bool_override`` ADO-variable safe overrides.
 - ``handle_machine_operation`` exit-code semantics.
-- Argparse smoke for the ``create-machine`` and ``scale-machine`` subcommands.
+- ``--tags`` JSON parsing by the scale-machine handler.
 """
 
 import unittest
@@ -27,65 +26,6 @@ class TestGetMachineCrudClass(unittest.TestCase):
         from crud.main import get_machine_crud_class  # pylint: disable=import-outside-toplevel
         with self.assertRaises(ValueError):
             get_machine_crud_class("gcp")
-
-
-class TestEnvIntOverride(unittest.TestCase):
-    """Validate `_env_int_override` is robust against ADO unresolved variables."""
-
-    def test_unset_returns_default(self):
-        from crud.main import _env_int_override  # pylint: disable=import-outside-toplevel,protected-access
-        with mock.patch.dict("os.environ", {}, clear=False):
-            if "ENV_TEST_INT" in __import__("os").environ:
-                del __import__("os").environ["ENV_TEST_INT"]
-            self.assertEqual(_env_int_override("ENV_TEST_INT", 7), 7)
-
-    def test_empty_string_returns_default(self):
-        from crud.main import _env_int_override  # pylint: disable=import-outside-toplevel,protected-access
-        with mock.patch.dict("os.environ", {"ENV_TEST_INT": ""}, clear=False):
-            self.assertEqual(_env_int_override("ENV_TEST_INT", 7), 7)
-
-    def test_ado_unresolved_returns_default(self):
-        from crud.main import _env_int_override  # pylint: disable=import-outside-toplevel,protected-access
-        with mock.patch.dict("os.environ", {"ENV_TEST_INT": "$(SCALE_COUNT)"}, clear=False):
-            self.assertEqual(_env_int_override("ENV_TEST_INT", 7), 7)
-
-    def test_valid_int_returns_int(self):
-        from crud.main import _env_int_override  # pylint: disable=import-outside-toplevel,protected-access
-        with mock.patch.dict("os.environ", {"ENV_TEST_INT": "42"}, clear=False):
-            self.assertEqual(_env_int_override("ENV_TEST_INT", 7), 42)
-
-    def test_invalid_int_returns_default(self):
-        from crud.main import _env_int_override  # pylint: disable=import-outside-toplevel,protected-access
-        with mock.patch.dict("os.environ", {"ENV_TEST_INT": "abc"}, clear=False):
-            self.assertEqual(_env_int_override("ENV_TEST_INT", 7), 7)
-
-
-class TestEnvBoolOverride(unittest.TestCase):
-    def test_unset_returns_default(self):
-        from crud.main import _env_bool_override  # pylint: disable=import-outside-toplevel,protected-access
-        with mock.patch.dict("os.environ", {}, clear=False):
-            if "ENV_TEST_BOOL" in __import__("os").environ:
-                del __import__("os").environ["ENV_TEST_BOOL"]
-            self.assertTrue(_env_bool_override("ENV_TEST_BOOL", True))
-            self.assertFalse(_env_bool_override("ENV_TEST_BOOL", False))
-
-    def test_ado_unresolved_returns_default(self):
-        from crud.main import _env_bool_override  # pylint: disable=import-outside-toplevel,protected-access
-        with mock.patch.dict("os.environ", {"ENV_TEST_BOOL": "$(USE_BATCH)"}, clear=False):
-            self.assertTrue(_env_bool_override("ENV_TEST_BOOL", True))
-            self.assertFalse(_env_bool_override("ENV_TEST_BOOL", False))
-
-    def test_truthy_strings_return_true(self):
-        from crud.main import _env_bool_override  # pylint: disable=import-outside-toplevel,protected-access
-        for raw in ("1", "true", "True", "TRUE", "yes", "Y", "on"):
-            with mock.patch.dict("os.environ", {"ENV_TEST_BOOL": raw}, clear=False):
-                self.assertTrue(_env_bool_override("ENV_TEST_BOOL", False), msg=raw)
-
-    def test_falsy_strings_return_false(self):
-        from crud.main import _env_bool_override  # pylint: disable=import-outside-toplevel,protected-access
-        for raw in ("0", "false", "no", "off", "garbage"):
-            with mock.patch.dict("os.environ", {"ENV_TEST_BOOL": raw}, clear=False):
-                self.assertFalse(_env_bool_override("ENV_TEST_BOOL", True), msg=raw)
 
 
 class TestHandleMachineOperation(unittest.TestCase):
