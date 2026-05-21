@@ -115,7 +115,11 @@ output = ap.Pipeline {
                     CLUSTER,
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID,
-                    azure.NodePool { name = CL2_POOL, sku = "Standard_D8S_v4", count = 4, taintPrefix = CL2_TAINT_PREFIX }),
+                    azure.NodePool { 
+                      name = CL2_POOL, 
+                      sku = "Standard_D8S_v4", 
+                      count = 4, 
+                      taintPrefix = CL2_TAINT_PREFIX }),
                 azure.WaitForNodePoolSucceeded(
                     const.DEFAULT_SERVICE_CONNECTION,
                     CLUSTER,

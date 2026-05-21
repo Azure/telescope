@@ -43,7 +43,6 @@ WaitForNodePoolSucceeded = lambda serviceConnection: str, cluster: str, resource
 # kubectl is configured.
 WaitForPoolNodesReady = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, pool: NodePool -> steps.Step {
     script = """
-set -euo pipefail
 ${waitForNodePoolScript(cluster, resourceGroup, subscription, pool.name)}
 echo "Waiting for ${pool.count} nodes in pool ${pool.name} to be Ready..."
 while true; do
