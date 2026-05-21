@@ -700,6 +700,20 @@ class TestAKSMachineClient(unittest.TestCase):
         # _BATCH_429_MAX_RETRIES == 5 total attempts (no extra initial call)
         self.assertEqual(mock_request.call_count, 5)
 
+    # ---- Session connection pool ----
+
+    def test_session_https_adapter_pool_sized_for_workers(self):
+        """Session mounts a sized HTTPAdapter so the per-host connection pool
+        can hold one warm connection per worker thread, preventing the
+        ``Connection pool is full, discarding connection`` urllib3 warning
+        when machine_workers exceeds urllib3's default pool_maxsize=10."""
+        # pylint: disable=import-outside-toplevel,protected-access
+        from clients.aks_machine_client import _HTTPS_POOL_SIZE
+        adapter = self.client._session.get_adapter("https://management.azure.com")
+        self.assertGreaterEqual(_HTTPS_POOL_SIZE, 50)  # covers 50-worker individual path
+        self.assertEqual(adapter._pool_connections, _HTTPS_POOL_SIZE)
+        self.assertEqual(adapter._pool_maxsize, _HTTPS_POOL_SIZE)
+
 
 if __name__ == "__main__":
     unittest.main()
