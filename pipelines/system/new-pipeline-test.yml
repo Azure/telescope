@@ -1176,11 +1176,9 @@ stages:
   # prevent accidental re-trigger.
   - stage: azure_eastus2euap_n20_global_sweep
     dependsOn: []
-    # 2026-05-21: ENABLED for Option E N=20 sweep trigger. Smoke validation
-    # (builds 67954 + 67959) confirmed Global Services scales linearly with
-    # %global (0→0, 20→4, 60→12, 100→20). Disable (flip back to
-    # `condition: false`) after this sweep completes.
-    # condition: false
+    # 2026-05-21: DISABLED after N=20 sweep completed (build 67968).
+    # g0/g60/g100 data landed in Kusto; g20 rerun via AzDO "Rerun failed jobs".
+    condition: false
     displayName: "n=20 %global sweep (Option E: 3-scenario, 0/20/60/100, 4 parallel)"
     jobs:
       - template: /jobs/competitive-test.yml
@@ -1320,8 +1318,12 @@ stages:
   # prevent accidental re-trigger.
   - stage: azure_eastus2euap_n50_global_sweep
     dependsOn: []
-    condition: false
-    displayName: "n=50 %global sweep (0/20/60/100, parallel=2)"
+    # 2026-05-21: ENABLED for N=50 sweep. N=20 sweep (67968) validated:
+    # ClusterMesh metrics scale linearly with %global (Global Services 0/12/20,
+    # Kvstore Rate 0.8→43, APIServer CPU 0.03→0.52). PodStartupLatency flat
+    # at N=20 (median ~90s across all %global). N=50 is the transition probe.
+    # condition: false
+    displayName: "n=50 %global sweep (Option E: 3-scenario, 0/20/60/100, parallel=2)"
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:

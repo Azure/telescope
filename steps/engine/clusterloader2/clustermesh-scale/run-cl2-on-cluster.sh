@@ -212,6 +212,13 @@ if [ "$cl2_passed" -eq 1 ]; then
   echo "  $role: CL2 run succeeded"
 fi
 
+# Per-cluster resource snapshot — helps interpret PodStartupLatency outliers
+# at N=50/N=100 by distinguishing "node under-resourced" from "control-plane
+# bottleneck". Zero risk (kubectl top is read-only, non-blocking).
+echo "------- $role: resource snapshot -------"
+KUBECONFIG="$kubeconfig" kubectl top nodes --no-headers 2>/dev/null | head -20 || true
+KUBECONFIG="$kubeconfig" kubectl top pods -n kube-system --no-headers --sort-by=cpu 2>/dev/null | head -10 || true
+
 # Always-on log capture (spec line 35: "Logs: clustermesh-apiserver,
 # agent watchers"). Files land in $report_dir/logs/ so they are
 # uploaded alongside junit.xml + measurement results when the
