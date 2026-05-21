@@ -693,11 +693,6 @@ class KubernetesClient:
                         ),
                     )
                 ],
-                tolerations=[
-                    client.V1Toleration(
-                        operator="Exists",
-                    ),
-                ],
             ),
         )
 
