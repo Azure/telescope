@@ -23,6 +23,7 @@ stages:
               vm_size: Standard_D4s_v5
               step_time_out: 600
               cni_daemonset_label: "k8s-app=cilium"
+              cni_blocking_taint: "node.cilium.io/agent-not-ready"
           max_parallel: 1
           timeout_in_minutes: 60
           credential_type: service_connection
@@ -47,6 +48,7 @@ stages:
               vm_size: Standard_D4s_v5
               step_time_out: 600
               cni_daemonset_label: "k8s-app=cilium"
+              cni_blocking_taint: "node.cilium.io/agent-not-ready"
               install_cilium: "true"
           max_parallel: 1
           timeout_in_minutes: 60

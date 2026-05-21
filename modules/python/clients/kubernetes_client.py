@@ -776,36 +776,50 @@ class KubernetesClient:
                 raise
 
     def collect_autoscale_latency(self, node_pool_name, cni_daemonset_label=None,
-                                  namespace="default", pod_name="latency-probe",
+                                  cni_blocking_taint=None, namespace="default",
+                                  pod_name="latency-probe",
                                   operation_timeout_in_minutes=15):
         """
         Measure node and pod startup latency via cluster autoscaler.
 
         Deploys a probe pod that cannot schedule on existing nodes, forcing the
-        cluster autoscaler to scale up. Collects all timestamps once the pod is Running.
+        cluster autoscaler to scale up. Uses a node watch to capture intermediate
+        state transitions (taints clearing, conditions changing) in real time,
+        then collects final timestamps once the pod is Running.
 
         Timestamps collected:
           - pod_created: probe pod creationTimestamp (trigger moment)
           - triggered_scale_up: TriggeredScaleUp event timestamp from cluster autoscaler
-          - node_registered: new node's creationTimestamp
-          - node_ready: new node's Ready condition lastTransitionTime
-          - cni_container_started: CNI pod container startedAt (if cni_daemonset_label set)
-          - cni_pod_ready: CNI pod Ready condition lastTransitionTime (if cni_daemonset_label set)
+          - node_registered: new node's creationTimestamp (T1)
+          - node_ready: new node's Ready condition lastTransitionTime (T4)
+          - node_network_unavailable_cleared: NetworkUnavailable condition lastTransitionTime
+          - not_ready_taint_cleared: wall-clock time when not-ready taint was removed
+          - cni_taint_cleared: wall-clock time when CNI blocking taint was removed
+          - cni_container_started: CNI pod container startedAt (T2)
+          - cni_pod_ready: CNI pod Ready condition lastTransitionTime (T3)
           - pod_scheduled: probe pod PodScheduled condition lastTransitionTime
-          - container_started: probe pod container startedAt
+          - container_started: probe pod container startedAt (T5)
           - pod_ready: probe pod Ready condition lastTransitionTime
 
         Args:
             node_pool_name: The node pool to target (agentpool label)
             cni_daemonset_label: Label selector for CNI pods (e.g. "k8s-app=cilium")
+            cni_blocking_taint: CNI-specific taint key that blocks scheduling
+                                (e.g. "node.cilium.io/agent-not-ready")
             namespace: Namespace for the probe pod
             pod_name: Name of the probe pod
             operation_timeout_in_minutes: Timeout for the entire operation
 
         Returns:
-            Dict with all timestamps and computed latency metrics
+            Dict with all timestamps, intermediate states, and computed latency metrics
         """
+        from kubernetes import watch
+
         try:
+            # Snapshot existing nodes before scale-up
+            existing_nodes = {n.metadata.name for n in
+                              self.get_nodes(label_selector=f"agentpool={node_pool_name}")}
+
             # Deploy probe pod — this triggers the autoscaler
             self.deploy_probe_pod(node_pool_name=node_pool_name,
                                   namespace=namespace, pod_name=pod_name)
@@ -815,6 +829,14 @@ class KubernetesClient:
             pod_created = self._format_k8s_timestamp(pod.metadata.creation_timestamp)
             logger.info("Probe pod '%s' created at %s, waiting for autoscaler to scale up...",
                        pod_name, pod_created)
+
+            # Watch for new node and capture intermediate states
+            intermediate_states = self._watch_node_transitions(
+                existing_nodes=existing_nodes,
+                node_pool_name=node_pool_name,
+                cni_blocking_taint=cni_blocking_taint,
+                timeout_minutes=operation_timeout_in_minutes,
+            )
 
             # Wait for the probe pod to become Running
             pod = self.wait_for_probe_pod_running(
@@ -873,6 +895,8 @@ class KubernetesClient:
                 "node_registered": node_registered,
                 "node_ready": node_ready,
                 "node_network_unavailable_cleared": node_network_unavailable_cleared,
+                "not_ready_taint_cleared": intermediate_states.get("not_ready_taint_cleared"),
+                "cni_taint_cleared": intermediate_states.get("cni_taint_cleared"),
                 "cni_container_started": cni_container_started,
                 "cni_pod_ready": cni_pod_ready,
                 "pod_scheduled": pod_scheduled,
@@ -880,6 +904,7 @@ class KubernetesClient:
                 "container_started": container_started,
                 "containers_ready": containers_ready,
                 "pod_ready": pod_ready,
+                "intermediate_states": intermediate_states.get("events", []),
             }
 
             # Compute latencies
@@ -894,6 +919,144 @@ class KubernetesClient:
                 self.delete_probe_pod(pod_name=pod_name, namespace=namespace)
             except Exception:
                 pass
+
+    def _watch_node_transitions(self, existing_nodes, node_pool_name,
+                                cni_blocking_taint=None, timeout_minutes=15):
+        """
+        Watch for a new node in the pool and capture intermediate state transitions.
+
+        Tracks:
+          - Node appearance (registration)
+          - not-ready taint cleared (node.kubernetes.io/not-ready removed)
+          - CNI blocking taint cleared (e.g. node.cilium.io/agent-not-ready removed)
+          - Node Ready condition transitions
+
+        Args:
+            existing_nodes: Set of node names that existed before scale-up
+            node_pool_name: Label value to filter nodes
+            cni_blocking_taint: Optional CNI-specific taint key to track
+            timeout_minutes: Watch timeout
+
+        Returns:
+            Dict with taint-clearing timestamps and event log
+        """
+        from kubernetes import watch
+        from datetime import datetime, timezone
+
+        result = {
+            "events": [],
+            "not_ready_taint_cleared": None,
+            "cni_taint_cleared": None,
+        }
+
+        deadline = time.time() + (timeout_minutes * 60)
+        new_node_name = None
+        saw_not_ready_taint = False
+        saw_cni_taint = False
+
+        w = watch.Watch()
+        try:
+            for event in w.stream(
+                self.api.list_node,
+                label_selector=f"agentpool={node_pool_name}",
+                timeout_seconds=int(timeout_minutes * 60),
+            ):
+                if time.time() > deadline:
+                    break
+
+                node = event["object"]
+                event_type = event["type"]
+                node_name = node.metadata.name
+
+                # Only track the new node
+                if node_name in existing_nodes:
+                    continue
+
+                now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+                # First time we see the new node
+                if new_node_name is None:
+                    new_node_name = node_name
+                    result["events"].append({
+                        "event": "node_registered",
+                        "node": node_name,
+                        "observed_at": now_iso,
+                        "creation_timestamp": self._format_k8s_timestamp(
+                            node.metadata.creation_timestamp),
+                    })
+                    logger.info("Watch: new node '%s' registered", node_name)
+
+                # Track taints
+                current_taints = {t.key for t in (node.spec.taints or [])}
+
+                # Track not-ready taint
+                not_ready_key = "node.kubernetes.io/not-ready"
+                if not_ready_key in current_taints:
+                    if not saw_not_ready_taint:
+                        saw_not_ready_taint = True
+                        result["events"].append({
+                            "event": "not_ready_taint_observed",
+                            "node": node_name,
+                            "observed_at": now_iso,
+                        })
+                        logger.info("Watch: not-ready taint observed on '%s'", node_name)
+                elif saw_not_ready_taint and result["not_ready_taint_cleared"] is None:
+                    result["not_ready_taint_cleared"] = now_iso
+                    result["events"].append({
+                        "event": "not_ready_taint_cleared",
+                        "node": node_name,
+                        "observed_at": now_iso,
+                    })
+                    logger.info("Watch: not-ready taint cleared on '%s'", node_name)
+
+                # Track CNI-specific taint
+                if cni_blocking_taint:
+                    if cni_blocking_taint in current_taints:
+                        if not saw_cni_taint:
+                            saw_cni_taint = True
+                            result["events"].append({
+                                "event": "cni_taint_observed",
+                                "node": node_name,
+                                "taint": cni_blocking_taint,
+                                "observed_at": now_iso,
+                            })
+                            logger.info("Watch: CNI taint '%s' observed on '%s'",
+                                       cni_blocking_taint, node_name)
+                    elif saw_cni_taint and result["cni_taint_cleared"] is None:
+                        result["cni_taint_cleared"] = now_iso
+                        result["events"].append({
+                            "event": "cni_taint_cleared",
+                            "node": node_name,
+                            "taint": cni_blocking_taint,
+                            "observed_at": now_iso,
+                        })
+                        logger.info("Watch: CNI taint '%s' cleared on '%s'",
+                                   cni_blocking_taint, node_name)
+
+                # Track Ready condition
+                for cond in (node.status.conditions or []):
+                    if cond.type == "Ready":
+                        if cond.status == "True":
+                            result["events"].append({
+                                "event": "node_ready",
+                                "node": node_name,
+                                "observed_at": now_iso,
+                                "last_transition_time": self._format_k8s_timestamp(
+                                    cond.last_transition_time),
+                            })
+                            logger.info("Watch: node '%s' is Ready", node_name)
+                            # Once node is ready and relevant taints cleared, stop watching
+                            if not cni_blocking_taint or result["cni_taint_cleared"]:
+                                w.stop()
+                                return result
+                        break
+
+        except Exception as e:
+            logger.warning("Node watch ended: %s", e)
+        finally:
+            w.stop()
+
+        return result
 
     def _get_triggered_scale_up_timestamp(self, pod_name, namespace="default"):
         """
@@ -964,7 +1127,13 @@ class KubernetesClient:
             latencies["cni_induced_delay_seconds"] = max(0, cni_delay)
         else:
             latencies["cni_induced_delay_seconds"] = None
-        # Pod scheduling: time from node Ready to pod Scheduled
+        # Taint clearing: time from node Ready to not-ready taint cleared
+        latencies["not_ready_taint_seconds"] = _diff_seconds(
+            "not_ready_taint_cleared", "node_registered")
+        # CNI taint clearing: time from node registered to CNI taint cleared
+        latencies["cni_taint_seconds"] = _diff_seconds(
+            "cni_taint_cleared", "node_registered")
+        # Pod scheduling: time from node Ready to pod Scheduled (taint-gated delay)
         latencies["pod_scheduling_seconds"] = _diff_seconds(
             "pod_scheduled", "node_ready")
         # Pod init: time from pod Scheduled to container started
@@ -973,9 +1142,13 @@ class KubernetesClient:
         # Pod ready: time from container started to pod Ready
         latencies["pod_ready_seconds"] = _diff_seconds(
             "pod_ready", "container_started")
-        # Total end-to-end: pod_ready - pod_created
+        # Total end-to-end: pod_ready - pod_created (user-facing SLA)
         latencies["total_e2e_seconds"] = _diff_seconds(
             "pod_ready", "pod_created")
+        # Node-to-pod (IaaS-free): container_started - node_registered
+        # Comparable to SRodi's time_to_runnable_s — isolates K8s/CNI latency
+        latencies["node_to_pod_seconds"] = _diff_seconds(
+            "container_started", "node_registered")
 
         return latencies
 

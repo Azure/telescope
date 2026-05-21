@@ -162,6 +162,7 @@ def handle_autoscale_latency(node_pool_crud, args):
             return 1
 
         cni_label = args.cni_daemonset_label if args.cni_daemonset_label else None
+        cni_taint = args.cni_blocking_taint if args.cni_blocking_taint else None
 
         with OperationContext(
             "autoscale_latency", args.cloud, {}, result_dir=args.result_dir
@@ -169,6 +170,7 @@ def handle_autoscale_latency(node_pool_crud, args):
             result = k8s_client.collect_autoscale_latency(
                 node_pool_name=args.node_pool_name,
                 cni_daemonset_label=cni_label,
+                cni_blocking_taint=cni_taint,
                 operation_timeout_in_minutes=args.step_timeout // 60 or 15,
             )
             op.add_metadata("autoscale_latency", result)
@@ -430,6 +432,11 @@ def main():
         "--cni-daemonset-label",
         default=None,
         help="Label selector for CNI daemonset pods (e.g. 'k8s-app=cilium')",
+    )
+    autoscale_parser.add_argument(
+        "--cni-blocking-taint",
+        default=None,
+        help="CNI-specific taint key that blocks scheduling (e.g. 'node.cilium.io/agent-not-ready')",
     )
     autoscale_parser.set_defaults(func=handle_autoscale_latency)
 
