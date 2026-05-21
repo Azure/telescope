@@ -1034,7 +1034,10 @@ stages:
   # ready to trigger. Other stages should be uncommented similarly per phase.
   - stage: azure_eastus2euap_n2_global_smoke
     dependsOn: []
-    condition: false
+    # 2026-05-21: ENABLED for first %global smoke trigger. Disable again
+    # (flip back to `condition: false`) once smoke results are validated
+    # to prevent accidental re-trigger.
+    # condition: false
     displayName: "n=2 %global smoke (validates annotate plumbing across 0/20/60/100)"
     jobs:
       - template: /jobs/competitive-test.yml
