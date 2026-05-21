@@ -335,6 +335,9 @@ network_config_list = [
         ]
       }
     ]
+    network_security_group_name = ""
+    nic_public_ip_associations  = []
+    nsr_rules                   = []
   }
 ]
 
