@@ -214,20 +214,22 @@ fi
 
 # Per-cluster resource snapshot — helps interpret PodStartupLatency outliers
 # at N=50/N=100 by distinguishing "node under-resourced" from "control-plane
-# bottleneck". Zero risk (kubectl top is read-only, non-blocking).
-echo "------- $role: resource snapshot -------"
-KUBECONFIG="$kubeconfig" kubectl top nodes --no-headers 2>/dev/null | head -20 || true
-KUBECONFIG="$kubeconfig" kubectl top pods -n kube-system --no-headers --sort-by=cpu 2>/dev/null | head -10 || true
-
-# Always-on log capture (spec line 35: "Logs: clustermesh-apiserver,
-# agent watchers"). Files land in $report_dir/logs/ so they are
-# uploaded alongside junit.xml + measurement results when the
-# publish step runs. Capturing PER CLUSTER as soon as that cluster's CL2
-# finishes is important under parallel fan-out: if we waited until all
-# peers completed, --tail windows and recent-events queries would age out
-# diagnostic data on the cluster that finished first.
+# bottleneck". Written to file (not stdout) to avoid interleaving with
+# parallel CL2 worker output that makes it unreadable.
 log_dir="$report_dir/logs"
 mkdir -p "$log_dir"
+{
+  echo "=== $role resource snapshot ($(date -u +%Y-%m-%dT%H:%M:%SZ)) ==="
+  echo "--- kubectl top nodes ---"
+  KUBECONFIG="$kubeconfig" kubectl top nodes --no-headers 2>/dev/null | head -20 || true
+  echo "--- kubectl top pods -n kube-system (sorted by CPU) ---"
+  KUBECONFIG="$kubeconfig" kubectl top pods -n kube-system --no-headers --sort-by=cpu 2>/dev/null | head -15 || true
+  echo "--- kubectl get nodes (status) ---"
+  KUBECONFIG="$kubeconfig" kubectl get nodes --no-headers 2>/dev/null | head -15 || true
+} > "$log_dir/resource-snapshot.txt" 2>&1
+echo "  $role: resource snapshot written to $log_dir/resource-snapshot.txt"
+
+# Always-on log capture (spec line 35: "Logs: clustermesh-apiserver,
 echo "------- $role: capturing pod logs to $log_dir -------"
 # clustermesh-apiserver: all three containers (apiserver / etcd /
 # kvstoremesh) — bounded tail, single pod expected.
