@@ -1516,13 +1516,15 @@ class KubernetesClient:
         # Pod ready: time from container started to pod Ready
         latencies["pod_ready_seconds"] = _diff_seconds(
             "pod_ready", "container_started")
-        # Total end-to-end: pod_ready - pod_created (user-facing SLA)
+        # Total end-to-end: pod_ready - pod_created (user-facing SLA, T0-anchored)
         latencies["total_e2e_seconds"] = _diff_seconds(
             "pod_ready", "pod_created")
         # Node-to-pod (IaaS-free): container_started - node_registered
         # Comparable to SRodi's time_to_runnable_s — isolates K8s/CNI latency
         latencies["node_to_pod_seconds"] = _diff_seconds(
             "container_started", "node_registered")
+        # Alias: time_to_runnable_seconds (T5 - T1, headline KPI)
+        latencies["time_to_runnable_seconds"] = latencies["node_to_pod_seconds"]
 
         return latencies
 
