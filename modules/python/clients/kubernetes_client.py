@@ -574,6 +574,9 @@ class KubernetesClient:
         For each node, finds the CNI daemonset pod and extracts:
           - cni_container_started: first container's state.running.startedAt (T2)
           - cni_pod_ready: Ready condition lastTransitionTime (T3)
+          - init_containers: list of init container timing dicts
+          - containers: list of main container timing dicts
+          - image_pull_events: list of image pull timing dicts from pod events
 
         Args:
             node_names: List of node name strings
@@ -597,6 +600,9 @@ class KubernetesClient:
                 results[node_name] = {
                     "cni_container_started": None,
                     "cni_pod_ready": None,
+                    "init_containers": [],
+                    "containers": [],
+                    "image_pull_events": [],
                 }
                 continue
 
@@ -614,14 +620,169 @@ class KubernetesClient:
             cni_ready = self._get_condition_transition_time(
                 pod.status.conditions, "Ready")
 
+            # Collect init container timestamps
+            init_containers = self._collect_init_container_timestamps(pod)
+
+            # Collect main container timestamps
+            containers = self._collect_container_timestamps(pod)
+
+            # Collect image pull events
+            image_pull_events = self._collect_image_pull_events(
+                pod.metadata.name, namespace)
+
             entry = {
                 "cni_container_started": container_started,
                 "cni_pod_ready": cni_ready,
+                "init_containers": init_containers,
+                "containers": containers,
+                "image_pull_events": image_pull_events,
             }
             logger.info("CNI pod timestamps for node '%s': %s", node_name, entry)
             results[node_name] = entry
 
         return results
+
+    def _collect_init_container_timestamps(self, pod):
+        """
+        Collect start/finish timestamps for each init container in a pod.
+
+        Returns:
+            List of dicts with name, image, started_at, finished_at, duration_seconds
+        """
+        init_containers = []
+        if not pod.status.init_container_statuses:
+            return init_containers
+
+        for cs in pod.status.init_container_statuses:
+            entry = {
+                "name": cs.name,
+                "image": cs.image,
+                "started_at": None,
+                "finished_at": None,
+                "duration_seconds": None,
+            }
+            # Terminated init containers have start and finish times
+            if cs.state and cs.state.terminated:
+                started = cs.state.terminated.started_at
+                finished = cs.state.terminated.finished_at
+                entry["started_at"] = self._format_k8s_timestamp(started)
+                entry["finished_at"] = self._format_k8s_timestamp(finished)
+                if started and finished:
+                    entry["duration_seconds"] = (finished - started).total_seconds()
+            # Last state may also have terminated info
+            elif cs.last_state and cs.last_state.terminated:
+                started = cs.last_state.terminated.started_at
+                finished = cs.last_state.terminated.finished_at
+                entry["started_at"] = self._format_k8s_timestamp(started)
+                entry["finished_at"] = self._format_k8s_timestamp(finished)
+                if started and finished:
+                    entry["duration_seconds"] = (finished - started).total_seconds()
+
+            init_containers.append(entry)
+
+        return init_containers
+
+    def _collect_container_timestamps(self, pod):
+        """
+        Collect start timestamps for each main container in a pod.
+
+        Returns:
+            List of dicts with name, image, started_at
+        """
+        containers = []
+        if not pod.status.container_statuses:
+            return containers
+
+        for cs in pod.status.container_statuses:
+            entry = {
+                "name": cs.name,
+                "image": cs.image,
+                "started_at": None,
+                "ready": cs.ready,
+            }
+            if cs.state and cs.state.running and cs.state.running.started_at:
+                entry["started_at"] = self._format_k8s_timestamp(
+                    cs.state.running.started_at)
+            containers.append(entry)
+
+        return containers
+
+    def _collect_image_pull_events(self, pod_name, namespace):
+        """
+        Collect image pull events (Pulling, Pulled) for a pod.
+
+        Returns:
+            List of dicts with image, pulling_at, pulled_at, duration_seconds, message
+        """
+        image_pulls = []
+        try:
+            events = self.api.list_namespaced_event(
+                namespace=namespace,
+                field_selector=f"involvedObject.name={pod_name},involvedObject.kind=Pod"
+            )
+
+            # Group events by image
+            pull_map = {}  # image -> {pulling_at, pulled_at}
+            for event in events.items:
+                if event.reason == "Pulling":
+                    # Extract image name from message: 'Pulling image "..."'
+                    image = self._extract_image_from_event_message(event.message)
+                    if image:
+                        if image not in pull_map:
+                            pull_map[image] = {"pulling_at": None, "pulled_at": None, "message": None}
+                        ts = (event.event_time or event.first_timestamp
+                              or event.metadata.creation_timestamp)
+                        pull_map[image]["pulling_at"] = self._format_k8s_timestamp(ts)
+                elif event.reason == "Pulled":
+                    image = self._extract_image_from_event_message(event.message)
+                    if image:
+                        if image not in pull_map:
+                            pull_map[image] = {"pulling_at": None, "pulled_at": None, "message": None}
+                        ts = (event.event_time or event.first_timestamp
+                              or event.metadata.creation_timestamp)
+                        pull_map[image]["pulled_at"] = self._format_k8s_timestamp(ts)
+                        pull_map[image]["message"] = event.message
+
+            # Convert to list with duration
+            for image, times in pull_map.items():
+                entry = {
+                    "image": image,
+                    "pulling_at": times["pulling_at"],
+                    "pulled_at": times["pulled_at"],
+                    "duration_seconds": None,
+                    "message": times["message"],
+                }
+                if times["pulling_at"] and times["pulled_at"]:
+                    try:
+                        from datetime import datetime
+                        start = datetime.fromisoformat(
+                            times["pulling_at"].replace("Z", "+00:00"))
+                        end = datetime.fromisoformat(
+                            times["pulled_at"].replace("Z", "+00:00"))
+                        entry["duration_seconds"] = (end - start).total_seconds()
+                    except Exception:
+                        pass
+                image_pulls.append(entry)
+
+        except Exception as e:
+            logger.warning("Failed to collect image pull events for pod '%s': %s",
+                          pod_name, e)
+
+        return image_pulls
+
+    def _extract_image_from_event_message(self, message):
+        """Extract image name from a Pulling/Pulled event message."""
+        if not message:
+            return None
+        # Messages are like: 'Pulling image "mcr.microsoft.com/..."'
+        # or 'Successfully pulled image "mcr.microsoft.com/..." in 3.5s'
+        start = message.find('"')
+        if start == -1:
+            return None
+        end = message.find('"', start + 1)
+        if end == -1:
+            return None
+        return message[start + 1:end]
 
     def deploy_probe_pod(self, node_pool_name, namespace="default",
                          pod_name="latency-probe", image="mcr.microsoft.com/oss/kubernetes/pause:3.9"):
@@ -898,12 +1059,18 @@ class KubernetesClient:
             # Collect CNI timestamps if applicable
             cni_container_started = None
             cni_pod_ready = None
+            cni_init_containers = []
+            cni_containers = []
+            cni_image_pull_events = []
             if cni_daemonset_label:
                 cni_timestamps = self.collect_cni_pod_timestamps(
                     [new_node_name], cni_daemonset_label)
                 cni_info = cni_timestamps.get(new_node_name, {})
                 cni_container_started = cni_info.get("cni_container_started")
                 cni_pod_ready = cni_info.get("cni_pod_ready")
+                cni_init_containers = cni_info.get("init_containers", [])
+                cni_containers = cni_info.get("containers", [])
+                cni_image_pull_events = cni_info.get("image_pull_events", [])
 
             # Collect pod timestamps
             pod_scheduled = self._get_condition_transition_time(
@@ -939,6 +1106,9 @@ class KubernetesClient:
                 "cni_taint_cleared": intermediate_states.get("cni_taint_cleared"),
                 "cni_container_started": cni_container_started,
                 "cni_pod_ready": cni_pod_ready,
+                "cni_init_containers": cni_init_containers,
+                "cni_containers": cni_containers,
+                "cni_image_pull_events": cni_image_pull_events,
                 "pod_scheduled": pod_scheduled,
                 "pod_initialized": pod_initialized,
                 "container_started": container_started,
