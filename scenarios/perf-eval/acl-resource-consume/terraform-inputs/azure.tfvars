@@ -3,9 +3,6 @@ scenario_name  = "acl-resource-consume"
 deletion_delay = "2h"
 owner          = "aks"
 
-# This scenario intentionally uses the AKS CLI Terraform path instead of the
-# azurerm AKS resource path so it can pass ACL-specific AKS CLI options such as
-# --os-sku AzureContainerLinux.
 aks_cli_config_list = [
   {
     role                          = "client"
