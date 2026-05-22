@@ -280,6 +280,22 @@ def check_for_progressive_scaling(args):
     return False
 
 
+def _add_create_machine_subparser(subparsers, common_parser):
+    """Register the `create-machine` subcommand on the given subparsers group."""
+    create_machine_parser = subparsers.add_parser(
+        "create-machine",
+        parents=[common_parser],
+        help="Create a machine-mode agent pool via the AKS Machine API",
+    )
+    create_machine_parser.add_argument(
+        "--node-pool-name", required=True, help="Agent pool name"
+    )
+    create_machine_parser.add_argument(
+        "--vm-size", required=True, help="VM size for the agent pool"
+    )
+    create_machine_parser.set_defaults(func=handle_machine_operation)
+
+
 def _add_scale_machine_subparser(subparsers, common_parser):
     """Register the `scale-machine` subcommand on the given subparsers group."""
     scale_machine_parser = subparsers.add_parser(
@@ -493,18 +509,7 @@ def main():
     deployment_parser.set_defaults(func=handle_workload_operations)
 
     # Create-machine command (AKS Machine API)
-    create_machine_parser = subparsers.add_parser(
-        "create-machine",
-        parents=[common_parser],
-        help="Create a machine-mode agent pool via the AKS Machine API",
-    )
-    create_machine_parser.add_argument(
-        "--node-pool-name", required=True, help="Agent pool name"
-    )
-    create_machine_parser.add_argument(
-        "--vm-size", required=True, help="VM size for the agent pool"
-    )
-    create_machine_parser.set_defaults(func=handle_machine_operation)
+    _add_create_machine_subparser(subparsers, common_parser)
 
     # Scale-machine command (AKS Machine API)
     _add_scale_machine_subparser(subparsers, common_parser)
