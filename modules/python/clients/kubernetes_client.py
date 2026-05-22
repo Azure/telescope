@@ -841,8 +841,14 @@ class KubernetesClient:
             # I/O when join() times out.
             intermediate_states = {
                 "events": [],
+                "node_registered_at": None,
+                "not_ready_taint_observed": None,
                 "not_ready_taint_cleared": None,
+                "network_unavailable_taint_observed": None,
+                "network_unavailable_taint_cleared": None,
+                "cni_taint_observed": None,
                 "cni_taint_cleared": None,
+                "node_ready_at": None,
             }
 
             def _run_watch():
@@ -870,6 +876,12 @@ class KubernetesClient:
             # Collect TriggeredScaleUp event timestamp from pod events
             triggered_scale_up = self._get_triggered_scale_up_timestamp(
                 pod_name=pod_name, namespace=namespace)
+
+            # Fallback: if no TriggeredScaleUp found (e.g. BYOCNI), use the
+            # first FailedScheduling event as a proxy for when autoscaler saw the pod
+            if triggered_scale_up is None:
+                triggered_scale_up = self._get_first_scheduling_event_timestamp(
+                    pod_name=pod_name, namespace=namespace)
 
             # Identify the new node (the one the pod was scheduled on)
             new_node_name = pod.spec.node_name
@@ -921,6 +933,8 @@ class KubernetesClient:
                 "node_network_unavailable_cleared": node_network_unavailable_cleared,
                 "not_ready_taint_observed": intermediate_states.get("not_ready_taint_observed"),
                 "not_ready_taint_cleared": intermediate_states.get("not_ready_taint_cleared"),
+                "network_unavailable_taint_observed": intermediate_states.get("network_unavailable_taint_observed"),
+                "network_unavailable_taint_cleared": intermediate_states.get("network_unavailable_taint_cleared"),
                 "cni_taint_observed": intermediate_states.get("cni_taint_observed"),
                 "cni_taint_cleared": intermediate_states.get("cni_taint_cleared"),
                 "cni_container_started": cni_container_started,
@@ -978,6 +992,8 @@ class KubernetesClient:
                 "node_registered_at": None,
                 "not_ready_taint_observed": None,
                 "not_ready_taint_cleared": None,
+                "network_unavailable_taint_observed": None,
+                "network_unavailable_taint_cleared": None,
                 "cni_taint_observed": None,
                 "cni_taint_cleared": None,
                 "node_ready_at": None,
@@ -986,6 +1002,7 @@ class KubernetesClient:
         deadline = time.time() + (timeout_minutes * 60)
         new_node_name = None
         saw_not_ready_taint = False
+        saw_network_unavailable_taint = False
         saw_cni_taint = False
         node_ready_recorded = False
 
@@ -1050,6 +1067,28 @@ class KubernetesClient:
                         "observed_at": now_iso,
                     })
                     logger.info("Watch: not-ready taint cleared on '%s'", node_name)
+
+                # Track network-unavailable taint (blocks scheduling in kubenet)
+                net_unavail_key = "node.kubernetes.io/network-unavailable"
+                net_unavail_noschedule = (net_unavail_key, "NoSchedule")
+                if net_unavail_noschedule in current_taints:
+                    if not saw_network_unavailable_taint:
+                        saw_network_unavailable_taint = True
+                        result["network_unavailable_taint_observed"] = now_iso
+                        result["events"].append({
+                            "event": "network_unavailable_taint_observed",
+                            "node": node_name,
+                            "observed_at": now_iso,
+                        })
+                        logger.info("Watch: network-unavailable taint observed on '%s'", node_name)
+                elif saw_network_unavailable_taint and result["network_unavailable_taint_cleared"] is None:
+                    result["network_unavailable_taint_cleared"] = now_iso
+                    result["events"].append({
+                        "event": "network_unavailable_taint_cleared",
+                        "node": node_name,
+                        "observed_at": now_iso,
+                    })
+                    logger.info("Watch: network-unavailable taint cleared on '%s'", node_name)
 
                 # Track CNI-specific taint (any effect)
                 if cni_blocking_taint:
@@ -1170,6 +1209,41 @@ class KubernetesClient:
                       pod_name, max_retries)
         return None
 
+    def _get_first_scheduling_event_timestamp(self, pod_name, namespace="default"):
+        """
+        Get the timestamp of the first FailedScheduling event for the probe pod.
+
+        Used as a fallback for TriggeredScaleUp when the autoscaler doesn't post
+        that event (e.g. BYOCNI clusters). The first FailedScheduling event marks
+        when the scheduler first evaluated the pod and found it unschedulable,
+        which closely approximates when the autoscaler would have noticed it.
+
+        Returns:
+            ISO 8601 timestamp string, or None if not found
+        """
+        try:
+            events = self.api.list_namespaced_event(
+                namespace=namespace,
+                field_selector=f"involvedObject.name={pod_name},involvedObject.kind=Pod"
+            )
+            earliest_ts = None
+            for event in events.items:
+                if event.reason == "FailedScheduling":
+                    ts = (event.event_time or event.first_timestamp
+                          or event.metadata.creation_timestamp)
+                    if ts:
+                        formatted = self._format_k8s_timestamp(ts)
+                        if earliest_ts is None or formatted < earliest_ts:
+                            earliest_ts = formatted
+            if earliest_ts:
+                logger.info("Using first FailedScheduling event as T0 fallback: %s", earliest_ts)
+                return earliest_ts
+            logger.warning("No FailedScheduling event found for pod '%s'", pod_name)
+            return None
+        except Exception as e:
+            logger.warning("Failed to get FailedScheduling event: %s", e)
+            return None
+
     def _compute_autoscale_latencies(self, timestamps):
         """Compute latency KPIs for autoscaler-triggered scaling."""
         latencies = {}
@@ -1245,29 +1319,20 @@ class KubernetesClient:
         # Time from node registration until CNI taint first appeared
         latencies["registration_to_cni_taint_seconds"] = _diff_seconds(
             "cni_taint_observed", "node_registered")
-        # Time between not-ready taint clearing and node Ready condition
-        latencies["not_ready_clear_to_ready_seconds"] = _diff_seconds(
-            "node_ready", "not_ready_taint_cleared")
-        # Time between CNI taint clearing and node Ready condition
-        latencies["cni_clear_to_ready_seconds"] = _diff_seconds(
-            "node_ready", "cni_taint_cleared")
-        # Time from last taint cleared to node Ready (scheduling gate duration)
-        last_taint_cleared_secs = None
-        not_ready_cleared_secs = _diff_seconds("not_ready_taint_cleared", "node_registered")
-        cni_cleared_secs = _diff_seconds("cni_taint_cleared", "node_registered")
-        if not_ready_cleared_secs is not None or cni_cleared_secs is not None:
-            last_cleared = max(
-                c for c in [not_ready_cleared_secs, cni_cleared_secs] if c is not None
-            )
-            node_ready_from_reg = _diff_seconds("node_ready", "node_registered")
-            if node_ready_from_reg is not None:
-                last_taint_cleared_secs = node_ready_from_reg - last_cleared
-        latencies["last_taint_to_ready_seconds"] = last_taint_cleared_secs
-
-        # Pod scheduling: time from pod_scheduled - node_ready (taint-gated delay)
+        # Time from node Ready to CNI taint cleared (positive = CNI was bottleneck)
+        latencies["node_ready_to_cni_clear_seconds"] = _diff_seconds(
+            "cni_taint_cleared", "node_ready")
+        # Network-unavailable taint active duration (kubenet route provisioning)
+        latencies["network_unavailable_taint_active_seconds"] = _diff_seconds(
+            "network_unavailable_taint_cleared", "network_unavailable_taint_observed")
+        # Time from node registered to network-unavailable taint cleared
+        latencies["network_unavailable_taint_seconds"] = _diff_seconds(
+            "network_unavailable_taint_cleared", "node_registered")
+        # Pod scheduling: time from last scheduling gate cleared to pod scheduled
+        # The last gate is max(not_ready_taint_cleared, network_unavailable_taint_cleared, cni_taint_cleared)
         latencies["pod_scheduling_seconds"] = _diff_seconds(
             "pod_scheduled", "node_ready")
-        # Network unavailable clearing: time from node_registered
+        # Network unavailable condition clearing: time from node_registered
         latencies["network_unavailable_seconds"] = _diff_seconds(
             "node_network_unavailable_cleared", "node_registered")
         # Pod init: time from pod Scheduled to container started
