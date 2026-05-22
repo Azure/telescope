@@ -203,6 +203,19 @@ steps:
                 --name "$role" \
                 --query "{provisioningState:provisioningState, clusterResourceId:clusterResourceId, labels:labels}" \
                 -o yaml --only-show-errors 2>&1 | head -10 || true
+              # Fleet-side: is this cluster in the profile's applied set?
+              echo "[$role] DIAG: clustermeshprofile applied members (is $role in the set?):"
+              az fleet clustermeshprofile list-members \
+                --resource-group "$FLEET_RG" \
+                --fleet-name "$FLEET_NAME" \
+                --name "$FLEET_PROFILE" \
+                --query "[].{name:name, provisioningState:provisioningState}" \
+                -o table --only-show-errors 2>&1 | head -25 || true
+              # AKS-side: is the cluster being updated by ACNS?
+              echo "[$role] DIAG: AKS provisioningState (is ACNS reconciling?):"
+              az aks show --resource-group "$FLEET_RG" --name "$_name" \
+                --query "{state:provisioningState, powerState:powerState.code}" \
+                -o json --only-show-errors 2>&1 | head -5 || true
               last_diag=$now
             fi
             sleep 15

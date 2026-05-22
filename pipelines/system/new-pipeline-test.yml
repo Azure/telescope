@@ -1307,6 +1307,68 @@ stages:
           skip_publish: false
 
   # ============================================================================
+  # %global variation experiment — N=20 g20 SINGLE-CELL RETRY
+  # ============================================================================
+  # Dedicated stage for g20 retry after Fleet skip-bug hit 8/20 clusters on
+  # builds 67968 (rerun). Fresh build = fresh Fleet RP session, which may
+  # avoid the race condition that caused the skip.
+  #
+  # Enhanced diagnostics: clustermeshprofile list-members + AKS provisioning
+  # state dumps during wait-for-apiserver to capture Fleet RP behavior if
+  # the skip-bug recurs.
+  - stage: azure_eastus2euap_n20_g20_retry
+    dependsOn: []
+    # condition: false
+    displayName: "n=20 g20 retry (single-cell, enhanced Fleet diag)"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 30m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-20-shared.tfvars"
+          matrix:
+            n20_g20:
+              cluster_count: 20
+              mesh_size: 20
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-g20"
+              global_namespace_count: 1
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              cl2_max_concurrent: 12
+              worker_timeout_seconds: 14400
+              churn_cycles: 5
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  # ============================================================================
   # %global variation experiment — N=50 sweep
   # ============================================================================
   # 4 matrix entries varying global_namespace_count 0/1/3/5 (=0%/20%/60%/100%
