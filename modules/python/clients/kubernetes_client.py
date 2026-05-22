@@ -835,15 +835,24 @@ class KubernetesClient:
             # terminate promptly (e.g. Kubenet NetworkUnavailable delay).
             import threading
             stop_event = threading.Event()
-            watch_container = {}
+
+            # Shared result dict — the watch writes events here in real-time,
+            # so they're available even if the watch thread is still blocked on
+            # I/O when join() times out.
+            intermediate_states = {
+                "events": [],
+                "not_ready_taint_cleared": None,
+                "cni_taint_cleared": None,
+            }
 
             def _run_watch():
-                watch_container["result"] = self._watch_node_transitions(
+                self._watch_node_transitions(
                     existing_nodes=existing_nodes,
                     node_pool_name=node_pool_name,
                     cni_blocking_taint=cni_blocking_taint,
                     timeout_minutes=operation_timeout_in_minutes,
                     stop_event=stop_event,
+                    result=intermediate_states,
                 )
 
             watch_thread = threading.Thread(target=_run_watch, daemon=True)
@@ -857,9 +866,6 @@ class KubernetesClient:
             # Signal watch to stop and wait for it to finish
             stop_event.set()
             watch_thread.join(timeout=15)
-            intermediate_states = watch_container.get("result", {
-                "events": [], "not_ready_taint_cleared": None, "cni_taint_cleared": None,
-            })
 
             # Collect TriggeredScaleUp event timestamp from pod events
             triggered_scale_up = self._get_triggered_scale_up_timestamp(
@@ -913,7 +919,9 @@ class KubernetesClient:
                 "node_registered": node_registered,
                 "node_ready": node_ready,
                 "node_network_unavailable_cleared": node_network_unavailable_cleared,
+                "not_ready_taint_observed": intermediate_states.get("not_ready_taint_observed"),
                 "not_ready_taint_cleared": intermediate_states.get("not_ready_taint_cleared"),
+                "cni_taint_observed": intermediate_states.get("cni_taint_observed"),
                 "cni_taint_cleared": intermediate_states.get("cni_taint_cleared"),
                 "cni_container_started": cni_container_started,
                 "cni_pod_ready": cni_pod_ready,
@@ -940,7 +948,7 @@ class KubernetesClient:
 
     def _watch_node_transitions(self, existing_nodes, node_pool_name,
                                 cni_blocking_taint=None, timeout_minutes=15,
-                                stop_event=None):
+                                stop_event=None, result=None):
         """
         Watch for a new node in the pool and capture intermediate state transitions.
 
@@ -956,6 +964,7 @@ class KubernetesClient:
             cni_blocking_taint: Optional CNI-specific taint key to track
             timeout_minutes: Watch timeout
             stop_event: Optional threading.Event to signal early termination
+            result: Optional shared dict to write events into (for thread-safe access)
 
         Returns:
             Dict with taint-clearing timestamps and event log
@@ -963,11 +972,16 @@ class KubernetesClient:
         from kubernetes import watch
         from datetime import datetime, timezone
 
-        result = {
-            "events": [],
-            "not_ready_taint_cleared": None,
-            "cni_taint_cleared": None,
-        }
+        if result is None:
+            result = {
+                "events": [],
+                "node_registered_at": None,
+                "not_ready_taint_observed": None,
+                "not_ready_taint_cleared": None,
+                "cni_taint_observed": None,
+                "cni_taint_cleared": None,
+                "node_ready_at": None,
+            }
 
         deadline = time.time() + (timeout_minutes * 60)
         new_node_name = None
@@ -1000,6 +1014,7 @@ class KubernetesClient:
                 # First time we see the new node
                 if new_node_name is None:
                     new_node_name = node_name
+                    result["node_registered_at"] = now_iso
                     result["events"].append({
                         "event": "node_registered",
                         "node": node_name,
@@ -1020,6 +1035,7 @@ class KubernetesClient:
                 if not_ready_noschedule in current_taints:
                     if not saw_not_ready_taint:
                         saw_not_ready_taint = True
+                        result["not_ready_taint_observed"] = now_iso
                         result["events"].append({
                             "event": "not_ready_taint_observed",
                             "node": node_name,
@@ -1044,6 +1060,7 @@ class KubernetesClient:
                     if cni_taint_present:
                         if not saw_cni_taint:
                             saw_cni_taint = True
+                            result["cni_taint_observed"] = now_iso
                             result["events"].append({
                                 "event": "cni_taint_observed",
                                 "node": node_name,
@@ -1069,6 +1086,7 @@ class KubernetesClient:
                         if cond.type == "Ready":
                             if cond.status == "True":
                                 node_ready_recorded = True
+                                result["node_ready_at"] = now_iso
                                 result["events"].append({
                                     "event": "node_ready",
                                     "node": node_name,
@@ -1086,32 +1104,71 @@ class KubernetesClient:
 
         return result
 
-    def _get_triggered_scale_up_timestamp(self, pod_name, namespace="default"):
+    def _get_triggered_scale_up_timestamp(self, pod_name, namespace="default",
+                                            max_retries=5, retry_interval=3):
         """
         Get the timestamp of the TriggeredScaleUp event for the probe pod.
 
         The cluster autoscaler posts this event on unschedulable pods when it
-        decides to scale up a node group.
+        decides to scale up a node group. In some K8s versions or cluster
+        configurations (e.g., BYOCNI), the event may use the events.k8s.io/v1
+        API with eventTime instead of firstTimestamp, or may take longer to appear.
+
+        Args:
+            pod_name: Name of the probe pod
+            namespace: Pod namespace
+            max_retries: Number of retry attempts
+            retry_interval: Seconds between retries
 
         Returns:
             ISO 8601 timestamp string, or None if not found
         """
-        try:
-            events = self.api.list_namespaced_event(
-                namespace=namespace,
-                field_selector=f"involvedObject.name={pod_name},involvedObject.kind=Pod"
-            )
-            for event in events.items:
-                if event.reason == "TriggeredScaleUp":
-                    # Use event's first timestamp
-                    ts = event.first_timestamp or event.metadata.creation_timestamp
-                    if ts:
-                        return self._format_k8s_timestamp(ts)
-            logger.warning("No TriggeredScaleUp event found for pod '%s'", pod_name)
-            return None
-        except Exception as e:
-            logger.warning("Failed to get TriggeredScaleUp event: %s", e)
-            return None
+        scale_up_reasons = {"TriggeredScaleUp", "ScaleUp", "ScaledUpGroup"}
+
+        for attempt in range(max_retries):
+            try:
+                # Try core/v1 Events API
+                events = self.api.list_namespaced_event(
+                    namespace=namespace,
+                    field_selector=f"involvedObject.name={pod_name},involvedObject.kind=Pod"
+                )
+                for event in events.items:
+                    if event.reason in scale_up_reasons:
+                        # Prefer event_time (events.k8s.io/v1), then first_timestamp, then creation_timestamp
+                        ts = (event.event_time or event.first_timestamp
+                              or event.metadata.creation_timestamp)
+                        if ts:
+                            return self._format_k8s_timestamp(ts)
+
+                # Try events.k8s.io/v1 API as fallback (newer clusters may only have events here)
+                try:
+                    from kubernetes.client import EventsV1Api
+                    events_v1 = EventsV1Api(self.api.api_client)
+                    event_list = events_v1.list_namespaced_event(
+                        namespace=namespace,
+                        field_selector=f"regarding.name={pod_name},regarding.kind=Pod"
+                    )
+                    for event in event_list.items:
+                        if event.reason in scale_up_reasons:
+                            ts = (event.event_time or event.metadata.creation_timestamp)
+                            if ts:
+                                return self._format_k8s_timestamp(ts)
+                except Exception as e:
+                    logger.debug("EventsV1Api lookup failed (expected on older clusters): %s", e)
+
+                if attempt < max_retries - 1:
+                    logger.debug("TriggeredScaleUp event not found (attempt %d/%d), retrying...",
+                                attempt + 1, max_retries)
+                    time.sleep(retry_interval)
+            except Exception as e:
+                logger.warning("Failed to get TriggeredScaleUp event (attempt %d): %s",
+                              attempt + 1, e)
+                if attempt < max_retries - 1:
+                    time.sleep(retry_interval)
+
+        logger.warning("No TriggeredScaleUp event found for pod '%s' after %d attempts",
+                      pod_name, max_retries)
+        return None
 
     def _compute_autoscale_latencies(self, timestamps):
         """Compute latency KPIs for autoscaler-triggered scaling."""
@@ -1168,12 +1225,45 @@ class KubernetesClient:
             latencies["cni_induced_delay_seconds"] = max(0, cni_delay)
         else:
             latencies["cni_induced_delay_seconds"] = None
-        # Taint clearing: time from node Ready to not-ready taint cleared
+        # Taint clearing: time from node registered to not-ready taint cleared
         latencies["not_ready_taint_seconds"] = _diff_seconds(
             "not_ready_taint_cleared", "node_registered")
         # CNI taint clearing: time from node registered to CNI taint cleared
         latencies["cni_taint_seconds"] = _diff_seconds(
             "cni_taint_cleared", "node_registered")
+
+        # --- Intermediate segment durations (for dashboard charts) ---
+        # How long the not-ready taint was actively present on the node
+        latencies["not_ready_taint_active_seconds"] = _diff_seconds(
+            "not_ready_taint_cleared", "not_ready_taint_observed")
+        # How long the CNI-specific taint was actively present on the node
+        latencies["cni_taint_active_seconds"] = _diff_seconds(
+            "cni_taint_cleared", "cni_taint_observed")
+        # Time from node registration until not-ready taint first appeared
+        latencies["registration_to_not_ready_taint_seconds"] = _diff_seconds(
+            "not_ready_taint_observed", "node_registered")
+        # Time from node registration until CNI taint first appeared
+        latencies["registration_to_cni_taint_seconds"] = _diff_seconds(
+            "cni_taint_observed", "node_registered")
+        # Time between not-ready taint clearing and node Ready condition
+        latencies["not_ready_clear_to_ready_seconds"] = _diff_seconds(
+            "node_ready", "not_ready_taint_cleared")
+        # Time between CNI taint clearing and node Ready condition
+        latencies["cni_clear_to_ready_seconds"] = _diff_seconds(
+            "node_ready", "cni_taint_cleared")
+        # Time from last taint cleared to node Ready (scheduling gate duration)
+        last_taint_cleared_secs = None
+        not_ready_cleared_secs = _diff_seconds("not_ready_taint_cleared", "node_registered")
+        cni_cleared_secs = _diff_seconds("cni_taint_cleared", "node_registered")
+        if not_ready_cleared_secs is not None or cni_cleared_secs is not None:
+            last_cleared = max(
+                c for c in [not_ready_cleared_secs, cni_cleared_secs] if c is not None
+            )
+            node_ready_from_reg = _diff_seconds("node_ready", "node_registered")
+            if node_ready_from_reg is not None:
+                last_taint_cleared_secs = node_ready_from_reg - last_cleared
+        latencies["last_taint_to_ready_seconds"] = last_taint_cleared_secs
+
         # Pod scheduling: time from pod_scheduled - node_ready (taint-gated delay)
         latencies["pod_scheduling_seconds"] = _diff_seconds(
             "pod_scheduled", "node_ready")
