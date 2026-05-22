@@ -226,12 +226,17 @@ def handle_node_pool_all(node_pool_crud, args):
 def handle_machine_operation(machine_crud, args):
     """Handle machine API operations (create-machine, scale-machine) based on the command."""
     command = args.command
+    result = None
+
     try:
         if command == "create-machine":
-            result = machine_crud.create_machine_agentpool(
-                agentpool_name=args.node_pool_name,
-                vm_size=args.vm_size,
-            )
+            create_kwargs = {
+                "agentpool_name": args.node_pool_name,
+                "vm_size": args.vm_size,
+            }
+
+            result = machine_crud.create_machine_agentpool(**create_kwargs)
+
         elif command == "scale-machine":
             tags = None
             if getattr(args, "tags", None):
@@ -239,18 +244,23 @@ def handle_machine_operation(machine_crud, args):
                     tags = json.loads(args.tags)
                 except (ValueError, TypeError) as e:
                     logger.warning(f"Failed to parse --tags {args.tags!r} as JSON: {e}")
-            result = machine_crud.scale_machine(
-                agentpool_name=args.node_pool_name,
-                vm_size=args.vm_size,
-                scale_machine_count=args.scale_machine_count,
-                use_batch_api=args.use_batch_api,
-                machine_workers=args.machine_workers,
-                readiness_wait_timeout=args.readiness_wait_timeout,
-                tags=tags,
-            )
+
+            scale_kwargs = {
+                "agentpool_name": args.node_pool_name,
+                "vm_size": args.vm_size,
+                "scale_machine_count": args.scale_machine_count,
+                "use_batch_api": args.use_batch_api,
+                "machine_workers": args.machine_workers,
+                "readiness_wait_timeout": args.readiness_wait_timeout,
+                "tags": tags,
+            }
+
+            result = machine_crud.scale_machine(**scale_kwargs)
+
         else:
             logger.error(f"Unsupported machine command: {command}")
             return 1
+
         if result is False:
             logger.error(f"Machine operation '{command}' failed")
             return 1
@@ -268,6 +278,50 @@ def check_for_progressive_scaling(args):
     if hasattr(args, "scale_step_size") and args.scale_step_size != args.target_count:
         return True
     return False
+
+
+def _add_scale_machine_subparser(subparsers, common_parser):
+    """Register the `scale-machine` subcommand on the given subparsers group."""
+    scale_machine_parser = subparsers.add_parser(
+        "scale-machine",
+        parents=[common_parser],
+        help="Add N machines to a machine-mode agent pool via the AKS Machine API",
+    )
+    scale_machine_parser.add_argument(
+        "--node-pool-name", required=True, help="Agent pool name"
+    )
+    scale_machine_parser.add_argument(
+        "--vm-size", required=True, help="VM size for the new machines"
+    )
+    scale_machine_parser.add_argument(
+        "--scale-machine-count",
+        type=int,
+        required=True,
+        help="Number of machines to add to the agent pool",
+    )
+    scale_machine_parser.add_argument(
+        "--machine-workers",
+        type=int,
+        default=1,
+        help="Concurrent worker count for individual machine PUTs",
+    )
+    scale_machine_parser.add_argument(
+        "--use-batch-api",
+        action="store_true",
+        help="Use the BatchPutMachine API (chunked, single PUT per chunk)",
+    )
+    scale_machine_parser.add_argument(
+        "--readiness-wait-timeout",
+        type=int,
+        default=1200,
+        help="Seconds to wait for nodes to become Ready after PUT",
+    )
+    scale_machine_parser.add_argument(
+        "--tags",
+        default=None,
+        help="JSON-encoded tag map (currently ignored by the Machine API)",
+    )
+    scale_machine_parser.set_defaults(func=handle_machine_operation)
 
 
 def main():
@@ -453,51 +507,7 @@ def main():
     create_machine_parser.set_defaults(func=handle_machine_operation)
 
     # Scale-machine command (AKS Machine API)
-    scale_machine_parser = subparsers.add_parser(
-        "scale-machine",
-        parents=[common_parser],
-        help="Add N machines to a machine-mode agent pool via the AKS Machine API",
-    )
-    scale_machine_parser.add_argument(
-        "--node-pool-name", required=True, help="Agent pool name"
-    )
-    scale_machine_parser.add_argument(
-        "--vm-size", required=True, help="VM size for the new machines"
-    )
-    scale_machine_parser.add_argument(
-        "--scale-machine-count",
-        type=int,
-        default=0,
-        help="Number of machines to add to the agent pool",
-    )
-    scale_machine_parser.add_argument(
-        "--machine-workers",
-        type=int,
-        default=1,
-        help="Concurrent worker count for individual machine PUTs",
-    )
-    scale_machine_parser.add_argument(
-        "--use-batch-api",
-        action="store_true",
-        help="Use the BatchPutMachine API (chunked, single PUT per chunk)",
-    )
-    scale_machine_parser.add_argument(
-        "--readiness-wait-timeout",
-        type=int,
-        default=1200,
-        help="Seconds to wait for nodes to become Ready after PUT",
-    )
-    scale_machine_parser.add_argument(
-        "--tags",
-        default=None,
-        help="JSON-encoded tag map (currently ignored by the Machine API)",
-    )
-    scale_machine_parser.add_argument(
-        "--region",
-        default=None,
-        help="Region label (used only for telemetry)",
-    )
-    scale_machine_parser.set_defaults(func=handle_machine_operation)
+    _add_scale_machine_subparser(subparsers, common_parser)
 
     # Arguments provided, run node pool operations and collect benchmark results
     try:
