@@ -38,10 +38,6 @@ aks_cli_config_list = [
             name  = "enable-vtpm"
             value = ""
           },
-          {
-            name  = "tags"
-            value = "AzSecPackAutoConfigReady=true"
-          }
         ]
       },
       {
@@ -64,10 +60,6 @@ aks_cli_config_list = [
           {
             name  = "enable-vtpm"
             value = ""
-          },
-          {
-            name  = "tags"
-            value = "AzSecPackAutoConfigReady=true"
           },
           {
             name  = "node-taints"
@@ -116,10 +108,6 @@ aks_cli_config_list = [
       {
         name  = "enable-vtpm"
         value = ""
-      },
-      {
-        name  = "nodepool-tags"
-        value = "AzSecPackAutoConfigReady=true"
       },
       {
         name  = "node-os-upgrade-channel"
