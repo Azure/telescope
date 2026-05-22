@@ -1380,6 +1380,14 @@ stages:
   # prevent accidental re-trigger.
   - stage: azure_eastus2euap_n50_global_sweep
     dependsOn: []
+    variables:
+      # Shared-VNet mode: Azure serializes subnet PUT ops per-VNet. At
+      # parallelism=10 (default), 10 concurrent AKS creates each do a subnet
+      # PUT → more contention than parallelism=8 which BROKE N=100 (build
+      # 67775, 17% failure). parallelism=4 is the proven safe ceiling
+      # (build 67839 N=100 clean at 181m). Costs ~30-60m extra apply time
+      # but eliminates RP throttle risk at N=50.
+      TF_CLI_ARGS_apply: "-parallelism=4"
     # 2026-05-21: ENABLED for N=50 sweep. N=20 sweep (67968) validated:
     # ClusterMesh metrics scale linearly with %global (Global Services 0/12/20,
     # Kvstore Rate 0.8→43, APIServer CPU 0.03→0.52). PodStartupLatency flat
