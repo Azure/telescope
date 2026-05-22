@@ -108,12 +108,6 @@ output = ap.Pipeline {
                   "Standard_D16S_v4",
                   10,
                   "cl2pool"),
-                azure.WaitForNodePoolSucceeded(
-                  const.DEFAULT_SERVICE_CONNECTION,
-                  CLUSTER,
-                  RESOURCE_GROUP,
-                  SUBSCRIPTION_ID,
-                  "cl2pool"),
                 azure.CreateNodePool(
                     const.DEFAULT_SERVICE_CONNECTION,
                     CLUSTER,
@@ -124,12 +118,6 @@ output = ap.Pipeline {
                     60,
                     "kwok",
                     "kwok=true"),
-                azure.WaitForNodePoolSucceeded(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    CLUSTER,
-                    RESOURCE_GROUP,
-                    SUBSCRIPTION_ID,
-                    "kwokpool"),
                 *k8s.CreateKwokNodes(
                   15000,
                   continueOnError = True,

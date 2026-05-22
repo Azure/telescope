@@ -111,12 +111,6 @@ az rest \\
                 "Standard_D8S_v4",
                 1,
                 CL2_TAINT_PREFIX),
-            azure.WaitForNodePoolSucceeded(
-                const.DEFAULT_SERVICE_CONNECTION,
-                cluster,
-                RESOURCE_GROUP,
-                SUBSCRIPTION_ID,
-                CL2_POOL),
             azure.GetCredentials(
                 const.DEFAULT_SERVICE_CONNECTION,
                 cluster,
@@ -132,12 +126,6 @@ az rest \\
                 KWOK_POOL_COUNT,
                 "kwok",
                 "kwok=true"),
-            azure.WaitForNodePoolSucceeded(
-                const.DEFAULT_SERVICE_CONNECTION,
-                cluster,
-                RESOURCE_GROUP,
-                SUBSCRIPTION_ID,
-                KWOK_POOL),
             *k8s.CreateKwokNodes(
               nodeCount,
               params = {

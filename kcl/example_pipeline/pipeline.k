@@ -116,12 +116,6 @@ output = ap.Pipeline {
                     "Standard_D8S_v4",
                     4,
                     CL2_TAINT_PREFIX),
-                azure.WaitForNodePoolSucceeded(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    CLUSTER,
-                    RESOURCE_GROUP,
-                    SUBSCRIPTION_ID,
-                    CL2_POOL),
                 azure.GetCredentials(
                     const.DEFAULT_SERVICE_CONNECTION,
                     CLUSTER,
