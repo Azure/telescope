@@ -163,17 +163,28 @@ def handle_autoscale_latency(node_pool_crud, args):
 
         cni_label = args.cni_daemonset_label if args.cni_daemonset_label else None
         cni_taint = args.cni_blocking_taint if args.cni_blocking_taint else None
+        iterations = getattr(args, "iterations", 1) or 1
 
-        with OperationContext(
-            "autoscale_latency", args.cloud, {}, result_dir=args.result_dir
-        ) as op:
-            result = k8s_client.collect_autoscale_latency(
-                node_pool_name=args.node_pool_name,
-                cni_daemonset_label=cni_label,
-                cni_blocking_taint=cni_taint,
-                operation_timeout_in_minutes=args.step_timeout // 60 or 15,
-            )
-            op.add_metadata("autoscale_latency", result)
+        for iteration in range(1, iterations + 1):
+            pod_name = f"latency-probe-{iteration}"
+            logger.info("Starting autoscale latency iteration %d/%d (pod: %s)",
+                       iteration, iterations, pod_name)
+
+            with OperationContext(
+                "autoscale_latency", args.cloud, {}, result_dir=args.result_dir
+            ) as op:
+                result = k8s_client.collect_autoscale_latency(
+                    node_pool_name=args.node_pool_name,
+                    cni_daemonset_label=cni_label,
+                    cni_blocking_taint=cni_taint,
+                    pod_name=pod_name,
+                    operation_timeout_in_minutes=args.step_timeout // 60 or 15,
+                )
+                result["iteration"] = iteration
+                result["total_iterations"] = iterations
+                op.add_metadata("autoscale_latency", result)
+
+            logger.info("Iteration %d/%d complete", iteration, iterations)
 
         return 0
     except Exception as e:
@@ -437,6 +448,12 @@ def main():
         "--cni-blocking-taint",
         default=None,
         help="CNI-specific taint key that blocks scheduling (e.g. 'node.cilium.io/agent-not-ready')",
+    )
+    autoscale_parser.add_argument(
+        "--iterations",
+        type=int,
+        default=3,
+        help="Number of scale-up iterations to measure (default: 3)",
     )
     autoscale_parser.set_defaults(func=handle_autoscale_latency)
 

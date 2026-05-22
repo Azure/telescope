@@ -6,6 +6,7 @@ parameters:
   step_time_out: 600
   cni_daemonset_label: ""
   cni_blocking_taint: ""
+  iterations: 2
 
 steps:
 - script: |
@@ -28,6 +29,7 @@ steps:
       --result-dir "$RESULT_DIR" \
       --node-pool-name "$POOL_NAME" \
       --step-timeout "$STEP_TIME_OUT" \
+      --iterations "$ITERATIONS" \
       $CNI_LABEL_ARG \
       $CNI_TAINT_ARG
 
@@ -42,5 +44,6 @@ steps:
     RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
     CNI_DAEMONSET_LABEL: ${{ parameters.cni_daemonset_label }}
     CNI_BLOCKING_TAINT: ${{ parameters.cni_blocking_taint }}
+    ITERATIONS: ${{ parameters.iterations }}
 
 

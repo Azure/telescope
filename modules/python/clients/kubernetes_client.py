@@ -745,11 +745,16 @@ class KubernetesClient:
 
             # Convert to list with duration
             for image, times in pull_map.items():
+                already_present = (
+                    times["message"] is not None
+                    and "already present on machine" in times["message"]
+                )
                 entry = {
                     "image": image,
                     "pulling_at": times["pulling_at"],
                     "pulled_at": times["pulled_at"],
                     "duration_seconds": None,
+                    "already_present": already_present,
                     "message": times["message"],
                 }
                 if times["pulling_at"] and times["pulled_at"]:
@@ -1314,7 +1319,7 @@ class KubernetesClient:
         return result
 
     def _get_triggered_scale_up_timestamp(self, pod_name, namespace="default",
-                                            max_retries=5, retry_interval=3):
+                                            max_retries=10, retry_interval=6):
         """
         Get the timestamp of the TriggeredScaleUp event for the probe pod.
 
@@ -1326,7 +1331,7 @@ class KubernetesClient:
         Args:
             pod_name: Name of the probe pod
             namespace: Pod namespace
-            max_retries: Number of retry attempts
+            max_retries: Number of retry attempts (default 10 to handle BYOCNI clusters)
             retry_interval: Seconds between retries
 
         Returns:
