@@ -1668,15 +1668,15 @@ stages:
   # ============================================================================
   # %global variation experiment — N=50 g20/g60/g100 RETRY
   # ============================================================================
-  # g0 succeeded in build 68035 (blob 68035-0900f662.json). These 3 cells
-  # failed: g20 (Fleet skip-bug), g60 (mesh connectivity), g100 (node flake).
-  # Rerun at max_parallel=2.
+  # g0: build 68035 ✅, g20: build 68079 ✅, g60: build 68079 ✅.
+  # g100: 3rd attempt — builds 68035 + 68079 both hit node NotReady flake.
+  # Solo cell, no parallel contention.
   - stage: azure_eastus2euap_n50_retry
     dependsOn: []
     # condition: false
     variables:
       TF_CLI_ARGS_apply: "-parallelism=4"
-    displayName: "n=50 g20/g60/g100 retry (3 cells, parallel=2)"
+    displayName: "n=50 g100 retry (solo cell, attempt 3)"
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -1693,58 +1693,6 @@ stages:
           terraform_input_file_mapping:
             - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-50-shared.tfvars"
           matrix:
-            n50_g20:
-              cluster_count: 50
-              mesh_size: 50
-              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
-              cl2_config_file: ""
-              test_type: shared
-              test_type_suffix: "-shared-vnet-g20"
-              global_namespace_count: 1
-              namespaces: 5
-              deployments_per_namespace: 4
-              replicas_per_deployment: 10
-              hold_duration: 2m
-              warmup_duration: 30s
-              restart_count: 0
-              api_server_calls_per_second: 20
-              cl2_max_concurrent: 12
-              worker_timeout_seconds: 14400
-              churn_cycles: 5
-              churn_up_duration: 60s
-              churn_down_duration: 60s
-              kill_duration: 10m
-              kill_duration_seconds: 600
-              kill_interval_seconds: 10
-              kill_batch: 5
-              kill_job_deadline_seconds: 660
-              trigger_reason: ${{ variables['Build.Reason'] }}
-            n50_g60:
-              cluster_count: 50
-              mesh_size: 50
-              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
-              cl2_config_file: ""
-              test_type: shared
-              test_type_suffix: "-shared-vnet-g60"
-              global_namespace_count: 3
-              namespaces: 5
-              deployments_per_namespace: 4
-              replicas_per_deployment: 10
-              hold_duration: 2m
-              warmup_duration: 30s
-              restart_count: 0
-              api_server_calls_per_second: 20
-              cl2_max_concurrent: 12
-              worker_timeout_seconds: 14400
-              churn_cycles: 5
-              churn_up_duration: 60s
-              churn_down_duration: 60s
-              kill_duration: 10m
-              kill_duration_seconds: 600
-              kill_interval_seconds: 10
-              kill_batch: 5
-              kill_job_deadline_seconds: 660
-              trigger_reason: ${{ variables['Build.Reason'] }}
             n50_g100:
               cluster_count: 50
               mesh_size: 50
