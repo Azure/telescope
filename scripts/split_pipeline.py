@@ -169,14 +169,6 @@ class PipelineSplitter:
             extracted_items = items[:extract_count]
             remaining_items = items[extract_count:]
 
-            # Guard: if all extracted items are already template refs, splitting won't help
-            if all(isinstance(item, dict) and "template" in item for item in extracted_items):
-                self._cleanup_created_files()
-                raise SplitError(
-                    f"Error: cannot split further. A single element in '{filepath}' "
-                    f"exceeds {self.max_size_bytes} bytes."
-                )
-
             # Write extracted items to a new file
             part_path = self._next_filename(dir_path, stem)
             part_data = {key: extracted_items}

@@ -1,7 +1,0 @@
-jobs:
-- template: $(Pipeline.Workspace)/s/pipeline_2.yaml
-- job: job_3
-  displayName: Job 3
-  steps:
-  - bash: echo 3 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-    displayName: Step 3
