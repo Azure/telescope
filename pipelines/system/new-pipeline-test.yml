@@ -1524,15 +1524,25 @@ stages:
   # %global variation experiment — N=100 sweep
   # ============================================================================
   # 4 matrix entries varying global_namespace_count 0/1/3/5 (=0%/20%/60%/100%
-  # of the 5 workload namespaces). Per-cell vCPU: 100*48 = 4800. 
-  # max_parallel=1 → 1 parallel × 4 batches.
+  # of the 5 workload namespaces). Per-cell vCPU: 100*48 = 4800.
+  # max_parallel=1 → 1 parallel × 4 batches (sequential).
+  #
+  # Expected per-cell wall (extrapolated from N=50 g100 build 68124, 7h25m):
+  #   apply ~2h45m, wait-apiserver ~1h15m, validate ~1h40m,
+  #   CL2 (3 scenarios) ~7h, destroy ~1h20m → total ~14h
+  # 4 cells sequential = ~56h (~2.3 days). timeout_in_minutes=1800 (30h) per
+  # cell is generous headroom for retries/flakes.
+  #
+  # Ordering: a_g100 first (deliberate) — validates worst-case scaling wall
+  # first; if g100 fails, we surface the scaling signal early instead of
+  # waiting through 3 cheaper cells.
   #
   # SAFETY: condition: false default. Flip to true in a 1-line commit when
   # ready to trigger the N=100 phase. After completion flip back to false to
   # prevent accidental re-trigger.
   - stage: azure_eastus2euap_n100_global_sweep
     dependsOn: []
-    condition: false
+    # condition: false
     displayName: "n=100 %global sweep (0/20/60/100, parallel=1)"
     variables:
       # build 67839 evidence: parallelism=4 is the validated ceiling for N=100
@@ -1669,11 +1679,10 @@ stages:
   # %global variation experiment — N=50 g20/g60/g100 RETRY
   # ============================================================================
   # g0: build 68035 ✅, g20: build 68079 ✅, g60: build 68079 ✅.
-  # g100: 3rd attempt — builds 68035 + 68079 both hit node NotReady flake.
-  # Solo cell, no parallel contention.
+  # g100: build 68124 ✅ (solo cell). N=50 matrix COMPLETE — disabled now.
   - stage: azure_eastus2euap_n50_retry
     dependsOn: []
-    # condition: false
+    condition: false
     variables:
       TF_CLI_ARGS_apply: "-parallelism=4"
     displayName: "n=50 g100 retry (solo cell, attempt 3)"

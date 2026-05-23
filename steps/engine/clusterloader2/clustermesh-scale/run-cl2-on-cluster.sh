@@ -298,9 +298,16 @@ if [ "$cl2_passed" -ne 1 ]; then
   if command -v cilium-cli >/dev/null 2>&1 || [ -x /usr/local/bin/cilium ]; then
     CILIUM_BIN=$(command -v cilium-cli || command -v cilium || echo /usr/local/bin/cilium)
     KUBECONFIG="$kubeconfig" "$CILIUM_BIN" clustermesh status --wait=false 2>&1 | head -40 || true
+
+    echo "------- cilium status (agent health from $role) -------"
+    KUBECONFIG="$kubeconfig" "$CILIUM_BIN" status --wait=false 2>&1 | head -60 || true
   else
-    echo "(cilium-cli not in PATH; skipping clustermesh status)"
+    echo "(cilium-cli not in PATH; skipping clustermesh status / cilium status)"
   fi
+
+  echo "------- cilium-agent restart counts (per-node, n=100 diag) -------"
+  KUBECONFIG="$kubeconfig" kubectl -n kube-system get pods -l k8s-app=cilium \
+    -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.containerStatuses[*].restartCount}{"\n"}{end}' 2>&1 | head -20 || true
 
   echo "------- pod-snapshot tail (last 200 lines from periodic daemon) -------"
   if [ -f "$SNAPSHOT_LOG" ]; then
