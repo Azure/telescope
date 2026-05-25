@@ -1,0 +1,115 @@
+name: Build ClusterLoader2 Image
+
+on:
+  schedule:
+    # Every 2 weeks at 03:00 UTC (Sunday).
+    - cron: "0 3 */14 * 0"
+  workflow_dispatch:
+    inputs:
+      upstream_ref:
+        description: "Upstream kubernetes/perf-tests ref (branch/tag/SHA)"
+        required: false
+        default: "master"
+      push_target:
+        description: "Where to push the built image"
+        required: false
+        default: "telescope"
+        type: choice
+        options:
+          - telescope
+      run_validation:
+        description: "Run go-based validation (go run cmd/clusterloader2.go)"
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  # Telescope default package location
+  TELESCOPE_IMAGE: ghcr.io/azure/clusterloader2
+
+jobs:
+  build:
+    name: Build, Validate, and Push
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.meta.outputs.image_tag }}
+      upstream_ref: ${{ steps.meta.outputs.upstream_ref }}
+      push_target: ${{ steps.meta.outputs.push_target }}
+      telescope_image: ${{ steps.meta.outputs.telescope_image }}
+    steps:
+      - name: Set workflow metadata
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          IMAGE_TAG="v$(date -u +%Y%m%d)"
+          UPSTREAM_REF="${{ github.event_name == 'workflow_dispatch' && inputs.upstream_ref || 'master' }}"
+          PUSH_TARGET="${{ github.event_name == 'workflow_dispatch' && inputs.push_target || 'telescope' }}"
+          TELESCOPE_IMAGE="${TELESCOPE_IMAGE}"
+
+          echo "image_tag=${IMAGE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "upstream_ref=${UPSTREAM_REF}" >> "$GITHUB_OUTPUT"
+          echo "push_target=${PUSH_TARGET}" >> "$GITHUB_OUTPUT"
+          echo "telescope_image=${TELESCOPE_IMAGE}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout upstream perf-tests
+        uses: actions/checkout@v4
+        with:
+          repository: kubernetes/perf-tests
+          ref: ${{ steps.meta.outputs.upstream_ref }}
+          path: perf-tests
+          fetch-depth: 1
+
+      - name: Set up Go
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_validation }}
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: perf-tests/clusterloader2/go.mod
+
+      - name: Validate with go run cmd/clusterloader2.go
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_validation }}
+        working-directory: perf-tests/clusterloader2
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! -f cmd/clusterloader2.go ]]; then
+            echo "cmd/clusterloader2.go not found in upstream ref ${{ steps.meta.outputs.upstream_ref }}"
+            ls -la cmd
+            exit 1
+          fi
+          go run cmd/clusterloader2.go --help > /tmp/cl2-help.txt
+          head -n 40 /tmp/cl2-help.txt
+
+      - name: Build local clusterloader2 image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build \
+            -f perf-tests/clusterloader2/Dockerfile \
+            -t local/clusterloader2:${{ steps.meta.outputs.image_tag }} \
+            perf-tests
+          docker image inspect local/clusterloader2:${{ steps.meta.outputs.image_tag }} > /dev/null
+
+      - name: Log in to GHCR for Telescope image
+        if: ${{ steps.meta.outputs.push_target == 'telescope' || steps.meta.outputs.push_target == 'both' }}
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push image to Telescope (date + latest)
+        if: ${{ steps.meta.outputs.push_target == 'telescope' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker tag local/clusterloader2:${{ steps.meta.outputs.image_tag }} ${{ steps.meta.outputs.telescope_image }}:${{ steps.meta.outputs.image_tag }}
+          docker tag local/clusterloader2:${{ steps.meta.outputs.image_tag }} ${{ steps.meta.outputs.telescope_image }}:latest
+          docker push ${{ steps.meta.outputs.telescope_image }}:${{ steps.meta.outputs.image_tag }}
+          docker push ${{ steps.meta.outputs.telescope_image }}:latest
+
