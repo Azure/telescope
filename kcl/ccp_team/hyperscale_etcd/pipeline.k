@@ -3,7 +3,7 @@ import azure_pipelines.ap.jobs.job
 import azure_pipelines.ap.steps
 import lib.const
 import lib.steps.azure
-import lib.steps.k8s.runkperf
+import lib.steps.kperf.runkperf
 import lib.util
 import lib.util.asi_dashboard
 

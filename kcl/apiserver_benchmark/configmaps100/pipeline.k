@@ -5,7 +5,7 @@ import azure_pipelines.ap.resources.container as res_container
 import lib.const
 import lib.steps.azure
 import lib.steps.common
-import lib.steps.k8s.runkperf
+import lib.steps.kperf.runkperf
 
 SUBSCRIPTION_ID = const.DEFAULT_SUBSCRIPTION_ID
 RESOURCE_GROUP = "$(RUN_ID)"
@@ -28,29 +28,6 @@ az aks create \\
   --nodepool-taints "CriticalAddonsOnly=true:NoSchedule" \\
   --tier standard \\
   --tags SkipAKSCluster=true SkipASMAzSecPackAutoConfig=true SkipLinuxAzSecPack=true
-"""
-
-collectCloudInfoScript = """
-aks_info=$(az aks show --resource-group "${RESOURCE_GROUP}" --name "${CLUSTER}" --subscription "${SUBSCRIPTION_ID}" --output json)
-jq -n \\
-  --arg cloud "azure" \\
-  --arg region "$(echo $aks_info | jq -r .location)" \\
-  --arg fqdn "$(echo $aks_info | jq -r .fqdn)" \\
-  --arg private_fqdn "$(echo $aks_info | jq -r '.privateFqdn // empty')" \\
-  --arg k8s_version "$(echo $aks_info | jq -r .currentKubernetesVersion)" \\
-  --arg sku_tier "$(echo $aks_info | jq -r .sku.tier)" \\
-  --arg subscription "${SUBSCRIPTION_ID}" \\
-  --arg cluster_id "$(echo $aks_info | jq -r .resourceUid)" \\
-  '{
-    cloud: $cloud,
-    region: $region,
-    fqdn: $fqdn,
-    private_fqdn: $private_fqdn,
-    k8s_version: $k8s_version,
-    sku_tier: $sku_tier,
-    subscription: $subscription,
-    cluster_id: $cluster_id
-  }' > $(Pipeline.Workspace)/cloud_info.json
 """
 
 makeBenchmarkJob = lambda flowcontrol: str, flowcontrolLabel: str -> job.Job {
@@ -98,14 +75,13 @@ makeBenchmarkJob = lambda flowcontrol: str, flowcontrolLabel: str -> job.Job {
                 flowcontrol = flowcontrol,
                 target = "kperf",
                 resultPath = "$(Pipeline.Workspace)/tmp_results.json"),
-            azure.AzCli(
-                const.DEFAULT_SERVICE_CONNECTION,
-                "Collect cloud info",
-                collectCloudInfoScript),
             runkperf.CollectKperfResult(
+                const.DEFAULT_SERVICE_CONNECTION,
                 flowcontrol,
                 "--total 10000 --size=1024 --group-size=10 --configmap-amount=100",
-                "$(Pipeline.Workspace)/cloud_info.json",
+                CLUSTER,
+                RESOURCE_GROUP,
+                SUBSCRIPTION_ID,
                 inputPath = "$(Pipeline.Workspace)/tmp_results.json"),
             common.UploadResult(
                 const.DEFAULT_SERVICE_CONNECTION,

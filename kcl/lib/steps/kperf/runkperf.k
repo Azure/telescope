@@ -1,4 +1,5 @@
 import azure_pipelines.ap.steps
+import lib.steps.azure
 
 # Default constants for kperf data ingestion
 DEFAULT_QPS = 80
@@ -101,17 +102,33 @@ runkperf -v 3 bench \\
     }
 }
 
-# CollectKperfResult reads the raw kperf benchmark output from inputPath,
-# prints error details if error rate exceeds errorRateThreshold (default 10%),
-# merges cloud info from cloudInfoPath, and writes the formatted result to outputPath for upload.
-CollectKperfResult = lambda flowcontrol: str, benchmarkSubcmdArgs: str, cloudInfoPath: str, inputPath: str = "/tmp/tmp_results.json", outputPath: str = "/tmp/run-result.json", errorRateThreshold: float = 0.1 -> steps.Step {
-    steps.Script {
-        script = """
-set -euo pipefail
-
+# CollectKperfResult collects cloud info via az aks show, checks error rate,
+# and writes the formatted result to outputPath for upload.
+CollectKperfResult = lambda serviceConnection: str, flowcontrol: str, benchmarkSubcmdArgs: str, cluster: str, resourceGroup: str, subscription: str, inputPath: str = "/tmp/tmp_results.json", outputPath: str = "/tmp/run-result.json", errorRateThreshold: float = 0.1 -> steps.Step {
+    azure.AzCli(serviceConnection, "Collect kperf benchmark result", """
 TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-cloud_info=$(cat ${cloudInfoPath})
+# Collect cloud info
+aks_info=$(az aks show --resource-group "${resourceGroup}" --name "${cluster}" --subscription "${subscription}" --output json)
+cloud_info=$(jq -n \\
+  --arg cloud "azure" \\
+  --arg region "$(echo $aks_info | jq -r .location)" \\
+  --arg fqdn "$(echo $aks_info | jq -r .fqdn)" \\
+  --arg private_fqdn "$(echo $aks_info | jq -r '.privateFqdn // empty')" \\
+  --arg k8s_version "$(echo $aks_info | jq -r .currentKubernetesVersion)" \\
+  --arg sku_tier "$(echo $aks_info | jq -r .sku.tier)" \\
+  --arg subscription "${subscription}" \\
+  --arg cluster_id "$(echo $aks_info | jq -r .resourceUid)" \\
+  '{
+    cloud: $cloud,
+    region: $region,
+    fqdn: $fqdn,
+    private_fqdn: $private_fqdn,
+    k8s_version: $k8s_version,
+    sku_tier: $sku_tier,
+    subscription: $subscription,
+    cluster_id: $cluster_id
+  }')
 
 # Check for errors and print error details if error rate exceeds threshold
 errors_number=$(jq -r '.result.errors | length' ${inputPath})
@@ -130,7 +147,5 @@ cat ${inputPath} \\
 
 echo "Collected result:"
 cat ${outputPath} | jq .
-"""
-        displayName = "Collect kperf benchmark result"
-    }
+""")
 }
