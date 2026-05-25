@@ -5,13 +5,15 @@ import azure_pipelines.ap.resources.container as res_container
 import lib.const
 import lib.steps.azure
 import lib.steps.common
-import lib.steps.kperf.runkperf
+import lib.steps.kperf
 
 SUBSCRIPTION_ID = const.DEFAULT_SUBSCRIPTION_ID
 RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "uksouth"
 CLUSTER = "configmaps100"
 RUNNER_IMAGE = "ghcr.io/azure/kperf:0.3.4"
+BENCHMARK_ARGS = "--total 10000 --size=1024 --group-size=10 --configmap-amount=100"
+RESULT_PATH = "$(Pipeline.Workspace)/tmp_results.json"
 
 # SkipAKSCluster disables Gatekeeper on ephemeral benchmark clusters
 createClusterScript = """
@@ -58,31 +60,33 @@ makeBenchmarkJob = lambda flowcontrol: str, flowcontrolLabel: str -> job.Job {
                 CLUSTER,
                 RESOURCE_GROUP,
                 SUBSCRIPTION_ID,
-                file = "$(Pipeline.Workspace)/kubeconfig"),
+                "$(Pipeline.Workspace)/kubeconfig"),
             azure.CreateNodePool(
                 const.DEFAULT_SERVICE_CONNECTION,
                 CLUSTER,
                 RESOURCE_GROUP,
                 SUBSCRIPTION_ID,
-                "runner",
-                "Standard_D16s_v3",
-                3),
-            runkperf.RunKperfBenchmark(
-                RUNNER_IMAGE,
+                azure.NodePool {
+                    name = "runner"
+                    sku = "Standard_D16s_v3"
+                    count = 3
+                }),
+            kperf.RunKperfBenchmark(
                 "list_configmaps",
-                "--total 10000 --size=1024 --group-size=10 --configmap-amount=100",
-                "$(Pipeline.Workspace)/kubeconfig",
-                flowcontrol = flowcontrol,
-                target = "kperf",
-                resultPath = "$(Pipeline.Workspace)/tmp_results.json"),
-            runkperf.CollectKperfResult(
-                const.DEFAULT_SERVICE_CONNECTION,
+                BENCHMARK_ARGS,
                 flowcontrol,
-                "--total 10000 --size=1024 --group-size=10 --configmap-amount=100",
+                "$(Pipeline.Workspace)/kubeconfig",
+                RUNNER_IMAGE,
+                "kperf",
+                RESULT_PATH),
+            kperf.CollectKperfResult(
+                BENCHMARK_ARGS,
+                flowcontrol,
                 CLUSTER,
                 RESOURCE_GROUP,
                 SUBSCRIPTION_ID,
-                inputPath = "$(Pipeline.Workspace)/tmp_results.json"),
+                const.DEFAULT_SERVICE_CONNECTION,
+                RESULT_PATH),
             common.UploadResult(
                 const.DEFAULT_SERVICE_CONNECTION,
                 const.DEFAULT_STORAGE_ACCOUNT,
@@ -99,7 +103,7 @@ makeBenchmarkJob = lambda flowcontrol: str, flowcontrolLabel: str -> job.Job {
 makeStage = lambda flowcontrol: str, flowcontrolLabel: str -> ap.Stage {
     ap.Stage {
         stage = flowcontrolLabel
-        displayName = flowcontrolLabel
+        displayName = "FlowControl: ${flowcontrol}"
         jobs = [makeBenchmarkJob(flowcontrol, flowcontrolLabel)]
     }
 }

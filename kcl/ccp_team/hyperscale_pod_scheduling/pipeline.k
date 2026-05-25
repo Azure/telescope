@@ -11,13 +11,21 @@ RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "southeastasia"
 NODE_COUNTS = {"H2": 2000, "H4": 4000, "H8": 8000}
 KWOK_NODES_PER_CONTROLLER = 100
-KWOK_POOL = "kwokpool"
-KWOK_POOL_VM_SIZE = "Standard_D4_v3"
-KWOK_POOL_COUNT = 20
+KWOK_POOL = azure.NodePool {
+    name = "kwokpool"
+    sku = "Standard_D4_v3"
+    count = 20
+    taintPrefix = "kwok"
+    labels = "kwok=true"
+}
 CL2_IMAGE = "ghcr.io/azure/clusterloader2:v20260220"
 CL2_NAMESPACE = "clusterloader2"
-CL2_POOL = "cl2pool"
-CL2_TAINT_PREFIX = "cl2pool"
+CL2_POOL = azure.NodePool {
+    name = "cl2pool"
+    sku = "Standard_D8S_v4"
+    count = 1
+    taintPrefix = "cl2pool"
+}
 
 makeRequestBody = lambda scalingSize: str, cluster: str -> str {
     util.escapeStr("""
@@ -107,10 +115,7 @@ az rest \\
                 cluster,
                 RESOURCE_GROUP,
                 SUBSCRIPTION_ID,
-                CL2_POOL,
-                "Standard_D8S_v4",
-                1,
-                CL2_TAINT_PREFIX),
+                CL2_POOL),
             azure.GetCredentials(
                 const.DEFAULT_SERVICE_CONNECTION,
                 cluster,
@@ -121,11 +126,7 @@ az rest \\
                 cluster,
                 RESOURCE_GROUP,
                 SUBSCRIPTION_ID,
-                KWOK_POOL,
-                KWOK_POOL_VM_SIZE,
-                KWOK_POOL_COUNT,
-                "kwok",
-                "kwok=true"),
+                KWOK_POOL),
             *k8s.CreateKwokNodes(
               nodeCount,
               params = {

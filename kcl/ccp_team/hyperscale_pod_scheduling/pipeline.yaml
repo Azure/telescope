@@ -137,7 +137,18 @@ stages:
         azureSubscription: Azure-for-Telescope-internal
         scriptType: bash
         scriptLocation: inlineScript
-        inlineScript: "set -exo pipefail\n\naz aks nodepool add \\\n  --cluster-name \"stg-H2-hyperscale-pod-scheduling-rate\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"cl2pool\" \\\n  --node-count 1 \\\n  --node-vm-size \"Standard_D8S_v4\" \\\n  --mode User \\\n  --node-taints cl2pool=true:NoSchedule \\\n  \n"
+        inlineScript: |
+          set -exo pipefail
+
+          az aks nodepool add \
+            --cluster-name "stg-H2-hyperscale-pod-scheduling-rate" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --name "cl2pool" \
+            --node-count 1 \
+            --node-vm-size "Standard_D8S_v4" \
+            --mode User \
+            --node-taints cl2pool=true:NoSchedule
       displayName: Create node pool cl2pool
     - task: AzureCLI@2
       inputs:
@@ -381,7 +392,18 @@ stages:
         azureSubscription: Azure-for-Telescope-internal
         scriptType: bash
         scriptLocation: inlineScript
-        inlineScript: "set -exo pipefail\n\naz aks nodepool add \\\n  --cluster-name \"stg-H4-hyperscale-pod-scheduling-rate\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"cl2pool\" \\\n  --node-count 1 \\\n  --node-vm-size \"Standard_D8S_v4\" \\\n  --mode User \\\n  --node-taints cl2pool=true:NoSchedule \\\n  \n"
+        inlineScript: |
+          set -exo pipefail
+
+          az aks nodepool add \
+            --cluster-name "stg-H4-hyperscale-pod-scheduling-rate" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --name "cl2pool" \
+            --node-count 1 \
+            --node-vm-size "Standard_D8S_v4" \
+            --mode User \
+            --node-taints cl2pool=true:NoSchedule
       displayName: Create node pool cl2pool
     - task: AzureCLI@2
       inputs:
@@ -625,7 +647,18 @@ stages:
         azureSubscription: Azure-for-Telescope-internal
         scriptType: bash
         scriptLocation: inlineScript
-        inlineScript: "set -exo pipefail\n\naz aks nodepool add \\\n  --cluster-name \"stg-H8-hyperscale-pod-scheduling-rate\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"cl2pool\" \\\n  --node-count 1 \\\n  --node-vm-size \"Standard_D8S_v4\" \\\n  --mode User \\\n  --node-taints cl2pool=true:NoSchedule \\\n  \n"
+        inlineScript: |
+          set -exo pipefail
+
+          az aks nodepool add \
+            --cluster-name "stg-H8-hyperscale-pod-scheduling-rate" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --name "cl2pool" \
+            --node-count 1 \
+            --node-vm-size "Standard_D8S_v4" \
+            --mode User \
+            --node-taints cl2pool=true:NoSchedule
       displayName: Create node pool cl2pool
     - task: AzureCLI@2
       inputs:
