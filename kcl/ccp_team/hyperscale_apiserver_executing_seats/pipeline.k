@@ -119,24 +119,12 @@ output = ap.Pipeline {
                   RESOURCE_GROUP,
                   SUBSCRIPTION_ID,
                   CL2_POOL),
-                azure.WaitForNodePoolSucceeded(
-                  const.DEFAULT_SERVICE_CONNECTION,
-                  CLUSTER,
-                  RESOURCE_GROUP,
-                  SUBSCRIPTION_ID,
-                  CL2_POOL.name),
                 azure.CreateNodePool(
                     const.DEFAULT_SERVICE_CONNECTION,
                     CLUSTER,
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID,
                     KWOK_POOL),
-                azure.WaitForNodePoolSucceeded(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    CLUSTER,
-                    RESOURCE_GROUP,
-                    SUBSCRIPTION_ID,
-                    KWOK_POOL.name),
                 *k8s.CreateKwokNodes(
                   15000,
                   continueOnError = True,

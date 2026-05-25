@@ -8,26 +8,6 @@ DEFAULT_GROUP_SIZE = 80
 BATCH_SIZE = 2000  # Internal batch size, not configurable by caller
 BYTES_PER_GIB = 1073741824
 
-InstallRunkperf = lambda runnerImage: str -> steps.Step {
-    steps.Script {
-        script = """
-set -euo pipefail
-set -x
-
-temp_dir=$(mktemp -p /tmp -d kperfinstall.XXXX)
-docker rmi ${runnerImage} 2>/dev/null || true
-docker pull ${runnerImage}
-docker run --rm -v $temp_dir:/install-dir \\
-  ${runnerImage} bash -c "set -x; install /kperf /runkperf /install-dir"
-
-sudo install $temp_dir/kperf $temp_dir/runkperf /usr/local/bin
-rm -rf $temp_dir
-docker rmi ${runnerImage} 2>/dev/null || true
-"""
-        displayName = "Install runkperf binary"
-    }
-}
-
 # RunKperfDataIngest creates objects in fixed-size batches (BATCH_SIZE) to be
 # resilient to failures — if a batch fails, only that batch needs to be retried, and the
 # local in-memory counter stays accurate since each successful batch represents a known

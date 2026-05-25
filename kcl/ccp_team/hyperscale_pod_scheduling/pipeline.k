@@ -116,12 +116,6 @@ az rest \\
                 RESOURCE_GROUP,
                 SUBSCRIPTION_ID,
                 CL2_POOL),
-            azure.WaitForNodePoolSucceeded(
-                const.DEFAULT_SERVICE_CONNECTION,
-                cluster,
-                RESOURCE_GROUP,
-                SUBSCRIPTION_ID,
-                CL2_POOL.name),
             azure.GetCredentials(
                 const.DEFAULT_SERVICE_CONNECTION,
                 cluster,
@@ -133,12 +127,6 @@ az rest \\
                 RESOURCE_GROUP,
                 SUBSCRIPTION_ID,
                 KWOK_POOL),
-            azure.WaitForNodePoolSucceeded(
-                const.DEFAULT_SERVICE_CONNECTION,
-                cluster,
-                RESOURCE_GROUP,
-                SUBSCRIPTION_ID,
-                KWOK_POOL.name),
             *k8s.CreateKwokNodes(
               nodeCount,
               params = {

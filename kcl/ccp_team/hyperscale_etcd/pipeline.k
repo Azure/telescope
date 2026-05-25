@@ -3,7 +3,7 @@ import azure_pipelines.ap.jobs.job
 import azure_pipelines.ap.steps
 import lib.const
 import lib.steps.azure
-import lib.steps.k8s.runkperf
+import lib.steps.kperf
 import lib.util
 import lib.util.asi_dashboard
 
@@ -77,7 +77,7 @@ prepareForIngestion = lambda {
             CLUSTER,
             RESOURCE_GROUP,
             SUBSCRIPTION_ID),
-        runkperf.InstallRunkperf(RUNNER_IMAGE),
+        kperf.InstallRunkperf(RUNNER_IMAGE),
     ]
 }
 
@@ -209,7 +209,7 @@ echo "##vso[task.setvariable variable=BENCHMARK_START_TIME;isOutput=true]$START_
             condition = "and(succeeded(), \${{ ne(parameters.ingest_configmap_gib, 0) }})"
             variables = INGEST_VARIABLES
             steps = prepareForIngestion() + [
-                runkperf.RunKperfDataIngest(
+                kperf.RunKperfDataIngest(
                     dataType="configmap",
                     namespace="kperf-configmap-data",
                     name="my-configmaps",
@@ -224,7 +224,7 @@ echo "##vso[task.setvariable variable=BENCHMARK_START_TIME;isOutput=true]$START_
             condition = "and(succeeded(), \${{ ne(parameters.ingest_events_gib, 0) }})"
             variables = INGEST_VARIABLES
             steps = prepareForIngestion() + [
-                runkperf.RunKperfDataIngest(
+                kperf.RunKperfDataIngest(
                     dataType="event",
                     namespace="kperf-event-data",
                     name="my-events",
@@ -239,7 +239,7 @@ echo "##vso[task.setvariable variable=BENCHMARK_START_TIME;isOutput=true]$START_
             condition = "and(succeeded(), \${{ ne(parameters.ingest_secrets_gib, 0) }})"
             variables = INGEST_VARIABLES
             steps = prepareForIngestion() + [
-                runkperf.RunKperfDataIngest(
+                kperf.RunKperfDataIngest(
                     dataType="secret",
                     namespace="kperf-secret-data",
                     name="my-secrets",

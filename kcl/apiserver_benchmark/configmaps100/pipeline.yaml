@@ -1,0 +1,366 @@
+name: API Server List Configmaps
+pool: AKS-Telescope-Airlock
+schedules:
+- cron: '0 3 * * 0'
+  displayName: Weekly Sunday 3AM UTC
+  branches:
+    include:
+    - v2
+  always: true
+resources:
+  containers:
+  - container: kperf
+    image: ghcr.io/azure/kperf:0.3.4
+    volumes:
+    - /usr/bin/kubectl:/usr/local/bin/kubectl
+stages:
+- stage: workload_low
+  displayName: workload_low
+  jobs:
+  - job: benchmark_workload_low
+    displayName: Benchmark (workload_low)
+    timeoutInMinutes: 360
+    steps:
+    - bash: |2
+
+        set -eo pipefail
+
+        job_id="$(System.JobId)"
+        RUN_ID=$(Build.BuildId)-${job_id:0:8}
+        echo "Run ID: $RUN_ID"
+
+        echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
+      displayName: Set Run ID
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+          az config set defaults.location="uksouth"
+          az account show
+      displayName: Login to Azure
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az group create --name "$(RUN_ID)" --location "uksouth" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+      displayName: Create resource group in uksouth (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az aks create \
+            --name "configmaps100" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --location "uksouth" \
+            --kubernetes-version "1.35" \
+            --node-count 2 \
+            --node-vm-size "Standard_D2s_v3" \
+            --network-plugin azure \
+            --network-plugin-mode overlay \
+            --nodepool-taints "CriticalAddonsOnly=true:NoSchedule" \
+            --tier standard \
+            --tags SkipAKSCluster=true SkipASMAzSecPackAutoConfig=true SkipLinuxAzSecPack=true
+      displayName: Create cluster
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az aks get-credentials \
+            --name "configmaps100" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --overwrite-existing \
+            -f $(Pipeline.Workspace)/kubeconfig
+      displayName: Get credentials for configmaps100
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: "set -exo pipefail\n\naz aks nodepool add \\\n  --cluster-name \"configmaps100\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"runner\" \\\n  --node-count 3 \\\n  --node-vm-size \"Standard_D16s_v3\" \\\n  --mode User \\\n  \n"
+      displayName: Create node pool runner
+    - script: |2
+
+        set -euo pipefail
+        set -x
+
+        export PATH="/:$PATH"
+
+        runkperf -v 3 bench \
+          --kubeconfig=$(Pipeline.Workspace)/kubeconfig \
+          --runner-image="ghcr.io/azure/kperf:0.3.4" \
+          --runner-flowcontrol="workload-low:1000" \
+          --result $(Pipeline.Workspace)/tmp_results.json \
+          list_configmaps --total 10000 --size=1024 --group-size=10 --configmap-amount=100
+      displayName: Run kperf benchmark (list_configmaps, flowcontrol=workload-low:1000)
+      target: kperf
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          # Collect cloud info
+          aks_info=$(az aks show --resource-group "$(RUN_ID)" --name "configmaps100" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --output json)
+          cloud_info=$(jq -n \
+            --arg cloud "azure" \
+            --arg region "$(echo $aks_info | jq -r .location)" \
+            --arg fqdn "$(echo $aks_info | jq -r .fqdn)" \
+            --arg private_fqdn "$(echo $aks_info | jq -r '.privateFqdn // empty')" \
+            --arg k8s_version "$(echo $aks_info | jq -r .currentKubernetesVersion)" \
+            --arg sku_tier "$(echo $aks_info | jq -r .sku.tier)" \
+            --arg subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --arg cluster_id "$(echo $aks_info | jq -r .resourceUid)" \
+            '{
+              cloud: $cloud,
+              region: $region,
+              fqdn: $fqdn,
+              private_fqdn: $private_fqdn,
+              k8s_version: $k8s_version,
+              sku_tier: $sku_tier,
+              subscription: $subscription,
+              cluster_id: $cluster_id
+            }')
+
+          # Check for errors and print error details if error rate exceeds threshold
+          errors_number=$(jq -r '.result.errors | length' $(Pipeline.Workspace)/tmp_results.json)
+          error_rate_too_high=$(jq -r '(1 - .result.total / (.loadSpec.count * .loadSpec.loadProfile.spec.total)) > 0.1' $(Pipeline.Workspace)/tmp_results.json)
+          if [[ "$errors_number" != "0" && "$error_rate_too_high" == "true" ]]; then
+            echo "Error rate exceeds 0.1, printing error details:"
+            jq -r ".result.errors | map(. + {run_id: \"$(RUN_ID)\", cloud: \"azure\"}) | .[]" $(Pipeline.Workspace)/tmp_results.json
+          fi
+
+          # Collect final result
+          cat $(Pipeline.Workspace)/tmp_results.json \
+            | jq 'del(.result.errors)' \
+            | jq -c --argjson ci "$cloud_info" '{ cloud: $ci.cloud, region: $ci.region, fqdn: $ci.fqdn, private_fqdn: $ci.private_fqdn, k8s_version: $ci.k8s_version, sku_tier: $ci.sku_tier, subscription: $ci.subscription, cluster_id: $ci.cluster_id, flowcontrol: "workload-low:1000", benchmarkSubcmdArgs: "--total 10000 --size=1024 --group-size=10 --configmap-amount=100" } + .result | { result: . }' \
+            | jq -c '. + { timestamp: "'"$TIMESTAMP"'", run_id: "$(RUN_ID)", run_url: "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)", pipeline: "$(Build.DefinitionName)" }' \
+            > /tmp/run-result.json
+
+          echo "Collected result:"
+          cat /tmp/run-result.json | jq .
+      displayName: Collect kperf benchmark result
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az storage blob upload \
+            --account-name "telescopev2" \
+            --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
+            --container-name "aks" \
+            --name "$(RUN_ID)/run-result.json" \
+            --file /tmp/run-result.json \
+            --auth-mode key
+      displayName: Upload result to storage account
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+      condition: always()
+      displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+- stage: exempt
+  displayName: exempt
+  jobs:
+  - job: benchmark_exempt
+    displayName: Benchmark (exempt)
+    timeoutInMinutes: 360
+    steps:
+    - bash: |2
+
+        set -eo pipefail
+
+        job_id="$(System.JobId)"
+        RUN_ID=$(Build.BuildId)-${job_id:0:8}
+        echo "Run ID: $RUN_ID"
+
+        echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
+      displayName: Set Run ID
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+          az config set defaults.location="uksouth"
+          az account show
+      displayName: Login to Azure
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az group create --name "$(RUN_ID)" --location "uksouth" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+      displayName: Create resource group in uksouth (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az aks create \
+            --name "configmaps100" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --location "uksouth" \
+            --kubernetes-version "1.35" \
+            --node-count 2 \
+            --node-vm-size "Standard_D2s_v3" \
+            --network-plugin azure \
+            --network-plugin-mode overlay \
+            --nodepool-taints "CriticalAddonsOnly=true:NoSchedule" \
+            --tier standard \
+            --tags SkipAKSCluster=true SkipASMAzSecPackAutoConfig=true SkipLinuxAzSecPack=true
+      displayName: Create cluster
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az aks get-credentials \
+            --name "configmaps100" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --overwrite-existing \
+            -f $(Pipeline.Workspace)/kubeconfig
+      displayName: Get credentials for configmaps100
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: "set -exo pipefail\n\naz aks nodepool add \\\n  --cluster-name \"configmaps100\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"runner\" \\\n  --node-count 3 \\\n  --node-vm-size \"Standard_D16s_v3\" \\\n  --mode User \\\n  \n"
+      displayName: Create node pool runner
+    - script: |2
+
+        set -euo pipefail
+        set -x
+
+        export PATH="/:$PATH"
+
+        runkperf -v 3 bench \
+          --kubeconfig=$(Pipeline.Workspace)/kubeconfig \
+          --runner-image="ghcr.io/azure/kperf:0.3.4" \
+          --runner-flowcontrol="exempt:5" \
+          --result $(Pipeline.Workspace)/tmp_results.json \
+          list_configmaps --total 10000 --size=1024 --group-size=10 --configmap-amount=100
+      displayName: Run kperf benchmark (list_configmaps, flowcontrol=exempt:5)
+      target: kperf
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          # Collect cloud info
+          aks_info=$(az aks show --resource-group "$(RUN_ID)" --name "configmaps100" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --output json)
+          cloud_info=$(jq -n \
+            --arg cloud "azure" \
+            --arg region "$(echo $aks_info | jq -r .location)" \
+            --arg fqdn "$(echo $aks_info | jq -r .fqdn)" \
+            --arg private_fqdn "$(echo $aks_info | jq -r '.privateFqdn // empty')" \
+            --arg k8s_version "$(echo $aks_info | jq -r .currentKubernetesVersion)" \
+            --arg sku_tier "$(echo $aks_info | jq -r .sku.tier)" \
+            --arg subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --arg cluster_id "$(echo $aks_info | jq -r .resourceUid)" \
+            '{
+              cloud: $cloud,
+              region: $region,
+              fqdn: $fqdn,
+              private_fqdn: $private_fqdn,
+              k8s_version: $k8s_version,
+              sku_tier: $sku_tier,
+              subscription: $subscription,
+              cluster_id: $cluster_id
+            }')
+
+          # Check for errors and print error details if error rate exceeds threshold
+          errors_number=$(jq -r '.result.errors | length' $(Pipeline.Workspace)/tmp_results.json)
+          error_rate_too_high=$(jq -r '(1 - .result.total / (.loadSpec.count * .loadSpec.loadProfile.spec.total)) > 0.1' $(Pipeline.Workspace)/tmp_results.json)
+          if [[ "$errors_number" != "0" && "$error_rate_too_high" == "true" ]]; then
+            echo "Error rate exceeds 0.1, printing error details:"
+            jq -r ".result.errors | map(. + {run_id: \"$(RUN_ID)\", cloud: \"azure\"}) | .[]" $(Pipeline.Workspace)/tmp_results.json
+          fi
+
+          # Collect final result
+          cat $(Pipeline.Workspace)/tmp_results.json \
+            | jq 'del(.result.errors)' \
+            | jq -c --argjson ci "$cloud_info" '{ cloud: $ci.cloud, region: $ci.region, fqdn: $ci.fqdn, private_fqdn: $ci.private_fqdn, k8s_version: $ci.k8s_version, sku_tier: $ci.sku_tier, subscription: $ci.subscription, cluster_id: $ci.cluster_id, flowcontrol: "exempt:5", benchmarkSubcmdArgs: "--total 10000 --size=1024 --group-size=10 --configmap-amount=100" } + .result | { result: . }' \
+            | jq -c '. + { timestamp: "'"$TIMESTAMP"'", run_id: "$(RUN_ID)", run_url: "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)", pipeline: "$(Build.DefinitionName)" }' \
+            > /tmp/run-result.json
+
+          echo "Collected result:"
+          cat /tmp/run-result.json | jq .
+      displayName: Collect kperf benchmark result
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az storage blob upload \
+            --account-name "telescopev2" \
+            --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
+            --container-name "aks" \
+            --name "$(RUN_ID)/run-result.json" \
+            --file /tmp/run-result.json \
+            --auth-mode key
+      displayName: Upload result to storage account
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+      condition: always()
+      displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)

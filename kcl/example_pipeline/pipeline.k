@@ -6,7 +6,7 @@ import lib.steps.common
 import lib.steps.k8s
 import lib.util
 
-SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+SUBSCRIPTION_ID = const.DEFAULT_SUBSCRIPTION_ID
 RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "westus2"
 CLUSTER = "stg-H2-yaolei"
@@ -15,10 +15,7 @@ CL2_TAINT_PREFIX = "cl2pool"
 CL2_NAMESPACE = "clusterloader2"
 KWOK_NODE_COUNT = 100
 
-STORAGE_SUBSCRIPTION_ID = "137f0351-8235-42a6-ac7a-6b46be2d21c7"
-STORAGE_ACCOUNT = "telescopev2"
-STORAGE_CONTAINER = "aks"
-
+# SkipAKSCluster disables Gatekeeper on ephemeral clusters
 requestBody = util.escapeStr("""
 {
     "location": "${LOCATION}",
@@ -115,17 +112,11 @@ output = ap.Pipeline {
                     CLUSTER,
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID,
-                    azure.NodePool { 
-                      name = CL2_POOL, 
-                      sku = "Standard_D8S_v4", 
-                      count = 4, 
+                    azure.NodePool {
+                      name = CL2_POOL,
+                      sku = "Standard_D8S_v4",
+                      count = 4,
                       taintPrefix = CL2_TAINT_PREFIX }),
-                azure.WaitForNodePoolSucceeded(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    CLUSTER,
-                    RESOURCE_GROUP,
-                    SUBSCRIPTION_ID,
-                    CL2_POOL),
                 azure.GetCredentials(
                     const.DEFAULT_SERVICE_CONNECTION,
                     CLUSTER,
@@ -163,9 +154,9 @@ cat /tmp/run-result.json
 """),
                 common.UploadResult(
                     const.DEFAULT_SERVICE_CONNECTION,
-                    STORAGE_ACCOUNT,
-                    STORAGE_SUBSCRIPTION_ID,
-                    STORAGE_CONTAINER),
+                    const.DEFAULT_STORAGE_ACCOUNT,
+                    const.DEFAULT_STORAGE_SUBSCRIPTION_ID,
+                    const.DEFAULT_STORAGE_CONTAINER),
                 azure.DeleteResourceGroup(
                     const.DEFAULT_SERVICE_CONNECTION,
                     RESOURCE_GROUP,

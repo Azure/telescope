@@ -43,7 +43,7 @@ jobs:
         set -exo pipefail
 
         az group create --name "$(RUN_ID)" --location "westus2" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
-    displayName: Create resource group $(RUN_ID) in westus2 (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+    displayName: Create resource group in westus2 (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -145,35 +145,6 @@ jobs:
           --mode User \
           --node-taints cl2pool=true:NoSchedule
     displayName: Create node pool cl2pool
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        while true; do
-          STATE=$(az aks nodepool show \
-            --cluster-name "stg-H2-yaolei" \
-            --resource-group "$(RUN_ID)" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-            --name "cl2pool" \
-            --query "provisioningState" \
-            --output tsv)
-          echo "Node pool cl2pool provisioning state: $STATE"
-          if [ "$STATE" = "Succeeded" ]; then
-            echo "Node pool cl2pool is ready."
-            break
-          elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
-            echo "Node pool cl2pool failed with state: $STATE."
-            exit 1
-          else
-            echo "Node pool cl2pool provisioning state: $STATE. Retry in 30 seconds"
-          fi
-          sleep 30
-        done
-    displayName: Wait for node pool cl2pool to succeed
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -288,4 +259,4 @@ jobs:
 
         az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
     condition: always()
-    displayName: Delete resource group $(RUN_ID) (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+    displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
