@@ -6,7 +6,7 @@ parameters:
   step_time_out: 600
   cni_daemonset_label: ""
   cni_blocking_taint: ""
-  iterations: 2
+  iterations: 5
 
 steps:
 - script: |
