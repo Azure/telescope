@@ -1,6 +1,10 @@
 name: Build ClusterLoader2 Image
 
 on:
+  push:
+    branches:
+      - main
+      - vitto/cl2_image
   schedule:
     # Every 2 weeks at 03:00 UTC (Sunday).
     - cron: "0 3 */14 * 0"
