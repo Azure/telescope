@@ -7,6 +7,9 @@ on:
 
 env:
   PYTHON_MODULES_DIR: modules/python
+permissions:
+  contents: read
+
 jobs:
   python-validation:
     runs-on: ubuntu-latest
