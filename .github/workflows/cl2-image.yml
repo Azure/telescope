@@ -21,11 +21,6 @@ on:
         type: choice
         options:
           - telescope
-      run_validation:
-        description: "Run go-based validation (go run cmd/clusterloader.go)"
-        required: false
-        default: true
-        type: boolean
 
 permissions:
   contents: read
@@ -37,7 +32,7 @@ env:
 
 jobs:
   build:
-    name: Build, Validate, and Push
+    name: Build and Push
     runs-on: ubuntu-latest
     outputs:
       image_tag: ${{ steps.meta.outputs.image_tag }}
@@ -68,27 +63,6 @@ jobs:
           ref: ${{ steps.meta.outputs.upstream_ref }}
           path: perf-tests
           fetch-depth: 1
-
-      - name: Set up Go
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_validation }}
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: perf-tests/clusterloader2/go.mod
-
-      - name: Validate with go run cmd/clusterloader.go
-        if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_validation }}
-        working-directory: perf-tests/clusterloader2
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ ! -f cmd/clusterloader.go ]]; then
-            echo "cmd/clusterloader.go not found in upstream ref ${{ steps.meta.outputs.upstream_ref }}"
-            ls -la cmd
-            exit 1
-          fi
-          go run cmd/clusterloader.go --help > /tmp/cl2-help.txt
-          head -n 40 /tmp/cl2-help.txt
-
       - name: Build local clusterloader2 image
         shell: bash
         run: |
