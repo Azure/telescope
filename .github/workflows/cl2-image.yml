@@ -22,7 +22,7 @@ on:
         options:
           - telescope
       run_validation:
-        description: "Run go-based validation (go run cmd/clusterloader2.go)"
+        description: "Run go-based validation (go run cmd/clusterloader.go)"
         required: false
         default: true
         type: boolean
@@ -32,8 +32,8 @@ permissions:
   packages: write
 
 env:
-  # Telescope default package location
-  TELESCOPE_IMAGE: ghcr.io/azure/clusterloader2
+  # GitHub Packages target for Azure/telescope.
+  TELESCOPE_IMAGE: ghcr.io/azure/clusterloader2-upstream
 
 jobs:
   build:
@@ -75,18 +75,18 @@ jobs:
         with:
           go-version-file: perf-tests/clusterloader2/go.mod
 
-      - name: Validate with go run cmd/clusterloader2.go
+      - name: Validate with go run cmd/clusterloader.go
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.run_validation }}
         working-directory: perf-tests/clusterloader2
         shell: bash
         run: |
           set -euo pipefail
-          if [[ ! -f cmd/clusterloader2.go ]]; then
-            echo "cmd/clusterloader2.go not found in upstream ref ${{ steps.meta.outputs.upstream_ref }}"
+          if [[ ! -f cmd/clusterloader.go ]]; then
+            echo "cmd/clusterloader.go not found in upstream ref ${{ steps.meta.outputs.upstream_ref }}"
             ls -la cmd
             exit 1
           fi
-          go run cmd/clusterloader2.go --help > /tmp/cl2-help.txt
+          go run cmd/clusterloader.go --help > /tmp/cl2-help.txt
           head -n 40 /tmp/cl2-help.txt
 
       - name: Build local clusterloader2 image
@@ -100,7 +100,7 @@ jobs:
           docker image inspect local/clusterloader2:${{ steps.meta.outputs.image_tag }} > /dev/null
 
       - name: Log in to GHCR for Telescope image
-        if: ${{ steps.meta.outputs.push_target == 'telescope' || steps.meta.outputs.push_target == 'both' }}
+        if: ${{ steps.meta.outputs.push_target == 'telescope' }}
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
