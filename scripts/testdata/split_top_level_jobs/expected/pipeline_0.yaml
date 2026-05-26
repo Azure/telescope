@@ -3,7 +3,7 @@ pool: TestPool
 trigger:
 - main
 jobs:
-- template: $(Pipeline.Workspace)/s/pipeline_1.yaml
+- template: pipeline_1.yaml
 - job: job_2
   displayName: Job 2
   steps:

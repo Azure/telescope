@@ -5,7 +5,7 @@ trigger:
 stages:
 - stage: main_stage
   jobs:
-  - template: $(Pipeline.Workspace)/s/pipeline_2.yaml
+  - template: pipeline_2.yaml
   - job: job_3
     displayName: Job 3
     steps:

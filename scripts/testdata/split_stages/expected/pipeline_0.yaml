@@ -7,7 +7,7 @@ parameters:
   type: string
   default: dev
 stages:
-- template: $(Pipeline.Workspace)/s/pipeline_2.yaml
+- template: pipeline_3.yaml
 - stage: stage_3
   displayName: Stage 3
   jobs:

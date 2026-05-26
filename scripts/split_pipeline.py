@@ -170,7 +170,8 @@ class PipelineSplitter:
             remaining_items = items[extract_count:]
 
             # Write extracted items to a new file
-            part_path = self._next_filename(dir_path, stem)
+            file_name = self._next_filename(stem)
+            part_path = os.path.join(dir_path, file_name)
             part_data = {key: extracted_items}
             write_yaml(part_path, part_data)
 
@@ -183,9 +184,7 @@ class PipelineSplitter:
                 )
 
             # Update the data: replace extracted items with template ref
-            template_path = os.path.relpath(part_path, self.repo_root)
-            
-            template_ref = {"template": f"$(Pipeline.Workspace)/s/{template_path}"}
+            template_ref = {"template": file_name}
             target.data[key] = [template_ref] + remaining_items
 
             # TODO: Instead of rebuilding the entire tree, update sizes incrementally.
@@ -198,11 +197,10 @@ class PipelineSplitter:
 
         return self.created_files
 
-    def _next_filename(self, dir_path: str, stem: str) -> str:
+    def _next_filename(self, stem: str) -> str:
         """Generate the next unique split filename."""
         self.file_counter += 1
-        name = f"{stem}_{self.file_counter}.yaml"
-        return os.path.join(dir_path, name)
+        return f"{stem}_{self.file_counter}.yaml"
 
     def _cleanup_created_files(self) -> None:
         """Remove all files created during splitting."""
