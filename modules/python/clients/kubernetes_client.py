@@ -1105,14 +1105,13 @@ class KubernetesClient:
             raise e
 
     def _is_statefulset_ready(self, statefulset) -> bool:
-        """Check if a statefulset has all replicas ready."""
+        """Check if a statefulset has all replicas ready, including scale-to-zero."""
         status = statefulset.status
         spec_replicas = statefulset.spec.replicas or 0
         return (
             status is not None
             and status.ready_replicas is not None
             and status.ready_replicas == spec_replicas
-            and spec_replicas > 0
         )
 
     def _is_deployment_condition_met(self, deployment, condition_type: str) -> bool:
