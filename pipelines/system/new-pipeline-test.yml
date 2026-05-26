@@ -1,7 +1,4 @@
 name: Full Split Pipeline
-pool: TestPool
-trigger:
-- main
 stages:
 - template: pipeline_3.yaml
 - stage: stage_1
