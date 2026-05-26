@@ -3,7 +3,7 @@ pool: TestPool
 trigger:
 - main
 stages:
-- template: pipelines/system/pipeline_3.yaml
+- template: pipeline_3.yaml
 - stage: stage_1
   displayName: Stage 1
   jobs:
