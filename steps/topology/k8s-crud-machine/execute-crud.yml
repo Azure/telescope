@@ -1,0 +1,23 @@
+parameters:
+- name: cloud
+  type: string
+  default: ''
+- name: engine_input
+  type: object
+  default: {}
+- name: regions
+  type: object
+  default: {}
+
+steps:
+- template: /steps/engine/crud/k8s/execute-machine.yml
+  parameters:
+    cloud: ${{ parameters.cloud }}
+    pool_name: $(POOL_NAME)
+    vm_size: $(VM_SIZE)
+    scale_machine_count: $(SCALE_MACHINE_COUNT)
+    machine_workers: $(MACHINE_WORKERS)
+    use_batch_api: $(USE_BATCH_API)
+    step_time_out: $(STEP_TIME_OUT)
+    readiness_wait_timeout: $(READINESS_WAIT_TIMEOUT)
+    result_dir: $(System.DefaultWorkingDirectory)/$(RUN_ID)

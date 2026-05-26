@@ -1,0 +1,56 @@
+trigger: none
+schedules:
+  - cron: "0 17 * * *"
+    displayName: "Daily at 17:00 UTC"
+    branches:
+      include:
+        - main
+    always: true
+
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: k8s-cluster-crud-machine
+
+stages:
+  - stage: azure_machine_api_crud_test
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - canadacentral
+          topology: k8s-crud-machine
+          engine: crud
+          matrix:
+            crud_small_machine_pool:
+              pool_name: smallpool
+              vm_size: Standard_D2_v3
+              scale_machine_count: 1
+              machine_workers: 1
+              use_batch_api: false
+              step_time_out: 600
+              readiness_wait_timeout: 1200
+              system_node_pool: '{"name":"default","vm_size":"Standard_D2_v3","node_count":8,"vm_set_type":"VirtualMachines"}'
+            crud_medium_machine_pool:
+              pool_name: mediumpool
+              vm_size: Standard_D2_v3
+              scale_machine_count: 50
+              machine_workers: 50
+              use_batch_api: false
+              step_time_out: 600
+              readiness_wait_timeout: 1200
+              system_node_pool: '{"name":"default","vm_size":"Standard_D2_v3","node_count":8,"vm_set_type":"VirtualMachines"}'
+            crud_large_machine_pool:
+              pool_name: largepool
+              vm_size: Standard_D2_v3
+              scale_machine_count: 100
+              machine_workers: 100
+              use_batch_api: true
+              step_time_out: 900
+              readiness_wait_timeout: 1200
+              system_node_pool: '{"name":"default","vm_size":"Standard_D2_v3","node_count":8,"vm_set_type":"VirtualMachines"}'
+          max_parallel: 1
+          credential_type: service_connection
+          ssh_key_enabled: false
+          timeout_in_minutes: 180
