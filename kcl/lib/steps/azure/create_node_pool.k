@@ -9,12 +9,16 @@ schema NodePool:
     taintPrefix: str = ""
     labels: str = ""
     maxPods?: int
+    vnetSubnetId: str = ""
+    osSKU: str = ""
 
 CreateNodePool = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, pool: NodePool, noWait: bool = False -> steps.Step {
     flagDecision = [
         "--node-taints ${pool.taintPrefix}=true:NoSchedule" if pool.taintPrefix else "",
         "--labels \"${pool.labels}\"" if pool.labels else "",
         "--max-pods ${pool.maxPods}" if pool.maxPods else "",
+        "--vnet-subnet-id \"${pool.vnetSubnetId}\"" if pool.vnetSubnetId else "",
+        "--os-sku ${pool.osSKU}" if pool.osSKU else "",
         "--no-wait" if noWait else "",
     ]
     flags = " \\\n  ".join([f for f in flagDecision if f])
