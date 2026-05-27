@@ -1733,3 +1733,182 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
           skip_publish: false
+
+  # ============================================================================
+  # g60 hot-spot replicate — Phase 1a: N=20 (parallel-eligible)
+  # ============================================================================
+  # Hypothesis: g60 (60% global namespaces) exhibits hot-spot contention. Each
+  # original cell had only 1 sample; this stage runs N=20 g60 replicate.
+  # Quota: 960 vCPU — runs concurrently with Phase 1b (N=50) and after build
+  # 68171 closes. ~3h wall.
+  - stage: azure_eastus2euap_g60_rerun_n20
+    dependsOn: []
+    condition: false
+    variables:
+      TF_CLI_ARGS_apply: "-parallelism=4"
+    displayName: "g60 rerun: n=20 solo replicate"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 30m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-20-shared.tfvars"
+          matrix:
+            n20_g60_v2:
+              cluster_count: 20
+              mesh_size: 20
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-g60"
+              global_namespace_count: 3
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              cl2_max_concurrent: 12
+              worker_timeout_seconds: 14400
+              churn_cycles: 5
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  # ============================================================================
+  # g60 hot-spot replicate — Phase 1b: N=50 (parallel-eligible)
+  # ============================================================================
+  # Quota: 2400 vCPU. Runs concurrently with Phase 1a (N=20). ~10h wall.
+  # Combined Phase 1 (N=20 + N=50 parallel): 3360 vCPU ≤ 4992 free.
+  - stage: azure_eastus2euap_g60_rerun_n50
+    dependsOn: []
+    condition: false
+    variables:
+      TF_CLI_ARGS_apply: "-parallelism=4"
+    displayName: "g60 rerun: n=50 solo replicate"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 30m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-50-shared.tfvars"
+          matrix:
+            n50_g60_v2:
+              cluster_count: 50
+              mesh_size: 50
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-g60"
+              global_namespace_count: 3
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              cl2_max_concurrent: 12
+              worker_timeout_seconds: 14400
+              churn_cycles: 5
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 1200
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  # ============================================================================
+  # g60 hot-spot replicate — Phase 2: N=100 solo (run AFTER Phase 1 destroys)
+  # ============================================================================
+  # Trigger AFTER Phase 1 fully destroys release the 4800 vCPU needed here.
+  # ~14h wall.
+  - stage: azure_eastus2euap_g60_rerun_n100
+    dependsOn: []
+    condition: false
+    variables:
+      TF_CLI_ARGS_apply: "-parallelism=4"
+    displayName: "g60 rerun: n=100 solo replicate"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 30m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-100.tfvars"
+          matrix:
+            n100_g60_v2:
+              cluster_count: 100
+              mesh_size: 100
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-g60"
+              global_namespace_count: 3
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              cl2_max_concurrent: 12
+              worker_timeout_seconds: 14400
+              churn_cycles: 5
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 1800
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
