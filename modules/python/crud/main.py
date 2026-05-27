@@ -164,7 +164,6 @@ def handle_autoscale_latency(node_pool_crud, args):
         cni_label = args.cni_daemonset_label if args.cni_daemonset_label else None
         cni_taint = args.cni_blocking_taint if args.cni_blocking_taint else None
         iterations = getattr(args, "iterations", 1) or 1
-
         for iteration in range(1, iterations + 1):
             pod_name = f"latency-probe-{iteration}"
             logger.info("Starting autoscale latency iteration %d/%d (pod: %s)",

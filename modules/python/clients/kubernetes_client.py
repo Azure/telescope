@@ -600,6 +600,7 @@ class KubernetesClient:
                 results[node_name] = {
                     "cni_container_started": None,
                     "cni_pod_ready": None,
+                    "cni_pod_scheduled": None,
                     "init_containers": [],
                     "containers": [],
                     "image_pull_events": [],
@@ -620,6 +621,10 @@ class KubernetesClient:
             cni_ready = self._get_condition_transition_time(
                 pod.status.conditions, "Ready")
 
+            # Ts: pod PodScheduled condition transition time
+            cni_pod_scheduled = self._get_condition_transition_time(
+                pod.status.conditions, "PodScheduled")
+
             # Collect init container timestamps
             init_containers = self._collect_init_container_timestamps(pod)
 
@@ -633,6 +638,7 @@ class KubernetesClient:
             entry = {
                 "cni_container_started": container_started,
                 "cni_pod_ready": cni_ready,
+                "cni_pod_scheduled": cni_pod_scheduled,
                 "init_containers": init_containers,
                 "containers": containers,
                 "image_pull_events": image_pull_events,
@@ -641,6 +647,185 @@ class KubernetesClient:
             results[node_name] = entry
 
         return results
+
+    def scrape_cilium_metrics(self, node_name, cni_daemonset_label,
+                              namespace="kube-system", metrics_port=9965,
+                              scraper_image="curlimages/curl:latest",
+                              timeout_seconds=60):
+        """
+        Scrape Cilium agent Prometheus metrics from the agent pod on a specific node.
+
+        Deploys a single-shot curl pod pinned to the target node via nodeName,
+        hits the Cilium agent's /metrics endpoint, and parses bootstrap + endpoint
+        regeneration phase durations.
+
+        Args:
+            node_name: Node to scrape
+            cni_daemonset_label: Label selector for the CNI agent pod
+            namespace: Namespace where CNI pods run
+            metrics_port: Prometheus metrics port on the agent
+            scraper_image: Image for the scraper pod
+            timeout_seconds: How long to wait for the scraper pod
+
+        Returns:
+            Dict with parsed bootstrap phases, endpoint regen phases, and metadata.
+            Returns None if scraping fails.
+        """
+        scraper_pod_name = f"cilium-scraper-{node_name[-8:]}"
+        scraper_ns = "default"
+
+        # Find the CNI agent pod IP (hostNetwork means it equals node IP)
+        pods = self.get_pods_by_namespace(
+            namespace=namespace,
+            label_selector=cni_daemonset_label,
+            field_selector=f"spec.nodeName={node_name}",
+        )
+        if not pods:
+            logger.warning("Deep Cilium: no agent pod on node '%s'", node_name)
+            return None
+
+        agent_pod_ip = pods[0].status.pod_ip
+        if not agent_pod_ip:
+            logger.warning("Deep Cilium: agent pod on '%s' has no IP", node_name)
+            return None
+
+        metrics_url = f"http://{agent_pod_ip}:{metrics_port}/metrics"
+
+        # Create scraper pod pinned to the node
+        pod_manifest = client.V1Pod(
+            metadata=client.V1ObjectMeta(name=scraper_pod_name, namespace=scraper_ns),
+            spec=client.V1PodSpec(
+                node_name=node_name,
+                restart_policy="Never",
+                containers=[
+                    client.V1Container(
+                        name="scraper",
+                        image=scraper_image,
+                        command=["curl", "-s", "--max-time", "30", metrics_url],
+                    )
+                ],
+                tolerations=[
+                    client.V1Toleration(operator="Exists"),
+                ],
+            ),
+        )
+
+        try:
+            self.api.create_namespaced_pod(namespace=scraper_ns, body=pod_manifest)
+            logger.info("Deep Cilium: scraper pod '%s' created on node '%s'",
+                       scraper_pod_name, node_name)
+
+            # Wait for scraper to complete
+            deadline = time.time() + timeout_seconds
+            while time.time() < deadline:
+                pod = self.api.read_namespaced_pod(
+                    name=scraper_pod_name, namespace=scraper_ns)
+                phase = pod.status.phase
+                if phase == "Succeeded":
+                    break
+                if phase == "Failed":
+                    logger.warning("Deep Cilium: scraper pod failed")
+                    return None
+                time.sleep(2)
+            else:
+                logger.warning("Deep Cilium: scraper pod timed out")
+                return None
+
+            # Read logs (the metrics output)
+            logs = self.api.read_namespaced_pod_log(
+                name=scraper_pod_name, namespace=scraper_ns)
+
+            return self._parse_cilium_metrics(logs)
+
+        except Exception as e:
+            logger.warning("Deep Cilium: scrape failed: %s", e)
+            return None
+        finally:
+            # Clean up scraper pod
+            try:
+                self.api.delete_namespaced_pod(
+                    name=scraper_pod_name, namespace=scraper_ns)
+            except Exception:
+                pass
+
+    def _parse_cilium_metrics(self, metrics_text):
+        """
+        Parse Prometheus text format for Cilium bootstrap and endpoint regen metrics.
+
+        Extracts:
+          - cilium_bootstrap_seconds{scope=...} per scope
+          - cilium_endpoint_regeneration_time_stats_seconds per scope (mean)
+          - cilium_identity_count
+          - cilium_bpf_map_pressure
+
+        Returns:
+            Dict with 'bootstrap', 'endpoint_regen', and 'metadata' keys
+        """
+        result = {
+            "bootstrap": {},
+            "endpoint_regen": {},
+            "metadata": {
+                "cilium_identity_count": None,
+                "cilium_bpf_map_pressure": None,
+                "cilium_version": None,
+            },
+        }
+
+        for line in metrics_text.splitlines():
+            if line.startswith("#"):
+                continue
+
+            # cilium_bootstrap_seconds{scope="overall"} 12.345
+            if line.startswith("cilium_bootstrap_seconds{"):
+                try:
+                    scope = line.split('scope="')[1].split('"')[0]
+                    value = float(line.split("} ")[1])
+                    result["bootstrap"][scope] = value
+                except (IndexError, ValueError):
+                    continue
+
+            # cilium_endpoint_regeneration_time_stats_seconds{scope="...",quantile="..."}
+            # We capture the _sum and _count to compute mean
+            elif line.startswith("cilium_endpoint_regeneration_time_stats_seconds_sum{"):
+                try:
+                    scope = line.split('scope="')[1].split('"')[0]
+                    value = float(line.split("} ")[1])
+                    result["endpoint_regen"].setdefault(scope, {})["sum"] = value
+                except (IndexError, ValueError):
+                    continue
+            elif line.startswith("cilium_endpoint_regeneration_time_stats_seconds_count{"):
+                try:
+                    scope = line.split('scope="')[1].split('"')[0]
+                    value = float(line.split("} ")[1])
+                    result["endpoint_regen"].setdefault(scope, {})["count"] = value
+                except (IndexError, ValueError):
+                    continue
+
+            # Metadata
+            elif line.startswith("cilium_identity_count "):
+                try:
+                    result["metadata"]["cilium_identity_count"] = int(float(line.split(" ")[1]))
+                except (IndexError, ValueError):
+                    pass
+            elif line.startswith("cilium_bpf_map_pressure{"):
+                try:
+                    value = float(line.split("} ")[1])
+                    # Keep the max pressure across all maps
+                    current = result["metadata"]["cilium_bpf_map_pressure"]
+                    if current is None or value > current:
+                        result["metadata"]["cilium_bpf_map_pressure"] = value
+                except (IndexError, ValueError):
+                    pass
+
+        # Compute mean for endpoint regen phases
+        regen_means = {}
+        for scope, vals in result["endpoint_regen"].items():
+            s = vals.get("sum", 0)
+            c = vals.get("count", 0)
+            regen_means[scope] = s / c if c > 0 else 0
+        result["endpoint_regen"] = regen_means
+
+        return result
 
     def _collect_init_container_timestamps(self, pod):
         """
@@ -1055,6 +1240,8 @@ class KubernetesClient:
                 "cni_taint_observed": None,
                 "cni_taint_cleared": None,
                 "node_ready_at": None,
+                "cni_conflist_placed_at": None,
+                "csinode_ready_at": None,
             }
 
             def _run_watch():
@@ -1104,18 +1291,28 @@ class KubernetesClient:
             # Collect CNI timestamps if applicable
             cni_container_started = None
             cni_pod_ready = None
+            cni_pod_scheduled = None
             cni_init_containers = []
             cni_containers = []
             cni_image_pull_events = []
+            deep_cilium_metrics = None
             if cni_daemonset_label:
                 cni_timestamps = self.collect_cni_pod_timestamps(
                     [new_node_name], cni_daemonset_label)
                 cni_info = cni_timestamps.get(new_node_name, {})
                 cni_container_started = cni_info.get("cni_container_started")
                 cni_pod_ready = cni_info.get("cni_pod_ready")
+                cni_pod_scheduled = cni_info.get("cni_pod_scheduled")
                 cni_init_containers = cni_info.get("init_containers", [])
                 cni_containers = cni_info.get("containers", [])
                 cni_image_pull_events = cni_info.get("image_pull_events", [])
+
+                # Scrape Cilium agent metrics when CNI daemonset is present
+                if cni_daemonset_label:
+                    deep_cilium_metrics = self.scrape_cilium_metrics(
+                        node_name=new_node_name,
+                        cni_daemonset_label=cni_daemonset_label,
+                    )
 
             # Collect pod timestamps
             pod_scheduled = self._get_condition_transition_time(
@@ -1143,6 +1340,8 @@ class KubernetesClient:
                 "node_registered": node_registered,
                 "node_ready": node_ready,
                 "node_network_unavailable_cleared": node_network_unavailable_cleared,
+                "cni_conflist_placed": intermediate_states.get("cni_conflist_placed_at"),
+                "csinode_ready": intermediate_states.get("csinode_ready_at"),
                 "not_ready_taint_observed": intermediate_states.get("not_ready_taint_observed"),
                 "not_ready_taint_cleared": intermediate_states.get("not_ready_taint_cleared"),
                 "network_unavailable_taint_observed": intermediate_states.get("network_unavailable_taint_observed"),
@@ -1151,9 +1350,11 @@ class KubernetesClient:
                 "cni_taint_cleared": intermediate_states.get("cni_taint_cleared"),
                 "cni_container_started": cni_container_started,
                 "cni_pod_ready": cni_pod_ready,
+                "cni_pod_scheduled": cni_pod_scheduled,
                 "cni_init_containers": cni_init_containers,
                 "cni_containers": cni_containers,
                 "cni_image_pull_events": cni_image_pull_events,
+                "deep_cilium_metrics": deep_cilium_metrics,
                 "pod_scheduled": pod_scheduled,
                 "pod_initialized": pod_initialized,
                 "container_started": container_started,
@@ -1212,6 +1413,8 @@ class KubernetesClient:
                 "cni_taint_observed": None,
                 "cni_taint_cleared": None,
                 "node_ready_at": None,
+                "cni_conflist_placed_at": None,
+                "csinode_ready_at": None,
             }
 
         deadline = time.time() + (timeout_minutes * 60)
@@ -1220,6 +1423,8 @@ class KubernetesClient:
         saw_network_unavailable_taint = False
         saw_cni_taint = False
         node_ready_recorded = False
+        cni_conflist_placed = False
+        csinode_ready = False
 
         w = watch.Watch()
         try:
@@ -1351,6 +1556,49 @@ class KubernetesClient:
                                 logger.info("Watch: node '%s' is Ready", node_name)
                             break
 
+                # Track T1c — CNI conflist placed (NetworkPluginNotReady cleared)
+                # kubelet reports "NetworkPluginNotReady" or "cni config uninitialized"
+                # in the Ready condition message until a conflist is placed.
+                if not cni_conflist_placed:
+                    for cond in (node.status.conditions or []):
+                        if cond.type == "Ready":
+                            msg = (cond.message or "").lower()
+                            has_cni_not_ready = (
+                                "networkpluginnotready" in msg
+                                or "cni config uninitialized" in msg
+                                or "network plugin is not ready" in msg
+                            )
+                            if not has_cni_not_ready and cond.status in ("True", "False"):
+                                # Message cleared — conflist is in place
+                                cni_conflist_placed = True
+                                result["cni_conflist_placed_at"] = now_iso
+                                result["events"].append({
+                                    "event": "cni_conflist_placed",
+                                    "node": node_name,
+                                    "observed_at": now_iso,
+                                })
+                                logger.info("Watch: CNI conflist placed on '%s' (NetworkPluginNotReady cleared)", node_name)
+                            break
+
+                # Track Tcsi — CSINode registered
+                # kubelet reports "CSINode is not yet initialized" in Ready message
+                # until the CSINode CRD is created.
+                if not csinode_ready:
+                    for cond in (node.status.conditions or []):
+                        if cond.type == "Ready":
+                            msg = (cond.message or "").lower()
+                            has_csi_not_ready = "csinode is not yet initialized" in msg
+                            if not has_csi_not_ready and cond.status in ("True", "False"):
+                                csinode_ready = True
+                                result["csinode_ready_at"] = now_iso
+                                result["events"].append({
+                                    "event": "csinode_ready",
+                                    "node": node_name,
+                                    "observed_at": now_iso,
+                                })
+                                logger.info("Watch: CSINode registered on '%s'", node_name)
+                            break
+
         except Exception as e:
             logger.warning("Node watch ended: %s", e)
         finally:
@@ -1476,15 +1724,37 @@ class KubernetesClient:
             except Exception:
                 return None
 
+        # === T0-anchored (IaaS-dependent, not cross-provider comparable) ===
         # Autoscaler reaction: time from pod created to scale-up triggered
         latencies["autoscaler_reaction_seconds"] = _diff_seconds(
             "triggered_scale_up", "pod_created")
         # Cloud provisioning: time from scale-up triggered to node registered
         latencies["cloud_provisioning_seconds"] = _diff_seconds(
             "node_registered", "triggered_scale_up")
-        # Node init: time from node registered to node Ready
+        # node_register_latency_seconds: T1 - T0
+        latencies["node_register_latency_seconds"] = _diff_seconds(
+            "node_registered", "pod_created")
+
+        # === T1-anchored (IaaS-free, cross-provider comparable) ===
+        # Node init: time from node registered to node Ready (T4 - T1)
         latencies["node_init_seconds"] = _diff_seconds(
             "node_ready", "node_registered")
+        # Alias: node_ready_after_register_seconds
+        latencies["node_ready_after_register_seconds"] = latencies["node_init_seconds"]
+
+        # T1c: CNI conflist install (T1c - T1)
+        latencies["cni_conflist_install_seconds"] = _diff_seconds(
+            "cni_conflist_placed", "node_registered")
+        # Post-conflist ready: residual kubelet sync (T4 - T1c)
+        latencies["post_conflist_ready_seconds"] = _diff_seconds(
+            "node_ready", "cni_conflist_placed")
+        # CSINode registration latency (Tcsi - T1)
+        latencies["csinode_ready_seconds"] = _diff_seconds(
+            "csinode_ready", "node_registered")
+        # CNI agent scheduler latency: Ts - T1
+        latencies["cni_scheduler_latency_seconds"] = _diff_seconds(
+            "cni_pod_scheduled", "node_registered")
+
         # Total node startup: max(node_ready, cni_pod_ready) - node_registered
         node_ready_secs = _diff_seconds("node_ready", "node_registered")
         cni_ready_secs = _diff_seconds("cni_pod_ready", "node_registered")
@@ -1505,23 +1775,42 @@ class KubernetesClient:
         latencies["node_workload_ready_seconds"] = (
             max(valid_candidates) if valid_candidates else None
         )
-        # CNI init: time for CNI pod to become Ready
+
+        # === CNI agent lifecycle ===
+        # CNI init: time for CNI pod to become Ready (T3 - T2, cilium_init_duration)
         latencies["cni_init_seconds"] = _diff_seconds(
             "cni_pod_ready", "cni_container_started")
-        # CNI-induced delay: extra time CNI adds after node Ready
+        # Alias: cilium_init_duration_seconds
+        latencies["cilium_init_duration_seconds"] = latencies["cni_init_seconds"]
+
+        # Cilium scheduling block: time node sits Ready but unschedulable due
+        # to CNI taint (T4b - T4). This is the PRIMARY metric for CNI impact.
+        # Previously named cni_induced_delay_seconds.
         cni_delay = _diff_seconds("cni_pod_ready", "node_ready")
         if cni_delay is not None:
-            latencies["cni_induced_delay_seconds"] = max(0, cni_delay)
+            latencies["cilium_scheduling_block_seconds"] = max(0, cni_delay)
         else:
-            latencies["cni_induced_delay_seconds"] = None
+            latencies["cilium_scheduling_block_seconds"] = None
+        # Backwards compat alias
+        latencies["cni_induced_delay_seconds"] = latencies["cilium_scheduling_block_seconds"]
+
+        # cni_gating_node_ready: max(T4 - T3, 0)
+        # Measures time node takes to become Ready AFTER agent is Ready (≈0 on AKS)
+        # Useful as a regression detector — if this ever becomes non-zero,
+        # something fundamentally changed in the kubelet/CNI relationship.
+        reverse_cni_delay = _diff_seconds("node_ready", "cni_pod_ready")
+        if reverse_cni_delay is not None:
+            latencies["cni_gating_node_ready_seconds"] = max(0, reverse_cni_delay)
+        else:
+            latencies["cni_gating_node_ready_seconds"] = None
+
+        # === Taint lifecycle ===
         # Taint clearing: time from node registered to not-ready taint cleared
         latencies["not_ready_taint_seconds"] = _diff_seconds(
             "not_ready_taint_cleared", "node_registered")
         # CNI taint clearing: time from node registered to CNI taint cleared
         latencies["cni_taint_seconds"] = _diff_seconds(
             "cni_taint_cleared", "node_registered")
-
-        # --- Intermediate segment durations (for dashboard charts) ---
         # How long the not-ready taint was actively present on the node
         latencies["not_ready_taint_active_seconds"] = _diff_seconds(
             "not_ready_taint_cleared", "not_ready_taint_observed")
@@ -1543,28 +1832,57 @@ class KubernetesClient:
         # Time from node registered to network-unavailable taint cleared
         latencies["network_unavailable_taint_seconds"] = _diff_seconds(
             "network_unavailable_taint_cleared", "node_registered")
-        # Pod scheduling: time from last scheduling gate cleared to pod scheduled
-        # The last gate is max(not_ready_taint_cleared, network_unavailable_taint_cleared, cni_taint_cleared)
+
+        # === Probe pod lifecycle ===
+        # Pod scheduling: time from node Ready to pod scheduled
         latencies["pod_scheduling_seconds"] = _diff_seconds(
             "pod_scheduled", "node_ready")
+        # Sandbox setup: time from trigger pod scheduled to container running (T5 - Tts)
+        latencies["sandbox_setup_seconds"] = _diff_seconds(
+            "container_started", "pod_scheduled")
         # Network unavailable condition clearing: time from node_registered
         latencies["network_unavailable_seconds"] = _diff_seconds(
             "node_network_unavailable_cleared", "node_registered")
-        # Pod init: time from pod Scheduled to container started
+        # Pod init: time from pod Scheduled to container started (legacy name)
         latencies["pod_init_seconds"] = _diff_seconds(
             "container_started", "pod_scheduled")
         # Pod ready: time from container started to pod Ready
         latencies["pod_ready_seconds"] = _diff_seconds(
             "pod_ready", "container_started")
+
+        # === Headline KPIs ===
         # Total end-to-end: pod_ready - pod_created (user-facing SLA, T0-anchored)
         latencies["total_e2e_seconds"] = _diff_seconds(
             "pod_ready", "pod_created")
-        # Node-to-pod (IaaS-free): container_started - node_registered
-        # Comparable to SRodi's time_to_runnable_s — isolates K8s/CNI latency
-        latencies["node_to_pod_seconds"] = _diff_seconds(
+        # time_to_runnable_seconds: T5 - T1 (HEADLINE KPI, IaaS-free)
+        latencies["time_to_runnable_seconds"] = _diff_seconds(
             "container_started", "node_registered")
-        # Alias: time_to_runnable_seconds (T5 - T1, headline KPI)
-        latencies["time_to_runnable_seconds"] = latencies["node_to_pod_seconds"]
+        # Legacy alias
+        latencies["node_to_pod_seconds"] = latencies["time_to_runnable_seconds"]
+
+        # === T1-anchored marker positions (for decomposition charts) ===
+        latencies["t1c_from_t1_seconds"] = latencies["cni_conflist_install_seconds"]
+        latencies["t2_from_t1_seconds"] = _diff_seconds(
+            "cni_container_started", "node_registered")
+        latencies["t3_from_t1_seconds"] = _diff_seconds(
+            "cni_pod_ready", "node_registered")
+        latencies["t4_from_t1_seconds"] = latencies["node_init_seconds"]
+        latencies["t4b_from_t1_seconds"] = _diff_seconds(
+            "cni_taint_cleared", "node_registered")
+        latencies["t5_from_t1_seconds"] = latencies["time_to_runnable_seconds"]
+
+        # === Deep Cilium metrics (if available) ===
+        deep = timestamps.get("deep_cilium_metrics")
+        if deep and isinstance(deep, dict):
+            bootstrap = deep.get("bootstrap", {})
+            for scope, value in bootstrap.items():
+                latencies[f"cilium_bootstrap_{scope}_seconds"] = value
+            regen = deep.get("endpoint_regen", {})
+            for scope, value in regen.items():
+                latencies[f"cilium_endpoint_regen_{scope}_seconds"] = value
+            metadata = deep.get("metadata", {})
+            latencies["cilium_identity_count"] = metadata.get("cilium_identity_count")
+            latencies["cilium_bpf_map_pressure"] = metadata.get("cilium_bpf_map_pressure")
 
         return latencies
 
