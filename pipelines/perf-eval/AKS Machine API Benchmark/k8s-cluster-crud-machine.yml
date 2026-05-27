@@ -31,7 +31,8 @@ stages:
               use_batch_api: false
               step_time_out: 600
               readiness_wait_timeout: 1200
-              system_node_pool: '{"name":"default","vm_size":"Standard_D2_v3","node_count":8,"vm_set_type":"VirtualMachines"}'
+              system_node_pool: >-
+                {"name":"default","vm_size":"Standard_D2_v3","node_count":8,"vm_set_type":"VirtualMachineScaleSets"}
             crud_medium_machine_pool:
               pool_name: mediumpool
               vm_size: Standard_D2_v3
@@ -40,7 +41,8 @@ stages:
               use_batch_api: false
               step_time_out: 600
               readiness_wait_timeout: 1200
-              system_node_pool: '{"name":"default","vm_size":"Standard_D2_v3","node_count":8,"vm_set_type":"VirtualMachines"}'
+              system_node_pool: >-
+                {"name":"default","vm_size":"Standard_D2_v3","node_count":8,"vm_set_type":"VirtualMachineScaleSets"}
             crud_large_machine_pool:
               pool_name: largepool
               vm_size: Standard_D2_v3
@@ -49,7 +51,8 @@ stages:
               use_batch_api: true
               step_time_out: 900
               readiness_wait_timeout: 1200
-              system_node_pool: '{"name":"default","vm_size":"Standard_D2_v3","node_count":8,"vm_set_type":"VirtualMachines"}'
+              system_node_pool: >-
+                {"name":"default","vm_size":"Standard_D2_v3","node_count":8,"vm_set_type":"VirtualMachineScaleSets"}
           max_parallel: 1
           credential_type: service_connection
           ssh_key_enabled: false

@@ -1,6 +1,6 @@
 parameters:
   cloud: ""
-  result_dir: ""
+  result_dir: $(System.DefaultWorkingDirectory)/$(RUN_ID)
   pool_name: ""
   vm_size: ""
   scale_machine_count: 0
@@ -29,10 +29,15 @@ steps:
     POOL_NAME: ${{ parameters.pool_name }}
     VM_SIZE: ${{ parameters.vm_size }}
     STEP_TIME_OUT: ${{ parameters.step_time_out }}
-    RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
+    RESULT_DIR: ${{ parameters.result_dir }}
 
 - script: |
     set -eo pipefail
+
+    USE_BATCH_API_FLAG=""
+    if [ "${USE_BATCH_API,,}" = "true" ]; then
+      USE_BATCH_API_FLAG="--use-batch-api"
+    fi
 
     # Add N machines to the machine-mode agent pool
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" scale-machine \
@@ -45,7 +50,7 @@ steps:
       --machine-workers "$MACHINE_WORKERS" \
       --readiness-wait-timeout "$READINESS_WAIT_TIMEOUT" \
       --step-timeout "$STEP_TIME_OUT" \
-      $([ "${USE_BATCH_API,,}" = "true" ] && echo "--use-batch-api")
+      $USE_BATCH_API_FLAG
   displayName: 'Scale AKS Machine Agent Pool for ${{ parameters.cloud }}'
   workingDirectory: modules/python
   env:
@@ -57,5 +62,5 @@ steps:
     MACHINE_WORKERS: ${{ parameters.machine_workers }}
     READINESS_WAIT_TIMEOUT: ${{ parameters.readiness_wait_timeout }}
     STEP_TIME_OUT: ${{ parameters.step_time_out }}
-    RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
+    RESULT_DIR: ${{ parameters.result_dir }}
     USE_BATCH_API: ${{ parameters.use_batch_api }}
