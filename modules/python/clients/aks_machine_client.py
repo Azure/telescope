@@ -2,8 +2,9 @@
 
 Subclasses ``AKSClient`` to inherit auth, ContainerServiceClient,
 KubernetesClient, ``get_cluster_name``, ``get_cluster_data``, and the existing
-node-pool CRUD methods. Adds raw REST methods for the Machine API which is not
-yet exposed in the Azure SDK.
+node-pool CRUD methods. Uses Azure CLI for Machine API operations that have a
+first-class CLI surface and keeps direct REST only for the BatchPutMachine path,
+which is not exposed by Azure CLI.
 
 Public methods (``create_machine_agentpool``, ``scale_machine``) wrap their work
 in ``OperationContext``: the context is opened inside the client method,
@@ -11,13 +12,14 @@ metadata is enriched with ``op.add_metadata`` along the way, success returns
 None, failures are logged and re-raised so ``OperationContext`` records them.
 ``MachineCRUD`` therefore stays a thin try/except wrapper.
 
-This revision adds the non-batch scale path. The batch dispatch
-(``use_batch_api=True``) still raises ``NotImplementedError`` and will land in a
-follow-up PR.
+The non-batch scale path shells out to ``az aks machine add`` per machine.
+The batch dispatch (``use_batch_api=True``) still uses the private
+``BatchPutMachine`` header contract directly.
 """
 import json
 import logging
 import math
+import subprocess
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -137,6 +139,33 @@ class AKSMachineClient(AKSClient):
             method, url, headers=headers, json=data, timeout=timeout
         )
 
+    def _run_az_cli_command(self, command: List[str], timeout: int) -> None:
+        """Run an Azure CLI command and raise a compact RuntimeError on failure."""
+        logger.info("Running Azure CLI command: %s", " ".join(command))
+        try:
+            completed = subprocess.run(
+                command,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+        except FileNotFoundError as exc:
+            raise RuntimeError("Azure CLI executable 'az' was not found") from exc
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError(
+                f"Azure CLI command timed out after {timeout}s: {' '.join(command)}"
+            ) from exc
+
+        if completed.returncode != 0:
+            stdout = (completed.stdout or "").strip()
+            stderr = (completed.stderr or "").strip()
+            detail = stderr or stdout or "<no output>"
+            raise RuntimeError(
+                f"Azure CLI command failed with exit code {completed.returncode}: "
+                f"{' '.join(command)}; output={detail[:1000]}"
+            )
+
     # ---- Machine API: agent pool provisioning ----
     def create_machine_agentpool(
         self,
@@ -145,7 +174,7 @@ class AKSMachineClient(AKSClient):
         cluster_name: Optional[str] = None,
         timeout: int = 300,
     ) -> None:
-        """Convert an existing agentpool to Machines mode via PUT.
+        """Create a machine-mode agentpool via Azure CLI.
 
         Opens an ``OperationContext`` here, enriches metadata, returns on
         success, re-raises on failure (so the context records ``success=False``
@@ -153,19 +182,17 @@ class AKSMachineClient(AKSClient):
 
         Args:
             agentpool_name: Target agentpool name.
-            vm_size: VM SKU recorded in operation metadata. The PUT body itself
-                only sets ``mode: Machines``; the SKU is informational here so
-                downstream Kusto rows can attribute the agentpool to a SKU.
+            vm_size: VM SKU for the machine-mode agentpool and operation metadata.
             cluster_name: Parent AKS cluster name. Defaults to
                 ``self.get_cluster_name()`` (matches ``create_node_pool``).
             timeout: Total wall-clock budget (seconds) for this operation.
                 Used as the polling deadline for ``_wait_for_agentpool_provisioning``.
                 The per-request HTTP timeout is capped at
-                ``_PER_REQUEST_TIMEOUT_CAP`` so a single slow PUT cannot consume
-                the whole budget before polling starts.
+                ``_PER_REQUEST_TIMEOUT_CAP`` so a single slow CLI process cannot
+                consume the whole budget before polling starts.
 
         Raises:
-            RuntimeError: PUT non-2xx, ARM-reported Failed state, or timeout.
+            RuntimeError: CLI failure, ARM-reported Failed state, or timeout.
         """
         cluster_name = cluster_name or self.get_cluster_name()
         metadata = {
@@ -177,24 +204,28 @@ class AKSMachineClient(AKSClient):
             "create_machine_agentpool", "azure", metadata, result_dir=self.result_dir
         ) as op:
             try:
-                sub = self.subscription_id
                 url = (
-                    f"{_ARM_BASE}/subscriptions/{sub}/resourceGroups/{self.resource_group}"
+                    f"{_ARM_BASE}/subscriptions/{self.subscription_id}/resourceGroups/"
+                    f"{self.resource_group}"
                     f"/providers/Microsoft.ContainerService/managedClusters/{cluster_name}"
                     f"/agentPools/{agentpool_name}?api-version={_AGENTPOOL_API_VERSION}"
                 )
-                body = {"properties": {"mode": "Machines"}}
-                # Cap the PUT timeout so the bulk of ``timeout`` is preserved
-                # for the polling loop below.
-                put_timeout = min(timeout, _PER_REQUEST_TIMEOUT_CAP)
-                resp = self.make_request("PUT", url, data=body, timeout=put_timeout)
-                # ARM async PUT acceptance returns 200/201/202; the agentpool
-                # provisioning poll below is the real completion gate.
-                if resp.status_code not in (200, 201, 202):
-                    raise RuntimeError(
-                        f"create_machine_agentpool PUT failed: "
-                        f"{resp.status_code} {resp.text[:500]}"
-                    )
+                command = [
+                    "az", "aks", "nodepool", "add",
+                    "--resource-group", self.resource_group,
+                    "--cluster-name", cluster_name,
+                    "--name", agentpool_name,
+                    "--mode", "Machines",
+                    "--node-vm-size", vm_size,
+                    "--node-count", "0",
+                    "--subscription", self.subscription_id,
+                    "--no-wait",
+                    "--only-show-errors",
+                ]
+                self._run_az_cli_command(
+                    command,
+                    timeout=min(timeout, _PER_REQUEST_TIMEOUT_CAP),
+                )
                 if not self._wait_for_agentpool_provisioning(url, timeout):
                     raise RuntimeError(
                         f"agentpool {agentpool_name} did not reach Succeeded within {timeout}s"
@@ -406,16 +437,17 @@ class AKSMachineClient(AKSClient):
         Flow:
           1. Snapshot the current Ready+labeled node count in the agentpool
              (``baseline_count``) so the readiness watcher counts only NEW nodes.
-          2. Submit machine PUTs -- individually by default, or sharded into
-             ``machine_workers`` chunks where each chunk is sent as a single
-             ``BatchPutMachine``-headered PUT when ``use_batch_api=True`` (per-
-             machine ARM polling is intentionally NOT performed in either path).
+          2. Submit machine creates -- individually via ``az aks machine add`` by
+             default, or sharded into ``machine_workers`` chunks where each chunk
+             is sent as a single ``BatchPutMachine``-headered PUT when
+             ``use_batch_api=True`` (per-machine ARM polling is intentionally NOT
+             performed in either path).
           3. Wait ONCE on the agentpool-level provisioningState.
           4. Wait for nodes labeled ``agentpool=<pool>`` to surpass
              ``baseline_count`` by enough to satisfy P50/P70/P90/P99/P100 targets.
 
-        ``tags`` is currently unused (Machine API rejects top-level tags on the
-        machine PUT body; machines inherit tags from the parent agentpool).
+        ``tags`` is currently unused (machines inherit tags from the parent
+        agentpool).
 
         See ``_create_batch_machines`` for the batch chunking contract and the
         ``BatchPutMachine`` header schema.
@@ -451,7 +483,7 @@ class AKSMachineClient(AKSClient):
             "scale_machine", "azure", metadata, result_dir=self.result_dir
         ) as op:
             try:
-                # Snapshot baseline BEFORE any PUTs so the readiness watcher
+                # Snapshot baseline BEFORE any creates so the readiness watcher
                 # counts only NEW nodes.
                 kc = self.k8s_client
                 baseline_count = 0
@@ -552,14 +584,14 @@ class AKSMachineClient(AKSClient):
     def _scale_machine_individually(
         self, request: SimpleNamespace, names: List[str],
     ) -> List[str]:
-        """Submit per-machine PUTs concurrently via ThreadPoolExecutor.
+        """Submit per-machine Azure CLI commands concurrently via ThreadPoolExecutor.
 
-        Each worker calls ``_create_single_machine(name, request)`` which PUTs
-        the machine and returns True on any 2xx response. Per-machine
-        provisioningState is intentionally NOT polled (see
+        Each worker calls ``_create_single_machine(name, request)`` which runs
+        ``az aks machine add --no-wait`` and returns True on a zero exit code.
+        Per-machine provisioningState is intentionally NOT polled (see
         ``_create_single_machine`` for why); the agentpool-level poll in
         ``scale_machine`` is the real completion signal. Returns the list of
-        names that reported True. Per-machine exceptions are logged and
+        names that reported True. Per-machine CLI failures are logged and
         treated as failure (name omitted from result).
         """
         successful: List[str] = []
@@ -577,11 +609,10 @@ class AKSMachineClient(AKSClient):
         return successful
 
     def _create_single_machine(self, name: str, request: SimpleNamespace) -> bool:
-        """PUT a single Machine resource. Returns True on any 2xx response.
+        """Create a single Machine resource via Azure CLI.
 
-        Body is ``{"properties": {"hardware": {"vmSize": ...}}}``. Tags are inherited
-        from the parent agentpool; the machine PUT body in api-version 2025-06-02-preview
-        does not accept a top-level ``tags`` field (rejected with UnmarshalError).
+        Tags are inherited from the parent agentpool; the Machine API rejected
+        top-level tags in earlier direct REST testing.
 
         Intentionally does NOT poll the per-machine ARM provisioningState. The
         AKS RP reports per-machine ``provisioningState='Succeeded'`` essentially
@@ -589,21 +620,28 @@ class AKSMachineClient(AKSClient):
         VM is created. Polling here therefore returns spuriously early and only
         adds N round-trips of latency without surfacing useful signal. The
         canonical completion signal is the agentpool-level provisioningState,
-        which ``scale_machine`` polls once after all PUTs return.
+        which ``scale_machine`` polls once after all create requests return.
 
-        Never raises on HTTP errors; logs and returns False on non-2xx responses.
+        Never raises to the caller on CLI errors; logs and returns False.
         """
-        sub = self.subscription_id
-        url = (
-            f"{_ARM_BASE}/subscriptions/{sub}/resourceGroups/{request.resource_group}"
-            f"/providers/Microsoft.ContainerService/managedClusters/{request.cluster_name}"
-            f"/agentPools/{request.agentpool_name}/machines/{name}"
-            f"?api-version={_MACHINE_API_VERSION}"
-        )
-        body: Dict[str, Any] = {"properties": {"hardware": {"vmSize": request.vm_size}}}
-        resp = self.make_request("PUT", url, data=body, timeout=request.timeout)
-        if resp.status_code not in (200, 201, 202):
-            logger.error(f"PUT machine {name} -> {resp.status_code} {resp.text[:500]}")
+        command = [
+            "az", "aks", "machine", "add",
+            "--resource-group", request.resource_group,
+            "--cluster-name", request.cluster_name,
+            "--nodepool-name", request.agentpool_name,
+            "--machine-name", name,
+            "--vm-size", request.vm_size,
+            "--subscription", self.subscription_id,
+            "--no-wait",
+            "--only-show-errors",
+        ]
+        try:
+            self._run_az_cli_command(
+                command,
+                timeout=min(request.timeout, _PER_REQUEST_TIMEOUT_CAP),
+            )
+        except RuntimeError as exc:
+            logger.error("az aks machine add failed for %s: %s", name, exc)
             return False
         return True
 
