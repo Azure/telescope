@@ -385,27 +385,65 @@ class NodePoolCRUD:
         
         logger.info("Successfully created and verified %s %d", workload_type, index)
 
-    def _apply_deployment(
+    def _create_workloads(
         self,
-        k8s_client,
+        workload_type,
         node_pool_name,
-        deployment_index,
-        replicas,
+        count,
+        number_of_workloads,
         manifest_dir,
         label_selector,
         namespace
     ):
-        """Helper for create_deployment - delegates to unified _apply_workload."""
-        self._apply_workload(
-            k8s_client=k8s_client,
-            workload_type="deployment",
-            node_pool_name=node_pool_name,
-            index=deployment_index,
-            count=replicas,
-            manifest_dir=manifest_dir,
-            label_selector=label_selector,
-            namespace=namespace
-        )
+        """Unified helper to create multiple workload instances.
+        
+        Args:
+            workload_type: Type of workload ("deployment" or "statefulset")
+            node_pool_name: Name of the target node pool
+            count: Number of replicas per workload instance
+            number_of_workloads: Total number of workload instances to create
+            manifest_dir: Optional custom manifest directory
+            label_selector: Base label selector (e.g., "app=nginx-container")
+            namespace: Kubernetes namespace
+            
+        Returns:
+            True if all workloads created successfully, False otherwise
+        """
+        workload_type_display = workload_type.capitalize()
+        logger.info("Creating %d %s(s)", number_of_workloads, workload_type_display)
+        logger.info("Target node pool: %s", node_pool_name)
+        logger.info("Replicas per %s: %d", workload_type, count)
+        logger.info("Using manifest directory: %s", manifest_dir)
+
+        k8s_client = self.aks_client.k8s_client
+        if not k8s_client:
+            logger.error("Kubernetes client not available")
+            return False
+
+        successes = 0
+        for index in range(1, number_of_workloads + 1):
+            logger.info("Creating %s %d/%d", workload_type, index, number_of_workloads)
+            try:
+                self._apply_workload(
+                    k8s_client=k8s_client,
+                    workload_type=workload_type,
+                    node_pool_name=node_pool_name,
+                    index=index,
+                    count=count,
+                    manifest_dir=manifest_dir,
+                    label_selector=label_selector,
+                    namespace=namespace
+                )
+                successes += 1
+            except Exception as e:
+                logger.error("Failed to create %s %d: %s", workload_type, index, e)
+                continue
+
+        if successes == number_of_workloads:
+            logger.info("Successfully created all %d %s(s)", number_of_workloads, workload_type_display)
+            return True
+        logger.warning("Created %d/%d %s(s)", successes, number_of_workloads, workload_type_display)
+        return False
 
     def create_deployment(
         self,
@@ -430,64 +468,11 @@ class NodePoolCRUD:
         Returns:
             True if all deployment creations were successful, False otherwise
         """
-        logger.info("Creating %d deployment(s)", number_of_deployments)
-        logger.info("Target node pool: %s", node_pool_name)
-        logger.info("Replicas per deployment: %d", replicas)
-        logger.info("Using manifest directory: %s", manifest_dir)
-
-        # Get Kubernetes client from AKS client
-        k8s_client = self.aks_client.k8s_client
-
-        if not k8s_client:
-            logger.error("Kubernetes client not available")
-            return False
-
-        successful_deployments = 0
-
-        # Loop through number of deployments
-        for deployment_index in range(1, number_of_deployments + 1):
-            logger.info("Creating deployment %d/%d", deployment_index, number_of_deployments)
-
-            try:
-                self._apply_deployment(
-                    k8s_client=k8s_client,
-                    node_pool_name=node_pool_name,
-                    deployment_index=deployment_index,
-                    replicas=replicas,
-                    manifest_dir=manifest_dir,
-                    label_selector=label_selector,
-                    namespace=namespace
-                )
-                successful_deployments += 1
-            except Exception as e:
-                logger.error("Failed to create deployment %d: %s", deployment_index, e)
-                # Continue with next deployment instead of failing completely
-                continue
-
-        # Check if all deployments were successful
-        if successful_deployments == number_of_deployments:
-            logger.info("Successfully created all %d deployment(s)", number_of_deployments)
-            return True
-        logger.warning("Created %d/%d deployment(s)", successful_deployments, number_of_deployments)
-        return False
-
-    def _apply_statefulset(
-        self,
-        k8s_client,
-        node_pool_name,
-        statefulset_index,
-        replicas,
-        manifest_dir,
-        label_selector,
-        namespace
-    ):
-        """Helper for create_statefulset - delegates to unified _apply_workload."""
-        self._apply_workload(
-            k8s_client=k8s_client,
-            workload_type="statefulset",
+        return self._create_workloads(
+            workload_type="deployment",
             node_pool_name=node_pool_name,
-            index=statefulset_index,
             count=replicas,
+            number_of_workloads=number_of_deployments,
             manifest_dir=manifest_dir,
             label_selector=label_selector,
             namespace=namespace
@@ -516,43 +501,12 @@ class NodePoolCRUD:
         Returns:
             True if all StatefulSet creations were successful, False otherwise
         """
-        logger.info("Creating %d StatefulSet(s)", number_of_statefulsets)
-        logger.info("Target node pool: %s", node_pool_name)
-        logger.info("Replicas per StatefulSet: %d", replicas)
-        logger.info("Using manifest directory: %s", manifest_dir)
-
-        # Get Kubernetes client from AKS client
-        k8s_client = self.aks_client.k8s_client
-
-        if not k8s_client:
-            logger.error("Kubernetes client not available")
-            return False
-
-        successful_statefulsets = 0
-
-        # Loop through number of StatefulSets
-        for statefulset_index in range(1, number_of_statefulsets + 1):
-            logger.info("Creating StatefulSet %d/%d", statefulset_index, number_of_statefulsets)
-
-            try:
-                self._apply_statefulset(
-                    k8s_client=k8s_client,
-                    node_pool_name=node_pool_name,
-                    statefulset_index=statefulset_index,
-                    replicas=replicas,
-                    manifest_dir=manifest_dir,
-                    label_selector=label_selector,
-                    namespace=namespace
-                )
-                successful_statefulsets += 1
-            except Exception as e:
-                logger.error("Failed to create StatefulSet %d: %s", statefulset_index, e)
-                # Continue with next StatefulSet instead of failing completely
-                continue
-
-        # Check if all StatefulSets were successful
-        if successful_statefulsets == number_of_statefulsets:
-            logger.info("Successfully created all %d StatefulSet(s)", number_of_statefulsets)
-            return True
-        logger.warning("Created %d/%d StatefulSet(s)", successful_statefulsets, number_of_statefulsets)
-        return False
+        return self._create_workloads(
+            workload_type="statefulset",
+            node_pool_name=node_pool_name,
+            count=replicas,
+            number_of_workloads=number_of_statefulsets,
+            manifest_dir=manifest_dir,
+            label_selector=label_selector,
+            namespace=namespace
+        )
