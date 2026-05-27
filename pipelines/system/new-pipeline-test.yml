@@ -1743,7 +1743,6 @@ stages:
   # 68171 closes. ~3h wall.
   - stage: azure_eastus2euap_g60_rerun_n20
     dependsOn: []
-    condition: false
     variables:
       TF_CLI_ARGS_apply: "-parallelism=4"
     displayName: "g60 rerun: n=20 solo replicate"
@@ -1802,7 +1801,6 @@ stages:
   # Combined Phase 1 (N=20 + N=50 parallel): 3360 vCPU ≤ 4992 free.
   - stage: azure_eastus2euap_g60_rerun_n50
     dependsOn: []
-    condition: false
     variables:
       TF_CLI_ARGS_apply: "-parallelism=4"
     displayName: "g60 rerun: n=50 solo replicate"
@@ -1861,7 +1859,6 @@ stages:
   # ~14h wall.
   - stage: azure_eastus2euap_g60_rerun_n100
     dependsOn: []
-    condition: false
     variables:
       TF_CLI_ARGS_apply: "-parallelism=4"
     displayName: "g60 rerun: n=100 solo replicate"
