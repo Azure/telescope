@@ -1,0 +1,13 @@
+name: Test Pipeline
+pool: TestPool
+trigger:
+- main
+stages:
+- stage: main_stage
+  jobs:
+  - job: main_job
+    displayName: Main Job
+    steps:
+    - template: pipeline_1.yaml
+    - bash: echo step 3 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 3

@@ -1,0 +1,11 @@
+jobs:
+- job: job_0
+  displayName: Job 0
+  steps:
+  - bash: echo job 0 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    displayName: Step 0
+- job: job_1
+  displayName: Job 1
+  steps:
+  - bash: echo job 1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+    displayName: Step 1

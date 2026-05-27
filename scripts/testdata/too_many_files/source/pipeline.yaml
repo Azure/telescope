@@ -1,0 +1,39 @@
+name: Full Split Pipeline
+pool: TestPool
+trigger:
+- main
+stages:
+- stage: stage_0
+  displayName: Stage 0
+  jobs:
+  - job: job_0_0
+    displayName: Job 0-0
+    steps:
+    - bash: echo s0 j0 step0 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 0-0-0
+    - bash: echo s0 j0 step1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 0-0-1
+  - job: job_0_1
+    displayName: Job 0-1
+    steps:
+    - bash: echo s0 j1 step0 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 0-1-0
+    - bash: echo s0 j1 step1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 0-1-1
+- stage: stage_1
+  displayName: Stage 1
+  jobs:
+  - job: job_1_0
+    displayName: Job 1-0
+    steps:
+    - bash: echo s1 j0 step0 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 1-0-0
+    - bash: echo s1 j0 step1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 1-0-1
+  - job: job_1_1
+    displayName: Job 1-1
+    steps:
+    - bash: echo s1 j1 step0 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 1-1-0
+    - bash: echo s1 j1 step1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 1-1-1

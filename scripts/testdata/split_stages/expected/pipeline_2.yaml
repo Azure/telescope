@@ -1,0 +1,10 @@
+stages:
+- template: pipeline_1.yaml
+- stage: stage_1
+  displayName: Stage 1
+  jobs:
+  - job: job_1
+    displayName: Job 1
+    steps:
+    - bash: echo stage 1 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+      displayName: Step 1

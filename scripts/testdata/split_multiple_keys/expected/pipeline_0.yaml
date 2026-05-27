@@ -1,0 +1,21 @@
+name: Full Split Pipeline
+pool: TestPool
+trigger:
+- main
+stages:
+- template: pipeline_3.yaml
+- stage: stage_1
+  displayName: Stage 1
+  jobs:
+  - job: job_1_0
+    displayName: Job 1-0
+    steps:
+    - bash: echo s1 j0 step0
+      displayName: Step 1-0-0
+    - bash: echo s1 j0 step1
+      displayName: Step 1-0-1
+  - job: job_1_1
+    displayName: Job 1-1
+    steps:
+    - bash: echo s1 j1 step0
+      displayName: Step 1-1-0

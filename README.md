@@ -90,6 +90,27 @@ Once your `.k` file is ready, generate the Azure DevOps YAML with the `/generate
 
 After generating the YAML, register it as an Azure DevOps pipeline using the Azure CLI. You can use the `/telescope-pipeline` skill in the `.claude` folder.
 
+## Split Large Pipeline YAML
+
+Azure DevOps enforces a 2 MB limit on a single pipeline YAML file. If the generated YAML exceeds the limit, use `scripts/split_pipeline.py` to split it into smaller template files that reference each other.
+
+The splitter walks the pipeline tree (`stages` → `jobs` → `steps`), finds the deepest oversized subtree, and greedily extracts items into sibling `*_N.yaml` files referenced via ADO template syntax (`$(Pipeline.Workspace)/s/<path>`).
+
+```bash
+python3 scripts/split_pipeline.py path/to/pipeline.yaml --repo-root .
+```
+
+Arguments:
+
+| Flag | Description |
+|------|-------------|
+| `filepath` | Path to the pipeline YAML file to split (modified in place; new `*_N.yaml` files are written alongside it). |
+| `--repo-root` | **Required.** Root of the repo. Template references are emitted as paths relative to this directory. |
+| `--max-size` | Max file size in bytes. Defaults to `1048576` (1 MB). |
+| `--max-files` | Max number of split files to produce. Defaults to `100`. |
+
+The script raises an error (and cleans up any partial output) if the input is already under the limit or cannot be split further (e.g. a single step exceeds the limit).
+
 # Store Results in Your Own Kusto Tables
 
 If you want the results automatically ingested into your own Azure Data Explorer (Kusto) tables for querying and dashboarding, you can use the `/telescope-infra-setup` skill in the `.claude` folder to provision the full ingestion pipeline in your Azure subscription.

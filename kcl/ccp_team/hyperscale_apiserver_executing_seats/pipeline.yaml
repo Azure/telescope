@@ -201,8 +201,24 @@ jobs:
         kubectl create namespace "clusterloader2" || true
         kubectl apply -f $(Pipeline.Workspace)/s/kcl/ccp_team/hyperscale_apiserver_executing_seats/cl2.yaml
         # Wait
+        consecutive_errors=0
         while true; do
-          phases="$(kubectl get pods --namespace="clusterloader2" -o jsonpath='{range .items[*]}{.status.phase}{"\n"}{end}' 2>&1)"
+          # Under consistent API server errors, we would want to exit early instead of waiting for the entire timeout duration.
+          phases="$(kubectl get pods --namespace="clusterloader2" -o jsonpath='{range .items[*]}{.status.phase}{"\n"}{end}' 2>/tmp/kubectl_err)"
+          kubectl_exit_code=$?
+          if [ $kubectl_exit_code -ne 0 ]; then
+            consecutive_errors=$((consecutive_errors + 1))
+            echo "kubectl get pods failed (exit_code=$kubectl_exit_code, consecutive=$consecutive_errors/20):"
+            cat /tmp/kubectl_err
+            if [ "$consecutive_errors" -ge "20" ]; then
+              echo "API server unresponsive for $consecutive_errors consecutive polls; aborting."
+              exit 1
+            fi
+            sleep 30
+            continue
+          fi
+          consecutive_errors=0
+
           total=0
           terminal=0
 
