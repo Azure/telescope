@@ -6,14 +6,14 @@ variables:
   USE_LATEST_GA_K8S_VERSION: true
 
 stages:
-  - stage: azure_machine_pool
+  - stage: azure_canadacentral_small_machine_pool
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
-            - $(region)
+            - canadacentral
           topology: k8s-cluster-crud-machine
           engine: machine
           matrix:
@@ -24,6 +24,22 @@ stages:
               machine_workers: 1
               use_batch_api: "false"
               step_time_out: 600
+          max_parallel: 1
+          timeout_in_minutes: 180
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: azure_canadacentral_medium_machine_pool_cli
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - canadacentral
+          topology: k8s-cluster-crud-machine
+          engine: machine
+          matrix:
             medium_machine_pool_cli:
               vm_size: Standard_D2_v3
               pool_name: mediump1
@@ -31,6 +47,22 @@ stages:
               machine_workers: 5
               use_batch_api: "false"
               step_time_out: 900
+          max_parallel: 1
+          timeout_in_minutes: 180
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: azure_canadacentral_large_machine_pool_cli
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - canadacentral
+          topology: k8s-cluster-crud-machine
+          engine: machine
+          matrix:
             large_machine_pool_cli:
               vm_size: Standard_D2_v3
               pool_name: largep1
@@ -38,6 +70,22 @@ stages:
               machine_workers: 10
               use_batch_api: "false"
               step_time_out: 1200
+          max_parallel: 1
+          timeout_in_minutes: 180
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: azure_canadacentral_large_machine_pool_batch
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - canadacentral
+          topology: k8s-cluster-crud-machine
+          engine: machine
+          matrix:
             large_machine_pool_batch:
               vm_size: Standard_D2_v3
               pool_name: largep2
