@@ -649,7 +649,7 @@ class KubernetesClient:
         return results
 
     def scrape_cilium_metrics(self, node_name, cni_daemonset_label,
-                              namespace="kube-system", metrics_port=9965,
+                              namespace="kube-system", metrics_port=9962,
                               timeout_seconds=30):
         """
         Scrape Cilium agent Prometheus metrics by exec'ing into the agent pod.
@@ -663,7 +663,7 @@ class KubernetesClient:
             node_name: Node to scrape
             cni_daemonset_label: Label selector for the CNI agent pod
             namespace: Namespace where CNI pods run
-            metrics_port: Prometheus metrics port on the agent
+            metrics_port: Prometheus metrics port on the agent (default 9962)
             timeout_seconds: Exec timeout
 
         Returns:
@@ -683,22 +683,41 @@ class KubernetesClient:
         agent_pod = pods[0]
         agent_pod_name = agent_pod.metadata.name
 
-        # Find the cilium-agent container name
+        # Find the cilium-agent container and detect metrics port from spec
         container_name = "cilium-agent"
+        detected_port = None
         if agent_pod.spec.containers:
             for c in agent_pod.spec.containers:
                 if "cilium" in c.name and "monitor" not in c.name:
                     container_name = c.name
+                    # Try to detect prometheus metrics port from container ports
+                    if c.ports:
+                        for p in c.ports:
+                            if p.name in ("prometheus", "metrics"):
+                                detected_port = p.container_port
+                                break
+                        # If no named prometheus port, look for 9962
+                        if detected_port is None:
+                            for p in c.ports:
+                                if p.container_port == 9962:
+                                    detected_port = p.container_port
+                                    break
                     break
 
-        metrics_url = f"http://localhost:{metrics_port}/metrics"
+        port = detected_port if detected_port else metrics_port
+        metrics_url = f"http://localhost:{port}/metrics"
         logger.info("Deep Cilium: exec into '%s' container '%s' to scrape %s",
                    agent_pod_name, container_name, metrics_url)
 
         try:
             # Use wget (available in Cilium's Alpine-based image)
             # Fall back to curl if wget fails
-            cmd = f"wget -q -O - --timeout=10 {metrics_url} 2>/dev/null || curl -s --max-time 10 {metrics_url} 2>/dev/null"
+            # On total failure, output diagnostics to stdout for logging
+            cmd = (
+                f"wget -q -O - --timeout=10 {metrics_url} 2>/dev/null "
+                f"|| curl -s --max-time 10 {metrics_url} 2>/dev/null "
+                f'|| echo "SCRAPE_FAILED: wget and curl both failed on {metrics_url}"'
+            )
             output = self.run_pod_exec_command(
                 pod_name=agent_pod_name,
                 command=cmd,
@@ -707,8 +726,10 @@ class KubernetesClient:
             )
 
             if not output or len(output) < 100:
-                logger.warning("Deep Cilium: metrics response too short (%d bytes)",
-                             len(output) if output else 0)
+                detail = output.strip() if output else "(empty)"
+                logger.warning("Deep Cilium: metrics response too short (%d bytes) "
+                             "from %s — %s", len(output) if output else 0,
+                             metrics_url, detail)
                 return None
 
             return self._parse_cilium_metrics(output)
