@@ -290,161 +290,6 @@ class NodePoolCRUD:
             errors.append(error_msg)
             return False
 
-    def _apply_workload(
-        self,
-        k8s_client,
-        workload_type,
-        node_pool_name,
-        index,
-        count,
-        manifest_dir,
-        label_selector,
-        namespace
-    ):
-        """Unified helper to apply and verify a single workload instance.
-        
-        Args:
-            k8s_client: Kubernetes client instance
-            workload_type: Type of workload ("deployment" or "statefulset")
-            node_pool_name: Name of the target node pool
-            index: Workload instance index (1-based)
-            count: Number of replicas/completions
-            manifest_dir: Optional custom manifest directory
-            label_selector: Base label selector (e.g., "app=nginx-container")
-            namespace: Kubernetes namespace
-            
-        Raises:
-            ValueError: If workload_type is not in WORKLOAD_CONFIG
-            TimeoutError: If workload fails to reach ready state
-        """
-        if workload_type not in WORKLOAD_CONFIG:
-            raise ValueError(f"Unknown workload type: {workload_type}")
-        
-        config = WORKLOAD_CONFIG[workload_type]
-        
-        # Resolve template path
-        if manifest_dir:
-            template_path = f"{manifest_dir}/{config['template_file']}"
-        else:
-            template_path = os.path.join(
-                os.path.dirname(os.path.abspath(__file__)),
-                "..", "workload_templates", config["template_file"]
-            )
-        
-        # Generate resource name and label
-        resource_name = f"myapp-{node_pool_name}-{index}"
-        workload_label = f"{label_selector.split('=', 1)[-1]}-{workload_type}-{index}"
-        
-        # Render template
-        rendered_template = k8s_client.create_template(
-            template_path,
-            {
-                config["count_key"]: count,
-                "NODE_POOL_NAME": node_pool_name,
-                "INDEX": index,
-                "LABEL_VALUE": workload_label,
-            }
-        )
-        
-        # Apply each document in the rendered multi-doc template
-        for doc in yaml.safe_load_all(rendered_template):
-            if doc:
-                k8s_client.apply_manifest_from_file(manifest_dict=doc, namespace=namespace)
-        
-        logger.info("Applied manifest for %s %s", workload_type, resource_name)
-        
-        # Wait for workload to reach target condition
-        logger.info("Waiting for %s %s to become %s...", 
-                    workload_type, resource_name, config["wait_condition"])
-        ready = k8s_client.wait_for_condition(
-            resource_type=config["resource_type"],
-            wait_condition_type=config["wait_condition"],
-            resource_name=resource_name,
-            namespace=namespace,
-            timeout_seconds=self.step_timeout
-        )
-        
-        if not ready:
-            raise TimeoutError(
-                f"{workload_type.capitalize()} {resource_name} failed to become "
-                f"{config['wait_condition']} within timeout"
-            )
-        
-        logger.info("%s %s is successfully %s", 
-                    workload_type.capitalize(), resource_name, config["wait_condition"])
-        
-        # Wait for pods if configured (skipped for Jobs)
-        if config["verify_pods_ready"]:
-            logger.info("Waiting for pods of %s %s to be ready...", workload_type, resource_name)
-            k8s_client.wait_for_pods_ready(
-                operation_timeout_in_minutes=5,
-                namespace=namespace,
-                pod_count=count,
-                label_selector=f"app={workload_label}"
-            )
-        
-        logger.info("Successfully created and verified %s %d", workload_type, index)
-
-    def _create_workloads(
-        self,
-        workload_type,
-        node_pool_name,
-        count,
-        number_of_workloads,
-        manifest_dir,
-        label_selector,
-        namespace
-    ):
-        """Unified helper to create multiple workload instances.
-        
-        Args:
-            workload_type: Type of workload ("deployment" or "statefulset")
-            node_pool_name: Name of the target node pool
-            count: Number of replicas per workload instance
-            number_of_workloads: Total number of workload instances to create
-            manifest_dir: Optional custom manifest directory
-            label_selector: Base label selector (e.g., "app=nginx-container")
-            namespace: Kubernetes namespace
-            
-        Returns:
-            True if all workloads created successfully, False otherwise
-        """
-        workload_type_display = workload_type.capitalize()
-        logger.info("Creating %d %s(s)", number_of_workloads, workload_type_display)
-        logger.info("Target node pool: %s", node_pool_name)
-        logger.info("Replicas per %s: %d", workload_type, count)
-        logger.info("Using manifest directory: %s", manifest_dir)
-
-        k8s_client = self.aks_client.k8s_client
-        if not k8s_client:
-            logger.error("Kubernetes client not available")
-            return False
-
-        successes = 0
-        for index in range(1, number_of_workloads + 1):
-            logger.info("Creating %s %d/%d", workload_type, index, number_of_workloads)
-            try:
-                self._apply_workload(
-                    k8s_client=k8s_client,
-                    workload_type=workload_type,
-                    node_pool_name=node_pool_name,
-                    index=index,
-                    count=count,
-                    manifest_dir=manifest_dir,
-                    label_selector=label_selector,
-                    namespace=namespace
-                )
-                successes += 1
-            except Exception as e:
-                logger.error("Failed to create %s %d: %s", workload_type, index, e)
-                continue
-
-        if successes == number_of_workloads:
-            logger.info("Successfully created all %d %s(s)", number_of_workloads, workload_type_display)
-            return True
-        logger.warning("Created %d/%d %s(s)", successes, number_of_workloads, workload_type_display)
-        return False
-
     def create_deployment(
         self,
         node_pool_name,
@@ -510,3 +355,158 @@ class NodePoolCRUD:
             label_selector=label_selector,
             namespace=namespace
         )
+
+    def _create_workloads(
+        self,
+        workload_type,
+        node_pool_name,
+        count,
+        number_of_workloads,
+        manifest_dir,
+        label_selector,
+        namespace
+    ):
+        """Unified helper to create multiple workload instances.
+
+        Args:
+            workload_type: Type of workload ("deployment" or "statefulset")
+            node_pool_name: Name of the target node pool
+            count: Number of replicas per workload instance
+            number_of_workloads: Total number of workload instances to create
+            manifest_dir: Optional custom manifest directory
+            label_selector: Base label selector (e.g., "app=nginx-container")
+            namespace: Kubernetes namespace
+
+        Returns:
+            True if all workloads created successfully, False otherwise
+        """
+        workload_type_display = workload_type.capitalize()
+        logger.info("Creating %d %s(s)", number_of_workloads, workload_type_display)
+        logger.info("Target node pool: %s", node_pool_name)
+        logger.info("Replicas per %s: %d", workload_type, count)
+        logger.info("Using manifest directory: %s", manifest_dir)
+
+        k8s_client = self.aks_client.k8s_client
+        if not k8s_client:
+            logger.error("Kubernetes client not available")
+            return False
+
+        successes = 0
+        for index in range(1, number_of_workloads + 1):
+            logger.info("Creating %s %d/%d", workload_type, index, number_of_workloads)
+            try:
+                self._apply_workload(
+                    k8s_client=k8s_client,
+                    workload_type=workload_type,
+                    node_pool_name=node_pool_name,
+                    index=index,
+                    count=count,
+                    manifest_dir=manifest_dir,
+                    label_selector=label_selector,
+                    namespace=namespace
+                )
+                successes += 1
+            except Exception as e:
+                logger.error("Failed to create %s %d: %s", workload_type, index, e)
+                continue
+
+        if successes == number_of_workloads:
+            logger.info("Successfully created all %d %s(s)", number_of_workloads, workload_type_display)
+            return True
+        logger.warning("Created %d/%d %s(s)", successes, number_of_workloads, workload_type_display)
+        return False
+
+    def _apply_workload(
+        self,
+        k8s_client,
+        workload_type,
+        node_pool_name,
+        index,
+        count,
+        manifest_dir,
+        label_selector,
+        namespace
+    ):
+        """Unified helper to apply and verify a single workload instance.
+
+        Args:
+            k8s_client: Kubernetes client instance
+            workload_type: Type of workload ("deployment" or "statefulset")
+            node_pool_name: Name of the target node pool
+            index: Workload instance index (1-based)
+            count: Number of replicas/completions
+            manifest_dir: Optional custom manifest directory
+            label_selector: Base label selector (e.g., "app=nginx-container")
+            namespace: Kubernetes namespace
+
+        Raises:
+            ValueError: If workload_type is not in WORKLOAD_CONFIG
+            TimeoutError: If workload fails to reach ready state
+        """
+        if workload_type not in WORKLOAD_CONFIG:
+            raise ValueError(f"Unknown workload type: {workload_type}")
+
+        config = WORKLOAD_CONFIG[workload_type]
+
+        # Resolve template path
+        if manifest_dir:
+            template_path = f"{manifest_dir}/{config['template_file']}"
+        else:
+            template_path = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)),
+                "..", "workload_templates", config["template_file"]
+            )
+
+        # Generate resource name and label
+        resource_name = f"myapp-{node_pool_name}-{index}"
+        workload_label = f"{label_selector.split('=', 1)[-1]}-{workload_type}-{index}"
+
+        # Render template
+        rendered_template = k8s_client.create_template(
+            template_path,
+            {
+                config["count_key"]: count,
+                "NODE_POOL_NAME": node_pool_name,
+                "INDEX": index,
+                "LABEL_VALUE": workload_label,
+            }
+        )
+
+        # Apply each document in the rendered multi-doc template
+        for doc in yaml.safe_load_all(rendered_template):
+            if doc:
+                k8s_client.apply_manifest_from_file(manifest_dict=doc, namespace=namespace)
+
+        logger.info("Applied manifest for %s %s", workload_type, resource_name)
+
+        # Wait for workload to reach target condition
+        logger.info("Waiting for %s %s to become %s...",
+                    workload_type, resource_name, config["wait_condition"])
+        ready = k8s_client.wait_for_condition(
+            resource_type=config["resource_type"],
+            wait_condition_type=config["wait_condition"],
+            resource_name=resource_name,
+            namespace=namespace,
+            timeout_seconds=self.step_timeout
+        )
+
+        if not ready:
+            raise TimeoutError(
+                f"{workload_type.capitalize()} {resource_name} failed to become "
+                f"{config['wait_condition']} within timeout"
+            )
+
+        logger.info("%s %s is successfully %s",
+                    workload_type.capitalize(), resource_name, config["wait_condition"])
+
+        # Wait for pods if configured (skipped for Jobs)
+        if config["verify_pods_ready"]:
+            logger.info("Waiting for pods of %s %s to be ready...", workload_type, resource_name)
+            k8s_client.wait_for_pods_ready(
+                operation_timeout_in_minutes=5,
+                namespace=namespace,
+                pod_count=count,
+                label_selector=f"app={workload_label}"
+            )
+
+        logger.info("Successfully created and verified %s %d", workload_type, index)
