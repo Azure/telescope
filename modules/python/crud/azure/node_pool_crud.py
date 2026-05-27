@@ -23,6 +23,24 @@ get_logger("azure.identity").setLevel(logging.ERROR)
 get_logger("azure.core.pipeline").setLevel(logging.ERROR)
 get_logger("msal").setLevel(logging.ERROR)
 
+# Workload type configuration for unified _apply_workload helper
+WORKLOAD_CONFIG = {
+    "deployment": {
+        "template_file": "deployment.yml",
+        "count_key": "DEPLOYMENT_REPLICAS",
+        "resource_type": "deployment",
+        "wait_condition": "available",
+        "verify_pods_ready": True,
+    },
+    "statefulset": {
+        "template_file": "statefulset.yml",
+        "count_key": "STATEFULSET_REPLICAS",
+        "resource_type": "statefulset",
+        "wait_condition": "ready",
+        "verify_pods_ready": True,
+    },
+    # jobs workload config will be added later
+}
 
 class NodePoolCRUD:
     """Performs AKS node pool operations - metrics collection is handled directly by AKSClient"""
