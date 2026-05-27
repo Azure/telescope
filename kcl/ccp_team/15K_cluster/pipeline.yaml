@@ -1,0 +1,829 @@
+name: '15K Cilium VNet Cluster Creation'
+pool: AKS-Telescope-Airlock
+trigger: none
+variables:
+  subscription_id: b8ceb4e5-f05b-4562-a9f5-14acb1f24219
+  resource_group: xinwei-15k-cilium-vnet
+  location: eastasia
+  cluster_name: '15k-private-cluster'
+  user_pool_vm_size: Standard_D4s_v3
+jobs:
+- job: create_cluster
+  displayName: Create 15K Cilium Private Cluster
+  timeoutInMinutes: 600
+  steps:
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az account set --subscription "$(subscription_id)"
+        az config set defaults.location="$(location)"
+        az account show
+    displayName: Login to Azure
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az group create \
+          --name "$(resource_group)" \
+          --location "$(location)" \
+          --subscription "$(subscription_id)" \
+          --tags SkipAKSCluster=true exempted_by_qi=36344494
+    displayName: Create resource group in $(location) ($(subscription_id))
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az identity create \
+          --resource-group "$(resource_group)" \
+          --name "$(cluster_name)-identity" \
+          --subscription "$(subscription_id)"
+
+        IDENTITY_CLIENT_ID=$(az identity show \
+          --resource-group "$(resource_group)" \
+          --name "$(cluster_name)-identity" \
+          --subscription "$(subscription_id)" \
+          --query clientId -o tsv)
+        echo "##vso[task.setvariable variable=IDENTITY_CLIENT_ID]$IDENTITY_CLIENT_ID"
+
+        IDENTITY_ID=$(az identity show \
+          --resource-group "$(resource_group)" \
+          --name "$(cluster_name)-identity" \
+          --subscription "$(subscription_id)" \
+          --query id -o tsv)
+        echo "##vso[task.setvariable variable=IDENTITY_ID]$IDENTITY_ID"
+    displayName: Create managed identity $(cluster_name)-identity
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az network vnet create \
+          --resource-group "$(resource_group)" \
+          --name "$(cluster_name)-net" \
+          --address-prefixes 10.0.0.0/8 \
+          --subscription "$(subscription_id)"
+    displayName: Create VNet $(cluster_name)-net
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az network vnet subnet create \
+          --resource-group "$(resource_group)" \
+          --vnet-name "$(cluster_name)-net" \
+          --name "nodes" \
+          --address-prefixes 10.1.0.0/18 \
+          --subscription "$(subscription_id)"
+
+        SUBNET_ID=$(az network vnet subnet show \
+          --resource-group "$(resource_group)" \
+          --vnet-name "$(cluster_name)-net" \
+          --name "nodes" \
+          --subscription "$(subscription_id)" \
+          --query id -o tsv)
+        echo "##vso[task.setvariable variable=NODE_SUBNET_ID]$SUBNET_ID"
+    displayName: Create subnet nodes
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az role assignment create \
+          --scope "$(NODE_SUBNET_ID)" \
+          --role "Network Contributor" \
+          --assignee "$(IDENTITY_CLIENT_ID)" \
+          --subscription "$(subscription_id)"
+    displayName: Assign role Network Contributor
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az network vnet subnet create \
+          --resource-group "$(resource_group)" \
+          --vnet-name "$(cluster_name)-net" \
+          --name "apiserver" \
+          --address-prefixes 10.240.0.0/28 \
+          --subscription "$(subscription_id)"
+
+        SUBNET_ID=$(az network vnet subnet show \
+          --resource-group "$(resource_group)" \
+          --vnet-name "$(cluster_name)-net" \
+          --name "apiserver" \
+          --subscription "$(subscription_id)" \
+          --query id -o tsv)
+        echo "##vso[task.setvariable variable=APISERVER_SUBNET_ID]$SUBNET_ID"
+    displayName: Create subnet apiserver
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az role assignment create \
+          --scope "$(APISERVER_SUBNET_ID)" \
+          --role "Network Contributor" \
+          --assignee "$(IDENTITY_CLIENT_ID)" \
+          --subscription "$(subscription_id)"
+    displayName: Assign role Network Contributor
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az network vnet subnet create \
+          --resource-group "$(resource_group)" \
+          --vnet-name "$(cluster_name)-net" \
+          --name "AzureFirewallSubnet" \
+          --address-prefixes 10.2.0.0/16 \
+          --subscription "$(subscription_id)"
+
+        SUBNET_ID=$(az network vnet subnet show \
+          --resource-group "$(resource_group)" \
+          --vnet-name "$(cluster_name)-net" \
+          --name "AzureFirewallSubnet" \
+          --subscription "$(subscription_id)" \
+          --query id -o tsv)
+        echo "##vso[task.setvariable variable=FIREWALL_SUBNET_ID]$SUBNET_ID"
+    displayName: Create subnet AzureFirewallSubnet
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az role assignment create \
+          --scope "$(FIREWALL_SUBNET_ID)" \
+          --role "Network Contributor" \
+          --assignee "$(IDENTITY_CLIENT_ID)" \
+          --subscription "$(subscription_id)"
+    displayName: Assign role Network Contributor
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az network vnet subnet create \
+          --resource-group "$(resource_group)" \
+          --vnet-name "$(cluster_name)-net" \
+          --name "jumpbox" \
+          --address-prefixes 10.3.0.0/16 \
+          --subscription "$(subscription_id)"
+    displayName: Create subnet jumpbox
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az extension add --name azure-firewall
+
+        az network public-ip create \
+          --resource-group "$(resource_group)" \
+          --name "$(cluster_name)-firewall-pip" \
+          --sku Standard \
+          --location "$(location)" \
+          --subscription "$(subscription_id)"
+
+        az network firewall create \
+          --resource-group "$(resource_group)" \
+          --name "$(cluster_name)-firewall" \
+          --location "$(location)" \
+          --enable-dns-proxy true \
+          --subscription "$(subscription_id)"
+
+        az network firewall ip-config create \
+          --resource-group "$(resource_group)" \
+          --firewall-name "$(cluster_name)-firewall" \
+          --name "$(cluster_name)-firewall-ipconfig" \
+          --public-ip-address "$(cluster_name)-firewall-pip" \
+          --vnet-name "$(cluster_name)-net" \
+          --subscription "$(subscription_id)"
+
+        FWPRIVATE_IP=$(az network firewall show \
+          --resource-group "$(resource_group)" \
+          --name "$(cluster_name)-firewall" \
+          --subscription "$(subscription_id)" \
+          --query "ipConfigurations[0].privateIPAddress" -o tsv)
+        echo "##vso[task.setvariable variable=FWPRIVATE_IP]$FWPRIVATE_IP"
+    displayName: Create firewall $(cluster_name)-firewall
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az network route-table create \
+          --resource-group "$(resource_group)" \
+          --name "$(cluster_name)-rt" \
+          --location "$(location)" \
+          --subscription "$(subscription_id)"
+    displayName: Create route table $(cluster_name)-rt
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az network route-table route create \
+          --resource-group "$(resource_group)" \
+          --route-table-name "$(cluster_name)-rt" \
+          --name "egress" \
+          --address-prefix 0.0.0.0/0 \
+          --next-hop-type VirtualAppliance \
+          --next-hop-ip-address "$(FWPRIVATE_IP)" \
+          --subscription "$(subscription_id)"
+    displayName: Create route egress in $(cluster_name)-rt
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az network vnet subnet update \
+          --resource-group "$(resource_group)" \
+          --vnet-name "$(cluster_name)-net" \
+          --name "nodes" \
+          --route-table "$(cluster_name)-rt" \
+          --subscription "$(subscription_id)"
+    displayName: Associate route table $(cluster_name)-rt with subnet nodes
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        POLICY_TMP=$(mktemp)
+        sed 's|"location": "[^"]*"|"location": "$(location)"|g' "$(Pipeline.Workspace)/s/kcl/ccp_team/15K_cluster/firewall-policy.json" > "$POLICY_TMP"
+        az rest \
+          --method put \
+          --uri "https://management.azure.com/subscriptions/$(subscription_id)/resourceGroups/$(resource_group)/providers/Microsoft.Network/azureFirewalls/$(cluster_name)-firewall?api-version=2023-09-01" \
+          --headers "Content-Type=application/json" \
+          --body "@$POLICY_TMP"
+        rm -f "$POLICY_TMP"
+    displayName: Update firewall policy $(cluster_name)-firewall
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        cat > /tmp/cloud-init.yaml << 'CLOUDINIT'
+        #cloud-config
+        package_update: true
+        package_upgrade: true
+        packages:
+          - git
+          - ca-certificates
+          - curl
+          - apt-transport-https
+          - lsb-release
+          - gnupg
+        runcmd:
+          - curl -sL https://aka.ms/InstallAzureCLIDeb | bash
+          - wget -q https://go.dev/dl/go1.22.2.linux-amd64.tar.gz -O /tmp/go.tar.gz
+          - tar -C /usr/local -xzf /tmp/go.tar.gz
+          - echo 'export PATH=$PATH:/usr/local/go/bin' >> /etc/profile.d/go.sh
+          - rm /tmp/go.tar.gz
+        CLOUDINIT
+
+        az vm create \
+          --resource-group "$(resource_group)" \
+          --name "$(cluster_name)-jumpbox" \
+          --image Ubuntu2204 \
+          --size Standard_D48s_v3 \
+          --vnet-name "$(cluster_name)-net" \
+          --subnet jumpbox \
+          --public-ip-address "$(cluster_name)-jumpbox-pip" \
+          --admin-username azureuser \
+          --admin-password "$(JUMPBOX_ADMIN_PASSWORD)" \
+          --authentication-type password \
+          --custom-data /tmp/cloud-init.yaml \
+          --subscription "$(subscription_id)"
+
+        az vm open-port \
+          --resource-group "$(resource_group)" \
+          --name "$(cluster_name)-jumpbox" \
+          --port 22 \
+          --priority 1001 \
+          --subscription "$(subscription_id)"
+
+        JUMPBOX_PRINCIPAL_ID=$(az vm identity assign \
+          --resource-group "$(resource_group)" \
+          --name "$(cluster_name)-jumpbox" \
+          --subscription "$(subscription_id)" \
+          --query systemAssignedIdentity -o tsv)
+
+        RG_ID=$(az group show \
+          --name "$(resource_group)" \
+          --subscription "$(subscription_id)" \
+          --query id -o tsv)
+
+        for role in \
+          "Azure Kubernetes Service Cluster Admin Role" \
+          "Azure Kubernetes Service Cluster User Role" \
+          "Azure Kubernetes Service Contributor Role" \
+          "Azure Kubernetes Service RBAC Cluster Admin"; do
+          az role assignment create \
+            --assignee $JUMPBOX_PRINCIPAL_ID \
+            --role "$role" \
+            --scope $RG_ID \
+            --subscription "$(subscription_id)"
+        done
+    displayName: Create jumpbox
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        cat > /tmp/aks-body.json << EOF
+        {
+          "location": "$(location)",
+          "sku": {"name": "Base", "tier": "Standard"},
+          "identity": {
+            "type": "UserAssigned",
+            "userAssignedIdentities": {"$(IDENTITY_ID)": {}}
+          },
+          "tags": {
+            "SkipAKSCluster": "true",
+            "SkipASMAzSecPackAutoConfig": "true",
+            "SkipLinuxAzSecPack": "true",
+            "exempted_by_qi": "36344494"
+          },
+          "properties": {
+            "controlPlaneScalingProfile": {"scalingSize": "H8"},
+            "kubernetesVersion": "1.33.0",
+            "dnsPrefix": "$(cluster_name)-dns",
+            "agentPoolProfiles": [
+              {
+                "name": "system",
+                "count": 10,
+                "vmSize": "Standard_D48s_v3",
+                "maxPods": 60,
+                "osType": "Linux",
+                "osSKU": "Ubuntu",
+                "mode": "System",
+                "vnetSubnetID": "$(NODE_SUBNET_ID)"
+              }
+            ],
+            "networkProfile": {
+              "networkPlugin": "azure",
+              "networkPluginMode": "overlay",
+              "networkDataplane": "cilium",
+              "podCidr": "10.64.0.0/10",
+              "outboundType": "userDefinedRouting"
+            },
+            "apiServerAccessProfile": {
+              "enablePrivateCluster": true,
+              "enableVnetIntegration": true,
+              "subnetId": "$(APISERVER_SUBNET_ID)"
+            }
+          }
+        }
+        EOF
+
+        az rest \
+          --method put \
+          --uri "https://management.azure.com/subscriptions/$(subscription_id)/resourceGroups/$(resource_group)/providers/Microsoft.ContainerService/managedClusters/$(cluster_name)?api-version=2026-01-02-preview" \
+          --headers "Content-Type=application/json" \
+          --body "@/tmp/aks-body.json"
+    displayName: Create AKS cluster
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        while true; do
+          STATE=$(az aks show \
+            --name "$(cluster_name)" \
+            --resource-group "$(resource_group)" \
+            --subscription "$(subscription_id)" \
+            --query "provisioningState" \
+            --output tsv)
+          echo "Cluster provisioning state: $STATE"
+          if [ "$STATE" = "Succeeded" ]; then
+            echo "Cluster is ready."
+            break
+          elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+            echo "Cluster failed with state: $STATE."
+            exit 1
+          else
+            echo "Provisioning state: $STATE. Retry in 30 seconds"
+          fi
+          sleep 30
+        done
+    displayName: Wait for cluster to succeed
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks nodepool add \
+          --cluster-name "$(cluster_name)" \
+          --resource-group "$(resource_group)" \
+          --subscription "$(subscription_id)" \
+          --name "workerpool0" \
+          --node-count 800 \
+          --node-vm-size "$(user_pool_vm_size)" \
+          --mode User \
+          --vnet-subnet-id "$(NODE_SUBNET_ID)" \
+          --os-sku Ubuntu
+    displayName: Create node pool workerpool0
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks nodepool add \
+          --cluster-name "$(cluster_name)" \
+          --resource-group "$(resource_group)" \
+          --subscription "$(subscription_id)" \
+          --name "workerpool1" \
+          --node-count 800 \
+          --node-vm-size "$(user_pool_vm_size)" \
+          --mode User \
+          --vnet-subnet-id "$(NODE_SUBNET_ID)" \
+          --os-sku Ubuntu
+    displayName: Create node pool workerpool1
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks nodepool add \
+          --cluster-name "$(cluster_name)" \
+          --resource-group "$(resource_group)" \
+          --subscription "$(subscription_id)" \
+          --name "workerpool2" \
+          --node-count 800 \
+          --node-vm-size "$(user_pool_vm_size)" \
+          --mode User \
+          --vnet-subnet-id "$(NODE_SUBNET_ID)" \
+          --os-sku Ubuntu
+    displayName: Create node pool workerpool2
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks nodepool add \
+          --cluster-name "$(cluster_name)" \
+          --resource-group "$(resource_group)" \
+          --subscription "$(subscription_id)" \
+          --name "workerpool3" \
+          --node-count 800 \
+          --node-vm-size "$(user_pool_vm_size)" \
+          --mode User \
+          --vnet-subnet-id "$(NODE_SUBNET_ID)" \
+          --os-sku Ubuntu
+    displayName: Create node pool workerpool3
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks nodepool add \
+          --cluster-name "$(cluster_name)" \
+          --resource-group "$(resource_group)" \
+          --subscription "$(subscription_id)" \
+          --name "workerpool4" \
+          --node-count 800 \
+          --node-vm-size "$(user_pool_vm_size)" \
+          --mode User \
+          --vnet-subnet-id "$(NODE_SUBNET_ID)" \
+          --os-sku Ubuntu
+    displayName: Create node pool workerpool4
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks nodepool add \
+          --cluster-name "$(cluster_name)" \
+          --resource-group "$(resource_group)" \
+          --subscription "$(subscription_id)" \
+          --name "workerpool5" \
+          --node-count 800 \
+          --node-vm-size "$(user_pool_vm_size)" \
+          --mode User \
+          --vnet-subnet-id "$(NODE_SUBNET_ID)" \
+          --os-sku Ubuntu
+    displayName: Create node pool workerpool5
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks nodepool add \
+          --cluster-name "$(cluster_name)" \
+          --resource-group "$(resource_group)" \
+          --subscription "$(subscription_id)" \
+          --name "workerpool6" \
+          --node-count 800 \
+          --node-vm-size "$(user_pool_vm_size)" \
+          --mode User \
+          --vnet-subnet-id "$(NODE_SUBNET_ID)" \
+          --os-sku Ubuntu
+    displayName: Create node pool workerpool6
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks nodepool add \
+          --cluster-name "$(cluster_name)" \
+          --resource-group "$(resource_group)" \
+          --subscription "$(subscription_id)" \
+          --name "workerpool7" \
+          --node-count 800 \
+          --node-vm-size "$(user_pool_vm_size)" \
+          --mode User \
+          --vnet-subnet-id "$(NODE_SUBNET_ID)" \
+          --os-sku Ubuntu
+    displayName: Create node pool workerpool7
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks nodepool add \
+          --cluster-name "$(cluster_name)" \
+          --resource-group "$(resource_group)" \
+          --subscription "$(subscription_id)" \
+          --name "workerpool8" \
+          --node-count 800 \
+          --node-vm-size "$(user_pool_vm_size)" \
+          --mode User \
+          --vnet-subnet-id "$(NODE_SUBNET_ID)" \
+          --os-sku Ubuntu
+    displayName: Create node pool workerpool8
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks nodepool add \
+          --cluster-name "$(cluster_name)" \
+          --resource-group "$(resource_group)" \
+          --subscription "$(subscription_id)" \
+          --name "workerpool9" \
+          --node-count 800 \
+          --node-vm-size "$(user_pool_vm_size)" \
+          --mode User \
+          --vnet-subnet-id "$(NODE_SUBNET_ID)" \
+          --os-sku Ubuntu
+    displayName: Create node pool workerpool9
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks nodepool add \
+          --cluster-name "$(cluster_name)" \
+          --resource-group "$(resource_group)" \
+          --subscription "$(subscription_id)" \
+          --name "workerpool10" \
+          --node-count 800 \
+          --node-vm-size "$(user_pool_vm_size)" \
+          --mode User \
+          --vnet-subnet-id "$(NODE_SUBNET_ID)" \
+          --os-sku Ubuntu
+    displayName: Create node pool workerpool10
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks nodepool add \
+          --cluster-name "$(cluster_name)" \
+          --resource-group "$(resource_group)" \
+          --subscription "$(subscription_id)" \
+          --name "workerpool11" \
+          --node-count 800 \
+          --node-vm-size "$(user_pool_vm_size)" \
+          --mode User \
+          --vnet-subnet-id "$(NODE_SUBNET_ID)" \
+          --os-sku Ubuntu
+    displayName: Create node pool workerpool11
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks nodepool add \
+          --cluster-name "$(cluster_name)" \
+          --resource-group "$(resource_group)" \
+          --subscription "$(subscription_id)" \
+          --name "workerpool12" \
+          --node-count 800 \
+          --node-vm-size "$(user_pool_vm_size)" \
+          --mode User \
+          --vnet-subnet-id "$(NODE_SUBNET_ID)" \
+          --os-sku Ubuntu
+    displayName: Create node pool workerpool12
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks nodepool add \
+          --cluster-name "$(cluster_name)" \
+          --resource-group "$(resource_group)" \
+          --subscription "$(subscription_id)" \
+          --name "workerpool13" \
+          --node-count 800 \
+          --node-vm-size "$(user_pool_vm_size)" \
+          --mode User \
+          --vnet-subnet-id "$(NODE_SUBNET_ID)" \
+          --os-sku Ubuntu
+    displayName: Create node pool workerpool13
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks nodepool add \
+          --cluster-name "$(cluster_name)" \
+          --resource-group "$(resource_group)" \
+          --subscription "$(subscription_id)" \
+          --name "workerpool14" \
+          --node-count 800 \
+          --node-vm-size "$(user_pool_vm_size)" \
+          --mode User \
+          --vnet-subnet-id "$(NODE_SUBNET_ID)" \
+          --os-sku Ubuntu
+    displayName: Create node pool workerpool14
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks nodepool add \
+          --cluster-name "$(cluster_name)" \
+          --resource-group "$(resource_group)" \
+          --subscription "$(subscription_id)" \
+          --name "workerpool15" \
+          --node-count 800 \
+          --node-vm-size "$(user_pool_vm_size)" \
+          --mode User \
+          --vnet-subnet-id "$(NODE_SUBNET_ID)" \
+          --os-sku Ubuntu
+    displayName: Create node pool workerpool15
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks nodepool add \
+          --cluster-name "$(cluster_name)" \
+          --resource-group "$(resource_group)" \
+          --subscription "$(subscription_id)" \
+          --name "workerpool16" \
+          --node-count 800 \
+          --node-vm-size "$(user_pool_vm_size)" \
+          --mode User \
+          --vnet-subnet-id "$(NODE_SUBNET_ID)" \
+          --os-sku Ubuntu
+    displayName: Create node pool workerpool16
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks nodepool add \
+          --cluster-name "$(cluster_name)" \
+          --resource-group "$(resource_group)" \
+          --subscription "$(subscription_id)" \
+          --name "workerpool17" \
+          --node-count 800 \
+          --node-vm-size "$(user_pool_vm_size)" \
+          --mode User \
+          --vnet-subnet-id "$(NODE_SUBNET_ID)" \
+          --os-sku Ubuntu
+    displayName: Create node pool workerpool17
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks nodepool add \
+          --cluster-name "$(cluster_name)" \
+          --resource-group "$(resource_group)" \
+          --subscription "$(subscription_id)" \
+          --name "workerpool18" \
+          --node-count 597 \
+          --node-vm-size "$(user_pool_vm_size)" \
+          --mode User \
+          --vnet-subnet-id "$(NODE_SUBNET_ID)" \
+          --os-sku Ubuntu
+    displayName: Create node pool workerpool18
