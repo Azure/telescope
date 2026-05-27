@@ -1,4 +1,3 @@
-# steps/topology/k8s-cluster-crud-machine/collect-machine.yml
 parameters:
   - name: cloud
     type: string

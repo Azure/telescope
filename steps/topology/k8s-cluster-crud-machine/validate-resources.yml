@@ -1,4 +1,3 @@
-# steps/topology/k8s-cluster-crud-machine/validate-resources.yml
 parameters:
   - name: cloud
     type: string

@@ -48,12 +48,13 @@ class MachineCRUD:
     def create_machine_agentpool(self, agentpool_name, vm_size):
         """Create a machine-mode agent pool. Returns True on success, False on failure."""
         try:
-            return self.aks_client.create_machine_agentpool(
+            self.aks_client.create_machine_agentpool(
                 agentpool_name=agentpool_name,
                 vm_size=vm_size,
                 cluster_name=self.cluster_name,
                 timeout=self.step_timeout,
             )
+            return True
         except Exception as e:
             logger.error(f"create_machine_agentpool failed for {agentpool_name}: {e}")
             return False
@@ -68,7 +69,7 @@ class MachineCRUD:
         ``OperationContext``.
         """
         try:
-            return self.aks_client.scale_machine(
+            self.aks_client.scale_machine(
                 agentpool_name=agentpool_name,
                 vm_size=vm_size,
                 scale_machine_count=scale_machine_count,
@@ -79,6 +80,7 @@ class MachineCRUD:
                 readiness_wait_timeout=readiness_wait_timeout,
                 tags=tags,
             )
+            return True
         except Exception as e:
             logger.error(f"scale_machine failed for {agentpool_name}: {e}")
             return False

@@ -1,8 +1,8 @@
 trigger: none
 
 schedules:
-  - cron: "0 9 * * *"
-    displayName: "Daily 9am UTC"
+  - cron: "0 12 * * *"
+    displayName: "Daily 12:00 UTC"
     branches:
       include:
         - main
@@ -14,14 +14,14 @@ variables:
   USE_LATEST_GA_K8S_VERSION: true
 
 stages:
-  - stage: azure_eastus_small_machine_pool
+  - stage: azure_canadacentral_small_machine_pool
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
-            - eastus
+            - canadacentral
           topology: k8s-cluster-crud-machine
           engine: machine
           matrix:

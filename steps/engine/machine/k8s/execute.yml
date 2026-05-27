@@ -1,8 +1,6 @@
 parameters:
   - name: cloud
     type: string
-  - name: region
-    type: string
   - name: result_dir
     type: string
   - name: vm_size
@@ -43,7 +41,6 @@ steps:
       python3 -m crud.main scale-machine \
         --cloud "${{ parameters.cloud }}" \
         --run-id "$RUN_ID" \
-        --region "$REGION" \
         --node-pool-name "${{ parameters.pool_name }}" \
         --vm-size "${{ parameters.vm_size }}" \
         --scale-machine-count "${{ parameters.scale_machine_count }}" \
@@ -57,7 +54,6 @@ steps:
     env:
       PYTHONPATH: $(Pipeline.Workspace)/s/modules/python
       RUN_ID: $(RUN_ID)
-      REGION: ${{ parameters.region }}
       DELETION_DUE_TIME: $(DELETION_DUE_TIME)
       SCENARIO_TYPE: $(SCENARIO_TYPE)
       SCENARIO_NAME: $(SCENARIO_NAME)
