@@ -24,6 +24,27 @@ stages:
               machine_workers: 1
               use_batch_api: "false"
               step_time_out: 600
+            medium_machine_pool_cli:
+              vm_size: Standard_D2_v3
+              pool_name: mediump1
+              scale_machine_count: 10
+              machine_workers: 5
+              use_batch_api: "false"
+              step_time_out: 900
+            large_machine_pool_cli:
+              vm_size: Standard_D2_v3
+              pool_name: largep1
+              scale_machine_count: 50
+              machine_workers: 10
+              use_batch_api: "false"
+              step_time_out: 1200
+            large_machine_pool_batch:
+              vm_size: Standard_D2_v3
+              pool_name: largep2
+              scale_machine_count: 100
+              machine_workers: 4
+              use_batch_api: "true"
+              step_time_out: 1200
           max_parallel: 1
           timeout_in_minutes: 180
           credential_type: service_connection
