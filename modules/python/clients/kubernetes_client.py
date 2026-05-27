@@ -1,4 +1,5 @@
 """Kubernetes client for managing cluster operations and resources."""  # pylint: disable=too-many-lines
+import re
 import time
 from typing import Optional
 import os
@@ -652,12 +653,11 @@ class KubernetesClient:
                               namespace="kube-system", metrics_port=9962,
                               timeout_seconds=30):
         """
-        Scrape Cilium agent Prometheus metrics by exec'ing into the agent pod.
+        Scrape Cilium agent Prometheus metrics via the API server pod proxy.
 
-        Uses kubectl exec (via the Python client) to run wget inside the Cilium
-        agent container, fetching localhost:/metrics. This avoids deploying a
-        separate scraper pod which would require image pulls and CNI networking
-        on the new node.
+        Uses the Kubernetes API server's pod proxy endpoint to fetch metrics
+        directly from the Cilium agent. Discovers the actual metrics port from
+        the agent's runtime config (AKS-managed Cilium may differ from upstream).
 
         Args:
             node_name: Node to scrape
@@ -683,40 +683,48 @@ class KubernetesClient:
         agent_pod = pods[0]
         agent_pod_name = agent_pod.metadata.name
 
-        # Find the cilium-agent container and detect metrics port from spec
+        # Find the cilium-agent container name
         container_name = "cilium-agent"
-        detected_port = None
         if agent_pod.spec.containers:
             for c in agent_pod.spec.containers:
                 if "cilium" in c.name and "monitor" not in c.name:
                     container_name = c.name
-                    # Try to detect prometheus metrics port from container ports
-                    if c.ports:
-                        for p in c.ports:
-                            if p.name in ("prometheus", "metrics"):
-                                detected_port = p.container_port
-                                break
-                        # If no named prometheus port, look for 9962
-                        if detected_port is None:
-                            for p in c.ports:
-                                if p.container_port == 9962:
-                                    detected_port = p.container_port
-                                    break
                     break
 
-        port = detected_port if detected_port else metrics_port
-        metrics_url = f"http://localhost:{port}/metrics"
-        logger.info("Deep Cilium: exec into '%s' container '%s' to scrape %s",
-                   agent_pod_name, container_name, metrics_url)
+        # Detect metrics port: check container spec first, then runtime config
+        port = self._detect_cilium_metrics_port(
+            agent_pod, agent_pod_name, container_name, namespace, metrics_port
+        )
 
+        logger.info("Deep Cilium: fetching metrics from pod '%s' port %d",
+                   agent_pod_name, port)
+
+        # Method 1: API server pod proxy (no tools needed inside container)
         try:
-            # Use wget (available in Cilium's Alpine-based image)
-            # Fall back to curl if wget fails
-            # On total failure, output diagnostics to stdout for logging
+            output = self.api.connect_get_namespaced_pod_proxy_with_path(
+                name=f"{agent_pod_name}:{port}",
+                namespace=namespace,
+                path="metrics",
+            )
+
+            if output and len(output) >= 100:
+                logger.info("Deep Cilium: got %d bytes via API proxy", len(output))
+                return self._parse_cilium_metrics(output)
+
+            logger.warning("Deep Cilium: API proxy returned too little data "
+                         "(%d bytes)", len(output) if output else 0)
+        except Exception as e:
+            logger.warning("Deep Cilium: API proxy failed on '%s:%d': %s",
+                          agent_pod_name, port, e)
+
+        # Method 2: Fallback — exec with wget/curl (for images that have them)
+        logger.info("Deep Cilium: falling back to exec scrape on '%s'",
+                   agent_pod_name)
+        try:
+            metrics_url = f"http://localhost:{port}/metrics"
             cmd = (
                 f"wget -q -O - --timeout=10 {metrics_url} 2>/dev/null "
-                f"|| curl -s --max-time 10 {metrics_url} 2>/dev/null "
-                f'|| echo "SCRAPE_FAILED: wget and curl both failed on {metrics_url}"'
+                f"|| curl -s --max-time 10 {metrics_url} 2>/dev/null"
             )
             output = self.run_pod_exec_command(
                 pod_name=agent_pod_name,
@@ -726,18 +734,69 @@ class KubernetesClient:
             )
 
             if not output or len(output) < 100:
-                detail = output.strip() if output else "(empty)"
-                logger.warning("Deep Cilium: metrics response too short (%d bytes) "
-                             "from %s — %s", len(output) if output else 0,
-                             metrics_url, detail)
+                logger.warning("Deep Cilium: exec fallback also failed (%d bytes)",
+                             len(output) if output else 0)
                 return None
 
+            logger.info("Deep Cilium: got %d bytes via exec fallback", len(output))
             return self._parse_cilium_metrics(output)
 
         except Exception as e:
-            logger.warning("Deep Cilium: exec scrape failed on '%s': %s",
+            logger.warning("Deep Cilium: exec fallback failed on '%s': %s",
                           agent_pod_name, e)
             return None
+
+    def _detect_cilium_metrics_port(self, agent_pod, pod_name, container_name,
+                                     namespace, default_port):
+        """Discover the Cilium agent's Prometheus metrics port.
+
+        Checks (in order):
+        1. Container spec named ports (prometheus/metrics)
+        2. Runtime config inside the pod (prometheus-serve-addr)
+        3. Falls back to default_port
+        """
+        # Check container spec for declared prometheus port
+        if agent_pod.spec.containers:
+            for c in agent_pod.spec.containers:
+                if c.name == container_name and c.ports:
+                    for p in c.ports:
+                        if p.name in ("prometheus", "metrics", "peer-service"):
+                            logger.info("Deep Cilium: detected port %d from "
+                                       "container spec (name=%s)",
+                                       p.container_port, p.name)
+                            return p.container_port
+
+        # Exec to discover port from Cilium's runtime config
+        try:
+            # Check multiple possible config locations for prometheus-serve-addr
+            discover_cmd = (
+                "cat /tmp/cilium/config-map/prometheus-serve-addr 2>/dev/null"
+                " || cat /var/run/cilium/state/agent-runtime-config.json 2>/dev/null"
+                " | grep -o 'prometheus-serve-addr[^,]*' 2>/dev/null"
+                " || grep -r 'prometheus' /tmp/cilium/config-map/ 2>/dev/null"
+                " || echo DISCOVERY_FAILED"
+            )
+            output = self.run_pod_exec_command(
+                pod_name=pod_name,
+                command=discover_cmd,
+                container_name=container_name,
+                namespace=namespace,
+            )
+            if output and "DISCOVERY_FAILED" not in output:
+                # Parse address like ":9962" or "0.0.0.0:9090"
+                port_match = re.search(r':(\d+)', output.strip())
+                if port_match:
+                    discovered = int(port_match.group(1))
+                    logger.info("Deep Cilium: discovered port %d from runtime "
+                               "config: %s", discovered, output.strip()[:80])
+                    return discovered
+            logger.info("Deep Cilium: port discovery output: %s",
+                       output.strip()[:120] if output else "(empty)")
+        except Exception as e:
+            logger.info("Deep Cilium: port discovery exec failed: %s", e)
+
+        logger.info("Deep Cilium: using default port %d", default_port)
+        return default_port
 
     def _parse_cilium_metrics(self, metrics_text):
         """
