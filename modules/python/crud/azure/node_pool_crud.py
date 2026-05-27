@@ -39,7 +39,6 @@ WORKLOAD_CONFIG = {
         "wait_condition": "ready",
         "verify_pods_ready": True,
     },
-    # jobs workload config will be added later
 }
 
 class NodePoolCRUD:
@@ -291,6 +290,101 @@ class NodePoolCRUD:
             errors.append(error_msg)
             return False
 
+    def _apply_workload(
+        self,
+        k8s_client,
+        workload_type,
+        node_pool_name,
+        index,
+        count,
+        manifest_dir,
+        label_selector,
+        namespace
+    ):
+        """Unified helper to apply and verify a single workload instance.
+        
+        Args:
+            k8s_client: Kubernetes client instance
+            workload_type: Type of workload ("deployment" or "statefulset")
+            node_pool_name: Name of the target node pool
+            index: Workload instance index (1-based)
+            count: Number of replicas/completions
+            manifest_dir: Optional custom manifest directory
+            label_selector: Base label selector (e.g., "app=nginx-container")
+            namespace: Kubernetes namespace
+            
+        Raises:
+            ValueError: If workload_type is not in WORKLOAD_CONFIG
+            TimeoutError: If workload fails to reach ready state
+        """
+        if workload_type not in WORKLOAD_CONFIG:
+            raise ValueError(f"Unknown workload type: {workload_type}")
+        
+        config = WORKLOAD_CONFIG[workload_type]
+        
+        # Resolve template path
+        if manifest_dir:
+            template_path = f"{manifest_dir}/{config['template_file']}"
+        else:
+            template_path = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)),
+                "..", "workload_templates", config["template_file"]
+            )
+        
+        # Generate resource name and label
+        resource_name = f"myapp-{node_pool_name}-{index}"
+        workload_label = f"{label_selector.split('=', 1)[-1]}-{workload_type}-{index}"
+        
+        # Render template
+        rendered_template = k8s_client.create_template(
+            template_path,
+            {
+                config["count_key"]: count,
+                "NODE_POOL_NAME": node_pool_name,
+                "INDEX": index,
+                "LABEL_VALUE": workload_label,
+            }
+        )
+        
+        # Apply each document in the rendered multi-doc template
+        for doc in yaml.safe_load_all(rendered_template):
+            if doc:
+                k8s_client.apply_manifest_from_file(manifest_dict=doc, namespace=namespace)
+        
+        logger.info("Applied manifest for %s %s", workload_type, resource_name)
+        
+        # Wait for workload to reach target condition
+        logger.info("Waiting for %s %s to become %s...", 
+                    workload_type, resource_name, config["wait_condition"])
+        ready = k8s_client.wait_for_condition(
+            resource_type=config["resource_type"],
+            wait_condition_type=config["wait_condition"],
+            resource_name=resource_name,
+            namespace=namespace,
+            timeout_seconds=self.step_timeout
+        )
+        
+        if not ready:
+            raise TimeoutError(
+                f"{workload_type.capitalize()} {resource_name} failed to become "
+                f"{config['wait_condition']} within timeout"
+            )
+        
+        logger.info("%s %s is successfully %s", 
+                    workload_type.capitalize(), resource_name, config["wait_condition"])
+        
+        # Wait for pods if configured (skipped for Jobs)
+        if config["verify_pods_ready"]:
+            logger.info("Waiting for pods of %s %s to be ready...", workload_type, resource_name)
+            k8s_client.wait_for_pods_ready(
+                operation_timeout_in_minutes=5,
+                namespace=namespace,
+                pod_count=count,
+                label_selector=f"app={workload_label}"
+            )
+        
+        logger.info("Successfully created and verified %s %d", workload_type, index)
+
     def _apply_deployment(
         self,
         k8s_client,
@@ -301,68 +395,17 @@ class NodePoolCRUD:
         label_selector,
         namespace
     ):
-        """Helper for create_deployment — applies and verifies a single deployment."""
-        if manifest_dir:
-            # Use the template path from manifest_dir
-            template_path = f"{manifest_dir}/deployment.yml"
-        else:
-            # Use default template path (relative to workingDirectory: modules/python)
-            template_path = os.path.join(
-                os.path.dirname(os.path.abspath(__file__)),
-                "..", "workload_templates", "deployment.yml"
-            )
-
-        # Generate deployment name
-        deployment_name = f"myapp-{node_pool_name}-{deployment_index}"
-
-        # Use per-deployment label to avoid selector collision across workload types
-        deployment_label = f"{label_selector.split('=', 1)[-1]}-deployment-{deployment_index}"
-
-        # Create deployment template using k8s_client.create_template
-        deployment_template = k8s_client.create_template(
-            template_path,
-            {
-                "DEPLOYMENT_REPLICAS": replicas,
-                "NODE_POOL_NAME": node_pool_name,
-                "INDEX": deployment_index,
-                "LABEL_VALUE": deployment_label,
-            }
+        """Helper for create_deployment - delegates to unified _apply_workload."""
+        self._apply_workload(
+            k8s_client=k8s_client,
+            workload_type="deployment",
+            node_pool_name=node_pool_name,
+            index=deployment_index,
+            count=replicas,
+            manifest_dir=manifest_dir,
+            label_selector=label_selector,
+            namespace=namespace
         )
-
-        # Apply each document in the rendered multi-doc template
-        for doc in yaml.safe_load_all(deployment_template):
-            if doc:
-                k8s_client.apply_manifest_from_file(manifest_dict=doc, namespace=namespace)
-
-        logger.info("Applied manifest for deployment %s", deployment_name)
-
-        # Wait for deployment to be available (successful deployment verification)
-        logger.info("Waiting for deployment %s to become available...", deployment_name)
-        deployment_ready = k8s_client.wait_for_condition(
-            resource_type="deployment",
-            wait_condition_type="available",
-            resource_name=deployment_name,
-            namespace=namespace,
-            timeout_seconds=self.step_timeout
-        )
-
-        if not deployment_ready:
-            raise TimeoutError(
-                f"Deployment {deployment_name} failed to become available within timeout"
-            )
-
-        logger.info("Deployment %s is successfully available", deployment_name)
-
-        # Additionally wait for pods to be ready
-        logger.info("Waiting for pods of deployment %s to be ready...", deployment_name)
-        k8s_client.wait_for_pods_ready(
-            operation_timeout_in_minutes=5,
-            namespace=namespace,
-            pod_count=replicas,
-            label_selector=f"app={deployment_label}"
-        )
-
-        logger.info("Successfully created and verified deployment %d", deployment_index)
 
     def create_deployment(
         self,
@@ -438,68 +481,17 @@ class NodePoolCRUD:
         label_selector,
         namespace
     ):
-        """Helper for create_statefulset — applies and verifies a single StatefulSet."""
-        if manifest_dir:
-            # Use the template path from manifest_dir
-            template_path = f"{manifest_dir}/statefulset.yml"
-        else:
-            # Use default template path (relative to workingDirectory: modules/python)
-            template_path = os.path.join(
-                os.path.dirname(os.path.abspath(__file__)),
-                "..", "workload_templates", "statefulset.yml"
-            )
-
-        # Generate StatefulSet name
-        statefulset_name = f"myapp-{node_pool_name}-{statefulset_index}"
-
-        # Use per-statefulset label to avoid selector collision across workload types
-        statefulset_label = f"{label_selector.split('=', 1)[-1]}-statefulset-{statefulset_index}"
-
-        # Create StatefulSet template using k8s_client.create_template
-        statefulset_template = k8s_client.create_template(
-            template_path,
-            {
-                "STATEFULSET_REPLICAS": replicas,
-                "NODE_POOL_NAME": node_pool_name,
-                "INDEX": statefulset_index,
-                "LABEL_VALUE": statefulset_label,
-            }
+        """Helper for create_statefulset - delegates to unified _apply_workload."""
+        self._apply_workload(
+            k8s_client=k8s_client,
+            workload_type="statefulset",
+            node_pool_name=node_pool_name,
+            index=statefulset_index,
+            count=replicas,
+            manifest_dir=manifest_dir,
+            label_selector=label_selector,
+            namespace=namespace
         )
-
-        # Apply each document in the rendered multi-doc template
-        for doc in yaml.safe_load_all(statefulset_template):
-            if doc:
-                k8s_client.apply_manifest_from_file(manifest_dict=doc, namespace=namespace)
-
-        logger.info("Applied manifest for StatefulSet %s", statefulset_name)
-
-        # Wait for statefulset to be ready (successful statefulset verification)
-        logger.info("Waiting for StatefulSet %s to become ready...", statefulset_name)
-        statefulset_ready = k8s_client.wait_for_condition(
-            resource_type="statefulset",
-            wait_condition_type="ready",
-            resource_name=statefulset_name,
-            namespace=namespace,
-            timeout_seconds=self.step_timeout
-        )
-
-        if not statefulset_ready:
-            raise TimeoutError(
-                f"StatefulSet {statefulset_name} failed to become ready within timeout"
-            )
-
-        logger.info("StatefulSet %s is successfully ready", statefulset_name)
-
-        # Additionally wait for pods to be ready
-        logger.info("Waiting for pods of StatefulSet %s to be ready...", statefulset_name)
-        k8s_client.wait_for_pods_ready(
-            operation_timeout_in_minutes=5,
-            namespace=namespace,
-            pod_count=replicas,
-            label_selector=f"app={statefulset_label}"
-        )
-
-        logger.info("Successfully created and verified StatefulSet %d", statefulset_index)
 
     def create_statefulset(
         self,
