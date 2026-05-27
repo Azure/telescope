@@ -878,20 +878,29 @@ class KubernetesClient:
         return pod_name
 
     def wait_for_probe_pod_running(self, pod_name="latency-probe", namespace="default",
-                                   operation_timeout_in_minutes=10):
+                                   operation_timeout_in_minutes=10,
+                                   min_post_trigger_minutes=5):
         """
         Wait for the probe pod to transition to Running phase with Ready condition.
+
+        If the cluster autoscaler is in backoff, the timeout is extended to ensure
+        at least min_post_trigger_minutes remain after the TriggeredScaleUp event
+        fires.
 
         Args:
             pod_name: Name of the probe pod
             namespace: Namespace of the probe pod
-            operation_timeout_in_minutes: Timeout in minutes
+            operation_timeout_in_minutes: Initial timeout in minutes
+            min_post_trigger_minutes: Minimum minutes to wait after scale-up is triggered
 
         Returns:
             The pod object once it's Running and Ready
         """
         timeout = time.time() + (operation_timeout_in_minutes * 60)
         logger.info("Waiting for probe pod '%s' to become Running...", pod_name)
+        scale_up_triggered = False
+        backoff_detected = False
+        last_event_check = 0
 
         while time.time() < timeout:
             pod = self.api.read_namespaced_pod(name=pod_name, namespace=namespace)
@@ -904,6 +913,37 @@ class KubernetesClient:
                         if cond.type == "Ready" and cond.status == "True":
                             logger.info("Probe pod '%s' is Running and Ready", pod_name)
                             return pod
+
+            # While still Pending, check for autoscaler backoff / scale-up events (every 30s)
+            now = time.time()
+            if phase == "Pending" and not scale_up_triggered and (now - last_event_check) >= 30:
+                last_event_check = now
+                try:
+                    events = self.api.list_namespaced_event(
+                        namespace=namespace,
+                        field_selector=f"involvedObject.name={pod_name},involvedObject.kind=Pod"
+                    )
+                    for event in events.items:
+                        if event.reason == "NotTriggerScaleUp" and not backoff_detected:
+                            backoff_detected = True
+                            logger.warning(
+                                "Probe pod '%s': autoscaler in backoff (%s), "
+                                "will extend timeout after scale-up triggers",
+                                pod_name, event.message)
+                        if event.reason in ("TriggeredScaleUp", "ScaleUp", "ScaledUpGroup"):
+                            scale_up_triggered = True
+                            # Ensure at least min_post_trigger_minutes remain
+                            min_deadline = time.time() + (min_post_trigger_minutes * 60)
+                            if min_deadline > timeout:
+                                logger.info(
+                                    "Probe pod '%s': scale-up triggered, extending timeout "
+                                    "by %d minutes to allow node provisioning",
+                                    pod_name,
+                                    int((min_deadline - timeout) / 60) + 1)
+                                timeout = min_deadline
+                            break
+                except Exception:
+                    pass  # Non-critical; don't fail the wait loop on event lookup errors
 
             logger.info("Probe pod '%s' phase: %s, waiting...", pod_name, phase)
             time.sleep(2)
