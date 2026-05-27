@@ -650,31 +650,27 @@ class KubernetesClient:
 
     def scrape_cilium_metrics(self, node_name, cni_daemonset_label,
                               namespace="kube-system", metrics_port=9965,
-                              scraper_image="curlimages/curl:latest",
-                              timeout_seconds=60):
+                              timeout_seconds=30):
         """
-        Scrape Cilium agent Prometheus metrics from the agent pod on a specific node.
+        Scrape Cilium agent Prometheus metrics by exec'ing into the agent pod.
 
-        Deploys a single-shot curl pod pinned to the target node via nodeName,
-        hits the Cilium agent's /metrics endpoint, and parses bootstrap + endpoint
-        regeneration phase durations.
+        Uses kubectl exec (via the Python client) to run wget inside the Cilium
+        agent container, fetching localhost:/metrics. This avoids deploying a
+        separate scraper pod which would require image pulls and CNI networking
+        on the new node.
 
         Args:
             node_name: Node to scrape
             cni_daemonset_label: Label selector for the CNI agent pod
             namespace: Namespace where CNI pods run
             metrics_port: Prometheus metrics port on the agent
-            scraper_image: Image for the scraper pod
-            timeout_seconds: How long to wait for the scraper pod
+            timeout_seconds: Exec timeout
 
         Returns:
             Dict with parsed bootstrap phases, endpoint regen phases, and metadata.
             Returns None if scraping fails.
         """
-        scraper_pod_name = f"cilium-scraper-{node_name[-8:]}"
-        scraper_ns = "default"
-
-        # Find the CNI agent pod IP (hostNetwork means it equals node IP)
+        # Find the CNI agent pod on this node
         pods = self.get_pods_by_namespace(
             namespace=namespace,
             label_selector=cni_daemonset_label,
@@ -684,69 +680,43 @@ class KubernetesClient:
             logger.warning("Deep Cilium: no agent pod on node '%s'", node_name)
             return None
 
-        agent_pod_ip = pods[0].status.pod_ip
-        if not agent_pod_ip:
-            logger.warning("Deep Cilium: agent pod on '%s' has no IP", node_name)
-            return None
+        agent_pod = pods[0]
+        agent_pod_name = agent_pod.metadata.name
 
-        metrics_url = f"http://{agent_pod_ip}:{metrics_port}/metrics"
+        # Find the cilium-agent container name
+        container_name = "cilium-agent"
+        if agent_pod.spec.containers:
+            for c in agent_pod.spec.containers:
+                if "cilium" in c.name and "monitor" not in c.name:
+                    container_name = c.name
+                    break
 
-        # Create scraper pod pinned to the node
-        pod_manifest = client.V1Pod(
-            metadata=client.V1ObjectMeta(name=scraper_pod_name, namespace=scraper_ns),
-            spec=client.V1PodSpec(
-                node_name=node_name,
-                restart_policy="Never",
-                containers=[
-                    client.V1Container(
-                        name="scraper",
-                        image=scraper_image,
-                        command=["curl", "-s", "--max-time", "30", metrics_url],
-                    )
-                ],
-                tolerations=[
-                    client.V1Toleration(operator="Exists"),
-                ],
-            ),
-        )
+        metrics_url = f"http://localhost:{metrics_port}/metrics"
+        logger.info("Deep Cilium: exec into '%s' container '%s' to scrape %s",
+                   agent_pod_name, container_name, metrics_url)
 
         try:
-            self.api.create_namespaced_pod(namespace=scraper_ns, body=pod_manifest)
-            logger.info("Deep Cilium: scraper pod '%s' created on node '%s'",
-                       scraper_pod_name, node_name)
+            # Use wget (available in Cilium's Alpine-based image)
+            # Fall back to curl if wget fails
+            cmd = f"wget -q -O - --timeout=10 {metrics_url} 2>/dev/null || curl -s --max-time 10 {metrics_url} 2>/dev/null"
+            output = self.run_pod_exec_command(
+                pod_name=agent_pod_name,
+                command=cmd,
+                container_name=container_name,
+                namespace=namespace,
+            )
 
-            # Wait for scraper to complete
-            deadline = time.time() + timeout_seconds
-            while time.time() < deadline:
-                pod = self.api.read_namespaced_pod(
-                    name=scraper_pod_name, namespace=scraper_ns)
-                phase = pod.status.phase
-                if phase == "Succeeded":
-                    break
-                if phase == "Failed":
-                    logger.warning("Deep Cilium: scraper pod failed")
-                    return None
-                time.sleep(2)
-            else:
-                logger.warning("Deep Cilium: scraper pod timed out")
+            if not output or len(output) < 100:
+                logger.warning("Deep Cilium: metrics response too short (%d bytes)",
+                             len(output) if output else 0)
                 return None
 
-            # Read logs (the metrics output)
-            logs = self.api.read_namespaced_pod_log(
-                name=scraper_pod_name, namespace=scraper_ns)
-
-            return self._parse_cilium_metrics(logs)
+            return self._parse_cilium_metrics(output)
 
         except Exception as e:
-            logger.warning("Deep Cilium: scrape failed: %s", e)
+            logger.warning("Deep Cilium: exec scrape failed on '%s': %s",
+                          agent_pod_name, e)
             return None
-        finally:
-            # Clean up scraper pod
-            try:
-                self.api.delete_namespaced_pod(
-                    name=scraper_pod_name, namespace=scraper_ns)
-            except Exception:
-                pass
 
     def _parse_cilium_metrics(self, metrics_text):
         """
@@ -1307,12 +1277,11 @@ class KubernetesClient:
                 cni_containers = cni_info.get("containers", [])
                 cni_image_pull_events = cni_info.get("image_pull_events", [])
 
-                # Scrape Cilium agent metrics when CNI daemonset is present
-                if cni_daemonset_label:
-                    deep_cilium_metrics = self.scrape_cilium_metrics(
-                        node_name=new_node_name,
-                        cni_daemonset_label=cni_daemonset_label,
-                    )
+                # Scrape Cilium agent metrics via exec into the agent pod
+                deep_cilium_metrics = self.scrape_cilium_metrics(
+                    node_name=new_node_name,
+                    cni_daemonset_label=cni_daemonset_label,
+                )
 
             # Collect pod timestamps
             pod_scheduled = self._get_condition_transition_time(
