@@ -8,5 +8,5 @@ az role assignment create \\
   --assignee "${assignee}" \\
   --subscription "${subscription}"
 """
-    AzCli(serviceConnection, "Assign role ${role}", script)
+    AzCli(serviceConnection, "Assign role ${role} to ${assignee}", script)
 }
