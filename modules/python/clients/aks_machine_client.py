@@ -513,7 +513,7 @@ class AKSMachineClient(AKSClient):
                 else:
                     successful = self._scale_machine_individually(request, names)
                 op.add_metadata("command_execution_time", time.time() - command_t0)
-                op.add_metadata("successful_machines", successful)
+                op.add_metadata("successful_machines", len(successful))
 
                 # Fail fast on partial landing BEFORE waiting on the agentpool
                 # or readiness against a reduced count -- otherwise the recorded

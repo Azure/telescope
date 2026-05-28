@@ -181,6 +181,7 @@ class TestAKSMachineClient(unittest.TestCase):
             call.args[0] for call in self.mock_operation.add_metadata.call_args_list
         }
         self.assertIn("successful_machines", metadata_keys)
+        self.mock_operation.add_metadata.assert_any_call("successful_machines", 2)
         self.assertIn("percentile_node_readiness_times", metadata_keys)
         self.assertIn("node_readiness_time", metadata_keys)
         self.assertIn("cluster_info", metadata_keys)
@@ -213,12 +214,14 @@ class TestAKSMachineClient(unittest.TestCase):
         # have been reached.
         mock_wait_ap.assert_not_called()
         mock_wait_ready.assert_not_called()
-        # successful_machines metadata IS recorded so operators can see which
-        # machine adds landed; downstream readiness/cluster_info metadata is not.
+        # Machine names are intentionally not uploaded; only the successful count
+        # is recorded. Downstream readiness/cluster_info metadata is not recorded
+        # on partial landing.
         metadata_keys = {
             call.args[0] for call in self.mock_operation.add_metadata.call_args_list
         }
         self.assertIn("successful_machines", metadata_keys)
+        self.mock_operation.add_metadata.assert_any_call("successful_machines", 1)
         self.assertNotIn("percentile_node_readiness_times", metadata_keys)
         self.assertNotIn("node_readiness_time", metadata_keys)
         self.assertNotIn("cluster_info", metadata_keys)
