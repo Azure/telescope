@@ -8,6 +8,9 @@ aks_cli_config_list = [
     role               = "cas"
     aks_name           = "cas-vms"
     sku_tier           = "Standard"
+    aks_custom_headers = [
+      "AKSHTTPCustomFeatures=Microsoft.ContainerService/VMsAgentPoolAutoscalePreview"
+    ]
     subnet_name        = "aks-network"
     kubernetes_version = "1.33"
     optional_parameters = [
