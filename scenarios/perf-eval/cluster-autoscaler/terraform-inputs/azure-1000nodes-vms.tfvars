@@ -62,7 +62,7 @@ aks_cli_config_list = [
           },
           {
             name  = "max-count"
-            value = "1001"
+            value = "1000"
           },
           {
             name  = "max-pods"
