@@ -47,6 +47,7 @@ steps:
         --machine-workers "${{ parameters.machine_workers }}" \
         $USE_BATCH_FLAG \
         --step-timeout "${{ parameters.step_time_out }}" \
+        --readiness-wait-timeout "${{ parameters.step_time_out }}" \
         --result-dir "${{ parameters.result_dir }}" \
         --tags "$tags"
     workingDirectory: modules/python

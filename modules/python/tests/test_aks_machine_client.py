@@ -254,6 +254,47 @@ class TestAKSMachineClient(unittest.TestCase):
         self.assertEqual(mock_wait_ready.call_args.kwargs["baseline_count"], 3)
         self.assertEqual(mock_wait_ready.call_args.kwargs["expected_count"], 1)
 
+    def test_scale_machine_consumes_timeout_budgets(self):
+        """scale_machine forwards the caller's timeout budgets to dispatch and waits."""
+        names = ["scale2-machine-1", "scale2-machine-2"]
+        readiness_envelope = {
+            f"P{p}": {
+                "target_nodes": 2,
+                "elapsed_time_seconds": 10.0,
+                "percentage": p,
+                "success": True,
+            }
+            for p in (50, 70, 90, 99, 100)
+        }
+        with mock.patch.object(
+            AKSMachineClient,
+            "_scale_machine_individually",
+            return_value=names,
+        ) as mock_individual, mock.patch.object(
+            AKSMachineClient,
+            "_wait_for_agentpool_provisioning",
+            return_value=True,
+        ) as mock_wait_ap, mock.patch.object(
+            AKSMachineClient,
+            "_wait_for_machine_node_readiness",
+            return_value=readiness_envelope,
+        ) as mock_wait_ready:
+            self.mock_k8s.get_ready_nodes.return_value = []
+
+            self.client.scale_machine(
+                agentpool_name="apool",
+                vm_size="Standard_D2_v3",
+                scale_machine_count=2,
+                timeout=900,
+                readiness_wait_timeout=900,
+            )
+
+        request = mock_individual.call_args.args[0]
+        self.assertEqual(request.timeout, 900)
+        self.assertEqual(request.readiness_wait_timeout, 900)
+        self.assertEqual(mock_wait_ap.call_args.args[1], 900)
+        self.assertEqual(mock_wait_ready.call_args.kwargs["timeout"], 900)
+
     def test_scale_machine_batch_path_dispatches_to_batch(self):
         """The use_batch_api=True branch calls _scale_machine_batch (not _individually)
         and records command_execution_time in operation metadata."""
