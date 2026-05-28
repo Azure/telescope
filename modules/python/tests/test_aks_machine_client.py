@@ -548,7 +548,7 @@ class TestAKSMachineClient(unittest.TestCase):
     # ---- _scale_machine_batch ----
 
     def test_scale_machine_batch_partitions_and_aggregates(self):
-        """Names sharded across machine_workers; all successful slices aggregated."""
+        """Names sharded across workers; all successful slices aggregated."""
         request = SimpleNamespace(
             agentpool_name="apool",
             cluster_name="fake-cluster",
@@ -565,8 +565,11 @@ class TestAKSMachineClient(unittest.TestCase):
         ) as mock_create_batch:
             successful = self.client._scale_machine_batch(request, names)
         self.assertEqual(set(successful), set(names))
-        # 2 workers, each handling per_worker = 4 // 2 = 2 names
         self.assertEqual(mock_create_batch.call_count, 2)
+        chunk_lengths = [
+            len(call.args[1]) for call in mock_create_batch.call_args_list
+        ]
+        self.assertEqual(sorted(chunk_lengths), [2, 2])
 
     def test_scale_machine_batch_per_worker_failure_isolated(self):
         """One worker raising does not poison the other worker's success list."""
@@ -606,6 +609,60 @@ class TestAKSMachineClient(unittest.TestCase):
         names = ["m-1", "m-2", "m-3", "m-4"]  # 4 not divisible by 3
         with self.assertRaises(ValueError):
             self.client._scale_machine_batch(request, names)
+
+    def test_scale_machine_batch_rejects_non_positive_workers(self):
+        """machine_workers must be positive."""
+        request = SimpleNamespace(
+            agentpool_name="apool",
+            cluster_name="fake-cluster",
+            resource_group="fake-rg",
+            vm_size="Standard_D2_v3",
+            timeout=60,
+            machine_workers=0,
+        )
+        with self.assertRaises(ValueError):
+            self.client._scale_machine_batch(request, ["m-1"])
+
+    def test_scale_machine_batch_rejects_calculated_batch_over_limit(self):
+        """Fail fast before ARM when calculated per-worker batch size exceeds 50."""
+        request = SimpleNamespace(
+            agentpool_name="apool",
+            cluster_name="fake-cluster",
+            resource_group="fake-rg",
+            vm_size="Standard_D2_v3",
+            timeout=60,
+            machine_workers=10,
+        )
+        names = [f"m-{i}" for i in range(1, 1001)]
+        with mock.patch.object(
+            AKSMachineClient, "_create_batch_machines"
+        ) as mock_create_batch:
+            with self.assertRaisesRegex(ValueError, "calculated batch size"):
+                self.client._scale_machine_batch(request, names)
+        mock_create_batch.assert_not_called()
+
+    def test_scale_machine_batch_allows_calculated_batch_at_limit(self):
+        """A calculated per-worker batch size of exactly 50 is allowed."""
+        request = SimpleNamespace(
+            agentpool_name="apool",
+            cluster_name="fake-cluster",
+            resource_group="fake-rg",
+            vm_size="Standard_D2_v3",
+            timeout=60,
+            machine_workers=20,
+        )
+        names = [f"m-{i}" for i in range(1, 1001)]
+        with mock.patch.object(
+            AKSMachineClient,
+            "_create_batch_machines",
+            side_effect=lambda req, chunk, worker_id: list(chunk),
+        ) as mock_create_batch:
+            successful = self.client._scale_machine_batch(request, names)
+        self.assertEqual(set(successful), set(names))
+        self.assertEqual(mock_create_batch.call_count, 20)
+        self.assertTrue(
+            all(len(call.args[1]) == 50 for call in mock_create_batch.call_args_list)
+        )
 
     # ---- _create_batch_machines ----
 
@@ -661,6 +718,23 @@ class TestAKSMachineClient(unittest.TestCase):
             parsed["batchMachines"],
             [{"machineName": "m-2"}, {"machineName": "m-3"}],
         )
+
+    def test_create_batch_machines_rejects_oversized_chunk(self):
+        """BatchPutMachine rejects more than 50 machines per request client-side."""
+        request = SimpleNamespace(
+            agentpool_name="apool",
+            cluster_name="fake-cluster",
+            resource_group="fake-rg",
+            vm_size="Standard_D2_v3",
+            timeout=60,
+        )
+        names = [f"m-{i}" for i in range(1, 52)]
+        with mock.patch.object(
+            AKSMachineClient, "_make_batch_request"
+        ) as mock_make_batch:
+            with self.assertRaises(ValueError):
+                self.client._create_batch_machines(request, names, chunk_idx=0)
+        mock_make_batch.assert_not_called()
 
     # ---- _make_batch_request ----
 

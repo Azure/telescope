@@ -58,6 +58,7 @@ _PER_REQUEST_TIMEOUT_CAP = 60
 # ballooning the chunk's wall-time.
 _BATCH_429_MAX_RETRIES = 5
 _BATCH_429_INITIAL_BACKOFF_SECONDS = 1.0
+_BATCH_MAX_MACHINES_PER_REQUEST = 50
 # urllib3's default ``HTTPAdapter`` (mounted implicitly by ``requests.Session``)
 # caps each host's connection pool at ``pool_maxsize=10``. The parallel scale
 # paths fan out far beyond that (up to ``machine_workers`` concurrent PUTs
@@ -66,7 +67,7 @@ _BATCH_429_INITIAL_BACKOFF_SECONDS = 1.0
 # urllib3 to tear down and re-establish TLS for every excess request.
 # We mount an explicitly-sized adapter so the pool can retain one warm
 # connection per worker thread; 64 covers the current pipeline maxima
-# (50 individual workers, 4 batch workers) with comfortable headroom and
+# (50 individual workers, 10 batch workers) with comfortable headroom and
 # stays well below ARM's per-client connection ceilings.
 _HTTPS_POOL_SIZE = 64
 
@@ -438,10 +439,10 @@ class AKSMachineClient(AKSClient):
           1. Snapshot the current Ready+labeled node count in the agentpool
              (``baseline_count``) so the readiness watcher counts only NEW nodes.
           2. Submit machine creates -- individually via ``az aks machine add`` by
-             default, or sharded into ``machine_workers`` chunks where each chunk
-             is sent as a single ``BatchPutMachine``-headered PUT when
-             ``use_batch_api=True`` (per-machine ARM polling is intentionally NOT
-             performed in either path).
+             default, or sharded into ``machine_workers`` chunks where each
+             chunk is sent as a single ``BatchPutMachine``-headered PUT when
+             ``use_batch_api=True`` (per-machine ARM polling is intentionally
+             NOT performed in either path).
           3. Wait ONCE on the agentpool-level provisioningState.
           4. Wait for nodes labeled ``agentpool=<pool>`` to surpass
              ``baseline_count`` by enough to satisfy P50/P70/P90/P99/P100 targets.
@@ -653,14 +654,14 @@ class AKSMachineClient(AKSClient):
     ) -> List[str]:
         """Dispatch ``names`` across ``machine_workers`` worker slices via the Batch API.
 
-        Each worker submits exactly one ``BatchPutMachine``-headered PUT carrying a
-        contiguous slice of ``names``. Slices are computed by arithmetic from the
-        ``worker_id``.
+        Each worker submits exactly one ``BatchPutMachine``-headered PUT carrying
+        a contiguous slice of ``names``. Slices are computed by arithmetic from
+        the ``worker_id``.
 
-        ``scale_machine_count`` MUST be an exact multiple of ``machine_workers``;
-        ``ValueError`` is raised otherwise so the failure surfaces at the
-        ``MachineCRUD`` boundary instead of producing a short final chunk that
-        would skew per-chunk latency dashboards.
+        ``scale_machine_count`` MUST be an exact multiple of ``machine_workers``
+        and the resulting per-worker batch size MUST be no larger than
+        ``_BATCH_MAX_MACHINES_PER_REQUEST``. ``ValueError`` is raised otherwise
+        so the failure surfaces before any partial batch submission reaches ARM.
 
         Per-worker exceptions are caught and logged; the worker's slice is
         excluded from the returned ``successful`` list. The input ``request``
@@ -677,6 +678,12 @@ class AKSMachineClient(AKSClient):
                 f"got remainder {n % workers}"
             )
         per_worker = n // workers
+        if per_worker > _BATCH_MAX_MACHINES_PER_REQUEST:
+            raise ValueError(
+                f"calculated batch size ({per_worker}) exceeds "
+                f"BatchPutMachine limit ({_BATCH_MAX_MACHINES_PER_REQUEST}); "
+                f"increase machine_workers for scale_machine_count ({n})"
+            )
         successful: List[str] = []
 
         def run_worker(worker_id: int) -> List[str]:
@@ -732,6 +739,12 @@ class AKSMachineClient(AKSClient):
         """
         if not chunk:
             return []
+        if len(chunk) > _BATCH_MAX_MACHINES_PER_REQUEST:
+            raise ValueError(
+                f"BatchPutMachine supports at most "
+                f"{_BATCH_MAX_MACHINES_PER_REQUEST} machines per request; "
+                f"got {len(chunk)}"
+            )
         sub = self.subscription_id
         first_machine_name = chunk[0]
         url = (
