@@ -48,7 +48,7 @@ stages:
           topology: cluster-autoscaler
           matrix:
             small-scale-on-demand-vms:
-              cpu_per_node: 4
+              cpu_per_node: 2
               node_count: 11
               pod_count: 110
               scale_up_timeout: "15m"
