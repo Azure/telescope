@@ -1,6 +1,6 @@
 import azure_pipelines.ap.steps
 
-CreateFirewall = lambda serviceConnection: str, resourceGroup: str, name: str, location: str, vnetName: str, publicIpName: str, subscription: str -> steps.Step {
+CreateFirewall = lambda serviceConnection: str, subscription: str, resourceGroup: str, name: str, location: str, vnetName: str, publicIpName: str, exportVar: str = "FWPRIVATE_IP" -> steps.Step {
     script = """
 az extension add --name azure-firewall
 
@@ -31,18 +31,45 @@ FWPRIVATE_IP=$(az network firewall show \\
   --name "${name}" \\
   --subscription "${subscription}" \\
   --query "ipConfigurations[0].privateIPAddress" -o tsv)
-echo "##vso[task.setvariable variable=FWPRIVATE_IP]$FWPRIVATE_IP"
+echo "##vso[task.setvariable variable=${exportVar}]$FWPRIVATE_IP"
 """
     AzCli(serviceConnection, "Create firewall ${name}", script)
 }
 
-UpdateFirewallPolicy = lambda serviceConnection: str, resourceGroup: str, name: str, subscription: str, policyPath: str, location: str -> steps.Step {
+RouteSubnetToFirewall = lambda serviceConnection: str, resourceGroup: str, name: str, location: str, vnetName: str, subnetName: str, firewallIp: str, subscription: str -> steps.Step {
+    script = """
+az network route-table create \\
+  --resource-group "${resourceGroup}" \\
+  --name "${name}" \\
+  --location "${location}" \\
+  --subscription "${subscription}"
+
+az network route-table route create \\
+  --resource-group "${resourceGroup}" \\
+  --route-table-name "${name}" \\
+  --name egress \\
+  --address-prefix 0.0.0.0/0 \\
+  --next-hop-type VirtualAppliance \\
+  --next-hop-ip-address "${firewallIp}" \\
+  --subscription "${subscription}"
+
+az network vnet subnet update \\
+  --resource-group "${resourceGroup}" \\
+  --vnet-name "${vnetName}" \\
+  --name "${subnetName}" \\
+  --route-table "${name}" \\
+  --subscription "${subscription}"
+"""
+    AzCli(serviceConnection, "Route subnet ${subnetName} to firewall via ${name}", script)
+}
+
+UpdateFirewallPolicy = lambda serviceConnection: str, subscription: str, resourceGroup: str, name: str, policyPath: str, location: str -> steps.Step {
     script = """
 POLICY_TMP=$(mktemp)
 sed 's|"location": "[^"]*"|"location": "${location}"|g' "${policyPath}" > "$POLICY_TMP"
 az rest \\
   --method put \\
-  --uri "https://management.azure.com/subscriptions/${subscription}/resourceGroups/${resourceGroup}/providers/Microsoft.Network/azureFirewalls/${name}?api-version=2023-09-01" \\
+  --uri "https://management.azure.com/subscriptions/${subscription}/resourceGroups/${resourceGroup}/providers/Microsoft.Network/azureFirewalls/${name}?api-version=2025-05-01" \\
   --headers "Content-Type=application/json" \\
   --body "@$POLICY_TMP"
 rm -f "$POLICY_TMP"
