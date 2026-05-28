@@ -35,14 +35,14 @@ aks_cli_config_list = [
     default_node_pool = {
       name        = "system"
       node_count  = 5
-      vm_size     = "Standard_D4_v5"
+      vm_size     = "Standard_D4ds_v5"
       vm_set_type = "VirtualMachines"
     }
     extra_node_pool = [
       {
         name        = "userpool"
         node_count  = 1
-        vm_size     = "Standard_D4_v5"
+        vm_size     = "Standard_D4ds_v5"
         vm_set_type = "VirtualMachines"
         optional_parameters = [
           {
