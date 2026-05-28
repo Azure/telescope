@@ -570,23 +570,117 @@ resource "terraform_data" "aks_nodepool_cli" {
   # 30 (15min) for N=100 ClusterMesh runs — at 100 concurrent cluster
   # creates the AKS RP queue can hold nodepool-add operations behind
   # cluster-create operations far longer than at smaller N.
+  #
+  # Idempotency precheck (build 68577 evidence): under
+  # preserve_state_on_apply_failure + AzDO retryCountOnTaskFailure, terraform
+  # may re-run this local-exec against a cluster whose nodepool was ALREADY
+  # added by a previous apply attempt that then failed at a different step.
+  # Without precheck the next `az aks nodepool add` returns "already exists"
+  # and the build fails deterministically — observed across multiple stage
+  # retries of build 68577. Mirrors the precheck pattern used by aks_cli
+  # (above) but with state-aware recovery:
+  #   - Succeeded: idempotent success
+  #   - Creating/Updating/Deleting: wait (do NOT delete healthy in-flight ops)
+  #   - Failed: delete and recreate (terminal only)
+  #   - absent: proceed with add
+  # 90-min overall deadline bounds the worst case under repeated state
+  # transitions; 60×30s retry budget for the add itself stays unchanged.
   provisioner "local-exec" {
     interpreter = ["bash", "-c"]
     command     = <<-EOT
-      set -eo pipefail
+      set -uo pipefail
       cmd=${jsonencode(local.extra_pool_commands[each.key])}
+      rg="${var.resource_group_name}"
       pool="${each.value.name}"
       cluster="${var.aks_cli_config.aks_name}"
+      deadline=$((SECONDS + 5400))
+
       for i in $(seq 1 60); do
+        if [ "$SECONDS" -ge "$deadline" ]; then
+          echo "Timeout: $cluster nodepool $pool — 90m overall deadline reached" >&2
+          exit 1
+        fi
+
+        # Precheck — classify show failures so transient throttle/auth
+        # errors don't get silently treated as "absent" (which would
+        # cause a spurious add attempt that hides the real error).
+        show_out=$(az aks nodepool show -g "$rg" --cluster-name "$cluster" -n "$pool" --query provisioningState -o tsv --only-show-errors 2>&1)
+        show_rc=$?
+        if [ "$show_rc" -eq 0 ]; then
+          existing_state="$show_out"
+        elif echo "$show_out" | grep -qiE "NotFound|could not be found|ResourceNotFound"; then
+          existing_state="absent"
+        else
+          echo "[retry $i/60] $cluster nodepool $pool show failed transiently: $show_out — sleeping 30s"
+          sleep 30
+          continue
+        fi
+
+        case "$existing_state" in
+          Succeeded)
+            echo "[retry $i/60] $cluster nodepool $pool already in Succeeded state from prior apply attempt; nothing to do"
+            exit 0
+            ;;
+          Creating|Updating|Deleting)
+            # Still converging from prior attempt. Wait rather than
+            # destructively delete — the pool may reach Succeeded on
+            # its own, and deleting an in-flight op queues a delete
+            # behind it (extra churn at N=100 AKS RP scale).
+            echo "[retry $i/60] $cluster nodepool $pool in transient state '$existing_state'; waiting 30s"
+            sleep 30
+            continue
+            ;;
+          Failed)
+            # Terminal failure — delete and recreate.
+            echo "[retry $i/60] $cluster nodepool $pool in terminal Failed state; deleting before recreate"
+            del_out=$(az aks nodepool delete -g "$rg" --cluster-name "$cluster" -n "$pool" --yes --only-show-errors 2>&1) || \
+              echo "[retry $i/60] az aks nodepool delete reported error (will poll absence anyway): $del_out"
+            # Up to 10 min budget — typical AKS nodepool delete is 2-4 min.
+            deleted=false
+            for j in $(seq 1 30); do
+              cur=$(az aks nodepool show -g "$rg" --cluster-name "$cluster" -n "$pool" --query provisioningState -o tsv --only-show-errors 2>/dev/null || echo "absent")
+              if [ "$cur" = "absent" ]; then
+                echo "[retry $i/60] $cluster nodepool $pool fully deleted; will recreate on next iteration"
+                deleted=true
+                break
+              fi
+              echo "[retry $i/60] $cluster nodepool $pool still present (state=$cur), waiting 20s..."
+              sleep 20
+            done
+            if [ "$deleted" != "true" ]; then
+              echo "[retry $i/60] $cluster nodepool $pool delete did not complete in 10m; re-precheck on next iteration"
+              sleep 30
+            fi
+            continue
+            ;;
+          absent)
+            ;;
+          *)
+            echo "[retry $i/60] $cluster nodepool $pool in unknown state '$existing_state'; waiting 30s"
+            sleep 30
+            continue
+            ;;
+        esac
+
+        # Nodepool absent — attempt add.
         out=$(eval "$cmd" 2>&1) && { echo "$out"; exit 0; }
-        if echo "$out" | grep -qE "OperationNotAllowed|AnotherOperationInProgress"; then
-          echo "[retry $i/60] $cluster nodepool $pool create blocked by in-progress AKS RP operation; sleeping 30s"
+        rc=$?
+        echo "$out"
+        # Retryable Azure RP errors:
+        #   - OperationNotAllowed / AnotherOperationInProgress: AKS RP busy
+        #     with another op on the cluster (e.g. lazy ACNS addon PUT
+        #     post-create). Retry once the queue drains.
+        #   - already exists: a concurrent/very-recent apply attempt
+        #     created the nodepool between our precheck and add. Retry —
+        #     next precheck will see Succeeded/Updating and resolve.
+        if echo "$out" | grep -qiE "OperationNotAllowed|AnotherOperationInProgress|already[[:space:]]*exists"; then
+          echo "[retry $i/60] $cluster nodepool $pool transient AKS RP error; sleeping 30s"
           sleep 30
           continue
         fi
         # Some other failure (quota, invalid args, etc.) — fail fast.
         echo "$out" >&2
-        exit 1
+        exit $rc
       done
       echo "Timeout: $cluster nodepool $pool create still blocked after 60 retries (~30m)" >&2
       exit 1
