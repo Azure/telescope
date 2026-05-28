@@ -22,6 +22,10 @@ aks_cli_config_list = [
       {
         name  = "network-plugin-mode"
         value = "overlay"
+      },
+      {
+        name  = "pod-cidr"
+        value = "10.128.0.0/11"
       }
     ]
   }
