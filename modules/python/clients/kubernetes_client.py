@@ -1153,13 +1153,11 @@ class KubernetesClient:
                 if condition.type.lower() == condition_type_lower and condition.status == "True":
                     return True
 
-        # Fallback: check completion/failure status directly
+        # Fallback: infer completion from success counters when conditions are absent
         if condition_type_lower == 'complete':
             spec_completions = job.spec.completions or 1
             return (job.status.succeeded is not None and
                     job.status.succeeded >= spec_completions)
-        if condition_type_lower == 'failed':
-            return job.status.failed is not None and job.status.failed > 0
 
         return False
 

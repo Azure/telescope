@@ -512,6 +512,19 @@ class NodePoolCRUD:
             }
         )
 
+        # For Jobs, delete any existing job first to avoid reusing completed jobs
+        if workload_type == "job":
+            try:
+                k8s_client.batch.delete_namespaced_job(
+                    name=resource_name,
+                    namespace=namespace,
+                    propagation_policy="Background"
+                )
+                logger.info("Deleted existing job %s before recreating", resource_name)
+            except Exception:
+                # Job doesn't exist, which is fine
+                pass
+
         # Apply each document in the rendered multi-doc template
         for doc in yaml.safe_load_all(rendered_template):
             if doc:
