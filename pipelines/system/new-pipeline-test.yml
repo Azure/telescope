@@ -6,7 +6,7 @@ variables:
   USE_LATEST_GA_K8S_VERSION: true
 
 stages:
-  - stage: azure_canadacentral_small_scale
+  - stage: azure_canadacentral_small_scale_10_nodes
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -29,7 +29,7 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: azure_canadacentral_medium_scale
+  - stage: azure_canadacentral_medium_scale_500_nodes
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -52,10 +52,10 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: azure_canadacentral_large_scale
+  - stage: azure_canadacentral_large_scale_1000_nodes
     dependsOn:
-      - azure_canadacentral_small_scale
-      - azure_canadacentral_medium_scale
+      - azure_canadacentral_small_scale_10_nodes
+      - azure_canadacentral_medium_scale_500_nodes
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
