@@ -17,7 +17,7 @@ stages:
           topology: k8s-cluster-crud-machine
           engine: machine
           matrix:
-            small-scale:
+            canadacentral-small-scale-10:
               vm_size: Standard_D2_v3
               pool_name: smallpool1
               scale_machine_count: 10
@@ -40,7 +40,7 @@ stages:
           topology: k8s-cluster-crud-machine
           engine: machine
           matrix:
-            medium-scale:
+            canadacentral-medium-scale-500:
               vm_size: Standard_D2_v3
               pool_name: mediump1
               scale_machine_count: 500
@@ -65,7 +65,7 @@ stages:
           topology: k8s-cluster-crud-machine
           engine: machine
           matrix:
-            large-scale:
+            canadacentral-large-scale-1000:
               vm_size: Standard_D2_v3
               pool_name: largep1
               scale_machine_count: 1000
