@@ -977,6 +977,8 @@ class KubernetesClient:
             'deployments': ['available', 'progressing', 'replicafailure', 'ready'],
             'statefulset': ['ready'],
             'statefulsets': ['ready'],
+            'job': ['complete', 'failed'],
+            'jobs': ['complete', 'failed'],
         }
 
         # Validate wait_condition_type format and type
@@ -1053,6 +1055,9 @@ class KubernetesClient:
             if resource_type_lower in ['statefulset', 'statefulsets']:
                 return self._check_statefulset_condition(resource_name, namespace, wait_all)
 
+            if resource_type_lower in ['job', 'jobs']:
+                return self._check_job_condition(resource_name, condition_type, namespace, wait_all)
+
             logger.warning(f"Unsupported resource type for condition checking: {resource_type}")
             return False
 
@@ -1113,6 +1118,50 @@ class KubernetesClient:
             and status.ready_replicas is not None
             and status.ready_replicas == spec_replicas
         )
+
+    def _check_job_condition(self, resource_name: str, condition_type: str, namespace: str, wait_all: bool) -> bool:
+        """Check job condition (e.g., 'complete', 'failed')."""
+        try:
+            if wait_all or not resource_name:
+                jobs = self.batch.list_namespaced_job(namespace=namespace).items
+            else:
+                job = self.batch.read_namespaced_job(name=resource_name, namespace=namespace)
+                jobs = [job]
+
+            for job in jobs:
+                if not self._is_job_condition_met(job, condition_type):
+                    return False
+
+            return True
+
+        except client.rest.ApiException as e:
+            if e.status == 404:
+                logger.debug("Job not found, waiting...")
+                return False
+            raise e
+
+    def _is_job_condition_met(self, job, condition_type: str) -> bool:
+        """Check if a job meets the specified condition."""
+        if not job.status:
+            return False
+
+        condition_type_lower = condition_type.lower()
+
+        # Check job conditions
+        if job.status.conditions:
+            for condition in job.status.conditions:
+                if condition.type.lower() == condition_type_lower and condition.status == "True":
+                    return True
+
+        # Fallback: check completion/failure status directly
+        if condition_type_lower == 'complete':
+            spec_completions = job.spec.completions or 1
+            return (job.status.succeeded is not None and
+                    job.status.succeeded >= spec_completions)
+        if condition_type_lower == 'failed':
+            return job.status.failed is not None and job.status.failed > 0
+
+        return False
 
     def _is_deployment_condition_met(self, deployment, condition_type: str) -> bool:
         """Check if a deployment meets the specified condition."""
