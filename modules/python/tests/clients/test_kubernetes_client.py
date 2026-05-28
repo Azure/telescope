@@ -3478,6 +3478,104 @@ spec:
 
             self.assertFalse(result)
 
+    @patch('time.time')
+    def test_wait_for_condition_job_complete_success(self, mock_time):
+        """Test wait_for_condition for job - complete success case"""
+        mock_time.side_effect = [0, 0, 1, 2, 2]
+
+        mock_job = MagicMock()
+        mock_job.status.conditions = [
+            MagicMock(type="Complete", status="True")
+        ]
+        mock_job.status.succeeded = 1
+
+        with patch.object(self.client, 'batch') as mock_batch, \
+             patch('time.sleep'):
+            mock_batch.read_namespaced_job.return_value = mock_job
+
+            result = self.client.wait_for_condition(
+                resource_type="job",
+                resource_name="test-job",
+                wait_condition_type="complete",
+                namespace="test-namespace",
+                timeout_seconds=5
+            )
+
+            self.assertTrue(result)
+            mock_batch.read_namespaced_job.assert_called_with(
+                name="test-job",
+                namespace="test-namespace"
+            )
+
+    @patch('time.time')
+    def test_wait_for_condition_job_failed(self, mock_time):
+        """Test wait_for_condition for job - failed condition"""
+        mock_time.side_effect = [0, 0, 1, 2, 2]
+
+        mock_job = MagicMock()
+        mock_job.status.conditions = [
+            MagicMock(type="Failed", status="True")
+        ]
+        mock_job.status.succeeded = None
+
+        with patch.object(self.client, 'batch') as mock_batch, \
+             patch('time.sleep'):
+            mock_batch.read_namespaced_job.return_value = mock_job
+
+            result = self.client.wait_for_condition(
+                resource_type="job",
+                resource_name="test-job",
+                wait_condition_type="failed",
+                namespace="test-namespace",
+                timeout_seconds=5
+            )
+
+            self.assertTrue(result)
+
+    @patch('time.time')
+    def test_wait_for_condition_job_timeout(self, mock_time):
+        """Test wait_for_condition for job - timeout case"""
+        mock_time.side_effect = [0, 0, 2, 5, 6, 6]
+
+        mock_job = MagicMock()
+        mock_job.status.conditions = None
+        mock_job.status.succeeded = 0
+
+        with patch.object(self.client, 'batch') as mock_batch, \
+             patch('time.sleep'):
+            mock_batch.read_namespaced_job.return_value = mock_job
+
+            result = self.client.wait_for_condition(
+                resource_type="job",
+                resource_name="test-job",
+                wait_condition_type="complete",
+                namespace="test-namespace",
+                timeout_seconds=1
+            )
+
+            self.assertFalse(result)
+
+    @patch('time.time')
+    def test_wait_for_condition_job_not_found(self, mock_time):
+        """Test wait_for_condition for job - not found case"""
+        mock_time.side_effect = [0, 0, 2, 5, 6, 6]
+
+        api_exception = ApiException(status=404, reason="Not Found")
+
+        with patch.object(self.client, 'batch') as mock_batch, \
+             patch('time.sleep'):
+            mock_batch.read_namespaced_job.side_effect = api_exception
+
+            result = self.client.wait_for_condition(
+                resource_type="job",
+                resource_name="nonexistent",
+                wait_condition_type="complete",
+                namespace="test-namespace",
+                timeout_seconds=1
+            )
+
+            self.assertFalse(result)
+
     # Tests for the enhanced apply_manifest_from_file method with folder support
     @patch('os.path.isdir')
     @patch('os.path.isfile')
