@@ -180,7 +180,8 @@ stages:
             --node-count 20 \
             --node-vm-size "Standard_D4_v3" \
             --mode User \
-            --node-taints kwok=true:NoSchedule --labels "kwok=true"
+            --node-taints kwok=true:NoSchedule \
+            --labels "kwok=true"
       displayName: Create node pool kwokpool
     - script: |2-
 
@@ -450,7 +451,8 @@ stages:
             --node-count 20 \
             --node-vm-size "Standard_D4_v3" \
             --mode User \
-            --node-taints kwok=true:NoSchedule --labels "kwok=true"
+            --node-taints kwok=true:NoSchedule \
+            --labels "kwok=true"
       displayName: Create node pool kwokpool
     - script: |2-
 
@@ -720,7 +722,8 @@ stages:
             --node-count 20 \
             --node-vm-size "Standard_D4_v3" \
             --mode User \
-            --node-taints kwok=true:NoSchedule --labels "kwok=true"
+            --node-taints kwok=true:NoSchedule \
+            --labels "kwok=true"
       displayName: Create node pool kwokpool
     - script: |2-
 

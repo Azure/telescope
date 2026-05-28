@@ -17,7 +17,7 @@ CreateNodePool = lambda serviceConnection: str, cluster: str, resourceGroup: str
         "--max-pods ${pool.maxPods}" if pool.maxPods else "",
         "--no-wait" if noWait else "",
     ]
-    flags = " ".join([f for f in flagDecision if f])
+    flags = " \\\n  ".join([f for f in flagDecision if f])
     script = """
 az aks nodepool add \\
   --cluster-name "${cluster}" \\
