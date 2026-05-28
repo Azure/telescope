@@ -39,6 +39,13 @@ WORKLOAD_CONFIG = {
         "wait_condition": "ready",
         "verify_pods_ready": True,
     },
+    "job": {
+        "template_file": "job.yml",
+        "count_key": "JOB_COMPLETIONS",
+        "resource_type": "job",
+        "wait_condition": "complete",
+        "verify_pods_ready": False,  # Job pods terminate after completion
+    },
 }
 
 class NodePoolCRUD:
@@ -356,6 +363,39 @@ class NodePoolCRUD:
             namespace=namespace
         )
 
+    def create_job(
+        self,
+        node_pool_name,
+        completions=1,
+        manifest_dir=None,
+        number_of_jobs=1,
+        label_selector="app=nginx-container",
+        namespace="default"
+    ):
+        """
+        Create Kubernetes Jobs after node pool operations.
+
+        Args:
+            node_pool_name: Name of the node pool to target
+            completions: Number of job completions (default: 1)
+            manifest_dir: Directory containing Kubernetes manifest files
+            number_of_jobs: Number of Jobs to create (default: 1)
+            label_selector: Label selector for pods (default: "app=nginx-container")
+            namespace: Kubernetes namespace (default: "default")
+
+        Returns:
+            True if all Job creations were successful, False otherwise
+        """
+        return self._create_workloads(
+            workload_type="job",
+            node_pool_name=node_pool_name,
+            count=completions,
+            number_of_workloads=number_of_jobs,
+            manifest_dir=manifest_dir,
+            label_selector=label_selector,
+            namespace=namespace
+        )
+
     def _create_workloads(
         self,
         workload_type,
@@ -369,9 +409,9 @@ class NodePoolCRUD:
         """Unified helper to create multiple workload instances.
 
         Args:
-            workload_type: Type of workload ("deployment" or "statefulset")
+            workload_type: Type of workload ("deployment", "statefulset", or "job")
             node_pool_name: Name of the target node pool
-            count: Number of replicas per workload instance
+            count: Number of replicas/completions per workload instance
             number_of_workloads: Total number of workload instances to create
             manifest_dir: Optional custom manifest directory
             label_selector: Base label selector (e.g., "app=nginx-container")
@@ -431,7 +471,7 @@ class NodePoolCRUD:
 
         Args:
             k8s_client: Kubernetes client instance
-            workload_type: Type of workload ("deployment" or "statefulset")
+            workload_type: Type of workload ("deployment", "statefulset", or "job")
             node_pool_name: Name of the target node pool
             index: Workload instance index (1-based)
             count: Number of replicas/completions
