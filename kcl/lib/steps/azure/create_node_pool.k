@@ -9,8 +9,8 @@ schema NodePool:
     taintPrefix: str = ""
     labels: str = ""
     maxPods?: int
-    vnetSubnetId: str = ""
-    osSKU: str = ""
+    vnetSubnetId?: str
+    osSKU?: str
 
 CreateNodePool = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, pool: NodePool, noWait: bool = False -> steps.Step {
     flagDecision = [
