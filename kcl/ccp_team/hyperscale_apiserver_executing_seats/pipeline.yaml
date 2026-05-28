@@ -171,8 +171,7 @@ jobs:
           --node-count 60 \
           --node-vm-size "Standard_D8_v3" \
           --mode User \
-          --node-taints kwok=true:NoSchedule \
-          --labels "kwok=true"
+          --node-taints kwok=true:NoSchedule --labels "kwok=true"
     displayName: Create node pool kwokpool
   - script: |2-
 
