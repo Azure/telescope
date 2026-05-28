@@ -1243,6 +1243,8 @@ class KubernetesClient:
                 self.app.create_namespaced_daemon_set(namespace=namespace, body=manifest)
             elif kind == "StatefulSet":
                 self.app.create_namespaced_stateful_set(namespace=namespace, body=manifest)
+            elif kind == "Job":
+                self.batch.create_namespaced_job(namespace=namespace, body=manifest)
             elif kind == "Service":
                 self.api.create_namespaced_service(namespace=namespace, body=manifest)
             elif kind == "ConfigMap":
@@ -1397,6 +1399,11 @@ class KubernetesClient:
                     self.app.patch_namespaced_stateful_set(name=name, namespace=namespace, body=manifest)
                 else:
                     raise ValueError("StatefulSet requires a namespace")
+            elif kind == "Job":
+                if namespace:
+                    self.batch.patch_namespaced_job(name=name, namespace=namespace, body=manifest)
+                else:
+                    raise ValueError("Job requires a namespace")
             elif kind == "Service":
                 if namespace:
                     self.api.patch_namespaced_service(name=name, namespace=namespace, body=manifest)
@@ -1578,6 +1585,11 @@ class KubernetesClient:
                     self.app.delete_namespaced_stateful_set(name=resource_name, namespace=namespace, body=delete_options)
                 else:
                     raise ValueError("StatefulSet requires a namespace")
+            elif kind == "Job":
+                if namespace:
+                    self.batch.delete_namespaced_job(name=resource_name, namespace=namespace, body=delete_options)
+                else:
+                    raise ValueError("Job requires a namespace")
             elif kind == "Service":
                 if namespace:
                     self.api.delete_namespaced_service(name=resource_name, namespace=namespace, body=delete_options)
