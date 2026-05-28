@@ -162,7 +162,7 @@ def handle_node_pool_operation(node_pool_crud, args):
         return 1
 
 def handle_workload_operations(node_pool_crud, args):
-    """Handle workload operations (deployment, statefulset, jobs) based on the command"""
+    """Handle workload operations (deployment, statefulset) based on the command"""
     command = args.command
     result = None
 
@@ -182,6 +182,21 @@ def handle_workload_operations(node_pool_crud, args):
             }
 
             result = node_pool_crud.create_deployment(**deploy_kwargs)
+        elif command == "statefulset":
+            if not hasattr(node_pool_crud, 'create_statefulset'):
+                logger.error("Cloud provider does not support statefulset workload operations")
+                return 1
+
+            # Prepare statefulset arguments
+            statefulset_kwargs = {
+                "node_pool_name": args.node_pool_name,
+                "replicas": args.replicas,
+                "manifest_dir": args.manifest_dir,
+                "number_of_statefulsets": args.count,
+                "label_selector": args.label_selector,
+            }
+
+            result = node_pool_crud.create_statefulset(**statefulset_kwargs)
         else:
             logger.error("Unknown workload command: '%s'", command)
             return 1
@@ -507,6 +522,14 @@ def main():
         help="create deployments"
     )
     deployment_parser.set_defaults(func=handle_workload_operations)
+
+    # StatefulSet command
+    statefulset_parser = subparsers.add_parser(
+        "statefulset",
+        parents=[common_parser, workload_common_parser],
+        help="create statefulsets"
+    )
+    statefulset_parser.set_defaults(func=handle_workload_operations)
 
     # Create-machine command (AKS Machine API)
     _add_create_machine_subparser(subparsers, common_parser)
