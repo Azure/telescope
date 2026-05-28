@@ -1,0 +1,60 @@
+parameters:
+  - name: cloud
+    type: string
+  - name: result_dir
+    type: string
+  - name: vm_size
+    type: string
+  - name: pool_name
+    type: string
+  - name: scale_machine_count
+    type: string  # numeric matrix values resolve at runtime via $(VAR)
+  - name: machine_workers
+    type: string
+  - name: use_batch_api
+    type: string  # 'true'|'false' as ADO doesn't have boolean type for matrix
+  - name: step_time_out
+    type: string
+    default: "600"
+
+steps:
+  - bash: |
+      set -euo pipefail
+      tags=$(jq -nc --arg run_id "$RUN_ID" \
+        --arg deletion_due_time "$DELETION_DUE_TIME" \
+        --arg creation_time "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
+        --arg scenario "$SCENARIO_TYPE-$SCENARIO_NAME" \
+        --arg owner aks \
+        '{run_id:$run_id, deletion_due_time:$deletion_due_time, creation_time:$creation_time, scenario:$scenario, owner:$owner}')
+      python3 -m crud.main create-machine \
+        --cloud "${{ parameters.cloud }}" \
+        --run-id "$RUN_ID" \
+        --node-pool-name "${{ parameters.pool_name }}" \
+        --vm-size "${{ parameters.vm_size }}" \
+        --step-timeout "${{ parameters.step_time_out }}" \
+        --result-dir "${{ parameters.result_dir }}"
+      USE_BATCH_FLAG=""
+      if [[ "${{ parameters.use_batch_api }}" == "true" ]]; then
+        USE_BATCH_FLAG="--use-batch-api"
+      fi
+      # shellcheck disable=SC2086
+      python3 -m crud.main scale-machine \
+        --cloud "${{ parameters.cloud }}" \
+        --run-id "$RUN_ID" \
+        --node-pool-name "${{ parameters.pool_name }}" \
+        --vm-size "${{ parameters.vm_size }}" \
+        --scale-machine-count "${{ parameters.scale_machine_count }}" \
+        --machine-workers "${{ parameters.machine_workers }}" \
+        $USE_BATCH_FLAG \
+        --step-timeout "${{ parameters.step_time_out }}" \
+        --readiness-wait-timeout "${{ parameters.step_time_out }}" \
+        --result-dir "${{ parameters.result_dir }}" \
+        --tags "$tags"
+    workingDirectory: modules/python
+    displayName: "Execute Machine API CRUD"
+    env:
+      PYTHONPATH: $(Pipeline.Workspace)/s/modules/python
+      RUN_ID: $(RUN_ID)
+      DELETION_DUE_TIME: $(DELETION_DUE_TIME)
+      SCENARIO_TYPE: $(SCENARIO_TYPE)
+      SCENARIO_NAME: $(SCENARIO_NAME)
