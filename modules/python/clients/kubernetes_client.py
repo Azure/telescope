@@ -760,7 +760,7 @@ class KubernetesClient:
             for c in agent_pod.spec.containers:
                 if c.name == container_name and c.ports:
                     for p in c.ports:
-                        if p.name in ("prometheus", "metrics", "peer-service"):
+                        if p.name in ("prometheus", "metrics", "prometheus-metrics"):
                             logger.info("Deep Cilium: detected port %d from "
                                        "container spec (name=%s)",
                                        p.container_port, p.name)

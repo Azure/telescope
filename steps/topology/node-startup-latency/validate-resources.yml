@@ -21,6 +21,7 @@ steps:
     helm install cilium cilium/cilium --namespace kube-system \
       --set aksbyocni.enabled=true \
       --set nodeinit.enabled=true \
+      --set prometheus.enabled=true \
       --wait --timeout 5m
 
     echo "Waiting for all nodes to become Ready..."
