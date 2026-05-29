@@ -2,7 +2,8 @@
 
 Subclasses ``AKSClient`` to inherit auth, ContainerServiceClient,
 KubernetesClient, ``get_cluster_name``, ``get_cluster_data``, and the existing
-node-pool CRUD methods.
+node-pool CRUD methods. Adds raw REST methods for the Machine API which is not
+yet exposed in the Azure SDK.
 
 Public methods (``create_machine_agentpool``, ``scale_machine``) wrap their work
 in ``OperationContext``: the context is opened inside the client method,
@@ -10,7 +11,8 @@ metadata is enriched with ``op.add_metadata`` along the way, success returns
 None, failures are logged and re-raised so ``OperationContext`` records them.
 ``MachineCRUD`` therefore stays a thin try/except wrapper.
 
-Machine create operations use direct ARM REST calls.
+The non-batch scale path PUTs machines one at a time. The batch dispatch
+(``use_batch_api=True``) uses the private ``BatchPutMachine`` header contract.
 """
 import json
 import logging
@@ -367,13 +369,16 @@ class AKSMachineClient(AKSClient):
         Flow:
           1. Snapshot the current Ready+labeled node count in the agentpool
              (``baseline_count``) so the readiness watcher counts only NEW nodes.
-          2. Submit machine creates individually or through the batch API.
+          2. Submit machine PUTs -- individually by default, or sharded into
+             ``machine_workers`` chunks where each chunk is sent as a single
+             ``BatchPutMachine``-headered PUT when ``use_batch_api=True`` (per-
+             machine ARM polling is intentionally NOT performed in either path).
           3. Wait ONCE on the agentpool-level provisioningState.
           4. Wait for nodes labeled ``agentpool=<pool>`` to surpass
              ``baseline_count`` by enough to satisfy P50/P70/P90/P99/P100 targets.
 
-        ``tags`` is currently unused (machines inherit tags from the parent
-        agentpool).
+        ``tags`` is currently unused (Machine API rejects top-level tags on the
+        machine PUT body; machines inherit tags from the parent agentpool).
 
         See ``_create_batch_machines`` for the batch chunking contract and the
         ``BatchPutMachine`` header schema.
@@ -409,7 +414,7 @@ class AKSMachineClient(AKSClient):
             "scale_machine", "azure", metadata, result_dir=self.result_dir
         ) as op:
             try:
-                # Snapshot baseline BEFORE any creates so the readiness watcher
+                # Snapshot baseline BEFORE any PUTs so the readiness watcher
                 # counts only NEW nodes.
                 kc = self.k8s_client
                 baseline_count = 0
@@ -510,7 +515,16 @@ class AKSMachineClient(AKSClient):
     def _scale_machine_individually(
         self, request: SimpleNamespace, names: List[str],
     ) -> List[str]:
-        """Submit per-machine creates concurrently via ThreadPoolExecutor."""
+        """Submit per-machine PUTs concurrently via ThreadPoolExecutor.
+
+        Each worker calls ``_create_single_machine(name, request)`` which PUTs
+        the machine and returns True on any 2xx response. Per-machine
+        provisioningState is intentionally NOT polled (see
+        ``_create_single_machine`` for why); the agentpool-level poll in
+        ``scale_machine`` is the real completion signal. Returns the list of
+        names that reported True. Per-machine exceptions are logged and
+        treated as failure (name omitted from result).
+        """
         successful: List[str] = []
         # Clamp workers to >=1 so a misconfigured request (0 or negative) cannot
         # crash ThreadPoolExecutor with ValueError.
@@ -526,7 +540,22 @@ class AKSMachineClient(AKSClient):
         return successful
 
     def _create_single_machine(self, name: str, request: SimpleNamespace) -> bool:
-        """PUT a single Machine resource. Returns True on any 2xx response."""
+        """PUT a single Machine resource. Returns True on any 2xx response.
+
+        Body is ``{"properties": {"hardware": {"vmSize": ...}}}``. Tags are inherited
+        from the parent agentpool; the machine PUT body in api-version 2025-06-02-preview
+        does not accept a top-level ``tags`` field (rejected with UnmarshalError).
+
+        Intentionally does NOT poll the per-machine ARM provisioningState. The
+        AKS RP reports per-machine ``provisioningState='Succeeded'`` essentially
+        as soon as the agentpool admits the request -- well before the underlying
+        VM is created. Polling here therefore returns spuriously early and only
+        adds N round-trips of latency without surfacing useful signal. The
+        canonical completion signal is the agentpool-level provisioningState,
+        which ``scale_machine`` polls once after all PUTs return.
+
+        Never raises on HTTP errors; logs and returns False on non-2xx responses.
+        """
         sub = self.subscription_id
         url = (
             f"{_ARM_BASE}/subscriptions/{sub}/resourceGroups/{request.resource_group}"
