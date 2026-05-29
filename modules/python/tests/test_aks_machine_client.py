@@ -7,8 +7,8 @@ result file via ``Operation.save_to_file`` on context exit. Tests verify:
   the right keys
 - failure path raises (so the OperationContext records ``success=False``)
 
-This revision adds tests for both scale paths (non-batch individual CLI calls
-and the BatchPutMachine-headered chunked path) plus the batch-path helpers
+This revision adds tests for both scale paths (non-batch individual PUTs and
+the BatchPutMachine-headered chunked path) plus the batch-path helpers
 ``_scale_machine_batch``, ``_create_batch_machines``, and
 ``_make_batch_request``.
 """
@@ -21,6 +21,7 @@ import unittest
 from types import SimpleNamespace
 from unittest import mock
 
+from clients.aks_client import AKSClient
 from clients.aks_machine_client import AKSMachineClient
 
 
@@ -83,49 +84,27 @@ class TestAKSMachineClient(unittest.TestCase):
 
     # ---- create_machine_agentpool ----
 
-    @mock.patch.object(AKSMachineClient, "_wait_for_agentpool_provisioning",
-                       return_value=True)
-    @mock.patch.object(AKSMachineClient, "_run_az_cli_command")
-    def test_create_machine_agentpool_success(self, mock_run_cli, _mock_wait):
-        """CLI command accepted + Succeeded poll -> returns; metadata enriched."""
+    @mock.patch.object(AKSClient, "create_node_pool", return_value=True)
+    def test_create_machine_agentpool_reuses_nodepool_create(self, mock_create_pool):
+        """Machine agentpool create delegates to the inherited nodepool flow."""
 
         self.client.create_machine_agentpool(
             agentpool_name="apool", vm_size="Standard_D2_v3"
         )
 
-        mock_run_cli.assert_called_once()
-        command = mock_run_cli.call_args.args[0]
-        self.assertEqual(command[:4], ["az", "aks", "nodepool", "add"])
-        self.assertIn("--mode", command)
-        self.assertIn("Machines", command)
-        self.assertIn("--node-vm-size", command)
-        self.assertIn("Standard_D2_v3", command)
-        self.assertIn("--node-count", command)
-        self.assertIn("0", command)
-        self.assertIn("--no-wait", command)
-        metadata_keys = {
-            call.args[0] for call in self.mock_operation.add_metadata.call_args_list
-        }
-        self.assertIn("agentpool_info", metadata_keys)
-        self.assertIn("cluster_info", metadata_keys)
+        mock_create_pool.assert_called_once_with(
+            node_pool_name="apool",
+            vm_size="Standard_D2_v3",
+            node_count=0,
+            cluster_name="fake-cluster",
+            gpu_node_pool=False,
+            mode="Machines",
+        )
 
-    @mock.patch.object(AKSMachineClient, "_run_az_cli_command",
+    @mock.patch.object(AKSClient, "create_node_pool",
                        side_effect=RuntimeError("boom"))
-    def test_create_machine_agentpool_cli_failure_raises(self, _mock_run_cli):
-        """CLI failure -> RuntimeError propagates out of with-block."""
-
-        with self.assertRaises(RuntimeError):
-            self.client.create_machine_agentpool(
-                agentpool_name="apool", vm_size="Standard_D2_v3"
-            )
-
-    @mock.patch.object(AKSMachineClient, "_wait_for_agentpool_provisioning",
-                       return_value=False)
-    @mock.patch.object(AKSMachineClient, "_run_az_cli_command")
-    def test_create_machine_agentpool_provisioning_timeout_raises(
-        self, _mock_run_cli, _mock_wait
-    ):
-        """CLI succeeds but provisioning never reaches Succeeded -> RuntimeError."""
+    def test_create_machine_agentpool_create_failure_raises(self, _mock_create_pool):
+        """Inherited nodepool create failure propagates out of the wrapper."""
 
         with self.assertRaises(RuntimeError):
             self.client.create_machine_agentpool(
@@ -193,12 +172,12 @@ class TestAKSMachineClient(unittest.TestCase):
     def test_scale_machine_partial_landing_raises(
         self, mock_create, mock_wait_ap, mock_wait_ready
     ):
-        """Non-batch path: if fewer machine CLI commands succeed than requested,
+        """Non-batch path: if fewer machines land than requested,
         scale_machine raises RuntimeError BEFORE waiting on agentpool
         provisioning or node readiness -- otherwise the recorded percentile
         envelope and node_readiness_time describe a smaller target than
         requested."""
-        # Two machine adds requested, first lands, second fails.
+        # Two PUTs requested, first lands, second fails.
         mock_create.side_effect = [True, False]
         self.mock_k8s.get_ready_nodes.return_value = []
 
@@ -341,9 +320,9 @@ class TestAKSMachineClient(unittest.TestCase):
 
     # ---- _create_single_machine ----
 
-    @mock.patch.object(AKSMachineClient, "_run_az_cli_command")
-    def test_create_single_machine_cli_success_returns_true(self, mock_run_cli):
-        """A zero-exit Azure CLI command counts as a successful machine add."""
+    @mock.patch.object(AKSMachineClient, "make_request")
+    def test_create_single_machine_2xx_returns_true(self, mock_make_request):
+        """Any 200/201/202 response counts as a successful PUT."""
         request = SimpleNamespace(
             agentpool_name="apool",
             cluster_name="fake-cluster",
@@ -351,20 +330,26 @@ class TestAKSMachineClient(unittest.TestCase):
             vm_size="Standard_D2_v3",
             timeout=60,
         )
-        self.assertTrue(self.client._create_single_machine("m1", request))
-        mock_run_cli.assert_called_once()
-        command = mock_run_cli.call_args.args[0]
-        self.assertEqual(command[:4], ["az", "aks", "machine", "add"])
-        self.assertIn("--machine-name", command)
-        self.assertIn("m1", command)
-        self.assertIn("--vm-size", command)
-        self.assertIn("Standard_D2_v3", command)
-        self.assertIn("--no-wait", command)
+        for code in (200, 201, 202):
+            with self.subTest(code=code):
+                mock_resp = mock.MagicMock()
+                mock_resp.status_code = code
+                mock_make_request.return_value = mock_resp
+                self.assertTrue(
+                    self.client._create_single_machine("m1", request)
+                )
+        call_args = mock_make_request.call_args
+        self.assertEqual(call_args.args[0], "PUT")
+        self.assertIn("/machines/m1?", call_args.args[1])
+        self.assertEqual(
+            call_args.kwargs["data"],
+            {"properties": {"hardware": {"vmSize": "Standard_D2_v3"}}},
+        )
+        self.assertEqual(call_args.kwargs["timeout"], 60)
 
-    @mock.patch.object(AKSMachineClient, "_run_az_cli_command",
-                       side_effect=RuntimeError("boom"))
-    def test_create_single_machine_cli_failure_returns_false(self, _mock_run_cli):
-        """CLI failures are logged and return False (never raise)."""
+    @mock.patch.object(AKSMachineClient, "make_request")
+    def test_create_single_machine_non_2xx_returns_false(self, mock_make_request):
+        """Non-2xx responses are logged and return False (never raise)."""
         request = SimpleNamespace(
             agentpool_name="apool",
             cluster_name="fake-cluster",
@@ -372,6 +357,10 @@ class TestAKSMachineClient(unittest.TestCase):
             vm_size="Standard_D2_v3",
             timeout=60,
         )
+        mock_resp = mock.MagicMock()
+        mock_resp.status_code = 500
+        mock_resp.text = "boom"
+        mock_make_request.return_value = mock_resp
         self.assertFalse(self.client._create_single_machine("m1", request))
 
     # ---- _wait_for_machine_node_readiness ----
