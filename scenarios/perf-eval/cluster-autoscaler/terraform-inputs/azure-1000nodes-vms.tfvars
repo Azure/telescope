@@ -47,7 +47,7 @@ aks_cli_config_list = [
     }
     extra_node_pool = [
       {
-        name        = "userpool"
+        name        = "userpool1"
         node_count  = 1
         vm_size     = "Standard_D2ds_v4"
         vm_set_type = "VirtualMachines"
@@ -62,7 +62,91 @@ aks_cli_config_list = [
           },
           {
             name  = "max-count"
-            value = "1000"
+            value = "251"
+          },
+          {
+            name  = "max-pods"
+            value = "110"
+          },
+          {
+            name  = "labels"
+            value = "cas=dedicated"
+          }
+        ]
+      },
+      {
+        name        = "userpool2"
+        node_count  = 0
+        vm_size     = "Standard_D2ds_v4"
+        vm_set_type = "VirtualMachines"
+        optional_parameters = [
+          {
+            name  = "enable-cluster-autoscaler"
+            value = ""
+          },
+          {
+            name  = "min-count"
+            value = "0"
+          },
+          {
+            name  = "max-count"
+            value = "250"
+          },
+          {
+            name  = "max-pods"
+            value = "110"
+          },
+          {
+            name  = "labels"
+            value = "cas=dedicated"
+          }
+        ]
+      },
+      {
+        name        = "userpool3"
+        node_count  = 0
+        vm_size     = "Standard_D2ds_v4"
+        vm_set_type = "VirtualMachines"
+        optional_parameters = [
+          {
+            name  = "enable-cluster-autoscaler"
+            value = ""
+          },
+          {
+            name  = "min-count"
+            value = "0"
+          },
+          {
+            name  = "max-count"
+            value = "250"
+          },
+          {
+            name  = "max-pods"
+            value = "110"
+          },
+          {
+            name  = "labels"
+            value = "cas=dedicated"
+          }
+        ]
+      },
+      {
+        name        = "userpool4"
+        node_count  = 0
+        vm_size     = "Standard_D2ds_v4"
+        vm_set_type = "VirtualMachines"
+        optional_parameters = [
+          {
+            name  = "enable-cluster-autoscaler"
+            value = ""
+          },
+          {
+            name  = "min-count"
+            value = "0"
+          },
+          {
+            name  = "max-count"
+            value = "250"
           },
           {
             name  = "max-pods"
