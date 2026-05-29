@@ -52,7 +52,6 @@ class MachineCRUD:
                 agentpool_name=agentpool_name,
                 vm_size=vm_size,
                 cluster_name=self.cluster_name,
-                timeout=self.step_timeout,
             )
             return True
         except Exception as e:

@@ -52,7 +52,6 @@ class TestMachineCRUD(unittest.TestCase):
             agentpool_name="apool",
             vm_size="Standard_D2_v3",
             cluster_name="fake-cluster",
-            timeout=900,
         )
 
     def test_create_machine_agentpool_swallows_exception(self):

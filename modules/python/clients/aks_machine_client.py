@@ -2,9 +2,7 @@
 
 Subclasses ``AKSClient`` to inherit auth, ContainerServiceClient,
 KubernetesClient, ``get_cluster_name``, ``get_cluster_data``, and the existing
-node-pool CRUD methods. Uses Azure CLI for Machine API operations that have a
-first-class CLI surface and keeps direct REST only for the BatchPutMachine path,
-which is not exposed by Azure CLI.
+node-pool CRUD methods.
 
 Public methods (``create_machine_agentpool``, ``scale_machine``) wrap their work
 in ``OperationContext``: the context is opened inside the client method,
@@ -12,14 +10,11 @@ metadata is enriched with ``op.add_metadata`` along the way, success returns
 None, failures are logged and re-raised so ``OperationContext`` records them.
 ``MachineCRUD`` therefore stays a thin try/except wrapper.
 
-The non-batch scale path shells out to ``az aks machine add`` per machine.
-The batch dispatch (``use_batch_api=True``) still uses the private
-``BatchPutMachine`` header contract directly.
+Machine create operations use direct ARM REST calls.
 """
 import json
 import logging
 import math
-import subprocess
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -140,103 +135,37 @@ class AKSMachineClient(AKSClient):
             method, url, headers=headers, json=data, timeout=timeout
         )
 
-    def _run_az_cli_command(self, command: List[str], timeout: int) -> None:
-        """Run an Azure CLI command and raise a compact RuntimeError on failure."""
-        logger.info("Running Azure CLI command: %s", " ".join(command))
-        try:
-            completed = subprocess.run(
-                command,
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-            )
-        except FileNotFoundError as exc:
-            raise RuntimeError("Azure CLI executable 'az' was not found") from exc
-        except subprocess.TimeoutExpired as exc:
-            raise RuntimeError(
-                f"Azure CLI command timed out after {timeout}s: {' '.join(command)}"
-            ) from exc
-
-        if completed.returncode != 0:
-            stdout = (completed.stdout or "").strip()
-            stderr = (completed.stderr or "").strip()
-            detail = stderr or stdout or "<no output>"
-            raise RuntimeError(
-                f"Azure CLI command failed with exit code {completed.returncode}: "
-                f"{' '.join(command)}; output={detail[:1000]}"
-            )
-
     # ---- Machine API: agent pool provisioning ----
     def create_machine_agentpool(
         self,
         agentpool_name: str,
         vm_size: str,
         cluster_name: Optional[str] = None,
-        timeout: int = 300,
     ) -> None:
-        """Create a machine-mode agentpool via Azure CLI.
-
-        Opens an ``OperationContext`` here, enriches metadata, returns on
-        success, re-raises on failure (so the context records ``success=False``
-        with traceback before the exception propagates to ``MachineCRUD``).
+        """Create a machine-mode agentpool.
 
         Args:
             agentpool_name: Target agentpool name.
             vm_size: VM SKU for the machine-mode agentpool and operation metadata.
             cluster_name: Parent AKS cluster name. Defaults to
                 ``self.get_cluster_name()`` (matches ``create_node_pool``).
-            timeout: Total wall-clock budget (seconds) for this operation.
-                Used as the polling deadline for ``_wait_for_agentpool_provisioning``.
-                The per-request HTTP timeout is capped at
-                ``_PER_REQUEST_TIMEOUT_CAP`` so a single slow CLI process cannot
-                consume the whole budget before polling starts.
 
         Raises:
-            RuntimeError: CLI failure, ARM-reported Failed state, or timeout.
+            RuntimeError: Azure SDK failure or readiness timeout.
         """
         cluster_name = cluster_name or self.get_cluster_name()
-        metadata = {
-            "cluster_name": cluster_name,
-            "agentpool_name": agentpool_name,
-            "vm_size": vm_size,
-        }
-        with self._get_operation_context()(
-            "create_machine_agentpool", "azure", metadata, result_dir=self.result_dir
-        ) as op:
-            try:
-                url = (
-                    f"{_ARM_BASE}/subscriptions/{self.subscription_id}/resourceGroups/"
-                    f"{self.resource_group}"
-                    f"/providers/Microsoft.ContainerService/managedClusters/{cluster_name}"
-                    f"/agentPools/{agentpool_name}?api-version={_AGENTPOOL_API_VERSION}"
-                )
-                command = [
-                    "az", "aks", "nodepool", "add",
-                    "--resource-group", self.resource_group,
-                    "--cluster-name", cluster_name,
-                    "--name", agentpool_name,
-                    "--mode", "Machines",
-                    "--node-vm-size", vm_size,
-                    "--node-count", "0",
-                    "--subscription", self.subscription_id,
-                    "--no-wait",
-                    "--only-show-errors",
-                ]
-                self._run_az_cli_command(
-                    command,
-                    timeout=min(timeout, _PER_REQUEST_TIMEOUT_CAP),
-                )
-                if not self._wait_for_agentpool_provisioning(url, timeout):
-                    raise RuntimeError(
-                        f"agentpool {agentpool_name} did not reach Succeeded within {timeout}s"
-                    )
-                op.add_metadata("agentpool_info", self.get_node_pool(
-                    agentpool_name, cluster_name).as_dict())
-                op.add_metadata("cluster_info", self.get_cluster_data(cluster_name))
-            except Exception as e:
-                logger.error(f"Failed to create machine agentpool {agentpool_name}: {e}")
-                raise
+        try:
+            super().create_node_pool(
+                node_pool_name=agentpool_name,
+                vm_size=vm_size,
+                node_count=0,
+                cluster_name=cluster_name,
+                gpu_node_pool=False,
+                mode="Machines",
+            )
+        except Exception as e:
+            logger.error(f"Failed to create machine agentpool {agentpool_name}: {e}")
+            raise
 
     def _wait_for_agentpool_provisioning(self, url: str, timeout: int) -> bool:
         """Poll the agentpool URL until provisioningState is terminal.
@@ -438,11 +367,7 @@ class AKSMachineClient(AKSClient):
         Flow:
           1. Snapshot the current Ready+labeled node count in the agentpool
              (``baseline_count``) so the readiness watcher counts only NEW nodes.
-          2. Submit machine creates -- individually via ``az aks machine add`` by
-             default, or sharded into ``machine_workers`` chunks where each
-             chunk is sent as a single ``BatchPutMachine``-headered PUT when
-             ``use_batch_api=True`` (per-machine ARM polling is intentionally
-             NOT performed in either path).
+          2. Submit machine creates individually or through the batch API.
           3. Wait ONCE on the agentpool-level provisioningState.
           4. Wait for nodes labeled ``agentpool=<pool>`` to surpass
              ``baseline_count`` by enough to satisfy P50/P70/P90/P99/P100 targets.
@@ -585,16 +510,7 @@ class AKSMachineClient(AKSClient):
     def _scale_machine_individually(
         self, request: SimpleNamespace, names: List[str],
     ) -> List[str]:
-        """Submit per-machine Azure CLI commands concurrently via ThreadPoolExecutor.
-
-        Each worker calls ``_create_single_machine(name, request)`` which runs
-        ``az aks machine add --no-wait`` and returns True on a zero exit code.
-        Per-machine provisioningState is intentionally NOT polled (see
-        ``_create_single_machine`` for why); the agentpool-level poll in
-        ``scale_machine`` is the real completion signal. Returns the list of
-        names that reported True. Per-machine CLI failures are logged and
-        treated as failure (name omitted from result).
-        """
+        """Submit per-machine creates concurrently via ThreadPoolExecutor."""
         successful: List[str] = []
         # Clamp workers to >=1 so a misconfigured request (0 or negative) cannot
         # crash ThreadPoolExecutor with ValueError.
@@ -610,39 +526,18 @@ class AKSMachineClient(AKSClient):
         return successful
 
     def _create_single_machine(self, name: str, request: SimpleNamespace) -> bool:
-        """Create a single Machine resource via Azure CLI.
-
-        Tags are inherited from the parent agentpool; the Machine API rejected
-        top-level tags in earlier direct REST testing.
-
-        Intentionally does NOT poll the per-machine ARM provisioningState. The
-        AKS RP reports per-machine ``provisioningState='Succeeded'`` essentially
-        as soon as the agentpool admits the request -- well before the underlying
-        VM is created. Polling here therefore returns spuriously early and only
-        adds N round-trips of latency without surfacing useful signal. The
-        canonical completion signal is the agentpool-level provisioningState,
-        which ``scale_machine`` polls once after all create requests return.
-
-        Never raises to the caller on CLI errors; logs and returns False.
-        """
-        command = [
-            "az", "aks", "machine", "add",
-            "--resource-group", request.resource_group,
-            "--cluster-name", request.cluster_name,
-            "--nodepool-name", request.agentpool_name,
-            "--machine-name", name,
-            "--vm-size", request.vm_size,
-            "--subscription", self.subscription_id,
-            "--no-wait",
-            "--only-show-errors",
-        ]
-        try:
-            self._run_az_cli_command(
-                command,
-                timeout=min(request.timeout, _PER_REQUEST_TIMEOUT_CAP),
-            )
-        except RuntimeError as exc:
-            logger.error("az aks machine add failed for %s: %s", name, exc)
+        """PUT a single Machine resource. Returns True on any 2xx response."""
+        sub = self.subscription_id
+        url = (
+            f"{_ARM_BASE}/subscriptions/{sub}/resourceGroups/{request.resource_group}"
+            f"/providers/Microsoft.ContainerService/managedClusters/{request.cluster_name}"
+            f"/agentPools/{request.agentpool_name}/machines/{name}"
+            f"?api-version={_MACHINE_API_VERSION}"
+        )
+        body: Dict[str, Any] = {"properties": {"hardware": {"vmSize": request.vm_size}}}
+        resp = self.make_request("PUT", url, data=body, timeout=request.timeout)
+        if resp.status_code not in (200, 201, 202):
+            logger.error(f"PUT machine {name} -> {resp.status_code} {resp.text[:500]}")
             return False
         return True
 
