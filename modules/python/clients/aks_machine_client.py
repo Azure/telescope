@@ -145,20 +145,27 @@ class AKSMachineClient(AKSClient):
         cluster_name: Optional[str] = None,
         timeout: int = 300,
     ) -> None:
-        """Create a machine-mode agentpool container.
+        """Convert an existing agentpool to Machines mode via PUT.
 
-        Machine pools only support a minimal agentpool payload. VM shape belongs
-        on the Machine resources created later, not on this container.
+        Opens an ``OperationContext`` here, enriches metadata, returns on
+        success, re-raises on failure (so the context records ``success=False``
+        with traceback before the exception propagates to ``MachineCRUD``).
 
         Args:
             agentpool_name: Target agentpool name.
-            vm_size: VM SKU recorded in operation metadata for later machines.
+            vm_size: VM SKU recorded in operation metadata. The PUT body itself
+                only sets ``mode: Machines``; the SKU is informational here so
+                downstream Kusto rows can attribute the agentpool to a SKU.
             cluster_name: Parent AKS cluster name. Defaults to
                 ``self.get_cluster_name()`` (matches ``create_node_pool``).
-            timeout: Total wall-clock budget (seconds) for provisioning poll.
+            timeout: Total wall-clock budget (seconds) for this operation.
+                Used as the polling deadline for ``_wait_for_agentpool_provisioning``.
+                The per-request HTTP timeout is capped at
+                ``_PER_REQUEST_TIMEOUT_CAP`` so a single slow PUT cannot consume
+                the whole budget before polling starts.
 
         Raises:
-            RuntimeError: ARM failure, ARM-reported Failed state, or timeout.
+            RuntimeError: PUT non-2xx, ARM-reported Failed state, or timeout.
         """
         cluster_name = cluster_name or self.get_cluster_name()
         metadata = {
@@ -170,33 +177,30 @@ class AKSMachineClient(AKSClient):
             "create_machine_agentpool", "azure", metadata, result_dir=self.result_dir
         ) as op:
             try:
+                sub = self.subscription_id
                 url = (
-                    f"{_ARM_BASE}/subscriptions/{self.subscription_id}/resourceGroups/"
-                    f"{self.resource_group}"
+                    f"{_ARM_BASE}/subscriptions/{sub}/resourceGroups/{self.resource_group}"
                     f"/providers/Microsoft.ContainerService/managedClusters/{cluster_name}"
                     f"/agentPools/{agentpool_name}?api-version={_AGENTPOOL_API_VERSION}"
                 )
-                payload = {"properties": {"mode": "Machines"}}
-                response = self.make_request(
-                    "PUT",
-                    url,
-                    data=payload,
-                    timeout=min(timeout, _PER_REQUEST_TIMEOUT_CAP),
-                )
-                if response.status_code not in (200, 201, 202):
+                body = {"properties": {"mode": "Machines"}}
+                # Cap the PUT timeout so the bulk of ``timeout`` is preserved
+                # for the polling loop below.
+                put_timeout = min(timeout, _PER_REQUEST_TIMEOUT_CAP)
+                resp = self.make_request("PUT", url, data=body, timeout=put_timeout)
+                # ARM async PUT acceptance returns 200/201/202; the agentpool
+                # provisioning poll below is the real completion gate.
+                if resp.status_code not in (200, 201, 202):
                     raise RuntimeError(
-                        f"agentpool PUT {url} -> {response.status_code} "
-                        f"{response.text[:500]}"
+                        f"create_machine_agentpool PUT failed: "
+                        f"{resp.status_code} {resp.text[:500]}"
                     )
                 if not self._wait_for_agentpool_provisioning(url, timeout):
                     raise RuntimeError(
-                        f"agentpool {agentpool_name} did not reach Succeeded "
-                        f"within {timeout}s"
+                        f"agentpool {agentpool_name} did not reach Succeeded within {timeout}s"
                     )
-                op.add_metadata(
-                    "agentpool_info",
-                    self.get_node_pool(agentpool_name, cluster_name).as_dict(),
-                )
+                op.add_metadata("agentpool_info", self.get_node_pool(
+                    agentpool_name, cluster_name).as_dict())
                 op.add_metadata("cluster_info", self.get_cluster_data(cluster_name))
             except Exception as e:
                 logger.error(f"Failed to create machine agentpool {agentpool_name}: {e}")

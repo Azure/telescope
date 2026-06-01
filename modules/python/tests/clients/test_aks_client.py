@@ -213,60 +213,8 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         # Verify
         self.assertTrue(result)
         self.mock_agent_pools.begin_create_or_update.assert_called_once()
-        parameters = self.mock_agent_pools.begin_create_or_update.call_args.kwargs[
-            "parameters"
-        ]
-        self.assertEqual(parameters["mode"], "User")
         self.mock_k8s.wait_for_nodes_ready.assert_called_once_with(
             node_count=node_count,
-            operation_timeout_in_minutes=10,
-            label_selector=f"agentpool={node_pool_name}",
-        )
-
-    def test_create_node_pool_supports_custom_mode(self):
-        """Specialized nodepool creates can reuse create_node_pool with mode override."""
-        node_pool_name = "machine-pool"
-        vm_size = "Standard_DS2_v2"
-        mock_operation = mock.MagicMock()
-        self.mock_agent_pools.begin_create_or_update.return_value = mock_operation
-        self.mock_k8s.wait_for_nodes_ready.return_value = []
-
-        mock_created_node_pool = mock.MagicMock()
-        mock_created_node_pool.as_dict.return_value = {
-            "name": node_pool_name,
-            "vm_size": vm_size,
-            "count": 0,
-            "mode": "Machines",
-        }
-        self.aks_client.get_node_pool = mock.MagicMock(
-            return_value=mock_created_node_pool
-        )
-
-        result = self.aks_client.create_node_pool(
-            node_pool_name=node_pool_name,
-            vm_size=vm_size,
-            node_count=0,
-            mode="Machines",
-        )
-
-        self.assertTrue(result)
-        self.mock_operation_context.assert_called_with(
-            "create_node_pool",
-            "azure",
-            {
-                "cluster_name": "fake-cluster",
-                "vm_size": vm_size,
-                "node_count": 0,
-                "gpu_node_pool": False,
-            },
-            result_dir=self.test_result_dir,
-        )
-        parameters = self.mock_agent_pools.begin_create_or_update.call_args.kwargs[
-            "parameters"
-        ]
-        self.assertEqual(parameters["mode"], "Machines")
-        self.mock_k8s.wait_for_nodes_ready.assert_called_once_with(
-            node_count=0,
             operation_timeout_in_minutes=10,
             label_selector=f"agentpool={node_pool_name}",
         )

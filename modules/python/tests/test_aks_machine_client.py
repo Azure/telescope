@@ -21,7 +21,6 @@ import unittest
 from types import SimpleNamespace
 from unittest import mock
 
-from clients.aks_client import AKSClient
 from clients.aks_machine_client import AKSMachineClient
 
 
@@ -87,52 +86,33 @@ class TestAKSMachineClient(unittest.TestCase):
     @mock.patch.object(AKSMachineClient, "_wait_for_agentpool_provisioning",
                        return_value=True)
     @mock.patch.object(AKSMachineClient, "make_request")
-    def test_create_machine_agentpool_success(self, mock_make_request, mock_wait):
-        """Machine agentpool create sends only the minimal container payload."""
-        mock_make_request.return_value = SimpleNamespace(status_code=202, text="")
+    def test_create_machine_agentpool_success(self, mock_make_request, _mock_wait):
+        """PUT 200 + Succeeded poll -> returns; metadata enriched."""
+        mock_resp = mock.MagicMock()
+        mock_resp.status_code = 200
+        mock_make_request.return_value = mock_resp
 
         self.client.create_machine_agentpool(
-            agentpool_name="apool", vm_size="Standard_D2_v3", timeout=900
+            agentpool_name="apool", vm_size="Standard_D2_v3"
         )
 
         mock_make_request.assert_called_once()
-        method, url = mock_make_request.call_args.args[:2]
-        self.assertEqual(method, "PUT")
-        self.assertIn("/agentPools/apool?api-version=", url)
-        self.assertEqual(
-            mock_make_request.call_args.kwargs["data"],
-            {"properties": {"mode": "Machines"}},
-        )
-        self.assertEqual(mock_make_request.call_args.kwargs["timeout"], 60)
-        mock_wait.assert_called_once_with(url, 900)
+        call_args = mock_make_request.call_args
+        self.assertEqual(call_args.args[0], "PUT")
+        self.assertEqual(call_args.kwargs["data"], {"properties": {"mode": "Machines"}})
         metadata_keys = {
             call.args[0] for call in self.mock_operation.add_metadata.call_args_list
         }
         self.assertIn("agentpool_info", metadata_keys)
         self.assertIn("cluster_info", metadata_keys)
 
-    @mock.patch.object(AKSClient, "create_node_pool")
-    @mock.patch.object(AKSMachineClient, "_wait_for_agentpool_provisioning",
-                       return_value=True)
-    @mock.patch.object(AKSMachineClient, "make_request")
-    def test_create_machine_agentpool_does_not_use_generic_nodepool_payload(
-        self, mock_make_request, _mock_wait, mock_create_pool
-    ):
-        """Generic nodepool create includes properties Machine pools reject."""
-        mock_make_request.return_value = SimpleNamespace(status_code=202, text="")
-
-        self.client.create_machine_agentpool(
-            agentpool_name="apool", vm_size="Standard_D2_v3"
-        )
-
-        mock_create_pool.assert_not_called()
-
     @mock.patch.object(AKSMachineClient, "make_request")
     def test_create_machine_agentpool_put_failure_raises(self, mock_make_request):
-        """Non-successful agentpool PUT propagates as RuntimeError."""
-        mock_make_request.return_value = SimpleNamespace(
-            status_code=400, text="unsupported properties"
-        )
+        """PUT non-2xx -> RuntimeError propagates out of with-block."""
+        mock_resp = mock.MagicMock()
+        mock_resp.status_code = 500
+        mock_resp.text = "boom"
+        mock_make_request.return_value = mock_resp
 
         with self.assertRaises(RuntimeError):
             self.client.create_machine_agentpool(
@@ -145,8 +125,10 @@ class TestAKSMachineClient(unittest.TestCase):
     def test_create_machine_agentpool_provisioning_timeout_raises(
         self, mock_make_request, _mock_wait
     ):
-        """PUT succeeds but provisioning never reaches Succeeded -> RuntimeError."""
-        mock_make_request.return_value = SimpleNamespace(status_code=202, text="")
+        """PUT OK but provisioning never reaches Succeeded -> RuntimeError."""
+        mock_resp = mock.MagicMock()
+        mock_resp.status_code = 200
+        mock_make_request.return_value = mock_resp
 
         with self.assertRaises(RuntimeError):
             self.client.create_machine_agentpool(

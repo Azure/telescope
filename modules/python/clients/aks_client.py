@@ -265,7 +265,6 @@ class AKSClient:
         node_count: int = 0,
         cluster_name: Optional[str] = None,
         gpu_node_pool: bool = False,
-        mode: str = "User",
     ) -> Any:
         """
         Create a new node pool in the AKS cluster.
@@ -277,7 +276,6 @@ class AKSClient:
             cluster_name: The name of the AKS cluster. If not provided,
                          will use the one from initialization or try to find one.
             gpu_node_pool: Whether this is a GPU-enabled node pool (default: False)
-            mode: The node pool mode to create (default: User).
 
         Returns:
             The created node pool object or operation result
@@ -312,7 +310,7 @@ class AKSClient:
                     "count": node_count,
                     "vm_size": vm_size,
                     "os_type": "Linux",
-                    "mode": mode,
+                    "mode": "User",
                     "os_disk_type": "Managed",
                     "nodeLabels": {"gpu": "true"} if gpu_node_pool else {},
                 }
