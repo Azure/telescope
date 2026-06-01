@@ -84,27 +84,69 @@ class TestAKSMachineClient(unittest.TestCase):
 
     # ---- create_machine_agentpool ----
 
-    @mock.patch.object(AKSClient, "create_node_pool", return_value=True)
-    def test_create_machine_agentpool_reuses_nodepool_create(self, mock_create_pool):
-        """Machine agentpool create delegates to the inherited nodepool flow."""
+    @mock.patch.object(AKSMachineClient, "_wait_for_agentpool_provisioning",
+                       return_value=True)
+    @mock.patch.object(AKSMachineClient, "make_request")
+    def test_create_machine_agentpool_success(self, mock_make_request, mock_wait):
+        """Machine agentpool create sends only the minimal container payload."""
+        mock_make_request.return_value = SimpleNamespace(status_code=202, text="")
+
+        self.client.create_machine_agentpool(
+            agentpool_name="apool", vm_size="Standard_D2_v3", timeout=900
+        )
+
+        mock_make_request.assert_called_once()
+        method, url = mock_make_request.call_args.args[:2]
+        self.assertEqual(method, "PUT")
+        self.assertIn("/agentPools/apool?api-version=", url)
+        self.assertEqual(
+            mock_make_request.call_args.kwargs["data"],
+            {"properties": {"mode": "Machines"}},
+        )
+        self.assertEqual(mock_make_request.call_args.kwargs["timeout"], 60)
+        mock_wait.assert_called_once_with(url, 900)
+        metadata_keys = {
+            call.args[0] for call in self.mock_operation.add_metadata.call_args_list
+        }
+        self.assertIn("agentpool_info", metadata_keys)
+        self.assertIn("cluster_info", metadata_keys)
+
+    @mock.patch.object(AKSClient, "create_node_pool")
+    @mock.patch.object(AKSMachineClient, "_wait_for_agentpool_provisioning",
+                       return_value=True)
+    @mock.patch.object(AKSMachineClient, "make_request")
+    def test_create_machine_agentpool_does_not_use_generic_nodepool_payload(
+        self, mock_make_request, _mock_wait, mock_create_pool
+    ):
+        """Generic nodepool create includes properties Machine pools reject."""
+        mock_make_request.return_value = SimpleNamespace(status_code=202, text="")
 
         self.client.create_machine_agentpool(
             agentpool_name="apool", vm_size="Standard_D2_v3"
         )
 
-        mock_create_pool.assert_called_once_with(
-            node_pool_name="apool",
-            vm_size="Standard_D2_v3",
-            node_count=0,
-            cluster_name="fake-cluster",
-            gpu_node_pool=False,
-            mode="Machines",
+        mock_create_pool.assert_not_called()
+
+    @mock.patch.object(AKSMachineClient, "make_request")
+    def test_create_machine_agentpool_put_failure_raises(self, mock_make_request):
+        """Non-successful agentpool PUT propagates as RuntimeError."""
+        mock_make_request.return_value = SimpleNamespace(
+            status_code=400, text="unsupported properties"
         )
 
-    @mock.patch.object(AKSClient, "create_node_pool",
-                       side_effect=RuntimeError("boom"))
-    def test_create_machine_agentpool_create_failure_raises(self, _mock_create_pool):
-        """Inherited nodepool create failure propagates out of the wrapper."""
+        with self.assertRaises(RuntimeError):
+            self.client.create_machine_agentpool(
+                agentpool_name="apool", vm_size="Standard_D2_v3"
+            )
+
+    @mock.patch.object(AKSMachineClient, "_wait_for_agentpool_provisioning",
+                       return_value=False)
+    @mock.patch.object(AKSMachineClient, "make_request")
+    def test_create_machine_agentpool_provisioning_timeout_raises(
+        self, mock_make_request, _mock_wait
+    ):
+        """PUT succeeds but provisioning never reaches Succeeded -> RuntimeError."""
+        mock_make_request.return_value = SimpleNamespace(status_code=202, text="")
 
         with self.assertRaises(RuntimeError):
             self.client.create_machine_agentpool(

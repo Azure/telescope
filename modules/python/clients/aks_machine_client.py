@@ -143,31 +143,64 @@ class AKSMachineClient(AKSClient):
         agentpool_name: str,
         vm_size: str,
         cluster_name: Optional[str] = None,
+        timeout: int = 300,
     ) -> None:
-        """Create a machine-mode agentpool.
+        """Create a machine-mode agentpool container.
+
+        Machine pools only support a minimal agentpool payload. VM shape belongs
+        on the Machine resources created later, not on this container.
 
         Args:
             agentpool_name: Target agentpool name.
-            vm_size: VM SKU for the machine-mode agentpool and operation metadata.
+            vm_size: VM SKU recorded in operation metadata for later machines.
             cluster_name: Parent AKS cluster name. Defaults to
                 ``self.get_cluster_name()`` (matches ``create_node_pool``).
+            timeout: Total wall-clock budget (seconds) for provisioning poll.
 
         Raises:
-            RuntimeError: Azure SDK failure or readiness timeout.
+            RuntimeError: ARM failure, ARM-reported Failed state, or timeout.
         """
         cluster_name = cluster_name or self.get_cluster_name()
-        try:
-            super().create_node_pool(
-                node_pool_name=agentpool_name,
-                vm_size=vm_size,
-                node_count=0,
-                cluster_name=cluster_name,
-                gpu_node_pool=False,
-                mode="Machines",
-            )
-        except Exception as e:
-            logger.error(f"Failed to create machine agentpool {agentpool_name}: {e}")
-            raise
+        metadata = {
+            "cluster_name": cluster_name,
+            "agentpool_name": agentpool_name,
+            "vm_size": vm_size,
+        }
+        with self._get_operation_context()(
+            "create_machine_agentpool", "azure", metadata, result_dir=self.result_dir
+        ) as op:
+            try:
+                url = (
+                    f"{_ARM_BASE}/subscriptions/{self.subscription_id}/resourceGroups/"
+                    f"{self.resource_group}"
+                    f"/providers/Microsoft.ContainerService/managedClusters/{cluster_name}"
+                    f"/agentPools/{agentpool_name}?api-version={_AGENTPOOL_API_VERSION}"
+                )
+                payload = {"properties": {"mode": "Machines"}}
+                response = self.make_request(
+                    "PUT",
+                    url,
+                    data=payload,
+                    timeout=min(timeout, _PER_REQUEST_TIMEOUT_CAP),
+                )
+                if response.status_code not in (200, 201, 202):
+                    raise RuntimeError(
+                        f"agentpool PUT {url} -> {response.status_code} "
+                        f"{response.text[:500]}"
+                    )
+                if not self._wait_for_agentpool_provisioning(url, timeout):
+                    raise RuntimeError(
+                        f"agentpool {agentpool_name} did not reach Succeeded "
+                        f"within {timeout}s"
+                    )
+                op.add_metadata(
+                    "agentpool_info",
+                    self.get_node_pool(agentpool_name, cluster_name).as_dict(),
+                )
+                op.add_metadata("cluster_info", self.get_cluster_data(cluster_name))
+            except Exception as e:
+                logger.error(f"Failed to create machine agentpool {agentpool_name}: {e}")
+                raise
 
     def _wait_for_agentpool_provisioning(self, url: str, timeout: int) -> bool:
         """Poll the agentpool URL until provisioningState is terminal.
