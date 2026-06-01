@@ -549,35 +549,14 @@ def main():
     # Job command
     job_parser = subparsers.add_parser(
         "job",
-        parents=[common_parser],
+        parents=[common_parser, workload_common_parser],
         help="create jobs"
-    )
-    job_parser.add_argument(
-        "--node-pool-name",
-        required=True,
-        help="Name of the node pool to target"
-    )
-    job_parser.add_argument(
-        "--count",
-        type=int,
-        default=1,
-        help="Number of jobs to create (default: 1)"
     )
     job_parser.add_argument(
         "--completions",
         type=int,
         default=1,
         help="Number of completions per job (default: 1)"
-    )
-    job_parser.add_argument(
-        "--manifest-dir",
-        default=None,
-        help="Directory containing Kubernetes manifest files"
-    )
-    job_parser.add_argument(
-        "--label-selector",
-        default="app=nginx-container",
-        help="Label selector for created pods (default: app=nginx-container)"
     )
     job_parser.set_defaults(func=handle_workload_operations)
 
