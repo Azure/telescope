@@ -1481,10 +1481,15 @@ class TestKubernetesClient(unittest.TestCase):
         mock_status = MagicMock()
         mock_status.succeeded = 1
         mock_status.failed = 0
+        mock_status.conditions = []  # No conditions, will use succeeded fallback
+
+        mock_spec = MagicMock()
+        mock_spec.completions = 1
 
         mock_job = MagicMock()
         mock_job.status = mock_status
         mock_job.metadata = mock_metadata
+        mock_job.spec = mock_spec
 
         mock_read_job.return_value = mock_job
 
@@ -1497,11 +1502,20 @@ class TestKubernetesClient(unittest.TestCase):
         """Test waiting for job completion when job has failed."""
         job_name = "test-job"
         namespace = "default"
+
+        # Create a proper Failed condition
+        mock_condition = MagicMock()
+        mock_condition.type = "Failed"
+        mock_condition.status = "True"
+
         mock_status = MagicMock()
         mock_status.succeeded = 0
         mock_status.failed = 1
+        mock_status.conditions = [mock_condition]
+
         mock_job = MagicMock()
         mock_job.status = mock_status
+        mock_job.spec.completions = 1
         mock_metadata = MagicMock()
         mock_metadata.name = job_name
         mock_job.metadata = mock_metadata
@@ -1531,6 +1545,7 @@ class TestKubernetesClient(unittest.TestCase):
             status=MagicMock(succeeded=0, failed=0, conditions=[]),
             metadata=MagicMock(name=job_name),
         )
+        mock_read_namespaced_job.return_value.spec = MagicMock(completions=1)
 
         with self.assertRaises(Exception) as context:
             self.client.wait_for_job_completed(job_name, namespace, timeout)
