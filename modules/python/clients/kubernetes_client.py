@@ -377,18 +377,18 @@ class KubernetesClient:
         :param job_name: The name of the job to wait for.
         :param namespace: The namespace where the job is located (default: "default").
         :param timeout: The timeout in seconds to wait for the job to complete (default: 300 seconds).
-        :return: None
+        :return: The job name if completed successfully.
         """
         start_time = time.time()
         while time.time() - start_time < timeout:
             try:
                 job = self.batch.read_namespaced_job(name=job_name, namespace=namespace)
-                if job.status.succeeded is not None and job.status.succeeded > 0:
+                if self._is_job_condition_met(job, "complete"):
                     logger.info(
                         f"Job '{job_name}' in namespace '{namespace}' has completed successfully."
                     )
                     return job.metadata.name
-                if job.status.failed is not None and job.status.failed > 0:
+                if self._is_job_condition_met(job, "failed"):
                     raise Exception(
                         f"Job '{job_name}' in namespace '{namespace}' has failed."
                     )
