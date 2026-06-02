@@ -83,10 +83,19 @@ if [ "$CLUSTER_COUNT" -lt 2 ]; then
   exit 1
 fi
 
-# Curl image used for connectivity probes. Pinned to a specific digest
-# eventually — for now this matches what other test scenarios use.
-CURL_IMAGE="quay.io/curl/curl:8.4.0"
-PROBE_IMAGE="registry.k8s.io/e2e-test-images/agnhost:2.40"
+# MS-approved container images (avoid CSSC external-registry policy violations).
+# - CURL_IMAGE: cbl-mariner base has curl pre-installed; used by the peer-side
+#   connectivity probe client pod.
+# - PROBE_IMAGE: pause:3.6 — same MCR-approved image already used by the
+#   workload Deployment templates (event-throughput-deployment.yaml,
+#   scale-test-deployment.yaml). Pause does NOT serve HTTP, but the
+#   propagation probe doesn't need it to — we only need the probe pod
+#   to exist, get an IP from CNI, register a Cilium identity, and
+#   propagate to peers via kvstore. Connectivity validation hits the
+#   long-running nginx-based backend Deployment (which is a different
+#   pod, behind the global Service).
+CURL_IMAGE="mcr.microsoft.com/cbl-mariner/base/core:2.0"
+PROBE_IMAGE="mcr.microsoft.com/oss/kubernetes/pause:3.6"
 
 # Global Service DNS name — resolved at runtime from the first Service
 # in PROBE_NS on the first cluster (CL2 names objects with 0- or 1-
@@ -106,7 +115,7 @@ discover_global_svc_dns() {
       get svc -l group=clustermesh-propagation-probe \
       -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
     if [ -n "$_svc" ]; then
-      GLOBAL_SVC_DNS="${_svc}.${PROBE_NS}.svc.cluster.local:8080"
+      GLOBAL_SVC_DNS="${_svc}.${PROBE_NS}.svc.cluster.local:80"
       echo "[probe] resolved global Service DNS: $GLOBAL_SVC_DNS"
       return 0
     fi
@@ -138,22 +147,35 @@ preflight_cilium_commands() {
     return 1
   fi
   echo "[probe] preflight: cilium-agent pod = $_cil"
-  # Test bpf ipcache list (the propagation signal). Either cilium-dbg or
-  # cilium binary should accept it.
-  local _ipcache_out
+  # Test bpf ipcache list. AKS-managed Cilium agent is DISTROLESS — no
+  # `sh` binary inside the container. Invoke each candidate command
+  # directly via kubectl exec; capture stdout+stderr separately.
+  local _ipcache_out _ipcache_err
   _ipcache_out=$(KUBECONFIG="$_kc" kubectl --context "$_ctx" -n kube-system exec "$_cil" -c cilium-agent -- \
-    sh -c "cilium-dbg bpf ipcache list 2>&1 || cilium bpf ipcache list 2>&1" 2>&1 | head -5)
-  if echo "$_ipcache_out" | grep -qiE "not found|no such file|command not found|unknown command"; then
-    echo "[probe] PREFLIGHT FAIL: neither cilium-dbg nor cilium bpf ipcache list works on $_ctx." >&2
-    echo "[probe] output was: $_ipcache_out" >&2
+    cilium-dbg bpf ipcache list 2>/dev/null | head -5)
+  if [ -z "$_ipcache_out" ]; then
+    # Fallback to older binary name.
+    _ipcache_out=$(KUBECONFIG="$_kc" kubectl --context "$_ctx" -n kube-system exec "$_cil" -c cilium-agent -- \
+      cilium bpf ipcache list 2>/dev/null | head -5)
+  fi
+  if [ -z "$_ipcache_out" ]; then
+    # One more diagnostic call WITH stderr captured to give a useful failure msg.
+    _ipcache_err=$(KUBECONFIG="$_kc" kubectl --context "$_ctx" -n kube-system exec "$_cil" -c cilium-agent -- \
+      cilium-dbg bpf ipcache list 2>&1 | head -3)
+    echo "[probe] PREFLIGHT FAIL: neither cilium-dbg nor cilium bpf ipcache list returns output on $_cil." >&2
+    echo "[probe] cilium-dbg stderr/stdout sample: $_ipcache_err" >&2
     return 1
   fi
-  echo "[probe] preflight: bpf ipcache list works (sample output: $(echo "$_ipcache_out" | head -1 | head -c 100))"
+  echo "[probe] preflight: bpf ipcache list works (sample: $(echo "$_ipcache_out" | head -1 | head -c 100))"
   # Test identity list -o json
   local _id_out
   _id_out=$(KUBECONFIG="$_kc" kubectl --context "$_ctx" -n kube-system exec "$_cil" -c cilium-agent -- \
-    sh -c "cilium identity list -o json 2>&1 || cilium-dbg identity list -o json 2>&1" 2>&1 | head -1)
-  if echo "$_id_out" | grep -qiE "not found|no such file|command not found|unknown command"; then
+    cilium identity list -o json 2>/dev/null | head -1)
+  if [ -z "$_id_out" ]; then
+    _id_out=$(KUBECONFIG="$_kc" kubectl --context "$_ctx" -n kube-system exec "$_cil" -c cilium-agent -- \
+      cilium-dbg identity list -o json 2>/dev/null | head -1)
+  fi
+  if [ -z "$_id_out" ]; then
     echo "[probe] PREFLIGHT WARN: identity list -o json may not work; identity timestamps will be 0. Continuing anyway."
   else
     echo "[probe] preflight: identity list works"
@@ -210,16 +232,21 @@ wait_pod_ready() {
 }
 
 # Wait for source cluster's local cilium-agent endpoint list to include
-# the pod IP. Sets T_LOCAL_EP_NS or 0.
+# the pod IP. Sets T_LOCAL_EP_NS or 0. AKS-managed Cilium is distroless;
+# invoke binaries directly without sh -c wrapper.
 wait_local_endpoint() {
   local _kc="$1" _ctx="$2" _pod_ip="$3" _deadline_s="$4"
-  local _start _now _cil
+  local _start _now _cil _out
   _start=$(date +%s)
   _cil=$(find_cilium_pod "$_kc" "$_ctx") || { T_LOCAL_EP_NS=0; return 1; }
   while true; do
-    if KUBECONFIG="$_kc" kubectl --context "$_ctx" -n kube-system exec "$_cil" -c cilium-agent -- \
-         sh -c "cilium endpoint list 2>/dev/null || cilium-dbg endpoint list 2>/dev/null" 2>/dev/null | \
-         grep -qF "$_pod_ip"; then
+    _out=$(KUBECONFIG="$_kc" kubectl --context "$_ctx" -n kube-system exec "$_cil" -c cilium-agent -- \
+      cilium endpoint list 2>/dev/null || true)
+    if [ -z "$_out" ]; then
+      _out=$(KUBECONFIG="$_kc" kubectl --context "$_ctx" -n kube-system exec "$_cil" -c cilium-agent -- \
+        cilium-dbg endpoint list 2>/dev/null || true)
+    fi
+    if echo "$_out" | grep -qF "$_pod_ip"; then
       T_LOCAL_EP_NS=$(date +%s%N); return 0
     fi
     _now=$(date +%s)
@@ -233,13 +260,17 @@ wait_local_endpoint() {
 # Wait for peer ipcache to include pod IP. Sets T_PEER_IPCACHE_NS or 0.
 wait_peer_ipcache() {
   local _kc="$1" _ctx="$2" _pod_ip="$3" _deadline_s="$4"
-  local _start _now _cil
+  local _start _now _cil _out
   _start=$(date +%s)
   _cil=$(find_cilium_pod "$_kc" "$_ctx") || { T_PEER_IPCACHE_NS=0; return 1; }
   while true; do
-    if KUBECONFIG="$_kc" kubectl --context "$_ctx" -n kube-system exec "$_cil" -c cilium-agent -- \
-         sh -c "cilium-dbg bpf ipcache list 2>/dev/null || cilium bpf ipcache list 2>/dev/null" 2>/dev/null | \
-         grep -qF "${_pod_ip}/32"; then
+    _out=$(KUBECONFIG="$_kc" kubectl --context "$_ctx" -n kube-system exec "$_cil" -c cilium-agent -- \
+      cilium-dbg bpf ipcache list 2>/dev/null || true)
+    if [ -z "$_out" ]; then
+      _out=$(KUBECONFIG="$_kc" kubectl --context "$_ctx" -n kube-system exec "$_cil" -c cilium-agent -- \
+        cilium bpf ipcache list 2>/dev/null || true)
+    fi
+    if echo "$_out" | grep -qF "${_pod_ip}/32"; then
       T_PEER_IPCACHE_NS=$(date +%s%N); return 0
     fi
     _now=$(date +%s)
@@ -253,13 +284,17 @@ wait_peer_ipcache() {
 # Wait for peer to see identity with the unique probe label. Sets T_PEER_IDENTITY_NS or 0.
 wait_peer_identity() {
   local _kc="$1" _ctx="$2" _label_uuid="$3" _deadline_s="$4"
-  local _start _now _cil
+  local _start _now _cil _out
   _start=$(date +%s)
   _cil=$(find_cilium_pod "$_kc" "$_ctx") || { T_PEER_IDENTITY_NS=0; return 1; }
   while true; do
-    if KUBECONFIG="$_kc" kubectl --context "$_ctx" -n kube-system exec "$_cil" -c cilium-agent -- \
-         sh -c "cilium identity list -o json 2>/dev/null || cilium-dbg identity list -o json 2>/dev/null" 2>/dev/null | \
-         grep -qF "$_label_uuid"; then
+    _out=$(KUBECONFIG="$_kc" kubectl --context "$_ctx" -n kube-system exec "$_cil" -c cilium-agent -- \
+      cilium identity list -o json 2>/dev/null || true)
+    if [ -z "$_out" ]; then
+      _out=$(KUBECONFIG="$_kc" kubectl --context "$_ctx" -n kube-system exec "$_cil" -c cilium-agent -- \
+        cilium-dbg identity list -o json 2>/dev/null || true)
+    fi
+    if echo "$_out" | grep -qF "$_label_uuid"; then
       T_PEER_IDENTITY_NS=$(date +%s%N); return 0
     fi
     _now=$(date +%s)
@@ -448,13 +483,15 @@ metadata:
     propagation-probe-src: "$SRC_NAME"
     app: propagation-probe
 spec:
+  # Pause container — sleeps forever, single-digit-mB / micro-CPU
+  # footprint. Doesn't serve HTTP, but we don't need it to: the
+  # probe measures kvstore/identity/ipcache propagation, not
+  # request handling. Connectivity probe hits the long-running
+  # nginx backend Deployment via the global Service instead.
   hostname: $POD_HOSTNAME
   containers:
-  - name: echo
+  - name: pause
     image: $PROBE_IMAGE
-    args: ["serve-hostname", "--http=true", "--port=8080"]
-    ports:
-    - containerPort: 8080
   restartPolicy: Never
 EOF
 

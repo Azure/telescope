@@ -18,23 +18,21 @@ spec:
         app: {{.Name}}
     spec:
       containers:
-        - name: echo
-          # agnhost serve-hostname returns the pod hostname in the HTTP
-          # response body. We use that to verify the curl from a peer
-          # actually reached a backend in the correct (source) cluster
-          # when ENABLE_CONNECTIVITY=true. Same image as Kubernetes
-          # upstream e2e tests; pulled & cached fast.
-          image: registry.k8s.io/e2e-test-images/agnhost:2.40
-          args:
-            - serve-hostname
-            - --http=true
-            - --port=8080
+        - name: nginx
+          # Same MS-approved image used elsewhere in this repo
+          # (modules/python/clusterloader2/autoscale/config/warmup_deployment.yaml).
+          # Serves a default index.html on port 80; sufficient for the
+          # connectivity probe's HTTP 200 check. We don't introspect
+          # response body (the cross-cluster routing signal we care
+          # about is HTTP 200 vs failure + RTT; the load-distribution
+          # signal comes from per-curl-target peer_cluster column in
+          # ConnectivityResults.jsonl, not the response body).
+          image: mcr.microsoft.com/cbl-mariner/base/nginx:1
           ports:
-            - containerPort: 8080
+            - containerPort: 80
               name: http
-          # Tight footprint per the existing event-throughput-deployment
-          # pattern. 200 pods/cluster ~= negligible cluster load; the
-          # probe scenario is meant as a controlled baseline.
+          # Tight footprint; backend is meant as a baseline target,
+          # not under load. 2 replicas per cluster × N clusters.
           resources:
             requests:
               cpu: 1m
@@ -45,6 +43,6 @@ spec:
           readinessProbe:
             httpGet:
               path: /
-              port: 8080
+              port: 80
             periodSeconds: 2
             failureThreshold: 3
