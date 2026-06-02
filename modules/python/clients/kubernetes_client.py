@@ -1084,7 +1084,6 @@ class KubernetesClient:
 
         except client.rest.ApiException as e:
             if e.status == 404:
-                logger.debug("Deployment not found, waiting...")
                 return False
             raise e
 
@@ -1105,7 +1104,6 @@ class KubernetesClient:
 
         except client.rest.ApiException as e:
             if e.status == 404:
-                logger.debug("StatefulSet not found, waiting...")
                 return False
             raise e
 
@@ -1136,7 +1134,6 @@ class KubernetesClient:
 
         except client.rest.ApiException as e:
             if e.status == 404:
-                logger.debug("Job not found, waiting...")
                 return False
             raise e
 
