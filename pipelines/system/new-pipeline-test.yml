@@ -14,7 +14,7 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - westus2
           topology: node-startup-latency
           engine: crud
           matrix:
@@ -39,7 +39,7 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - westus2
           topology: node-startup-latency
           engine: crud
           matrix:
@@ -65,7 +65,7 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - westus2
           topology: node-startup-latency
           engine: crud
           matrix:
@@ -89,7 +89,7 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - westus2
           topology: node-startup-latency
           engine: crud
           matrix:
