@@ -1,0 +1,20 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: myapp-{{NODE_POOL_NAME}}-{{INDEX}}
+  labels:
+    app: {{LABEL_VALUE}}
+spec:
+  completions: {{JOB_COMPLETIONS}}
+  template:
+    metadata:
+      labels:
+        app: {{LABEL_VALUE}}
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: {{LABEL_VALUE}}
+          image: mcr.microsoft.com/oss/nginx/nginx:1.21.6
+          command: ["nginx", "-t"]
+          ports:
+            - containerPort: 80
