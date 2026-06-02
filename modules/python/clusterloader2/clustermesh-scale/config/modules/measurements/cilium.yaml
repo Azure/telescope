@@ -213,6 +213,178 @@ steps:
           query: quantile(0.90, max_over_time(increase(kube_pod_container_status_restarts_total{container="cilium-agent"}[%v])[%v:]))
         - name: Perc50
           query: quantile(0.50, max_over_time(increase(kube_pod_container_status_restarts_total{container="cilium-agent"}[%v])[%v:]))
+
+    # ---------------------------------------------------------------------
+    # PHASE 1 METRIC GAP-FILL (added per rubber-duck audit 2026-06-02):
+    # Always-on, low-cardinality metrics that the existing scenarios will
+    # generate non-empty values for. Cilium-side gaps identified in the audit.
+    # ---------------------------------------------------------------------
+
+    # Policy regeneration latency — canonical Cilium "endpoint policy compile"
+    # cost. Will read ~0 when no policies are present (current pause-pod
+    # workload); becomes meaningful when policy-scale-matrix lands.
+    - Identifier: CiliumPolicyRegenerationDuration{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Policy Regeneration Duration {{$suffix}}
+        metricVersion: v1
+        unit: s
+        enableViolations: false
+        queries:
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(rate(cilium_policy_regeneration_time_stats_seconds_bucket[1m])) by (le))
+        - name: Perc90
+          query: histogram_quantile(0.90, sum(rate(cilium_policy_regeneration_time_stats_seconds_bucket[1m])) by (le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(rate(cilium_policy_regeneration_time_stats_seconds_bucket[1m])) by (le))
+
+    # Policy implementation delay — time from policy change visible to
+    # agent until BPF datapath actually enforces it. The "policy change
+    # → packet decision" latency, which is what customers actually see.
+    - Identifier: CiliumPolicyImplementationDelay{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Policy Implementation Delay {{$suffix}}
+        metricVersion: v1
+        unit: s
+        enableViolations: false
+        queries:
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(rate(cilium_policy_implementation_delay_bucket[1m])) by (le))
+        - name: Perc90
+          query: histogram_quantile(0.90, sum(rate(cilium_policy_implementation_delay_bucket[1m])) by (le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(rate(cilium_policy_implementation_delay_bucket[1m])) by (le))
+
+    # Endpoint regeneration cost — Cilium recompiles per-endpoint policy
+    # programs on label changes / policy changes. At scale this becomes
+    # the dominant CPU cost. Counter + histogram pair.
+    - Identifier: CiliumEndpointRegenerations{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Endpoint Regenerations {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        - name: MaxRate
+          query: max(rate(cilium_endpoint_regenerations_count[1m]))
+        - name: SumRate
+          query: sum(rate(cilium_endpoint_regenerations_count[1m]))
+
+    - Identifier: CiliumEndpointRegenerationDuration{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Endpoint Regeneration Duration {{$suffix}}
+        metricVersion: v1
+        unit: s
+        enableViolations: false
+        queries:
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(rate(cilium_endpoint_regeneration_time_stats_seconds_bucket[1m])) by (le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(rate(cilium_endpoint_regeneration_time_stats_seconds_bucket[1m])) by (le))
+
+    # BPF map pressure — CRITICAL signal at scale. cilium_bpf_map_pressure
+    # is a gauge in [0,1] representing fill ratio of each BPF map. >0.8
+    # is a saturation warning; 1.0 = full = dropped events/decisions.
+    - Identifier: CiliumBpfMapPressure{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium BPF Map Pressure {{$suffix}}
+        metricVersion: v1
+        unit: ratio
+        enableViolations: false
+        queries:
+        - name: MaxAcrossMaps
+          query: max(max_over_time(cilium_bpf_map_pressure[%v:]))
+        - name: Perc99
+          query: quantile(0.99, max_over_time(cilium_bpf_map_pressure[%v:]))
+        - name: Perc50
+          query: quantile(0.50, avg_over_time(cilium_bpf_map_pressure[%v:]))
+
+    # Packet drops + forwards — datapath health signal. Drops should
+    # stay at 0 in our tests; any non-zero is investigation-worthy.
+    - Identifier: CiliumDropCount{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Drop Count {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: true
+        queries:
+        - name: SumRate
+          query: sum(rate(cilium_drop_count_total[1m]))
+        - name: MaxRate
+          query: max(rate(cilium_drop_count_total[1m]))
+
+    # IPCache errors — failures to populate the ipcache map. Cross-cluster
+    # propagation degradation lives here; should stay 0 in healthy mesh.
+    - Identifier: CiliumIpcacheErrors{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium IPCache Errors {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: true
+        queries:
+        - name: SumRate
+          query: sum(rate(cilium_ipcache_errors_total[1m]))
+        - name: MaxRate
+          query: max(rate(cilium_ipcache_errors_total[1m]))
+
+    # Node-level CPU/memory — currently invisible. Per-cluster aggregate
+    # across all worker nodes; lets us spot node-side saturation that the
+    # per-pod Cilium aggregate hides (kubelet, runtime, host kernel).
+    - Identifier: NodeCpuUsage{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Node CPU Usage {{$suffix}}
+        metricVersion: v1
+        unit: cores
+        enableViolations: false
+        queries:
+        - name: MaxNode
+          query: max_over_time(max(sum by (instance) (rate(node_cpu_seconds_total{mode!="idle"}[1m])))[%v:])
+        - name: AvgAcrossNodes
+          query: max_over_time(avg(sum by (instance) (rate(node_cpu_seconds_total{mode!="idle"}[1m])))[%v:])
+
+    - Identifier: NodeMemoryAvailable{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Node Memory Available {{$suffix}}
+        metricVersion: v1
+        unit: bytes
+        enableViolations: false
+        queries:
+        - name: MinNode
+          query: min_over_time(min(node_memory_MemAvailable_bytes)[%v:])
+        - name: AvgAcrossNodes
+          query: avg_over_time(avg(node_memory_MemAvailable_bytes)[%v:])
+
+    - Identifier: NodeLoad1{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Node Load1 {{$suffix}}
+        metricVersion: v1
+        unit: load
+        enableViolations: false
+        queries:
+        - name: MaxNode
+          query: max_over_time(max(node_load1)[%v:])
+        - name: AvgAcrossNodes
+          query: avg_over_time(avg(node_load1)[%v:])
+
     # - Identifier: AvgCiliumHubbleMetricsCardinality{{$suffix}}
     #   Method: GenericPrometheusQuery
     #   Params:

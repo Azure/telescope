@@ -506,6 +506,15 @@ resource "terraform_data" "aks_wait_succeeded" {
       sleep 60
       required=3
       got=0
+      # Track stuck-Updating: build 68577 mesh-44 evidence — AKS RP can
+      # park a cluster in Updating for hours with no forward progress
+      # (regional throttling under N=100 concurrency). Without fast-fail
+      # the wait burns its full 30min ceiling on each AzDO retry. Detect:
+      # if state hasn't transitioned for STUCK_THRESHOLD consecutive
+      # iterations (~10min at 20s poll), declare stuck and abort.
+      prev_state=""
+      same_state_count=0
+      stuck_threshold=30
       # 90 attempts × 20s = 30 min budget. Bumped from 60 (20m) for N=100
       # ClusterMesh runs — plan.md deferred #10 observed a single cluster
       # oscillate Updating/Succeeded for ~17 min at N=20. With 100 concurrent
@@ -541,7 +550,19 @@ resource "terraform_data" "aks_wait_succeeded" {
           fi
           got=0
         fi
-        echo "AKS $name provisioningState=$state (Succeeded streak=$got/$required)"
+        # Stuck-state fast-fail: same non-terminal state for stuck_threshold
+        # consecutive iterations = no forward progress = abort.
+        if [ "$state" = "$prev_state" ]; then
+          same_state_count=$((same_state_count + 1))
+          if [ "$same_state_count" -ge "$stuck_threshold" ]; then
+            echo "AKS $name STUCK in state '$state' for $((same_state_count * 20))s with no progress — fail-fast (not polling further)"
+            exit 1
+          fi
+        else
+          same_state_count=0
+          prev_state="$state"
+        fi
+        echo "AKS $name provisioningState=$state (Succeeded streak=$got/$required, same-state=$same_state_count/$stuck_threshold)"
         sleep 20
       done
       echo "Timeout: AKS $name did not reach sustained Succeeded after ~30m"
@@ -583,8 +604,23 @@ resource "terraform_data" "aks_nodepool_cli" {
   #   - Creating/Updating/Deleting: wait (do NOT delete healthy in-flight ops)
   #   - Failed: delete and recreate (terminal only)
   #   - absent: proceed with add
-  # 90-min overall deadline bounds the worst case under repeated state
-  # transitions; 60×30s retry budget for the add itself stays unchanged.
+  #
+  # BRICKED-DELETE FAST-FAIL (build 69021 evidence): when nodepool is in
+  # Failed state and `az aks nodepool delete` is called, Azure should
+  # transition the state Failed -> Deleting within seconds. If state stays
+  # Failed after the delete API call, Azure RP rejected the delete and
+  # the nodepool is BRICKED — no amount of additional polling will help.
+  # Build 69021 N=50 g100 burned 13.6 HOURS because the old logic waited
+  # the full 90min overall deadline polling a Failed nodepool that would
+  # never delete. Fast-fail: if state hasn't transitioned out of Failed
+  # within DELETE_TRANSITION_BUDGET seconds after issuing delete, abort
+  # immediately rather than burning the full retry budget.
+  #
+  # META PRINCIPLE: any retry loop where the same state is observed
+  # across 5+ consecutive iterations without forward progress should
+  # escalate to fail-fast. Slow retries on terminal failures are how
+  # 14h builds happen. Cheap retries (transient API throttle, brief
+  # race window) are valuable; bricked-state retries are not.
   provisioner "local-exec" {
     interpreter = ["bash", "-c"]
     command     = <<-EOT
@@ -631,18 +667,34 @@ resource "terraform_data" "aks_nodepool_cli" {
             continue
             ;;
           Failed)
-            # Terminal failure — delete and recreate.
+            # Terminal failure — delete and recreate. BRICKED-DELETE
+            # fast-fail: watch for state transition Failed → Deleting
+            # within 120s of the delete call. If state stays Failed,
+            # the nodepool is bricked (Azure RP rejected delete) and
+            # no further polling will help — abort immediately rather
+            # than burning the full 60×30s retry budget (build 69021
+            # evidence: 13.6h wasted on this exact pattern).
             echo "[retry $i/60] $cluster nodepool $pool in terminal Failed state; deleting before recreate"
             del_out=$(az aks nodepool delete -g "$rg" --cluster-name "$cluster" -n "$pool" --yes --only-show-errors 2>&1) || \
               echo "[retry $i/60] az aks nodepool delete reported error (will poll absence anyway): $del_out"
             # Up to 10 min budget — typical AKS nodepool delete is 2-4 min.
             deleted=false
+            transitioned=false
             for j in $(seq 1 30); do
               cur=$(az aks nodepool show -g "$rg" --cluster-name "$cluster" -n "$pool" --query provisioningState -o tsv --only-show-errors 2>/dev/null || echo "absent")
               if [ "$cur" = "absent" ]; then
                 echo "[retry $i/60] $cluster nodepool $pool fully deleted; will recreate on next iteration"
                 deleted=true
                 break
+              fi
+              # Track transition out of Failed → bricked detection
+              if [ "$cur" != "Failed" ]; then
+                transitioned=true
+              fi
+              # Bricked fast-fail: 120s elapsed (6 × 20s) and still Failed.
+              if [ "$j" -ge 6 ] && [ "$transitioned" != "true" ] && [ "$cur" = "Failed" ]; then
+                echo "[retry $i/60] $cluster nodepool $pool BRICKED — state still Failed 120s after delete call (Azure RP rejected delete). Aborting; no further retry will help." >&2
+                exit 1
               fi
               echo "[retry $i/60] $cluster nodepool $pool still present (state=$cur), waiting 20s..."
               sleep 20

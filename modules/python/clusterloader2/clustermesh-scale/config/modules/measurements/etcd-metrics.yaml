@@ -156,3 +156,85 @@ steps:
           query: max(max_over_time(etcd_debugging_mvcc_keys_total[%v:]))
         - name: Perc50
           query: quantile(0.50, avg_over_time(etcd_debugging_mvcc_keys_total[%v:]))
+
+    # ---------------------------------------------------------------------
+    # PHASE 1 METRIC GAP-FILL (added per rubber-duck audit 2026-06-02):
+    # Etcd-side additions.
+    # ---------------------------------------------------------------------
+
+    # ETCD CONTAINER (vs apiserver pod aggregate) — the clustermesh-apiserver
+    # pod runs TWO containers: the apiserver itself + an etcd sidecar.
+    # ClusterMesh Apiserver CPU/Mem in clustermesh-metrics.yaml folds them
+    # together. This pair isolates the etcd container so we can tell
+    # which one is the bottleneck under churn.
+    - Identifier: ClusterMeshEtcdContainerCpu{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Etcd Container CPU {{$suffix}}
+        metricVersion: v1
+        unit: cores
+        enableViolations: false
+        queries:
+        - name: MaxAcrossPods
+          query: max_over_time(max(sum by (pod) (rate(container_cpu_usage_seconds_total{namespace="kube-system",pod=~"clustermesh-apiserver-.*",container="etcd"}[1m])))[%v:])
+        - name: AvgAcrossPods
+          query: avg_over_time(avg(sum by (pod) (rate(container_cpu_usage_seconds_total{namespace="kube-system",pod=~"clustermesh-apiserver-.*",container="etcd"}[1m])))[%v:])
+
+    - Identifier: ClusterMeshEtcdContainerMemory{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Etcd Container Memory {{$suffix}}
+        metricVersion: v1
+        unit: bytes
+        enableViolations: false
+        queries:
+        - name: MaxAcrossPods
+          query: max_over_time(max(sum by (pod) (container_memory_working_set_bytes{namespace="kube-system",pod=~"clustermesh-apiserver-.*",container="etcd"}))[%v:])
+        - name: AvgAcrossPods
+          query: avg_over_time(avg(sum by (pod) (container_memory_working_set_bytes{namespace="kube-system",pod=~"clustermesh-apiserver-.*",container="etcd"}))[%v:])
+
+    # ETCD HA + RESILIENCY — proposals failed / pending detect under-load
+    # control-plane backpressure. Leader changes detect HA instability.
+    - Identifier: ClusterMeshEtcdProposalsFailed{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Etcd Proposals Failed {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: true
+        queries:
+        - name: SumRate
+          query: sum(rate(etcd_server_proposals_failed_total[1m]))
+        - name: Total
+          query: max(max_over_time(etcd_server_proposals_failed_total[%v:]))
+
+    - Identifier: ClusterMeshEtcdProposalsPending{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Etcd Proposals Pending {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        - name: Max
+          query: max(max_over_time(etcd_server_proposals_pending[%v:]))
+        - name: Perc99
+          query: quantile(0.99, max_over_time(etcd_server_proposals_pending[%v:]))
+
+    - Identifier: ClusterMeshEtcdLeaderChanges{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Etcd Leader Changes {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: true
+        queries:
+        - name: Total
+          query: max(max_over_time(etcd_server_leader_changes_seen_total[%v:]))
+        - name: SumRate
+          query: sum(rate(etcd_server_leader_changes_seen_total[1m]))
