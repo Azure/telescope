@@ -95,12 +95,11 @@ stages:
   # ready to trigger. Other stages should be uncommented similarly per phase.
   - stage: azure_eastus2euap_n2_global_smoke
     dependsOn: []
-    # 2026-05-21: DISABLED after Option E smoke validated (builds 67954 +
-    # 67959). Per-cell global services values matched expectations exactly:
-    # g0=0, g20=4, g60=12, g100=20 across all 3 scenarios (event-throughput,
-    # pod-churn-combined, isolation). Re-enable only if smoke-level
-    # validation is needed for a future code change.
-    condition: false
+    # 2026-06-02: re-enabled (condition: always()) for smoke-level validation
+    # of: fail-fast bricked-nodepool + stuck-cluster detection, Phase 1 metric
+    # additions (policy regen/impl, BPF map pressure, node CPU/mem, etcd
+    # container split, etc.). Use manual stage selection in AzDO UI to run.
+    condition: always()
     displayName: "n=2 %global smoke (Option E: 3-scenario share-infra across 0/20/60/100)"
     jobs:
       - template: /jobs/competitive-test.yml
