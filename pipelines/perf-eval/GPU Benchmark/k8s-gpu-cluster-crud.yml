@@ -45,6 +45,7 @@ stages:
               step_wait_time: 30
               count: 1
               replicas: 10
+              completions: 1
               manifest_dir: ""
           max_parallel: 1
           credential_type: service_connection
@@ -78,6 +79,7 @@ stages:
               step_wait_time: 30
               count: 1
               replicas: 10
+              completions: 1
               manifest_dir: ""
           max_parallel: 1
           credential_type: service_connection
