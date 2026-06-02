@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.Name}}
+  labels:
+    group: {{.Group}}
+    app: {{.Name}}
+spec:
+  replicas: {{.Replicas}}
+  selector:
+    matchLabels:
+      name: {{.Name}}
+  template:
+    metadata:
+      labels:
+        name: {{.Name}}
+        group: {{.Group}}
+        app: {{.Name}}
+    spec:
+      containers:
+        - name: echo
+          # agnhost serve-hostname returns the pod hostname in the HTTP
+          # response body. We use that to verify the curl from a peer
+          # actually reached a backend in the correct (source) cluster
+          # when ENABLE_CONNECTIVITY=true. Same image as Kubernetes
+          # upstream e2e tests; pulled & cached fast.
+          image: registry.k8s.io/e2e-test-images/agnhost:2.40
+          args:
+            - serve-hostname
+            - --http=true
+            - --port=8080
+          ports:
+            - containerPort: 8080
+              name: http
+          # Tight footprint per the existing event-throughput-deployment
+          # pattern. 200 pods/cluster ~= negligible cluster load; the
+          # probe scenario is meant as a controlled baseline.
+          resources:
+            requests:
+              cpu: 1m
+              memory: 10Mi
+            limits:
+              cpu: 50m
+              memory: 50Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            periodSeconds: 2
+            failureThreshold: 3

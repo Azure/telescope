@@ -147,6 +147,95 @@ steps:
         trap 'kill $REAPPLY_PID 2>/dev/null || true' EXIT
       fi
 
+      # Background clustermeshprofile AUTO-RECOVERY (build 69155 evidence):
+      # Fleet's clustermeshprofile apply intermittently fails to push
+      # clustermesh-apiserver Deployment to a subset of members — pod
+      # never appears, periodic re-apply alone doesn't unstick it.
+      # Build 69155 hit this at N=2 (g0 + g20 cells), causing 30min
+      # wait timeout and failed builds. Manual recovery is: delete the
+      # clustermeshprofile + recreate + apply (re-randomizes Fleet's
+      # internal allocation and re-triggers the helm-release push).
+      #
+      # This background task fires ONCE at WAIT_BUDGET_SECONDS / 2 if
+      # any cluster still has deployment=<none>. Default OFF (opt-in
+      # via CMP_AUTO_RECOVERY_ENABLED=true) until proven safe by
+      # observing it work on a few smokes. Detection always runs +
+      # logs clearly so we have data on how often it would fire.
+      CMP_AUTO_RECOVERY_ENABLED="${CMP_AUTO_RECOVERY_ENABLED:-false}"
+      RECOVERY_LOG="$(pwd)/clustermeshprofile-recovery.log"
+      RECOVERY_TRIGGER_FLAG="$(pwd)/.cmp_recovery_fired"
+      rm -f "$RECOVERY_TRIGGER_FLAG"
+      {
+        # Half-budget trigger point — gives Fleet a fair chance to
+        # reconcile on its own before we step in.
+        sleep $(( WAIT_BUDGET_SECONDS / 2 ))
+        _ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+        echo "[recovery] $_ts checking for missing clustermesh-apiserver Deployments..."
+        missing=""
+        for row in $(echo "$clusters" | jq -c '.[]'); do
+          role=$(echo "$row" | jq -r '.role')
+          kc="$HOME/.kube/$role.config"
+          avail=$(KUBECONFIG="$kc" kubectl -n kube-system get deployment clustermesh-apiserver \
+            -o jsonpath='{.status.conditions[?(@.type=="Available")].status}' 2>/dev/null || true)
+          if [ -z "$avail" ]; then
+            missing="$missing $role"
+          fi
+        done
+        if [ -z "$missing" ]; then
+          echo "[recovery] $_ts all clustermesh-apiserver Deployments present at t+$((WAIT_BUDGET_SECONDS / 2))s; no recovery needed"
+          exit 0
+        fi
+        echo "[recovery] $_ts DETECTED MISSING clustermesh-apiserver Deployments on:$missing (failure_mode=fleet_partial_apiserver_deploy)"
+        echo "##vso[task.logissue type=warning;] Fleet partial apiserver deploy detected at t+$((WAIT_BUDGET_SECONDS / 2))s on:$missing"
+        touch "$RECOVERY_TRIGGER_FLAG"
+        if [ "$CMP_AUTO_RECOVERY_ENABLED" != "true" ]; then
+          echo "[recovery] CMP_AUTO_RECOVERY_ENABLED=$CMP_AUTO_RECOVERY_ENABLED; detection-only — NOT firing delete+recreate (set env var to opt in)"
+          exit 0
+        fi
+        echo "[recovery] $_ts FIRING auto-recovery: delete + recreate + apply clustermeshprofile"
+        # Step 1: delete the existing profile. Best-effort — if it's
+        # already gone (race) the create below still succeeds.
+        az fleet clustermeshprofile delete \
+          --resource-group "$FLEET_RG" \
+          --fleet-name "$FLEET_NAME" \
+          --name "$FLEET_PROFILE" \
+          --yes --output none --only-show-errors 2>&1 || \
+          echo "[recovery] delete reported error (continuing); profile may already be gone"
+        # Wait for deletion to propagate. Up to 2min.
+        for i in $(seq 1 12); do
+          if ! az fleet clustermeshprofile show \
+                 --resource-group "$FLEET_RG" --fleet-name "$FLEET_NAME" \
+                 --name "$FLEET_PROFILE" --only-show-errors >/dev/null 2>&1; then
+            echo "[recovery] profile fully deleted after ${i}0s"
+            break
+          fi
+          sleep 10
+        done
+        # Step 2: recreate with the same selector.
+        if ! az fleet clustermeshprofile create \
+               --resource-group "$FLEET_RG" \
+               --fleet-name "$FLEET_NAME" \
+               --name "$FLEET_PROFILE" \
+               --selector mesh=true \
+               --output none --only-show-errors 2>&1; then
+          echo "[recovery] FAIL: create failed; aborting recovery"
+          exit 1
+        fi
+        # Step 3: apply.
+        if ! az fleet clustermeshprofile apply \
+               --resource-group "$FLEET_RG" \
+               --fleet-name "$FLEET_NAME" \
+               --name "$FLEET_PROFILE" \
+               --output none --only-show-errors 2>&1; then
+          echo "[recovery] FAIL: apply after recreate failed"
+          exit 1
+        fi
+        _ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+        echo "[recovery] $_ts auto-recovery delete+recreate+apply complete; remaining wait budget will determine if Fleet redeploys apiservers"
+      } > "$RECOVERY_LOG" 2>&1 &
+      RECOVERY_PID=$!
+      echo "Spawned clustermeshprofile recovery watcher (PID=$RECOVERY_PID, log=$RECOVERY_LOG, enabled=$CMP_AUTO_RECOVERY_ENABLED, trigger=t+$((WAIT_BUDGET_SECONDS / 2))s)"
+
       # Parallel poll for clustermesh-apiserver readiness on every cluster.
       # Each subshell gets WAIT_BUDGET_SECONDS; we collect failures rather
       # than fail-fast on the first one so the operator sees the full set of
@@ -243,6 +332,17 @@ steps:
         cat "$REAPPLY_LOG" || true
         echo "------- end re-applier log -------"
       fi
+      # Same for the auto-recovery watcher: always dump if it produced any
+      # output (detection-only mode produces a single "no recovery needed"
+      # or "DETECTED MISSING" line; full recovery mode produces several).
+      if [ -f "$RECOVERY_LOG" ] && [ -s "$RECOVERY_LOG" ]; then
+        echo "------- clustermeshprofile recovery log -------"
+        cat "$RECOVERY_LOG" || true
+        echo "------- end recovery log -------"
+      fi
+      # Stop the recovery watcher subshell if it's still alive (may be
+      # sleeping its initial WAIT_BUDGET/2 if the wait succeeded fast).
+      kill "$RECOVERY_PID" 2>/dev/null || true
 
       if [ "$failed" -gt 0 ]; then
         echo "##vso[task.logissue type=error;] $failed of $cluster_count clustermesh-apiserver(s) not ready; peering will not converge"

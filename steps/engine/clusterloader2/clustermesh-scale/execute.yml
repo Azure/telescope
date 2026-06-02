@@ -101,6 +101,30 @@ steps:
       export CL2_SATURATION_RUNG_DURATION_SECONDS="${SATURATION_RUNG_DURATION_SECONDS:-240}"
       export CL2_SATURATION_SETTLE_SECONDS="${SATURATION_SETTLE_SECONDS:-90}"
 
+      # Propagation+connectivity probe knobs. Probe orchestrator runs
+      # HOST-SIDE from execute.yml's launch_propagation_probe (NOT inside
+      # CL2 — the orchestrator needs all N kubeconfigs which only the host
+      # has). The CL2 scenario yaml's only probe-related knob is the
+      # sleep window (CL2_PROBE_WINDOW_DURATION) which CL2 holds while the
+      # host-side orchestrator runs in parallel. Default OFF (enabled=false)
+      # so existing scenarios are unaffected; matrix entries that opt in
+      # set cl2_propagation_probe_enabled=true.
+      export CL2_PROPAGATION_PROBE_ENABLED="${CL2_PROPAGATION_PROBE_ENABLED:-false}"
+      export CL2_PROPAGATION_PROBE_COUNT="${CL2_PROPAGATION_PROBE_COUNT:-20}"
+      export CL2_PROPAGATION_PROBE_INTERVAL_S="${CL2_PROPAGATION_PROBE_INTERVAL_S:-30}"
+      export CL2_PROPAGATION_PROBE_PEER_SAMPLE="${CL2_PROPAGATION_PROBE_PEER_SAMPLE:-20}"
+      export CL2_PROPAGATION_PROBE_PEER_TIMEOUT="${CL2_PROPAGATION_PROBE_PEER_TIMEOUT:-60}"
+      export CL2_PROPAGATION_PROBE_CONNECTIVITY="${CL2_PROPAGATION_PROBE_CONNECTIVITY:-false}"
+      export CL2_PROBE_WINDOW_DURATION="${CL2_PROBE_WINDOW_DURATION:-30m}"
+      # Host-side orchestrator launches the probe in a background subshell
+      # after a prewait sleep — gives CL2 time to deploy the backend
+      # Deployments + global Services in every cluster before probes fire.
+      export CL2_PROBE_PREWAIT_S="${CL2_PROBE_PREWAIT_S:-180}"
+      # Probe namespace: must match the scenario yaml's namespace.prefix-1
+      # (CL2 creates clustermesh-probe-1 from namespace.number=1 + prefix
+      # clustermesh-probe). Override only if changing the scenario yaml.
+      export CL2_PROBE_NAMESPACE="${CL2_PROBE_NAMESPACE:-clustermesh-probe-1}"
+
       # Same discovery pattern as topology/clustermesh-scale/validate-resources.yml.
       # We re-run it here rather than relying on a step variable so this engine
       # file can be invoked independently.
@@ -173,6 +197,7 @@ steps:
         --saturation-ops-per-sec-list "$CL2_SATURATION_OPS_PER_SEC_LIST" \
         --saturation-rung-duration-seconds "$CL2_SATURATION_RUNG_DURATION_SECONDS" \
         --saturation-settle-seconds "$CL2_SATURATION_SETTLE_SECONDS" \
+        --probe-window-duration "${CL2_PROBE_WINDOW_DURATION:-30m}" \
         --cl2_override_file "${CL2_CONFIG_DIR}/overrides.yaml"
 
       # Phase 4a — pre-stage kubectl into the CL2 config dir so the
@@ -265,7 +290,7 @@ steps:
       needs_mesh_wide_concurrency() {
         local _scen="$1"
         case "$_scen" in
-          isolation|node-churn-scale|node-churn-replace|node-churn-combined|upper-bound)
+          isolation|node-churn-scale|node-churn-replace|node-churn-combined|upper-bound|propagation-probe)
             return 0
             ;;
         esac
@@ -293,6 +318,92 @@ steps:
           upper-bound) return 0 ;;
         esac
         return 1
+      }
+
+      # Propagation+connectivity probe scenario predicate. Like node-churn-*,
+      # this scenario's stimulus (the probe orchestrator) runs HOST-SIDE
+      # from the AzDO agent (NOT Method:Exec inside CL2). Reason: the
+      # orchestrator needs all N kubeconfigs in one shell process to poll
+      # peer ipcache/identity/CEP for each probe — the CL2 container only
+      # has ONE kubeconfig mounted. Pattern mirrors node-churner.sh.
+      is_propagation_probe_scenario() {
+        case "$1" in
+          propagation-probe) return 0 ;;
+        esac
+        return 1
+      }
+
+      # Launch propagation+connectivity probe orchestrator in background.
+      # Mirrors launch_node_churner: CL2 scenario yaml provides the workload
+      # (backend Deployment + global Service per cluster); orchestrator
+      # runs HOST-SIDE and emits PropagationTimings.jsonl +
+      # ConnectivityResults.jsonl into the LEADER cluster's per-cluster
+      # report dir (scale.py collect's _emit_propagation_probe_rows picks
+      # them up).
+      #
+      # Sets PROBE_PID. Caller `wait`s after execute-parallel returns so
+      # JSONLs are finalized before collect runs.
+      # Skips silently if CL2_PROPAGATION_PROBE_ENABLED != "true".
+      launch_propagation_probe() {
+        local _scen="$1" _report_dir_base="$2"
+        PROBE_PID=""
+        if [ "${CL2_PROPAGATION_PROBE_ENABLED:-false}" != "true" ]; then
+          echo "[propagation-probe] CL2_PROPAGATION_PROBE_ENABLED=${CL2_PROPAGATION_PROBE_ENABLED:-false}; skipping"
+          return 0
+        fi
+        local _probe_script="${CL2_CONFIG_DIR}/propagation-probe.sh"
+        if [ ! -f "$_probe_script" ]; then
+          echo "##vso[task.logissue type=warning;] propagation-probe: $_probe_script not found; skipping"
+          return 0
+        fi
+        # Output dir: leader cluster's per-cluster report dir. collect.py
+        # reads per-cluster report dirs keyed by ROLE (mesh-1, not the
+        # AKS name clustermesh-1), so we use .role here to match. Probe
+        # JSONLs land at <base>/mesh-1/ which scale.py's
+        # _emit_propagation_probe_rows picks up at collect time.
+        local _leader_role _leader_name
+        _leader_role=$(jq -r '.[0].role' < "$HOME/.kube/clustermesh-clusters.json")
+        _leader_name=$(jq -r '.[0].name' < "$HOME/.kube/clustermesh-clusters.json")
+        if [ -z "$_leader_role" ] || [ "$_leader_role" = "null" ]; then
+          echo "##vso[task.logissue type=warning;] propagation-probe: could not resolve leader cluster role from clustermesh-clusters.json"
+          return 0
+        fi
+        local _out_dir="${_report_dir_base}/${_leader_role}"
+        mkdir -p "$_out_dir"
+        local _probe_log="${_out_dir}/propagation-probe.log"
+        echo "===== propagation-probe launch: scenario=${_scen} leader_role=${_leader_role} leader_name=${_leader_name} =====" | tee -a "$_probe_log"
+        local _prewait="${CL2_PROBE_PREWAIT_S:-180}"
+        (
+          echo "[propagation-probe] prewait ${_prewait}s for backend Deployments + global Services to stabilize..."
+          sleep "$_prewait"
+          bash "$_probe_script" \
+            "${CL2_PROPAGATION_PROBE_COUNT:-20}" \
+            "${CL2_PROPAGATION_PROBE_INTERVAL_S:-30}" \
+            "${CL2_PROBE_NAMESPACE:-clustermesh-probe-1}" \
+            "${CL2_PROPAGATION_PROBE_PEER_SAMPLE:-20}" \
+            "${CL2_PROPAGATION_PROBE_PEER_TIMEOUT:-60}" \
+            "$HOME/.kube/clustermesh-clusters.json" \
+            "$_out_dir" \
+            "${CL2_PROPAGATION_PROBE_CONNECTIVITY:-false}" 2>&1 | tee -a "$_probe_log"
+        ) &
+        PROBE_PID=$!
+        echo "propagation-probe: launched PID=$PROBE_PID for scenario=${_scen}; log=${_probe_log}"
+      }
+
+      wait_propagation_probe() {
+        local _scen="$1"
+        if [ -z "${PROBE_PID:-}" ]; then
+          return 0
+        fi
+        echo "propagation-probe: waiting on PID=$PROBE_PID for scenario=${_scen}"
+        local _rc=0
+        wait "$PROBE_PID" || _rc=$?
+        if [ "$_rc" -ne 0 ]; then
+          echo "##vso[task.logissue type=warning;] propagation-probe: scenario=${_scen} exited rc=${_rc}; check PropagationTimings.jsonl + propagation-probe.log"
+        else
+          echo "propagation-probe: scenario=${_scen} completed cleanly"
+        fi
+        PROBE_PID=""
       }
 
       # Sentinel dir bind-mounted into every CL2 container at
@@ -626,6 +737,13 @@ steps:
           if is_node_churn_scenario "$SCENARIO"; then
             launch_node_churner "$SCENARIO" "${CL2_REPORT_DIR}/${SCENARIO}"
           fi
+          # Propagation probe runs host-side too — orchestrator script
+          # polls all N peers' ipcache/identity/CEP. Launched in background
+          # before execute-parallel; we wait after the CL2 phase ends.
+          PROBE_PID=""
+          if is_propagation_probe_scenario "$SCENARIO"; then
+            launch_propagation_probe "$SCENARIO" "${CL2_REPORT_DIR}/${SCENARIO}"
+          fi
           scenario_rc=0
           PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute-parallel \
             --clusters "$HOME/.kube/clustermesh-clusters.json" \
@@ -646,6 +764,9 @@ steps:
           # the next scenario starts, otherwise the next CL2 invocation
           # could run against an in-flux topology.
           wait_node_churner "$SCENARIO"
+          # Same for propagation probe: wait so JSONLs are finalized
+          # before collect runs.
+          wait_propagation_probe "$SCENARIO"
 
           # Proactive failure debug dump (added 2026-05-14 after build 67114).
           # User direction: assume failure, keep debug logs persistent across
@@ -737,6 +858,10 @@ steps:
       if is_node_churn_scenario "$SINGLE_SCENARIO_BASENAME"; then
         launch_node_churner "$SINGLE_SCENARIO_BASENAME" "${CL2_REPORT_DIR}"
       fi
+      PROBE_PID=""
+      if is_propagation_probe_scenario "$SINGLE_SCENARIO_BASENAME"; then
+        launch_propagation_probe "$SINGLE_SCENARIO_BASENAME" "${CL2_REPORT_DIR}"
+      fi
       single_scenario_rc=0
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute-parallel \
         --clusters "$HOME/.kube/clustermesh-clusters.json" \
@@ -751,6 +876,7 @@ steps:
         --python-workdir "$(pwd)" \
         --worker-timeout-seconds "${CL2_WORKER_TIMEOUT_SECONDS:-0}" || single_scenario_rc=$?
       wait_node_churner "$SINGLE_SCENARIO_BASENAME"
+      wait_propagation_probe "$SINGLE_SCENARIO_BASENAME"
       # Proactive failure debug dump for single-scenario mode too. Run
       # unconditionally for node-churn AND upper-bound (rich state worth
       # dumping regardless of success); rc!=0 for everything else.

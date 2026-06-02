@@ -125,6 +125,7 @@ def configure_clusterloader2(
     saturation_ops_per_sec_list="0,0,0,0,0",
     saturation_rung_duration_seconds=240,
     saturation_settle_seconds=90,
+    probe_window_duration="30m",
 ):
     with open(override_file, "w", encoding="utf-8") as f:
         # Prometheus stack — keep the Cilium-scrape flags ON so the
@@ -260,6 +261,14 @@ def configure_clusterloader2(
         f.write(f"CL2_SATURATION_RESTARTS_LIST: \"{restarts_padded}\"\n")
         f.write(f"CL2_SATURATION_RUNG_DURATION_SECONDS: {saturation_rung_duration_seconds}\n")
         f.write(f"CL2_SATURATION_SETTLE_SECONDS: {saturation_settle_seconds}\n")
+
+        # Propagation+connectivity probe knobs. The probe orchestrator
+        # itself runs HOST-SIDE from execute.yml (it needs all N kubeconfigs;
+        # CL2 container has only one). These overrides only control the
+        # CL2-side scenario yaml's probe-window sleep duration.
+        # propagation-probe.yaml is the only scenario that reads
+        # CL2_PROBE_WINDOW_DURATION; other scenarios silently ignore it.
+        f.write(f"CL2_PROBE_WINDOW_DURATION: {probe_window_duration}\n")
 
     with open(override_file, "r", encoding="utf-8") as f:
         print(f"Content of file {override_file}:\n{f.read()}")
@@ -758,6 +767,14 @@ def collect_clusterloader2(
         saturation_qps_list, saturation_restarts_list,
         saturation_ops_per_sec_list,
     )
+
+    # 2026-06-02 — Propagation+connectivity probe JSONL pickup.
+    # Host-side propagation-probe.sh writes PropagationTimings.jsonl +
+    # ConnectivityResults.jsonl into the LEADER cluster's per-cluster
+    # report dir (the orchestrator runs once for the whole mesh from
+    # execute.yml; see launch_propagation_probe). One JSONL row per
+    # probe per peer. Non-leader clusters skip writing → no rows.
+    _emit_propagation_probe_rows(cl2_report_dir, template, result_file)
 
 
 def _emit_saturation_profile_rows(
@@ -1413,6 +1430,55 @@ def _emit_apiserver_failure_timing_rows(cl2_report_dir, template, result_file):
             out.write(json.dumps(row) + "\n")
 
 
+def _emit_propagation_probe_rows(cl2_report_dir, template, result_file):
+    """Append JSONL rows for the propagation+connectivity probe.
+
+    Host-side propagation-probe.sh writes two JSONL files to the leader
+    cluster's per-cluster report dir:
+      - PropagationTimings.jsonl  (one row per probe per peer)
+      - ConnectivityResults.jsonl (one row per probe per peer, if
+        ENABLE_CONNECTIVITY=true)
+
+    Each row in those files is already a per-event record (probe_id +
+    peer_cluster + timing fields). We wrap each in the standard
+    measurement-row template and append to the upload JSONL with
+    measurement="ClusterMeshPropagationProbe" /
+    "ClusterMeshConnectivityProbe", group="propagation-probe".
+
+    Non-leader clusters skip writing the JSONLs -> no rows emitted for
+    them. Both files are optional; absence = scenario didn't run probe.
+    """
+    if not os.path.isdir(cl2_report_dir):
+        return
+    candidates = [
+        ("PropagationTimings.jsonl", "ClusterMeshPropagationProbe"),
+        ("ConnectivityResults.jsonl", "ClusterMeshConnectivityProbe"),
+    ]
+    for fname, measurement in candidates:
+        fpath = os.path.join(cl2_report_dir, fname)
+        if not os.path.isfile(fpath):
+            continue
+        with open(result_file, "a", encoding="utf-8") as out:
+            with open(fpath, "r", encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        probe_data = json.loads(line)
+                    except json.JSONDecodeError as e:
+                        print(
+                            f"[collect] WARN: skipping malformed line in {fpath}: {e}",
+                            file=sys.stderr,
+                        )
+                        continue
+                    row = json.loads(json.dumps(template))
+                    row["measurement"] = measurement
+                    row["group"] = "propagation-probe"
+                    row["result"] = {"data": probe_data, "unit": "ns"}
+                    out.write(json.dumps(row) + "\n")
+
+
 def _emit_ha_config_scaling_rows(cl2_report_dir, template, result_file):
     """Append one JSONL row per HAConfigScalingTimings_*.json found.
 
@@ -1616,6 +1682,14 @@ def main():
                          "even if the queue would have drained on its own. Bumped "
                          "60s\u219290s 2026-05-15 since higher restart bursts take "
                          "longer to fully drain queues.")
+    pc.add_argument("--probe-window-duration", type=str, default="30m",
+                    help="CL2-side sleep window for propagation-probe.yaml. The "
+                         "host-side probe orchestrator (launch_propagation_probe in "
+                         "execute.yml) runs IN PARALLEL with this sleep. Must be >= "
+                         "expected orchestrator wall time (PROBE_COUNT * "
+                         "PROBE_INTERVAL_S + per-probe peer wait headroom). Default "
+                         "30m covers 20 probes * 30s interval + 60s per-probe peer "
+                         "wait with comfortable margin.")
 
     # execute
     pe = subparsers.add_parser("execute", help="Run CL2 against a single cluster")
@@ -1750,6 +1824,7 @@ def main():
             saturation_ops_per_sec_list=args.saturation_ops_per_sec_list,
             saturation_rung_duration_seconds=args.saturation_rung_duration_seconds,
             saturation_settle_seconds=args.saturation_settle_seconds,
+            probe_window_duration=args.probe_window_duration,
         )
     elif args.command == "execute":
         execute_clusterloader2(

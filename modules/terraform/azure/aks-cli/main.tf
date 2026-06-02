@@ -448,6 +448,28 @@ resource "terraform_data" "aks_cli" {
           sleep 60
           continue
         fi
+        # OutboundConnFail at recreate-into-VNet-flux (build 68700 evidence):
+        # when our delete+recreate logic above lands a fresh VMSS during
+        # shared-VNet subnet PUT flux at N=100, CSE script can't reach
+        # outbound -> VMExtensionError_OutboundConnFail. NOT a general retry
+        # (would mask real outbound config bugs at smaller N + bleed time
+        # at N=100). Allow ONE retry only, and only on the FIRST attempt
+        # after our recreate logic — past that, fail-fast.
+        if [ "$i" -le 2 ] && echo "$out" | grep -qiE "VMExtensionError_OutboundConnFail|VMExtensionProvisioningError.*OutboundConnFail"; then
+          echo "[aks_cli retry $i/15] OutboundConnFail at fresh create; allowing 1 retry for VNet flux window; sleeping 120s"
+          # Clean up the partial cluster before retry: otherwise we hit
+          # "already exists" or compound VMSS orphans.
+          az aks delete -g "$rg" -n "$name" --yes --only-show-errors 2>&1 || \
+            echo "[aks_cli retry $i/15] partial cleanup delete reported error; continuing"
+          # 5 min budget for partial cleanup to release the bricked VMSS.
+          for k in $(seq 1 15); do
+            cur=$(az aks show -g "$rg" -n "$name" --query provisioningState -o tsv --only-show-errors 2>/dev/null || echo "absent")
+            [ "$cur" = "absent" ] && break
+            sleep 20
+          done
+          sleep 120
+          continue
+        fi
         # Non-retryable failure (quota, invalid args, auth, etc.) — fail fast.
         exit $rc
       done
@@ -511,10 +533,17 @@ resource "terraform_data" "aks_wait_succeeded" {
       # (regional throttling under N=100 concurrency). Without fast-fail
       # the wait burns its full 30min ceiling on each AzDO retry. Detect:
       # if state hasn't transitioned for STUCK_THRESHOLD consecutive
-      # iterations (~10min at 20s poll), declare stuck and abort.
+      # iterations (~20min at 20s poll), declare stuck and abort.
+      #
+      # Build 69155 evidence: stuck_threshold=30 (10min) false-positived
+      # on n=2 happy-path clusters during normal post-create ACNS
+      # reconciliation (clusters legitimately stay in Updating ~10-15min
+      # before reaching Succeeded). Bumped 30 -> 60 (20min) so the
+      # detection still saves 10min vs the 30min ceiling on genuine
+      # stuck cases but won't fire during normal reconciliation.
       prev_state=""
       same_state_count=0
-      stuck_threshold=30
+      stuck_threshold=60
       # 90 attempts × 20s = 30 min budget. Bumped from 60 (20m) for N=100
       # ClusterMesh runs — plan.md deferred #10 observed a single cluster
       # oscillate Updating/Succeeded for ~17 min at N=20. With 100 concurrent
