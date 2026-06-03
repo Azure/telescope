@@ -11,18 +11,21 @@ spec:
   endpointSelector:
     matchLabels:
       group: {{.Group}}
-  # Single ingress rule allowing ALL traffic. Intentionally permissive —
-  # the goal of the canary is to exercise the Cilium policy-compilation
-  # and policy-implementation code paths (cilium_policy_regeneration_time_
-  # stats_seconds + cilium_policy_implementation_delay metrics added in
-  # Phase 1) WITHOUT actually denying anything that would break the
-  # connectivity probe. With this CNP applied:
-  #   - endpoints subject to policy = workload backends (nginx Deployment)
-  #   - policy-compilation triggers on every endpoint regeneration
-  #   - Phase 1 policy metrics will report non-zero values that scale
-  #     proportionally to selector_complexity × endpoint_count
-  # Future iterations (policy-scale-matrix L2/L3) will add cross-cluster
-  # selectors and policy-churn-under-load. This L1 canary just proves the
-  # metric pipeline works on real (vs zero) policy load.
+  # L4 ingress rule allowing TCP/80 (the nginx backend port).
+  #
+  # Build 69231 evidence: a permissive empty `ingress: [{}]` rule was
+  # optimized away by Cilium — no actual policy regeneration triggered,
+  # so cilium_policy_regeneration_time_stats_seconds_bucket stayed at 0
+  # samples even with the increase() over full window fix.
+  #
+  # An L4 toPorts rule forces Cilium to actually COMPILE a policy
+  # (BPF program update to enforce the L4 port match) → triggers
+  # cilium_policy_regeneration_time_stats_seconds per affected endpoint.
+  # Still permissive in the "what traffic is allowed" sense (any source
+  # can reach port 80) — so the connectivity probe still succeeds, but
+  # the policy actually exercises the regeneration path.
   ingress:
-    - {}
+    - toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP
