@@ -1,6 +1,6 @@
 import azure_pipelines.ap.steps
 
-CreateFirewall = lambda serviceConnection: str, subscription: str, resourceGroup: str, name: str, location: str, vnetName: str, publicIpName: str, exportVar: str = "FWPRIVATE_IP" -> steps.Step {
+CreateFirewall = lambda serviceConnection: str, subscription: str, resourceGroup: str, name: str, location: str, vnetName: str, publicIpName: str -> steps.Step {
     script = """
 az extension add --name azure-firewall
 
@@ -26,17 +26,17 @@ az network firewall ip-config create \\
   --vnet-name "${vnetName}" \\
   --subscription "${subscription}"
 
-FWPRIVATE_IP=$(az network firewall show \\
+FIREWALL_PRIVATE_IP=$(az network firewall show \\
   --resource-group "${resourceGroup}" \\
   --name "${name}" \\
   --subscription "${subscription}" \\
   --query "ipConfigurations[0].privateIPAddress" -o tsv)
-echo "##vso[task.setvariable variable=${exportVar}]$FWPRIVATE_IP"
+echo "##vso[task.setvariable variable=FIREWALL_PRIVATE_IP]$FIREWALL_PRIVATE_IP"
 """
     AzCli(serviceConnection, "Create firewall ${name}", script)
 }
 
-RouteSubnetToFirewall = lambda serviceConnection: str, resourceGroup: str, name: str, location: str, vnetName: str, subnetName: str, firewallIp: str, subscription: str -> steps.Step {
+AssociateFirewallToSubnet = lambda serviceConnection: str, resourceGroup: str, name: str, location: str, vnetName: str, subnetName: str, firewallIp: str, subscription: str -> steps.Step {
     script = """
 az network route-table create \\
   --resource-group "${resourceGroup}" \\
@@ -60,7 +60,7 @@ az network vnet subnet update \\
   --route-table "${name}" \\
   --subscription "${subscription}"
 """
-    AzCli(serviceConnection, "Route subnet ${subnetName} to firewall via ${name}", script)
+    AzCli(serviceConnection, "Associate firewall ${name} to subnet ${subnetName}", script)
 }
 
 UpdateFirewallPolicy = lambda serviceConnection: str, subscription: str, resourceGroup: str, name: str, policyPath: str, location: str -> steps.Step {
