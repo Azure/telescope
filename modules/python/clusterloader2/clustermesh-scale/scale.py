@@ -126,6 +126,7 @@ def configure_clusterloader2(
     saturation_rung_duration_seconds=240,
     saturation_settle_seconds=90,
     probe_window_duration="60m",
+    policy_canary_enabled="false",
 ):
     with open(override_file, "w", encoding="utf-8") as f:
         # Prometheus stack — keep the Cilium-scrape flags ON so the
@@ -269,6 +270,11 @@ def configure_clusterloader2(
         # propagation-probe.yaml is the only scenario that reads
         # CL2_PROBE_WINDOW_DURATION; other scenarios silently ignore it.
         f.write(f"CL2_PROBE_WINDOW_DURATION: {probe_window_duration}\n")
+        # Policy canary (L1 of policy-scale-matrix). When true, the
+        # propagation-probe workload module applies a permissive
+        # CiliumNetworkPolicy targeting backend pods, exercising
+        # Phase 1 policy metrics (which report 0 without any CNP).
+        f.write(f"CL2_POLICY_CANARY_ENABLED: \"{policy_canary_enabled}\"\n")
 
     with open(override_file, "r", encoding="utf-8") as f:
         print(f"Content of file {override_file}:\n{f.read()}")
@@ -775,6 +781,13 @@ def collect_clusterloader2(
     # execute.yml; see launch_propagation_probe). One JSONL row per
     # probe per peer. Non-leader clusters skip writing → no rows.
     _emit_propagation_probe_rows(cl2_report_dir, template, result_file)
+
+    # 2026-06-02 — Mesh-recovery probe JSONL pickup. Same pattern as the
+    # propagation probe — orchestrator runs once host-side from
+    # execute.yml's launch_mesh_recovery_probe, writes ResilienceTimings
+    # .jsonl into the leader cluster's report dir. One row per kill+
+    # recovery cycle.
+    _emit_recovery_probe_rows(cl2_report_dir, template, result_file)
 
 
 def _emit_saturation_profile_rows(
@@ -1479,6 +1492,45 @@ def _emit_propagation_probe_rows(cl2_report_dir, template, result_file):
                     out.write(json.dumps(row) + "\n")
 
 
+def _emit_recovery_probe_rows(cl2_report_dir, template, result_file):
+    """Append JSONL rows for the mesh-recovery probe.
+
+    Host-side mesh-recovery-probe.sh writes ResilienceTimings.jsonl to
+    the leader cluster's per-cluster report dir (one row per kill+
+    recovery iteration). Each row contains target/peer cluster context
+    + 4 timestamps (t_kill, t_gone, t_agent_ready, t_resynced) + computed
+    deltas. Wrapped here with measurement="ClusterMeshRecoveryProbe",
+    group="mesh-recovery-probe" for Kusto consumption.
+
+    Non-leader clusters skip writing → no rows. File absence = scenario
+    didn't run recovery probe; silent no-op.
+    """
+    if not os.path.isdir(cl2_report_dir):
+        return
+    fpath = os.path.join(cl2_report_dir, "ResilienceTimings.jsonl")
+    if not os.path.isfile(fpath):
+        return
+    with open(result_file, "a", encoding="utf-8") as out:
+        with open(fpath, "r", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    probe_data = json.loads(line)
+                except json.JSONDecodeError as e:
+                    print(
+                        f"[collect] WARN: skipping malformed line in {fpath}: {e}",
+                        file=sys.stderr,
+                    )
+                    continue
+                row = json.loads(json.dumps(template))
+                row["measurement"] = "ClusterMeshRecoveryProbe"
+                row["group"] = "mesh-recovery-probe"
+                row["result"] = {"data": probe_data, "unit": "ns"}
+                out.write(json.dumps(row) + "\n")
+
+
 def _emit_ha_config_scaling_rows(cl2_report_dir, template, result_file):
     """Append one JSONL row per HAConfigScalingTimings_*.json found.
 
@@ -1692,6 +1744,15 @@ def main():
                          "peer wait + 10s connectivity + 30s interval) = ~53min "
                          "worst case. Smaller smokes (n=2) override to 20m via "
                          "the matrix entry's cl2_probe_window_duration.")
+    pc.add_argument("--policy-canary-enabled", type=str, default="false",
+                    choices=["true", "false"],
+                    help="L1 of policy-scale-matrix. When true, the "
+                         "propagation-probe workload module applies a permissive "
+                         "CiliumNetworkPolicy targeting backend pods. Exercises "
+                         "Phase 1 policy metrics (cilium_policy_regeneration_time_"
+                         "stats_seconds + cilium_policy_implementation_delay) "
+                         "which report 0 without any CNP present. Default false "
+                         "to keep existing scenarios unaffected.")
 
     # execute
     pe = subparsers.add_parser("execute", help="Run CL2 against a single cluster")
@@ -1827,6 +1888,7 @@ def main():
             saturation_rung_duration_seconds=args.saturation_rung_duration_seconds,
             saturation_settle_seconds=args.saturation_settle_seconds,
             probe_window_duration=args.probe_window_duration,
+            policy_canary_enabled=args.policy_canary_enabled,
         )
     elif args.command == "execute":
         execute_clusterloader2(

@@ -5,6 +5,13 @@ name: clustermesh-propagation-probe-workload
 # load-balances across all backends mesh-wide. The propagation probe
 # uses these as the steady-state mesh; per-probe it adds its own
 # transient probe pods on the source cluster (see propagation-probe.sh).
+#
+# OPTIONAL: when CL2_POLICY_CANARY_ENABLED=true, also creates a
+# permissive CiliumNetworkPolicy targeting the backends — exercises
+# the Phase 1 policy_regeneration / policy_implementation Prometheus
+# metrics (which report 0 without any CNP present). First step of the
+# policy-scale-matrix work: L1 canary just to validate the metric
+# pipeline; L2 (cross-cluster) + L3 (churn-under-load) come later.
 
 {{$actionName := .actionName}}
 {{$namespaces := .namespaces}}
@@ -12,6 +19,7 @@ name: clustermesh-propagation-probe-workload
 {{$replicasPerDeployment := .replicasPerDeployment}}
 {{$tuningSet := .tuningSet}}
 {{$operationTimeout := .operationTimeout}}
+{{$policyCanaryEnabled := DefaultParam .CL2_POLICY_CANARY_ENABLED "false"}}
 
 # delete = bring object count to 0; create/restart keep configured count.
 {{$replicasInPhase := $deploymentsPerNamespace}}
@@ -47,6 +55,15 @@ steps:
             objectTemplatePath: /modules/propagation-probe-service.yaml
             templateFillMap:
               Group: clustermesh-propagation-probe
+          {{if eq $policyCanaryEnabled "true"}}
+          # L1 policy canary — see propagation-probe-policy.yaml comment for
+          # rationale. Permissive CNP that targets the backends, exercises
+          # the cilium policy compilation path without breaking traffic.
+          - basename: pp-policy
+            objectTemplatePath: /modules/propagation-probe-policy.yaml
+            templateFillMap:
+              Group: clustermesh-propagation-probe
+          {{end}}
 
   - name: Wait for propagation-probe pods to be {{$actionName}}d
     measurements:

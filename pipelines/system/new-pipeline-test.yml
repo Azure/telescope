@@ -93,6 +93,42 @@ stages:
   #
   # SAFETY: condition: false default. Flip to true in a 1-line commit when
   # ready to trigger. Other stages should be uncommented similarly per phase.
+
+  # canadacentral migration preflight (no infra). Verifies SKU + quota +
+  # Fleet RP + LoadBalancer + PIP quota in canadacentral BEFORE we port
+  # tfvars and matrix entries. Cheap, idempotent, ~30s.
+  - stage: canadacentral_preflight
+    dependsOn: []
+    displayName: "canadacentral preflight (SKU + quota + Fleet RP check)"
+    condition: always()
+    jobs:
+      - job: cc_preflight
+        timeoutInMinutes: 5
+        steps:
+          - task: AzureCLI@2
+            displayName: "Run canadacentral-preflight.sh"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set +e
+                bash $(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/canadacentral-preflight.sh
+                rc=$?
+                if [ "$rc" -eq 0 ]; then
+                  echo "canadacentral preflight: ALL CLEAR"
+                  exit 0
+                elif [ "$rc" -eq 2 ]; then
+                  echo "##vso[task.logissue type=warning;] canadacentral preflight: warnings present, see log"
+                  echo "##vso[task.complete result=SucceededWithIssues;]"
+                  exit 0
+                else
+                  # rc=1 explicit blocking failure, or any other code (e.g. 127 missing script,
+                  # syntax error) — treat all unexpected codes as blocking.
+                  echo "##vso[task.logissue type=error;] canadacentral preflight: rc=$rc (blocking failure or unexpected exit)"
+                  exit 1
+                fi
+
   - stage: azure_eastus2euap_n2_global_smoke
     dependsOn: []
     # 2026-06-02: re-enabled (condition: always()) for smoke-level validation
@@ -155,8 +191,23 @@ stages:
               # if CEP never appears + every wait runs full timeout in
               # parallel) + 9 × 15s interval + connectivity overhead.
               # Worst case ~17min — 20m gives 3min headroom.
-              cl2_probe_window_duration: "20m"
+              # Mesh-recovery probe: opt-in companion to the propagation
+              # probe. Kills one cilium-agent pod per iteration on a node
+              # hosting a backend pod (so the kill affects observable peer
+              # state). Measures peer ipcache divergence + agent restart
+              # + resync time on snapshotted backend IPs.
+              # At n=2 we do 3 cycles × 120s interval = ~6min after the
+              # prewait+60s offset. Plus up to ~5min recovery timeout per
+              # probe = ~21min. probe-window 20m → 30m gives safe headroom
+              # over both propagation (~17min) and recovery (~21min) running
+              # in parallel.
+              cl2_probe_window_duration: "30m"
               cl2_probe_prewait_s: 60
+              cl2_policy_canary_enabled: "true"
+              cl2_recovery_probe_enabled: "true"
+              cl2_recovery_probe_count: 3
+              cl2_recovery_probe_interval_s: 120
+              cl2_recovery_probe_timeout_s: 300
               trigger_reason: ${{ variables['Build.Reason'] }}
           # Single cell — only n2_propagation_probe is needed to validate the
           # current batch (probe + global services + Phase 1 metrics + retry

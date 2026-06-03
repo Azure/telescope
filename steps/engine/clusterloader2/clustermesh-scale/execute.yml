@@ -140,6 +140,25 @@ steps:
       # clustermesh-probe). Override only if changing the scenario yaml.
       export CL2_PROBE_NAMESPACE="${CL2_PROBE_NAMESPACE:-clustermesh-probe-1}"
 
+      # Policy canary (L1 of policy-scale-matrix). When true, the
+      # propagation-probe workload module also applies a permissive
+      # CiliumNetworkPolicy targeting the backend pods. Exercises the
+      # Phase 1 policy metrics (cilium_policy_regeneration_time_stats_
+      # seconds + cilium_policy_implementation_delay) which report 0
+      # without any CNP present. Opt-in per matrix entry; default off.
+      export CL2_POLICY_CANARY_ENABLED="${CL2_POLICY_CANARY_ENABLED:-false}"
+
+      # Mesh-state recovery probe knobs (mesh-recovery-probe.sh). Runs
+      # host-side like propagation-probe; kills a cilium-agent pod on a
+      # target cluster mid-run and measures: time-to-divergence on peer
+      # ipcache, time-to-agent-restart, time-to-resync. Opt-in via
+      # CL2_RECOVERY_PROBE_ENABLED=true. Reuses propagation-probe's
+      # backend Deployments (must be enabled together).
+      export CL2_RECOVERY_PROBE_ENABLED="${CL2_RECOVERY_PROBE_ENABLED:-false}"
+      export CL2_RECOVERY_PROBE_COUNT="${CL2_RECOVERY_PROBE_COUNT:-3}"
+      export CL2_RECOVERY_PROBE_INTERVAL_S="${CL2_RECOVERY_PROBE_INTERVAL_S:-120}"
+      export CL2_RECOVERY_PROBE_TIMEOUT_S="${CL2_RECOVERY_PROBE_TIMEOUT_S:-300}"
+
       # Same discovery pattern as topology/clustermesh-scale/validate-resources.yml.
       # We re-run it here rather than relying on a step variable so this engine
       # file can be invoked independently.
@@ -213,6 +232,7 @@ steps:
         --saturation-rung-duration-seconds "$CL2_SATURATION_RUNG_DURATION_SECONDS" \
         --saturation-settle-seconds "$CL2_SATURATION_SETTLE_SECONDS" \
         --probe-window-duration "${CL2_PROBE_WINDOW_DURATION:-60m}" \
+        --policy-canary-enabled "${CL2_POLICY_CANARY_ENABLED:-false}" \
         --cl2_override_file "${CL2_CONFIG_DIR}/overrides.yaml"
 
       # Phase 4a — pre-stage kubectl into the CL2 config dir so the
@@ -419,6 +439,66 @@ steps:
           echo "propagation-probe: scenario=${_scen} completed cleanly"
         fi
         PROBE_PID=""
+      }
+
+      # Launch mesh-recovery probe (cilium-agent kill + resync timing).
+      # Same pattern as launch_propagation_probe. Runs in BACKGROUND in
+      # parallel with the CL2 scenario's probe-window sleep. Output
+      # ResilienceTimings.jsonl lands in the leader cluster's report dir;
+      # scale.py collect picks it up via _emit_recovery_probe_rows.
+      # Default OFF; opt-in via CL2_RECOVERY_PROBE_ENABLED=true.
+      launch_mesh_recovery_probe() {
+        local _scen="$1" _report_dir_base="$2"
+        RECOVERY_PID=""
+        if [ "${CL2_RECOVERY_PROBE_ENABLED:-false}" != "true" ]; then
+          echo "[recovery-probe] CL2_RECOVERY_PROBE_ENABLED=${CL2_RECOVERY_PROBE_ENABLED:-false}; skipping"
+          return 0
+        fi
+        local _script="${CL2_CONFIG_DIR}/mesh-recovery-probe.sh"
+        if [ ! -f "$_script" ]; then
+          echo "##vso[task.logissue type=warning;] mesh-recovery-probe: $_script not found; skipping"
+          return 0
+        fi
+        local _leader_role
+        _leader_role=$(jq -r '.[0].role' < "$HOME/.kube/clustermesh-clusters.json")
+        local _out_dir="${_report_dir_base}/${_leader_role}"
+        mkdir -p "$_out_dir"
+        local _log="${_out_dir}/mesh-recovery-probe.log"
+        echo "===== mesh-recovery-probe launch: scenario=${_scen} leader_role=${_leader_role} =====" | tee -a "$_log"
+        # Same prewait as propagation probe — wait for backends to be
+        # up across the mesh before starting kills. Plus extra 60s to
+        # let propagation probe finish its initial cycles first (less
+        # noisy data).
+        local _prewait=$((${CL2_PROBE_PREWAIT_S:-300} + 60))
+        (
+          echo "[recovery-probe] prewait ${_prewait}s..."
+          sleep "$_prewait"
+          bash "$_script" \
+            "${CL2_RECOVERY_PROBE_COUNT:-3}" \
+            "${CL2_RECOVERY_PROBE_INTERVAL_S:-120}" \
+            "${CL2_PROBE_NAMESPACE:-clustermesh-probe-1}" \
+            "${CL2_RECOVERY_PROBE_TIMEOUT_S:-300}" \
+            "$HOME/.kube/clustermesh-clusters.json" \
+            "$_out_dir" 2>&1 | tee -a "$_log"
+        ) &
+        RECOVERY_PID=$!
+        echo "mesh-recovery-probe: launched PID=$RECOVERY_PID for scenario=${_scen}; log=${_log}"
+      }
+
+      wait_mesh_recovery_probe() {
+        local _scen="$1"
+        if [ -z "${RECOVERY_PID:-}" ]; then
+          return 0
+        fi
+        echo "mesh-recovery-probe: waiting on PID=$RECOVERY_PID for scenario=${_scen}"
+        local _rc=0
+        wait "$RECOVERY_PID" || _rc=$?
+        if [ "$_rc" -ne 0 ]; then
+          echo "##vso[task.logissue type=warning;] mesh-recovery-probe: scenario=${_scen} exited rc=${_rc}; check ResilienceTimings.jsonl + mesh-recovery-probe.log"
+        else
+          echo "mesh-recovery-probe: scenario=${_scen} completed cleanly"
+        fi
+        RECOVERY_PID=""
       }
 
       # Sentinel dir bind-mounted into every CL2 container at
@@ -756,8 +836,10 @@ steps:
           # polls all N peers' ipcache/identity/CEP. Launched in background
           # before execute-parallel; we wait after the CL2 phase ends.
           PROBE_PID=""
+          RECOVERY_PID=""
           if is_propagation_probe_scenario "$SCENARIO"; then
             launch_propagation_probe "$SCENARIO" "${CL2_REPORT_DIR}/${SCENARIO}"
+            launch_mesh_recovery_probe "$SCENARIO" "${CL2_REPORT_DIR}/${SCENARIO}"
           fi
           scenario_rc=0
           PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute-parallel \
@@ -779,9 +861,10 @@ steps:
           # the next scenario starts, otherwise the next CL2 invocation
           # could run against an in-flux topology.
           wait_node_churner "$SCENARIO"
-          # Same for propagation probe: wait so JSONLs are finalized
-          # before collect runs.
+          # Same for propagation + recovery probes: wait so JSONLs are
+          # finalized before collect runs.
           wait_propagation_probe "$SCENARIO"
+          wait_mesh_recovery_probe "$SCENARIO"
 
           # Proactive failure debug dump (added 2026-05-14 after build 67114).
           # User direction: assume failure, keep debug logs persistent across
@@ -874,8 +957,10 @@ steps:
         launch_node_churner "$SINGLE_SCENARIO_BASENAME" "${CL2_REPORT_DIR}"
       fi
       PROBE_PID=""
+      RECOVERY_PID=""
       if is_propagation_probe_scenario "$SINGLE_SCENARIO_BASENAME"; then
         launch_propagation_probe "$SINGLE_SCENARIO_BASENAME" "${CL2_REPORT_DIR}"
+        launch_mesh_recovery_probe "$SINGLE_SCENARIO_BASENAME" "${CL2_REPORT_DIR}"
       fi
       single_scenario_rc=0
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute-parallel \
@@ -892,6 +977,7 @@ steps:
         --worker-timeout-seconds "${CL2_WORKER_TIMEOUT_SECONDS:-0}" || single_scenario_rc=$?
       wait_node_churner "$SINGLE_SCENARIO_BASENAME"
       wait_propagation_probe "$SINGLE_SCENARIO_BASENAME"
+      wait_mesh_recovery_probe "$SINGLE_SCENARIO_BASENAME"
       # Proactive failure debug dump for single-scenario mode too. Run
       # unconditionally for node-churn AND upper-bound (rich state worth
       # dumping regardless of success); rc!=0 for everything else.

@@ -1,0 +1,28 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{.Name}}
+  labels:
+    group: {{.Group}}
+spec:
+  # Apply to the propagation-probe backend pods (the nginx Deployment).
+  # endpointSelector matches pods labeled `group=<.Group>` (which the
+  # propagation-probe-deployment.yaml template sets).
+  endpointSelector:
+    matchLabels:
+      group: {{.Group}}
+  # Single ingress rule allowing ALL traffic. Intentionally permissive —
+  # the goal of the canary is to exercise the Cilium policy-compilation
+  # and policy-implementation code paths (cilium_policy_regeneration_time_
+  # stats_seconds + cilium_policy_implementation_delay metrics added in
+  # Phase 1) WITHOUT actually denying anything that would break the
+  # connectivity probe. With this CNP applied:
+  #   - endpoints subject to policy = workload backends (nginx Deployment)
+  #   - policy-compilation triggers on every endpoint regeneration
+  #   - Phase 1 policy metrics will report non-zero values that scale
+  #     proportionally to selector_complexity × endpoint_count
+  # Future iterations (policy-scale-matrix L2/L3) will add cross-cluster
+  # selectors and policy-churn-under-load. This L1 canary just proves the
+  # metric pipeline works on real (vs zero) policy load.
+  ingress:
+    - {}
