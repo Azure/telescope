@@ -42,7 +42,7 @@ stages:
           matrix:
             canadacentral-medium-scale-500:
               vm_size: Standard_D2_v3
-              pool_name: mediump1
+              pool_name: mediumpool1
               scale_machine_count: 500
               machine_workers: 10
               use_batch_api: "true"
@@ -67,7 +67,7 @@ stages:
           matrix:
             canadacentral-large-scale-1000:
               vm_size: Standard_D2_v3
-              pool_name: largep1
+              pool_name: largepool1
               scale_machine_count: 1000
               machine_workers: 20
               use_batch_api: "true"
