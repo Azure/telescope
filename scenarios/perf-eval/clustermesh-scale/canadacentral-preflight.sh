@@ -139,23 +139,51 @@ fi
 # ----- 6. Public IP quota (LBs need at least 1 PIP per cluster) -----
 echo
 echo "[6/6] Checking Public IP quota in $REGION..."
+# Note: az network list-usages returns several PIP-related metrics.
+# StandardSkuPublicIpAddresses was the value used pre-2024 but Azure
+# renamed/expanded these. Try multiple names; report on whichever is
+# non-empty. If all return 0/0, this is a quota-not-pre-allocated case
+# (cc has plenty of headroom — PIPs auto-allocate up to subscription
+# limit). Don't fail on 0/0 — just note it.
 pip_usage=$(az network list-usages --location "$REGION" --subscription "$SUBSCRIPTION" -o json 2>/dev/null)
 if [ -n "$pip_usage" ]; then
-  pip_limit=$(echo "$pip_usage" | jq -r '.[] | select(.name.value == "StandardSkuPublicIpAddresses") | .limit // 0')
-  pip_used=$(echo "$pip_usage" | jq -r '.[] | select(.name.value == "StandardSkuPublicIpAddresses") | .currentValue // 0')
-  pip_free=$((pip_limit - pip_used))
-  echo "  Standard PIP: ${pip_used}/${pip_limit} used, ${pip_free} free"
-  # Each AKS cluster needs 1 PIP for the egress LB (+ 1 per LB Service).
-  # N=100 with our clustermesh-apiserver LB Service = 200 PIPs needed.
+  # Prefer Standard SKU quota (the one AKS LBs actually consume).
+  # Fall back to the generic PublicIPAddresses metric only if Standard
+  # isn't reported. Never sum across metric variants — they're often
+  # overlapping/alias views of the same underlying pool, and summing
+  # over-reports capacity. Basic SKU intentionally ignored — AKS uses
+  # Standard SKU LBs.
+  pip_limit=0
+  pip_used=0
+  pip_metric=""
+  for metric_name in StandardSkuPublicIpAddresses PublicIPAddresses; do
+    _l=$(echo "$pip_usage" | jq -r ".[] | select(.name.value == \"$metric_name\") | .limit // 0" 2>/dev/null | head -1)
+    _u=$(echo "$pip_usage" | jq -r ".[] | select(.name.value == \"$metric_name\") | .currentValue // 0" 2>/dev/null | head -1)
+    if [ -n "$_l" ] && [ "$_l" != "0" ]; then
+      pip_limit="$_l"
+      pip_used="$_u"
+      pip_metric="$metric_name"
+      break
+    fi
+  done
   expected_pips=$((${EXPECTED_TOTAL_CORES} / 48 * 2))  # ~2 PIPs/cluster heuristic
-  if [ "$pip_free" -lt "$expected_pips" ]; then
-    echo "  WARN: PIP free ($pip_free) below 2×clusters need ($expected_pips); request quota if N=100+"
-    WARNINGS+=("pip_quota_tight")
+  if [ "$pip_limit" -eq 0 ]; then
+    # No PIP metrics returned — common in regions with no current deployments.
+    # Azure auto-allocates PIPs up to subscription limit on first use; not a
+    # blocker but worth a note.
+    echo "  INFO: no PIP usage metrics returned (cc may not pre-allocate PIP quota; auto-grants on first deployment)"
   else
-    echo "  OK: PIP quota sufficient"
+    pip_free=$((pip_limit - pip_used))
+    echo "  $pip_metric: ${pip_used}/${pip_limit} used, ${pip_free} free"
+    if [ "$pip_free" -lt "$expected_pips" ]; then
+      echo "  WARN: PIP free ($pip_free) below 2×clusters need ($expected_pips); request quota if N=100+"
+      WARNINGS+=("pip_quota_tight")
+    else
+      echo "  OK: PIP quota sufficient (${pip_free} free, need $expected_pips)"
+    fi
   fi
 else
-  echo "  WARN: could not query PIP quota"
+  echo "  WARN: could not query PIP usage (continuing — PIPs auto-allocate on demand)"
   WARNINGS+=("pip_query_failed")
 fi
 

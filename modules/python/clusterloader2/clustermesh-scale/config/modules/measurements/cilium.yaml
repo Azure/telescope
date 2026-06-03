@@ -223,6 +223,12 @@ steps:
     # Policy regeneration latency — canonical Cilium "endpoint policy compile"
     # cost. Will read ~0 when no policies are present (current pause-pod
     # workload); becomes meaningful when policy-scale-matrix lands.
+    #
+    # Build 69226 evidence: 1-min rate windows return no samples when
+    # policy regen happens ONCE at CNP-creation time (early in scenario)
+    # and gather phase is 15+ min later. Use histogram_quantile over the
+    # full %v measurement window via increase() instead — captures all
+    # bucket increments since the `start` action of this measurement.
     - Identifier: CiliumPolicyRegenerationDuration{{$suffix}}
       Method: GenericPrometheusQuery
       Params:
@@ -233,11 +239,19 @@ steps:
         enableViolations: false
         queries:
         - name: Perc99
-          query: histogram_quantile(0.99, sum(rate(cilium_policy_regeneration_time_stats_seconds_bucket[1m])) by (le))
+          query: histogram_quantile(0.99, sum(increase(cilium_policy_regeneration_time_stats_seconds_bucket[%v])) by (le))
         - name: Perc90
-          query: histogram_quantile(0.90, sum(rate(cilium_policy_regeneration_time_stats_seconds_bucket[1m])) by (le))
+          query: histogram_quantile(0.90, sum(increase(cilium_policy_regeneration_time_stats_seconds_bucket[%v])) by (le))
         - name: Perc50
-          query: histogram_quantile(0.50, sum(rate(cilium_policy_regeneration_time_stats_seconds_bucket[1m])) by (le))
+          query: histogram_quantile(0.50, sum(increase(cilium_policy_regeneration_time_stats_seconds_bucket[%v])) by (le))
+        # Mean — useful when there's only one or few samples (histogram
+        # quantiles can return 0 with too few bucket increments to
+        # interpolate). sum_increase / count_increase = average regen
+        # time over the full measurement window.
+        - name: Mean
+          query: sum(increase(cilium_policy_regeneration_time_stats_seconds_sum[%v])) / sum(increase(cilium_policy_regeneration_time_stats_seconds_count[%v]))
+        - name: TotalSamples
+          query: sum(increase(cilium_policy_regeneration_time_stats_seconds_count[%v]))
 
     # Policy implementation delay — time from policy change visible to
     # agent until BPF datapath actually enforces it. The "policy change
@@ -252,11 +266,15 @@ steps:
         enableViolations: false
         queries:
         - name: Perc99
-          query: histogram_quantile(0.99, sum(rate(cilium_policy_implementation_delay_bucket[1m])) by (le))
+          query: histogram_quantile(0.99, sum(increase(cilium_policy_implementation_delay_bucket[%v])) by (le))
         - name: Perc90
-          query: histogram_quantile(0.90, sum(rate(cilium_policy_implementation_delay_bucket[1m])) by (le))
+          query: histogram_quantile(0.90, sum(increase(cilium_policy_implementation_delay_bucket[%v])) by (le))
         - name: Perc50
-          query: histogram_quantile(0.50, sum(rate(cilium_policy_implementation_delay_bucket[1m])) by (le))
+          query: histogram_quantile(0.50, sum(increase(cilium_policy_implementation_delay_bucket[%v])) by (le))
+        - name: Mean
+          query: sum(increase(cilium_policy_implementation_delay_sum[%v])) / sum(increase(cilium_policy_implementation_delay_count[%v]))
+        - name: TotalSamples
+          query: sum(increase(cilium_policy_implementation_delay_count[%v]))
 
     # Endpoint regeneration cost — Cilium recompiles per-endpoint policy
     # programs on label changes / policy changes. At scale this becomes
