@@ -281,6 +281,16 @@ steps:
     # Endpoint regeneration cost — Cilium recompiles per-endpoint policy
     # programs on label changes / policy changes. At scale this becomes
     # the dominant CPU cost. Counter + histogram pair.
+    #
+    # IMPORTANT: this metric is also the AKS-managed-Cilium PROXY for
+    # the per-policy regen cost. The opt-in metric
+    # cilium_policy_regeneration_time_stats_seconds is NOT enabled in
+    # AKS-managed Cilium (see CiliumPolicyRegenerationDuration comment
+    # above), but per-policy regen is literally implemented as N
+    # endpoint regenerations under the hood — so per-endpoint regen
+    # time is the substantive measurement of policy compile cost.
+    # Builds 69231/69263 evidence: Perc99 = 0.95-1.36ms, Perc50 = ~7µs
+    # on AKS-managed Cilium with the L4 toPorts CNP active.
     - Identifier: CiliumEndpointRegenerations{{$suffix}}
       Method: GenericPrometheusQuery
       Params:
@@ -290,10 +300,13 @@ steps:
         unit: "#"
         enableViolations: false
         queries:
+        # increase() over full %v measurement window (same fix applied
+        # to policy metrics above — rate(1m) misses regen bursts that
+        # happen >1min before gather phase).
+        - name: TotalIncrease
+          query: sum(increase(cilium_endpoint_regenerations_count[%v]))
         - name: MaxRate
           query: max(rate(cilium_endpoint_regenerations_count[1m]))
-        - name: SumRate
-          query: sum(rate(cilium_endpoint_regenerations_count[1m]))
 
     - Identifier: CiliumEndpointRegenerationDuration{{$suffix}}
       Method: GenericPrometheusQuery
@@ -305,9 +318,13 @@ steps:
         enableViolations: false
         queries:
         - name: Perc99
-          query: histogram_quantile(0.99, sum(rate(cilium_endpoint_regeneration_time_stats_seconds_bucket[1m])) by (le))
+          query: histogram_quantile(0.99, sum(increase(cilium_endpoint_regeneration_time_stats_seconds_bucket[%v])) by (le))
         - name: Perc50
-          query: histogram_quantile(0.50, sum(rate(cilium_endpoint_regeneration_time_stats_seconds_bucket[1m])) by (le))
+          query: histogram_quantile(0.50, sum(increase(cilium_endpoint_regeneration_time_stats_seconds_bucket[%v])) by (le))
+        - name: Mean
+          query: sum(increase(cilium_endpoint_regeneration_time_stats_seconds_sum[%v])) / sum(increase(cilium_endpoint_regeneration_time_stats_seconds_count[%v]))
+        - name: TotalSamples
+          query: sum(increase(cilium_endpoint_regeneration_time_stats_seconds_count[%v]))
 
     # BPF map pressure — CRITICAL signal at scale. cilium_bpf_map_pressure
     # is a gauge in [0,1] representing fill ratio of each BPF map. >0.8
