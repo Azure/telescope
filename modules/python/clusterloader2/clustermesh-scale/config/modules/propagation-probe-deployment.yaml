@@ -19,15 +19,17 @@ spec:
     spec:
       containers:
         - name: nginx
-          # Same MS-approved image used elsewhere in this repo
-          # (modules/python/clusterloader2/autoscale/config/warmup_deployment.yaml).
-          # Serves a default index.html on port 80; sufficient for the
-          # connectivity probe's HTTP 200 check. We don't introspect
-          # response body (the cross-cluster routing signal we care
-          # about is HTTP 200 vs failure + RTT; the load-distribution
-          # signal comes from per-curl-target peer_cluster column in
-          # ConnectivityResults.jsonl, not the response body).
+          # MS-approved image already used in
+          # modules/python/clusterloader2/autoscale/config/warmup_deployment.yaml.
+          # NOTE: cbl-mariner/base/nginx:1 is a Mariner base OS with the nginx
+          # PACKAGE installed but NO default ENTRYPOINT/CMD that runs nginx —
+          # the warmup_deployment.yaml example uses a bash sleep loop. To
+          # actually serve HTTP we must explicitly launch nginx ourselves.
+          # Build 69178 (commit 6c96dab) hit this: pods reached Running but
+          # not Ready because nginx wasn't started, readinessProbe timed out
+          # for 15min.
           image: mcr.microsoft.com/cbl-mariner/base/nginx:1
+          command: ["nginx", "-g", "daemon off;"]
           ports:
             - containerPort: 80
               name: http
@@ -40,9 +42,13 @@ spec:
             limits:
               cpu: 50m
               memory: 50Mi
+          # tcpSocket probe (not httpGet) so we accept any nginx state
+          # that's actually listening on port 80 — including the default
+          # 404 on `/` from a stock cbl-mariner nginx install with no
+          # custom index.html. The connectivity probe later does an
+          # actual HTTP GET to validate the global-service routing path.
           readinessProbe:
-            httpGet:
-              path: /
+            tcpSocket:
               port: 80
             periodSeconds: 2
             failureThreshold: 3
