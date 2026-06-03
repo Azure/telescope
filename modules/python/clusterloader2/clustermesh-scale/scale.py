@@ -125,7 +125,7 @@ def configure_clusterloader2(
     saturation_ops_per_sec_list="0,0,0,0,0",
     saturation_rung_duration_seconds=240,
     saturation_settle_seconds=90,
-    probe_window_duration="30m",
+    probe_window_duration="60m",
 ):
     with open(override_file, "w", encoding="utf-8") as f:
         # Prometheus stack — keep the Cilium-scrape flags ON so the
@@ -1682,14 +1682,16 @@ def main():
                          "even if the queue would have drained on its own. Bumped "
                          "60s\u219290s 2026-05-15 since higher restart bursts take "
                          "longer to fully drain queues.")
-    pc.add_argument("--probe-window-duration", type=str, default="30m",
+    pc.add_argument("--probe-window-duration", type=str, default="60m",
                     help="CL2-side sleep window for propagation-probe.yaml. The "
                          "host-side probe orchestrator (launch_propagation_probe in "
                          "execute.yml) runs IN PARALLEL with this sleep. Must be >= "
                          "expected orchestrator wall time (PROBE_COUNT * "
-                         "PROBE_INTERVAL_S + per-probe peer wait headroom). Default "
-                         "30m covers 20 probes * 30s interval + 60s per-probe peer "
-                         "wait with comfortable margin.")
+                         "(PROBE_INTERVAL_S + per-probe peer wait) + headroom). "
+                         "Default 60m sized for N=100 safety: 20 probes * (120s "
+                         "peer wait + 10s connectivity + 30s interval) = ~53min "
+                         "worst case. Smaller smokes (n=2) override to 20m via "
+                         "the matrix entry's cl2_probe_window_duration.")
 
     # execute
     pe = subparsers.add_parser("execute", help="Run CL2 against a single cluster")

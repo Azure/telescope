@@ -109,17 +109,32 @@ steps:
       # host-side orchestrator runs in parallel. Default OFF (enabled=false)
       # so existing scenarios are unaffected; matrix entries that opt in
       # set cl2_propagation_probe_enabled=true.
+      #
+      # DEFAULTS SIZED FOR N=100 SAFETY:
+      #   COUNT=20 × (PEER_TIMEOUT=120 + connectivity ~10s + INTERVAL=30) = ~53min
+      #   WINDOW_DURATION=60m gives headroom over that worst case.
+      #   PEER_SAMPLE_MAX=20 caps concurrent kubectl exec at ~60 per probe
+      #     (20 peers × 3 parallel waits). At N=100 with 99 peers, sampling
+      #     20 random per probe over 20 probes gives expected ~4 measurements
+      #     per peer — adequate statistical coverage.
+      #   PEER_TIMEOUT=120s — at N=100 under load, propagation can take
+      #     30-90s; 120s gives margin without dragging out failed probes.
+      #   PREWAIT_S=300 — at N=100 shared-VNet, LB IP provisioning + Cilium
+      #     service sync takes 3-5min after backend Deployment Ready.
+      # Smaller smokes (n=2) override these to tighter values via the
+      # matrix entry for faster turnaround (e.g. cl2_probe_window_duration
+      # set to 20m in the n2_propagation_probe cell).
       export CL2_PROPAGATION_PROBE_ENABLED="${CL2_PROPAGATION_PROBE_ENABLED:-false}"
       export CL2_PROPAGATION_PROBE_COUNT="${CL2_PROPAGATION_PROBE_COUNT:-20}"
       export CL2_PROPAGATION_PROBE_INTERVAL_S="${CL2_PROPAGATION_PROBE_INTERVAL_S:-30}"
       export CL2_PROPAGATION_PROBE_PEER_SAMPLE="${CL2_PROPAGATION_PROBE_PEER_SAMPLE:-20}"
-      export CL2_PROPAGATION_PROBE_PEER_TIMEOUT="${CL2_PROPAGATION_PROBE_PEER_TIMEOUT:-60}"
+      export CL2_PROPAGATION_PROBE_PEER_TIMEOUT="${CL2_PROPAGATION_PROBE_PEER_TIMEOUT:-120}"
       export CL2_PROPAGATION_PROBE_CONNECTIVITY="${CL2_PROPAGATION_PROBE_CONNECTIVITY:-false}"
-      export CL2_PROBE_WINDOW_DURATION="${CL2_PROBE_WINDOW_DURATION:-30m}"
+      export CL2_PROBE_WINDOW_DURATION="${CL2_PROBE_WINDOW_DURATION:-60m}"
       # Host-side orchestrator launches the probe in a background subshell
       # after a prewait sleep — gives CL2 time to deploy the backend
       # Deployments + global Services in every cluster before probes fire.
-      export CL2_PROBE_PREWAIT_S="${CL2_PROBE_PREWAIT_S:-180}"
+      export CL2_PROBE_PREWAIT_S="${CL2_PROBE_PREWAIT_S:-300}"
       # Probe namespace: must match the scenario yaml's namespace.prefix-1
       # (CL2 creates clustermesh-probe-1 from namespace.number=1 + prefix
       # clustermesh-probe). Override only if changing the scenario yaml.
@@ -197,7 +212,7 @@ steps:
         --saturation-ops-per-sec-list "$CL2_SATURATION_OPS_PER_SEC_LIST" \
         --saturation-rung-duration-seconds "$CL2_SATURATION_RUNG_DURATION_SECONDS" \
         --saturation-settle-seconds "$CL2_SATURATION_SETTLE_SECONDS" \
-        --probe-window-duration "${CL2_PROBE_WINDOW_DURATION:-30m}" \
+        --probe-window-duration "${CL2_PROBE_WINDOW_DURATION:-60m}" \
         --cl2_override_file "${CL2_CONFIG_DIR}/overrides.yaml"
 
       # Phase 4a — pre-stage kubectl into the CL2 config dir so the
