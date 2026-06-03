@@ -298,6 +298,135 @@ stages:
           skip_publish: false
 
   # ============================================================================
+  # pod-density-scaling n=2 smokes — eastus2euap (orthogonal to cc work)
+  # ============================================================================
+  # Customer clusters routinely run 1000-5000 pods/cluster; our headline
+  # matrix fixes pods/cluster=200 (5 ns × 4 dep × 10 rep). These smokes
+  # validate BPF map pressure + endpoint regen behavior as pods/cluster
+  # scales. At n=2 the test exercises per-cluster saturation (not mesh-wide
+  # propagation), which IS where pod density scaling stresses Cilium.
+  #
+  # Capacity model (per cluster, EFFECTIVE CEILING):
+  #   AKS max-pods=110/node × 10 nodes = 1100 (kubelet ceiling)
+  #   System pods (kube-system + cilium ds + ACNS) ~4 pods/node = 40
+  #   Pod subnet IP capacity (/22 in azure-2-shared.tfvars) = 1019 usable
+  #   IPAM churn buffer (Terminating pods linger 30-60s) = ~10-15%
+  #   EFFECTIVE workload capacity = min(1100-40, 1019) × 0.85 = ~865 pods
+  #
+  # Tier 1: pods=500 (5 × 5 × 20) — 58% effective saturation, safe
+  # Tier 2: pods=800 (5 × 8 × 20) — 92% effective saturation, edge case
+  #   (originally drafted at 1000 but pod subnet /22 = 1019 IPs would leave
+  #    no room for IPAM churn buffer + system pods. 800 is the safe ceiling
+  #    within current shared-VNet CIDR plan; bump pod subnet to /21 in a
+  #    future density-cc tfvars to reach 1000+.)
+  #
+  # vCPU: 2 × 48 = 96, trivial. Wall time ~45-75min depending on density.
+  # Triggers independently of cc work — different region, different agents.
+  - stage: azure_eastus2euap_n2_pod_density_500
+    dependsOn: []
+    condition: always()
+    displayName: "n=2 pod-density smoke: 500 pods/cluster (5 ns × 5 dep × 20 rep)"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 30m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-2-shared.tfvars"
+          matrix:
+            n2_density_500:
+              cluster_count: 2
+              mesh_size: 2
+              share_infra_scenarios: "pod-churn-combined"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-density-500"
+              global_namespace_count: 1
+              namespaces: 5
+              deployments_per_namespace: 5
+              replicas_per_deployment: 20
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              churn_cycles: 5
+              churn_up_duration: 90s
+              churn_down_duration: 90s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 180
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  - stage: azure_eastus2euap_n2_pod_density_800
+    dependsOn: []
+    condition: always()
+    displayName: "n=2 pod-density smoke: 800 pods/cluster (5 ns × 8 dep × 20 rep) — edge case at 92% effective capacity"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 30m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-2-shared.tfvars"
+          matrix:
+            n2_density_800:
+              cluster_count: 2
+              mesh_size: 2
+              share_infra_scenarios: "pod-churn-combined"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-density-800"
+              global_namespace_count: 1
+              namespaces: 5
+              deployments_per_namespace: 8
+              replicas_per_deployment: 20
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              # Density-800 has more pods to create per cycle, so widen
+              # the churn windows so the deploy completion isn't the
+              # bottleneck obscuring the density signal we want to measure.
+              # Reduced cycles 5→3 to keep total wall time bounded.
+              churn_cycles: 3
+              churn_up_duration: 180s
+              churn_down_duration: 180s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 15
+              kill_batch: 10
+              kill_job_deadline_seconds: 900
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 240
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  # ============================================================================
   # canadacentral N=20 cross-region baseline (validated by cc n=2 in build 69274)
   # ============================================================================
   # 960 vCPU vs 62000 free DSv4 in cc → 1.5% utilization. Mirrors the existing

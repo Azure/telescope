@@ -361,6 +361,22 @@ steps:
         - name: MaxRate
           query: max(rate(cilium_drop_count_total[1m]))
 
+    # PHASE 2 — drops by reason (top 3). When drops are non-zero, this
+    # tells us WHY: Policy denied, BPF map full, encryption failure, etc.
+    # topk caps cardinality at 3 (drop reasons are low-cardinality enum
+    # but defensive against future expansion).
+    - Identifier: CiliumDropCountByReason{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Drop Count By Reason {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        - name: Top3ReasonsSumIncrease
+          query: topk(3, sum by (reason) (increase(cilium_drop_count_total[%v])))
+
     # IPCache errors — failures to populate the ipcache map. Cross-cluster
     # propagation degradation lives here; should stay 0 in healthy mesh.
     - Identifier: CiliumIpcacheErrors{{$suffix}}

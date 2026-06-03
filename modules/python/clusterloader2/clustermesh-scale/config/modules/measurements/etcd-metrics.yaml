@@ -238,3 +238,27 @@ steps:
           query: max(max_over_time(etcd_server_leader_changes_seen_total[%v:]))
         - name: SumRate
           query: sum(rate(etcd_server_leader_changes_seen_total[1m]))
+
+    # PHASE 2 — committed proposal throughput. Pairs with ProposalsFailed
+    # (already above): committed/(committed+failed) = etcd write success
+    # ratio. At scale, watch this against pending to detect backpressure
+    # (high committed + high pending = etcd keeping up but queue growing).
+    - Identifier: ClusterMeshEtcdProposalsCommitted{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Etcd Proposals Committed {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        - name: SumRate
+          query: sum(rate(etcd_server_proposals_committed_total[1m]))
+        - name: TotalIncrease
+          query: sum(increase(etcd_server_proposals_committed_total[%v]))
+
+    # PHASE 2 — db_total_size_in_bytes deliberately NOT added: per file
+    # header comment (line 19), AKS-managed Cilium runs etcd with
+    # --metrics=basic which excludes etcd_mvcc_db_total_size_in_bytes.
+    # The existing ClusterMeshEtcdMvccKeys (above) is the documented
+    # proxy. If AKS ever flips to --metrics=extensive, add db_size here.
