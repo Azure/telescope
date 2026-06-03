@@ -223,6 +223,81 @@ stages:
           skip_publish: false
 
   # ============================================================================
+  # canadacentral n=2 smoke — port-validation for the cc migration
+  # ============================================================================
+  # First real cc deployment after 3 successful preflight runs (builds 69226,
+  # 69231, 69263). Mirrors the eastus2euap n=2 smoke EXACTLY except for:
+  #   - regions: [canadacentral]
+  #   - tfvars: azure-2-shared-cc.tfvars (Dv3 → DSv4 SKU family swap only)
+  #   - test_type_suffix: -shared-vnet-probe-cc (Kusto row separation vs euap)
+  # If this stage passes, scaling to N=20 / N=100 cc cells is mechanical.
+  # vCPU: 2 × 48 = 96 vCPU vs 62000 free DSv4 in cc — trivial.
+  - stage: azure_canadacentral_n2_smoke
+    dependsOn: []
+    variables:
+      CMP_AUTO_RECOVERY_ENABLED: "true"
+    condition: always()
+    displayName: "n=2 canadacentral smoke (cc migration port-validation)"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - canadacentral
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 15m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - canadacentral: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-2-shared-cc.tfvars"
+          matrix:
+            n2_cc_propagation_probe:
+              cluster_count: 2
+              mesh_size: 2
+              share_infra_scenarios: "propagation-probe"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-probe-cc"
+              global_namespace_count: 1
+              namespaces: 1
+              deployments_per_namespace: 1
+              replicas_per_deployment: 2
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              churn_cycles: 5
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              cl2_propagation_probe_enabled: "true"
+              cl2_propagation_probe_count: 10
+              cl2_propagation_probe_interval_s: 15
+              cl2_propagation_probe_peer_sample: 20
+              cl2_propagation_probe_peer_timeout: 60
+              cl2_propagation_probe_connectivity: "true"
+              cl2_probe_window_duration: "30m"
+              cl2_probe_prewait_s: 60
+              cl2_policy_canary_enabled: "true"
+              cl2_recovery_probe_enabled: "true"
+              cl2_recovery_probe_count: 3
+              cl2_recovery_probe_interval_s: 120
+              cl2_recovery_probe_timeout_s: 300
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 180
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  # ============================================================================
   # %global variation experiment — N=20 sweep
   # ============================================================================
   # 4 matrix entries varying global_namespace_count 0/1/3/5 (=0%/20%/60%/100%
