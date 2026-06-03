@@ -6,18 +6,18 @@ variables:
   USE_LATEST_GA_K8S_VERSION: true
 
 stages:
-  - stage: azure_canadacentral_small_scale_10
+  - stage: azure_westus2_small_scale_10
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
-            - canadacentral
+            - westus2
           topology: k8s-cluster-crud-machine
           engine: machine
           matrix:
-            canadacentral-small-scale-10:
+            westus2-small-scale-10:
               vm_size: Standard_D2_v3
               pool_name: smallpool1
               scale_machine_count: 10
@@ -29,18 +29,18 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: azure_canadacentral_medium_scale_500
+  - stage: azure_westus2_medium_scale_500
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
-            - canadacentral
+            - westus2
           topology: k8s-cluster-crud-machine
           engine: machine
           matrix:
-            canadacentral-medium-scale-500:
+            westus2-medium-scale-500:
               vm_size: Standard_D2_v3
               pool_name: mediump1
               scale_machine_count: 500
@@ -52,20 +52,20 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: azure_canadacentral_large_scale_1000
+  - stage: azure_westus2_large_scale_1000
     dependsOn:
-      - azure_canadacentral_small_scale_10
-      - azure_canadacentral_medium_scale_500
+      - azure_westus2_small_scale_10
+      - azure_westus2_medium_scale_500
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
-            - canadacentral
+            - westus2
           topology: k8s-cluster-crud-machine
           engine: machine
           matrix:
-            canadacentral-large-scale-1000:
+            westus2-large-scale-1000:
               vm_size: Standard_D2_v3
               pool_name: largep1
               scale_machine_count: 1000
