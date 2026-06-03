@@ -159,6 +159,17 @@ steps:
       export CL2_RECOVERY_PROBE_INTERVAL_S="${CL2_RECOVERY_PROBE_INTERVAL_S:-120}"
       export CL2_RECOVERY_PROBE_TIMEOUT_S="${CL2_RECOVERY_PROBE_TIMEOUT_S:-300}"
 
+      # cluster-loss-recovery probe (mesh-detach-rejoin). Relabels one
+      # Fleet member out of the CMP selector, waits for ready==total==
+      # (N-2) on remaining clusters, then re-labels back and verifies
+      # return to (N-1). Opt-in via CL2_DETACH_REJOIN_PROBE_ENABLED=true.
+      # MINIMUM 3 clusters required (degenerate at n=2).
+      export CL2_DETACH_REJOIN_PROBE_ENABLED="${CL2_DETACH_REJOIN_PROBE_ENABLED:-false}"
+      export CL2_DETACH_REJOIN_PREWAIT_S="${CL2_DETACH_REJOIN_PREWAIT_S:-120}"
+      export CL2_DETACH_REJOIN_DETACH_TIMEOUT_S="${CL2_DETACH_REJOIN_DETACH_TIMEOUT_S:-300}"
+      export CL2_DETACH_REJOIN_REJOIN_TIMEOUT_S="${CL2_DETACH_REJOIN_REJOIN_TIMEOUT_S:-300}"
+      export CL2_DETACH_REJOIN_HOLD_S="${CL2_DETACH_REJOIN_HOLD_S:-60}"
+
       # Same discovery pattern as topology/clustermesh-scale/validate-resources.yml.
       # We re-run it here rather than relying on a step variable so this engine
       # file can be invoked independently.
@@ -501,6 +512,83 @@ steps:
         RECOVERY_PID=""
       }
 
+      # cluster-loss-recovery probe — relabels one Fleet member out of the
+      # CMP selector, waits for ready==total==(N-2) on remaining clusters,
+      # then re-labels back and verifies return to ready==total==(N-1).
+      # Same launcher pattern as propagation/recovery probes. Output:
+      # ${leader_role}-MeshDetachRejoinProbe.jsonl in leader's report dir;
+      # scale.py collect picks up via _emit_detach_rejoin_probe_rows.
+      # Default OFF; opt-in via CL2_DETACH_REJOIN_PROBE_ENABLED=true.
+      # MINIMUM 3 clusters required for meaningful signal.
+      launch_mesh_detach_rejoin_probe() {
+        local _scen="$1" _report_dir_base="$2"
+        DETACH_REJOIN_PID=""
+        if [ "${CL2_DETACH_REJOIN_PROBE_ENABLED:-false}" != "true" ]; then
+          echo "[detach-rejoin-probe] CL2_DETACH_REJOIN_PROBE_ENABLED=${CL2_DETACH_REJOIN_PROBE_ENABLED:-false}; skipping"
+          return 0
+        fi
+        local _script="${CL2_CONFIG_DIR}/mesh-detach-rejoin-probe.sh"
+        if [ ! -f "$_script" ]; then
+          echo "##vso[task.logissue type=warning;] mesh-detach-rejoin-probe: $_script not found; skipping"
+          return 0
+        fi
+        local _clusters_json="$HOME/.kube/clustermesh-clusters.json"
+        local _n
+        _n=$(jq -r 'length' "$_clusters_json" 2>/dev/null || echo 0)
+        if [ "$_n" -lt 3 ]; then
+          echo "##vso[task.logissue type=warning;] mesh-detach-rejoin-probe: need >=3 clusters, got $_n; skipping"
+          return 0
+        fi
+        # Derive Fleet RG/name/cmp the same way validate-resources.yml does:
+        # FLEET_RG = first cluster's RG. fleet_name/cmp_name = terraform hardcoded.
+        local _fleet_rg _fleet_name _cmp_name _sub_id _leader_role _out_dir _log
+        _fleet_rg=$(jq -r '.[0].rg' "$_clusters_json")
+        _fleet_name="${CL2_FLEET_NAME_OVERRIDE:-clustermesh-flt}"
+        _cmp_name="${CL2_CMP_NAME_OVERRIDE:-clustermesh-cmp}"
+        _sub_id=$(az account show --query id -o tsv)
+        _leader_role=$(jq -r '.[0].role' "$_clusters_json")
+        _out_dir="${_report_dir_base}/${_leader_role}"
+        mkdir -p "$_out_dir"
+        _log="${_out_dir}/mesh-detach-rejoin-probe.log"
+        echo "===== mesh-detach-rejoin-probe launch: scenario=${_scen} leader=${_leader_role} fleet=${_fleet_name}/${_cmp_name} rg=${_fleet_rg} =====" | tee -a "$_log"
+        # Prewait so pre-state assertion has steady-state mesh
+        local _prewait="${CL2_DETACH_REJOIN_PREWAIT_S:-120}"
+        (
+          echo "[detach-rejoin-probe] prewait ${_prewait}s..."
+          sleep "$_prewait"
+          REPORT_DIR="$_out_dir" \
+          SCENARIO_NAME="$_scen" \
+          LEADER_ROLE="$_leader_role" \
+          CLUSTERMESH_CLUSTERS_JSON="$_clusters_json" \
+          CL2_FLEET_NAME="$_fleet_name" \
+          CL2_FLEET_RG="$_fleet_rg" \
+          CL2_CMP_NAME="$_cmp_name" \
+          CL2_SUBSCRIPTION_ID="$_sub_id" \
+          CL2_DETACH_REJOIN_DETACH_TIMEOUT_S="${CL2_DETACH_REJOIN_DETACH_TIMEOUT_S:-300}" \
+          CL2_DETACH_REJOIN_REJOIN_TIMEOUT_S="${CL2_DETACH_REJOIN_REJOIN_TIMEOUT_S:-300}" \
+          CL2_DETACH_REJOIN_HOLD_S="${CL2_DETACH_REJOIN_HOLD_S:-60}" \
+          bash "$_script" 2>&1 | tee -a "$_log"
+        ) &
+        DETACH_REJOIN_PID=$!
+        echo "mesh-detach-rejoin-probe: launched PID=$DETACH_REJOIN_PID for scenario=${_scen}; log=${_log}"
+      }
+
+      wait_mesh_detach_rejoin_probe() {
+        local _scen="$1"
+        if [ -z "${DETACH_REJOIN_PID:-}" ]; then
+          return 0
+        fi
+        echo "mesh-detach-rejoin-probe: waiting on PID=$DETACH_REJOIN_PID for scenario=${_scen}"
+        local _rc=0
+        wait "$DETACH_REJOIN_PID" || _rc=$?
+        if [ "$_rc" -ne 0 ]; then
+          echo "##vso[task.logissue type=warning;] mesh-detach-rejoin-probe: scenario=${_scen} exited rc=${_rc}; check MeshDetachRejoinProbe.jsonl + mesh-detach-rejoin-probe.log"
+        else
+          echo "mesh-detach-rejoin-probe: scenario=${_scen} completed cleanly"
+        fi
+        DETACH_REJOIN_PID=""
+      }
+
       # Sentinel dir bind-mounted into every CL2 container at
       # /root/perf-tests/clusterloader2/config/sentinels (CL2_CONFIG_DIR is
       # bind-mounted at /root/perf-tests/clusterloader2/config). Per-cluster
@@ -837,9 +925,11 @@ steps:
           # before execute-parallel; we wait after the CL2 phase ends.
           PROBE_PID=""
           RECOVERY_PID=""
+          DETACH_REJOIN_PID=""
           if is_propagation_probe_scenario "$SCENARIO"; then
             launch_propagation_probe "$SCENARIO" "${CL2_REPORT_DIR}/${SCENARIO}"
             launch_mesh_recovery_probe "$SCENARIO" "${CL2_REPORT_DIR}/${SCENARIO}"
+            launch_mesh_detach_rejoin_probe "$SCENARIO" "${CL2_REPORT_DIR}/${SCENARIO}"
           fi
           scenario_rc=0
           PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute-parallel \
@@ -865,6 +955,7 @@ steps:
           # finalized before collect runs.
           wait_propagation_probe "$SCENARIO"
           wait_mesh_recovery_probe "$SCENARIO"
+          wait_mesh_detach_rejoin_probe "$SCENARIO"
 
           # Proactive failure debug dump (added 2026-05-14 after build 67114).
           # User direction: assume failure, keep debug logs persistent across
@@ -961,6 +1052,7 @@ steps:
       if is_propagation_probe_scenario "$SINGLE_SCENARIO_BASENAME"; then
         launch_propagation_probe "$SINGLE_SCENARIO_BASENAME" "${CL2_REPORT_DIR}"
         launch_mesh_recovery_probe "$SINGLE_SCENARIO_BASENAME" "${CL2_REPORT_DIR}"
+        launch_mesh_detach_rejoin_probe "$SINGLE_SCENARIO_BASENAME" "${CL2_REPORT_DIR}"
       fi
       single_scenario_rc=0
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute-parallel \
@@ -978,6 +1070,7 @@ steps:
       wait_node_churner "$SINGLE_SCENARIO_BASENAME"
       wait_propagation_probe "$SINGLE_SCENARIO_BASENAME"
       wait_mesh_recovery_probe "$SINGLE_SCENARIO_BASENAME"
+      wait_mesh_detach_rejoin_probe "$SINGLE_SCENARIO_BASENAME"
       # Proactive failure debug dump for single-scenario mode too. Run
       # unconditionally for node-churn AND upper-bound (rich state worth
       # dumping regardless of success); rc!=0 for everything else.

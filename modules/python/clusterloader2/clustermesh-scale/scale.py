@@ -789,6 +789,12 @@ def collect_clusterloader2(
     # recovery cycle.
     _emit_recovery_probe_rows(cl2_report_dir, template, result_file)
 
+    # 2026-06-03 — Mesh-detach-rejoin probe JSONL pickup
+    # (cluster-loss-recovery scenario). Same pattern as recovery probe.
+    # Orchestrator writes ${leader_role}-MeshDetachRejoinProbe.jsonl into
+    # the leader cluster's report dir; one row per phase + summary.
+    _emit_detach_rejoin_probe_rows(cl2_report_dir, template, result_file)
+
 
 def _emit_saturation_profile_rows(
     cl2_report_dir, template, result_file,
@@ -1529,6 +1535,51 @@ def _emit_recovery_probe_rows(cl2_report_dir, template, result_file):
                 row["group"] = "mesh-recovery-probe"
                 row["result"] = {"data": probe_data, "unit": "ns"}
                 out.write(json.dumps(row) + "\n")
+
+
+def _emit_detach_rejoin_probe_rows(cl2_report_dir, template, result_file):
+    """Append JSONL rows for the mesh-detach-rejoin probe (cluster-loss-recovery).
+
+    Host-side mesh-detach-rejoin-probe.sh writes ${leader_role}-MeshDetachRejoinProbe
+    .jsonl to the leader cluster's report dir; one row per phase event plus a
+    final summary row. Each row contains type (pre_state | detach_start |
+    wait_detach_complete | hold_n2_complete | rejoin_start | wait_rejoin_complete
+    | post_state_complete | summary), victim_role, n_clusters, timestamp, plus
+    phase-specific fields. Wrapped here with measurement=
+    "ClusterMeshDetachRejoinProbe", group="mesh-detach-rejoin-probe".
+
+    Non-leader clusters skip writing → no rows. File absence = scenario didn't
+    enable the probe; silent no-op.
+    """
+    if not os.path.isdir(cl2_report_dir):
+        return
+    candidates = [
+        f for f in os.listdir(cl2_report_dir)
+        if f.endswith("-MeshDetachRejoinProbe.jsonl")
+    ]
+    if not candidates:
+        return
+    with open(result_file, "a", encoding="utf-8") as out:
+        for fname in candidates:
+            fpath = os.path.join(cl2_report_dir, fname)
+            with open(fpath, "r", encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        probe_data = json.loads(line)
+                    except json.JSONDecodeError as e:
+                        print(
+                            f"[collect] WARN: skipping malformed line in {fpath}: {e}",
+                            file=sys.stderr,
+                        )
+                        continue
+                    row = json.loads(json.dumps(template))
+                    row["measurement"] = "ClusterMeshDetachRejoinProbe"
+                    row["group"] = "mesh-detach-rejoin-probe"
+                    row["result"] = {"data": probe_data, "unit": "s"}
+                    out.write(json.dumps(row) + "\n")
 
 
 def _emit_ha_config_scaling_rows(cl2_report_dir, template, result_file):

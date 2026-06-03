@@ -427,6 +427,93 @@ stages:
           skip_publish: false
 
   # ============================================================================
+  # cluster-loss-recovery n=3 smoke — mesh-detach-rejoin probe
+  # ============================================================================
+  # Customer-asked: "what happens if I lose a cluster?" Phased per rubber-duck:
+  # DETACH via Fleet member relabel mesh=detaching (NOT az aks delete — the
+  # cluster stays up; only Fleet selector changes), wait for ready==total==(N-2)
+  # on remaining clusters with 5-min deadline, hold 60s at N-2, then REJOIN via
+  # relabel back to mesh=true, wait for return to ready==total==(N-1).
+  # Cleanup trap unconditionally restores mesh=true so a failed probe can't
+  # wedge the mesh under-membered for the destroy step.
+  #
+  # MINIMUM 3 clusters: at n=2, detaching 1 leaves 1 cluster with 0 peers
+  # which is degenerate (can't tell "detached" from "never connected").
+  #
+  # Uses propagation-probe scenario shell (provides namespace + global service
+  # for the mesh to observe) with PROPAGATION + RECOVERY probes DISABLED so
+  # only the detach probe fires. Output: ${leader_role}-MeshDetachRejoinProbe
+  # .jsonl in leader's report dir; collect emits with measurement=
+  # ClusterMeshDetachRejoinProbe, group=mesh-detach-rejoin-probe.
+  #
+  # vCPU: 3 × 48 = 144 vCPU on eastus2euap (existing Dv3 quota, trivial).
+  # Wall time: prewait 2m + detach orch (~10-15min) + apply/destroy ~60min
+  # = ~75-90min budget. timeout=180m gives 2x margin.
+  - stage: azure_eastus2euap_n3_mesh_detach_smoke
+    dependsOn: []
+    condition: always()
+    displayName: "n=3 mesh-detach-rejoin smoke (cluster-loss-recovery scenario, eastus2euap)"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 15m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-3-shared.tfvars"
+          matrix:
+            n3_mesh_detach:
+              cluster_count: 3
+              mesh_size: 3
+              share_infra_scenarios: "propagation-probe"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-mesh-detach"
+              global_namespace_count: 1
+              namespaces: 1
+              deployments_per_namespace: 1
+              replicas_per_deployment: 2
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              churn_cycles: 1
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 5m
+              kill_duration_seconds: 300
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 360
+              # DISABLE propagation + recovery probes so we don't pollute
+              # the detach-probe signal with kill+resync activity.
+              cl2_propagation_probe_enabled: "false"
+              cl2_recovery_probe_enabled: "false"
+              cl2_policy_canary_enabled: "false"
+              # ENABLE detach-rejoin probe (the whole point of this stage).
+              # Use defaults (300s detach/rejoin deadline, 60s hold, 120s prewait).
+              cl2_detach_rejoin_probe_enabled: "true"
+              # Probe window must accommodate: prewait 120s + pre-state 60s +
+              # detach API + 300s detach deadline + 60s hold + rejoin API +
+              # 300s rejoin deadline + 60s post-state = ~15min worst case.
+              # Set 20min to be safe.
+              cl2_probe_window_duration: "20m"
+              cl2_probe_prewait_s: 120
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 180
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  # ============================================================================
   # canadacentral N=20 cross-region baseline (validated by cc n=2 in build 69274)
   # ============================================================================
   # 960 vCPU vs 62000 free DSv4 in cc → 1.5% utilization. Mirrors the existing
