@@ -298,6 +298,146 @@ stages:
           skip_publish: false
 
   # ============================================================================
+  # canadacentral N=20 cross-region baseline (validated by cc n=2 in build 69274)
+  # ============================================================================
+  # 960 vCPU vs 62000 free DSv4 in cc → 1.5% utilization. Mirrors the existing
+  # euap n=20 anomaly rerun stage shape (event-throughput + pod-churn-combined
+  # + isolation, share-infra) so cross-region comparability is direct.
+  # test_type_suffix: -shared-vnet-cc-n20-g20 (Kusto separation vs euap and cc-n100).
+  - stage: azure_canadacentral_n20_smoke
+    dependsOn: []
+    variables:
+      # Belt-and-suspenders: env var (existing convention) + explicit param below.
+      # The job's terraform_arguments parameter is the canonical wiring (passed
+      # to `terraform apply` as direct CLI arg); the env var is a fallback in
+      # case any sub-step calls terraform without the explicit args.
+      TF_CLI_ARGS_apply: "-parallelism=4"
+      CMP_AUTO_RECOVERY_ENABLED: "true"
+    condition: always()
+    displayName: "n=20 canadacentral cross-region baseline (event-throughput + pod-churn-combined + isolation)"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - canadacentral
+          preserve_state_on_apply_failure: "true"
+          terraform_arguments: "-parallelism=4"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 30m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - canadacentral: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-20-shared-cc.tfvars"
+          matrix:
+            n20_cc_g20:
+              cluster_count: 20
+              mesh_size: 20
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-cc-n20-g20"
+              global_namespace_count: 1
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              cl2_max_concurrent: 12
+              worker_timeout_seconds: 14400
+              churn_cycles: 5
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  # ============================================================================
+  # canadacentral N=100 next-milestone (gated on cc n=20 being green)
+  # ============================================================================
+  # 4800 vCPU vs 62000 free DSv4 in cc → 7.7% utilization (vs 96% in euap).
+  # Single share-infra cell: event-throughput + pod-churn-combined + isolation
+  # in one apply/destroy lifecycle (~24-30h wall). cl2_max_concurrent=12 worker
+  # fan-out across 100 clusters means ~9 batches × normal scenario duration;
+  # isolation forces mesh-wide concurrency (100 workers) — known intentional
+  # high-fanout behavior per execute.yml.
+  # test_type_suffix: -shared-vnet-cc-n100-g20 (distinct from cc-n20 for dashboards).
+  #
+  # **DO NOT trigger this stage until azure_canadacentral_n20_smoke has been
+  # green in a prior build.** dependsOn: [] preserves the manual-trigger-
+  # one-stage-at-a-time workflow; we enforce the gating by convention, not by
+  # pipeline graph, so this stage stays selectable on its own once N=20 lands.
+  - stage: azure_canadacentral_n100_pod_churn
+    dependsOn: []
+    variables:
+      TF_CLI_ARGS_apply: "-parallelism=4"
+      CMP_AUTO_RECOVERY_ENABLED: "true"
+    condition: always()
+    displayName: "n=100 canadacentral pod-churn-combined headline (event-throughput + pod-churn-combined + isolation)"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - canadacentral
+          preserve_state_on_apply_failure: "true"
+          terraform_arguments: "-parallelism=4"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 30m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - canadacentral: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-100-shared-cc.tfvars"
+          matrix:
+            n100_cc_g20:
+              cluster_count: 100
+              mesh_size: 100
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-cc-n100-g20"
+              global_namespace_count: 1
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              cl2_max_concurrent: 12
+              worker_timeout_seconds: 14400
+              churn_cycles: 5
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          # 30h ceiling — matches the original euap N=100 stage budget.
+          # Self-hosted AKS-Telescope-Airlock pool has no 1440-min cap.
+          timeout_in_minutes: 1800
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  # ============================================================================
   # %global variation experiment — N=20 sweep
   # ============================================================================
   # 4 matrix entries varying global_namespace_count 0/1/3/5 (=0%/20%/60%/100%
