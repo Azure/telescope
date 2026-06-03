@@ -220,15 +220,21 @@ steps:
     # generate non-empty values for. Cilium-side gaps identified in the audit.
     # ---------------------------------------------------------------------
 
-    # Policy regeneration latency — canonical Cilium "endpoint policy compile"
-    # cost. Will read ~0 when no policies are present (current pause-pod
-    # workload); becomes meaningful when policy-scale-matrix lands.
+    # Policy regeneration latency — OPT-IN metric per Cilium source
+    # (pkg/metrics/metrics.go: only registered when the metric name appears
+    # in the agent's --metrics= flag). Build 69231 + 69263 evidence:
+    # AKS-managed Cilium does NOT enable cilium_policy_regeneration_time_
+    # stats_seconds by default — both runs returned "no samples" across
+    # all queries (Perc50/90/99/Mean/TotalSamples) even with L4 policy
+    # actively compiled into BPF. By contrast cilium_policy_implementation_
+    # delay (below) IS enabled by default and fires reliably.
     #
-    # Build 69226 evidence: 1-min rate windows return no samples when
-    # policy regen happens ONCE at CNP-creation time (early in scenario)
-    # and gather phase is 15+ min later. Use histogram_quantile over the
-    # full %v measurement window via increase() instead — captures all
-    # bucket increments since the `start` action of this measurement.
+    # Keeping the query in place as a no-op so the metric ID is reserved;
+    # will start emitting non-zero values automatically if AKS enables
+    # this opt-in metric in a future managed Cilium release. The Mean +
+    # TotalSamples queries below let the dashboard distinguish "metric
+    # not enabled" (TotalSamples=0 + missing samples) from "no events"
+    # (TotalSamples=0 + Mean reported).
     - Identifier: CiliumPolicyRegenerationDuration{{$suffix}}
       Method: GenericPrometheusQuery
       Params:
@@ -240,14 +246,8 @@ steps:
         queries:
         - name: Perc99
           query: histogram_quantile(0.99, sum(increase(cilium_policy_regeneration_time_stats_seconds_bucket[%v])) by (le))
-        - name: Perc90
-          query: histogram_quantile(0.90, sum(increase(cilium_policy_regeneration_time_stats_seconds_bucket[%v])) by (le))
         - name: Perc50
           query: histogram_quantile(0.50, sum(increase(cilium_policy_regeneration_time_stats_seconds_bucket[%v])) by (le))
-        # Mean — useful when there's only one or few samples (histogram
-        # quantiles can return 0 with too few bucket increments to
-        # interpolate). sum_increase / count_increase = average regen
-        # time over the full measurement window.
         - name: Mean
           query: sum(increase(cilium_policy_regeneration_time_stats_seconds_sum[%v])) / sum(increase(cilium_policy_regeneration_time_stats_seconds_count[%v]))
         - name: TotalSamples
@@ -256,6 +256,8 @@ steps:
     # Policy implementation delay — time from policy change visible to
     # agent until BPF datapath actually enforces it. The "policy change
     # → packet decision" latency, which is what customers actually see.
+    # ENABLED by default in AKS-managed Cilium (verified build 69231:
+    # Perc99=99ms, Mean=4.9ms, TotalSamples=2.0 on L4 toPorts CNP).
     - Identifier: CiliumPolicyImplementationDelay{{$suffix}}
       Method: GenericPrometheusQuery
       Params:
