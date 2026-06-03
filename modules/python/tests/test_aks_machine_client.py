@@ -387,6 +387,88 @@ class TestAKSMachineClient(unittest.TestCase):
         mock_make_request.return_value = mock_resp
         self.assertFalse(self.client._create_single_machine("m1", request))
 
+    # ---- ListMachines terminal failure checks ----
+
+    @mock.patch.object(AKSMachineClient, "make_request")
+    def test_list_machines_follows_next_link(self, mock_make_request):
+        """ListMachines follows ARM nextLink pagination and aggregates values."""
+        first_resp = mock.MagicMock()
+        first_resp.status_code = 200
+        first_resp.json.return_value = {
+            "value": [{"name": "m1"}],
+            "nextLink": "https://management.azure.com/next-page",
+        }
+        second_resp = mock.MagicMock()
+        second_resp.status_code = 200
+        second_resp.json.return_value = {"value": [{"name": "m2"}]}
+        mock_make_request.side_effect = [first_resp, second_resp]
+
+        machines = self.client._list_machines("fake-cluster", "apool")
+
+        self.assertEqual(machines, [{"name": "m1"}, {"name": "m2"}])
+        self.assertEqual(mock_make_request.call_count, 2)
+        self.assertEqual(mock_make_request.call_args_list[1].args[1],
+                         "https://management.azure.com/next-page")
+
+    def test_terminal_machine_failures_raise_when_all_expected_terminal(self):
+        """If every expected Machine is terminal and any failed, fail fast."""
+        machines = [
+            {
+                "name": "scale2-machine-1",
+                "properties": {"provisioningState": "Succeeded"},
+            },
+            {
+                "name": "scale2-machine-2",
+                "properties": {
+                    "provisioningState": "Failed",
+                    "status": {
+                        "provisioningError": {
+                            "code": "FailedToCreateOrUpdateVirtualMachineExtension",
+                            "message": "CSE failed with exit code 50",
+                        }
+                    },
+                },
+            },
+        ]
+        with mock.patch.object(
+            AKSMachineClient, "_list_machines", return_value=machines
+        ):
+            with self.assertRaisesRegex(RuntimeError, "scale2-machine-2"):
+                self.client._raise_if_expected_machines_terminal_with_failures(
+                    cluster_name="fake-cluster",
+                    agentpool_name="apool",
+                    expected_names={"scale2-machine-1", "scale2-machine-2"},
+                )
+
+    def test_terminal_machine_check_waits_for_missing_or_nonterminal_machines(self):
+        """Do not fail early until all expected Machines are present and terminal."""
+        machines = [
+            {
+                "name": "scale2-machine-1",
+                "properties": {"provisioningState": "Succeeded"},
+            },
+            {
+                "name": "scale2-machine-2",
+                "properties": {"provisioningState": "Creating"},
+            },
+        ]
+        with mock.patch.object(
+            AKSMachineClient, "_list_machines", return_value=machines
+        ):
+            self.client._raise_if_expected_machines_terminal_with_failures(
+                cluster_name="fake-cluster",
+                agentpool_name="apool",
+                expected_names={"scale2-machine-1", "scale2-machine-2"},
+            )
+        with mock.patch.object(
+            AKSMachineClient, "_list_machines", return_value=machines[:1]
+        ):
+            self.client._raise_if_expected_machines_terminal_with_failures(
+                cluster_name="fake-cluster",
+                agentpool_name="apool",
+                expected_names={"scale2-machine-1", "scale2-machine-2"},
+            )
+
     # ---- _wait_for_machine_node_readiness ----
 
     def _make_readiness_envelope(self, ready_counts):
@@ -560,6 +642,23 @@ class TestAKSMachineClient(unittest.TestCase):
         for p in (50, 70, 90, 99, 100):
             self.assertFalse(env[f"P{p}"]["success"])
             self.assertEqual(env[f"P{p}"]["target_nodes"], 0)
+
+    def test_wait_readiness_propagates_machine_failure_checker(self):
+        """Terminal Machine failures stop readiness polling immediately."""
+        checker = mock.MagicMock(side_effect=RuntimeError("machines failed"))
+        ticks = iter([0.0, 1.0])
+        with mock.patch("clients.aks_machine_client.time.time",
+                        side_effect=lambda: next(ticks)):
+            with self.assertRaisesRegex(RuntimeError, "machines failed"):
+                self.client._wait_for_machine_node_readiness(
+                    agentpool_name="apool",
+                    expected_count=1,
+                    timeout=10,
+                    baseline_count=0,
+                    machine_failure_checker=checker,
+                )
+        checker.assert_called_once()
+        self.mock_k8s.get_ready_nodes.assert_not_called()
 
     # ---- _scale_machine_batch ----
 

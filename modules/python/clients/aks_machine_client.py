@@ -21,7 +21,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from types import SimpleNamespace
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Set
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -56,6 +56,11 @@ _PER_REQUEST_TIMEOUT_CAP = 60
 _BATCH_429_MAX_RETRIES = 5
 _BATCH_429_INITIAL_BACKOFF_SECONDS = 1.0
 _BATCH_MAX_MACHINES_PER_REQUEST = 50
+_MACHINE_TERMINAL_STATES = {"Succeeded", "Failed", "Canceled", "Cancelled"}
+_MACHINE_FAILURE_STATES = {"Failed", "Canceled", "Cancelled"}
+_MACHINE_FAILURE_DETAIL_LIMIT = 10
+_LIST_MACHINES_PAGE_LIMIT = 100
+_MACHINE_FAILURE_CHECK_INTERVAL_SECONDS = 30
 # urllib3's default ``HTTPAdapter`` (mounted implicitly by ``requests.Session``)
 # caps each host's connection pool at ``pool_maxsize=10``. The parallel scale
 # paths fan out far beyond that (up to ``machine_workers`` concurrent PUTs
@@ -259,6 +264,7 @@ class AKSMachineClient(AKSClient):
         expected_count: int,
         timeout: int,
         baseline_count: int = 0,
+        machine_failure_checker: Optional[Callable[[], None]] = None,
     ) -> Dict[str, Dict[str, Any]]:
         """Wait for ``expected_count`` NEW Ready nodes; return nested percentile dict.
 
@@ -279,8 +285,9 @@ class AKSMachineClient(AKSClient):
         ``timeout`` is wall-clock seconds from invocation. Returns the nested
         empty-state envelope (``elapsed_time_seconds=None``, ``success=False``)
         if ``k8s_client`` is unavailable, ``expected_count`` <= 0, or no
-        percentile target is met within ``timeout``. Polling exceptions are
-        logged and treated as 0 ready this tick. Never raises.
+        percentile target is met within ``timeout``. Kubernetes polling
+        exceptions are logged and treated as 0 ready this tick. Raises only if
+        the optional ``machine_failure_checker`` raises.
         """
         # Empty-state envelope: nested dict per P-key with
         # `target_nodes`, `elapsed_time_seconds`, `percentage`, `success` so
@@ -321,6 +328,8 @@ class AKSMachineClient(AKSClient):
             f"timeout {timeout}s"
         )
         while time.time() < deadline and len(elapsed) < len(targets):
+            if machine_failure_checker is not None:
+                machine_failure_checker()
             try:
                 ready = len(kc.get_ready_nodes(label_selector=label_selector))
             except Exception as e:
@@ -506,11 +515,30 @@ class AKSMachineClient(AKSClient):
                     f"{'Succeeded' if agentpool_ok else 'Failed/Timeout'}"
                 )
 
+                last_machine_failure_check: Optional[float] = None
+
+                def check_machine_terminal_failures() -> None:
+                    nonlocal last_machine_failure_check
+                    now = time.time()
+                    if (
+                        last_machine_failure_check is not None
+                        and now - last_machine_failure_check
+                        < _MACHINE_FAILURE_CHECK_INTERVAL_SECONDS
+                    ):
+                        return
+                    last_machine_failure_check = now
+                    self._raise_if_expected_machines_terminal_with_failures(
+                        cluster_name=cluster_name,
+                        agentpool_name=agentpool_name,
+                        expected_names=set(names),
+                    )
+
                 percentile_envelope = self._wait_for_machine_node_readiness(
                     agentpool_name=agentpool_name,
                     expected_count=len(successful),
                     timeout=readiness_wait_timeout,
                     baseline_count=baseline_count,
+                    machine_failure_checker=check_machine_terminal_failures,
                 )
                 op.add_metadata("percentile_node_readiness_times", percentile_envelope)
                 p100 = percentile_envelope.get("P100", {})
@@ -606,6 +634,106 @@ class AKSMachineClient(AKSClient):
             logger.error(f"PUT machine {name} -> {resp.status_code} {resp.text[:500]}")
             return False
         return True
+
+    def _list_machines(
+        self,
+        cluster_name: str,
+        agentpool_name: str,
+        timeout: int = 30,
+    ) -> List[Dict[str, Any]]:
+        """List Machine resources for an agentpool, following ARM pagination."""
+        url = (
+            f"{_ARM_BASE}/subscriptions/{self.subscription_id}/resourceGroups/"
+            f"{self.resource_group}/providers/Microsoft.ContainerService/"
+            f"managedClusters/{cluster_name}/agentPools/{agentpool_name}/machines"
+            f"?api-version={_MACHINE_API_VERSION}"
+        )
+        machines: List[Dict[str, Any]] = []
+        for _ in range(_LIST_MACHINES_PAGE_LIMIT):
+            resp = self.make_request("GET", url, timeout=timeout)
+            if resp.status_code != 200:
+                raise RuntimeError(
+                    f"ListMachines failed for agentpool {agentpool_name}: "
+                    f"{resp.status_code} {resp.text[:500]}"
+                )
+            try:
+                body = resp.json()
+            except (ValueError, TypeError) as exc:
+                raise RuntimeError(
+                    f"ListMachines returned invalid JSON for agentpool "
+                    f"{agentpool_name}: {exc}"
+                ) from exc
+            machines.extend(body.get("value", []))
+            next_link = body.get("nextLink")
+            if not next_link:
+                return machines
+            url = next_link
+        raise RuntimeError(
+            f"ListMachines exceeded {_LIST_MACHINES_PAGE_LIMIT} pages for "
+            f"agentpool {agentpool_name}"
+        )
+
+    def _raise_if_expected_machines_terminal_with_failures(
+        self,
+        cluster_name: str,
+        agentpool_name: str,
+        expected_names: Set[str],
+    ) -> None:
+        """Fail fast when every expected Machine is terminal and any failed."""
+        if not expected_names:
+            return
+        try:
+            machines = self._list_machines(cluster_name, agentpool_name)
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            logger.warning(f"ListMachines check skipped after error: {exc}")
+            return
+        machines_by_name = {
+            machine.get("name"): machine
+            for machine in machines
+            if machine.get("name") in expected_names
+        }
+        if set(machines_by_name) != expected_names:
+            return
+        states = {
+            name: machines_by_name[name].get("properties", {}).get("provisioningState")
+            for name in expected_names
+        }
+        if not all(state in _MACHINE_TERMINAL_STATES for state in states.values()):
+            return
+        failed_names = [
+            name for name, state in states.items() if state in _MACHINE_FAILURE_STATES
+        ]
+        if not failed_names:
+            return
+        failed_details = [
+            self._machine_failure_detail(machines_by_name[name])
+            for name in sorted(failed_names)[:_MACHINE_FAILURE_DETAIL_LIMIT]
+        ]
+        state_counts = {
+            state: list(states.values()).count(state)
+            for state in sorted(set(states.values()))
+        }
+        raise RuntimeError(
+            f"all expected machines in agentpool {agentpool_name} reached terminal "
+            f"states but {len(failed_names)}/{len(expected_names)} failed; "
+            f"state_counts={state_counts}; failed_machines={failed_details}"
+        )
+
+    @staticmethod
+    def _machine_failure_detail(machine: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract compact failure details from a Machine resource."""
+        properties = machine.get("properties", {})
+        status = properties.get("status", {})
+        provisioning_error = status.get("provisioningError") or {}
+        message = provisioning_error.get("message")
+        if isinstance(message, str):
+            message = message[:300]
+        return {
+            "name": machine.get("name"),
+            "provisioningState": properties.get("provisioningState"),
+            "error_code": provisioning_error.get("code"),
+            "error_message": message,
+        }
 
     # ---- Machine API: batch scale path ----
     def _scale_machine_batch(
