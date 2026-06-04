@@ -237,15 +237,16 @@ class KubernetesClient:
             else:
                 raise Exception(f"Error deleting Node '{node_name}': {str(e)}") from e
 
-    def wait_for_nodes_ready(self, node_count, operation_timeout_in_minutes, label_selector=None):
+    def wait_for_nodes_ready(self, node_count, operation_timeout_in_minutes, label_selector=None, return_timestamp=False):
         """
         Waits for a specific number of nodes with a given label to be ready within a specified timeout.
         Raises an exception if the expected number of nodes are not ready within the timeout.
 
-        :param node_label: The label to filter nodes.
         :param node_count: The expected number of nodes to be ready.
         :param operation_timeout_in_minutes: The timeout in minutes to wait for the nodes to be ready.
-        :return: None
+        :param label_selector: The label to filter nodes.
+        :param return_timestamp: If True, returns (ready_nodes, ready_timestamp) tuple for timing measurement.
+        :return: List of ready nodes, or (ready_nodes, timestamp) if return_timestamp=True.
         """
         ready_nodes = []
         ready_node_count = 0
@@ -256,6 +257,8 @@ class KubernetesClient:
             ready_node_count = len(ready_nodes)
             logger.info(f"Currently {ready_node_count} nodes are ready.")
             if ready_node_count == node_count:
+                if return_timestamp:
+                    return ready_nodes, time.time()
                 return ready_nodes
             logger.info(f"Waiting for {node_count} nodes to be ready.")
             time.sleep(10)
