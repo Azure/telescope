@@ -119,8 +119,8 @@ class AKSClient:
                 k8s_status = f"FAILED: {k8s_result}" if k8s_failed else "succeeded"
                 elapsed = completion_time - start_time
                 logger.error(
-                    f"Concurrent operation failed after {elapsed:.2f}s - "
-                    f"ARM: {arm_status}, K8s readiness: {k8s_status}"
+                    "Concurrent operation failed after %.2fs - ARM: %s, K8s readiness: %s",
+                    elapsed, arm_status, k8s_status
                 )
                 # Raise the first exception encountered
                 if arm_failed:
@@ -412,25 +412,34 @@ class AKSClient:
                     f"Creating node pool {node_pool_name} in cluster {cluster_name}"
                 )
 
-                # Create the node pool
-                self.aks_client.agent_pools.begin_create_or_update(
-                    resource_group_name=self.resource_group,
-                    resource_name=cluster_name,
-                    agent_pool_name=node_pool_name,
-                    parameters=parameters,
-                ).result()
-
+                # Capture start time for timing measurements
+                start_time = time.time()
                 label_selector = f"agentpool={node_pool_name}"
 
-                # Wait for nodes to be ready
-                ready_nodes = self.k8s_client.wait_for_nodes_ready(
-                    node_count=node_count,
-                    operation_timeout_in_minutes=self.operation_timeout_minutes,
-                    label_selector=label_selector,
-                )
+                # Run ARM and K8s readiness concurrently to capture both timings
+                _, ready_nodes, node_readiness_time, command_execution_time = \
+                    self._run_concurrent_arm_and_readiness(
+                        self.aks_client.agent_pools.begin_create_or_update(
+                            resource_group_name=self.resource_group,
+                            resource_name=cluster_name,
+                            agent_pool_name=node_pool_name,
+                            parameters=parameters,
+                        ),
+                        node_count, label_selector, start_time
+                    )
 
                 logger.info(
                     f"All {node_count} nodes in pool {node_pool_name} are ready"
+                )
+
+                # Add timing metadata for regression analysis
+                op.add_metadata("node_readiness_time", node_readiness_time)
+                op.add_metadata("command_execution_time", command_execution_time)
+
+                # Log timing - analysis happens in ADX/dashboards
+                logger.info(
+                    "[%s] Timing: K8s nodes ready in %.2fs, ARM completed in %.2fs",
+                    node_pool_name, node_readiness_time, command_execution_time
                 )
 
                 # Verify NVIDIA drivers if this is a GPU node pool
@@ -554,27 +563,39 @@ class AKSClient:
                 node_pool.count = node_count
 
                 logger.info(f"Scaling node pool {node_pool_name} to {node_count} nodes")
-                self.aks_client.agent_pools.begin_create_or_update(
-                    resource_group_name=self.resource_group,
-                    resource_name=cluster_name,
-                    agent_pool_name=node_pool_name,
-                    parameters=node_pool,
-                ).result()
+
+                # Capture start time for timing measurements
+                start_time = time.time()
+                label_selector = f"agentpool={node_pool_name}"
 
                 logger.info(
                     f"Waiting for {node_count} nodes in pool {node_pool_name} to be ready..."
                 )
 
-                # Use agentpool=node_pool_name as default label if not specified
-                label_selector = f"agentpool={node_pool_name}"
+                # Run ARM and K8s readiness concurrently to capture both timings
+                _, ready_nodes, node_readiness_time, command_execution_time = \
+                    self._run_concurrent_arm_and_readiness(
+                        self.aks_client.agent_pools.begin_create_or_update(
+                            resource_group_name=self.resource_group,
+                            resource_name=cluster_name,
+                            agent_pool_name=node_pool_name,
+                            parameters=node_pool,
+                        ),
+                        node_count, label_selector, start_time
+                    )
 
-                ready_nodes = self.k8s_client.wait_for_nodes_ready(
-                    node_count=node_count,
-                    operation_timeout_in_minutes=self.operation_timeout_minutes,
-                    label_selector=label_selector,
-                )
                 logger.info(
                     f"All {node_count} nodes in pool {node_pool_name} are ready"
+                )
+
+                # Add timing metadata for regression analysis
+                op.add_metadata("node_readiness_time", node_readiness_time)
+                op.add_metadata("command_execution_time", command_execution_time)
+
+                # Log timing - analysis happens in ADX/dashboards
+                logger.info(
+                    "[%s] Timing: K8s nodes ready in %.2fs, ARM completed in %.2fs",
+                    node_pool_name, node_readiness_time, command_execution_time
                 )
 
                 pod_logs = None
@@ -766,22 +787,34 @@ class AKSClient:
                         "cluster_info", self.get_cluster_data(cluster_name)
                     )
                     node_pool.count = step  # Update node count in the node pool object
-                    result = self.aks_client.agent_pools.begin_create_or_update(
-                        resource_group_name=self.resource_group,
-                        resource_name=cluster_name,
-                        agent_pool_name=node_pool_name,
-                        parameters=node_pool,
-                    ).result()
 
-                    # Use agentpool=node_pool_name as default label if not specified
+                    # Capture start time for timing measurements
+                    start_time = time.time()
                     label_selector = f"agentpool={node_pool_name}"
 
-                    ready_nodes = self.k8s_client.wait_for_nodes_ready(
-                        node_count=step,
-                        operation_timeout_in_minutes=self.operation_timeout_minutes,
-                        label_selector=label_selector,
-                    )
+                    # Run ARM and K8s readiness concurrently to capture both timings
+                    result, ready_nodes, node_readiness_time, command_execution_time = \
+                        self._run_concurrent_arm_and_readiness(
+                            self.aks_client.agent_pools.begin_create_or_update(
+                                resource_group_name=self.resource_group,
+                                resource_name=cluster_name,
+                                agent_pool_name=node_pool_name,
+                                parameters=node_pool,
+                            ),
+                            step, label_selector, start_time
+                        )
+
                     logger.info(f"All {step} nodes in pool {node_pool_name} are ready")
+
+                    # Add timing metadata for regression analysis
+                    op.add_metadata("node_readiness_time", node_readiness_time)
+                    op.add_metadata("command_execution_time", command_execution_time)
+
+                    # Log timing - analysis happens in ADX/dashboards
+                    logger.info(
+                        "[%s] Timing: K8s nodes ready in %.2fs, ARM completed in %.2fs",
+                        node_pool_name, node_readiness_time, command_execution_time
+                    )
 
                     if result is None:
                         logger.error(f"Progressive scaling failed at step {step}")
