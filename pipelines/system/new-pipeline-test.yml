@@ -939,6 +939,86 @@ stages:
           skip_publish: false
 
   # ============================================================================
+  # Cross-cluster CNP propagation cost n=3 smoke — eastus2euap
+  # ============================================================================
+  # Complements policy-scale (per-cluster CNP cost) by measuring fleet-wide
+  # rollout latency: applies the SAME CNP in parallel on every cluster,
+  # times each cluster's compile + load latency. max(latency) = "time to
+  # fleet-wide enforcement" — the GitOps / Fleet workload-policy question.
+  #
+  # Uses propagation-probe scenario shell (provides namespace + global
+  # service) with the cross-cluster propagation orchestrator opted in.
+  # propagation/recovery/detach probes all DISABLED so the policy-prop
+  # signal isn't polluted.
+  #
+  # n=3 minimum: at n=2 the "fleet-wide" distribution has 2 samples
+  # which is degenerate. n=3 gives 3 per-cluster timing samples per
+  # iteration × 5 iterations = 15 samples per build.
+  - stage: azure_eastus2euap_n3_policy_propagation_smoke
+    dependsOn: []
+    condition: always()
+    displayName: "n=3 cross-cluster CNP propagation cost smoke (parallel-apply / per-cluster compile latency)"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 15m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-3-shared.tfvars"
+          matrix:
+            n3_policy_prop:
+              cluster_count: 3
+              mesh_size: 3
+              share_infra_scenarios: "propagation-probe"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-policy-prop"
+              global_namespace_count: 1
+              namespaces: 1
+              deployments_per_namespace: 1
+              replicas_per_deployment: 2
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              churn_cycles: 1
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 5m
+              kill_duration_seconds: 300
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 360
+              # Disable all the other probes so policy-prop signal is clean
+              cl2_propagation_probe_enabled: "false"
+              cl2_recovery_probe_enabled: "false"
+              cl2_policy_canary_enabled: "false"
+              cl2_detach_rejoin_probe_enabled: "false"
+              # ENABLE the policy-prop probe
+              cl2_policy_prop_probe_enabled: "true"
+              cl2_policy_prop_probe_count: 5
+              cl2_policy_prop_probe_interval_s: 60
+              cl2_policy_prop_probe_timeout_s: 120
+              # Probe window: 60s prewait + 5 iters × (apply+poll+delete ~30s
+              # max each + 60s interval) = ~10min. Set 15m to absorb.
+              cl2_probe_window_duration: "15m"
+              cl2_probe_prewait_s: 60
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 180
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  # ============================================================================
   # %global variation experiment — N=20 sweep
   # ============================================================================
   # 4 matrix entries varying global_namespace_count 0/1/3/5 (=0%/20%/60%/100%

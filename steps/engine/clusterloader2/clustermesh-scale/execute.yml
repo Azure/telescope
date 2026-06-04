@@ -184,6 +184,16 @@ steps:
       export CL2_DETACH_REJOIN_HOLD_S="${CL2_DETACH_REJOIN_HOLD_S:-60}"
       export CL2_DETACH_REJOIN_PRE_STATE_TIMEOUT_S="${CL2_DETACH_REJOIN_PRE_STATE_TIMEOUT_S:-300}"
 
+      # Cross-cluster CNP propagation probe: applies same CNP in parallel
+      # on every cluster, polls each for per-cluster compile/load latency.
+      # max(latency) = fleet-wide enforcement time. Opt-in via
+      # CL2_POLICY_PROP_PROBE_ENABLED=true. Needs >=2 clusters.
+      export CL2_POLICY_PROP_PROBE_ENABLED="${CL2_POLICY_PROP_PROBE_ENABLED:-false}"
+      export CL2_POLICY_PROP_PROBE_COUNT="${CL2_POLICY_PROP_PROBE_COUNT:-5}"
+      export CL2_POLICY_PROP_PROBE_INTERVAL_S="${CL2_POLICY_PROP_PROBE_INTERVAL_S:-60}"
+      export CL2_POLICY_PROP_PROBE_TIMEOUT_S="${CL2_POLICY_PROP_PROBE_TIMEOUT_S:-120}"
+      export CL2_POLICY_PROP_PROBE_PREWAIT_S="${CL2_POLICY_PROP_PROBE_PREWAIT_S:-60}"
+
       # Same discovery pattern as topology/clustermesh-scale/validate-resources.yml.
       # We re-run it here rather than relying on a step variable so this engine
       # file can be invoked independently.
@@ -610,6 +620,72 @@ steps:
         DETACH_REJOIN_PID=""
       }
 
+      # Cross-cluster CNP propagation cost probe. Applies the same CNP
+      # IN PARALLEL to every cluster, then polls each cluster's
+      # cilium-dbg policy get to measure per-cluster load latency.
+      # max(latency) = "time to fleet-wide enforcement" — the GitOps/
+      # Fleet workload-policy rollout question. Output: ${leader_role}-
+      # MeshPolicyPropProbe.jsonl. scale.py collect picks it up via
+      # _emit_policy_prop_probe_rows. Default OFF; opt-in via
+      # CL2_POLICY_PROP_PROBE_ENABLED=true.
+      launch_mesh_policy_propagation_probe() {
+        local _scen="$1" _report_dir_base="$2"
+        POLICY_PROP_PID=""
+        if [ "${CL2_POLICY_PROP_PROBE_ENABLED:-false}" != "true" ]; then
+          echo "[policy-prop-probe] CL2_POLICY_PROP_PROBE_ENABLED=${CL2_POLICY_PROP_PROBE_ENABLED:-false}; skipping"
+          return 0
+        fi
+        local _script="${CL2_CONFIG_DIR}/mesh-policy-propagation-probe.sh"
+        if [ ! -f "$_script" ]; then
+          echo "##vso[task.logissue type=warning;] mesh-policy-propagation-probe: $_script not found; skipping"
+          return 0
+        fi
+        local _clusters_json="$HOME/.kube/clustermesh-clusters.json"
+        local _n
+        _n=$(jq -r 'length' "$_clusters_json" 2>/dev/null || echo 0)
+        if [ "$_n" -lt 2 ]; then
+          echo "##vso[task.logissue type=warning;] mesh-policy-propagation-probe: need >=2 clusters, got $_n; skipping"
+          return 0
+        fi
+        local _leader_role _out_dir _log _prewait
+        _leader_role=$(jq -r '[.[] | .role | capture("mesh-(?<n>[0-9]+)") | .n | tonumber] | min as $m | "mesh-\($m)"' "$_clusters_json")
+        _out_dir="${_report_dir_base}/${_leader_role}"
+        mkdir -p "$_out_dir"
+        _log="${_out_dir}/mesh-policy-propagation-probe.log"
+        echo "===== mesh-policy-propagation-probe launch: scenario=${_scen} leader=${_leader_role} =====" | tee -a "$_log"
+        _prewait="${CL2_POLICY_PROP_PROBE_PREWAIT_S:-60}"
+        (
+          echo "[policy-prop-probe] prewait ${_prewait}s..."
+          sleep "$_prewait"
+          REPORT_DIR="$_out_dir" \
+          SCENARIO_NAME="$_scen" \
+          LEADER_ROLE="$_leader_role" \
+          CLUSTERMESH_CLUSTERS_JSON="$_clusters_json" \
+          CL2_POLICY_PROP_PROBE_COUNT="${CL2_POLICY_PROP_PROBE_COUNT:-5}" \
+          CL2_POLICY_PROP_PROBE_INTERVAL_S="${CL2_POLICY_PROP_PROBE_INTERVAL_S:-60}" \
+          CL2_POLICY_PROP_PROBE_TIMEOUT_S="${CL2_POLICY_PROP_PROBE_TIMEOUT_S:-120}" \
+          bash "$_script" 2>&1 | tee -a "$_log"
+        ) &
+        POLICY_PROP_PID=$!
+        echo "mesh-policy-propagation-probe: launched PID=$POLICY_PROP_PID for scenario=${_scen}; log=${_log}"
+      }
+
+      wait_mesh_policy_propagation_probe() {
+        local _scen="$1"
+        if [ -z "${POLICY_PROP_PID:-}" ]; then
+          return 0
+        fi
+        echo "mesh-policy-propagation-probe: waiting on PID=$POLICY_PROP_PID for scenario=${_scen}"
+        local _rc=0
+        wait "$POLICY_PROP_PID" || _rc=$?
+        if [ "$_rc" -ne 0 ]; then
+          echo "##vso[task.logissue type=warning;] mesh-policy-propagation-probe: scenario=${_scen} exited rc=${_rc}; check MeshPolicyPropProbe.jsonl + mesh-policy-propagation-probe.log"
+        else
+          echo "mesh-policy-propagation-probe: scenario=${_scen} completed cleanly"
+        fi
+        POLICY_PROP_PID=""
+      }
+
       # Sentinel dir bind-mounted into every CL2 container at
       # /root/perf-tests/clusterloader2/config/sentinels (CL2_CONFIG_DIR is
       # bind-mounted at /root/perf-tests/clusterloader2/config). Per-cluster
@@ -947,10 +1023,12 @@ steps:
           PROBE_PID=""
           RECOVERY_PID=""
           DETACH_REJOIN_PID=""
+          POLICY_PROP_PID=""
           if is_propagation_probe_scenario "$SCENARIO"; then
             launch_propagation_probe "$SCENARIO" "${CL2_REPORT_DIR}/${SCENARIO}"
             launch_mesh_recovery_probe "$SCENARIO" "${CL2_REPORT_DIR}/${SCENARIO}"
             launch_mesh_detach_rejoin_probe "$SCENARIO" "${CL2_REPORT_DIR}/${SCENARIO}"
+            launch_mesh_policy_propagation_probe "$SCENARIO" "${CL2_REPORT_DIR}/${SCENARIO}"
           fi
           scenario_rc=0
           PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute-parallel \
@@ -977,6 +1055,7 @@ steps:
           wait_propagation_probe "$SCENARIO"
           wait_mesh_recovery_probe "$SCENARIO"
           wait_mesh_detach_rejoin_probe "$SCENARIO"
+          wait_mesh_policy_propagation_probe "$SCENARIO"
 
           # Proactive failure debug dump (added 2026-05-14 after build 67114).
           # User direction: assume failure, keep debug logs persistent across
@@ -1074,6 +1153,7 @@ steps:
         launch_propagation_probe "$SINGLE_SCENARIO_BASENAME" "${CL2_REPORT_DIR}"
         launch_mesh_recovery_probe "$SINGLE_SCENARIO_BASENAME" "${CL2_REPORT_DIR}"
         launch_mesh_detach_rejoin_probe "$SINGLE_SCENARIO_BASENAME" "${CL2_REPORT_DIR}"
+        launch_mesh_policy_propagation_probe "$SINGLE_SCENARIO_BASENAME" "${CL2_REPORT_DIR}"
       fi
       single_scenario_rc=0
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE execute-parallel \
@@ -1092,6 +1172,7 @@ steps:
       wait_propagation_probe "$SINGLE_SCENARIO_BASENAME"
       wait_mesh_recovery_probe "$SINGLE_SCENARIO_BASENAME"
       wait_mesh_detach_rejoin_probe "$SINGLE_SCENARIO_BASENAME"
+      wait_mesh_policy_propagation_probe "$SINGLE_SCENARIO_BASENAME"
       # Proactive failure debug dump for single-scenario mode too. Run
       # unconditionally for node-churn AND upper-bound (rich state worth
       # dumping regardless of success); rc!=0 for everything else.

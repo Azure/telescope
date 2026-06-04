@@ -804,6 +804,12 @@ def collect_clusterloader2(
     # the leader cluster's report dir; one row per phase + summary.
     _emit_detach_rejoin_probe_rows(cl2_report_dir, template, result_file)
 
+    # 2026-06-04 — Mesh-policy-propagation probe JSONL pickup
+    # (cross-cluster CNP fleet-wide rollout cost). Orchestrator writes
+    # ${leader_role}-MeshPolicyPropProbe.jsonl into leader's report dir;
+    # one row per (iteration, cluster) phase observation + per-iter summary.
+    _emit_policy_prop_probe_rows(cl2_report_dir, template, result_file)
+
 
 def _emit_saturation_profile_rows(
     cl2_report_dir, template, result_file,
@@ -1588,6 +1594,54 @@ def _emit_detach_rejoin_probe_rows(cl2_report_dir, template, result_file):
                     row["measurement"] = "ClusterMeshDetachRejoinProbe"
                     row["group"] = "mesh-detach-rejoin-probe"
                     row["result"] = {"data": probe_data, "unit": "s"}
+                    out.write(json.dumps(row) + "\n")
+
+
+def _emit_policy_prop_probe_rows(cl2_report_dir, template, result_file):
+    """Append JSONL rows for the cross-cluster CNP propagation probe.
+
+    Host-side mesh-policy-propagation-probe.sh writes
+    ${leader_role}-MeshPolicyPropProbe.jsonl to the leader cluster's
+    report dir; one row per (iteration, cluster) phase observation
+    plus per-iteration summary rows + final summary. Each observation
+    row contains role, phase (apply | loaded | deleted), rc, t_*_ms
+    timestamps and per-cluster latency_ms.
+
+    Wrapped here with measurement="ClusterMeshPolicyPropProbe",
+    group="mesh-policy-prop-probe" so Kusto can filter on the
+    measurement-id alone.
+
+    Non-leader clusters skip writing → no rows. File absence = scenario
+    didn't enable the probe; silent no-op.
+    """
+    if not os.path.isdir(cl2_report_dir):
+        return
+    candidates = [
+        f for f in os.listdir(cl2_report_dir)
+        if f.endswith("-MeshPolicyPropProbe.jsonl")
+    ]
+    if not candidates:
+        return
+    with open(result_file, "a", encoding="utf-8") as out:
+        for fname in candidates:
+            fpath = os.path.join(cl2_report_dir, fname)
+            with open(fpath, "r", encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        probe_data = json.loads(line)
+                    except json.JSONDecodeError as e:
+                        print(
+                            f"[collect] WARN: skipping malformed line in {fpath}: {e}",
+                            file=sys.stderr,
+                        )
+                        continue
+                    row = json.loads(json.dumps(template))
+                    row["measurement"] = "ClusterMeshPolicyPropProbe"
+                    row["group"] = "mesh-policy-prop-probe"
+                    row["result"] = {"data": probe_data, "unit": "ms"}
                     out.write(json.dumps(row) + "\n")
 
 
