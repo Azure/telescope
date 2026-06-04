@@ -12,10 +12,12 @@ Operations are tracked using the Operation and OperationContext classes for metr
 and troubleshooting.
 """
 
+import asyncio
+import concurrent.futures
 import logging
 import os
 import time
-from typing import Dict, Optional, Any
+from typing import Dict, Optional, Any, Tuple
 
 # Third party imports
 from azure.core.exceptions import HttpResponseError, ResourceNotFoundError
@@ -59,6 +61,92 @@ class AKSClient:
         from crud.operation import OperationContext # pylint: disable=import-outside-toplevel
 
         return OperationContext
+
+    def _run_concurrent_arm_and_readiness(
+        self,
+        poller,
+        node_count: int,
+        label_selector: str,
+        start_time: float
+    ) -> Tuple[Any, list, float, float]:
+        """
+        Run ARM operation and K8s node readiness check concurrently.
+
+        This allows accurate measurement of both ARM completion time and node readiness time
+        independently, enabling identification of which layer is causing latency.
+
+        Args:
+            poller: Azure ARM LROPoller from begin_create_or_update (thread-safe)
+            node_count: Expected number of nodes to be ready
+            label_selector: K8s label selector for filtering nodes
+            start_time: Operation start timestamp for calculating durations
+
+        Returns:
+            Tuple of (arm_result, ready_nodes, node_readiness_time, command_execution_time)
+            - node_readiness_time: seconds from start until K8s nodes were ready
+            - command_execution_time: seconds from start until both tasks complete
+              (i.e., the longer of ARM or K8s readiness)
+
+        Raises:
+            Exception: If either ARM or K8s readiness fails. Both tasks run to
+                completion (or failure) so we can capture timing for whichever
+                succeeded, enabling better diagnosis of which layer caused the failure.
+        """
+        async def _run():
+            # Run ARM polling and K8s readiness check concurrently
+            arm_task = asyncio.to_thread(poller.result)
+            k8s_task = asyncio.to_thread(
+                self.k8s_client.wait_for_nodes_ready,
+                node_count=node_count,
+                operation_timeout_in_minutes=self.operation_timeout_minutes,
+                label_selector=label_selector,
+                return_timestamp=True,
+            )
+
+            # Use return_exceptions=True to capture both results even if one fails
+            results = await asyncio.gather(arm_task, k8s_task, return_exceptions=True)
+            arm_result, k8s_result = results
+
+            completion_time = time.time()
+
+            # Check for failures and build diagnostic message
+            arm_failed = isinstance(arm_result, Exception)
+            k8s_failed = isinstance(k8s_result, Exception)
+
+            if arm_failed or k8s_failed:
+                # Build diagnostic info for logging
+                arm_status = f"FAILED: {arm_result}" if arm_failed else "succeeded"
+                k8s_status = f"FAILED: {k8s_result}" if k8s_failed else "succeeded"
+                elapsed = completion_time - start_time
+                logger.error(
+                    f"Concurrent operation failed after {elapsed:.2f}s - "
+                    f"ARM: {arm_status}, K8s readiness: {k8s_status}"
+                )
+                # Raise the first exception encountered
+                if arm_failed:
+                    raise arm_result
+                raise k8s_result
+
+            # Both succeeded - unpack k8s result
+            ready_nodes, ready_timestamp = k8s_result
+
+            # Calculate times relative to start
+            node_readiness_time = ready_timestamp - start_time
+            command_execution_time = completion_time - start_time
+
+            return arm_result, ready_nodes, node_readiness_time, command_execution_time
+
+        # Handle both sync and async calling contexts
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            # No running loop - safe to use asyncio.run()
+            return asyncio.run(_run())
+
+        # Already in async context - run in separate thread pool
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(asyncio.run, _run())
+            return future.result()
 
     def __init__(
         self,
