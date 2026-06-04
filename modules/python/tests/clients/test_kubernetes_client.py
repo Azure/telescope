@@ -1202,6 +1202,28 @@ class TestKubernetesClient(unittest.TestCase):
         self.assertIn("Only 1 nodes are ready, expected 2 nodes!", str(context.exception))
         mock_sleep.assert_called()
 
+    @patch('time.time')
+    @patch('clients.kubernetes_client.KubernetesClient.get_ready_nodes')
+    @patch("time.sleep", return_value=None)
+    def test_wait_for_nodes_ready_with_timestamp(self, mock_sleep, mock_get_ready_nodes, mock_time):
+        """Test waiting for nodes with return_timestamp=True returns tuple."""
+        mock_get_ready_nodes.side_effect = [[], ["node1", "node2"]]
+        mock_time.return_value = 1234567890.123  # Fixed timestamp for assertion
+        node_count = 2
+        timeout = 0.01
+
+        result = self.client.wait_for_nodes_ready(
+            node_count, timeout, return_timestamp=True
+        )
+
+        # Should return (ready_nodes, timestamp) tuple
+        self.assertIsInstance(result, tuple)
+        self.assertEqual(len(result), 2)
+        ready_nodes, timestamp = result
+        self.assertEqual(ready_nodes, ["node1", "node2"])
+        self.assertEqual(timestamp, 1234567890.123)
+        mock_sleep.assert_called()
+
     @patch('clients.kubernetes_client.KubernetesClient.get_pods_by_namespace')
     @patch('clients.kubernetes_client.KubernetesClient.get_ready_pods_by_namespace')
     @patch("time.sleep", return_value=None)
