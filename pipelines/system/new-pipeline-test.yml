@@ -592,16 +592,19 @@ stages:
               kill_interval_seconds: 10
               kill_batch: 5
               kill_job_deadline_seconds: 660
-              # CL2 per-worker watchdog: 7h ceiling. Fires before stage
-              # timeout so CL2 fails gracefully and collect/destroy can
-              # still run (vs stage hard-kill that would skip them).
-              worker_timeout_seconds: 25200
+              # CL2 per-worker watchdog: 8h ceiling. Build 69332 evidence:
+              # 7h (25200s) was insufficient — soak hit "worker exceeded
+              # timeout_seconds=25200" SIGTERM at 6h churn + setup +
+              # 10min kill = ~6h50m needed budget. Per-worker overhead
+              # (Prometheus, container startup, CEP gather between phases)
+              # pushed actual wall past 7h. 8h = 60min margin.
+              worker_timeout_seconds: 28800
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
-          # 10h ceiling for 6h20m expected wall = 3h40m margin for slow
-          # apply + slow destroy + collect (worker_timeout fires at 7h
-          # internally so CL2 fails gracefully if churn wedges).
-          timeout_in_minutes: 600
+          # 11h ceiling for ~7h expected wall + setup/destroy = 4h margin.
+          # Bumped from 10h (build 69332) so worker_timeout at 8h fires
+          # before the stage timeout.
+          timeout_in_minutes: 660
           credential_type: service_connection
           ssh_key_enabled: false
           skip_publish: false
