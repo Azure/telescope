@@ -553,7 +553,11 @@ steps:
         _fleet_name="${CL2_FLEET_NAME_OVERRIDE:-clustermesh-flt}"
         _cmp_name="${CL2_CMP_NAME_OVERRIDE:-clustermesh-cmp}"
         _sub_id=$(az account show --query id -o tsv)
-        _leader_role=$(jq -r '.[0].role' "$_clusters_json")
+        # Deterministic leader pick: LOWEST numeric role (mesh-1). Probe
+        # picks victim as HIGHEST numeric role (mesh-N). At N>=2 these
+        # never collide. Avoids the `.[0].role` race where clusters JSON
+        # ordering varied (build 69318 evidence: leader=mesh-3=victim).
+        _leader_role=$(jq -r '[.[] | .role | capture("mesh-(?<n>[0-9]+)") | .n | tonumber] | min as $m | "mesh-\($m)"' "$_clusters_json")
         _out_dir="${_report_dir_base}/${_leader_role}"
         mkdir -p "$_out_dir"
         _log="${_out_dir}/mesh-detach-rejoin-probe.log"

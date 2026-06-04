@@ -171,28 +171,26 @@ cleanup() {
 trap cleanup EXIT
 
 # ---------- HELPERS ----------
-# Returns "ready/total" from cilium-dbg clustermesh status on a given cluster.
-# Distroless-safe: uses cilium-dbg directly (no sh wrappers).
+# Returns "ready/total" from cilium-dbg status's ClusterMesh: section.
+# Distroless-safe (cilium-dbg directly, no sh). Uses `exec ds/cilium` to
+# match the proven pattern in validate-resources.yml (line 745) — same
+# DaemonSet exec, same sed pattern. `cilium-dbg status` is the canonical
+# in-pod command; `cilium-dbg clustermesh status` is a DIFFERENT subcommand
+# that doesn't emit the same X/Y readout (build 69318 evidence: PRE-STATE
+# timed out at 300s when using `clustermesh status`).
 cm_status() {
   local _kc="$1" _ctx="$2"
-  local _cil
-  _cil=$(KUBECONFIG="$_kc" kubectl --context "$_ctx" -n kube-system get pods -l k8s-app=cilium -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-  if [ -z "$_cil" ]; then echo "0/0"; return; fi
-  KUBECONFIG="$_kc" kubectl --context "$_ctx" -n kube-system exec "$_cil" -c cilium-agent -- \
-    cilium-dbg clustermesh status 2>/dev/null \
+  KUBECONFIG="$_kc" kubectl --context "$_ctx" -n kube-system exec ds/cilium -c cilium-agent -- \
+    cilium-dbg status 2>/dev/null \
     | sed -nE 's/.*ClusterMesh:[[:space:]]+([0-9]+)\/([0-9]+) remote clusters ready.*/\1\/\2/p' \
     | head -1
 }
 
 # Sum of cilium_clustermesh_remote_cluster_failures sampled from one Cilium
-# agent pod (mesh-1's first agent by jsonpath items[0]). Per-cluster sample,
-# not cluster-wide — good enough for trend detection at n=3.
+# agent on the given cluster (uses ds/cilium exec). Per-cluster sample.
 cm_failures_sample() {
   local _kc="$1" _ctx="$2"
-  local _cil
-  _cil=$(KUBECONFIG="$_kc" kubectl --context "$_ctx" -n kube-system get pods -l k8s-app=cilium -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
-  if [ -z "$_cil" ]; then echo "0"; return; fi
-  KUBECONFIG="$_kc" kubectl --context "$_ctx" -n kube-system exec "$_cil" -c cilium-agent -- \
+  KUBECONFIG="$_kc" kubectl --context "$_ctx" -n kube-system exec ds/cilium -c cilium-agent -- \
     cilium-dbg metrics list -o json 2>/dev/null \
     | jq -r '[.[] | select(.name=="cilium_clustermesh_remote_cluster_failures") | .value | tonumber] | add // 0'
 }
@@ -253,11 +251,13 @@ if [ "$pre_status" = "TIMEOUT" ]; then
 fi
 emit "pre_state" "{\"pre_state_settle_s\": $pre_elapsed}"
 
-# Capture pre-state failure count on observer (mesh-1 by convention)
-mesh1_kc=$(jq -r '.[] | select(.role=="mesh-1") | .kubeconfig' "$clusters_json")
-mesh1_ctx=$(jq -r '.[] | select(.role=="mesh-1") | .context // .name' "$clusters_json")
-pre_failures=$(cm_failures_sample "$mesh1_kc" "$mesh1_ctx")
-log "pre_failures (mesh-1 sample): $pre_failures"
+# Capture pre-state failure count on observer = leader (deterministic
+# non-victim cluster; LEADER_ROLE is set by execute.yml to mesh-1 = min
+# numeric role, victim = max numeric role, so leader != victim at N>=2).
+observer_kc=$(jq -r --arg lr "$leader_role" '.[] | select(.role==$lr) | .kubeconfig' "$clusters_json")
+observer_ctx=$(jq -r --arg lr "$leader_role" '.[] | select(.role==$lr) | .context // .name' "$clusters_json")
+pre_failures=$(cm_failures_sample "$observer_kc" "$observer_ctx")
+log "pre_failures (observer=$leader_role): $pre_failures"
 
 # ---------- PHASE 2: DETACH ----------
 log "Phase 2: DETACH ($victim_role label $LABEL_KEY=$LABEL_VALUE_DETACH)"
