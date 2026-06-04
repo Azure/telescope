@@ -164,11 +164,18 @@ steps:
       # (N-2) on remaining clusters, then re-labels back and verifies
       # return to (N-1). Opt-in via CL2_DETACH_REJOIN_PROBE_ENABLED=true.
       # MINIMUM 3 clusters required (degenerate at n=2).
+      #
+      # Timing defaults sized after build 69300 evidence: PRE-STATE took
+      # >180s (120s prewait + 60s deadline) to reach steady state at n=3
+      # due to Azure LB allocation + Fleet CMP first-reconcile lag.
+      # Bumped to 300s prewait + 300s pre-state-via-detach-timeout default
+      # (PRE-STATE shares the detach-timeout knob to keep one tunable).
       export CL2_DETACH_REJOIN_PROBE_ENABLED="${CL2_DETACH_REJOIN_PROBE_ENABLED:-false}"
-      export CL2_DETACH_REJOIN_PREWAIT_S="${CL2_DETACH_REJOIN_PREWAIT_S:-120}"
+      export CL2_DETACH_REJOIN_PREWAIT_S="${CL2_DETACH_REJOIN_PREWAIT_S:-300}"
       export CL2_DETACH_REJOIN_DETACH_TIMEOUT_S="${CL2_DETACH_REJOIN_DETACH_TIMEOUT_S:-300}"
       export CL2_DETACH_REJOIN_REJOIN_TIMEOUT_S="${CL2_DETACH_REJOIN_REJOIN_TIMEOUT_S:-300}"
       export CL2_DETACH_REJOIN_HOLD_S="${CL2_DETACH_REJOIN_HOLD_S:-60}"
+      export CL2_DETACH_REJOIN_PRE_STATE_TIMEOUT_S="${CL2_DETACH_REJOIN_PRE_STATE_TIMEOUT_S:-300}"
 
       # Same discovery pattern as topology/clustermesh-scale/validate-resources.yml.
       # We re-run it here rather than relying on a step variable so this engine
@@ -567,6 +574,7 @@ steps:
           CL2_DETACH_REJOIN_DETACH_TIMEOUT_S="${CL2_DETACH_REJOIN_DETACH_TIMEOUT_S:-300}" \
           CL2_DETACH_REJOIN_REJOIN_TIMEOUT_S="${CL2_DETACH_REJOIN_REJOIN_TIMEOUT_S:-300}" \
           CL2_DETACH_REJOIN_HOLD_S="${CL2_DETACH_REJOIN_HOLD_S:-60}" \
+          CL2_DETACH_REJOIN_PRE_STATE_TIMEOUT_S="${CL2_DETACH_REJOIN_PRE_STATE_TIMEOUT_S:-300}" \
           bash "$_script" 2>&1 | tee -a "$_log"
         ) &
         DETACH_REJOIN_PID=$!

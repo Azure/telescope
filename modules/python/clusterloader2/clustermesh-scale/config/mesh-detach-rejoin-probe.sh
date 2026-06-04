@@ -55,6 +55,10 @@ readonly LABEL_VALUE_DETACH="${CL2_FLEET_LABEL_VALUE_DETACH:-detaching}"
 detach_timeout="${CL2_DETACH_REJOIN_DETACH_TIMEOUT_S:-$DEFAULT_DETACH_TIMEOUT}"
 rejoin_timeout="${CL2_DETACH_REJOIN_REJOIN_TIMEOUT_S:-$DEFAULT_REJOIN_TIMEOUT}"
 hold_s="${CL2_DETACH_REJOIN_HOLD_S:-$DEFAULT_HOLD}"
+# PRE-STATE timeout — sized after build 69300 evidence (60s was too short
+# for n=3 first-convergence; LB allocation + CMP reconcile took >180s end
+# to end). Defaults to detach timeout so a single tunable covers both.
+pre_state_timeout="${CL2_DETACH_REJOIN_PRE_STATE_TIMEOUT_S:-$detach_timeout}"
 
 log() { echo "[detach-rejoin-probe $(date -u +%H:%M:%S)] $*" >&2; }
 fail_phase() { log "FAIL: $1"; exit_status="fail"; phase_fail="$2"; }
@@ -237,14 +241,14 @@ wait_peer_count() {
 }
 
 # ---------- PHASE 1: PRE-STATE ----------
-log "Phase 1: PRE-STATE (assert ready==total==$((n_clusters - 1)) on ALL clusters incl. victim)"
+log "Phase 1: PRE-STATE (assert ready==total==$((n_clusters - 1)) on ALL clusters incl. victim; deadline ${pre_state_timeout}s)"
 pre_start=$(date +%s)
-pre_result=$(wait_peer_count $((n_clusters - 1)) 60 false)
+pre_result=$(wait_peer_count $((n_clusters - 1)) "$pre_state_timeout" false)
 pre_status=${pre_result%% *}
 pre_elapsed=${pre_result##* }
 log "pre-state: $pre_result"
 if [ "$pre_status" = "TIMEOUT" ]; then
-  fail_phase "pre-state did not reach steady state within 60s" "pre-state"
+  fail_phase "pre-state did not reach steady state within ${pre_state_timeout}s" "pre-state"
   exit 0
 fi
 emit "pre_state" "{\"pre_state_settle_s\": $pre_elapsed}"
