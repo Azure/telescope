@@ -514,6 +514,288 @@ stages:
           skip_publish: false
 
   # ============================================================================
+  # long-soak-test n=2 6h canary — eastus2euap
+  # ============================================================================
+  # Per todo description + rubber-duck revision: Phase 1 is a 6-8h canary
+  # inside the existing pipeline; 24h+ is deferred until canary lands clean
+  # twice.
+  #
+  # Catches the slow-degradation bug class invisible at our 30min runs:
+  # - Memory leak slope (cilium agent, etcd, kvstoremesh)
+  # - BPF map growth across hours of churn
+  # - Identity churn vs steady-state
+  # - etcd db size growth (or compaction-keeping-up)
+  # - Slow watcher accumulation
+  #
+  # Implementation: bump churn_cycles 5 → 180 on pod-churn-combined scenario.
+  # 180 cycles × (60s up + 60s down) = 21,600s = 6h of continuous churn.
+  # Total stage wall = ~10min apply + 6h churn + ~10min destroy = ~6h20min.
+  # timeout_in_minutes=480 (8h) gives 1h40m margin for slow phases.
+  #
+  # vCPU: 2 × 48 = 96 vCPU (trivial). Re-uses azure-2-shared.tfvars (existing
+  # euap n=2 shared-VNet topology).
+  #
+  # Metrics-at-end (existing infra) captures all Phase 1 + Phase 2 metrics
+  # over the full 6h window via Prometheus continuous scrape. The %v
+  # measurement window expands naturally; queries like
+  # `increase(...[%v])` capture the 6h total. No new heartbeat mechanism
+  # in this canary — that's a Phase 1b enhancement after this lands clean.
+  - stage: azure_eastus2euap_n2_soak_6h_canary
+    dependsOn: []
+    variables:
+      # Soak runs >6h; enable CMP auto-recovery since the longer wall
+      # increases the window for Fleet's known partial-apiserver-deploy
+      # flake to fire.
+      CMP_AUTO_RECOVERY_ENABLED: "true"
+    condition: always()
+    displayName: "n=2 long-soak 6h canary (pod-churn-combined × 180 cycles, ~6h20m wall)"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 30m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            # Soak-specific tfvars (deletion_delay 24h vs parent's 4h to
+            # avoid janitor reaping infra mid-test).
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-2-shared-soak.tfvars"
+          matrix:
+            n2_soak_6h:
+              cluster_count: 2
+              mesh_size: 2
+              share_infra_scenarios: "pod-churn-combined"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-soak-6h"
+              global_namespace_count: 1
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              # 180 cycles × 120s = 21600s = 6h continuous churn.
+              churn_cycles: 180
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              # Kill window unchanged — same 10min kill at end of churn.
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              # CL2 per-worker watchdog: 7h ceiling. Fires before stage
+              # timeout so CL2 fails gracefully and collect/destroy can
+              # still run (vs stage hard-kill that would skip them).
+              worker_timeout_seconds: 25200
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          # 10h ceiling for 6h20m expected wall = 3h40m margin for slow
+          # apply + slow destroy + collect (worker_timeout fires at 7h
+          # internally so CL2 fails gracefully if churn wedges).
+          timeout_in_minutes: 600
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  # ============================================================================
+  # repeatability-variance — N=20 g100 × 3 identical runs (eastus2euap)
+  # ============================================================================
+  # Per todo: report median + p25-p75 band on every dashboard tile, not just
+  # point values. A single N=20 success is fragile evidence; 3 runs gives us
+  # noise floor + identifies which metrics are stable vs noisy.
+  #
+  # Three independent stages (NOT one stage with 3 matrix entries) so the
+  # user can trigger them on different days to also capture time-of-day
+  # variance (Azure regional load varies by hour). Each is
+  # `condition: always()` and runs the same matrix as the existing N=20
+  # g100 anomaly rerun cell (event-throughput + pod-churn-combined +
+  # isolation, share-infra, global_namespace_count=5 = 100% global).
+  #
+  # vCPU: 960 per run. 3 runs = 2880 vCPU total if all triggered in same
+  # build, well under euap 4992 free Dv3. Recommend spreading across 2-3
+  # separate builds for time-of-day variance.
+  #
+  # test_type_suffix differentiated per run for Kusto row separation;
+  # dashboard groups by (test_type prefix == "...-variance-g100") and
+  # computes median + p25-p75 across {-run1, -run2, -run3} rows.
+  - stage: azure_eastus2euap_n20_g100_variance_run1
+    dependsOn: []
+    variables:
+      TF_CLI_ARGS_apply: "-parallelism=4"
+      CMP_AUTO_RECOVERY_ENABLED: "true"
+    condition: always()
+    displayName: "n=20 g100 variance run 1 of 3 (event-throughput + pod-churn-combined + isolation)"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          terraform_arguments: "-parallelism=4"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 30m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-20-shared.tfvars"
+          matrix:
+            n20_g100_var_r1:
+              cluster_count: 20
+              mesh_size: 20
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-variance-g100-run1"
+              global_namespace_count: 5
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              cl2_max_concurrent: 12
+              worker_timeout_seconds: 14400
+              churn_cycles: 5
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  - stage: azure_eastus2euap_n20_g100_variance_run2
+    dependsOn: []
+    variables:
+      TF_CLI_ARGS_apply: "-parallelism=4"
+      CMP_AUTO_RECOVERY_ENABLED: "true"
+    condition: always()
+    displayName: "n=20 g100 variance run 2 of 3 (event-throughput + pod-churn-combined + isolation)"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          terraform_arguments: "-parallelism=4"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 30m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-20-shared.tfvars"
+          matrix:
+            n20_g100_var_r2:
+              cluster_count: 20
+              mesh_size: 20
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-variance-g100-run2"
+              global_namespace_count: 5
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              cl2_max_concurrent: 12
+              worker_timeout_seconds: 14400
+              churn_cycles: 5
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  - stage: azure_eastus2euap_n20_g100_variance_run3
+    dependsOn: []
+    variables:
+      TF_CLI_ARGS_apply: "-parallelism=4"
+      CMP_AUTO_RECOVERY_ENABLED: "true"
+    condition: always()
+    displayName: "n=20 g100 variance run 3 of 3 (event-throughput + pod-churn-combined + isolation)"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          terraform_arguments: "-parallelism=4"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 30m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-20-shared.tfvars"
+          matrix:
+            n20_g100_var_r3:
+              cluster_count: 20
+              mesh_size: 20
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-variance-g100-run3"
+              global_namespace_count: 5
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              cl2_max_concurrent: 12
+              worker_timeout_seconds: 14400
+              churn_cycles: 5
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  # ============================================================================
   # canadacentral N=20 cross-region baseline (validated by cc n=2 in build 69274)
   # ============================================================================
   # 960 vCPU vs 62000 free DSv4 in cc → 1.5% utilization. Mirrors the existing

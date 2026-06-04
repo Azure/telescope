@@ -306,7 +306,7 @@ else
   # ---------- PHASE 4: HOLD-N2 ----------
   log "Phase 4: HOLD-N2 ($hold_s seconds)"
   sleep "$hold_s"
-  hold_failures=$(cm_failures_sample "$mesh1_kc" "$mesh1_ctx")
+  hold_failures=$(cm_failures_sample "$observer_kc" "$observer_ctx")
   emit "hold_n2_complete" "{\"hold_s\": $hold_s, \"hold_failures\": $hold_failures}"
 fi
 
@@ -350,7 +350,7 @@ if [ "$rejoin_status" = "TIMEOUT" ]; then
 else
   time_to_rejoin_detect_s=$rejoin_elapsed
   emit "wait_rejoin_complete" "{\"time_to_rejoin_detect_s\": $rejoin_elapsed}"
-  post_failures=$(cm_failures_sample "$mesh1_kc" "$mesh1_ctx")
+  post_failures=$(cm_failures_sample "$observer_kc" "$observer_ctx")
   emit "post_state_complete" "{\"post_failures\": $post_failures}"
 fi
 
