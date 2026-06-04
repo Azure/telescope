@@ -148,6 +148,13 @@ steps:
       # without any CNP present. Opt-in per matrix entry; default off.
       export CL2_POLICY_CANARY_ENABLED="${CL2_POLICY_CANARY_ENABLED:-false}"
 
+      # policy-scale scenario (NetworkPolicy at scale): N CNPs per namespace
+      # to measure policy implementation delay + endpoint regen cost vs CNP
+      # count. Default 50 → 250 CNPs at ns=5 default. Sweep 10/50/100/200
+      # in pipeline cells. Only used by policy-scale.yaml scenario.
+      export CL2_POLICY_SCALE_CNP_PER_NS="${CL2_POLICY_SCALE_CNP_PER_NS:-50}"
+      export CL2_POLICY_SCALE_HOLD_DURATION="${CL2_POLICY_SCALE_HOLD_DURATION:-5m}"
+
       # Mesh-state recovery probe knobs (mesh-recovery-probe.sh). Runs
       # host-side like propagation-probe; kills a cilium-agent pod on a
       # target cluster mid-run and measures: time-to-divergence on peer
@@ -251,6 +258,8 @@ steps:
         --saturation-settle-seconds "$CL2_SATURATION_SETTLE_SECONDS" \
         --probe-window-duration "${CL2_PROBE_WINDOW_DURATION:-60m}" \
         --policy-canary-enabled "${CL2_POLICY_CANARY_ENABLED:-false}" \
+        --policy-scale-cnp-per-ns "${CL2_POLICY_SCALE_CNP_PER_NS:-50}" \
+        --policy-scale-hold-duration "${CL2_POLICY_SCALE_HOLD_DURATION:-5m}" \
         --cl2_override_file "${CL2_CONFIG_DIR}/overrides.yaml"
 
       # Phase 4a — pre-stage kubectl into the CL2 config dir so the

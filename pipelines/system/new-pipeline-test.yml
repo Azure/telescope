@@ -866,6 +866,79 @@ stages:
           skip_publish: false
 
   # ============================================================================
+  # NetworkPolicy at scale n=2 smoke — eastus2euap (per gap-list category B item #9)
+  # ============================================================================
+  # First policy-scale scenario test. Creates 50 CNPs per namespace × 5 ns =
+  # 250 CNPs per cluster. At n=2 cluster mesh = 500 CNPs total. Measures:
+  #   - CiliumPolicyImplementationDelay (already in cilium.yaml)
+  #   - CiliumEndpointRegenerations + Duration (per-endpoint regen cost
+  #     scales linearly with CNP count selecting the endpoint)
+  #   - CiliumBpfMapPressure (each CNP adds entries to policy map)
+  #   - Phase 3 metrics: HubbleLostEvents, EndpointStateDistribution,
+  #     KvstoreQueueDuration, CpuThrottled, OomEvents (all new from this commit)
+  #
+  # Once n=2 baseline is green, sweep CNP_PER_NS knob 10/50/100/200 and/or
+  # bump cluster count to N=20 for per-cluster CNP cost at mesh scale.
+  # NOTE: this scenario measures PER-CLUSTER CNP scale (each cluster runs
+  # CL2 independently and creates its OWN 250 CNPs). It does NOT measure
+  # cross-cluster CNP propagation. For that signal, a future host-side
+  # orchestrator would create CNPs from a single leader + poll peers.
+  - stage: azure_eastus2euap_n2_policy_scale
+    dependsOn: []
+    condition: always()
+    displayName: "n=2 policy-scale smoke (50 CNPs/ns × 5 ns = 250 CNPs/cluster — first NetworkPolicy at scale test)"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 30m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-2-shared.tfvars"
+          matrix:
+            n2_policy_scale_50:
+              cluster_count: 2
+              mesh_size: 2
+              share_infra_scenarios: "policy-scale"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-policy-scale-50"
+              global_namespace_count: 1
+              namespaces: 5
+              deployments_per_namespace: 1
+              replicas_per_deployment: 4
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              # Standard CL2 knobs that pod-churn cells use; this scenario
+              # ignores them but the framework reads them.
+              churn_cycles: 0
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 1m
+              kill_duration_seconds: 60
+              kill_interval_seconds: 10
+              kill_batch: 1
+              kill_job_deadline_seconds: 120
+              # NEW knobs for policy-scale scenario
+              cl2_policy_scale_cnp_per_ns: 50
+              cl2_policy_scale_hold_duration: "5m"
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  # ============================================================================
   # %global variation experiment — N=20 sweep
   # ============================================================================
   # 4 matrix entries varying global_namespace_count 0/1/3/5 (=0%/20%/60%/100%

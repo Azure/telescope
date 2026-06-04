@@ -449,3 +449,185 @@ steps:
     #     queries:
     #     - name: Avg
     #       query: count({__name__=~"hubble_.*"})
+
+    # =========================================================================
+    # PHASE 3 — gap-fill batch (2026-06-04). Adds 7 metric families per the
+    # category-A gap inventory. All depend on metrics already exported by
+    # the AKS-managed Cilium / kubelet / kube-state-metrics stack and
+    # scraped by the CL2 in-cluster Prometheus (the same scrape targets
+    # the existing Phase 1 + Phase 2 metrics rely on).
+    # =========================================================================
+
+    # PHASE 3 — Hubble flow telemetry. ACNS enables Hubble in AKS-managed
+    # Cilium. flows_processed_total = data-plane visibility into cross-cluster
+    # traffic by verdict (FORWARDED/DROPPED). lost_events = backpressure signal.
+    - Identifier: HubbleFlowsProcessed{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Hubble Flows Processed {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        - name: SumIncrease
+          query: sum(increase(hubble_flows_processed_total[%v]))
+        - name: ForwardedIncrease
+          query: sum(increase(hubble_flows_processed_total{verdict="FORWARDED"}[%v]))
+        - name: DroppedIncrease
+          query: sum(increase(hubble_flows_processed_total{verdict="DROPPED"}[%v]))
+
+    - Identifier: HubbleLostEvents{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Hubble Lost Events {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: true
+        queries:
+        - name: SumIncrease
+          query: sum(increase(hubble_lost_events_total[%v]))
+
+    # PHASE 3 — Cilium endpoint state distribution. cilium_endpoint_state
+    # is a gauge with one series per state. At scale we care if endpoints
+    # are getting stuck in non-Ready states (regenerating / disconnected).
+    - Identifier: CiliumEndpointStateDistribution{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Endpoint State Distribution {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        - name: MaxReady
+          query: max(max_over_time(cilium_endpoint_state{endpoint_state="ready"}[%v:]))
+        - name: MaxRegenerating
+          query: max(max_over_time(cilium_endpoint_state{endpoint_state="regenerating"}[%v:]))
+        - name: MaxNotReady
+          query: max(max_over_time(cilium_endpoint_state{endpoint_state!="ready"}[%v:]))
+
+    # PHASE 3 — kvstore queue depth (kvstoremesh). Pair with the existing
+    # kvstore_events_queue rate metrics (clustermesh-metrics.yaml). Queue
+    # length p99 is the LEADING indicator of backpressure; rate alone
+    # tells you throughput but not whether work is piling up.
+    - Identifier: CiliumKvstoreQueueDuration{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Kvstore Queue Duration {{$suffix}}
+        metricVersion: v1
+        unit: s
+        enableViolations: false
+        queries:
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(increase(cilium_kvstoremesh_kvstore_events_queue_seconds_bucket[%v])) by (le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(increase(cilium_kvstoremesh_kvstore_events_queue_seconds_bucket[%v])) by (le))
+
+    # PHASE 3 — CPU throttling. We measure CPU usage (existing CiliumAvg/
+    # MaxCPUUsage) but not whether containers are being THROTTLED against
+    # their cgroup limit. At scale, cilium-agent / etcd hitting their CPU
+    # limit causes silent latency spikes that aggregate usage doesn't show.
+    #
+    # Throttling ratio = throttled_PERIODS / total_PERIODS (both are
+    # counters of CFS periods, not seconds). Computed per-pod-container
+    # first, then aggregated over the full %v window so we don't miss
+    # throttling bursts that happened before gather time.
+    - Identifier: CiliumAgentCpuThrottled{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Agent CPU Throttled Ratio {{$suffix}}
+        metricVersion: v1
+        unit: ratio
+        enableViolations: false
+        queries:
+        - name: MaxRatio
+          query: max_over_time((max by (pod, container) (rate(container_cpu_cfs_throttled_periods_total{namespace="kube-system",pod=~"cilium-.*",container="cilium-agent"}[1m])) / max by (pod, container) (rate(container_cpu_cfs_periods_total{namespace="kube-system",pod=~"cilium-.*",container="cilium-agent"}[1m])))[%v:])
+        - name: AvgRatio
+          query: avg_over_time((avg by (pod, container) (rate(container_cpu_cfs_throttled_periods_total{namespace="kube-system",pod=~"cilium-.*",container="cilium-agent"}[1m])) / avg by (pod, container) (rate(container_cpu_cfs_periods_total{namespace="kube-system",pod=~"cilium-.*",container="cilium-agent"}[1m])))[%v:])
+
+    - Identifier: ClusterMeshApiserverCpuThrottled{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Apiserver CPU Throttled Ratio {{$suffix}}
+        metricVersion: v1
+        unit: ratio
+        enableViolations: false
+        queries:
+        - name: MaxRatio
+          query: max_over_time((max by (pod, container) (rate(container_cpu_cfs_throttled_periods_total{namespace="kube-system",pod=~"clustermesh-apiserver-.*"}[1m])) / max by (pod, container) (rate(container_cpu_cfs_periods_total{namespace="kube-system",pod=~"clustermesh-apiserver-.*"}[1m])))[%v:])
+
+    # PHASE 3 — OOM events. Counter that increments each time the kernel
+    # OOM-kills a container in the cluster. We track ApiserverPodRestarts
+    # but not WHY (OOM vs crash vs liveness fail).
+    - Identifier: ContainerOomEvents{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Container OOM Events {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: true
+        queries:
+        - name: TotalIncrease
+          query: sum(increase(container_oom_events_total[%v]))
+        - name: KubeSystemIncrease
+          query: sum(increase(container_oom_events_total{namespace="kube-system"}[%v]))
+
+    # PHASE 3 — Kubelet runtime operation latency. Sandbox/container/image
+    # lifecycle ops on the kubelet. At scale, pull-image + sandbox creation
+    # latency is the dominant pod-startup component and we don't measure it.
+    # kubelet_runtime_operations_duration_seconds is exported by every
+    # kubelet and scraped by CL2 Prometheus by default.
+    - Identifier: KubeletRuntimeOpDuration{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Kubelet Runtime Operation Duration {{$suffix}}
+        metricVersion: v1
+        unit: s
+        enableViolations: false
+        queries:
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(rate(kubelet_runtime_operations_duration_seconds_bucket[1m])) by (le))
+        - name: Perc99PullImage
+          query: histogram_quantile(0.99, sum(rate(kubelet_runtime_operations_duration_seconds_bucket{operation_type="pull_image"}[1m])) by (le))
+        - name: Perc99CreateContainer
+          query: histogram_quantile(0.99, sum(rate(kubelet_runtime_operations_duration_seconds_bucket{operation_type="create_container"}[1m])) by (le))
+
+    - Identifier: KubeletPlegRelistDuration{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Kubelet PLEG Relist Duration {{$suffix}}
+        metricVersion: v1
+        unit: s
+        enableViolations: false
+        queries:
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(rate(kubelet_pleg_relist_duration_seconds_bucket[1m])) by (le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(rate(kubelet_pleg_relist_duration_seconds_bucket[1m])) by (le))
+
+    # PHASE 3 — Container restart reason classification. kube-state-metrics
+    # exports last-terminated-reason as a label. Pair with existing
+    # ClusterMeshApiserverPodRestarts so a non-zero restart count immediately
+    # tells us the cause (OOMKilled / Error / Completed) without digging
+    # through events.
+    - Identifier: PodRestartsByReason{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Pod Restarts By Reason {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        - name: OomKilledMax
+          query: max(max_over_time(kube_pod_container_status_last_terminated_reason{reason="OOMKilled"}[%v:]))
+        - name: ErrorMax
+          query: max(max_over_time(kube_pod_container_status_last_terminated_reason{reason="Error"}[%v:]))

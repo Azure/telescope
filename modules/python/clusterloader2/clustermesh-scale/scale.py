@@ -127,6 +127,8 @@ def configure_clusterloader2(
     saturation_settle_seconds=90,
     probe_window_duration="60m",
     policy_canary_enabled="false",
+    policy_scale_cnp_per_ns=50,
+    policy_scale_hold_duration="5m",
 ):
     with open(override_file, "w", encoding="utf-8") as f:
         # Prometheus stack — keep the Cilium-scrape flags ON so the
@@ -275,6 +277,13 @@ def configure_clusterloader2(
         # CiliumNetworkPolicy targeting backend pods, exercising
         # Phase 1 policy metrics (which report 0 without any CNP).
         f.write(f"CL2_POLICY_CANARY_ENABLED: \"{policy_canary_enabled}\"\n")
+        # Policy-scale scenario knobs — only consumed by policy-scale.yaml,
+        # silently ignored by other scenarios. CNP_PER_NS controls how many
+        # CiliumNetworkPolicies are created per namespace; HOLD_DURATION
+        # is the steady-state observation window after CNP creation
+        # before deletion.
+        f.write(f"CL2_POLICY_SCALE_CNP_PER_NS: {policy_scale_cnp_per_ns}\n")
+        f.write(f"CL2_POLICY_SCALE_HOLD_DURATION: {policy_scale_hold_duration}\n")
 
     with open(override_file, "r", encoding="utf-8") as f:
         print(f"Content of file {override_file}:\n{f.read()}")
@@ -1804,6 +1813,16 @@ def main():
                          "stats_seconds + cilium_policy_implementation_delay) "
                          "which report 0 without any CNP present. Default false "
                          "to keep existing scenarios unaffected.")
+    pc.add_argument("--policy-scale-cnp-per-ns", type=int, default=50,
+                    help="policy-scale scenario knob: number of CiliumNetworkPolicies "
+                         "created per namespace. Default 50 → 250 CNPs per cluster at "
+                         "ns=5. Sweep 10/50/100/200 in pipeline cells for the policy-"
+                         "vs-cost scaling curve. Only consumed by policy-scale.yaml.")
+    pc.add_argument("--policy-scale-hold-duration", type=str, default="5m",
+                    help="policy-scale scenario knob: steady-state hold after CNP "
+                         "creation, before deletion. Needs to be long enough for "
+                         "policy_implementation_delay histogram to gather meaningful "
+                         "samples. Default 5m.")
 
     # execute
     pe = subparsers.add_parser("execute", help="Run CL2 against a single cluster")
@@ -1940,6 +1959,8 @@ def main():
             saturation_settle_seconds=args.saturation_settle_seconds,
             probe_window_duration=args.probe_window_duration,
             policy_canary_enabled=args.policy_canary_enabled,
+            policy_scale_cnp_per_ns=args.policy_scale_cnp_per_ns,
+            policy_scale_hold_duration=args.policy_scale_hold_duration,
         )
     elif args.command == "execute":
         execute_clusterloader2(
