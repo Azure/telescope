@@ -130,6 +130,16 @@ steps:
       export CL2_PROPAGATION_PROBE_PEER_SAMPLE="${CL2_PROPAGATION_PROBE_PEER_SAMPLE:-20}"
       export CL2_PROPAGATION_PROBE_PEER_TIMEOUT="${CL2_PROPAGATION_PROBE_PEER_TIMEOUT:-120}"
       export CL2_PROPAGATION_PROBE_CONNECTIVITY="${CL2_PROPAGATION_PROBE_CONNECTIVITY:-false}"
+      # Extensions (env-toggled, default off — existing builds unaffected):
+      # REMOVE: after add probe, delete src pod + poll peers for ipcache
+      # removal. Measures stale-state risk (peers routing to dead pods).
+      # FIRST_PACKET: from t_pod_ready, tight-loop curl global Service
+      # from each peer until success returning src's hostname. Measures
+      # user-perceived "service works" latency.
+      export CL2_PROPAGATION_PROBE_REMOVE_ENABLED="${CL2_PROPAGATION_PROBE_REMOVE_ENABLED:-false}"
+      export CL2_PROPAGATION_PROBE_FIRST_PACKET_ENABLED="${CL2_PROPAGATION_PROBE_FIRST_PACKET_ENABLED:-false}"
+      export CL2_PROPAGATION_PROBE_REMOVE_TIMEOUT_S="${CL2_PROPAGATION_PROBE_REMOVE_TIMEOUT_S:-60}"
+      export CL2_PROPAGATION_PROBE_FIRST_PACKET_TIMEOUT_S="${CL2_PROPAGATION_PROBE_FIRST_PACKET_TIMEOUT_S:-60}"
       export CL2_PROBE_WINDOW_DURATION="${CL2_PROBE_WINDOW_DURATION:-60m}"
       # Host-side orchestrator launches the probe in a background subshell
       # after a prewait sleep — gives CL2 time to deploy the backend
@@ -448,6 +458,10 @@ steps:
         (
           echo "[propagation-probe] prewait ${_prewait}s for backend Deployments + global Services to stabilize..."
           sleep "$_prewait"
+          ENABLE_REMOVE_PROBE="${CL2_PROPAGATION_PROBE_REMOVE_ENABLED:-false}" \
+          ENABLE_FIRST_PACKET_PROBE="${CL2_PROPAGATION_PROBE_FIRST_PACKET_ENABLED:-false}" \
+          REMOVE_PROBE_TIMEOUT_S="${CL2_PROPAGATION_PROBE_REMOVE_TIMEOUT_S:-60}" \
+          FIRST_PACKET_PROBE_TIMEOUT_S="${CL2_PROPAGATION_PROBE_FIRST_PACKET_TIMEOUT_S:-60}" \
           bash "$_probe_script" \
             "${CL2_PROPAGATION_PROBE_COUNT:-20}" \
             "${CL2_PROPAGATION_PROBE_INTERVAL_S:-30}" \

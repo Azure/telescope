@@ -66,11 +66,29 @@ CLUSTERS_JSON="${6:?CLUSTERS_JSON required}"
 OUTPUT_DIR="${7:?OUTPUT_DIR required}"
 ENABLE_CONNECTIVITY="${8:-false}"
 
+# Opt-in extensions (env-toggled, default OFF — existing scenarios unaffected):
+#   ENABLE_REMOVE_PROBE=true: after add probe completes, DELETE the probe pod
+#     on src and poll each peer's BPF ipcache UNTIL the IP disappears.
+#     Measures stale-state risk — peer continues routing to dead pods for
+#     how long after pod delete? Adds delta_remove_ms per peer to JSONL.
+#   ENABLE_FIRST_PACKET_PROBE=true: after src pod ready, IMMEDIATELY start
+#     curling global Service DNS from each peer in tight loop. Record
+#     t_peer_first_success_ns = first 200 OK from peer that returns the
+#     src pod's hostname (proves cross-cluster routing). Bridges gap
+#     between ipcache propagation (~35s) and user-perceived "service
+#     works" latency. Adds delta_first_packet_ms per peer to ConnectivityResults.
+ENABLE_REMOVE_PROBE="${ENABLE_REMOVE_PROBE:-false}"
+ENABLE_FIRST_PACKET_PROBE="${ENABLE_FIRST_PACKET_PROBE:-false}"
+REMOVE_PROBE_TIMEOUT_S="${REMOVE_PROBE_TIMEOUT_S:-60}"
+FIRST_PACKET_PROBE_TIMEOUT_S="${FIRST_PACKET_PROBE_TIMEOUT_S:-60}"
+
 PROP_OUT="${OUTPUT_DIR}/PropagationTimings.jsonl"
 CONN_OUT="${OUTPUT_DIR}/ConnectivityResults.jsonl"
+REMOVE_OUT="${OUTPUT_DIR}/RemovePropagationTimings.jsonl"
 mkdir -p "$OUTPUT_DIR"
 : > "$PROP_OUT"
 [ "$ENABLE_CONNECTIVITY" = "true" ] && : > "$CONN_OUT"
+[ "$ENABLE_REMOVE_PROBE" = "true" ] && : > "$REMOVE_OUT"
 
 if [ ! -f "$CLUSTERS_JSON" ]; then
   echo "FATAL: CLUSTERS_JSON $CLUSTERS_JSON not found" >&2
@@ -399,11 +417,112 @@ EOF
 #
 # Connectivity probe runs AFTER waits complete because it needs ipcache
 # to be populated for the curl to succeed reliably.
+# Wait for peer ipcache to REMOVE pod IP (poll until gone or timeout).
+# Counterpart to wait_peer_ipcache — used by ENABLE_REMOVE_PROBE.
+# Sets T_PEER_IPCACHE_REMOVED_NS or 0 on timeout.
+wait_peer_ipcache_removed() {
+  local _kc="$1" _ctx="$2" _pod_ip="$3" _deadline_s="$4"
+  local _start _now _cil _out
+  _start=$(date +%s)
+  _cil=$(find_cilium_pod "$_kc" "$_ctx") || { T_PEER_IPCACHE_REMOVED_NS=0; return 1; }
+  while true; do
+    _out=$(KUBECONFIG="$_kc" kubectl --context "$_ctx" -n kube-system exec "$_cil" -c cilium-agent -- \
+      cilium-dbg bpf ipcache list 2>/dev/null || true)
+    if [ -z "$_out" ]; then
+      _out=$(KUBECONFIG="$_kc" kubectl --context "$_ctx" -n kube-system exec "$_cil" -c cilium-agent -- \
+        cilium bpf ipcache list 2>/dev/null || true)
+    fi
+    # IP NO LONGER present = success (removed)
+    if ! echo "$_out" | grep -qF "${_pod_ip}/32"; then
+      T_PEER_IPCACHE_REMOVED_NS=$(date +%s%N); return 0
+    fi
+    _now=$(date +%s)
+    if [ $((_now - _start)) -ge "$_deadline_s" ]; then
+      T_PEER_IPCACHE_REMOVED_NS=0; return 1
+    fi
+    sleep 1
+  done
+}
+
+# Wait for peer to successfully curl the global Service and get back the
+# src pod's hostname (proving cross-cluster routing reaches the new pod).
+# Tight-loop curl from a long-lived peer-side curl pod via kubectl exec
+# (avoids per-curl pod-create overhead which would dominate at ~5s/run).
+# Sets T_PEER_FIRST_PACKET_NS = first 200 OK whose body contains src
+# hostname, or 0 on timeout.
+#
+# NOTE: this curl pod is per-peer-per-iteration. Cost is acceptable for
+# n<=20 (k8s exec amortizes much faster than k8s pod create). Each curl
+# is ~50-200ms.
+wait_peer_first_packet() {
+  local _kc="$1" _ctx="$2" _src_hostname="$3" _deadline_s="$4"
+  T_PEER_FIRST_PACKET_NS=0
+  if [ -z "$GLOBAL_SVC_DNS" ]; then return 1; fi
+  local _client_pod="probe-fp-${PROBE_ID:0:8}-$(date +%s%N | tail -c 8)"
+  # Long-lived curl pod (sleep infinity); we exec curl in a tight loop.
+  KUBECONFIG="$_kc" kubectl --context "$_ctx" -n "$PROBE_NS" run "$_client_pod" \
+    --image="$CURL_IMAGE" --restart=Never --quiet --command -- \
+    sleep 3600 > /dev/null 2>&1 || true
+  # Wait briefly for the curl pod itself to be Ready.
+  local _start; _start=$(date +%s)
+  while true; do
+    local _phase
+    _phase=$(KUBECONFIG="$_kc" kubectl --context "$_ctx" -n "$PROBE_NS" \
+      get pod "$_client_pod" -o jsonpath='{.status.phase}' 2>/dev/null || echo "")
+    [ "$_phase" = "Running" ] && break
+    local _now; _now=$(date +%s)
+    [ $((_now - _start)) -ge 15 ] && break
+    sleep 0.5
+  done
+  # Tight-loop curl. Sub-second pacing to capture first-packet event closely.
+  while true; do
+    local _now; _now=$(date +%s)
+    if [ $((_now - _start)) -ge "$_deadline_s" ]; then
+      break
+    fi
+    local _resp
+    _resp=$(KUBECONFIG="$_kc" kubectl --context "$_ctx" -n "$PROBE_NS" exec "$_client_pod" -- \
+      curl -s -m 2 -w '\n%{http_code}' "http://${GLOBAL_SVC_DNS}/" 2>/dev/null || echo "")
+    # Body line followed by status line
+    local _status _body
+    _status=$(echo "$_resp" | tail -1)
+    _body=$(echo "$_resp" | head -n -1)
+    if [ "$_status" = "200" ] && echo "$_body" | grep -qF "$_src_hostname"; then
+      T_PEER_FIRST_PACKET_NS=$(date +%s%N)
+      break
+    fi
+    sleep 0.5
+  done
+  KUBECONFIG="$_kc" kubectl --context "$_ctx" -n "$PROBE_NS" \
+    delete pod "$_client_pod" --grace-period=0 --force --wait=false > /dev/null 2>&1 || true
+}
+
+# Per-cluster remove-probe orchestration. Runs only if ENABLE_REMOVE_PROBE=true.
+# Run AFTER peer_probe finishes (we need to know the IP propagated first;
+# remove timing is most useful as delta from t_delete on src).
+peer_remove_probe() {
+  local _kc="$1" _ctx="$2" _pod_ip="$3" _outfile="$4" _t_delete_ns="$5" _src_cluster="$6"
+  T_PEER_IPCACHE_REMOVED_NS=0
+  wait_peer_ipcache_removed "$_kc" "$_ctx" "$_pod_ip" "$REMOVE_PROBE_TIMEOUT_S" || true
+  local _delta_ms _timed_out
+  if [ "$T_PEER_IPCACHE_REMOVED_NS" -eq 0 ]; then
+    _delta_ms="null"
+    _timed_out=true
+  else
+    _delta_ms=$(( (T_PEER_IPCACHE_REMOVED_NS - _t_delete_ns) / 1000000 ))
+    _timed_out=false
+  fi
+  cat > "$_outfile" <<EOF
+{"probe_id":"$PROBE_ID","src_cluster":"$_src_cluster","peer_cluster":"$_ctx","pod_ip":"$_pod_ip","t_delete_ns":$_t_delete_ns,"t_peer_ipcache_removed_ns":$T_PEER_IPCACHE_REMOVED_NS,"delta_remove_ms":$_delta_ms,"peer_remove_timed_out":$_timed_out}
+EOF
+}
+
 peer_probe() {
   local _kc="$1" _ctx="$2" _pod_ip="$3" _label_uuid="$4" _src_cluster="$5" _src_pod_hostname="$6" _outfile="$7"
   T_PEER_IPCACHE_NS=0
   T_PEER_IDENTITY_NS=0
   T_PEER_CEP_NS=0
+  T_PEER_FIRST_PACKET_NS=0
   local _peerdir
   _peerdir=$(mktemp -d)
   (
@@ -418,15 +537,33 @@ peer_probe() {
     wait_peer_cep "$_kc" "$_ctx" "$_pod_ip" "$PEER_TIMEOUT_S" || true
     echo "$T_PEER_CEP_NS" > "$_peerdir/cep"
   ) &
+  # First-packet probe runs in parallel — starts tight-loop curling
+  # IMMEDIATELY (doesn't wait for ipcache), records first success
+  # whose body contains src pod's hostname. Captures user-perceived
+  # "when does the global Service ACTUALLY work for this new pod?"
+  # If disabled, skip the subshell entirely.
+  if [ "$ENABLE_FIRST_PACKET_PROBE" = "true" ] && [ -n "$GLOBAL_SVC_DNS" ]; then
+    (
+      wait_peer_first_packet "$_kc" "$_ctx" "$_src_pod_hostname" "$FIRST_PACKET_PROBE_TIMEOUT_S" || true
+      echo "$T_PEER_FIRST_PACKET_NS" > "$_peerdir/first_packet"
+    ) &
+  fi
   wait
   T_PEER_IPCACHE_NS=$(cat "$_peerdir/ipcache" 2>/dev/null || echo 0)
   T_PEER_IDENTITY_NS=$(cat "$_peerdir/identity" 2>/dev/null || echo 0)
   T_PEER_CEP_NS=$(cat "$_peerdir/cep" 2>/dev/null || echo 0)
+  T_PEER_FIRST_PACKET_NS=$(cat "$_peerdir/first_packet" 2>/dev/null || echo 0)
   rm -rf "$_peerdir"
   local _timed_out
   _timed_out=$([ "$T_PEER_IPCACHE_NS" -eq 0 ] && echo true || echo false)
+  # Compute delta_first_packet_ms (gap between src pod ready and first
+  # successful peer curl returning src's hostname).
+  local _delta_fp_ms="null"
+  if [ "$T_PEER_FIRST_PACKET_NS" -ne 0 ] && [ "$T_POD_READY_NS" -ne 0 ]; then
+    _delta_fp_ms=$(( (T_PEER_FIRST_PACKET_NS - T_POD_READY_NS) / 1000000 ))
+  fi
   cat > "$_outfile" <<EOF
-{"probe_id":"$PROBE_ID","probe_ns":"$PROBE_NS","src_cluster":"$_src_cluster","peer_cluster":"$_ctx","label_uuid":"$_label_uuid","pod_ip":"$_pod_ip","pod_hostname":"$_src_pod_hostname","t_apply_ns":$T_APPLY_NS,"t_scheduled_ns":$T_SCHEDULED_NS,"t_ip_assigned_ns":$T_IP_ASSIGNED_NS,"t_pod_ready_ns":$T_POD_READY_NS,"t_local_ep_ns":$T_LOCAL_EP_NS,"t_peer_ipcache_ns":$T_PEER_IPCACHE_NS,"t_peer_identity_ns":$T_PEER_IDENTITY_NS,"t_peer_cep_ns":$T_PEER_CEP_NS,"peer_timed_out":$_timed_out}
+{"probe_id":"$PROBE_ID","probe_ns":"$PROBE_NS","src_cluster":"$_src_cluster","peer_cluster":"$_ctx","label_uuid":"$_label_uuid","pod_ip":"$_pod_ip","pod_hostname":"$_src_pod_hostname","t_apply_ns":$T_APPLY_NS,"t_scheduled_ns":$T_SCHEDULED_NS,"t_ip_assigned_ns":$T_IP_ASSIGNED_NS,"t_pod_ready_ns":$T_POD_READY_NS,"t_local_ep_ns":$T_LOCAL_EP_NS,"t_peer_ipcache_ns":$T_PEER_IPCACHE_NS,"t_peer_identity_ns":$T_PEER_IDENTITY_NS,"t_peer_cep_ns":$T_PEER_CEP_NS,"t_peer_first_packet_ns":$T_PEER_FIRST_PACKET_NS,"delta_first_packet_ms":$_delta_fp_ms,"peer_timed_out":$_timed_out}
 EOF
   if [ "$ENABLE_CONNECTIVITY" = "true" ] && [ "$T_PEER_IPCACHE_NS" -ne 0 ] && [ -n "$GLOBAL_SVC_DNS" ]; then
     do_connectivity_probe "$_kc" "$_ctx" "$_src_cluster" "$_src_pod_hostname"
@@ -532,8 +669,23 @@ EOF
   cat "$TMPDIR"/*.json >> "$PROP_OUT" 2>/dev/null
   rm -rf "$TMPDIR"
 
+  # Delete probe pod on src. If ENABLE_REMOVE_PROBE, capture t_delete
+  # and PARALLEL poll peers for ipcache REMOVAL (stale-state risk metric).
+  T_DELETE_NS=$(date +%s%N)
   KUBECONFIG="$SRC_KC" kubectl --context "$SRC_NAME" -n "$PROBE_NS" \
     delete pod "$POD_NAME" --grace-period=0 --force --wait=false > /dev/null 2>&1 || true
+
+  if [ "$ENABLE_REMOVE_PROBE" = "true" ]; then
+    RMDIR=$(mktemp -d)
+    for pi in $PEER_IDXS; do
+      PEER_NAME=$(jq -r ".[$pi].name" < "$CLUSTERS_JSON")
+      PEER_KC=$(jq -r ".[$pi].kubeconfig" < "$CLUSTERS_JSON")
+      peer_remove_probe "$PEER_KC" "$PEER_NAME" "$POD_IP" "$RMDIR/$pi.json" "$T_DELETE_NS" "$SRC_NAME" &
+    done
+    wait
+    cat "$RMDIR"/*.json >> "$REMOVE_OUT" 2>/dev/null
+    rm -rf "$RMDIR"
+  fi
 
   if [ "$p" -lt "$PROBE_COUNT" ]; then
     sleep "$PROBE_INTERVAL_S"
@@ -543,4 +695,6 @@ done
 echo "[probe] complete. PropagationTimings.jsonl: $(wc -l < "$PROP_OUT") rows"
 [ "$ENABLE_CONNECTIVITY" = "true" ] && \
   echo "[probe] ConnectivityResults.jsonl: $(wc -l < "$CONN_OUT") rows"
+[ "$ENABLE_REMOVE_PROBE" = "true" ] && \
+  echo "[probe] RemovePropagationTimings.jsonl: $(wc -l < "$REMOVE_OUT") rows"
 exit 0

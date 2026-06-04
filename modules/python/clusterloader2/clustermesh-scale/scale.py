@@ -1487,6 +1487,11 @@ def _emit_propagation_probe_rows(cl2_report_dir, template, result_file):
     candidates = [
         ("PropagationTimings.jsonl", "ClusterMeshPropagationProbe"),
         ("ConnectivityResults.jsonl", "ClusterMeshConnectivityProbe"),
+        # 2026-06-04 — endpoint REMOVE propagation: time from src pod
+        # delete → peer's BPF ipcache no longer contains the IP. Measures
+        # stale-state risk (peers routing to dead pods). Emitted only
+        # when CL2_PROPAGATION_PROBE_REMOVE_ENABLED=true.
+        ("RemovePropagationTimings.jsonl", "ClusterMeshRemovePropagationProbe"),
     ]
     for fname, measurement in candidates:
         fpath = os.path.join(cl2_report_dir, fname)
