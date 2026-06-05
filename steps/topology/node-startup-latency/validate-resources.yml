@@ -16,7 +16,7 @@ steps:
     set -euo pipefail
 
     cilium_manifest_dir="${CILIUM_MANIFEST_DIR:-1.19}"
-    cilium_image_registry="${CILIUM_IMAGE_REGISTRY:-mcr.microsoft.com/containernetworking/cilium}"
+    cilium_image_registry="${CILIUM_IMAGE_REGISTRY:-mcr.microsoft.com/containernetworking}"
     cilium_version_tag="${CILIUM_VERSION_TAG:-v1.18.9-260508}"
 
     rm -rf azure-container-networking
@@ -43,7 +43,7 @@ steps:
     export CILIUM_IMAGE_REGISTRY="${cilium_image_registry}"
     export CILIUM_VERSION_TAG="${cilium_version_tag}"
 
-    kubectl apply -f "test/integration/manifests/cilium/v${DIR}/config/cilium-config.yaml"
+    kubectl apply -f "test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config.yaml"
     # Patch ConfigMap: disable KPR (avoid port conflict with kube-proxy), use cluster-pool IPAM
     # (Cilium operator allocates PodCIDRs internally - no dependency on Azure CNS/NNC/DNC),
     # and ensure CNI conflist writing is enabled.
@@ -83,7 +83,7 @@ steps:
     set -euo pipefail
 
     cilium_manifest_dir="${CILIUM_MANIFEST_DIR:-1.19}"
-    cilium_image_registry="${CILIUM_IMAGE_REGISTRY:-mcr.microsoft.com/containernetworking/cilium}"
+    cilium_image_registry="${CILIUM_IMAGE_REGISTRY:-mcr.microsoft.com/containernetworking}"
     cilium_version_tag="${CILIUM_VERSION_TAG:-v1.18.9-260508}"
 
     rm -rf azure-container-networking
