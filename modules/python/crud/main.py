@@ -128,6 +128,7 @@ def handle_node_pool_operation(node_pool_crud, args):
                 "progressive": check_for_progressive_scaling(args),
                 "scale_step_size": args.scale_step_size,
                 "gpu_node_pool": args.gpu_node_pool,
+                "enable_managed_gpu": args.enable_managed_gpu,
             }
 
             result = node_pool_crud.scale_node_pool(**scale_kwargs)
@@ -663,8 +664,9 @@ def main():
             )
             sys.exit(1)
 
-        # Install GPU device plugin if GPU node pool is enabled and verify the plugin is installed
-        if args.gpu_node_pool and args.cloud in ["azure", "aws"]:
+        # Install GPU device plugin for managed (driver bootstrap) and AWS GPU pools.
+        # Fully managed GPU skips this — AKS installs nvidia-device-plugin as a systemd service.
+        if args.gpu_node_pool and args.cloud in ["azure", "aws"] and not args.enable_managed_gpu:
             logger.info("GPU node pool is enabled")
             with OperationContext(
                 "install_gpu_plugin", args.cloud, {}, result_dir=args.result_dir

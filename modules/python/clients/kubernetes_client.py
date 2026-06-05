@@ -781,6 +781,93 @@ class KubernetesClient:
             )
             return False
 
+    def verify_managed_gpu_systemd_services(self, nodes, namespace="default"):
+        """
+        Verify that fully managed GPU systemd services are running on each node by
+        creating a privileged pod with host filesystem access and checking:
+          - nvidia-dcgm
+          - nvidia-dcgm-exporter
+          - nvidia-device-plugin
+        """
+        all_results = {}
+        try:
+            for node in nodes:
+                node_name = node.metadata.name
+                pod_name = f"gpu-svc-verify-{uuid.uuid4()}"
+                logger.info(f"Verifying managed GPU systemd services on node {node_name}")
+
+                pod = client.V1Pod(
+                    metadata=client.V1ObjectMeta(name=pod_name),
+                    spec=client.V1PodSpec(
+                        host_pid=True,
+                        containers=[
+                            client.V1Container(
+                                name="svc-check",
+                                image="mcr.microsoft.com/cbl-mariner/busybox:2.0",
+                                command=[
+                                    "chroot", "/host", "bash", "-c",
+                                    "systemctl status nvidia-dcgm nvidia-dcgm-exporter nvidia-device-plugin"
+                                ],
+                                security_context=client.V1SecurityContext(privileged=True),
+                                volume_mounts=[
+                                    client.V1VolumeMount(name="host-root", mount_path="/host")
+                                ],
+                            )
+                        ],
+                        volumes=[
+                            client.V1Volume(
+                                name="host-root",
+                                host_path=client.V1HostPathVolumeSource(path="/"),
+                            )
+                        ],
+                        node_selector={"kubernetes.io/hostname": node_name},
+                        restart_policy="Never",
+                        tolerations=[client.V1Toleration(operator="Exists")],
+                    ),
+                )
+
+                self.api.create_namespaced_pod(namespace=namespace, body=pod)
+
+                timeout = time.time() + 120
+                while time.time() < timeout:
+                    pod_status = self.api.read_namespaced_pod(name=pod_name, namespace=namespace)
+                    if pod_status.status.phase in ["Succeeded", "Failed"]:
+                        break
+                    time.sleep(2)
+
+                pod_logs = self.get_pod_logs(pod_name=pod_name, namespace=namespace)
+                pod_logs_str = pod_logs.decode("utf-8") if isinstance(pod_logs, bytes) else str(pod_logs)
+                logger.info(f"Managed GPU service status on {node_name}:\n{pod_logs_str}")
+
+                services = ["nvidia-dcgm", "nvidia-dcgm-exporter", "nvidia-device-plugin"]
+                all_active = all(
+                    f"{svc}" in pod_logs_str and "active (running)" in pod_logs_str
+                    for svc in services
+                )
+                if all_active:
+                    logger.info(f"All managed GPU services active on node {node_name}")
+                else:
+                    logger.warning(f"One or more managed GPU services not active on node {node_name}")
+
+                all_results[node_name] = {
+                    "pod_name": pod_name,
+                    "logs": pod_logs_str,
+                    "all_services_active": all_active,
+                }
+
+                try:
+                    self.api.delete_namespaced_pod(
+                        name=pod_name, namespace=namespace, body=client.V1DeleteOptions()
+                    )
+                except Exception as e:
+                    logger.warning(f"Error deleting verification pod {pod_name}: {str(e)}")
+
+            return all_results
+
+        except Exception as e:
+            logger.error(f"Error verifying managed GPU systemd services: {str(e)}")
+            return False
+
     def apply_manifest_from_url(self, manifest_url, namespace: Optional[str] = None):
         """
         Apply a Kubernetes manifest from a URL using Kubernetes Python client API.

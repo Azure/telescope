@@ -367,6 +367,14 @@ class AKSClient:
                     pod_logs = self.k8s_client.verify_nvidia_smi_on_node(ready_nodes)
                     op.add_metadata("nvidia_driver_logs", pod_logs)
 
+                # For fully managed GPU, verify systemd services are active
+                if enable_managed_gpu and node_count > 0:
+                    logger.info(
+                        f"Verifying managed GPU systemd services for '{node_pool_name}'"
+                    )
+                    service_status = self.k8s_client.verify_managed_gpu_systemd_services(ready_nodes)
+                    op.add_metadata("managed_gpu_service_status", service_status)
+
                 # Add additional metadata
                 op.add_metadata("ready_nodes", len(ready_nodes) if ready_nodes else 0)
                 op.add_metadata("node_pool_name", node_pool_name)
@@ -393,6 +401,7 @@ class AKSClient:
         node_count: int,
         cluster_name: Optional[str] = None,
         gpu_node_pool: bool = False,
+        enable_managed_gpu: bool = False,
         progressive: bool = False,
         scale_step_size: int = 1,
     ) -> Any:
@@ -453,6 +462,7 @@ class AKSClient:
                 operation_type=operation_type,
                 cluster_name=cluster_name,
                 gpu_node_pool=gpu_node_pool,
+                enable_managed_gpu=enable_managed_gpu,
                 node_pool=node_pool,
             )
 
@@ -503,16 +513,20 @@ class AKSClient:
                 )
 
                 pod_logs = None
-                # Verify NVIDIA drivers only for GPU node pools during scale-up operations
-                # and only when reaching the final target (not intermediate steps)
-                # TODO: Remove VM_SIZE check after we get ND H100 quota
-                if gpu_node_pool and operation_type == "scale_up" and node_count > 0 and self.vm_size == "Standard_NC40ads_H100_v5":
+                if gpu_node_pool and operation_type == "scale_up" and node_count > 0:
                     logger.info(
-                        f"Verifying NVIDIA drivers for GPU node pool '{node_pool_name}' after reaching final target"
+                        f"Verifying NVIDIA drivers for GPU node pool '{node_pool_name}'"
                     )
                     pod_logs = self.k8s_client.verify_nvidia_smi_on_node(ready_nodes)
                     op.add_metadata("nvidia_driver_logs", pod_logs)
-                # Record node readiness info
+
+                if enable_managed_gpu and operation_type == "scale_up" and node_count > 0:
+                    logger.info(
+                        f"Verifying managed GPU systemd services for '{node_pool_name}'"
+                    )
+                    service_status = self.k8s_client.verify_managed_gpu_systemd_services(ready_nodes)
+                    op.add_metadata("managed_gpu_service_status", service_status)
+
                 op.add_metadata("ready_nodes", len(ready_nodes))
 
                 return True
@@ -605,6 +619,7 @@ class AKSClient:
         operation_type: str = "scale",
         cluster_name: Optional[str] = None,
         gpu_node_pool: bool = False,
+        enable_managed_gpu: bool = False,
         node_pool: Optional[Any] = None,
     ) -> Any:
         """
@@ -730,19 +745,19 @@ class AKSClient:
                             f"Waiting {wait_time}s before next scaling operation..."
                         )
                         time.sleep(wait_time)
-                    # TODO: Remove VM_SIZE check after we get ND H100 quota
-                    if step == target_count and self.vm_size == "Standard_NC40ads_H100_v5":
-                        # Verify NVIDIA drivers only for GPU node pools during scale-up operations
-                        # and only when reaching the final target (not intermediate steps)
-                        if gpu_node_pool and operation_type == "scale_up" and step > 0:
-                            pod_logs = None
-                            logger.info(
-                                f"Verifying NVIDIA drivers for GPU node pool '{node_pool_name}' after reaching final target"
-                            )
-                            pod_logs = self.k8s_client.verify_nvidia_smi_on_node(
-                                ready_nodes
-                            )
-                            op.add_metadata("nvidia_driver_logs", pod_logs)
+                    if step == target_count and gpu_node_pool and operation_type == "scale_up" and step > 0:
+                        logger.info(
+                            f"Verifying NVIDIA drivers for GPU node pool '{node_pool_name}' after reaching final target"
+                        )
+                        pod_logs = self.k8s_client.verify_nvidia_smi_on_node(ready_nodes)
+                        op.add_metadata("nvidia_driver_logs", pod_logs)
+
+                    if step == target_count and enable_managed_gpu and operation_type == "scale_up" and step > 0:
+                        logger.info(
+                            f"Verifying managed GPU systemd services for '{node_pool_name}' after reaching final target"
+                        )
+                        service_status = self.k8s_client.verify_managed_gpu_systemd_services(ready_nodes)
+                        op.add_metadata("managed_gpu_service_status", service_status)
 
 
                 except Exception as e:
