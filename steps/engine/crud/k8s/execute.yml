@@ -1,17 +1,5 @@
 parameters:
-  result_dir: ""
-  vm_size: ""
-  create_node_count: ""
-  scale_node_count: ""
-  scale_step_up_count: ""
-  pool_name: ""
   cloud: ""
-  step_time_out: 600
-  step_wait_time: 30
-  gpu_node_pool: false
-  count: 1
-  replicas: 10
-  manifest_dir: ""
 
 steps:
 - script: |
@@ -45,16 +33,16 @@ steps:
   workingDirectory: modules/python
   env:
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/crud/main.py
-    VM_SIZE: ${{ parameters.vm_size }}
-    CREATE_NODE_COUNT: ${{ parameters.create_node_count }}
-    SCALE_NODE_COUNT: ${{ parameters.scale_node_count }}
-    SCALE_STEP_SIZE: ${{ parameters.scale_step_up_count }}
-    POOL_NAME: ${{ parameters.pool_name }}
+    VM_SIZE: $(VM_SIZE)
+    CREATE_NODE_COUNT: $(CREATE_NODE_COUNT)
+    SCALE_NODE_COUNT: $(SCALE_NODE_COUNT)
+    SCALE_STEP_SIZE: $(SCALE_STEP_SIZE)
+    POOL_NAME: $(POOL_NAME)
     CLOUD: ${{ parameters.cloud }}
-    STEP_TIME_OUT: ${{ parameters.step_time_out }}
+    STEP_TIME_OUT: $(STEP_TIME_OUT)
     RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
-    GPU_NODE_POOL: ${{ parameters.gpu_node_pool }}
-    STEP_WAIT_TIME: ${{ parameters.step_wait_time }}
+    GPU_NODE_POOL: $(GPU_NODE_POOL)
+    STEP_WAIT_TIME: $(STEP_WAIT_TIME)
     ${{ if eq(parameters.cloud, 'aws') }}:
       CAPACITY_TYPE: $(CAPACITY_TYPE)
 
@@ -77,14 +65,68 @@ steps:
     workingDirectory: modules/python
     env:
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/crud/main.py
-      POOL_NAME: ${{ parameters.pool_name }}
+      POOL_NAME: $(POOL_NAME)
       CLOUD: ${{ parameters.cloud }}
-      STEP_TIME_OUT: ${{ parameters.step_time_out }}
+      STEP_TIME_OUT: $(STEP_TIME_OUT)
       RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
-      GPU_NODE_POOL: ${{ parameters.gpu_node_pool }}
-      COUNT: ${{ parameters.count }}
-      REPLICAS: ${{ parameters.replicas }}
-      MANIFEST_DIR: ${{ parameters.manifest_dir }}
+      GPU_NODE_POOL: $(GPU_NODE_POOL)
+      COUNT: $(COUNT)
+      REPLICAS: $(REPLICAS)
+      MANIFEST_DIR: $(MANIFEST_DIR)
+
+  - script: |
+      set -eo pipefail
+
+      # Deploy StatefulSets
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" statefulset \
+        --cloud "$CLOUD" \
+        --run-id "$RUN_ID" \
+        --result-dir "$RESULT_DIR" \
+        --node-pool-name "$POOL_NAME" \
+        --count "$COUNT" \
+        --replicas "$REPLICAS" \
+        ${MANIFEST_DIR:+--manifest-dir "$MANIFEST_DIR"} \
+        --step-timeout "$STEP_TIME_OUT" \
+        ${GPU_NODE_POOL:+--gpu-node-pool}
+    displayName: 'Execute K8s StatefulSet operations for ${{ parameters.cloud }}'
+    workingDirectory: modules/python
+    env:
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/crud/main.py
+      POOL_NAME: $(POOL_NAME)
+      CLOUD: ${{ parameters.cloud }}
+      STEP_TIME_OUT: $(STEP_TIME_OUT)
+      RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
+      GPU_NODE_POOL: $(GPU_NODE_POOL)
+      COUNT: $(COUNT)
+      REPLICAS: $(REPLICAS)
+      MANIFEST_DIR: $(MANIFEST_DIR)
+
+  - script: |
+      set -eo pipefail
+
+      # Deploy Jobs
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" job \
+        --cloud "$CLOUD" \
+        --run-id "$RUN_ID" \
+        --result-dir "$RESULT_DIR" \
+        --node-pool-name "$POOL_NAME" \
+        --count "$COUNT" \
+        --completions "$COMPLETIONS" \
+        ${MANIFEST_DIR:+--manifest-dir "$MANIFEST_DIR"} \
+        --step-timeout "$STEP_TIME_OUT" \
+        ${GPU_NODE_POOL:+--gpu-node-pool}
+    displayName: 'Execute K8s Job operations for ${{ parameters.cloud }}'
+    workingDirectory: modules/python
+    env:
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/crud/main.py
+      POOL_NAME: $(POOL_NAME)
+      CLOUD: ${{ parameters.cloud }}
+      STEP_TIME_OUT: $(STEP_TIME_OUT)
+      RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
+      GPU_NODE_POOL: $(GPU_NODE_POOL)
+      COUNT: $(COUNT)
+      COMPLETIONS: $(COMPLETIONS)
+      MANIFEST_DIR: $(MANIFEST_DIR)
 
 - script: |
     set -eo pipefail
@@ -113,15 +155,15 @@ steps:
   workingDirectory: modules/python
   env:
     PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/crud/main.py
-    VM_SIZE: ${{ parameters.vm_size }}
-    CREATE_NODE_COUNT: ${{ parameters.create_node_count }}
-    SCALE_NODE_COUNT: ${{ parameters.scale_node_count }}
-    SCALE_STEP_SIZE: ${{ parameters.scale_step_up_count }}
-    POOL_NAME: ${{ parameters.pool_name }}
+    VM_SIZE: $(VM_SIZE)
+    CREATE_NODE_COUNT: $(CREATE_NODE_COUNT)
+    SCALE_NODE_COUNT: $(SCALE_NODE_COUNT)
+    SCALE_STEP_SIZE: $(SCALE_STEP_SIZE)
+    POOL_NAME: $(POOL_NAME)
     CLOUD: ${{ parameters.cloud }}
-    STEP_TIME_OUT: ${{ parameters.step_time_out }}
+    STEP_TIME_OUT: $(STEP_TIME_OUT)
     RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
-    GPU_NODE_POOL: ${{ parameters.gpu_node_pool }}
-    STEP_WAIT_TIME: ${{ parameters.step_wait_time }}
+    GPU_NODE_POOL: $(GPU_NODE_POOL)
+    STEP_WAIT_TIME: $(STEP_WAIT_TIME)
     ${{ if eq(parameters.cloud, 'aws') }}:
       CAPACITY_TYPE: $(CAPACITY_TYPE)

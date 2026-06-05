@@ -13,5 +13,6 @@ updates:
       - liyu-ma
       - vittoriasalim
       - xinWeiWei24
+      - LeonardCareer
     open-pull-requests-limit: 10
     target-branch: "main"
