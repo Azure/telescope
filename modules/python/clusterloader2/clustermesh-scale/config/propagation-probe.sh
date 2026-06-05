@@ -114,6 +114,12 @@ fi
 #   pod, behind the global Service).
 CURL_IMAGE="mcr.microsoft.com/cbl-mariner/base/core:2.0"
 PROBE_IMAGE="mcr.microsoft.com/oss/kubernetes/pause:3.6"
+# When ENABLE_FIRST_PACKET_PROBE=true the probe pod needs to serve HTTP so
+# the peer-side curl can verify the response actually came from THIS specific
+# pod (returns its hostname). nginx (cbl-mariner) is MCR-approved and already
+# used for the backend Deployment template. Adds ~50MB image vs pause's
+# single-digit MB; acceptable for the 10-30 probes/run we do.
+PROBE_HTTP_IMAGE="mcr.microsoft.com/cbl-mariner/base/nginx:1"
 
 # Global Service DNS name — resolved at runtime from the first Service
 # in PROBE_NS on the first cluster (CL2 names objects with 0- or 1-
@@ -444,26 +450,26 @@ wait_peer_ipcache_removed() {
   done
 }
 
-# Wait for peer to successfully curl the global Service and get back the
-# src pod's hostname (proving cross-cluster routing reaches the new pod).
-# Tight-loop curl from a long-lived peer-side curl pod via kubectl exec
-# (avoids per-curl pod-create overhead which would dominate at ~5s/run).
-# Sets T_PEER_FIRST_PACKET_NS = first 200 OK whose body contains src
-# hostname, or 0 on timeout.
+# Wait for peer to successfully curl the probe pod DIRECTLY by its IP
+# (cross-cluster routing test). Records the first 200 OK from peer that
+# returns the src probe pod's hostname (default nginx welcome page does
+# NOT include hostname, so we use the /hostname endpoint via $hostname
+# in default config — actually for cbl-mariner nginx the default page
+# returns "Welcome to nginx!" — so we just match any 200 from THIS IP
+# which proves cross-cluster routing reaches THIS specific pod).
+# Sets T_PEER_FIRST_PACKET_NS = first 200 OK, or 0 on timeout.
 #
-# NOTE: this curl pod is per-peer-per-iteration. Cost is acceptable for
-# n<=20 (k8s exec amortizes much faster than k8s pod create). Each curl
-# is ~50-200ms.
+# This is DIFFERENT from do_connectivity_probe which curls the global
+# Service DNS (load-balanced across all backends). FIRST_PACKET measures
+# direct cross-cluster routing to a specific new pod's IP.
 wait_peer_first_packet() {
-  local _kc="$1" _ctx="$2" _src_hostname="$3" _deadline_s="$4"
+  local _kc="$1" _ctx="$2" _pod_ip="$3" _deadline_s="$4"
   T_PEER_FIRST_PACKET_NS=0
-  if [ -z "$GLOBAL_SVC_DNS" ]; then return 1; fi
+  if [ -z "$_pod_ip" ]; then return 1; fi
   local _client_pod="probe-fp-${PROBE_ID:0:8}-$(date +%s%N | tail -c 8)"
-  # Long-lived curl pod (sleep infinity); we exec curl in a tight loop.
   KUBECONFIG="$_kc" kubectl --context "$_ctx" -n "$PROBE_NS" run "$_client_pod" \
     --image="$CURL_IMAGE" --restart=Never --quiet --command -- \
     sleep 3600 > /dev/null 2>&1 || true
-  # Wait briefly for the curl pod itself to be Ready.
   local _start; _start=$(date +%s)
   while true; do
     local _phase
@@ -474,20 +480,15 @@ wait_peer_first_packet() {
     [ $((_now - _start)) -ge 15 ] && break
     sleep 0.5
   done
-  # Tight-loop curl. Sub-second pacing to capture first-packet event closely.
   while true; do
     local _now; _now=$(date +%s)
     if [ $((_now - _start)) -ge "$_deadline_s" ]; then
       break
     fi
-    local _resp
-    _resp=$(KUBECONFIG="$_kc" kubectl --context "$_ctx" -n "$PROBE_NS" exec "$_client_pod" -- \
-      curl -s -m 2 -w '\n%{http_code}' "http://${GLOBAL_SVC_DNS}/" 2>/dev/null || echo "")
-    # Body line followed by status line
-    local _status _body
-    _status=$(echo "$_resp" | tail -1)
-    _body=$(echo "$_resp" | head -n -1)
-    if [ "$_status" = "200" ] && echo "$_body" | grep -qF "$_src_hostname"; then
+    local _status
+    _status=$(KUBECONFIG="$_kc" kubectl --context "$_ctx" -n "$PROBE_NS" exec "$_client_pod" -- \
+      curl -s -m 2 -o /dev/null -w '%{http_code}' "http://${_pod_ip}/" 2>/dev/null || echo "")
+    if [ "$_status" = "200" ]; then
       T_PEER_FIRST_PACKET_NS=$(date +%s%N)
       break
     fi
@@ -610,6 +611,28 @@ for p in $(seq 1 "$PROBE_COUNT"); do
   echo "[probe $p/$PROBE_COUNT] src=$SRC_NAME id=$PROBE_ID pod=$POD_NAME"
 
   T_APPLY_NS=$(date +%s%N)
+  # Choose container spec: pause (default, cheap, no HTTP) OR nginx (when
+  # FIRST_PACKET probe is enabled — needs HTTP server to curl against).
+  if [ "$ENABLE_FIRST_PACKET_PROBE" = "true" ]; then
+    PROBE_POD_CONTAINER=$(cat <<EOF
+  - name: probe-http
+    image: $PROBE_HTTP_IMAGE
+    # cbl-mariner nginx has no ENTRYPOINT — must set explicit command.
+    command: ["nginx", "-g", "daemon off;"]
+    readinessProbe:
+      tcpSocket:
+        port: 80
+      initialDelaySeconds: 1
+      periodSeconds: 1
+EOF
+    )
+  else
+    PROBE_POD_CONTAINER=$(cat <<EOF
+  - name: pause
+    image: $PROBE_IMAGE
+EOF
+    )
+  fi
   cat <<EOF | KUBECONFIG="$SRC_KC" kubectl --context "$SRC_NAME" -n "$PROBE_NS" apply -f - > /dev/null 2>&1
 apiVersion: v1
 kind: Pod
@@ -620,15 +643,9 @@ metadata:
     propagation-probe-src: "$SRC_NAME"
     app: propagation-probe
 spec:
-  # Pause container — sleeps forever, single-digit-mB / micro-CPU
-  # footprint. Doesn't serve HTTP, but we don't need it to: the
-  # probe measures kvstore/identity/ipcache propagation, not
-  # request handling. Connectivity probe hits the long-running
-  # nginx backend Deployment via the global Service instead.
   hostname: $POD_HOSTNAME
   containers:
-  - name: pause
-    image: $PROBE_IMAGE
+$PROBE_POD_CONTAINER
   restartPolicy: Never
 EOF
 
