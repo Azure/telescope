@@ -15,53 +15,66 @@ steps:
 - script: |
     set -euo pipefail
 
-    echo "Installing upstream Cilium for BYOCNI cluster..."
-    helm repo add cilium https://helm.cilium.io/
-    helm repo update
-    helm install cilium cilium/cilium --version 1.19.0 --namespace kube-system \
-      --set aksbyocni.enabled=true \
-      --set nodeinit.enabled=true \
-      --set prometheus.enabled=true \
-      --set operator.replicas=1
+    cilium_manifest_dir="${CILIUM_MANIFEST_DIR:-1.19}"
+    cilium_image_registry="${CILIUM_IMAGE_REGISTRY:-mcr.microsoft.com/containernetworking/cilium}"
+    cilium_version_tag="${CILIUM_VERSION_TAG:-v1.18.9-260508}"
 
-    echo "Waiting for Cilium to become ready (up to 20 minutes)..."
-    TIMEOUT=1200
-    ELAPSED=0
-    INTERVAL=30
-    while [ $ELAPSED -lt $TIMEOUT ]; do
-      READY=$(kubectl get ds cilium -n kube-system -o jsonpath='{.status.numberReady}' 2>/dev/null || echo "0")
-      DESIRED=$(kubectl get ds cilium -n kube-system -o jsonpath='{.status.desiredNumberScheduled}' 2>/dev/null || echo "?")
-      echo "[${ELAPSED}s] Cilium DaemonSet: ${READY}/${DESIRED} ready"
-      kubectl get pods -n kube-system -l k8s-app=cilium --no-headers 2>/dev/null | head -5
-      if [ "$READY" != "0" ] && [ "$READY" = "$DESIRED" ]; then
-        echo "All Cilium pods are ready!"
-        break
-      fi
-      sleep $INTERVAL
-      ELAPSED=$((ELAPSED + INTERVAL))
-    done
+    rm -rf azure-container-networking
+    git clone --depth 1 https://github.com/Azure/azure-container-networking
+    cd azure-container-networking
 
-    if [ $ELAPSED -ge $TIMEOUT ]; then
-      echo "ERROR: Cilium DaemonSet not ready after ${TIMEOUT}s"
-      echo "=== Pod details ==="
-      kubectl get pods -n kube-system -l k8s-app=cilium -o wide
-      echo "=== Describe first non-ready pod ==="
-      POD=$(kubectl get pods -n kube-system -l k8s-app=cilium --field-selector=status.phase!=Running -o name 2>/dev/null | head -1)
-      if [ -z "$POD" ]; then
-        POD=$(kubectl get pods -n kube-system -l k8s-app=cilium -o name 2>/dev/null | head -1)
-      fi
-      [ -n "$POD" ] && kubectl describe "$POD" -n kube-system | tail -60
-      echo "=== Operator pods ==="
-      kubectl get pods -n kube-system -l io.cilium/app=operator -o wide
-      echo "=== Node status ==="
-      kubectl get nodes -o wide
-      echo "=== Events ==="
-      kubectl get events -n kube-system --sort-by='.lastTimestamp' | tail -30
+    if ! command -v envsubst >/dev/null 2>&1; then
+      echo "##vso[task.logissue type=error;]envsubst is required for ACN manifest templating"
       exit 1
     fi
 
+    # Install Cilium CRDs (not included in ACN manifests)
+    cilium_source_version="${CILIUM_SOURCE_VERSION:-v1.19.0}"
+    echo "Installing Cilium CRDs from source ${cilium_source_version}..."
+    crds_base="https://raw.githubusercontent.com/cilium/cilium/${cilium_source_version}/pkg/k8s/apis/cilium.io/client/crds"
+    for crd_dir in v2 v2alpha1; do
+      crd_url="${crds_base}/${crd_dir}"
+      for crd in ciliumnetworkpolicies ciliumclusterwidenetworkpolicies ciliumendpoints ciliumidentities ciliumnodes ciliumexternalworkloads ciliumlocalredirectpolicies ciliumegressgatewaypolicies ciliumenvoyconfigs ciliumclusterwideenvoyconfigs ciliumnodeconfigs; do
+        curl -sfL "${crd_url}/${crd}.yaml" | kubectl apply --server-side -f - 2>/dev/null || true
+      done
+    done
+
+    export DIR="${cilium_manifest_dir}"
+    export CILIUM_IMAGE_REGISTRY="${cilium_image_registry}"
+    export CILIUM_VERSION_TAG="${cilium_version_tag}"
+
+    kubectl apply -f "test/integration/manifests/cilium/v${DIR}/config/cilium-config.yaml"
+    # Patch ConfigMap: disable KPR (avoid port conflict with kube-proxy), use cluster-pool IPAM
+    # (Cilium operator allocates PodCIDRs internally - no dependency on Azure CNS/NNC/DNC),
+    # and ensure CNI conflist writing is enabled.
+    kubectl -n kube-system patch cm cilium-config --type merge \
+      -p '{"data":{"kube-proxy-replacement":"false","kube-proxy-replacement-healthz-bind-address":"","write-cni-conf-when-ready":"/host/etc/cni/net.d/05-cilium.conflist","cni-exclusive":"true","cni-log-file":"/var/run/cilium/cilium-cni.log","ipam":"cluster-pool","cluster-pool-ipv4-cidr":"10.244.0.0/16","cluster-pool-ipv4-mask-size":"24"}}'
+    kubectl apply -f "test/integration/manifests/cilium/v${DIR}/cilium-operator/files"
+    kubectl apply -f "test/integration/manifests/cilium/v${DIR}/cilium-agent/files"
+    envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < "test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml" | kubectl apply -f -
+    kubectl -n kube-system scale deploy/cilium-operator --replicas=1
+    envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < "test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml" \
+      | sed 's/restartPolicy: IfNotPresent/restartPolicy: Always/' | kubectl apply -f -
+
+    cd ..
+    rm -rf azure-container-networking
+
+    # Verify CNI config is set correctly
+    echo "ConfigMap cilium-config CNI settings:"
+    kubectl -n kube-system get cm cilium-config -o jsonpath='{.data.ipam}' && echo ""
+    kubectl -n kube-system get cm cilium-config -o jsonpath='{.data.write-cni-conf-when-ready}' && echo ""
+
+    echo "Waiting for Cilium operator..."
+    sleep 10
+    kubectl -n kube-system get pods -l io.cilium/app=operator -o wide
+    kubectl -n kube-system rollout status deploy/cilium-operator --timeout="${CILIUM_ROLLOUT_TIMEOUT:-30m}"
+    echo "Waiting for Cilium agent DaemonSet..."
+    kubectl -n kube-system get pods -l k8s-app=cilium -o wide
+    kubectl -n kube-system rollout status ds/cilium --timeout="${CILIUM_ROLLOUT_TIMEOUT:-30m}"
+
     echo "Waiting for all nodes to become Ready..."
     kubectl wait --for=condition=Ready node --all --timeout=600s
+    echo "All nodes Ready:"
     kubectl get nodes -o wide
   displayName: "Install Cilium CNI (BYOCNI)"
   condition: eq(variables['INSTALL_CILIUM'], 'true')
