@@ -115,6 +115,7 @@ def handle_node_pool_operation(node_pool_crud, args):
                 "vm_size": args.vm_size,
                 "node_count": args.node_count,
                 "gpu_node_pool": args.gpu_node_pool,
+                "enable_managed_gpu": args.enable_managed_gpu,
             }
 
             result = node_pool_crud.create_node_pool(**create_kwargs)
@@ -144,6 +145,7 @@ def handle_node_pool_operation(node_pool_crud, args):
                 "progressive": check_for_progressive_scaling(args),
                 "scale_step_size": args.scale_step_size,
                 "gpu_node_pool": args.gpu_node_pool,
+                "enable_managed_gpu": args.enable_managed_gpu,
                 "step_wait_time": args.step_wait_time,
             }
 
@@ -410,6 +412,12 @@ def main():
         "--gpu-node-pool",
         action="store_true",
         help="Whether this is a GPU-enabled node pool",
+    )
+    common_parser.add_argument(
+        "--enable-managed-gpu",
+        action="store_true",
+        help="Enable fully managed GPU mode (gpuProfile.nvidia.managementMode=Managed). "
+             "When omitted with --gpu-node-pool, driver bootstrap only is used.",
     )
     common_parser.add_argument(
         "--capacity-type",

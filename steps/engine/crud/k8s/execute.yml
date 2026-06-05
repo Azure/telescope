@@ -15,6 +15,7 @@ steps:
       --node-count "$CREATE_NODE_COUNT" \
       --step-timeout "$STEP_TIME_OUT" \
       ${GPU_NODE_POOL:+--gpu-node-pool} \
+      ${ENABLE_MANAGED_GPU:+--enable-managed-gpu} \
       --capacity-type "${CAPACITY_TYPE:-ON_DEMAND}"
 
     # Scale Up Node Pool
@@ -42,6 +43,7 @@ steps:
     STEP_TIME_OUT: $(STEP_TIME_OUT)
     RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
     GPU_NODE_POOL: $(GPU_NODE_POOL)
+    ENABLE_MANAGED_GPU: $(ENABLE_MANAGED_GPU)
     STEP_WAIT_TIME: $(STEP_WAIT_TIME)
     ${{ if eq(parameters.cloud, 'aws') }}:
       CAPACITY_TYPE: $(CAPACITY_TYPE)

@@ -265,6 +265,7 @@ class AKSClient:
         node_count: int = 0,
         cluster_name: Optional[str] = None,
         gpu_node_pool: bool = False,
+        enable_managed_gpu: bool = False,
     ) -> Any:
         """
         Create a new node pool in the AKS cluster.
@@ -276,6 +277,10 @@ class AKSClient:
             cluster_name: The name of the AKS cluster. If not provided,
                          will use the one from initialization or try to find one.
             gpu_node_pool: Whether this is a GPU-enabled node pool (default: False)
+            enable_managed_gpu: Whether to enable fully managed GPU mode with
+                                 gpuProfile.nvidia.managementMode=Managed (default: False).
+                                 When False with gpu_node_pool=True, driver bootstrap only
+                                 (gpuProfile.driver=Install, gpuProfile.nvidia=null).
 
         Returns:
             The created node pool object or operation result
@@ -297,6 +302,7 @@ class AKSClient:
             "vm_size": vm_size,
             "node_count": node_count,
             "gpu_node_pool": gpu_node_pool,
+            "enable_managed_gpu": enable_managed_gpu,
         }
 
         # Create operation context to track the operation
@@ -305,7 +311,6 @@ class AKSClient:
         ) as op:
             try:
                 # Build parameters for node pool creation
-                # Todo: Remove VM_SIZE check after we get ND H100 quota
                 parameters = {
                     "count": node_count,
                     "vm_size": vm_size,
@@ -316,9 +321,17 @@ class AKSClient:
                 }
 
                 if gpu_node_pool:
-                    parameters["gpu_profile"] = {
-                        "driver": "None" if vm_size == "Standard_ND96asr_v4" else "Install",
-                    }
+                    if enable_managed_gpu:
+                        # Fully managed GPU: driver install + NVIDIA management mode
+                        parameters["gpu_profile"] = {
+                            "driver": "Install",
+                            "nvidia": {"managementMode": "Managed"},
+                        }
+                    else:
+                        # Managed GPU (driver bootstrap only): driver install, no NVIDIA management
+                        parameters["gpu_profile"] = {
+                            "driver": "Install",
+                        }
 
                 logger.info(
                     f"Creating node pool {node_pool_name} in cluster {cluster_name}"

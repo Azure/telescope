@@ -1,14 +1,41 @@
 trigger: none
 schedules:
-  # Azure GPU Cluster CRUD Test
-  - cron: "0 */6 * * *"
-    displayName: "Every 6 hours"
+  # Azure GPU Cluster CRUD Tests - each stage runs twice daily, 12 hours apart.
+  # Spread to avoid conflicts with:
+  #   k8s-gpu-scheduling  : 08:00 daily, 20:00 Mon/Wed/Thu
+  #   k8s-ray-scheduling  : 00:00 daily, 12:00 Mon/Wed/Thu
+  - cron: "0 1,13 * * *"
+    displayName: "1:00 AM and 1:00 PM daily"
     branches:
       include:
         - main
     always: true
-  - cron: "30 */6 * * *"
-    displayName: "At 30 minute past every 6th hour"
+  - cron: "0 3,15 * * *"
+    displayName: "3:00 AM and 3:00 PM daily"
+    branches:
+      include:
+        - main
+    always: true
+  - cron: "0 5,17 * * *"
+    displayName: "5:00 AM and 5:00 PM daily"
+    branches:
+      include:
+        - main
+    always: true
+  - cron: "0 7,19 * * *"
+    displayName: "7:00 AM and 7:00 PM daily"
+    branches:
+      include:
+        - main
+    always: true
+  - cron: "0 9,21 * * *"
+    displayName: "9:00 AM and 9:00 PM daily"
+    branches:
+      include:
+        - main
+    always: true
+  - cron: "0 11,23 * * *"
+    displayName: "11:00 AM and 11:00 PM daily"
     branches:
       include:
         - main
@@ -18,11 +45,11 @@ variables:
   SCENARIO_NAME: k8s-gpu-cluster-crud
 
 stages:
-  - stage: azure_H100_gpu_test
+  - stage: azure_H100_managed_gpu_test
     dependsOn: []
     condition: |
       or(
-        eq(variables['Build.CronSchedule.DisplayName'], 'Every 6 hours'),
+        eq(variables['Build.CronSchedule.DisplayName'], '1:00 AM and 1:00 PM daily'),
         eq(variables['Build.Reason'], 'Manual')
       )
     jobs:
@@ -34,9 +61,9 @@ stages:
           topology: k8s-crud-gpu
           engine: crud
           matrix:
-            h100_gpu_node_pool:
+            h100_managed_gpu_node_pool:
               gpu_node_pool: true
-              pool_name: h100nodepool
+              pool_name: h100managed
               vm_size: Standard_NC40ads_H100_v5
               create_node_count: 0
               scale_node_count: 2
@@ -52,11 +79,46 @@ stages:
           ssh_key_enabled: false
           timeout_in_minutes: 180
 
-  - stage: azure_ND_A100_gpu_test
+  - stage: azure_H100_fully_managed_gpu_test
     dependsOn: []
     condition: |
       or(
-        eq(variables['Build.CronSchedule.DisplayName'], 'At 30 minute past every 6th hour'),
+        eq(variables['Build.CronSchedule.DisplayName'], '5:00 AM and 5:00 PM daily'),
+        eq(variables['Build.Reason'], 'Manual')
+      )
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - australiaeast
+          topology: k8s-crud-gpu
+          engine: crud
+          matrix:
+            h100_fully_managed_gpu_node_pool:
+              gpu_node_pool: true
+              enable_managed_gpu: true
+              pool_name: h100fullmgd
+              vm_size: Standard_NC40ads_H100_v5
+              create_node_count: 0
+              scale_node_count: 2
+              scale_step_size: 1
+              step_time_out: 600
+              step_wait_time: 30
+              count: 1
+              replicas: 10
+              completions: 1
+              manifest_dir: ""
+          max_parallel: 1
+          credential_type: service_connection
+          ssh_key_enabled: false
+          timeout_in_minutes: 180
+
+  - stage: azure_A100_managed_gpu_test
+    dependsOn: []
+    condition: |
+      or(
+        eq(variables['Build.CronSchedule.DisplayName'], '9:00 AM and 9:00 PM daily'),
         eq(variables['Build.Reason'], 'Manual')
       )
     jobs:
@@ -68,10 +130,114 @@ stages:
           topology: k8s-crud-gpu
           engine: crud
           matrix:
-            a100_gpu_node_pool:
+            a100_managed_gpu_node_pool:
               gpu_node_pool: true
-              pool_name: a100nodepool
+              pool_name: a100managed
               vm_size: Standard_ND96asr_v4
+              create_node_count: 0
+              scale_node_count: 2
+              scale_step_size: 1
+              step_time_out: 600
+              step_wait_time: 30
+              count: 1
+              replicas: 10
+              completions: 1
+              manifest_dir: ""
+          max_parallel: 1
+          credential_type: service_connection
+          ssh_key_enabled: false
+          timeout_in_minutes: 180
+
+  - stage: azure_A100_fully_managed_gpu_test
+    dependsOn: []
+    condition: |
+      or(
+        eq(variables['Build.CronSchedule.DisplayName'], '11:00 AM and 11:00 PM daily'),
+        eq(variables['Build.Reason'], 'Manual')
+      )
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - southcentralus
+          topology: k8s-crud-gpu
+          engine: crud
+          matrix:
+            a100_fully_managed_gpu_node_pool:
+              gpu_node_pool: true
+              enable_managed_gpu: true
+              pool_name: a100fullmgd
+              vm_size: Standard_ND96asr_v4
+              create_node_count: 0
+              scale_node_count: 2
+              scale_step_size: 1
+              step_time_out: 600
+              step_wait_time: 30
+              count: 1
+              replicas: 10
+              completions: 1
+              manifest_dir: ""
+          max_parallel: 1
+          credential_type: service_connection
+          ssh_key_enabled: false
+          timeout_in_minutes: 180
+
+  - stage: azure_A10_managed_gpu_test
+    dependsOn: []
+    condition: |
+      or(
+        eq(variables['Build.CronSchedule.DisplayName'], '3:00 AM and 3:00 PM daily'),
+        eq(variables['Build.Reason'], 'Manual')
+      )
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - australiaeast
+          topology: k8s-crud-gpu
+          engine: crud
+          matrix:
+            a10_managed_gpu_node_pool:
+              gpu_node_pool: true
+              pool_name: a10managed
+              vm_size: Standard_NV36ads_A10_v5
+              create_node_count: 0
+              scale_node_count: 2
+              scale_step_size: 1
+              step_time_out: 600
+              step_wait_time: 30
+              count: 1
+              replicas: 10
+              completions: 1
+              manifest_dir: ""
+          max_parallel: 1
+          credential_type: service_connection
+          ssh_key_enabled: false
+          timeout_in_minutes: 180
+
+  - stage: azure_A10_fully_managed_gpu_test
+    dependsOn: []
+    condition: |
+      or(
+        eq(variables['Build.CronSchedule.DisplayName'], '7:00 AM and 7:00 PM daily'),
+        eq(variables['Build.Reason'], 'Manual')
+      )
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - australiaeast
+          topology: k8s-crud-gpu
+          engine: crud
+          matrix:
+            a10_fully_managed_gpu_node_pool:
+              gpu_node_pool: true
+              enable_managed_gpu: true
+              pool_name: a10fullmgd
+              vm_size: Standard_NV36ads_A10_v5
               create_node_count: 0
               scale_node_count: 2
               scale_step_size: 1
