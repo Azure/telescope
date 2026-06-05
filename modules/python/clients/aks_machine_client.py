@@ -11,9 +11,8 @@ metadata is enriched with ``op.add_metadata`` along the way, success returns
 None, failures are logged and re-raised so ``OperationContext`` records them.
 ``MachineCRUD`` therefore stays a thin try/except wrapper.
 
-This revision adds the non-batch scale path. The batch dispatch
-(``use_batch_api=True``) still raises ``NotImplementedError`` and will land in a
-follow-up PR.
+The non-batch scale path PUTs machines one at a time. The batch dispatch
+(``use_batch_api=True``) uses the private ``BatchPutMachine`` header contract.
 """
 import json
 import logging
@@ -22,7 +21,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from types import SimpleNamespace
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -56,6 +55,13 @@ _PER_REQUEST_TIMEOUT_CAP = 60
 # ballooning the chunk's wall-time.
 _BATCH_429_MAX_RETRIES = 5
 _BATCH_429_INITIAL_BACKOFF_SECONDS = 1.0
+_BATCH_MAX_MACHINES_PER_REQUEST = 50
+_MACHINE_TERMINAL_STATES = {"Succeeded", "Failed", "Canceled", "Cancelled"}
+_MACHINE_FAILURE_STATES = {"Failed", "Canceled", "Cancelled"}
+_MACHINE_FAILURE_DETAIL_LIMIT = 10
+_LIST_MACHINES_PAGE_LIMIT = 50
+_MACHINE_FAILURE_CHECK_INTERVAL_SECONDS = 30
+_NODE_READINESS_POLL_INTERVAL_SECONDS = 2
 # urllib3's default ``HTTPAdapter`` (mounted implicitly by ``requests.Session``)
 # caps each host's connection pool at ``pool_maxsize=10``. The parallel scale
 # paths fan out far beyond that (up to ``machine_workers`` concurrent PUTs
@@ -64,7 +70,7 @@ _BATCH_429_INITIAL_BACKOFF_SECONDS = 1.0
 # urllib3 to tear down and re-establish TLS for every excess request.
 # We mount an explicitly-sized adapter so the pool can retain one warm
 # connection per worker thread; 64 covers the current pipeline maxima
-# (50 individual workers, 4 batch workers) with comfortable headroom and
+# (50 individual workers, 10 batch workers) with comfortable headroom and
 # stays well below ARM's per-client connection ceilings.
 _HTTPS_POOL_SIZE = 64
 
@@ -259,6 +265,8 @@ class AKSMachineClient(AKSClient):
         expected_count: int,
         timeout: int,
         baseline_count: int = 0,
+        cluster_name: Optional[str] = None,
+        expected_machine_names: Optional[Set[str]] = None,
     ) -> Dict[str, Dict[str, Any]]:
         """Wait for ``expected_count`` NEW Ready nodes; return nested percentile dict.
 
@@ -279,8 +287,9 @@ class AKSMachineClient(AKSClient):
         ``timeout`` is wall-clock seconds from invocation. Returns the nested
         empty-state envelope (``elapsed_time_seconds=None``, ``success=False``)
         if ``k8s_client`` is unavailable, ``expected_count`` <= 0, or no
-        percentile target is met within ``timeout``. Polling exceptions are
-        logged and treated as 0 ready this tick. Never raises.
+        percentile target is met within ``timeout``. Kubernetes polling
+        exceptions are logged and treated as 0 ready this tick. Raises only if
+        every expected Machine is terminal and at least one failed.
         """
         # Empty-state envelope: nested dict per P-key with
         # `target_nodes`, `elapsed_time_seconds`, `percentage`, `success` so
@@ -315,17 +324,34 @@ class AKSMachineClient(AKSClient):
         elapsed: Dict[int, float] = {}
         start = time.time()
         deadline = start + timeout
+        next_machine_failure_check_at: Optional[float] = (
+            start if cluster_name and expected_machine_names else None
+        )
         logger.info(
             f"Waiting for nodes in agentpool {agentpool_name} (label {label_selector}) - "
             f"targets {targets}, baseline={baseline_count}, expected={expected_count}, "
             f"timeout {timeout}s"
         )
         while time.time() < deadline and len(elapsed) < len(targets):
-            try:
-                ready = len(kc.get_ready_nodes(label_selector=label_selector))
-            except Exception as e:
-                logger.warning(f"get_ready_nodes({label_selector}) failed: {e}")
-                ready = 0
+            (
+                ready,
+                failed_machines_result,
+                next_machine_failure_check_at,
+            ) = self._get_readiness_poll_results(
+                kc=kc,
+                label_selector=label_selector,
+                cluster_name=cluster_name,
+                agentpool_name=agentpool_name,
+                expected_machine_names=expected_machine_names,
+                next_machine_failure_check_at=next_machine_failure_check_at,
+            )
+            # Once Machine provisioning is terminal-failed, waiting for node
+            # readiness can only end in a less useful P100 timeout.
+            if failed_machines_result:
+                raise RuntimeError(
+                    f"machine provisioning failed in agentpool {agentpool_name}: "
+                    f"failed_machines={failed_machines_result}"
+                )
             now_elapsed = time.time() - start
             for p, target in targets.items():
                 if p not in elapsed and ready >= target:
@@ -335,7 +361,18 @@ class AKSMachineClient(AKSClient):
                         f"(target={target}, baseline={baseline_count}) at {now_elapsed:.2f}s"
                     )
             if len(elapsed) < len(targets):
-                time.sleep(2)
+                now = time.time()
+                # Wake for the next node poll, next ListMachines check, or
+                # overall timeout, whichever comes first.
+                next_wake_at = min(
+                    now + _NODE_READINESS_POLL_INTERVAL_SECONDS,
+                    deadline,
+                )
+                if next_machine_failure_check_at is not None:
+                    next_wake_at = min(next_wake_at, next_machine_failure_check_at)
+                sleep_seconds = max(0.0, next_wake_at - now)
+                if sleep_seconds > 0:
+                    time.sleep(sleep_seconds)
         if not elapsed:
             logger.warning(
                 f"No percentile target met within {timeout}s for agentpool {agentpool_name}"
@@ -382,6 +419,52 @@ class AKSMachineClient(AKSClient):
             )
         logger.info(f"Percentile node readiness data: {json.dumps(result, indent=2)}")
         return result
+
+    def _get_readiness_poll_results(
+        self,
+        kc: Any,
+        label_selector: str,
+        cluster_name: Optional[str],
+        agentpool_name: str,
+        expected_machine_names: Optional[Set[str]],
+        next_machine_failure_check_at: Optional[float],
+    ) -> Tuple[int, List[Dict[str, Any]], Optional[float]]:
+        """Poll ready nodes and due Machine provisioning failures concurrently."""
+        now = time.time()
+        check_machine_failures = (
+            next_machine_failure_check_at is not None
+            and now >= next_machine_failure_check_at
+        )
+        failed_machines = None
+        max_workers = 2 if check_machine_failures else 1
+        with ThreadPoolExecutor(max_workers=max_workers) as ex:
+            ready_nodes = ex.submit(
+                kc.get_ready_nodes,
+                label_selector=label_selector,
+            )
+            if check_machine_failures and cluster_name and expected_machine_names:
+                failed_machines = ex.submit(
+                    self._get_machine_provisioning_failures,
+                    cluster_name=cluster_name,
+                    agentpool_name=agentpool_name,
+                    expected_names=expected_machine_names,
+                )
+
+        ready_nodes_result = []
+        failed_machines_result: List[Dict[str, Any]] = []
+        try:
+            ready_nodes_result = ready_nodes.result()
+        except Exception as e:
+            logger.warning(f"get_ready_nodes({label_selector}) failed: {e}")
+        if failed_machines is not None:
+            try:
+                failed_machines_result = failed_machines.result()
+            except Exception as e:
+                logger.warning(f"get_machine_provisioning_failures failed: {e}")
+            next_machine_failure_check_at = (
+                time.time() + _MACHINE_FAILURE_CHECK_INTERVAL_SECONDS
+            )
+        return len(ready_nodes_result), failed_machines_result, next_machine_failure_check_at
 
     # ---- Machine API: scale path ----
     def scale_machine(
@@ -480,7 +563,7 @@ class AKSMachineClient(AKSClient):
                 else:
                     successful = self._scale_machine_individually(request, names)
                 op.add_metadata("command_execution_time", time.time() - command_t0)
-                op.add_metadata("successful_machines", successful)
+                op.add_metadata("successful_machines", len(successful))
 
                 # Fail fast on partial landing BEFORE waiting on the agentpool
                 # or readiness against a reduced count -- otherwise the recorded
@@ -511,6 +594,8 @@ class AKSMachineClient(AKSClient):
                     expected_count=len(successful),
                     timeout=readiness_wait_timeout,
                     baseline_count=baseline_count,
+                    cluster_name=cluster_name,
+                    expected_machine_names=set(names),
                 )
                 op.add_metadata("percentile_node_readiness_times", percentile_envelope)
                 p100 = percentile_envelope.get("P100", {})
@@ -607,6 +692,91 @@ class AKSMachineClient(AKSClient):
             return False
         return True
 
+    def _list_machines(
+        self,
+        cluster_name: str,
+        agentpool_name: str,
+        timeout: int = 30,
+    ) -> List[Dict[str, Any]]:
+        """List Machine resources for an agentpool, following ARM pagination."""
+        url = (
+            f"{_ARM_BASE}/subscriptions/{self.subscription_id}/resourceGroups/"
+            f"{self.resource_group}/providers/Microsoft.ContainerService/"
+            f"managedClusters/{cluster_name}/agentPools/{agentpool_name}/machines"
+            f"?api-version={_MACHINE_API_VERSION}"
+        )
+        machines: List[Dict[str, Any]] = []
+        for _ in range(_LIST_MACHINES_PAGE_LIMIT):
+            resp = self.make_request("GET", url, timeout=timeout)
+            if resp.status_code != 200:
+                raise RuntimeError(
+                    f"ListMachines failed for agentpool {agentpool_name}: "
+                    f"{resp.status_code} {resp.text[:500]}"
+                )
+            try:
+                body = resp.json()
+            except (ValueError, TypeError) as exc:
+                raise RuntimeError(
+                    f"ListMachines returned invalid JSON for agentpool "
+                    f"{agentpool_name}: {exc}"
+                ) from exc
+            machines.extend(body.get("value", []))
+            next_link = body.get("nextLink")
+            if not next_link:
+                return machines
+            url = next_link
+        raise RuntimeError(
+            f"ListMachines exceeded {_LIST_MACHINES_PAGE_LIMIT} pages for "
+            f"agentpool {agentpool_name}"
+        )
+
+    def _get_machine_provisioning_failures(
+        self,
+        cluster_name: str,
+        agentpool_name: str,
+        expected_names: Set[str],
+    ) -> List[Dict[str, Any]]:
+        """Return failed Machines once all expected Machines are terminal."""
+        if not expected_names:
+            return []
+        machines = self._list_machines(cluster_name, agentpool_name)
+        machines_by_name = {
+            machine.get("name"): machine
+            for machine in machines
+            if machine.get("name") in expected_names
+        }
+        if set(machines_by_name) != expected_names:
+            return []
+        states = {
+            name: machines_by_name[name].get("properties", {}).get("provisioningState")
+            for name in expected_names
+        }
+        if not all(state in _MACHINE_TERMINAL_STATES for state in states.values()):
+            return []
+        failed_names = [
+            name for name, state in states.items() if state in _MACHINE_FAILURE_STATES
+        ]
+        return [
+            self._get_machine_failure_detail(machines_by_name[name])
+            for name in sorted(failed_names)[:_MACHINE_FAILURE_DETAIL_LIMIT]
+        ]
+
+    @staticmethod
+    def _get_machine_failure_detail(machine: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract compact failure details from a Machine resource."""
+        properties = machine.get("properties", {})
+        status = properties.get("status", {})
+        provisioning_error = status.get("provisioningError") or {}
+        message = provisioning_error.get("message")
+        if isinstance(message, str):
+            message = message[:300]
+        return {
+            "name": machine.get("name"),
+            "provisioningState": properties.get("provisioningState"),
+            "error_code": provisioning_error.get("code"),
+            "error_message": message,
+        }
+
     # ---- Machine API: batch scale path ----
     def _scale_machine_batch(
         self,
@@ -615,14 +785,14 @@ class AKSMachineClient(AKSClient):
     ) -> List[str]:
         """Dispatch ``names`` across ``machine_workers`` worker slices via the Batch API.
 
-        Each worker submits exactly one ``BatchPutMachine``-headered PUT carrying a
-        contiguous slice of ``names``. Slices are computed by arithmetic from the
-        ``worker_id``.
+        Each worker submits exactly one ``BatchPutMachine``-headered PUT carrying
+        a contiguous slice of ``names``. Slices are computed by arithmetic from
+        the ``worker_id``.
 
-        ``scale_machine_count`` MUST be an exact multiple of ``machine_workers``;
-        ``ValueError`` is raised otherwise so the failure surfaces at the
-        ``MachineCRUD`` boundary instead of producing a short final chunk that
-        would skew per-chunk latency dashboards.
+        ``scale_machine_count`` MUST be an exact multiple of ``machine_workers``
+        and the resulting per-worker batch size MUST be no larger than
+        ``_BATCH_MAX_MACHINES_PER_REQUEST``. ``ValueError`` is raised otherwise
+        so the failure surfaces before any partial batch submission reaches ARM.
 
         Per-worker exceptions are caught and logged; the worker's slice is
         excluded from the returned ``successful`` list. The input ``request``
@@ -639,6 +809,12 @@ class AKSMachineClient(AKSClient):
                 f"got remainder {n % workers}"
             )
         per_worker = n // workers
+        if per_worker > _BATCH_MAX_MACHINES_PER_REQUEST:
+            raise ValueError(
+                f"calculated batch size ({per_worker}) exceeds "
+                f"BatchPutMachine limit ({_BATCH_MAX_MACHINES_PER_REQUEST}); "
+                f"increase machine_workers for scale_machine_count ({n})"
+            )
         successful: List[str] = []
 
         def run_worker(worker_id: int) -> List[str]:
@@ -694,6 +870,12 @@ class AKSMachineClient(AKSClient):
         """
         if not chunk:
             return []
+        if len(chunk) > _BATCH_MAX_MACHINES_PER_REQUEST:
+            raise ValueError(
+                f"BatchPutMachine supports at most "
+                f"{_BATCH_MAX_MACHINES_PER_REQUEST} machines per request; "
+                f"got {len(chunk)}"
+            )
         sub = self.subscription_id
         first_machine_name = chunk[0]
         url = (
