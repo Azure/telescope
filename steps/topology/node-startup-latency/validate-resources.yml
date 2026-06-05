@@ -70,8 +70,8 @@ steps:
     set -euo pipefail
 
     cilium_manifest_dir="${CILIUM_MANIFEST_DIR:-1.19}"
-    cilium_image_registry="${CILIUM_IMAGE_REGISTRY:-quay.io}"
-    cilium_version_tag="${CILIUM_VERSION_TAG:-v1.19.0}"
+    cilium_image_registry="${CILIUM_IMAGE_REGISTRY:-mcr.microsoft.com/containernetworking/cilium}"
+    cilium_version_tag="${CILIUM_VERSION_TAG:-v1.18.9-260508}"
 
     rm -rf azure-container-networking
     git clone --depth 1 --branch msp/com-init https://github.com/Azure/azure-container-networking
@@ -105,13 +105,10 @@ steps:
       -p '{"data":{"kube-proxy-replacement":"false","kube-proxy-replacement-healthz-bind-address":"","write-cni-conf-when-ready":"/host/etc/cni/net.d/05-cilium.conflist","cni-exclusive":"true","cni-log-file":"/var/run/cilium/cilium-cni.log","ipam":"cluster-pool","cluster-pool-ipv4-cidr":"10.244.0.0/16","cluster-pool-ipv4-mask-size":"24"}}'
     kubectl apply -f "test/integration/manifests/cilium/v${DIR}/cilium-operator/files"
     kubectl apply -f "test/integration/manifests/cilium/v${DIR}/cilium-agent/files"
-    # The ACN manifests reference cilium-distroless/cilium-distroless-init images which don't exist
-    # for v1.19+. Replace with the standard cilium image (which includes init functionality).
-    envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < "test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml" \
-      | sed 's|cilium-distroless-init|cilium|g; s|cilium-distroless|cilium|g' | kubectl apply -f -
+    envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < "test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml" | kubectl apply -f -
     kubectl -n kube-system scale deploy/cilium-operator --replicas=1
     envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < "test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml" \
-      | sed 's/restartPolicy: IfNotPresent/restartPolicy: Always/; s|cilium-distroless-init|cilium|g; s|cilium-distroless|cilium|g' | kubectl apply -f -
+      | sed 's/restartPolicy: IfNotPresent/restartPolicy: Always/' | kubectl apply -f -
 
     cd ..
     rm -rf azure-container-networking
