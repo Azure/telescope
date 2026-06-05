@@ -826,7 +826,8 @@ class KubernetesClient:
                 continue
 
             # cilium_bootstrap_seconds{scope="overall"} 12.345
-            if line.startswith("cilium_bootstrap_seconds{"):
+            # Also handles cilium_agent_bootstrap_seconds (Cilium 1.14+)
+            if line.startswith("cilium_bootstrap_seconds{") or line.startswith("cilium_agent_bootstrap_seconds{"):
                 try:
                     scope = line.split('scope="')[1].split('"')[0]
                     value = float(line.split("} ")[1])
@@ -1114,19 +1115,22 @@ class KubernetesClient:
 
     def wait_for_probe_pod_running(self, pod_name="latency-probe", namespace="default",
                                    operation_timeout_in_minutes=10,
-                                   min_post_trigger_minutes=5):
+                                   min_post_trigger_minutes=5,
+                                   backoff_extension_minutes=10):
         """
         Wait for the probe pod to transition to Running phase with Ready condition.
 
         If the cluster autoscaler is in backoff, the timeout is extended to ensure
         at least min_post_trigger_minutes remain after the TriggeredScaleUp event
-        fires.
+        fires. When backoff is first detected, the timeout is also extended by
+        backoff_extension_minutes to allow the backoff period to clear.
 
         Args:
             pod_name: Name of the probe pod
             namespace: Namespace of the probe pod
             operation_timeout_in_minutes: Initial timeout in minutes
             min_post_trigger_minutes: Minimum minutes to wait after scale-up is triggered
+            backoff_extension_minutes: Minutes to extend timeout when autoscaler backoff is detected
 
         Returns:
             The pod object once it's Running and Ready
@@ -1161,10 +1165,20 @@ class KubernetesClient:
                     for event in events.items:
                         if event.reason == "NotTriggerScaleUp" and not backoff_detected:
                             backoff_detected = True
-                            logger.warning(
-                                "Probe pod '%s': autoscaler in backoff (%s), "
-                                "will extend timeout after scale-up triggers",
-                                pod_name, event.message)
+                            # Extend timeout to allow backoff period to clear
+                            min_deadline = time.time() + (backoff_extension_minutes * 60)
+                            if min_deadline > timeout:
+                                logger.warning(
+                                    "Probe pod '%s': autoscaler in backoff (%s), "
+                                    "extending timeout by %d minutes to allow backoff to clear",
+                                    pod_name, event.message,
+                                    int((min_deadline - timeout) / 60) + 1)
+                                timeout = min_deadline
+                            else:
+                                logger.warning(
+                                    "Probe pod '%s': autoscaler in backoff (%s), "
+                                    "sufficient time remains for backoff to clear",
+                                    pod_name, event.message)
                         if event.reason in ("TriggeredScaleUp", "ScaleUp", "ScaledUpGroup"):
                             scale_up_triggered = True
                             # Ensure at least min_post_trigger_minutes remain

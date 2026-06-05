@@ -50,7 +50,7 @@ stages:
               vm_size: Standard_D4ds_v5
               create_node_count: 1
               scale_node_count: 2
-              step_time_out: 600
+              step_time_out: 900
               cni_daemonset_label: "k8s-app=cilium"
               cni_blocking_taint: "node.cilium.io/agent-not-ready"
               install_cilium: "true"
@@ -106,6 +106,34 @@ stages:
               scale_node_count: 2
               step_time_out: 600
               cni_daemonset_label: ""
+          max_parallel: 1
+          timeout_in_minutes: 60
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  # BYOCNI + Cilium unified init container (msp/com-init)
+  - stage: azure_cilium_byocni_unified_init
+    variables:
+      SCENARIO_NAME: nsl-cilium-byocni-unified-init
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - westus2
+          topology: node-startup-latency
+          engine: crud
+          matrix:
+            byocni_unified_init_node_startup:
+              pool_name: userpool
+              vm_size: Standard_D4ds_v5
+              create_node_count: 1
+              scale_node_count: 2
+              step_time_out: 900
+              cni_daemonset_label: "k8s-app=cilium"
+              cni_blocking_taint: "node.cilium.io/agent-not-ready"
+              install_cilium_com_init: "true"
           max_parallel: 1
           timeout_in_minutes: 60
           credential_type: service_connection
