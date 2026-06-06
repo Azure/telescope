@@ -461,33 +461,43 @@ steps:
     # PHASE 3 — Hubble flow telemetry. ACNS enables Hubble in AKS-managed
     # Cilium. flows_processed_total = data-plane visibility into cross-cluster
     # traffic by verdict (FORWARDED/DROPPED). lost_events = backpressure signal.
-    - Identifier: HubbleFlowsProcessed{{$suffix}}
+    # PHASE 3 — Datapath flow accounting (Hubble proxy).
+    #
+    # 2026-06-05 update: replaced the original `hubble_flows_processed_total`
+    # / `hubble_lost_events_total` queries with `cilium_forward_count_total`
+    # / `cilium_drop_count_total`-derived flow stats. Reason:
+    # - Build 69395 evidence: every Hubble query returned "No data items
+    #   found" in CL2's collect/aggregate logs.
+    # - Root cause: CL2 in-cluster Prometheus scrapes cilium-agent's
+    #   standard metrics port (9962) but NOT the separate Hubble metrics
+    #   endpoint (port 9965). AKS-managed Cilium has Hubble enabled via
+    #   ACNS, but the metrics live on the 9965 endpoint we don't scrape.
+    # - To re-enable proper Hubble metrics we'd need to inject a custom
+    #   PodMonitor via CL2's --prometheus-additional-manifests-path and
+    #   wire it through scale.py — significant infra work for marginal
+    #   gain over what cilium_forward_count + cilium_drop_count already
+    #   give us (flow counts, drop reasons via DropCountByReason above).
+    #
+    # The two replacement metrics below give us the customer-relevant
+    # datapath story (how many flows forwarded vs dropped, at what rate)
+    # without the Hubble scrape dependency. Per-verdict slice is gone
+    # (verdict is a Hubble-specific dimension) but per-reason slice for
+    # drops is already covered by CiliumDropCountByReason.
+    - Identifier: CiliumDatapathFlows{{$suffix}}
       Method: GenericPrometheusQuery
       Params:
         action: {{$action}}
-        metricName: Hubble Flows Processed {{$suffix}}
+        metricName: Cilium Datapath Flows {{$suffix}}
         metricVersion: v1
         unit: "#"
         enableViolations: false
         queries:
-        - name: SumIncrease
-          query: sum(increase(hubble_flows_processed_total[%v]))
         - name: ForwardedIncrease
-          query: sum(increase(hubble_flows_processed_total{verdict="FORWARDED"}[%v]))
+          query: sum(increase(cilium_forward_count_total[%v]))
         - name: DroppedIncrease
-          query: sum(increase(hubble_flows_processed_total{verdict="DROPPED"}[%v]))
-
-    - Identifier: HubbleLostEvents{{$suffix}}
-      Method: GenericPrometheusQuery
-      Params:
-        action: {{$action}}
-        metricName: Hubble Lost Events {{$suffix}}
-        metricVersion: v1
-        unit: "#"
-        enableViolations: true
-        queries:
-        - name: SumIncrease
-          query: sum(increase(hubble_lost_events_total[%v]))
+          query: sum(increase(cilium_drop_count_total[%v]))
+        - name: DropRatio
+          query: sum(increase(cilium_drop_count_total[%v])) / (sum(increase(cilium_drop_count_total[%v])) + sum(increase(cilium_forward_count_total[%v])))
 
     # PHASE 3 — Cilium endpoint state distribution. cilium_endpoint_state
     # is a gauge with one series per state. At scale we care if endpoints
