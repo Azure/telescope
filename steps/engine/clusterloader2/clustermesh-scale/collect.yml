@@ -1,0 +1,88 @@
+parameters:
+  - name: cloud
+    type: string
+    default: ""
+  - name: engine_input
+    type: object
+    default: {}
+  - name: region
+    type: string
+
+steps:
+  - template: /steps/cloud/${{ parameters.cloud }}/collect-cloud-info.yml
+    parameters:
+      region: ${{ parameters.region }}
+
+  - script: |
+      set -eo pipefail
+      set -x
+
+      # Re-export matrix vars under CL2_*/MESH_SIZE/TEST_TYPE names that scale.py
+      # collect expects. Same workaround as execute.yml — matrix-var `$()`
+      # macros don't expand reliably in `env:` blocks.
+      export CL2_NAMESPACES="$NAMESPACES"
+      export CL2_DEPLOYMENTS_PER_NAMESPACE="$DEPLOYMENTS_PER_NAMESPACE"
+      export CL2_REPLICAS_PER_DEPLOYMENT="$REPLICAS_PER_DEPLOYMENT"
+      export MESH_SIZE="${MESH_SIZE:-$CLUSTERMESH_COUNT}"
+      export TEST_TYPE="${TEST_TYPE:-default-config}"
+      export TRIGGER_REASON="${TRIGGER_REASON:-$BUILD_REASON}"
+
+      clusters=$(cat "$HOME/.kube/clustermesh-clusters.json")
+      cluster_count=$(echo "$clusters" | jq 'length')
+
+      # Aggregate every per-cluster JSONL into a single TEST_RESULTS_FILE.
+      # Each line carries `cluster: <role>` so downstream Kusto queries can
+      # group/filter by cluster across the mesh.
+      mkdir -p "$(dirname "$TEST_RESULTS_FILE")"
+      : > "$TEST_RESULTS_FILE"
+
+      for row in $(echo "$clusters" | jq -c '.[]'); do
+        role=$(echo "$row" | jq -r '.role')
+        report_dir="${CL2_REPORT_DIR}/${role}"
+
+        if [ ! -d "$report_dir" ]; then
+          echo "##vso[task.logissue type=warning;] $role: missing report dir $report_dir, skipping"
+          continue
+        fi
+
+        # If CL2 errored out before producing junit.xml (e.g. prometheus stack
+        # setup timeout), skip aggregation for this cluster — scale.py collect
+        # would crash on the missing file. The execute step already logged a
+        # warning per-cluster; we don't want to also abort the whole pipeline
+        # at collect time when partial data may be useful.
+        if [ ! -f "$report_dir/junit.xml" ]; then
+          echo "##vso[task.logissue type=warning;] $role: $report_dir/junit.xml not found (CL2 likely failed); skipping collect for this cluster"
+          continue
+        fi
+
+        per_cluster_result="${TEST_RESULTS_FILE%.*}.${role}.${TEST_RESULTS_FILE##*.}"
+
+        PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
+          --cl2_report_dir "$report_dir" \
+          --cloud_info "${CLOUD_INFO:-}" \
+          --run_id "$RUN_ID" \
+          --run_url "$RUN_URL" \
+          --result_file "$per_cluster_result" \
+          --start_timestamp "$START_TIME" \
+          --cluster-name "$role" \
+          --cluster-count "$cluster_count" \
+          --mesh-size "$MESH_SIZE" \
+          --test_type "$TEST_TYPE" \
+          --namespaces "$CL2_NAMESPACES" \
+          --deployments-per-namespace "$CL2_DEPLOYMENTS_PER_NAMESPACE" \
+          --replicas-per-deployment "$CL2_REPLICAS_PER_DEPLOYMENT" \
+          --trigger_reason "${TRIGGER_REASON:-}"
+
+        cat "$per_cluster_result" >> "$TEST_RESULTS_FILE"
+      done
+
+      echo "Aggregated results from $cluster_count clusters into $TEST_RESULTS_FILE"
+      wc -l "$TEST_RESULTS_FILE" || true
+    workingDirectory: modules/python
+    env:
+      CLOUD: ${{ parameters.cloud }}
+      RUN_URL: $(RUN_URL)
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/scale.py
+      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/results
+      BUILD_REASON: $(Build.Reason)
+    displayName: "Collect + aggregate results across clustermesh clusters"
