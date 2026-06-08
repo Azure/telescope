@@ -28,7 +28,8 @@ steps:
       --scale-step-size "$SCALE_STEP_SIZE" \
       --step-wait-time "$STEP_WAIT_TIME" \
       --step-timeout "$STEP_TIME_OUT" \
-      ${GPU_NODE_POOL:+--gpu-node-pool}
+      ${GPU_NODE_POOL:+--gpu-node-pool} \
+      ${ENABLE_MANAGED_GPU:+--enable-managed-gpu}
 
   displayName: 'Execute K8s Create & Scale Up Operations for ${{ parameters.cloud }}'
   workingDirectory: modules/python
