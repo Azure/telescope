@@ -44,7 +44,7 @@ schedules:
     always: true
   # Azure Large Scale(1000) Bootstrapping Client Schedule
   - cron: "0 7 * * *"
-    displayName: "Every day at 7:00 AM Bootstrapping Client"
+    displayName: "Every day at 8:00 AM Bootstrapping Client"
     branches:
       include:
         - main
