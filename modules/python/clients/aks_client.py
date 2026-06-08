@@ -358,9 +358,9 @@ class AKSClient:
                     f"All {node_count} nodes in pool {node_pool_name} are ready"
                 )
 
-                # Verify NVIDIA drivers if this is a GPU node pool
+                # Verify NVIDIA drivers for managed GPU only (fully managed uses systemd)
                 pod_logs = None
-                if gpu_node_pool and node_count > 0:
+                if gpu_node_pool and not enable_managed_gpu and node_count > 0:
                     logger.info(
                         f"Verifying NVIDIA drivers for GPU node pool '{node_pool_name}'"
                     )
@@ -513,7 +513,7 @@ class AKSClient:
                 )
 
                 pod_logs = None
-                if gpu_node_pool and operation_type == "scale_up" and node_count > 0:
+                if gpu_node_pool and not enable_managed_gpu and operation_type == "scale_up" and node_count > 0:
                     logger.info(
                         f"Verifying NVIDIA drivers for GPU node pool '{node_pool_name}'"
                     )
