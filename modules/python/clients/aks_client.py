@@ -287,7 +287,6 @@ class AKSClient:
             "--mode", "User",
             "--node-osdisk-type", "Managed",
             "--labels", "gpu=true",
-            "--gpu-driver", "Install",
             "--enable-managed-gpu", "true",
         ]
         logger.info(f"Running: {' '.join(cmd)}")
