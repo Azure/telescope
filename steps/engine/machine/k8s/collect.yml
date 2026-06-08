@@ -10,6 +10,7 @@ steps:
       python3 -m crud.main collect
     workingDirectory: modules/python
     displayName: "Collect Machine API results"
+    condition: always()
     env:
       PYTHONPATH: $(Pipeline.Workspace)/s/modules/python
       RUN_ID: $(RUN_ID)
