@@ -411,13 +411,18 @@ class AKSClient:
                     pod_logs = self.k8s_client.verify_nvidia_smi_on_node(ready_nodes)
                     op.add_metadata("nvidia_driver_logs", pod_logs)
 
-                # For fully managed GPU, verify systemd services are active
+                # For fully managed GPU, verify systemd services are active then confirm GPU access
                 if enable_managed_gpu and node_count > 0:
                     logger.info(
                         f"Verifying managed GPU systemd services for '{node_pool_name}'"
                     )
                     service_status = self.k8s_client.verify_managed_gpu_systemd_services(ready_nodes)
                     op.add_metadata("managed_gpu_service_status", service_status)
+                    logger.info(
+                        f"Verifying nvidia-smi for managed GPU node pool '{node_pool_name}'"
+                    )
+                    pod_logs = self.k8s_client.verify_nvidia_smi_on_node(ready_nodes)
+                    op.add_metadata("nvidia_driver_logs", pod_logs)
 
                 # Add additional metadata
                 op.add_metadata("ready_nodes", len(ready_nodes) if ready_nodes else 0)
@@ -584,6 +589,11 @@ class AKSClient:
                     )
                     service_status = self.k8s_client.verify_managed_gpu_systemd_services(ready_nodes)
                     op.add_metadata("managed_gpu_service_status", service_status)
+                    logger.info(
+                        f"Verifying nvidia-smi for managed GPU node pool '{node_pool_name}'"
+                    )
+                    pod_logs = self.k8s_client.verify_nvidia_smi_on_node(ready_nodes)
+                    op.add_metadata("nvidia_driver_logs", pod_logs)
 
                 op.add_metadata("ready_nodes", len(ready_nodes))
 
