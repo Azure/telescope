@@ -15,7 +15,7 @@ resources:
     - /usr/bin/kubectl:/usr/local/bin/kubectl
 stages:
 - stage: workload_low
-  displayName: workload_low
+  displayName: 'FlowControl: workload-low:1000'
   jobs:
   - job: benchmark_workload_low
     displayName: Benchmark (workload_low)
@@ -95,7 +95,43 @@ stages:
         azureSubscription: Azure-for-Telescope-internal
         scriptType: bash
         scriptLocation: inlineScript
-        inlineScript: "set -exo pipefail\n\naz aks nodepool add \\\n  --cluster-name \"configmaps100\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"runner\" \\\n  --node-count 3 \\\n  --node-vm-size \"Standard_D16s_v3\" \\\n  --mode User \\\n  \n"
+        inlineScript: |
+          set -exo pipefail
+
+          deadline=$(($(date +%s) + 300))
+          sleep_between=30
+          attempt=0
+          while :; do
+            attempt=$((attempt + 1))
+            set +e
+            output=$(az aks nodepool add \
+              --cluster-name "configmaps100" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --name "runner" \
+              --node-count 3 \
+              --node-vm-size "Standard_D16s_v3" \
+              --mode User \
+               2>&1)
+            rc=$?
+            set -e
+            echo "$output"
+            if [ $rc -eq 0 ]; then
+              exit 0
+            fi
+            if ! echo "$output" | grep -qi "OperationNotAllowed"; then
+              echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+              exit $rc
+            fi
+            now=$(date +%s)
+            if [ $now -ge $deadline ]; then
+              echo "OperationNotAllowed persisted past 300s retry window ($attempt attempts); giving up."
+              exit $rc
+            fi
+            remaining=$((deadline - now))
+            echo "Attempt $attempt got OperationNotAllowed; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
+            sleep $sleep_between
+          done
       displayName: Create node pool runner
     - script: |2
 
@@ -128,7 +164,6 @@ stages:
             --arg cloud "azure" \
             --arg region "$(echo $aks_info | jq -r .location)" \
             --arg fqdn "$(echo $aks_info | jq -r .fqdn)" \
-            --arg private_fqdn "$(echo $aks_info | jq -r '.privateFqdn // empty')" \
             --arg k8s_version "$(echo $aks_info | jq -r .currentKubernetesVersion)" \
             --arg sku_tier "$(echo $aks_info | jq -r .sku.tier)" \
             --arg subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
@@ -137,7 +172,6 @@ stages:
               cloud: $cloud,
               region: $region,
               fqdn: $fqdn,
-              private_fqdn: $private_fqdn,
               k8s_version: $k8s_version,
               sku_tier: $sku_tier,
               subscription: $subscription,
@@ -155,7 +189,7 @@ stages:
           # Collect final result
           cat $(Pipeline.Workspace)/tmp_results.json \
             | jq 'del(.result.errors)' \
-            | jq -c --argjson ci "$cloud_info" '{ cloud: $ci.cloud, region: $ci.region, fqdn: $ci.fqdn, private_fqdn: $ci.private_fqdn, k8s_version: $ci.k8s_version, sku_tier: $ci.sku_tier, subscription: $ci.subscription, cluster_id: $ci.cluster_id, flowcontrol: "workload-low:1000", benchmarkSubcmdArgs: "--total 10000 --size=1024 --group-size=10 --configmap-amount=100" } + .result | { result: . }' \
+            | jq -c --argjson ci "$cloud_info" '{ cloud: $ci.cloud, region: $ci.region, fqdn: $ci.fqdn, k8s_version: $ci.k8s_version, sku_tier: $ci.sku_tier, subscription: $ci.subscription, cluster_id: $ci.cluster_id, flowcontrol: "workload-low:1000", benchmarkSubcmdArgs: "--total 10000 --size=1024 --group-size=10 --configmap-amount=100" } + .result | { result: . }' \
             | jq -c '. + { timestamp: "'"$TIMESTAMP"'", run_id: "$(RUN_ID)", run_url: "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)", pipeline: "$(Build.DefinitionName)" }' \
             > /tmp/run-result.json
 
@@ -190,7 +224,7 @@ stages:
       condition: always()
       displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
 - stage: exempt
-  displayName: exempt
+  displayName: 'FlowControl: exempt:5'
   jobs:
   - job: benchmark_exempt
     displayName: Benchmark (exempt)
@@ -270,7 +304,43 @@ stages:
         azureSubscription: Azure-for-Telescope-internal
         scriptType: bash
         scriptLocation: inlineScript
-        inlineScript: "set -exo pipefail\n\naz aks nodepool add \\\n  --cluster-name \"configmaps100\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"runner\" \\\n  --node-count 3 \\\n  --node-vm-size \"Standard_D16s_v3\" \\\n  --mode User \\\n  \n"
+        inlineScript: |
+          set -exo pipefail
+
+          deadline=$(($(date +%s) + 300))
+          sleep_between=30
+          attempt=0
+          while :; do
+            attempt=$((attempt + 1))
+            set +e
+            output=$(az aks nodepool add \
+              --cluster-name "configmaps100" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --name "runner" \
+              --node-count 3 \
+              --node-vm-size "Standard_D16s_v3" \
+              --mode User \
+               2>&1)
+            rc=$?
+            set -e
+            echo "$output"
+            if [ $rc -eq 0 ]; then
+              exit 0
+            fi
+            if ! echo "$output" | grep -qi "OperationNotAllowed"; then
+              echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+              exit $rc
+            fi
+            now=$(date +%s)
+            if [ $now -ge $deadline ]; then
+              echo "OperationNotAllowed persisted past 300s retry window ($attempt attempts); giving up."
+              exit $rc
+            fi
+            remaining=$((deadline - now))
+            echo "Attempt $attempt got OperationNotAllowed; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
+            sleep $sleep_between
+          done
       displayName: Create node pool runner
     - script: |2
 
@@ -303,7 +373,6 @@ stages:
             --arg cloud "azure" \
             --arg region "$(echo $aks_info | jq -r .location)" \
             --arg fqdn "$(echo $aks_info | jq -r .fqdn)" \
-            --arg private_fqdn "$(echo $aks_info | jq -r '.privateFqdn // empty')" \
             --arg k8s_version "$(echo $aks_info | jq -r .currentKubernetesVersion)" \
             --arg sku_tier "$(echo $aks_info | jq -r .sku.tier)" \
             --arg subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
@@ -312,7 +381,6 @@ stages:
               cloud: $cloud,
               region: $region,
               fqdn: $fqdn,
-              private_fqdn: $private_fqdn,
               k8s_version: $k8s_version,
               sku_tier: $sku_tier,
               subscription: $subscription,
@@ -330,7 +398,7 @@ stages:
           # Collect final result
           cat $(Pipeline.Workspace)/tmp_results.json \
             | jq 'del(.result.errors)' \
-            | jq -c --argjson ci "$cloud_info" '{ cloud: $ci.cloud, region: $ci.region, fqdn: $ci.fqdn, private_fqdn: $ci.private_fqdn, k8s_version: $ci.k8s_version, sku_tier: $ci.sku_tier, subscription: $ci.subscription, cluster_id: $ci.cluster_id, flowcontrol: "exempt:5", benchmarkSubcmdArgs: "--total 10000 --size=1024 --group-size=10 --configmap-amount=100" } + .result | { result: . }' \
+            | jq -c --argjson ci "$cloud_info" '{ cloud: $ci.cloud, region: $ci.region, fqdn: $ci.fqdn, k8s_version: $ci.k8s_version, sku_tier: $ci.sku_tier, subscription: $ci.subscription, cluster_id: $ci.cluster_id, flowcontrol: "exempt:5", benchmarkSubcmdArgs: "--total 10000 --size=1024 --group-size=10 --configmap-amount=100" } + .result | { result: . }' \
             | jq -c '. + { timestamp: "'"$TIMESTAMP"'", run_id: "$(RUN_ID)", run_url: "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)", pipeline: "$(Build.DefinitionName)" }' \
             > /tmp/run-result.json
 

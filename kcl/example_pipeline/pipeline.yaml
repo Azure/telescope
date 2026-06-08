@@ -135,15 +135,40 @@ jobs:
       inlineScript: |
         set -exo pipefail
 
-        az aks nodepool add \
-          --cluster-name "stg-H2-yaolei" \
-          --resource-group "$(RUN_ID)" \
-          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-          --name "cl2pool" \
-          --node-count 4 \
-          --node-vm-size "Standard_D8S_v4" \
-          --mode User \
-          --node-taints cl2pool=true:NoSchedule
+        deadline=$(($(date +%s) + 300))
+        sleep_between=30
+        attempt=0
+        while :; do
+          attempt=$((attempt + 1))
+          set +e
+          output=$(az aks nodepool add \
+            --cluster-name "stg-H2-yaolei" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --name "cl2pool" \
+            --node-count 4 \
+            --node-vm-size "Standard_D8S_v4" \
+            --mode User \
+            --node-taints cl2pool=true:NoSchedule 2>&1)
+          rc=$?
+          set -e
+          echo "$output"
+          if [ $rc -eq 0 ]; then
+            exit 0
+          fi
+          if ! echo "$output" | grep -qi "OperationNotAllowed"; then
+            echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+            exit $rc
+          fi
+          now=$(date +%s)
+          if [ $now -ge $deadline ]; then
+            echo "OperationNotAllowed persisted past 300s retry window ($attempt attempts); giving up."
+            exit $rc
+          fi
+          remaining=$((deadline - now))
+          echo "Attempt $attempt got OperationNotAllowed; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
+          sleep $sleep_between
+        done
     displayName: Create node pool cl2pool
   - task: AzureCLI@2
     inputs:

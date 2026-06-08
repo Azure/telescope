@@ -12,7 +12,7 @@ schema NodePool:
     vnetSubnetId?: str
     osSKU?: str
 
-CreateNodePool = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, pool: NodePool, noWait: bool = False -> steps.Step {
+CreateNodePool = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, pool: NodePool, noWait: bool = False, retryWindowSec: int = 300 -> steps.Step {
     flagDecision = [
         "--node-taints ${pool.taintPrefix}=true:NoSchedule" if pool.taintPrefix else "",
         "--labels \"${pool.labels}\"" if pool.labels else "",
@@ -22,16 +22,45 @@ CreateNodePool = lambda serviceConnection: str, cluster: str, resourceGroup: str
         "--no-wait" if noWait else "",
     ]
     flags = " \\\n  ".join([f for f in flagDecision if f])
+    # Retry only on OperationNotAllowed — AKS's per-cluster mutex code for
+    # "another PUT/PATCH is in flight" (commonly: AKS auto-installing the
+    # Defender extension a few seconds after the previous nodepool finished).
+    # Any other error fails fast.
     script = """
-az aks nodepool add \\
-  --cluster-name "${cluster}" \\
-  --resource-group "${resourceGroup}" \\
-  --subscription "${subscription}" \\
-  --name "${pool.name}" \\
-  --node-count ${pool.count} \\
-  --node-vm-size "${pool.sku}" \\
-  --mode User \\
-  ${flags}
+deadline=$(($(date +%s) + ${retryWindowSec}))
+sleep_between=30
+attempt=0
+while :; do
+  attempt=$((attempt + 1))
+  set +e
+  output=$(az aks nodepool add \\
+    --cluster-name "${cluster}" \\
+    --resource-group "${resourceGroup}" \\
+    --subscription "${subscription}" \\
+    --name "${pool.name}" \\
+    --node-count ${pool.count} \\
+    --node-vm-size "${pool.sku}" \\
+    --mode User \\
+    ${flags} 2>&1)
+  rc=$?
+  set -e
+  echo "$output"
+  if [ $rc -eq 0 ]; then
+    exit 0
+  fi
+  if ! echo "$output" | grep -qi "OperationNotAllowed"; then
+    echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+    exit $rc
+  fi
+  now=$(date +%s)
+  if [ $now -ge $deadline ]; then
+    echo "OperationNotAllowed persisted past ${retryWindowSec}s retry window ($attempt attempts); giving up."
+    exit $rc
+  fi
+  remaining=$((deadline - now))
+  echo "Attempt $attempt got OperationNotAllowed; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
+  sleep $sleep_between
+done
 """
     AzCli(serviceConnection, "Create node pool ${pool.name}", script)
 }
