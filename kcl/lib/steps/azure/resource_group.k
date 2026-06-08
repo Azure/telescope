@@ -1,8 +1,12 @@
 import azure_pipelines.ap.steps
 
-CreateResourceGroup = lambda serviceConnection: str, name: str, location: str, subscription: str -> steps.Step {
+CreateResourceGroup = lambda serviceConnection: str, name: str, location: str, subscription: str, tags: str = "" -> steps.Step {
     script = """
-az group create --name "${name}" --location "${location}" --subscription "${subscription}"
+az group create \\
+  --name "${name}" \\
+  --location "${location}" \\
+  --subscription "${subscription}" \\
+${"--tags " + tags if tags else ""}
 """
     AzCli(
         serviceConnection,
