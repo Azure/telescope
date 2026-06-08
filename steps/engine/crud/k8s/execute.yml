@@ -15,7 +15,7 @@ steps:
       --node-count "$CREATE_NODE_COUNT" \
       --step-timeout "$STEP_TIME_OUT" \
       ${GPU_NODE_POOL:+--gpu-node-pool} \
-      ${ENABLE_MANAGED_GPU:+--enable-managed-gpu} \
+      $([[ "${ENABLE_MANAGED_GPU:-}" == "true" ]] && echo "--enable-managed-gpu" || true) \
       --capacity-type "${CAPACITY_TYPE:-ON_DEMAND}"
 
     # Scale Up Node Pool
@@ -29,7 +29,7 @@ steps:
       --step-wait-time "$STEP_WAIT_TIME" \
       --step-timeout "$STEP_TIME_OUT" \
       ${GPU_NODE_POOL:+--gpu-node-pool} \
-      ${ENABLE_MANAGED_GPU:+--enable-managed-gpu}
+      $([[ "${ENABLE_MANAGED_GPU:-}" == "true" ]] && echo "--enable-managed-gpu" || true)
 
   displayName: 'Execute K8s Create & Scale Up Operations for ${{ parameters.cloud }}'
   workingDirectory: modules/python
