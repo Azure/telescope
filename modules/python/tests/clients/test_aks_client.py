@@ -283,7 +283,7 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
     @mock.patch("clients.aks_client.subprocess.run")
     @mock.patch("clients.aks_client.time")
     def test_create_node_pool_fully_managed_gpu(self, mock_time, mock_subprocess_run):
-        """Test creating a fully managed GPU node pool uses az CLI and skips nvidia-smi"""
+        """Test creating a fully managed GPU node pool uses az CLI, verifies systemd services and nvidia-smi"""
         node_pool_name = "gpu-fullmgd"
         vm_size = "Standard_NC40ads_H100_v5"
         node_count = 1
@@ -318,9 +318,9 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         nodepool_cmd = mock_subprocess_run.call_args_list[1][0][0]
         self.assertIn("--enable-managed-gpu", nodepool_cmd)
         self.assertIn("true", nodepool_cmd)
-        # nvidia-smi should be skipped; systemd check should run
-        self.mock_k8s.verify_nvidia_smi_on_node.assert_not_called()
+        # systemd check and nvidia-smi should both run for fully managed GPU
         self.mock_k8s.verify_managed_gpu_systemd_services.assert_called_once_with(ready_nodes)
+        self.mock_k8s.verify_nvidia_smi_on_node.assert_called_once_with(ready_nodes)
 
     @mock.patch("clients.aks_client.time")
     def test_scale_node_pool_up(self, mock_time):
