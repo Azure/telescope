@@ -272,8 +272,7 @@ class AKSClient:
         """
         # Ensure aks-preview extension is installed (required for --enable-managed-gpu)
         subprocess.run(
-            ["az", "extension", "add", "--name", "aks-preview", "--version", "21.0.0b4",
-             "--allow-preview", "true", "--yes"],
+            ["az", "extension", "add", "--name", "aks-preview", "--allow-preview", "true", "--yes"],
             capture_output=True, text=True, check=False,
         )
 
