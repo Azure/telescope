@@ -311,11 +311,13 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         self.assertTrue(result)
         # SDK should NOT be called — az CLI handles creation
         self.mock_agent_pools.begin_create_or_update.assert_not_called()
-        # az CLI should be called with --enable-managed-gpu true
-        mock_subprocess_run.assert_called_once()
-        cli_cmd = mock_subprocess_run.call_args[0][0]
-        self.assertIn("--enable-managed-gpu", cli_cmd)
-        self.assertIn("true", cli_cmd)
+        # Two subprocess calls: extension install + nodepool add
+        self.assertEqual(mock_subprocess_run.call_count, 2)
+        ext_cmd = mock_subprocess_run.call_args_list[0][0][0]
+        self.assertIn("aks-preview", ext_cmd)
+        nodepool_cmd = mock_subprocess_run.call_args_list[1][0][0]
+        self.assertIn("--enable-managed-gpu", nodepool_cmd)
+        self.assertIn("true", nodepool_cmd)
         # nvidia-smi should be skipped; systemd check should run
         self.mock_k8s.verify_nvidia_smi_on_node.assert_not_called()
         self.mock_k8s.verify_managed_gpu_systemd_services.assert_called_once_with(ready_nodes)

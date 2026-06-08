@@ -270,6 +270,12 @@ class AKSClient:
         Create a fully managed GPU node pool via az CLI (aks-preview extension).
         Used because the stable Python SDK doesn't expose gpuProfile.nvidia.managementMode.
         """
+        # Ensure aks-preview extension is installed (required for --enable-managed-gpu)
+        subprocess.run(
+            ["az", "extension", "add", "--name", "aks-preview", "--allow-preview", "true", "--yes"],
+            capture_output=True, text=True, check=False,
+        )
+
         cmd = [
             "az", "aks", "nodepool", "add",
             "--resource-group", self.resource_group,
