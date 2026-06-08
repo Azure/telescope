@@ -533,12 +533,26 @@ class AKSClient:
                 node_pool.count = node_count
 
                 logger.info(f"Scaling node pool {node_pool_name} to {node_count} nodes")
-                self.aks_client.agent_pools.begin_create_or_update(
-                    resource_group_name=self.resource_group,
-                    resource_name=cluster_name,
-                    agent_pool_name=node_pool_name,
-                    parameters=node_pool,
-                ).result()
+                _scale_retries = 10
+                _scale_wait = 30
+                for _attempt in range(_scale_retries):
+                    try:
+                        self.aks_client.agent_pools.begin_create_or_update(
+                            resource_group_name=self.resource_group,
+                            resource_name=cluster_name,
+                            agent_pool_name=node_pool_name,
+                            parameters=node_pool,
+                        ).result()
+                        break
+                    except HttpResponseError as e:
+                        if "OperationNotAllowed" in str(e) and _attempt < _scale_retries - 1:
+                            logger.warning(
+                                f"Cluster has an in-progress operation, retrying in {_scale_wait}s "
+                                f"(attempt {_attempt + 1}/{_scale_retries})"
+                            )
+                            time.sleep(_scale_wait)
+                        else:
+                            raise
 
                 logger.info(
                     f"Waiting for {node_count} nodes in pool {node_pool_name} to be ready..."
