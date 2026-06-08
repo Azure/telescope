@@ -14,6 +14,7 @@ and troubleshooting.
 
 import logging
 import os
+import subprocess
 import time
 from typing import Dict, Optional, Any
 
@@ -258,6 +259,38 @@ class AKSClient:
             logger.error(f"Error getting node pool {node_pool_name}: {str(e)}")
             raise
 
+    def _create_node_pool_cli(
+        self,
+        node_pool_name: str,
+        cluster_name: str,
+        vm_size: str,
+        node_count: int,
+    ) -> None:
+        """
+        Create a fully managed GPU node pool via az CLI (aks-preview extension).
+        Used because the stable Python SDK doesn't expose gpuProfile.nvidia.managementMode.
+        """
+        cmd = [
+            "az", "aks", "nodepool", "add",
+            "--resource-group", self.resource_group,
+            "--cluster-name", cluster_name,
+            "--name", node_pool_name,
+            "--node-count", str(node_count),
+            "--node-vm-size", vm_size,
+            "--mode", "User",
+            "--node-osdisk-type", "Managed",
+            "--labels", "gpu=true",
+            "--gpu-driver", "Install",
+            "--enable-managed-gpu", "true",
+        ]
+        logger.info(f"Running: {' '.join(cmd)}")
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(
+                f"az aks nodepool add failed: {result.stderr.strip()}"
+            )
+        logger.info(f"az aks nodepool add succeeded for '{node_pool_name}'")
+
     def create_node_pool(
         self,
         node_pool_name: str,
@@ -320,30 +353,33 @@ class AKSClient:
                     "nodeLabels": {"gpu": "true"} if gpu_node_pool else {},
                 }
 
-                if gpu_node_pool:
-                    if enable_managed_gpu:
-                        # Fully managed GPU: driver install + NVIDIA management mode
-                        parameters["gpu_profile"] = {
-                            "driver": "Install",
-                            "nvidia": {"managementMode": "Managed"},
-                        }
-                    else:
-                        # Managed GPU (driver bootstrap only): driver install, no NVIDIA management
-                        parameters["gpu_profile"] = {
-                            "driver": "Install",
-                        }
+                if gpu_node_pool and not enable_managed_gpu:
+                    # Managed GPU (driver bootstrap only): driver install, no NVIDIA management
+                    parameters["gpu_profile"] = {
+                        "driver": "Install",
+                    }
 
                 logger.info(
                     f"Creating node pool {node_pool_name} in cluster {cluster_name}"
                 )
 
-                # Create the node pool
-                self.aks_client.agent_pools.begin_create_or_update(
-                    resource_group_name=self.resource_group,
-                    resource_name=cluster_name,
-                    agent_pool_name=node_pool_name,
-                    parameters=parameters,
-                ).result()
+                if enable_managed_gpu:
+                    # Fully managed GPU: use az CLI (aks-preview) since the stable SDK
+                    # doesn't expose gpuProfile.nvidia.managementMode
+                    self._create_node_pool_cli(
+                        node_pool_name=node_pool_name,
+                        cluster_name=cluster_name,
+                        vm_size=vm_size,
+                        node_count=node_count,
+                    )
+                else:
+                    # Create the node pool via SDK
+                    self.aks_client.agent_pools.begin_create_or_update(
+                        resource_group_name=self.resource_group,
+                        resource_name=cluster_name,
+                        agent_pool_name=node_pool_name,
+                        parameters=parameters,
+                    ).result()
 
                 label_selector = f"agentpool={node_pool_name}"
 

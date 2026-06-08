@@ -280,6 +280,46 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         # Check that NVIDIA verification was performed
         self.mock_k8s.verify_nvidia_smi_on_node.assert_called_once_with(ready_nodes)
 
+    @mock.patch("clients.aks_client.subprocess.run")
+    @mock.patch("clients.aks_client.time")
+    def test_create_node_pool_fully_managed_gpu(self, mock_time, mock_subprocess_run):
+        """Test creating a fully managed GPU node pool uses az CLI and skips nvidia-smi"""
+        node_pool_name = "gpu-fullmgd"
+        vm_size = "Standard_NC40ads_H100_v5"
+        node_count = 1
+
+        mock_time.time.side_effect = [100, 150]
+        mock_subprocess_run.return_value = mock.MagicMock(returncode=0, stderr="")
+
+        ready_nodes = [mock.MagicMock()]
+        self.mock_k8s.wait_for_nodes_ready.return_value = ready_nodes
+        self.mock_k8s.verify_managed_gpu_systemd_services = mock.MagicMock(return_value={})
+        self.mock_k8s.verify_nvidia_smi_on_node = mock.MagicMock()
+
+        mock_created_node_pool = mock.MagicMock()
+        mock_created_node_pool.as_dict.return_value = {"name": node_pool_name}
+        self.aks_client.get_node_pool = mock.MagicMock(return_value=mock_created_node_pool)
+
+        result = self.aks_client.create_node_pool(
+            node_pool_name=node_pool_name,
+            vm_size=vm_size,
+            node_count=node_count,
+            gpu_node_pool=True,
+            enable_managed_gpu=True,
+        )
+
+        self.assertTrue(result)
+        # SDK should NOT be called — az CLI handles creation
+        self.mock_agent_pools.begin_create_or_update.assert_not_called()
+        # az CLI should be called with --enable-managed-gpu true
+        mock_subprocess_run.assert_called_once()
+        cli_cmd = mock_subprocess_run.call_args[0][0]
+        self.assertIn("--enable-managed-gpu", cli_cmd)
+        self.assertIn("true", cli_cmd)
+        # nvidia-smi should be skipped; systemd check should run
+        self.mock_k8s.verify_nvidia_smi_on_node.assert_not_called()
+        self.mock_k8s.verify_managed_gpu_systemd_services.assert_called_once_with(ready_nodes)
+
     @mock.patch("clients.aks_client.time")
     def test_scale_node_pool_up(self, mock_time):
         """Test scaling a node pool up"""
