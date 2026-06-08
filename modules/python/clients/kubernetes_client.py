@@ -838,17 +838,14 @@ class KubernetesClient:
 
                 pod_logs = self.get_pod_logs(pod_name=pod_name, namespace=namespace)
                 pod_logs_str = pod_logs.decode("utf-8") if isinstance(pod_logs, bytes) else str(pod_logs)
-                logger.info(f"Managed GPU service status on {node_name}:\n{pod_logs_str}")
 
                 services = ["nvidia-dcgm", "nvidia-dcgm-exporter", "nvidia-device-plugin"]
-                all_active = all(
-                    f"{svc}: active" in pod_logs_str
-                    for svc in services
-                )
-                if all_active:
-                    logger.info(f"All managed GPU services active on node {node_name}")
-                else:
-                    logger.warning(f"One or more managed GPU services not active on node {node_name}")
+                statuses = {svc: ("active" if f"{svc}: active" in pod_logs_str else "inactive") for svc in services}
+                all_active = all(s == "active" for s in statuses.values())
+                status_summary = ", ".join(f"{svc}={state}" for svc, state in statuses.items())
+                result_label = "all active" if all_active else "SOME INACTIVE"
+                log_fn = logger.info if all_active else logger.warning
+                log_fn(f"{node_name}: {status_summary} ({result_label})")
 
                 all_results[node_name] = {
                     "pod_name": pod_name,
