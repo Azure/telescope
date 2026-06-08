@@ -8,11 +8,13 @@ schema NodePool:
     count: int
     taintPrefix: str = ""
     labels: str = ""
+    maxPods?: int
 
 CreateNodePool = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, pool: NodePool, noWait: bool = False -> steps.Step {
     flagDecision = [
         "--node-taints ${pool.taintPrefix}=true:NoSchedule" if pool.taintPrefix else "",
         "--labels \"${pool.labels}\"" if pool.labels else "",
+        "--max-pods ${pool.maxPods}" if pool.maxPods else "",
         "--no-wait" if noWait else "",
     ]
     flags = " \\\n  ".join([f for f in flagDecision if f])
