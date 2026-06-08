@@ -293,8 +293,9 @@ class AKSClient:
         logger.info(f"Running: {' '.join(cmd)}")
         result = subprocess.run(cmd, capture_output=True, text=True, check=False)
         if result.returncode != 0:
+            detail = (result.stdout.strip() + "\n" + result.stderr.strip()).strip()
             raise RuntimeError(
-                f"az aks nodepool add failed: {result.stderr.strip()}"
+                f"az aks nodepool add failed (rc={result.returncode}): {detail}"
             )
         logger.info(f"az aks nodepool add succeeded for '{node_pool_name}'")
 
