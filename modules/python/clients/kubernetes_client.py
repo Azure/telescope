@@ -805,8 +805,9 @@ class KubernetesClient:
                                 name="svc-check",
                                 image="mcr.microsoft.com/cbl-mariner/busybox:2.0",
                                 command=[
-                                    "chroot", "/host", "bash", "-c",
-                                    "systemctl status nvidia-dcgm nvidia-dcgm-exporter nvidia-device-plugin"
+                                    "chroot", "/host", "sh", "-c",
+                                    "for svc in nvidia-dcgm nvidia-dcgm-exporter nvidia-device-plugin; do "
+                                    "echo \"$svc: $(systemctl is-active $svc)\"; done"
                                 ],
                                 security_context=client.V1SecurityContext(privileged=True),
                                 volume_mounts=[
@@ -841,7 +842,7 @@ class KubernetesClient:
 
                 services = ["nvidia-dcgm", "nvidia-dcgm-exporter", "nvidia-device-plugin"]
                 all_active = all(
-                    f"{svc}" in pod_logs_str and "active (running)" in pod_logs_str
+                    f"{svc}: active" in pod_logs_str
                     for svc in services
                 )
                 if all_active:
