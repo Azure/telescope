@@ -72,6 +72,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         mock_args.vm_size = "Standard_D2s_v3"
         mock_args.node_count = 3
         mock_args.gpu_node_pool = False
+        mock_args.enable_managed_gpu = False
 
         # Configure mock to return success
         mock_azure_crud.create_node_pool.return_value = True
@@ -86,6 +87,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
             vm_size="Standard_D2s_v3",
             node_count=3,
             gpu_node_pool=False,
+            enable_managed_gpu=False,
         )
 
     @mock.patch("crud.main.AzureNodePoolCRUD")
@@ -100,6 +102,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
             1  # scale_step_size != target_count, so progressive=True
         )
         mock_args.gpu_node_pool = False
+        mock_args.enable_managed_gpu = False
 
         # Configure mock to return success
         mock_azure_crud.scale_node_pool.return_value = True
@@ -115,6 +118,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
             progressive=True,  # Should be True because scale_step_size != target_count
             scale_step_size=1,
             gpu_node_pool=False,
+            enable_managed_gpu=False,
         )
 
     @mock.patch("crud.main.AzureNodePoolCRUD")
@@ -129,6 +133,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
             3  # scale_step_size == target_count, so progressive=False
         )
         mock_args.gpu_node_pool = False
+        mock_args.enable_managed_gpu = False
 
         # Configure mock to return success
         mock_azure_crud.scale_node_pool.return_value = True
@@ -144,6 +149,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
             progressive=False,  # Should be False because scale_step_size == target_count
             scale_step_size=3,
             gpu_node_pool=False,
+            enable_managed_gpu=False,
         )
 
     @mock.patch("crud.main.logger")
@@ -164,6 +170,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         mock_args.target_count = 10
         mock_args.scale_step_size = 2  # Progressive scaling
         mock_args.gpu_node_pool = False
+        mock_args.enable_managed_gpu = False
 
         # Configure mock to return False (scale failed but didn't raise exception)
         mock_azure_crud.scale_node_pool.return_value = False
@@ -179,6 +186,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
             progressive=True,
             scale_step_size=2,
             gpu_node_pool=False,
+            enable_managed_gpu=False,
         )
         mock_logger.error.assert_called_with("Operation 'scale' failed")
 
@@ -250,6 +258,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         mock_args.target_count = 3
         mock_args.scale_step_size = 1
         mock_args.gpu_node_pool = True
+        mock_args.enable_managed_gpu = False
         mock_args.step_wait_time = 30
 
         # Configure mock to return success
@@ -268,6 +277,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
             progressive=True,  # Should be True because scale_step_size != target_count
             scale_step_size=1,
             gpu_node_pool=True,
+            enable_managed_gpu=False,
             step_wait_time=30,
         )
 
