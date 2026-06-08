@@ -22,10 +22,8 @@ CreateNodePool = lambda serviceConnection: str, cluster: str, resourceGroup: str
         "--no-wait" if noWait else "",
     ]
     flags = " \\\n  ".join([f for f in flagDecision if f])
-    # Retry only on OperationNotAllowed — AKS's per-cluster mutex code for
-    # "another PUT/PATCH is in flight" (commonly: AKS auto-installing the
-    # Defender extension a few seconds after the previous nodepool finished).
-    # Any other error fails fast.
+    # Allow retry on OperationNotAllowed — it's observed that AKS can auto-install the
+    # Defender extension in the background for new cluster thus conflicting with node pool's PUT requests.
     script = """
 deadline=$(($(date +%s) + ${retryWindowSec}))
 sleep_between=30
