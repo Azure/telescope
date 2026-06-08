@@ -50,6 +50,7 @@ class NodePoolCRUD:
         node_count=0,
         max_node_count=1,
         gpu_node_pool=False,
+        enable_managed_gpu=False,
     ):
         """
         Create a new node group
@@ -89,6 +90,7 @@ class NodePoolCRUD:
         progressive=False,
         scale_step_size=1,
         gpu_node_pool=False,
+        enable_managed_gpu=False,
     ):
         """
         Scale a node group to specified count
@@ -157,6 +159,7 @@ class NodePoolCRUD:
         progressive=False,
         scale_step_size=1,
         gpu_node_pool=False,
+        enable_managed_gpu=False,
         step_wait_time=30,
     ):
         """
