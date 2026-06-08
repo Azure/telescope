@@ -284,7 +284,7 @@ class AKSClient:
             "--enable-managed-gpu", "true",
         ]
         logger.info(f"Running: {' '.join(cmd)}")
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
         if result.returncode != 0:
             raise RuntimeError(
                 f"az aks nodepool add failed: {result.stderr.strip()}"

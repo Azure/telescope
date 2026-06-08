@@ -50,7 +50,7 @@ class NodePoolCRUD:
         node_count=0,
         max_node_count=1,
         gpu_node_pool=False,
-        enable_managed_gpu=False,
+        enable_managed_gpu=False,  # pylint: disable=unused-argument
     ):
         """
         Create a new node group
@@ -90,7 +90,7 @@ class NodePoolCRUD:
         progressive=False,
         scale_step_size=1,
         gpu_node_pool=False,
-        enable_managed_gpu=False,
+        enable_managed_gpu=False,  # pylint: disable=unused-argument
     ):
         """
         Scale a node group to specified count
@@ -159,7 +159,7 @@ class NodePoolCRUD:
         progressive=False,
         scale_step_size=1,
         gpu_node_pool=False,
-        enable_managed_gpu=False,
+        enable_managed_gpu=False,  # pylint: disable=unused-argument
         step_wait_time=30,
     ):
         """
