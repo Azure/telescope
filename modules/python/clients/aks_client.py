@@ -539,14 +539,24 @@ class AKSClient:
                 logger.info(f"Scaling node pool {node_pool_name} to {node_count} nodes")
                 _scale_retries = 10
                 _scale_wait = 30
+                _poll_interval = 30
                 for _attempt in range(_scale_retries):
                     try:
-                        self.aks_client.agent_pools.begin_create_or_update(
+                        poller = self.aks_client.agent_pools.begin_create_or_update(
                             resource_group_name=self.resource_group,
                             resource_name=cluster_name,
                             agent_pool_name=node_pool_name,
                             parameters=node_pool,
-                        ).result()
+                        )
+                        elapsed = 0
+                        while not poller.done():
+                            time.sleep(_poll_interval)
+                            elapsed += _poll_interval
+                            logger.info(
+                                f"Waiting for node pool {node_pool_name} scale operation to complete "
+                                f"({elapsed}s elapsed)..."
+                            )
+                        poller.result()
                         break
                     except HttpResponseError as e:
                         if "OperationNotAllowed" in str(e) and _attempt < _scale_retries - 1:
