@@ -268,7 +268,7 @@ class AKSClient:
         retries: int = 10,
         retry_wait: int = 30,
         poll_interval: int = 30,
-        timeout: int = 600,
+        timeout: int = 900,
     ) -> None:
         """
         Call begin_create_or_update with retry on OperationNotAllowed/EtagMismatch,
