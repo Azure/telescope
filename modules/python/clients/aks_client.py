@@ -510,7 +510,7 @@ class AKSClient:
         progressive: bool = False,
         scale_step_size: int = 1,
         gpu_instance_profile: Optional[str] = None,
-        gpu_mig_strategy: Optional[str] = None,
+        gpu_mig_strategy: Optional[str] = None,  # pylint: disable=unused-argument
     ) -> Any:
         """
         Scale a node pool to the specified node count.
