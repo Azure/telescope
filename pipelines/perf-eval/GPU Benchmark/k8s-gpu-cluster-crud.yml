@@ -1,41 +1,19 @@
 trigger: none
 schedules:
-  # Azure GPU Cluster CRUD Tests - each stage runs twice daily, 12 hours apart.
-  # Spread to avoid conflicts with:
-  #   k8s-gpu-scheduling  : 08:00 daily, 20:00 Mon/Wed/Thu
-  #   k8s-ray-scheduling  : 00:00 daily, 12:00 Mon/Wed/Thu
+  # Two region chains run independently (different clusters via run_id, no conflict):
+  #   australiaeast: H100-managed → A10-managed → H100-fully → A10-fully (sequential, up to 12h)
+  #   southcentralus: A100-managed → A100-fully (sequential, up to 6h)
+  # Spread to avoid conflicts with other GPU pipelines on the same region:
+  #   k8s-gpu-scheduling  : 08:00 daily, 20:00 Mon/Wed/Thu (eastus2 — no overlap)
+  #   k8s-ray-scheduling  : 00:00 daily, 12:00 Mon/Wed/Thu (eastus2 — no overlap)
   - cron: "0 1,13 * * *"
     displayName: "1:00 AM and 1:00 PM daily"
     branches:
       include:
         - main
     always: true
-  - cron: "0 3,15 * * *"
-    displayName: "3:00 AM and 3:00 PM daily"
-    branches:
-      include:
-        - main
-    always: true
-  - cron: "0 5,17 * * *"
-    displayName: "5:00 AM and 5:00 PM daily"
-    branches:
-      include:
-        - main
-    always: true
-  - cron: "0 7,19 * * *"
-    displayName: "7:00 AM and 7:00 PM daily"
-    branches:
-      include:
-        - main
-    always: true
   - cron: "0 9,21 * * *"
     displayName: "9:00 AM and 9:00 PM daily"
-    branches:
-      include:
-        - main
-    always: true
-  - cron: "0 11,23 * * *"
-    displayName: "11:00 AM and 11:00 PM daily"
     branches:
       include:
         - main
@@ -52,6 +30,7 @@ stages:
         eq(variables['Build.CronSchedule.DisplayName'], '1:00 AM and 1:00 PM daily'),
         eq(variables['Build.Reason'], 'Manual')
       )
+    # Entry point for australiaeast chain: H100-managed → A10-managed → H100-fully → A10-fully
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -80,12 +59,9 @@ stages:
           timeout_in_minutes: 180
 
   - stage: azure_H100_fully_managed_gpu_test
-    dependsOn: []
+    dependsOn: [azure_A10_managed_gpu_test]
     condition: |
-      or(
-        eq(variables['Build.CronSchedule.DisplayName'], '5:00 AM and 5:00 PM daily'),
-        eq(variables['Build.Reason'], 'Manual')
-      )
+      in(dependencies.azure_A10_managed_gpu_test.result, 'Succeeded', 'SucceededWithIssues')
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -121,6 +97,7 @@ stages:
         eq(variables['Build.CronSchedule.DisplayName'], '9:00 AM and 9:00 PM daily'),
         eq(variables['Build.Reason'], 'Manual')
       )
+    # Entry point for southcentralus chain: A100-managed → A100-fully
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -149,12 +126,9 @@ stages:
           timeout_in_minutes: 180
 
   - stage: azure_A100_fully_managed_gpu_test
-    dependsOn: []
+    dependsOn: [azure_A100_managed_gpu_test]
     condition: |
-      or(
-        eq(variables['Build.CronSchedule.DisplayName'], '11:00 AM and 11:00 PM daily'),
-        eq(variables['Build.Reason'], 'Manual')
-      )
+      in(dependencies.azure_A100_managed_gpu_test.result, 'Succeeded', 'SucceededWithIssues')
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -184,12 +158,9 @@ stages:
           timeout_in_minutes: 180
 
   - stage: azure_A10_managed_gpu_test
-    dependsOn: []
+    dependsOn: [azure_H100_managed_gpu_test]
     condition: |
-      or(
-        eq(variables['Build.CronSchedule.DisplayName'], '3:00 AM and 3:00 PM daily'),
-        eq(variables['Build.Reason'], 'Manual')
-      )
+      in(dependencies.azure_H100_managed_gpu_test.result, 'Succeeded', 'SucceededWithIssues')
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -218,12 +189,9 @@ stages:
           timeout_in_minutes: 180
 
   - stage: azure_A10_fully_managed_gpu_test
-    dependsOn: []
+    dependsOn: [azure_H100_fully_managed_gpu_test]
     condition: |
-      or(
-        eq(variables['Build.CronSchedule.DisplayName'], '7:00 AM and 7:00 PM daily'),
-        eq(variables['Build.Reason'], 'Manual')
-      )
+      in(dependencies.azure_H100_fully_managed_gpu_test.result, 'Succeeded', 'SucceededWithIssues')
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
