@@ -540,6 +540,7 @@ class AKSClient:
                 _scale_retries = 10
                 _scale_wait = 30
                 _poll_interval = 30
+                _scale_timeout = 600
                 for _attempt in range(_scale_retries):
                     try:
                         poller = self.aks_client.agent_pools.begin_create_or_update(
@@ -552,6 +553,10 @@ class AKSClient:
                         while not poller.done():
                             time.sleep(_poll_interval)
                             elapsed += _poll_interval
+                            if elapsed >= _scale_timeout:
+                                raise TimeoutError(
+                                    f"Node pool {node_pool_name} scale operation timed out after {_scale_timeout}s"
+                                )
                             logger.info(
                                 f"Waiting for node pool {node_pool_name} scale operation to complete "
                                 f"({elapsed}s elapsed)..."
