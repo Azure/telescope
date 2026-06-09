@@ -36,17 +36,17 @@ echo "##vso[task.setvariable variable=FIREWALL_PRIVATE_IP]$FIREWALL_PRIVATE_IP"
     AzCli(serviceConnection, "Create firewall ${name}", script)
 }
 
-AssociateFirewallToSubnet = lambda serviceConnection: str, resourceGroup: str, name: str, location: str, vnetName: str, subnetName: str, firewallIp: str, subscription: str -> steps.Step {
+UpdateSubnetRouteTable = lambda serviceConnection: str, resourceGroup: str, routeTableName: str, location: str, vnetName: str, subnetName: str, firewallIp: str, subscription: str -> steps.Step {
     script = """
 az network route-table create \\
   --resource-group "${resourceGroup}" \\
-  --name "${name}" \\
+  --name "${routeTableName}" \\
   --location "${location}" \\
   --subscription "${subscription}"
 
 az network route-table route create \\
   --resource-group "${resourceGroup}" \\
-  --route-table-name "${name}" \\
+  --route-table-name "${routeTableName}" \\
   --name egress \\
   --address-prefix 0.0.0.0/0 \\
   --next-hop-type VirtualAppliance \\
@@ -57,10 +57,10 @@ az network vnet subnet update \\
   --resource-group "${resourceGroup}" \\
   --vnet-name "${vnetName}" \\
   --name "${subnetName}" \\
-  --route-table "${name}" \\
+  --route-table "${routeTableName}" \\
   --subscription "${subscription}"
 """
-    AzCli(serviceConnection, "Associate firewall ${name} to subnet ${subnetName}", script)
+    AzCli(serviceConnection, "Associate route table ${routeTableName} to subnet ${subnetName}", script)
 }
 
 UpdateFirewallPolicy = lambda serviceConnection: str, subscription: str, resourceGroup: str, name: str, policyPath: str, location: str -> steps.Step {
