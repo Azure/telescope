@@ -118,7 +118,6 @@ class NodePoolCRUD:
         gpu_node_pool=False,
         enable_managed_gpu=False,
         gpu_instance_profile=None,
-        gpu_mig_strategy=None,
     ):
         """
         Scale a node pool to specified count
@@ -146,7 +145,6 @@ class NodePoolCRUD:
                 progressive=progressive,
                 scale_step_size=scale_step_size,
                 gpu_instance_profile=gpu_instance_profile,
-                gpu_mig_strategy=gpu_mig_strategy,
             )
 
             if result is not None:
@@ -255,7 +253,6 @@ class NodePoolCRUD:
                 gpu_node_pool=gpu_node_pool,
                 enable_managed_gpu=enable_managed_gpu,
                 gpu_instance_profile=gpu_instance_profile,
-                gpu_mig_strategy=gpu_mig_strategy,
             )
             results["scale_up"] = scale_up_result
 

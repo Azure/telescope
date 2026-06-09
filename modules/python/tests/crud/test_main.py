@@ -122,7 +122,6 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
             gpu_node_pool=False,
             enable_managed_gpu=False,
             gpu_instance_profile=mock_args.gpu_instance_profile,
-            gpu_mig_strategy=mock_args.gpu_mig_strategy,
         )
 
     @mock.patch("crud.main.AzureNodePoolCRUD")
@@ -155,7 +154,6 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
             gpu_node_pool=False,
             enable_managed_gpu=False,
             gpu_instance_profile=mock_args.gpu_instance_profile,
-            gpu_mig_strategy=mock_args.gpu_mig_strategy,
         )
 
     @mock.patch("crud.main.logger")
@@ -194,7 +192,6 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
             gpu_node_pool=False,
             enable_managed_gpu=False,
             gpu_instance_profile=mock_args.gpu_instance_profile,
-            gpu_mig_strategy=mock_args.gpu_mig_strategy,
         )
         mock_logger.error.assert_called_with("Operation 'scale' failed")
 

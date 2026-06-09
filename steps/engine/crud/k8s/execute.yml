@@ -32,8 +32,7 @@ steps:
       --step-timeout "$STEP_TIME_OUT" \
       ${GPU_NODE_POOL:+--gpu-node-pool} \
       $([[ "${ENABLE_MANAGED_GPU,,}" == "true" ]] && echo "--enable-managed-gpu" || true) \
-      ${GPU_INSTANCE_PROFILE:+--gpu-instance-profile "$GPU_INSTANCE_PROFILE"} \
-      ${GPU_MIG_STRATEGY:+--gpu-mig-strategy "$GPU_MIG_STRATEGY"}
+      ${GPU_INSTANCE_PROFILE:+--gpu-instance-profile "$GPU_INSTANCE_PROFILE"}
 
   displayName: 'Execute K8s Create & Scale Up Operations for ${{ parameters.cloud }}'
   workingDirectory: modules/python
