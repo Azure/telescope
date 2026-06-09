@@ -7,9 +7,9 @@ schedules:
       include:
         - main
     always: true
-  # Azure Small Scale(10) Bootstrapping Client Schedule
+  # Azure Small Scale(10) MachineAPI Schedule
   - cron: "0 1 * * *"
-    displayName: "1:00 AM Daily Bootstrapping Client"
+    displayName: "1:00 AM Daily MachineAPI"
     branches:
       include:
         - main
@@ -28,9 +28,9 @@ schedules:
       include:
         - main
     always: true
-  # Azure Medium Scale(500) Bootstrapping Client Schedule
+  # Azure Medium Scale(500) MachineAPI Schedule
   - cron: "0 4 * * *"
-    displayName: "Every day at 4:00 AM Bootstrapping Client"
+    displayName: "Every day at 4:00 AM MachineAPI"
     branches:
       include:
         - main
@@ -42,9 +42,9 @@ schedules:
       include:
         - main
     always: true
-  # Azure Large Scale(1000) Bootstrapping Client Schedule
+  # Azure Large Scale(1000) MachineAPI Schedule
   - cron: "0 7 * * *"
-    displayName: "Every day at 8:00 AM Bootstrapping Client"
+    displayName: "Every day at 7:00 AM MachineAPI"
     branches:
       include:
         - main
@@ -116,41 +116,6 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: azure_staging_small_scale_bootstrapping_client
-    condition: eq(variables['Build.Reason'], 'Manual')
-    dependsOn: []
-    jobs:
-      - template: /jobs/competitive-test.yml
-        parameters:
-          cloud: azure
-          regions:
-            - westus2
-          terraform_input_file_mapping:
-            - westus2: "scenarios/perf-eval/nap/terraform-inputs/azure-machineapi.tfvars"
-          engine: clusterloader2
-          engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250423"
-          topology: karpenter
-          matrix:
-            small-scale-on-demand:
-              cpu_per_node: 4
-              node_count: 10
-              pod_count: 100
-              scale_up_timeout: "15m"
-              scale_down_timeout: "15m"
-              node_label_selector: "karpenter.sh/nodepool = default"
-              node_selector: "{karpenter.sh/nodepool: default}"
-              loop_count: 5
-              warmup_deployment: true
-              warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D4_v5
-              capacity_type: on-demand
-              refresh_interval: "1s"
-          max_parallel: 1
-          timeout_in_minutes: 560
-          credential_type: service_connection
-          ssh_key_enabled: false
-
   - stage: azure_staging_large_scale
     condition: eq(variables['Build.Reason'], 'Manual')
     dependsOn: []
@@ -184,123 +149,6 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: azure_westus2_small_scale_bootstrapping_client
-    condition: |
-        or(
-          eq(variables['Build.CronSchedule.DisplayName'], '1:00 AM Daily Bootstrapping Client'),
-          eq(variables['Build.Reason'], 'Manual')
-        )
-    dependsOn: []
-    jobs:
-      - template: /jobs/competitive-test.yml
-        parameters:
-          cloud: azure
-          regions:
-            - westus2
-          terraform_input_file_mapping:
-            - westus2: "scenarios/perf-eval/nap/terraform-inputs/azure-machineapi.tfvars"
-          engine: clusterloader2
-          engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250423"
-          topology: karpenter
-          matrix:
-            small-scale-on-demand:
-              cpu_per_node: 4
-              node_count: 10
-              pod_count: 100
-              scale_up_timeout: "15m"
-              scale_down_timeout: "15m"
-              node_label_selector: "karpenter.sh/nodepool = default"
-              node_selector: "{karpenter.sh/nodepool: default}"
-              loop_count: 5
-              warmup_deployment: true
-              warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D4_v5
-              capacity_type: on-demand
-              refresh_interval: "1s"
-          max_parallel: 1
-          timeout_in_minutes: 560
-          credential_type: service_connection
-          ssh_key_enabled: false
-
-  - stage: azure_westus2_medium_scale_bootstrapping_client
-    condition: |
-        or(
-          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 4:00 AM Bootstrapping Client'),
-          eq(variables['Build.Reason'], 'Manual')
-        )
-    dependsOn: []
-    jobs:
-      - template: /jobs/competitive-test.yml
-        parameters:
-          cloud: azure
-          regions:
-            - westus2
-          terraform_input_file_mapping:
-            - westus2: "scenarios/perf-eval/nap/terraform-inputs/azure-machineapi.tfvars"
-          engine: clusterloader2
-          engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250423"
-          topology: karpenter
-          matrix:
-            medium-scale-on-demand:
-              cpu_per_node: 2
-              node_count: 500
-              pod_count: 500
-              scale_up_timeout: "40m"
-              scale_down_timeout: "40m"
-              node_label_selector: "karpenter.sh/nodepool = default"
-              node_selector: "{karpenter.sh/nodepool: default}"
-              loop_count: 1
-              warmup_deployment: true
-              warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D2ds_v4
-              capacity_type: on-demand
-              refresh_interval: "1s"
-          max_parallel: 1
-          timeout_in_minutes: 360
-          credential_type: service_connection
-          ssh_key_enabled: false
-
-  - stage: azure_westus2_large_scale_bootstrapping_client
-    condition: |
-        or(
-          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 7:00 AM Bootstrapping Client'),
-          eq(variables['Build.Reason'], 'Manual')
-        )
-    dependsOn: []
-    jobs:
-      - template: /jobs/competitive-test.yml
-        parameters:
-          cloud: azure
-          regions:
-            - westus2
-          terraform_input_file_mapping:
-            - westus2: "scenarios/perf-eval/nap/terraform-inputs/azure-machineapi.tfvars"
-          engine: clusterloader2
-          engine_input:
-            image: "ghcr.io/azure/clusterloader2:v20250423"
-          topology: karpenter
-          matrix:
-            large-scale-on-demand:
-              cpu_per_node: 2
-              node_count: 1000
-              pod_count: 1000
-              scale_up_timeout: "60m"
-              scale_down_timeout: "60m"
-              node_label_selector: "karpenter.sh/nodepool = default"
-              node_selector: "{karpenter.sh/nodepool: default}"
-              loop_count: 1
-              warmup_deployment: true
-              warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D2ds_v4
-              capacity_type: on-demand
-              refresh_interval: "1s"
-          max_parallel: 1
-          timeout_in_minutes: 360
-          credential_type: service_connection
-          ssh_key_enabled: false
-
   - stage: azure_australiaeast_small_scale
     condition: |
         or(
@@ -316,6 +164,91 @@ stages:
             - australiaeast
           terraform_input_file_mapping:
             - australiaeast: "scenarios/perf-eval/nap/terraform-inputs/azure-bootstrappingclient.tfvars"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250423"
+          topology: karpenter
+          matrix:
+            extra-small-scale-on-demand:
+              cpu_per_node: 2
+              node_count: 1
+              pod_count: 10
+              scale_up_timeout: "15m"
+              scale_down_timeout: "15m"
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 20
+              warmup_deployment: true
+              warmup_deployment_template: warmup_deployment.yaml
+              karpenter_cooldown: 900 #seconds
+              vm_size: Standard_D2ds_v4
+              capacity_type: on-demand
+              refresh_interval: "1s"
+            extra-small-scale-spot:
+              cpu_per_node: 2
+              node_count: 1
+              pod_count: 10
+              scale_up_timeout: "15m"
+              scale_down_timeout: "15m"
+              node_label_selector: "karpenter.sh/nodepool = spot"
+              node_selector: "{karpenter.sh/nodepool: spot}"
+              karpenter_cooldown: 900 #seconds
+              loop_count: 20
+              warmup_deployment: true
+              warmup_deployment_template: warmup_deployment.yaml
+              vm_size: Standard_D2ds_v4
+              capacity_type: spot
+              refresh_interval: "1s"
+            small-scale-on-demand:
+              cpu_per_node: 4
+              node_count: 10
+              pod_count: 100
+              scale_up_timeout: "15m"
+              scale_down_timeout: "15m"
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 5
+              karpenter_cooldown: 900 #seconds
+              warmup_deployment: true
+              warmup_deployment_template: warmup_deployment.yaml
+              vm_size: Standard_D4ds_v4
+              capacity_type: on-demand
+              refresh_interval: "1s"
+            small-scale-spot:
+              cpu_per_node: 4
+              node_count: 10
+              pod_count: 100
+              scale_up_timeout: "15m"
+              scale_down_timeout: "15m"
+              node_label_selector: "karpenter.sh/nodepool = spot"
+              node_selector: "{karpenter.sh/nodepool: spot}"
+              loop_count: 5
+              warmup_deployment: true
+              karpenter_cooldown: 900 #seconds
+              warmup_deployment_template: warmup_deployment.yaml
+              vm_size: Standard_D4ds_v4
+              capacity_type: spot
+              refresh_interval: "1s"
+          max_parallel: 1
+          timeout_in_minutes: 560
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: azure_australiaeast_small_scale_machineapi
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], '1:00 AM Daily MachineAPI'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - australiaeast
+          terraform_input_file_mapping:
+            - australiaeast: "scenarios/perf-eval/nap/terraform-inputs/azure-machineapi.tfvars"
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
@@ -490,6 +423,61 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
+  - stage: azure_australiaeast_medium_scale_machineapi
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 4:00 AM MachineAPI'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - australiaeast
+          terraform_input_file_mapping:
+            - australiaeast: "scenarios/perf-eval/nap/terraform-inputs/azure-machineapi.tfvars"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250423"
+          topology: karpenter
+          matrix:
+            medium-scale-on-demand:
+              cpu_per_node: 2
+              node_count: 500
+              pod_count: 500
+              scale_up_timeout: "40m"
+              scale_down_timeout: "40m"
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 1
+              warmup_deployment: true
+              warmup_deployment_template: warmup_deployment.yaml
+              karpenter_cooldown: 900 #seconds
+              vm_size: Standard_D2ds_v4
+              capacity_type: on-demand
+              refresh_interval: "1s"
+            medium-scale--spot:
+              cpu_per_node: 2
+              node_count: 500
+              pod_count: 500
+              scale_up_timeout: "40m"
+              scale_down_timeout: "40m"
+              node_label_selector: "karpenter.sh/nodepool = spot"
+              node_selector: "{karpenter.sh/nodepool: spot}"
+              loop_count: 1
+              warmup_deployment: true
+              warmup_deployment_template: warmup_deployment.yaml
+              karpenter_cooldown: 900 #seconds
+              vm_size: Standard_D2ds_v4
+              capacity_type: spot
+              refresh_interval: "1s"
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false
+
   - stage: azure_australiaeast_large_scale
     condition: |
         or(
@@ -505,6 +493,61 @@ stages:
             - australiaeast
           terraform_input_file_mapping:
             - australiaeast: "scenarios/perf-eval/nap/terraform-inputs/azure-bootstrappingclient.tfvars"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250423"
+          topology: karpenter
+          matrix:
+            large-scale-on-demand:
+              cpu_per_node: 2
+              node_count: 1000
+              pod_count: 1000
+              scale_up_timeout: "60m"
+              scale_down_timeout: "60m"
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 1
+              warmup_deployment: true
+              warmup_deployment_template: warmup_deployment.yaml
+              karpenter_cooldown: 900 #seconds
+              vm_size: Standard_D2ds_v4
+              capacity_type: on-demand
+              refresh_interval: "1s"
+            large-scale-spot:
+              cpu_per_node: 2
+              node_count: 1000
+              pod_count: 1000
+              scale_up_timeout: "60m"
+              scale_down_timeout: "60m"
+              node_label_selector: "karpenter.sh/nodepool = spot"
+              node_selector: "{karpenter.sh/nodepool: spot}"
+              loop_count: 1
+              warmup_deployment: true
+              warmup_deployment_template: warmup_deployment.yaml
+              karpenter_cooldown: 900 #seconds
+              vm_size: Standard_D2ds_v4
+              capacity_type: spot
+              refresh_interval: "1s"
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: azure_australiaeast_large_scale_machineapi
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 7:00 AM MachineAPI'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - australiaeast
+          terraform_input_file_mapping:
+            - australiaeast: "scenarios/perf-eval/nap/terraform-inputs/azure-machineapi.tfvars"
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
