@@ -810,6 +810,18 @@ def collect_clusterloader2(
     # one row per (iteration, cluster) phase observation + per-iter summary.
     _emit_policy_prop_probe_rows(cl2_report_dir, template, result_file)
 
+    # 2026-06-09 — Mesh-failover probe JSONL pickup (single-cluster
+    # backend failover; gap #4). Orchestrator writes
+    # ${leader_role}-MeshFailoverProbe.jsonl into leader's report dir;
+    # rows per (iter, peer) detach/re-add observation plus summary.
+    _emit_failover_probe_rows(cl2_report_dir, template, result_file)
+
+    # 2026-06-09 — Mesh-restart-survival probe JSONL pickup
+    # (clustermesh-apiserver restart connection survival; gap #8).
+    # Orchestrator writes ${leader_role}-MeshRestartSurvivalProbe.jsonl
+    # with per-peer survival_ratio + restart_window_survival_ratio rows.
+    _emit_restart_survival_probe_rows(cl2_report_dir, template, result_file)
+
 
 def _emit_saturation_profile_rows(
     cl2_report_dir, template, result_file,
@@ -1647,6 +1659,93 @@ def _emit_policy_prop_probe_rows(cl2_report_dir, template, result_file):
                     row["measurement"] = "ClusterMeshPolicyPropProbe"
                     row["group"] = "mesh-policy-prop-probe"
                     row["result"] = {"data": probe_data, "unit": "ms"}
+                    out.write(json.dumps(row) + "\n")
+
+
+def _emit_failover_probe_rows(cl2_report_dir, template, result_file):
+    """Append JSONL rows for the single-cluster backend failover probe.
+
+    Host-side mesh-failover-probe.sh writes
+    ${leader_role}-MeshFailoverProbe.jsonl to the leader cluster's
+    report dir; one row per (iteration, peer) detach/re-add
+    observation plus per-iteration + final summary.
+
+    Wrapped here with measurement="ClusterMeshFailoverProbe",
+    group="mesh-failover-probe". File absence = scenario didn't enable
+    the probe; silent no-op.
+    """
+    if not os.path.isdir(cl2_report_dir):
+        return
+    candidates = [
+        f for f in os.listdir(cl2_report_dir)
+        if f.endswith("-MeshFailoverProbe.jsonl")
+    ]
+    if not candidates:
+        return
+    with open(result_file, "a", encoding="utf-8") as out:
+        for fname in candidates:
+            fpath = os.path.join(cl2_report_dir, fname)
+            with open(fpath, "r", encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        probe_data = json.loads(line)
+                    except json.JSONDecodeError as e:
+                        print(
+                            f"[collect] WARN: skipping malformed line in {fpath}: {e}",
+                            file=sys.stderr,
+                        )
+                        continue
+                    row = json.loads(json.dumps(template))
+                    row["measurement"] = "ClusterMeshFailoverProbe"
+                    row["group"] = "mesh-failover-probe"
+                    row["result"] = {"data": probe_data, "unit": "ms"}
+                    out.write(json.dumps(row) + "\n")
+
+
+def _emit_restart_survival_probe_rows(cl2_report_dir, template, result_file):
+    """Append JSONL rows for the clustermesh-apiserver restart survival probe.
+
+    Host-side mesh-restart-survival-probe.sh writes
+    ${leader_role}-MeshRestartSurvivalProbe.jsonl to the leader cluster's
+    report dir; per-iteration restart_start / restart_complete rows plus
+    one peer_survival row per peer per iteration containing total / success /
+    conn_fail / survival_ratio / restart_window_survival_ratio fields.
+
+    Wrapped here with measurement="ClusterMeshRestartSurvivalProbe",
+    group="mesh-restart-survival-probe". File absence = scenario didn't enable
+    the probe; silent no-op.
+    """
+    if not os.path.isdir(cl2_report_dir):
+        return
+    candidates = [
+        f for f in os.listdir(cl2_report_dir)
+        if f.endswith("-MeshRestartSurvivalProbe.jsonl")
+    ]
+    if not candidates:
+        return
+    with open(result_file, "a", encoding="utf-8") as out:
+        for fname in candidates:
+            fpath = os.path.join(cl2_report_dir, fname)
+            with open(fpath, "r", encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        probe_data = json.loads(line)
+                    except json.JSONDecodeError as e:
+                        print(
+                            f"[collect] WARN: skipping malformed line in {fpath}: {e}",
+                            file=sys.stderr,
+                        )
+                        continue
+                    row = json.loads(json.dumps(template))
+                    row["measurement"] = "ClusterMeshRestartSurvivalProbe"
+                    row["group"] = "mesh-restart-survival-probe"
+                    row["result"] = {"data": probe_data, "unit": "ratio"}
                     out.write(json.dumps(row) + "\n")
 
 

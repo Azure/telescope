@@ -1025,6 +1025,174 @@ stages:
           skip_publish: false
 
   # ============================================================================
+  # n=3 single-cluster backend failover smoke (gap #4 probe shipping)
+  # ============================================================================
+  # Scales the propagation-probe backend Deployment on a victim cluster to 0,
+  # polls every other cluster's BPF lb map until victim-IPs removed, then
+  # scales back up + polls for re-add. Measures global-Service convergence
+  # under one-cluster backend failure. n=3 gives 2 observers — enough signal
+  # without quota cost. Reuses the propagation-probe backend workload + global
+  # Service (already deployed by propagation-probe scenario).
+  - stage: azure_eastus2euap_n3_failover_smoke
+    dependsOn: []
+    condition: always()
+    displayName: "n=3 single-cluster backend failover smoke (scale-down/up; global Service convergence)"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 15m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-3-shared.tfvars"
+          matrix:
+            n3_failover:
+              cluster_count: 3
+              mesh_size: 3
+              share_infra_scenarios: "propagation-probe"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-failover"
+              global_namespace_count: 1
+              namespaces: 1
+              deployments_per_namespace: 1
+              replicas_per_deployment: 2
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              churn_cycles: 1
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 5m
+              kill_duration_seconds: 300
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 360
+              # CL2 scenario `propagation-probe` deploys the backend Deployment +
+              # global Service regardless of cl2_propagation_probe_enabled.
+              # Disable the HOST-SIDE propagation orchestrator so its parallel
+              # add/remove probes don't contend with the failover scale-up/down.
+              cl2_propagation_probe_enabled: "false"
+              cl2_propagation_probe_first_packet_enabled: "false"
+              cl2_recovery_probe_enabled: "false"
+              cl2_policy_canary_enabled: "false"
+              cl2_detach_rejoin_probe_enabled: "false"
+              cl2_policy_prop_probe_enabled: "false"
+              cl2_restart_survival_probe_enabled: "false"
+              # ENABLE the failover probe
+              cl2_failover_probe_enabled: "true"
+              cl2_failover_probe_count: 3
+              cl2_failover_probe_interval_s: 60
+              cl2_failover_probe_timeout_s: 180
+              # 300s prewait — lets propagation-probe scenario deploy
+              # backend Deployment + global Service + Cilium sync them
+              # to all peers before failover starts polling.
+              cl2_failover_probe_prewait_s: 300
+              # Probe window: 300s prewait + 3 iters × (~30s scale-down + 30s
+              # peer-poll + 30s scale-up + 30s peer-poll + 60s interval) ≈ 14min.
+              # Set 25m for buffer including initial backend ready + LB IP lag.
+              cl2_probe_window_duration: "25m"
+              cl2_probe_prewait_s: 60
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 180
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  # ============================================================================
+  # n=3 clustermesh-apiserver restart survival smoke (gap #8 probe shipping)
+  # ============================================================================
+  # Starts a long-lived curl pod on every peer with an in-pod 1Hz curl loop
+  # against the victim cluster's global Service; rolling-restarts
+  # clustermesh-apiserver on the victim; verifies Deployment generation
+  # incremented; computes per-peer survival_ratio = success / total. Answers:
+  # "do existing cross-cluster connections via global Service break when the
+  # remote clustermesh-apiserver restarts?" Reuses propagation-probe backend
+  # + global Service.
+  - stage: azure_eastus2euap_n3_restart_survival_smoke
+    dependsOn: []
+    condition: always()
+    displayName: "n=3 clustermesh-apiserver restart survival smoke (rolling restart + per-peer connection survival)"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 15m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-3-shared.tfvars"
+          matrix:
+            n3_restart_survival:
+              cluster_count: 3
+              mesh_size: 3
+              share_infra_scenarios: "propagation-probe"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-restart-survival"
+              global_namespace_count: 1
+              namespaces: 1
+              deployments_per_namespace: 1
+              replicas_per_deployment: 2
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              churn_cycles: 1
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 5m
+              kill_duration_seconds: 300
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 360
+              # CL2 scenario `propagation-probe` deploys the backend Deployment +
+              # global Service regardless of cl2_propagation_probe_enabled.
+              # Disable the HOST-SIDE propagation orchestrator so its in-pod
+              # exec churn doesn't contend with restart-survival's curl pods.
+              cl2_propagation_probe_enabled: "false"
+              cl2_propagation_probe_first_packet_enabled: "false"
+              cl2_recovery_probe_enabled: "false"
+              cl2_policy_canary_enabled: "false"
+              cl2_detach_rejoin_probe_enabled: "false"
+              cl2_policy_prop_probe_enabled: "false"
+              cl2_failover_probe_enabled: "false"
+              # ENABLE the restart-survival probe
+              cl2_restart_survival_probe_enabled: "true"
+              cl2_restart_survival_probe_count: 2
+              cl2_restart_survival_probe_interval_s: 120
+              cl2_restart_survival_probe_timeout_s: 300
+              # 300s prewait — propagation-probe scenario must deploy
+              # backend Deployment + global Service before curl pods start.
+              cl2_restart_survival_probe_prewait_s: 300
+              # Probe window: 300s prewait + 2 iters × (~10s baseline +
+              # 60-180s restart wait + 10s post + 120s interval) ≈ 14min.
+              # Set 25m for buffer.
+              cl2_probe_window_duration: "25m"
+              cl2_probe_prewait_s: 60
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 180
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  # ============================================================================
   # %global variation experiment — N=20 sweep
   # ============================================================================
   # 4 matrix entries varying global_namespace_count 0/1/3/5 (=0%/20%/60%/100%

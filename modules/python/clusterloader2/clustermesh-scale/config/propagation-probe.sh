@@ -450,6 +450,39 @@ wait_peer_ipcache_removed() {
   done
 }
 
+# Wait for peer identity GC after src pod delete. Polls cilium identity list
+# until the unique LABEL_UUID is no longer present. Counterpart to
+# wait_peer_identity (which waits for it to APPEAR). Sets
+# T_PEER_IDENTITY_REMOVED_NS or 0 on timeout.
+#
+# NOTE: identity GC is RACE-prone — Cilium may keep the identity around
+# briefly if other endpoints share the same label set, or may delay GC
+# behind kvstoremesh sync intervals. Customers care about this because
+# orphan identities consume kvstore keys + propagate via mesh.
+wait_peer_identity_removed() {
+  local _kc="$1" _ctx="$2" _label_uuid="$3" _deadline_s="$4"
+  local _start _now _cil _out
+  _start=$(date +%s)
+  _cil=$(find_cilium_pod "$_kc" "$_ctx") || { T_PEER_IDENTITY_REMOVED_NS=0; return 1; }
+  while true; do
+    _out=$(KUBECONFIG="$_kc" kubectl --context "$_ctx" -n kube-system exec "$_cil" -c cilium-agent -- \
+      cilium identity list -o json 2>/dev/null || true)
+    if [ -z "$_out" ]; then
+      _out=$(KUBECONFIG="$_kc" kubectl --context "$_ctx" -n kube-system exec "$_cil" -c cilium-agent -- \
+        cilium-dbg identity list -o json 2>/dev/null || true)
+    fi
+    # Label UUID no longer present = identity GC'd
+    if ! echo "$_out" | grep -qF "$_label_uuid"; then
+      T_PEER_IDENTITY_REMOVED_NS=$(date +%s%N); return 0
+    fi
+    _now=$(date +%s)
+    if [ $((_now - _start)) -ge "$_deadline_s" ]; then
+      T_PEER_IDENTITY_REMOVED_NS=0; return 1
+    fi
+    sleep 1
+  done
+}
+
 # Wait for peer to successfully curl the probe pod DIRECTLY by its IP
 # (cross-cluster routing test). Records the first 200 OK from peer that
 # returns the src probe pod's hostname (default nginx welcome page does
@@ -502,10 +535,28 @@ wait_peer_first_packet() {
 # Run AFTER peer_probe finishes (we need to know the IP propagated first;
 # remove timing is most useful as delta from t_delete on src).
 peer_remove_probe() {
-  local _kc="$1" _ctx="$2" _pod_ip="$3" _outfile="$4" _t_delete_ns="$5" _src_cluster="$6"
+  local _kc="$1" _ctx="$2" _pod_ip="$3" _outfile="$4" _t_delete_ns="$5" _src_cluster="$6" _label_uuid="${7:-}"
   T_PEER_IPCACHE_REMOVED_NS=0
-  wait_peer_ipcache_removed "$_kc" "$_ctx" "$_pod_ip" "$REMOVE_PROBE_TIMEOUT_S" || true
-  local _delta_ms _timed_out
+  T_PEER_IDENTITY_REMOVED_NS=0
+  # Run ipcache + identity GC waits in PARALLEL — they're independent
+  # measurements (identity GC may complete before/after ipcache cleanup).
+  local _peerdir
+  _peerdir=$(mktemp -d)
+  (
+    wait_peer_ipcache_removed "$_kc" "$_ctx" "$_pod_ip" "$REMOVE_PROBE_TIMEOUT_S" || true
+    echo "$T_PEER_IPCACHE_REMOVED_NS" > "$_peerdir/ipcache_removed"
+  ) &
+  if [ -n "$_label_uuid" ]; then
+    (
+      wait_peer_identity_removed "$_kc" "$_ctx" "$_label_uuid" "$REMOVE_PROBE_TIMEOUT_S" || true
+      echo "$T_PEER_IDENTITY_REMOVED_NS" > "$_peerdir/identity_removed"
+    ) &
+  fi
+  wait
+  T_PEER_IPCACHE_REMOVED_NS=$(cat "$_peerdir/ipcache_removed" 2>/dev/null || echo 0)
+  T_PEER_IDENTITY_REMOVED_NS=$(cat "$_peerdir/identity_removed" 2>/dev/null || echo 0)
+  rm -rf "$_peerdir"
+  local _delta_ms _delta_id_ms _timed_out
   if [ "$T_PEER_IPCACHE_REMOVED_NS" -eq 0 ]; then
     _delta_ms="null"
     _timed_out=true
@@ -513,8 +564,13 @@ peer_remove_probe() {
     _delta_ms=$(( (T_PEER_IPCACHE_REMOVED_NS - _t_delete_ns) / 1000000 ))
     _timed_out=false
   fi
+  if [ "$T_PEER_IDENTITY_REMOVED_NS" -eq 0 ]; then
+    _delta_id_ms="null"
+  else
+    _delta_id_ms=$(( (T_PEER_IDENTITY_REMOVED_NS - _t_delete_ns) / 1000000 ))
+  fi
   cat > "$_outfile" <<EOF
-{"probe_id":"$PROBE_ID","src_cluster":"$_src_cluster","peer_cluster":"$_ctx","pod_ip":"$_pod_ip","t_delete_ns":$_t_delete_ns,"t_peer_ipcache_removed_ns":$T_PEER_IPCACHE_REMOVED_NS,"delta_remove_ms":$_delta_ms,"peer_remove_timed_out":$_timed_out}
+{"probe_id":"$PROBE_ID","src_cluster":"$_src_cluster","peer_cluster":"$_ctx","pod_ip":"$_pod_ip","label_uuid":"$_label_uuid","t_delete_ns":$_t_delete_ns,"t_peer_ipcache_removed_ns":$T_PEER_IPCACHE_REMOVED_NS,"delta_remove_ms":$_delta_ms,"t_peer_identity_removed_ns":$T_PEER_IDENTITY_REMOVED_NS,"delta_identity_gc_ms":$_delta_id_ms,"peer_remove_timed_out":$_timed_out}
 EOF
 }
 
@@ -539,13 +595,13 @@ peer_probe() {
     echo "$T_PEER_CEP_NS" > "$_peerdir/cep"
   ) &
   # First-packet probe runs in parallel — starts tight-loop curling
-  # IMMEDIATELY (doesn't wait for ipcache), records first success
-  # whose body contains src pod's hostname. Captures user-perceived
-  # "when does the global Service ACTUALLY work for this new pod?"
-  # If disabled, skip the subshell entirely.
-  if [ "$ENABLE_FIRST_PACKET_PROBE" = "true" ] && [ -n "$GLOBAL_SVC_DNS" ]; then
+  # the probe pod's IP DIRECTLY (not the global Service). Records first
+  # 200 OK = cross-cluster routing actually reaches THIS specific new
+  # pod. Requires the probe pod to be running nginx (auto-selected when
+  # ENABLE_FIRST_PACKET_PROBE=true, see container spec above).
+  if [ "$ENABLE_FIRST_PACKET_PROBE" = "true" ]; then
     (
-      wait_peer_first_packet "$_kc" "$_ctx" "$_src_pod_hostname" "$FIRST_PACKET_PROBE_TIMEOUT_S" || true
+      wait_peer_first_packet "$_kc" "$_ctx" "$_pod_ip" "$FIRST_PACKET_PROBE_TIMEOUT_S" || true
       echo "$T_PEER_FIRST_PACKET_NS" > "$_peerdir/first_packet"
     ) &
   fi
@@ -557,8 +613,6 @@ peer_probe() {
   rm -rf "$_peerdir"
   local _timed_out
   _timed_out=$([ "$T_PEER_IPCACHE_NS" -eq 0 ] && echo true || echo false)
-  # Compute delta_first_packet_ms (gap between src pod ready and first
-  # successful peer curl returning src's hostname).
   local _delta_fp_ms="null"
   if [ "$T_PEER_FIRST_PACKET_NS" -ne 0 ] && [ "$T_POD_READY_NS" -ne 0 ]; then
     _delta_fp_ms=$(( (T_PEER_FIRST_PACKET_NS - T_POD_READY_NS) / 1000000 ))
@@ -697,7 +751,7 @@ EOF
     for pi in $PEER_IDXS; do
       PEER_NAME=$(jq -r ".[$pi].name" < "$CLUSTERS_JSON")
       PEER_KC=$(jq -r ".[$pi].kubeconfig" < "$CLUSTERS_JSON")
-      peer_remove_probe "$PEER_KC" "$PEER_NAME" "$POD_IP" "$RMDIR/$pi.json" "$T_DELETE_NS" "$SRC_NAME" &
+      peer_remove_probe "$PEER_KC" "$PEER_NAME" "$POD_IP" "$RMDIR/$pi.json" "$T_DELETE_NS" "$SRC_NAME" "$LABEL_UUID" &
     done
     wait
     cat "$RMDIR"/*.json >> "$REMOVE_OUT" 2>/dev/null
