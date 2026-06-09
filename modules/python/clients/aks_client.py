@@ -259,7 +259,54 @@ class AKSClient:
             logger.error(f"Error getting node pool {node_pool_name}: {str(e)}")
             raise
 
-    def _create_node_pool_cli(
+    def _begin_update_with_retry(
+        self,
+        node_pool_name: str,
+        cluster_name: str,
+        node_pool: Any,
+        label: str = "",
+        retries: int = 10,
+        retry_wait: int = 30,
+        poll_interval: int = 30,
+        timeout: int = 600,
+    ) -> None:
+        """
+        Call begin_create_or_update with retry on OperationNotAllowed/EtagMismatch,
+        polling every poll_interval seconds and raising TimeoutError after timeout seconds.
+        """
+        for attempt in range(retries):
+            try:
+                poller = self.aks_client.agent_pools.begin_create_or_update(
+                    resource_group_name=self.resource_group,
+                    resource_name=cluster_name,
+                    agent_pool_name=node_pool_name,
+                    parameters=node_pool,
+                )
+                elapsed = 0
+                while not poller.done():
+                    time.sleep(poll_interval)
+                    elapsed += poll_interval
+                    if elapsed >= timeout:
+                        raise TimeoutError(
+                            f"Node pool {node_pool_name} {label}scale timed out after {timeout}s"
+                        )
+                    logger.info(
+                        f"Waiting for node pool {node_pool_name} {label}scale to complete "
+                        f"({elapsed}s elapsed)..."
+                    )
+                poller.result()
+                return
+            except HttpResponseError as e:
+                if any(code in str(e) for code in ("OperationNotAllowed", "EtagMismatch")) and attempt < retries - 1:
+                    logger.warning(
+                        f"Cluster has an in-progress operation, retrying in {retry_wait}s "
+                        f"(attempt {attempt + 1}/{retries}): {e.error.code}"
+                    )
+                    time.sleep(retry_wait)
+                else:
+                    raise
+
+    def add_managed_gpu_node_pool(
         self,
         node_pool_name: str,
         cluster_name: str,
@@ -373,7 +420,7 @@ class AKSClient:
                 if enable_managed_gpu:
                     # Fully managed GPU: use az CLI (aks-preview) since the stable SDK
                     # doesn't expose gpuProfile.nvidia.managementMode
-                    self._create_node_pool_cli(
+                    self.add_managed_gpu_node_pool(
                         node_pool_name=node_pool_name,
                         cluster_name=cluster_name,
                         vm_size=vm_size,
@@ -537,41 +584,11 @@ class AKSClient:
                 node_pool.count = node_count
 
                 logger.info(f"Scaling node pool {node_pool_name} to {node_count} nodes")
-                _scale_retries = 10
-                _scale_wait = 30
-                _poll_interval = 30
-                _scale_timeout = 600
-                for _attempt in range(_scale_retries):
-                    try:
-                        poller = self.aks_client.agent_pools.begin_create_or_update(
-                            resource_group_name=self.resource_group,
-                            resource_name=cluster_name,
-                            agent_pool_name=node_pool_name,
-                            parameters=node_pool,
-                        )
-                        elapsed = 0
-                        while not poller.done():
-                            time.sleep(_poll_interval)
-                            elapsed += _poll_interval
-                            if elapsed >= _scale_timeout:
-                                raise TimeoutError(
-                                    f"Node pool {node_pool_name} scale operation timed out after {_scale_timeout}s"
-                                )
-                            logger.info(
-                                f"Waiting for node pool {node_pool_name} scale operation to complete "
-                                f"({elapsed}s elapsed)..."
-                            )
-                        poller.result()
-                        break
-                    except HttpResponseError as e:
-                        if any(code in str(e) for code in ("OperationNotAllowed", "EtagMismatch")) and _attempt < _scale_retries - 1:
-                            logger.warning(
-                                f"Cluster has an in-progress operation, retrying in {_scale_wait}s "
-                                f"(attempt {_attempt + 1}/{_scale_retries}): {e.error.code}"
-                            )
-                            time.sleep(_scale_wait)
-                        else:
-                            raise
+                self._begin_update_with_retry(
+                    node_pool_name=node_pool_name,
+                    cluster_name=cluster_name,
+                    node_pool=node_pool,
+                )
 
                 logger.info(
                     f"Waiting for {node_count} nodes in pool {node_pool_name} to be ready..."
@@ -755,7 +772,6 @@ class AKSClient:
 
         result = None
         completed_steps = []
-        _poll_interval = 30
 
         # Execute scaling operation for each step
         for step_index, step in enumerate(steps):
@@ -789,41 +805,13 @@ class AKSClient:
                         "cluster_info", self.get_cluster_data(cluster_name)
                     )
                     node_pool.count = step  # Update node count in the node pool object
-                    _step_retries = 10
-                    _step_wait = 30
-                    _step_timeout = 600
-                    result = None
-                    for _attempt in range(_step_retries):
-                        try:
-                            poller = self.aks_client.agent_pools.begin_create_or_update(
-                                resource_group_name=self.resource_group,
-                                resource_name=cluster_name,
-                                agent_pool_name=node_pool_name,
-                                parameters=node_pool,
-                            )
-                            elapsed = 0
-                            while not poller.done():
-                                time.sleep(_poll_interval)
-                                elapsed += _poll_interval
-                                if elapsed >= _step_timeout:
-                                    raise TimeoutError(
-                                        f"Node pool {node_pool_name} step {step} scale timed out after {_step_timeout}s"
-                                    )
-                                logger.info(
-                                    f"Waiting for node pool {node_pool_name} step {step} to complete "
-                                    f"({elapsed}s elapsed)..."
-                                )
-                            result = poller.result()
-                            break
-                        except HttpResponseError as e:
-                            if any(code in str(e) for code in ("OperationNotAllowed", "EtagMismatch")) and _attempt < _step_retries - 1:
-                                logger.warning(
-                                    f"Cluster has an in-progress operation at step {step}, retrying in {_step_wait}s "
-                                    f"(attempt {_attempt + 1}/{_step_retries}): {e.error.code}"
-                                )
-                                time.sleep(_step_wait)
-                            else:
-                                raise
+                    self._begin_update_with_retry(
+                        node_pool_name=node_pool_name,
+                        cluster_name=cluster_name,
+                        node_pool=node_pool,
+                        label=f"step {step} ",
+                    )
+                    result = node_pool
 
                     # Use agentpool=node_pool_name as default label if not specified
                     label_selector = f"agentpool={node_pool_name}"

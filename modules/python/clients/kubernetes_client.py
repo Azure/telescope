@@ -829,12 +829,14 @@ class KubernetesClient:
 
                 self.api.create_namespaced_pod(namespace=namespace, body=pod)
 
-                timeout = time.time() + 120
-                while time.time() < timeout:
+                deadline = time.time() + 120
+                while time.time() < deadline:
                     pod_status = self.api.read_namespaced_pod(name=pod_name, namespace=namespace)
                     if pod_status.status.phase in ["Succeeded", "Failed"]:
                         break
                     time.sleep(2)
+                else:
+                    raise TimeoutError(f"Verification pod {pod_name} did not complete within 120s")
 
                 pod_logs = self.get_pod_logs(pod_name=pod_name, namespace=namespace)
                 pod_logs_str = pod_logs.decode("utf-8") if isinstance(pod_logs, bytes) else str(pod_logs)
@@ -864,7 +866,7 @@ class KubernetesClient:
 
         except Exception as e:
             logger.error(f"Error verifying managed GPU systemd services: {str(e)}")
-            return False
+            raise
 
     def apply_manifest_from_url(self, manifest_url, namespace: Optional[str] = None):
         """
