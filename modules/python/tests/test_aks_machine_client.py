@@ -7,10 +7,7 @@ result file via ``Operation.save_to_file`` on context exit. Tests verify:
   the right keys
 - failure path raises (so the OperationContext records ``success=False``)
 
-This revision adds tests for both scale paths (non-batch individual PUTs and
-the BatchPutMachine-headered chunked path) plus the batch-path helpers
-``_scale_machine_batch``, ``_create_batch_machines``, and
-``_make_batch_request``.
+Tests also cover both scale paths and the batch-path helpers.
 """
 # pylint: disable=protected-access
 # Tests intentionally exercise private helpers directly; the leading underscore
@@ -21,7 +18,7 @@ import unittest
 from types import SimpleNamespace
 from unittest import mock
 
-from clients.aks_machine_client import AKSMachineClient
+from clients.aks_machine_client import AKSMachineClient, MachineProvisioningFailed
 
 
 class TestAKSMachineClient(unittest.TestCase):
@@ -660,7 +657,7 @@ class TestAKSMachineClient(unittest.TestCase):
             "clients.aks_machine_client.time.time",
             side_effect=lambda: next(ticks),
         ):
-            with self.assertRaisesRegex(RuntimeError, "machine provisioning failed"):
+            with self.assertRaises(MachineProvisioningFailed) as cm:
                 self.client._wait_for_machine_node_readiness(
                     agentpool_name="apool",
                     expected_count=1,
@@ -669,6 +666,9 @@ class TestAKSMachineClient(unittest.TestCase):
                     cluster_name="fake-cluster",
                     expected_machine_names={"m1"},
                 )
+        self.assertEqual(cm.exception.failed_machines, [{"name": "m1"}])
+        self.assertFalse(cm.exception.readiness_envelope["P50"]["success"])
+        self.assertFalse(cm.exception.readiness_envelope["P100"]["success"])
         mock_check.assert_called_once_with(
             cluster_name="fake-cluster",
             agentpool_name="apool",
