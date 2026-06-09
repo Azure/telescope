@@ -66,6 +66,8 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
             node_count=node_count,
             gpu_node_pool=False,
             enable_managed_gpu=False,
+            gpu_instance_profile=None,
+            gpu_mig_strategy=None,
         )
 
     def test_create_node_pool_failure(self):
@@ -111,6 +113,8 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
             enable_managed_gpu=False,
             progressive=False,
             scale_step_size=1,
+            gpu_instance_profile=None,
+            gpu_mig_strategy=None,
         )
 
     def test_scale_node_pool_down(self):
@@ -139,6 +143,8 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
             enable_managed_gpu=False,
             progressive=False,
             scale_step_size=1,
+            gpu_instance_profile=None,
+            gpu_mig_strategy=None,
         )
 
     def test_delete_node_pool(self):
@@ -200,6 +206,8 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
             node_count=node_count,
             gpu_node_pool=True,
             enable_managed_gpu=False,
+            gpu_instance_profile=None,
+            gpu_mig_strategy=None,
         )
 
         # Should be called twice - once for scale up, once for scale down
