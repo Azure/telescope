@@ -56,8 +56,8 @@ _PER_REQUEST_TIMEOUT_CAP = 60
 _BATCH_429_MAX_RETRIES = 5
 _BATCH_429_INITIAL_BACKOFF_SECONDS = 1.0
 _BATCH_MAX_MACHINES_PER_REQUEST = 50
-_MACHINE_TERMINAL_STATES = {"Succeeded", "Failed", "Canceled", "Cancelled"}
-_MACHINE_FAILURE_STATES = {"Failed", "Canceled", "Cancelled"}
+_MACHINE_TERMINAL_STATES = {"Succeeded", "Failed", "Canceled"}
+_MACHINE_FAILURE_STATES = {"Failed", "Canceled"}
 _MACHINE_FAILURE_DETAIL_LIMIT = 10
 _LIST_MACHINES_PAGE_LIMIT = 50
 _MACHINE_FAILURE_CHECK_INTERVAL_SECONDS = 30
@@ -73,6 +73,22 @@ _NODE_READINESS_POLL_INTERVAL_SECONDS = 2
 # (50 individual workers, 10 batch workers) with comfortable headroom and
 # stays well below ARM's per-client connection ceilings.
 _HTTPS_POOL_SIZE = 64
+
+
+class MachineProvisioningFailed(RuntimeError):
+    """Terminal Machine failure with readiness metadata captured before failure."""
+    def __init__(
+        self,
+        agentpool_name: str,
+        failed_machines: List[Dict[str, Any]],
+        readiness_envelope: Dict[str, Dict[str, Any]],
+    ):
+        super().__init__(
+            f"machine provisioning failed in agentpool {agentpool_name}: "
+            f"failed_machines={failed_machines}"
+        )
+        self.failed_machines = failed_machines
+        self.readiness_envelope = readiness_envelope
 
 
 class AKSMachineClient(AKSClient):
@@ -258,7 +274,6 @@ class AKSMachineClient(AKSClient):
         logger.error(f"agentpool provisioning timed out after {timeout}s")
         return False
 
-    # ---- Machine API: node readiness ----
     def _wait_for_machine_node_readiness(
         self,
         agentpool_name: str,
@@ -271,29 +286,17 @@ class AKSMachineClient(AKSClient):
         """Wait for ``expected_count`` NEW Ready nodes; return nested percentile dict.
 
         AKS Machine ARM resource names (e.g. ``scale100-machine-1``) are NOT the
-        same as the underlying k8s Node names (``aks-<pool>-<rand>-vmss<i>``), so
-        we cannot look up Nodes by Machine name. Instead we poll Nodes labelled
-        ``agentpool=<pool>`` and record the wall-clock elapsed when each percentile
-        ready threshold is hit.
-
-        ``baseline_count`` is the number of Ready+labeled nodes that already
-        existed BEFORE scale_machine ran. Percentile targets are computed against
-        ``baseline_count + expected_count`` and clamped to ``> baseline_count``
-        so a target never fires on pre-existing nodes alone. Without this, an
-        agentpool that already has 1 Ready node and is being scaled by 1 more
-        would report P50/P70/P90/P99/P100 = ~0.7s (the first poll) even though the
-        new node had not yet provisioned.
+        same as underlying k8s Node names, so readiness is measured from Nodes
+        labelled ``agentpool=<pool>``. Percentile targets are computed against
+        ``baseline_count + expected_count`` and clamped above ``baseline_count``
+        so pre-existing Ready nodes never satisfy a new-node threshold.
 
         ``timeout`` is wall-clock seconds from invocation. Returns the nested
         empty-state envelope (``elapsed_time_seconds=None``, ``success=False``)
         if ``k8s_client`` is unavailable, ``expected_count`` <= 0, or no
-        percentile target is met within ``timeout``. Kubernetes polling
-        exceptions are logged and treated as 0 ready this tick. Raises only if
-        every expected Machine is terminal and at least one failed.
+        percentile target is met within ``timeout``. Raises only after every
+        expected Machine is terminal and at least one failed.
         """
-        # Empty-state envelope: nested dict per P-key with
-        # `target_nodes`, `elapsed_time_seconds`, `percentage`, `success` so
-        # the Kusto schema sees consistent shape regardless of outcome.
         empty_envelope: Dict[str, Dict[str, Any]] = {
             f"P{p}": {
                 "target_nodes": 0,
@@ -321,7 +324,7 @@ class AKSMachineClient(AKSClient):
             p: max(baseline_count + 1, math.ceil((p / 100.0) * target_total))
             for p in (50, 70, 90, 99, 100)
         }
-        elapsed: Dict[int, float] = {}
+        readiness_times: Dict[int, float] = {}
         start = time.time()
         deadline = start + timeout
         next_machine_failure_check_at: Optional[float] = (
@@ -332,35 +335,35 @@ class AKSMachineClient(AKSClient):
             f"targets {targets}, baseline={baseline_count}, expected={expected_count}, "
             f"timeout {timeout}s"
         )
-        while time.time() < deadline and len(elapsed) < len(targets):
+        while time.time() < deadline and len(readiness_times) < len(targets):
             (
                 ready,
                 failed_machines_result,
                 next_machine_failure_check_at,
             ) = self._get_readiness_poll_results(
-                kc=kc,
                 label_selector=label_selector,
                 cluster_name=cluster_name,
                 agentpool_name=agentpool_name,
                 expected_machine_names=expected_machine_names,
                 next_machine_failure_check_at=next_machine_failure_check_at,
             )
-            # Once Machine provisioning is terminal-failed, waiting for node
-            # readiness can only end in a less useful P100 timeout.
+            # Once all expected Machines are terminal, no more requested nodes
+            # can join. Preserve lower-percentile timings before failing.
             if failed_machines_result:
-                raise RuntimeError(
-                    f"machine provisioning failed in agentpool {agentpool_name}: "
-                    f"failed_machines={failed_machines_result}"
+                raise MachineProvisioningFailed(
+                    agentpool_name=agentpool_name,
+                    failed_machines=failed_machines_result,
+                    readiness_envelope=self._build_readiness_envelope(targets, readiness_times),
                 )
             now_elapsed = time.time() - start
             for p, target in targets.items():
-                if p not in elapsed and ready >= target:
-                    elapsed[p] = now_elapsed
+                if p not in readiness_times and ready >= target:
+                    readiness_times[p] = now_elapsed
                     logger.info(
                         f"P{p} hit: {ready}/{target_total} ready "
                         f"(target={target}, baseline={baseline_count}) at {now_elapsed:.2f}s"
                     )
-            if len(elapsed) < len(targets):
+            if len(readiness_times) < len(targets):
                 now = time.time()
                 # Wake for the next node poll, next ListMachines check, or
                 # overall timeout, whichever comes first.
@@ -373,56 +376,58 @@ class AKSMachineClient(AKSClient):
                 sleep_seconds = max(0.0, next_wake_at - now)
                 if sleep_seconds > 0:
                     time.sleep(sleep_seconds)
-        if not elapsed:
+        result = self._build_readiness_envelope(targets, readiness_times)
+        if not readiness_times:
             logger.warning(
                 f"No percentile target met within {timeout}s for agentpool {agentpool_name}"
             )
-            return {
-                f"P{p}": {
-                    "target_nodes": targets[p],
-                    "elapsed_time_seconds": None,
-                    "percentage": p,
-                    "success": False,
-                }
-                for p in (50, 70, 90, 99, 100)
-            }
-        result: Dict[str, Dict[str, Any]] = {
-            f"P{p}": {
-                "target_nodes": targets[p],
-                "elapsed_time_seconds": elapsed.get(p),
-                "percentage": p,
-                "success": p in elapsed,
-            }
-            for p in (50, 70, 90, 99, 100)
-        }
+            return result
         # Log percentile summary including P100, which is the wall-clock
         # elapsed until ALL target nodes are Ready.
         logger.info(f"Node Readiness Percentile Summary for agentpool {agentpool_name}:")
         for p in (50, 70, 90, 99, 100):
-            if p in elapsed:
-                logger.info(f"  P{p} (target={targets[p]} nodes): {elapsed[p]:.2f} seconds")
+            if p in readiness_times:
+                logger.info(
+                    f"  P{p} (target={targets[p]} nodes): "
+                    f"{readiness_times[p]:.2f} seconds"
+                )
             else:
                 logger.info(f"  P{p} (target={targets[p]} nodes): TIMEOUT")
-        max_elapsed = max(elapsed.values())
-        if len(elapsed) == len(targets):
+        max_elapsed = max(readiness_times.values())
+        if len(readiness_times) == len(targets):
             logger.info(
                 f"All target nodes became ready in {max_elapsed:.2f} seconds "
                 f"in agent pool {agentpool_name}"
             )
         else:
-            missed = [f"P{p}" for p in (50, 70, 90, 99, 100) if p not in elapsed]
+            missed = [f"P{p}" for p in (50, 70, 90, 99, 100) if p not in readiness_times]
             logger.warning(
                 f"Partial readiness in agent pool {agentpool_name}: "
-                f"{len(elapsed)}/{len(targets)} percentiles met within "
+                f"{len(readiness_times)}/{len(targets)} percentiles met within "
                 f"{timeout}s; missed {missed}; last successful percentile at "
                 f"{max_elapsed:.2f}s"
             )
         logger.info(f"Percentile node readiness data: {json.dumps(result, indent=2)}")
         return result
 
+    @staticmethod
+    def _build_readiness_envelope(
+        targets: Dict[int, int],
+        readiness_times: Dict[int, float],
+    ) -> Dict[str, Dict[str, Any]]:
+        """Build the upload-safe readiness metadata envelope."""
+        return {
+            f"P{p}": {
+                "target_nodes": targets[p],
+                "elapsed_time_seconds": readiness_times.get(p),
+                "percentage": p,
+                "success": p in readiness_times,
+            }
+            for p in (50, 70, 90, 99, 100)
+        }
+
     def _get_readiness_poll_results(
         self,
-        kc: Any,
         label_selector: str,
         cluster_name: Optional[str],
         agentpool_name: str,
@@ -439,7 +444,7 @@ class AKSMachineClient(AKSClient):
         max_workers = 2 if check_machine_failures else 1
         with ThreadPoolExecutor(max_workers=max_workers) as ex:
             ready_nodes = ex.submit(
-                kc.get_ready_nodes,
+                self.k8s_client.get_ready_nodes,
                 label_selector=label_selector,
             )
             if check_machine_failures and cluster_name and expected_machine_names:
@@ -455,12 +460,12 @@ class AKSMachineClient(AKSClient):
         try:
             ready_nodes_result = ready_nodes.result()
         except Exception as e:
-            logger.warning(f"get_ready_nodes({label_selector}) failed: {e}")
+            logger.warning(f"get_ready_nodes({label_selector}) failed; treating as 0 ready: {e}")
         if failed_machines is not None:
             try:
                 failed_machines_result = failed_machines.result()
             except Exception as e:
-                logger.warning(f"get_machine_provisioning_failures failed: {e}")
+                logger.warning(f"get_machine_provisioning_failures failed; retrying on next cadence: {e}")
             next_machine_failure_check_at = (
                 time.time() + _MACHINE_FAILURE_CHECK_INTERVAL_SECONDS
             )
@@ -589,20 +594,28 @@ class AKSMachineClient(AKSClient):
                     f"{'Succeeded' if agentpool_ok else 'Failed/Timeout'}"
                 )
 
-                percentile_envelope = self._wait_for_machine_node_readiness(
-                    agentpool_name=agentpool_name,
-                    expected_count=len(successful),
-                    timeout=readiness_wait_timeout,
-                    baseline_count=baseline_count,
-                    cluster_name=cluster_name,
-                    expected_machine_names=set(names),
-                )
+                readiness_failure = None
+                try:
+                    percentile_envelope = self._wait_for_machine_node_readiness(
+                        agentpool_name=agentpool_name,
+                        expected_count=len(successful),
+                        timeout=readiness_wait_timeout,
+                        baseline_count=baseline_count,
+                        cluster_name=cluster_name,
+                        expected_machine_names=set(names),
+                    )
+                except MachineProvisioningFailed as exc:
+                    readiness_failure = exc
+                    percentile_envelope = exc.readiness_envelope
+                    op.add_metadata("failed_machines", exc.failed_machines)
                 op.add_metadata("percentile_node_readiness_times", percentile_envelope)
                 p100 = percentile_envelope.get("P100", {})
                 op.add_metadata(
                     "node_readiness_time", p100.get("elapsed_time_seconds") or 0.0
                 )
                 op.add_metadata("cluster_info", self.get_cluster_data(cluster_name))
+                if readiness_failure:
+                    raise readiness_failure
 
                 if not agentpool_ok:
                     raise RuntimeError(
@@ -736,7 +749,12 @@ class AKSMachineClient(AKSClient):
         agentpool_name: str,
         expected_names: Set[str],
     ) -> List[Dict[str, Any]]:
-        """Return failed Machines once all expected Machines are terminal."""
+        """Return failed Machines once all expected Machines are terminal.
+
+        We intentionally do not return on the first failed Machine. Successful
+        subsets can still contribute P50/P70/P90 readiness timings before the
+        operation is marked failed.
+        """
         if not expected_names:
             return []
         machines = self._list_machines(cluster_name, agentpool_name)
@@ -751,6 +769,9 @@ class AKSMachineClient(AKSClient):
             name: machines_by_name[name].get("properties", {}).get("provisioningState")
             for name in expected_names
         }
+        # A failed Machine can never become a Ready node, but other Machines may
+        # still join and improve lower-percentile readiness telemetry. Wait for
+        # the full expected set to become terminal before returning failures.
         if not all(state in _MACHINE_TERMINAL_STATES for state in states.values()):
             return []
         failed_names = [
