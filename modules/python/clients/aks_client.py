@@ -564,10 +564,10 @@ class AKSClient:
                         poller.result()
                         break
                     except HttpResponseError as e:
-                        if "OperationNotAllowed" in str(e) and _attempt < _scale_retries - 1:
+                        if any(code in str(e) for code in ("OperationNotAllowed", "EtagMismatch")) and _attempt < _scale_retries - 1:
                             logger.warning(
                                 f"Cluster has an in-progress operation, retrying in {_scale_wait}s "
-                                f"(attempt {_attempt + 1}/{_scale_retries})"
+                                f"(attempt {_attempt + 1}/{_scale_retries}): {e.error.code}"
                             )
                             time.sleep(_scale_wait)
                         else:
@@ -755,6 +755,7 @@ class AKSClient:
 
         result = None
         completed_steps = []
+        _poll_interval = 30
 
         # Execute scaling operation for each step
         for step_index, step in enumerate(steps):
@@ -788,12 +789,41 @@ class AKSClient:
                         "cluster_info", self.get_cluster_data(cluster_name)
                     )
                     node_pool.count = step  # Update node count in the node pool object
-                    result = self.aks_client.agent_pools.begin_create_or_update(
-                        resource_group_name=self.resource_group,
-                        resource_name=cluster_name,
-                        agent_pool_name=node_pool_name,
-                        parameters=node_pool,
-                    ).result()
+                    _step_retries = 10
+                    _step_wait = 30
+                    _step_timeout = 600
+                    result = None
+                    for _attempt in range(_step_retries):
+                        try:
+                            poller = self.aks_client.agent_pools.begin_create_or_update(
+                                resource_group_name=self.resource_group,
+                                resource_name=cluster_name,
+                                agent_pool_name=node_pool_name,
+                                parameters=node_pool,
+                            )
+                            elapsed = 0
+                            while not poller.done():
+                                time.sleep(_poll_interval)
+                                elapsed += _poll_interval
+                                if elapsed >= _step_timeout:
+                                    raise TimeoutError(
+                                        f"Node pool {node_pool_name} step {step} scale timed out after {_step_timeout}s"
+                                    )
+                                logger.info(
+                                    f"Waiting for node pool {node_pool_name} step {step} to complete "
+                                    f"({elapsed}s elapsed)..."
+                                )
+                            result = poller.result()
+                            break
+                        except HttpResponseError as e:
+                            if any(code in str(e) for code in ("OperationNotAllowed", "EtagMismatch")) and _attempt < _step_retries - 1:
+                                logger.warning(
+                                    f"Cluster has an in-progress operation at step {step}, retrying in {_step_wait}s "
+                                    f"(attempt {_attempt + 1}/{_step_retries}): {e.error.code}"
+                                )
+                                time.sleep(_step_wait)
+                            else:
+                                raise
 
                     # Use agentpool=node_pool_name as default label if not specified
                     label_selector = f"agentpool={node_pool_name}"
