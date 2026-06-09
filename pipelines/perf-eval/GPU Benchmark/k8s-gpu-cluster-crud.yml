@@ -207,7 +207,7 @@ stages:
             a100_mig_single_gpu_node_pool:
               gpu_node_pool: true
               enable_managed_gpu: true
-              pool_name: a100migsingle
+              pool_name: a100migsng
               vm_size: Standard_ND96asr_v4
               gpu_instance_profile: MIG1g
               gpu_mig_strategy: single
