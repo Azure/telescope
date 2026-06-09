@@ -50,7 +50,7 @@ aks_cli_config_list = [
       },
       {
         name = "aks-custom-headers"
-        value = "AKSHTTPCustomFeatures=Microsoft.ContainerService/AKSHTTPCustomFeatures,BootstrappingMethodTestOnly=aksmachineapiheaderbatch"
+        value = "AKSHTTPCustomFeatures=Microsoft.ContainerService/AKSHTTPCustomFeatures,BootstrappingMethodTestOnly=bootstrappingclient"
       }
     ]
   }
