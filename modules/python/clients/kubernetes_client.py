@@ -691,13 +691,18 @@ class KubernetesClient:
                     logger.info(f"Waiting for GPUs to be allocated on node {node_name}...")
                     time.sleep(1)
                 gpu_count = int(node.status.allocatable.get("nvidia.com/gpu", "0"))
+                has_mig = any(k.startswith("nvidia.com/mig-") for k in node.status.allocatable)
 
                 logger.info(f"Node {node_name} has {gpu_count} GPUs, requesting all for validation")
 
-                # Skip nodes with no GPUs
-                if gpu_count == 0:
+                # Skip nodes with no GPUs (MIG nodes expose slices instead of whole GPUs)
+                if gpu_count == 0 and not has_mig:
                     logger.warning(f"Skipping node {node_name} as it has no GPUs")
                     continue
+
+                # MIG nodes have gpu_count=0 but still have physical GPUs; request 1 for nvidia-smi
+                if gpu_count == 0 and has_mig:
+                    gpu_count = 1
 
                 # Create pod spec with node selector
                 pod = client.V1Pod(
@@ -873,8 +878,8 @@ class KubernetesClient:
         Verify that MIG slice resources appear in each node's allocatable resources.
         Returns a dict keyed by node name with allocatable MIG resource counts.
         """
-        # e.g. MIG1g → nvidia.com/mig-1g.5gb (A100 40GB) or nvidia.com/mig-1g.10gb (A100 80GB)
-        profile_key = gpu_instance_profile.lower()
+        # MIG1g → "mig-1g" to match nvidia.com/mig-1g.5gb / nvidia.com/mig-1g.10gb
+        profile_key = "mig-" + gpu_instance_profile[3:].lower()
         results = {}
         for node in nodes:
             node_name = node.metadata.name
