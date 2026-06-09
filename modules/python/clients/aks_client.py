@@ -312,6 +312,8 @@ class AKSClient:
         cluster_name: str,
         vm_size: str,
         node_count: int,
+        gpu_instance_profile: Optional[str] = None,
+        gpu_mig_strategy: Optional[str] = None,
     ) -> None:
         """
         Create a fully managed GPU node pool via az CLI (aks-preview extension).
@@ -336,6 +338,10 @@ class AKSClient:
             "--labels", "gpu=true",
             "--enable-managed-gpu", "true",
         ]
+        if gpu_instance_profile:
+            cmd += ["--gpu-instance-profile", gpu_instance_profile]
+        if gpu_mig_strategy:
+            cmd += ["--gpu-mig-strategy", gpu_mig_strategy]
         logger.info(f"Running: {' '.join(cmd)}")
         result = subprocess.run(cmd, capture_output=True, text=True, check=False)
         if result.returncode != 0:
@@ -353,6 +359,8 @@ class AKSClient:
         cluster_name: Optional[str] = None,
         gpu_node_pool: bool = False,
         enable_managed_gpu: bool = False,
+        gpu_instance_profile: Optional[str] = None,
+        gpu_mig_strategy: Optional[str] = None,
     ) -> Any:
         """
         Create a new node pool in the AKS cluster.
@@ -425,6 +433,8 @@ class AKSClient:
                         cluster_name=cluster_name,
                         vm_size=vm_size,
                         node_count=node_count,
+                        gpu_instance_profile=gpu_instance_profile,
+                        gpu_mig_strategy=gpu_mig_strategy,
                     )
                 else:
                     # Create the node pool via SDK
@@ -499,6 +509,8 @@ class AKSClient:
         enable_managed_gpu: bool = False,
         progressive: bool = False,
         scale_step_size: int = 1,
+        gpu_instance_profile: Optional[str] = None,
+        gpu_mig_strategy: Optional[str] = None,
     ) -> Any:
         """
         Scale a node pool to the specified node count.
@@ -559,6 +571,7 @@ class AKSClient:
                 gpu_node_pool=gpu_node_pool,
                 enable_managed_gpu=enable_managed_gpu,
                 node_pool=node_pool,
+                gpu_instance_profile=gpu_instance_profile,
             )
 
         # Create operation context to track the operation
@@ -625,6 +638,12 @@ class AKSClient:
                     )
                     pod_logs = self.k8s_client.verify_nvidia_smi_on_node(ready_nodes)
                     op.add_metadata("nvidia_driver_logs", pod_logs)
+                    if gpu_instance_profile:
+                        logger.info(
+                            f"Verifying MIG allocatable resources for profile {gpu_instance_profile}"
+                        )
+                        mig_status = self.k8s_client.verify_mig_allocatable(ready_nodes, gpu_instance_profile)
+                        op.add_metadata("mig_allocatable", mig_status)
 
                 op.add_metadata("ready_nodes", len(ready_nodes))
 
@@ -720,6 +739,7 @@ class AKSClient:
         gpu_node_pool: bool = False,
         enable_managed_gpu: bool = False,
         node_pool: Optional[Any] = None,
+        gpu_instance_profile: Optional[str] = None,
     ) -> Any:
         """
         Scale a node pool progressively with specified step size
@@ -858,6 +878,13 @@ class AKSClient:
                         )
                         service_status = self.k8s_client.verify_managed_gpu_systemd_services(ready_nodes)
                         op.add_metadata("managed_gpu_service_status", service_status)
+
+                    if step == target_count and gpu_instance_profile and operation_type == "scale_up" and step > 0:
+                        logger.info(
+                            f"Verifying MIG allocatable resources for profile {gpu_instance_profile}"
+                        )
+                        mig_status = self.k8s_client.verify_mig_allocatable(ready_nodes, gpu_instance_profile)
+                        op.add_metadata("mig_allocatable", mig_status)
 
 
                 except Exception as e:

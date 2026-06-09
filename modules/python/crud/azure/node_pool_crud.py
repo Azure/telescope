@@ -73,7 +73,8 @@ class NodePoolCRUD:
         self.step_timeout = step_timeout
 
     def create_node_pool(
-        self, node_pool_name, vm_size, node_count=1, gpu_node_pool=False, enable_managed_gpu=False
+        self, node_pool_name, vm_size, node_count=1, gpu_node_pool=False, enable_managed_gpu=False,
+        gpu_instance_profile=None, gpu_mig_strategy=None,
     ):
         """
         Create a new node pool
@@ -99,6 +100,8 @@ class NodePoolCRUD:
                 node_count=node_count,
                 gpu_node_pool=gpu_node_pool,
                 enable_managed_gpu=enable_managed_gpu,
+                gpu_instance_profile=gpu_instance_profile,
+                gpu_mig_strategy=gpu_mig_strategy,
             )
             logger.info(f"Node pool '{node_pool_name}' created successfully")
             return result
@@ -114,6 +117,8 @@ class NodePoolCRUD:
         scale_step_size=1,
         gpu_node_pool=False,
         enable_managed_gpu=False,
+        gpu_instance_profile=None,
+        gpu_mig_strategy=None,
     ):
         """
         Scale a node pool to specified count
@@ -140,6 +145,8 @@ class NodePoolCRUD:
                 enable_managed_gpu=enable_managed_gpu,
                 progressive=progressive,
                 scale_step_size=scale_step_size,
+                gpu_instance_profile=gpu_instance_profile,
+                gpu_mig_strategy=gpu_mig_strategy,
             )
 
             if result is not None:
@@ -184,6 +191,8 @@ class NodePoolCRUD:
         gpu_node_pool=False,
         enable_managed_gpu=False,
         step_wait_time=30,
+        gpu_instance_profile=None,
+        gpu_mig_strategy=None,
     ):
         """
         Unified method to perform all node pool operations: create, scale-up, scale-down, delete
@@ -220,6 +229,8 @@ class NodePoolCRUD:
                 node_count=node_count,
                 gpu_node_pool=gpu_node_pool,
                 enable_managed_gpu=enable_managed_gpu,
+                gpu_instance_profile=gpu_instance_profile,
+                gpu_mig_strategy=gpu_mig_strategy,
             )
             results["create"] = create_result
 
@@ -243,6 +254,8 @@ class NodePoolCRUD:
                 scale_step_size=scale_step_size,
                 gpu_node_pool=gpu_node_pool,
                 enable_managed_gpu=enable_managed_gpu,
+                gpu_instance_profile=gpu_instance_profile,
+                gpu_mig_strategy=gpu_mig_strategy,
             )
             results["scale_up"] = scale_up_result
 

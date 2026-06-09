@@ -868,6 +868,26 @@ class KubernetesClient:
             logger.error(f"Error verifying managed GPU systemd services: {str(e)}")
             raise
 
+    def verify_mig_allocatable(self, nodes, gpu_instance_profile: str) -> dict:
+        """
+        Verify that MIG slice resources appear in each node's allocatable resources.
+        Returns a dict keyed by node name with allocatable MIG resource counts.
+        """
+        # e.g. MIG1g → nvidia.com/mig-1g.5gb (A100 40GB) or nvidia.com/mig-1g.10gb (A100 80GB)
+        profile_key = gpu_instance_profile.lower()
+        results = {}
+        for node in nodes:
+            node_name = node.metadata.name
+            node_info = self.describe_node(node_name)
+            allocatable = node_info.status.allocatable or {}
+            mig_resources = {k: v for k, v in allocatable.items() if profile_key in k.lower()}
+            if mig_resources:
+                logger.info(f"{node_name}: MIG allocatable: {mig_resources}")
+            else:
+                logger.warning(f"{node_name}: no MIG resources found in allocatable: {allocatable}")
+            results[node_name] = mig_resources
+        return results
+
     def apply_manifest_from_url(self, manifest_url, namespace: Optional[str] = None):
         """
         Apply a Kubernetes manifest from a URL using Kubernetes Python client API.

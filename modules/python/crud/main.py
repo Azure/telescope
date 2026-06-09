@@ -116,6 +116,8 @@ def handle_node_pool_operation(node_pool_crud, args):
                 "node_count": args.node_count,
                 "gpu_node_pool": args.gpu_node_pool,
                 "enable_managed_gpu": args.enable_managed_gpu,
+                "gpu_instance_profile": args.gpu_instance_profile,
+                "gpu_mig_strategy": args.gpu_mig_strategy,
             }
 
             result = node_pool_crud.create_node_pool(**create_kwargs)
@@ -129,6 +131,8 @@ def handle_node_pool_operation(node_pool_crud, args):
                 "scale_step_size": args.scale_step_size,
                 "gpu_node_pool": args.gpu_node_pool,
                 "enable_managed_gpu": args.enable_managed_gpu,
+                "gpu_instance_profile": args.gpu_instance_profile,
+                "gpu_mig_strategy": args.gpu_mig_strategy,
             }
 
             result = node_pool_crud.scale_node_pool(**scale_kwargs)
@@ -419,6 +423,16 @@ def main():
         action="store_true",
         help="Enable fully managed GPU mode (gpuProfile.nvidia.managementMode=Managed). "
              "When omitted with --gpu-node-pool, driver bootstrap only is used.",
+    )
+    common_parser.add_argument(
+        "--gpu-instance-profile",
+        default=None,
+        help="MIG instance profile for Azure GPU node pools (e.g., MIG1g, MIG2g)",
+    )
+    common_parser.add_argument(
+        "--gpu-mig-strategy",
+        default=None,
+        help="MIG strategy for Azure GPU node pools (e.g., mixed, single)",
     )
     common_parser.add_argument(
         "--capacity-type",

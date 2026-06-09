@@ -157,6 +157,74 @@ stages:
           ssh_key_enabled: false
           timeout_in_minutes: 180
 
+  - stage: azure_A100_mig_mixed_gpu_test
+    dependsOn: [azure_A100_fully_managed_gpu_test]
+    condition: |
+      in(dependencies.azure_A100_fully_managed_gpu_test.result, 'Succeeded', 'SucceededWithIssues')
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - southcentralus
+          topology: k8s-crud-gpu
+          engine: crud
+          matrix:
+            a100_mig_mixed_gpu_node_pool:
+              gpu_node_pool: true
+              enable_managed_gpu: true
+              pool_name: a100migmixed
+              vm_size: Standard_ND96asr_v4
+              gpu_instance_profile: MIG1g
+              gpu_mig_strategy: mixed
+              create_node_count: 0
+              scale_node_count: 2
+              scale_step_size: 2
+              step_time_out: 600
+              step_wait_time: 30
+              count: 1
+              replicas: 10
+              completions: 1
+              manifest_dir: ""
+          max_parallel: 1
+          credential_type: service_connection
+          ssh_key_enabled: false
+          timeout_in_minutes: 180
+
+  - stage: azure_A100_mig_single_gpu_test
+    dependsOn: [azure_A100_mig_mixed_gpu_test]
+    condition: |
+      in(dependencies.azure_A100_mig_mixed_gpu_test.result, 'Succeeded', 'SucceededWithIssues')
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - southcentralus
+          topology: k8s-crud-gpu
+          engine: crud
+          matrix:
+            a100_mig_single_gpu_node_pool:
+              gpu_node_pool: true
+              enable_managed_gpu: true
+              pool_name: a100migsingle
+              vm_size: Standard_ND96asr_v4
+              gpu_instance_profile: MIG1g
+              gpu_mig_strategy: single
+              create_node_count: 0
+              scale_node_count: 2
+              scale_step_size: 2
+              step_time_out: 600
+              step_wait_time: 30
+              count: 1
+              replicas: 10
+              completions: 1
+              manifest_dir: ""
+          max_parallel: 1
+          credential_type: service_connection
+          ssh_key_enabled: false
+          timeout_in_minutes: 180
+
   - stage: azure_A10_managed_gpu_test
     dependsOn: [azure_H100_managed_gpu_test]
     condition: |
