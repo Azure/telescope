@@ -13,7 +13,7 @@ stages:
           cloud: azure
           regions:
             - australiaeast
-          topology: k8s-gpu-cluster-crud
+          topology: k8s-crud-gpu
           engine: python
           matrix:
             crud_test:
