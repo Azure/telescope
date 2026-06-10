@@ -68,6 +68,6 @@ if [ -n "${policyPath}" ]; then
   rm -f "$POLICY_TMP"
 fi
 """
-    AzCli(serviceConnection, "Create firewall ${name}", script)
+    AzCli(serviceConnection, "Setup firewall ${name} for subnet ${subnetName}", script)
 }
 
