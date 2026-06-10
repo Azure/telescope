@@ -29,7 +29,7 @@ _userPools = [azure.NodePool {
     name = pool.name
     sku = pool.sku
     count = pool.count
-    vnetSubnetId = "$(NODE_SUBNET_ID)"
+    vnetSubnetId = "$(NODES_SUBNET_ID)"
     osSKU = "Ubuntu"
 } for pool in azure.PlanNodePools({"$(user_pool_vm_size)": USER_TOTAL_NODES}, MAX_NODES_PER_POOL)]
 
@@ -56,19 +56,18 @@ cat > /tmp/aks-body.json << EOF
     "agentPoolProfiles": [
       {
         "name": "system",
-        "count": 10,
+        "count": 3,
         "vmSize": "Standard_D48s_v3",
         "maxPods": 60,
         "osType": "Linux",
         "osSKU": "Ubuntu",
         "mode": "System",
-        "vnetSubnetID": "$(NODE_SUBNET_ID)"
+        "vnetSubnetID": "$(NODES_SUBNET_ID)"
       }
     ],
     "networkProfile": {
       "networkPlugin": "azure",
       "networkPluginMode": "overlay",
-      "networkDataplane": "cilium",
       "podCidr": "10.64.0.0/10",
       "outboundType": "userDefinedRouting"
     },
@@ -100,6 +99,8 @@ output = ap.Pipeline {
         location = "eastasia"
         cluster_name = "15k-private-cluster"
         user_pool_vm_size = "Standard_D4s_v3"
+        network_dataplane = "cilium"
+        kms_key_id = ""
     }
 
     jobs = [
@@ -123,9 +124,9 @@ output = ap.Pipeline {
                 ),
                 azure.CreateManagedIdentity(
                     const.DEFAULT_SERVICE_CONNECTION,
+                    SUBSCRIPTION_ID,
                     RESOURCE_GROUP,
-                    IDENTITY_NAME,
-                    SUBSCRIPTION_ID
+                    IDENTITY_NAME
                 ),
                 azure.CreateVNet(
                     const.DEFAULT_SERVICE_CONNECTION,
@@ -134,70 +135,43 @@ output = ap.Pipeline {
                     VNET_CIDR,
                     SUBSCRIPTION_ID
                 ),
-                azure.CreateSubnet(
+                azure.CreateSubnetAndRoleAssignment(
                     const.DEFAULT_SERVICE_CONNECTION,
                     RESOURCE_GROUP, VNET_NAME,
                     "nodes", NODES_SUBNET_CIDR,
-                    SUBSCRIPTION_ID, "NODE_SUBNET_ID"
+                    SUBSCRIPTION_ID, "$(IDENTITY_CLIENT_ID)"
                 ),
-                azure.CreateRoleAssignment(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    "$(NODE_SUBNET_ID)", "Network Contributor",
-                    "$(IDENTITY_CLIENT_ID)", SUBSCRIPTION_ID
-                ),
-                azure.CreateSubnet(
+                azure.CreateSubnetAndRoleAssignment(
                     const.DEFAULT_SERVICE_CONNECTION,
                     RESOURCE_GROUP, VNET_NAME,
                     "apiserver", APISERVER_SUBNET_CIDR,
-                    SUBSCRIPTION_ID, "APISERVER_SUBNET_ID"
+                    SUBSCRIPTION_ID, "$(IDENTITY_CLIENT_ID)"
                 ),
-                azure.CreateRoleAssignment(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    "$(APISERVER_SUBNET_ID)", "Network Contributor",
-                    "$(IDENTITY_CLIENT_ID)", SUBSCRIPTION_ID
-                ),
-                azure.CreateSubnet(
+                azure.CreateSubnetAndRoleAssignment(
                     const.DEFAULT_SERVICE_CONNECTION,
                     RESOURCE_GROUP, VNET_NAME,
                     "AzureFirewallSubnet", FIREWALL_SUBNET_CIDR,
-                    SUBSCRIPTION_ID, "FIREWALL_SUBNET_ID"
+                    SUBSCRIPTION_ID, "$(IDENTITY_CLIENT_ID)"
                 ),
-                azure.CreateRoleAssignment(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    "$(FIREWALL_SUBNET_ID)", "Network Contributor",
-                    "$(IDENTITY_CLIENT_ID)", SUBSCRIPTION_ID
-                ),
-                azure.CreateSubnet(
+                azure.CreateSubnetAndRoleAssignment(
                     const.DEFAULT_SERVICE_CONNECTION,
                     RESOURCE_GROUP, VNET_NAME,
                     "jumpbox", JUMPBOX_SUBNET_CIDR,
-                    SUBSCRIPTION_ID
+                    SUBSCRIPTION_ID, "$(IDENTITY_CLIENT_ID)"
                 ),
                 azure.CreateFirewall(
                     const.DEFAULT_SERVICE_CONNECTION,
-                    RESOURCE_GROUP, FW_NAME, LOCATION,
-                    VNET_NAME, FW_PUBLIC_IP_NAME, SUBSCRIPTION_ID
+                    SUBSCRIPTION_ID,RESOURCE_GROUP, FW_NAME, LOCATION,
+                    VNET_NAME, FW_PUBLIC_IP_NAME
                 ),
-                azure.CreateRouteTable(
+                azure.UpdateSubnetRouteTable(
                     const.DEFAULT_SERVICE_CONNECTION,
-                    RESOURCE_GROUP, RT_NAME, LOCATION,
-                    SUBSCRIPTION_ID
-                ),
-                azure.CreateRoute(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    RESOURCE_GROUP, RT_NAME,
-                    "egress", "0.0.0.0/0",
-                    "VirtualAppliance", "$(FWPRIVATE_IP)",
-                    SUBSCRIPTION_ID
-                ),
-                azure.AssociateRouteTable(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    RESOURCE_GROUP, VNET_NAME,
-                    "nodes", RT_NAME, SUBSCRIPTION_ID
+                    RESOURCE_GROUP, RT_NAME, LOCATION, VNET_NAME,
+                    "nodes","$(FIREWALL_PRIVATE_IP)", SUBSCRIPTION_ID
                 ),
                 azure.UpdateFirewallPolicy(
                     const.DEFAULT_SERVICE_CONNECTION,
-                    RESOURCE_GROUP, FW_NAME, SUBSCRIPTION_ID,
+                    SUBSCRIPTION_ID, RESOURCE_GROUP, FW_NAME,
                     "$(Pipeline.Workspace)/s/kcl/ccp_team/15K_cluster/firewall-policy.json",
                     LOCATION
                 ),
