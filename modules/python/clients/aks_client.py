@@ -13,7 +13,6 @@ and troubleshooting.
 """
 
 import asyncio
-import concurrent.futures
 import logging
 import os
 import time
@@ -139,17 +138,7 @@ class AKSClient:
 
             return arm_response, ready_nodes, node_readiness_time, command_execution_time
 
-        # Handle both sync and async calling contexts
-        try:
-            asyncio.get_running_loop()
-        except RuntimeError:
-            # No running loop - safe to use asyncio.run()
-            return asyncio.run(_run())
-
-        # Already in async context - run in separate thread pool
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future = executor.submit(asyncio.run, _run())
-            return future.result()
+        return asyncio.run(_run())
 
     def __init__(
         self,
