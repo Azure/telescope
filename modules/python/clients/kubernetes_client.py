@@ -703,12 +703,12 @@ class KubernetesClient:
                     logger.warning(f"Skipping node {node_name} as it has no GPUs")
                     continue
 
-                # MIG nodes expose slices instead of whole GPUs; request one MIG slice
+                # MIG mixed: request one slice; MIG single or regular: request 1 whole GPU
                 if has_mig:
                     mig_resource = next(k for k in node.status.allocatable if k.startswith("nvidia.com/mig-"))
                     gpu_resource_limits = {mig_resource: "1"}
                 else:
-                    gpu_resource_limits = {"nvidia.com/gpu": str(gpu_count)}
+                    gpu_resource_limits = {"nvidia.com/gpu": "1"}
 
                 # Create pod spec with node selector
                 pod = client.V1Pod(
@@ -884,14 +884,23 @@ class KubernetesClient:
         Verify that MIG slice resources appear in each node's allocatable resources.
         Returns a dict keyed by node name with allocatable MIG resource counts.
         """
-        # MIG1g → "mig-1g" to match nvidia.com/mig-1g.5gb / nvidia.com/mig-1g.10gb
+        # MIG1g → "mig-1g" to match nvidia.com/mig-1g.5gb / nvidia.com/mig-1g.10gb (mixed strategy)
         profile_key = "mig-" + gpu_instance_profile[3:].lower()
         results = {}
         for node in nodes:
             node_name = node.metadata.name
             node_info = self.describe_node(node_name)
             allocatable = node_info.status.allocatable or {}
+
+            # Mixed strategy: slices exposed as nvidia.com/mig-* resources
             mig_resources = {k: v for k, v in allocatable.items() if profile_key in k.lower()}
+
+            if not mig_resources:
+                # Single strategy: MIG instances exposed as nvidia.com/gpu
+                gpu_count = int(allocatable.get("nvidia.com/gpu", "0"))
+                if gpu_count > 0:
+                    mig_resources = {"nvidia.com/gpu": str(gpu_count)}
+
             if mig_resources:
                 logger.info(f"{node_name}: MIG allocatable: {mig_resources}")
             else:
