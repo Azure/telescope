@@ -1,6 +1,6 @@
 import azure_pipelines.ap.steps
 
-CreateFirewall = lambda serviceConnection: str, subscription: str, resourceGroup: str, location: str, name: str, vnetName: str, publicIpName: str -> steps.Step {
+CreateFirewall = lambda serviceConnection: str, subscription: str, resourceGroup: str, location: str, name: str, vnetName: str, publicIpName: str, policyPath: str = "" -> steps.Step {
     script = """
 az extension add --name azure-firewall
 
@@ -32,6 +32,19 @@ FIREWALL_PRIVATE_IP=$(az network firewall show \\
   --subscription "${subscription}" \\
   --query "ipConfigurations[0].privateIPAddress" -o tsv)
 echo "##vso[task.setvariable variable=FIREWALL_PRIVATE_IP]$FIREWALL_PRIVATE_IP"
+
+# Use az rest PUT to apply the full firewall policy in one call — handles large rule sets
+# and is significantly faster than incremental CLI commands (az network firewall policy rule-collection-group)
+if [ -n "${policyPath}" ]; then
+  POLICY_TMP=$(mktemp)
+  sed 's|"location": "[^"]*"|"location": "${location}"|g' "${policyPath}" > "$POLICY_TMP"
+  az rest \\
+    --method put \\
+    --uri "https://management.azure.com/subscriptions/${subscription}/resourceGroups/${resourceGroup}/providers/Microsoft.Network/azureFirewalls/${name}?api-version=2025-05-01" \\
+    --headers "Content-Type=application/json" \\
+    --body "@$POLICY_TMP"
+  rm -f "$POLICY_TMP"
+fi
 """
     AzCli(serviceConnection, "Create firewall ${name}", script)
 }
@@ -63,16 +76,3 @@ az network vnet subnet update \\
     AzCli(serviceConnection, "Associate route table ${routeTableName} to subnet ${subnetName}", script)
 }
 
-UpdateFirewallPolicy = lambda serviceConnection: str, subscription: str, resourceGroup: str, location: str, name: str, policyPath: str -> steps.Step {
-    script = """
-POLICY_TMP=$(mktemp)
-sed 's|"location": "[^"]*"|"location": "${location}"|g' "${policyPath}" > "$POLICY_TMP"
-az rest \\
-  --method put \\
-  --uri "https://management.azure.com/subscriptions/${subscription}/resourceGroups/${resourceGroup}/providers/Microsoft.Network/azureFirewalls/${name}?api-version=2025-05-01" \\
-  --headers "Content-Type=application/json" \\
-  --body "@$POLICY_TMP"
-rm -f "$POLICY_TMP"
-"""
-    AzCli(serviceConnection, "Update firewall policy ${name}", script)
-}
