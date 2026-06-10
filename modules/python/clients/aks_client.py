@@ -343,14 +343,24 @@ class AKSClient:
         if gpu_mig_strategy:
             cmd += ["--gpu-mig-strategy", gpu_mig_strategy]
         logger.info(f"Running: {' '.join(cmd)}")
-        result = subprocess.run(cmd, capture_output=True, text=True, check=False)
-        if result.returncode != 0:
+        retries = 10
+        retry_wait = 30
+        for attempt in range(retries):
+            result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+            if result.returncode == 0:
+                break
             detail = " | ".join(
                 line for line in (result.stdout + result.stderr).splitlines() if line.strip()
             )
-            raise RuntimeError(
-                f"az aks nodepool add failed (rc={result.returncode}): {detail}"
-            )
+            if "OperationNotAllowed" in detail and attempt < retries - 1:
+                logger.warning(
+                    f"Cluster has an in-progress operation, retrying in {retry_wait}s (attempt {attempt + 1}/{retries})"
+                )
+                time.sleep(retry_wait)
+            else:
+                raise RuntimeError(
+                    f"az aks nodepool add failed (rc={result.returncode}): {detail}"
+                )
         logger.info(f"az aks nodepool add succeeded for '{node_pool_name}'")
 
     def create_node_pool(
