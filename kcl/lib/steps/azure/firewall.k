@@ -1,6 +1,6 @@
 import azure_pipelines.ap.steps
 
-CreateFirewall = lambda serviceConnection: str, subscription: str, resourceGroup: str, name: str, location: str, vnetName: str, publicIpName: str -> steps.Step {
+CreateFirewall = lambda serviceConnection: str, subscription: str, resourceGroup: str, location: str, name: str, vnetName: str, publicIpName: str -> steps.Step {
     script = """
 az extension add --name azure-firewall
 
@@ -36,7 +36,7 @@ echo "##vso[task.setvariable variable=FIREWALL_PRIVATE_IP]$FIREWALL_PRIVATE_IP"
     AzCli(serviceConnection, "Create firewall ${name}", script)
 }
 
-UpdateSubnetRouteTable = lambda serviceConnection: str, resourceGroup: str, routeTableName: str, location: str, vnetName: str, subnetName: str, firewallIp: str, subscription: str -> steps.Step {
+UpdateSubnetRouteTable = lambda serviceConnection: str, subscription: str, resourceGroup: str, location: str, routeTableName: str, vnetName: str, subnetName: str, firewallIp: str -> steps.Step {
     script = """
 az network route-table create \\
   --resource-group "${resourceGroup}" \\
@@ -63,7 +63,7 @@ az network vnet subnet update \\
     AzCli(serviceConnection, "Associate route table ${routeTableName} to subnet ${subnetName}", script)
 }
 
-UpdateFirewallPolicy = lambda serviceConnection: str, subscription: str, resourceGroup: str, name: str, policyPath: str, location: str -> steps.Step {
+UpdateFirewallPolicy = lambda serviceConnection: str, subscription: str, resourceGroup: str, location: str, name: str, policyPath: str -> steps.Step {
     script = """
 POLICY_TMP=$(mktemp)
 sed 's|"location": "[^"]*"|"location": "${location}"|g' "${policyPath}" > "$POLICY_TMP"
