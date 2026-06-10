@@ -683,9 +683,12 @@ class KubernetesClient:
                 logger.info(f"Verifying NVIDIA drivers on node {node_name}")
                 node = self.describe_node(node_name)
 
-                # Check if the node has GPUs allocated values
+                # Check if the node has GPUs allocated values (whole GPU or MIG slices)
                 start_time = time.time()
-                while "nvidia.com/gpu" not in node.status.allocatable and time.time() < start_time + 600:
+                while time.time() < start_time + 600:
+                    allocatable = node.status.allocatable or {}
+                    if "nvidia.com/gpu" in allocatable or any(k.startswith("nvidia.com/mig-") for k in allocatable):
+                        break
                     node = self.describe_node(node_name)
                     logger.info(f"Node allocatable resources: {node.status.allocatable}")
                     logger.info(f"Waiting for GPUs to be allocated on node {node_name}...")
