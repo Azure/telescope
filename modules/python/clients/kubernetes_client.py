@@ -703,9 +703,12 @@ class KubernetesClient:
                     logger.warning(f"Skipping node {node_name} as it has no GPUs")
                     continue
 
-                # MIG nodes have gpu_count=0 but still have physical GPUs; request 1 for nvidia-smi
-                if gpu_count == 0 and has_mig:
-                    gpu_count = 1
+                # MIG nodes expose slices instead of whole GPUs; request one MIG slice
+                if has_mig:
+                    mig_resource = next(k for k in node.status.allocatable if k.startswith("nvidia.com/mig-"))
+                    gpu_resource_limits = {mig_resource: "1"}
+                else:
+                    gpu_resource_limits = {"nvidia.com/gpu": str(gpu_count)}
 
                 # Create pod spec with node selector
                 pod = client.V1Pod(
@@ -717,7 +720,7 @@ class KubernetesClient:
                                 image="nvidia/cuda:12.2.0-base-ubuntu20.04",
                                 command=["/bin/bash", "-c", "nvidia-smi"],
                                 resources=client.V1ResourceRequirements(
-                                    limits={"nvidia.com/gpu": str(gpu_count)}
+                                    limits=gpu_resource_limits
                                 ),
                             )
                         ],
