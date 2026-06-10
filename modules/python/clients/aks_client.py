@@ -84,8 +84,7 @@ class AKSClient:
         Returns:
             Tuple of (arm_result, ready_nodes, node_readiness_time, command_execution_time)
             - node_readiness_time: seconds from start until K8s nodes were ready
-            - command_execution_time: seconds from start until both tasks complete
-              (i.e., the longer of ARM or K8s readiness)
+            - command_execution_time: seconds from start until ARM operation completed
 
         Raises:
             Exception: If either ARM or K8s readiness fails. Both tasks run to
