@@ -92,9 +92,14 @@ class AKSClient:
                 completion (or failure) so we can capture timing for whichever
                 succeeded, enabling better diagnosis of which layer caused the failure.
         """
+        def _poll_arm_with_timestamp():
+            """Run ARM poller and return (result, completion_timestamp)."""
+            result = poller.result()
+            return result, time.time()
+
         async def _run():
             # Run ARM polling and K8s readiness check concurrently
-            arm_task = asyncio.to_thread(poller.result)
+            arm_task = asyncio.to_thread(_poll_arm_with_timestamp)
             k8s_task = asyncio.to_thread(
                 self.k8s_client.wait_for_nodes_ready,
                 node_count=node_count,
@@ -107,8 +112,6 @@ class AKSClient:
             results = await asyncio.gather(arm_task, k8s_task, return_exceptions=True)
             arm_result, k8s_result = results
 
-            completion_time = time.time()
-
             # Check for failures and build diagnostic message
             arm_failed = isinstance(arm_result, Exception)
             k8s_failed = isinstance(k8s_result, Exception)
@@ -117,7 +120,7 @@ class AKSClient:
                 # Build diagnostic info for logging
                 arm_status = f"FAILED: {arm_result}" if arm_failed else "succeeded"
                 k8s_status = f"FAILED: {k8s_result}" if k8s_failed else "succeeded"
-                elapsed = completion_time - start_time
+                elapsed = time.time() - start_time
                 logger.error(
                     "Concurrent operation failed after %.2fs - ARM: %s, K8s readiness: %s",
                     elapsed, arm_status, k8s_status
@@ -127,14 +130,15 @@ class AKSClient:
                     raise arm_result
                 raise k8s_result
 
-            # Both succeeded - unpack k8s result
+            # Both succeeded - unpack results
+            arm_response, arm_timestamp = arm_result
             ready_nodes, ready_timestamp = k8s_result
 
             # Calculate times relative to start
             node_readiness_time = ready_timestamp - start_time
-            command_execution_time = completion_time - start_time
+            command_execution_time = arm_timestamp - start_time
 
-            return arm_result, ready_nodes, node_readiness_time, command_execution_time
+            return arm_response, ready_nodes, node_readiness_time, command_execution_time
 
         # Handle both sync and async calling contexts
         try:
