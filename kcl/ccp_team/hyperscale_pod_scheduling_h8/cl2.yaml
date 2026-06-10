@@ -1,0 +1,216 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cl2-override
+  namespace: clusterloader2
+data:
+  override.yaml: |
+    Nodes: 8000
+    CL2_SCHEDULER_THROUGHPUT_TOTAL_PODS: 800000
+    CL2_SCHEDULER_THROUGHPUT_PODS_PER_DEPLOYMENT: 1000 # Setting a high number of pods per deployment to reduce the number of API calls and focus on scheduler performance rather than API server performance.
+    CL2_DEFAULT_QPS: 2 # Setting low QPS to avoid overwhelming the API server and causing timeouts, since this test is focused on scheduler throughput, not API server performance.
+    CL2_RUN_ON_ARM_NODES: true # This is a hack to allow Cl2 to run on Kwok nodes
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cl2
+  namespace: clusterloader2
+spec:
+  completions: 1 # # Run a single instance of the job since we are measuring scheduler throughput and not apiserver performance
+  parallelism: 1 # Run a single instance of the job since we are measuring scheduler throughput and not apiserver performance
+  backoffLimit: 0 # Don't retry failed CL2 runs.
+  template:
+    spec:
+      containers:
+      - args:
+        - '--provider=aks'
+        - '--run-from-cluster=true'
+        - '--v=2'
+        - '--testoverrides=/override/override.yaml'
+        - '--testconfig=testing/load/cl2-config.yaml'
+        image: ghcr.io/azure/clusterloader2:v20260220
+        name: cl2
+        resources:
+          requests:
+            cpu: '6'
+            memory: '24Gi'
+        volumeMounts:
+        - mountPath: /override
+          name: cl2-override
+        - mountPath: /root/perf-tests/clusterloader2/testing/load/cl2-config.yaml
+          name: cl2-config
+          subPath: config.yaml
+        - mountPath: /root/perf-tests/clusterloader2/testing/load/modules/scheduler-throughput.yaml
+          name: cl2-scheduler-throughput
+          subPath: scheduler-throughput.yaml
+      nodeSelector:
+        agentpool: cl2pool
+      restartPolicy: Never
+      serviceAccountName: cl2
+      tolerations:
+      - effect: NoSchedule
+        key: cl2pool
+        operator: Exists
+      volumes:
+      - configMap:
+          name: cl2-override
+        name: cl2-override
+      - configMap:
+          name: cl2-config
+        name: cl2-config
+      - configMap:
+          name: cl2-scheduler-throughput
+        name: cl2-scheduler-throughput
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cl2-scheduler-throughput
+  namespace: clusterloader2
+data:
+  scheduler-throughput.yaml: |
+    ## Input params
+    # Valid actions: "create", "delete"
+    {{$action := .action}}
+    {{$namespaces := .namespaces}}
+    {{$replicasPerNamespace := .replicasPerNamespace}}
+    {{$schedulerThroughputNamespaces := .schedulerThroughputNamespaces}}
+    {{$schedulerThroughputPodsPerDeployment := .schedulerThroughputPodsPerDeployment}}
+    ## Derivative variables
+    {{$is_creating := (eq .action "create")}}
+    ## CL2 params
+    {{$SCHEDULER_THROUGHPUT_THRESHOLD := DefaultParam .CL2_SCHEDULER_THROUGHPUT_THRESHOLD 100}}
+    {{$CHECK_IF_PODS_ARE_UPDATED := DefaultParam .CL2_CHECK_IF_PODS_ARE_UPDATED true}}
+    {{$deploymentImage := DefaultParam .deploymentImage "registry.k8s.io/pause:3.9"}}
+
+    steps:
+    {{if $is_creating}}
+    - name: Creating scheduler throughput measurements
+      measurements:
+      - Identifier: WaitForSchedulerThroughputDeployments
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: start
+          checkIfPodsAreUpdated: {{$CHECK_IF_PODS_ARE_UPDATED}}
+          apiVersion: apps/v1
+          kind: Deployment
+          labelSelector: group = scheduler-throughput
+          operationTimeout: 5h
+      - Identifier: SchedulingThroughput
+        Method: SchedulingThroughput
+        Params:
+          action: start
+          labelSelector: group = scheduler-throughput
+          measurmentInterval: 1s
+    {{end}}
+    - name: {{$action}} scheduler throughput pods
+      phases:
+      - namespaceRange:
+          min: {{AddInt $namespaces 1}}
+          max: {{AddInt $namespaces $schedulerThroughputNamespaces}}
+        replicasPerNamespace: {{$replicasPerNamespace}}
+        tuningSet: default
+        objectBundle:
+        - basename: scheduler-throughput-deployment
+          objectTemplatePath: simple-deployment.yaml
+          templateFillMap:
+            Replicas: {{$schedulerThroughputPodsPerDeployment}}
+            Group: scheduler-throughput
+            Image: {{$deploymentImage}}
+    - name: Waiting for scheduler throughput pods to be {{$action}}d
+      measurements:
+      - Identifier: WaitForSchedulerThroughputDeployments
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+    {{if $is_creating}}
+    - name: Collecting scheduler throughput measurements
+      measurements:
+      - Identifier: SchedulingThroughput
+        Method: SchedulingThroughput
+        Params:
+          action: gather
+          enableViolations: true
+          threshold: {{$SCHEDULER_THROUGHPUT_THRESHOLD}}
+    {{end}}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cl2
+  namespace: clusterloader2
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cl2
+rules:
+- apiGroups: ["*"]
+  resources: ["*"]
+  verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cl2
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cl2
+subjects:
+- kind: ServiceAccount
+  name: cl2
+  namespace: clusterloader2
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cl2-config
+  namespace: clusterloader2
+data:
+  config.yaml: |
+    # Minimal config that runs only the scheduler-throughput module.
+    # Use overrides.yaml or --override flags to supply required parameters.
+
+    # BEGIN scheduler-throughput section
+
+    {{$totalSchedulerThroughputPods := DefaultParam .CL2_SCHEDULER_THROUGHPUT_TOTAL_PODS (MaxInt 1000 .Nodes)}}
+    {{$schedulerThroughputPodsPerDeployment := DefaultParam .CL2_SCHEDULER_THROUGHPUT_PODS_PER_DEPLOYMENT $totalSchedulerThroughputPods}}
+    {{$schedulerThroughputNamespaces := DivideInt $totalSchedulerThroughputPods $schedulerThroughputPodsPerDeployment}}
+    # END scheduler-throughput section
+
+    {{$defaultQps := DefaultParam .CL2_DEFAULT_QPS (IfThenElse (le .Nodes 500) 10 100)}}
+    {{$registry := DefaultParam .CL2_LATENCY_POD_REGISTRY "registry.k8s.io"}}
+    {{$latencyPodImage := DefaultParam .CL2_LATENCY_POD_IMAGE (Concat $registry "/pause:3.9")}}
+
+    name: scheduler-throughput-only
+    namespace:
+      number: {{$schedulerThroughputNamespaces}}
+    tuningSets:
+    - name: default
+      globalQPSLoad:
+        qps: {{$defaultQps}}
+        burst: 1
+
+    steps:
+    # BEGIN scheduler throughput
+    - module:
+        path: modules/scheduler-throughput.yaml
+        params:
+          action: create
+          namespaces: 0
+          replicasPerNamespace: 1
+          schedulerThroughputNamespaces: {{$schedulerThroughputNamespaces}}
+          schedulerThroughputPodsPerDeployment: {{$schedulerThroughputPodsPerDeployment}}
+          deploymentImage: {{$latencyPodImage}}
+
+    - module:
+        path: modules/scheduler-throughput.yaml
+        params:
+          action: delete
+          namespaces: 0
+          replicasPerNamespace: 0
+          schedulerThroughputNamespaces: {{$schedulerThroughputNamespaces}}
+          schedulerThroughputPodsPerDeployment: {{$schedulerThroughputPodsPerDeployment}}
+    # END scheduler throughput
