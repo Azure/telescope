@@ -21,7 +21,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from types import SimpleNamespace
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -103,6 +103,8 @@ class AKSMachineClient(AKSClient):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        if self.k8s_client is None:
+            raise RuntimeError("k8s_client is required by AKSMachineClient")
         self._token_cache_value: Optional[str] = None
         self._token_cache_expiry: float = 0.0  # unix epoch seconds
         self._token_lock = threading.Lock()
@@ -291,11 +293,15 @@ class AKSMachineClient(AKSClient):
         ``baseline_count + expected_count`` and clamped above ``baseline_count``
         so pre-existing Ready nodes never satisfy a new-node threshold.
 
+        ``cluster_name`` and ``expected_machine_names`` enable the periodic
+        ListMachines terminal-failure check. If either is omitted, the helper
+        preserves the node-readiness-only behavior and skips ARM failure polling.
+
         ``timeout`` is wall-clock seconds from invocation. Returns the nested
         empty-state envelope (``elapsed_time_seconds=None``, ``success=False``)
-        if ``k8s_client`` is unavailable, ``expected_count`` <= 0, or no
-        percentile target is met within ``timeout``. Raises only after every
-        expected Machine is terminal and at least one failed.
+        if ``expected_count`` <= 0 or no percentile target is met within
+        ``timeout``. Raises only after every expected Machine is terminal and at
+        least one failed.
         """
         empty_envelope: Dict[str, Dict[str, Any]] = {
             f"P{p}": {
@@ -306,12 +312,6 @@ class AKSMachineClient(AKSClient):
             }
             for p in (50, 70, 90, 99, 100)
         }
-        kc = self.k8s_client
-        if kc is None:
-            logger.error(
-                "k8s_client is None on AKSClient; cannot wait for machine readiness"
-            )
-            return empty_envelope
         if expected_count <= 0:
             return empty_envelope
         label_selector = f"agentpool={agentpool_name}"
@@ -336,17 +336,35 @@ class AKSMachineClient(AKSClient):
             f"timeout {timeout}s"
         )
         while time.time() < deadline and len(readiness_times) < len(targets):
-            (
-                ready,
-                failed_machines_result,
-                next_machine_failure_check_at,
-            ) = self._get_readiness_poll_results(
-                label_selector=label_selector,
-                cluster_name=cluster_name,
-                agentpool_name=agentpool_name,
-                expected_machine_names=expected_machine_names,
-                next_machine_failure_check_at=next_machine_failure_check_at,
+            failed_machines = None
+            should_check_machines = (
+                next_machine_failure_check_at is not None
+                and time.time() >= next_machine_failure_check_at
             )
+            max_workers = 2 if should_check_machines else 1
+            with ThreadPoolExecutor(max_workers=max_workers) as ex:
+                ready_nodes = ex.submit(self._get_ready_node_count, label_selector)
+                if should_check_machines and cluster_name and expected_machine_names:
+                    failed_machines = ex.submit(
+                        self._get_terminal_machine_provisioning_failures,
+                        cluster_name=cluster_name,
+                        agentpool_name=agentpool_name,
+                        expected_names=expected_machine_names,
+                    )
+
+            ready = ready_nodes.result()
+            failed_machines_result: List[Dict[str, Any]] = []
+            if failed_machines is not None:
+                try:
+                    failed_machines_result = failed_machines.result()
+                except Exception as e:
+                    logger.warning(
+                        "get_machine_provisioning_failures failed; "
+                        f"retrying on next cadence: {e}"
+                    )
+                next_machine_failure_check_at = (
+                    time.time() + _MACHINE_FAILURE_CHECK_INTERVAL_SECONDS
+                )
             # Once all expected Machines are terminal, no more requested nodes
             # can join. Preserve lower-percentile timings before failing.
             if failed_machines_result:
@@ -426,50 +444,14 @@ class AKSMachineClient(AKSClient):
             for p in (50, 70, 90, 99, 100)
         }
 
-    def _get_readiness_poll_results(
-        self,
-        label_selector: str,
-        cluster_name: Optional[str],
-        agentpool_name: str,
-        expected_machine_names: Optional[Set[str]],
-        next_machine_failure_check_at: Optional[float],
-    ) -> Tuple[int, List[Dict[str, Any]], Optional[float]]:
-        """Poll ready nodes and due Machine provisioning failures concurrently."""
-        now = time.time()
-        check_machine_failures = (
-            next_machine_failure_check_at is not None
-            and now >= next_machine_failure_check_at
-        )
-        failed_machines = None
-        max_workers = 2 if check_machine_failures else 1
-        with ThreadPoolExecutor(max_workers=max_workers) as ex:
-            ready_nodes = ex.submit(
-                self.k8s_client.get_ready_nodes,
-                label_selector=label_selector,
-            )
-            if check_machine_failures and cluster_name and expected_machine_names:
-                failed_machines = ex.submit(
-                    self._get_machine_provisioning_failures,
-                    cluster_name=cluster_name,
-                    agentpool_name=agentpool_name,
-                    expected_names=expected_machine_names,
-                )
-
-        ready_nodes_result = []
-        failed_machines_result: List[Dict[str, Any]] = []
+    def _get_ready_node_count(self, label_selector: str) -> int:
+        """Return Ready node count for the pool, treating transient list failures as 0."""
         try:
-            ready_nodes_result = ready_nodes.result()
+            ready_nodes = self.k8s_client.get_ready_nodes(label_selector=label_selector)
         except Exception as e:
             logger.warning(f"get_ready_nodes({label_selector}) failed; treating as 0 ready: {e}")
-        if failed_machines is not None:
-            try:
-                failed_machines_result = failed_machines.result()
-            except Exception as e:
-                logger.warning(f"get_machine_provisioning_failures failed; retrying on next cadence: {e}")
-            next_machine_failure_check_at = (
-                time.time() + _MACHINE_FAILURE_CHECK_INTERVAL_SECONDS
-            )
-        return len(ready_nodes_result), failed_machines_result, next_machine_failure_check_at
+            return 0
+        return len(ready_nodes)
 
     # ---- Machine API: scale path ----
     def scale_machine(
@@ -541,22 +523,20 @@ class AKSMachineClient(AKSClient):
             try:
                 # Snapshot baseline BEFORE any PUTs so the readiness watcher
                 # counts only NEW nodes.
-                kc = self.k8s_client
                 baseline_count = 0
-                if kc is not None:
-                    try:
-                        baseline_count = len(
-                            kc.get_ready_nodes(
-                                label_selector=f"agentpool={agentpool_name}"
-                            )
+                try:
+                    baseline_count = len(
+                        self.k8s_client.get_ready_nodes(
+                            label_selector=f"agentpool={agentpool_name}"
                         )
-                        logger.info(
-                            f"baseline ready nodes in agentpool {agentpool_name}: {baseline_count}"
-                        )
-                    except Exception:
-                        logger.warning(
-                            "baseline node snapshot failed; readiness count may be inflated"
-                        )
+                    )
+                    logger.info(
+                        f"baseline ready nodes in agentpool {agentpool_name}: {baseline_count}"
+                    )
+                except Exception:
+                    logger.warning(
+                        "baseline node snapshot failed; readiness count may be inflated"
+                    )
 
                 prefix = self._get_machine_name_prefix(scale_machine_count)
                 names = [
@@ -743,7 +723,7 @@ class AKSMachineClient(AKSClient):
             f"agentpool {agentpool_name}"
         )
 
-    def _get_machine_provisioning_failures(
+    def _get_terminal_machine_provisioning_failures(
         self,
         cluster_name: str,
         agentpool_name: str,
