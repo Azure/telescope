@@ -5,6 +5,8 @@ on:
 
 jobs:
   yaml-validation:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
 
     steps:
