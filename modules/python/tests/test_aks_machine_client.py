@@ -39,12 +39,12 @@ class TestAKSMachineClient(unittest.TestCase):
 
         self.cs_client_patcher.start()
         self.mi_cred_patcher.start()
-        mock_k8s_class = self.k8s_client_patcher.start()
+        self.mock_k8s_class = self.k8s_client_patcher.start()
         mock_get_operation_context = self.operation_context_getter_patcher.start()
         self.mock_operation_context = mock.MagicMock()
         mock_get_operation_context.return_value = self.mock_operation_context
 
-        self.mock_k8s = mock_k8s_class.return_value
+        self.mock_k8s = self.mock_k8s_class.return_value
         self.mock_operation = mock.MagicMock()
         self.mock_operation_context.return_value.__enter__.return_value = (
             self.mock_operation
@@ -430,7 +430,7 @@ class TestAKSMachineClient(unittest.TestCase):
         with mock.patch.object(
             AKSMachineClient, "_list_machines", return_value=machines
         ):
-            failures = self.client._get_machine_provisioning_failures(
+            failures = self.client._get_terminal_machine_provisioning_failures(
                 cluster_name="fake-cluster",
                 agentpool_name="apool",
                 expected_names={"scale2-machine-1", "scale2-machine-2"},
@@ -453,7 +453,7 @@ class TestAKSMachineClient(unittest.TestCase):
         with mock.patch.object(
             AKSMachineClient, "_list_machines", return_value=machines
         ):
-            failures = self.client._get_machine_provisioning_failures(
+            failures = self.client._get_terminal_machine_provisioning_failures(
                 cluster_name="fake-cluster",
                 agentpool_name="apool",
                 expected_names={"scale2-machine-1", "scale2-machine-2"},
@@ -462,7 +462,7 @@ class TestAKSMachineClient(unittest.TestCase):
         with mock.patch.object(
             AKSMachineClient, "_list_machines", return_value=machines[:1]
         ):
-            failures = self.client._get_machine_provisioning_failures(
+            failures = self.client._get_terminal_machine_provisioning_failures(
                 cluster_name="fake-cluster",
                 agentpool_name="apool",
                 expected_names={"scale2-machine-1", "scale2-machine-2"},
@@ -632,18 +632,16 @@ class TestAKSMachineClient(unittest.TestCase):
             self.assertEqual(env[f"P{p}"]["target_nodes"], 0)
         self.mock_k8s.get_ready_nodes.assert_not_called()
 
-    def test_wait_readiness_no_k8s_client_short_circuits(self):
-        """k8s_client is None -> empty envelope, no polling."""
-        self.client.k8s_client = None
-        env = self.client._wait_for_machine_node_readiness(
-            agentpool_name="apool",
-            expected_count=5,
-            timeout=600,
-            baseline_count=0,
-        )
-        for p in (50, 70, 90, 99, 100):
-            self.assertFalse(env[f"P{p}"]["success"])
-            self.assertEqual(env[f"P{p}"]["target_nodes"], 0)
+    def test_init_requires_k8s_client(self):
+        """Parent init may leave k8s_client unset; AKSMachineClient fails early."""
+        self.mock_k8s_class.side_effect = RuntimeError("kubeconfig missing")
+        with self.assertRaisesRegex(RuntimeError, "k8s_client is required"):
+            AKSMachineClient(
+                subscription_id="fake-sub",
+                resource_group="fake-rg",
+                use_managed_identity=True,
+                result_dir=self.test_result_dir,
+            )
 
     def test_wait_readiness_propagates_terminal_machine_failures(self):
         """Terminal Machine failures are checked in the same tick as ListNodes."""
@@ -651,7 +649,7 @@ class TestAKSMachineClient(unittest.TestCase):
         self.mock_k8s.get_ready_nodes.return_value = []
         with mock.patch.object(
             AKSMachineClient,
-            "_get_machine_provisioning_failures",
+            "_get_terminal_machine_provisioning_failures",
             return_value=[{"name": "m1"}],
         ) as mock_check, mock.patch(
             "clients.aks_machine_client.time.time",
@@ -691,7 +689,7 @@ class TestAKSMachineClient(unittest.TestCase):
         self.mock_k8s.get_ready_nodes.return_value = []
         with mock.patch.object(
             AKSMachineClient,
-            "_get_machine_provisioning_failures",
+            "_get_terminal_machine_provisioning_failures",
             return_value=[],
         ) as mock_check, mock.patch(
             "clients.aks_machine_client.time.time",
