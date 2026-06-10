@@ -17,17 +17,18 @@ stages:
           engine: crud
           matrix:
             crud_test:
-              SUBSCRIPTION_ID: c0d4b923-b5ea-4f8f-9b56-5390a9bf2248
-              RESOURCE_GROUP: telescope-rg
-              CLUSTER_NAME: gpu-cluster
-              NODE_POOL_NAME: testnodepool
-              NODE_COUNT: 3
-              VM_SIZE: Standard_D4s_v3
-              SCALE_NODE_COUNT: 5
-              GPU_NODE_POOL: ""
-              COMPLETIONS: 1
-              REPLICAS: 1
-              MANIFEST_DIR: modules/python/manifests
+              gpu_node_pool: false
+              pool_name: testnodepool
+              vm_size: Standard_D4s_v3
+              create_node_count: 3
+              scale_node_count: 5
+              scale_step_size: 1
+              step_time_out: 600
+              step_wait_time: 30
+              count: 1
+              replicas: 1
+              completions: 1
+              manifest_dir: ""
           max_parallel: 1
           credential_type: service_connection
           ssh_key_enabled: false
