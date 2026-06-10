@@ -1,12 +1,12 @@
 import azure_pipelines.ap.steps
 
-CreateFirewall = lambda serviceConnection: str, subscription: str, resourceGroup: str, location: str, name: str, vnetName: str, publicIpName: str, policyPath: str = "" -> steps.Step {
+SetupFirewallForSubnet = lambda serviceConnection: str, subscription: str, resourceGroup: str, location: str, name: str, vnetName: str, subnetName: str, policyPath: str = "" -> steps.Step {
     script = """
 az extension add --name azure-firewall
 
 az network public-ip create \\
   --resource-group "${resourceGroup}" \\
-  --name "${publicIpName}" \\
+  --name "${name}-pip" \\
   --sku Standard \\
   --location "${location}" \\
   --subscription "${subscription}"
@@ -22,7 +22,7 @@ az network firewall ip-config create \\
   --resource-group "${resourceGroup}" \\
   --firewall-name "${name}" \\
   --name "${name}-ipconfig" \\
-  --public-ip-address "${publicIpName}" \\
+  --public-ip-address "${name}-pip" \\
   --vnet-name "${vnetName}" \\
   --subscription "${subscription}"
 
@@ -32,6 +32,28 @@ FIREWALL_PRIVATE_IP=$(az network firewall show \\
   --subscription "${subscription}" \\
   --query "ipConfigurations[0].privateIPAddress" -o tsv)
 echo "##vso[task.setvariable variable=FIREWALL_PRIVATE_IP]$FIREWALL_PRIVATE_IP"
+
+az network route-table create \\
+  --resource-group "${resourceGroup}" \\
+  --name "${name}-rt" \\
+  --location "${location}" \\
+  --subscription "${subscription}"
+
+az network route-table route create \\
+  --resource-group "${resourceGroup}" \\
+  --route-table-name "${name}-rt" \\
+  --name egress \\
+  --address-prefix 0.0.0.0/0 \\
+  --next-hop-type VirtualAppliance \\
+  --next-hop-ip-address "$FIREWALL_PRIVATE_IP" \\
+  --subscription "${subscription}"
+
+az network vnet subnet update \\
+  --resource-group "${resourceGroup}" \\
+  --vnet-name "${vnetName}" \\
+  --name "${subnetName}" \\
+  --route-table "${name}-rt" \\
+  --subscription "${subscription}"
 
 # Use az rest PUT to apply the full firewall policy in one call — handles large rule sets
 # and is significantly faster than incremental CLI commands (az network firewall policy rule-collection-group)
@@ -47,32 +69,5 @@ if [ -n "${policyPath}" ]; then
 fi
 """
     AzCli(serviceConnection, "Create firewall ${name}", script)
-}
-
-UpdateSubnetRouteTable = lambda serviceConnection: str, subscription: str, resourceGroup: str, location: str, routeTableName: str, vnetName: str, subnetName: str, firewallIp: str -> steps.Step {
-    script = """
-az network route-table create \\
-  --resource-group "${resourceGroup}" \\
-  --name "${routeTableName}" \\
-  --location "${location}" \\
-  --subscription "${subscription}"
-
-az network route-table route create \\
-  --resource-group "${resourceGroup}" \\
-  --route-table-name "${routeTableName}" \\
-  --name egress \\
-  --address-prefix 0.0.0.0/0 \\
-  --next-hop-type VirtualAppliance \\
-  --next-hop-ip-address "${firewallIp}" \\
-  --subscription "${subscription}"
-
-az network vnet subnet update \\
-  --resource-group "${resourceGroup}" \\
-  --vnet-name "${vnetName}" \\
-  --name "${subnetName}" \\
-  --route-table "${routeTableName}" \\
-  --subscription "${subscription}"
-"""
-    AzCli(serviceConnection, "Associate route table ${routeTableName} to subnet ${subnetName}", script)
 }
 
