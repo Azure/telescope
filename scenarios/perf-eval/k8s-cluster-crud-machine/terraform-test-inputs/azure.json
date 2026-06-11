@@ -1,6 +1,6 @@
 {
     "run_id"                           : "123456789",
-    "region"                           : "westus2",
+    "region"                           : "canadacentral",
     "aks_cli_system_node_pool" : {
       "name"        : "default",
       "node_count"  : 1,
