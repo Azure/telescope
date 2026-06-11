@@ -16,6 +16,9 @@ runcmd:
   - tar -C /usr/local -xzf /tmp/go.tar.gz
   - echo 'export PATH=$PATH:/usr/local/go/bin' >> /etc/profile.d/go.sh
   - rm /tmp/go.tar.gz
+  - curl -LO "https://dl.k8s.io/release/$(curl -Ls https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+  - install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+  - rm kubectl
 CLOUDINIT
 
 az vm create \\
