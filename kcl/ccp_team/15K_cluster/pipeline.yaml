@@ -22,6 +22,12 @@ parameters:
   displayName: Network dataplane (leave empty for AKS default)
   type: string
   default: cilium
+variables:
+  subscription_id: ${{ parameters.subscription_id }}
+  location: ${{ parameters.location }}
+  cluster_name: ${{ parameters.cluster_name }}
+  user_pool_vm_size: ${{ parameters.user_pool_vm_size }}
+  network_dataplane: ${{ parameters.network_dataplane }}
 jobs:
 - job: create_cluster
   displayName: Create 15K Nodes Cluster
