@@ -177,25 +177,25 @@ output = ap.Pipeline {
                     const.DEFAULT_SERVICE_CONNECTION,
                     RESOURCE_GROUP, VNET_NAME,
                     "nodes", NODES_SUBNET_CIDR,
-                    SUBSCRIPTION_ID, "$(IDENTITY_CLIENT_ID)"
+                    SUBSCRIPTION_ID, "$(IDENTITY_PRINCIPAL_ID)"
                 ),
                 azure.CreateSubnetAndRoleAssignment(
                     const.DEFAULT_SERVICE_CONNECTION,
                     RESOURCE_GROUP, VNET_NAME,
                     "apiserver", APISERVER_SUBNET_CIDR,
-                    SUBSCRIPTION_ID, "$(IDENTITY_CLIENT_ID)"
+                    SUBSCRIPTION_ID, "$(IDENTITY_PRINCIPAL_ID)"
                 ),
                 azure.CreateSubnetAndRoleAssignment(
                     const.DEFAULT_SERVICE_CONNECTION,
                     RESOURCE_GROUP, VNET_NAME,
                     "AzureFirewallSubnet", FIREWALL_SUBNET_CIDR,
-                    SUBSCRIPTION_ID, "$(IDENTITY_CLIENT_ID)"
+                    SUBSCRIPTION_ID, "$(IDENTITY_PRINCIPAL_ID)"
                 ),
                 azure.CreateSubnetAndRoleAssignment(
                     const.DEFAULT_SERVICE_CONNECTION,
                     RESOURCE_GROUP, VNET_NAME,
                     "jumpbox", JUMPBOX_SUBNET_CIDR,
-                    SUBSCRIPTION_ID, "$(IDENTITY_CLIENT_ID)"
+                    SUBSCRIPTION_ID, "$(IDENTITY_PRINCIPAL_ID)"
                 ),
                 azure.SetupFirewallForSubnet(
                     const.DEFAULT_SERVICE_CONNECTION,
