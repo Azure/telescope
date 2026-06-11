@@ -132,6 +132,14 @@ output = ap.Pipeline {
         }
     ]
 
+    variables = {
+        subscription_id = "\${{ parameters.subscription_id }}"
+        location = "\${{ parameters.location }}"
+        cluster_name = "\${{ parameters.cluster_name }}"
+        user_pool_vm_size = "\${{ parameters.user_pool_vm_size }}"
+        network_dataplane = "\${{ parameters.network_dataplane }}"
+    }
+
     jobs = [
         job.Job {
             job = "create_cluster"
