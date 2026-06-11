@@ -30,7 +30,8 @@ SUBNET_ID=$(az network vnet subnet show \\
 az role assignment create \\
   --scope $SUBNET_ID \\
   --role "Network Contributor" \\
-  --assignee "${assignee}" \\
+  --assignee-object-id "${assignee}" \\
+  --assignee-principal-type ServicePrincipal \\
   --subscription "${subscription}"
 
 echo "##vso[task.setvariable variable=${name.upper()}_SUBNET_ID]$SUBNET_ID"

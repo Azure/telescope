@@ -11,7 +11,7 @@ IDENTITY=$(az identity show \\
   --resource-group "${resourceGroup}" \\
   --name "${name}" \\
   --subscription "${subscription}")
-echo "##vso[task.setvariable variable=${exportVar}_CLIENT_ID]$(echo "$IDENTITY" | jq -r '.clientId')"
+echo "##vso[task.setvariable variable=${exportVar}_PRINCIPAL_ID]$(echo "$IDENTITY" | jq -r '.principalId')"
 echo "##vso[task.setvariable variable=${exportVar}_ID]$(echo "$IDENTITY" | jq -r '.id')"
 """
     AzCli(serviceConnection, "Create managed identity ${name}", script)
