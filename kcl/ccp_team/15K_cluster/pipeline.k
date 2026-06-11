@@ -99,13 +99,38 @@ output = ap.Pipeline {
     trigger = "none"
     pool = const.DEFAULT_POOL
 
-    variables = {
-        subscription_id = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
-        location = "eastasia"
-        cluster_name = "15k"
-        user_pool_vm_size = "Standard_D4s_v3"
-        network_dataplane = "cilium"
-    }
+    parameters = [
+        ap.Parameter {
+            name = "subscription_id"
+            displayName = "Subscription ID"
+            type = "string"
+            default = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+        }
+        ap.Parameter {
+            name = "location"
+            displayName = "Azure region"
+            type = "string"
+            default = "eastasia"
+        }
+        ap.Parameter {
+            name = "cluster_name"
+            displayName = "AKS cluster name"
+            type = "string"
+            default = "15k"
+        }
+        ap.Parameter {
+            name = "user_pool_vm_size"
+            displayName = "User node pool VM size"
+            type = "string"
+            default = "Standard_D4s_v3"
+        }
+        ap.Parameter {
+            name = "network_dataplane"
+            displayName = "Network dataplane (leave empty for AKS default)"
+            type = "string"
+            default = "cilium"
+        }
+    ]
 
     jobs = [
         job.Job {
