@@ -86,7 +86,7 @@ jobs:
           --resource-group "$(RUN_ID)" \
           --name "$(cluster_name)-identity" \
           --subscription "$(subscription_id)")
-        echo "##vso[task.setvariable variable=IDENTITY_CLIENT_ID]$(echo "$IDENTITY" | jq -r '.clientId')"
+        echo "##vso[task.setvariable variable=IDENTITY_PRINCIPAL_ID]$(echo "$IDENTITY" | jq -r '.principalId')"
         echo "##vso[task.setvariable variable=IDENTITY_ID]$(echo "$IDENTITY" | jq -r '.id')"
     displayName: Create managed identity $(cluster_name)-identity
   - task: AzureCLI@2
@@ -128,7 +128,8 @@ jobs:
         az role assignment create \
           --scope $SUBNET_ID \
           --role "Network Contributor" \
-          --assignee "$(IDENTITY_CLIENT_ID)" \
+          --assignee-object-id "$(IDENTITY_PRINCIPAL_ID)" \
+          --assignee-principal-type ServicePrincipal \
           --subscription "$(subscription_id)"
 
         echo "##vso[task.setvariable variable=NODES_SUBNET_ID]$SUBNET_ID"
@@ -158,7 +159,8 @@ jobs:
         az role assignment create \
           --scope $SUBNET_ID \
           --role "Network Contributor" \
-          --assignee "$(IDENTITY_CLIENT_ID)" \
+          --assignee-object-id "$(IDENTITY_PRINCIPAL_ID)" \
+          --assignee-principal-type ServicePrincipal \
           --subscription "$(subscription_id)"
 
         echo "##vso[task.setvariable variable=APISERVER_SUBNET_ID]$SUBNET_ID"
@@ -188,7 +190,8 @@ jobs:
         az role assignment create \
           --scope $SUBNET_ID \
           --role "Network Contributor" \
-          --assignee "$(IDENTITY_CLIENT_ID)" \
+          --assignee-object-id "$(IDENTITY_PRINCIPAL_ID)" \
+          --assignee-principal-type ServicePrincipal \
           --subscription "$(subscription_id)"
 
         echo "##vso[task.setvariable variable=AZUREFIREWALLSUBNET_SUBNET_ID]$SUBNET_ID"
@@ -218,7 +221,8 @@ jobs:
         az role assignment create \
           --scope $SUBNET_ID \
           --role "Network Contributor" \
-          --assignee "$(IDENTITY_CLIENT_ID)" \
+          --assignee-object-id "$(IDENTITY_PRINCIPAL_ID)" \
+          --assignee-principal-type ServicePrincipal \
           --subscription "$(subscription_id)"
 
         echo "##vso[task.setvariable variable=JUMPBOX_SUBNET_ID]$SUBNET_ID"
