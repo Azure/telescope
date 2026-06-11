@@ -2,18 +2,17 @@ import azure_pipelines.ap
 import azure_pipelines.ap.jobs.job
 import lib.const
 import lib.steps.azure
+import lib.steps.common
 
 SUBSCRIPTION_ID = "$(subscription_id)"
-RESOURCE_GROUP = "$(resource_group)"
+RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "$(location)"
 CLUSTER_NAME = "$(cluster_name)"
 K8S_VERSION = "1.33.0"
 
 VNET_NAME = "${CLUSTER_NAME}-net"
 IDENTITY_NAME = "${CLUSTER_NAME}-identity"
-FW_PUBLIC_IP_NAME = "${CLUSTER_NAME}-firewall-pip"
 FW_NAME = "${CLUSTER_NAME}-firewall"
-RT_NAME = "${CLUSTER_NAME}-rt"
 JUMPBOX_NAME = "${CLUSTER_NAME}-jumpbox"
 
 VNET_CIDR = "10.0.0.0/8"
@@ -22,8 +21,11 @@ APISERVER_SUBNET_CIDR = "10.240.0.0/28"
 FIREWALL_SUBNET_CIDR = "10.2.0.0/16"
 JUMPBOX_SUBNET_CIDR = "10.3.0.0/16"
 
-USER_TOTAL_NODES = 14997    # KCL constant: change here to adjust total
-MAX_NODES_PER_POOL = 800    # KCL constant: change here to adjust split
+# Small values for small scare e2e testing; replace with the lines below for full 15K run
+# USER_TOTAL_NODES = 14997
+# MAX_NODES_PER_POOL = 800
+USER_TOTAL_NODES = 100
+MAX_NODES_PER_POOL = 20
 
 _userPools = [azure.NodePool {
     name = pool.name
@@ -35,6 +37,12 @@ _userPools = [azure.NodePool {
 
 
 createClusterScript = """
+NETWORK_DATAPLANE="$(network_dataplane)"
+NETWORK_DATAPLANE_JSON_FIELD=""
+if [ -n "$NETWORK_DATAPLANE" ]; then
+  NETWORK_DATAPLANE_JSON_FIELD='"networkDataplane": "'"$NETWORK_DATAPLANE"'",'
+fi
+
 cat > /tmp/aks-body.json << EOF
 {
   "location": "${LOCATION}",
@@ -44,10 +52,7 @@ cat > /tmp/aks-body.json << EOF
     "userAssignedIdentities": {"$(IDENTITY_ID)": {}}
   },
   "tags": {
-    "SkipAKSCluster": "true",
-    "SkipASMAzSecPackAutoConfig": "true",
-    "SkipLinuxAzSecPack": "true",
-    "exempted_by_qi": "36344494"
+    "SkipAKSCluster": "true"
   },
   "properties": {
     "controlPlaneScalingProfile": {"scalingSize": "H8"},
@@ -69,6 +74,7 @@ cat > /tmp/aks-body.json << EOF
       "networkPlugin": "azure",
       "networkPluginMode": "overlay",
       "podCidr": "10.64.0.0/10",
+      \${NETWORK_DATAPLANE_JSON_FIELD}
       "outboundType": "userDefinedRouting"
     },
     "apiServerAccessProfile": {
@@ -88,25 +94,23 @@ az rest \\
 """
 
 output = ap.Pipeline {
-    name = "15K Cilium VNet Cluster Creation"
+    name = "15K Nodes Cluster Creation"
 
     trigger = "none"
     pool = const.DEFAULT_POOL
 
     variables = {
         subscription_id = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
-        resource_group = "xinwei-15k-cilium-vnet"
         location = "eastasia"
-        cluster_name = "15k-private-cluster"
+        cluster_name = "15k"
         user_pool_vm_size = "Standard_D4s_v3"
         network_dataplane = "cilium"
-        kms_key_id = ""
     }
 
     jobs = [
         job.Job {
             job = "create_cluster"
-            displayName = "Create 15K Cilium Private Cluster"
+            displayName = "Create 15K Nodes Cluster"
             timeoutInMinutes = 600
 
             steps = [
@@ -115,12 +119,13 @@ output = ap.Pipeline {
                     SUBSCRIPTION_ID,
                     LOCATION
                 ),
+                common.SetRunId(),
                 azure.CreateResourceGroup(
                     const.DEFAULT_SERVICE_CONNECTION,
                     RESOURCE_GROUP,
                     LOCATION,
                     SUBSCRIPTION_ID,
-                    "SkipAKSCluster=true exempted_by_qi=36344494"
+                    "SkipAKSCluster=true"
                 ),
                 azure.CreateManagedIdentity(
                     const.DEFAULT_SERVICE_CONNECTION,
@@ -159,21 +164,11 @@ output = ap.Pipeline {
                     "jumpbox", JUMPBOX_SUBNET_CIDR,
                     SUBSCRIPTION_ID, "$(IDENTITY_CLIENT_ID)"
                 ),
-                azure.CreateFirewall(
+                azure.SetupFirewallForSubnet(
                     const.DEFAULT_SERVICE_CONNECTION,
-                    SUBSCRIPTION_ID,RESOURCE_GROUP, FW_NAME, LOCATION,
-                    VNET_NAME, FW_PUBLIC_IP_NAME
-                ),
-                azure.UpdateSubnetRouteTable(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    RESOURCE_GROUP, RT_NAME, LOCATION, VNET_NAME,
-                    "nodes","$(FIREWALL_PRIVATE_IP)", SUBSCRIPTION_ID
-                ),
-                azure.UpdateFirewallPolicy(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    SUBSCRIPTION_ID, RESOURCE_GROUP, FW_NAME,
-                    "$(Pipeline.Workspace)/s/kcl/ccp_team/15K_cluster/firewall-policy.json",
-                    LOCATION
+                    SUBSCRIPTION_ID, RESOURCE_GROUP, LOCATION,
+                    FW_NAME, VNET_NAME, "nodes",
+                    "$(Pipeline.Workspace)/s/kcl/ccp_team/15K_cluster/firewall-policy.json"
                 ),
                 azure.AzCli(
                     const.DEFAULT_SERVICE_CONNECTION,
