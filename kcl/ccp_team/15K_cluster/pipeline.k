@@ -62,7 +62,7 @@ cat > /tmp/aks-body.json << EOF
       {
         "name": "system",
         "count": 3,
-        "vmSize": "Standard_D48s_v3",
+        "vmSize": "Standard_D48ds_v5",
         "maxPods": 60,
         "osType": "Linux",
         "osSKU": "Ubuntu",

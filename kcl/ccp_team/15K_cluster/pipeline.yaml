@@ -335,7 +335,7 @@ jobs:
           --resource-group "$(RUN_ID)" \
           --name "$(cluster_name)-jumpbox" \
           --image Ubuntu2204 \
-          --size Standard_D48s_v3 \
+          --size Standard_D16ds_v5 \
           --vnet-name "$(cluster_name)-net" \
           --subnet jumpbox \
           --public-ip-address "$(cluster_name)-jumpbox-pip" \
@@ -408,7 +408,7 @@ jobs:
               {
                 "name": "system",
                 "count": 3,
-                "vmSize": "Standard_D48s_v3",
+                "vmSize": "Standard_D48ds_v5",
                 "maxPods": 60,
                 "osType": "Linux",
                 "osSKU": "Ubuntu",
