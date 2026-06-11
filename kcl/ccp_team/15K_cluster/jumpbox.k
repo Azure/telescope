@@ -25,7 +25,7 @@ az vm create \\
   --resource-group "${RESOURCE_GROUP}" \\
   --name "${JUMPBOX_NAME}" \\
   --image Ubuntu2204 \\
-  --size Standard_D48s_v3 \\
+  --size Standard_D16ds_v5 \\
   --vnet-name "${VNET_NAME}" \\
   --subnet jumpbox \\
   --public-ip-address "${JUMPBOX_NAME}-pip" \\
