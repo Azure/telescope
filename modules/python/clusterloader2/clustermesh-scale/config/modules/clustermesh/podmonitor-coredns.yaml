@@ -1,0 +1,26 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: coredns
+  namespace: monitoring
+spec:
+  # CoreDNS metrics (port 9153). Global Service DNS lookups go through
+  # CoreDNS first; lookup latency could mask cross-cluster mesh costs
+  # in measurements that include DNS time. coredns_dns_request_duration
+  # _seconds isolates that variable.
+  selector:
+    matchLabels:
+      k8s-app: kube-dns
+  namespaceSelector:
+    matchNames:
+      - kube-system
+  podMetricsEndpoints:
+    - interval: {{.Interval}}
+      honorLabels: true
+      path: /metrics
+      relabelings:
+        - sourceLabels: [__address__]
+          action: replace
+          targetLabel: __address__
+          regex: (.+?)(\:\d+)?
+          replacement: $1:9153

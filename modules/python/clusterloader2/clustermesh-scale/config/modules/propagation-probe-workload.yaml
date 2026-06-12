@@ -1,0 +1,73 @@
+name: clustermesh-propagation-probe-workload
+
+# Backend Deployment + global Service for the propagation-probe scenario.
+# Every cluster runs an identical http-echo backend; the global Service
+# load-balances across all backends mesh-wide. The propagation probe
+# uses these as the steady-state mesh; per-probe it adds its own
+# transient probe pods on the source cluster (see propagation-probe.sh).
+#
+# OPTIONAL: when CL2_POLICY_CANARY_ENABLED=true, also creates a
+# permissive CiliumNetworkPolicy targeting the backends — exercises
+# the Phase 1 policy_regeneration / policy_implementation Prometheus
+# metrics (which report 0 without any CNP present). First step of the
+# policy-scale-matrix work: L1 canary just to validate the metric
+# pipeline; L2 (cross-cluster) + L3 (churn-under-load) come later.
+
+{{$actionName := .actionName}}
+{{$namespaces := .namespaces}}
+{{$deploymentsPerNamespace := .deploymentsPerNamespace}}
+{{$replicasPerDeployment := .replicasPerDeployment}}
+{{$tuningSet := .tuningSet}}
+{{$operationTimeout := .operationTimeout}}
+{{$policyCanaryEnabled := DefaultParam .CL2_POLICY_CANARY_ENABLED "false"}}
+
+# delete = bring object count to 0; create/restart keep configured count.
+{{$replicasInPhase := $deploymentsPerNamespace}}
+{{if eq $actionName "delete"}}{{$replicasInPhase = 0}}{{end}}
+
+steps:
+  - name: Start tracking propagation-probe pods to be {{$actionName}}d
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-probe-{{$actionName}}
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: start
+          apiVersion: apps/v1
+          kind: Deployment
+          checkIfPodsAreUpdated: true
+          labelSelector: group = clustermesh-propagation-probe
+          operationTimeout: {{$operationTimeout}}
+
+  - name: {{$actionName}} propagation-probe workload
+    phases:
+      - namespaceRange:
+          min: 1
+          max: {{$namespaces}}
+        replicasPerNamespace: {{$replicasInPhase}}
+        tuningSet: {{$tuningSet}}
+        objectBundle:
+          - basename: pp-backend
+            objectTemplatePath: /modules/propagation-probe-deployment.yaml
+            templateFillMap:
+              Replicas: {{$replicasPerDeployment}}
+              Group: clustermesh-propagation-probe
+          - basename: pp-backend
+            objectTemplatePath: /modules/propagation-probe-service.yaml
+            templateFillMap:
+              Group: clustermesh-propagation-probe
+          {{if eq $policyCanaryEnabled "true"}}
+          # L1 policy canary — see propagation-probe-policy.yaml comment for
+          # rationale. Permissive CNP that targets the backends, exercises
+          # the cilium policy compilation path without breaking traffic.
+          - basename: pp-policy
+            objectTemplatePath: /modules/propagation-probe-policy.yaml
+            templateFillMap:
+              Group: clustermesh-propagation-probe
+          {{end}}
+
+  - name: Wait for propagation-probe pods to be {{$actionName}}d
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-probe-{{$actionName}}
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather

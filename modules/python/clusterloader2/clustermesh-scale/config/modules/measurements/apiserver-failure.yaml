@@ -1,0 +1,97 @@
+{{$action := .action}} # start, gather
+
+{{$suffix := DefaultParam .suffix ""}}
+
+# Scale scenario #4 (ClusterMesh APIServer Failure) — measurements scoped
+# to the failure window. Captures peer-cluster behavior (drop in
+# remote_clusters gauge, spike in failure-counter rate, kvstore catch-up
+# latency) over the run window. The actual t0/t1 timestamps come from
+# apiserver-failure-killer.sh's timing JSON file (collected separately).
+#
+# PromQL note on time-of-event signals: vanilla Prometheus doesn't expose
+# "time at which X first happened" cleanly. Detection time and recovery
+# time are computed post-hoc in Kusto by joining these gauge series with
+# the killer's t0/t1 timestamps. This module captures the windowed
+# aggregates that surface "something disruptive happened" — the explicit
+# timing comes from the timing JSON row.
+
+steps:
+  - name: {{$action}} ApiServer Failure Measurements
+    measurements:
+    # -----------------------------------------------------------------
+    # Detection signal: how low did the remote_clusters gauge dip during
+    # the failure window? Healthy = N-1 (every cluster sees its N-1 peers).
+    # Target's apiserver dies → peer clusters' gauge drops by 1 briefly →
+    # gauge recovers when apiserver is back + reconnects.
+    # -----------------------------------------------------------------
+    - Identifier: RemoteClustersConnectedMinDuringFailure{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Remote Clusters Connected Min During Failure {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        - name: Min
+          query: min(min_over_time(cilium_clustermesh_remote_clusters[%v:]))
+        - name: Perc50
+          query: quantile(0.50, min_over_time(cilium_clustermesh_remote_clusters[%v:]))
+
+    # -----------------------------------------------------------------
+    # Failure-counter rate burst: cilium_clustermesh_remote_cluster_failures
+    # is a monotonic counter. During the failure window, the rate spikes
+    # as peers retry connections to the dead apiserver. Max-over-time of
+    # the 1m-sliding rate is the "peak failure rate" signal.
+    # -----------------------------------------------------------------
+    - Identifier: RemoteClusterFailureRateBurst{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Remote Cluster Failure Rate Burst {{$suffix}}
+        metricVersion: v1
+        unit: failures/s
+        enableViolations: false
+        queries:
+        - name: Max
+          query: max(max_over_time(rate(cilium_clustermesh_remote_cluster_failures[1m])[%v:]))
+        - name: Perc99
+          query: quantile(0.99, max_over_time(rate(cilium_clustermesh_remote_cluster_failures[1m])[%v:]))
+
+    # -----------------------------------------------------------------
+    # Kvstore sync error burst: spikes when peers can't reach the dead
+    # apiserver. Catch-up rate post-recovery indicates backlog drain
+    # behavior.
+    # -----------------------------------------------------------------
+    - Identifier: KvstoreSyncErrorBurst{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Kvstore Sync Error Burst {{$suffix}}
+        metricVersion: v1
+        unit: errors/s
+        enableViolations: false
+        queries:
+        - name: Max
+          query: max(max_over_time(rate(cilium_kvstoremesh_kvstore_sync_errors_total[1m])[%v:]))
+        - name: Sum
+          query: sum(max_over_time(rate(cilium_kvstoremesh_kvstore_sync_errors_total[1m])[%v:]))
+
+    # -----------------------------------------------------------------
+    # Kvstore operation latency p99 during recovery: peers re-sync state
+    # after apiserver comes back; the histogram's p99 spike size is the
+    # "catch-up cost" signal.
+    # -----------------------------------------------------------------
+    - Identifier: KvstoreOperationLatencyP99DuringRecovery{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Kvstore Op Latency P99 During Recovery {{$suffix}}
+        metricVersion: v1
+        unit: s
+        enableViolations: false
+        queries:
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(rate(cilium_kvstoremesh_kvstore_operations_duration_seconds_bucket[1m])) by (le))
+        - name: Perc90
+          query: histogram_quantile(0.90, sum(rate(cilium_kvstoremesh_kvstore_operations_duration_seconds_bucket[1m])) by (le))

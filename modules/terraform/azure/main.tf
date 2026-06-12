@@ -360,6 +360,20 @@ locals {
   clustermesh_member_roles = try(var.fleet_config.enabled, false) ? {
     for m in try(var.fleet_config.members, []) : m.aks_role => m.aks_role
   } : {}
+
+  # Map each clustermesh AKS to its VNet role (the role of the VNet that hosts
+  # the AKS's node subnet). In separate-VNet mode (azure-{2,5,10,20}.tfvars)
+  # this is identity — AKS role mesh-N lives in VNet role mesh-N. In shared-
+  # VNet mode (azure-{2-shared,100}.tfvars) all clustermesh AKS share one VNet
+  # (typically role="shared") and this lookup resolves them to that one VNet.
+  # Either way, the existing subnet_to_network_role local already maps every
+  # subnet name to its parent VNet's role, so deriving the VNet via the AKS's
+  # subnet_name is universally correct and removes the prior assumption that
+  # AKS role == VNet role.
+  clustermesh_aks_to_vnet_role = {
+    for role, _ in local.clustermesh_member_roles :
+    role => local.subnet_to_network_role[local.aks_cli_config_map[role].subnet_name]
+  }
 }
 
 data "azurerm_kubernetes_cluster" "clustermesh_member" {
@@ -376,7 +390,7 @@ data "azurerm_kubernetes_cluster" "clustermesh_member" {
 resource "azurerm_role_assignment" "clustermesh_vnet_contributor" {
   for_each = local.clustermesh_member_roles
 
-  scope                = module.virtual_network[each.key].vnet_id
+  scope                = module.virtual_network[local.clustermesh_aks_to_vnet_role[each.key]].vnet_id
   role_definition_name = "Network Contributor"
   principal_id         = data.azurerm_kubernetes_cluster.clustermesh_member[each.key].identity[0].principal_id
 }

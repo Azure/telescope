@@ -1,0 +1,248 @@
+name: clustermesh-node-churn-scale
+
+# Scale scenario #3 (Node Churn / IP Churn) — scale-cycle flavor.
+#
+# Spec mapping (scale testing.txt:68-79):
+#   * "Node scale-up/scale-down" / "Add/remove nodes continuously" → this file.
+#   * "Node replacement (new IPs)" / "Force node recreation" → node-churn-replace.yaml.
+#
+# CRITICAL: the actual node-scaling stimulus is driven OUTSIDE CL2 by
+# node-churner.sh (launched from steps/engine/clusterloader2/clustermesh-scale/execute.yml
+# as a background subshell on the AzDO agent). Reason: the CL2 docker image
+# (ghcr.io/azure/clusterloader2) has no `az` CLI and we don't control its
+# build. Every cluster's CL2 just deploys a baseline pod workload, registers
+# measurements, writes a ready-sentinel, then SLEEPS for
+# CL2_NODE_CHURN_SCALE_DURATION_SECONDS — long enough for the churner to do
+# its work + a settle window. After the sleep, gather + teardown.
+#
+# Per-cluster ready-sentinel:
+# The "Signal ready to host churner" step writes
+# /root/perf-tests/clusterloader2/config/sentinels/ready-<context> via
+# Method:Exec. The host-side node-churner.sh polls this dir for
+# $cluster_count sentinels before firing its first nodepool op. Without
+# this barrier, the churner could fire before peers' Prometheus is
+# scraping — losing the propagation signal (rubber-duck design review #1).
+
+{{$namespaces := DefaultParam .CL2_NAMESPACES 5}}
+{{$deploymentsPerNamespace := DefaultParam .CL2_DEPLOYMENTS_PER_NAMESPACE 4}}
+{{$replicasPerDeployment := DefaultParam .CL2_REPLICAS_PER_DEPLOYMENT 10}}
+{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "20m"}}
+{{$apiServerCallsPerSecond := DefaultParam .CL2_API_SERVER_CALLS_PER_SECOND 20}}
+{{$warmupDuration := DefaultParam .CL2_WARMUP_DURATION "30s"}}
+{{$holdDuration := DefaultParam .CL2_HOLD_DURATION "2m"}}
+
+# Sleep window — must be ≥ host-side churner's expected wall time.
+# Default 1800s = 30min covers 3 cycles × 2 ops × ~4min = 24min churner +
+# settle margin. Per-tier overrides via matrix var
+# node_churn_scale_duration_seconds (auto-exported).
+{{$scaleDurationSeconds := DefaultParam .CL2_NODE_CHURN_SCALE_DURATION_SECONDS 1800}}
+
+{{$group := "clustermesh-node-churn-scale"}}
+{{$basename := "ncs"}}
+
+namespace:
+  number: {{$namespaces}}
+  prefix: clustermesh-ncs
+  deleteStaleNamespaces: true
+  deleteAutomanagedNamespaces: true
+  enableExistingNamespaces: false
+  deleteNamespaceTimeout: 20m
+
+tuningSets:
+  - name: Sequence
+    parallelismLimitedLoad:
+      parallelismLimit: 1
+  - name: DeploymentCreateQps
+    qpsLoad:
+      qps: {{$apiServerCallsPerSecond}}
+
+steps:
+  # ----- ACNS namespace opt-in (CFP-39876) -----
+  # See pod-churn-scale.yaml header for full context. Without this,
+  # cross-cluster identity/endpoint propagation is structurally 0.
+  - name: Annotate workload namespaces for ACNS cross-cluster sync
+    measurements:
+      - Identifier: AnnotateNamespacesForGlobalSync
+        Method: Exec
+        Params:
+          streamOutput: true
+          timeout: 1m
+          command:
+          - bash
+          - /root/perf-tests/clusterloader2/config/annotate-namespaces.sh
+          - "{{$namespaces}}"
+          - "clustermesh-ncs"
+
+  # ----- Start measurements -----
+  - module:
+      path: /modules/measurements/control-plane.yaml
+      params:
+        action: start
+        group: {{$group}}
+
+  - module:
+      path: /modules/measurements/cilium.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/clustermesh-metrics.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/etcd-metrics.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/node-churn.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/clustermesh.yaml
+      params:
+        actionName: create
+        tuningSet: DeploymentCreateQps
+
+  # ----- Workload deploy: pause pods spread across nodes so node churn -----
+  # ----- naturally evicts a representative sample. topologySpread comes  -----
+  # ----- from pod-churn-workload.yaml's default Deployment shape (NOT a  -----
+  # ----- new module) — rubber-duck #8 noted distribution risk but the    -----
+  # ----- reused workload template already has it.                       -----
+  - name: Start tracking node-churn-scale Deployments
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-node-churn-scale
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: start
+          apiVersion: apps/v1
+          kind: Deployment
+          checkIfPodsAreUpdated: true
+          labelSelector: group = {{$group}}
+          operationTimeout: {{$operationTimeout}}
+
+  - module:
+      path: /modules/pod-churn-workload.yaml
+      params:
+        actionName: apply
+        replicas: {{$replicasPerDeployment}}
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        tuningSet: DeploymentCreateQps
+        group: {{$group}}
+        basename: {{$basename}}
+
+  - name: Wait for initial node-churn-scale pods to be Running
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-node-churn-scale
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+
+  - name: Warmup before node-churn stimulus window
+    measurements:
+      - Identifier: WarmupSleep
+        Method: Sleep
+        Params:
+          duration: {{$warmupDuration}}
+
+  # ----- Signal ready to host-side node-churner.sh -----
+  # bind-mounted config dir = /root/perf-tests/clusterloader2/config in the
+  # CL2 container == $CL2_CONFIG_DIR on the host. The sentinels/ subdir is
+  # pre-created by execute.yml; we write one file per cluster named after
+  # the kubectl context. node-churner.sh polls for $cluster_count files
+  # before its first nodepool op.
+  - name: Signal CL2 ready to host-side node-churner
+    measurements:
+      - Identifier: NodeChurnReadySentinel
+        Method: Exec
+        Params:
+          streamOutput: true
+          timeout: 30s
+          command:
+          - bash
+          - /root/perf-tests/clusterloader2/config/write-ready-sentinel.sh
+          - /root/perf-tests/clusterloader2/config/sentinels
+
+  # ----- Sleep window — host-side node-churner.sh churns nodes on target -----
+  # ----- cluster during this period; peers observe via measurements.    -----
+  - name: Observe node-churn stimulus window
+    measurements:
+      - Identifier: NodeChurnObservationSleep
+        Method: Sleep
+        Params:
+          duration: {{$scaleDurationSeconds}}s
+
+  # ----- Final convergence -----
+  - name: Wait for post-node-churn pods to be Running
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-node-churn-scale-final
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: start
+          apiVersion: apps/v1
+          kind: Deployment
+          checkIfPodsAreUpdated: true
+          labelSelector: group = {{$group}}
+          operationTimeout: {{$operationTimeout}}
+
+  - name: Final wait for pods to converge after node-churn
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-node-churn-scale-final
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+
+  - name: Settle after node-churn
+    measurements:
+      - Identifier: SettleSleep
+        Method: Sleep
+        Params:
+          duration: {{$holdDuration}}
+
+  # ----- Gather measurements -----
+  - module:
+      path: /modules/measurements/control-plane.yaml
+      params:
+        action: gather
+        group: {{$group}}
+
+  - module:
+      path: /modules/measurements/cilium.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/clustermesh-metrics.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/etcd-metrics.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/node-churn.yaml
+      params:
+        action: gather
+
+  # ----- Teardown -----
+  - module:
+      path: /modules/pod-churn-workload.yaml
+      params:
+        actionName: delete
+        replicas: 0
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        tuningSet: DeploymentCreateQps
+        group: {{$group}}
+        basename: {{$basename}}
+
+  - module:
+      path: /modules/clustermesh.yaml
+      params:
+        actionName: delete
+        tuningSet: DeploymentCreateQps
