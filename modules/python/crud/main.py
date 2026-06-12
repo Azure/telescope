@@ -267,7 +267,7 @@ def handle_machine_operation(machine_crud, args):
     try:
         if command == "create-machine":
             create_kwargs = {
-                "agentpool_name": args.node_pool_name,
+                "agent_pool_name": args.node_pool_name,
                 "vm_size": args.vm_size,
             }
 
@@ -282,7 +282,7 @@ def handle_machine_operation(machine_crud, args):
                     logger.warning(f"Failed to parse --tags {args.tags!r} as JSON: {e}")
 
             scale_kwargs = {
-                "agentpool_name": args.node_pool_name,
+                "agent_pool_name": args.node_pool_name,
                 "vm_size": args.vm_size,
                 "scale_machine_count": args.scale_machine_count,
                 "use_batch_api": args.use_batch_api,
