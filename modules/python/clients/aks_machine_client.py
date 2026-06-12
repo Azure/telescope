@@ -59,6 +59,8 @@ _BATCH_MAX_MACHINES_PER_REQUEST = 50
 _MACHINE_TERMINAL_STATES = {"Succeeded", "Failed", "Canceled"}
 _MACHINE_FAILURE_STATES = {"Failed", "Canceled"}
 _MACHINE_FAILURE_DETAIL_LIMIT = 10
+# ARM ListMachines returns up to 50 Machines per page. Following up to 50 pages
+# covers 2,500 Machines before failing the list operation.
 _LIST_MACHINES_MAX_PAGES = 50
 _MACHINE_FAILURE_CHECK_INTERVAL_SECONDS = 30
 _NODE_READINESS_POLL_INTERVAL_SECONDS = 2
