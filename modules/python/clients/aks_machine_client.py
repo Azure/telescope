@@ -59,7 +59,7 @@ _BATCH_MAX_MACHINES_PER_REQUEST = 50
 _MACHINE_TERMINAL_STATES = {"Succeeded", "Failed", "Canceled"}
 _MACHINE_FAILURE_STATES = {"Failed", "Canceled"}
 _MACHINE_FAILURE_DETAIL_LIMIT = 10
-_LIST_MACHINES_PAGE_LIMIT = 50
+_LIST_MACHINES_MAX_PAGES = 50
 _MACHINE_FAILURE_CHECK_INTERVAL_SECONDS = 30
 _NODE_READINESS_POLL_INTERVAL_SECONDS = 2
 # urllib3's default ``HTTPAdapter`` (mounted implicitly by ``requests.Session``)
@@ -79,12 +79,12 @@ class MachineProvisioningFailed(RuntimeError):
     """Terminal Machine failure with readiness metadata captured before failure."""
     def __init__(
         self,
-        agentpool_name: str,
+        agent_pool_name: str,
         failed_machines: List[Dict[str, Any]],
         readiness_envelope: Dict[str, Dict[str, Any]],
     ):
         super().__init__(
-            f"machine provisioning failed in agentpool {agentpool_name}: "
+            f"machine provisioning failed in agentpool {agent_pool_name}: "
             f"failed_machines={failed_machines}"
         )
         self.failed_machines = failed_machines
@@ -164,7 +164,7 @@ class AKSMachineClient(AKSClient):
     # ---- Machine API: agent pool provisioning ----
     def create_machine_agentpool(
         self,
-        agentpool_name: str,
+        agent_pool_name: str,
         vm_size: str,
         cluster_name: Optional[str] = None,
         timeout: int = 300,
@@ -176,7 +176,7 @@ class AKSMachineClient(AKSClient):
         with traceback before the exception propagates to ``MachineCRUD``).
 
         Args:
-            agentpool_name: Target agentpool name.
+            agent_pool_name: Target agentpool name.
             vm_size: VM SKU recorded in operation metadata. The PUT body itself
                 only sets ``mode: Machines``; the SKU is informational here so
                 downstream Kusto rows can attribute the agentpool to a SKU.
@@ -194,7 +194,7 @@ class AKSMachineClient(AKSClient):
         cluster_name = cluster_name or self.get_cluster_name()
         metadata = {
             "cluster_name": cluster_name,
-            "agentpool_name": agentpool_name,
+            "agent_pool_name": agent_pool_name,
             "vm_size": vm_size,
         }
         with self._get_operation_context()(
@@ -205,7 +205,7 @@ class AKSMachineClient(AKSClient):
                 url = (
                     f"{_ARM_BASE}/subscriptions/{sub}/resourceGroups/{self.resource_group}"
                     f"/providers/Microsoft.ContainerService/managedClusters/{cluster_name}"
-                    f"/agentPools/{agentpool_name}?api-version={_AGENTPOOL_API_VERSION}"
+                    f"/agentPools/{agent_pool_name}?api-version={_AGENTPOOL_API_VERSION}"
                 )
                 body = {"properties": {"mode": "Machines"}}
                 # Cap the PUT timeout so the bulk of ``timeout`` is preserved
@@ -221,13 +221,13 @@ class AKSMachineClient(AKSClient):
                     )
                 if not self._wait_for_agentpool_provisioning(url, timeout):
                     raise RuntimeError(
-                        f"agentpool {agentpool_name} did not reach Succeeded within {timeout}s"
+                        f"agentpool {agent_pool_name} did not reach Succeeded within {timeout}s"
                     )
                 op.add_metadata("agentpool_info", self.get_node_pool(
-                    agentpool_name, cluster_name).as_dict())
+                    agent_pool_name, cluster_name).as_dict())
                 op.add_metadata("cluster_info", self.get_cluster_data(cluster_name))
             except Exception as e:
-                logger.error(f"Failed to create machine agentpool {agentpool_name}: {e}")
+                logger.error(f"Failed to create machine agentpool {agent_pool_name}: {e}")
                 raise
 
     def _wait_for_agentpool_provisioning(self, url: str, timeout: int) -> bool:
@@ -278,7 +278,7 @@ class AKSMachineClient(AKSClient):
 
     def _wait_for_machine_node_readiness(
         self,
-        agentpool_name: str,
+        agent_pool_name: str,
         expected_count: int,
         timeout: int,
         baseline_count: int = 0,
@@ -314,7 +314,7 @@ class AKSMachineClient(AKSClient):
         }
         if expected_count <= 0:
             return empty_envelope
-        label_selector = f"agentpool={agentpool_name}"
+        label_selector = f"agentpool={agent_pool_name}"
         target_total = baseline_count + expected_count
         # Each percentile target must be STRICTLY GREATER than baseline_count so
         # we count only NEW nodes -- pre-existing labeled Ready nodes alone must
@@ -331,30 +331,26 @@ class AKSMachineClient(AKSClient):
             start if cluster_name and expected_machine_names else None
         )
         logger.info(
-            f"Waiting for nodes in agentpool {agentpool_name} (label {label_selector}) - "
+            f"Waiting for nodes in agentpool {agent_pool_name} (label {label_selector}) - "
             f"targets {targets}, baseline={baseline_count}, expected={expected_count}, "
             f"timeout {timeout}s"
         )
         while time.time() < deadline and len(readiness_times) < len(targets):
-            failed_machines = None
             should_check_machines = (
                 next_machine_failure_check_at is not None
                 and time.time() >= next_machine_failure_check_at
             )
-            max_workers = 2 if should_check_machines else 1
-            with ThreadPoolExecutor(max_workers=max_workers) as ex:
-                ready_nodes = ex.submit(self._get_ready_node_count, label_selector)
-                if should_check_machines and cluster_name and expected_machine_names:
+            failed_machines_result: List[Dict[str, Any]] = []
+            if should_check_machines and cluster_name and expected_machine_names:
+                with ThreadPoolExecutor(max_workers=2) as ex:
+                    ready_nodes = ex.submit(self._get_ready_node_count, label_selector)
                     failed_machines = ex.submit(
                         self._get_terminal_machine_provisioning_failures,
                         cluster_name=cluster_name,
-                        agentpool_name=agentpool_name,
+                        agent_pool_name=agent_pool_name,
                         expected_names=expected_machine_names,
                     )
-
-            ready = ready_nodes.result()
-            failed_machines_result: List[Dict[str, Any]] = []
-            if failed_machines is not None:
+                    ready = ready_nodes.result()
                 try:
                     failed_machines_result = failed_machines.result()
                 except Exception as e:
@@ -365,11 +361,13 @@ class AKSMachineClient(AKSClient):
                 next_machine_failure_check_at = (
                     time.time() + _MACHINE_FAILURE_CHECK_INTERVAL_SECONDS
                 )
+            else:
+                ready = self._get_ready_node_count(label_selector)
             # Once all expected Machines are terminal, no more requested nodes
             # can join. Preserve lower-percentile timings before failing.
             if failed_machines_result:
                 raise MachineProvisioningFailed(
-                    agentpool_name=agentpool_name,
+                    agent_pool_name=agent_pool_name,
                     failed_machines=failed_machines_result,
                     readiness_envelope=self._build_readiness_envelope(targets, readiness_times),
                 )
@@ -397,12 +395,12 @@ class AKSMachineClient(AKSClient):
         result = self._build_readiness_envelope(targets, readiness_times)
         if not readiness_times:
             logger.warning(
-                f"No percentile target met within {timeout}s for agentpool {agentpool_name}"
+                f"No percentile target met within {timeout}s for agentpool {agent_pool_name}"
             )
             return result
         # Log percentile summary including P100, which is the wall-clock
         # elapsed until ALL target nodes are Ready.
-        logger.info(f"Node Readiness Percentile Summary for agentpool {agentpool_name}:")
+        logger.info(f"Node Readiness Percentile Summary for agentpool {agent_pool_name}:")
         for p in (50, 70, 90, 99, 100):
             if p in readiness_times:
                 logger.info(
@@ -415,12 +413,12 @@ class AKSMachineClient(AKSClient):
         if len(readiness_times) == len(targets):
             logger.info(
                 f"All target nodes became ready in {max_elapsed:.2f} seconds "
-                f"in agent pool {agentpool_name}"
+                f"in agent pool {agent_pool_name}"
             )
         else:
             missed = [f"P{p}" for p in (50, 70, 90, 99, 100) if p not in readiness_times]
             logger.warning(
-                f"Partial readiness in agent pool {agentpool_name}: "
+                f"Partial readiness in agent pool {agent_pool_name}: "
                 f"{len(readiness_times)}/{len(targets)} percentiles met within "
                 f"{timeout}s; missed {missed}; last successful percentile at "
                 f"{max_elapsed:.2f}s"
@@ -456,7 +454,7 @@ class AKSMachineClient(AKSClient):
     # ---- Machine API: scale path ----
     def scale_machine(
         self,
-        agentpool_name: str,
+        agent_pool_name: str,
         vm_size: str,
         scale_machine_count: int,
         cluster_name: Optional[str] = None,
@@ -498,7 +496,7 @@ class AKSMachineClient(AKSClient):
         cluster_name = cluster_name or self.get_cluster_name()
         metadata = {
             "cluster_name": cluster_name,
-            "agentpool_name": agentpool_name,
+            "agent_pool_name": agent_pool_name,
             "vm_size": vm_size,
             "scale_machine_count": scale_machine_count,
             "use_batch_api": use_batch_api,
@@ -507,7 +505,7 @@ class AKSMachineClient(AKSClient):
         # Bundle into a SimpleNamespace so the helpers retain the
         # ``request.foo`` shape without exposing yet another module-level data class.
         request = SimpleNamespace(
-            agentpool_name=agentpool_name,
+            agent_pool_name=agent_pool_name,
             cluster_name=cluster_name,
             resource_group=self.resource_group,
             vm_size=vm_size,
@@ -527,11 +525,11 @@ class AKSMachineClient(AKSClient):
                 try:
                     baseline_count = len(
                         self.k8s_client.get_ready_nodes(
-                            label_selector=f"agentpool={agentpool_name}"
+                            label_selector=f"agentpool={agent_pool_name}"
                         )
                     )
                     logger.info(
-                        f"baseline ready nodes in agentpool {agentpool_name}: {baseline_count}"
+                        f"baseline ready nodes in agentpool {agent_pool_name}: {baseline_count}"
                     )
                 except Exception:
                     logger.warning(
@@ -564,20 +562,20 @@ class AKSMachineClient(AKSClient):
                     f"{_ARM_BASE}/subscriptions/{self.subscription_id}/resourceGroups/"
                     f"{self.resource_group}/providers/Microsoft.ContainerService/"
                     f"managedClusters/{cluster_name}/agentPools/"
-                    f"{agentpool_name}?api-version={_AGENTPOOL_API_VERSION}"
+                    f"{agent_pool_name}?api-version={_AGENTPOOL_API_VERSION}"
                 )
                 agentpool_ok = self._wait_for_agentpool_provisioning(
                     agentpool_url, timeout
                 )
                 logger.info(
-                    f"agentpool {agentpool_name} provisioning "
+                    f"agentpool {agent_pool_name} provisioning "
                     f"{'Succeeded' if agentpool_ok else 'Failed/Timeout'}"
                 )
 
                 readiness_failure = None
                 try:
                     percentile_envelope = self._wait_for_machine_node_readiness(
-                        agentpool_name=agentpool_name,
+                        agent_pool_name=agent_pool_name,
                         expected_count=len(successful),
                         timeout=readiness_wait_timeout,
                         baseline_count=baseline_count,
@@ -599,17 +597,17 @@ class AKSMachineClient(AKSClient):
 
                 if not agentpool_ok:
                     raise RuntimeError(
-                        f"agentpool {agentpool_name} did not reach Succeeded within {timeout}s"
+                        f"agentpool {agent_pool_name} did not reach Succeeded within {timeout}s"
                     )
                 # P100 is the strictest readiness envelope (all target nodes
                 # Ready); if it succeeded, every lower percentile did too.
                 if not p100.get("success", False):
                     raise RuntimeError(
                         f"node readiness P100 did not complete within "
-                        f"{readiness_wait_timeout}s for agentpool {agentpool_name}"
+                        f"{readiness_wait_timeout}s for agentpool {agent_pool_name}"
                     )
             except Exception as e:
-                logger.error(f"Failed to scale machine agentpool {agentpool_name}: {e}")
+                logger.error(f"Failed to scale machine agentpool {agent_pool_name}: {e}")
                 raise
 
     @staticmethod
@@ -675,7 +673,7 @@ class AKSMachineClient(AKSClient):
         url = (
             f"{_ARM_BASE}/subscriptions/{sub}/resourceGroups/{request.resource_group}"
             f"/providers/Microsoft.ContainerService/managedClusters/{request.cluster_name}"
-            f"/agentPools/{request.agentpool_name}/machines/{name}"
+            f"/agentPools/{request.agent_pool_name}/machines/{name}"
             f"?api-version={_MACHINE_API_VERSION}"
         )
         body: Dict[str, Any] = {"properties": {"hardware": {"vmSize": request.vm_size}}}
@@ -688,22 +686,22 @@ class AKSMachineClient(AKSClient):
     def _list_machines(
         self,
         cluster_name: str,
-        agentpool_name: str,
+        agent_pool_name: str,
         timeout: int = 30,
     ) -> List[Dict[str, Any]]:
         """List Machine resources for an agentpool, following ARM pagination."""
         url = (
             f"{_ARM_BASE}/subscriptions/{self.subscription_id}/resourceGroups/"
             f"{self.resource_group}/providers/Microsoft.ContainerService/"
-            f"managedClusters/{cluster_name}/agentPools/{agentpool_name}/machines"
+            f"managedClusters/{cluster_name}/agentPools/{agent_pool_name}/machines"
             f"?api-version={_MACHINE_API_VERSION}"
         )
         machines: List[Dict[str, Any]] = []
-        for _ in range(_LIST_MACHINES_PAGE_LIMIT):
+        for _ in range(_LIST_MACHINES_MAX_PAGES):
             resp = self.make_request("GET", url, timeout=timeout)
             if resp.status_code != 200:
                 raise RuntimeError(
-                    f"ListMachines failed for agentpool {agentpool_name}: "
+                    f"ListMachines failed for agentpool {agent_pool_name}: "
                     f"{resp.status_code} {resp.text[:500]}"
                 )
             try:
@@ -711,7 +709,7 @@ class AKSMachineClient(AKSClient):
             except (ValueError, TypeError) as exc:
                 raise RuntimeError(
                     f"ListMachines returned invalid JSON for agentpool "
-                    f"{agentpool_name}: {exc}"
+                    f"{agent_pool_name}: {exc}"
                 ) from exc
             machines.extend(body.get("value", []))
             next_link = body.get("nextLink")
@@ -719,14 +717,14 @@ class AKSMachineClient(AKSClient):
                 return machines
             url = next_link
         raise RuntimeError(
-            f"ListMachines exceeded {_LIST_MACHINES_PAGE_LIMIT} pages for "
-            f"agentpool {agentpool_name}"
+            f"ListMachines exceeded {_LIST_MACHINES_MAX_PAGES} pages for "
+            f"agentpool {agent_pool_name}"
         )
 
     def _get_terminal_machine_provisioning_failures(
         self,
         cluster_name: str,
-        agentpool_name: str,
+        agent_pool_name: str,
         expected_names: Set[str],
     ) -> List[Dict[str, Any]]:
         """Return failed Machines once all expected Machines are terminal.
@@ -737,7 +735,7 @@ class AKSMachineClient(AKSClient):
         """
         if not expected_names:
             return []
-        machines = self._list_machines(cluster_name, agentpool_name)
+        machines = self._list_machines(cluster_name, agent_pool_name)
         machines_by_name = {
             machine.get("name"): machine
             for machine in machines
@@ -882,7 +880,7 @@ class AKSMachineClient(AKSClient):
         url = (
             f"{_ARM_BASE}/subscriptions/{sub}/resourceGroups/{request.resource_group}"
             f"/providers/Microsoft.ContainerService/managedClusters/{request.cluster_name}"
-            f"/agentPools/{request.agentpool_name}/machines/{first_machine_name}"
+            f"/agentPools/{request.agent_pool_name}/machines/{first_machine_name}"
             f"?api-version={_MACHINE_API_VERSION}"
         )
         body: Dict[str, Any] = {"properties": {"hardware": {"vmSize": request.vm_size}}}
