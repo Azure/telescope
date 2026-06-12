@@ -1101,11 +1101,17 @@ stages:
               # Set 25m for buffer including initial backend ready + LB IP lag.
               cl2_probe_window_duration: "25m"
               cl2_probe_prewait_s: 60
-              # Snapshot in-cluster Prometheus TSDB → blob so we can PromQL
-              # locally over the full scrape set (cilium-agent, hubble,
-              # cilium-operator, clustermesh-apiserver, kvstoremesh, coredns)
-              # without round-tripping through Kusto.
+              # Snapshot in-cluster Prometheus TSDB → blob storage in OUR
+              # sub (cmshscaleprom / sub 37deca37) so we can PromQL locally
+              # over the full scrape set (cilium-agent, hubble, cilium-
+              # operator, clustermesh-apiserver, kvstoremesh, coredns)
+              # without round-tripping through Kusto. blob target scales
+              # to N=100; artifact target capped at 10GB total (fine for
+              # smoke but blob validates the path we'll use at scale).
               cl2_prom_snapshot_enabled: "true"
+              cl2_prom_snapshot_target: "blob"
+              cl2_prom_snapshot_storage_account: "cmshscaleprom"
+              cl2_prom_snapshot_container: "snapshots"
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           timeout_in_minutes: 180
@@ -1190,8 +1196,12 @@ stages:
               # Set 25m for buffer.
               cl2_probe_window_duration: "25m"
               cl2_probe_prewait_s: 60
-              # Snapshot in-cluster Prometheus TSDB → blob (see failover smoke)
+              # Snapshot in-cluster Prometheus TSDB → blob storage (see
+              # failover smoke for rationale + storage account details)
               cl2_prom_snapshot_enabled: "true"
+              cl2_prom_snapshot_target: "blob"
+              cl2_prom_snapshot_storage_account: "cmshscaleprom"
+              cl2_prom_snapshot_container: "snapshots"
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           timeout_in_minutes: 180

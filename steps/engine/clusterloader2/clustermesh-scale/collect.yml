@@ -265,14 +265,27 @@ steps:
       BUILD_REASON: $(Build.Reason)
     displayName: "Collect + aggregate results across clustermesh clusters"
 
-  # Prometheus TSDB snapshot publish-as-pipeline-artifact (when
-  # CL2_PROM_SNAPSHOT_ENABLED=true the per-cluster CL2 runner places
-  # prom-snapshot-*.tar.gz files under CL2_REPORT_DIR/[scenario]/[role]/).
-  # Snapshots are published as AzDO pipeline artifacts owned by THIS
-  # pipeline run — independent of the Telescope blob / Kusto path. Download
-  # from the build page → Artifacts → prom-snapshots-<scenario>-<jobname>.
+  # Prometheus TSDB snapshot publish (when CL2_PROM_SNAPSHOT_ENABLED=true the
+  # per-cluster CL2 runner places prom-snapshot-*.tar.gz files under
+  # CL2_REPORT_DIR/[scenario]/[role]/). Two delivery targets, both
+  # owned-by-us (independent of Telescope's storage/Kusto):
+  #
+  #   target=artifact (default): publish as AzDO pipeline artifact
+  #     - Pros: zero external infra, downloadable from Build page
+  #     - Cons: 10GB-per-artifact cap; fine at n=3 smoke (~50-200MB total)
+  #
+  #   target=blob: upload to OUR storage account (cmshscaleprom by default)
+  #     - Pros: scales to N=100 (~30-50GB), 90+ day retention
+  #     - Cons: needs SP to have Storage Blob Data Contributor on the account
+  #     - Auth: --auth-mode login (uses the AzDO service connection's SP
+  #       OAuth token; no shared keys; matches sub's "no shared key access"
+  #       policy)
+  #
   # Load locally with:
-  #   tar xzf prom-snapshot-<role>-<id>.tar.gz
+  #   az storage blob download-batch --source snapshots \
+  #     --pattern "<branch>/<scenario>/<run_id>/*" --destination ./snap \
+  #     --account-name <account> --auth-mode login
+  #   tar xzf ./snap/prom-snapshot-<role>-<id>.tar.gz
   #   docker run --rm -v "$PWD/<snap_dir>:/prometheus" -p 9090:9090 \
   #     prom/prometheus --storage.tsdb.path=/prometheus
   - bash: |
@@ -281,8 +294,6 @@ steps:
       mkdir -p "$STAGING_DIR"
       count=0 total_bytes=0
       for snap in "$CL2_REPORT_DIR"/**/prom-snapshot-*.tar.gz; do
-        # Preserve scenario/role hierarchy under staging so multi-scenario
-        # share-infra runs don't collide on identical role-named snapshots.
         rel=${snap#"$CL2_REPORT_DIR/"}
         dest_dir="$STAGING_DIR/$(dirname "$rel")"
         mkdir -p "$dest_dir"
@@ -296,8 +307,10 @@ steps:
     env:
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/results
       STAGING_DIR: $(Build.ArtifactStagingDirectory)/prom-snapshots
-    displayName: "Stage Prometheus TSDB snapshots for artifact publish"
+    displayName: "Stage Prometheus TSDB snapshots"
     condition: and(succeededOrFailed(), eq(variables['cl2_prom_snapshot_enabled'], 'true'))
+  # Target=artifact path (small smokes). Always-attempted when snapshot is
+  # enabled; artifact stays under the build page's Artifacts dropdown.
   - task: PublishPipelineArtifact@1
     inputs:
       targetPath: $(Build.ArtifactStagingDirectory)/prom-snapshots
@@ -305,3 +318,45 @@ steps:
       publishLocation: pipeline
     displayName: "Publish Prometheus TSDB snapshots as pipeline artifact"
     condition: and(succeededOrFailed(), eq(variables['cl2_prom_snapshot_enabled'], 'true'))
+  # Target=blob path (larger scales). Opt-in via cl2_prom_snapshot_target=blob.
+  # Uses the same AzDO service connection as the rest of the pipeline (SP's
+  # OAuth, no shared keys — matches sub policy). Destination structure:
+  #   prom-snapshots/<branch>/<scenario>/<run_id>/<role>.tar.gz
+  - template: /steps/cloud/azure/login.yml
+    parameters:
+      region: eastus
+      credential_type: service_connection
+    condition: and(succeededOrFailed(),
+                   eq(variables['cl2_prom_snapshot_enabled'], 'true'),
+                   eq(variables['cl2_prom_snapshot_target'], 'blob'))
+  - bash: |
+      set -euo pipefail
+      shopt -s globstar nullglob
+      count=0 total_bytes=0
+      for snap in "$CL2_REPORT_DIR"/**/prom-snapshot-*.tar.gz; do
+        rel=${snap#"$CL2_REPORT_DIR/"}
+        scenario_seg=$(dirname "$rel" | cut -d/ -f1)
+        blob_name="${BUILD_BRANCH}/${scenario_seg}/${RUN_ID}/$(basename "$snap")"
+        size=$(stat -c%s "$snap" 2>/dev/null || echo 0)
+        echo "Uploading $snap (${size} bytes) -> ${STORAGE_ACCOUNT_NAME}/${CONTAINER_NAME}/${blob_name}"
+        az storage blob upload \
+          --account-name "$STORAGE_ACCOUNT_NAME" \
+          --container-name "$CONTAINER_NAME" \
+          --name "$blob_name" \
+          --file "$snap" \
+          --auth-mode login \
+          --overwrite >/dev/null
+        count=$((count + 1))
+        total_bytes=$((total_bytes + size))
+      done
+      echo "Uploaded $count snapshot tarball(s), total ${total_bytes} bytes, to ${STORAGE_ACCOUNT_NAME}/${CONTAINER_NAME}"
+    env:
+      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/results
+      STORAGE_ACCOUNT_NAME: $(cl2_prom_snapshot_storage_account)
+      CONTAINER_NAME: $(cl2_prom_snapshot_container)
+      RUN_ID: $(RUN_ID)
+      BUILD_BRANCH: $(Build.SourceBranchName)
+    displayName: "Upload Prometheus TSDB snapshots to our storage account"
+    condition: and(succeededOrFailed(),
+                   eq(variables['cl2_prom_snapshot_enabled'], 'true'),
+                   eq(variables['cl2_prom_snapshot_target'], 'blob'))

@@ -237,11 +237,18 @@ steps:
       # per-cluster CL2 runner skips CL2's --tear-down-prometheus, hits
       # prometheus-k8s's /api/v1/admin/tsdb/snapshot, tars the snapshot
       # dir out to the report dir, then deletes the Prometheus CR manually.
-      # Snapshot tarballs are picked up by collect.yml's upload pass and
-      # land in the same blob container as test results under
-      # prom-snapshots/<run_id>/. Default OFF (snapshot is auxiliary; we
-      # don't want every existing scenario paying the upload cost).
+      # Two delivery targets, both owned-by-us (independent of Telescope):
+      #   target=artifact (default) — AzDO pipeline artifact, 10GB cap.
+      #     Fine for n=3 smoke (~50-200MB total).
+      #   target=blob — uploads to our own storage account in the same sub
+      #     where AKS clusters deploy (37deca37 by default), via SP OAuth
+      #     (--auth-mode login). Scales to N=100 (~30-50GB).
+      # Default OFF (snapshot is auxiliary; we don't want every existing
+      # scenario paying the upload cost).
       export CL2_PROM_SNAPSHOT_ENABLED="${CL2_PROM_SNAPSHOT_ENABLED:-false}"
+      export CL2_PROM_SNAPSHOT_TARGET="${CL2_PROM_SNAPSHOT_TARGET:-artifact}"
+      export CL2_PROM_SNAPSHOT_STORAGE_ACCOUNT="${CL2_PROM_SNAPSHOT_STORAGE_ACCOUNT:-cmshscaleprom}"
+      export CL2_PROM_SNAPSHOT_CONTAINER="${CL2_PROM_SNAPSHOT_CONTAINER:-snapshots}"
 
       # Same discovery pattern as topology/clustermesh-scale/validate-resources.yml.
       # We re-run it here rather than relying on a step variable so this engine
