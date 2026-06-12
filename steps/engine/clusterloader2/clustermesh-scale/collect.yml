@@ -320,36 +320,40 @@ steps:
     condition: and(succeededOrFailed(), eq(variables['cl2_prom_snapshot_enabled'], 'true'))
   # Target=blob path (larger scales). Opt-in via cl2_prom_snapshot_target=blob.
   # Uses the same AzDO service connection as the rest of the pipeline (SP's
-  # OAuth, no shared keys — matches sub policy). Destination structure:
-  #   prom-snapshots/<branch>/<scenario>/<run_id>/<role>.tar.gz
-  - template: /steps/cloud/azure/login.yml
-    parameters:
-      region: eastus
-      credential_type: service_connection
-    condition: and(succeededOrFailed(),
-                   eq(variables['cl2_prom_snapshot_enabled'], 'true'),
-                   eq(variables['cl2_prom_snapshot_target'], 'blob'))
-  - bash: |
-      set -euo pipefail
-      shopt -s globstar nullglob
-      count=0 total_bytes=0
-      for snap in "$CL2_REPORT_DIR"/**/prom-snapshot-*.tar.gz; do
-        rel=${snap#"$CL2_REPORT_DIR/"}
-        scenario_seg=$(dirname "$rel" | cut -d/ -f1)
-        blob_name="${BUILD_BRANCH}/${scenario_seg}/${RUN_ID}/$(basename "$snap")"
-        size=$(stat -c%s "$snap" 2>/dev/null || echo 0)
-        echo "Uploading $snap (${size} bytes) -> ${STORAGE_ACCOUNT_NAME}/${CONTAINER_NAME}/${blob_name}"
-        az storage blob upload \
-          --account-name "$STORAGE_ACCOUNT_NAME" \
-          --container-name "$CONTAINER_NAME" \
-          --name "$blob_name" \
-          --file "$snap" \
-          --auth-mode login \
-          --overwrite >/dev/null
-        count=$((count + 1))
-        total_bytes=$((total_bytes + size))
-      done
-      echo "Uploaded $count snapshot tarball(s), total ${total_bytes} bytes, to ${STORAGE_ACCOUNT_NAME}/${CONTAINER_NAME}"
+  # OAuth via AzureCLI@2's built-in auth, no shared keys — matches sub
+  # policy "Storage accounts should prevent shared key access"). Destination
+  # structure: prom-snapshots/<branch>/<scenario>/<run_id>/<role>.tar.gz
+  # Single AzureCLI@2 task handles both `az login --service-principal` (auto)
+  # and the upload — we cannot use `- template:` here because step-level
+  # templates don't accept runtime `condition:` (matrix vars not available
+  # at compile time, so `${{ if }}` template expressions also fail).
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(AZURE_SERVICE_CONNECTION)
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -euo pipefail
+        shopt -s globstar nullglob
+        count=0
+        total_bytes=0
+        for snap in "$CL2_REPORT_DIR"/**/prom-snapshot-*.tar.gz; do
+          rel=${snap#"$CL2_REPORT_DIR/"}
+          scenario_seg=$(dirname "$rel" | cut -d/ -f1)
+          blob_name="${BUILD_BRANCH}/${scenario_seg}/${RUN_ID}/$(basename "$snap")"
+          size=$(stat -c%s "$snap" 2>/dev/null || echo 0)
+          echo "Uploading $snap (${size} bytes) -> ${STORAGE_ACCOUNT_NAME}/${CONTAINER_NAME}/${blob_name}"
+          az storage blob upload \
+            --account-name "$STORAGE_ACCOUNT_NAME" \
+            --container-name "$CONTAINER_NAME" \
+            --name "$blob_name" \
+            --file "$snap" \
+            --auth-mode login \
+            --overwrite >/dev/null
+          count=$((count + 1))
+          total_bytes=$((total_bytes + size))
+        done
+        echo "Uploaded $count snapshot tarball(s), total ${total_bytes} bytes, to ${STORAGE_ACCOUNT_NAME}/${CONTAINER_NAME}"
     env:
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/results
       STORAGE_ACCOUNT_NAME: $(cl2_prom_snapshot_storage_account)
