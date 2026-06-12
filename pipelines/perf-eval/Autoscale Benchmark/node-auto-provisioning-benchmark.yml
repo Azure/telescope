@@ -266,7 +266,7 @@ stages:
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
               karpenter_cooldown: 900 #seconds
-              vm_size: Standard_D2ds_v4
+              vm_size: Standard_D2ds_v6
               capacity_type: on-demand
               refresh_interval: "1s"
             extra-small-scale-spot:
@@ -281,7 +281,7 @@ stages:
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D2ds_v4
+              vm_size: Standard_D2ds_v6
               capacity_type: spot
               refresh_interval: "1s"
             small-scale-on-demand:
@@ -296,7 +296,7 @@ stages:
               karpenter_cooldown: 900 #seconds
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D4ds_v4
+              vm_size: Standard_D2ds_v6
               capacity_type: on-demand
               refresh_interval: "1s"
             small-scale-spot:
@@ -311,7 +311,7 @@ stages:
               warmup_deployment: true
               karpenter_cooldown: 900 #seconds
               warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D4ds_v4
+              vm_size: Standard_D2ds_v6
               capacity_type: spot
               refresh_interval: "1s"
           max_parallel: 1
@@ -351,7 +351,7 @@ stages:
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
               karpenter_cooldown: 900 #seconds
-              vm_size: Standard_D2ds_v4
+              vm_size: Standard_D2ds_v6
               capacity_type: on-demand
               refresh_interval: "1s"
             extra-small-scale-spot:
@@ -366,7 +366,7 @@ stages:
               loop_count: 1
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D2ds_v4
+              vm_size: Standard_D2ds_v6
               capacity_type: spot
               refresh_interval: "1s"
             small-scale-on-demand:
@@ -381,7 +381,7 @@ stages:
               karpenter_cooldown: 900 #seconds
               warmup_deployment: true
               warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D4ds_v4
+              vm_size: Standard_D2ds_v6
               capacity_type: on-demand
               refresh_interval: "1s"
             small-scale-spot:
@@ -396,7 +396,7 @@ stages:
               warmup_deployment: true
               karpenter_cooldown: 900 #seconds
               warmup_deployment_template: warmup_deployment.yaml
-              vm_size: Standard_D4ds_v4
+              vm_size: Standard_D2ds_v6
               capacity_type: spot
               refresh_interval: "1s"
           max_parallel: 1

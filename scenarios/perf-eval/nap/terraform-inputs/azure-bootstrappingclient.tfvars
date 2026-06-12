@@ -32,7 +32,7 @@ aks_cli_config_list = [
     default_node_pool = {
       name       = "system"
       node_count = 5
-      vm_size    = "Standard_D4_v5"
+      vm_size    = "Standard_D2ds_v6"
     }
     extra_node_pool = []
     optional_parameters = [
