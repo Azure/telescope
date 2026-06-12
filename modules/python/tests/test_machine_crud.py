@@ -44,12 +44,12 @@ class TestMachineCRUD(unittest.TestCase):
         self.mock_client.create_machine_agentpool.return_value = True
 
         result = self.crud.create_machine_agentpool(
-            agentpool_name="apool", vm_size="Standard_D2_v3"
+            agent_pool_name="apool", vm_size="Standard_D2_v3"
         )
 
         self.assertTrue(result)
         self.mock_client.create_machine_agentpool.assert_called_once_with(
-            agentpool_name="apool",
+            agent_pool_name="apool",
             vm_size="Standard_D2_v3",
             cluster_name="fake-cluster",
             timeout=900,
@@ -58,7 +58,7 @@ class TestMachineCRUD(unittest.TestCase):
     def test_create_machine_agentpool_swallows_exception(self):
         self.mock_client.create_machine_agentpool.side_effect = RuntimeError("boom")
         result = self.crud.create_machine_agentpool(
-            agentpool_name="apool", vm_size="Standard_D2_v3"
+            agent_pool_name="apool", vm_size="Standard_D2_v3"
         )
         self.assertFalse(result)
 
@@ -68,7 +68,7 @@ class TestMachineCRUD(unittest.TestCase):
         self.mock_client.scale_machine.return_value = True
 
         result = self.crud.scale_machine(
-            agentpool_name="apool",
+            agent_pool_name="apool",
             vm_size="Standard_D2_v3",
             scale_machine_count=50,
             use_batch_api=True,
@@ -79,7 +79,7 @@ class TestMachineCRUD(unittest.TestCase):
 
         self.assertTrue(result)
         self.mock_client.scale_machine.assert_called_once_with(
-            agentpool_name="apool",
+            agent_pool_name="apool",
             vm_size="Standard_D2_v3",
             scale_machine_count=50,
             cluster_name="fake-cluster",
@@ -94,7 +94,7 @@ class TestMachineCRUD(unittest.TestCase):
         self.mock_client.scale_machine.return_value = True
 
         self.crud.scale_machine(
-            agentpool_name="apool", vm_size="Standard_D2_v3",
+            agent_pool_name="apool", vm_size="Standard_D2_v3",
             scale_machine_count=1,
         )
 
@@ -107,7 +107,7 @@ class TestMachineCRUD(unittest.TestCase):
     def test_scale_machine_swallows_exception(self):
         self.mock_client.scale_machine.side_effect = RuntimeError("boom")
         result = self.crud.scale_machine(
-            agentpool_name="apool", vm_size="Standard_D2_v3",
+            agent_pool_name="apool", vm_size="Standard_D2_v3",
             scale_machine_count=1,
         )
         self.assertFalse(result)
