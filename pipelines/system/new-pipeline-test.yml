@@ -1101,6 +1101,11 @@ stages:
               # Set 25m for buffer including initial backend ready + LB IP lag.
               cl2_probe_window_duration: "25m"
               cl2_probe_prewait_s: 60
+              # Snapshot in-cluster Prometheus TSDB → blob so we can PromQL
+              # locally over the full scrape set (cilium-agent, hubble,
+              # cilium-operator, clustermesh-apiserver, kvstoremesh, coredns)
+              # without round-tripping through Kusto.
+              cl2_prom_snapshot_enabled: "true"
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           timeout_in_minutes: 180
@@ -1185,6 +1190,8 @@ stages:
               # Set 25m for buffer.
               cl2_probe_window_duration: "25m"
               cl2_probe_prewait_s: 60
+              # Snapshot in-cluster Prometheus TSDB → blob (see failover smoke)
+              cl2_prom_snapshot_enabled: "true"
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           timeout_in_minutes: 180

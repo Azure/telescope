@@ -264,3 +264,46 @@ steps:
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/results
       BUILD_REASON: $(Build.Reason)
     displayName: "Collect + aggregate results across clustermesh clusters"
+
+  # Prometheus TSDB snapshot upload (when CL2_PROM_SNAPSHOT_ENABLED=true the
+  # per-cluster CL2 runner places prom-snapshot-*.tar.gz files under
+  # CL2_REPORT_DIR/[scenario]/[role]/). Each tarball is uploaded under
+  # prom-snapshots/<branch>/<scenario>/<run_id>/<role>.tar.gz in the same
+  # storage account / container as test results. Load locally with:
+  #   docker run --rm -v $PWD/extracted:/prometheus -p 9090:9090 \
+  #     prom/prometheus --storage.tsdb.path=/prometheus
+  - template: /steps/cloud/azure/login.yml
+    parameters:
+      region: eastus
+      credential_type: service_connection
+    condition: and(succeededOrFailed(), eq(variables['cl2_prom_snapshot_enabled'], 'true'))
+  - bash: |
+      set -euo pipefail
+      shopt -s globstar nullglob
+      count=0
+      for snap in "$CL2_REPORT_DIR"/**/prom-snapshot-*.tar.gz; do
+        # Build per-snapshot blob path: prom-snapshots/<branch>/<scenario>/<run_id>/<basename>
+        rel=${snap#"$CL2_REPORT_DIR/"}
+        # rel is e.g. propagation-probe/mesh-1/prom-snapshot-mesh-1-XYZ.tar.gz
+        scenario_seg=$(dirname "$rel" | cut -d/ -f1)
+        blob_name="prom-snapshots/${BUILD_BRANCH}/${scenario_seg}/${RUN_ID}/$(basename "$snap")"
+        size=$(stat -c%s "$snap" 2>/dev/null || echo 0)
+        echo "Uploading $snap (${size} bytes) -> $blob_name"
+        az storage blob upload \
+          --file "$snap" \
+          --name "$blob_name" \
+          --account-name "$STORAGE_ACCOUNT_NAME" \
+          --container-name "$CONTAINER_NAME" \
+          --auth-mode login \
+          --overwrite >/dev/null
+        count=$((count + 1))
+      done
+      echo "Uploaded $count prometheus snapshot tarball(s) to container=$CONTAINER_NAME"
+    env:
+      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/results
+      STORAGE_ACCOUNT_NAME: $(AZURE_TELESCOPE_STORAGE_ACCOUNT_NAME)
+      CONTAINER_NAME: $(SCENARIO_TYPE)
+      RUN_ID: $(RUN_ID)
+      BUILD_BRANCH: $(Build.SourceBranchName)
+    displayName: "Upload Prometheus TSDB snapshots to storage account"
+    condition: and(succeededOrFailed(), eq(variables['cl2_prom_snapshot_enabled'], 'true'))

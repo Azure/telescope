@@ -233,6 +233,16 @@ steps:
       export CL2_RESTART_SURVIVAL_DEPLOY_NAME="${CL2_RESTART_SURVIVAL_DEPLOY_NAME:-clustermesh-apiserver}"
       export CL2_RESTART_SURVIVAL_DEPLOY_NS="${CL2_RESTART_SURVIVAL_DEPLOY_NS:-kube-system}"
 
+      # Prometheus TSDB snapshot (run-cl2-on-cluster.sh). When true, the
+      # per-cluster CL2 runner skips CL2's --tear-down-prometheus, hits
+      # prometheus-k8s's /api/v1/admin/tsdb/snapshot, tars the snapshot
+      # dir out to the report dir, then deletes the Prometheus CR manually.
+      # Snapshot tarballs are picked up by collect.yml's upload pass and
+      # land in the same blob container as test results under
+      # prom-snapshots/<run_id>/. Default OFF (snapshot is auxiliary; we
+      # don't want every existing scenario paying the upload cost).
+      export CL2_PROM_SNAPSHOT_ENABLED="${CL2_PROM_SNAPSHOT_ENABLED:-false}"
+
       # Same discovery pattern as topology/clustermesh-scale/validate-resources.yml.
       # We re-run it here rather than relying on a step variable so this engine
       # file can be invoked independently.

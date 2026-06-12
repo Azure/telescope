@@ -160,7 +160,16 @@ cl2_passed=0
 # — e.g. PodMonitor template substitution producing "<no value>", which
 # k8s admission rejects but CL2 still writes junit with <failure> tags.
 exec_extra_args=()
-if [ "$tear_down_prometheus_flag" = "1" ]; then
+# When CL2_PROM_SNAPSHOT_ENABLED=true we suppress CL2's built-in prometheus
+# tear-down so the snapshot block below can hit /api/v1/admin/tsdb/snapshot
+# on a still-running prometheus-k8s pod. After snapshotting + copying out
+# the tarball, the snapshot block deletes the Prometheus CR manually so
+# the cluster doesn't keep the stack alive longer than CL2 normally would.
+if [ "${CL2_PROM_SNAPSHOT_ENABLED:-false}" = "true" ]; then
+  if [ "$tear_down_prometheus_flag" = "1" ]; then
+    echo "  $role: CL2_PROM_SNAPSHOT_ENABLED=true — suppressing CL2 --tear-down-prometheus; snapshot+manual teardown handled below"
+  fi
+elif [ "$tear_down_prometheus_flag" = "1" ]; then
   exec_extra_args+=(--tear-down-prometheus)
 fi
 (
@@ -246,6 +255,94 @@ KUBECONFIG="$kubeconfig" kubectl -n kube-system logs \
 KUBECONFIG="$kubeconfig" kubectl -n kube-system logs \
   -l io.cilium/app=operator --tail=2000 --prefix=true \
   > "$log_dir/cilium-operator.log" 2>&1 || true
+
+# Prometheus TSDB snapshot (opt-in via CL2_PROM_SNAPSHOT_ENABLED=true).
+# Use kubectl port-forward + host curl to trigger /api/v1/admin/tsdb/snapshot
+# — avoids depending on what's inside the prometheus container (busybox wget
+# in some prom image versions doesn't support --post-data, busybox nc raw
+# HTTP is fragile across kubectl exec stdout/stderr mixing). port-forward
+# binds to :0 so each parallel worker gets a unique random local port.
+#
+# Then kubectl-exec-tars the snapshot dir out to the report dir where the
+# downstream collect step uploads it as a build artifact / blob. Use case:
+# load locally with
+#   tar xzf prom-snapshot-...tar.gz
+#   docker run --rm -v "$PWD/<snap_dir>:/prometheus" -p 9090:9090 \
+#     prom/prometheus --storage.tsdb.path=/prometheus
+# to PromQL over the full scrape set offline.
+#
+# Requires --web.enable-admin-api on Prometheus (CL2 / kube-prometheus
+# operator's Prometheus CR sets enableAdminAPI=true by default). If
+# anything fails we log a warning and move on — the snapshot is auxiliary;
+# missing it must not gate the run.
+if [ "${CL2_PROM_SNAPSHOT_ENABLED:-false}" = "true" ]; then
+  echo "------- $role: prometheus TSDB snapshot -------"
+  prom_pod=$(KUBECONFIG="$kubeconfig" kubectl -n monitoring get pods \
+    -l app.kubernetes.io/name=prometheus \
+    --field-selector=status.phase=Running \
+    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+  if [ -z "$prom_pod" ]; then
+    echo "##vso[task.logissue type=warning;] $role: prom-snapshot: no Running prometheus pod found in namespace monitoring (label app.kubernetes.io/name=prometheus); skipping snapshot"
+  else
+    echo "  $role: prom-snapshot: pod=$prom_pod, starting port-forward"
+    pf_log=$(mktemp)
+    KUBECONFIG="$kubeconfig" kubectl -n monitoring port-forward \
+      "$prom_pod" :9090 >"$pf_log" 2>&1 &
+    PF_PID=$!
+    # Wait for port-forward to bind + report local port
+    local_port=""
+    for _i in $(seq 1 20); do
+      local_port=$(grep -oE 'Forwarding from 127\.0\.0\.1:[0-9]+' "$pf_log" 2>/dev/null \
+        | head -1 | grep -oE '[0-9]+$' || true)
+      [ -n "$local_port" ] && break
+      sleep 0.5
+    done
+    if [ -z "$local_port" ]; then
+      echo "##vso[task.logissue type=warning;] $role: prom-snapshot: port-forward never reported a local port (log: $(cat "$pf_log" 2>/dev/null | head -5)); skipping"
+      kill "$PF_PID" 2>/dev/null || true
+    else
+      echo "  $role: prom-snapshot: port-forward listening on 127.0.0.1:$local_port"
+      snap_resp=$(curl -sfX POST "http://127.0.0.1:${local_port}/api/v1/admin/tsdb/snapshot" 2>&1 || true)
+      kill "$PF_PID" 2>/dev/null || true
+      wait "$PF_PID" 2>/dev/null || true
+      snap_name=$(echo "$snap_resp" | grep -oE '"name":"[^"]+"' | head -1 | sed 's/.*"name":"\([^"]*\)".*/\1/')
+      if [ -z "$snap_name" ]; then
+        echo "##vso[task.logissue type=warning;] $role: prom-snapshot: admin API did not return a snapshot name (response: $snap_resp); admin API may be disabled (check kubectl get prometheus k8s -o jsonpath='{.spec.enableAdminAPI}'); skipping copy"
+      else
+        snap_tar="${report_dir}/prom-snapshot-${role}-${snap_name}.tar.gz"
+        snap_tar_partial="${snap_tar}.partial"
+        echo "  $role: prom-snapshot: name=$snap_name, copying out to $snap_tar"
+        # `tar c -C /prometheus/snapshots <snap_name>` outputs the tarball
+        # over the kubectl-exec stdout pipe; we capture into a local file.
+        # No -i / -t so kubectl pipes binary cleanly without TTY mangling.
+        # Write to .partial then validate gzip before renaming, so a
+        # corrupt mid-stream truncation doesn't get uploaded as if good.
+        if KUBECONFIG="$kubeconfig" kubectl -n monitoring exec "$prom_pod" -c prometheus -- \
+            tar czf - -C /prometheus/snapshots "$snap_name" > "$snap_tar_partial" 2>/dev/null \
+          && gzip -t "$snap_tar_partial" 2>/dev/null; then
+          mv "$snap_tar_partial" "$snap_tar"
+          snap_size=$(stat -c%s "$snap_tar" 2>/dev/null || echo "?")
+          echo "  $role: prom-snapshot: wrote ${snap_size} bytes to $snap_tar (gzip OK)"
+        else
+          echo "##vso[task.logissue type=warning;] $role: prom-snapshot: tar of snapshot dir failed or gzip integrity check failed; dropping partial $snap_tar_partial"
+          rm -f "$snap_tar_partial"
+        fi
+        # Best-effort cleanup of the snapshot dir inside prom-pod so we
+        # don't leak disk if multiple runs share the same prom instance.
+        KUBECONFIG="$kubeconfig" kubectl -n monitoring exec "$prom_pod" -c prometheus -- \
+          rm -rf "/prometheus/snapshots/$snap_name" 2>/dev/null || true
+      fi
+    fi
+    rm -f "$pf_log"
+  fi
+  # Manual tear-down if requested — runs whether or not snapshot succeeded
+  # so we honor the original tear-down contract under all failure modes.
+  if [ "$tear_down_prometheus_flag" = "1" ]; then
+    echo "  $role: prom-snapshot: manual tear-down of Prometheus CR"
+    KUBECONFIG="$kubeconfig" kubectl -n monitoring delete prometheus k8s \
+      --ignore-not-found --wait=false 2>/dev/null || true
+  fi
+fi
 
 if [ "$cl2_passed" -ne 1 ]; then
   # Dump enough state to distinguish prometheus-stack scheduling

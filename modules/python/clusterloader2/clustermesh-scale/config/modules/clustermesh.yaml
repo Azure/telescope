@@ -13,7 +13,7 @@
 {{end}}
 
 steps:
-  - name: {{.actionName}} ClusterMesh Pod Monitor
+  - name: {{.actionName}} ClusterMesh Pod Monitors
     phases:
       - namespaceList:
         - "monitoring"
@@ -22,5 +22,28 @@ steps:
         objectBundle:
           - objectTemplatePath: "modules/clustermesh/podmonitor.yaml"
             basename: clustermesh-apiserver
+            templateFillMap:
+              Interval: {{$interval}}
+          # Added 2026-06-12: explicit extra scrape targets so the local
+          # Prometheus TSDB snapshot (when CL2_PROM_SNAPSHOT_ENABLED=true)
+          # contains data needed to investigate mesh behavior offline.
+          # cilium-agent + cilium-operator are NOT added here — CL2 already
+          # scrapes them via CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT/_OPERATOR
+          # flags (see scale.py:158-159). Adding a second PodMonitor for
+          # those targets would double-scrape and distort sum() queries.
+          # Each PodMonitor below is silent if its target pods don't exist
+          # (e.g. older AKS without ACNS won't have Hubble metrics on 9965,
+          # kvstoremesh-standalone won't match when kvstoremesh runs as a
+          # sidecar of the clustermesh-apiserver pod).
+          - objectTemplatePath: "modules/clustermesh/podmonitor-hubble.yaml"
+            basename: hubble-metrics
+            templateFillMap:
+              Interval: {{$interval}}
+          - objectTemplatePath: "modules/clustermesh/podmonitor-coredns.yaml"
+            basename: coredns
+            templateFillMap:
+              Interval: {{$interval}}
+          - objectTemplatePath: "modules/clustermesh/podmonitor-kvstoremesh.yaml"
+            basename: kvstoremesh-standalone
             templateFillMap:
               Interval: {{$interval}}
