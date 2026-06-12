@@ -15,6 +15,9 @@ steps:
       --node-count "$CREATE_NODE_COUNT" \
       --step-timeout "$STEP_TIME_OUT" \
       ${GPU_NODE_POOL:+--gpu-node-pool} \
+      $([[ "${ENABLE_MANAGED_GPU,,}" == "true" ]] && echo "--enable-managed-gpu" || true) \
+      $([[ "${GPU_INSTANCE_PROFILE}" =~ ^MIG ]] && echo "--gpu-instance-profile ${GPU_INSTANCE_PROFILE}" || true) \
+      $([[ "${GPU_MIG_STRATEGY}" =~ ^(mixed|single)$ ]] && echo "--gpu-mig-strategy ${GPU_MIG_STRATEGY}" || true) \
       --capacity-type "${CAPACITY_TYPE:-ON_DEMAND}"
 
     # Scale Up Node Pool
@@ -27,7 +30,9 @@ steps:
       --scale-step-size "$SCALE_STEP_SIZE" \
       --step-wait-time "$STEP_WAIT_TIME" \
       --step-timeout "$STEP_TIME_OUT" \
-      ${GPU_NODE_POOL:+--gpu-node-pool}
+      ${GPU_NODE_POOL:+--gpu-node-pool} \
+      $([[ "${ENABLE_MANAGED_GPU,,}" == "true" ]] && echo "--enable-managed-gpu" || true) \
+      $([[ "${GPU_INSTANCE_PROFILE}" =~ ^MIG ]] && echo "--gpu-instance-profile ${GPU_INSTANCE_PROFILE}" || true)
 
   displayName: 'Execute K8s Create & Scale Up Operations for ${{ parameters.cloud }}'
   workingDirectory: modules/python
@@ -42,6 +47,9 @@ steps:
     STEP_TIME_OUT: $(STEP_TIME_OUT)
     RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
     GPU_NODE_POOL: $(GPU_NODE_POOL)
+    ENABLE_MANAGED_GPU: $(ENABLE_MANAGED_GPU)
+    GPU_INSTANCE_PROFILE: $(GPU_INSTANCE_PROFILE)
+    GPU_MIG_STRATEGY: $(GPU_MIG_STRATEGY)
     STEP_WAIT_TIME: $(STEP_WAIT_TIME)
     ${{ if eq(parameters.cloud, 'aws') }}:
       CAPACITY_TYPE: $(CAPACITY_TYPE)
@@ -60,7 +68,8 @@ steps:
         --replicas "$REPLICAS" \
         ${MANIFEST_DIR:+--manifest-dir "$MANIFEST_DIR"} \
         --step-timeout "$STEP_TIME_OUT" \
-        ${GPU_NODE_POOL:+--gpu-node-pool}
+        ${GPU_NODE_POOL:+--gpu-node-pool} \
+        $([[ "${ENABLE_MANAGED_GPU,,}" == "true" ]] && echo "--enable-managed-gpu" || true)
     displayName: 'Execute K8s Workload operations for ${{ parameters.cloud }}'
     workingDirectory: modules/python
     env:
@@ -70,6 +79,7 @@ steps:
       STEP_TIME_OUT: $(STEP_TIME_OUT)
       RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
       GPU_NODE_POOL: $(GPU_NODE_POOL)
+      ENABLE_MANAGED_GPU: $(ENABLE_MANAGED_GPU)
       COUNT: $(COUNT)
       REPLICAS: $(REPLICAS)
       MANIFEST_DIR: $(MANIFEST_DIR)
@@ -87,7 +97,8 @@ steps:
         --replicas "$REPLICAS" \
         ${MANIFEST_DIR:+--manifest-dir "$MANIFEST_DIR"} \
         --step-timeout "$STEP_TIME_OUT" \
-        ${GPU_NODE_POOL:+--gpu-node-pool}
+        ${GPU_NODE_POOL:+--gpu-node-pool} \
+        $([[ "${ENABLE_MANAGED_GPU,,}" == "true" ]] && echo "--enable-managed-gpu" || true)
     displayName: 'Execute K8s StatefulSet operations for ${{ parameters.cloud }}'
     workingDirectory: modules/python
     env:
@@ -97,6 +108,7 @@ steps:
       STEP_TIME_OUT: $(STEP_TIME_OUT)
       RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
       GPU_NODE_POOL: $(GPU_NODE_POOL)
+      ENABLE_MANAGED_GPU: $(ENABLE_MANAGED_GPU)
       COUNT: $(COUNT)
       REPLICAS: $(REPLICAS)
       MANIFEST_DIR: $(MANIFEST_DIR)
@@ -114,7 +126,8 @@ steps:
         --completions "$COMPLETIONS" \
         ${MANIFEST_DIR:+--manifest-dir "$MANIFEST_DIR"} \
         --step-timeout "$STEP_TIME_OUT" \
-        ${GPU_NODE_POOL:+--gpu-node-pool}
+        ${GPU_NODE_POOL:+--gpu-node-pool} \
+        $([[ "${ENABLE_MANAGED_GPU,,}" == "true" ]] && echo "--enable-managed-gpu" || true)
     displayName: 'Execute K8s Job operations for ${{ parameters.cloud }}'
     workingDirectory: modules/python
     env:
@@ -124,6 +137,7 @@ steps:
       STEP_TIME_OUT: $(STEP_TIME_OUT)
       RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
       GPU_NODE_POOL: $(GPU_NODE_POOL)
+      ENABLE_MANAGED_GPU: $(ENABLE_MANAGED_GPU)
       COUNT: $(COUNT)
       COMPLETIONS: $(COMPLETIONS)
       MANIFEST_DIR: $(MANIFEST_DIR)
