@@ -10,11 +10,13 @@ is called once per cluster (as the pipeline's collect.yml does), the resulting J
 rows must each carry distinct cluster identity while sharing run-level fields. Without
 this, downstream Kusto queries cannot group/filter by cluster across the mesh.
 """
+# pylint: disable=too-many-lines
 import importlib.util
 import io
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import threading
@@ -887,7 +889,6 @@ class TestWriteReadySentinelScript(unittest.TestCase):
     )
 
     def _run_with_kubeconfig(self, kubeconfig_content, td):
-        import subprocess
         kubeconfig = os.path.join(td, "kubeconfig")
         with open(kubeconfig, "w", encoding="utf-8") as f:
             f.write(kubeconfig_content)
@@ -999,7 +1000,6 @@ class TestNodeChurnerScript(unittest.TestCase):
         )
 
     def test_script_bash_syntax(self):
-        import subprocess
         result = subprocess.run(
             ["bash", "-n", str(self.SCRIPT_PATH)],
             capture_output=True, text=True, check=False,
@@ -1012,7 +1012,6 @@ class TestNodeChurnerScript(unittest.TestCase):
         scenario_valid=false instead of erroring out (so execute.yml's
         share-infra loop continues to subsequent scenarios with clean data).
         """
-        import subprocess
         with tempfile.TemporaryDirectory() as tmp:
             report_dir = os.path.join(tmp, "report")
             sentinel_dir = os.path.join(tmp, "sentinels")

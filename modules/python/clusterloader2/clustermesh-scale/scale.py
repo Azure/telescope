@@ -12,7 +12,6 @@ CL2 invocations across the mesh — see `execute_parallel` below for the worker
 model. Each parallel worker shells out to `run-cl2-on-cluster.sh` so the
 existing per-iteration bash semantics (CL2 run + junit gate + log capture +
 failure diag) are preserved exactly per cluster.
-
 Phase 1 is intentionally trivial: deploy a small fixed number of pods, no churn,
 no fortio, no network policies. The goal of Phase 1 is to prove the multi-cluster
 harness + topology + aggregation works end-to-end. Real measurements
@@ -20,6 +19,7 @@ harness + topology + aggregation works end-to-end. Real measurements
 Phase 2 by adding measurement modules to config/modules/measurements/ and new
 parameters to configure/collect.
 """
+# pylint: disable=too-many-lines
 import argparse
 import concurrent.futures
 import json
@@ -1154,7 +1154,7 @@ def _emit_saturation_profile_rows(
                     signals[sig_name] = None
                     measurement_missing.append(sig_name)
                 else:
-                    signals[sig_name] = transform(raw)
+                    signals[sig_name] = transform(raw)  # pylint: disable=not-callable
 
             # Rung "completed" iff at least one signal landed AND the
             # latency signal landed (proxy for "the rung executed and CL2
