@@ -1407,6 +1407,7 @@ class TestMainArgumentParsing(unittest.TestCase):
             main()
         mock_configure.assert_called_once_with(
             2, 3, 4, "20m", "/tmp/overrides.yaml",
+            global_namespace_count=None,
             churn_cycles=5,
             churn_up_duration="60s",
             churn_down_duration="60s",
@@ -1433,6 +1434,10 @@ class TestMainArgumentParsing(unittest.TestCase):
             saturation_ops_per_sec_list="0,0,0,0,0",
             saturation_rung_duration_seconds=240,
             saturation_settle_seconds=90,
+            probe_window_duration="60m",
+            policy_canary_enabled="false",
+            policy_scale_cnp_per_ns=50,
+            policy_scale_hold_duration="5m",
         )
 
     @patch.object(clustermesh_scale_module, "execute_clusterloader2")
