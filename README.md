@@ -38,7 +38,7 @@ kcl mod add azure_pipelines --git https://github.com/Azure/kcl-azure-pipelines -
 
 ### 2. Write your pipeline
 
-Create a `.k` file (e.g. `my-benchmark/pipeline.k`) and import the schemas you need. See the [Pipeline Example](#pipeline-example) section below.
+Create a `.k` file (e.g. `my-benchmark/pipeline.k`) and import the schemas you need. See the [Example Pipeline](kcl/example_pipeline) for details.
 
 ## Scenario 2: Write a Pipeline in This Repo
 
