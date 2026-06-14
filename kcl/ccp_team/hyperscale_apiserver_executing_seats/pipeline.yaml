@@ -36,10 +36,14 @@ jobs:
       azureSubscription: Azure-for-Telescope-internal
       scriptType: bash
       scriptLocation: inlineScript
-      inlineScript: |
+      inlineScript: |+
         set -exo pipefail
 
-        az group create --name "$(RUN_ID)" --location "westus2" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+        az group create \
+          --name "$(RUN_ID)" \
+          --location "westus2" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+
     displayName: Create resource group in westus2 (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
   - task: AzureCLI@2
     inputs:
@@ -145,7 +149,7 @@ jobs:
       inlineScript: |
         set -exo pipefail
 
-        deadline=$(($(date +%s) + 300))
+        deadline=$(($(date +%s) + 600))
         sleep_between=30
         attempt=0
         while :; do
@@ -172,7 +176,7 @@ jobs:
           fi
           now=$(date +%s)
           if [ $now -ge $deadline ]; then
-            echo "OperationNotAllowed persisted past 300s retry window ($attempt attempts); giving up."
+            echo "OperationNotAllowed persisted past 600s retry window ($attempt attempts); giving up."
             exit $rc
           fi
           remaining=$((deadline - now))
@@ -188,7 +192,7 @@ jobs:
       inlineScript: |
         set -exo pipefail
 
-        deadline=$(($(date +%s) + 300))
+        deadline=$(($(date +%s) + 600))
         sleep_between=30
         attempt=0
         while :; do
@@ -216,7 +220,7 @@ jobs:
           fi
           now=$(date +%s)
           if [ $now -ge $deadline ]; then
-            echo "OperationNotAllowed persisted past 300s retry window ($attempt attempts); giving up."
+            echo "OperationNotAllowed persisted past 600s retry window ($attempt attempts); giving up."
             exit $rc
           fi
           remaining=$((deadline - now))

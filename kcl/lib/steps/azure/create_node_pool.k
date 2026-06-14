@@ -12,7 +12,10 @@ schema NodePool:
     vnetSubnetId?: str
     osSKU?: str
 
-CreateNodePool = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, pool: NodePool, noWait: bool = False, retryWindowSec: int = 300 -> steps.Step {
+# CREATE_NODEPOOL_RETRY_WINDOW_SEC is the maximum time (in seconds) to keep retrying node pool creation when AKS returns OperationNotAllowed.
+CREATE_NODEPOOL_RETRY_WINDOW_SEC = 600
+
+CreateNodePool = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, pool: NodePool, noWait: bool = False -> steps.Step {
     flagDecision = [
         "--node-taints ${pool.taintPrefix}=true:NoSchedule" if pool.taintPrefix else "",
         "--labels \"${pool.labels}\"" if pool.labels else "",
@@ -22,10 +25,9 @@ CreateNodePool = lambda serviceConnection: str, cluster: str, resourceGroup: str
         "--no-wait" if noWait else "",
     ]
     flags = " \\\n  ".join([f for f in flagDecision if f])
-    # Allow retry on OperationNotAllowed — it's observed that AKS can auto-install the
-    # Defender extension in the background for new cluster thus conflicting with node pool's PUT requests.
+    # Allow retry on OperationNotAllowed — it's observed that AKS can spin up operation in the background that causes transient OperationNotAllowed errors on node pool PUT requests
     script = """
-deadline=$(($(date +%s) + ${retryWindowSec}))
+deadline=$(($(date +%s) + ${CREATE_NODEPOOL_RETRY_WINDOW_SEC}))
 sleep_between=30
 attempt=0
 while :; do
@@ -52,7 +54,7 @@ while :; do
   fi
   now=$(date +%s)
   if [ $now -ge $deadline ]; then
-    echo "OperationNotAllowed persisted past ${retryWindowSec}s retry window ($attempt attempts); giving up."
+    echo "OperationNotAllowed persisted past ${CREATE_NODEPOOL_RETRY_WINDOW_SEC}s retry window ($attempt attempts); giving up."
     exit $rc
   fi
   remaining=$((deadline - now))
