@@ -386,7 +386,6 @@ jobs:
           --tier standard \
           --assign-identity "$(IDENTITY_ID)" \
           --tags SkipAKSCluster=true \
-          --control-plane-scaling-size H8 \
           --nodepool-name system \
           --node-count 3 \
           --node-vm-size Standard_D48ds_v5 \
@@ -401,6 +400,8 @@ jobs:
           --enable-apiserver-vnet-integration \
           --apiserver-subnet-id "$(APISERVER_SUBNET_ID)" \
           --generate-ssh-keys \
+          --control-plane-scaling-size H8 \
+          --yes \
           $NETWORK_DATAPLANE_FLAG
     displayName: Create AKS cluster
   - task: AzureCLI@2
