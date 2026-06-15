@@ -25,7 +25,7 @@ CreateNodePool = lambda serviceConnection: str, cluster: str, resourceGroup: str
         "--no-wait" if noWait else "",
     ]
     flags = " \\\n  ".join([f for f in flagDecision if f])
-    # Allow retry on OperationNotAllowed — it's observed that AKS can spin up operation in the background that causes transient OperationNotAllowed errors on node pool PUT requests
+    # Allow retry on OperationNotAllowed — it's observed that AKS can spin up PutExtensionAddonHandler operation in the background that causes transient OperationNotAllowed errors on node pool PUT requests
     script = """
 deadline=$(($(date +%s) + ${CREATE_NODEPOOL_RETRY_WINDOW_SEC}))
 sleep_between=30
@@ -48,10 +48,13 @@ while :; do
   if [ $rc -eq 0 ]; then
     exit 0
   fi
-  if ! echo "$output" | grep -qi "OperationNotAllowed"; then
-    echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
-    exit $rc
-  fi
+  case "$output" in
+    *OperationNotAllowed*) ;;
+    *)
+      echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+      exit $rc
+      ;;
+  esac
   now=$(date +%s)
   if [ $now -ge $deadline ]; then
     echo "OperationNotAllowed persisted past ${CREATE_NODEPOOL_RETRY_WINDOW_SEC}s retry window ($attempt attempts); giving up."

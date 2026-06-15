@@ -165,10 +165,13 @@ stages:
             if [ $rc -eq 0 ]; then
               exit 0
             fi
-            if ! echo "$output" | grep -qi "OperationNotAllowed"; then
-              echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
-              exit $rc
-            fi
+            case "$output" in
+              *OperationNotAllowed*) ;;
+              *)
+                echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+                exit $rc
+                ;;
+            esac
             now=$(date +%s)
             if [ $now -ge $deadline ]; then
               echo "OperationNotAllowed persisted past 600s retry window ($attempt attempts); giving up."
@@ -223,10 +226,13 @@ stages:
             if [ $rc -eq 0 ]; then
               exit 0
             fi
-            if ! echo "$output" | grep -qi "OperationNotAllowed"; then
-              echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
-              exit $rc
-            fi
+            case "$output" in
+              *OperationNotAllowed*) ;;
+              *)
+                echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+                exit $rc
+                ;;
+            esac
             now=$(date +%s)
             if [ $now -ge $deadline ]; then
               echo "OperationNotAllowed persisted past 600s retry window ($attempt attempts); giving up."
@@ -490,10 +496,13 @@ stages:
             if [ $rc -eq 0 ]; then
               exit 0
             fi
-            if ! echo "$output" | grep -qi "OperationNotAllowed"; then
-              echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
-              exit $rc
-            fi
+            case "$output" in
+              *OperationNotAllowed*) ;;
+              *)
+                echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+                exit $rc
+                ;;
+            esac
             now=$(date +%s)
             if [ $now -ge $deadline ]; then
               echo "OperationNotAllowed persisted past 600s retry window ($attempt attempts); giving up."
@@ -548,10 +557,13 @@ stages:
             if [ $rc -eq 0 ]; then
               exit 0
             fi
-            if ! echo "$output" | grep -qi "OperationNotAllowed"; then
-              echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
-              exit $rc
-            fi
+            case "$output" in
+              *OperationNotAllowed*) ;;
+              *)
+                echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+                exit $rc
+                ;;
+            esac
             now=$(date +%s)
             if [ $now -ge $deadline ]; then
               echo "OperationNotAllowed persisted past 600s retry window ($attempt attempts); giving up."
@@ -815,10 +827,13 @@ stages:
             if [ $rc -eq 0 ]; then
               exit 0
             fi
-            if ! echo "$output" | grep -qi "OperationNotAllowed"; then
-              echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
-              exit $rc
-            fi
+            case "$output" in
+              *OperationNotAllowed*) ;;
+              *)
+                echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+                exit $rc
+                ;;
+            esac
             now=$(date +%s)
             if [ $now -ge $deadline ]; then
               echo "OperationNotAllowed persisted past 600s retry window ($attempt attempts); giving up."
@@ -873,10 +888,13 @@ stages:
             if [ $rc -eq 0 ]; then
               exit 0
             fi
-            if ! echo "$output" | grep -qi "OperationNotAllowed"; then
-              echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
-              exit $rc
-            fi
+            case "$output" in
+              *OperationNotAllowed*) ;;
+              *)
+                echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+                exit $rc
+                ;;
+            esac
             now=$(date +%s)
             if [ $now -ge $deadline ]; then
               echo "OperationNotAllowed persisted past 600s retry window ($attempt attempts); giving up."
