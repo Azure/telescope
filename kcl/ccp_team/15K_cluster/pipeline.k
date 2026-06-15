@@ -8,7 +8,7 @@ SUBSCRIPTION_ID = "$(subscription_id)"
 RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "$(location)"
 CLUSTER_NAME = "$(cluster_name)"
-SERVICE_CONNECTION = "$(service_connection)"
+SERVICE_CONNECTION = "$(AZURE_SERVICE_CONNECTION)"
 K8S_VERSION = "1.33.0"
 
 VNET_NAME = "${CLUSTER_NAME}-net"
@@ -96,12 +96,6 @@ output = ap.Pipeline {
 
     parameters = [
         ap.Parameter {
-            name = "service_connection"
-            displayName = "Azure service connection"
-            type = "string"
-            default = SERVICE_CONNECTION
-        }
-        ap.Parameter {
             name = "subscription_id"
             displayName = "Subscription ID"
             type = "string"
@@ -134,7 +128,6 @@ output = ap.Pipeline {
     ]
 
     variables = {
-        service_connection = "\${{ parameters.service_connection }}"
         subscription_id = "\${{ parameters.subscription_id }}"
         location = "\${{ parameters.location }}"
         cluster_name = "\${{ parameters.cluster_name }}"
