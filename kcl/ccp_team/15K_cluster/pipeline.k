@@ -50,7 +50,6 @@ az aks create \\
   --tier standard \\
   --assign-identity "$(IDENTITY_ID)" \\
   --tags SkipAKSCluster=true \\
-  --control-plane-scaling-size H8 \\
   --nodepool-name system \\
   --node-count 3 \\
   --node-vm-size Standard_D48ds_v5 \\
@@ -65,6 +64,8 @@ az aks create \\
   --enable-apiserver-vnet-integration \\
   --apiserver-subnet-id "$(APISERVER_SUBNET_ID)" \\
   --generate-ssh-keys \\
+  --control-plane-scaling-size H8 \\
+  --yes \\
   $NETWORK_DATAPLANE_FLAG
 """
 
