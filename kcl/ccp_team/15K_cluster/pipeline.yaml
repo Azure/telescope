@@ -102,6 +102,19 @@ jobs:
           --name "$(cluster_name)-net" \
           --address-prefixes 10.0.0.0/8 \
           --subscription "$(subscription_id)"
+
+        VNET_ID=$(az network vnet show \
+          --resource-group "$(RUN_ID)" \
+          --name "$(cluster_name)-net" \
+          --subscription "$(subscription_id)" \
+          --query id -o tsv)
+
+        az role assignment create \
+          --scope $VNET_ID \
+          --role "Network Contributor" \
+          --assignee-object-id "$(IDENTITY_PRINCIPAL_ID)" \
+          --assignee-principal-type ServicePrincipal \
+          --subscription "$(subscription_id)"
     displayName: Create VNet $(cluster_name)-net
   - task: AzureCLI@2
     inputs:
@@ -124,13 +137,6 @@ jobs:
           --name "nodes" \
           --subscription "$(subscription_id)" \
           --query id -o tsv)
-
-        az role assignment create \
-          --scope $SUBNET_ID \
-          --role "Network Contributor" \
-          --assignee-object-id "$(IDENTITY_PRINCIPAL_ID)" \
-          --assignee-principal-type ServicePrincipal \
-          --subscription "$(subscription_id)"
 
         echo "##vso[task.setvariable variable=NODES_SUBNET_ID]$SUBNET_ID"
     displayName: Create subnet nodes
@@ -156,13 +162,6 @@ jobs:
           --subscription "$(subscription_id)" \
           --query id -o tsv)
 
-        az role assignment create \
-          --scope $SUBNET_ID \
-          --role "Network Contributor" \
-          --assignee-object-id "$(IDENTITY_PRINCIPAL_ID)" \
-          --assignee-principal-type ServicePrincipal \
-          --subscription "$(subscription_id)"
-
         echo "##vso[task.setvariable variable=APISERVER_SUBNET_ID]$SUBNET_ID"
     displayName: Create subnet apiserver
   - task: AzureCLI@2
@@ -187,13 +186,6 @@ jobs:
           --subscription "$(subscription_id)" \
           --query id -o tsv)
 
-        az role assignment create \
-          --scope $SUBNET_ID \
-          --role "Network Contributor" \
-          --assignee-object-id "$(IDENTITY_PRINCIPAL_ID)" \
-          --assignee-principal-type ServicePrincipal \
-          --subscription "$(subscription_id)"
-
         echo "##vso[task.setvariable variable=AZUREFIREWALLSUBNET_SUBNET_ID]$SUBNET_ID"
     displayName: Create subnet AzureFirewallSubnet
   - task: AzureCLI@2
@@ -217,13 +209,6 @@ jobs:
           --name "jumpbox" \
           --subscription "$(subscription_id)" \
           --query id -o tsv)
-
-        az role assignment create \
-          --scope $SUBNET_ID \
-          --role "Network Contributor" \
-          --assignee-object-id "$(IDENTITY_PRINCIPAL_ID)" \
-          --assignee-principal-type ServicePrincipal \
-          --subscription "$(subscription_id)"
 
         echo "##vso[task.setvariable variable=JUMPBOX_SUBNET_ID]$SUBNET_ID"
     displayName: Create subnet jumpbox
