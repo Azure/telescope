@@ -33,59 +33,39 @@ _userPools = [azure.NodePool {
 
 createClusterScript = """
 NETWORK_DATAPLANE="$(network_dataplane)"
-NETWORK_DATAPLANE_JSON_FIELD=""
+NETWORK_DATAPLANE_FLAG=""
 if [ -n "$NETWORK_DATAPLANE" ]; then
-  NETWORK_DATAPLANE_JSON_FIELD='"networkDataplane": "'"$NETWORK_DATAPLANE"'",'
+  NETWORK_DATAPLANE_FLAG="--network-dataplane $NETWORK_DATAPLANE"
 fi
 
-cat > /tmp/aks-body.json << EOF
-{
-  "location": "${LOCATION}",
-  "sku": {"name": "Base", "tier": "Standard"},
-  "identity": {
-    "type": "UserAssigned",
-    "userAssignedIdentities": {"$(IDENTITY_ID)": {}}
-  },
-  "tags": {
-    "SkipAKSCluster": "true"
-  },
-  "properties": {
-    "controlPlaneScalingProfile": {"scalingSize": "H8"},
-    "kubernetesVersion": "${K8S_VERSION}",
-    "dnsPrefix": "${CLUSTER_NAME}-dns",
-    "agentPoolProfiles": [
-      {
-        "name": "system",
-        "count": 3,
-        "vmSize": "Standard_D48ds_v5",
-        "maxPods": 60,
-        "osType": "Linux",
-        "osSKU": "Ubuntu",
-        "mode": "System",
-        "vnetSubnetID": "$(NODES_SUBNET_ID)"
-      }
-    ],
-    "networkProfile": {
-      "networkPlugin": "azure",
-      "networkPluginMode": "overlay",
-      "podCidr": "10.64.0.0/10",
-      \${NETWORK_DATAPLANE_JSON_FIELD}
-      "outboundType": "userDefinedRouting"
-    },
-    "apiServerAccessProfile": {
-      "enablePrivateCluster": true,
-      "enableVnetIntegration": true,
-      "subnetId": "$(APISERVER_SUBNET_ID)"
-    }
-  }
-}
-EOF
+az extension add --name aks-preview --allow-preview true --upgrade --yes
 
-az rest \\
-  --method put \\
-  --uri "https://management.azure.com/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.ContainerService/managedClusters/${CLUSTER_NAME}?api-version=2026-01-02-preview" \\
-  --headers "Content-Type=application/json" \\
-  --body "@/tmp/aks-body.json"
+az aks create \\
+  --subscription "${SUBSCRIPTION_ID}" \\
+  --resource-group "${RESOURCE_GROUP}" \\
+  --name "${CLUSTER_NAME}" \\
+  --location "${LOCATION}" \\
+  --kubernetes-version "${K8S_VERSION}" \\
+  --dns-name-prefix "${CLUSTER_NAME}-dns" \\
+  --tier standard \\
+  --assign-identity "$(IDENTITY_ID)" \\
+  --tags SkipAKSCluster=true \\
+  --control-plane-scaling-size H8 \\
+  --nodepool-name system \\
+  --node-count 3 \\
+  --node-vm-size Standard_D48ds_v5 \\
+  --max-pods 60 \\
+  --os-sku Ubuntu \\
+  --vnet-subnet-id "$(NODES_SUBNET_ID)" \\
+  --network-plugin azure \\
+  --network-plugin-mode overlay \\
+  --pod-cidr 10.64.0.0/10 \\
+  --outbound-type userDefinedRouting \\
+  --enable-private-cluster \\
+  --enable-apiserver-vnet-integration \\
+  --apiserver-subnet-id "$(APISERVER_SUBNET_ID)" \\
+  --generate-ssh-keys \\
+  $NETWORK_DATAPLANE_FLAG
 """
 
 output = ap.Pipeline {
