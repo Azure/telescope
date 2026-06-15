@@ -16,59 +16,32 @@ CL2_NAMESPACE = "clusterloader2"
 KWOK_NODE_COUNT = 100
 
 # SkipAKSCluster disables Gatekeeper on ephemeral clusters
-requestBody = util.escapeStr("""
-{
-    "location": "${LOCATION}",
-    "identity": { "type": "SystemAssigned" },
-    "sku": {
-      "name": "Base",
-      "tier": "Standard"
-    },
-    "tags": {
-      "SkipAKSCluster": "true",
-      "SkipASMAzSecPackAutoConfig": "true",
-      "SkipLinuxAzSecPack": "true"
-    },
-    "properties": {
-      "controlPlaneScalingProfile": {"scalingSize": "H2"},
-      "kubernetesVersion": "1.33.0",
-      "dnsPrefix": "${CLUSTER}-dns",
-      "agentPoolProfiles": [
-        {
-          "name": "systempool",
-          "mode": "System",
-          "count": 30,
-          "vmSize": "Standard_D8S_v4",
-          "osType": "Linux",
-          "maxPods": 250
-        }
-      ],
-    "networkProfile": {
-       "networkPlugin": "azure",
-       "networkPluginMode": "overlay",
-       "podCidr": "10.64.0.0/10",
-       "serviceCidr": "10.0.0.0/16",
-       "dnsServiceIP": "10.0.0.10",
-       "outboundType": "managedNATGateway",
-       "natGatewayProfile": {
-          "managedOutboundIPProfile": {
-            "count": 10
-          }
-        }
-      }
-    }
-  }""")
-
 createClusterScript = """
-az cloud update --endpoint-resource-manager https://eastus2euap.management.azure.com/
-az rest \\
-  --method put \\
-  --uri "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}/providers/Microsoft.ContainerService/managedClusters/${CLUSTER}?api-version=2026-01-02-preview" \\
-  --body "${requestBody}"
+az aks create \\
+  --name "${CLUSTER}" \\
+  --resource-group "${RESOURCE_GROUP}" \\
+  --subscription "${SUBSCRIPTION_ID}" \\
+  --location "${LOCATION}" \\
+  --kubernetes-version "1.35.0" \\
+  --dns-name-prefix "${CLUSTER}-dns" \\
+  --tier standard \\
+  --nodepool-name systempool \\
+  --node-count 30 \\
+  --node-vm-size "Standard_D8S_v4" \\
+  --max-pods 250 \\
+  --network-plugin azure \\
+  --network-plugin-mode overlay \\
+  --pod-cidr 10.64.0.0/10 \\
+  --service-cidr 10.0.0.0/16 \\
+  --dns-service-ip 10.0.0.10 \\
+  --outbound-type managedNATGateway \\
+  --nat-gateway-managed-outbound-ip-count 10 \\
+  --enable-managed-identity \\
+  --generate-ssh-keys
 """
 
 cl2ResultJson = """{
-    "cl2_status": "\${STATUS}", 
+    "cl2_status": "\${STATUS}",
     "region": "${LOCATION}"
   }"""
 
@@ -102,11 +75,6 @@ output = ap.Pipeline {
                     const.DEFAULT_SERVICE_CONNECTION,
                     "Create cluster",
                     createClusterScript),
-                azure.WaitForClusterSucceeded(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    CLUSTER,
-                    RESOURCE_GROUP,
-                    SUBSCRIPTION_ID),
                 azure.CreateNodePool(
                     const.DEFAULT_SERVICE_CONNECTION,
                     CLUSTER,

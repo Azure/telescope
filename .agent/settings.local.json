@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(python3 -m unittest test_split_pipeline -v)",
+      "Bash(cp testdata/split_stages/source/pipeline.yaml /tmp/test_split.yaml)",
+      "Bash(python3 split_pipeline.py /tmp/test_split.yaml --max-size 550)",
+      "Read(//tmp/**)",
+      "Bash(python3 -m coverage run -m unittest test_split_pipeline -v)",
+      "Bash(python3 -m coverage report -m --include=\"split_pipeline.py\")"
+    ]
+  }
+}
