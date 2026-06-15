@@ -8,18 +8,13 @@ SUBSCRIPTION_ID = "$(subscription_id)"
 RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "$(location)"
 CLUSTER_NAME = "$(cluster_name)"
+SERVICE_CONNECTION = "$(service_connection)"
 K8S_VERSION = "1.33.0"
 
 VNET_NAME = "${CLUSTER_NAME}-net"
 IDENTITY_NAME = "${CLUSTER_NAME}-identity"
 FW_NAME = "${CLUSTER_NAME}-firewall"
 JUMPBOX_NAME = "${CLUSTER_NAME}-jumpbox"
-
-VNET_CIDR = "10.0.0.0/8"
-NODES_SUBNET_CIDR = "10.1.0.0/18"
-APISERVER_SUBNET_CIDR = "10.240.0.0/28"
-FIREWALL_SUBNET_CIDR = "10.2.0.0/16"
-JUMPBOX_SUBNET_CIDR = "10.3.0.0/16"
 
 # Small values for small scare e2e testing; replace with the lines below for full 15K run
 # USER_TOTAL_NODES = 14997
@@ -101,6 +96,12 @@ output = ap.Pipeline {
 
     parameters = [
         ap.Parameter {
+            name = "service_connection"
+            displayName = "Azure service connection"
+            type = "string"
+            default = SERVICE_CONNECTION
+        }
+        ap.Parameter {
             name = "subscription_id"
             displayName = "Subscription ID"
             type = "string"
@@ -133,6 +134,7 @@ output = ap.Pipeline {
     ]
 
     variables = {
+        service_connection = "\${{ parameters.service_connection }}"
         subscription_id = "\${{ parameters.subscription_id }}"
         location = "\${{ parameters.location }}"
         cluster_name = "\${{ parameters.cluster_name }}"
@@ -148,80 +150,92 @@ output = ap.Pipeline {
 
             steps = [
                 azure.Login(
-                    const.DEFAULT_SERVICE_CONNECTION,
+                    SERVICE_CONNECTION,
                     SUBSCRIPTION_ID,
                     LOCATION
                 ),
                 common.SetRunId(),
                 azure.CreateResourceGroup(
-                    const.DEFAULT_SERVICE_CONNECTION,
+                    SERVICE_CONNECTION,
                     RESOURCE_GROUP,
                     LOCATION,
                     SUBSCRIPTION_ID,
                     "SkipAKSCluster=true"
                 ),
                 azure.CreateManagedIdentity(
-                    const.DEFAULT_SERVICE_CONNECTION,
+                    SERVICE_CONNECTION,
                     SUBSCRIPTION_ID,
                     RESOURCE_GROUP,
                     IDENTITY_NAME
                 ),
                 azure.CreateVNet(
-                    const.DEFAULT_SERVICE_CONNECTION,
+                    SERVICE_CONNECTION,
                     RESOURCE_GROUP,
                     VNET_NAME,
-                    VNET_CIDR,
+                    "10.0.0.0/8",
                     SUBSCRIPTION_ID,
                     "$(IDENTITY_PRINCIPAL_ID)"
                 ),
                 azure.CreateSubnet(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    RESOURCE_GROUP, VNET_NAME,
-                    "nodes", NODES_SUBNET_CIDR,
+                    SERVICE_CONNECTION,
+                    RESOURCE_GROUP,
+                    VNET_NAME,
+                    "nodes",
+                    "10.1.0.0/18",
                     SUBSCRIPTION_ID
                 ),
                 azure.CreateSubnet(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    RESOURCE_GROUP, VNET_NAME,
-                    "apiserver", APISERVER_SUBNET_CIDR,
+                    SERVICE_CONNECTION,
+                    RESOURCE_GROUP,
+                    VNET_NAME,
+                    "apiserver",
+                    "10.240.0.0/28",
                     SUBSCRIPTION_ID
                 ),
                 azure.CreateSubnet(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    RESOURCE_GROUP, VNET_NAME,
-                    "AzureFirewallSubnet", FIREWALL_SUBNET_CIDR,
+                    SERVICE_CONNECTION,
+                    RESOURCE_GROUP,
+                    VNET_NAME,
+                    "AzureFirewallSubnet",
+                    "10.2.0.0/16",
                     SUBSCRIPTION_ID
                 ),
                 azure.CreateSubnet(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    RESOURCE_GROUP, VNET_NAME,
-                    "jumpbox", JUMPBOX_SUBNET_CIDR,
+                    SERVICE_CONNECTION,
+                    RESOURCE_GROUP,
+                    VNET_NAME,
+                    "jumpbox",
+                    "10.3.0.0/16",
                     SUBSCRIPTION_ID
                 ),
                 azure.SetupFirewallForSubnet(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    SUBSCRIPTION_ID, RESOURCE_GROUP, LOCATION,
-                    FW_NAME, VNET_NAME, "nodes",
+                    SERVICE_CONNECTION,
+                    SUBSCRIPTION_ID,
+                    RESOURCE_GROUP,
+                    LOCATION,
+                    FW_NAME,
+                    VNET_NAME,
+                    "nodes",
                     "$(Pipeline.Workspace)/s/kcl/ccp_team/15K_cluster/firewall-policy.json"
                 ),
                 azure.AzCli(
-                    const.DEFAULT_SERVICE_CONNECTION,
+                    SERVICE_CONNECTION,
                     "Create jumpbox",
                     createJumpboxScript
                 ),
                 azure.AzCli(
-                    const.DEFAULT_SERVICE_CONNECTION,
+                    SERVICE_CONNECTION,
                     "Create AKS cluster",
                     createClusterScript
                 ),
                 azure.WaitForClusterSucceeded(
-                    const.DEFAULT_SERVICE_CONNECTION,
+                    SERVICE_CONNECTION,
                     CLUSTER_NAME,
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID
                 ),
                 *[azure.CreateNodePool(
-                    const.DEFAULT_SERVICE_CONNECTION,
+                    SERVICE_CONNECTION,
                     CLUSTER_NAME,
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID,
