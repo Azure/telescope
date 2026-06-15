@@ -2,6 +2,10 @@ name: '15K Nodes Cluster Creation'
 pool: AKS-Telescope-Airlock
 trigger: none
 parameters:
+- name: service_connection
+  displayName: Azure service connection
+  type: string
+  default: $(service_connection)
 - name: subscription_id
   displayName: Subscription ID
   type: string
@@ -23,6 +27,7 @@ parameters:
   type: string
   default: cilium
 variables:
+  service_connection: ${{ parameters.service_connection }}
   subscription_id: ${{ parameters.subscription_id }}
   location: ${{ parameters.location }}
   cluster_name: ${{ parameters.cluster_name }}
@@ -35,7 +40,7 @@ jobs:
   steps:
   - task: AzureCLI@2
     inputs:
-      azureSubscription: Azure-for-Telescope-internal
+      azureSubscription: $(service_connection)
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
@@ -57,7 +62,7 @@ jobs:
     displayName: Set Run ID
   - task: AzureCLI@2
     inputs:
-      azureSubscription: Azure-for-Telescope-internal
+      azureSubscription: $(service_connection)
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
@@ -71,7 +76,7 @@ jobs:
     displayName: Create resource group in $(location) ($(subscription_id))
   - task: AzureCLI@2
     inputs:
-      azureSubscription: Azure-for-Telescope-internal
+      azureSubscription: $(service_connection)
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
@@ -91,7 +96,7 @@ jobs:
     displayName: Create managed identity $(cluster_name)-identity
   - task: AzureCLI@2
     inputs:
-      azureSubscription: Azure-for-Telescope-internal
+      azureSubscription: $(service_connection)
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
@@ -118,7 +123,7 @@ jobs:
     displayName: Create VNet $(cluster_name)-net
   - task: AzureCLI@2
     inputs:
-      azureSubscription: Azure-for-Telescope-internal
+      azureSubscription: $(service_connection)
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
@@ -142,7 +147,7 @@ jobs:
     displayName: Create subnet nodes
   - task: AzureCLI@2
     inputs:
-      azureSubscription: Azure-for-Telescope-internal
+      azureSubscription: $(service_connection)
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
@@ -166,7 +171,7 @@ jobs:
     displayName: Create subnet apiserver
   - task: AzureCLI@2
     inputs:
-      azureSubscription: Azure-for-Telescope-internal
+      azureSubscription: $(service_connection)
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
@@ -190,7 +195,7 @@ jobs:
     displayName: Create subnet AzureFirewallSubnet
   - task: AzureCLI@2
     inputs:
-      azureSubscription: Azure-for-Telescope-internal
+      azureSubscription: $(service_connection)
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
@@ -214,7 +219,7 @@ jobs:
     displayName: Create subnet jumpbox
   - task: AzureCLI@2
     inputs:
-      azureSubscription: Azure-for-Telescope-internal
+      azureSubscription: $(service_connection)
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
@@ -288,7 +293,7 @@ jobs:
     displayName: Setup firewall $(cluster_name)-firewall for subnet nodes
   - task: AzureCLI@2
     inputs:
-      azureSubscription: Azure-for-Telescope-internal
+      azureSubscription: $(service_connection)
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
@@ -362,7 +367,7 @@ jobs:
     displayName: Create jumpbox
   - task: AzureCLI@2
     inputs:
-      azureSubscription: Azure-for-Telescope-internal
+      azureSubscription: $(service_connection)
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
@@ -425,7 +430,7 @@ jobs:
     displayName: Create AKS cluster
   - task: AzureCLI@2
     inputs:
-      azureSubscription: Azure-for-Telescope-internal
+      azureSubscription: $(service_connection)
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
@@ -453,7 +458,7 @@ jobs:
     displayName: Wait for cluster to succeed
   - task: AzureCLI@2
     inputs:
-      azureSubscription: Azure-for-Telescope-internal
+      azureSubscription: $(service_connection)
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
@@ -472,7 +477,7 @@ jobs:
     displayName: Create node pool workerpool0
   - task: AzureCLI@2
     inputs:
-      azureSubscription: Azure-for-Telescope-internal
+      azureSubscription: $(service_connection)
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
@@ -491,7 +496,7 @@ jobs:
     displayName: Create node pool workerpool1
   - task: AzureCLI@2
     inputs:
-      azureSubscription: Azure-for-Telescope-internal
+      azureSubscription: $(service_connection)
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
@@ -510,7 +515,7 @@ jobs:
     displayName: Create node pool workerpool2
   - task: AzureCLI@2
     inputs:
-      azureSubscription: Azure-for-Telescope-internal
+      azureSubscription: $(service_connection)
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
@@ -529,7 +534,7 @@ jobs:
     displayName: Create node pool workerpool3
   - task: AzureCLI@2
     inputs:
-      azureSubscription: Azure-for-Telescope-internal
+      azureSubscription: $(service_connection)
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
