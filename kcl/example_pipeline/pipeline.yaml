@@ -39,10 +39,14 @@ jobs:
       azureSubscription: Azure-for-Telescope-internal
       scriptType: bash
       scriptLocation: inlineScript
-      inlineScript: |
+      inlineScript: |+
         set -exo pipefail
 
-        az group create --name "$(RUN_ID)" --location "westus2" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+        az group create \
+          --name "$(RUN_ID)" \
+          --location "westus2" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+
     displayName: Create resource group in westus2 (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
   - task: AzureCLI@2
     inputs:
