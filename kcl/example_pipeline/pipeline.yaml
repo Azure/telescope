@@ -57,15 +57,15 @@ jobs:
         set -exo pipefail
 
         az aks create \
-          --name "stg-H2-yaolei" \
+          --name "example-yaolei" \
           --resource-group "$(RUN_ID)" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --location "westus2" \
           --kubernetes-version "1.35.0" \
-          --dns-name-prefix "stg-H2-yaolei-dns" \
+          --dns-name-prefix "example-yaolei-dns" \
           --tier standard \
           --nodepool-name systempool \
-          --node-count 30 \
+          --node-count 3 \
           --node-vm-size "Standard_D8S_v4" \
           --max-pods 250 \
           --network-plugin azure \
@@ -87,7 +87,7 @@ jobs:
         set -exo pipefail
 
         az aks nodepool add \
-          --cluster-name "stg-H2-yaolei" \
+          --cluster-name "example-yaolei" \
           --resource-group "$(RUN_ID)" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --name "cl2pool" \
@@ -105,11 +105,11 @@ jobs:
         set -exo pipefail
 
         az aks get-credentials \
-          --name "stg-H2-yaolei" \
+          --name "example-yaolei" \
           --resource-group "$(RUN_ID)" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --overwrite-existing
-    displayName: Get credentials for stg-H2-yaolei
+    displayName: Get credentials for example-yaolei
   - script: |2-
 
       set -exo pipefail

@@ -9,7 +9,7 @@ import lib.util
 SUBSCRIPTION_ID = const.DEFAULT_SUBSCRIPTION_ID
 RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "westus2"
-CLUSTER = "stg-H2-yaolei"
+CLUSTER = "example-yaolei"
 CL2_POOL = "cl2pool"
 CL2_TAINT_PREFIX = "cl2pool"
 CL2_NAMESPACE = "clusterloader2"
@@ -26,7 +26,7 @@ az aks create \\
   --dns-name-prefix "${CLUSTER}-dns" \\
   --tier standard \\
   --nodepool-name systempool \\
-  --node-count 30 \\
+  --node-count 3 \\
   --node-vm-size "Standard_D8S_v4" \\
   --max-pods 250 \\
   --network-plugin azure \\
