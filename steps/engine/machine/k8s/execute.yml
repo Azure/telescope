@@ -18,15 +18,15 @@ parameters:
     default: "600"
 
 steps:
-  - bash: |
-      set -euo pipefail
+  - script: |
+      set -eo pipefail
       tags=$(jq -nc --arg run_id "$RUN_ID" \
         --arg deletion_due_time "$DELETION_DUE_TIME" \
         --arg creation_time "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
         --arg scenario "$SCENARIO_TYPE-$SCENARIO_NAME" \
         --arg owner "$OWNER" \
         '{run_id:$run_id, deletion_due_time:$deletion_due_time, creation_time:$creation_time, scenario:$scenario, owner:$owner}')
-      python3 -m crud.main create-machine \
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" create-machine \
         --cloud "${{ parameters.cloud }}" \
         --run-id "$RUN_ID" \
         --node-pool-name "${{ parameters.pool_name }}" \
@@ -38,7 +38,7 @@ steps:
         USE_BATCH_FLAG="--use-batch-api"
       fi
       # shellcheck disable=SC2086
-      python3 -m crud.main scale-machine \
+      PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" scale-machine \
         --cloud "${{ parameters.cloud }}" \
         --run-id "$RUN_ID" \
         --node-pool-name "${{ parameters.pool_name }}" \
@@ -53,8 +53,9 @@ steps:
     workingDirectory: modules/python
     displayName: "Execute Machine API CRUD"
     env:
-      PYTHONPATH: $(Pipeline.Workspace)/s/modules/python
+      PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/crud/main.py
       RUN_ID: $(RUN_ID)
       DELETION_DUE_TIME: $(DELETION_DUE_TIME)
       SCENARIO_TYPE: $(SCENARIO_TYPE)
       SCENARIO_NAME: $(SCENARIO_NAME)
+      OWNER: aks
