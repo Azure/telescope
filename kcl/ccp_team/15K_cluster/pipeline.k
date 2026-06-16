@@ -14,11 +14,8 @@ K8S_VERSION = "1.35.0"
 VNET_NAME = "${CLUSTER_NAME}-net"
 JUMPBOX_NAME = "${CLUSTER_NAME}-jumpbox"
 
-# Small values for small scare e2e testing; replace with the lines below for full 15K run
-# USER_TOTAL_NODES = 14997
-# MAX_NODES_PER_POOL = 800
-USER_TOTAL_NODES = 100
-MAX_NODES_PER_POOL = 20
+USER_TOTAL_NODES = 14997
+MAX_NODES_PER_POOL = 800
 
 userPools = [azure.NodePool {
     name = pool.name
@@ -28,6 +25,19 @@ userPools = [azure.NodePool {
     osSKU = "Ubuntu"
 } for pool in azure.PlanNodePools({"$(user_pool_vm_size)": USER_TOTAL_NODES}, MAX_NODES_PER_POOL)]
 
+
+createJumpboxScript = """
+az vm create \
+  --resource-group "${RESOURCE_GROUP}" \
+  --name "${JUMPBOX_NAME}" \
+  --image UbuntuLTS \
+  --size Standard_D2s_v3 \
+  --subnet "$(JUMPBOX_SUBNET_ID)" \
+  --public-ip-sku Standard \
+  --admin-username azureuser \
+  --generate-ssh-keys \
+  --nsg-rule SSH
+"""
 
 createClusterScript = """
 az extension add --name aks-preview --allow-preview true --upgrade --yes
@@ -54,14 +64,14 @@ CREATE_ARGS=(
   --pod-cidr 10.64.0.0/10
   --outbound-type userDefinedRouting
   --enable-private-cluster
-  --enable-apiserver-vnet-integration
-  --apiserver-subnet-id "$(APISERVER_SUBNET_ID)"
   --auto-upgrade-channel none
   --node-os-upgrade-channel None
   --generate-ssh-keys
   --yes
 )
 [[ -n "$(network_dataplane)" ]] && CREATE_ARGS+=(--network-dataplane "$(network_dataplane)")
+[[ "$(apiserver_vnet_integration)" == "true" ]] && CREATE_ARGS+=(--enable-apiserver-vnet-integration --apiserver-subnet-id "$(APISERVER_SUBNET_ID)")
+
 
 az aks create "\${CREATE_ARGS[@]}"
 """
@@ -103,6 +113,12 @@ output = ap.Pipeline {
             type = "string"
             default = "cilium"
         }
+        ap.Parameter {
+            name = "apiserver_vnet_integration"
+            displayName = "Enable API server vNet integration (leave empty to disable)"
+            type = "string"
+            default = "true"
+        }
     ]
 
     variables = {
@@ -111,6 +127,7 @@ output = ap.Pipeline {
         cluster_name = "\${{ parameters.cluster_name }}"
         user_pool_vm_size = "\${{ parameters.user_pool_vm_size }}"
         network_dataplane = "\${{ parameters.network_dataplane }}"
+        apiserver_vnet_integration = "\${{ parameters.apiserver_vnet_integration }}"
     }
 
     jobs = [
