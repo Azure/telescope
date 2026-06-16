@@ -5,6 +5,9 @@ parameters:
     type: string
 
 steps:
+  - template: /steps/cloud/${{ parameters.cloud }}/collect-cloud-info.yml
+    parameters:
+      region: ${{ parameters.region }}
   - bash: |
       set -euo pipefail
       python3 -m crud.main collect
