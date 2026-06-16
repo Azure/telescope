@@ -273,17 +273,29 @@ jobs:
           --route-table "$(cluster_name)-firewall-rt" \
           --subscription "$(subscription_id)"
 
-        # Use az rest PUT to apply the full firewall policy in one call — handles large rule sets
-        # and is significantly faster than incremental CLI commands (az network firewall policy rule-collection-group)
+        # Merge rule collections from the policy file into the current firewall and PUT it back in one call.
+        # This handles large rule sets faster than incremental CLI commands (az network firewall policy rule-collection-group)
+        # and avoids overwriting other firewall properties (e.g. location, ipConfigurations).
         if [ -n "$(Pipeline.Workspace)/s/kcl/ccp_team/15K_cluster/firewall-policy.json" ]; then
-          POLICY_TMP=$(mktemp)
-          sed 's|"location": "[^"]*"|"location": "$(location)"|g' "$(Pipeline.Workspace)/s/kcl/ccp_team/15K_cluster/firewall-policy.json" > "$POLICY_TMP"
+          FW_CURRENT=$(mktemp)
+          FW_MERGED=$(mktemp)
+          az rest \
+            --method get \
+            --uri "https://management.azure.com/subscriptions/$(subscription_id)/resourceGroups/$(RUN_ID)/providers/Microsoft.Network/azureFirewalls/$(cluster_name)-firewall?api-version=2025-05-01" \
+            > "$FW_CURRENT"
+          jq -s '
+            .[0] as $fw | .[1] as $rules |
+            $fw
+            | .properties.applicationRuleCollections = ($rules.properties.applicationRuleCollections // [])
+            | .properties.networkRuleCollections     = ($rules.properties.networkRuleCollections // [])
+            | .properties.natRuleCollections         = ($rules.properties.natRuleCollections // [])
+          ' "$FW_CURRENT" "$(Pipeline.Workspace)/s/kcl/ccp_team/15K_cluster/firewall-policy.json" > "$FW_MERGED"
           az rest \
             --method put \
             --uri "https://management.azure.com/subscriptions/$(subscription_id)/resourceGroups/$(RUN_ID)/providers/Microsoft.Network/azureFirewalls/$(cluster_name)-firewall?api-version=2025-05-01" \
             --headers "Content-Type=application/json" \
-            --body "@$POLICY_TMP"
-          rm -f "$POLICY_TMP"
+            --body "@$FW_MERGED"
+          rm -f "$FW_CURRENT" "$FW_MERGED"
         fi
     displayName: Setup firewall $(cluster_name)-firewall for subnet nodes
   - task: AzureCLI@2
