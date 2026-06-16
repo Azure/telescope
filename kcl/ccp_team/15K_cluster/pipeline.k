@@ -9,11 +9,9 @@ RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "$(location)"
 CLUSTER_NAME = "$(cluster_name)"
 SERVICE_CONNECTION = "$(AZURE_SERVICE_CONNECTION)"
-K8S_VERSION = "1.33.0"
+K8S_VERSION = "1.35.0"
 
 VNET_NAME = "${CLUSTER_NAME}-net"
-IDENTITY_NAME = "${CLUSTER_NAME}-identity"
-FW_NAME = "${CLUSTER_NAME}-firewall"
 JUMPBOX_NAME = "${CLUSTER_NAME}-jumpbox"
 
 # Small values for small scare e2e testing; replace with the lines below for full 15K run
@@ -22,7 +20,7 @@ JUMPBOX_NAME = "${CLUSTER_NAME}-jumpbox"
 USER_TOTAL_NODES = 100
 MAX_NODES_PER_POOL = 20
 
-_userPools = [azure.NodePool {
+userPools = [azure.NodePool {
     name = pool.name
     sku = pool.sku
     count = pool.count
@@ -32,41 +30,40 @@ _userPools = [azure.NodePool {
 
 
 createClusterScript = """
-NETWORK_DATAPLANE="$(network_dataplane)"
-NETWORK_DATAPLANE_FLAG=""
-if [ -n "$NETWORK_DATAPLANE" ]; then
-  NETWORK_DATAPLANE_FLAG="--network-dataplane $NETWORK_DATAPLANE"
-fi
-
 az extension add --name aks-preview --allow-preview true --upgrade --yes
 
-az aks create \\
-  --subscription "${SUBSCRIPTION_ID}" \\
-  --resource-group "${RESOURCE_GROUP}" \\
-  --name "${CLUSTER_NAME}" \\
-  --location "${LOCATION}" \\
-  --kubernetes-version "${K8S_VERSION}" \\
-  --dns-name-prefix "${CLUSTER_NAME}-dns" \\
-  --tier standard \\
-  --assign-identity "$(IDENTITY_ID)" \\
-  --tags SkipAKSCluster=true \\
-  --nodepool-name system \\
-  --node-count 3 \\
-  --node-vm-size Standard_D48ds_v5 \\
-  --max-pods 60 \\
-  --os-sku Ubuntu \\
-  --vnet-subnet-id "$(NODES_SUBNET_ID)" \\
-  --network-plugin azure \\
-  --network-plugin-mode overlay \\
-  --pod-cidr 10.64.0.0/10 \\
-  --outbound-type userDefinedRouting \\
-  --enable-private-cluster \\
-  --enable-apiserver-vnet-integration \\
-  --apiserver-subnet-id "$(APISERVER_SUBNET_ID)" \\
-  --generate-ssh-keys \\
-  --control-plane-scaling-size H8 \\
-  --yes \\
-  $NETWORK_DATAPLANE_FLAG
+CREATE_ARGS=(
+  --subscription "${SUBSCRIPTION_ID}"
+  --resource-group "${RESOURCE_GROUP}"
+  --name "${CLUSTER_NAME}"
+  --location "${LOCATION}"
+  --kubernetes-version "1.35.0"
+  --dns-name-prefix "${CLUSTER_NAME}-dns"
+  --tier standard
+  --assign-identity "$(IDENTITY_ID)"
+  --tags SkipAKSCluster=true
+  --control-plane-scaling-size H8
+  --nodepool-name system
+  --node-count 3
+  --node-vm-size Standard_D48ds_v5
+  --max-pods 60
+  --os-sku Ubuntu
+  --vnet-subnet-id "$(NODES_SUBNET_ID)"
+  --network-plugin azure
+  --network-plugin-mode overlay
+  --pod-cidr 10.64.0.0/10
+  --outbound-type userDefinedRouting
+  --enable-private-cluster
+  --enable-apiserver-vnet-integration
+  --apiserver-subnet-id "$(APISERVER_SUBNET_ID)"
+  --auto-upgrade-channel none
+  --node-os-upgrade-channel None
+  --generate-ssh-keys
+  --yes
+)
+[[ -n "$(network_dataplane)" ]] && CREATE_ARGS+=(--network-dataplane "$(network_dataplane)")
+
+az aks create "\${CREATE_ARGS[@]}"
 """
 
 output = ap.Pipeline {
@@ -140,7 +137,7 @@ output = ap.Pipeline {
                     SERVICE_CONNECTION,
                     SUBSCRIPTION_ID,
                     RESOURCE_GROUP,
-                    IDENTITY_NAME
+                    "${CLUSTER_NAME}-identity"
                 ),
                 azure.CreateVNet(
                     SERVICE_CONNECTION,
@@ -187,7 +184,7 @@ output = ap.Pipeline {
                     SUBSCRIPTION_ID,
                     RESOURCE_GROUP,
                     LOCATION,
-                    FW_NAME,
+                    "${CLUSTER_NAME}-firewall",
                     VNET_NAME,
                     "nodes",
                     "$(Pipeline.Workspace)/s/kcl/ccp_team/15K_cluster/firewall-policy.json"
@@ -214,7 +211,7 @@ output = ap.Pipeline {
                     RESOURCE_GROUP,
                     SUBSCRIPTION_ID,
                     pool
-                ) for pool in _userPools],
+                ) for pool in userPools],
             ]
         }
     ]
