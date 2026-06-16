@@ -1,8 +1,23 @@
 trigger: none
 
 schedules:
-  - cron: "0 12 * * *"
-    displayName: "Daily 12:00 UTC"
+  # Azure Small Scale(10) Machine API Schedule
+  - cron: "0 2 * * *"
+    displayName: "Machine API small scale 10 daily"
+    branches:
+      include:
+        - main
+    always: true
+  # Azure Medium Scale(500) Machine API Schedule
+  - cron: "0 11 * * *"
+    displayName: "Machine API medium scale 500 daily"
+    branches:
+      include:
+        - main
+    always: true
+  # Azure Large Scale(1000) Machine API Schedule
+  - cron: "0 13 * * *"
+    displayName: "Machine API large scale 1000 daily"
     branches:
       include:
         - main
@@ -10,11 +25,16 @@ schedules:
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: k8s-cluster-crud-machine  # matches ado-telescope: feeds Kusto table k8s_cluster_crud_machine_main
+  SCENARIO_NAME: k8s-cluster-crud-machine
   USE_LATEST_GA_K8S_VERSION: true
 
 stages:
-  - stage: azure_canadacentral_small_machine_pool
+  - stage: azure_canadacentral_small_scale_10
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], 'Machine API small scale 10 daily'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -25,14 +45,76 @@ stages:
           topology: k8s-cluster-crud-machine
           engine: machine
           matrix:
-            small_machine_pool:
+            canadacentral-small-scale-10:
               vm_size: Standard_D2_v3
               pool_name: smallpool1
-              scale_machine_count: 1
-              machine_workers: 1
+              scale_machine_count: 10
+              machine_workers: 5
               use_batch_api: "false"
-              step_time_out: 600
+              step_time_out: 900
           max_parallel: 1
-          timeout_in_minutes: 180
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: azure_canadacentral_medium_scale_500
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], 'Machine API medium scale 500 daily'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - canadacentral
+          topology: k8s-cluster-crud-machine
+          engine: machine
+          matrix:
+            canadacentral-medium-scale-500:
+              vm_size: Standard_D2_v3
+              pool_name: mediumpool1
+              scale_machine_count: 500
+              machine_workers: 10
+              use_batch_api: "true"
+              step_time_out: 2400
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: azure_canadacentral_large_scale_1000
+    condition: |
+        and(
+          or(
+            eq(variables['Build.CronSchedule.DisplayName'], 'Machine API large scale 1000 daily'),
+            eq(variables['Build.Reason'], 'Manual')
+          ),
+          in(dependencies.azure_canadacentral_small_scale_10.result, 'Succeeded', 'SucceededWithIssues', 'Skipped'),
+          in(dependencies.azure_canadacentral_medium_scale_500.result, 'Succeeded', 'SucceededWithIssues', 'Skipped')
+        )
+    dependsOn:
+      - azure_canadacentral_small_scale_10
+      - azure_canadacentral_medium_scale_500
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - canadacentral
+          topology: k8s-cluster-crud-machine
+          engine: machine
+          matrix:
+            canadacentral-large-scale-1000:
+              vm_size: Standard_D2_v3
+              pool_name: largepool1
+              scale_machine_count: 1000
+              machine_workers: 20
+              use_batch_api: "true"
+              step_time_out: 3600
+          max_parallel: 1
+          timeout_in_minutes: 360
           credential_type: service_connection
           ssh_key_enabled: false
