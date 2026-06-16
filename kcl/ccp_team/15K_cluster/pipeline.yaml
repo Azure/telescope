@@ -368,41 +368,40 @@ jobs:
       inlineScript: |
         set -exo pipefail
 
-        NETWORK_DATAPLANE="$(network_dataplane)"
-        NETWORK_DATAPLANE_FLAG=""
-        if [ -n "$NETWORK_DATAPLANE" ]; then
-          NETWORK_DATAPLANE_FLAG="--network-dataplane $NETWORK_DATAPLANE"
-        fi
-
         az extension add --name aks-preview --allow-preview true --upgrade --yes
 
-        az aks create \
-          --subscription "$(subscription_id)" \
-          --resource-group "$(RUN_ID)" \
-          --name "$(cluster_name)" \
-          --location "$(location)" \
-          --kubernetes-version "1.33.0" \
-          --dns-name-prefix "$(cluster_name)-dns" \
-          --tier standard \
-          --assign-identity "$(IDENTITY_ID)" \
-          --tags SkipAKSCluster=true \
-          --nodepool-name system \
-          --node-count 3 \
-          --node-vm-size Standard_D48ds_v5 \
-          --max-pods 60 \
-          --os-sku Ubuntu \
-          --vnet-subnet-id "$(NODES_SUBNET_ID)" \
-          --network-plugin azure \
-          --network-plugin-mode overlay \
-          --pod-cidr 10.64.0.0/10 \
-          --outbound-type userDefinedRouting \
-          --enable-private-cluster \
-          --enable-apiserver-vnet-integration \
-          --apiserver-subnet-id "$(APISERVER_SUBNET_ID)" \
-          --generate-ssh-keys \
-          --control-plane-scaling-size H8 \
-          --yes \
-          $NETWORK_DATAPLANE_FLAG
+        CREATE_ARGS=(
+          --subscription "$(subscription_id)"
+          --resource-group "$(RUN_ID)"
+          --name "$(cluster_name)"
+          --location "$(location)"
+          --kubernetes-version "1.35.0"
+          --dns-name-prefix "$(cluster_name)-dns"
+          --tier standard
+          --assign-identity "$(IDENTITY_ID)"
+          --tags SkipAKSCluster=true
+          --control-plane-scaling-size H8
+          --nodepool-name system
+          --node-count 3
+          --node-vm-size Standard_D48ds_v5
+          --max-pods 60
+          --os-sku Ubuntu
+          --vnet-subnet-id "$(NODES_SUBNET_ID)"
+          --network-plugin azure
+          --network-plugin-mode overlay
+          --pod-cidr 10.64.0.0/10
+          --outbound-type userDefinedRouting
+          --enable-private-cluster
+          --enable-apiserver-vnet-integration
+          --apiserver-subnet-id "$(APISERVER_SUBNET_ID)"
+          --auto-upgrade-channel none
+          --node-os-upgrade-channel None
+          --generate-ssh-keys
+          --yes
+        )
+        [[ -n "$(network_dataplane)" ]] && CREATE_ARGS+=(--network-dataplane "$(network_dataplane)")
+
+        az aks create "${CREATE_ARGS[@]}"
     displayName: Create AKS cluster
   - task: AzureCLI@2
     inputs:
