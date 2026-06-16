@@ -322,3 +322,86 @@ steps:
         - name: PerPodMax
           query: max_over_time(max(sum by (pod) (kube_pod_container_status_restarts_total{pod=~"clustermesh-apiserver-.*"}))[%v:])
 
+    # =========================================================================
+    # PHASE 4 — KVStoreMesh remote-cluster sync health (port 9964 PodMonitor,
+    # added 2026-06-12). kvstoremesh handles the kvstore sync between
+    # clusters — it's the component that actually pushes/pulls identity,
+    # endpoint, and service objects between the local cluster's etcd and
+    # the remote clusters' etcds via the apiserver.
+    #
+    # These metrics answer: "is kvstoremesh the bottleneck in propagation?"
+    # and "are any remote clusters failing to sync?" — questions that
+    # propagation-probe.sh only answers from the OUTSIDE (ipcache appeared
+    # at time T) but kvstoremesh metrics explain WHY it took that long.
+    #
+    # If kvstoremesh runs as a sidecar of clustermesh-apiserver (most AKS
+    # configs), the existing PodMonitor's :9964 endpoint already scrapes
+    # these. If it runs as a separate Deployment, the new
+    # podmonitor-kvstoremesh.yaml PodMonitor covers it.
+    # =========================================================================
+    - Identifier: KvstoreMeshSyncDuration{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: KVStoreMesh Remote Cluster Sync Duration {{$suffix}}
+        metricVersion: v1
+        unit: s
+        enableViolations: false
+        queries:
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(increase(cilium_kvstoremesh_remote_cluster_sync_duration_seconds_bucket[%v])) by (le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(increase(cilium_kvstoremesh_remote_cluster_sync_duration_seconds_bucket[%v])) by (le))
+
+    - Identifier: KvstoreMeshReadinessStatus{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: KVStoreMesh Remote Cluster Readiness {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        - name: ReadyClusters
+          query: count(cilium_kvstoremesh_remote_cluster_readiness_status == 1)
+        - name: NotReadyClusters
+          query: count(cilium_kvstoremesh_remote_cluster_readiness_status == 0)
+        - name: MinReadiness
+          query: min_over_time(min(cilium_kvstoremesh_remote_cluster_readiness_status)[%v:])
+
+    # =========================================================================
+    # PHASE 4 — Cilium Operator identity GC (already scraped by CL2 via
+    # CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR, port 9963). The propagation
+    # probe's wait_peer_identity_removed measures wall-clock identity GC
+    # latency (gap #6). These metrics explain the MECHANISM: how many
+    # identities were GC'd, how many GC runs completed, and whether the
+    # operator's IPAM allocation pool is under pressure.
+    # =========================================================================
+    - Identifier: CiliumOperatorIdentityGC{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Operator Identity GC {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        - name: GCRunsIncrease
+          query: sum(increase(cilium_operator_identity_gc_runs_total[%v]))
+        - name: GCEntriesMax
+          query: max_over_time(sum(cilium_operator_identity_gc_entries)[%v:])
+
+    - Identifier: CiliumOperatorIPAM{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Operator IPAM Available {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        - name: MinAvailable
+          query: min_over_time(min(cilium_operator_ipam_available)[%v:])
+        - name: AvgAvailable
+          query: avg_over_time(avg(cilium_operator_ipam_available)[%v:])
+

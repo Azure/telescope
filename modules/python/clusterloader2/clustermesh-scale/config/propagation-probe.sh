@@ -79,8 +79,10 @@ ENABLE_CONNECTIVITY="${8:-false}"
 #     works" latency. Adds delta_first_packet_ms per peer to ConnectivityResults.
 ENABLE_REMOVE_PROBE="${ENABLE_REMOVE_PROBE:-false}"
 ENABLE_FIRST_PACKET_PROBE="${ENABLE_FIRST_PACKET_PROBE:-false}"
+ENABLE_SERVICE_BACKEND_PROBE="${ENABLE_SERVICE_BACKEND_PROBE:-false}"
 REMOVE_PROBE_TIMEOUT_S="${REMOVE_PROBE_TIMEOUT_S:-60}"
 FIRST_PACKET_PROBE_TIMEOUT_S="${FIRST_PACKET_PROBE_TIMEOUT_S:-60}"
+SERVICE_BACKEND_PROBE_TIMEOUT_S="${SERVICE_BACKEND_PROBE_TIMEOUT_S:-60}"
 
 PROP_OUT="${OUTPUT_DIR}/PropagationTimings.jsonl"
 CONN_OUT="${OUTPUT_DIR}/ConnectivityResults.jsonl"
@@ -531,6 +533,74 @@ wait_peer_first_packet() {
     delete pod "$_client_pod" --grace-period=0 --force --wait=false > /dev/null 2>&1 || true
 }
 
+# Wait for peer's BPF lb map to include pod_ip as a backend of any Service.
+# Customer answer: "when does the new pod start receiving cross-cluster
+# Service traffic?" Requires a global Service that selects the probe pod
+# (created by create_probe_service below when ENABLE_SERVICE_BACKEND_PROBE
+# is true). Sets T_PEER_SERVICE_BACKEND_NS or 0 on timeout.
+#
+# cilium-dbg bpf lb list output format:
+#   SERVICE ADDRESS    BACKEND ADDRESS (REVNAT_ID) (SLOT)
+#   10.0.0.42:80       10.1.4.123:80  (1) (1)
+#                      10.2.4.45:80   (1) (2)
+# We just grep for the pod IP appearing anywhere in the output.
+wait_peer_service_backend() {
+  local _kc="$1" _ctx="$2" _pod_ip="$3" _deadline_s="$4"
+  T_PEER_SERVICE_BACKEND_NS=0
+  local _start _now _cil _out
+  _start=$(date +%s)
+  _cil=$(find_cilium_pod "$_kc" "$_ctx") || return 1
+  while true; do
+    _out=$(KUBECONFIG="$_kc" kubectl --context "$_ctx" -n kube-system exec "$_cil" -c cilium-agent -- \
+      cilium-dbg bpf lb list 2>/dev/null || true)
+    if [ -z "$_out" ]; then
+      _out=$(KUBECONFIG="$_kc" kubectl --context "$_ctx" -n kube-system exec "$_cil" -c cilium-agent -- \
+        cilium bpf lb list 2>/dev/null || true)
+    fi
+    if echo "$_out" | grep -qF "${_pod_ip}:"; then
+      T_PEER_SERVICE_BACKEND_NS=$(date +%s%N); return 0
+    fi
+    _now=$(date +%s)
+    if [ $((_now - _start)) -ge "$_deadline_s" ]; then
+      return 1
+    fi
+    sleep 1
+  done
+}
+
+# Create a transient global Service on the SOURCE cluster that selects
+# exactly the probe pod via its unique propagation-probe-id label. This
+# Service gets global annotation so clustermesh-apiserver propagates it
+# to ALL peers. Once a peer's cilium-agent sees the Service + backend,
+# the pod IP appears in `cilium-dbg bpf lb list`. That's what
+# wait_peer_service_backend polls for.
+create_probe_service() {
+  local _kc="$1" _ctx="$2" _label_uuid="$3" _svc_name="$4"
+  cat <<EOF | KUBECONFIG="$_kc" kubectl --context "$_ctx" -n "$PROBE_NS" apply -f - > /dev/null 2>&1
+apiVersion: v1
+kind: Service
+metadata:
+  name: ${_svc_name}
+  annotations:
+    service.cilium.io/global: "true"
+    io.cilium/global-service: "true"
+spec:
+  selector:
+    propagation-probe-id: "${_label_uuid}"
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      protocol: TCP
+EOF
+}
+
+delete_probe_service() {
+  local _kc="$1" _ctx="$2" _svc_name="$3"
+  KUBECONFIG="$_kc" kubectl --context "$_ctx" -n "$PROBE_NS" \
+    delete svc "$_svc_name" --ignore-not-found --wait=false > /dev/null 2>&1 || true
+}
+
 # Per-cluster remove-probe orchestration. Runs only if ENABLE_REMOVE_PROBE=true.
 # Run AFTER peer_probe finishes (we need to know the IP propagated first;
 # remove timing is most useful as delta from t_delete on src).
@@ -605,11 +675,22 @@ peer_probe() {
       echo "$T_PEER_FIRST_PACKET_NS" > "$_peerdir/first_packet"
     ) &
   fi
+  # Service-backend membership: when does peer's BPF lb map include the
+  # new pod as a backend of the transient global Service? Requires
+  # ENABLE_SERVICE_BACKEND_PROBE=true (which creates the transient Service
+  # on the source cluster before peer_probe is called).
+  if [ "$ENABLE_SERVICE_BACKEND_PROBE" = "true" ]; then
+    (
+      wait_peer_service_backend "$_kc" "$_ctx" "$_pod_ip" "$SERVICE_BACKEND_PROBE_TIMEOUT_S" || true
+      echo "$T_PEER_SERVICE_BACKEND_NS" > "$_peerdir/service_backend"
+    ) &
+  fi
   wait
   T_PEER_IPCACHE_NS=$(cat "$_peerdir/ipcache" 2>/dev/null || echo 0)
   T_PEER_IDENTITY_NS=$(cat "$_peerdir/identity" 2>/dev/null || echo 0)
   T_PEER_CEP_NS=$(cat "$_peerdir/cep" 2>/dev/null || echo 0)
   T_PEER_FIRST_PACKET_NS=$(cat "$_peerdir/first_packet" 2>/dev/null || echo 0)
+  T_PEER_SERVICE_BACKEND_NS=$(cat "$_peerdir/service_backend" 2>/dev/null || echo 0)
   rm -rf "$_peerdir"
   local _timed_out
   _timed_out=$([ "$T_PEER_IPCACHE_NS" -eq 0 ] && echo true || echo false)
@@ -617,8 +698,12 @@ peer_probe() {
   if [ "$T_PEER_FIRST_PACKET_NS" -ne 0 ] && [ "$T_POD_READY_NS" -ne 0 ]; then
     _delta_fp_ms=$(( (T_PEER_FIRST_PACKET_NS - T_POD_READY_NS) / 1000000 ))
   fi
+  local _delta_sb_ms="null"
+  if [ "$T_PEER_SERVICE_BACKEND_NS" -ne 0 ] && [ "$T_POD_READY_NS" -ne 0 ]; then
+    _delta_sb_ms=$(( (T_PEER_SERVICE_BACKEND_NS - T_POD_READY_NS) / 1000000 ))
+  fi
   cat > "$_outfile" <<EOF
-{"probe_id":"$PROBE_ID","probe_ns":"$PROBE_NS","src_cluster":"$_src_cluster","peer_cluster":"$_ctx","label_uuid":"$_label_uuid","pod_ip":"$_pod_ip","pod_hostname":"$_src_pod_hostname","t_apply_ns":$T_APPLY_NS,"t_scheduled_ns":$T_SCHEDULED_NS,"t_ip_assigned_ns":$T_IP_ASSIGNED_NS,"t_pod_ready_ns":$T_POD_READY_NS,"t_local_ep_ns":$T_LOCAL_EP_NS,"t_peer_ipcache_ns":$T_PEER_IPCACHE_NS,"t_peer_identity_ns":$T_PEER_IDENTITY_NS,"t_peer_cep_ns":$T_PEER_CEP_NS,"t_peer_first_packet_ns":$T_PEER_FIRST_PACKET_NS,"delta_first_packet_ms":$_delta_fp_ms,"peer_timed_out":$_timed_out}
+{"probe_id":"$PROBE_ID","probe_ns":"$PROBE_NS","src_cluster":"$_src_cluster","peer_cluster":"$_ctx","label_uuid":"$_label_uuid","pod_ip":"$_pod_ip","pod_hostname":"$_src_pod_hostname","t_apply_ns":$T_APPLY_NS,"t_scheduled_ns":$T_SCHEDULED_NS,"t_ip_assigned_ns":$T_IP_ASSIGNED_NS,"t_pod_ready_ns":$T_POD_READY_NS,"t_local_ep_ns":$T_LOCAL_EP_NS,"t_peer_ipcache_ns":$T_PEER_IPCACHE_NS,"t_peer_identity_ns":$T_PEER_IDENTITY_NS,"t_peer_cep_ns":$T_PEER_CEP_NS,"t_peer_first_packet_ns":$T_PEER_FIRST_PACKET_NS,"delta_first_packet_ms":$_delta_fp_ms,"t_peer_service_backend_ns":$T_PEER_SERVICE_BACKEND_NS,"delta_service_backend_ms":$_delta_sb_ms,"peer_timed_out":$_timed_out}
 EOF
   if [ "$ENABLE_CONNECTIVITY" = "true" ] && [ "$T_PEER_IPCACHE_NS" -ne 0 ] && [ -n "$GLOBAL_SVC_DNS" ]; then
     do_connectivity_probe "$_kc" "$_ctx" "$_src_cluster" "$_src_pod_hostname"
@@ -719,6 +804,19 @@ EOF
   wait_pod_ready "$SRC_KC" "$SRC_NAME" "$PROBE_NS" "$POD_NAME" 60 || true
   wait_local_endpoint "$SRC_KC" "$SRC_NAME" "$POD_IP" 30 || true
 
+  # Service-backend probe: create a transient global Service that selects
+  # exactly THIS probe pod (via propagation-probe-id label). The Service
+  # propagates via clustermesh-apiserver to all peers; peers' cilium-agent
+  # adds the pod IP to their BPF lb map. wait_peer_service_backend polls
+  # for that. Measures "how long until a new global Service's backend is
+  # load-balanceable from every peer?" — the gap #3 customer question.
+  PROBE_SVC_NAME=""
+  if [ "$ENABLE_SERVICE_BACKEND_PROBE" = "true" ]; then
+    PROBE_SVC_NAME="probe-svc-${LABEL_UUID:0:8}"
+    create_probe_service "$SRC_KC" "$SRC_NAME" "$LABEL_UUID" "$PROBE_SVC_NAME"
+    echo "[probe $p] created transient global Service $PROBE_SVC_NAME (selector: propagation-probe-id=$LABEL_UUID)"
+  fi
+
   # Choose peers. Cap at PEER_SAMPLE_MAX, exclude source.
   PEER_IDXS=""
   for i in $(seq 0 $((CLUSTER_COUNT - 1))); do
@@ -756,6 +854,14 @@ EOF
     wait
     cat "$RMDIR"/*.json >> "$REMOVE_OUT" 2>/dev/null
     rm -rf "$RMDIR"
+  fi
+
+  # Delete the transient probe Service (if created) AFTER remove-probe
+  # so the Service-backend removal propagation is also measured by
+  # peer_remove_probe's ipcache-removal timer (the pod is gone → the
+  # Service eventually has 0 backends → peers drop it from lb map).
+  if [ -n "$PROBE_SVC_NAME" ]; then
+    delete_probe_service "$SRC_KC" "$SRC_NAME" "$PROBE_SVC_NAME"
   fi
 
   if [ "$p" -lt "$PROBE_COUNT" ]; then

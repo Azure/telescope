@@ -190,6 +190,7 @@ stages:
               # NEW (2026-06-04): REMOVE + FIRST_PACKET extensions.
               cl2_propagation_probe_remove_enabled: "true"
               cl2_propagation_probe_first_packet_enabled: "true"
+              cl2_propagation_probe_service_backend_enabled: "true"
               # 20m window: probe_count=10 × max ~60s per probe (worst case
               # if CEP never appears + every wait runs full timeout in
               # parallel) + 9 × 15s interval + connectivity overhead.
@@ -294,6 +295,7 @@ stages:
               # NEW (2026-06-04): REMOVE + FIRST_PACKET extensions on cc smoke.
               cl2_propagation_probe_remove_enabled: "true"
               cl2_propagation_probe_first_packet_enabled: "true"
+              cl2_propagation_probe_service_backend_enabled: "true"
               cl2_recovery_probe_interval_s: 120
               cl2_recovery_probe_timeout_s: 300
               trigger_reason: ${{ variables['Build.Reason'] }}

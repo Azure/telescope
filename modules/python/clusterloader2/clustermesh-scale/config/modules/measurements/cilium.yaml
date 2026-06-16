@@ -641,3 +641,103 @@ steps:
           query: max(max_over_time(kube_pod_container_status_last_terminated_reason{reason="OOMKilled"}[%v:]))
         - name: ErrorMax
           query: max(max_over_time(kube_pod_container_status_last_terminated_reason{reason="Error"}[%v:]))
+
+    # =========================================================================
+    # PHASE 4 — Hubble flow telemetry (port 9965 PodMonitor, added 2026-06-12).
+    # Now that we scrape Hubble metrics via the podmonitor-hubble.yaml
+    # PodMonitor, we can query Hubble-native flow data directly. These are
+    # DISTINCT from the cilium_forward/drop counters in CiliumDatapathFlows
+    # above (which come from port 9962 and count BPF-level datapath events).
+    # Hubble adds L4/L7 context: verdict (FORWARDED/DROPPED/ERROR), type
+    # (L3_L4/L7), subtype — richer than BPF counts alone.
+    #
+    # If Hubble is not enabled on AKS (no ACNS), these return empty ("No
+    # data items found") — CL2 logs a warning, the run continues. Having
+    # both BPF-level (CiliumDatapathFlows) and Hubble-level flow counts
+    # lets us cross-validate: if they diverge, the Hubble observer is
+    # missing events.
+    # =========================================================================
+    - Identifier: HubbleFlowsProcessed{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Hubble Flows Processed {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        - name: ForwardedIncrease
+          query: sum(increase(hubble_flows_processed_total{type="TRACE",subtype="to-endpoint"}[%v]))
+        - name: DroppedIncrease
+          query: sum(increase(hubble_flows_processed_total{type="DROP"}[%v]))
+        - name: PolicyVerdictDeniedIncrease
+          query: sum(increase(hubble_flows_processed_total{verdict="DROPPED"}[%v]))
+        - name: TotalIncrease
+          query: sum(increase(hubble_flows_processed_total[%v]))
+
+    - Identifier: HubbleDnsResponses{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Hubble DNS Responses {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        - name: TotalIncrease
+          query: sum(increase(hubble_dns_responses_total[%v]))
+        - name: NxdomainIncrease
+          query: sum(increase(hubble_dns_responses_total{rcode="Non-Existent Domain"}[%v]))
+
+    # =========================================================================
+    # PHASE 4 — CoreDNS latency + cache (port 9153 PodMonitor, added 2026-06-12).
+    # Global Service DNS lookups go through CoreDNS first. High P99 here means
+    # DNS is adding latency ON TOP OF the mesh propagation cost we measure via
+    # propagation-probe. Low cache hit ratio means every cross-cluster curl
+    # pays a full recursive lookup.
+    # =========================================================================
+    - Identifier: CoreDnsRequestDuration{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: CoreDNS Request Duration {{$suffix}}
+        metricVersion: v1
+        unit: s
+        enableViolations: false
+        queries:
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(rate(coredns_dns_request_duration_seconds_bucket[1m])) by (le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(rate(coredns_dns_request_duration_seconds_bucket[1m])) by (le))
+
+    - Identifier: CoreDnsCacheHitRatio{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: CoreDNS Cache Hit Ratio {{$suffix}}
+        metricVersion: v1
+        unit: ratio
+        enableViolations: false
+        queries:
+        - name: HitRatio
+          query: sum(increase(coredns_cache_hits_total[%v])) / (sum(increase(coredns_cache_hits_total[%v])) + sum(increase(coredns_cache_misses_total[%v])))
+        - name: TotalHits
+          query: sum(increase(coredns_cache_hits_total[%v]))
+        - name: TotalMisses
+          query: sum(increase(coredns_cache_misses_total[%v]))
+
+    - Identifier: CoreDnsRequestsTotal{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: CoreDNS Requests Total {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        - name: TotalIncrease
+          query: sum(increase(coredns_dns_requests_total[%v]))
+        - name: NxdomainResponsesIncrease
+          query: sum(increase(coredns_dns_responses_total{rcode="NXDOMAIN"}[%v]))
+        - name: ServfailResponsesIncrease
+          query: sum(increase(coredns_dns_responses_total{rcode="SERVFAIL"}[%v]))
