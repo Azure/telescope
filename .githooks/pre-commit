@@ -8,22 +8,17 @@ if ! command -v kcl &> /dev/null; then
 fi
 
 FAILED=0
-REPO=$(pwd)
-PIPELINE_FILE="pipeline.k"
-for K_FILE in $(find kcl/ -name "$PIPELINE_FILE"); do
+for K_FILE in $(find kcl/ -name 'pipeline.k'); do
   DIR=$(dirname "$K_FILE")
-  echo $DIR
-  cd $DIR
-  YAML_FILE="pipeline.yaml"
+  YAML_FILE="$DIR/pipeline.yaml"
 
   echo "Generating $YAML_FILE from $K_FILE..."
-  if kcl run "$PIPELINE_FILE" -S output -o "$YAML_FILE" 2>&1; then
+  if kcl run "$K_FILE" -S output -o "$YAML_FILE" 2>&1; then
     git add "$YAML_FILE"
   else
     echo "Error: kcl run failed for $K_FILE"
     FAILED=1
   fi
-  cd $REPO
 done
 
 if [ "$FAILED" -ne 0 ]; then
