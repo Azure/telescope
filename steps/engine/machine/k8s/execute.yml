@@ -1,50 +1,44 @@
 parameters:
   - name: cloud
     type: string
-  - name: result_dir
-    type: string
-  - name: vm_size
-    type: string
-  - name: pool_name
-    type: string
-  - name: scale_machine_count
-    type: string  # numeric matrix values resolve at runtime via $(VAR)
-  - name: machine_workers
-    type: string
-  - name: use_batch_api
-    type: string  # 'true'|'false' as ADO doesn't have boolean type for matrix
-  - name: step_time_out
-    type: string
-    default: "600"
 
 steps:
   - script: |
       set -eo pipefail
+
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" create-machine \
-        --cloud "${{ parameters.cloud }}" \
+        --cloud "$CLOUD" \
         --run-id "$RUN_ID" \
-        --node-pool-name "${{ parameters.pool_name }}" \
-        --vm-size "${{ parameters.vm_size }}" \
-        --step-timeout "${{ parameters.step_time_out }}" \
-        --result-dir "${{ parameters.result_dir }}"
-      USE_BATCH_FLAG=""
-      if [[ "${{ parameters.use_batch_api }}" == "true" ]]; then
-        USE_BATCH_FLAG="--use-batch-api"
+        --node-pool-name "$POOL_NAME" \
+        --vm-size "$VM_SIZE" \
+        --step-timeout "$STEP_TIME_OUT" \
+        --result-dir "$RESULT_DIR"
+
+      use_batch_args=()
+      if [[ "${USE_BATCH_API,,}" == "true" ]]; then
+        use_batch_args+=(--use-batch-api)
       fi
-      # shellcheck disable=SC2086
+
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" scale-machine \
-        --cloud "${{ parameters.cloud }}" \
+        --cloud "$CLOUD" \
         --run-id "$RUN_ID" \
-        --node-pool-name "${{ parameters.pool_name }}" \
-        --vm-size "${{ parameters.vm_size }}" \
-        --scale-machine-count "${{ parameters.scale_machine_count }}" \
-        --machine-workers "${{ parameters.machine_workers }}" \
-        $USE_BATCH_FLAG \
-        --step-timeout "${{ parameters.step_time_out }}" \
-        --readiness-wait-timeout "${{ parameters.step_time_out }}" \
-        --result-dir "${{ parameters.result_dir }}"
+        --node-pool-name "$POOL_NAME" \
+        --vm-size "$VM_SIZE" \
+        --scale-machine-count "$SCALE_MACHINE_COUNT" \
+        --machine-workers "$MACHINE_WORKERS" \
+        "${use_batch_args[@]}" \
+        --step-timeout "$STEP_TIME_OUT" \
+        --readiness-wait-timeout "$STEP_TIME_OUT" \
+        --result-dir "$RESULT_DIR"
     workingDirectory: modules/python
     displayName: "Execute Machine API CRUD"
     env:
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/crud/main.py
-      RUN_ID: $(RUN_ID)
+      CLOUD: ${{ parameters.cloud }}
+      VM_SIZE: $(VM_SIZE)
+      POOL_NAME: $(POOL_NAME)
+      SCALE_MACHINE_COUNT: $(SCALE_MACHINE_COUNT)
+      MACHINE_WORKERS: $(MACHINE_WORKERS)
+      USE_BATCH_API: $(USE_BATCH_API)
+      STEP_TIME_OUT: $(STEP_TIME_OUT)
+      RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
