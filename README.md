@@ -51,7 +51,7 @@ In your repo, create a directory for your pipeline and initialize a KCL module:
 kcl mod init
 ```
 
-This creates a `kcl.mod` file. Add the Telescope library and the Azure Pipelines schema as dependencies:
+Add the Telescope library as dependencies:
 
 ```bash
 kcl mod add telescope --git https://github.com/Azure/telescope --branch v2
@@ -105,11 +105,11 @@ For a complete working example, see [`kcl/example_pipeline/pipeline.k`](kcl/exam
 
 ## Generate Pipeline YAML
 
-Once your `.k` file is ready, generate the Azure DevOps YAML with the `/generate_yaml` skill, defined in the `.claude` folder.
+Once your `.k` file is ready, generate the Azure DevOps YAML with the `/generate-yaml` skill, defined in the `.agent` folder.
 
 ## Register the Pipeline in Azure DevOps
 
-After generating the YAML, register it as an Azure DevOps pipeline using the Azure CLI. You can use the `/telescope-pipeline` skill in the `.claude` folder.
+After generating the YAML, register it as an Azure DevOps pipeline using the Azure CLI. You can use the `/telescope-pipeline` skill in the `.agent` folder.
 
 ## Split Large Pipeline YAML
 
@@ -134,4 +134,4 @@ The script raises an error (and cleans up any partial output) if the input is al
 
 # Store Results in Your Own Kusto Tables
 
-If you want the results automatically ingested into your own Azure Data Explorer (Kusto) tables for querying and dashboarding, you can use the `/telescope-infra-setup` skill in the `.claude` folder to provision the full ingestion pipeline in your Azure subscription.
+If you want the results automatically ingested into your own Azure Data Explorer (Kusto) tables for querying and dashboarding, you can use the `/telescope-infra-setup` skill in the `.agent` folder to provision the full ingestion pipeline in your Azure subscription.
