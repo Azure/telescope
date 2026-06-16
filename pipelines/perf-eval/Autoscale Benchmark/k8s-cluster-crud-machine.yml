@@ -1,22 +1,15 @@
 trigger: none
 
 schedules:
-  # Azure Small Scale(10) Machine API Schedule
-  - cron: "0 2 * * *"
-    displayName: "Machine API small scale 10 daily"
-    branches:
-      include:
-        - main
-    always: true
-  # Azure Medium Scale(500) Machine API Schedule
-  - cron: "0 11 * * *"
-    displayName: "Machine API medium scale 500 daily"
+  # Azure Small Scale(10) and Medium Scale(500) Machine API Schedule
+  - cron: "0 3 * * *"
+    displayName: "Machine API small and medium scale daily"
     branches:
       include:
         - main
     always: true
   # Azure Large Scale(1000) Machine API Schedule
-  - cron: "0 13 * * *"
+  - cron: "0 4 * * *"
     displayName: "Machine API large scale 1000 daily"
     branches:
       include:
@@ -30,7 +23,7 @@ stages:
   - stage: azure_canadacentral_small_scale_10
     condition: |
         or(
-          eq(variables['Build.CronSchedule.DisplayName'], 'Machine API small scale 10 daily'),
+          eq(variables['Build.CronSchedule.DisplayName'], 'Machine API small and medium scale daily'),
           eq(variables['Build.Reason'], 'Manual')
         )
     dependsOn: []
@@ -58,7 +51,7 @@ stages:
   - stage: azure_canadacentral_medium_scale_500
     condition: |
         or(
-          eq(variables['Build.CronSchedule.DisplayName'], 'Machine API medium scale 500 daily'),
+          eq(variables['Build.CronSchedule.DisplayName'], 'Machine API small and medium scale daily'),
           eq(variables['Build.Reason'], 'Manual')
         )
     dependsOn: []
