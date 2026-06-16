@@ -2032,10 +2032,10 @@ class TestKubernetesClient(unittest.TestCase):
         self.assertTrue(result["gpu-node-1"]["device_status"])
         mock_sleep.assert_called()
 
-        # Verify that the pod was created with all 8 GPUs requested
+        # Verify that the pod was created with 1 GPU requested for validation
         pod_spec = mock_create_pod.call_args[1]['body']
         gpu_limits = pod_spec.spec.containers[0].resources.limits["nvidia.com/gpu"]
-        self.assertEqual(gpu_limits, "8")
+        self.assertEqual(gpu_limits, "1")
 
     @patch("clients.kubernetes_client.KubernetesClient.get_pod_logs")
     @patch("kubernetes.client.CoreV1Api.delete_namespaced_pod")

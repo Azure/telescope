@@ -115,6 +115,9 @@ def handle_node_pool_operation(node_pool_crud, args):
                 "vm_size": args.vm_size,
                 "node_count": args.node_count,
                 "gpu_node_pool": args.gpu_node_pool,
+                "enable_managed_gpu": args.enable_managed_gpu,
+                "gpu_instance_profile": args.gpu_instance_profile,
+                "gpu_mig_strategy": args.gpu_mig_strategy,
             }
 
             result = node_pool_crud.create_node_pool(**create_kwargs)
@@ -127,6 +130,8 @@ def handle_node_pool_operation(node_pool_crud, args):
                 "progressive": check_for_progressive_scaling(args),
                 "scale_step_size": args.scale_step_size,
                 "gpu_node_pool": args.gpu_node_pool,
+                "enable_managed_gpu": args.enable_managed_gpu,
+                "gpu_instance_profile": args.gpu_instance_profile,
             }
 
             result = node_pool_crud.scale_node_pool(**scale_kwargs)
@@ -144,6 +149,7 @@ def handle_node_pool_operation(node_pool_crud, args):
                 "progressive": check_for_progressive_scaling(args),
                 "scale_step_size": args.scale_step_size,
                 "gpu_node_pool": args.gpu_node_pool,
+                "enable_managed_gpu": args.enable_managed_gpu,
                 "step_wait_time": args.step_wait_time,
             }
 
@@ -261,7 +267,7 @@ def handle_machine_operation(machine_crud, args):
     try:
         if command == "create-machine":
             create_kwargs = {
-                "agentpool_name": args.node_pool_name,
+                "agent_pool_name": args.node_pool_name,
                 "vm_size": args.vm_size,
             }
 
@@ -276,7 +282,7 @@ def handle_machine_operation(machine_crud, args):
                     logger.warning(f"Failed to parse --tags {args.tags!r} as JSON: {e}")
 
             scale_kwargs = {
-                "agentpool_name": args.node_pool_name,
+                "agent_pool_name": args.node_pool_name,
                 "vm_size": args.vm_size,
                 "scale_machine_count": args.scale_machine_count,
                 "use_batch_api": args.use_batch_api,
@@ -410,6 +416,22 @@ def main():
         "--gpu-node-pool",
         action="store_true",
         help="Whether this is a GPU-enabled node pool",
+    )
+    common_parser.add_argument(
+        "--enable-managed-gpu",
+        action="store_true",
+        help="Enable fully managed GPU mode (gpuProfile.nvidia.managementMode=Managed). "
+             "When omitted with --gpu-node-pool, driver bootstrap only is used.",
+    )
+    common_parser.add_argument(
+        "--gpu-instance-profile",
+        default=None,
+        help="MIG instance profile for Azure GPU node pools (e.g., MIG1g, MIG2g)",
+    )
+    common_parser.add_argument(
+        "--gpu-mig-strategy",
+        default=None,
+        help="MIG strategy for Azure GPU node pools (e.g., mixed, single)",
     )
     common_parser.add_argument(
         "--capacity-type",
@@ -655,8 +677,9 @@ def main():
             )
             sys.exit(1)
 
-        # Install GPU device plugin if GPU node pool is enabled and verify the plugin is installed
-        if args.gpu_node_pool and args.cloud in ["azure", "aws"]:
+        # Install GPU device plugin for managed (driver bootstrap) and AWS GPU pools.
+        # Fully managed GPU skips this — AKS installs nvidia-device-plugin as a systemd service.
+        if args.gpu_node_pool and args.cloud in ["azure", "aws"] and not args.enable_managed_gpu:
             logger.info("GPU node pool is enabled")
             with OperationContext(
                 "install_gpu_plugin", args.cloud, {}, result_dir=args.result_dir
