@@ -1,0 +1,19 @@
+parameters:
+  - name: cloud
+    type: string
+  - name: region
+    type: string
+
+steps:
+  - bash: |
+      set -euo pipefail
+      python3 -m crud.main collect
+    workingDirectory: modules/python
+    displayName: "Collect Machine API results"
+    condition: always()
+    env:
+      PYTHONPATH: $(Pipeline.Workspace)/s/modules/python
+      RUN_ID: $(RUN_ID)
+      REGION: ${{ parameters.region }}
+      RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
+      RUN_URL: $(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)
