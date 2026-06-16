@@ -26,8 +26,6 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: k8s-cluster-crud-machine
-  USE_LATEST_GA_K8S_VERSION: true
-
 stages:
   - stage: azure_canadacentral_small_scale_10
     condition: |
