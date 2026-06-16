@@ -26,19 +26,6 @@ userPools = [azure.NodePool {
 } for pool in azure.PlanNodePools({"$(user_pool_vm_size)": USER_TOTAL_NODES}, MAX_NODES_PER_POOL)]
 
 
-createJumpboxScript = """
-az vm create \
-  --resource-group "${RESOURCE_GROUP}" \
-  --name "${JUMPBOX_NAME}" \
-  --image UbuntuLTS \
-  --size Standard_D2s_v3 \
-  --subnet "$(JUMPBOX_SUBNET_ID)" \
-  --public-ip-sku Standard \
-  --admin-username azureuser \
-  --generate-ssh-keys \
-  --nsg-rule SSH
-"""
-
 createClusterScript = """
 az extension add --name aks-preview --allow-preview true --upgrade --yes
 
