@@ -1,7 +1,13 @@
 import azure_pipelines.ap.steps
 
 CreateVNet = lambda serviceConnection: str, resourceGroup: str, name: str, addressPrefixes: str, subscription: str, assignee: str = "" -> steps.Step {
-    roleAssignmentScript = """
+    AzCli(serviceConnection, "Create VNet ${name}", """
+az network vnet create \\
+  --resource-group "${resourceGroup}" \\
+  --name "${name}" \\
+  --address-prefixes ${addressPrefixes} \\
+  --subscription "${subscription}"
+""" + ("""
 VNET_ID=$(az network vnet show \\
   --resource-group "${resourceGroup}" \\
   --name "${name}" \\
@@ -14,15 +20,7 @@ az role assignment create \\
   --assignee-object-id "${assignee}" \\
   --assignee-principal-type ServicePrincipal \\
   --subscription "${subscription}"
-""" if assignee else ""
-    script = """
-az network vnet create \\
-  --resource-group "${resourceGroup}" \\
-  --name "${name}" \\
-  --address-prefixes ${addressPrefixes} \\
-  --subscription "${subscription}"
-${roleAssignmentScript}"""
-    AzCli(serviceConnection, "Create VNet ${name}", script)
+""" if assignee else ""))
 }
 
 CreateSubnet = lambda serviceConnection: str, resourceGroup: str, vnetName: str, name: str, addressPrefixes: str, subscription: str -> steps.Step {
