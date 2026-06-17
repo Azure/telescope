@@ -86,15 +86,69 @@ jobs:
       inlineScript: |
         set -exo pipefail
 
-        az aks nodepool add \
-          --cluster-name "example-yaolei" \
-          --resource-group "$(RUN_ID)" \
-          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-          --name "cl2pool" \
-          --node-count 4 \
-          --node-vm-size "Standard_D8S_v4" \
-          --mode User \
-          --node-taints cl2pool=true:NoSchedule
+        while true; do
+          STATE=$(az aks show \
+            --name "stg-H2-yaolei" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --query "provisioningState" \
+            --output tsv)
+          echo "Cluster provisioning state: $STATE"
+          if [ "$STATE" = "Succeeded" ]; then
+            echo "Cluster is ready."
+            break
+          elif [ "$STATE" = "Failed" ] || [ "$STATE" = "Canceled" ]; then
+            echo "Cluster failed with state: $STATE."
+            exit 1
+          else
+            echo "Provisioning state: $STATE. Retry in 30 seconds"
+          fi
+          sleep 30
+        done
+    displayName: Wait for cluster to succeed
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        deadline=$(($(date +%s) + 600))
+        sleep_between=30
+        attempt=0
+        while :; do
+          attempt=$((attempt + 1))
+          set +e
+          output=$(az aks nodepool add \
+            --cluster-name "stg-H2-yaolei" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --name "cl2pool" \
+            --node-count 4 \
+            --node-vm-size "Standard_D8S_v4" \
+            --mode User \
+            --node-taints cl2pool=true:NoSchedule 2>&1)
+          rc=$?
+          set -e
+          echo "$output"
+          if [ $rc -eq 0 ]; then
+            exit 0
+          fi
+          if echo "$output" | grep -qiE "OperationNotAllowed"; then
+            now=$(date +%s)
+            if [ $now -ge $deadline ]; then
+              echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
+              exit $rc
+            fi
+            remaining=$((deadline - now))
+            echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
+            sleep $sleep_between
+          else
+            echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+            exit $rc
+          fi
+        done
     displayName: Create node pool cl2pool
   - task: AzureCLI@2
     inputs:

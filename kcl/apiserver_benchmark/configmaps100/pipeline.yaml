@@ -99,7 +99,44 @@ stages:
         azureSubscription: Azure-for-Telescope-internal
         scriptType: bash
         scriptLocation: inlineScript
-        inlineScript: "set -exo pipefail\n\naz aks nodepool add \\\n  --cluster-name \"configmaps100\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"runner\" \\\n  --node-count 3 \\\n  --node-vm-size \"Standard_D16s_v3\" \\\n  --mode User \\\n  \n"
+        inlineScript: |
+          set -exo pipefail
+
+          deadline=$(($(date +%s) + 600))
+          sleep_between=30
+          attempt=0
+          while :; do
+            attempt=$((attempt + 1))
+            set +e
+            output=$(az aks nodepool add \
+              --cluster-name "configmaps100" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --name "runner" \
+              --node-count 3 \
+              --node-vm-size "Standard_D16s_v3" \
+              --mode User \
+               2>&1)
+            rc=$?
+            set -e
+            echo "$output"
+            if [ $rc -eq 0 ]; then
+              exit 0
+            fi
+            if echo "$output" | grep -qiE "OperationNotAllowed"; then
+              now=$(date +%s)
+              if [ $now -ge $deadline ]; then
+                echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
+                exit $rc
+              fi
+              remaining=$((deadline - now))
+              echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
+              sleep $sleep_between
+            else
+              echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+              exit $rc
+            fi
+          done
       displayName: Create node pool runner
     - script: |2
 
@@ -276,7 +313,44 @@ stages:
         azureSubscription: Azure-for-Telescope-internal
         scriptType: bash
         scriptLocation: inlineScript
-        inlineScript: "set -exo pipefail\n\naz aks nodepool add \\\n  --cluster-name \"configmaps100\" \\\n  --resource-group \"$(RUN_ID)\" \\\n  --subscription \"b8ceb4e5-f05b-4562-a9f5-14acb1f24219\" \\\n  --name \"runner\" \\\n  --node-count 3 \\\n  --node-vm-size \"Standard_D16s_v3\" \\\n  --mode User \\\n  \n"
+        inlineScript: |
+          set -exo pipefail
+
+          deadline=$(($(date +%s) + 600))
+          sleep_between=30
+          attempt=0
+          while :; do
+            attempt=$((attempt + 1))
+            set +e
+            output=$(az aks nodepool add \
+              --cluster-name "configmaps100" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --name "runner" \
+              --node-count 3 \
+              --node-vm-size "Standard_D16s_v3" \
+              --mode User \
+               2>&1)
+            rc=$?
+            set -e
+            echo "$output"
+            if [ $rc -eq 0 ]; then
+              exit 0
+            fi
+            if echo "$output" | grep -qiE "OperationNotAllowed"; then
+              now=$(date +%s)
+              if [ $now -ge $deadline ]; then
+                echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
+                exit $rc
+              fi
+              remaining=$((deadline - now))
+              echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
+              sleep $sleep_between
+            else
+              echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+              exit $rc
+            fi
+          done
       displayName: Create node pool runner
     - script: |2
 

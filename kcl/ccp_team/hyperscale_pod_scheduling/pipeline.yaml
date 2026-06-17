@@ -45,10 +45,14 @@ stages:
         azureSubscription: Azure-for-Telescope-internal
         scriptType: bash
         scriptLocation: inlineScript
-        inlineScript: |
+        inlineScript: |+
           set -exo pipefail
 
-          az group create --name "$(RUN_ID)" --location "southeastasia" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+          az group create \
+            --name "$(RUN_ID)" \
+            --location "southeastasia" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+
       displayName: Create resource group in southeastasia (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
     - task: AzureCLI@2
       inputs:
@@ -140,15 +144,41 @@ stages:
         inlineScript: |
           set -exo pipefail
 
-          az aks nodepool add \
-            --cluster-name "stg-H2-hyperscale-pod-scheduling-rate" \
-            --resource-group "$(RUN_ID)" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-            --name "cl2pool" \
-            --node-count 1 \
-            --node-vm-size "Standard_D8S_v4" \
-            --mode User \
-            --node-taints cl2pool=true:NoSchedule
+          deadline=$(($(date +%s) + 600))
+          sleep_between=30
+          attempt=0
+          while :; do
+            attempt=$((attempt + 1))
+            set +e
+            output=$(az aks nodepool add \
+              --cluster-name "stg-H2-hyperscale-pod-scheduling-rate" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --name "cl2pool" \
+              --node-count 1 \
+              --node-vm-size "Standard_D8S_v4" \
+              --mode User \
+              --node-taints cl2pool=true:NoSchedule 2>&1)
+            rc=$?
+            set -e
+            echo "$output"
+            if [ $rc -eq 0 ]; then
+              exit 0
+            fi
+            if echo "$output" | grep -qiE "OperationNotAllowed"; then
+              now=$(date +%s)
+              if [ $now -ge $deadline ]; then
+                echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
+                exit $rc
+              fi
+              remaining=$((deadline - now))
+              echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
+              sleep $sleep_between
+            else
+              echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+              exit $rc
+            fi
+          done
       displayName: Create node pool cl2pool
     - task: AzureCLI@2
       inputs:
@@ -172,16 +202,42 @@ stages:
         inlineScript: |
           set -exo pipefail
 
-          az aks nodepool add \
-            --cluster-name "stg-H2-hyperscale-pod-scheduling-rate" \
-            --resource-group "$(RUN_ID)" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-            --name "kwokpool" \
-            --node-count 20 \
-            --node-vm-size "Standard_D4_v3" \
-            --mode User \
-            --node-taints kwok=true:NoSchedule \
-            --labels "kwok=true"
+          deadline=$(($(date +%s) + 600))
+          sleep_between=30
+          attempt=0
+          while :; do
+            attempt=$((attempt + 1))
+            set +e
+            output=$(az aks nodepool add \
+              --cluster-name "stg-H2-hyperscale-pod-scheduling-rate" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --name "kwokpool" \
+              --node-count 20 \
+              --node-vm-size "Standard_D4_v3" \
+              --mode User \
+              --node-taints kwok=true:NoSchedule \
+            --labels "kwok=true" 2>&1)
+            rc=$?
+            set -e
+            echo "$output"
+            if [ $rc -eq 0 ]; then
+              exit 0
+            fi
+            if echo "$output" | grep -qiE "OperationNotAllowed"; then
+              now=$(date +%s)
+              if [ $now -ge $deadline ]; then
+                echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
+                exit $rc
+              fi
+              remaining=$((deadline - now))
+              echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
+              sleep $sleep_between
+            else
+              echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+              exit $rc
+            fi
+          done
       displayName: Create node pool kwokpool
     - script: |2-
 
@@ -316,10 +372,14 @@ stages:
         azureSubscription: Azure-for-Telescope-internal
         scriptType: bash
         scriptLocation: inlineScript
-        inlineScript: |
+        inlineScript: |+
           set -exo pipefail
 
-          az group create --name "$(RUN_ID)" --location "southeastasia" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+          az group create \
+            --name "$(RUN_ID)" \
+            --location "southeastasia" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+
       displayName: Create resource group in southeastasia (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
     - task: AzureCLI@2
       inputs:
@@ -411,15 +471,41 @@ stages:
         inlineScript: |
           set -exo pipefail
 
-          az aks nodepool add \
-            --cluster-name "stg-H4-hyperscale-pod-scheduling-rate" \
-            --resource-group "$(RUN_ID)" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-            --name "cl2pool" \
-            --node-count 1 \
-            --node-vm-size "Standard_D8S_v4" \
-            --mode User \
-            --node-taints cl2pool=true:NoSchedule
+          deadline=$(($(date +%s) + 600))
+          sleep_between=30
+          attempt=0
+          while :; do
+            attempt=$((attempt + 1))
+            set +e
+            output=$(az aks nodepool add \
+              --cluster-name "stg-H4-hyperscale-pod-scheduling-rate" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --name "cl2pool" \
+              --node-count 1 \
+              --node-vm-size "Standard_D8S_v4" \
+              --mode User \
+              --node-taints cl2pool=true:NoSchedule 2>&1)
+            rc=$?
+            set -e
+            echo "$output"
+            if [ $rc -eq 0 ]; then
+              exit 0
+            fi
+            if echo "$output" | grep -qiE "OperationNotAllowed"; then
+              now=$(date +%s)
+              if [ $now -ge $deadline ]; then
+                echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
+                exit $rc
+              fi
+              remaining=$((deadline - now))
+              echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
+              sleep $sleep_between
+            else
+              echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+              exit $rc
+            fi
+          done
       displayName: Create node pool cl2pool
     - task: AzureCLI@2
       inputs:
@@ -443,16 +529,42 @@ stages:
         inlineScript: |
           set -exo pipefail
 
-          az aks nodepool add \
-            --cluster-name "stg-H4-hyperscale-pod-scheduling-rate" \
-            --resource-group "$(RUN_ID)" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-            --name "kwokpool" \
-            --node-count 20 \
-            --node-vm-size "Standard_D4_v3" \
-            --mode User \
-            --node-taints kwok=true:NoSchedule \
-            --labels "kwok=true"
+          deadline=$(($(date +%s) + 600))
+          sleep_between=30
+          attempt=0
+          while :; do
+            attempt=$((attempt + 1))
+            set +e
+            output=$(az aks nodepool add \
+              --cluster-name "stg-H4-hyperscale-pod-scheduling-rate" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --name "kwokpool" \
+              --node-count 20 \
+              --node-vm-size "Standard_D4_v3" \
+              --mode User \
+              --node-taints kwok=true:NoSchedule \
+            --labels "kwok=true" 2>&1)
+            rc=$?
+            set -e
+            echo "$output"
+            if [ $rc -eq 0 ]; then
+              exit 0
+            fi
+            if echo "$output" | grep -qiE "OperationNotAllowed"; then
+              now=$(date +%s)
+              if [ $now -ge $deadline ]; then
+                echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
+                exit $rc
+              fi
+              remaining=$((deadline - now))
+              echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
+              sleep $sleep_between
+            else
+              echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+              exit $rc
+            fi
+          done
       displayName: Create node pool kwokpool
     - script: |2-
 
@@ -587,10 +699,14 @@ stages:
         azureSubscription: Azure-for-Telescope-internal
         scriptType: bash
         scriptLocation: inlineScript
-        inlineScript: |
+        inlineScript: |+
           set -exo pipefail
 
-          az group create --name "$(RUN_ID)" --location "southeastasia" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+          az group create \
+            --name "$(RUN_ID)" \
+            --location "southeastasia" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+
       displayName: Create resource group in southeastasia (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
     - task: AzureCLI@2
       inputs:
@@ -682,15 +798,41 @@ stages:
         inlineScript: |
           set -exo pipefail
 
-          az aks nodepool add \
-            --cluster-name "stg-H8-hyperscale-pod-scheduling-rate" \
-            --resource-group "$(RUN_ID)" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-            --name "cl2pool" \
-            --node-count 1 \
-            --node-vm-size "Standard_D8S_v4" \
-            --mode User \
-            --node-taints cl2pool=true:NoSchedule
+          deadline=$(($(date +%s) + 600))
+          sleep_between=30
+          attempt=0
+          while :; do
+            attempt=$((attempt + 1))
+            set +e
+            output=$(az aks nodepool add \
+              --cluster-name "stg-H8-hyperscale-pod-scheduling-rate" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --name "cl2pool" \
+              --node-count 1 \
+              --node-vm-size "Standard_D8S_v4" \
+              --mode User \
+              --node-taints cl2pool=true:NoSchedule 2>&1)
+            rc=$?
+            set -e
+            echo "$output"
+            if [ $rc -eq 0 ]; then
+              exit 0
+            fi
+            if echo "$output" | grep -qiE "OperationNotAllowed"; then
+              now=$(date +%s)
+              if [ $now -ge $deadline ]; then
+                echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
+                exit $rc
+              fi
+              remaining=$((deadline - now))
+              echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
+              sleep $sleep_between
+            else
+              echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+              exit $rc
+            fi
+          done
       displayName: Create node pool cl2pool
     - task: AzureCLI@2
       inputs:
@@ -714,16 +856,42 @@ stages:
         inlineScript: |
           set -exo pipefail
 
-          az aks nodepool add \
-            --cluster-name "stg-H8-hyperscale-pod-scheduling-rate" \
-            --resource-group "$(RUN_ID)" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-            --name "kwokpool" \
-            --node-count 20 \
-            --node-vm-size "Standard_D4_v3" \
-            --mode User \
-            --node-taints kwok=true:NoSchedule \
-            --labels "kwok=true"
+          deadline=$(($(date +%s) + 600))
+          sleep_between=30
+          attempt=0
+          while :; do
+            attempt=$((attempt + 1))
+            set +e
+            output=$(az aks nodepool add \
+              --cluster-name "stg-H8-hyperscale-pod-scheduling-rate" \
+              --resource-group "$(RUN_ID)" \
+              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --name "kwokpool" \
+              --node-count 20 \
+              --node-vm-size "Standard_D4_v3" \
+              --mode User \
+              --node-taints kwok=true:NoSchedule \
+            --labels "kwok=true" 2>&1)
+            rc=$?
+            set -e
+            echo "$output"
+            if [ $rc -eq 0 ]; then
+              exit 0
+            fi
+            if echo "$output" | grep -qiE "OperationNotAllowed"; then
+              now=$(date +%s)
+              if [ $now -ge $deadline ]; then
+                echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
+                exit $rc
+              fi
+              remaining=$((deadline - now))
+              echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
+              sleep $sleep_between
+            else
+              echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+              exit $rc
+            fi
+          done
       displayName: Create node pool kwokpool
     - script: |2-
 
