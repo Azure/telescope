@@ -16,6 +16,29 @@ Verify the installation:
 kcl version
 ```
 
+### Install Telescope skills
+#### Checkout Telescope v2
+```bash
+cd <REPOSITORY BASE>
+git clone https://github.com/Azure/telescope.git
+cd telescope
+git checkout -b v2 origin/v2
+```
+
+#### Create a new repo
+```bash
+cd <REPOSITORY BASE>
+mkdir my-benchmark
+cd my-benchmark
+git init
+```
+
+#### Create symbolic link to skills 
+```bash
+mkdir .agent
+ln -s <REPOSITORY BASE>/telescope/.agent/skills .agent/skills
+```
+
 ## Scenario 1: Write a Pipeline in Your Own Repo
 
 Use this approach when you want to keep your pipeline definitions in a separate repository.
@@ -25,20 +48,18 @@ Use this approach when you want to keep your pipeline definitions in a separate 
 In your repo, create a directory for your pipeline and initialize a KCL module:
 
 ```bash
-mkdir -p my-benchmark
-cd my-benchmark
 kcl mod init
 ```
 
-This creates a `kcl.mod` file. Add the Telescope library and the Azure Pipelines schema as dependencies:
+Add the Telescope library as dependencies:
 
 ```bash
-kcl mod add azure_pipelines --git https://github.com/Azure/kcl-azure-pipelines --tag 1.0.0
+kcl mod add telescope --git https://github.com/Azure/telescope --branch v2
 ```
 
 ### 2. Write your pipeline
 
-Create a `.k` file (e.g. `my-benchmark/pipeline.k`) and import the schemas you need. See the [Pipeline Example](#pipeline-example) section below.
+Create a `.k` file (e.g. `my-benchmark/pipeline.k`) and import the schemas you need. See the [Example Pipeline](kcl/example_pipeline) for details.
 
 ## Scenario 2: Write a Pipeline in This Repo
 
@@ -84,11 +105,11 @@ For a complete working example, see [`kcl/example_pipeline/pipeline.k`](kcl/exam
 
 ## Generate Pipeline YAML
 
-Once your `.k` file is ready, generate the Azure DevOps YAML with the `/generate_yaml` skill, defined in the `.claude` folder.
+Once your `.k` file is ready, generate the Azure DevOps YAML with the `/generate-yaml` skill, defined in the `.agent` folder.
 
 ## Register the Pipeline in Azure DevOps
 
-After generating the YAML, register it as an Azure DevOps pipeline using the Azure CLI. You can use the `/telescope-pipeline` skill in the `.claude` folder.
+After generating the YAML, register it as an Azure DevOps pipeline using the Azure CLI. You can use the `/telescope-pipeline` skill in the `.agent` folder.
 
 ## Split Large Pipeline YAML
 
@@ -113,4 +134,4 @@ The script raises an error (and cleans up any partial output) if the input is al
 
 # Store Results in Your Own Kusto Tables
 
-If you want the results automatically ingested into your own Azure Data Explorer (Kusto) tables for querying and dashboarding, you can use the `/telescope-infra-setup` skill in the `.claude` folder to provision the full ingestion pipeline in your Azure subscription.
+If you want the results automatically ingested into your own Azure Data Explorer (Kusto) tables for querying and dashboarding, you can use the `/telescope-infra-setup` skill in the `.agent` folder to provision the full ingestion pipeline in your Azure subscription.
