@@ -1,18 +1,30 @@
 import azure_pipelines.ap.steps
 
-CreateVNet = lambda serviceConnection: str, resourceGroup: str, name: str, addressPrefixes: str, subscription: str -> steps.Step {
-    script = """
+CreateVNet = lambda serviceConnection: str, resourceGroup: str, name: str, addressPrefixes: str, subscription: str, assignee: str = "" -> steps.Step {
+    AzCli(serviceConnection, "Create VNet ${name}", """
 az network vnet create \\
   --resource-group "${resourceGroup}" \\
   --name "${name}" \\
   --address-prefixes ${addressPrefixes} \\
   --subscription "${subscription}"
-"""
-    AzCli(serviceConnection, "Create VNet ${name}", script)
+""" + ("""
+VNET_ID=$(az network vnet show \\
+  --resource-group "${resourceGroup}" \\
+  --name "${name}" \\
+  --subscription "${subscription}" \\
+  --query id -o tsv)
+
+az role assignment create \\
+  --scope $VNET_ID \\
+  --role "Network Contributor" \\
+  --assignee-object-id "${assignee}" \\
+  --assignee-principal-type ServicePrincipal \\
+  --subscription "${subscription}"
+""" if assignee else ""))
 }
 
-CreateSubnetAndRoleAssignment = lambda serviceConnection: str, resourceGroup: str, vnetName: str, name: str, addressPrefixes: str, subscription: str, assignee: str -> steps.Step {
-    script = """
+CreateSubnet = lambda serviceConnection: str, resourceGroup: str, vnetName: str, name: str, addressPrefixes: str, subscription: str -> steps.Step {
+    AzCli(serviceConnection, "Create subnet ${name}", """
 az network vnet subnet create \\
   --resource-group "${resourceGroup}" \\
   --vnet-name "${vnetName}" \\
@@ -27,13 +39,6 @@ SUBNET_ID=$(az network vnet subnet show \\
   --subscription "${subscription}" \\
   --query id -o tsv)
 
-az role assignment create \\
-  --scope $SUBNET_ID \\
-  --role "Network Contributor" \\
-  --assignee "${assignee}" \\
-  --subscription "${subscription}"
-
-echo "##vso[task.setvariable variable=${name.upper()}_SUBNET_ID]$SUBNET_ID"
-"""
-    AzCli(serviceConnection, "Create subnet ${name}", script)
+echo "##vso[task.setvariable variable=${name.upper()}_SUBNET_ID;isOutput=true]$SUBNET_ID"
+""", stepName="createSubnet")
 }
