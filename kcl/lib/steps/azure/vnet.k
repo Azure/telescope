@@ -24,7 +24,7 @@ az role assignment create \\
 }
 
 CreateSubnet = lambda serviceConnection: str, resourceGroup: str, vnetName: str, name: str, addressPrefixes: str, subscription: str -> steps.Step {
-    script = """
+    AzCli(serviceConnection, "Create subnet ${name}", """
 az network vnet subnet create \\
   --resource-group "${resourceGroup}" \\
   --vnet-name "${vnetName}" \\
@@ -40,6 +40,5 @@ SUBNET_ID=$(az network vnet subnet show \\
   --query id -o tsv)
 
 echo "##vso[task.setvariable variable=${name.upper()}_SUBNET_ID;isOutput=true]$SUBNET_ID"
-"""
-    AzCli(serviceConnection, "Create subnet ${name}", script, stepName="createSubnet")
+""", stepName="createSubnet")
 }
