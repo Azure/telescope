@@ -666,11 +666,13 @@ steps:
         unit: "#"
         enableViolations: false
         queries:
+        # Slice by the standard Hubble `verdict` label (FORWARDED / DROPPED /
+        # ERROR / AUDIT). Build 70704 evidence: the unfiltered TotalIncrease
+        # and verdict-based slices return data; the earlier type=/subtype=
+        # filters returned empty (wrong label values for this Cilium build).
         - name: ForwardedIncrease
-          query: sum(increase(hubble_flows_processed_total{type="TRACE",subtype="to-endpoint"}[%v]))
+          query: sum(increase(hubble_flows_processed_total{verdict="FORWARDED"}[%v]))
         - name: DroppedIncrease
-          query: sum(increase(hubble_flows_processed_total{type="DROP"}[%v]))
-        - name: PolicyVerdictDeniedIncrease
           query: sum(increase(hubble_flows_processed_total{verdict="DROPPED"}[%v]))
         - name: TotalIncrease
           query: sum(increase(hubble_flows_processed_total[%v]))
