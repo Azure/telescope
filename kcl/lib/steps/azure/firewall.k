@@ -31,7 +31,6 @@ FIREWALL_PRIVATE_IP=$(az network firewall show \\
   --name "${name}" \\
   --subscription "${subscription}" \\
   --query "ipConfigurations[0].privateIPAddress" -o tsv)
-echo "##vso[task.setvariable variable=FIREWALL_PRIVATE_IP]$FIREWALL_PRIVATE_IP"
 
 az network route-table create \\
   --resource-group "${resourceGroup}" \\
@@ -55,17 +54,29 @@ az network vnet subnet update \\
   --route-table "${name}-rt" \\
   --subscription "${subscription}"
 
-# Use az rest PUT to apply the full firewall policy in one call — handles large rule sets
-# and is significantly faster than incremental CLI commands (az network firewall policy rule-collection-group)
+# Merge rule collections from the policy file into the current firewall and PUT it back in one call.
+# This handles large rule sets faster than incremental CLI commands (az network firewall policy rule-collection-group)
+# and avoids overwriting other firewall properties (e.g. location, ipConfigurations).
 if [ -n "${policyPath}" ]; then
-  POLICY_TMP=$(mktemp)
-  sed 's|"location": "[^"]*"|"location": "${location}"|g' "${policyPath}" > "$POLICY_TMP"
+  FW_CURRENT=$(mktemp)
+  FW_MERGED=$(mktemp)
+  az rest \\
+    --method get \\
+    --uri "https://management.azure.com/subscriptions/${subscription}/resourceGroups/${resourceGroup}/providers/Microsoft.Network/azureFirewalls/${name}?api-version=2025-05-01" \\
+    > "$FW_CURRENT"
+  jq -s '
+    .[0] as $fw | .[1] as $rules |
+    $fw
+    | .properties.applicationRuleCollections = ($rules.properties.applicationRuleCollections // [])
+    | .properties.networkRuleCollections     = ($rules.properties.networkRuleCollections // [])
+    | .properties.natRuleCollections         = ($rules.properties.natRuleCollections // [])
+  ' "$FW_CURRENT" "${policyPath}" > "$FW_MERGED"
   az rest \\
     --method put \\
     --uri "https://management.azure.com/subscriptions/${subscription}/resourceGroups/${resourceGroup}/providers/Microsoft.Network/azureFirewalls/${name}?api-version=2025-05-01" \\
     --headers "Content-Type=application/json" \\
-    --body "@$POLICY_TMP"
-  rm -f "$POLICY_TMP"
+    --body "@$FW_MERGED"
+  rm -f "$FW_CURRENT" "$FW_MERGED"
 fi
 """
     AzCli(serviceConnection, "Setup firewall ${name} for subnet ${subnetName}", script)
