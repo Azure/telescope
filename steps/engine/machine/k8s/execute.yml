@@ -19,6 +19,11 @@ steps:
         use_batch_args+=(--use-batch-api)
       fi
 
+      custom_feature_args=()
+      if [[ -n "${AKS_HTTP_CUSTOM_FEATURES:-}" ]]; then
+        custom_feature_args+=(--aks-http-custom-features "$AKS_HTTP_CUSTOM_FEATURES")
+      fi
+
       PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" scale-machine \
         --cloud "$CLOUD" \
         --run-id "$RUN_ID" \
@@ -27,6 +32,7 @@ steps:
         --scale-machine-count "$SCALE_MACHINE_COUNT" \
         --machine-workers "$MACHINE_WORKERS" \
         "${use_batch_args[@]}" \
+        "${custom_feature_args[@]}" \
         --step-timeout "$STEP_TIME_OUT" \
         --readiness-wait-timeout "$STEP_TIME_OUT" \
         --result-dir "$RESULT_DIR"
@@ -40,5 +46,6 @@ steps:
       SCALE_MACHINE_COUNT: $(SCALE_MACHINE_COUNT)
       MACHINE_WORKERS: $(MACHINE_WORKERS)
       USE_BATCH_API: $(USE_BATCH_API)
+      AKS_HTTP_CUSTOM_FEATURES: $(AKS_HTTP_CUSTOM_FEATURES)
       STEP_TIME_OUT: $(STEP_TIME_OUT)
       RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)

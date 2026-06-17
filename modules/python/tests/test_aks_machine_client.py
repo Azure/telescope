@@ -148,6 +148,62 @@ class TestAKSMachineClient(unittest.TestCase):
         """Non-multiple-of-1000 counts >= 1000 stay literal."""
         self.assertEqual(AKSMachineClient._get_machine_name_prefix(1500), "scale1500")
 
+    def test_scriptless_enabled_value_from_custom_features(self):
+        """DisableSelfContainedVHD marks the run as not scriptless-enabled."""
+        self.assertEqual(AKSMachineClient._scriptless_enabled_value(None), "yes")
+        self.assertEqual(AKSMachineClient._scriptless_enabled_value(""), "yes")
+        self.assertEqual(
+            AKSMachineClient._scriptless_enabled_value("SomeOtherFeature"), "yes"
+        )
+        self.assertEqual(
+            AKSMachineClient._scriptless_enabled_value(
+                "SomeOtherFeature, DisableSelfContainedVHD"
+            ),
+            "no",
+        )
+        self.assertEqual(
+            AKSMachineClient._scriptless_enabled_value(
+                "SomeOtherFeature DisableSelfContainedVHD"
+            ),
+            "yes",
+        )
+        self.assertEqual(
+            AKSMachineClient._scriptless_enabled_value(
+                "SomeOtherFeature;DisableSelfContainedVHD"
+            ),
+            "yes",
+        )
+
+    def test_custom_feature_headers_pass_through_comma_delimited_list(self):
+        """Custom feature header uses the caller-provided comma-delimited string."""
+        self.assertEqual(AKSMachineClient._custom_feature_headers(None), {})
+        self.assertEqual(
+            AKSMachineClient._custom_feature_headers(
+                "SomeOtherFeature, DisableSelfContainedVHD"
+            ),
+            {
+                "AKSHTTPCustomFeatures": (
+                    "SomeOtherFeature, DisableSelfContainedVHD"
+                ),
+            },
+        )
+        self.assertEqual(
+            AKSMachineClient._custom_feature_headers(
+                "  SomeOtherFeature, DisableSelfContainedVHD  "
+            ),
+            {
+                "AKSHTTPCustomFeatures": (
+                    "SomeOtherFeature, DisableSelfContainedVHD"
+                ),
+            },
+        )
+        self.assertEqual(
+            AKSMachineClient._scriptless_enabled_value(
+                "SomeOtherFeature, DisableSelfContainedVHD"
+            ),
+            "no",
+        )
+
     # ---- scale_machine: non-batch path ----
 
     @mock.patch.object(AKSMachineClient, "_wait_for_machine_node_readiness")
@@ -185,6 +241,41 @@ class TestAKSMachineClient(unittest.TestCase):
         self.assertIn("percentile_node_readiness_times", metadata_keys)
         self.assertIn("node_readiness_time", metadata_keys)
         self.assertIn("cluster_info", metadata_keys)
+        operation_metadata = self.mock_operation_context.call_args.args[2]
+        self.assertEqual(operation_metadata["scriptlessEnabled"], "yes")
+
+    @mock.patch.object(AKSMachineClient, "_wait_for_machine_node_readiness")
+    @mock.patch.object(AKSMachineClient, "_wait_for_agentpool_provisioning",
+                       return_value=True)
+    @mock.patch.object(AKSMachineClient, "_create_single_machine", return_value=True)
+    def test_scale_machine_records_scriptless_disabled_metadata(
+        self, _mock_create, _mock_wait_ap, mock_wait_ready
+    ):
+        """DisableSelfContainedVHD records scriptlessEnabled=no in operation metadata."""
+        mock_wait_ready.return_value = {
+            f"P{p}": {
+                "target_nodes": 1,
+                "elapsed_time_seconds": 10.0,
+                "percentage": p,
+                "success": True,
+            }
+            for p in (50, 70, 90, 99, 100)
+        }
+        self.mock_k8s.get_ready_nodes.return_value = []
+
+        self.client.scale_machine(
+            agent_pool_name="apool",
+            vm_size="Standard_D2_v3",
+            scale_machine_count=1,
+            aks_http_custom_features="SomeOtherFeature, DisableSelfContainedVHD",
+        )
+
+        operation_metadata = self.mock_operation_context.call_args.args[2]
+        self.assertEqual(operation_metadata["scriptlessEnabled"], "no")
+        self.assertEqual(
+            operation_metadata["aks_http_custom_features"],
+            "SomeOtherFeature, DisableSelfContainedVHD",
+        )
 
     @mock.patch.object(AKSMachineClient, "_wait_for_machine_node_readiness")
     @mock.patch.object(AKSMachineClient, "_wait_for_agentpool_provisioning",
@@ -383,6 +474,32 @@ class TestAKSMachineClient(unittest.TestCase):
         mock_resp.text = "boom"
         mock_make_request.return_value = mock_resp
         self.assertFalse(self.client._create_single_machine("m1", request))
+
+    @mock.patch.object(AKSMachineClient, "make_request")
+    def test_create_single_machine_sends_custom_feature_header(self, mock_make_request):
+        """Single-machine PUTs include AKSHTTPCustomFeatures when configured."""
+        request = SimpleNamespace(
+            agent_pool_name="apool",
+            cluster_name="fake-cluster",
+            resource_group="fake-rg",
+            vm_size="Standard_D2_v3",
+            timeout=60,
+            aks_http_custom_features="SomeOtherFeature, DisableSelfContainedVHD",
+        )
+        mock_resp = mock.MagicMock()
+        mock_resp.status_code = 201
+        mock_make_request.return_value = mock_resp
+
+        self.assertTrue(self.client._create_single_machine("m1", request))
+
+        self.assertEqual(
+            mock_make_request.call_args.kwargs["extra_headers"],
+            {
+                "AKSHTTPCustomFeatures": (
+                    "SomeOtherFeature, DisableSelfContainedVHD"
+                ),
+            },
+        )
 
     # ---- ListMachines terminal failure checks ----
 
@@ -859,6 +976,7 @@ class TestAKSMachineClient(unittest.TestCase):
             resource_group="fake-rg",
             vm_size="Standard_D2_v3",
             timeout=60,
+            aks_http_custom_features="SomeOtherFeature, DisableSelfContainedVHD",
         )
         with mock.patch.object(
             AKSMachineClient, "_make_batch_request"
@@ -871,6 +989,10 @@ class TestAKSMachineClient(unittest.TestCase):
         # Inspect the batch_header_value kwarg.
         import json as _json  # pylint: disable=import-outside-toplevel
         kwargs = mock_make_batch.call_args.kwargs
+        self.assertEqual(
+            kwargs["aks_http_custom_features"],
+            "SomeOtherFeature, DisableSelfContainedVHD",
+        )
         header_value = kwargs["batch_header_value"]
         parsed = _json.loads(header_value)
         # vmSkus is wrapped in {"value": [...]}
@@ -920,6 +1042,27 @@ class TestAKSMachineClient(unittest.TestCase):
                 batch_header_value="{}",
             )
         mock_request.assert_called_once()
+
+    def test_make_batch_request_sends_custom_feature_header(self):
+        """BatchPutMachine PUTs include AKSHTTPCustomFeatures when configured."""
+        with mock.patch.object(
+            self.client._session, "request"
+        ) as mock_request:
+            mock_request.return_value.status_code = 202
+            self.client._make_batch_request(
+                "PUT",
+                "https://fake/url",
+                {"k": "v"},
+                timeout=30,
+                batch_header_value="{}",
+                aks_http_custom_features="SomeOtherFeature, DisableSelfContainedVHD",
+            )
+        headers = mock_request.call_args.kwargs["headers"]
+        self.assertEqual(headers["BatchPutMachine"], "{}")
+        self.assertEqual(
+            headers["AKSHTTPCustomFeatures"],
+            "SomeOtherFeature, DisableSelfContainedVHD",
+        )
 
     def test_make_batch_request_non_2xx_non_429_raises(self):
         """500 -> RuntimeError, no retry."""

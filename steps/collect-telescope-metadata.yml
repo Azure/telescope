@@ -25,6 +25,12 @@ steps:
         }')
     fi
 
+    scriptless_enabled="yes"
+    disable_scriptless_pattern='(^|,)[[:space:]]*DisableSelfContainedVHD[[:space:]]*(,|$)'
+    if echo "${AKS_HTTP_CUSTOM_FEATURES:-}" | grep -Eq "$disable_scriptless_pattern"; then
+      scriptless_enabled="no"
+    fi
+
     telescope_metadata=$(jq -n \
       --arg run_id $RUN_ID \
       --arg run_url  $RUN_URL \
@@ -47,9 +53,11 @@ steps:
       --arg cron_schedule_display_name "$BUILD_CRONSCHEDULE_DISPLAYNAME" \
       --arg project_name "$(System.TeamProject)" \
       --arg byo_resources "$SKIP_RESOURCE_MANAGEMENT" \
+      --arg scriptless_enabled "$scriptless_enabled" \
       '{
           run_id: $run_id,
           timestamp: $timestamp,
+          scriptlessEnabled: $scriptless_enabled,
           pipeline_info: {
             run_url: $run_url,
             reason: $reason,
@@ -85,6 +93,7 @@ steps:
     ENGINE_INPUT: ${{ convertToJson(parameters.engine_input) }}
     CLOUD: ${{ parameters.cloud }}
     REGIONS: ${{ convertToJson(parameters.regions) }}
+    AKS_HTTP_CUSTOM_FEATURES: $(AKS_HTTP_CUSTOM_FEATURES)
 
 - script: |
     # Append run_id to the test results file if the file exists

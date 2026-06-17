@@ -288,6 +288,9 @@ def handle_machine_operation(machine_crud, args):
                 "use_batch_api": args.use_batch_api,
                 "machine_workers": args.machine_workers,
                 "readiness_wait_timeout": args.readiness_wait_timeout,
+                "aks_http_custom_features": getattr(
+                    args, "aks_http_custom_features", None
+                ),
                 "tags": tags,
             }
 
@@ -372,6 +375,14 @@ def _add_scale_machine_subparser(subparsers, common_parser):
         "--tags",
         default=None,
         help="JSON-encoded tag map (currently ignored by the Machine API)",
+    )
+    scale_machine_parser.add_argument(
+        "--aks-http-custom-features",
+        default=None,
+        help=(
+            "Comma-delimited custom feature list for the "
+            "AKSHTTPCustomFeatures header on Machine PUT requests"
+        ),
     )
     scale_machine_parser.set_defaults(func=handle_machine_operation)
 

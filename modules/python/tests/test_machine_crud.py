@@ -74,6 +74,7 @@ class TestMachineCRUD(unittest.TestCase):
             use_batch_api=True,
             machine_workers=4,
             readiness_wait_timeout=1800,
+            aks_http_custom_features="DisableSelfContainedVHD",
             tags={"owner": "perf"},
         )
 
@@ -87,6 +88,7 @@ class TestMachineCRUD(unittest.TestCase):
             machine_workers=4,
             timeout=900,
             readiness_wait_timeout=1800,
+            aks_http_custom_features="DisableSelfContainedVHD",
             tags={"owner": "perf"},
         )
 
@@ -102,6 +104,7 @@ class TestMachineCRUD(unittest.TestCase):
         self.assertEqual(kwargs["use_batch_api"], False)
         self.assertEqual(kwargs["machine_workers"], 1)
         self.assertEqual(kwargs["readiness_wait_timeout"], 1200)
+        self.assertIsNone(kwargs["aks_http_custom_features"])
         self.assertIsNone(kwargs["tags"])
 
     def test_scale_machine_swallows_exception(self):

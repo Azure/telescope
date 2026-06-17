@@ -61,7 +61,8 @@ class MachineCRUD:
 
     def scale_machine(self, agent_pool_name, vm_size, scale_machine_count,
                       use_batch_api=False, machine_workers=1,
-                      readiness_wait_timeout=1200, tags=None):
+                      readiness_wait_timeout=1200,
+                      aks_http_custom_features=None, tags=None):
         """Scale a machine-mode agent pool by ``scale_machine_count`` machines.
 
         Returns True on success, False on failure. All timing and percentile
@@ -78,6 +79,7 @@ class MachineCRUD:
                 machine_workers=machine_workers,
                 timeout=self.step_timeout,
                 readiness_wait_timeout=readiness_wait_timeout,
+                aks_http_custom_features=aks_http_custom_features,
                 tags=tags,
             )
             return True

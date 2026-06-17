@@ -40,6 +40,7 @@ class TestHandleMachineOperation(unittest.TestCase):
             "machine_workers": 1,
             "use_batch_api": False,
             "readiness_wait_timeout": 1200,
+            "aks_http_custom_features": None,
             "tags": None,
         }
         defaults.update(overrides)
@@ -95,6 +96,20 @@ class TestHandleMachineOperation(unittest.TestCase):
         self.assertEqual(handle_machine_operation(crud, args), 0)
         kwargs = crud.scale_machine.call_args.kwargs
         self.assertEqual(kwargs["tags"], {"owner": "telescope"})
+
+    def test_scale_machine_forwards_aks_http_custom_features(self):
+        from crud.main import handle_machine_operation  # pylint: disable=import-outside-toplevel
+        crud = mock.MagicMock()
+        crud.scale_machine.return_value = True
+        args = self._make_args(
+            command="scale-machine",
+            aks_http_custom_features="DisableSelfContainedVHD",
+        )
+        self.assertEqual(handle_machine_operation(crud, args), 0)
+        kwargs = crud.scale_machine.call_args.kwargs
+        self.assertEqual(
+            kwargs["aks_http_custom_features"], "DisableSelfContainedVHD"
+        )
 
 
 if __name__ == "__main__":

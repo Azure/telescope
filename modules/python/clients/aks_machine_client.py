@@ -64,6 +64,7 @@ _MACHINE_FAILURE_DETAIL_LIMIT = 10
 _LIST_MACHINES_MAX_PAGES = 50
 _MACHINE_FAILURE_CHECK_INTERVAL_SECONDS = 30
 _NODE_READINESS_POLL_INTERVAL_SECONDS = 2
+_DISABLE_SELF_CONTAINED_VHD_FEATURE = "DisableSelfContainedVHD"
 # urllib3's default ``HTTPAdapter`` (mounted implicitly by ``requests.Session``)
 # caps each host's connection pool at ``pool_maxsize=10``. The parallel scale
 # paths fan out far beyond that (up to ``machine_workers`` concurrent PUTs
@@ -144,6 +145,7 @@ class AKSMachineClient(AKSClient):
         url: str,
         data: Optional[Dict[str, Any]] = None,
         timeout: int = 30,
+        extra_headers: Optional[Dict[str, str]] = None,
     ) -> requests.Response:
         """Send an authenticated ARM REST request and return the raw Response.
 
@@ -159,9 +161,39 @@ class AKSMachineClient(AKSClient):
             "Authorization": f"Bearer {self._get_access_token()}",
             "Content-Type": "application/json",
         }
+        if extra_headers:
+            headers.update(extra_headers)
         return self._session.request(
             method, url, headers=headers, json=data, timeout=timeout
         )
+
+    @staticmethod
+    def _custom_feature_headers(
+        aks_http_custom_features: Optional[str],
+    ) -> Dict[str, str]:
+        """Build optional AKS custom feature headers for Machine PUT requests."""
+        if not aks_http_custom_features:
+            return {}
+        value = aks_http_custom_features.strip()
+        if not value:
+            return {}
+        return {"AKSHTTPCustomFeatures": value}
+
+    @staticmethod
+    def _scriptless_enabled_value(
+        aks_http_custom_features: Optional[str],
+    ) -> str:
+        """Return run metadata value for scriptless bootstrap enablement."""
+        if not aks_http_custom_features:
+            return "yes"
+        features = {
+            feature.strip()
+            for feature in aks_http_custom_features.split(",")
+            if feature.strip()
+        }
+        if _DISABLE_SELF_CONTAINED_VHD_FEATURE in features:
+            return "no"
+        return "yes"
 
     # ---- Machine API: agent pool provisioning ----
     def create_machine_agentpool(
@@ -464,6 +496,7 @@ class AKSMachineClient(AKSClient):
         machine_workers: int = 1,
         timeout: int = 600,
         readiness_wait_timeout: int = 1200,
+        aks_http_custom_features: Optional[str] = None,
         tags: Optional[Dict[str, str]] = None,  # pylint: disable=unused-argument
     ) -> None:
         """Scale a Machine-mode agentpool by creating ``scale_machine_count`` machines.
@@ -503,7 +536,15 @@ class AKSMachineClient(AKSClient):
             "scale_machine_count": scale_machine_count,
             "use_batch_api": use_batch_api,
             "machine_workers": machine_workers,
+            "scriptlessEnabled": self._scriptless_enabled_value(
+                aks_http_custom_features
+            ),
         }
+        custom_feature_headers = self._custom_feature_headers(aks_http_custom_features)
+        if custom_feature_headers:
+            metadata["aks_http_custom_features"] = custom_feature_headers[
+                "AKSHTTPCustomFeatures"
+            ]
         # Bundle into a SimpleNamespace so the helpers retain the
         # ``request.foo`` shape without exposing yet another module-level data class.
         request = SimpleNamespace(
@@ -516,6 +557,7 @@ class AKSMachineClient(AKSClient):
             machine_workers=machine_workers,
             timeout=timeout,
             readiness_wait_timeout=readiness_wait_timeout,
+            aks_http_custom_features=aks_http_custom_features,
         )
         with self._get_operation_context()(
             "scale_machine", "azure", metadata, result_dir=self.result_dir
@@ -679,7 +721,15 @@ class AKSMachineClient(AKSClient):
             f"?api-version={_MACHINE_API_VERSION}"
         )
         body: Dict[str, Any] = {"properties": {"hardware": {"vmSize": request.vm_size}}}
-        resp = self.make_request("PUT", url, data=body, timeout=request.timeout)
+        resp = self.make_request(
+            "PUT",
+            url,
+            data=body,
+            timeout=request.timeout,
+            extra_headers=self._custom_feature_headers(
+                getattr(request, "aks_http_custom_features", None)
+            ),
+        )
         if resp.status_code not in (200, 201, 202):
             logger.error(f"PUT machine {name} -> {resp.status_code} {resp.text[:500]}")
             return False
@@ -911,6 +961,9 @@ class AKSMachineClient(AKSClient):
             body,
             put_timeout,
             batch_header_value=batch_header_value,
+            aks_http_custom_features=getattr(
+                request, "aks_http_custom_features", None
+            ),
             chunk_idx=chunk_idx,
             first_machine_name=first_machine_name,
         )
@@ -923,6 +976,7 @@ class AKSMachineClient(AKSClient):
         data: Dict[str, Any],
         timeout: int,
         batch_header_value: str,
+        aks_http_custom_features: Optional[str] = None,
         chunk_idx: Optional[int] = None,
         first_machine_name: Optional[str] = None,
     ) -> None:
@@ -950,6 +1004,7 @@ class AKSMachineClient(AKSClient):
                 "Content-Type": "application/json",
                 "BatchPutMachine": batch_header_value,
             }
+            headers.update(self._custom_feature_headers(aks_http_custom_features))
             # Use the client's shared Session so this batch path reuses the
             # same pooled TCP/TLS connections (and adapters/proxies) as the
             # individual ``make_request`` path; avoids per-PUT handshakes
