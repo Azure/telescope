@@ -56,52 +56,27 @@ jobs:
       inlineScript: |
         set -exo pipefail
 
-        az cloud update --endpoint-resource-manager https://eastus2euap.management.azure.com/
-        az rest \
-          --method put \
-          --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/stg-H2-yaolei?api-version=2026-01-02-preview" \
-          --body "
-        {
-            \"location\": \"westus2\",
-            \"identity\": { \"type\": \"SystemAssigned\" },
-            \"sku\": {
-              \"name\": \"Base\",
-              \"tier\": \"Standard\"
-            },
-            \"tags\": {
-              \"SkipAKSCluster\": \"true\",
-              \"SkipASMAzSecPackAutoConfig\": \"true\",
-              \"SkipLinuxAzSecPack\": \"true\"
-            },
-            \"properties\": {
-              \"controlPlaneScalingProfile\": {\"scalingSize\": \"H2\"},
-              \"kubernetesVersion\": \"1.33.0\",
-              \"dnsPrefix\": \"stg-H2-yaolei-dns\",
-              \"agentPoolProfiles\": [
-                {
-                  \"name\": \"systempool\",
-                  \"mode\": \"System\",
-                  \"count\": 30,
-                  \"vmSize\": \"Standard_D8S_v4\",
-                  \"osType\": \"Linux\",
-                  \"maxPods\": 250
-                }
-              ],
-            \"networkProfile\": {
-               \"networkPlugin\": \"azure\",
-               \"networkPluginMode\": \"overlay\",
-               \"podCidr\": \"10.64.0.0/10\",
-               \"serviceCidr\": \"10.0.0.0/16\",
-               \"dnsServiceIP\": \"10.0.0.10\",
-               \"outboundType\": \"managedNATGateway\",
-               \"natGatewayProfile\": {
-                  \"managedOutboundIPProfile\": {
-                    \"count\": 10
-                  }
-                }
-              }
-            }
-          }"
+        az aks create \
+          --name "example-yaolei" \
+          --resource-group "$(RUN_ID)" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --location "westus2" \
+          --kubernetes-version "1.35.0" \
+          --dns-name-prefix "example-yaolei-dns" \
+          --tier standard \
+          --nodepool-name systempool \
+          --node-count 3 \
+          --node-vm-size "Standard_D8S_v4" \
+          --max-pods 250 \
+          --network-plugin azure \
+          --network-plugin-mode overlay \
+          --pod-cidr 10.64.0.0/10 \
+          --service-cidr 10.0.0.0/16 \
+          --dns-service-ip 10.0.0.10 \
+          --outbound-type managedNATGateway \
+          --nat-gateway-managed-outbound-ip-count 10 \
+          --enable-managed-identity \
+          --generate-ssh-keys
     displayName: Create cluster
   - task: AzureCLI@2
     inputs:
@@ -184,11 +159,11 @@ jobs:
         set -exo pipefail
 
         az aks get-credentials \
-          --name "stg-H2-yaolei" \
+          --name "example-yaolei" \
           --resource-group "$(RUN_ID)" \
           --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
           --overwrite-existing
-    displayName: Get credentials for stg-H2-yaolei
+    displayName: Get credentials for example-yaolei
   - script: |2-
 
       set -exo pipefail
@@ -277,7 +252,32 @@ jobs:
       azureSubscription: Azure-for-Telescope-internal
       scriptType: bash
       scriptLocation: inlineScript
-      inlineScript: "set -exo pipefail\n\nTIMESTAMP=$(date -u +\"%Y-%m-%dT%H:%M:%SZ\")\nSTATUS=\"succeeded\"\n\n# Check if any cl2 pod failed\nFAILED=$(kubectl get pods --namespace=\"clusterloader2\" -l job-name=cl2 -o jsonpath='{range .items[*]}{.status.phase}{\"\\n\"}{end}' | grep -c \"^Failed$\" || true)\nif [ \"$FAILED\" -gt 0 ]; then\n  STATUS=\"failed\"\nfi\n\ncat > /tmp/run-result.json << EOF\n\n{\n  \"timestamp\": \"${TIMESTAMP}\",\n  \"run_id\": \"$(RUN_ID)\",\n  \"run_url\": \"$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)\",\n  \"pipeline\": \"$(Build.DefinitionName)\",\n  \"result\": {\n    \"cl2_status\": \"${STATUS}\", \n    \"region\": \"westus2\"\n  }\n}\nEOF\ncat /tmp/run-result.json\n"
+      inlineScript: |
+        set -exo pipefail
+
+        TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        STATUS="succeeded"
+
+        # Check if any cl2 pod failed
+        FAILED=$(kubectl get pods --namespace="clusterloader2" -l job-name=cl2 -o jsonpath='{range .items[*]}{.status.phase}{"\n"}{end}' | grep -c "^Failed$" || true)
+        if [ "$FAILED" -gt 0 ]; then
+          STATUS="failed"
+        fi
+
+        cat > /tmp/run-result.json << EOF
+
+        {
+          "timestamp": "${TIMESTAMP}",
+          "run_id": "$(RUN_ID)",
+          "run_url": "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)",
+          "pipeline": "$(Build.DefinitionName)",
+          "result": {
+            "cl2_status": "${STATUS}",
+            "region": "westus2"
+          }
+        }
+        EOF
+        cat /tmp/run-result.json
     displayName: Collect cl2 pods status
   - task: AzureCLI@2
     inputs:
