@@ -138,6 +138,13 @@ steps:
       # user-perceived "service works" latency.
       export CL2_PROPAGATION_PROBE_REMOVE_ENABLED="${CL2_PROPAGATION_PROBE_REMOVE_ENABLED:-false}"
       export CL2_PROPAGATION_PROBE_FIRST_PACKET_ENABLED="${CL2_PROPAGATION_PROBE_FIRST_PACKET_ENABLED:-false}"
+      # Service-backend membership probe (gap #3). Creates a transient global
+      # Service selecting the probe pod ON EVERY CLUSTER each probe iteration
+      # (Cilium global-service merge requires the service to exist on each
+      # peer for the source's backend to appear in that peer's BPF lb map),
+      # then polls peers' `cilium-dbg bpf lb list` for the pod IP. NOTE: at
+      # large N this creates N services per probe iteration — keep enabled
+      # only on small smokes (n<=5) until a sampled-cluster variant exists.
       export CL2_PROPAGATION_PROBE_SERVICE_BACKEND_ENABLED="${CL2_PROPAGATION_PROBE_SERVICE_BACKEND_ENABLED:-false}"
       export CL2_PROPAGATION_PROBE_REMOVE_TIMEOUT_S="${CL2_PROPAGATION_PROBE_REMOVE_TIMEOUT_S:-60}"
       export CL2_PROPAGATION_PROBE_FIRST_PACKET_TIMEOUT_S="${CL2_PROPAGATION_PROBE_FIRST_PACKET_TIMEOUT_S:-60}"

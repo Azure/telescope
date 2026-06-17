@@ -568,15 +568,22 @@ wait_peer_service_backend() {
   done
 }
 
-# Create a transient global Service on the SOURCE cluster that selects
-# exactly the probe pod via its unique propagation-probe-id label. This
-# Service gets global annotation so clustermesh-apiserver propagates it
-# to ALL peers. Once a peer's cilium-agent sees the Service + backend,
-# the pod IP appears in `cilium-dbg bpf lb list`. That's what
-# wait_peer_service_backend polls for.
+# Create a transient global Service on ALL clusters that selects exactly
+# the probe pod via its unique propagation-probe-id label. A Cilium global
+# service merges backends across every cluster that has a same-named service
+# carrying the global annotation — so the Service MUST exist on each peer,
+# not just the source, for the source's probe pod to appear in that peer's
+# BPF lb map. Only the source cluster has a pod matching the selector; peers
+# have the service definition with zero local backends and receive the
+# source's backend via clustermesh global-service merge. wait_peer_service
+# _backend then polls each peer's `cilium-dbg bpf lb list` for the pod IP.
 create_probe_service() {
-  local _kc="$1" _ctx="$2" _label_uuid="$3" _svc_name="$4"
-  cat <<EOF | KUBECONFIG="$_kc" kubectl --context "$_ctx" -n "$PROBE_NS" apply -f - > /dev/null 2>&1
+  local _label_uuid="$1" _svc_name="$2"
+  local _i _kc _ctx
+  for _i in $(seq 0 $((CLUSTER_COUNT - 1))); do
+    _kc=$(jq -r ".[$_i].kubeconfig" < "$CLUSTERS_JSON")
+    _ctx=$(jq -r ".[$_i].name" < "$CLUSTERS_JSON")
+    cat <<EOF | KUBECONFIG="$_kc" kubectl --context "$_ctx" -n "$PROBE_NS" apply -f - > /dev/null 2>&1
 apiVersion: v1
 kind: Service
 metadata:
@@ -593,12 +600,18 @@ spec:
       targetPort: 80
       protocol: TCP
 EOF
+  done
 }
 
 delete_probe_service() {
-  local _kc="$1" _ctx="$2" _svc_name="$3"
-  KUBECONFIG="$_kc" kubectl --context "$_ctx" -n "$PROBE_NS" \
-    delete svc "$_svc_name" --ignore-not-found --wait=false > /dev/null 2>&1 || true
+  local _svc_name="$1"
+  local _i _kc _ctx
+  for _i in $(seq 0 $((CLUSTER_COUNT - 1))); do
+    _kc=$(jq -r ".[$_i].kubeconfig" < "$CLUSTERS_JSON")
+    _ctx=$(jq -r ".[$_i].name" < "$CLUSTERS_JSON")
+    KUBECONFIG="$_kc" kubectl --context "$_ctx" -n "$PROBE_NS" \
+      delete svc "$_svc_name" --ignore-not-found --wait=false > /dev/null 2>&1 || true
+  done
 }
 
 # Per-cluster remove-probe orchestration. Runs only if ENABLE_REMOVE_PROBE=true.
@@ -813,8 +826,8 @@ EOF
   PROBE_SVC_NAME=""
   if [ "$ENABLE_SERVICE_BACKEND_PROBE" = "true" ]; then
     PROBE_SVC_NAME="probe-svc-${LABEL_UUID:0:8}"
-    create_probe_service "$SRC_KC" "$SRC_NAME" "$LABEL_UUID" "$PROBE_SVC_NAME"
-    echo "[probe $p] created transient global Service $PROBE_SVC_NAME (selector: propagation-probe-id=$LABEL_UUID)"
+    create_probe_service "$LABEL_UUID" "$PROBE_SVC_NAME"
+    echo "[probe $p] created transient global Service $PROBE_SVC_NAME on all $CLUSTER_COUNT clusters (selector: propagation-probe-id=$LABEL_UUID)"
   fi
 
   # Choose peers. Cap at PEER_SAMPLE_MAX, exclude source.
@@ -861,7 +874,7 @@ EOF
   # peer_remove_probe's ipcache-removal timer (the pod is gone → the
   # Service eventually has 0 backends → peers drop it from lb map).
   if [ -n "$PROBE_SVC_NAME" ]; then
-    delete_probe_service "$SRC_KC" "$SRC_NAME" "$PROBE_SVC_NAME"
+    delete_probe_service "$PROBE_SVC_NAME"
   fi
 
   if [ "$p" -lt "$PROBE_COUNT" ]; then
