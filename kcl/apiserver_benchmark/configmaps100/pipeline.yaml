@@ -123,21 +123,19 @@ stages:
             if [ $rc -eq 0 ]; then
               exit 0
             fi
-            case "$output" in
-              *OperationNotAllowed*) ;;
-              *)
-                echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+            if echo "$output" | grep -qiE "OperationNotAllowed"; then
+              now=$(date +%s)
+              if [ $now -ge $deadline ]; then
+                echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
                 exit $rc
-                ;;
-            esac
-            now=$(date +%s)
-            if [ $now -ge $deadline ]; then
-              echo "OperationNotAllowed persisted past 600s retry window ($attempt attempts); giving up."
+              fi
+              remaining=$((deadline - now))
+              echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
+              sleep $sleep_between
+            else
+              echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
               exit $rc
             fi
-            remaining=$((deadline - now))
-            echo "Attempt $attempt got OperationNotAllowed; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
-            sleep $sleep_between
           done
       displayName: Create node pool runner
     - script: |2
@@ -339,21 +337,19 @@ stages:
             if [ $rc -eq 0 ]; then
               exit 0
             fi
-            case "$output" in
-              *OperationNotAllowed*) ;;
-              *)
-                echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+            if echo "$output" | grep -qiE "OperationNotAllowed"; then
+              now=$(date +%s)
+              if [ $now -ge $deadline ]; then
+                echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
                 exit $rc
-                ;;
-            esac
-            now=$(date +%s)
-            if [ $now -ge $deadline ]; then
-              echo "OperationNotAllowed persisted past 600s retry window ($attempt attempts); giving up."
+              fi
+              remaining=$((deadline - now))
+              echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
+              sleep $sleep_between
+            else
+              echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
               exit $rc
             fi
-            remaining=$((deadline - now))
-            echo "Attempt $attempt got OperationNotAllowed; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
-            sleep $sleep_between
           done
       displayName: Create node pool runner
     - script: |2

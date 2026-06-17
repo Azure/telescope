@@ -12,8 +12,11 @@ schema NodePool:
     vnetSubnetId?: str
     osSKU?: str
 
-# CREATE_NODEPOOL_RETRY_WINDOW_SEC is the maximum time (in seconds) to keep retrying node pool creation when AKS returns OperationNotAllowed.
+# CREATE_NODEPOOL_RETRY_WINDOW_SEC is the maximum time (in seconds) to keep retrying node pool creation when AKS returns a transient retriable error.
 CREATE_NODEPOOL_RETRY_WINDOW_SEC = 600
+
+# Transient errors to retry when creating node pools (separated with '|')
+CREATE_NODEPOOL_TRANSIENT_ERRORS = "OperationNotAllowed"
 
 CreateNodePool = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, pool: NodePool, noWait: bool = False -> steps.Step {
     flagDecision = [
@@ -25,7 +28,7 @@ CreateNodePool = lambda serviceConnection: str, cluster: str, resourceGroup: str
         "--no-wait" if noWait else "",
     ]
     flags = " \\\n  ".join([f for f in flagDecision if f])
-    # Allow retry on OperationNotAllowed — it's observed that AKS can spin up PutExtensionAddonHandler operation in the background that causes transient OperationNotAllowed errors on node pool PUT requests
+    # Retry on transient errors — e.g., AKS can spin up PutExtensionAddonHandler in the background, causing transient OperationNotAllowed on node pool PUT requests.
     script = """
 deadline=$(($(date +%s) + ${CREATE_NODEPOOL_RETRY_WINDOW_SEC}))
 sleep_between=30
@@ -48,21 +51,19 @@ while :; do
   if [ $rc -eq 0 ]; then
     exit 0
   fi
-  case "$output" in
-    *OperationNotAllowed*) ;;
-    *)
-      echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+  if echo "$output" | grep -qiE "${CREATE_NODEPOOL_TRANSIENT_ERRORS}"; then
+    now=$(date +%s)
+    if [ $now -ge $deadline ]; then
+      echo "Retriable error persisted past ${CREATE_NODEPOOL_RETRY_WINDOW_SEC}s retry window ($attempt attempts); giving up."
       exit $rc
-      ;;
-  esac
-  now=$(date +%s)
-  if [ $now -ge $deadline ]; then
-    echo "OperationNotAllowed persisted past ${CREATE_NODEPOOL_RETRY_WINDOW_SEC}s retry window ($attempt attempts); giving up."
+    fi
+    remaining=$((deadline - now))
+    echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
+    sleep $sleep_between
+  else
+    echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
     exit $rc
   fi
-  remaining=$((deadline - now))
-  echo "Attempt $attempt got OperationNotAllowed; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
-  sleep $sleep_between
 done
 """
     AzCli(serviceConnection, "Create node pool ${pool.name}", script)
