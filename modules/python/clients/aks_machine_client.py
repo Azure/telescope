@@ -499,11 +499,8 @@ class AKSMachineClient(AKSClient):
             "scale_machine_count": scale_machine_count,
             "use_batch_api": use_batch_api,
             "machine_workers": machine_workers,
-            "scriptlessEnabled": is_scriptless_enabled(aks_http_custom_features),
         }
         headers = build_custom_feature_headers(aks_http_custom_features)
-        if headers:
-            metadata["aks_http_custom_features"] = headers["AKSHTTPCustomFeatures"]
         # Bundle into a SimpleNamespace so the helpers retain the
         # ``request.foo`` shape without exposing yet another module-level data class.
         request = SimpleNamespace(
@@ -522,6 +519,15 @@ class AKSMachineClient(AKSClient):
             "scale_machine", "azure", metadata, result_dir=self.result_dir
         ) as op:
             try:
+                op.add_metadata(
+                    "scriptlessEnabled",
+                    is_scriptless_enabled(aks_http_custom_features),
+                )
+                if headers:
+                    op.add_metadata(
+                        "aks_http_custom_features",
+                        headers["AKSHTTPCustomFeatures"],
+                    )
                 # Snapshot baseline BEFORE any PUTs so the readiness watcher
                 # counts only NEW nodes.
                 baseline_count = 0
