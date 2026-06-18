@@ -19,6 +19,7 @@ schedules:
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: k8s-cluster-crud-machine
+  AZURE_SERVICE_CONNECTION: Azure-for-Telescope-Large-Cluster-Sub
   AZURE_SUBSCRIPTION_ID: 854c9ddb-fe9e-4aea-8d58-99ed88282881
 stages:
   - stage: azure_canadacentral_small_scale_10
