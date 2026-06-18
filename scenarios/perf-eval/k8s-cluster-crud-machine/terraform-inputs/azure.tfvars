@@ -41,7 +41,11 @@ aks_cli_config_list = [
     use_aks_preview_cli_extension = true
     use_aks_preview_private_build = false
     use_custom_configurations     = false
-    default_node_pool             = null
+    default_node_pool = {
+      name       = "default"
+      node_count = 2
+      vm_size    = "Standard_D2_v3"
+    }
     optional_parameters = [
       {
         name  = "network-plugin"
