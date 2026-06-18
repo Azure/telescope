@@ -1,0 +1,307 @@
+name: Image Pull Load
+pool: AKS-Telescope-Airlock
+trigger:
+- v2
+jobs:
+- job: imagePullLoad
+  displayName: Image Pull Load
+  timeoutInMinutes: 1440
+  steps:
+  - bash: |2
+
+      set -eo pipefail
+
+      job_id="$(System.JobId)"
+      RUN_ID=$(Build.BuildId)-${job_id:0:8}
+      echo "Run ID: $RUN_ID"
+
+      echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
+    displayName: Set Run ID
+  - bash: |-
+      set -exo pipefail
+      pip3 install --upgrade "pip<24"
+      pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
+    displayName: Install Python dependencies
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+        az config set defaults.location="australiaeast"
+        az account show
+    displayName: Login to Azure
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |+
+        set -exo pipefail
+
+        az group create \
+          --name "$(RUN_ID)" \
+          --location "australiaeast" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+
+    displayName: Create resource group in australiaeast (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks create \
+          --name "image-pull-load" \
+          --resource-group "$(RUN_ID)" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --location "australiaeast" \
+          --kubernetes-version "1.35.0" \
+          --dns-name-prefix "image-pull-load-dns" \
+          --tier standard \
+          --nodepool-name systempool \
+          --node-count 3 \
+          --node-vm-size "Standard_D8S_v4" \
+          --max-pods 250 \
+          --network-plugin azure \
+          --network-plugin-mode overlay \
+          --pod-cidr 10.64.0.0/10 \
+          --service-cidr 10.0.0.0/16 \
+          --dns-service-ip 10.0.0.10 \
+          --outbound-type managedNATGateway \
+          --nat-gateway-managed-outbound-ip-count 10 \
+          --enable-managed-identity \
+          --generate-ssh-keys
+    displayName: Create cluster
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        deadline=$(($(date +%s) + 600))
+        sleep_between=30
+        attempt=0
+        while :; do
+          attempt=$((attempt + 1))
+          set +e
+          output=$(az aks nodepool add \
+            --cluster-name "image-pull-load" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --name "workerpool0" \
+            --node-count 800 \
+            --node-vm-size "PULL_POOL_SKU" \
+            --mode User \
+            --node-taints cri-resource-consume=true:NoSchedule \
+          --labels "cri-resource-consume=true" 2>&1)
+          rc=$?
+          set -e
+          echo "$output"
+          if [ $rc -eq 0 ]; then
+            exit 0
+          fi
+          if echo "$output" | grep -qiE "OperationNotAllowed"; then
+            now=$(date +%s)
+            if [ $now -ge $deadline ]; then
+              echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
+              exit $rc
+            fi
+            remaining=$((deadline - now))
+            echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
+            sleep $sleep_between
+          else
+            echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+            exit $rc
+          fi
+        done
+    displayName: Create node pool workerpool0
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        deadline=$(($(date +%s) + 600))
+        sleep_between=30
+        attempt=0
+        while :; do
+          attempt=$((attempt + 1))
+          set +e
+          output=$(az aks nodepool add \
+            --cluster-name "image-pull-load" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --name "workerpool1" \
+            --node-count 200 \
+            --node-vm-size "PULL_POOL_SKU" \
+            --mode User \
+            --node-taints cri-resource-consume=true:NoSchedule \
+          --labels "cri-resource-consume=true" 2>&1)
+          rc=$?
+          set -e
+          echo "$output"
+          if [ $rc -eq 0 ]; then
+            exit 0
+          fi
+          if echo "$output" | grep -qiE "OperationNotAllowed"; then
+            now=$(date +%s)
+            if [ $now -ge $deadline ]; then
+              echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
+              exit $rc
+            fi
+            remaining=$((deadline - now))
+            echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
+            sleep $sleep_between
+          else
+            echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+            exit $rc
+          fi
+        done
+    displayName: Create node pool workerpool1
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az aks get-credentials \
+          --name "image-pull-load" \
+          --resource-group "$(RUN_ID)" \
+          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --overwrite-existing
+    displayName: Get credentials for image-pull-load
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        kubectl create namespace "image-pull-load" || true
+        kubectl apply -f $(Pipeline.Workspace)/s/kcl/image_pull_load/image-pull-load.yaml
+
+        # Set the image(s) under test from the pipeline (overrides the manifest default).
+        kubectl --namespace="image-pull-load" set env daemonset/image-pull-load IMAGES="acrstampperftest.azurecr-test.io/test_10gb_4l_v1:latest"
+
+        # Wait for one puller pod per eligible node to be scheduled and running.
+        kubectl --namespace="image-pull-load" rollout status daemonset/image-pull-load --timeout=10m
+
+        echo "Sustaining image-pull load for 1800s..."
+        start=$(date +%s)
+        while [ $(( $(date +%s) - start )) -lt 1800 ]; do
+          ready=$(kubectl --namespace="image-pull-load" get daemonset image-pull-load -o jsonpath='{.status.numberReady}')
+          desired=$(kubectl --namespace="image-pull-load" get daemonset image-pull-load -o jsonpath='{.status.desiredNumberScheduled}')
+          echo "[$(date -u +%H:%M:%S)] pullers ready: $ready/$desired"
+          sleep 30
+        done
+
+        echo "Load window complete; pullers left running for metric collection."
+    displayName: Run image-pull load
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        # Scrape throughput samples from all puller pods (must happen before teardown).
+        kubectl --namespace="image-pull-load" logs -l app=image-pull-load --tail=-1 --max-log-requests=2000 > /tmp/puller-logs.txt 2>/dev/null || true
+        grep "THROUGHPUT_SAMPLE" /tmp/puller-logs.txt > /tmp/samples.txt || true
+        echo "Collected $(wc -l < /tmp/samples.txt) throughput samples."
+
+        python3 - <<'PY'
+        import json, re, statistics
+        from datetime import datetime, timezone
+
+        pat = re.compile(r"bytes=(\d+)\s+seconds=(\d+)")
+        mbps, total_bytes = [], 0
+        with open("/tmp/samples.txt", encoding="utf-8") as f:
+            for line in f:
+                m = pat.search(line)
+                if not m:
+                    continue
+                b, s = int(m.group(1)), int(m.group(2))
+                if s <= 0:
+                    continue
+                total_bytes += b
+                mbps.append(b / 1e6 / s)
+
+        def pct(vals, p):
+            if not vals:
+                return None
+            vals = sorted(vals)
+            k = max(0, min(len(vals) - 1, round((p / 100) * (len(vals) - 1))))
+            return round(vals[k], 2)
+
+        duration = 1800
+        result = {
+            "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "status": "succeeded" if mbps else "failure",
+            "region": "australiaeast",
+            "puller_node_count": 1000,
+            "load_duration_seconds": duration,
+            "sample_count": len(mbps),
+            "total_pulled_gb": round(total_bytes / 1e9, 2),
+            # Sustained cluster-wide throughput delivered to nodes over the window.
+            "cluster_throughput_mbps": round(total_bytes / 1e6 / duration, 2) if duration else None,
+            # Per-pull (per-node) containerd image-pull throughput distribution.
+            "per_pull_mbps_avg": round(statistics.fmean(mbps), 2) if mbps else None,
+            "per_pull_mbps_p20": pct(mbps, 20),
+            "per_pull_mbps_p25": pct(mbps, 25),
+            "per_pull_mbps_p50": pct(mbps, 50),
+            "per_pull_mbps_p75": pct(mbps, 75),
+            "per_pull_mbps_p90": pct(mbps, 90),
+            "per_pull_mbps_p95": pct(mbps, 95),
+            "per_pull_mbps_p99": pct(mbps, 99),
+            "per_pull_mbps_min": round(min(mbps), 2) if mbps else None,
+            "per_pull_mbps_max": round(max(mbps), 2) if mbps else None,
+        }
+        with open("/tmp/run-result.json", "w", encoding="utf-8") as f:
+            json.dump(result, f, indent=2)
+        print(json.dumps(result, indent=2))
+        PY
+
+        # Tear down the pullers now that metrics have been collected.
+        kubectl delete -f $(Pipeline.Workspace)/s/kcl/image_pull_load/image-pull-load.yaml --ignore-not-found
+    displayName: Collect image-pull throughput
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az storage blob upload \
+          --account-name "telescopev2" \
+          --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
+          --container-name "aks" \
+          --name "$(RUN_ID)/run-result.json" \
+          --file /tmp/run-result.json \
+          --auth-mode key
+    displayName: Upload result to storage account
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: Azure-for-Telescope-internal
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
+        az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+    condition: always()
+    displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)

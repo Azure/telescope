@@ -1,0 +1,105 @@
+# DaemonSet that drives sustained registry blob-download (image pull) traffic.
+#
+# Why a pull -> rmi loop instead of CL2 pod churn:
+#   imagePullPolicy: Always only guarantees a manifest/digest round-trip; the
+#   container runtime still serves *layers* from the local content store if they
+#   are already cached, so you get one byte-burst per node and then silence.
+#   Removing the image (crictl rmi) deletes the local content + snapshots, so the
+#   next pull MUST re-download every layer from the registry. Looping this on
+#   every node produces steady MB/s against the ACR stamp for the whole window.
+#
+# How it works:
+#   - One pod per target node (DaemonSet), pinned to the cri-resource-consume pool.
+#   - The container is privileged + hostPID and uses `nsenter` to run the *host's*
+#     crictl/containerd, so pulls land in the node's k8s.io containerd namespace
+#     (exactly what Telescope's containerd throughput metrics scrape) and reuse
+#     whatever registry auth the node is already configured with.
+#   - The loop runs forever; the RunImagePullLoad pipeline step controls how long
+#     the load lasts and then deletes this DaemonSet to stop it.
+#
+# Namespace is created by the pipeline step (kubectl create namespace), matching
+# the RunClusterLoader2 convention; it must equal the `namespace` passed there.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: image-pull-load
+  namespace: image-pull-load
+  labels:
+    app: image-pull-load
+spec:
+  selector:
+    matchLabels:
+      app: image-pull-load
+  template:
+    metadata:
+      labels:
+        app: image-pull-load
+    spec:
+      # Required so we can nsenter into the host and drive its containerd.
+      hostPID: true
+      # Run only on the dedicated load pool (same label the scenario node pool uses).
+      nodeSelector:
+        cri-resource-consume: "true"
+      tolerations:
+        - key: "cri-resource-consume"
+          operator: "Exists"
+          effect: "NoSchedule"
+        - key: "cri-resource-consume"
+          operator: "Exists"
+          effect: "NoExecute"
+      containers:
+        - name: puller
+          # Needs `nsenter` to run the host's crictl. azurelinux core ships
+          # without util-linux, so it's installed at startup (below). Kept on MCR
+          # to avoid Docker Hub pull rate limits at large node counts.
+          image: mcr.microsoft.com/azurelinux/base/core:3.0
+          securityContext:
+            privileged: true
+          env:
+            # Space-separated list of fully-qualified image refs to pull.
+            # A single large image gives sustained per-node throughput.
+            # Add DISTINCT tags/digests here to raise per-node concurrency,
+            # since containerd coalesces concurrent pulls of an identical ref.
+            - name: IMAGES
+              value: "acrstampperftest.azurecr-test.io/test_10gb_4l_v1:latest"
+            - name: RUNTIME_ENDPOINT
+              value: "unix:///run/containerd/containerd.sock"
+            # Optional: registry creds for crictl pull when not anonymous.
+            #   value example: "<user>:<password>"  -> add `--creds "$CREDS"` below.
+            - name: CREDS
+              value: ""
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -u
+              # azurelinux core has no nsenter by default; install util-linux once.
+              command -v nsenter >/dev/null 2>&1 || tdnf install -y util-linux >/dev/null 2>&1
+              run_crictl() {
+                nsenter -t 1 -m -u -i -n -p -- \
+                  crictl --runtime-endpoint "$RUNTIME_ENDPOINT" "$@"
+              }
+              worker() {
+                ref="$1"
+                creds_arg=""
+                [ -n "$CREDS" ] && creds_arg="--creds $CREDS"
+                while true; do
+                  # Full layer download from the registry on every iteration.
+                  start=$(date +%s)
+                  if run_crictl pull $creds_arg "$ref" >/dev/null 2>&1; then
+                    end=$(date +%s)
+                    elapsed=$((end - start))
+                    [ "$elapsed" -lt 1 ] && elapsed=1
+                    # Image size (bytes) as reported by containerd, for throughput.
+                    bytes=$(run_crictl inspecti "$ref" 2>/dev/null \
+                      | grep -oE '"size":[[:space:]]*"?[0-9]+"?' | head -1 \
+                      | grep -oE '[0-9]+')
+                    [ -n "$bytes" ] && echo "THROUGHPUT_SAMPLE ref=$ref bytes=$bytes seconds=$elapsed"
+                  fi
+                  # Evict local content+snapshots so the next pull is a cache miss.
+                  run_crictl rmi "$ref" >/dev/null 2>&1 || true
+                done
+              }
+              for ref in $IMAGES; do
+                worker "$ref" &
+              done
+              wait
