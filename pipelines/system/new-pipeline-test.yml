@@ -212,6 +212,16 @@ stages:
               cl2_recovery_probe_count: 3
               cl2_recovery_probe_interval_s: 120
               cl2_recovery_probe_timeout_s: 300
+              # Snapshot in-cluster Prometheus TSDB → our blob (cmshscaleprom).
+              # This is the richest probe stage (propagation + remove +
+              # first-packet + service-backend + recovery + policy canary +
+              # all Phase 4 scrape targets), so its snapshot is the most
+              # useful for offline PromQL over hubble/coredns/kvstoremesh
+              # raw metrics not yet covered by CL2 measurement queries.
+              cl2_prom_snapshot_enabled: "true"
+              cl2_prom_snapshot_target: "blob"
+              cl2_prom_snapshot_storage_account: "cmshscaleprom"
+              cl2_prom_snapshot_container: "snapshots"
               trigger_reason: ${{ variables['Build.Reason'] }}
           # Single cell — only n2_propagation_probe is needed to validate the
           # current batch (probe + global services + Phase 1 metrics + retry
