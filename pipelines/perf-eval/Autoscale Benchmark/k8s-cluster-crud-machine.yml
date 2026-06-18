@@ -44,8 +44,6 @@ stages:
               scale_machine_count: 10
               machine_workers: 5
               use_batch_api: "false"
-              # Comma-delimited list for AKSHTTPCustomFeatures.
-              aks_http_custom_features: ""
               step_time_out: 900
           max_parallel: 1
           timeout_in_minutes: 360
@@ -74,8 +72,6 @@ stages:
               scale_machine_count: 500
               machine_workers: 10
               use_batch_api: "true"
-              # Comma-delimited list for AKSHTTPCustomFeatures.
-              aks_http_custom_features: ""
               step_time_out: 2400
           max_parallel: 1
           timeout_in_minutes: 360
@@ -110,8 +106,6 @@ stages:
               scale_machine_count: 1000
               machine_workers: 20
               use_batch_api: "true"
-              # Comma-delimited list for AKSHTTPCustomFeatures.
-              aks_http_custom_features: ""
               step_time_out: 3600
           max_parallel: 1
           timeout_in_minutes: 360
@@ -137,7 +131,7 @@ stages:
               scale_machine_count: 10
               machine_workers: 5
               use_batch_api: "false"
-              aks_http_custom_features: "DisableSelfContainedVHD"
+              aks_cli_custom_headers: "AKSHTTPCustomFeatures=DisableSelfContainedVHD"
               step_time_out: 900
           max_parallel: 1
           timeout_in_minutes: 360
@@ -163,7 +157,7 @@ stages:
               scale_machine_count: 500
               machine_workers: 10
               use_batch_api: "true"
-              aks_http_custom_features: "DisableSelfContainedVHD"
+              aks_cli_custom_headers: "AKSHTTPCustomFeatures=DisableSelfContainedVHD"
               step_time_out: 2400
           max_parallel: 1
           timeout_in_minutes: 360
@@ -205,7 +199,7 @@ stages:
               scale_machine_count: 1000
               machine_workers: 20
               use_batch_api: "true"
-              aks_http_custom_features: "DisableSelfContainedVHD"
+              aks_cli_custom_headers: "AKSHTTPCustomFeatures=DisableSelfContainedVHD"
               step_time_out: 3600
           max_parallel: 1
           timeout_in_minutes: 360

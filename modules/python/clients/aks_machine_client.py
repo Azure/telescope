@@ -27,15 +27,9 @@ import requests
 from requests.adapters import HTTPAdapter
 
 from clients.aks_client import AKSClient
-from clients.aks_machine_client_helpers import (
-    build_readiness_envelope,
-    build_custom_feature_headers,
-    get_machine_failure_detail,
-    get_machine_name_prefix,
-    is_scriptless_enabled,
-)
 from utils.logger_config import get_logger, setup_logging
 
+# Configure logging.
 setup_logging()
 logger = get_logger(__name__)
 # Suppress noisy Azure SDK logs.
@@ -150,7 +144,6 @@ class AKSMachineClient(AKSClient):
         url: str,
         data: Optional[Dict[str, Any]] = None,
         timeout: int = 30,
-        extra_headers: Optional[Dict[str, str]] = None,
     ) -> requests.Response:
         """Send an authenticated ARM REST request and return the raw Response.
 
@@ -166,8 +159,6 @@ class AKSMachineClient(AKSClient):
             "Authorization": f"Bearer {self._get_access_token()}",
             "Content-Type": "application/json",
         }
-        if extra_headers:
-            headers.update(extra_headers)
         return self._session.request(
             method, url, headers=headers, json=data, timeout=timeout
         )
@@ -380,9 +371,7 @@ class AKSMachineClient(AKSClient):
                 raise MachineProvisioningFailed(
                     agent_pool_name=agent_pool_name,
                     failed_machines=failed_machines_result,
-                    readiness_envelope=build_readiness_envelope(
-                        targets, readiness_times
-                    ),
+                    readiness_envelope=self._build_readiness_envelope(targets, readiness_times),
                 )
             now_elapsed = time.time() - start
             for p, target in targets.items():
@@ -405,7 +394,7 @@ class AKSMachineClient(AKSClient):
                 sleep_seconds = max(0.0, next_wake_at - now)
                 if sleep_seconds > 0:
                     time.sleep(sleep_seconds)
-        result = build_readiness_envelope(targets, readiness_times)
+        result = self._build_readiness_envelope(targets, readiness_times)
         if not readiness_times:
             logger.warning(
                 f"No percentile target met within {timeout}s for agentpool {agent_pool_name}"
@@ -439,6 +428,22 @@ class AKSMachineClient(AKSClient):
         logger.info(f"Percentile node readiness data: {json.dumps(result, indent=2)}")
         return result
 
+    @staticmethod
+    def _build_readiness_envelope(
+        targets: Dict[int, int],
+        readiness_times: Dict[int, float],
+    ) -> Dict[str, Dict[str, Any]]:
+        """Build the upload-safe readiness metadata envelope."""
+        return {
+            f"P{p}": {
+                "target_nodes": targets[p],
+                "elapsed_time_seconds": readiness_times.get(p),
+                "percentage": p,
+                "success": p in readiness_times,
+            }
+            for p in (50, 70, 90, 99, 100)
+        }
+
     def _get_ready_node_count(self, label_selector: str) -> int:
         """Return Ready node count for the pool, treating transient list failures as 0."""
         try:
@@ -459,7 +464,6 @@ class AKSMachineClient(AKSClient):
         machine_workers: int = 1,
         timeout: int = 600,
         readiness_wait_timeout: int = 1200,
-        aks_http_custom_features: Optional[str] = None,
         tags: Optional[Dict[str, str]] = None,  # pylint: disable=unused-argument
     ) -> None:
         """Scale a Machine-mode agentpool by creating ``scale_machine_count`` machines.
@@ -500,7 +504,6 @@ class AKSMachineClient(AKSClient):
             "use_batch_api": use_batch_api,
             "machine_workers": machine_workers,
         }
-        headers = build_custom_feature_headers(aks_http_custom_features)
         # Bundle into a SimpleNamespace so the helpers retain the
         # ``request.foo`` shape without exposing yet another module-level data class.
         request = SimpleNamespace(
@@ -513,21 +516,11 @@ class AKSMachineClient(AKSClient):
             machine_workers=machine_workers,
             timeout=timeout,
             readiness_wait_timeout=readiness_wait_timeout,
-            aks_http_custom_features=aks_http_custom_features,
         )
         with self._get_operation_context()(
             "scale_machine", "azure", metadata, result_dir=self.result_dir
         ) as op:
             try:
-                op.add_metadata(
-                    "scriptlessEnabled",
-                    is_scriptless_enabled(aks_http_custom_features),
-                )
-                if headers:
-                    op.add_metadata(
-                        "aks_http_custom_features",
-                        headers["AKSHTTPCustomFeatures"],
-                    )
                 # Snapshot baseline BEFORE any PUTs so the readiness watcher
                 # counts only NEW nodes.
                 baseline_count = 0
@@ -545,7 +538,7 @@ class AKSMachineClient(AKSClient):
                         "baseline node snapshot failed; readiness count may be inflated"
                     )
 
-                prefix = get_machine_name_prefix(scale_machine_count)
+                prefix = self._get_machine_name_prefix(scale_machine_count)
                 names = [
                     f"{prefix}-machine-{i + 1}" for i in range(scale_machine_count)
                 ]
@@ -619,6 +612,21 @@ class AKSMachineClient(AKSClient):
                 logger.error(f"Failed to scale machine agentpool {agent_pool_name}: {e}")
                 raise
 
+    @staticmethod
+    def _get_machine_name_prefix(scale_machine_count: int) -> str:
+        """Generate the machine-name prefix for a given scale count.
+
+        The prefix is part of the machine ARM resource name; cross-repo Kusto
+        dashboards key on machine name, so this scheme is kept stable.
+
+        - ``scale1000`` -> ``scale1k`` (any multiple of 1000 >= 1000 collapses)
+        - ``scale500``  -> ``scale500``
+        - ``scale1``    -> ``scale1``
+        """
+        if scale_machine_count >= 1000 and scale_machine_count % 1000 == 0:
+            return f"scale{scale_machine_count // 1000}k"
+        return f"scale{scale_machine_count}"
+
     def _scale_machine_individually(
         self, request: SimpleNamespace, names: List[str],
     ) -> List[str]:
@@ -671,15 +679,7 @@ class AKSMachineClient(AKSClient):
             f"?api-version={_MACHINE_API_VERSION}"
         )
         body: Dict[str, Any] = {"properties": {"hardware": {"vmSize": request.vm_size}}}
-        resp = self.make_request(
-            "PUT",
-            url,
-            data=body,
-            timeout=request.timeout,
-            extra_headers=build_custom_feature_headers(
-                getattr(request, "aks_http_custom_features", None)
-            ),
-        )
+        resp = self.make_request("PUT", url, data=body, timeout=request.timeout)
         if resp.status_code not in (200, 201, 202):
             logger.error(f"PUT machine {name} -> {resp.status_code} {resp.text[:500]}")
             return False
@@ -758,9 +758,25 @@ class AKSMachineClient(AKSClient):
             name for name, state in states.items() if state in _MACHINE_FAILURE_STATES
         ]
         return [
-            get_machine_failure_detail(machines_by_name[name])
+            self._get_machine_failure_detail(machines_by_name[name])
             for name in sorted(failed_names)[:_MACHINE_FAILURE_DETAIL_LIMIT]
         ]
+
+    @staticmethod
+    def _get_machine_failure_detail(machine: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract compact failure details from a Machine resource."""
+        properties = machine.get("properties", {})
+        status = properties.get("status", {})
+        provisioning_error = status.get("provisioningError") or {}
+        message = provisioning_error.get("message")
+        if isinstance(message, str):
+            message = message[:300]
+        return {
+            "name": machine.get("name"),
+            "provisioningState": properties.get("provisioningState"),
+            "error_code": provisioning_error.get("code"),
+            "error_message": message,
+        }
 
     # ---- Machine API: batch scale path ----
     def _scale_machine_batch(
@@ -895,9 +911,6 @@ class AKSMachineClient(AKSClient):
             body,
             put_timeout,
             batch_header_value=batch_header_value,
-            aks_http_custom_features=getattr(
-                request, "aks_http_custom_features", None
-            ),
             chunk_idx=chunk_idx,
             first_machine_name=first_machine_name,
         )
@@ -910,7 +923,6 @@ class AKSMachineClient(AKSClient):
         data: Dict[str, Any],
         timeout: int,
         batch_header_value: str,
-        aks_http_custom_features: Optional[str] = None,
         chunk_idx: Optional[int] = None,
         first_machine_name: Optional[str] = None,
     ) -> None:
@@ -927,7 +939,9 @@ class AKSMachineClient(AKSClient):
         # Compact prefix so every error/log line is self-identifying in Kusto
         # (chunk_idx + first machine name pinpoint the failing slice without
         # cross-referencing the per-worker log).
-        ctx = f"chunk={chunk_idx} target={first_machine_name} {method} {url}"
+        ctx = (
+            f"chunk={chunk_idx} target={first_machine_name} {method} {url}"
+        )
         backoff = _BATCH_429_INITIAL_BACKOFF_SECONDS
         last_resp: Optional[requests.Response] = None
         for attempt in range(_BATCH_429_MAX_RETRIES):
@@ -936,13 +950,13 @@ class AKSMachineClient(AKSClient):
                 "Content-Type": "application/json",
                 "BatchPutMachine": batch_header_value,
             }
-            headers.update(build_custom_feature_headers(aks_http_custom_features))
             # Use the client's shared Session so this batch path reuses the
             # same pooled TCP/TLS connections (and adapters/proxies) as the
             # individual ``make_request`` path; avoids per-PUT handshakes
             # during large scales.
             resp = self._session.request(
-                method, url, headers=headers, json=data, timeout=timeout)
+                method, url, headers=headers, json=data, timeout=timeout,
+            )
             last_resp = resp
             if resp.status_code in (200, 201, 202, 204):
                 return
