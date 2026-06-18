@@ -21,7 +21,7 @@ network_config_list = [
       }
     ]
     nat_gateway_associations = [{
-      nat_gateway_name = "crud-c2n5kp5k-nat-gateway"
+      nat_gateway_name = "crud-nat-gateway"
       subnet_names     = ["crud-subnet"]
       public_ip_names  = ["crud-nat-gateway-pip-1", "crud-nat-gateway-pip-2", "crud-nat-gateway-pip-3", "crud-nat-gateway-pip-4", "crud-nat-gateway-pip-5"]
     }]
