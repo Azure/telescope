@@ -27,9 +27,9 @@ import requests
 from requests.adapters import HTTPAdapter
 
 from clients.aks_client import AKSClient
+from clients.aks_machine_custom_features import custom_feature_headers, scriptless_enabled_value
 from utils.logger_config import get_logger, setup_logging
 
-# Configure logging.
 setup_logging()
 logger = get_logger(__name__)
 # Suppress noisy Azure SDK logs.
@@ -64,7 +64,6 @@ _MACHINE_FAILURE_DETAIL_LIMIT = 10
 _LIST_MACHINES_MAX_PAGES = 50
 _MACHINE_FAILURE_CHECK_INTERVAL_SECONDS = 30
 _NODE_READINESS_POLL_INTERVAL_SECONDS = 2
-_DISABLE_SELF_CONTAINED_VHD_FEATURE = "DisableSelfContainedVHD"
 # urllib3's default ``HTTPAdapter`` (mounted implicitly by ``requests.Session``)
 # caps each host's connection pool at ``pool_maxsize=10``. The parallel scale
 # paths fan out far beyond that (up to ``machine_workers`` concurrent PUTs
@@ -166,34 +165,6 @@ class AKSMachineClient(AKSClient):
         return self._session.request(
             method, url, headers=headers, json=data, timeout=timeout
         )
-
-    @staticmethod
-    def _custom_feature_headers(
-        aks_http_custom_features: Optional[str],
-    ) -> Dict[str, str]:
-        """Build optional AKS custom feature headers for Machine PUT requests."""
-        if not aks_http_custom_features:
-            return {}
-        value = aks_http_custom_features.strip()
-        if not value:
-            return {}
-        return {"AKSHTTPCustomFeatures": value}
-
-    @staticmethod
-    def _scriptless_enabled_value(
-        aks_http_custom_features: Optional[str],
-    ) -> str:
-        """Return run metadata value for scriptless bootstrap enablement."""
-        if not aks_http_custom_features:
-            return "yes"
-        features = {
-            feature.strip()
-            for feature in aks_http_custom_features.split(",")
-            if feature.strip()
-        }
-        if _DISABLE_SELF_CONTAINED_VHD_FEATURE in features:
-            return "no"
-        return "yes"
 
     # ---- Machine API: agent pool provisioning ----
     def create_machine_agentpool(
@@ -536,15 +507,11 @@ class AKSMachineClient(AKSClient):
             "scale_machine_count": scale_machine_count,
             "use_batch_api": use_batch_api,
             "machine_workers": machine_workers,
-            "scriptlessEnabled": self._scriptless_enabled_value(
-                aks_http_custom_features
-            ),
+            "scriptlessEnabled": scriptless_enabled_value(aks_http_custom_features),
         }
-        custom_feature_headers = self._custom_feature_headers(aks_http_custom_features)
-        if custom_feature_headers:
-            metadata["aks_http_custom_features"] = custom_feature_headers[
-                "AKSHTTPCustomFeatures"
-            ]
+        headers = custom_feature_headers(aks_http_custom_features)
+        if headers:
+            metadata["aks_http_custom_features"] = headers["AKSHTTPCustomFeatures"]
         # Bundle into a SimpleNamespace so the helpers retain the
         # ``request.foo`` shape without exposing yet another module-level data class.
         request = SimpleNamespace(
@@ -726,7 +693,7 @@ class AKSMachineClient(AKSClient):
             url,
             data=body,
             timeout=request.timeout,
-            extra_headers=self._custom_feature_headers(
+            extra_headers=custom_feature_headers(
                 getattr(request, "aks_http_custom_features", None)
             ),
         )
@@ -993,9 +960,7 @@ class AKSMachineClient(AKSClient):
         # Compact prefix so every error/log line is self-identifying in Kusto
         # (chunk_idx + first machine name pinpoint the failing slice without
         # cross-referencing the per-worker log).
-        ctx = (
-            f"chunk={chunk_idx} target={first_machine_name} {method} {url}"
-        )
+        ctx = f"chunk={chunk_idx} target={first_machine_name} {method} {url}"
         backoff = _BATCH_429_INITIAL_BACKOFF_SECONDS
         last_resp: Optional[requests.Response] = None
         for attempt in range(_BATCH_429_MAX_RETRIES):
@@ -1004,14 +969,13 @@ class AKSMachineClient(AKSClient):
                 "Content-Type": "application/json",
                 "BatchPutMachine": batch_header_value,
             }
-            headers.update(self._custom_feature_headers(aks_http_custom_features))
+            headers.update(custom_feature_headers(aks_http_custom_features))
             # Use the client's shared Session so this batch path reuses the
             # same pooled TCP/TLS connections (and adapters/proxies) as the
             # individual ``make_request`` path; avoids per-PUT handshakes
             # during large scales.
             resp = self._session.request(
-                method, url, headers=headers, json=data, timeout=timeout,
-            )
+                method, url, headers=headers, json=data, timeout=timeout)
             last_resp = resp
             if resp.status_code in (200, 201, 202, 204):
                 return
