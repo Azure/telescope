@@ -4,10 +4,10 @@ import unittest
 
 from clients.aks_machine_client_helpers import (
     build_readiness_envelope,
-    custom_feature_headers,
+    build_custom_feature_headers,
+    get_machine_failure_detail,
+    get_machine_name_prefix,
     is_scriptless_enabled,
-    machine_failure_detail,
-    machine_name_prefix,
 )
 
 
@@ -42,11 +42,13 @@ class TestAKSMachineClientHelpers(unittest.TestCase):
             is_scriptless_enabled("SomeOtherFeature;DisableSelfContainedVHD")
         )
 
-    def test_custom_feature_headers_pass_through_comma_delimited_list(self):
+    def test_build_custom_feature_headers_passes_through_comma_delimited_list(self):
         """Custom feature header uses the caller-provided comma-delimited string."""
-        self.assertEqual(custom_feature_headers(None), {})
+        self.assertEqual(build_custom_feature_headers(None), {})
         self.assertEqual(
-            custom_feature_headers("SomeOtherFeature, DisableSelfContainedVHD"),
+            build_custom_feature_headers(
+                "SomeOtherFeature, DisableSelfContainedVHD"
+            ),
             {
                 "AKSHTTPCustomFeatures": (
                     "SomeOtherFeature, DisableSelfContainedVHD"
@@ -54,7 +56,9 @@ class TestAKSMachineClientHelpers(unittest.TestCase):
             },
         )
         self.assertEqual(
-            custom_feature_headers("  SomeOtherFeature, DisableSelfContainedVHD  "),
+            build_custom_feature_headers(
+                "  SomeOtherFeature, DisableSelfContainedVHD  "
+            ),
             {
                 "AKSHTTPCustomFeatures": (
                     "SomeOtherFeature, DisableSelfContainedVHD"
@@ -62,9 +66,9 @@ class TestAKSMachineClientHelpers(unittest.TestCase):
             },
         )
 
-    def test_machine_failure_detail_extracts_compact_error(self):
+    def test_get_machine_failure_detail_extracts_compact_error(self):
         """Machine failure details include a truncated error message."""
-        detail = machine_failure_detail({
+        detail = get_machine_failure_detail({
             "name": "scale2-machine-1",
             "properties": {
                 "provisioningState": "Failed",
@@ -83,19 +87,19 @@ class TestAKSMachineClientHelpers(unittest.TestCase):
         )
         self.assertEqual(detail["error_message"], "x" * 300)
 
-    def test_machine_name_prefix_small(self):
+    def test_get_machine_name_prefix_small(self):
         """Counts < 1000 emit literal scale<N>."""
-        self.assertEqual(machine_name_prefix(1), "scale1")
-        self.assertEqual(machine_name_prefix(500), "scale500")
+        self.assertEqual(get_machine_name_prefix(1), "scale1")
+        self.assertEqual(get_machine_name_prefix(500), "scale500")
 
-    def test_machine_name_prefix_thousand_multiples(self):
+    def test_get_machine_name_prefix_thousand_multiples(self):
         """Multiples of 1000 collapse to scale<N>k for stable Kusto keys."""
-        self.assertEqual(machine_name_prefix(1000), "scale1k")
-        self.assertEqual(machine_name_prefix(2000), "scale2k")
+        self.assertEqual(get_machine_name_prefix(1000), "scale1k")
+        self.assertEqual(get_machine_name_prefix(2000), "scale2k")
 
-    def test_machine_name_prefix_non_multiple_thousand(self):
+    def test_get_machine_name_prefix_non_multiple_thousand(self):
         """Non-multiple-of-1000 counts >= 1000 stay literal."""
-        self.assertEqual(machine_name_prefix(1500), "scale1500")
+        self.assertEqual(get_machine_name_prefix(1500), "scale1500")
 
 
 if __name__ == "__main__":

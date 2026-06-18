@@ -29,10 +29,10 @@ from requests.adapters import HTTPAdapter
 from clients.aks_client import AKSClient
 from clients.aks_machine_client_helpers import (
     build_readiness_envelope,
-    custom_feature_headers,
+    build_custom_feature_headers,
+    get_machine_failure_detail,
+    get_machine_name_prefix,
     is_scriptless_enabled,
-    machine_failure_detail,
-    machine_name_prefix,
 )
 from utils.logger_config import get_logger, setup_logging
 
@@ -501,7 +501,7 @@ class AKSMachineClient(AKSClient):
             "machine_workers": machine_workers,
             "scriptlessEnabled": is_scriptless_enabled(aks_http_custom_features),
         }
-        headers = custom_feature_headers(aks_http_custom_features)
+        headers = build_custom_feature_headers(aks_http_custom_features)
         if headers:
             metadata["aks_http_custom_features"] = headers["AKSHTTPCustomFeatures"]
         # Bundle into a SimpleNamespace so the helpers retain the
@@ -539,7 +539,7 @@ class AKSMachineClient(AKSClient):
                         "baseline node snapshot failed; readiness count may be inflated"
                     )
 
-                prefix = machine_name_prefix(scale_machine_count)
+                prefix = get_machine_name_prefix(scale_machine_count)
                 names = [
                     f"{prefix}-machine-{i + 1}" for i in range(scale_machine_count)
                 ]
@@ -670,7 +670,7 @@ class AKSMachineClient(AKSClient):
             url,
             data=body,
             timeout=request.timeout,
-            extra_headers=custom_feature_headers(
+            extra_headers=build_custom_feature_headers(
                 getattr(request, "aks_http_custom_features", None)
             ),
         )
@@ -752,7 +752,7 @@ class AKSMachineClient(AKSClient):
             name for name, state in states.items() if state in _MACHINE_FAILURE_STATES
         ]
         return [
-            machine_failure_detail(machines_by_name[name])
+            get_machine_failure_detail(machines_by_name[name])
             for name in sorted(failed_names)[:_MACHINE_FAILURE_DETAIL_LIMIT]
         ]
 
@@ -930,7 +930,7 @@ class AKSMachineClient(AKSClient):
                 "Content-Type": "application/json",
                 "BatchPutMachine": batch_header_value,
             }
-            headers.update(custom_feature_headers(aks_http_custom_features))
+            headers.update(build_custom_feature_headers(aks_http_custom_features))
             # Use the client's shared Session so this batch path reuses the
             # same pooled TCP/TLS connections (and adapters/proxies) as the
             # individual ``make_request`` path; avoids per-PUT handshakes

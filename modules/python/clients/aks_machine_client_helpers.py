@@ -21,7 +21,7 @@ def build_readiness_envelope(
     }
 
 
-def custom_feature_headers(
+def build_custom_feature_headers(
     aks_http_custom_features: Optional[str],
 ) -> Dict[str, str]:
     """Build optional AKS custom feature headers for Machine PUT requests."""
@@ -33,7 +33,7 @@ def custom_feature_headers(
     return {_CUSTOM_FEATURE_HEADER: value}
 
 
-def machine_failure_detail(machine: Dict[str, Any]) -> Dict[str, Any]:
+def get_machine_failure_detail(machine: Dict[str, Any]) -> Dict[str, Any]:
     """Extract compact failure details from a Machine resource."""
     properties = machine.get("properties", {})
     status = properties.get("status", {})
@@ -49,7 +49,7 @@ def machine_failure_detail(machine: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def machine_name_prefix(scale_machine_count: int) -> str:
+def get_machine_name_prefix(scale_machine_count: int) -> str:
     """Generate the stable machine-name prefix for a given scale count."""
     if scale_machine_count >= 1000 and scale_machine_count % 1000 == 0:
         return f"scale{scale_machine_count // 1000}k"
