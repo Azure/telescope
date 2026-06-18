@@ -132,22 +132,6 @@ class TestAKSMachineClient(unittest.TestCase):
                 agent_pool_name="apool", vm_size="Standard_D2_v3"
             )
 
-    # ---- _get_machine_name_prefix ----
-
-    def test_get_machine_name_prefix_small(self):
-        """Counts < 1000 emit literal scale<N>."""
-        self.assertEqual(AKSMachineClient._get_machine_name_prefix(1), "scale1")
-        self.assertEqual(AKSMachineClient._get_machine_name_prefix(500), "scale500")
-
-    def test_get_machine_name_prefix_thousand_multiples(self):
-        """Multiples of 1000 collapse to scale<N>k for stable Kusto keys."""
-        self.assertEqual(AKSMachineClient._get_machine_name_prefix(1000), "scale1k")
-        self.assertEqual(AKSMachineClient._get_machine_name_prefix(2000), "scale2k")
-
-    def test_get_machine_name_prefix_non_multiple_thousand(self):
-        """Non-multiple-of-1000 counts >= 1000 stay literal."""
-        self.assertEqual(AKSMachineClient._get_machine_name_prefix(1500), "scale1500")
-
     # ---- scale_machine: non-batch path ----
 
     @mock.patch.object(AKSMachineClient, "_wait_for_machine_node_readiness")

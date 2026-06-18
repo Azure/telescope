@@ -27,7 +27,13 @@ import requests
 from requests.adapters import HTTPAdapter
 
 from clients.aks_client import AKSClient
-from clients.aks_machine_custom_features import custom_feature_headers, scriptless_enabled_value
+from clients.aks_machine_client_helpers import (
+    build_readiness_envelope,
+    custom_feature_headers,
+    machine_failure_detail,
+    machine_name_prefix,
+    scriptless_enabled_value,
+)
 from utils.logger_config import get_logger, setup_logging
 
 setup_logging()
@@ -374,7 +380,9 @@ class AKSMachineClient(AKSClient):
                 raise MachineProvisioningFailed(
                     agent_pool_name=agent_pool_name,
                     failed_machines=failed_machines_result,
-                    readiness_envelope=self._build_readiness_envelope(targets, readiness_times),
+                    readiness_envelope=build_readiness_envelope(
+                        targets, readiness_times
+                    ),
                 )
             now_elapsed = time.time() - start
             for p, target in targets.items():
@@ -397,7 +405,7 @@ class AKSMachineClient(AKSClient):
                 sleep_seconds = max(0.0, next_wake_at - now)
                 if sleep_seconds > 0:
                     time.sleep(sleep_seconds)
-        result = self._build_readiness_envelope(targets, readiness_times)
+        result = build_readiness_envelope(targets, readiness_times)
         if not readiness_times:
             logger.warning(
                 f"No percentile target met within {timeout}s for agentpool {agent_pool_name}"
@@ -430,22 +438,6 @@ class AKSMachineClient(AKSClient):
             )
         logger.info(f"Percentile node readiness data: {json.dumps(result, indent=2)}")
         return result
-
-    @staticmethod
-    def _build_readiness_envelope(
-        targets: Dict[int, int],
-        readiness_times: Dict[int, float],
-    ) -> Dict[str, Dict[str, Any]]:
-        """Build the upload-safe readiness metadata envelope."""
-        return {
-            f"P{p}": {
-                "target_nodes": targets[p],
-                "elapsed_time_seconds": readiness_times.get(p),
-                "percentage": p,
-                "success": p in readiness_times,
-            }
-            for p in (50, 70, 90, 99, 100)
-        }
 
     def _get_ready_node_count(self, label_selector: str) -> int:
         """Return Ready node count for the pool, treating transient list failures as 0."""
@@ -547,7 +539,7 @@ class AKSMachineClient(AKSClient):
                         "baseline node snapshot failed; readiness count may be inflated"
                     )
 
-                prefix = self._get_machine_name_prefix(scale_machine_count)
+                prefix = machine_name_prefix(scale_machine_count)
                 names = [
                     f"{prefix}-machine-{i + 1}" for i in range(scale_machine_count)
                 ]
@@ -620,21 +612,6 @@ class AKSMachineClient(AKSClient):
             except Exception as e:
                 logger.error(f"Failed to scale machine agentpool {agent_pool_name}: {e}")
                 raise
-
-    @staticmethod
-    def _get_machine_name_prefix(scale_machine_count: int) -> str:
-        """Generate the machine-name prefix for a given scale count.
-
-        The prefix is part of the machine ARM resource name; cross-repo Kusto
-        dashboards key on machine name, so this scheme is kept stable.
-
-        - ``scale1000`` -> ``scale1k`` (any multiple of 1000 >= 1000 collapses)
-        - ``scale500``  -> ``scale500``
-        - ``scale1``    -> ``scale1``
-        """
-        if scale_machine_count >= 1000 and scale_machine_count % 1000 == 0:
-            return f"scale{scale_machine_count // 1000}k"
-        return f"scale{scale_machine_count}"
 
     def _scale_machine_individually(
         self, request: SimpleNamespace, names: List[str],
@@ -775,25 +752,9 @@ class AKSMachineClient(AKSClient):
             name for name, state in states.items() if state in _MACHINE_FAILURE_STATES
         ]
         return [
-            self._get_machine_failure_detail(machines_by_name[name])
+            machine_failure_detail(machines_by_name[name])
             for name in sorted(failed_names)[:_MACHINE_FAILURE_DETAIL_LIMIT]
         ]
-
-    @staticmethod
-    def _get_machine_failure_detail(machine: Dict[str, Any]) -> Dict[str, Any]:
-        """Extract compact failure details from a Machine resource."""
-        properties = machine.get("properties", {})
-        status = properties.get("status", {})
-        provisioning_error = status.get("provisioningError") or {}
-        message = provisioning_error.get("message")
-        if isinstance(message, str):
-            message = message[:300]
-        return {
-            "name": machine.get("name"),
-            "provisioningState": properties.get("provisioningState"),
-            "error_code": provisioning_error.get("code"),
-            "error_message": message,
-        }
 
     # ---- Machine API: batch scale path ----
     def _scale_machine_batch(
