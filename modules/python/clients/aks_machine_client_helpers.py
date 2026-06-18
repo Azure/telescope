@@ -56,17 +56,15 @@ def machine_name_prefix(scale_machine_count: int) -> str:
     return f"scale{scale_machine_count}"
 
 
-def scriptless_enabled_value(
+def is_scriptless_enabled(
     aks_http_custom_features: Optional[str],
-) -> str:
-    """Return run metadata value for scriptless bootstrap enablement."""
+) -> bool:
+    """Return whether scriptless bootstrap is enabled for the run."""
     if not aks_http_custom_features:
-        return "yes"
+        return True
     features = {
         feature.strip()
         for feature in aks_http_custom_features.split(",")
         if feature.strip()
     }
-    if _DISABLE_SELF_CONTAINED_VHD_FEATURE in features:
-        return "no"
-    return "yes"
+    return _DISABLE_SELF_CONTAINED_VHD_FEATURE not in features

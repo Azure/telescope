@@ -30,9 +30,9 @@ from clients.aks_client import AKSClient
 from clients.aks_machine_client_helpers import (
     build_readiness_envelope,
     custom_feature_headers,
+    is_scriptless_enabled,
     machine_failure_detail,
     machine_name_prefix,
-    scriptless_enabled_value,
 )
 from utils.logger_config import get_logger, setup_logging
 
@@ -499,7 +499,7 @@ class AKSMachineClient(AKSClient):
             "scale_machine_count": scale_machine_count,
             "use_batch_api": use_batch_api,
             "machine_workers": machine_workers,
-            "scriptlessEnabled": scriptless_enabled_value(aks_http_custom_features),
+            "scriptlessEnabled": is_scriptless_enabled(aks_http_custom_features),
         }
         headers = custom_feature_headers(aks_http_custom_features)
         if headers:

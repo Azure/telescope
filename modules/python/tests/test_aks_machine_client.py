@@ -170,7 +170,7 @@ class TestAKSMachineClient(unittest.TestCase):
         self.assertIn("node_readiness_time", metadata_keys)
         self.assertIn("cluster_info", metadata_keys)
         operation_metadata = self.mock_operation_context.call_args.args[2]
-        self.assertEqual(operation_metadata["scriptlessEnabled"], "yes")
+        self.assertTrue(operation_metadata["scriptlessEnabled"])
 
     @mock.patch.object(AKSMachineClient, "_wait_for_machine_node_readiness")
     @mock.patch.object(AKSMachineClient, "_wait_for_agentpool_provisioning",
@@ -179,7 +179,7 @@ class TestAKSMachineClient(unittest.TestCase):
     def test_scale_machine_records_scriptless_disabled_metadata(
         self, _mock_create, _mock_wait_ap, mock_wait_ready
     ):
-        """DisableSelfContainedVHD records scriptlessEnabled=no in operation metadata."""
+        """DisableSelfContainedVHD records scriptlessEnabled=false in metadata."""
         mock_wait_ready.return_value = {
             f"P{p}": {
                 "target_nodes": 1,
@@ -199,7 +199,7 @@ class TestAKSMachineClient(unittest.TestCase):
         )
 
         operation_metadata = self.mock_operation_context.call_args.args[2]
-        self.assertEqual(operation_metadata["scriptlessEnabled"], "no")
+        self.assertFalse(operation_metadata["scriptlessEnabled"])
         self.assertEqual(
             operation_metadata["aks_http_custom_features"],
             "SomeOtherFeature, DisableSelfContainedVHD",

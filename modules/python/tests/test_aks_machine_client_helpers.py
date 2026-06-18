@@ -5,9 +5,9 @@ import unittest
 from clients.aks_machine_client_helpers import (
     build_readiness_envelope,
     custom_feature_headers,
+    is_scriptless_enabled,
     machine_failure_detail,
     machine_name_prefix,
-    scriptless_enabled_value,
 )
 
 
@@ -27,22 +27,19 @@ class TestAKSMachineClientHelpers(unittest.TestCase):
         self.assertIsNone(envelope["P100"]["elapsed_time_seconds"])
         self.assertFalse(envelope["P100"]["success"])
 
-    def test_scriptless_enabled_value_from_custom_features(self):
+    def test_is_scriptless_enabled_from_custom_features(self):
         """DisableSelfContainedVHD marks the run as not scriptless-enabled."""
-        self.assertEqual(scriptless_enabled_value(None), "yes")
-        self.assertEqual(scriptless_enabled_value(""), "yes")
-        self.assertEqual(scriptless_enabled_value("SomeOtherFeature"), "yes")
-        self.assertEqual(
-            scriptless_enabled_value("SomeOtherFeature, DisableSelfContainedVHD"),
-            "no",
+        self.assertTrue(is_scriptless_enabled(None))
+        self.assertTrue(is_scriptless_enabled(""))
+        self.assertTrue(is_scriptless_enabled("SomeOtherFeature"))
+        self.assertFalse(
+            is_scriptless_enabled("SomeOtherFeature, DisableSelfContainedVHD")
         )
-        self.assertEqual(
-            scriptless_enabled_value("SomeOtherFeature DisableSelfContainedVHD"),
-            "yes",
+        self.assertTrue(
+            is_scriptless_enabled("SomeOtherFeature DisableSelfContainedVHD")
         )
-        self.assertEqual(
-            scriptless_enabled_value("SomeOtherFeature;DisableSelfContainedVHD"),
-            "yes",
+        self.assertTrue(
+            is_scriptless_enabled("SomeOtherFeature;DisableSelfContainedVHD")
         )
 
     def test_custom_feature_headers_pass_through_comma_delimited_list(self):

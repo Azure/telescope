@@ -25,10 +25,10 @@ steps:
         }')
     fi
 
-    scriptless_enabled="yes"
+    is_scriptless_enabled="true"
     disable_scriptless_pattern='(^|,)[[:space:]]*DisableSelfContainedVHD[[:space:]]*(,|$)'
     if echo "${AKS_HTTP_CUSTOM_FEATURES:-}" | grep -Eq "$disable_scriptless_pattern"; then
-      scriptless_enabled="no"
+      is_scriptless_enabled="false"
     fi
 
     telescope_metadata=$(jq -n \
@@ -53,11 +53,11 @@ steps:
       --arg cron_schedule_display_name "$BUILD_CRONSCHEDULE_DISPLAYNAME" \
       --arg project_name "$(System.TeamProject)" \
       --arg byo_resources "$SKIP_RESOURCE_MANAGEMENT" \
-      --arg scriptless_enabled "$scriptless_enabled" \
+      --argjson is_scriptless_enabled "$is_scriptless_enabled" \
       '{
           run_id: $run_id,
           timestamp: $timestamp,
-          scriptlessEnabled: $scriptless_enabled,
+          scriptlessEnabled: $is_scriptless_enabled,
           pipeline_info: {
             run_url: $run_url,
             reason: $reason,
