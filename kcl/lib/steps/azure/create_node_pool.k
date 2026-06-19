@@ -11,6 +11,10 @@ schema NodePool:
     maxPods?: int
     vnetSubnetId?: str
     osSKU?: str
+    # runtime selects the pod runtime for this pool. "kata" enables AKS Kata
+    # Confidential Containers (Hyper-V isolation); requires a nested-virt SKU
+    # (e.g. Standard_D8S_v5). Leave unset for the default runc runtime.
+    runtime?: str
 
 CreateNodePool = lambda serviceConnection: str, cluster: str, resourceGroup: str, subscription: str, pool: NodePool, noWait: bool = False -> steps.Step {
     flagDecision = [
@@ -19,6 +23,7 @@ CreateNodePool = lambda serviceConnection: str, cluster: str, resourceGroup: str
         "--max-pods ${pool.maxPods}" if pool.maxPods else "",
         "--vnet-subnet-id \"${pool.vnetSubnetId}\"" if pool.vnetSubnetId else "",
         "--os-sku ${pool.osSKU}" if pool.osSKU else "",
+        "--workload-runtime KataMshvAccVmIsolation" if pool.runtime == "kata" else "",
         "--no-wait" if noWait else "",
     ]
     flags = " \\\n  ".join([f for f in flagDecision if f])
