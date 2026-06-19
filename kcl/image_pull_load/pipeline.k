@@ -39,6 +39,10 @@ MAX_NODE_COUNT = 1000
 # node_count * SKU cores (e.g. 1000 x Standard_D4s_v3 = 4000 vCPUs).
 PULL_POOL_NODE_COUNT = "\${{ parameters.node_count }}"
 
+# Concurrent blob-download loops per puller pod. Total in-flight streams across
+# the fleet = node_count * concurrency. Queue-time pipeline parameter.
+CONCURRENCY = "\${{ parameters.concurrency }}"
+
 PULL_NAMESPACE = "image-pull-load"
 
 # Duration and image under test are queue-time pipeline parameters (see
@@ -174,6 +178,12 @@ output = ap.Pipeline {
             type = "number"
             default = 1000
         }
+        ap.Parameter {
+            name = "concurrency"
+            displayName = "Concurrent blob-download loops per puller pod"
+            type = "number"
+            default = 4
+        }
     ]
     jobs = [
         job.Job {
@@ -192,7 +202,7 @@ output = ap.Pipeline {
                 azure.AzCli(SERVICE_CONNECTION, "Create cluster", createClusterScript)
                 azure.AzCli(SERVICE_CONNECTION, "Create node pool ${PULL_POOL_NAME}", createPullPoolScript)
                 azure.GetCredentials(SERVICE_CONNECTION, CLUSTER, RESOURCE_GROUP, SUBSCRIPTION_ID)
-                k8s.RunImagePullLoad(SERVICE_CONNECTION, PULL_NAMESPACE, manifest="kcl/image_pull_load/image-pull-load.yaml", durationSeconds=LOAD_DURATION_SECONDS, images=PULL_IMAGE)
+                k8s.RunImagePullLoad(SERVICE_CONNECTION, PULL_NAMESPACE, manifest="kcl/image_pull_load/image-pull-load.yaml", durationSeconds=LOAD_DURATION_SECONDS, images=PULL_IMAGE, concurrency=CONCURRENCY)
                 k8s.CollectImagePullThroughput(SERVICE_CONNECTION, PULL_NAMESPACE, manifest="kcl/image_pull_load/image-pull-load.yaml", region=LOCATION, nodeCount=PULL_POOL_NODE_COUNT, durationSeconds=LOAD_DURATION_SECONDS)
                 azure.AzCli(SERVICE_CONNECTION, "Upload result to storage account", uploadResultScript)
                 azure.DeleteResourceGroup(SERVICE_CONNECTION, RESOURCE_GROUP, SUBSCRIPTION_ID)

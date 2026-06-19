@@ -16,14 +16,16 @@ import lib.steps.azure
 #
 # `images` is a space-separated list of fully-qualified image refs whose blobs are
 # pulled. It overrides the IMAGES env baked into the manifest, so the registry/
-# image under test can be set from the pipeline.
-RunImagePullLoad = lambda serviceConnection: str, namespace: str, manifest: str, durationSeconds: str, images: str -> steps.Step {
+# image under test can be set from the pipeline. `concurrency` overrides the
+# CONCURRENCY env (download loops per puller pod).
+RunImagePullLoad = lambda serviceConnection: str, namespace: str, manifest: str, durationSeconds: str, images: str, concurrency: str -> steps.Step {
     script = """
 kubectl create namespace "${namespace}" || true
 kubectl apply -f $(Pipeline.Workspace)/s/${manifest}
 
-# Set the image(s) under test from the pipeline (overrides the manifest default).
-kubectl --namespace="${namespace}" set env daemonset/image-pull-load IMAGES="${images}"
+# Set the image(s) under test and per-pod concurrency from the pipeline
+# (overrides the manifest defaults).
+kubectl --namespace="${namespace}" set env daemonset/image-pull-load IMAGES="${images}" CONCURRENCY="${concurrency}"
 
 # Wait for one puller pod per eligible node to be scheduled and running.
 kubectl --namespace="${namespace}" rollout status daemonset/image-pull-load --timeout=10m
