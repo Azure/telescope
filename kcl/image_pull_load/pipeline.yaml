@@ -2,6 +2,19 @@ name: Image Pull Load
 pool: Default
 trigger:
 - v2
+parameters:
+- name: location
+  displayName: Azure region for the AKS cluster + load
+  type: string
+  default: australiaeast
+- name: pull_image
+  displayName: Image(s) under test (space-separated, fully-qualified refs)
+  type: string
+  default: acrstampperftest.azurecr-test.io/test_10gb_4l_v1:latest
+- name: load_duration_seconds
+  displayName: Load duration (seconds)
+  type: number
+  default: 1800
 jobs:
 - job: imagePullLoad
   displayName: Image Pull Load
@@ -31,7 +44,7 @@ jobs:
         set -exo pipefail
 
         az account set --subscription "dfb63c8c-7c89-4ef8-af13-75c1d873c895"
-        az config set defaults.location="australiaeast"
+        az config set defaults.location="${{ parameters.location }}"
         az account show
     displayName: Login to Azure
   - task: AzureCLI@2
@@ -44,10 +57,10 @@ jobs:
 
         az group create \
           --name "$(RUN_ID)" \
-          --location "australiaeast" \
+          --location "${{ parameters.location }}" \
           --subscription "dfb63c8c-7c89-4ef8-af13-75c1d873c895" \
 
-    displayName: Create resource group in australiaeast (dfb63c8c-7c89-4ef8-af13-75c1d873c895)
+    displayName: Create resource group in ${{ parameters.location }} (dfb63c8c-7c89-4ef8-af13-75c1d873c895)
   - task: AzureCLI@2
     inputs:
       azureSubscription: ACR - Dev
@@ -60,7 +73,7 @@ jobs:
           --name "image-pull-load" \
           --resource-group "$(RUN_ID)" \
           --subscription "dfb63c8c-7c89-4ef8-af13-75c1d873c895" \
-          --location "australiaeast" \
+          --location "${{ parameters.location }}" \
           --kubernetes-version "1.35.0" \
           --dns-name-prefix "image-pull-load-dns" \
           --tier standard \
@@ -194,14 +207,14 @@ jobs:
         kubectl apply -f $(Pipeline.Workspace)/s/kcl/image_pull_load/image-pull-load.yaml
 
         # Set the image(s) under test from the pipeline (overrides the manifest default).
-        kubectl --namespace="image-pull-load" set env daemonset/image-pull-load IMAGES="acrstampperftest.azurecr-test.io/test_10gb_4l_v1:latest"
+        kubectl --namespace="image-pull-load" set env daemonset/image-pull-load IMAGES="${{ parameters.pull_image }}"
 
         # Wait for one puller pod per eligible node to be scheduled and running.
         kubectl --namespace="image-pull-load" rollout status daemonset/image-pull-load --timeout=10m
 
-        echo "Sustaining image-pull load for 1800s..."
+        echo "Sustaining image-pull load for ${{ parameters.load_duration_seconds }}s..."
         start=$(date +%s)
-        while [ $(( $(date +%s) - start )) -lt 1800 ]; do
+        while [ $(( $(date +%s) - start )) -lt ${{ parameters.load_duration_seconds }} ]; do
           ready=$(kubectl --namespace="image-pull-load" get daemonset image-pull-load -o jsonpath='{.status.numberReady}')
           desired=$(kubectl --namespace="image-pull-load" get daemonset image-pull-load -o jsonpath='{.status.desiredNumberScheduled}')
           echo "[$(date -u +%H:%M:%S)] pullers ready: $ready/$desired"
@@ -247,11 +260,11 @@ jobs:
             k = max(0, min(len(vals) - 1, round((p / 100) * (len(vals) - 1))))
             return round(vals[k], 2)
 
-        duration = 1800
+        duration = ${{ parameters.load_duration_seconds }}
         result = {
             "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "status": "succeeded" if mbps else "failure",
-            "region": "australiaeast",
+            "region": "${{ parameters.location }}",
             "puller_node_count": 1000,
             "load_duration_seconds": duration,
             "sample_count": len(mbps),

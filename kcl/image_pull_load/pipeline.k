@@ -15,7 +15,10 @@ SERVICE_CONNECTION = "ACR - Dev"
 POOL = "Default"
 SUBSCRIPTION_ID = "dfb63c8c-7c89-4ef8-af13-75c1d873c895"
 RESOURCE_GROUP = "$(RUN_ID)"
-LOCATION = "australiaeast"
+
+# Queue-time pipeline parameter (see `parameters` below). The escaped
+# ${{ parameters.location }} is emitted verbatim for ADO to resolve at compile time.
+LOCATION = "\${{ parameters.location }}"
 CLUSTER = "image-pull-load"
 
 # Dedicated pool(s) the pullers run on. The label/taint match the DaemonSet's
@@ -29,16 +32,22 @@ PULL_POOL_SKU = "Standard_D4s_v3"
 # nodes; PlanNodePools splits this into pools of at most MAX_NODES_PER_POOL.
 # NOTE: ensure regional vCPU quota covers PULL_POOL_NODE_COUNT * SKU cores
 # (e.g. 1000 x Standard_D4s_v3 = 4000 vCPUs).
+#
+# Unlike the other dials this is NOT a queue-time pipeline parameter: PlanNodePools
+# computes the node-pool topology (how many CreateNodePool steps to emit, and each
+# pool's count) at KCL generation time. ADO ${{ parameters }} resolve only after the
+# YAML is generated, so they cannot change the number of pools. Adjust here and
+# regenerate the YAML to change the puller count.
 PULL_POOL_NODE_COUNT = 1000
 MAX_NODES_PER_POOL = 800
 
 PULL_NAMESPACE = "image-pull-load"
-# Duration dial: how long to sustain the load (seconds). 1800 = 30 minutes.
-LOAD_DURATION_SECONDS = 1800
 
-# Image(s) under test. Space-separated, fully-qualified refs; list DISTINCT
-# tags/digests to raise per-node concurrency.
-PULL_IMAGE = "acrstampperftest.azurecr-test.io/test_10gb_4l_v1:latest"
+# Duration and image under test are queue-time pipeline parameters (see
+# `parameters` below); the escaped ${{ parameters.X }} is emitted verbatim for
+# ADO to resolve at compile time.
+LOAD_DURATION_SECONDS = "\${{ parameters.load_duration_seconds }}"
+PULL_IMAGE = "\${{ parameters.pull_image }}"
 
 # Result storage (ACR-team self-hosted Telescope v2 data infra, same sub as the
 # service connection). The run-result.json is ingested into the ADX `results`
@@ -87,6 +96,26 @@ output = ap.Pipeline {
     name = "Image Pull Load"
     trigger = ["v2"]
     pool = POOL
+    parameters = [
+        ap.Parameter {
+            name = "location"
+            displayName = "Azure region for the AKS cluster + load"
+            type = "string"
+            default = "australiaeast"
+        }
+        ap.Parameter {
+            name = "pull_image"
+            displayName = "Image(s) under test (space-separated, fully-qualified refs)"
+            type = "string"
+            default = "acrstampperftest.azurecr-test.io/test_10gb_4l_v1:latest"
+        }
+        ap.Parameter {
+            name = "load_duration_seconds"
+            displayName = "Load duration (seconds)"
+            type = "number"
+            default = 1800
+        }
+    ]
     jobs = [
         job.Job {
             job = "imagePullLoad"

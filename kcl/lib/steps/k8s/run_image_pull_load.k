@@ -28,7 +28,7 @@ import lib.steps.azure
 # overrides the IMAGES env baked into the manifest, so the registry/image under
 # test can be set from the pipeline. Listing DISTINCT tags/digests raises
 # per-node concurrency (containerd coalesces concurrent pulls of an identical ref).
-RunImagePullLoad = lambda serviceConnection: str, namespace: str, manifest: str, durationSeconds: int, images: str -> steps.Step {
+RunImagePullLoad = lambda serviceConnection: str, namespace: str, manifest: str, durationSeconds: str, images: str -> steps.Step {
     script = """
 kubectl create namespace "${namespace}" || true
 kubectl apply -f $(Pipeline.Workspace)/s/${manifest}
@@ -62,7 +62,7 @@ echo "Load window complete; pullers left running for metric collection."
 # NOTE: this scrapes `kubectl logs` from every puller pod. At very large node
 # counts the concurrent log fan-out is heavy; for large fleets prefer a
 # Prometheus-based containerd metrics scrape instead.
-CollectImagePullThroughput = lambda serviceConnection: str, namespace: str, manifest: str, region: str, nodeCount: int, durationSeconds: int, resultFile: str = "/tmp/run-result.json" -> steps.Step {
+CollectImagePullThroughput = lambda serviceConnection: str, namespace: str, manifest: str, region: str, nodeCount: int, durationSeconds: str, resultFile: str = "/tmp/run-result.json" -> steps.Step {
     script = """
 # Scrape throughput samples from all puller pods (must happen before teardown).
 kubectl --namespace="${namespace}" logs -l app=image-pull-load --tail=-1 --max-log-requests=2000 > /tmp/puller-logs.txt 2>/dev/null || true
