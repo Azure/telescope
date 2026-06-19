@@ -128,7 +128,7 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: azure_australiaeast_small_scale
+  - stage: azure_canadacentral_small_scale
     condition: |
         or(
           eq(variables['Build.CronSchedule.DisplayName'], '3:00 AM Daily'),
@@ -140,7 +140,7 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - australiaeast
+            - canadacentral
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
@@ -260,7 +260,7 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: azure_australiaeast_medium_scale
+  - stage: azure_canadacentral_medium_scale
     condition: |
         or(
           eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 6:00 AM'),
@@ -272,7 +272,7 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - australiaeast
+            - canadacentral
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
@@ -313,7 +313,7 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: azure_australiaeast_large_scale
+  - stage: azure_canadacentral_large_scale
     condition: |
         or(
           eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 12:00 AM'),
@@ -325,7 +325,7 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - australiaeast
+            - canadacentral
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
