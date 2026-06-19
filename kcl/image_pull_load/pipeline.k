@@ -10,8 +10,8 @@ import lib.steps.k8s
 # one puller per node). See kcl/image_pull_load/image-pull-load.yaml for the
 # load generator and lib/steps/k8s/run_image_pull_load.k for the step.
 # ACR-team-specific values (overriding the Telescope const.k defaults).
-# azurecontainerregistry-onprem-fc targets subscription dfb63c8c (ACR - Dev).
-SERVICE_CONNECTION = "azurecontainerregistry-onprem-fc"
+# "ACR - Dev" service connection targets subscription dfb63c8c.
+SERVICE_CONNECTION = "ACR - Dev"
 POOL = "Default"
 SUBSCRIPTION_ID = "dfb63c8c-7c89-4ef8-af13-75c1d873c895"
 RESOURCE_GROUP = "$(RUN_ID)"

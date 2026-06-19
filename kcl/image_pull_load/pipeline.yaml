@@ -24,7 +24,7 @@ jobs:
     displayName: Install Python dependencies
   - task: AzureCLI@2
     inputs:
-      azureSubscription: azurecontainerregistry-onprem-fc
+      azureSubscription: ACR - Dev
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
@@ -36,7 +36,7 @@ jobs:
     displayName: Login to Azure
   - task: AzureCLI@2
     inputs:
-      azureSubscription: azurecontainerregistry-onprem-fc
+      azureSubscription: ACR - Dev
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |+
@@ -50,7 +50,7 @@ jobs:
     displayName: Create resource group in australiaeast (dfb63c8c-7c89-4ef8-af13-75c1d873c895)
   - task: AzureCLI@2
     inputs:
-      azureSubscription: azurecontainerregistry-onprem-fc
+      azureSubscription: ACR - Dev
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
@@ -80,7 +80,7 @@ jobs:
     displayName: Create cluster
   - task: AzureCLI@2
     inputs:
-      azureSubscription: azurecontainerregistry-onprem-fc
+      azureSubscription: ACR - Dev
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
@@ -125,7 +125,7 @@ jobs:
     displayName: Create node pool workerpool0
   - task: AzureCLI@2
     inputs:
-      azureSubscription: azurecontainerregistry-onprem-fc
+      azureSubscription: ACR - Dev
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
@@ -170,7 +170,7 @@ jobs:
     displayName: Create node pool workerpool1
   - task: AzureCLI@2
     inputs:
-      azureSubscription: azurecontainerregistry-onprem-fc
+      azureSubscription: ACR - Dev
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
@@ -184,7 +184,7 @@ jobs:
     displayName: Get credentials for image-pull-load
   - task: AzureCLI@2
     inputs:
-      azureSubscription: azurecontainerregistry-onprem-fc
+      azureSubscription: ACR - Dev
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
@@ -212,7 +212,7 @@ jobs:
     displayName: Run image-pull load
   - task: AzureCLI@2
     inputs:
-      azureSubscription: azurecontainerregistry-onprem-fc
+      azureSubscription: ACR - Dev
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
@@ -280,7 +280,7 @@ jobs:
     displayName: Collect image-pull throughput
   - task: AzureCLI@2
     inputs:
-      azureSubscription: azurecontainerregistry-onprem-fc
+      azureSubscription: ACR - Dev
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
@@ -297,7 +297,7 @@ jobs:
     displayName: Upload result to storage account
   - task: AzureCLI@2
     inputs:
-      azureSubscription: azurecontainerregistry-onprem-fc
+      azureSubscription: ACR - Dev
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
