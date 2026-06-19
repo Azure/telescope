@@ -62,7 +62,7 @@ echo "Load window complete; pullers left running for metric collection."
 # NOTE: this scrapes `kubectl logs` from every puller pod. At very large node
 # counts the concurrent log fan-out is heavy; for large fleets prefer a
 # Prometheus-based containerd metrics scrape instead.
-CollectImagePullThroughput = lambda serviceConnection: str, namespace: str, manifest: str, region: str, nodeCount: int, durationSeconds: str, resultFile: str = "/tmp/run-result.json" -> steps.Step {
+CollectImagePullThroughput = lambda serviceConnection: str, namespace: str, manifest: str, region: str, nodeCount: str, durationSeconds: str, resultFile: str = "/tmp/run-result.json" -> steps.Step {
     script = """
 # Scrape throughput samples from all puller pods (must happen before teardown).
 kubectl --namespace="${namespace}" logs -l app=image-pull-load --tail=-1 --max-log-requests=2000 > /tmp/puller-logs.txt 2>/dev/null || true

@@ -1,5 +1,6 @@
 import azure_pipelines.ap
 import azure_pipelines.ap.jobs.job
+import azure_pipelines.ap.steps
 import lib.steps.azure
 import lib.steps.common
 import lib.steps.k8s
@@ -21,25 +22,22 @@ RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "\${{ parameters.location }}"
 CLUSTER = "image-pull-load"
 
-# Dedicated pool(s) the pullers run on. The label/taint match the DaemonSet's
+# Dedicated pool the pullers run on. The label/taint match the DaemonSet's
 # nodeSelector + tolerations in image-pull-load.yaml.
 PULL_POOL_LABEL = "cri-resource-consume=true"
 PULL_POOL_TAINT_PREFIX = "cri-resource-consume"
 PULL_POOL_SKU = "Standard_D4s_v3"
+PULL_POOL_NAME = "workerpool0"
 
-# Concurrency dial: one puller pod runs per node, so node count == puller count.
-# Spread across multiple pools since a single AKS node pool caps out at 1000
-# nodes; PlanNodePools splits this into pools of at most MAX_NODES_PER_POOL.
-# NOTE: ensure regional vCPU quota covers PULL_POOL_NODE_COUNT * SKU cores
-# (e.g. 1000 x Standard_D4s_v3 = 4000 vCPUs).
-#
-# Unlike the other dials this is NOT a queue-time pipeline parameter: PlanNodePools
-# computes the node-pool topology (how many CreateNodePool steps to emit, and each
-# pool's count) at KCL generation time. ADO ${{ parameters }} resolve only after the
-# YAML is generated, so they cannot change the number of pools. Adjust here and
-# regenerate the YAML to change the puller count.
-PULL_POOL_NODE_COUNT = 1000
-MAX_NODES_PER_POOL = 800
+# A single AKS user node pool supports at most this many nodes. The validate step
+# fails the run if node_count exceeds it.
+MAX_NODE_COUNT = 1000
+
+# Concurrency dial: queue-time pipeline parameter (see `parameters` below). One
+# puller pod runs per node, so node count == puller count; all pullers run on a
+# single dedicated node pool. NOTE: ensure regional vCPU quota covers
+# node_count * SKU cores (e.g. 1000 x Standard_D4s_v3 = 4000 vCPUs).
+PULL_POOL_NODE_COUNT = "\${{ parameters.node_count }}"
 
 PULL_NAMESPACE = "image-pull-load"
 
@@ -56,6 +54,18 @@ PULL_IMAGE = "\${{ parameters.pull_image }}"
 # Storage Blob Data Contributor role on this account.
 RESULT_STORAGE_ACCOUNT = "acrtelescoperesults"
 RESULT_CONTAINER = "acr"
+
+# Fail the run fast (before creating any Azure resources) if the requested
+# node_count exceeds the single-pool maximum.
+validateNodeCountScript = """
+set -euo pipefail
+node_count=${PULL_POOL_NODE_COUNT}
+if [ "$node_count" -gt ${MAX_NODE_COUNT} ]; then
+  echo "ERROR: node_count=$node_count exceeds the maximum of ${MAX_NODE_COUNT} (single AKS node pool cap)." >&2
+  exit 1
+fi
+echo "node_count=$node_count is within the limit (max ${MAX_NODE_COUNT})."
+"""
 
 createClusterScript = """
 az aks create \\
@@ -79,6 +89,49 @@ az aks create \\
   --nat-gateway-managed-outbound-ip-count 10 \\
   --enable-managed-identity \\
   --generate-ssh-keys
+"""
+
+# Single dedicated puller node pool sized by the node_count parameter. Mirrors
+# azure.CreateNodePool's transient-error retry (AKS can return OperationNotAllowed
+# while a background addon op runs) but takes the runtime node count, which the
+# compile-time NodePool schema can't carry.
+createPullPoolScript = """
+deadline=$(($(date +%s) + 600))
+sleep_between=30
+attempt=0
+while :; do
+  attempt=$((attempt + 1))
+  set +e
+  output=$(az aks nodepool add \\
+    --cluster-name "${CLUSTER}" \\
+    --resource-group "${RESOURCE_GROUP}" \\
+    --subscription "${SUBSCRIPTION_ID}" \\
+    --name "${PULL_POOL_NAME}" \\
+    --node-count ${PULL_POOL_NODE_COUNT} \\
+    --node-vm-size "${PULL_POOL_SKU}" \\
+    --mode User \\
+    --node-taints ${PULL_POOL_TAINT_PREFIX}=true:NoSchedule \\
+    --labels "${PULL_POOL_LABEL}" 2>&1)
+  rc=$?
+  set -e
+  echo "$output"
+  if [ $rc -eq 0 ]; then
+    exit 0
+  fi
+  if echo "$output" | grep -qiE "OperationNotAllowed"; then
+    now=$(date +%s)
+    if [ $now -ge $deadline ]; then
+      echo "Retriable error persisted past retry window ($attempt attempts); giving up."
+      exit $rc
+    fi
+    remaining=$((deadline - now))
+    echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain)."
+    sleep $sleep_between
+  else
+    echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
+    exit $rc
+  fi
+done
 """
 
 uploadResultScript = """
@@ -115,6 +168,12 @@ output = ap.Pipeline {
             type = "number"
             default = 1800
         }
+        ap.Parameter {
+            name = "node_count"
+            displayName = "Puller node count (one pod per node; max 1000)"
+            type = "number"
+            default = 1000
+        }
     ]
     jobs = [
         job.Job {
@@ -124,16 +183,14 @@ output = ap.Pipeline {
             steps = [
                 common.SetRunId()
                 common.InstallPythonDependencies()
+                steps.Script {
+                    script = validateNodeCountScript
+                    displayName = "Validate node_count <= ${MAX_NODE_COUNT}"
+                }
                 azure.Login(SERVICE_CONNECTION, SUBSCRIPTION_ID, LOCATION)
                 azure.CreateResourceGroup(SERVICE_CONNECTION, RESOURCE_GROUP, LOCATION, SUBSCRIPTION_ID)
                 azure.AzCli(SERVICE_CONNECTION, "Create cluster", createClusterScript)
-                *[azure.CreateNodePool(SERVICE_CONNECTION, CLUSTER, RESOURCE_GROUP, SUBSCRIPTION_ID, azure.NodePool {
-                    name = p.name
-                    sku = p.sku
-                    count = p.count
-                    taintPrefix = PULL_POOL_TAINT_PREFIX
-                    labels = PULL_POOL_LABEL
-                }) for p in azure.PlanNodePools({PULL_POOL_SKU: PULL_POOL_NODE_COUNT}, MAX_NODES_PER_POOL)]
+                azure.AzCli(SERVICE_CONNECTION, "Create node pool ${PULL_POOL_NAME}", createPullPoolScript)
                 azure.GetCredentials(SERVICE_CONNECTION, CLUSTER, RESOURCE_GROUP, SUBSCRIPTION_ID)
                 k8s.RunImagePullLoad(SERVICE_CONNECTION, PULL_NAMESPACE, manifest="kcl/image_pull_load/image-pull-load.yaml", durationSeconds=LOAD_DURATION_SECONDS, images=PULL_IMAGE)
                 k8s.CollectImagePullThroughput(SERVICE_CONNECTION, PULL_NAMESPACE, manifest="kcl/image_pull_load/image-pull-load.yaml", region=LOCATION, nodeCount=PULL_POOL_NODE_COUNT, durationSeconds=LOAD_DURATION_SECONDS)

@@ -15,6 +15,10 @@ parameters:
   displayName: Load duration (seconds)
   type: number
   default: 1800
+- name: node_count
+  displayName: Puller node count (one pod per node; max 1000)
+  type: number
+  default: 1000
 jobs:
 - job: imagePullLoad
   displayName: Image Pull Load
@@ -35,6 +39,16 @@ jobs:
       pip3 install --upgrade "pip<24"
       pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
     displayName: Install Python dependencies
+  - script: |2
+
+      set -euo pipefail
+      node_count=${{ parameters.node_count }}
+      if [ "$node_count" -gt 1000 ]; then
+        echo "ERROR: node_count=$node_count exceeds the maximum of 1000 (single AKS node pool cap)." >&2
+        exit 1
+      fi
+      echo "node_count=$node_count is within the limit (max 1000)."
+    displayName: Validate node_count <= 1000
   - task: AzureCLI@2
     inputs:
       azureSubscription: ACR - Dev
@@ -110,11 +124,11 @@ jobs:
             --resource-group "$(RUN_ID)" \
             --subscription "dfb63c8c-7c89-4ef8-af13-75c1d873c895" \
             --name "workerpool0" \
-            --node-count 800 \
-            --node-vm-size "PULL_POOL_SKU" \
+            --node-count ${{ parameters.node_count }} \
+            --node-vm-size "Standard_D4s_v3" \
             --mode User \
             --node-taints cri-resource-consume=true:NoSchedule \
-          --labels "cri-resource-consume=true" 2>&1)
+            --labels "cri-resource-consume=true" 2>&1)
           rc=$?
           set -e
           echo "$output"
@@ -124,11 +138,11 @@ jobs:
           if echo "$output" | grep -qiE "OperationNotAllowed"; then
             now=$(date +%s)
             if [ $now -ge $deadline ]; then
-              echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
+              echo "Retriable error persisted past retry window ($attempt attempts); giving up."
               exit $rc
             fi
             remaining=$((deadline - now))
-            echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
+            echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain)."
             sleep $sleep_between
           else
             echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
@@ -136,51 +150,6 @@ jobs:
           fi
         done
     displayName: Create node pool workerpool0
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: ACR - Dev
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        deadline=$(($(date +%s) + 600))
-        sleep_between=30
-        attempt=0
-        while :; do
-          attempt=$((attempt + 1))
-          set +e
-          output=$(az aks nodepool add \
-            --cluster-name "image-pull-load" \
-            --resource-group "$(RUN_ID)" \
-            --subscription "dfb63c8c-7c89-4ef8-af13-75c1d873c895" \
-            --name "workerpool1" \
-            --node-count 200 \
-            --node-vm-size "PULL_POOL_SKU" \
-            --mode User \
-            --node-taints cri-resource-consume=true:NoSchedule \
-          --labels "cri-resource-consume=true" 2>&1)
-          rc=$?
-          set -e
-          echo "$output"
-          if [ $rc -eq 0 ]; then
-            exit 0
-          fi
-          if echo "$output" | grep -qiE "OperationNotAllowed"; then
-            now=$(date +%s)
-            if [ $now -ge $deadline ]; then
-              echo "Retriable error persisted past 600s retry window ($attempt attempts); giving up."
-              exit $rc
-            fi
-            remaining=$((deadline - now))
-            echo "Attempt $attempt matched retriable pattern; retrying in $sleep_between seconds ($remaining seconds remain in retry window)."
-            sleep $sleep_between
-          else
-            echo "Non-retriable error (rc=$rc); giving up after attempt $attempt."
-            exit $rc
-          fi
-        done
-    displayName: Create node pool workerpool1
   - task: AzureCLI@2
     inputs:
       azureSubscription: ACR - Dev
@@ -265,7 +234,7 @@ jobs:
             "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "status": "succeeded" if mbps else "failure",
             "region": "${{ parameters.location }}",
-            "puller_node_count": 1000,
+            "puller_node_count": ${{ parameters.node_count }},
             "load_duration_seconds": duration,
             "sample_count": len(mbps),
             "total_pulled_gb": round(total_bytes / 1e9, 2),
