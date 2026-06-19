@@ -48,8 +48,8 @@ aks_cli_config_list = [
         name  = "node-init-taints"
         value = "CriticalAddonsOnly=true:NoSchedule"
       },
-        {
-        name = "aks-custom-headers"
+      {
+        name  = "aks-custom-headers"
         value = "AKSHTTPCustomFeatures=Microsoft.ContainerService/AKSHTTPCustomFeatures,BootstrappingMethodTestOnly=bootstrappingclient"
       }
     ]
