@@ -286,6 +286,23 @@ jobs:
       inlineScript: |
         set -exo pipefail
 
+        az storage blob upload \
+          --account-name "acrtelescoperesults" \
+          --subscription "dfb63c8c-7c89-4ef8-af13-75c1d873c895" \
+          --container-name "acr" \
+          --name "$(RUN_ID)/run-result.json" \
+          --file /tmp/run-result.json \
+          --auth-mode login \
+          --overwrite
+    displayName: Upload result to storage account
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: azurecontainerregistry-onprem-fc
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -exo pipefail
+
         az group delete --name "$(RUN_ID)" --subscription "dfb63c8c-7c89-4ef8-af13-75c1d873c895" --yes
     condition: always()
     displayName: Delete resource group (dfb63c8c-7c89-4ef8-af13-75c1d873c895)

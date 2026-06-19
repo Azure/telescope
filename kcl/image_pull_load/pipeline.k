@@ -40,6 +40,14 @@ LOAD_DURATION_SECONDS = 1800
 # tags/digests to raise per-node concurrency.
 PULL_IMAGE = "acrstampperftest.azurecr-test.io/test_10gb_4l_v1:latest"
 
+# Result storage (ACR-team self-hosted Telescope v2 data infra, same sub as the
+# service connection). The run-result.json is ingested into the ADX `results`
+# table via Event Grid -> Event Hub. Shared-key auth is disabled by policy, so we
+# upload with --auth-mode login; the service connection identity must hold the
+# Storage Blob Data Contributor role on this account.
+RESULT_STORAGE_ACCOUNT = "acrtelescoperesults"
+RESULT_CONTAINER = "acr"
+
 createClusterScript = """
 az aks create \\
   --name "${CLUSTER}" \\
@@ -62,6 +70,17 @@ az aks create \\
   --nat-gateway-managed-outbound-ip-count 10 \\
   --enable-managed-identity \\
   --generate-ssh-keys
+"""
+
+uploadResultScript = """
+az storage blob upload \\
+  --account-name "${RESULT_STORAGE_ACCOUNT}" \\
+  --subscription "${SUBSCRIPTION_ID}" \\
+  --container-name "${RESULT_CONTAINER}" \\
+  --name "$(RUN_ID)/run-result.json" \\
+  --file /tmp/run-result.json \\
+  --auth-mode login \\
+  --overwrite
 """
 
 output = ap.Pipeline {
@@ -89,6 +108,7 @@ output = ap.Pipeline {
                 azure.GetCredentials(SERVICE_CONNECTION, CLUSTER, RESOURCE_GROUP, SUBSCRIPTION_ID)
                 k8s.RunImagePullLoad(SERVICE_CONNECTION, PULL_NAMESPACE, manifest="kcl/image_pull_load/image-pull-load.yaml", durationSeconds=LOAD_DURATION_SECONDS, images=PULL_IMAGE)
                 k8s.CollectImagePullThroughput(SERVICE_CONNECTION, PULL_NAMESPACE, manifest="kcl/image_pull_load/image-pull-load.yaml", region=LOCATION, nodeCount=PULL_POOL_NODE_COUNT, durationSeconds=LOAD_DURATION_SECONDS)
+                azure.AzCli(SERVICE_CONNECTION, "Upload result to storage account", uploadResultScript)
                 azure.DeleteResourceGroup(SERVICE_CONNECTION, RESOURCE_GROUP, SUBSCRIPTION_ID)
             ]
         }
