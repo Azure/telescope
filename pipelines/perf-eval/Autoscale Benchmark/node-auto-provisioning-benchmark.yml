@@ -43,8 +43,8 @@ schedules:
         - main
     always: true
   # Azure Large Scale(1000) MachineAPI Schedule
-  - cron: "0 7 * * *"
-    displayName: "Every day at 7:00 AM MachineAPI"
+  - cron: "0 9 * * *"
+    displayName: "Every day at 9:00 AM MachineAPI"
     branches:
       include:
         - main
