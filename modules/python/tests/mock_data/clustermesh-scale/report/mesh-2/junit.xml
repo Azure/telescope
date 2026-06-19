@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="ClusterLoaderV2" tests="6" failures="0" errors="0" time="195.000">
+    <testcase name="clustermesh-scale-test overall" classname="ClusterLoaderV2" time="194.5"></testcase>
+    <testcase name="clustermesh-scale-test: [step: 01] Start measurements" classname="ClusterLoaderV2" time="0.1"></testcase>
+    <testcase name="clustermesh-scale-test: [step: 02] create ClusterMesh Pod Monitor" classname="ClusterLoaderV2" time="2.5"></testcase>
+    <testcase name="clustermesh-scale-test: [step: 03] create scale-test deployments" classname="ClusterLoaderV2" time="65.0"></testcase>
+    <testcase name="clustermesh-scale-test: [step: 04] Gather measurements" classname="ClusterLoaderV2" time="65.0"></testcase>
+    <testcase name="clustermesh-scale-test: [step: 05] delete scale-test deployments" classname="ClusterLoaderV2" time="61.9"></testcase>
+</testsuite>
