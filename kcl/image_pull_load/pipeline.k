@@ -1,6 +1,5 @@
 import azure_pipelines.ap
 import azure_pipelines.ap.jobs.job
-import lib.const
 import lib.steps.azure
 import lib.steps.common
 import lib.steps.k8s
@@ -10,7 +9,11 @@ import lib.steps.k8s
 # for a fixed duration using the RunImagePullLoad step (crictl pull -> rmi loop,
 # one puller per node). See kcl/image_pull_load/image-pull-load.yaml for the
 # load generator and lib/steps/k8s/run_image_pull_load.k for the step.
-SUBSCRIPTION_ID = const.DEFAULT_SUBSCRIPTION_ID
+# ACR-team-specific values (overriding the Telescope const.k defaults).
+# azurecontainerregistry-onprem-fc targets subscription dfb63c8c (ACR - Dev).
+SERVICE_CONNECTION = "azurecontainerregistry-onprem-fc"
+POOL = "Default"
+SUBSCRIPTION_ID = "dfb63c8c-7c89-4ef8-af13-75c1d873c895"
 RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "australiaeast"
 CLUSTER = "image-pull-load"
@@ -64,7 +67,7 @@ az aks create \\
 output = ap.Pipeline {
     name = "Image Pull Load"
     trigger = ["v2"]
-    pool = const.DEFAULT_POOL
+    pool = POOL
     jobs = [
         job.Job {
             job = "imagePullLoad"
@@ -73,21 +76,20 @@ output = ap.Pipeline {
             steps = [
                 common.SetRunId()
                 common.InstallPythonDependencies()
-                azure.Login(const.DEFAULT_SERVICE_CONNECTION, SUBSCRIPTION_ID, LOCATION)
-                azure.CreateResourceGroup(const.DEFAULT_SERVICE_CONNECTION, RESOURCE_GROUP, LOCATION, SUBSCRIPTION_ID)
-                azure.AzCli(const.DEFAULT_SERVICE_CONNECTION, "Create cluster", createClusterScript)
-                *[azure.CreateNodePool(const.DEFAULT_SERVICE_CONNECTION, CLUSTER, RESOURCE_GROUP, SUBSCRIPTION_ID, azure.NodePool {
+                azure.Login(SERVICE_CONNECTION, SUBSCRIPTION_ID, LOCATION)
+                azure.CreateResourceGroup(SERVICE_CONNECTION, RESOURCE_GROUP, LOCATION, SUBSCRIPTION_ID)
+                azure.AzCli(SERVICE_CONNECTION, "Create cluster", createClusterScript)
+                *[azure.CreateNodePool(SERVICE_CONNECTION, CLUSTER, RESOURCE_GROUP, SUBSCRIPTION_ID, azure.NodePool {
                     name = p.name
                     sku = p.sku
                     count = p.count
                     taintPrefix = PULL_POOL_TAINT_PREFIX
                     labels = PULL_POOL_LABEL
                 }) for p in azure.PlanNodePools({PULL_POOL_SKU: PULL_POOL_NODE_COUNT}, MAX_NODES_PER_POOL)]
-                azure.GetCredentials(const.DEFAULT_SERVICE_CONNECTION, CLUSTER, RESOURCE_GROUP, SUBSCRIPTION_ID)
-                k8s.RunImagePullLoad(const.DEFAULT_SERVICE_CONNECTION, PULL_NAMESPACE, manifest="kcl/image_pull_load/image-pull-load.yaml", durationSeconds=LOAD_DURATION_SECONDS, images=PULL_IMAGE)
-                k8s.CollectImagePullThroughput(const.DEFAULT_SERVICE_CONNECTION, PULL_NAMESPACE, manifest="kcl/image_pull_load/image-pull-load.yaml", region=LOCATION, nodeCount=PULL_POOL_NODE_COUNT, durationSeconds=LOAD_DURATION_SECONDS)
-                common.UploadResult(const.DEFAULT_SERVICE_CONNECTION, const.DEFAULT_STORAGE_ACCOUNT, const.DEFAULT_STORAGE_SUBSCRIPTION_ID, const.DEFAULT_STORAGE_CONTAINER)
-                azure.DeleteResourceGroup(const.DEFAULT_SERVICE_CONNECTION, RESOURCE_GROUP, SUBSCRIPTION_ID)
+                azure.GetCredentials(SERVICE_CONNECTION, CLUSTER, RESOURCE_GROUP, SUBSCRIPTION_ID)
+                k8s.RunImagePullLoad(SERVICE_CONNECTION, PULL_NAMESPACE, manifest="kcl/image_pull_load/image-pull-load.yaml", durationSeconds=LOAD_DURATION_SECONDS, images=PULL_IMAGE)
+                k8s.CollectImagePullThroughput(SERVICE_CONNECTION, PULL_NAMESPACE, manifest="kcl/image_pull_load/image-pull-load.yaml", region=LOCATION, nodeCount=PULL_POOL_NODE_COUNT, durationSeconds=LOAD_DURATION_SECONDS)
+                azure.DeleteResourceGroup(SERVICE_CONNECTION, RESOURCE_GROUP, SUBSCRIPTION_ID)
             ]
         }
     ]

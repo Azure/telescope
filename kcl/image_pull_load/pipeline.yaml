@@ -1,5 +1,5 @@
 name: Image Pull Load
-pool: AKS-Telescope-Airlock
+pool: Default
 trigger:
 - v2
 jobs:
@@ -24,19 +24,19 @@ jobs:
     displayName: Install Python dependencies
   - task: AzureCLI@2
     inputs:
-      azureSubscription: Azure-for-Telescope-internal
+      azureSubscription: azurecontainerregistry-onprem-fc
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
 
-        az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+        az account set --subscription "dfb63c8c-7c89-4ef8-af13-75c1d873c895"
         az config set defaults.location="australiaeast"
         az account show
     displayName: Login to Azure
   - task: AzureCLI@2
     inputs:
-      azureSubscription: Azure-for-Telescope-internal
+      azureSubscription: azurecontainerregistry-onprem-fc
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |+
@@ -45,12 +45,12 @@ jobs:
         az group create \
           --name "$(RUN_ID)" \
           --location "australiaeast" \
-          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --subscription "dfb63c8c-7c89-4ef8-af13-75c1d873c895" \
 
-    displayName: Create resource group in australiaeast (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+    displayName: Create resource group in australiaeast (dfb63c8c-7c89-4ef8-af13-75c1d873c895)
   - task: AzureCLI@2
     inputs:
-      azureSubscription: Azure-for-Telescope-internal
+      azureSubscription: azurecontainerregistry-onprem-fc
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
@@ -59,7 +59,7 @@ jobs:
         az aks create \
           --name "image-pull-load" \
           --resource-group "$(RUN_ID)" \
-          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --subscription "dfb63c8c-7c89-4ef8-af13-75c1d873c895" \
           --location "australiaeast" \
           --kubernetes-version "1.35.0" \
           --dns-name-prefix "image-pull-load-dns" \
@@ -80,7 +80,7 @@ jobs:
     displayName: Create cluster
   - task: AzureCLI@2
     inputs:
-      azureSubscription: Azure-for-Telescope-internal
+      azureSubscription: azurecontainerregistry-onprem-fc
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
@@ -95,7 +95,7 @@ jobs:
           output=$(az aks nodepool add \
             --cluster-name "image-pull-load" \
             --resource-group "$(RUN_ID)" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --subscription "dfb63c8c-7c89-4ef8-af13-75c1d873c895" \
             --name "workerpool0" \
             --node-count 800 \
             --node-vm-size "PULL_POOL_SKU" \
@@ -125,7 +125,7 @@ jobs:
     displayName: Create node pool workerpool0
   - task: AzureCLI@2
     inputs:
-      azureSubscription: Azure-for-Telescope-internal
+      azureSubscription: azurecontainerregistry-onprem-fc
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
@@ -140,7 +140,7 @@ jobs:
           output=$(az aks nodepool add \
             --cluster-name "image-pull-load" \
             --resource-group "$(RUN_ID)" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --subscription "dfb63c8c-7c89-4ef8-af13-75c1d873c895" \
             --name "workerpool1" \
             --node-count 200 \
             --node-vm-size "PULL_POOL_SKU" \
@@ -170,7 +170,7 @@ jobs:
     displayName: Create node pool workerpool1
   - task: AzureCLI@2
     inputs:
-      azureSubscription: Azure-for-Telescope-internal
+      azureSubscription: azurecontainerregistry-onprem-fc
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
@@ -179,12 +179,12 @@ jobs:
         az aks get-credentials \
           --name "image-pull-load" \
           --resource-group "$(RUN_ID)" \
-          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --subscription "dfb63c8c-7c89-4ef8-af13-75c1d873c895" \
           --overwrite-existing
     displayName: Get credentials for image-pull-load
   - task: AzureCLI@2
     inputs:
-      azureSubscription: Azure-for-Telescope-internal
+      azureSubscription: azurecontainerregistry-onprem-fc
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
@@ -212,7 +212,7 @@ jobs:
     displayName: Run image-pull load
   - task: AzureCLI@2
     inputs:
-      azureSubscription: Azure-for-Telescope-internal
+      azureSubscription: azurecontainerregistry-onprem-fc
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
@@ -280,28 +280,12 @@ jobs:
     displayName: Collect image-pull throughput
   - task: AzureCLI@2
     inputs:
-      azureSubscription: Azure-for-Telescope-internal
+      azureSubscription: azurecontainerregistry-onprem-fc
       scriptType: bash
       scriptLocation: inlineScript
       inlineScript: |
         set -exo pipefail
 
-        az storage blob upload \
-          --account-name "telescopev2" \
-          --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
-          --container-name "aks" \
-          --name "$(RUN_ID)/run-result.json" \
-          --file /tmp/run-result.json \
-          --auth-mode key
-    displayName: Upload result to storage account
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+        az group delete --name "$(RUN_ID)" --subscription "dfb63c8c-7c89-4ef8-af13-75c1d873c895" --yes
     condition: always()
-    displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+    displayName: Delete resource group (dfb63c8c-7c89-4ef8-af13-75c1d873c895)
