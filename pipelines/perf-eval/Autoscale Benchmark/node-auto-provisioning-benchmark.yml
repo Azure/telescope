@@ -162,8 +162,6 @@ stages:
           cloud: azure
           regions:
             - australiaeast
-          terraform_input_file_mapping:
-            - australiaeast: "scenarios/perf-eval/nap/terraform-inputs/azure-bootstrappingclient.tfvars"
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
@@ -247,8 +245,6 @@ stages:
           cloud: azure
           regions:
             - westcentralus
-          terraform_input_file_mapping:
-            - westcentralus: "scenarios/perf-eval/nap/terraform-inputs/azure-bootstrappingclient.tfvars"
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
@@ -551,8 +547,6 @@ stages:
           cloud: azure
           regions:
             - australiaeast
-          terraform_input_file_mapping:
-            - australiaeast: "scenarios/perf-eval/nap/terraform-inputs/azure-bootstrappingclient.tfvars"
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
@@ -661,8 +655,6 @@ stages:
           cloud: azure
           regions:
             - australiaeast
-          terraform_input_file_mapping:
-            - australiaeast: "scenarios/perf-eval/nap/terraform-inputs/azure-bootstrappingclient.tfvars"
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250423"
