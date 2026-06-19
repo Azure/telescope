@@ -209,14 +209,14 @@ jobs:
         import json, re, statistics
         from datetime import datetime, timezone
 
-        pat = re.compile(r"bytes=(\d+)\s+seconds=(\d+)")
+        pat = re.compile(r"bytes=(\d+)\s+seconds=([\d.]+)")
         mbps, total_bytes = [], 0
         with open("/tmp/samples.txt", encoding="utf-8") as f:
             for line in f:
                 m = pat.search(line)
                 if not m:
                     continue
-                b, s = int(m.group(1)), int(m.group(2))
+                b, s = int(m.group(1)), float(m.group(2))
                 if s <= 0:
                     continue
                 total_bytes += b
@@ -240,7 +240,7 @@ jobs:
             "total_pulled_gb": round(total_bytes / 1e9, 2),
             # Sustained cluster-wide throughput delivered to nodes over the window.
             "cluster_throughput_mbps": round(total_bytes / 1e6 / duration, 2) if duration else None,
-            # Per-pull (per-node) containerd image-pull throughput distribution.
+            # Per-pull (per-node) data-proxy blob-download throughput distribution.
             "per_pull_mbps_avg": round(statistics.fmean(mbps), 2) if mbps else None,
             "per_pull_mbps_p20": pct(mbps, 20),
             "per_pull_mbps_p25": pct(mbps, 25),

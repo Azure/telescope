@@ -1,33 +1,22 @@
 import azure_pipelines.ap.steps
 import lib.steps.azure
 
-# RunImagePullLoad applies a DaemonSet that continuously pulls and evicts images
-# on every target node (one puller per node), sustains that load for
-# `durationSeconds`, then tears the DaemonSet down.
-#
-# Unlike a ClusterLoader2 deployment (which primes each node's image cache once
-# and then goes quiet), the underlying pull -> rmi loop forces a fresh blob
-# download from the registry on every iteration, producing steady throughput
-# against the ACR stamp for the entire window.
-#
-# The manifest must name the DaemonSet `image-pull-load` and target `namespace`.
-# RunImagePullLoad applies a DaemonSet that continuously pulls and evicts images
-# on every target node (one puller per node) and sustains that load for
-# `durationSeconds`. Teardown is intentionally left to a separate step
+# RunImagePullLoad applies a DaemonSet that drives sustained registry blob-download
+# traffic against an ACR stamp's data proxy (one puller per node) and sustains it
+# for `durationSeconds`. Teardown is intentionally left to a separate step
 # (CollectImagePullThroughput) so the puller logs survive long enough to be
 # scraped for throughput metrics.
 #
-# Unlike a ClusterLoader2 deployment (which primes each node's image cache once
-# and then goes quiet), the underlying pull -> rmi loop forces a fresh blob
-# download from the registry on every iteration, producing steady throughput
-# against the ACR stamp for the entire window.
+# Each puller speaks the OCI distribution HTTP API directly -- GET
+# /v2/<repo>/blobs/<digest>, follow the 307 redirect to the data endpoint, stream
+# the bytes -- so load lands on the data proxy without going through containerd or
+# the node image cache. See kcl/image_pull_load/image-pull-load.yaml.
 #
 # The manifest must name the DaemonSet `image-pull-load` and target `namespace`.
 #
-# `images` is a space-separated list of fully-qualified image refs to pull. It
-# overrides the IMAGES env baked into the manifest, so the registry/image under
-# test can be set from the pipeline. Listing DISTINCT tags/digests raises
-# per-node concurrency (containerd coalesces concurrent pulls of an identical ref).
+# `images` is a space-separated list of fully-qualified image refs whose blobs are
+# pulled. It overrides the IMAGES env baked into the manifest, so the registry/
+# image under test can be set from the pipeline.
 RunImagePullLoad = lambda serviceConnection: str, namespace: str, manifest: str, durationSeconds: str, images: str -> steps.Step {
     script = """
 kubectl create namespace "${namespace}" || true
@@ -54,14 +43,14 @@ echo "Load window complete; pullers left running for metric collection."
 }
 
 # CollectImagePullThroughput scrapes the per-pull THROUGHPUT_SAMPLE lines emitted
-# by every puller pod, aggregates them into containerd image-pull throughput
+# by every puller pod, aggregates them into data-proxy blob-download throughput
 # stats (cluster-wide MB/s plus per-pull avg/percentiles), writes the result JSON
 # to `resultFile`, then tears the DaemonSet down. It must run after
 # RunImagePullLoad and before the DaemonSet is deleted (it does the delete).
 #
 # NOTE: this scrapes `kubectl logs` from every puller pod. At very large node
 # counts the concurrent log fan-out is heavy; for large fleets prefer a
-# Prometheus-based containerd metrics scrape instead.
+# Prometheus/metrics-based scrape instead.
 CollectImagePullThroughput = lambda serviceConnection: str, namespace: str, manifest: str, region: str, nodeCount: str, durationSeconds: str, resultFile: str = "/tmp/run-result.json" -> steps.Step {
     script = """
 # Scrape throughput samples from all puller pods (must happen before teardown).
@@ -73,14 +62,14 @@ python3 - <<'PY'
 import json, re, statistics
 from datetime import datetime, timezone
 
-pat = re.compile(r"bytes=(\\d+)\\s+seconds=(\\d+)")
+pat = re.compile(r"bytes=(\\d+)\\s+seconds=([\\d.]+)")
 mbps, total_bytes = [], 0
 with open("/tmp/samples.txt", encoding="utf-8") as f:
     for line in f:
         m = pat.search(line)
         if not m:
             continue
-        b, s = int(m.group(1)), int(m.group(2))
+        b, s = int(m.group(1)), float(m.group(2))
         if s <= 0:
             continue
         total_bytes += b
@@ -104,7 +93,7 @@ result = {
     "total_pulled_gb": round(total_bytes / 1e9, 2),
     # Sustained cluster-wide throughput delivered to nodes over the window.
     "cluster_throughput_mbps": round(total_bytes / 1e6 / duration, 2) if duration else None,
-    # Per-pull (per-node) containerd image-pull throughput distribution.
+    # Per-pull (per-node) data-proxy blob-download throughput distribution.
     "per_pull_mbps_avg": round(statistics.fmean(mbps), 2) if mbps else None,
     "per_pull_mbps_p20": pct(mbps, 20),
     "per_pull_mbps_p25": pct(mbps, 25),

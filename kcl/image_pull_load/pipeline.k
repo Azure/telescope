@@ -6,10 +6,10 @@ import lib.steps.common
 import lib.steps.k8s
 
 # End-to-end example: stand up an AKS cluster with a dedicated image-pull node
-# pool, then drive sustained registry blob-download traffic against an ACR stamp
-# for a fixed duration using the RunImagePullLoad step (crictl pull -> rmi loop,
-# one puller per node). See kcl/image_pull_load/image-pull-load.yaml for the
-# load generator and lib/steps/k8s/run_image_pull_load.k for the step.
+# pool, then drive sustained registry blob-download traffic against an ACR stamp's
+# data proxy for a fixed duration using the RunImagePullLoad step (one puller per
+# node running concurrent OCI blob GETs). See kcl/image_pull_load/image-pull-load.yaml
+# for the load generator and lib/steps/k8s/run_image_pull_load.k for the step.
 # ACR-team-specific values (overriding the Telescope const.k defaults).
 # "ACR - Dev" service connection targets subscription dfb63c8c.
 SERVICE_CONNECTION = "ACR - Dev"

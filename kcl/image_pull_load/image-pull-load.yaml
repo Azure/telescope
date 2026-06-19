@@ -1,24 +1,266 @@
-# DaemonSet that drives sustained registry blob-download (image pull) traffic.
+# DaemonSet that drives sustained registry blob-download traffic against an ACR
+# stamp's data proxy, to measure how much throughput a stamp can serve.
 #
-# Why a pull -> rmi loop instead of CL2 pod churn:
-#   imagePullPolicy: Always only guarantees a manifest/digest round-trip; the
-#   container runtime still serves *layers* from the local content store if they
-#   are already cached, so you get one byte-burst per node and then silence.
-#   Removing the image (crictl rmi) deletes the local content + snapshots, so the
-#   next pull MUST re-download every layer from the registry. Looping this on
-#   every node produces steady MB/s against the ACR stamp for the whole window.
+# Why HTTP blob GETs instead of a containerd pull -> rmi loop:
+#   The goal is to drive load to the data proxy and measure served throughput
+#   (MB/s) vs the number of data-proxy VMSS nodes -- not to simulate a real
+#   container runtime. So instead of going through containerd (which involves the
+#   local content store, snapshotters, and cache eviction), each puller speaks the
+#   OCI distribution API directly: GET /v2/<repo>/blobs/<digest>, follow the
+#   registry's 307 redirect to the data endpoint (data proxy), and stream the
+#   bytes to /dev/null. Repeatedly GETting the same blobs deliberately exercises
+#   the data proxy (including its NVMe cache), which is exactly the path under test.
 #
 # How it works:
 #   - One pod per target node (DaemonSet), pinned to the cri-resource-consume pool.
-#   - The container is privileged + hostPID and uses `nsenter` to run the *host's*
-#     crictl/containerd, so pulls land in the node's k8s.io containerd namespace
-#     (exactly what Telescope's containerd throughput metrics scrape) and reuse
-#     whatever registry auth the node is already configured with.
-#   - The loop runs forever; the RunImagePullLoad pipeline step controls how long
+#   - The container is unprivileged (no hostPID/nsenter needed) and runs a small
+#     stdlib-only Python loader (loader.py, mounted from the ConfigMap below).
+#   - The loader resolves a pull token (anonymous or basic), reads each image's
+#     manifest to enumerate layer/config blobs, then runs CONCURRENCY concurrent
+#     download loops, emitting one `THROUGHPUT_SAMPLE bytes=<n> seconds=<t>` line
+#     per blob download for the CollectImagePullThroughput step to aggregate.
+#   - The loops run forever; the RunImagePullLoad pipeline step controls how long
 #     the load lasts and then deletes this DaemonSet to stop it.
 #
-# Namespace is created by the pipeline step (kubectl create namespace), matching
-# the RunClusterLoader2 convention; it must equal the `namespace` passed there.
+# Namespace is created by the pipeline step (kubectl create namespace); it must
+# equal the `namespace` passed there.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: image-pull-load-loader
+  namespace: image-pull-load
+  labels:
+    app: image-pull-load
+data:
+  loader.py: |
+    #!/usr/bin/env python3
+    """Sustained registry blob-download load generator (data-proxy throughput).
+
+    Pulls image layer blobs over the OCI distribution HTTP API and follows the
+    registry's 307 redirect to the data endpoint (data proxy), streaming the
+    bytes to /dev/null. Repeated GETs of the same blobs deliberately exercise the
+    data proxy (including its cache) so we can measure how much throughput a stamp
+    serves. Emits one `THROUGHPUT_SAMPLE bytes=<n> seconds=<t>` line per blob
+    download, which the CollectImagePullThroughput pipeline step aggregates.
+    """
+    import base64
+    import json
+    import os
+    import random
+    import re
+    import ssl
+    import sys
+    import threading
+    import time
+    import urllib.error
+    import urllib.parse
+    import urllib.request
+
+    IMAGES = os.environ.get("IMAGES", "").split()
+    CONCURRENCY = int(os.environ.get("CONCURRENCY", "4"))
+    USERNAME = os.environ.get("USERNAME", "")
+    PASSWORD = os.environ.get("PASSWORD", "")
+    INSECURE = os.environ.get("INSECURE", "false").lower() == "true"
+    RESOLVE_TO_IP = os.environ.get("RESOLVE_TO_IP", "")
+    CHUNK = 1024 * 1024
+    TIMEOUT = 120
+
+    _ctx = ssl.create_default_context()
+    if INSECURE:
+        _ctx.check_hostname = False
+        _ctx.verify_mode = ssl.CERT_NONE
+
+
+    class _NoRedirect(urllib.request.HTTPRedirectHandler):
+        # Disable auto-redirect so we can re-issue the data-endpoint GET without
+        # the registry Authorization header (the data endpoint uses its own token).
+        def redirect_request(self, *args, **kwargs):
+            return None
+
+
+    _opener = urllib.request.build_opener(
+        _NoRedirect, urllib.request.HTTPSHandler(context=_ctx)
+    )
+
+    MANIFEST_ACCEPT = ", ".join([
+        "application/vnd.oci.image.manifest.v1+json",
+        "application/vnd.oci.image.index.v1+json",
+        "application/vnd.docker.distribution.manifest.v2+json",
+        "application/vnd.docker.distribution.manifest.list.v2+json",
+    ])
+
+    _token_lock = threading.Lock()
+    _tokens = {}
+
+
+    def parse_ref(ref):
+        # host/repo:tag  or  host/repo@sha256:...
+        host, rest = ref.split("/", 1)
+        if "@" in rest:
+            repo, reference = rest.split("@", 1)
+        elif ":" in rest.split("/")[-1]:
+            repo, reference = rest.rsplit(":", 1)
+        else:
+            repo, reference = rest, "latest"
+        return host, repo, reference
+
+
+    def _fetch_token(host, repo):
+        try:
+            _opener.open(
+                urllib.request.Request("https://%s/v2/" % host), timeout=TIMEOUT
+            ).read()
+            return None  # anonymous access allowed without a token
+        except urllib.error.HTTPError as e:
+            if e.code != 401:
+                raise
+            challenge = e.headers.get("WWW-Authenticate", "")
+        realm = re.search(r'realm="([^"]+)"', challenge).group(1)
+        m = re.search(r'service="([^"]+)"', challenge)
+        service = m.group(1) if m else ""
+        scope = "repository:%s:pull" % repo
+        query = urllib.parse.urlencode({"service": service, "scope": scope})
+        req = urllib.request.Request("%s?%s" % (realm, query))
+        if USERNAME:
+            basic = base64.b64encode(
+                ("%s:%s" % (USERNAME, PASSWORD)).encode()
+            ).decode()
+            req.add_header("Authorization", "Basic %s" % basic)
+        data = json.load(_opener.open(req, timeout=TIMEOUT))
+        return data.get("access_token") or data.get("token")
+
+
+    def token_for(host, repo, force=False):
+        key = (host, repo)
+        with _token_lock:
+            if force or key not in _tokens:
+                _tokens[key] = _fetch_token(host, repo)
+            return _tokens[key]
+
+
+    def get_json(url, token, accept):
+        req = urllib.request.Request(url)
+        req.add_header("Accept", accept)
+        if token:
+            req.add_header("Authorization", "Bearer %s" % token)
+        return json.load(_opener.open(req, timeout=TIMEOUT))
+
+
+    def discover_blobs(host, repo, reference, token):
+        url = "https://%s/v2/%s/manifests/%s" % (host, repo, reference)
+        manifest = get_json(url, token, MANIFEST_ACCEPT)
+        # If this is an index/list, descend into the first child manifest.
+        if manifest.get("manifests"):
+            child = manifest["manifests"][0]["digest"]
+            manifest = get_json(
+                "https://%s/v2/%s/manifests/%s" % (host, repo, child),
+                token, MANIFEST_ACCEPT,
+            )
+        blobs = []
+        cfg = manifest.get("config") or {}
+        if cfg.get("digest"):
+            blobs.append((cfg["digest"], int(cfg.get("size", 0))))
+        for layer in manifest.get("layers", []):
+            blobs.append((layer["digest"], int(layer.get("size", 0))))
+        return blobs
+
+
+    def _rewrite_host(url):
+        if not RESOLVE_TO_IP:
+            return url, None
+        parts = urllib.parse.urlsplit(url)
+        netloc = RESOLVE_TO_IP + (":%d" % parts.port if parts.port else "")
+        rewritten = urllib.parse.urlunsplit(
+            (parts.scheme, netloc, parts.path, parts.query, parts.fragment)
+        )
+        return rewritten, parts.hostname
+
+
+    def _stream(resp):
+        n = 0
+        while True:
+            chunk = resp.read(CHUNK)
+            if not chunk:
+                break
+            n += len(chunk)
+        return n
+
+
+    def download_blob(host, repo, digest):
+        url = "https://%s/v2/%s/blobs/%s" % (host, repo, digest)
+        for attempt in (1, 2):
+            token = token_for(host, repo)
+            req = urllib.request.Request(url)
+            if token:
+                req.add_header("Authorization", "Bearer %s" % token)
+            try:
+                return _stream(_opener.open(req, timeout=TIMEOUT))
+            except urllib.error.HTTPError as e:
+                if e.code in (301, 302, 303, 307, 308):
+                    loc, orig_host = _rewrite_host(e.headers["Location"])
+                    # Follow to the data endpoint WITHOUT the registry auth header.
+                    r2 = urllib.request.Request(loc)
+                    if orig_host:
+                        r2.add_header("Host", orig_host)
+                    return _stream(_opener.open(r2, timeout=TIMEOUT))
+                if e.code == 401 and attempt == 1:
+                    token_for(host, repo, force=True)  # token expired; refresh
+                    continue
+                raise
+
+
+    def worker(blobsets):
+        while True:
+            host, repo, digest, _size = random.choice(blobsets)
+            start = time.monotonic()
+            try:
+                n = download_blob(host, repo, digest)
+            except Exception as exc:  # keep the loop alive across transient errors
+                sys.stderr.write(
+                    "pull error %s/%s@%s: %s\n" % (host, repo, digest, exc)
+                )
+                sys.stderr.flush()
+                continue
+            elapsed = time.monotonic() - start
+            if n > 0 and elapsed > 0:
+                sys.stdout.write(
+                    "THROUGHPUT_SAMPLE ref=%s/%s@%s bytes=%d seconds=%.3f\n"
+                    % (host, repo, digest, n, elapsed)
+                )
+                sys.stdout.flush()
+
+
+    def main():
+        if not IMAGES:
+            sys.stderr.write("no IMAGES configured\n")
+            sys.exit(1)
+        blobsets = []
+        for ref in IMAGES:
+            host, repo, reference = parse_ref(ref)
+            token = token_for(host, repo)
+            for digest, size in discover_blobs(host, repo, reference, token):
+                blobsets.append((host, repo, digest, size))
+        if not blobsets:
+            sys.stderr.write("no blobs discovered\n")
+            sys.exit(1)
+        sys.stdout.write(
+            "discovered %d blobs across %d image(s); concurrency=%d\n"
+            % (len(blobsets), len(IMAGES), CONCURRENCY)
+        )
+        sys.stdout.flush()
+        threads = [
+            threading.Thread(target=worker, args=(blobsets,), daemon=True)
+            for _ in range(CONCURRENCY)
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+
+    if __name__ == "__main__":
+        main()
+---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -35,8 +277,6 @@ spec:
       labels:
         app: image-pull-load
     spec:
-      # Required so we can nsenter into the host and drive its containerd.
-      hostPID: true
       # Run only on the dedicated load pool (same label the scenario node pool uses).
       nodeSelector:
         cri-resource-consume: "true"
@@ -47,59 +287,46 @@ spec:
         - key: "cri-resource-consume"
           operator: "Exists"
           effect: "NoExecute"
+      volumes:
+        - name: loader
+          configMap:
+            name: image-pull-load-loader
       containers:
         - name: puller
-          # Needs `nsenter` to run the host's crictl. azurelinux core ships
-          # without util-linux, so it's installed at startup (below). Kept on MCR
-          # to avoid Docker Hub pull rate limits at large node counts.
+          # azurelinux core is minimal; python3 + ca-certificates are installed at
+          # startup (loader.py is stdlib-only, so no pip is needed). Kept on MCR to
+          # avoid Docker Hub pull rate limits at large node counts.
           image: mcr.microsoft.com/azurelinux/base/core:3.0
-          securityContext:
-            privileged: true
           env:
-            # Space-separated list of fully-qualified image refs to pull.
-            # A single large image gives sustained per-node throughput.
-            # Add DISTINCT tags/digests here to raise per-node concurrency,
-            # since containerd coalesces concurrent pulls of an identical ref.
+            # Space-separated list of fully-qualified image refs whose blobs are
+            # pulled. Set from the pipeline (RunImagePullLoad). A single large
+            # image (e.g. a 10 GiB multi-layer image) gives sustained throughput;
+            # add more refs to spread load across repos.
             - name: IMAGES
               value: "acrstampperftest.azurecr-test.io/test_10gb_4l_v1:latest"
-            - name: RUNTIME_ENDPOINT
-              value: "unix:///run/containerd/containerd.sock"
-            # Optional: registry creds for crictl pull when not anonymous.
-            #   value example: "<user>:<password>"  -> add `--creds "$CREDS"` below.
-            - name: CREDS
+            # Concurrent download loops per pod. Total in-flight streams across the
+            # fleet = node_count * CONCURRENCY.
+            - name: CONCURRENCY
+              value: "4"
+            # Optional registry credentials for the pull token (leave blank for
+            # anonymous pull).
+            - name: USERNAME
               value: ""
+            - name: PASSWORD
+              value: ""
+            # Optional: pin the data-endpoint host to a specific IP (e.g. a single
+            # data-proxy VMSS node). Requires INSECURE=true since SNI won't match.
+            - name: RESOLVE_TO_IP
+              value: ""
+            - name: INSECURE
+              value: "false"
+          volumeMounts:
+            - name: loader
+              mountPath: /opt/loader
+              readOnly: true
           command: ["/bin/sh", "-c"]
           args:
             - |
-              set -u
-              # azurelinux core has no nsenter by default; install util-linux once.
-              command -v nsenter >/dev/null 2>&1 || tdnf install -y util-linux >/dev/null 2>&1
-              run_crictl() {
-                nsenter -t 1 -m -u -i -n -p -- \
-                  crictl --runtime-endpoint "$RUNTIME_ENDPOINT" "$@"
-              }
-              worker() {
-                ref="$1"
-                creds_arg=""
-                [ -n "$CREDS" ] && creds_arg="--creds $CREDS"
-                while true; do
-                  # Full layer download from the registry on every iteration.
-                  start=$(date +%s)
-                  if run_crictl pull $creds_arg "$ref" >/dev/null 2>&1; then
-                    end=$(date +%s)
-                    elapsed=$((end - start))
-                    [ "$elapsed" -lt 1 ] && elapsed=1
-                    # Image size (bytes) as reported by containerd, for throughput.
-                    bytes=$(run_crictl inspecti "$ref" 2>/dev/null \
-                      | grep -oE '"size":[[:space:]]*"?[0-9]+"?' | head -1 \
-                      | grep -oE '[0-9]+')
-                    [ -n "$bytes" ] && echo "THROUGHPUT_SAMPLE ref=$ref bytes=$bytes seconds=$elapsed"
-                  fi
-                  # Evict local content+snapshots so the next pull is a cache miss.
-                  run_crictl rmi "$ref" >/dev/null 2>&1 || true
-                done
-              }
-              for ref in $IMAGES; do
-                worker "$ref" &
-              done
-              wait
+              set -eu
+              command -v python3 >/dev/null 2>&1 || tdnf install -y python3 ca-certificates >/dev/null 2>&1
+              exec python3 /opt/loader/loader.py
