@@ -19,6 +19,8 @@ steps:
     SOAK_MINUTES="${SOAK_MINUTES:-10}"
     REAL_TARGETS="${REAL_TARGETS:-false}"
     RUN_LABEL="${RUN_LABEL:-}"
+    PARALLEL="${PARALLEL:-false}"
+    MAX_CONCURRENCY="${MAX_CONCURRENCY:-}"
 
     EXTRA_ARGS="--resource-group ${{ parameters.dp_resource_group }} --dp-cluster-name ${{ parameters.dp_cluster_name }}"
     if [[ "$REAL_TARGETS" == "true" ]]; then
@@ -26,6 +28,41 @@ steps:
     fi
     if [[ -n "$RUN_LABEL" ]]; then
       EXTRA_ARGS="$EXTRA_ARGS --run-label $RUN_LABEL"
+    fi
+
+    # Parallel mode: invoke main.py ONCE with all tiers. Only supported for
+    # fake-targets (real-targets reshapes the DP nodepool per tier).
+    if [[ "$PARALLEL" == "true" && "$REAL_TARGETS" != "true" ]]; then
+      echo ""
+      echo "######################################################################"
+      echo "# TIERS $TIERS — execute in PARALLEL"
+      echo "######################################################################"
+
+      PARALLEL_ARGS="--parallel"
+      [[ -n "$MAX_CONCURRENCY" ]] && PARALLEL_ARGS="$PARALLEL_ARGS --max-concurrency $MAX_CONCURRENCY"
+
+      python3 modules/python/vmagent_loadtest/main.py \
+        --cp-kubeconfig "$CP_KUBECONFIG" \
+        --dp-kubeconfig "$DP_KUBECONFIG" \
+        --tiers "$TIERS" \
+        --warm-up-minutes "$SOAK_MINUTES" \
+        $PARALLEL_ARGS \
+        $EXTRA_ARGS
+
+      WORK_DIR=$(ls -td /tmp/vmagent-loadtest.* 2>/dev/null | head -1)
+      if [[ -n "$WORK_DIR" && -d "${WORK_DIR}/results" ]]; then
+        mkdir -p "$(TEST_RESULTS_DIR)"
+        cp -v "${WORK_DIR}/results"/*.json "$(TEST_RESULTS_DIR)/" 2>/dev/null || true
+        cp -v "${WORK_DIR}/results"/*.md "$(TEST_RESULTS_DIR)/" 2>/dev/null || true
+        [[ -d "${WORK_DIR}/pprof" ]] && mkdir -p "$(TEST_RESULTS_DIR)/pprof" && cp -rv "${WORK_DIR}/pprof"/. "$(TEST_RESULTS_DIR)/pprof/" 2>/dev/null || true
+        [[ -d "${WORK_DIR}/raw" ]] && mkdir -p "$(TEST_RESULTS_DIR)/raw" && cp -rv "${WORK_DIR}/raw"/. "$(TEST_RESULTS_DIR)/raw/" 2>/dev/null || true
+        [[ -d "${WORK_DIR}/diagnostics" ]] && mkdir -p "$(TEST_RESULTS_DIR)/diagnostics" && cp -rv "${WORK_DIR}/diagnostics"/. "$(TEST_RESULTS_DIR)/diagnostics/" 2>/dev/null || true
+        echo "Parallel results collected."
+        ls -l "$(TEST_RESULTS_DIR)/"
+      else
+        echo "##vso[task.logissue type=warning;]No results found for parallel run"
+      fi
+      exit 0
     fi
 
     IFS=',' read -ra TIER_LIST <<< "$TIERS"

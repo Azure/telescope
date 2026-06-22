@@ -24,11 +24,12 @@ stages:
           topology: vmagent-loadtest
           engine: vmagent-loadtest
           matrix:
-            small_fake:
+            fake_targets:
               TIERS: "100,150,200,250,300"
               SOAK_MINUTES: 10
               REAL_TARGETS: "false"
-              RUN_LABEL: "small-fake"
+              RUN_LABEL: "fake-targets"
+              PARALLEL: "true"
             real_targets:
               TIERS: "100,150,200,250,300"
               SOAK_MINUTES: 15
