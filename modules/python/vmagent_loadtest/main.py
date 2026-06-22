@@ -31,7 +31,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from vmagent_loadtest.cluster import az_login, create_clusters, delete_resource_group
 from vmagent_loadtest.compare import compare_real_vs_fake, compare_cross_tier
 from vmagent_loadtest.config import DEFAULT_NODEPOOL, log
-from vmagent_loadtest.runner import cleanup, cleanup_tier, run_single_tier
+from vmagent_loadtest.runner import cleanup, cleanup_tier, compute_fake_nodes_needed, run_single_tier
+from vmagent_loadtest.scaling import scale_dp_nodepool, wait_for_nodes_ready
+from vmagent_loadtest import utils as _utils
 
 
 def main() -> None:
@@ -85,6 +87,12 @@ def main() -> None:
                         help="Max retries per tier on failure (default: 2)")
     parser.add_argument("--run-label", default="",
                         help="Label prefix for namespaces (avoids collisions in parallel runs)")
+    parser.add_argument("--parallel", action="store_true",
+                        help="Run all fake-mode tiers concurrently in separate namespaces "
+                             "(no-op for --real-targets; DP nodepool is pre-sized to the sum "
+                             "of all tiers' node demand)")
+    parser.add_argument("--max-concurrency", type=int, default=0,
+                        help="Cap on concurrent tiers when --parallel is set (default: all tiers at once)")
     parser.add_argument("--compare", action="store_true",
                         help="Run both real and fake modes for the first tier, then produce a real-vs-fake fidelity report")
     parser.add_argument("--compare-results", nargs=2, metavar=("REAL_JSON", "FAKE_JSON"),
@@ -249,18 +257,48 @@ def main() -> None:
         cleanup(args.cp_kubeconfig, args.dp_kubeconfig)
         return
 
+    parallel_mode = (args.parallel and not args.real_targets and len(tiers) > 1)
+    if args.parallel and args.real_targets:
+        log.warning("--parallel ignored: real-targets mode reshapes the cluster per tier, must run sequentially")
+    if args.parallel and len(tiers) <= 1:
+        log.info("--parallel no-op: only one tier given")
+
     all_results = []
     failed_tiers = []
-    for tier in tiers:
-        result = None
-        for attempt in range(1, args.max_retries + 2):  # +2 because first attempt + retries
-            try:
-                if attempt > 1:
-                    log.info("RETRY %d/%d for tier %d — cleaning up previous attempt...",
-                             attempt - 1, args.max_retries, tier)
-                    cleanup_tier(args.cp_kubeconfig, args.dp_kubeconfig, tier,
-                                 run_label=args.run_label)
-                result = run_single_tier(
+
+    if parallel_mode:
+        # Pre-size DP nodepool to sum of all tiers' node demand, then fan out.
+        per_tier_nodes = {t: compute_fake_nodes_needed(t) for t in tiers}
+        total_nodes = sum(per_tier_nodes.values())
+        log.info("=" * 60)
+        log.info("PARALLEL MODE — %d fake-mode tiers in flight", len(tiers))
+        for t, n in per_tier_nodes.items():
+            log.info("  tier %-5d → %d DP nodes", t, n)
+        log.info("  total DP nodes needed: %d", total_nodes)
+        if args.max_concurrency:
+            log.info("  max concurrency: %d", args.max_concurrency)
+        log.info("=" * 60)
+
+        if args.resource_group and args.dp_cluster_name:
+            log.info("Pre-scaling DP nodepool %s to %d nodes (one-shot)",
+                     args.nodepool_name, total_nodes)
+            scale_dp_nodepool(args.resource_group, args.dp_cluster_name,
+                              args.nodepool_name, total_nodes)
+            wait_for_nodes_ready(args.dp_kubeconfig, expected=total_nodes,
+                                 timeout_minutes=45)
+
+        # Make every PortForward in worker threads bind a free ephemeral port
+        # instead of the hardcoded 18095/18428/18429 → no cross-tier collisions.
+        _utils._AUTO_PORT_FORWARD = True
+
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        max_workers = args.max_concurrency or len(tiers)
+        with ThreadPoolExecutor(max_workers=max_workers,
+                                thread_name_prefix="tier") as pool:
+            futures = {}
+            for tier in tiers:
+                fut = pool.submit(
+                    run_single_tier,
                     cp_kubeconfig=args.cp_kubeconfig,
                     dp_kubeconfig=args.dp_kubeconfig,
                     tier=tier,
@@ -268,38 +306,89 @@ def main() -> None:
                     work_dir=work_dir,
                     results_dir=results_dir,
                     run_id=run_id,
-                    real_targets=args.real_targets,
-                    resource_group=args.resource_group,
-                    dp_cluster_name=args.dp_cluster_name,
+                    real_targets=False,
+                    # Empty rg/cluster → run_single_tier skips its own scaling
+                    resource_group="",
+                    dp_cluster_name="",
                     nodepool=args.nodepool_name,
                     run_label=args.run_label,
                 )
-                break
-            except Exception as e:
-                log.error("Tier %d attempt %d FAILED: %s", tier, attempt, e)
-                if attempt == args.max_retries + 1:
-                    log.error("Tier %d FAILED after %d attempts — saving error and continuing",
-                              tier, attempt)
-                    result = {
+                futures[fut] = tier
+
+            for fut in as_completed(futures):
+                tier = futures[fut]
+                try:
+                    result = fut.result()
+                    all_results.append(result)
+                    log.info("Tier %d completed", tier)
+                except Exception as e:
+                    log.error("Tier %d FAILED in parallel run: %s", tier, e)
+                    failed_tiers.append(tier)
+                    all_results.append({
                         "run_id": run_id,
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                         "tier": tier,
                         "status": "failed",
                         "error": str(e),
-                        "attempts": attempt,
-                    }
-                    err_file = results_dir / f"vmagent-loadtest-{run_id}-{tier}.json"
-                    err_file.write_text(json.dumps(result, indent=2))
-                    failed_tiers.append(tier)
+                    })
+                finally:
+                    try:
+                        cleanup_tier(args.cp_kubeconfig, args.dp_kubeconfig, tier,
+                                     run_label=args.run_label)
+                    except Exception as ce:
+                        log.warning("cleanup_tier(%d) failed: %s", tier, ce)
 
-        if result:
-            all_results.append(result)
+        _utils._AUTO_PORT_FORWARD = False
+    else:
+        for tier in tiers:
+            result = None
+            for attempt in range(1, args.max_retries + 2):  # +2 because first attempt + retries
+                try:
+                    if attempt > 1:
+                        log.info("RETRY %d/%d for tier %d — cleaning up previous attempt...",
+                                 attempt - 1, args.max_retries, tier)
+                        cleanup_tier(args.cp_kubeconfig, args.dp_kubeconfig, tier,
+                                     run_label=args.run_label)
+                    result = run_single_tier(
+                        cp_kubeconfig=args.cp_kubeconfig,
+                        dp_kubeconfig=args.dp_kubeconfig,
+                        tier=tier,
+                        warm_up_minutes=args.warm_up_minutes,
+                        work_dir=work_dir,
+                        results_dir=results_dir,
+                        run_id=run_id,
+                        real_targets=args.real_targets,
+                        resource_group=args.resource_group,
+                        dp_cluster_name=args.dp_cluster_name,
+                        nodepool=args.nodepool_name,
+                        run_label=args.run_label,
+                    )
+                    break
+                except Exception as e:
+                    log.error("Tier %d attempt %d FAILED: %s", tier, attempt, e)
+                    if attempt == args.max_retries + 1:
+                        log.error("Tier %d FAILED after %d attempts — saving error and continuing",
+                                  tier, attempt)
+                        result = {
+                            "run_id": run_id,
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                            "tier": tier,
+                            "status": "failed",
+                            "error": str(e),
+                            "attempts": attempt,
+                        }
+                        err_file = results_dir / f"vmagent-loadtest-{run_id}-{tier}.json"
+                        err_file.write_text(json.dumps(result, indent=2))
+                        failed_tiers.append(tier)
 
-        # Clean up this tier's namespaces before moving to the next one
-        # to free CP/DP resources (konnectivity, vmagent, vmsingle).
-        if len(tiers) > 1:
-            cleanup_tier(args.cp_kubeconfig, args.dp_kubeconfig, tier,
-                         run_label=args.run_label)
+            if result:
+                all_results.append(result)
+
+            # Clean up this tier's namespaces before moving to the next one
+            # to free CP/DP resources (konnectivity, vmagent, vmsingle).
+            if len(tiers) > 1:
+                cleanup_tier(args.cp_kubeconfig, args.dp_kubeconfig, tier,
+                             run_label=args.run_label)
 
     log.info("")
     log.info("=" * 60)

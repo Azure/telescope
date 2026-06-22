@@ -64,11 +64,25 @@ def kubectl_apply(kubeconfig: str, manifest_text: str) -> None:
         input=manifest_text, capture=False)
 
 
+# When True, PortForward ignores the caller-supplied local_port and binds an
+# ephemeral free port instead. Set by the parallel orchestrator so concurrent
+# tier runs don't collide on hardcoded ports (e.g. 18095, 18428, 18429).
+_AUTO_PORT_FORWARD = False
+
+
+def _pick_free_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("localhost", 0))
+        return s.getsockname()[1]
+
+
 class PortForward:
     """Context manager that opens a kubectl port-forward and cleans up on exit."""
 
     def __init__(self, kubeconfig: str, namespace: str, resource: str,
                  remote_port: int, local_port: int):
+        if _AUTO_PORT_FORWARD or local_port == 0:
+            local_port = _pick_free_port()
         self.cmd = [
             "kubectl", "--kubeconfig", kubeconfig, "-n", namespace,
             "port-forward", resource, f"{local_port}:{remote_port}",
