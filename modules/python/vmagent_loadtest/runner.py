@@ -27,10 +27,26 @@ from .deploy import (
 from .adx import (
     export_if_configured as adx_export_if_configured,
     export_summary_if_configured as adx_export_summary_if_configured,
+    collect_resource_peaks as adx_collect_resource_peaks,
 )
 from .metrics import collect_diagnostics, collect_metrics, collect_pprof, evaluate_pass_fail, wait_for_targets
 from .scaling import scale_dp_nodepool, wait_for_nodes_ready
 from .utils import kubectl
+
+
+def compute_fake_nodes_needed(tier: int) -> int:
+    """Return DP node count needed to host one fake-mode tier of size `tier`.
+
+    Used by both the per-tier sequential path (scales DP to this number) and
+    the parallel orchestrator (pre-sizes DP to the SUM across all tiers).
+    """
+    pods_needed = tier * (len(FAKE_EXPORTER_ROLES) + 1)
+    nodes_by_pods = math.ceil(pods_needed / PODS_PER_NODE)
+    total_cpu = (tier * len(FAKE_EXPORTER_ROLES) * EXPORTER_CPU_REQUEST
+                 + tier * AGENT_CPU_REQUEST)
+    usable_cpu_per_node = NODE_ALLOCATABLE_CPU - SYSTEM_CPU_PER_NODE
+    nodes_by_cpu = math.ceil(total_cpu / usable_cpu_per_node)
+    return max(nodes_by_pods, nodes_by_cpu)
 
 
 def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
@@ -65,16 +81,12 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
         min_targets = tier * len(FAKE_EXPORTER_ROLES)
         # pods per tier: 4 exporter roles × tier replicas + tier konn-agents
         pods_needed = tier * (len(FAKE_EXPORTER_ROLES) + 1)
-        nodes_by_pods = math.ceil(pods_needed / PODS_PER_NODE)
-        # CPU requests: exporters + agents + system overhead
         total_cpu = (tier * len(FAKE_EXPORTER_ROLES) * EXPORTER_CPU_REQUEST
                      + tier * AGENT_CPU_REQUEST)
-        usable_cpu_per_node = NODE_ALLOCATABLE_CPU - SYSTEM_CPU_PER_NODE
-        nodes_by_cpu = math.ceil(total_cpu / usable_cpu_per_node)
-        nodes_needed = max(nodes_by_pods, nodes_by_cpu)
+        nodes_needed = compute_fake_nodes_needed(tier)
         if resource_group and dp_cluster_name:
-            log.info("Tier %d needs %d pods (→%d nodes) / %dm CPU (→%d nodes) → scaling DP to %d nodes",
-                     tier, pods_needed, nodes_by_pods, total_cpu, nodes_by_cpu, nodes_needed)
+            log.info("Tier %d needs %d pods / %dm CPU → scaling DP to %d nodes",
+                     tier, pods_needed, total_cpu, nodes_needed)
             scale_dp_nodepool(resource_group, dp_cluster_name, nodepool, nodes_needed)
             wait_for_nodes_ready(dp_kubeconfig, expected=nodes_needed, timeout_minutes=30)
         log.info("")
@@ -125,6 +137,7 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
     deploy_vmsingle(cp_kubeconfig, namespace)
     deploy_vmagent(cp_kubeconfig, namespace, dp_api_server)
     tier_start_ts = time.time()  # ADX time-series window starts here
+    wall_start_ts = tier_start_ts
 
     # 10. Wait for targets to come up (polls every 30s, samples resource usage)
     log.info("Waiting for targets (min %d, timeout %dm)...", min_targets, warm_up_minutes)
@@ -161,7 +174,21 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
             start_ts=tier_start_ts,
         )
 
-        # 12c. Push per-tier summary row to ADX (additive)
+        # 12c. Collect peak resource usage for the summary row (cheap PromQL).
+        peaks = adx_collect_resource_peaks(cp_kubeconfig, namespace, tier_start_ts)
+        measurements.update(peaks)
+
+        # 12d. Push per-tier summary row to ADX (additive)
+        try:
+            agent_replicas = int(tier)
+            vmagent_replicas = 1  # current deploy uses a single vmagent replica
+            dp_node_count = (len(get_node_ips(dp_kubeconfig))
+                             if real_targets else compute_fake_nodes_needed(tier))
+        except Exception:
+            agent_replicas = int(tier)
+            vmagent_replicas = 1
+            dp_node_count = 0
+
         adx_export_summary_if_configured(
             run_id=run_id,
             tier=tier,
@@ -169,6 +196,21 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
             result=pass_fail.get("overall", "failure"),
             measurements=measurements,
             pass_criteria=pass_fail,
+            run_label=run_label or "",
+            trial_label="",
+            wall_time_seconds=time.time() - wall_start_ts,
+            dp_node_count=dp_node_count,
+            konn_server_replicas=server_count,
+            konn_agent_replicas=agent_replicas,
+            vmagent_replicas=vmagent_replicas,
+            config={
+                "warm_up_minutes": warm_up_minutes,
+                "konn_server_image": KONN_SERVER_IMAGE,
+                "konn_agent_image": KONN_AGENT_IMAGE,
+                "vmagent_image": VMAGENT_IMAGE,
+                "vmsingle_image": VMSINGLE_IMAGE,
+                "nodepool": nodepool,
+            },
         )
     finally:
         # Always collect diagnostics (logs, events, pod descriptions) for RCA

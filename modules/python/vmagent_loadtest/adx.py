@@ -272,7 +272,19 @@ CREATE_RESULTS_TABLE_CMD = """
     RemoteWriteErrors: int,
     RemoteWriteRowsInserted: long,
     PassCriteria: dynamic,
-    Measurements: dynamic
+    Measurements: dynamic,
+    RunLabel: string,
+    TrialLabel: string,
+    WallTimeSeconds: real,
+    DpNodeCount: int,
+    KonnServerReplicas: int,
+    KonnAgentReplicas: int,
+    VmagentReplicas: int,
+    KonnServerMemMaxBytes: long,
+    KonnServerCpuMaxCores: real,
+    VmagentMemMaxBytes: long,
+    VmagentCpuMaxCores: real,
+    ConfigJson: dynamic
 )
 """
 
@@ -297,7 +309,19 @@ CREATE_RESULTS_MAPPING_CMD = """
 '{"column":"RemoteWriteErrors","Properties":{"Path":"$.RemoteWriteErrors"}},'
 '{"column":"RemoteWriteRowsInserted","Properties":{"Path":"$.RemoteWriteRowsInserted"}},'
 '{"column":"PassCriteria","Properties":{"Path":"$.PassCriteria"}},'
-'{"column":"Measurements","Properties":{"Path":"$.Measurements"}}'
+'{"column":"Measurements","Properties":{"Path":"$.Measurements"}},'
+'{"column":"RunLabel","Properties":{"Path":"$.RunLabel"}},'
+'{"column":"TrialLabel","Properties":{"Path":"$.TrialLabel"}},'
+'{"column":"WallTimeSeconds","Properties":{"Path":"$.WallTimeSeconds"}},'
+'{"column":"DpNodeCount","Properties":{"Path":"$.DpNodeCount"}},'
+'{"column":"KonnServerReplicas","Properties":{"Path":"$.KonnServerReplicas"}},'
+'{"column":"KonnAgentReplicas","Properties":{"Path":"$.KonnAgentReplicas"}},'
+'{"column":"VmagentReplicas","Properties":{"Path":"$.VmagentReplicas"}},'
+'{"column":"KonnServerMemMaxBytes","Properties":{"Path":"$.KonnServerMemMaxBytes"}},'
+'{"column":"KonnServerCpuMaxCores","Properties":{"Path":"$.KonnServerCpuMaxCores"}},'
+'{"column":"VmagentMemMaxBytes","Properties":{"Path":"$.VmagentMemMaxBytes"}},'
+'{"column":"VmagentCpuMaxCores","Properties":{"Path":"$.VmagentCpuMaxCores"}},'
+'{"column":"ConfigJson","Properties":{"Path":"$.ConfigJson"}}'
 ']'
 """
 
@@ -308,6 +332,8 @@ def ensure_schema(cluster_uri: str, database: str) -> None:
     data_client.execute_mgmt(database, CREATE_TABLE_CMD)
     data_client.execute_mgmt(database, CREATE_MAPPING_CMD)
     data_client.execute_mgmt(database, CREATE_RESULTS_TABLE_CMD)
+    # `.create-merge` ADDS new columns to an existing table but never removes
+    # them, so re-running the command after this code lands is safe.
     data_client.execute_mgmt(database, CREATE_RESULTS_MAPPING_CMD)
     log.info("ADX schema ready: %s/{VMAgentMetrics, VMAgentRunSummary}", database)
 
@@ -419,6 +445,63 @@ def metric_count_summary(rows: list[str]) -> str:
     return f"top: {top}"
 
 
+def collect_resource_peaks(cp_kubeconfig: str, namespace: str,
+                           start_ts: float, end_ts: float | None = None) -> dict:
+    """Query vmsingle for peak konn-server/vmagent memory & CPU over the window.
+
+    Returns dict with keys:
+      konn_server_mem_max_bytes, konn_server_cpu_max_cores,
+      vmagent_mem_max_bytes, vmagent_cpu_max_cores
+    Missing values default to 0 on any query failure (caller treats as N/A).
+    """
+    out = {
+        "konn_server_mem_max_bytes": 0,
+        "konn_server_cpu_max_cores": 0.0,
+        "vmagent_mem_max_bytes": 0,
+        "vmagent_cpu_max_cores": 0.0,
+    }
+    if end_ts is None:
+        end_ts = datetime.now(timezone.utc).timestamp()
+
+    # Five sample points across the window are enough to find a peak.
+    span = max(60.0, end_ts - start_ts)
+    step = max(15, int(span / 5))
+    queries = {
+        "konn_server_mem_max_bytes":
+            'max(process_resident_memory_bytes{job="konnectivity-server"})',
+        "konn_server_cpu_max_cores":
+            'max(rate(process_cpu_seconds_total{job="konnectivity-server"}[1m]))',
+        "vmagent_mem_max_bytes":
+            'max(process_resident_memory_bytes{job="vmagent-self"})',
+        "vmagent_cpu_max_cores":
+            'max(rate(process_cpu_seconds_total{job="vmagent-self"}[1m]))',
+    }
+    try:
+        with PortForward(cp_kubeconfig, namespace, "deployment/vmsingle", 8428, 18428) as pf:
+            retry_request(f"{pf.url}/health", retries=2, backoff=2)
+            for key, promql in queries.items():
+                try:
+                    series = _query_range(pf.url, promql, start_ts, end_ts, step)
+                    peak = 0.0
+                    for _labels, values in series:
+                        for _ts, val in values:
+                            try:
+                                v = float(val)
+                            except (TypeError, ValueError):
+                                continue
+                            if v > peak:
+                                peak = v
+                    if "mem_max_bytes" in key:
+                        out[key] = int(peak)
+                    else:
+                        out[key] = float(peak)
+                except Exception as e:
+                    log.debug("collect_resource_peaks(%s) failed: %s", key, e)
+    except Exception as e:
+        log.warning("collect_resource_peaks: port-forward to vmsingle failed: %s", e)
+    return out
+
+
 def export_if_configured(cp_kubeconfig: str, namespace: str,
                          run_id: str, tier: int, mode: str,
                          start_ts: float) -> None:
@@ -437,8 +520,22 @@ def export_if_configured(cp_kubeconfig: str, namespace: str,
 
 def export_run_summary(cluster_uri: str, database: str, run_id: str, tier: int,
                        mode: str, result: str, measurements: dict,
-                       pass_criteria: dict) -> None:
-    """Ingest a single per-tier summary row into VMAgentRunSummary."""
+                       pass_criteria: dict,
+                       run_label: str = "", trial_label: str = "",
+                       wall_time_seconds: float = 0.0,
+                       dp_node_count: int = 0,
+                       konn_server_replicas: int = 0,
+                       konn_agent_replicas: int = 0,
+                       vmagent_replicas: int = 0,
+                       config: dict | None = None) -> None:
+    """Ingest a single per-tier summary row into VMAgentRunSummary.
+
+    `measurements` is expected to contain (if available, populated by the
+    runner via vmsingle queries) the peak resource keys:
+      konn_server_mem_max_bytes, konn_server_cpu_max_cores,
+      vmagent_mem_max_bytes, vmagent_cpu_max_cores
+    Missing values fall back to 0 so the row is still ingested.
+    """
     import json as _json
     from azure.kusto.data.data_format import DataFormat
     from azure.kusto.ingest import IngestionProperties, StreamDescriptor
@@ -469,6 +566,18 @@ def export_run_summary(cluster_uri: str, database: str, run_id: str, tier: int,
         "RemoteWriteRowsInserted": int(m.get("vmsingle_rows_inserted", 0) or 0),
         "PassCriteria": pc,
         "Measurements": m,
+        "RunLabel": run_label or "",
+        "TrialLabel": trial_label or "",
+        "WallTimeSeconds": float(wall_time_seconds or 0.0),
+        "DpNodeCount": int(dp_node_count or 0),
+        "KonnServerReplicas": int(konn_server_replicas or 0),
+        "KonnAgentReplicas": int(konn_agent_replicas or 0),
+        "VmagentReplicas": int(vmagent_replicas or 0),
+        "KonnServerMemMaxBytes": int(m.get("konn_server_mem_max_bytes", 0) or 0),
+        "KonnServerCpuMaxCores": float(m.get("konn_server_cpu_max_cores", 0.0) or 0.0),
+        "VmagentMemMaxBytes": int(m.get("vmagent_mem_max_bytes", 0) or 0),
+        "VmagentCpuMaxCores": float(m.get("vmagent_cpu_max_cores", 0.0) or 0.0),
+        "ConfigJson": config or {},
     }
     payload = (_json.dumps(row) + "\n").encode("utf-8")
     props = IngestionProperties(
@@ -484,7 +593,14 @@ def export_run_summary(cluster_uri: str, database: str, run_id: str, tier: int,
 
 def export_summary_if_configured(run_id: str, tier: int, mode: str,
                                  result: str, measurements: dict,
-                                 pass_criteria: dict) -> None:
+                                 pass_criteria: dict,
+                                 run_label: str = "", trial_label: str = "",
+                                 wall_time_seconds: float = 0.0,
+                                 dp_node_count: int = 0,
+                                 konn_server_replicas: int = 0,
+                                 konn_agent_replicas: int = 0,
+                                 vmagent_replicas: int = 0,
+                                 config: dict | None = None) -> None:
     """No-op unless ADX cluster URI + database are configured (env or config)."""
     cluster_uri = os.environ.get("ADX_CLUSTER_URI", "").strip() or _config.ADX_CLUSTER_URI
     database = os.environ.get("ADX_DATABASE", "").strip() or _config.ADX_DATABASE
@@ -492,6 +608,13 @@ def export_summary_if_configured(run_id: str, tier: int, mode: str,
         return
     try:
         export_run_summary(cluster_uri, database, run_id, tier, mode,
-                           result, measurements, pass_criteria)
+                           result, measurements, pass_criteria,
+                           run_label=run_label, trial_label=trial_label,
+                           wall_time_seconds=wall_time_seconds,
+                           dp_node_count=dp_node_count,
+                           konn_server_replicas=konn_server_replicas,
+                           konn_agent_replicas=konn_agent_replicas,
+                           vmagent_replicas=vmagent_replicas,
+                           config=config)
     except Exception as e:
         log.warning("ADX summary export failed (non-fatal): %s", e)

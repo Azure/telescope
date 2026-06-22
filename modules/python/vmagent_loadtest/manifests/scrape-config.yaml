@@ -461,8 +461,14 @@ data:
       - job_name: konnectivity-server
         scrape_interval: 15s
         metrics_path: /metrics
-        static_configs:
-          - targets: ["konnectivity-server:8095"]
+        # Use DNS-SD against the headless service so EVERY server replica is
+        # scraped individually. The regular Service load-balances to a single
+        # pod per scrape, hiding N-1 replicas in multi-replica deployments.
+        dns_sd_configs:
+          - names: ["konnectivity-server-metrics"]
+            type: A
+            port: 8095
+            refresh_interval: 30s
 
       - job_name: vmagent-self
         scrape_interval: 15s

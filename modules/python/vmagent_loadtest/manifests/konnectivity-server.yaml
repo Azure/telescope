@@ -104,3 +104,22 @@ spec:
     - name: metrics
       port: 8095
       targetPort: 8095
+---
+# Headless Service: DNS returns one A record per pod so vmagent's
+# dns_sd_configs sees every replica individually (the LB Service above
+# would only ever land scrapes on one pod via clusterIP routing).
+apiVersion: v1
+kind: Service
+metadata:
+  name: konnectivity-server-metrics
+  namespace: __NAMESPACE__
+  labels:
+    app: konnectivity-server
+spec:
+  clusterIP: None
+  selector:
+    app: konnectivity-server
+  ports:
+    - name: metrics
+      port: 8095
+      targetPort: 8095
