@@ -1,6 +1,6 @@
 trigger: none
 schedules:
-  # On-Demand Schedule with Morgan Stanley cluster config
+  # canadacentral - daily
   - cron: "0 21 * * *"
     displayName: "Every day at 9:00 PM"
     branches:
@@ -12,16 +12,16 @@ variables:
   SCENARIO_NAME: nap-complex
 
 stages:
-  - stage: azure_eastus2_ondemand_complex_config
+  - stage: azure_canadacentral_ondemand_complex_config
     dependsOn: []
     variables:
-      - group: NAP-MS-Requirements
+      - group: NAP-MS-CanadaCentral
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
-            - eastus2
+            - canadacentral
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250912"

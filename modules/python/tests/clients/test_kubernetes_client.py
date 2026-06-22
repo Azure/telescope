@@ -1481,10 +1481,15 @@ class TestKubernetesClient(unittest.TestCase):
         mock_status = MagicMock()
         mock_status.succeeded = 1
         mock_status.failed = 0
+        mock_status.conditions = []  # No conditions, will use succeeded fallback
+
+        mock_spec = MagicMock()
+        mock_spec.completions = 1
 
         mock_job = MagicMock()
         mock_job.status = mock_status
         mock_job.metadata = mock_metadata
+        mock_job.spec = mock_spec
 
         mock_read_job.return_value = mock_job
 
@@ -1497,11 +1502,20 @@ class TestKubernetesClient(unittest.TestCase):
         """Test waiting for job completion when job has failed."""
         job_name = "test-job"
         namespace = "default"
+
+        # Create a proper Failed condition
+        mock_condition = MagicMock()
+        mock_condition.type = "Failed"
+        mock_condition.status = "True"
+
         mock_status = MagicMock()
         mock_status.succeeded = 0
         mock_status.failed = 1
+        mock_status.conditions = [mock_condition]
+
         mock_job = MagicMock()
         mock_job.status = mock_status
+        mock_job.spec.completions = 1
         mock_metadata = MagicMock()
         mock_metadata.name = job_name
         mock_job.metadata = mock_metadata
@@ -1531,6 +1545,7 @@ class TestKubernetesClient(unittest.TestCase):
             status=MagicMock(succeeded=0, failed=0, conditions=[]),
             metadata=MagicMock(name=job_name),
         )
+        mock_read_namespaced_job.return_value.spec = MagicMock(completions=1)
 
         with self.assertRaises(Exception) as context:
             self.client.wait_for_job_completed(job_name, namespace, timeout)
@@ -2017,10 +2032,10 @@ class TestKubernetesClient(unittest.TestCase):
         self.assertTrue(result["gpu-node-1"]["device_status"])
         mock_sleep.assert_called()
 
-        # Verify that the pod was created with all 8 GPUs requested
+        # Verify that the pod was created with 1 GPU requested for validation
         pod_spec = mock_create_pod.call_args[1]['body']
         gpu_limits = pod_spec.spec.containers[0].resources.limits["nvidia.com/gpu"]
-        self.assertEqual(gpu_limits, "8")
+        self.assertEqual(gpu_limits, "1")
 
     @patch("clients.kubernetes_client.KubernetesClient.get_pod_logs")
     @patch("kubernetes.client.CoreV1Api.delete_namespaced_pod")
@@ -3406,6 +3421,175 @@ spec:
                         timeout_seconds=5
                     )
                     self.assertTrue(result)
+
+    @patch('time.time')
+    def test_wait_for_condition_statefulset_success(self, mock_time):
+        """Test wait_for_condition for statefulset - success case"""
+        mock_time.side_effect = [0, 0, 1, 2, 2]
+
+        mock_statefulset = MagicMock()
+        mock_statefulset.spec.replicas = 3
+        mock_statefulset.status.ready_replicas = 3
+
+        with patch.object(self.client, 'app') as mock_app, \
+             patch('time.sleep'):
+            mock_app.read_namespaced_stateful_set.return_value = mock_statefulset
+
+            result = self.client.wait_for_condition(
+                resource_type="statefulset",
+                resource_name="test-statefulset",
+                wait_condition_type="ready",
+                namespace="test-namespace",
+                timeout_seconds=5
+            )
+
+            self.assertTrue(result)
+            mock_app.read_namespaced_stateful_set.assert_called_with(
+                name="test-statefulset",
+                namespace="test-namespace"
+            )
+
+    @patch('time.time')
+    def test_wait_for_condition_statefulset_timeout(self, mock_time):
+        """Test wait_for_condition for statefulset - timeout case"""
+        mock_time.side_effect = [0, 0, 2, 5, 6, 6]
+
+        mock_statefulset = MagicMock()
+        mock_statefulset.spec.replicas = 3
+        mock_statefulset.status.ready_replicas = 1
+
+        with patch.object(self.client, 'app') as mock_app, \
+             patch('time.sleep'):
+            mock_app.read_namespaced_stateful_set.return_value = mock_statefulset
+
+            result = self.client.wait_for_condition(
+                resource_type="statefulset",
+                resource_name="test-statefulset",
+                wait_condition_type="ready",
+                namespace="test-namespace",
+                timeout_seconds=1
+            )
+
+            self.assertFalse(result)
+
+    @patch('time.time')
+    def test_wait_for_condition_statefulset_not_found(self, mock_time):
+        """Test wait_for_condition for statefulset - not found case"""
+        mock_time.side_effect = [0, 0, 2, 5, 6, 6]
+
+        api_exception = ApiException(status=404, reason="Not Found")
+
+        with patch.object(self.client, 'app') as mock_app, \
+             patch('time.sleep'):
+            mock_app.read_namespaced_stateful_set.side_effect = api_exception
+
+            result = self.client.wait_for_condition(
+                resource_type="statefulset",
+                resource_name="nonexistent",
+                wait_condition_type="ready",
+                namespace="test-namespace",
+                timeout_seconds=1
+            )
+
+            self.assertFalse(result)
+
+    @patch('time.time')
+    def test_wait_for_condition_job_complete_success(self, mock_time):
+        """Test wait_for_condition for job - complete success case"""
+        mock_time.side_effect = [0, 0, 1, 2, 2]
+
+        mock_job = MagicMock()
+        mock_job.status.conditions = [
+            MagicMock(type="Complete", status="True")
+        ]
+        mock_job.status.succeeded = 1
+
+        with patch.object(self.client, 'batch') as mock_batch, \
+             patch('time.sleep'):
+            mock_batch.read_namespaced_job.return_value = mock_job
+
+            result = self.client.wait_for_condition(
+                resource_type="job",
+                resource_name="test-job",
+                wait_condition_type="complete",
+                namespace="test-namespace",
+                timeout_seconds=5
+            )
+
+            self.assertTrue(result)
+            mock_batch.read_namespaced_job.assert_called_with(
+                name="test-job",
+                namespace="test-namespace"
+            )
+
+    @patch('time.time')
+    def test_wait_for_condition_job_failed(self, mock_time):
+        """Test wait_for_condition for job - failed condition"""
+        mock_time.side_effect = [0, 0, 1, 2, 2]
+
+        mock_job = MagicMock()
+        mock_job.status.conditions = [
+            MagicMock(type="Failed", status="True")
+        ]
+        mock_job.status.succeeded = None
+
+        with patch.object(self.client, 'batch') as mock_batch, \
+             patch('time.sleep'):
+            mock_batch.read_namespaced_job.return_value = mock_job
+
+            result = self.client.wait_for_condition(
+                resource_type="job",
+                resource_name="test-job",
+                wait_condition_type="failed",
+                namespace="test-namespace",
+                timeout_seconds=5
+            )
+
+            self.assertTrue(result)
+
+    @patch('time.time')
+    def test_wait_for_condition_job_timeout(self, mock_time):
+        """Test wait_for_condition for job - timeout case"""
+        mock_time.side_effect = [0, 0, 2, 5, 6, 6]
+
+        mock_job = MagicMock()
+        mock_job.status.conditions = None
+        mock_job.status.succeeded = 0
+
+        with patch.object(self.client, 'batch') as mock_batch, \
+             patch('time.sleep'):
+            mock_batch.read_namespaced_job.return_value = mock_job
+
+            result = self.client.wait_for_condition(
+                resource_type="job",
+                resource_name="test-job",
+                wait_condition_type="complete",
+                namespace="test-namespace",
+                timeout_seconds=1
+            )
+
+            self.assertFalse(result)
+
+    @patch('time.time')
+    def test_wait_for_condition_job_not_found(self, mock_time):
+        """Test wait_for_condition for job - not found case"""
+        mock_time.side_effect = [0, 0, 2, 5, 6, 6]
+
+        api_exception = ApiException(status=404, reason="Not Found")
+
+        with patch.object(self.client, 'batch') as mock_batch, \
+             patch('time.sleep'):
+            mock_batch.read_namespaced_job.side_effect = api_exception
+
+            result = self.client.wait_for_condition(
+                resource_type="job",
+                resource_name="nonexistent",
+                wait_condition_type="complete",
+                namespace="test-namespace",
+                timeout_seconds=1
+            )
+
+            self.assertFalse(result)
 
     # Tests for the enhanced apply_manifest_from_file method with folder support
     @patch('os.path.isdir')

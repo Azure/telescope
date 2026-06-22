@@ -377,18 +377,18 @@ class KubernetesClient:
         :param job_name: The name of the job to wait for.
         :param namespace: The namespace where the job is located (default: "default").
         :param timeout: The timeout in seconds to wait for the job to complete (default: 300 seconds).
-        :return: None
+        :return: The job name if completed successfully.
         """
         start_time = time.time()
         while time.time() - start_time < timeout:
             try:
                 job = self.batch.read_namespaced_job(name=job_name, namespace=namespace)
-                if job.status.succeeded is not None and job.status.succeeded > 0:
+                if self._is_job_condition_met(job, "complete"):
                     logger.info(
                         f"Job '{job_name}' in namespace '{namespace}' has completed successfully."
                     )
                     return job.metadata.name
-                if job.status.failed is not None and job.status.failed > 0:
+                if self._is_job_condition_met(job, "failed"):
                     raise Exception(
                         f"Job '{job_name}' in namespace '{namespace}' has failed."
                     )
@@ -683,21 +683,32 @@ class KubernetesClient:
                 logger.info(f"Verifying NVIDIA drivers on node {node_name}")
                 node = self.describe_node(node_name)
 
-                # Check if the node has GPUs allocated values
+                # Check if the node has GPUs allocated values (whole GPU or MIG slices)
                 start_time = time.time()
-                while "nvidia.com/gpu" not in node.status.allocatable and time.time() < start_time + 600:
+                while time.time() < start_time + 600:
+                    allocatable = node.status.allocatable or {}
+                    if "nvidia.com/gpu" in allocatable or any(k.startswith("nvidia.com/mig-") for k in allocatable):
+                        break
                     node = self.describe_node(node_name)
                     logger.info(f"Node allocatable resources: {node.status.allocatable}")
                     logger.info(f"Waiting for GPUs to be allocated on node {node_name}...")
                     time.sleep(1)
                 gpu_count = int(node.status.allocatable.get("nvidia.com/gpu", "0"))
+                has_mig = any(k.startswith("nvidia.com/mig-") for k in node.status.allocatable)
 
                 logger.info(f"Node {node_name} has {gpu_count} GPUs, requesting all for validation")
 
-                # Skip nodes with no GPUs
-                if gpu_count == 0:
+                # Skip nodes with no GPUs (MIG nodes expose slices instead of whole GPUs)
+                if gpu_count == 0 and not has_mig:
                     logger.warning(f"Skipping node {node_name} as it has no GPUs")
                     continue
+
+                # MIG mixed: request one slice; MIG single or regular: request 1 whole GPU
+                if has_mig:
+                    mig_resource = next(k for k in node.status.allocatable if k.startswith("nvidia.com/mig-"))
+                    gpu_resource_limits = {mig_resource: "1"}
+                else:
+                    gpu_resource_limits = {"nvidia.com/gpu": "1"}
 
                 # Create pod spec with node selector
                 pod = client.V1Pod(
@@ -709,7 +720,7 @@ class KubernetesClient:
                                 image="nvidia/cuda:12.2.0-base-ubuntu20.04",
                                 command=["/bin/bash", "-c", "nvidia-smi"],
                                 resources=client.V1ResourceRequirements(
-                                    limits={"nvidia.com/gpu": str(gpu_count)}
+                                    limits=gpu_resource_limits
                                 ),
                             )
                         ],
@@ -780,6 +791,122 @@ class KubernetesClient:
                 f"Error verifying NVIDIA drivers: {str(e)}"
             )
             return False
+
+    def verify_managed_gpu_systemd_services(self, nodes, namespace="default"):
+        """
+        Verify that fully managed GPU systemd services are running on each node by
+        creating a privileged pod with host filesystem access and checking:
+          - nvidia-dcgm
+          - nvidia-dcgm-exporter
+          - nvidia-device-plugin
+        """
+        all_results = {}
+        try:
+            for node in nodes:
+                node_name = node.metadata.name
+                pod_name = f"gpu-svc-verify-{uuid.uuid4()}"
+                logger.info(f"Verifying managed GPU systemd services on node {node_name}")
+
+                pod = client.V1Pod(
+                    metadata=client.V1ObjectMeta(name=pod_name),
+                    spec=client.V1PodSpec(
+                        host_pid=True,
+                        containers=[
+                            client.V1Container(
+                                name="svc-check",
+                                image="mcr.microsoft.com/cbl-mariner/busybox:2.0",
+                                command=[
+                                    "chroot", "/host", "sh", "-c",
+                                    "for svc in nvidia-dcgm nvidia-dcgm-exporter nvidia-device-plugin; do "
+                                    "echo \"$svc: $(systemctl is-active $svc)\"; done"
+                                ],
+                                security_context=client.V1SecurityContext(privileged=True),
+                                volume_mounts=[
+                                    client.V1VolumeMount(name="host-root", mount_path="/host")
+                                ],
+                            )
+                        ],
+                        volumes=[
+                            client.V1Volume(
+                                name="host-root",
+                                host_path=client.V1HostPathVolumeSource(path="/"),
+                            )
+                        ],
+                        node_selector={"kubernetes.io/hostname": node_name},
+                        restart_policy="Never",
+                        tolerations=[client.V1Toleration(operator="Exists")],
+                    ),
+                )
+
+                self.api.create_namespaced_pod(namespace=namespace, body=pod)
+
+                deadline = time.time() + 120
+                while time.time() < deadline:
+                    pod_status = self.api.read_namespaced_pod(name=pod_name, namespace=namespace)
+                    if pod_status.status.phase in ["Succeeded", "Failed"]:
+                        break
+                    time.sleep(2)
+                else:
+                    raise TimeoutError(f"Verification pod {pod_name} did not complete within 120s")
+
+                pod_logs = self.get_pod_logs(pod_name=pod_name, namespace=namespace)
+                pod_logs_str = pod_logs.decode("utf-8") if isinstance(pod_logs, bytes) else str(pod_logs)
+
+                services = ["nvidia-dcgm", "nvidia-dcgm-exporter", "nvidia-device-plugin"]
+                statuses = {svc: ("active" if f"{svc}: active" in pod_logs_str else "inactive") for svc in services}
+                all_active = all(s == "active" for s in statuses.values())
+                status_summary = ", ".join(f"{svc}={state}" for svc, state in statuses.items())
+                result_label = "all active" if all_active else "SOME INACTIVE"
+                log_fn = logger.info if all_active else logger.warning
+                log_fn(f"{node_name}: {status_summary} ({result_label})")
+
+                all_results[node_name] = {
+                    "pod_name": pod_name,
+                    "logs": pod_logs_str,
+                    "all_services_active": all_active,
+                }
+
+                try:
+                    self.api.delete_namespaced_pod(
+                        name=pod_name, namespace=namespace, body=client.V1DeleteOptions()
+                    )
+                except Exception as e:
+                    logger.warning(f"Error deleting verification pod {pod_name}: {str(e)}")
+
+            return all_results
+
+        except Exception as e:
+            logger.error(f"Error verifying managed GPU systemd services: {str(e)}")
+            raise
+
+    def verify_mig_allocatable(self, nodes, gpu_instance_profile: str) -> dict:
+        """
+        Verify that MIG slice resources appear in each node's allocatable resources.
+        Returns a dict keyed by node name with allocatable MIG resource counts.
+        """
+        # MIG1g → "mig-1g" to match nvidia.com/mig-1g.5gb / nvidia.com/mig-1g.10gb (mixed strategy)
+        profile_key = "mig-" + gpu_instance_profile[3:].lower()
+        results = {}
+        for node in nodes:
+            node_name = node.metadata.name
+            node_info = self.describe_node(node_name)
+            allocatable = node_info.status.allocatable or {}
+
+            # Mixed strategy: slices exposed as nvidia.com/mig-* resources
+            mig_resources = {k: v for k, v in allocatable.items() if profile_key in k.lower()}
+
+            if not mig_resources:
+                # Single strategy: MIG instances exposed as nvidia.com/gpu
+                gpu_count = int(allocatable.get("nvidia.com/gpu", "0"))
+                if gpu_count > 0:
+                    mig_resources = {"nvidia.com/gpu": str(gpu_count)}
+
+            if mig_resources:
+                logger.info(f"{node_name}: MIG allocatable: {mig_resources}")
+            else:
+                logger.warning(f"{node_name}: no MIG resources found in allocatable: {allocatable}")
+            results[node_name] = mig_resources
+        return results
 
     def apply_manifest_from_url(self, manifest_url, namespace: Optional[str] = None):
         """
@@ -975,7 +1102,10 @@ class KubernetesClient:
         valid_conditions = {
             'deployment': ['available', 'progressing', 'replicafailure', 'ready'],
             'deployments': ['available', 'progressing', 'replicafailure', 'ready'],
-            # Add more resource types as needed
+            'statefulset': ['ready'],
+            'statefulsets': ['ready'],
+            'job': ['complete', 'failed'],
+            'jobs': ['complete', 'failed'],
         }
 
         # Validate wait_condition_type format and type
@@ -1049,6 +1179,12 @@ class KubernetesClient:
             if resource_type_lower in ['deployment', 'deployments']:
                 return self._check_deployment_condition(resource_name, condition_type, namespace, wait_all)
 
+            if resource_type_lower in ['statefulset', 'statefulsets']:
+                return self._check_statefulset_condition(resource_name, namespace, wait_all)
+
+            if resource_type_lower in ['job', 'jobs']:
+                return self._check_job_condition(resource_name, condition_type, namespace, wait_all)
+
             logger.warning(f"Unsupported resource type for condition checking: {resource_type}")
             return False
 
@@ -1075,9 +1211,79 @@ class KubernetesClient:
 
         except client.rest.ApiException as e:
             if e.status == 404:
-                logger.debug("Deployment not found, waiting...")
                 return False
             raise e
+
+    def _check_statefulset_condition(self, resource_name: str, namespace: str, wait_all: bool) -> bool:
+        """Check statefulset condition (e.g., 'ready')."""
+        try:
+            if wait_all or not resource_name:
+                statefulsets = self.app.list_namespaced_stateful_set(namespace=namespace).items
+            else:
+                statefulset = self.app.read_namespaced_stateful_set(name=resource_name, namespace=namespace)
+                statefulsets = [statefulset]
+
+            for statefulset in statefulsets:
+                if not self._is_statefulset_ready(statefulset):
+                    return False
+
+            return True
+
+        except client.rest.ApiException as e:
+            if e.status == 404:
+                return False
+            raise e
+
+    def _is_statefulset_ready(self, statefulset) -> bool:
+        """Check if a statefulset has all replicas ready, including scale-to-zero."""
+        status = statefulset.status
+        spec_replicas = statefulset.spec.replicas or 0
+        return (
+            status is not None
+            and status.ready_replicas is not None
+            and status.ready_replicas == spec_replicas
+        )
+
+    def _check_job_condition(self, resource_name: str, condition_type: str, namespace: str, wait_all: bool) -> bool:
+        """Check job condition (e.g., 'complete', 'failed')."""
+        try:
+            if wait_all or not resource_name:
+                jobs = self.batch.list_namespaced_job(namespace=namespace).items
+            else:
+                job = self.batch.read_namespaced_job(name=resource_name, namespace=namespace)
+                jobs = [job]
+
+            for job in jobs:
+                if not self._is_job_condition_met(job, condition_type):
+                    return False
+
+            return True
+
+        except client.rest.ApiException as e:
+            if e.status == 404:
+                return False
+            raise e
+
+    def _is_job_condition_met(self, job, condition_type: str) -> bool:
+        """Check if a job meets the specified condition."""
+        if not job.status:
+            return False
+
+        condition_type_lower = condition_type.lower()
+
+        # Check job conditions
+        if job.status.conditions:
+            for condition in job.status.conditions:
+                if condition.type.lower() == condition_type_lower and condition.status == "True":
+                    return True
+
+        # Fallback: infer completion from success counters when conditions are absent
+        if condition_type_lower == 'complete':
+            spec_completions = job.spec.completions or 1
+            return (job.status.succeeded is not None and
+                    job.status.succeeded >= spec_completions)
+
+        return False
 
     def _is_deployment_condition_met(self, deployment, condition_type: str) -> bool:
         """Check if a deployment meets the specified condition."""
@@ -1159,6 +1365,8 @@ class KubernetesClient:
                 self.app.create_namespaced_daemon_set(namespace=namespace, body=manifest)
             elif kind == "StatefulSet":
                 self.app.create_namespaced_stateful_set(namespace=namespace, body=manifest)
+            elif kind == "Job":
+                self.batch.create_namespaced_job(namespace=namespace, body=manifest)
             elif kind == "Service":
                 self.api.create_namespaced_service(namespace=namespace, body=manifest)
             elif kind == "ConfigMap":
@@ -1313,6 +1521,11 @@ class KubernetesClient:
                     self.app.patch_namespaced_stateful_set(name=name, namespace=namespace, body=manifest)
                 else:
                     raise ValueError("StatefulSet requires a namespace")
+            elif kind == "Job":
+                if namespace:
+                    self.batch.patch_namespaced_job(name=name, namespace=namespace, body=manifest)
+                else:
+                    raise ValueError("Job requires a namespace")
             elif kind == "Service":
                 if namespace:
                     self.api.patch_namespaced_service(name=name, namespace=namespace, body=manifest)
@@ -1494,6 +1707,11 @@ class KubernetesClient:
                     self.app.delete_namespaced_stateful_set(name=resource_name, namespace=namespace, body=delete_options)
                 else:
                     raise ValueError("StatefulSet requires a namespace")
+            elif kind == "Job":
+                if namespace:
+                    self.batch.delete_namespaced_job(name=resource_name, namespace=namespace, body=delete_options)
+                else:
+                    raise ValueError("Job requires a namespace")
             elif kind == "Service":
                 if namespace:
                     self.api.delete_namespaced_service(name=resource_name, namespace=namespace, body=delete_options)

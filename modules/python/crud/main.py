@@ -17,6 +17,7 @@ import sys
 import traceback
 from datetime import datetime, timezone
 from crud.azure.node_pool_crud import NodePoolCRUD as AzureNodePoolCRUD
+from crud.azure.machine_crud import MachineCRUD as AzureMachineCRUD
 from crud.aws.node_pool_crud import NodePoolCRUD as AWSNodePoolCRUD
 from crud.operation import OperationContext
 from utils.common import get_env_vars
@@ -52,6 +53,20 @@ def get_node_pool_crud_class(cloud_provider):
     raise ValueError(
         f"Unsupported cloud provider: {cloud_provider}. "
         f"Supported providers are: azure, aws, gcp"
+    )
+
+
+def get_machine_crud_class(cloud_provider):
+    """
+    Dynamically import and return the appropriate MachineCRUD class based on cloud provider.
+
+    Only Azure is supported today; AWS and GCP do not expose an equivalent
+    machine-level API.
+    """
+    if cloud_provider == "azure":
+        return AzureMachineCRUD
+    raise ValueError(
+        f"Machine API is only supported on Azure today (got: {cloud_provider})"
     )
 
 
@@ -100,6 +115,9 @@ def handle_node_pool_operation(node_pool_crud, args):
                 "vm_size": args.vm_size,
                 "node_count": args.node_count,
                 "gpu_node_pool": args.gpu_node_pool,
+                "enable_managed_gpu": args.enable_managed_gpu,
+                "gpu_instance_profile": args.gpu_instance_profile,
+                "gpu_mig_strategy": args.gpu_mig_strategy,
             }
 
             result = node_pool_crud.create_node_pool(**create_kwargs)
@@ -112,6 +130,8 @@ def handle_node_pool_operation(node_pool_crud, args):
                 "progressive": check_for_progressive_scaling(args),
                 "scale_step_size": args.scale_step_size,
                 "gpu_node_pool": args.gpu_node_pool,
+                "enable_managed_gpu": args.enable_managed_gpu,
+                "gpu_instance_profile": args.gpu_instance_profile,
             }
 
             result = node_pool_crud.scale_node_pool(**scale_kwargs)
@@ -129,6 +149,7 @@ def handle_node_pool_operation(node_pool_crud, args):
                 "progressive": check_for_progressive_scaling(args),
                 "scale_step_size": args.scale_step_size,
                 "gpu_node_pool": args.gpu_node_pool,
+                "enable_managed_gpu": args.enable_managed_gpu,
                 "step_wait_time": args.step_wait_time,
             }
 
@@ -146,6 +167,68 @@ def handle_node_pool_operation(node_pool_crud, args):
         logger.error(f"Error during '{command}' operation: {str(e)}")
         return 1
 
+def handle_workload_operations(node_pool_crud, args):
+    """Handle workload operations (deployment, statefulset, job) based on the command"""
+    command = args.command
+    result = None
+
+    try:
+        if command == "deployment":
+            if not hasattr(node_pool_crud, 'create_deployment'):
+                logger.error("Cloud provider does not support deployment workload operations")
+                return 1
+
+            # Prepare deploy arguments
+            deploy_kwargs = {
+                "node_pool_name": args.node_pool_name,
+                "replicas": args.replicas,
+                "manifest_dir": args.manifest_dir,
+                "number_of_deployments": args.count,
+                "label_selector": args.label_selector,
+            }
+
+            result = node_pool_crud.create_deployment(**deploy_kwargs)
+        elif command == "statefulset":
+            if not hasattr(node_pool_crud, 'create_statefulset'):
+                logger.error("Cloud provider does not support statefulset workload operations")
+                return 1
+
+            # Prepare statefulset arguments
+            statefulset_kwargs = {
+                "node_pool_name": args.node_pool_name,
+                "replicas": args.replicas,
+                "manifest_dir": args.manifest_dir,
+                "number_of_statefulsets": args.count,
+                "label_selector": args.label_selector,
+            }
+
+            result = node_pool_crud.create_statefulset(**statefulset_kwargs)
+        elif command == "job":
+            if not hasattr(node_pool_crud, 'create_job'):
+                logger.error("Cloud provider does not support job workload operations")
+                return 1
+
+            # Prepare job arguments
+            job_kwargs = {
+                "node_pool_name": args.node_pool_name,
+                "completions": args.completions,
+                "manifest_dir": args.manifest_dir,
+                "number_of_jobs": args.count,
+                "label_selector": args.label_selector,
+            }
+
+            result = node_pool_crud.create_job(**job_kwargs)
+        else:
+            logger.error("Unknown workload command: '%s'", command)
+            return 1
+        # Check if the operation was successful
+        if result is False:
+            logger.error(f"Operation '{command}' failed")
+            return 1
+        return 0
+    except Exception as e:
+        logger.error(f"Error during '{command}' operation: {str(e)}")
+        return 1
 
 def handle_node_pool_all(node_pool_crud, args):
     """Handle the all-in-one node pool operation command (create, scale up, scale down, delete)"""
@@ -176,6 +259,53 @@ def handle_node_pool_all(node_pool_crud, args):
         return 1
 
 
+def handle_machine_operation(machine_crud, args):
+    """Handle machine API operations (create-machine, scale-machine) based on the command."""
+    command = args.command
+    result = None
+
+    try:
+        if command == "create-machine":
+            create_kwargs = {
+                "agent_pool_name": args.node_pool_name,
+                "vm_size": args.vm_size,
+            }
+
+            result = machine_crud.create_machine_agentpool(**create_kwargs)
+
+        elif command == "scale-machine":
+            tags = None
+            if getattr(args, "tags", None):
+                try:
+                    tags = json.loads(args.tags)
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Failed to parse --tags {args.tags!r} as JSON: {e}")
+
+            scale_kwargs = {
+                "agent_pool_name": args.node_pool_name,
+                "vm_size": args.vm_size,
+                "scale_machine_count": args.scale_machine_count,
+                "use_batch_api": args.use_batch_api,
+                "machine_workers": args.machine_workers,
+                "readiness_wait_timeout": args.readiness_wait_timeout,
+                "tags": tags,
+            }
+
+            result = machine_crud.scale_machine(**scale_kwargs)
+
+        else:
+            logger.error(f"Unsupported machine command: {command}")
+            return 1
+
+        if result is False:
+            logger.error(f"Machine operation '{command}' failed")
+            return 1
+        return 0
+    except Exception as e:
+        logger.error(f"Error during '{command}' operation: {e}")
+        return 1
+
+
 def check_for_progressive_scaling(args):
     """
     Check if we need to perform progressive scaling based on the scale step size and target count.
@@ -184,6 +314,66 @@ def check_for_progressive_scaling(args):
     if hasattr(args, "scale_step_size") and args.scale_step_size != args.target_count:
         return True
     return False
+
+
+def _add_create_machine_subparser(subparsers, common_parser):
+    """Register the `create-machine` subcommand on the given subparsers group."""
+    create_machine_parser = subparsers.add_parser(
+        "create-machine",
+        parents=[common_parser],
+        help="Create a machine-mode agent pool via the AKS Machine API",
+    )
+    create_machine_parser.add_argument(
+        "--node-pool-name", required=True, help="Agent pool name"
+    )
+    create_machine_parser.add_argument(
+        "--vm-size", required=True, help="VM size for the agent pool"
+    )
+    create_machine_parser.set_defaults(func=handle_machine_operation)
+
+
+def _add_scale_machine_subparser(subparsers, common_parser):
+    """Register the `scale-machine` subcommand on the given subparsers group."""
+    scale_machine_parser = subparsers.add_parser(
+        "scale-machine",
+        parents=[common_parser],
+        help="Add N machines to a machine-mode agent pool via the AKS Machine API",
+    )
+    scale_machine_parser.add_argument(
+        "--node-pool-name", required=True, help="Agent pool name"
+    )
+    scale_machine_parser.add_argument(
+        "--vm-size", required=True, help="VM size for the new machines"
+    )
+    scale_machine_parser.add_argument(
+        "--scale-machine-count",
+        type=int,
+        required=True,
+        help="Number of machines to add to the agent pool",
+    )
+    scale_machine_parser.add_argument(
+        "--machine-workers",
+        type=int,
+        default=1,
+        help="Concurrent worker count for individual machine PUTs",
+    )
+    scale_machine_parser.add_argument(
+        "--use-batch-api",
+        action="store_true",
+        help="Use the BatchPutMachine API (chunked, single PUT per chunk)",
+    )
+    scale_machine_parser.add_argument(
+        "--readiness-wait-timeout",
+        type=int,
+        default=1200,
+        help="Seconds to wait for nodes to become Ready after PUT",
+    )
+    scale_machine_parser.add_argument(
+        "--tags",
+        default=None,
+        help="JSON-encoded tag map (currently ignored by the Machine API)",
+    )
+    scale_machine_parser.set_defaults(func=handle_machine_operation)
 
 
 def main():
@@ -226,6 +416,22 @@ def main():
         "--gpu-node-pool",
         action="store_true",
         help="Whether this is a GPU-enabled node pool",
+    )
+    common_parser.add_argument(
+        "--enable-managed-gpu",
+        action="store_true",
+        help="Enable fully managed GPU mode (gpuProfile.nvidia.managementMode=Managed). "
+             "When omitted with --gpu-node-pool, driver bootstrap only is used.",
+    )
+    common_parser.add_argument(
+        "--gpu-instance-profile",
+        default=None,
+        help="MIG instance profile for Azure GPU node pools (e.g., MIG1g, MIG2g)",
+    )
+    common_parser.add_argument(
+        "--gpu-mig-strategy",
+        default=None,
+        help="MIG strategy for Azure GPU node pools (e.g., mixed, single)",
     )
     common_parser.add_argument(
         "--capacity-type",
@@ -320,6 +526,68 @@ def main():
     )
     all_parser.set_defaults(func=handle_node_pool_operation)
 
+    # Common arguments shared across all workload subcommands (deployment, statefulset, jobs)
+    workload_common_parser = argparse.ArgumentParser(add_help=False)
+    workload_common_parser.add_argument("--node-pool-name", required=True, help="Node pool name")
+    workload_common_parser.add_argument(
+        "--count",
+        type=int,
+        default=1,
+        help="Number of workloads to create"
+    )
+    workload_common_parser.add_argument(
+        "--replicas",
+        type=int,
+        default=10,
+        help="Number of replicas per workload"
+    )
+    workload_common_parser.add_argument(
+        "--manifest-dir",
+        default=None,
+        help="Directory containing Kubernetes manifest files"
+    )
+    workload_common_parser.add_argument(
+        "--label-selector",
+        default="app=nginx-container",
+        help="Label selector for created pods (default: app=nginx-container)"
+    )
+
+    # Deployment command
+    deployment_parser = subparsers.add_parser(
+        "deployment",
+        parents=[common_parser, workload_common_parser],
+        help="create deployments"
+    )
+    deployment_parser.set_defaults(func=handle_workload_operations)
+
+    # StatefulSet command
+    statefulset_parser = subparsers.add_parser(
+        "statefulset",
+        parents=[common_parser, workload_common_parser],
+        help="create statefulsets"
+    )
+    statefulset_parser.set_defaults(func=handle_workload_operations)
+
+    # Job command
+    job_parser = subparsers.add_parser(
+        "job",
+        parents=[common_parser, workload_common_parser],
+        help="create jobs"
+    )
+    job_parser.add_argument(
+        "--completions",
+        type=int,
+        default=1,
+        help="Number of completions per job (default: 1)"
+    )
+    job_parser.set_defaults(func=handle_workload_operations)
+
+    # Create-machine command (AKS Machine API)
+    _add_create_machine_subparser(subparsers, common_parser)
+
+    # Scale-machine command (AKS Machine API)
+    _add_scale_machine_subparser(subparsers, common_parser)
+
     # Arguments provided, run node pool operations and collect benchmark results
     try:
         args = parser.parse_args()
@@ -336,6 +604,23 @@ def main():
                 logger.info("Collect operation completed successfully")
             else:
                 logger.error(f"Collect operation failed with exit code: {exit_code}")
+            sys.exit(exit_code)
+
+        # Handle machine API commands on their own dispatch path
+        if args.command in ["create-machine", "scale-machine"]:
+            machine_crud_class = get_machine_crud_class(args.cloud)
+            logger.info(f"Using MachineCRUD class for cloud provider: {args.cloud}")
+            machine_crud = machine_crud_class(
+                resource_group=args.run_id,
+                kube_config_file=args.kube_config,
+                result_dir=args.result_dir,
+                step_timeout=args.step_timeout,
+            )
+            exit_code = args.func(machine_crud, args)
+            if exit_code == 0:
+                logger.info("Operation completed successfully")
+            else:
+                logger.error(f"Operation failed with exit code: {exit_code}")
             sys.exit(exit_code)
 
         # Validate required arguments are present for node pool operations
@@ -392,8 +677,9 @@ def main():
             )
             sys.exit(1)
 
-        # Install GPU device plugin if GPU node pool is enabled and verify the plugin is installed
-        if args.gpu_node_pool and args.cloud in ["azure", "aws"]:
+        # Install GPU device plugin for managed (driver bootstrap) and AWS GPU pools.
+        # Fully managed GPU skips this — AKS installs nvidia-device-plugin as a systemd service.
+        if args.gpu_node_pool and args.cloud in ["azure", "aws"] and not args.enable_managed_gpu:
             logger.info("GPU node pool is enabled")
             with OperationContext(
                 "install_gpu_plugin", args.cloud, {}, result_dir=args.result_dir

@@ -15,20 +15,35 @@ steps:
       inlineScript: |
         echo "##vso[task.setvariable variable=AWS_ACCESS_KEY_ID;issecret=true]$AWS_ACCESS_KEY_ID"
         echo "##vso[task.setvariable variable=AWS_SECRET_ACCESS_KEY;issecret=true]$AWS_SECRET_ACCESS_KEY"
+        if [ -n "${AWS_SESSION_TOKEN:-}" ]; then
+          echo "Session token found; setting it to AWS_SESSION_TOKEN pipeline variable"
+          echo "##vso[task.setvariable variable=AWS_SESSION_TOKEN;issecret=true]$AWS_SESSION_TOKEN"
+        fi
     displayName: 'Get login credentials'
 
 - bash: |
     set -eu
     echo "login to AWS in $REGION"
 
-    aws configure set aws_access_key_id "$AWS_ACCESS_KEY"
-    aws configure set aws_secret_access_key "$AWS_SECRET_KEY"
+    aws configure set aws_access_key_id "$AWS_ACCESS_KEY_ID"
+    aws configure set aws_secret_access_key "$AWS_SECRET_ACCESS_KEY"
+    # ADO passes the literal string '$(AWS_SESSION_TOKEN)' when the pipeline variable is undefined.
+    # We can't use that literal directly because ADO expands $(...) in script bodies too.
+    ADO_LITERAL='$'"(AWS_SESSION_TOKEN)"
+    if [ "${AWS_SESSION_TOKEN:-}" = "$ADO_LITERAL" ]; then
+      echo "No session token; AWS_SESSION_TOKEN contains unresolved ADO variable literal, clearing"
+      AWS_SESSION_TOKEN=""
+    fi
+    if [ -n "${AWS_SESSION_TOKEN:-}" ]; then
+      echo "Session token found; configuring aws_session_token"
+      aws configure set aws_session_token "$AWS_SESSION_TOKEN"
+    fi
     aws configure set default.region "$REGION"
     aws configure list
     echo "##vso[task.setvariable variable=AWS_DEFAULT_REGION]$REGION"
   displayName: "AWS Login"
-  name: aws_login
   env:
-    AWS_ACCESS_KEY: $(AWS_ACCESS_KEY_ID)
-    AWS_SECRET_KEY: $(AWS_SECRET_ACCESS_KEY)
+    AWS_ACCESS_KEY_ID: $(AWS_ACCESS_KEY_ID)
+    AWS_SECRET_ACCESS_KEY: $(AWS_SECRET_ACCESS_KEY)
+    AWS_SESSION_TOKEN: $(AWS_SESSION_TOKEN)
     REGION: ${{ parameters.region }}

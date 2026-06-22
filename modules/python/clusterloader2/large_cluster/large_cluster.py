@@ -90,7 +90,12 @@ def validate_clusterloader2(node_count, operation_timeout_in_minutes=10):
     ready_node_count = 0
     timeout = time.time() + (operation_timeout_in_minutes * 60)
     while time.time() < timeout:
-        ready_nodes = kube_client.get_ready_nodes()
+        try:
+            ready_nodes = kube_client.get_ready_nodes()
+        except Exception as e:
+            print(f"Transient error querying nodes, will retry: {e}")
+            time.sleep(10)
+            continue
         ready_node_count = len(ready_nodes)
         print(f"Currently {ready_node_count} nodes are ready.")
         if ready_node_count == node_count:
