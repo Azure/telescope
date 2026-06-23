@@ -22,23 +22,27 @@ runcmd:
   - rm kubectl
 """
 
-# Default role assignments for the jumpbox managed identity, keyed by role name.
-# An empty-string scope means "the resource group the jumpbox is created in" (resolved at run time).
+# RoleAssignment describes a single Azure RBAC role to grant to the jumpbox managed identity.
+# `scope` is the full Azure resource id at which the role is granted; an empty string falls back
+# to the jumpbox's resource group id (resolved at run time).
+schema RoleAssignment:
+    role: str
+    scope: str = ""
+
+# Default role assignments for the jumpbox managed identity.
 # Cluster Admin Role grants listClusterAdminCredential (admin kubeconfig -> full kube-apiserver access);
 # Contributor Role grants AKS management ops (scale, nodepool, upgrade, etc.) plus listClusterUserCredential.
 # Together these subsume Cluster User Role and RBAC Cluster Admin for our use cases.
-DEFAULT_AKS_JUMPBOX_ROLES = {
-    "Azure Kubernetes Service Cluster Admin Role" = ""
-    "Azure Kubernetes Service Contributor Role" = ""
-}
+DEFAULT_AKS_JUMPBOX_ROLES = [
+    RoleAssignment {role = "Azure Kubernetes Service Cluster Admin Role"}
+    RoleAssignment {role = "Azure Kubernetes Service Contributor Role"}
+]
 
 # CreateJumpbox provisions a Linux jumpbox VM in an existing VNet/subnet, opens SSH, enables a system-assigned
 # managed identity, and (optionally) assigns roles to that identity.
 #
-# `roles` is a {role: scope} map. An empty-string scope falls back to the jumpbox's resource group id.
-#
-# The admin password is read from a pipeline secret variable (default: JUMPBOX_ADMIN_PASSWORD); the caller
-# must wire that variable up via a variable group or pipeline secret.
+# Authentication uses `az vm create --generate-ssh-keys`, which auto-generates an SSH key pair at
+# ~/.ssh/id_rsa{,.pub} on the pipeline agent (ephemeral, lost when the agent terminates).
 CreateJumpbox = lambda \
     serviceConnection: str, \
     subscription: str, \
@@ -47,20 +51,19 @@ CreateJumpbox = lambda \
     vnetName: str, \
     subnetName: str = "jumpbox", \
     adminUsername: str = "azureuser", \
-    adminPasswordVar: str = "JUMPBOX_ADMIN_PASSWORD", \
     vmSize: str = "Standard_D16ds_v5", \
     image: str = "Ubuntu2204", \
     cloudInit: str = DEFAULT_JUMPBOX_CLOUD_INIT, \
-    roles: {str:str} = DEFAULT_AKS_JUMPBOX_ROLES \
+    roles: [RoleAssignment] = DEFAULT_AKS_JUMPBOX_ROLES \
     -> steps.Step {
     rgScopeExpr = "$(az group show --name \"${resourceGroup}\" --subscription \"${subscription}\" --query id -o tsv)"
     roleAssignments = "\n".join([
         """az role assignment create \\
   --assignee "$JUMPBOX_PRINCIPAL_ID" \\
-  --role "${role}" \\
-  --scope "${roles[role] if roles[role] else rgScopeExpr}" \\
+  --role "${r.role}" \\
+  --scope "${r.scope if r.scope else rgScopeExpr}" \\
   --subscription "${subscription}"
-""" for role in roles
+""" for r in roles
     ])
 
     script = """
@@ -76,8 +79,7 @@ az vm create \\
   --subnet "${subnetName}" \\
   --public-ip-address "${name}-pip" \\
   --admin-username "${adminUsername}" \\
-  --admin-password "$(${adminPasswordVar})" \\
-  --authentication-type password \\
+  --generate-ssh-keys \\
   --custom-data /tmp/cloud-init.yaml \\
   --subscription "${subscription}"
 
