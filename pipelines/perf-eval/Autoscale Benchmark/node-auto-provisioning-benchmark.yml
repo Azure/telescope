@@ -454,7 +454,7 @@ stages:
               vm_size: Standard_D2ds_v4
               capacity_type: on-demand
               refresh_interval: "1s"
-            medium-scale--spot:
+            medium-scale-spot:
               cpu_per_node: 2
               node_count: 500
               pod_count: 500
