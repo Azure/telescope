@@ -349,6 +349,10 @@ aks_cli_config_list = [
       {
         name  = "enable-private-cluster"
         value = ""
+      },
+      {
+        name = "aks-custom-headers"
+        value = "AKSHTTPCustomFeatures=Microsoft.ContainerService/AKSHTTPCustomFeatures,BootstrappingMethodTestOnly=aksmachineapiheaderbatch"
       }
     ]
   }
