@@ -38,12 +38,19 @@ def ensure_namespace(kubeconfig: str, namespace: str) -> None:
 
 @retry(max_attempts=3, backoff=5.0)
 def deploy_konnectivity_server(kubeconfig: str, namespace: str, server_count: int = 1,
+                                resources: dict | None = None,
                                 wait: bool = True) -> None:
     log.info("Deploying konnectivity-server in %s on control plane...", namespace)
+    r = resources or {"cpu_req": "500m", "mem_req": "512Mi",
+                      "cpu_lim": "2", "mem_lim": "2Gi"}
     manifest = render_template(MANIFEST_DIR / "konnectivity-server.yaml", {
         "__NAMESPACE__": namespace,
         "__SERVER_IMAGE__": KONN_SERVER_IMAGE,
         "__SERVER_COUNT__": str(server_count),
+        "__SERVER_CPU_REQ__": r["cpu_req"],
+        "__SERVER_MEM_REQ__": r["mem_req"],
+        "__SERVER_CPU_LIM__": r["cpu_lim"],
+        "__SERVER_MEM_LIM__": r["mem_lim"],
     })
     kubectl_apply(kubeconfig, manifest)
     if wait:
@@ -245,8 +252,14 @@ def deploy_vmsingle(kubeconfig: str, namespace: str) -> None:
     log.info("vmsingle ready in %s", namespace)
 
 
-def deploy_vmagent(kubeconfig: str, namespace: str, dp_api_server: str) -> None:
+def deploy_vmagent(kubeconfig: str, namespace: str, dp_api_server: str,
+                   vmagent_resources: dict | None = None,
+                   proxy_resources: dict | None = None) -> None:
     log.info("Deploying VMAgent in %s (SD via %s)...", namespace, dp_api_server)
+    vm = vmagent_resources or {"cpu_req": "500m", "mem_req": "1Gi",
+                               "cpu_lim": "2", "mem_lim": "4Gi"}
+    px = proxy_resources or {"cpu_req": "500m", "mem_req": "256Mi",
+                             "cpu_lim": "4", "mem_lim": "1Gi"}
     scrape_replacements = {
         "__NAMESPACE__": namespace,
         "__DP_API_SERVER__": dp_api_server,
@@ -258,6 +271,14 @@ def deploy_vmagent(kubeconfig: str, namespace: str, dp_api_server: str) -> None:
     replacements = {
         "__NAMESPACE__": namespace,
         "__VMAGENT_IMAGE__": VMAGENT_IMAGE,
+        "__VMAGENT_CPU_REQ__": vm["cpu_req"],
+        "__VMAGENT_MEM_REQ__": vm["mem_req"],
+        "__VMAGENT_CPU_LIM__": vm["cpu_lim"],
+        "__VMAGENT_MEM_LIM__": vm["mem_lim"],
+        "__PROXY_CPU_REQ__": px["cpu_req"],
+        "__PROXY_MEM_REQ__": px["mem_req"],
+        "__PROXY_CPU_LIM__": px["cpu_lim"],
+        "__PROXY_MEM_LIM__": px["mem_lim"],
     }
     manifest = render_template(MANIFEST_DIR / "vmagent.yaml", replacements)
     kubectl_apply(kubeconfig, manifest)

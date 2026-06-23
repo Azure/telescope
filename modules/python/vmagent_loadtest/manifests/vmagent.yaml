@@ -6,6 +6,10 @@
 # Template variables:
 #   __NAMESPACE__        — test namespace
 #   __VMAGENT_IMAGE__    — VMAgent image
+#   __VMAGENT_CPU_REQ__ / __VMAGENT_MEM_REQ__ — vmagent requests
+#   __VMAGENT_CPU_LIM__ / __VMAGENT_MEM_LIM__ — vmagent limits
+#   __PROXY_CPU_REQ__   / __PROXY_MEM_REQ__   — vmagent-proxy requests
+#   __PROXY_CPU_LIM__   / __PROXY_MEM_LIM__   — vmagent-proxy limits
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -225,11 +229,11 @@ spec:
               containerPort: 8429
           resources:
             requests:
-              cpu: 500m
-              memory: 1Gi
+              cpu: __VMAGENT_CPU_REQ__
+              memory: __VMAGENT_MEM_REQ__
             limits:
-              cpu: "2"
-              memory: 4Gi
+              cpu: "__VMAGENT_CPU_LIM__"
+              memory: __VMAGENT_MEM_LIM__
           volumeMounts:
             - name: config
               mountPath: /config
@@ -248,11 +252,11 @@ spec:
               containerPort: 8080
           resources:
             requests:
-              cpu: 500m
-              memory: 256Mi
+              cpu: __PROXY_CPU_REQ__
+              memory: __PROXY_MEM_REQ__
             limits:
-              cpu: "4"
-              memory: 1Gi
+              cpu: "__PROXY_CPU_LIM__"
+              memory: __PROXY_MEM_LIM__
           volumeMounts:
             - name: certs
               mountPath: /certs

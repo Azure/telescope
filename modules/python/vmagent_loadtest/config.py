@@ -79,6 +79,52 @@ NODE_ALLOCATABLE_CPU = 1900 # Standard_D2_v3 allocatable
 NODE_ALLOCATABLE_MEM_MI = 5931  # Standard_D2_v3 allocatable memory (Mi)
 SYSTEM_MEM_PER_NODE_MI = 800    # kube-system + kubelet overhead (Mi)
 
+# Tier-bucketed resource sizing for the scrape pipeline. Each bucket gives
+# requests/limits for the three components that bottleneck under load:
+#   - vmagent         (scrape engine; memory scales ~4 MiB / target)
+#   - vmagent-proxy   (CONNECT translator; CPU scales with target count)
+#   - konn-server     (per-pod; replica count is scaled separately in runner)
+# Buckets keep the surface area small and the values are headroomed ~2× the
+# observed peak at the upper edge of each bucket.
+def _r(cpu_req, mem_req, cpu_lim, mem_lim):
+    return {"cpu_req": cpu_req, "mem_req": mem_req,
+            "cpu_lim": cpu_lim, "mem_lim": mem_lim}
+
+TIER_RESOURCE_BUCKETS = [
+    # (upper_tier, {"vmagent":..., "vmagent_proxy":..., "konn_server":...})
+    # vmagent memory limit headroomed ~2× observed RSS at the upper edge:
+    #   tier 150 → 213 MiB, tier 300 → 285 MiB, tier 500 → 2126 MiB observed.
+    (200,  {"vmagent":       _r("100m", "256Mi", "500m", "1Gi"),
+            "vmagent_proxy": _r("100m", "128Mi", "1",    "256Mi"),
+            "konn_server":   _r("100m", "128Mi", "500m", "512Mi")}),
+    (500,  {"vmagent":       _r("500m", "1Gi",   "2",    "4Gi"),
+            "vmagent_proxy": _r("500m", "256Mi", "4",    "1Gi"),
+            "konn_server":   _r("200m", "256Mi", "1",    "1Gi")}),
+    (1000, {"vmagent":       _r("1",    "2Gi",   "4",    "8Gi"),
+            "vmagent_proxy": _r("1",    "512Mi", "6",    "1Gi"),
+            "konn_server":   _r("300m", "512Mi", "1",    "2Gi")}),
+    (1500, {"vmagent":       _r("2",    "4Gi",   "6",    "12Gi"),
+            "vmagent_proxy": _r("1",    "1Gi",   "8",    "2Gi"),
+            "konn_server":   _r("500m", "512Mi", "2",    "2Gi")}),
+]
+TIER_RESOURCES_OVER = {
+    "vmagent":       _r("2", "8Gi", "8", "16Gi"),
+    "vmagent_proxy": _r("2", "2Gi", "8", "2Gi"),
+    "konn_server":   _r("500m", "1Gi", "2", "4Gi"),
+}
+
+
+def compute_resources_for_tier(tier: int) -> dict:
+    """Return per-component requests/limits sized for `tier`.
+
+    Returns a dict keyed by component name ('vmagent', 'vmagent_proxy',
+    'konn_server'), each value a dict with cpu_req/mem_req/cpu_lim/mem_lim.
+    """
+    for upper, bucket in TIER_RESOURCE_BUCKETS:
+        if tier <= upper:
+            return bucket
+    return TIER_RESOURCES_OVER
+
 # ---------------- Azure Data Explorer (ADX) export ----------------
 # Defaults for vmsingle time-series export. Env vars (ADX_CLUSTER_URI,
 # ADX_INGEST_URI, ADX_DATABASE, ADX_AUTH) override these at runtime.

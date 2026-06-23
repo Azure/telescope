@@ -5,6 +5,8 @@
 #   __NAMESPACE__       — test namespace (e.g., loadtest-150)
 #   __SERVER_IMAGE__    — konnectivity server image
 #   __SERVER_COUNT__    — number of server replicas
+#   __SERVER_CPU_REQ__ / __SERVER_MEM_REQ__ — per-pod requests
+#   __SERVER_CPU_LIM__ / __SERVER_MEM_LIM__ — per-pod limits
 ---
 apiVersion: v1
 kind: Namespace
@@ -69,11 +71,11 @@ spec:
             periodSeconds: 10
           resources:
             requests:
-              cpu: 500m
-              memory: 512Mi
+              cpu: __SERVER_CPU_REQ__
+              memory: __SERVER_MEM_REQ__
             limits:
-              cpu: "2"
-              memory: 2Gi
+              cpu: "__SERVER_CPU_LIM__"
+              memory: __SERVER_MEM_LIM__
           volumeMounts:
             - name: certs
               mountPath: /certs
