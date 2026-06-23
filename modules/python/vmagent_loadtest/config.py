@@ -13,19 +13,22 @@ KONN_AGENT_IMAGE = "mcr.microsoft.com/oss/v2/kubernetes/apiserver-network-proxy/
 VMAGENT_IMAGE = "mcr.microsoft.com/oss/v2/victoriametrics/vmagent:v1.127.0-1"
 VMSINGLE_IMAGE = "mcr.microsoft.com/oss/v2/victoriametrics/victoria-metrics:v1.125.1-7"
 FAKE_EXPORTER_IMAGE = os.environ.get(
-    "FAKE_EXPORTER_IMAGE", "fakexporter.azurecr.io/fake-exporter:latest"
+    "FAKE_EXPORTER_IMAGE", "fakexporter.azurecr.io/fake-exporter:v2"
 )
 
 # Fake exporter roles: (statefulset_name, app_label, port)
 FAKE_EXPORTER_ROLES = [
-    ("fake-nodeexp",   "fake-nodeexp",   19100),
-    ("fake-cadvisor",  "fake-cadvisor",  19101),
-    ("fake-kubelet",   "fake-kubelet",   10250),
-    ("fake-kubeproxy", "fake-kubeproxy", 10256),
-    ("fake-cns",       "fake-cns",       10092),
-    ("fake-npd",       "fake-npd",       20257),
-    ("fake-runtime",   "fake-runtime",   10257),
-    ("fake-azurefile", "fake-azurefile", 29615),
+    ("fake-nodeexp",        "fake-nodeexp",        19100),
+    ("fake-cadvisor",       "fake-cadvisor",       19101),
+    ("fake-kubelet",        "fake-kubelet",        10250),
+    ("fake-kubeproxy",      "fake-kubeproxy",      10249),
+    ("fake-cns",            "fake-cns",            10092),
+    ("fake-npd",            "fake-npd",            20257),
+    ("fake-runtime",        "fake-runtime",        10257),
+    ("fake-azurefile",      "fake-azurefile",      29615),
+    ("fake-ksm",            "fake-ksm",            8080),
+    ("fake-csi-azuredisk",  "fake-csi-azuredisk",  29614),
+    ("fake-localdns",       "fake-localdns",       9253),
 ]
 FAKE_EXPORTER_NS = "fake-exporter"
 
@@ -69,8 +72,12 @@ PODS_PER_NODE = 240
 # CPU requests (millicores) for scaling calculations
 AGENT_CPU_REQUEST = 10      # konnectivity-agent
 EXPORTER_CPU_REQUEST = 5    # each fake-exporter role
+AGENT_MEM_REQUEST_MI = 64       # konnectivity-agent memory request (Mi)
+EXPORTER_MEM_REQUEST_MI = 16    # each fake-exporter memory request (Mi)
 SYSTEM_CPU_PER_NODE = 200   # kube-system overhead per node
 NODE_ALLOCATABLE_CPU = 1900 # Standard_D2_v3 allocatable
+NODE_ALLOCATABLE_MEM_MI = 5931  # Standard_D2_v3 allocatable memory (Mi)
+SYSTEM_MEM_PER_NODE_MI = 800    # kube-system + kubelet overhead (Mi)
 
 # ---------------- Azure Data Explorer (ADX) export ----------------
 # Defaults for vmsingle time-series export. Env vars (ADX_CLUSTER_URI,

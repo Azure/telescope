@@ -20,6 +20,7 @@ steps:
     artifact: ${{ parameters.real_artifact }}
     path: $(Pipeline.Workspace)/real-results
   condition: always()
+  continueOnError: true
 
 - script: |
     set -euo pipefail

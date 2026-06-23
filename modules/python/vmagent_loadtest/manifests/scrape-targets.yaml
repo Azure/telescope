@@ -212,7 +212,7 @@ spec:
     app: fake-kubeproxy
   ports:
     - name: metrics
-      port: 10256
+      port: 10249
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -232,7 +232,7 @@ spec:
         app: fake-kubeproxy
       annotations:
         prometheus.io/scrape: "true"
-        prometheus.io/port: "10256"
+        prometheus.io/port: "10249"
         prometheus.io/path: "/metrics"
     spec:
       terminationGracePeriodSeconds: 10
@@ -241,12 +241,20 @@ spec:
           image: __EXPORTER_IMAGE__
           imagePullPolicy: Always
           ports:
-            - containerPort: 10256
+            - containerPort: 10249
           env:
             - name: PORT
-              value: "10256"
+              value: "10249"
             - name: PROFILE
               value: "__PROFILE__"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
           resources:
             requests:
               cpu: "5m"
@@ -412,6 +420,16 @@ spec:
               value: "10257"
             - name: PROFILE
               value: "__PROFILE__"
+            - name: METRICS_PATH
+              value: "/v1/metrics"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
           resources:
             requests:
               cpu: "5m"
@@ -467,6 +485,197 @@ spec:
               value: "29615"
             - name: PROFILE
               value: "__PROFILE__"
+          resources:
+            requests:
+              cpu: "5m"
+              memory: "16Mi"
+            limits:
+              cpu: "50m"
+              memory: "64Mi"
+---
+# ── fake-ksm ──────────────────────────────────────────────────
+# kube-state-metrics: high-cardinality, fewer replicas (1 per cluster in real)
+# but we run __REPLICAS__ for load. Heaviest baseline (~5000 series/replica).
+apiVersion: v1
+kind: Service
+metadata:
+  name: fake-ksm-headless
+  namespace: fake-exporter
+spec:
+  clusterIP: None
+  selector:
+    app: fake-ksm
+  ports:
+    - name: metrics
+      port: 8080
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: fake-ksm
+  namespace: fake-exporter
+spec:
+  serviceName: fake-ksm-headless
+  replicas: __REPLICAS__
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: fake-ksm
+  template:
+    metadata:
+      labels:
+        app: fake-ksm
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics"
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: fake-exporter
+          image: __EXPORTER_IMAGE__
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            - name: PROFILE
+              value: "__PROFILE__"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          resources:
+            requests:
+              cpu: "20m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+---
+# ── fake-csi-azuredisk ────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: fake-csi-azuredisk-headless
+  namespace: fake-exporter
+spec:
+  clusterIP: None
+  selector:
+    app: fake-csi-azuredisk
+  ports:
+    - name: metrics
+      port: 29614
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: fake-csi-azuredisk
+  namespace: fake-exporter
+spec:
+  serviceName: fake-csi-azuredisk-headless
+  replicas: __REPLICAS__
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: fake-csi-azuredisk
+  template:
+    metadata:
+      labels:
+        app: fake-csi-azuredisk
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "29614"
+        prometheus.io/path: "/metrics"
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: fake-exporter
+          image: __EXPORTER_IMAGE__
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 29614
+          env:
+            - name: PORT
+              value: "29614"
+            - name: PROFILE
+              value: "__PROFILE__"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+          resources:
+            requests:
+              cpu: "5m"
+              memory: "16Mi"
+            limits:
+              cpu: "50m"
+              memory: "64Mi"
+---
+# ── fake-localdns ─────────────────────────────────────────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: fake-localdns-headless
+  namespace: fake-exporter
+spec:
+  clusterIP: None
+  selector:
+    app: fake-localdns
+  ports:
+    - name: metrics
+      port: 9253
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: fake-localdns
+  namespace: fake-exporter
+spec:
+  serviceName: fake-localdns-headless
+  replicas: __REPLICAS__
+  podManagementPolicy: Parallel
+  selector:
+    matchLabels:
+      app: fake-localdns
+  template:
+    metadata:
+      labels:
+        app: fake-localdns
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9253"
+        prometheus.io/path: "/metrics"
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: fake-exporter
+          image: __EXPORTER_IMAGE__
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 9253
+          env:
+            - name: PORT
+              value: "9253"
+            - name: PROFILE
+              value: "__PROFILE__"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
           resources:
             requests:
               cpu: "5m"

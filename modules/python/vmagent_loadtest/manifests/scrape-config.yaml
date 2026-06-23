@@ -100,7 +100,7 @@ data:
             action: keep
           - source_labels: [__meta_kubernetes_pod_ip]
             target_label: __address__
-            replacement: $1:10256
+            replacement: $1:10249
           - source_labels: [__address__]
             target_label: instance
 
@@ -149,6 +149,7 @@ data:
       - job_name: fake-runtime
         stream_parse: true
         proxy_url: "http://localhost:8080"
+        metrics_path: /v1/metrics
         kubernetes_sd_configs:
           - role: pod
             api_server: "__DP_API_SERVER__"
@@ -185,6 +186,69 @@ data:
           - source_labels: [__meta_kubernetes_pod_ip]
             target_label: __address__
             replacement: $1:29615
+          - source_labels: [__address__]
+            target_label: instance
+
+      - job_name: fake-ksm
+        stream_parse: true
+        proxy_url: "http://localhost:8080"
+        kubernetes_sd_configs:
+          - role: pod
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+            namespaces:
+              names: ["fake-exporter"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: fake-ksm
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_ip]
+            target_label: __address__
+            replacement: $1:8080
+          - source_labels: [__address__]
+            target_label: instance
+
+      - job_name: fake-csi-azuredisk
+        stream_parse: true
+        proxy_url: "http://localhost:8080"
+        kubernetes_sd_configs:
+          - role: pod
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+            namespaces:
+              names: ["fake-exporter"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: fake-csi-azuredisk
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_ip]
+            target_label: __address__
+            replacement: $1:29614
+          - source_labels: [__address__]
+            target_label: instance
+
+      - job_name: fake-localdns
+        stream_parse: true
+        proxy_url: "http://localhost:8080"
+        kubernetes_sd_configs:
+          - role: pod
+            api_server: "__DP_API_SERVER__"
+            bearer_token_file: /var/run/secrets/kubelet/token
+            tls_config:
+              insecure_skip_verify: true
+            namespaces:
+              names: ["fake-exporter"]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            regex: fake-localdns
+            action: keep
+          - source_labels: [__meta_kubernetes_pod_ip]
+            target_label: __address__
+            replacement: $1:9253
           - source_labels: [__address__]
             target_label: instance
 
@@ -468,7 +532,6 @@ data:
           - names: ["konnectivity-server-metrics"]
             type: A
             port: 8095
-            refresh_interval: 30s
 
       - job_name: vmagent-self
         scrape_interval: 15s

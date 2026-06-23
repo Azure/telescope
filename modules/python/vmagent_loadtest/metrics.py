@@ -100,6 +100,26 @@ def count_pods(kubeconfig: str, namespace: str, label: str) -> int:
     return len(lines)
 
 
+def list_vmagent_pods(kubeconfig: str, namespace: str) -> list[str]:
+    """Return sorted vmagent pod names so port-forwards iterate deterministically."""
+    result = kubectl(kubeconfig, "-n", namespace, "get", "pods",
+                     "-l", "app=vmagent", "-o",
+                     "jsonpath={.items[*].metadata.name}", check=False)
+    names = [n for n in result.stdout.strip().split() if n]
+    return sorted(names)
+
+
+def _fetch_targets_all_replicas(kubeconfig: str, namespace: str) -> list[dict]:
+    """Aggregate activeTargets across every vmagent replica (sharded scrape)."""
+    active: list[dict] = []
+    pods = list_vmagent_pods(kubeconfig, namespace) or ["vmagent-0"]
+    for pod in pods:
+        with PortForward(kubeconfig, namespace, pod, 8429, 18429) as pf:
+            resp = retry_request(f"{pf.url}/api/v1/targets")
+            active.extend(resp.json().get("data", {}).get("activeTargets", []))
+    return active
+
+
 def get_pod_resources(kubeconfig: str, namespace: str, label: str) -> dict:
     result = kubectl(kubeconfig, "-n", namespace, "top", "pods",
                      "-l", label, "--no-headers", check=False)
@@ -282,13 +302,10 @@ def wait_for_targets(cp_kubeconfig: str, dp_kubeconfig: str, namespace: str,
     prev_up, prev_total = 0, 0
     while time.time() < deadline:
         try:
-            with PortForward(cp_kubeconfig, namespace, "vmagent-0", 8429, 18429) as pf:
-                resp = retry_request(f"{pf.url}/api/v1/targets")
-                data = resp.json()
-                active = data.get("data", {}).get("activeTargets", [])
-                load_targets, _infra = _classify_targets(active)
-                up = sum(1 for t in load_targets if t.get("health") == "up")
-                total = len(load_targets)
+            active = _fetch_targets_all_replicas(cp_kubeconfig, namespace)
+            load_targets, _infra = _classify_targets(active)
+            up = sum(1 for t in load_targets if t.get("health") == "up")
+            total = len(load_targets)
         except Exception as e:
             log.warning("Target poll failed: %s — will retry", e)
 
@@ -343,19 +360,17 @@ def collect_metrics(cp_kubeconfig: str, dp_kubeconfig: str,
 
     # --- VMAgent targets (scrape health) ---
     try:
-        with PortForward(cp_kubeconfig, namespace, "vmagent-0", 8429, 18429) as pf:
-            targets_resp = retry_request(f"{pf.url}/api/v1/targets")
-            targets_data = targets_resp.json()
-            active = targets_data.get("data", {}).get("activeTargets", [])
-            load_targets, infra_targets = _classify_targets(active)
-            scrape_up = sum(1 for t in load_targets if t.get("health") == "up")
-            scrape_total = len(load_targets)
-            infra_up = sum(1 for t in infra_targets if t.get("health") == "up")
-            infra_total = len(infra_targets)
+        active = _fetch_targets_all_replicas(cp_kubeconfig, namespace)
+        load_targets, infra_targets = _classify_targets(active)
+        scrape_up = sum(1 for t in load_targets if t.get("health") == "up")
+        scrape_total = len(load_targets)
+        infra_up = sum(1 for t in infra_targets if t.get("health") == "up")
+        infra_total = len(infra_targets)
 
-            raw_dir = work_dir / "raw" / namespace
-            raw_dir.mkdir(parents=True, exist_ok=True)
-            (raw_dir / "vmagent_targets.json").write_text(json.dumps(targets_data, indent=2))
+        raw_dir = work_dir / "raw" / namespace
+        raw_dir.mkdir(parents=True, exist_ok=True)
+        (raw_dir / "vmagent_targets.json").write_text(
+            json.dumps({"data": {"activeTargets": active}}, indent=2))
     except Exception as e:
         log.warning("Failed to collect VMAgent targets: %s", e)
         scrape_up = 0

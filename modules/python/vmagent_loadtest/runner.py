@@ -10,12 +10,12 @@ from pathlib import Path
 from .certs import create_cert_secret, generate_certs
 
 from .config import (
-    AGENT_CPU_REQUEST, DAEMONSET_POD_TARGET_ROLES,
+    AGENT_CPU_REQUEST, AGENT_MEM_REQUEST_MI, DAEMONSET_POD_TARGET_ROLES,
     DAEMONSET_TARGET_ROLES, DEFAULT_NODEPOOL, EXPORTER_CPU_REQUEST,
-    FAKE_EXPORTER_ROLES, KONN_AGENT_IMAGE,
-    KONN_SERVER_IMAGE, NODE_ALLOCATABLE_CPU, PODS_PER_NODE,
-    REAL_TARGET_ROLES, SINGLETON_POD_TARGET_ROLES,
-    SYSTEM_CPU_PER_NODE, VMAGENT_IMAGE,
+    EXPORTER_MEM_REQUEST_MI, FAKE_EXPORTER_ROLES, KONN_AGENT_IMAGE,
+    KONN_SERVER_IMAGE, NODE_ALLOCATABLE_CPU, NODE_ALLOCATABLE_MEM_MI,
+    PODS_PER_NODE, REAL_TARGET_ROLES, SINGLETON_POD_TARGET_ROLES,
+    SYSTEM_CPU_PER_NODE, SYSTEM_MEM_PER_NODE_MI, VMAGENT_IMAGE,
     VMSINGLE_IMAGE, log,
 )
 from .deploy import (
@@ -46,7 +46,14 @@ def compute_fake_nodes_needed(tier: int) -> int:
                  + tier * AGENT_CPU_REQUEST)
     usable_cpu_per_node = NODE_ALLOCATABLE_CPU - SYSTEM_CPU_PER_NODE
     nodes_by_cpu = math.ceil(total_cpu / usable_cpu_per_node)
-    return max(nodes_by_pods, nodes_by_cpu)
+    # Memory packing dominates at higher tiers: fake-exporter requests 16Mi,
+    # konn-agent requests 64Mi; nodes saturate by memory well before CPU.
+    total_mem = (tier * len(FAKE_EXPORTER_ROLES) * EXPORTER_MEM_REQUEST_MI
+                 + tier * AGENT_MEM_REQUEST_MI)
+    usable_mem_per_node = NODE_ALLOCATABLE_MEM_MI - SYSTEM_MEM_PER_NODE_MI
+    nodes_by_mem = math.ceil(total_mem / usable_mem_per_node)
+    # Apply 15% headroom so scheduler isn't packing at 99%.
+    return math.ceil(max(nodes_by_pods, nodes_by_cpu, nodes_by_mem) * 1.15)
 
 
 def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
@@ -78,7 +85,7 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
                  tier, min_targets, dp_nodes, per_node_roles, singleton_roles)
         log.info("=" * 60)
     else:
-        min_targets = tier * len(FAKE_EXPORTER_ROLES)
+        min_targets = int(tier * len(FAKE_EXPORTER_ROLES) * 0.95)
         # pods per tier: 4 exporter roles × tier replicas + tier konn-agents
         pods_needed = tier * (len(FAKE_EXPORTER_ROLES) + 1)
         total_cpu = (tier * len(FAKE_EXPORTER_ROLES) * EXPORTER_CPU_REQUEST
@@ -101,9 +108,12 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
     ensure_namespace(dp_kubeconfig, namespace)
 
     # 2. Deploy konnectivity server (skip wait — needs certs, will crashloop)
-    #    Scale replicas: 1 per 150 agents to distribute tunnel/TLS load
-    server_count = max(1, (tier + 149) // 150)
-    log.info("Konnectivity server replicas: %d (tier %d)", server_count, tier)
+    #    Scale replicas: ~1 per 500 proxied targets to distribute CONNECT/tunnel load.
+    #    Proxied targets ≈ tier × fake-roles + tier agents + ~50 real proxied.
+    proxied_targets = tier * len(FAKE_EXPORTER_ROLES) + tier + 50
+    server_count = max(1, (proxied_targets + 499) // 500)
+    log.info("Konnectivity server replicas: %d (tier %d, proxied≈%d)",
+             server_count, tier, proxied_targets)
     deploy_konnectivity_server(cp_kubeconfig, namespace, server_count=server_count, wait=False)
 
     # 3. Get LB IP

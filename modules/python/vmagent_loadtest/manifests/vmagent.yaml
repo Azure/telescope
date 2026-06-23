@@ -225,11 +225,11 @@ spec:
               containerPort: 8429
           resources:
             requests:
-              cpu: 200m
-              memory: 256Mi
-            limits:
-              cpu: "1"
+              cpu: 500m
               memory: 1Gi
+            limits:
+              cpu: "2"
+              memory: 4Gi
           volumeMounts:
             - name: config
               mountPath: /config
@@ -248,11 +248,11 @@ spec:
               containerPort: 8080
           resources:
             requests:
-              cpu: 50m
-              memory: 64Mi
-            limits:
               cpu: 500m
               memory: 256Mi
+            limits:
+              cpu: "4"
+              memory: 1Gi
           volumeMounts:
             - name: certs
               mountPath: /certs
