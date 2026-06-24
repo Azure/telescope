@@ -16,7 +16,7 @@ import logging
 import os
 import subprocess
 import time
-from concurrent.futures import ThreadPoolExecutor, wait
+from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Optional, Any, Tuple
 
 # Third party imports
@@ -72,9 +72,6 @@ class AKSClient:
         """
         Run ARM operation and K8s node readiness check concurrently using threads.
 
-        This allows accurate measurement of both ARM completion time and node readiness time
-        independently, enabling identification of which layer is causing latency.
-
         Args:
             node_pool_name: Name of the node pool being provisioned
             cluster_name: Name of the AKS cluster
@@ -83,13 +80,9 @@ class AKSClient:
 
         Returns:
             Tuple of (arm_result, ready_nodes, node_readiness_time, command_execution_time)
-            - node_readiness_time: seconds from start until K8s nodes were ready
-            - command_execution_time: seconds from start until ARM operation completed
 
         Raises:
-            Exception: If either ARM or K8s readiness fails. Both tasks run to
-                completion (or failure) so we can capture timing for whichever
-                succeeded, enabling better diagnosis of which layer caused the failure.
+            Exception: If either the ARM operation or K8s readiness check fails.
         """
         start_time = time.time()
         label_selector = f"agentpool={node_pool_name}"
@@ -118,10 +111,9 @@ class AKSClient:
         with ThreadPoolExecutor(max_workers=2) as executor:
             arm_future = executor.submit(_poll_arm)
             k8s_future = executor.submit(_wait_k8s)
-            wait([arm_future, k8s_future])
 
-        # Check for failures and build diagnostic message
         arm_exc = arm_future.exception()
+        k8s_exc = k8s_future.exception()
         k8s_exc = k8s_future.exception()
 
         if arm_exc or k8s_exc:
@@ -145,6 +137,18 @@ class AKSClient:
         command_execution_time = arm_timestamp - start_time
 
         return arm_response, ready_nodes, node_readiness_time, command_execution_time
+
+    def _log_timing_metrics(self, op, node_pool_name, node_readiness_time, command_execution_time):
+        """Log timing metrics with bottleneck analysis and add metadata to operation."""
+        op.add_metadata("node_readiness_time", node_readiness_time)
+        op.add_metadata("command_execution_time", command_execution_time)
+        delta = abs(command_execution_time - node_readiness_time)
+        bottleneck = "ARM" if command_execution_time > node_readiness_time else "K8s"
+        total_elapsed = max(command_execution_time, node_readiness_time)
+        logger.info(
+            "[%s] ARM completed in %.2fs, K8s nodes ready in %.2fs | Bottleneck: %s (+%.2fs) | Total elapsed: %.2fs",
+            node_pool_name, command_execution_time, node_readiness_time, bottleneck, delta, total_elapsed
+        )
 
     def __init__(
         self,
@@ -553,19 +557,7 @@ class AKSClient:
                 logger.info(
                     f"All {node_count} nodes in pool {node_pool_name} are ready"
                 )
-
-                # Add timing metadata for regression analysis
-                op.add_metadata("node_readiness_time", node_readiness_time)
-                op.add_metadata("command_execution_time", command_execution_time)
-
-                # Log timing with bottleneck analysis
-                delta = abs(command_execution_time - node_readiness_time)
-                bottleneck = "ARM" if command_execution_time > node_readiness_time else "K8s"
-                total_elapsed = max(command_execution_time, node_readiness_time)
-                logger.info(
-                    "[%s] ARM completed in %.2fs, K8s nodes ready in %.2fs | Bottleneck: %s (+%.2fs) | Total elapsed: %.2fs",
-                    node_pool_name, command_execution_time, node_readiness_time, bottleneck, delta, total_elapsed
-                )
+                self._log_timing_metrics(op, node_pool_name, node_readiness_time, command_execution_time)
 
                 # Verify NVIDIA drivers for managed GPU only (fully managed uses systemd)
                 pod_logs = None
@@ -719,19 +711,7 @@ class AKSClient:
                 logger.info(
                     f"All {node_count} nodes in pool {node_pool_name} are ready"
                 )
-
-                # Add timing metadata for regression analysis
-                op.add_metadata("node_readiness_time", node_readiness_time)
-                op.add_metadata("command_execution_time", command_execution_time)
-
-                # Log timing with bottleneck analysis
-                delta = abs(command_execution_time - node_readiness_time)
-                bottleneck = "ARM" if command_execution_time > node_readiness_time else "K8s"
-                total_elapsed = max(command_execution_time, node_readiness_time)
-                logger.info(
-                    "[%s] ARM completed in %.2fs, K8s nodes ready in %.2fs | Bottleneck: %s (+%.2fs) | Total elapsed: %.2fs",
-                    node_pool_name, command_execution_time, node_readiness_time, bottleneck, delta, total_elapsed
-                )
+                self._log_timing_metrics(op, node_pool_name, node_readiness_time, command_execution_time)
 
                 pod_logs = None
                 if gpu_node_pool and not enable_managed_gpu and operation_type == "scale_up" and node_count > 0:
@@ -947,19 +927,7 @@ class AKSClient:
                         )
 
                     logger.info(f"All {step} nodes in pool {node_pool_name} are ready")
-
-                    # Add timing metadata for regression analysis
-                    op.add_metadata("node_readiness_time", node_readiness_time)
-                    op.add_metadata("command_execution_time", command_execution_time)
-
-                    # Log timing with bottleneck analysis
-                    delta = abs(command_execution_time - node_readiness_time)
-                    bottleneck = "ARM" if command_execution_time > node_readiness_time else "K8s"
-                    total_elapsed = max(command_execution_time, node_readiness_time)
-                    logger.info(
-                        "[%s] ARM completed in %.2fs, K8s nodes ready in %.2fs | Bottleneck: %s (+%.2fs) | Total elapsed: %.2fs",
-                        node_pool_name, command_execution_time, node_readiness_time, bottleneck, delta, total_elapsed
-                    )
+                    self._log_timing_metrics(op, node_pool_name, node_readiness_time, command_execution_time)
 
                     if result is None:
                         logger.error(f"Progressive scaling failed at step {step}")
