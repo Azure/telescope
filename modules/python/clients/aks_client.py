@@ -12,11 +12,11 @@ Operations are tracked using the Operation and OperationContext classes for metr
 and troubleshooting.
 """
 
-import asyncio
 import logging
 import os
 import subprocess
 import time
+from concurrent.futures import ThreadPoolExecutor, wait
 from typing import Dict, Optional, Any, Tuple
 
 # Third party imports
@@ -70,7 +70,7 @@ class AKSClient:
         start_time: float
     ) -> Tuple[Any, list, float, float]:
         """
-        Run ARM operation and K8s node readiness check concurrently.
+        Run ARM operation and K8s node readiness check concurrently using threads.
 
         This allows accurate measurement of both ARM completion time and node readiness time
         independently, enabling identification of which layer is causing latency.
@@ -91,55 +91,50 @@ class AKSClient:
                 completion (or failure) so we can capture timing for whichever
                 succeeded, enabling better diagnosis of which layer caused the failure.
         """
-        def _poll_arm_with_timestamp():
+        def _poll_arm():
             """Run ARM poller and return (result, completion_timestamp)."""
             result = poller.result()
             return result, time.time()
 
-        async def _run():
-            # Run ARM polling and K8s readiness check concurrently
-            arm_task = asyncio.to_thread(_poll_arm_with_timestamp)
-            k8s_task = asyncio.to_thread(
-                self.k8s_client.wait_for_nodes_ready,
+        def _wait_k8s():
+            """Wait for K8s nodes to become ready and return (nodes, timestamp)."""
+            return self.k8s_client.wait_for_nodes_ready(
                 node_count=node_count,
                 operation_timeout_in_minutes=self.operation_timeout_minutes,
                 label_selector=label_selector,
                 return_timestamp=True,
             )
 
-            # Use return_exceptions=True to capture both results even if one fails
-            results = await asyncio.gather(arm_task, k8s_task, return_exceptions=True)
-            arm_result, k8s_result = results
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            arm_future = executor.submit(_poll_arm)
+            k8s_future = executor.submit(_wait_k8s)
+            wait([arm_future, k8s_future])
 
-            # Check for failures and build diagnostic message
-            arm_failed = isinstance(arm_result, Exception)
-            k8s_failed = isinstance(k8s_result, Exception)
+        # Check for failures and build diagnostic message
+        arm_exc = arm_future.exception()
+        k8s_exc = k8s_future.exception()
 
-            if arm_failed or k8s_failed:
-                # Build diagnostic info for logging
-                arm_status = f"FAILED: {arm_result}" if arm_failed else "succeeded"
-                k8s_status = f"FAILED: {k8s_result}" if k8s_failed else "succeeded"
-                elapsed = time.time() - start_time
-                logger.error(
-                    "Concurrent operation failed after %.2fs - ARM: %s, K8s readiness: %s",
-                    elapsed, arm_status, k8s_status
-                )
-                # Raise the first exception encountered
-                if arm_failed:
-                    raise arm_result
-                raise k8s_result
+        if arm_exc or k8s_exc:
+            elapsed = time.time() - start_time
+            arm_status = f"FAILED: {arm_exc}" if arm_exc else "succeeded"
+            k8s_status = f"FAILED: {k8s_exc}" if k8s_exc else "succeeded"
+            logger.error(
+                "Concurrent operation failed after %.2fs - ARM: %s, K8s readiness: %s",
+                elapsed, arm_status, k8s_status
+            )
+            if arm_exc:
+                raise arm_exc
+            raise k8s_exc
 
-            # Both succeeded - unpack results
-            arm_response, arm_timestamp = arm_result
-            ready_nodes, ready_timestamp = k8s_result
+        # Both succeeded - unpack results
+        arm_response, arm_timestamp = arm_future.result()
+        ready_nodes, ready_timestamp = k8s_future.result()
 
-            # Calculate times relative to start
-            node_readiness_time = ready_timestamp - start_time
-            command_execution_time = arm_timestamp - start_time
+        # Calculate times relative to start
+        node_readiness_time = ready_timestamp - start_time
+        command_execution_time = arm_timestamp - start_time
 
-            return arm_response, ready_nodes, node_readiness_time, command_execution_time
-
-        return asyncio.run(_run())
+        return arm_response, ready_nodes, node_readiness_time, command_execution_time
 
     def __init__(
         self,
