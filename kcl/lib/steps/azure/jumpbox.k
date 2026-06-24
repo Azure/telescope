@@ -38,11 +38,12 @@ DEFAULT_AKS_JUMPBOX_ROLES = [
     RoleAssignment {role = "Azure Kubernetes Service Contributor Role"}
 ]
 
-# CreateJumpbox provisions a Linux jumpbox VM in an existing VNet/subnet, opens SSH, enables a system-assigned
+# CreateJumpbox provisions a Linux jumpbox VM in an existing VNet/subnet, enables a system-assigned
 # managed identity, and (optionally) assigns roles to that identity.
 #
-# Authentication uses `az vm create --generate-ssh-keys`, which auto-generates an SSH key pair at
-# ~/.ssh/id_rsa{,.pub} on the pipeline agent (ephemeral, lost when the agent terminates).
+# Remote access is expected to use `az vm run-command invoke` (ARM -> VM Guest Agent), so no inbound
+# SSH port is opened. `--generate-ssh-keys` is kept only to satisfy `az vm create`'s Linux auth
+# requirement; the generated key on the agent is unused.
 CreateJumpbox = lambda \
     serviceConnection: str, \
     subscription: str, \
@@ -81,13 +82,6 @@ az vm create \\
   --admin-username "${adminUsername}" \\
   --generate-ssh-keys \\
   --custom-data /tmp/cloud-init.yaml \\
-  --subscription "${subscription}"
-
-az vm open-port \\
-  --resource-group "${resourceGroup}" \\
-  --name "${name}" \\
-  --port 22 \\
-  --priority 1001 \\
   --subscription "${subscription}"
 
 JUMPBOX_PRINCIPAL_ID=$(az vm identity assign \\
