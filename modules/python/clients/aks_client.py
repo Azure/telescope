@@ -62,7 +62,7 @@ class AKSClient:
 
         return OperationContext
 
-    def _run_concurrent_arm_and_readiness(
+    def _instrument_nodepool_provisioning(
         self,
         node_pool_name: str,
         cluster_name: str,
@@ -619,7 +619,7 @@ class AKSClient:
                 else:
                     # Run ARM and K8s readiness concurrently to capture both timings
                     _, ready_nodes, node_readiness_time, command_execution_time = \
-                        self._run_concurrent_arm_and_readiness(
+                        self._instrument_nodepool_provisioning(
                             node_pool_name, cluster_name, parameters, node_count
                         )
 
@@ -791,7 +791,7 @@ class AKSClient:
 
                 # Run ARM and K8s readiness concurrently to capture both timings
                 _, ready_nodes, node_readiness_time, command_execution_time = \
-                    self._run_concurrent_arm_and_readiness(
+                    self._instrument_nodepool_provisioning(
                         node_pool_name, cluster_name, node_pool, node_count
                     )
 
@@ -1026,7 +1026,7 @@ class AKSClient:
 
                     # Run ARM and K8s readiness concurrently to capture both timings
                     result, ready_nodes, node_readiness_time, command_execution_time = \
-                        self._run_concurrent_arm_and_readiness(
+                        self._instrument_nodepool_provisioning(
                             node_pool_name, cluster_name, node_pool, step
                         )
 
