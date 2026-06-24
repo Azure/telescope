@@ -308,7 +308,7 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         mock_subprocess_run.return_value = mock.MagicMock(returncode=0, stderr="")
 
         ready_nodes = [mock.MagicMock()]
-        self.mock_k8s.wait_for_nodes_ready.return_value = ready_nodes
+        self.mock_k8s.wait_for_nodes_ready.return_value = (ready_nodes, 130)
         self.mock_k8s.verify_managed_gpu_systemd_services = mock.MagicMock(return_value={})
         self.mock_k8s.verify_nvidia_smi_on_node = mock.MagicMock()
 

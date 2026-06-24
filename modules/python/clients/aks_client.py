@@ -522,13 +522,10 @@ class AKSClient:
                     f"Creating node pool {node_pool_name} in cluster {cluster_name}"
                 )
 
-                # Capture start time for timing measurements
-                start_time = time.time()
-                label_selector = f"agentpool={node_pool_name}"
-
                 if enable_managed_gpu:
                     # Fully managed GPU: use az CLI (aks-preview) since the stable SDK
                     # doesn't expose gpuProfile.nvidia.managementMode
+                    start_time = time.time()
                     self.add_managed_gpu_node_pool(
                         node_pool_name=node_pool_name,
                         cluster_name=cluster_name,
@@ -538,6 +535,7 @@ class AKSClient:
                         gpu_mig_strategy=gpu_mig_strategy,
                     )
                     command_execution_time = time.time() - start_time
+                    label_selector = f"agentpool={node_pool_name}"
                     ready_nodes, ready_timestamp = self.k8s_client.wait_for_nodes_ready(
                         node_count=node_count,
                         operation_timeout_in_minutes=self.operation_timeout_minutes,
@@ -560,10 +558,13 @@ class AKSClient:
                 op.add_metadata("node_readiness_time", node_readiness_time)
                 op.add_metadata("command_execution_time", command_execution_time)
 
-                # Log timing - analysis happens in ADX/dashboards
+                # Log timing with bottleneck analysis
+                delta = abs(command_execution_time - node_readiness_time)
+                bottleneck = "ARM" if command_execution_time > node_readiness_time else "K8s"
+                total_elapsed = max(command_execution_time, node_readiness_time)
                 logger.info(
-                    "[%s] Timing: K8s nodes ready in %.2fs, ARM completed in %.2fs",
-                    node_pool_name, node_readiness_time, command_execution_time
+                    "[%s] ARM completed in %.2fs, K8s nodes ready in %.2fs | Bottleneck: %s (+%.2fs) | Total elapsed: %.2fs",
+                    node_pool_name, command_execution_time, node_readiness_time, bottleneck, delta, total_elapsed
                 )
 
                 # Verify NVIDIA drivers for managed GPU only (fully managed uses systemd)
@@ -723,10 +724,13 @@ class AKSClient:
                 op.add_metadata("node_readiness_time", node_readiness_time)
                 op.add_metadata("command_execution_time", command_execution_time)
 
-                # Log timing - analysis happens in ADX/dashboards
+                # Log timing with bottleneck analysis
+                delta = abs(command_execution_time - node_readiness_time)
+                bottleneck = "ARM" if command_execution_time > node_readiness_time else "K8s"
+                total_elapsed = max(command_execution_time, node_readiness_time)
                 logger.info(
-                    "[%s] Timing: K8s nodes ready in %.2fs, ARM completed in %.2fs",
-                    node_pool_name, node_readiness_time, command_execution_time
+                    "[%s] ARM completed in %.2fs, K8s nodes ready in %.2fs | Bottleneck: %s (+%.2fs) | Total elapsed: %.2fs",
+                    node_pool_name, command_execution_time, node_readiness_time, bottleneck, delta, total_elapsed
                 )
 
                 pod_logs = None
@@ -948,10 +952,13 @@ class AKSClient:
                     op.add_metadata("node_readiness_time", node_readiness_time)
                     op.add_metadata("command_execution_time", command_execution_time)
 
-                    # Log timing - analysis happens in ADX/dashboards
+                    # Log timing with bottleneck analysis
+                    delta = abs(command_execution_time - node_readiness_time)
+                    bottleneck = "ARM" if command_execution_time > node_readiness_time else "K8s"
+                    total_elapsed = max(command_execution_time, node_readiness_time)
                     logger.info(
-                        "[%s] Timing: K8s nodes ready in %.2fs, ARM completed in %.2fs",
-                        node_pool_name, node_readiness_time, command_execution_time
+                        "[%s] ARM completed in %.2fs, K8s nodes ready in %.2fs | Bottleneck: %s (+%.2fs) | Total elapsed: %.2fs",
+                        node_pool_name, command_execution_time, node_readiness_time, bottleneck, delta, total_elapsed
                     )
 
                     if result is None:
