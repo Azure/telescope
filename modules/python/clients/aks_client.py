@@ -380,27 +380,52 @@ class AKSClient:
         silently dropped from nodepool_info. Recording the input flags here keeps
         the distinction queryable downstream regardless of SDK coverage.
 
+        The flag combination is normalized so records are always internally
+        consistent regardless of how callers combine inputs:
+          - enable_managed_gpu / MIG inputs are only meaningful for a GPU pool
+            (gpu_node_pool=True); they are ignored otherwise.
+          - MIG (gpu_instance_profile / gpu_mig_strategy) only applies to
+            fully-managed GPU pools; it is dropped for managed/non-GPU pools.
+
+        Raises:
+            ValueError: if gpu_mig_strategy is not one of None / "single" / "mixed".
+
         Returns:
             Dict with:
               - gpu_mode: "none" | "managed" | "fully_managed"
-              - enable_managed_gpu: the raw fully-managed flag
-              - mig_enabled: whether a MIG profile/strategy was requested
+              - enable_managed_gpu: normalized fully-managed flag (False unless it
+                is actually a fully-managed GPU pool)
+              - mig_enabled: whether MIG was requested on a fully-managed pool
               - gpu_instance_profile: MIG instance profile (e.g. "MIG1g") or None
               - gpu_mig_strategy: "single" | "mixed" | None
         """
-        if not gpu_node_pool:
+        strategy = (gpu_mig_strategy or None) and str(gpu_mig_strategy).lower()
+        if strategy not in (None, "single", "mixed"):
+            raise ValueError(
+                f"invalid gpu_mig_strategy {gpu_mig_strategy!r}; "
+                "expected 'single', 'mixed', or None"
+            )
+
+        is_gpu = bool(gpu_node_pool)
+        fully_managed = is_gpu and bool(enable_managed_gpu)
+
+        if not is_gpu:
             gpu_mode = "none"
-        elif enable_managed_gpu:
+        elif fully_managed:
             gpu_mode = "fully_managed"
         else:
             gpu_mode = "managed"
 
+        # MIG only applies to fully-managed pools; drop it otherwise.
+        profile = gpu_instance_profile if fully_managed else None
+        strategy = strategy if fully_managed else None
+
         return {
             "gpu_mode": gpu_mode,
-            "enable_managed_gpu": enable_managed_gpu,
-            "mig_enabled": bool(gpu_instance_profile or gpu_mig_strategy),
-            "gpu_instance_profile": gpu_instance_profile,
-            "gpu_mig_strategy": gpu_mig_strategy,
+            "enable_managed_gpu": fully_managed,
+            "mig_enabled": bool(profile or strategy),
+            "gpu_instance_profile": profile,
+            "gpu_mig_strategy": strategy,
         }
 
     def create_node_pool(

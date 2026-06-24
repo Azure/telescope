@@ -662,6 +662,19 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         single = gpu_meta(True, True, "MIG1g", "single")
         self.assertEqual(single["gpu_mig_strategy"], "single")
         self.assertTrue(single["mig_enabled"])
+        # Normalization: MIG inputs are dropped for non-fully-managed pools
+        managed_with_mig = gpu_meta(True, False, "MIG1g", "single")
+        self.assertEqual(managed_with_mig["gpu_mode"], "managed")
+        self.assertFalse(managed_with_mig["mig_enabled"])
+        self.assertIsNone(managed_with_mig["gpu_instance_profile"])
+        self.assertIsNone(managed_with_mig["gpu_mig_strategy"])
+        # Normalization: managed flag is meaningless without a GPU pool
+        not_gpu = gpu_meta(False, True)
+        self.assertEqual(not_gpu["gpu_mode"], "none")
+        self.assertFalse(not_gpu["enable_managed_gpu"])
+        # Invalid MIG strategy is rejected
+        with self.assertRaises(ValueError):
+            gpu_meta(True, True, "MIG1g", "bogus")
 
     @mock.patch("clients.aks_client.time")
     def test_scale_node_pool_records_gpu_mode_metadata(self, mock_time):

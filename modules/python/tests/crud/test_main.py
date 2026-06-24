@@ -68,6 +68,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         # Setup
         mock_args = mock.MagicMock()
         mock_args.command = "create"
+        mock_args.cloud = "azure"
         mock_args.node_pool_name = "test-np"
         mock_args.vm_size = "Standard_D2s_v3"
         mock_args.node_count = 3
@@ -98,6 +99,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         # Setup
         mock_args = mock.MagicMock()
         mock_args.command = "scale"
+        mock_args.cloud = "azure"
         mock_args.node_pool_name = "test-np"
         mock_args.target_count = 5
         mock_args.scale_step_size = (
@@ -131,6 +133,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         # Setup - when scale_step_size equals target_count, progressive should be False
         mock_args = mock.MagicMock()
         mock_args.command = "scale"
+        mock_args.cloud = "azure"
         mock_args.node_pool_name = "test-np"
         mock_args.target_count = 3
         mock_args.scale_step_size = (
@@ -172,6 +175,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         # Setup - progressive scaling where operation fails
         mock_args = mock.MagicMock()
         mock_args.command = "scale"
+        mock_args.cloud = "azure"
         mock_args.node_pool_name = "test-np"
         mock_args.target_count = 10
         mock_args.scale_step_size = 2  # Progressive scaling
@@ -260,6 +264,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         # Setup
         mock_args = mock.MagicMock()
         mock_args.command = "all"
+        mock_args.cloud = "azure"
         mock_args.node_pool_name = "test-np"
         mock_args.vm_size = "Standard_D2s_v3"
         mock_args.node_count = 1
@@ -291,12 +296,34 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
             gpu_mig_strategy=mock_args.gpu_mig_strategy,
         )
 
+    def test_handle_node_pool_operation_scale_aws_omits_mig_kwargs(self):
+        """AWS scale must not receive Azure-only MIG kwargs (the AWS CRUD rejects them)."""
+        mock_args = mock.MagicMock()
+        mock_args.command = "scale"
+        mock_args.cloud = "aws"
+        mock_args.node_pool_name = "test-np"
+        mock_args.target_count = 5
+        mock_args.scale_step_size = 1
+        mock_args.gpu_node_pool = False
+        mock_args.enable_managed_gpu = False
+
+        mock_crud = mock.MagicMock()
+        mock_crud.scale_node_pool.return_value = True
+
+        result = handle_node_pool_operation(mock_crud, mock_args)
+
+        self.assertEqual(result, 0)
+        call_kwargs = mock_crud.scale_node_pool.call_args.kwargs
+        self.assertNotIn("gpu_instance_profile", call_kwargs)
+        self.assertNotIn("gpu_mig_strategy", call_kwargs)
+
     @mock.patch("crud.main.AzureNodePoolCRUD")
     def test_handle_node_pool_operation_failure(self, mock_azure_crud):
         """Test handle_node_pool_operation when operation fails"""
         # Setup
         mock_args = mock.MagicMock()
         mock_args.command = "create"
+        mock_args.cloud = "azure"
         mock_args.node_pool_name = "test-np"
         mock_args.vm_size = "Standard_D2s_v3"
         mock_args.node_count = 1
@@ -358,6 +385,7 @@ class TestNodePoolCRUDFunctions(unittest.TestCase):
         # Setup
         mock_args = mock.MagicMock()
         mock_args.command = "create"
+        mock_args.cloud = "azure"
         mock_args.node_pool_name = "test-np"
         mock_args.vm_size = "Standard_D2s_v3"
         mock_args.node_count = 1

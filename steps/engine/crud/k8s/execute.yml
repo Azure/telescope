@@ -16,8 +16,8 @@ steps:
       --step-timeout "$STEP_TIME_OUT" \
       ${GPU_NODE_POOL:+--gpu-node-pool} \
       $([[ "${ENABLE_MANAGED_GPU,,}" == "true" ]] && echo "--enable-managed-gpu" || true) \
-      $([[ "${GPU_INSTANCE_PROFILE}" =~ ^MIG ]] && echo "--gpu-instance-profile ${GPU_INSTANCE_PROFILE}" || true) \
-      $([[ "${GPU_MIG_STRATEGY}" =~ ^(mixed|single)$ ]] && echo "--gpu-mig-strategy ${GPU_MIG_STRATEGY}" || true) \
+      $([[ "${ENABLE_MANAGED_GPU,,}" == "true" && "${GPU_INSTANCE_PROFILE}" =~ ^MIG ]] && echo "--gpu-instance-profile ${GPU_INSTANCE_PROFILE}" || true) \
+      $([[ "${ENABLE_MANAGED_GPU,,}" == "true" && "${GPU_MIG_STRATEGY}" =~ ^(mixed|single)$ ]] && echo "--gpu-mig-strategy ${GPU_MIG_STRATEGY}" || true) \
       --capacity-type "${CAPACITY_TYPE:-ON_DEMAND}"
 
     # Scale Up Node Pool
@@ -32,8 +32,8 @@ steps:
       --step-timeout "$STEP_TIME_OUT" \
       ${GPU_NODE_POOL:+--gpu-node-pool} \
       $([[ "${ENABLE_MANAGED_GPU,,}" == "true" ]] && echo "--enable-managed-gpu" || true) \
-      $([[ "${GPU_INSTANCE_PROFILE}" =~ ^MIG ]] && echo "--gpu-instance-profile ${GPU_INSTANCE_PROFILE}" || true) \
-      $([[ "${GPU_MIG_STRATEGY}" =~ ^(mixed|single)$ ]] && echo "--gpu-mig-strategy ${GPU_MIG_STRATEGY}" || true)
+      $([[ "${ENABLE_MANAGED_GPU,,}" == "true" && "${GPU_INSTANCE_PROFILE}" =~ ^MIG ]] && echo "--gpu-instance-profile ${GPU_INSTANCE_PROFILE}" || true) \
+      $([[ "${ENABLE_MANAGED_GPU,,}" == "true" && "${GPU_MIG_STRATEGY}" =~ ^(mixed|single)$ ]] && echo "--gpu-mig-strategy ${GPU_MIG_STRATEGY}" || true)
 
   displayName: 'Execute K8s Create & Scale Up Operations for ${{ parameters.cloud }}'
   workingDirectory: modules/python
@@ -158,8 +158,8 @@ steps:
       --step-timeout "$STEP_TIME_OUT" \
       ${GPU_NODE_POOL:+--gpu-node-pool} \
       $([[ "${ENABLE_MANAGED_GPU,,}" == "true" ]] && echo "--enable-managed-gpu" || true) \
-      $([[ "${GPU_INSTANCE_PROFILE}" =~ ^MIG ]] && echo "--gpu-instance-profile ${GPU_INSTANCE_PROFILE}" || true) \
-      $([[ "${GPU_MIG_STRATEGY}" =~ ^(mixed|single)$ ]] && echo "--gpu-mig-strategy ${GPU_MIG_STRATEGY}" || true)
+      $([[ "${ENABLE_MANAGED_GPU,,}" == "true" && "${GPU_INSTANCE_PROFILE}" =~ ^MIG ]] && echo "--gpu-instance-profile ${GPU_INSTANCE_PROFILE}" || true) \
+      $([[ "${ENABLE_MANAGED_GPU,,}" == "true" && "${GPU_MIG_STRATEGY}" =~ ^(mixed|single)$ ]] && echo "--gpu-mig-strategy ${GPU_MIG_STRATEGY}" || true)
 
     # Delete Node Pool
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" delete \
