@@ -616,6 +616,19 @@ stages:
               # extra is in-CL2 overhead (measurement gather between
               # phases). 9h = ~50min margin over expected ~8h10min wall.
               worker_timeout_seconds: 32400
+              # Prometheus TSDB snapshot → our blob (cmshscaleprom). CRITICAL
+              # for a soak: the pod-churn-combined scenario gathers cilium/
+              # clustermesh/etcd metrics only at start + end, so Kusto sees
+              # aggregate percentiles over the whole 6h but NO time series.
+              # The snapshot captures the full 6h at 15s scrape resolution so
+              # we can compute the actual drift SLOPE offline (memory growth,
+              # BPF map growth, etcd DB growth, slow-watcher accumulation) —
+              # the slow-degradation signal that is the entire point of a soak
+              # and is otherwise invisible at end-of-run aggregates.
+              cl2_prom_snapshot_enabled: "true"
+              cl2_prom_snapshot_target: "blob"
+              cl2_prom_snapshot_storage_account: "cmshscaleprom"
+              cl2_prom_snapshot_container: "snapshots"
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           # 12h ceiling for ~9h expected wall + apply/destroy = 3h margin.
