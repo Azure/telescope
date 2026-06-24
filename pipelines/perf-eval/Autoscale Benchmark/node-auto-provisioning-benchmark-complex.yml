@@ -1,4 +1,7 @@
 trigger: none
+
+pool:
+  name: 'AKS-Telescope-Airlock'
 schedules:
   # canadacentral - daily
   - cron: "0 21 * * *"

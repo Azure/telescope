@@ -1,4 +1,7 @@
 trigger: none
+
+pool:
+  name: 'AKS-Telescope-Airlock'
 schedules:
   # Linux Large Scale Schedule
   - cron: "0 7 * * *"

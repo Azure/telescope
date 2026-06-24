@@ -1,5 +1,8 @@
 trigger: none
 
+pool:
+  name: 'AKS-Telescope-Airlock'
+
 schedules:
   # Azure Machine API scale schedule
   - cron: "0 3 * * *"

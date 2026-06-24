@@ -1,5 +1,8 @@
 trigger: none
 
+pool:
+  name: 'AKS-Telescope-Airlock'
+
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: k8s-node-stress
