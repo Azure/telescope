@@ -1,4 +1,7 @@
 trigger: none
+
+pool:
+  name: 'AKS-Telescope-Airlock'
 schedules:
   # Azure Small Scale(10) Schedule
   - cron: "0 3 * * *"

@@ -1,5 +1,8 @@
 trigger: none
 
+pool:
+  name: 'AKS-Telescope-Airlock'
+
 variables:
   SCENARIO_TYPE: <scenario-type>
   SCENARIO_NAME: <scenario-name>
