@@ -363,6 +363,46 @@ class AKSClient:
                 )
         logger.info(f"az aks nodepool add succeeded for '{node_pool_name}'")
 
+    @staticmethod
+    def _gpu_mode_metadata(
+        gpu_node_pool: bool,
+        enable_managed_gpu: bool,
+        gpu_instance_profile: Optional[str] = None,
+        gpu_mig_strategy: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Build normalized GPU-mode metadata that reliably distinguishes
+        managed vs fully-managed GPU and MIG single vs mixed.
+
+        These fields are derived from the operation's INPUT flags rather than the
+        AKS read-back: the stable Python SDK (azure-mgmt-containerservice) does not
+        model gpuProfile.nvidia.managementMode, so a fully-managed pool's mode is
+        silently dropped from nodepool_info. Recording the input flags here keeps
+        the distinction queryable downstream regardless of SDK coverage.
+
+        Returns:
+            Dict with:
+              - gpu_mode: "none" | "managed" | "fully_managed"
+              - enable_managed_gpu: the raw fully-managed flag
+              - mig_enabled: whether a MIG profile/strategy was requested
+              - gpu_instance_profile: MIG instance profile (e.g. "MIG1g") or None
+              - gpu_mig_strategy: "single" | "mixed" | None
+        """
+        if not gpu_node_pool:
+            gpu_mode = "none"
+        elif enable_managed_gpu:
+            gpu_mode = "fully_managed"
+        else:
+            gpu_mode = "managed"
+
+        return {
+            "gpu_mode": gpu_mode,
+            "enable_managed_gpu": enable_managed_gpu,
+            "mig_enabled": bool(gpu_instance_profile or gpu_mig_strategy),
+            "gpu_instance_profile": gpu_instance_profile,
+            "gpu_mig_strategy": gpu_mig_strategy,
+        }
+
     def create_node_pool(
         self,
         node_pool_name: str,
@@ -409,7 +449,12 @@ class AKSClient:
             "vm_size": vm_size,
             "node_count": node_count,
             "gpu_node_pool": gpu_node_pool,
-            "enable_managed_gpu": enable_managed_gpu,
+            **self._gpu_mode_metadata(
+                gpu_node_pool,
+                enable_managed_gpu,
+                gpu_instance_profile,
+                gpu_mig_strategy,
+            ),
         }
 
         # Create operation context to track the operation
@@ -522,6 +567,7 @@ class AKSClient:
         progressive: bool = False,
         scale_step_size: int = 1,
         gpu_instance_profile: Optional[str] = None,
+        gpu_mig_strategy: Optional[str] = None,
     ) -> Any:
         """
         Scale a node pool to the specified node count.
@@ -555,6 +601,12 @@ class AKSClient:
             "gpu_node_pool": gpu_node_pool,
             "progressive_scaling": progressive,
             "scale_step_size": scale_step_size,
+            **self._gpu_mode_metadata(
+                gpu_node_pool,
+                enable_managed_gpu,
+                gpu_instance_profile,
+                gpu_mig_strategy,
+            ),
         }
         node_pool = self.get_node_pool(node_pool_name, cluster_name)
 
@@ -583,6 +635,7 @@ class AKSClient:
                 enable_managed_gpu=enable_managed_gpu,
                 node_pool=node_pool,
                 gpu_instance_profile=gpu_instance_profile,
+                gpu_mig_strategy=gpu_mig_strategy,
             )
 
         # Create operation context to track the operation
@@ -751,6 +804,7 @@ class AKSClient:
         enable_managed_gpu: bool = False,
         node_pool: Optional[Any] = None,
         gpu_instance_profile: Optional[str] = None,
+        gpu_mig_strategy: Optional[str] = None,
     ) -> Any:
         """
         Scale a node pool progressively with specified step size
@@ -816,6 +870,12 @@ class AKSClient:
                 "scale_step_size": scale_step_size,
                 "cluster_name": cluster_name or self.get_cluster_name(),
                 "gpu_node_pool": gpu_node_pool,
+                **self._gpu_mode_metadata(
+                    gpu_node_pool,
+                    enable_managed_gpu,
+                    gpu_instance_profile,
+                    gpu_mig_strategy,
+                ),
             }
 
             # Create operation context for this specific step

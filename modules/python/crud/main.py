@@ -132,6 +132,7 @@ def handle_node_pool_operation(node_pool_crud, args):
                 "gpu_node_pool": args.gpu_node_pool,
                 "enable_managed_gpu": args.enable_managed_gpu,
                 "gpu_instance_profile": args.gpu_instance_profile,
+                "gpu_mig_strategy": args.gpu_mig_strategy,
             }
 
             result = node_pool_crud.scale_node_pool(**scale_kwargs)
@@ -151,6 +152,8 @@ def handle_node_pool_operation(node_pool_crud, args):
                 "gpu_node_pool": args.gpu_node_pool,
                 "enable_managed_gpu": args.enable_managed_gpu,
                 "step_wait_time": args.step_wait_time,
+                "gpu_instance_profile": args.gpu_instance_profile,
+                "gpu_mig_strategy": args.gpu_mig_strategy,
             }
 
             result = node_pool_crud.all(**all_kwargs)

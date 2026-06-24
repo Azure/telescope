@@ -629,6 +629,76 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         # Check that NVIDIA verification was NOT performed for scale-down
         self.mock_k8s.verify_nvidia_smi_on_node.assert_not_called()
 
+    def test_gpu_mode_metadata_variants(self):
+        """_gpu_mode_metadata normalizes managed/fully-managed and MIG single/mixed."""
+        # Non-GPU pool
+        self.assertEqual(
+            AKSClient._gpu_mode_metadata(False, False),
+            {
+                "gpu_mode": "none",
+                "enable_managed_gpu": False,
+                "mig_enabled": False,
+                "gpu_instance_profile": None,
+                "gpu_mig_strategy": None,
+            },
+        )
+        # Managed (driver bootstrap only)
+        managed = AKSClient._gpu_mode_metadata(True, False)
+        self.assertEqual(managed["gpu_mode"], "managed")
+        self.assertFalse(managed["enable_managed_gpu"])
+        self.assertFalse(managed["mig_enabled"])
+        # Fully managed
+        fully = AKSClient._gpu_mode_metadata(True, True)
+        self.assertEqual(fully["gpu_mode"], "fully_managed")
+        self.assertTrue(fully["enable_managed_gpu"])
+        # Fully managed + MIG mixed
+        mixed = AKSClient._gpu_mode_metadata(True, True, "MIG1g", "mixed")
+        self.assertEqual(mixed["gpu_mode"], "fully_managed")
+        self.assertTrue(mixed["mig_enabled"])
+        self.assertEqual(mixed["gpu_instance_profile"], "MIG1g")
+        self.assertEqual(mixed["gpu_mig_strategy"], "mixed")
+        # Fully managed + MIG single
+        single = AKSClient._gpu_mode_metadata(True, True, "MIG1g", "single")
+        self.assertEqual(single["gpu_mig_strategy"], "single")
+        self.assertTrue(single["mig_enabled"])
+
+    @mock.patch("clients.aks_client.time")
+    def test_scale_node_pool_records_gpu_mode_metadata(self, mock_time):
+        """Scale ops persist gpu_mode + MIG fields even though the SDK read-back drops them."""
+        node_pool_name = "h100fullmgd"
+        node_count = 3
+
+        mock_time.time.side_effect = [100, 150]
+
+        mock_node_pool = mock.MagicMock()
+        mock_node_pool.count = 1
+        mock_node_pool.vm_size = "Standard_NC40ads_H100_v5"
+        mock_node_pool.as_dict.return_value = {"count": 1}
+        self.mock_agent_pools.get.return_value = mock_node_pool
+        self.aks_client.get_node_pool = mock.MagicMock(return_value=mock_node_pool)
+        self.mock_k8s.wait_for_nodes_ready.return_value = [mock.MagicMock()] * node_count
+        self.mock_k8s.verify_managed_gpu_systemd_services = mock.MagicMock(return_value={})
+        self.mock_k8s.verify_nvidia_smi_on_node = mock.MagicMock()
+        self.mock_k8s.verify_mig_allocatable = mock.MagicMock(return_value={})
+
+        result = self.aks_client.scale_node_pool(
+            node_pool_name=node_pool_name,
+            node_count=node_count,
+            gpu_node_pool=True,
+            enable_managed_gpu=True,
+            gpu_instance_profile="MIG1g",
+            gpu_mig_strategy="mixed",
+        )
+
+        self.assertTrue(result)
+        # The metadata dict is the 3rd positional arg to OperationContext(...)
+        metadata = self.mock_operation_context.call_args[0][2]
+        self.assertEqual(metadata["gpu_mode"], "fully_managed")
+        self.assertTrue(metadata["enable_managed_gpu"])
+        self.assertTrue(metadata["mig_enabled"])
+        self.assertEqual(metadata["gpu_instance_profile"], "MIG1g")
+        self.assertEqual(metadata["gpu_mig_strategy"], "mixed")
+
 
 if __name__ == "__main__":
     unittest.main()
