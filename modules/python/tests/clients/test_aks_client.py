@@ -629,7 +629,7 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         # Check that NVIDIA verification was NOT performed for scale-down
         self.mock_k8s.verify_nvidia_smi_on_node.assert_not_called()
 
-    def test_gpu_mode_metadata_variants(self):
+    def test_gpu_mode_metadata_variants(self):  # pylint: disable=protected-access
         """_gpu_mode_metadata normalizes managed/fully-managed and MIG single/mixed."""
         # Non-GPU pool
         self.assertEqual(
