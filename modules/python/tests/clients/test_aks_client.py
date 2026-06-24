@@ -629,11 +629,12 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         # Check that NVIDIA verification was NOT performed for scale-down
         self.mock_k8s.verify_nvidia_smi_on_node.assert_not_called()
 
-    def test_gpu_mode_metadata_variants(self):  # pylint: disable=protected-access
+    def test_gpu_mode_metadata_variants(self):
         """_gpu_mode_metadata normalizes managed/fully-managed and MIG single/mixed."""
+        gpu_meta = AKSClient._gpu_mode_metadata  # pylint: disable=protected-access
         # Non-GPU pool
         self.assertEqual(
-            AKSClient._gpu_mode_metadata(False, False),
+            gpu_meta(False, False),
             {
                 "gpu_mode": "none",
                 "enable_managed_gpu": False,
@@ -643,22 +644,22 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
             },
         )
         # Managed (driver bootstrap only)
-        managed = AKSClient._gpu_mode_metadata(True, False)
+        managed = gpu_meta(True, False)
         self.assertEqual(managed["gpu_mode"], "managed")
         self.assertFalse(managed["enable_managed_gpu"])
         self.assertFalse(managed["mig_enabled"])
         # Fully managed
-        fully = AKSClient._gpu_mode_metadata(True, True)
+        fully = gpu_meta(True, True)
         self.assertEqual(fully["gpu_mode"], "fully_managed")
         self.assertTrue(fully["enable_managed_gpu"])
         # Fully managed + MIG mixed
-        mixed = AKSClient._gpu_mode_metadata(True, True, "MIG1g", "mixed")
+        mixed = gpu_meta(True, True, "MIG1g", "mixed")
         self.assertEqual(mixed["gpu_mode"], "fully_managed")
         self.assertTrue(mixed["mig_enabled"])
         self.assertEqual(mixed["gpu_instance_profile"], "MIG1g")
         self.assertEqual(mixed["gpu_mig_strategy"], "mixed")
         # Fully managed + MIG single
-        single = AKSClient._gpu_mode_metadata(True, True, "MIG1g", "single")
+        single = gpu_meta(True, True, "MIG1g", "single")
         self.assertEqual(single["gpu_mig_strategy"], "single")
         self.assertTrue(single["mig_enabled"])
 
