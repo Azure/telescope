@@ -64,10 +64,10 @@ class AKSClient:
 
     def _run_concurrent_arm_and_readiness(
         self,
-        poller,
+        node_pool_name: str,
+        cluster_name: str,
+        parameters: Any,
         node_count: int,
-        label_selector: str,
-        start_time: float
     ) -> Tuple[Any, list, float, float]:
         """
         Run ARM operation and K8s node readiness check concurrently using threads.
@@ -76,10 +76,10 @@ class AKSClient:
         independently, enabling identification of which layer is causing latency.
 
         Args:
-            poller: Azure ARM LROPoller from begin_create_or_update (thread-safe)
+            node_pool_name: Name of the node pool being provisioned
+            cluster_name: Name of the AKS cluster
+            parameters: Parameters for begin_create_or_update (dict or node pool object)
             node_count: Expected number of nodes to be ready
-            label_selector: K8s label selector for filtering nodes
-            start_time: Operation start timestamp for calculating durations
 
         Returns:
             Tuple of (arm_result, ready_nodes, node_readiness_time, command_execution_time)
@@ -91,6 +91,16 @@ class AKSClient:
                 completion (or failure) so we can capture timing for whichever
                 succeeded, enabling better diagnosis of which layer caused the failure.
         """
+        start_time = time.time()
+        label_selector = f"agentpool={node_pool_name}"
+
+        poller = self.aks_client.agent_pools.begin_create_or_update(
+            resource_group_name=self.resource_group,
+            resource_name=cluster_name,
+            agent_pool_name=node_pool_name,
+            parameters=parameters,
+        )
+
         def _poll_arm():
             """Run ARM poller and return (result, completion_timestamp)."""
             result = poller.result()
@@ -539,13 +549,7 @@ class AKSClient:
                     # Run ARM and K8s readiness concurrently to capture both timings
                     _, ready_nodes, node_readiness_time, command_execution_time = \
                         self._run_concurrent_arm_and_readiness(
-                            self.aks_client.agent_pools.begin_create_or_update(
-                                resource_group_name=self.resource_group,
-                                resource_name=cluster_name,
-                                agent_pool_name=node_pool_name,
-                                parameters=parameters,
-                            ),
-                            node_count, label_selector, start_time
+                            node_pool_name, cluster_name, parameters, node_count
                         )
 
                 logger.info(
@@ -701,10 +705,6 @@ class AKSClient:
 
                 logger.info(f"Scaling node pool {node_pool_name} to {node_count} nodes")
 
-                # Capture start time for timing measurements
-                start_time = time.time()
-                label_selector = f"agentpool={node_pool_name}"
-
                 logger.info(
                     f"Waiting for {node_count} nodes in pool {node_pool_name} to be ready..."
                 )
@@ -712,13 +712,7 @@ class AKSClient:
                 # Run ARM and K8s readiness concurrently to capture both timings
                 _, ready_nodes, node_readiness_time, command_execution_time = \
                     self._run_concurrent_arm_and_readiness(
-                        self.aks_client.agent_pools.begin_create_or_update(
-                            resource_group_name=self.resource_group,
-                            resource_name=cluster_name,
-                            agent_pool_name=node_pool_name,
-                            parameters=node_pool,
-                        ),
-                        node_count, label_selector, start_time
+                        node_pool_name, cluster_name, node_pool, node_count
                     )
 
                 logger.info(
@@ -942,20 +936,10 @@ class AKSClient:
                     )
                     node_pool.count = step  # Update node count in the node pool object
 
-                    # Capture start time for timing measurements
-                    start_time = time.time()
-                    label_selector = f"agentpool={node_pool_name}"
-
                     # Run ARM and K8s readiness concurrently to capture both timings
                     result, ready_nodes, node_readiness_time, command_execution_time = \
                         self._run_concurrent_arm_and_readiness(
-                            self.aks_client.agent_pools.begin_create_or_update(
-                                resource_group_name=self.resource_group,
-                                resource_name=cluster_name,
-                                agent_pool_name=node_pool_name,
-                                parameters=node_pool,
-                            ),
-                            step, label_selector, start_time
+                            node_pool_name, cluster_name, node_pool, step
                         )
 
                     logger.info(f"All {step} nodes in pool {node_pool_name} are ready")
