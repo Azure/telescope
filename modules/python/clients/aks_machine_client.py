@@ -20,6 +20,7 @@ import math
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Set
 
@@ -469,7 +470,8 @@ class AKSMachineClient(AKSClient):
         """Scale a Machine-mode agentpool by creating ``scale_machine_count`` machines.
 
         Opens an ``OperationContext`` here, enriches with successful machine
-        names, per-percentile readiness envelope, and the cluster snapshot.
+        names, per-batch command execution times, per-percentile readiness
+        envelope, and the cluster snapshot.
         Returns on success; re-raises on failure so the context records the
         trace.
 
@@ -516,6 +518,8 @@ class AKSMachineClient(AKSClient):
             machine_workers=machine_workers,
             timeout=timeout,
             readiness_wait_timeout=readiness_wait_timeout,
+            batch_command_execution_times={},
+            batch_command_execution_times_lock=threading.Lock(),
         )
         with self._get_operation_context()(
             "scale_machine", "azure", metadata, result_dir=self.result_dir
@@ -548,6 +552,11 @@ class AKSMachineClient(AKSClient):
                 else:
                     successful = self._scale_machine_individually(request, names)
                 op.add_metadata("command_execution_time", time.time() - command_t0)
+                if use_batch_api:
+                    op.add_metadata(
+                        "batch_command_execution_times",
+                        dict(request.batch_command_execution_times),
+                    )
                 op.add_metadata("successful_machines", len(successful))
 
                 # Fail fast on partial landing BEFORE waiting on the agentpool
@@ -905,6 +914,7 @@ class AKSMachineClient(AKSClient):
         # but it does not bound total wall time for the chunk because retry
         # and backoff handling can still extend the overall elapsed time.
         put_timeout = min(request.timeout, _PER_REQUEST_TIMEOUT_CAP)
+        start_time = datetime.now(timezone.utc)
         self._make_batch_request(
             "PUT",
             url,
@@ -913,6 +923,31 @@ class AKSMachineClient(AKSClient):
             batch_header_value=batch_header_value,
             chunk_idx=chunk_idx,
             first_machine_name=first_machine_name,
+        )
+        end_time = datetime.now(timezone.utc)
+        execution_time_seconds = (end_time - start_time).total_seconds()
+        batch_command_execution_times = getattr(
+            request, "batch_command_execution_times", None
+        )
+        if batch_command_execution_times is None:
+            batch_command_execution_times = {}
+            request.batch_command_execution_times = batch_command_execution_times
+        metric = {
+            "start_time": start_time.isoformat().replace("+00:00", "Z"),
+            "end_time": end_time.isoformat().replace("+00:00", "Z"),
+            "execution_time_seconds": execution_time_seconds,
+            "total_machines_in_batch": len(chunk),
+        }
+        metric_lock = getattr(request, "batch_command_execution_times_lock", None)
+        if metric_lock is None:
+            batch_command_execution_times[first_machine_name] = metric
+        else:
+            with metric_lock:
+                batch_command_execution_times[first_machine_name] = metric
+        logger.info(
+            f"chunk {chunk_idx}: BatchPutMachine PUT completed for {len(chunk)} "
+            f"machines in {execution_time_seconds:.3f} seconds "
+            f"(target={first_machine_name})"
         )
         return list(chunk)
 
