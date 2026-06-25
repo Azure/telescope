@@ -268,11 +268,12 @@ class AKSClient:
         retries: int = 10,
         retry_wait: int = 30,
         poll_interval: int = 30,
-        timeout: int = 1200,
+        timeout: int = 1800,
     ) -> None:
         """
         Call begin_create_or_update with retry on OperationNotAllowed/EtagMismatch,
         polling every poll_interval seconds and raising TimeoutError after timeout seconds.
+        timeout defaults to 1800s (30 min) for slow GPU node provisioning (A100 MIG).
         """
         for attempt in range(retries):
             try:
