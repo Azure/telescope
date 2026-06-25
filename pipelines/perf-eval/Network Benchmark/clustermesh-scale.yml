@@ -732,3 +732,77 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
           skip_publish: false
+
+  # ===========================================================================
+  # MOCK variant (KWOK + mock-cilium-agent) — additive, NOT in the weekly cron.
+  # Replaces the real workload nodes with virtual KWOK nodes + the forked
+  # mock-cilium-agent (real Cilium control plane, DryMode datapath). See
+  # scenarios/perf-eval/clustermesh-scale/MOCK-MODE.md. Trigger manually.
+  #
+  # Set MOCK_ACR_HOST/MOCK_AGENT_TAG to the registry hosting mock-cilium-agent:
+  # <tag>. The ACR must be in the SAME subscription as the test clusters; the
+  # deploy step grants the kubelet identity AcrPull automatically.
+  # ===========================================================================
+  - stage: azure_mock_n2
+    dependsOn: []
+    variables:
+      MOCK_ACR_HOST: mockmeshshared11225.azurecr.io
+      MOCK_AGENT_TAG: v26
+      MOCK_NODE_COUNT: 100
+      MOCK_CONSUME_CLUSTERMESH: true
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 15m
+          topology: clustermesh-scale-mock
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-2-mock.tfvars"
+          matrix:
+            # Plumbing smoke: proves provision + KWOK + CL2 run end to end. The
+            # trivial config.yaml has a near-zero measurement window, so Prometheus
+            # metrics are thin — use the pod-churn entry below for real measurements.
+            n2_mock_smoke:
+              cluster_count: 2
+              mesh_size: 2
+              cl2_config_file: config.yaml
+              test_type: mock-smoke
+              namespaces: 1
+              deployments_per_namespace: 2
+              replicas_per_deployment: 5
+              mock_mode: true
+              hold_duration: 30s
+              warmup_duration: 10s
+              restart_count: 0
+              api_server_calls_per_second: 5
+              trigger_reason: ${{ variables['Build.Reason'] }}
+            # Real measurements: steady-state window so cilium/clustermesh metrics
+            # populate from the mock agents. Enable selectively (longer run).
+            # n2_mock_pod_churn:
+            #   cluster_count: 2
+            #   mesh_size: 2
+            #   cl2_config_file: pod-churn-combined.yaml
+            #   test_type: mock-pod-churn
+            #   namespaces: 5
+            #   deployments_per_namespace: 4
+            #   replicas_per_deployment: 10
+            #   mock_mode: true
+            #   hold_duration: 2m
+            #   warmup_duration: 30s
+            #   restart_count: 0
+            #   api_server_calls_per_second: 20
+            #   churn_cycles: 5
+            #   churn_up_duration: 60s
+            #   churn_down_duration: 60s
+            #   trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 240
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
