@@ -49,6 +49,11 @@ steps:
       export CL2_HOLD_DURATION="$HOLD_DURATION"
       export CL2_WARMUP_DURATION="$WARMUP_DURATION"
       export CL2_RESTART_GENERATION="$RESTART_COUNT"
+      # MOCK mode (topology clustermesh-scale-mock): matrix/pipeline var
+      # `mock_mode` auto-exports as MOCK_MODE; re-export under the CL2_* name that
+      # scale.py configure (--mock-mode) consumes. Falls back to a directly-set
+      # CL2_MOCK_MODE pipeline variable, then to false → real runs unchanged.
+      export CL2_MOCK_MODE="${MOCK_MODE:-${CL2_MOCK_MODE:-false}}"
       # Phase 4a — Scenario #2 (Pod Churn Stress) knobs. Shell defaults so
       # matrix entries that don't set these (event-throughput, default-config)
       # silently fall back to the documented Phase 4a defaults rather than
@@ -334,6 +339,7 @@ steps:
         --policy-canary-enabled "${CL2_POLICY_CANARY_ENABLED:-false}" \
         --policy-scale-cnp-per-ns "${CL2_POLICY_SCALE_CNP_PER_NS:-50}" \
         --policy-scale-hold-duration "${CL2_POLICY_SCALE_HOLD_DURATION:-5m}" \
+        --mock-mode "${CL2_MOCK_MODE:-false}" \
         --cl2_override_file "${CL2_CONFIG_DIR}/overrides.yaml"
 
       # Phase 4a — pre-stage kubectl into the CL2 config dir so the

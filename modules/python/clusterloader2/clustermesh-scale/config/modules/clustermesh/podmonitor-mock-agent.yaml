@@ -1,0 +1,27 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: mock-cilium-agent
+  namespace: monitoring
+spec:
+  # MOCK mode only: scrape the mock-cilium-agents (app=mock-cilium-agent) on their
+  # Prometheus port 9962 in the mock-clustermesh namespace, so the cilium.yaml +
+  # clustermesh-metrics.yaml GenericPrometheusQuery measurements capture the MOCK
+  # agents. CL2's built-in CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT targets the real
+  # k8s-app=cilium DaemonSet (the harness agent), not the simulated ones.
+  selector:
+    matchLabels:
+      app: mock-cilium-agent
+  namespaceSelector:
+    matchNames:
+      - mock-clustermesh
+  podMetricsEndpoints:
+    - interval: {{.Interval}}
+      honorLabels: true
+      path: /metrics
+      relabelings:
+        - sourceLabels: [__address__]
+          action: replace
+          targetLabel: __address__
+          regex: (.+?)(\:\d+)?
+          replacement: $1:9962

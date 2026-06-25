@@ -129,6 +129,7 @@ def configure_clusterloader2(
     policy_canary_enabled="false",
     policy_scale_cnp_per_ns=50,
     policy_scale_hold_duration="5m",
+    mock_mode="false",
 ):
     with open(override_file, "w", encoding="utf-8") as f:
         # Prometheus stack — keep the Cilium-scrape flags ON so the
@@ -157,6 +158,11 @@ def configure_clusterloader2(
         f.write('CL2_PROMETHEUS_NODE_SELECTOR: "prometheus: \\"true\\""\n')
         f.write("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true\n")
         f.write("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true\n")
+        # MOCK mode (KWOK + mock-cilium-agent framework, topology
+        # clustermesh-scale-mock): the config templates gate workload
+        # kwok-targeting + the mock-agent PodMonitor on this flag. Default
+        # "false" → real-node runs are unchanged.
+        f.write(f"CL2_MOCK_MODE: {mock_mode}\n")
         f.write("CL2_POD_STARTUP_LATENCY_THRESHOLD: 3m\n")
         # APIResponsivenessPrometheus default SLO (perc99 ≤ 1s) is tuned for
         # production-scale clusters in steady state; on Phase-1 dev clusters
@@ -334,6 +340,14 @@ def execute_clusterloader2(
         # Prom is pinned to the dedicated `prompool` node (D8s_v3/v5 / 32GB
         # RAM) so 12Gi leaves ~20GB headroom on that node.
         prometheus_memory_request="1Gi",
+        # On AKS, CL2's default prometheus PVC StorageClass (`ssd` /
+        # kubernetes.io/gce-pd) does not provision — the prometheus-k8s PVC stays
+        # unbound, the pod stays Pending, and every measurement gather returns
+        # "no endpoints". Pin to the AKS managed-csi (disk.csi.azure.com) class so
+        # the PVC binds. Only applied for the AKS provider; GCE/AWS keep defaults.
+        prometheus_pvc_storage_class=("managed-csi" if provider == "aks" else None),
+        prometheus_storage_class_provisioner=("disk.csi.azure.com" if provider == "aks" else None),
+        prometheus_storage_class_volume_type=("StandardSSD_LRS" if provider == "aks" else None),
     )
 
 
@@ -1981,6 +1995,11 @@ def main():
                          "creation, before deletion. Needs to be long enough for "
                          "policy_implementation_delay histogram to gather meaningful "
                          "samples. Default 5m.")
+    pc.add_argument("--mock-mode", type=str, default="false",
+                    help="MOCK mode (topology clustermesh-scale-mock): when 'true', "
+                         "writes CL2_MOCK_MODE so the config templates schedule the "
+                         "workload onto KWOK virtual nodes and add a PodMonitor for the "
+                         "mock-cilium-agents. Default 'false' → real-node runs unchanged.")
 
     # execute
     pe = subparsers.add_parser("execute", help="Run CL2 against a single cluster")
@@ -2119,6 +2138,7 @@ def main():
             policy_canary_enabled=args.policy_canary_enabled,
             policy_scale_cnp_per_ns=args.policy_scale_cnp_per_ns,
             policy_scale_hold_duration=args.policy_scale_hold_duration,
+            mock_mode=args.mock_mode,
         )
     elif args.command == "execute":
         execute_clusterloader2(

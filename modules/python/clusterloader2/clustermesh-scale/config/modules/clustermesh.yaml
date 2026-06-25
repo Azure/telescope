@@ -4,6 +4,7 @@
 
 {{$tuningSet := DefaultParam .tuningSet "DeploymentCreateQps"}}
 {{$interval := DefaultParam .interval "15s"}}
+{{$mockMode := DefaultParam .mockMode false}}
 {{ $replicasPerNamespace := 1 }}
 
 {{if eq .actionName "create"}}
@@ -47,3 +48,11 @@ steps:
             basename: kvstoremesh-standalone
             templateFillMap:
               Interval: {{$interval}}
+          {{if $mockMode}}
+          # MOCK mode: scrape the mock-cilium-agents so the cilium.yaml +
+          # clustermesh-metrics.yaml measurements capture the simulated agents.
+          - objectTemplatePath: "modules/clustermesh/podmonitor-mock-agent.yaml"
+            basename: mock-cilium-agent
+            templateFillMap:
+              Interval: {{$interval}}
+          {{end}}
