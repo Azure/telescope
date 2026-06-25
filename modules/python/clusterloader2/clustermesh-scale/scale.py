@@ -161,8 +161,10 @@ def configure_clusterloader2(
         # MOCK mode (KWOK + mock-cilium-agent framework, topology
         # clustermesh-scale-mock): the config templates gate workload
         # kwok-targeting + the mock-agent PodMonitor on this flag. Default
-        # "false" → real-node runs are unchanged.
-        f.write(f"CL2_MOCK_MODE: {mock_mode}\n")
+        # "false" → real-node runs are unchanged. Normalize to lowercase so the
+        # config templates' `eq (printf "%v" ...) "true"` gate is robust whether
+        # the matrix exports the value as "true" or "True".
+        f.write(f"CL2_MOCK_MODE: {str(mock_mode).strip().lower()}\n")
         f.write("CL2_POD_STARTUP_LATENCY_THRESHOLD: 3m\n")
         # APIResponsivenessPrometheus default SLO (perc99 ≤ 1s) is tuned for
         # production-scale clusters in steady state; on Phase-1 dev clusters

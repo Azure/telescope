@@ -20,6 +20,10 @@ name: clustermesh-pod-churn-workload
 {{$tuningSet := .tuningSet}}
 {{$group := DefaultParam .group "clustermesh-pod-churn"}}
 {{$basename := DefaultParam .basename "pc"}}
+# MOCK mode (KWOK virtual nodes): passed to the Deployment objectTemplate so its
+# pods land on the virtual nodes the mock-cilium-agents watch. Read from the global
+# CL2_MOCK_MODE override (printf %v normalizes a YAML-coerced True/true alike).
+{{$mockMode := eq (printf "%v" (DefaultParam .CL2_MOCK_MODE false)) "true"}}
 
 # delete = drop objects entirely (teardown only).
 # apply  = keep object count constant, set Deployment .spec.replicas to $replicas.
@@ -46,6 +50,7 @@ steps:
               Replicas: {{$replicas}}
               Group: {{$group}}
               RestartGeneration: 0
+              MockMode: {{$mockMode}}
           - basename: {{$basename}}
             objectTemplatePath: /modules/event-throughput-service.yaml
             templateFillMap:

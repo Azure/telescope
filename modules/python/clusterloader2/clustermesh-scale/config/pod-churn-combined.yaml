@@ -52,6 +52,10 @@ name: clustermesh-pod-churn-combined
 
 {{$workloadGroup := "clustermesh-pod-churn-combined"}}
 {{$workloadBasename := "pcc"}}
+# MOCK mode (KWOK): passed to the clustermesh + workload modules so the mock-agent
+# PodMonitor is applied and the churn pods land on the virtual nodes. printf %v
+# normalizes a YAML-coerced True/true alike.
+{{$mockMode := eq (printf "%v" (DefaultParam .CL2_MOCK_MODE false)) "true"}}
 
 namespace:
   number: {{$namespaces}}
@@ -129,6 +133,7 @@ steps:
       params:
         actionName: create
         tuningSet: DeploymentCreateQps
+        mockMode: {{$mockMode}}
 
   # ----- Workload deploy + initial settle -----
   - name: Start tracking pod-churn-combined Deployments
@@ -330,3 +335,4 @@ steps:
       params:
         actionName: delete
         tuningSet: DeploymentCreateQps
+        mockMode: {{$mockMode}}

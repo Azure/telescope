@@ -23,6 +23,20 @@ spec:
         # drives the burst event flurry for scale-scenario #1.
         restart-generation: "{{.RestartGeneration}}"
     spec:
+      {{if .MockMode}}
+      # MOCK mode: schedule the pause Pods onto the KWOK virtual nodes (which carry
+      # the kwok.x-k8s.io/node:NoSchedule taint and type=kwok label) so each mock-
+      # cilium-agent watching its assigned virtual node observes the pods and writes
+      # identity/endpoint keys to the clustermesh-apiserver — the framework's load-
+      # generation path. Without this, pods land on the real worker pool and the
+      # mock agents generate no clustermesh load (a hollow run).
+      nodeSelector:
+        type: kwok
+      tolerations:
+        - key: kwok.x-k8s.io/node
+          operator: Exists
+          effect: NoSchedule
+      {{end}}
       containers:
         - name: pause
           image: mcr.microsoft.com/oss/kubernetes/pause:3.6
