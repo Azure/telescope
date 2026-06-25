@@ -300,12 +300,25 @@ class TestAKSMachineClient(unittest.TestCase):
 
     def test_scale_machine_batch_path_dispatches_to_batch(self):
         """The use_batch_api=True branch calls _scale_machine_batch (not _individually)
-        and records command_execution_time in operation metadata."""
+        and records batch command timings in operation metadata."""
         names = [f"scale2-machine-{i+1}" for i in range(2)]
+        batch_metrics = {
+            "scale2-machine-1": {
+                "start_time": "2026-06-23T00:00:00Z",
+                "end_time": "2026-06-23T00:00:01Z",
+                "execution_time_seconds": 1.0,
+                "total_machines_in_batch": 2,
+            }
+        }
+
+        def fake_batch(request, batch_names):
+            request.batch_command_execution_times.update(batch_metrics)
+            return batch_names
+
         with mock.patch.object(
             AKSMachineClient,
             "_scale_machine_batch",
-            return_value=names,
+            side_effect=fake_batch,
         ) as mock_batch, mock.patch.object(
             AKSMachineClient, "_scale_machine_individually"
         ) as mock_individual, mock.patch.object(
@@ -333,11 +346,14 @@ class TestAKSMachineClient(unittest.TestCase):
             )
         mock_batch.assert_called_once()
         mock_individual.assert_not_called()
-        # command_execution_time must be added to operation metadata.
+        # Command timings must be added to operation metadata.
         added_keys = {
             call.args[0] for call in self.mock_operation.add_metadata.call_args_list
         }
         self.assertIn("command_execution_time", added_keys)
+        self.mock_operation.add_metadata.assert_any_call(
+            "batch_command_execution_times", batch_metrics
+        )
 
     # ---- _create_single_machine ----
 
@@ -868,6 +884,13 @@ class TestAKSMachineClient(unittest.TestCase):
             )
         self.assertEqual(result, ["m-1", "m-2", "m-3"])
         mock_make_batch.assert_called_once()
+        self.assertEqual(set(request.batch_command_execution_times), {"m-1"})
+        metric = request.batch_command_execution_times["m-1"]
+        self.assertIn("start_time", metric)
+        self.assertIn("end_time", metric)
+        self.assertIsInstance(metric["execution_time_seconds"], float)
+        self.assertGreaterEqual(metric["execution_time_seconds"], 0.0)
+        self.assertEqual(metric["total_machines_in_batch"], 3)
         # Inspect the batch_header_value kwarg.
         import json as _json  # pylint: disable=import-outside-toplevel
         kwargs = mock_make_batch.call_args.kwargs
