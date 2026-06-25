@@ -1410,3 +1410,72 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
           skip_publish: false
+
+  # ===========================================================================
+  # MOCK variant (KWOK + mock-cilium-agent). Replaces the real workload nodes
+  # with 100 virtual KWOK nodes/cluster + the forked mock-cilium-agent (real
+  # Cilium control plane, DryMode datapath) — ~10x fewer vCPU. Uses the
+  # clustermesh-scale-mock topology (deploys the mock layer after terraform) and
+  # the azure-2-mock thin-worker-pool tfvars. See
+  # scenarios/perf-eval/clustermesh-scale/MOCK-MODE.md.
+  #
+  # MOCK_ACR_HOST must host mock-cilium-agent:<MOCK_AGENT_TAG> in the SAME
+  # subscription as the test clusters; the deploy step auto-grants the kubelet
+  # identity AcrPull. Uses the share-infra pod-churn-combined scenario so the
+  # cilium / clustermesh measurements have a real steady-state window.
+  # ===========================================================================
+  - stage: azure_eastus2euap_n2_mock
+    dependsOn: []
+    condition: always()
+    displayName: "n=2 MOCK smoke (KWOK + mock-cilium-agent, 100 virtual nodes/cluster)"
+    variables:
+      MOCK_ACR_HOST: mockmeshshared11225.azurecr.io
+      MOCK_AGENT_TAG: v26
+      MOCK_NODE_COUNT: 100
+      MOCK_CONSUME_CLUSTERMESH: true
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 30m
+          topology: clustermesh-scale-mock
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-2-mock.tfvars"
+          matrix:
+            n2_mock:
+              cluster_count: 2
+              mesh_size: 2
+              share_infra_scenarios: "pod-churn-combined"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-mock"
+              mock_mode: true
+              global_namespace_count: 1
+              namespaces: 5
+              deployments_per_namespace: 2
+              replicas_per_deployment: 5
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              churn_cycles: 2
+              churn_up_duration: 90s
+              churn_down_duration: 90s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 240
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
