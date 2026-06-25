@@ -303,7 +303,14 @@ def execute_clusterloader2(
     kubeconfig,
     provider,
     tear_down_prometheus=False,
+    mock_mode="false",
 ):
+    # In mock mode most nodes are KWOK virtual nodes with no real kubelet, so
+    # CL2's per-node kubelet scrape targets are permanently down (observed
+    # ~200/217 targets "down") and CL2's Prometheus readiness gate times out
+    # before any measurement runs. Disable kubelet scraping in mock mode; the
+    # SUT metrics (clustermesh-apiserver + mock-agent PodMonitor) don't need it.
+    scrape_kubelets = str(mock_mode).strip().lower() != "true"
     run_cl2_command(
         kubeconfig,
         cl2_image,
@@ -320,7 +327,7 @@ def execute_clusterloader2(
         # CL2 invocation gets a clean Prometheus deploy and the previous
         # scenario's PodMonitor/scrape config doesn't bleed in.
         tear_down_prometheus=tear_down_prometheus,
-        scrape_kubelets=True,
+        scrape_kubelets=scrape_kubelets,
         scrape_ksm=True,
         scrape_metrics_server=True,
         # CL2's bundled Prometheus manifest hardcodes `resources.limits.memory:
@@ -2013,6 +2020,10 @@ def main():
                     help="Tear down Prometheus stack at end of CL2 (set in share-infra "
                          "mode so the next scenario's CL2 can deploy a fresh Prom). "
                          "Default is to preserve Prom for failure-diagnostic dumping.")
+    pe.add_argument("--mock-mode", type=str, default="false",
+                    help="When 'true', disable kubelet scraping: KWOK virtual nodes "
+                         "have no real kubelet, so kubelet targets stay permanently "
+                         "down and would block CL2's Prometheus readiness gate.")
 
     # execute-parallel — fan out CL2 across N clusters with bounded concurrency
     pep = subparsers.add_parser(
@@ -2149,6 +2160,7 @@ def main():
             args.kubeconfig,
             args.provider,
             tear_down_prometheus=args.tear_down_prometheus,
+            mock_mode=args.mock_mode,
         )
     elif args.command == "execute-parallel":
         rc = execute_parallel(

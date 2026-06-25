@@ -181,6 +181,7 @@ fi
     --cl2-config-file "$cl2_config_file" \
     --kubeconfig "$kubeconfig" \
     --provider "$provider" \
+    --mock-mode "${CL2_MOCK_MODE:-false}" \
     "${exec_extra_args[@]}"
 ) || true
 
