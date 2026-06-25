@@ -1470,14 +1470,14 @@ class TestMainArgumentParsing(unittest.TestCase):
     def test_execute_mock_mode_disables_kubelet_scrape(self, mock_run):
         """In mock mode, kubelet scraping is disabled (KWOK nodes have no real
         kubelet, so kubelet targets stay down and block CL2's Prometheus gate)."""
-        common = dict(
-            cl2_image="img",
-            cl2_config_dir="/cfg",
-            cl2_report_dir="/rep",
-            cl2_config_file="config.yaml",
-            kubeconfig="/kc",
-            provider="aks",
-        )
+        common = {
+            "cl2_image": "img",
+            "cl2_config_dir": "/cfg",
+            "cl2_report_dir": "/rep",
+            "cl2_config_file": "config.yaml",
+            "kubeconfig": "/kc",
+            "provider": "aks",
+        }
         clustermesh_scale_module.execute_clusterloader2(**common, mock_mode="true")
         assert mock_run.call_args.kwargs["scrape_kubelets"] is False
         mock_run.reset_mock()
