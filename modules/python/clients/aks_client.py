@@ -371,39 +371,23 @@ class AKSClient:
         gpu_mig_strategy: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
-        Build normalized GPU-mode metadata that reliably distinguishes
-        managed vs fully-managed GPU and MIG single vs mixed.
+        Build normalized GPU-mode metadata distinguishing managed vs fully-managed
+        GPU and MIG single vs mixed.
 
-        These fields are derived from the operation's INPUT flags rather than the
-        AKS read-back: the stable Python SDK (azure-mgmt-containerservice) does not
-        model gpuProfile.nvidia.managementMode, so a fully-managed pool's mode is
-        silently dropped from nodepool_info. Recording the input flags here keeps
-        the distinction queryable downstream regardless of SDK coverage.
+        Derived from the operation INPUT flags rather than the AKS read-back: the
+        stable SDK does not model gpuProfile.nvidia.managementMode, so a
+        fully-managed pool's mode is dropped from nodepool_info. Flag combinations
+        are normalized for consistency: enable_managed_gpu / MIG only apply to a
+        GPU pool, and MIG only to fully-managed pools (dropped otherwise).
 
-        The flag combination is normalized so records are always internally
-        consistent regardless of how callers combine inputs:
-          - enable_managed_gpu / MIG inputs are only meaningful for a GPU pool
-            (gpu_node_pool=True); they are ignored otherwise.
-          - MIG (gpu_instance_profile / gpu_mig_strategy) only applies to
-            fully-managed GPU pools; it is dropped for managed/non-GPU pools.
-
-        Raises:
-            ValueError: if gpu_mig_strategy is not one of None / "single" / "mixed".
-
-        Returns:
-            Dict with:
-              - gpu_mode: "none" | "managed" | "fully_managed"
-              - enable_managed_gpu: normalized fully-managed flag (False unless it
-                is actually a fully-managed GPU pool)
-              - mig_enabled: whether MIG was requested on a fully-managed pool
-              - gpu_instance_profile: MIG instance profile (e.g. "MIG1g") or None
-              - gpu_mig_strategy: "single" | "mixed" | None
+        Returns a dict with gpu_mode ("none"|"managed"|"fully_managed"),
+        enable_managed_gpu, mig_enabled, gpu_instance_profile, gpu_mig_strategy.
+        Raises ValueError if gpu_mig_strategy is not None / "single" / "mixed".
         """
         strategy = (gpu_mig_strategy or None) and str(gpu_mig_strategy).lower()
         if strategy not in (None, "single", "mixed"):
             raise ValueError(
-                f"invalid gpu_mig_strategy {gpu_mig_strategy!r}; "
-                "expected 'single', 'mixed', or None"
+                f"invalid gpu_mig_strategy {gpu_mig_strategy!r} (want single/mixed/None)"
             )
 
         is_gpu = bool(gpu_node_pool)
