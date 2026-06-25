@@ -1,0 +1,57 @@
+name: clustermesh-pod-churn-workload
+
+# Workload module shared by both pod-churn scenarios (#2 from scale testing.txt):
+#   - pod-churn-scale.yaml: deterministic scale-cycle (replicas N → 0 → N → ...).
+#   - pod-churn-kill.yaml:  in-cluster random pod deletion via a killer Job.
+#
+# Per the rubber-duck critique on the Phase 4a design: we KEEP the Deployment
+# and Service object count constant (replicasPerNamespace = deploymentsPerNamespace
+# every invocation) and ONLY vary `.spec.replicas` on the underlying Deployment
+# via templateFillMap.Replicas. Setting replicasPerNamespace=0 here would DELETE
+# the Deployment+Service pair, which churns service-propagation events in
+# addition to pod events and changes the scenario semantics. The teardown
+# scenario explicitly opts into deletion via actionName=delete (which is what
+# CL2's `phases` with replicasPerNamespace=0 in the caller produces).
+
+{{$actionName := .actionName}}      # apply | delete
+{{$replicas := DefaultParam .replicas 0}}
+{{$namespaces := .namespaces}}
+{{$deploymentsPerNamespace := .deploymentsPerNamespace}}
+{{$tuningSet := .tuningSet}}
+{{$group := DefaultParam .group "clustermesh-pod-churn"}}
+{{$basename := DefaultParam .basename "pc"}}
+# MOCK mode (KWOK virtual nodes): passed to the Deployment objectTemplate so its
+# pods land on the virtual nodes the mock-cilium-agents watch. Read from the global
+# CL2_MOCK_MODE override (printf %v normalizes a YAML-coerced True/true alike).
+{{$mockMode := eq (printf "%v" (DefaultParam .CL2_MOCK_MODE false)) "true"}}
+
+# delete = drop objects entirely (teardown only).
+# apply  = keep object count constant, set Deployment .spec.replicas to $replicas.
+{{$objectsPerNamespace := $deploymentsPerNamespace}}
+{{if eq $actionName "delete"}}{{$objectsPerNamespace = 0}}{{end}}
+
+steps:
+  - name: {{$actionName}} pod-churn workload (replicas={{$replicas}})
+    phases:
+      - namespaceRange:
+          min: 1
+          max: {{$namespaces}}
+        replicasPerNamespace: {{$objectsPerNamespace}}
+        tuningSet: {{$tuningSet}}
+        objectBundle:
+          - basename: {{$basename}}
+            objectTemplatePath: /modules/event-throughput-deployment.yaml
+            templateFillMap:
+              # Pod count per Deployment is what cycles between $replicasPerDeployment
+              # and 0 during the scale-cycle scenario. The Deployment object itself
+              # is reapplied (PATCHed) by CL2 every invocation — ReplicaSet generation
+              # stays stable across replica changes because .spec.template is not
+              # being modified (no rolling restart).
+              Replicas: {{$replicas}}
+              Group: {{$group}}
+              RestartGeneration: 0
+              MockMode: {{$mockMode}}
+          - basename: {{$basename}}
+            objectTemplatePath: /modules/event-throughput-service.yaml
+            templateFillMap:
+              Group: {{$group}}

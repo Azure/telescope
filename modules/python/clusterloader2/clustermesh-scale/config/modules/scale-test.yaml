@@ -10,6 +10,7 @@ name: clustermesh-scale-test-module
 {{$replicasPerDeployment := .replicasPerDeployment}}
 {{$tuningSet := .tuningSet}}
 {{$operationTimeout := .operationTimeout}}
+{{$mockMode := DefaultParam .mockMode false}}
 
 {{$totalDeployments := MultiplyInt $namespaces $deploymentsPerNamespace}}
 
@@ -48,6 +49,7 @@ steps:
             templateFillMap:
               Replicas: {{$replicasPerDeployment}}
               Group: clustermesh-scale-test
+              MockMode: {{$mockMode}}
 
   - name: Wait for deployments to be {{$actionName}}d
     measurements:

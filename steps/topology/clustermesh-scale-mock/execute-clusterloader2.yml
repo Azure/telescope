@@ -1,0 +1,22 @@
+parameters:
+  - name: cloud
+    type: string
+    default: ""
+  - name: engine_input
+    type: object
+    default: {}
+  - name: regions
+    type: object
+    default: {}
+
+# MOCK-mode execute = the base clustermesh-scale CL2 run. Mock behavior is driven
+# entirely by the CL2_MOCK_MODE pipeline variable (set true for the mock variant):
+# it flows through the engine's scale.py configure into the overrides file, and the
+# config templates then schedule the workload onto KWOK nodes + scrape the mock
+# agents. No separate engine wiring is needed here.
+steps:
+  - template: /steps/topology/clustermesh-scale/execute-clusterloader2.yml@self
+    parameters:
+      cloud: ${{ parameters.cloud }}
+      engine_input: ${{ parameters.engine_input }}
+      regions: ${{ parameters.regions }}

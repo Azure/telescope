@@ -1,0 +1,133 @@
+parameters:
+  - name: cloud
+    type: string
+    default: ""
+  - name: engine
+    type: string
+    default: ""
+  - name: regions
+    type: object
+    default: {}
+
+# Deploys the KWOK + mock-cilium-agent layer onto every clustermesh cluster, AFTER
+# the base clustermesh-scale validate-resources step has confirmed each cluster is
+# Fleet-meshed and its clustermesh-apiserver is up. The mock layer is purely
+# additive: it adds KWOK virtual nodes + one mock-cilium-agent per node (real Cilium
+# control plane, DryMode datapath) on top of the real thin worker pool.
+#
+# Required pipeline variables:
+#   MOCK_ACR_HOST   ACR login server hosting mock-cilium-agent:<MOCK_AGENT_TAG>
+#   MOCK_AGENT_TAG  mock-cilium-agent image tag (e.g. v26)
+# Optional:
+#   MOCK_NODE_COUNT          virtual nodes per cluster (default 100)
+#   MOCK_CONSUME_CLUSTERMESH wire the clustermesh consume path (default true)
+#
+# The mock-cilium-agent image must be pullable by the cluster (push it to a
+# pipeline-accessible ACR and attach that ACR to the AKS clusters at provision time).
+steps:
+  - script: |
+      set -euo pipefail
+      set -x
+
+      : "${MOCK_ACR_HOST:?MOCK_ACR_HOST pipeline variable is required for mock mode}"
+
+      # Cluster inventory written by the base validate-resources "Enumerate" step
+      # (role=mesh-N, name, rg). Re-derive if the file is absent.
+      inventory="$HOME/.kube/clustermesh-clusters.json"
+      if [ ! -s "$inventory" ]; then
+        region=${{ parameters.regions[0] }}
+        az resource list \
+          --resource-type Microsoft.ContainerService/managedClusters \
+          --location "$region" \
+          --query "[?tags.run_id=='${RUN_ID}' && starts_with(tags.role, 'mesh-')].{name:name, rg:resourceGroup, role:tags.role}" \
+          -o json > "$inventory"
+      fi
+      clusters=$(cat "$inventory")
+      echo "Deploying mock layer on $(echo "$clusters" | jq 'length') cluster(s)"
+
+      kubeconfig_list=""
+      for row in $(echo "$clusters" | jq -c '.[]'); do
+        name=$(echo "$row" | jq -r '.name')
+        rg=$(echo "$row"   | jq -r '.rg')
+        role=$(echo "$row" | jq -r '.role')
+
+        echo "===================================================================="
+        echo "  Deploying KWOK + mock-cilium-agent layer on $role ($name)"
+        echo "===================================================================="
+
+        kubeconfig="$HOME/.kube/$role.config"
+        KUBECONFIG="$kubeconfig" az aks get-credentials \
+          --resource-group "$rg" --name "$name" --overwrite-existing --only-show-errors
+
+        # Grant the cluster's kubelet identity AcrPull on the mock-agent registry.
+        # The ACR is private (anonymous pull off), and same-subscription does NOT
+        # auto-grant pull — without this the agent Pods ImagePullBackOff and the
+        # readiness gate below fails. Non-fatal: a pre-attached cluster or an
+        # alternative access model (imagePullSecret) still works, and the readiness
+        # gate is the real backstop. MOCK_ACR_HOST is "<name>.azurecr.io"; the role
+        # assignment needs the registry resource id.
+        acr_name="${MOCK_ACR_HOST%%.*}"
+        acr_id=$(az acr show --name "$acr_name" --query id -o tsv --only-show-errors 2>/dev/null || true)
+        kubelet_oid=$(az aks show --resource-group "$rg" --name "$name" \
+          --query identityProfile.kubeletidentity.objectId -o tsv --only-show-errors 2>/dev/null || true)
+        if [ -n "$acr_id" ] && [ -n "$kubelet_oid" ]; then
+          az role assignment create --assignee-object-id "$kubelet_oid" \
+            --assignee-principal-type ServicePrincipal --role AcrPull --scope "$acr_id" \
+            --only-show-errors >/dev/null 2>&1 \
+            && echo "$role: granted AcrPull on $acr_name to kubelet identity" \
+            || echo "$role: AcrPull grant skipped (already present or insufficient perms)"
+        else
+          echo "##vso[task.logissue type=warning;] $role: could not resolve ACR/kubelet identity to attach $acr_name — relying on pre-existing pull access"
+        fi
+
+        KUBECONFIG_FILE="$kubeconfig" \
+          NODE_COUNT="${MOCK_NODE_COUNT:-100}" \
+          ACR_HOST="${MOCK_ACR_HOST}" \
+          AGENT_TAG="${MOCK_AGENT_TAG:-v26}" \
+          CONSUME_CLUSTERMESH="${MOCK_CONSUME_CLUSTERMESH:-true}" \
+          bash "$MOCK_PROVISION_SCRIPT"
+
+        # Fatal readiness gate. provision-kwok-layer.sh is best-effort (it sleeps +
+        # prints status) and attrition-check below is non-fatal, so without this a
+        # bad MOCK_AGENT_TAG / unattached ACR / image-pull failure would let CL2 run
+        # in mock mode against KWOK nodes with NO healthy agents → garbage metrics.
+        # Require every virtual node to have a Running mock-cilium-agent before
+        # proceeding; fail the step (and dump why) on timeout.
+        want="${MOCK_NODE_COUNT:-100}"
+        deadline=$(( $(date +%s) + 600 ))
+        while true; do
+          running=$(KUBECONFIG="$kubeconfig" kubectl -n mock-clustermesh get pods \
+            -l app=mock-cilium-agent --field-selector=status.phase=Running \
+            --no-headers 2>/dev/null | wc -l)
+          if [ "$running" -ge "$want" ]; then
+            echo "$role: $running/$want mock-cilium-agents Running"
+            break
+          fi
+          if [ "$(date +%s)" -ge "$deadline" ]; then
+            echo "##vso[task.logissue type=error;] $role: only $running/$want mock-cilium-agents Running after 10m"
+            KUBECONFIG="$kubeconfig" kubectl -n mock-clustermesh get pods -l app=mock-cilium-agent -o wide 2>/dev/null | head -20 || true
+            KUBECONFIG="$kubeconfig" kubectl -n mock-clustermesh get pods -l app=mock-cilium-agent \
+              -o jsonpath='{range .items[?(@.status.phase!="Running")]}{.metadata.name}{": "}{.status.containerStatuses[0].state}{"\n"}{end}' 2>/dev/null | head || true
+            exit 1
+          fi
+          echo "$role: $running/$want mock-cilium-agents Running, waiting..."
+          sleep 15
+        done
+
+        kubeconfig_list="${kubeconfig_list} ${kubeconfig}"
+      done
+
+      # Non-fatal liveness check across all clusters (always exits 0 — never fails
+      # the run on transient attrition; agents are bare Pods so a lost Pod/VM does
+      # not self-heal, re-run this step to restore coverage).
+      KUBECONFIG_FILES="${kubeconfig_list# }" bash "$MOCK_ATTRITION_SCRIPT" || true
+    displayName: "Deploy KWOK + mock-cilium-agent layer"
+    # MOCK_ACR_HOST / MOCK_AGENT_TAG / MOCK_NODE_COUNT / MOCK_CONSUME_CLUSTERMESH are
+    # read directly from the environment: AzDO auto-exports pipeline AND matrix
+    # variables to script steps as UPPERCASE env vars, and the `$()` runtime macro
+    # does NOT expand matrix variables inside `env:` blocks (see the engine
+    # execute.yml re-export note). Only the predefined-variable script paths are set
+    # via `env:` here (Pipeline.Workspace expands correctly in `env:`).
+    env:
+      MOCK_PROVISION_SCRIPT: $(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/mock/provision-kwok-layer.sh
+      MOCK_ATTRITION_SCRIPT: $(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/mock/attrition-check.sh

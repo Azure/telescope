@@ -15,6 +15,17 @@ spec:
         name: {{.Name}}
         group: {{.Group}}
     spec:
+      {{if .MockMode}}
+      # MOCK mode: schedule the workload Pods onto the KWOK virtual nodes (which
+      # carry the kwok.x-k8s.io/node:NoSchedule taint and type=kwok label) so the
+      # mock-cilium-agents process them, instead of the real thin worker pool.
+      nodeSelector:
+        type: kwok
+      tolerations:
+        - key: kwok.x-k8s.io/node
+          operator: Exists
+          effect: NoSchedule
+      {{end}}
       containers:
         - name: pause
           image: mcr.microsoft.com/oss/kubernetes/pause:3.6

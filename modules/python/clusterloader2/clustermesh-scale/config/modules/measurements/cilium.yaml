@@ -213,6 +213,231 @@ steps:
           query: quantile(0.90, max_over_time(increase(kube_pod_container_status_restarts_total{container="cilium-agent"}[%v])[%v:]))
         - name: Perc50
           query: quantile(0.50, max_over_time(increase(kube_pod_container_status_restarts_total{container="cilium-agent"}[%v])[%v:]))
+
+    # ---------------------------------------------------------------------
+    # PHASE 1 METRIC GAP-FILL (added per rubber-duck audit 2026-06-02):
+    # Always-on, low-cardinality metrics that the existing scenarios will
+    # generate non-empty values for. Cilium-side gaps identified in the audit.
+    # ---------------------------------------------------------------------
+
+    # Policy regeneration latency — OPT-IN metric per Cilium source
+    # (pkg/metrics/metrics.go: only registered when the metric name appears
+    # in the agent's --metrics= flag). Build 69231 + 69263 evidence:
+    # AKS-managed Cilium does NOT enable cilium_policy_regeneration_time_
+    # stats_seconds by default — both runs returned "no samples" across
+    # all queries (Perc50/90/99/Mean/TotalSamples) even with L4 policy
+    # actively compiled into BPF. By contrast cilium_policy_implementation_
+    # delay (below) IS enabled by default and fires reliably.
+    #
+    # Keeping the query in place as a no-op so the metric ID is reserved;
+    # will start emitting non-zero values automatically if AKS enables
+    # this opt-in metric in a future managed Cilium release. The Mean +
+    # TotalSamples queries below let the dashboard distinguish "metric
+    # not enabled" (TotalSamples=0 + missing samples) from "no events"
+    # (TotalSamples=0 + Mean reported).
+    - Identifier: CiliumPolicyRegenerationDuration{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Policy Regeneration Duration {{$suffix}}
+        metricVersion: v1
+        unit: s
+        enableViolations: false
+        queries:
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(increase(cilium_policy_regeneration_time_stats_seconds_bucket[%v])) by (le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(increase(cilium_policy_regeneration_time_stats_seconds_bucket[%v])) by (le))
+        - name: Mean
+          query: sum(increase(cilium_policy_regeneration_time_stats_seconds_sum[%v])) / sum(increase(cilium_policy_regeneration_time_stats_seconds_count[%v]))
+        - name: TotalSamples
+          query: sum(increase(cilium_policy_regeneration_time_stats_seconds_count[%v]))
+
+    # Policy implementation delay — time from policy change visible to
+    # agent until BPF datapath actually enforces it. The "policy change
+    # → packet decision" latency, which is what customers actually see.
+    # ENABLED by default in AKS-managed Cilium (verified build 69231:
+    # Perc99=99ms, Mean=4.9ms, TotalSamples=2.0 on L4 toPorts CNP).
+    - Identifier: CiliumPolicyImplementationDelay{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Policy Implementation Delay {{$suffix}}
+        metricVersion: v1
+        unit: s
+        enableViolations: false
+        queries:
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(increase(cilium_policy_implementation_delay_bucket[%v])) by (le))
+        - name: Perc90
+          query: histogram_quantile(0.90, sum(increase(cilium_policy_implementation_delay_bucket[%v])) by (le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(increase(cilium_policy_implementation_delay_bucket[%v])) by (le))
+        - name: Mean
+          query: sum(increase(cilium_policy_implementation_delay_sum[%v])) / sum(increase(cilium_policy_implementation_delay_count[%v]))
+        - name: TotalSamples
+          query: sum(increase(cilium_policy_implementation_delay_count[%v]))
+
+    # Endpoint regeneration cost — Cilium recompiles per-endpoint policy
+    # programs on label changes / policy changes. At scale this becomes
+    # the dominant CPU cost. Counter + histogram pair.
+    #
+    # IMPORTANT: this metric is also the AKS-managed-Cilium PROXY for
+    # the per-policy regen cost. The opt-in metric
+    # cilium_policy_regeneration_time_stats_seconds is NOT enabled in
+    # AKS-managed Cilium (see CiliumPolicyRegenerationDuration comment
+    # above), but per-policy regen is literally implemented as N
+    # endpoint regenerations under the hood — so per-endpoint regen
+    # time is the substantive measurement of policy compile cost.
+    # Builds 69231/69263 evidence: Perc99 = 0.95-1.36ms, Perc50 = ~7µs
+    # on AKS-managed Cilium with the L4 toPorts CNP active.
+    - Identifier: CiliumEndpointRegenerations{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Endpoint Regenerations {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        # increase() over full %v measurement window (same fix applied
+        # to policy metrics above — rate(1m) misses regen bursts that
+        # happen >1min before gather phase).
+        - name: TotalIncrease
+          query: sum(increase(cilium_endpoint_regenerations_count[%v]))
+        - name: MaxRate
+          query: max(rate(cilium_endpoint_regenerations_count[1m]))
+
+    - Identifier: CiliumEndpointRegenerationDuration{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Endpoint Regeneration Duration {{$suffix}}
+        metricVersion: v1
+        unit: s
+        enableViolations: false
+        queries:
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(increase(cilium_endpoint_regeneration_time_stats_seconds_bucket[%v])) by (le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(increase(cilium_endpoint_regeneration_time_stats_seconds_bucket[%v])) by (le))
+        - name: Mean
+          query: sum(increase(cilium_endpoint_regeneration_time_stats_seconds_sum[%v])) / sum(increase(cilium_endpoint_regeneration_time_stats_seconds_count[%v]))
+        - name: TotalSamples
+          query: sum(increase(cilium_endpoint_regeneration_time_stats_seconds_count[%v]))
+
+    # BPF map pressure — CRITICAL signal at scale. cilium_bpf_map_pressure
+    # is a gauge in [0,1] representing fill ratio of each BPF map. >0.8
+    # is a saturation warning; 1.0 = full = dropped events/decisions.
+    - Identifier: CiliumBpfMapPressure{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium BPF Map Pressure {{$suffix}}
+        metricVersion: v1
+        unit: ratio
+        enableViolations: false
+        queries:
+        - name: MaxAcrossMaps
+          query: max(max_over_time(cilium_bpf_map_pressure[%v:]))
+        - name: Perc99
+          query: quantile(0.99, max_over_time(cilium_bpf_map_pressure[%v:]))
+        - name: Perc50
+          query: quantile(0.50, avg_over_time(cilium_bpf_map_pressure[%v:]))
+
+    # Packet drops + forwards — datapath health signal. Drops should
+    # stay at 0 in our tests; any non-zero is investigation-worthy.
+    - Identifier: CiliumDropCount{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Drop Count {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: true
+        queries:
+        - name: SumRate
+          query: sum(rate(cilium_drop_count_total[1m]))
+        - name: MaxRate
+          query: max(rate(cilium_drop_count_total[1m]))
+
+    # PHASE 2 — drops by reason (top 3). When drops are non-zero, this
+    # tells us WHY: Policy denied, BPF map full, encryption failure, etc.
+    # topk caps cardinality at 3 (drop reasons are low-cardinality enum
+    # but defensive against future expansion).
+    - Identifier: CiliumDropCountByReason{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Drop Count By Reason {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        - name: Top3ReasonsSumIncrease
+          query: topk(3, sum by (reason) (increase(cilium_drop_count_total[%v])))
+
+    # IPCache errors — failures to populate the ipcache map. Cross-cluster
+    # propagation degradation lives here; should stay 0 in healthy mesh.
+    - Identifier: CiliumIpcacheErrors{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium IPCache Errors {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: true
+        queries:
+        - name: SumRate
+          query: sum(rate(cilium_ipcache_errors_total[1m]))
+        - name: MaxRate
+          query: max(rate(cilium_ipcache_errors_total[1m]))
+
+    # Node-level CPU/memory — currently invisible. Per-cluster aggregate
+    # across all worker nodes; lets us spot node-side saturation that the
+    # per-pod Cilium aggregate hides (kubelet, runtime, host kernel).
+    - Identifier: NodeCpuUsage{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Node CPU Usage {{$suffix}}
+        metricVersion: v1
+        unit: cores
+        enableViolations: false
+        queries:
+        - name: MaxNode
+          query: max_over_time(max(sum by (instance) (rate(node_cpu_seconds_total{mode!="idle"}[1m])))[%v:])
+        - name: AvgAcrossNodes
+          query: max_over_time(avg(sum by (instance) (rate(node_cpu_seconds_total{mode!="idle"}[1m])))[%v:])
+
+    - Identifier: NodeMemoryAvailable{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Node Memory Available {{$suffix}}
+        metricVersion: v1
+        unit: bytes
+        enableViolations: false
+        queries:
+        - name: MinNode
+          query: min_over_time(min(node_memory_MemAvailable_bytes)[%v:])
+        - name: AvgAcrossNodes
+          query: avg_over_time(avg(node_memory_MemAvailable_bytes)[%v:])
+
+    - Identifier: NodeLoad1{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Node Load1 {{$suffix}}
+        metricVersion: v1
+        unit: load
+        enableViolations: false
+        queries:
+        - name: MaxNode
+          query: max_over_time(max(node_load1)[%v:])
+        - name: AvgAcrossNodes
+          query: avg_over_time(avg(node_load1)[%v:])
+
     # - Identifier: AvgCiliumHubbleMetricsCardinality{{$suffix}}
     #   Method: GenericPrometheusQuery
     #   Params:
@@ -224,3 +449,297 @@ steps:
     #     queries:
     #     - name: Avg
     #       query: count({__name__=~"hubble_.*"})
+
+    # =========================================================================
+    # PHASE 3 — gap-fill batch (2026-06-04). Adds 7 metric families per the
+    # category-A gap inventory. All depend on metrics already exported by
+    # the AKS-managed Cilium / kubelet / kube-state-metrics stack and
+    # scraped by the CL2 in-cluster Prometheus (the same scrape targets
+    # the existing Phase 1 + Phase 2 metrics rely on).
+    # =========================================================================
+
+    # PHASE 3 — Hubble flow telemetry. ACNS enables Hubble in AKS-managed
+    # Cilium. flows_processed_total = data-plane visibility into cross-cluster
+    # traffic by verdict (FORWARDED/DROPPED). lost_events = backpressure signal.
+    # PHASE 3 — Datapath flow accounting (Hubble proxy).
+    #
+    # 2026-06-05 update: replaced the original `hubble_flows_processed_total`
+    # / `hubble_lost_events_total` queries with `cilium_forward_count_total`
+    # / `cilium_drop_count_total`-derived flow stats. Reason:
+    # - Build 69395 evidence: every Hubble query returned "No data items
+    #   found" in CL2's collect/aggregate logs.
+    # - Root cause: CL2 in-cluster Prometheus scrapes cilium-agent's
+    #   standard metrics port (9962) but NOT the separate Hubble metrics
+    #   endpoint (port 9965). AKS-managed Cilium has Hubble enabled via
+    #   ACNS, but the metrics live on the 9965 endpoint we don't scrape.
+    # - To re-enable proper Hubble metrics we'd need to inject a custom
+    #   PodMonitor via CL2's --prometheus-additional-manifests-path and
+    #   wire it through scale.py — significant infra work for marginal
+    #   gain over what cilium_forward_count + cilium_drop_count already
+    #   give us (flow counts, drop reasons via DropCountByReason above).
+    #
+    # The two replacement metrics below give us the customer-relevant
+    # datapath story (how many flows forwarded vs dropped, at what rate)
+    # without the Hubble scrape dependency. Per-verdict slice is gone
+    # (verdict is a Hubble-specific dimension) but per-reason slice for
+    # drops is already covered by CiliumDropCountByReason.
+    - Identifier: CiliumDatapathFlows{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Datapath Flows {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        - name: ForwardedIncrease
+          query: sum(increase(cilium_forward_count_total[%v]))
+        - name: DroppedIncrease
+          query: sum(increase(cilium_drop_count_total[%v]))
+        - name: DropRatio
+          query: sum(increase(cilium_drop_count_total[%v])) / (sum(increase(cilium_drop_count_total[%v])) + sum(increase(cilium_forward_count_total[%v])))
+
+    # PHASE 3 — Cilium endpoint state distribution. cilium_endpoint_state
+    # is a gauge with one series per state. At scale we care if endpoints
+    # are getting stuck in non-Ready states (regenerating / disconnected).
+    - Identifier: CiliumEndpointStateDistribution{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Endpoint State Distribution {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        - name: MaxReady
+          query: max(max_over_time(cilium_endpoint_state{endpoint_state="ready"}[%v:]))
+        - name: MaxRegenerating
+          query: max(max_over_time(cilium_endpoint_state{endpoint_state="regenerating"}[%v:]))
+        - name: MaxNotReady
+          query: max(max_over_time(cilium_endpoint_state{endpoint_state!="ready"}[%v:]))
+
+    # PHASE 3 — kvstore queue depth (kvstoremesh). Pair with the existing
+    # kvstore_events_queue rate metrics (clustermesh-metrics.yaml). Queue
+    # length p99 is the LEADING indicator of backpressure; rate alone
+    # tells you throughput but not whether work is piling up.
+    - Identifier: CiliumKvstoreQueueDuration{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Kvstore Queue Duration {{$suffix}}
+        metricVersion: v1
+        unit: s
+        enableViolations: false
+        queries:
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(increase(cilium_kvstoremesh_kvstore_events_queue_seconds_bucket[%v])) by (le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(increase(cilium_kvstoremesh_kvstore_events_queue_seconds_bucket[%v])) by (le))
+
+    # PHASE 3 — CPU throttling. We measure CPU usage (existing CiliumAvg/
+    # MaxCPUUsage) but not whether containers are being THROTTLED against
+    # their cgroup limit. At scale, cilium-agent / etcd hitting their CPU
+    # limit causes silent latency spikes that aggregate usage doesn't show.
+    #
+    # Throttling ratio = throttled_PERIODS / total_PERIODS (both are
+    # counters of CFS periods, not seconds). Computed per-pod-container
+    # first, then aggregated over the full %v window so we don't miss
+    # throttling bursts that happened before gather time.
+    - Identifier: CiliumAgentCpuThrottled{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Cilium Agent CPU Throttled Ratio {{$suffix}}
+        metricVersion: v1
+        unit: ratio
+        enableViolations: false
+        queries:
+        - name: MaxRatio
+          query: max_over_time((max by (pod, container) (rate(container_cpu_cfs_throttled_periods_total{namespace="kube-system",pod=~"cilium-.*",container="cilium-agent"}[1m])) / max by (pod, container) (rate(container_cpu_cfs_periods_total{namespace="kube-system",pod=~"cilium-.*",container="cilium-agent"}[1m])))[%v:])
+        - name: AvgRatio
+          query: avg_over_time((avg by (pod, container) (rate(container_cpu_cfs_throttled_periods_total{namespace="kube-system",pod=~"cilium-.*",container="cilium-agent"}[1m])) / avg by (pod, container) (rate(container_cpu_cfs_periods_total{namespace="kube-system",pod=~"cilium-.*",container="cilium-agent"}[1m])))[%v:])
+
+    - Identifier: ClusterMeshApiserverCpuThrottled{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: ClusterMesh Apiserver CPU Throttled Ratio {{$suffix}}
+        metricVersion: v1
+        unit: ratio
+        enableViolations: false
+        queries:
+        - name: MaxRatio
+          query: max_over_time((max by (pod, container) (rate(container_cpu_cfs_throttled_periods_total{namespace="kube-system",pod=~"clustermesh-apiserver-.*"}[1m])) / max by (pod, container) (rate(container_cpu_cfs_periods_total{namespace="kube-system",pod=~"clustermesh-apiserver-.*"}[1m])))[%v:])
+
+    # PHASE 3 — OOM events. Counter that increments each time the kernel
+    # OOM-kills a container in the cluster. We track ApiserverPodRestarts
+    # but not WHY (OOM vs crash vs liveness fail).
+    - Identifier: ContainerOomEvents{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Container OOM Events {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: true
+        queries:
+        - name: TotalIncrease
+          query: sum(increase(container_oom_events_total[%v]))
+        - name: KubeSystemIncrease
+          query: sum(increase(container_oom_events_total{namespace="kube-system"}[%v]))
+
+    # PHASE 3 — Kubelet runtime operation latency. Sandbox/container/image
+    # lifecycle ops on the kubelet. At scale, pull-image + sandbox creation
+    # latency is the dominant pod-startup component and we don't measure it.
+    # kubelet_runtime_operations_duration_seconds is exported by every
+    # kubelet and scraped by CL2 Prometheus by default.
+    - Identifier: KubeletRuntimeOpDuration{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Kubelet Runtime Operation Duration {{$suffix}}
+        metricVersion: v1
+        unit: s
+        enableViolations: false
+        queries:
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(rate(kubelet_runtime_operations_duration_seconds_bucket[1m])) by (le))
+        - name: Perc99PullImage
+          query: histogram_quantile(0.99, sum(rate(kubelet_runtime_operations_duration_seconds_bucket{operation_type="pull_image"}[1m])) by (le))
+        - name: Perc99CreateContainer
+          query: histogram_quantile(0.99, sum(rate(kubelet_runtime_operations_duration_seconds_bucket{operation_type="create_container"}[1m])) by (le))
+
+    - Identifier: KubeletPlegRelistDuration{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Kubelet PLEG Relist Duration {{$suffix}}
+        metricVersion: v1
+        unit: s
+        enableViolations: false
+        queries:
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(rate(kubelet_pleg_relist_duration_seconds_bucket[1m])) by (le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(rate(kubelet_pleg_relist_duration_seconds_bucket[1m])) by (le))
+
+    # PHASE 3 — Container restart reason classification. kube-state-metrics
+    # exports last-terminated-reason as a label. Pair with existing
+    # ClusterMeshApiserverPodRestarts so a non-zero restart count immediately
+    # tells us the cause (OOMKilled / Error / Completed) without digging
+    # through events.
+    - Identifier: PodRestartsByReason{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Pod Restarts By Reason {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        - name: OomKilledMax
+          query: max(max_over_time(kube_pod_container_status_last_terminated_reason{reason="OOMKilled"}[%v:]))
+        - name: ErrorMax
+          query: max(max_over_time(kube_pod_container_status_last_terminated_reason{reason="Error"}[%v:]))
+
+    # =========================================================================
+    # PHASE 4 — Hubble flow telemetry (port 9965 PodMonitor, added 2026-06-12).
+    # Now that we scrape Hubble metrics via the podmonitor-hubble.yaml
+    # PodMonitor, we can query Hubble-native flow data directly. These are
+    # DISTINCT from the cilium_forward/drop counters in CiliumDatapathFlows
+    # above (which come from port 9962 and count BPF-level datapath events).
+    # Hubble adds L4/L7 context: verdict (FORWARDED/DROPPED/ERROR), type
+    # (L3_L4/L7), subtype — richer than BPF counts alone.
+    #
+    # If Hubble is not enabled on AKS (no ACNS), these return empty ("No
+    # data items found") — CL2 logs a warning, the run continues. Having
+    # both BPF-level (CiliumDatapathFlows) and Hubble-level flow counts
+    # lets us cross-validate: if they diverge, the Hubble observer is
+    # missing events.
+    # =========================================================================
+    - Identifier: HubbleFlowsProcessed{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Hubble Flows Processed {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        # Slice by the standard Hubble `verdict` label (FORWARDED / DROPPED /
+        # ERROR / AUDIT). Build 70704 evidence: the unfiltered TotalIncrease
+        # and verdict-based slices return data; the earlier type=/subtype=
+        # filters returned empty (wrong label values for this Cilium build).
+        - name: ForwardedIncrease
+          query: sum(increase(hubble_flows_processed_total{verdict="FORWARDED"}[%v]))
+        - name: DroppedIncrease
+          query: sum(increase(hubble_flows_processed_total{verdict="DROPPED"}[%v]))
+        - name: TotalIncrease
+          query: sum(increase(hubble_flows_processed_total[%v]))
+
+    - Identifier: HubbleDnsResponses{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: Hubble DNS Responses {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        - name: TotalIncrease
+          query: sum(increase(hubble_dns_responses_total[%v]))
+        - name: NxdomainIncrease
+          query: sum(increase(hubble_dns_responses_total{rcode="Non-Existent Domain"}[%v]))
+
+    # =========================================================================
+    # PHASE 4 — CoreDNS latency + cache (port 9153 PodMonitor, added 2026-06-12).
+    # Global Service DNS lookups go through CoreDNS first. High P99 here means
+    # DNS is adding latency ON TOP OF the mesh propagation cost we measure via
+    # propagation-probe. Low cache hit ratio means every cross-cluster curl
+    # pays a full recursive lookup.
+    # =========================================================================
+    - Identifier: CoreDnsRequestDuration{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: CoreDNS Request Duration {{$suffix}}
+        metricVersion: v1
+        unit: s
+        enableViolations: false
+        queries:
+        - name: Perc99
+          query: histogram_quantile(0.99, sum(rate(coredns_dns_request_duration_seconds_bucket[1m])) by (le))
+        - name: Perc50
+          query: histogram_quantile(0.50, sum(rate(coredns_dns_request_duration_seconds_bucket[1m])) by (le))
+
+    - Identifier: CoreDnsCacheHitRatio{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: CoreDNS Cache Hit Ratio {{$suffix}}
+        metricVersion: v1
+        unit: ratio
+        enableViolations: false
+        queries:
+        - name: HitRatio
+          query: sum(increase(coredns_cache_hits_total[%v])) / (sum(increase(coredns_cache_hits_total[%v])) + sum(increase(coredns_cache_misses_total[%v])))
+        - name: TotalHits
+          query: sum(increase(coredns_cache_hits_total[%v]))
+        - name: TotalMisses
+          query: sum(increase(coredns_cache_misses_total[%v]))
+
+    - Identifier: CoreDnsRequestsTotal{{$suffix}}
+      Method: GenericPrometheusQuery
+      Params:
+        action: {{$action}}
+        metricName: CoreDNS Requests Total {{$suffix}}
+        metricVersion: v1
+        unit: "#"
+        enableViolations: false
+        queries:
+        - name: TotalIncrease
+          query: sum(increase(coredns_dns_requests_total[%v]))
+        - name: NxdomainResponsesIncrease
+          query: sum(increase(coredns_dns_responses_total{rcode="NXDOMAIN"}[%v]))
+        - name: ServfailResponsesIncrease
+          query: sum(increase(coredns_dns_responses_total{rcode="SERVFAIL"}[%v]))

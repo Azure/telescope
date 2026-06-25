@@ -16,14 +16,139 @@ variables:
   OWNER: aks
 
 stages:
-  - stage: azure_eastus2euap
+  # 2026-05-13: Phase 4b smoke at n=2 to validate Option B++ fix
+  # (execute always exit 0 + SucceededWithIssues marker) + soft-fail
+  # killer + 240s recovery timeout. Re-disable n=2 + enable n=20 once
+  # this lands clean.
+  - stage: agent_specs_diag
     dependsOn: []
+    displayName: "Agent VM specs diagnostic (no infra)"
+    jobs:
+      - job: dump_specs
+        timeoutInMinutes: 5
+        steps:
+          - bash: |
+              set +e
+              echo "=========================================="
+              echo "=== AGENT POOL DIAGNOSTIC ==="
+              echo "=========================================="
+              echo "Agent: $(hostname)"
+              echo "Date:  $(date -u)"
+              echo ""
+              echo "--- MEMORY (free -h) ---"
+              free -h
+              echo ""
+              echo "--- /proc/meminfo (head) ---"
+              head -5 /proc/meminfo
+              echo ""
+              echo "--- CPU ---"
+              echo "nproc: $(nproc)"
+              lscpu | head -20
+              echo ""
+              echo "--- DISK ---"
+              df -h / 2>/dev/null
+              df -h /agent 2>/dev/null || true
+              df -h /mnt 2>/dev/null || true
+              echo ""
+              echo "--- VM METADATA (Azure IMDS) ---"
+              # Azure Instance Metadata Service — authoritative VM SKU
+              IMDS_JSON=$(curl -s -H "Metadata: true" --max-time 5 \
+                "http://169.254.169.254/metadata/instance?api-version=2021-02-01" 2>/dev/null)
+              if [ -n "$IMDS_JSON" ]; then
+                echo "$IMDS_JSON" | python3 -m json.tool 2>/dev/null | \
+                  grep -iE "vmSize|name|location|sku|osType|vmId|resourceGroupName" | head -15
+              else
+                echo "IMDS unreachable (not Azure VM, or blocked)"
+              fi
+              echo ""
+              echo "--- UPTIME / LOAD ---"
+              uptime
+              echo ""
+              echo "--- DOCKER ---"
+              docker --version 2>/dev/null || echo "docker not installed"
+              docker info 2>/dev/null | grep -iE "cpus|memory|kernel|operating" | head -10
+              echo "=========================================="
+            displayName: "Dump agent VM specs"
+
+  # ============================================================================
+  # %global variation experiment — Phase 1 SMOKE (Option E: 3 scenarios)
+  # ============================================================================
+  # Validates the new --global-namespace-count plumbing AND share-infra
+  # multi-scenario plumbing end-to-end at n=2 before committing to the full
+  # 3-scenario N=20/50/100 matrix. Each cell runs 3 scenarios in share-infra
+  # mode (event-throughput, pod-churn-combined, isolation) — the 3 most
+  # ClusterMesh-relevant probes:
+  #   event-throughput  — global service propagation rate
+  #   pod-churn-combined — endpoint propagation under pod churn
+  #   isolation         — cross-cluster connectivity behavior
+  #
+  # The 4 matrix entries exercise each annotate-namespaces.sh code path:
+  #   g0   — 0 namespaces annotated (skip-loop edge case)
+  #   g20  — 1 of 5 annotated (1-iteration partial)
+  #   g60  — 3 of 5 annotated (multi-iteration partial)
+  #   g100 — 5 of 5 annotated (default-arg backward-compat path)
+  #
+  # All 4 cells run in PARALLEL (4 × 96 = 384 vCPU, trivial vs 5000 Dv3 quota).
+  # Wall clock: ~1.5h (3 scenarios at n=2 take ~20m each + overhead).
+  #
+  # SAFETY: condition: false default. Flip to true in a 1-line commit when
+  # ready to trigger. Other stages should be uncommented similarly per phase.
+
+  # canadacentral migration preflight (no infra). Verifies SKU + quota +
+  # Fleet RP + LoadBalancer + PIP quota in canadacentral BEFORE we port
+  # tfvars and matrix entries. Cheap, idempotent, ~30s.
+  - stage: canadacentral_preflight
+    dependsOn: []
+    displayName: "canadacentral preflight (SKU + quota + Fleet RP check)"
+    condition: always()
+    jobs:
+      - job: cc_preflight
+        timeoutInMinutes: 5
+        steps:
+          - task: AzureCLI@2
+            displayName: "Run canadacentral-preflight.sh"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set +e
+                bash $(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/canadacentral-preflight.sh
+                rc=$?
+                if [ "$rc" -eq 0 ]; then
+                  echo "canadacentral preflight: ALL CLEAR"
+                  exit 0
+                elif [ "$rc" -eq 2 ]; then
+                  echo "##vso[task.logissue type=warning;] canadacentral preflight: warnings present, see log"
+                  echo "##vso[task.complete result=SucceededWithIssues;]"
+                  exit 0
+                else
+                  # rc=1 explicit blocking failure, or any other code (e.g. 127 missing script,
+                  # syntax error) — treat all unexpected codes as blocking.
+                  echo "##vso[task.logissue type=error;] canadacentral preflight: rc=$rc (blocking failure or unexpected exit)"
+                  exit 1
+                fi
+
+  - stage: azure_eastus2euap_n2_global_smoke
+    dependsOn: []
+    # 2026-06-02: re-enabled (condition: always()) for smoke-level validation
+    # of: fail-fast bricked-nodepool + stuck-cluster detection, Phase 1 metric
+    # additions (policy regen/impl, BPF map pressure, node CPU/mem, etcd
+    # container split, etc.). Use manual stage selection in AzDO UI to run.
+    # cmp_auto_recovery: stage-level env var enables the auto-delete+recreate
+    # of clustermeshprofile when Fleet's partial-apiserver-deploy flake fires
+    # (build 69155 g0+g20 evidence). Applied to all jobs in this stage.
+    variables:
+      CMP_AUTO_RECOVERY_ENABLED: "true"
+    condition: always()
+    displayName: "n=2 %global smoke (Option E: 3-scenario share-infra across 0/20/60/100)"
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
             - eastus2euap
+          preserve_state_on_apply_failure: "true"
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
@@ -31,36 +156,1406 @@ stages:
             operation_timeout: 15m
           topology: clustermesh-scale
           terraform_input_file_mapping:
-            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-2.tfvars"
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-2-shared.tfvars"
           matrix:
-            # Mirror pipelines/perf-eval/Network Benchmark/clustermesh-scale.yml
-            # so dev runs use the same matrix-var plumbing as production.
-            # Auto-exported as uppercase env vars (NAMESPACES, MESH_SIZE, etc.)
-            # by AzDO and consumed in steps/engine/clusterloader2/clustermesh-scale/execute.yml.
-            #
-            # Production clustermesh-scale.yml also has an `n2` trivial-vertical-slice
-            # entry. We don't run it in dev — n2_event_throughput already exercises
-            # the full plumbing and per-run cost (full Fleet/AKS lifecycle ~15-20 min)
-            # makes a second axis expensive during iteration.
-            n2_event_throughput:
+            n2_propagation_probe:
               cluster_count: 2
               mesh_size: 2
-              cl2_config_file: event-throughput.yaml
-              test_type: event-throughput
+              share_infra_scenarios: "propagation-probe"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-probe"
+              global_namespace_count: 1
+              namespaces: 1
+              deployments_per_namespace: 1
+              replicas_per_deployment: 2
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              churn_cycles: 5
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              cl2_propagation_probe_enabled: "true"
+              cl2_propagation_probe_count: 10
+              cl2_propagation_probe_interval_s: 15
+              cl2_propagation_probe_peer_sample: 20
+              cl2_propagation_probe_peer_timeout: 60
+              cl2_propagation_probe_connectivity: "true"
+              # NEW (2026-06-04): REMOVE + FIRST_PACKET extensions.
+              cl2_propagation_probe_remove_enabled: "true"
+              cl2_propagation_probe_first_packet_enabled: "true"
+              cl2_propagation_probe_service_backend_enabled: "true"
+              # 20m window: probe_count=10 × max ~60s per probe (worst case
+              # if CEP never appears + every wait runs full timeout in
+              # parallel) + 9 × 15s interval + connectivity overhead.
+              # Worst case ~17min — 20m gives 3min headroom.
+              # Mesh-recovery probe: opt-in companion to the propagation
+              # probe. Kills one cilium-agent pod per iteration on a node
+              # hosting a backend pod (so the kill affects observable peer
+              # state). Measures peer ipcache divergence + agent restart
+              # + resync time on snapshotted backend IPs.
+              # At n=2 we do 3 cycles × 120s interval = ~6min after the
+              # prewait+60s offset. Plus up to ~5min recovery timeout per
+              # probe = ~21min. probe-window 20m → 30m gives safe headroom
+              # over both propagation (~17min) and recovery (~21min) running
+              # in parallel.
+              cl2_probe_window_duration: "30m"
+              cl2_probe_prewait_s: 60
+              cl2_policy_canary_enabled: "true"
+              cl2_recovery_probe_enabled: "true"
+              cl2_recovery_probe_count: 3
+              cl2_recovery_probe_interval_s: 120
+              cl2_recovery_probe_timeout_s: 300
+              # Snapshot in-cluster Prometheus TSDB → our blob (cmshscaleprom).
+              # This is the richest probe stage (propagation + remove +
+              # first-packet + service-backend + recovery + policy canary +
+              # all Phase 4 scrape targets), so its snapshot is the most
+              # useful for offline PromQL over hubble/coredns/kvstoremesh
+              # raw metrics not yet covered by CL2 measurement queries.
+              cl2_prom_snapshot_enabled: "true"
+              cl2_prom_snapshot_target: "blob"
+              cl2_prom_snapshot_storage_account: "cmshscaleprom"
+              cl2_prom_snapshot_container: "snapshots"
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          # Single cell — only n2_propagation_probe is needed to validate the
+          # current batch (probe + global services + Phase 1 metrics + retry
+          # + auto-recovery). The 4 %global cells (g0/g20/g60/g100) were for
+          # the original %global matrix experiment whose data is already in
+          # Kusto from prior builds; re-enable from git history if a future
+          # change needs %global-specific validation.
+          # vCPU: 2 × 48 = 96 vCPU, well within quota.
+          max_parallel: 1
+          timeout_in_minutes: 180
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  # ============================================================================
+  # canadacentral n=2 smoke — port-validation for the cc migration
+  # ============================================================================
+  # First real cc deployment after 3 successful preflight runs (builds 69226,
+  # 69231, 69263). Mirrors the eastus2euap n=2 smoke EXACTLY except for:
+  #   - regions: [canadacentral]
+  #   - tfvars: azure-2-shared-cc.tfvars (Dv3 → DSv4 SKU family swap only)
+  #   - test_type_suffix: -shared-vnet-probe-cc (Kusto row separation vs euap)
+  # If this stage passes, scaling to N=20 / N=100 cc cells is mechanical.
+  # vCPU: 2 × 48 = 96 vCPU vs 62000 free DSv4 in cc — trivial.
+  - stage: azure_canadacentral_n2_smoke
+    dependsOn: []
+    variables:
+      CMP_AUTO_RECOVERY_ENABLED: "true"
+    condition: always()
+    displayName: "n=2 canadacentral smoke (cc migration port-validation)"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - canadacentral
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 15m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - canadacentral: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-2-shared-cc.tfvars"
+          matrix:
+            n2_cc_propagation_probe:
+              cluster_count: 2
+              mesh_size: 2
+              share_infra_scenarios: "propagation-probe"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-probe-cc"
+              global_namespace_count: 1
+              namespaces: 1
+              deployments_per_namespace: 1
+              replicas_per_deployment: 2
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              churn_cycles: 5
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              cl2_propagation_probe_enabled: "true"
+              cl2_propagation_probe_count: 10
+              cl2_propagation_probe_interval_s: 15
+              cl2_propagation_probe_peer_sample: 20
+              cl2_propagation_probe_peer_timeout: 60
+              cl2_propagation_probe_connectivity: "true"
+              cl2_probe_window_duration: "30m"
+              cl2_probe_prewait_s: 60
+              cl2_policy_canary_enabled: "true"
+              cl2_recovery_probe_enabled: "true"
+              cl2_recovery_probe_count: 3
+              # NEW (2026-06-04): REMOVE + FIRST_PACKET extensions on cc smoke.
+              cl2_propagation_probe_remove_enabled: "true"
+              cl2_propagation_probe_first_packet_enabled: "true"
+              cl2_propagation_probe_service_backend_enabled: "true"
+              cl2_recovery_probe_interval_s: 120
+              cl2_recovery_probe_timeout_s: 300
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 180
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  # ============================================================================
+  # pod-density-scaling n=2 smokes — eastus2euap (orthogonal to cc work)
+  # ============================================================================
+  # Customer clusters routinely run 1000-5000 pods/cluster; our headline
+  # matrix fixes pods/cluster=200 (5 ns × 4 dep × 10 rep). These smokes
+  # validate BPF map pressure + endpoint regen behavior as pods/cluster
+  # scales. At n=2 the test exercises per-cluster saturation (not mesh-wide
+  # propagation), which IS where pod density scaling stresses Cilium.
+  #
+  # Capacity model (per cluster, EFFECTIVE CEILING):
+  #   AKS max-pods=110/node × 10 nodes = 1100 (kubelet ceiling)
+  #   System pods (kube-system + cilium ds + ACNS) ~4 pods/node = 40
+  #   Pod subnet IP capacity (/22 in azure-2-shared.tfvars) = 1019 usable
+  #   IPAM churn buffer (Terminating pods linger 30-60s) = ~10-15%
+  #   EFFECTIVE workload capacity = min(1100-40, 1019) × 0.85 = ~865 pods
+  #
+  # Tier 1: pods=500 (5 × 5 × 20) — 58% effective saturation, safe
+  # Tier 2: pods=800 (5 × 8 × 20) — 92% effective saturation, edge case
+  #   (originally drafted at 1000 but pod subnet /22 = 1019 IPs would leave
+  #    no room for IPAM churn buffer + system pods. 800 is the safe ceiling
+  #    within current shared-VNet CIDR plan; bump pod subnet to /21 in a
+  #    future density-cc tfvars to reach 1000+.)
+  #
+  # vCPU: 2 × 48 = 96, trivial. Wall time ~45-75min depending on density.
+  # Triggers independently of cc work — different region, different agents.
+  - stage: azure_eastus2euap_n2_pod_density_500
+    dependsOn: []
+    condition: always()
+    displayName: "n=2 pod-density smoke: 500 pods/cluster (5 ns × 5 dep × 20 rep)"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 30m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-2-shared.tfvars"
+          matrix:
+            n2_density_500:
+              cluster_count: 2
+              mesh_size: 2
+              share_infra_scenarios: "pod-churn-combined"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-density-500"
+              global_namespace_count: 1
+              namespaces: 5
+              deployments_per_namespace: 5
+              replicas_per_deployment: 20
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              churn_cycles: 5
+              churn_up_duration: 90s
+              churn_down_duration: 90s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 180
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  - stage: azure_eastus2euap_n2_pod_density_800
+    dependsOn: []
+    condition: always()
+    displayName: "n=2 pod-density smoke: 800 pods/cluster (5 ns × 8 dep × 20 rep) — edge case at 92% effective capacity"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 30m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-2-shared.tfvars"
+          matrix:
+            n2_density_800:
+              cluster_count: 2
+              mesh_size: 2
+              share_infra_scenarios: "pod-churn-combined"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-density-800"
+              global_namespace_count: 1
+              namespaces: 5
+              deployments_per_namespace: 8
+              replicas_per_deployment: 20
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              # Density-800 has more pods to create per cycle, so widen
+              # the churn windows so the deploy completion isn't the
+              # bottleneck obscuring the density signal we want to measure.
+              # Reduced cycles 5→3 to keep total wall time bounded.
+              churn_cycles: 3
+              churn_up_duration: 180s
+              churn_down_duration: 180s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 15
+              kill_batch: 10
+              kill_job_deadline_seconds: 900
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 240
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  # ============================================================================
+  # cluster-loss-recovery n=3 smoke — mesh-detach-rejoin probe
+  # ============================================================================
+  # Customer-asked: "what happens if I lose a cluster?" Phased per rubber-duck:
+  # DETACH via Fleet member relabel mesh=detaching (NOT az aks delete — the
+  # cluster stays up; only Fleet selector changes), wait for ready==total==(N-2)
+  # on remaining clusters with 5-min deadline, hold 60s at N-2, then REJOIN via
+  # relabel back to mesh=true, wait for return to ready==total==(N-1).
+  # Cleanup trap unconditionally restores mesh=true so a failed probe can't
+  # wedge the mesh under-membered for the destroy step.
+  #
+  # MINIMUM 3 clusters: at n=2, detaching 1 leaves 1 cluster with 0 peers
+  # which is degenerate (can't tell "detached" from "never connected").
+  #
+  # Uses propagation-probe scenario shell (provides namespace + global service
+  # for the mesh to observe) with PROPAGATION + RECOVERY probes DISABLED so
+  # only the detach probe fires. Output: ${leader_role}-MeshDetachRejoinProbe
+  # .jsonl in leader's report dir; collect emits with measurement=
+  # ClusterMeshDetachRejoinProbe, group=mesh-detach-rejoin-probe.
+  #
+  # vCPU: 3 × 48 = 144 vCPU on eastus2euap (existing Dv3 quota, trivial).
+  # Wall time: prewait 2m + detach orch (~10-15min) + apply/destroy ~60min
+  # = ~75-90min budget. timeout=180m gives 2x margin.
+  - stage: azure_eastus2euap_n3_mesh_detach_smoke
+    dependsOn: []
+    condition: always()
+    displayName: "n=3 mesh-detach-rejoin smoke (cluster-loss-recovery scenario, eastus2euap)"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 15m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-3-shared.tfvars"
+          matrix:
+            n3_mesh_detach:
+              cluster_count: 3
+              mesh_size: 3
+              share_infra_scenarios: "propagation-probe"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-mesh-detach"
+              global_namespace_count: 1
+              namespaces: 1
+              deployments_per_namespace: 1
+              replicas_per_deployment: 2
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              churn_cycles: 1
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 5m
+              kill_duration_seconds: 300
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 360
+              # DISABLE propagation + recovery probes so we don't pollute
+              # the detach-probe signal with kill+resync activity.
+              cl2_propagation_probe_enabled: "false"
+              cl2_recovery_probe_enabled: "false"
+              cl2_policy_canary_enabled: "false"
+              # ENABLE detach-rejoin probe (the whole point of this stage).
+              # Use defaults (300s detach/rejoin deadline, 60s hold, 120s prewait).
+              cl2_detach_rejoin_probe_enabled: "true"
+              # Probe window must accommodate: prewait 120s + pre-state 60s +
+              # detach API + 300s detach deadline + 60s hold + rejoin API +
+              # 300s rejoin deadline + 60s post-state = ~15min worst case.
+              # Set 20min to be safe.
+              cl2_probe_window_duration: "20m"
+              cl2_probe_prewait_s: 120
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 180
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  # ============================================================================
+  # long-soak-test n=2 6h canary — eastus2euap
+  # ============================================================================
+  # Per todo description + rubber-duck revision: Phase 1 is a 6-8h canary
+  # inside the existing pipeline; 24h+ is deferred until canary lands clean
+  # twice.
+  #
+  # Catches the slow-degradation bug class invisible at our 30min runs:
+  # - Memory leak slope (cilium agent, etcd, kvstoremesh)
+  # - BPF map growth across hours of churn
+  # - Identity churn vs steady-state
+  # - etcd db size growth (or compaction-keeping-up)
+  # - Slow watcher accumulation
+  #
+  # Implementation: bump churn_cycles 5 → 180 on pod-churn-combined scenario.
+  # 180 cycles × (60s up + 60s down) = 21,600s = 6h of continuous churn.
+  # Total stage wall = ~10min apply + 6h churn + ~10min destroy = ~6h20min.
+  # timeout_in_minutes=480 (8h) gives 1h40m margin for slow phases.
+  #
+  # vCPU: 2 × 48 = 96 vCPU (trivial). Re-uses azure-2-shared.tfvars (existing
+  # euap n=2 shared-VNet topology).
+  #
+  # Metrics-at-end (existing infra) captures all Phase 1 + Phase 2 metrics
+  # over the full 6h window via Prometheus continuous scrape. The %v
+  # measurement window expands naturally; queries like
+  # `increase(...[%v])` capture the 6h total. No new heartbeat mechanism
+  # in this canary — that's a Phase 1b enhancement after this lands clean.
+  - stage: azure_eastus2euap_n2_soak_6h_canary
+    dependsOn: []
+    variables:
+      # Soak runs >6h; enable CMP auto-recovery since the longer wall
+      # increases the window for Fleet's known partial-apiserver-deploy
+      # flake to fire.
+      CMP_AUTO_RECOVERY_ENABLED: "true"
+    condition: always()
+    displayName: "n=2 long-soak 6h canary (pod-churn-combined × 180 cycles, ~6h20m wall)"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 30m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            # Soak-specific tfvars (deletion_delay 24h vs parent's 4h to
+            # avoid janitor reaping infra mid-test).
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-2-shared-soak.tfvars"
+          matrix:
+            n2_soak_6h:
+              cluster_count: 2
+              mesh_size: 2
+              share_infra_scenarios: "pod-churn-combined"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-soak-6h"
+              global_namespace_count: 1
               namespaces: 5
               deployments_per_namespace: 4
               replicas_per_deployment: 10
               hold_duration: 2m
               warmup_duration: 30s
-              restart_count: 1
+              restart_count: 0
               api_server_calls_per_second: 20
+              # 180 cycles × 120s = 21600s = 6h continuous churn.
+              churn_cycles: 180
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              # Kill window unchanged — same 10min kill at end of churn.
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              # CL2 per-worker watchdog: 9h ceiling. Build 69392 evidence:
+              # 8h was STILL insufficient — soak SIGTERM'd at ~7h1min CL2
+              # wall (6h pure churn + ~60s into 10min kill phase). The 1h
+              # extra is in-CL2 overhead (measurement gather between
+              # phases). 9h = ~50min margin over expected ~8h10min wall.
+              worker_timeout_seconds: 32400
+              # Prometheus TSDB snapshot → our blob (cmshscaleprom). CRITICAL
+              # for a soak: the pod-churn-combined scenario gathers cilium/
+              # clustermesh/etcd metrics only at start + end, so Kusto sees
+              # aggregate percentiles over the whole 6h but NO time series.
+              # The snapshot captures the full 6h at 15s scrape resolution so
+              # we can compute the actual drift SLOPE offline (memory growth,
+              # BPF map growth, etcd DB growth, slow-watcher accumulation) —
+              # the slow-degradation signal that is the entire point of a soak
+              # and is otherwise invisible at end-of-run aggregates.
+              cl2_prom_snapshot_enabled: "true"
+              cl2_prom_snapshot_target: "blob"
+              cl2_prom_snapshot_storage_account: "cmshscaleprom"
+              cl2_prom_snapshot_container: "snapshots"
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          # 12h ceiling for ~9h expected wall + apply/destroy = 3h margin.
+          # Bumped from 11h (commit 351e4f5) after build 69392 evidence
+          # that 8h worker_timeout still SIGTERM'd. worker_timeout at 9h
+          # fires before stage timeout so collect/destroy still run.
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  # ============================================================================
+  # repeatability-variance — N=20 g100 × 3 identical runs (eastus2euap)
+  # ============================================================================
+  # Per todo: report median + p25-p75 band on every dashboard tile, not just
+  # point values. A single N=20 success is fragile evidence; 3 runs gives us
+  # noise floor + identifies which metrics are stable vs noisy.
+  #
+  # Three independent stages (NOT one stage with 3 matrix entries) so the
+  # user can trigger them on different days to also capture time-of-day
+  # variance (Azure regional load varies by hour). Each is
+  # `condition: always()` and runs the same matrix as the existing N=20
+  # g100 anomaly rerun cell (event-throughput + pod-churn-combined +
+  # isolation, share-infra, global_namespace_count=5 = 100% global).
+  #
+  # vCPU: 960 per run. 3 runs = 2880 vCPU total if all triggered in same
+  # build, well under euap 4992 free Dv3. Recommend spreading across 2-3
+  # separate builds for time-of-day variance.
+  #
+  # test_type_suffix differentiated per run for Kusto row separation;
+  # dashboard groups by (test_type prefix == "...-variance-g100") and
+  # computes median + p25-p75 across {-run1, -run2, -run3} rows.
+  - stage: azure_eastus2euap_n20_g100_variance_run1
+    dependsOn: []
+    variables:
+      TF_CLI_ARGS_apply: "-parallelism=4"
+      CMP_AUTO_RECOVERY_ENABLED: "true"
+    condition: always()
+    displayName: "n=20 g100 variance run 1 of 3 (event-throughput + pod-churn-combined + isolation)"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          terraform_arguments: "-parallelism=4"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 30m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-20-shared.tfvars"
+          matrix:
+            n20_g100_var_r1:
+              cluster_count: 20
+              mesh_size: 20
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-variance-g100-run1"
+              global_namespace_count: 5
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              cl2_max_concurrent: 12
+              worker_timeout_seconds: 14400
+              churn_cycles: 5
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  - stage: azure_eastus2euap_n20_g100_variance_run2
+    dependsOn: []
+    variables:
+      TF_CLI_ARGS_apply: "-parallelism=4"
+      CMP_AUTO_RECOVERY_ENABLED: "true"
+    condition: always()
+    displayName: "n=20 g100 variance run 2 of 3 (event-throughput + pod-churn-combined + isolation)"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          terraform_arguments: "-parallelism=4"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 30m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-20-shared.tfvars"
+          matrix:
+            n20_g100_var_r2:
+              cluster_count: 20
+              mesh_size: 20
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-variance-g100-run2"
+              global_namespace_count: 5
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              cl2_max_concurrent: 12
+              worker_timeout_seconds: 14400
+              churn_cycles: 5
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  - stage: azure_eastus2euap_n20_g100_variance_run3
+    dependsOn: []
+    variables:
+      TF_CLI_ARGS_apply: "-parallelism=4"
+      CMP_AUTO_RECOVERY_ENABLED: "true"
+    condition: always()
+    displayName: "n=20 g100 variance run 3 of 3 (event-throughput + pod-churn-combined + isolation)"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          terraform_arguments: "-parallelism=4"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 30m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-20-shared.tfvars"
+          matrix:
+            n20_g100_var_r3:
+              cluster_count: 20
+              mesh_size: 20
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-variance-g100-run3"
+              global_namespace_count: 5
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              cl2_max_concurrent: 12
+              worker_timeout_seconds: 14400
+              churn_cycles: 5
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  # ============================================================================
+  # canadacentral N=20 cross-region baseline (validated by cc n=2 in build 69274)
+  # ============================================================================
+  # 960 vCPU vs 62000 free DSv4 in cc → 1.5% utilization. Mirrors the existing
+  # euap n=20 anomaly rerun stage shape (event-throughput + pod-churn-combined
+  # + isolation, share-infra) so cross-region comparability is direct.
+  # test_type_suffix: -shared-vnet-cc-n20-g20 (Kusto separation vs euap and cc-n100).
+  - stage: azure_canadacentral_n20_smoke
+    dependsOn: []
+    variables:
+      # Belt-and-suspenders: env var (existing convention) + explicit param below.
+      # The job's terraform_arguments parameter is the canonical wiring (passed
+      # to `terraform apply` as direct CLI arg); the env var is a fallback in
+      # case any sub-step calls terraform without the explicit args.
+      TF_CLI_ARGS_apply: "-parallelism=4"
+      CMP_AUTO_RECOVERY_ENABLED: "true"
+    condition: always()
+    displayName: "n=20 canadacentral cross-region baseline (event-throughput + pod-churn-combined + isolation)"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - canadacentral
+          preserve_state_on_apply_failure: "true"
+          terraform_arguments: "-parallelism=4"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 30m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - canadacentral: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-20-shared-cc.tfvars"
+          matrix:
+            n20_cc_g20:
+              cluster_count: 20
+              mesh_size: 20
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-cc-n20-g20"
+              global_namespace_count: 1
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              cl2_max_concurrent: 12
+              worker_timeout_seconds: 14400
+              churn_cycles: 5
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  # ============================================================================
+  # NetworkPolicy at scale n=2 smoke — eastus2euap (per gap-list category B item #9)
+  # ============================================================================
+  # First policy-scale scenario test. Creates 50 CNPs per namespace × 5 ns =
+  # 250 CNPs per cluster. At n=2 cluster mesh = 500 CNPs total. Measures:
+  #   - CiliumPolicyImplementationDelay (already in cilium.yaml)
+  #   - CiliumEndpointRegenerations + Duration (per-endpoint regen cost
+  #     scales linearly with CNP count selecting the endpoint)
+  #   - CiliumBpfMapPressure (each CNP adds entries to policy map)
+  #   - Phase 3 metrics: HubbleLostEvents, EndpointStateDistribution,
+  #     KvstoreQueueDuration, CpuThrottled, OomEvents (all new from this commit)
+  #
+  # Once n=2 baseline is green, sweep CNP_PER_NS knob 10/50/100/200 and/or
+  # bump cluster count to N=20 for per-cluster CNP cost at mesh scale.
+  # NOTE: this scenario measures PER-CLUSTER CNP scale (each cluster runs
+  # CL2 independently and creates its OWN 250 CNPs). It does NOT measure
+  # cross-cluster CNP propagation. For that signal, a future host-side
+  # orchestrator would create CNPs from a single leader + poll peers.
+  - stage: azure_eastus2euap_n2_policy_scale
+    dependsOn: []
+    condition: always()
+    displayName: "n=2 policy-scale smoke (50 CNPs/ns × 5 ns = 250 CNPs/cluster — first NetworkPolicy at scale test)"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 30m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-2-shared.tfvars"
+          matrix:
+            n2_policy_scale_50:
+              cluster_count: 2
+              mesh_size: 2
+              share_infra_scenarios: "policy-scale"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-policy-scale-50"
+              global_namespace_count: 1
+              namespaces: 5
+              deployments_per_namespace: 1
+              replicas_per_deployment: 4
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              # Standard CL2 knobs that pod-churn cells use; this scenario
+              # ignores them but the framework reads them.
+              churn_cycles: 0
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 1m
+              kill_duration_seconds: 60
+              kill_interval_seconds: 10
+              kill_batch: 1
+              kill_job_deadline_seconds: 120
+              # NEW knobs for policy-scale scenario
+              cl2_policy_scale_cnp_per_ns: 50
+              cl2_policy_scale_hold_duration: "5m"
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false
-          # Iteration-only: skip uploading results to the telescope blob while
-          # we're still stabilizing the clustermesh-scale pipeline. Mirrors the
-          # same flag in pipelines/perf-eval/Network Benchmark/clustermesh-scale.yml.
-          # Flip to false (or remove) once results are meaningful.
-          skip_publish: true
+          skip_publish: false
+
+  # ============================================================================
+  # Cross-cluster CNP propagation cost n=3 smoke — eastus2euap
+  # ============================================================================
+  # Complements policy-scale (per-cluster CNP cost) by measuring fleet-wide
+  # rollout latency: applies the SAME CNP in parallel on every cluster,
+  # times each cluster's compile + load latency. max(latency) = "time to
+  # fleet-wide enforcement" — the GitOps / Fleet workload-policy question.
+  #
+  # Uses propagation-probe scenario shell (provides namespace + global
+  # service) with the cross-cluster propagation orchestrator opted in.
+  # propagation/recovery/detach probes all DISABLED so the policy-prop
+  # signal isn't polluted.
+  #
+  # n=3 minimum: at n=2 the "fleet-wide" distribution has 2 samples
+  # which is degenerate. n=3 gives 3 per-cluster timing samples per
+  # iteration × 5 iterations = 15 samples per build.
+  - stage: azure_eastus2euap_n3_policy_propagation_smoke
+    dependsOn: []
+    condition: always()
+    displayName: "n=3 cross-cluster CNP propagation cost smoke (parallel-apply / per-cluster compile latency)"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 15m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-3-shared.tfvars"
+          matrix:
+            n3_policy_prop:
+              cluster_count: 3
+              mesh_size: 3
+              share_infra_scenarios: "propagation-probe"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-policy-prop"
+              global_namespace_count: 1
+              namespaces: 1
+              deployments_per_namespace: 1
+              replicas_per_deployment: 2
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              churn_cycles: 1
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 5m
+              kill_duration_seconds: 300
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 360
+              # Disable all the other probes so policy-prop signal is clean
+              cl2_propagation_probe_enabled: "false"
+              cl2_recovery_probe_enabled: "false"
+              cl2_policy_canary_enabled: "false"
+              cl2_detach_rejoin_probe_enabled: "false"
+              # ENABLE the policy-prop probe
+              cl2_policy_prop_probe_enabled: "true"
+              cl2_policy_prop_probe_count: 5
+              cl2_policy_prop_probe_interval_s: 60
+              cl2_policy_prop_probe_timeout_s: 120
+              # Probe window: 60s prewait + 5 iters × (apply+poll+delete ~30s
+              # max each + 60s interval) = ~10min. Set 15m to absorb.
+              cl2_probe_window_duration: "15m"
+              cl2_probe_prewait_s: 60
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 180
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  # ============================================================================
+  # n=3 single-cluster backend failover smoke (gap #4 probe shipping)
+  # ============================================================================
+  # Scales the propagation-probe backend Deployment on a victim cluster to 0,
+  # polls every other cluster's BPF lb map until victim-IPs removed, then
+  # scales back up + polls for re-add. Measures global-Service convergence
+  # under one-cluster backend failure. n=3 gives 2 observers — enough signal
+  # without quota cost. Reuses the propagation-probe backend workload + global
+  # Service (already deployed by propagation-probe scenario).
+  - stage: azure_eastus2euap_n3_failover_smoke
+    dependsOn: []
+    condition: always()
+    displayName: "n=3 single-cluster backend failover smoke (scale-down/up; global Service convergence)"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 15m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-3-shared.tfvars"
+          matrix:
+            n3_failover:
+              cluster_count: 3
+              mesh_size: 3
+              share_infra_scenarios: "propagation-probe"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-failover"
+              global_namespace_count: 1
+              namespaces: 1
+              deployments_per_namespace: 1
+              replicas_per_deployment: 2
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              churn_cycles: 1
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 5m
+              kill_duration_seconds: 300
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 360
+              # CL2 scenario `propagation-probe` deploys the backend Deployment +
+              # global Service regardless of cl2_propagation_probe_enabled.
+              # Disable the HOST-SIDE propagation orchestrator so its parallel
+              # add/remove probes don't contend with the failover scale-up/down.
+              cl2_propagation_probe_enabled: "false"
+              cl2_propagation_probe_first_packet_enabled: "false"
+              cl2_recovery_probe_enabled: "false"
+              cl2_policy_canary_enabled: "false"
+              cl2_detach_rejoin_probe_enabled: "false"
+              cl2_policy_prop_probe_enabled: "false"
+              cl2_restart_survival_probe_enabled: "false"
+              # ENABLE the failover probe
+              cl2_failover_probe_enabled: "true"
+              cl2_failover_probe_count: 3
+              cl2_failover_probe_interval_s: 60
+              cl2_failover_probe_timeout_s: 180
+              # 300s prewait — lets propagation-probe scenario deploy
+              # backend Deployment + global Service + Cilium sync them
+              # to all peers before failover starts polling.
+              cl2_failover_probe_prewait_s: 300
+              # Probe window: 300s prewait + 3 iters × (~30s scale-down + 30s
+              # peer-poll + 30s scale-up + 30s peer-poll + 60s interval) ≈ 14min.
+              # Set 25m for buffer including initial backend ready + LB IP lag.
+              cl2_probe_window_duration: "25m"
+              cl2_probe_prewait_s: 60
+              # Snapshot in-cluster Prometheus TSDB → blob storage in OUR
+              # sub (cmshscaleprom / sub 37deca37) so we can PromQL locally
+              # over the full scrape set (cilium-agent, hubble, cilium-
+              # operator, clustermesh-apiserver, kvstoremesh, coredns)
+              # without round-tripping through Kusto. blob target scales
+              # to N=100; artifact target capped at 10GB total (fine for
+              # smoke but blob validates the path we'll use at scale).
+              cl2_prom_snapshot_enabled: "true"
+              cl2_prom_snapshot_target: "blob"
+              cl2_prom_snapshot_storage_account: "cmshscaleprom"
+              cl2_prom_snapshot_container: "snapshots"
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 180
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  # ============================================================================
+  # n=3 clustermesh-apiserver restart survival smoke (gap #8 probe shipping)
+  # ============================================================================
+  # Starts a long-lived curl pod on every peer with an in-pod 1Hz curl loop
+  # against the victim cluster's global Service; rolling-restarts
+  # clustermesh-apiserver on the victim; verifies Deployment generation
+  # incremented; computes per-peer survival_ratio = success / total. Answers:
+  # "do existing cross-cluster connections via global Service break when the
+  # remote clustermesh-apiserver restarts?" Reuses propagation-probe backend
+  # + global Service.
+  - stage: azure_eastus2euap_n3_restart_survival_smoke
+    dependsOn: []
+    condition: always()
+    displayName: "n=3 clustermesh-apiserver restart survival smoke (rolling restart + per-peer connection survival)"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 15m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-3-shared.tfvars"
+          matrix:
+            n3_restart_survival:
+              cluster_count: 3
+              mesh_size: 3
+              share_infra_scenarios: "propagation-probe"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-restart-survival"
+              global_namespace_count: 1
+              namespaces: 1
+              deployments_per_namespace: 1
+              replicas_per_deployment: 2
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              churn_cycles: 1
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 5m
+              kill_duration_seconds: 300
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 360
+              # CL2 scenario `propagation-probe` deploys the backend Deployment +
+              # global Service regardless of cl2_propagation_probe_enabled.
+              # Disable the HOST-SIDE propagation orchestrator so its in-pod
+              # exec churn doesn't contend with restart-survival's curl pods.
+              cl2_propagation_probe_enabled: "false"
+              cl2_propagation_probe_first_packet_enabled: "false"
+              cl2_recovery_probe_enabled: "false"
+              cl2_policy_canary_enabled: "false"
+              cl2_detach_rejoin_probe_enabled: "false"
+              cl2_policy_prop_probe_enabled: "false"
+              cl2_failover_probe_enabled: "false"
+              # ENABLE the restart-survival probe
+              cl2_restart_survival_probe_enabled: "true"
+              cl2_restart_survival_probe_count: 2
+              cl2_restart_survival_probe_interval_s: 120
+              cl2_restart_survival_probe_timeout_s: 300
+              # 300s prewait — propagation-probe scenario must deploy
+              # backend Deployment + global Service before curl pods start.
+              cl2_restart_survival_probe_prewait_s: 300
+              # Probe window: 300s prewait + 2 iters × (~10s baseline +
+              # 60-180s restart wait + 10s post + 120s interval) ≈ 14min.
+              # Set 25m for buffer.
+              cl2_probe_window_duration: "25m"
+              cl2_probe_prewait_s: 60
+              # Snapshot in-cluster Prometheus TSDB → blob storage (see
+              # failover smoke for rationale + storage account details)
+              cl2_prom_snapshot_enabled: "true"
+              cl2_prom_snapshot_target: "blob"
+              cl2_prom_snapshot_storage_account: "cmshscaleprom"
+              cl2_prom_snapshot_container: "snapshots"
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 180
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  # ============================================================================
+  # %global variation experiment — N=20 sweep
+  # ============================================================================
+  # 4 matrix entries varying global_namespace_count 0/1/3/5 (=0%/20%/60%/100%
+  # of the 5 workload namespaces). Per-cell vCPU: 20*48 = 960.
+  # max_parallel=4 → all at once.
+  #
+  # SAFETY: condition: false default. Flip to true in a 1-line commit when
+  # ready to trigger the N=20 phase. After completion flip back to false to
+  # prevent accidental re-trigger.
+  - stage: azure_eastus2euap_anomaly_rerun_n20_g020
+    dependsOn: []
+    variables:
+      TF_CLI_ARGS_apply: "-parallelism=4"
+    displayName: "anomaly rerun: n=20 g020 replicate"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 30m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-20-shared.tfvars"
+          matrix:
+            n20_g020_v2:
+              cluster_count: 20
+              mesh_size: 20
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-g20"
+              global_namespace_count: 1
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              cl2_max_concurrent: 12
+              worker_timeout_seconds: 14400
+              churn_cycles: 5
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  # ============================================================================
+  # Anomaly rerun: N=20 g100 (chart 3 op duration = 24ms looks like bad sample)
+  # ============================================================================
+  # Quota: 960 vCPU. Run after wave 1 (n50_g100 + n20_g020) finishes.
+  - stage: azure_eastus2euap_anomaly_rerun_n20_g100
+    dependsOn: []
+    variables:
+      TF_CLI_ARGS_apply: "-parallelism=4"
+    displayName: "anomaly rerun: n=20 g100 replicate"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 30m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-20-shared.tfvars"
+          matrix:
+            n20_g100_v2:
+              cluster_count: 20
+              mesh_size: 20
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-g100"
+              global_namespace_count: 5
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              cl2_max_concurrent: 12
+              worker_timeout_seconds: 14400
+              churn_cycles: 5
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  # ============================================================================
+  # Anomaly rerun: N=50 g100 (1 cluster missing data + etcd pending = 128 outlier)
+  # ============================================================================
+  # Quota: 2400 vCPU. Pair with n20_g020 in wave 1 (3360 vCPU < 4992 free).
+  - stage: azure_eastus2euap_anomaly_rerun_n50_g100
+    dependsOn: []
+    variables:
+      TF_CLI_ARGS_apply: "-parallelism=4"
+    displayName: "anomaly rerun: n=50 g100 replicate"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 30m
+          topology: clustermesh-scale
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-50-shared.tfvars"
+          matrix:
+            n50_g100_v2:
+              cluster_count: 50
+              mesh_size: 50
+              share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-shared-vnet-g100"
+              global_namespace_count: 5
+              namespaces: 5
+              deployments_per_namespace: 4
+              replicas_per_deployment: 10
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              cl2_max_concurrent: 12
+              worker_timeout_seconds: 14400
+              churn_cycles: 5
+              churn_up_duration: 60s
+              churn_down_duration: 60s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 1200
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  # ===========================================================================
+  # MOCK variant (KWOK + mock-cilium-agent). Replaces the real workload nodes
+  # with 100 virtual KWOK nodes/cluster + the forked mock-cilium-agent (real
+  # Cilium control plane, DryMode datapath) — ~10x fewer vCPU. Uses the
+  # clustermesh-scale-mock topology (deploys the mock layer after terraform) and
+  # the azure-2-mock thin-worker-pool tfvars. See
+  # scenarios/perf-eval/clustermesh-scale/MOCK-MODE.md.
+  #
+  # MOCK_ACR_HOST must host mock-cilium-agent:<MOCK_AGENT_TAG> in the SAME
+  # subscription as the test clusters; the deploy step auto-grants the kubelet
+  # identity AcrPull. Uses the share-infra pod-churn-combined scenario so the
+  # cilium / clustermesh measurements have a real steady-state window.
+  # ===========================================================================
+  - stage: azure_eastus2euap_n2_mock
+    dependsOn: []
+    condition: always()
+    displayName: "n=2 MOCK smoke (KWOK + mock-cilium-agent, 100 virtual nodes/cluster)"
+    variables:
+      MOCK_ACR_HOST: mockmeshshared11225.azurecr.io
+      MOCK_AGENT_TAG: v26
+      MOCK_NODE_COUNT: 100
+      MOCK_CONSUME_CLUSTERMESH: true
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 30m
+          topology: clustermesh-scale-mock
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-2-mock.tfvars"
+          matrix:
+            n2_mock:
+              cluster_count: 2
+              mesh_size: 2
+              share_infra_scenarios: "pod-churn-combined"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-mock"
+              mock_mode: true
+              global_namespace_count: 1
+              namespaces: 5
+              deployments_per_namespace: 2
+              replicas_per_deployment: 5
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              churn_cycles: 2
+              churn_up_duration: 90s
+              churn_down_duration: 90s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 240
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  # ===========================================================================
+  # n=20 MOCK provisioning spike (design.md §8.3 — Risk #3).
+  #
+  # Scales the proven n=2 mock stage to 20 clusters (20 × 100 = 2000 virtual
+  # nodes) to (a) prove the vCPU win at a meaningful tier and (b) measure AKS
+  # provisioning + Fleet RP + clustermesh convergence behavior, extrapolating
+  # toward the n=100 / 10k-node headline. Same single scenario + per-cluster
+  # workload knobs as n=2 (only cluster_count/mesh_size + tfvars change), so the
+  # two tiers are directly comparable.
+  #
+  # vCPU budget (azure-20-mock.tfvars, Dv3 family): 20 × (2 default + 1 prompool)
+  # × D8_v3(8) = 480 vCPU — well under the sub's Dv3 limit (5000).
+  #
+  # Known n>=20 risk (design.md §8.3): Fleet RP reconciler-skip + long provision
+  # times. The base validate-resources step ("Validate Cilium + ClusterMesh on
+  # every cluster") gates on per-cluster clustermesh health, so a reconciler skip
+  # surfaces as a hard failure here rather than a silent hollow run. timeout is
+  # 600m (vs the real n=20's 480m) to absorb the *sequential* per-cluster mock-
+  # layer deploy (deploy-mock-layer.yml loops clusters one at a time).
+  # timeout 720m: cleanup (terraform destroy + RG delete) runs as later steps of
+  # the SAME job, so the budget must cover worst-case provision+converge+CL2 AND
+  # leave room for teardown — else a slow n=20 tail orphans 20 clusters until the
+  # 24h deletion sweeper. Tighten after the first run from observed phase timings.
+  # ===========================================================================
+  - stage: azure_eastus2euap_n20_mock
+    dependsOn: []
+    condition: always()
+    displayName: "n=20 MOCK spike (KWOK + mock-cilium-agent, 100 virtual nodes/cluster × 20)"
+    variables:
+      MOCK_ACR_HOST: mockmeshshared11225.azurecr.io
+      MOCK_AGENT_TAG: v26
+      MOCK_NODE_COUNT: 100
+      MOCK_CONSUME_CLUSTERMESH: true
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 30m
+          topology: clustermesh-scale-mock
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-20-mock.tfvars"
+          matrix:
+            n20_mock:
+              cluster_count: 20
+              mesh_size: 20
+              share_infra_scenarios: "pod-churn-combined"
+              cl2_config_file: ""
+              test_type: shared
+              test_type_suffix: "-mock"
+              mock_mode: true
+              global_namespace_count: 1
+              namespaces: 5
+              deployments_per_namespace: 2
+              replicas_per_deployment: 5
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              churn_cycles: 2
+              churn_up_duration: 90s
+              churn_down_duration: 90s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 720
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false

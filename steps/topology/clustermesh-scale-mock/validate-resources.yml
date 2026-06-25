@@ -1,0 +1,26 @@
+parameters:
+  - name: cloud
+    type: string
+  - name: engine
+    type: string
+  - name: regions
+    type: object
+
+# MOCK-mode topology = the real clustermesh-scale validation (Fleet + ACNS +
+# clustermesh-apiserver readiness, cross-cluster smoke on the real thin worker
+# pool) followed by the additive KWOK + mock-cilium-agent layer deploy. The base
+# validation is mock-compatible: it only asserts nodes are Ready (no fixed count)
+# and the datapath smoke runs on the real thin-pool nodes before the mock layer
+# is added.
+steps:
+  - template: /steps/topology/clustermesh-scale/validate-resources.yml@self
+    parameters:
+      cloud: ${{ parameters.cloud }}
+      engine: ${{ parameters.engine }}
+      regions: ${{ parameters.regions }}
+
+  - template: /steps/topology/clustermesh-scale-mock/deploy-mock-layer.yml@self
+    parameters:
+      cloud: ${{ parameters.cloud }}
+      engine: ${{ parameters.engine }}
+      regions: ${{ parameters.regions }}

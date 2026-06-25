@@ -43,6 +43,13 @@ network_config_list = [
       {
         name           = "clustermesh-1-pod"
         address_prefix = "10.1.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
       }
     ]
     network_security_group_name = ""
@@ -61,6 +68,13 @@ network_config_list = [
       {
         name           = "clustermesh-2-pod"
         address_prefix = "10.2.4.0/22"
+        delegations = [
+          {
+            name                       = "aks-delegation"
+            service_delegation_name    = "Microsoft.ContainerService/managedClusters"
+            service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
+          }
+        ]
       }
     ]
     network_security_group_name = ""
@@ -91,14 +105,28 @@ aks_cli_config_list = [
       { name = "max-pods", value = "110" },
     ]
 
-    # Default pool sizing: D4s_v5 (4 vCPU / 16GB) is enough for the workload
-    # pods alone. Prometheus is pinned to prompool below — without that
-    # split, Prometheus's 1Gi+ memory request co-tenanting on default-pool
-    # nodes caused per-node CPU overcommit (~160% allocatable) and left
-    # workload pods stuck Pending.
+    # Default pool sizing: 20 nodes × D4ds_v4 (4 vCPU / 16GB).
+    #
+    # 20 nodes per cluster is the spec baseline (scale testing.txt line 24:
+    # "20-node clusters as the baseline unit"). Workload sits on this pool;
+    # Prometheus is pinned to prompool below to avoid the per-node CPU
+    # overcommit + Pending-pods we hit when Prometheus co-tenanted with the
+    # workload at smaller node counts.
+    #
+    # SKU choice — D4s_v5 (iter-narrow for scenario #6 smoke 2026-05-15
+    # subscription switch): 4 vCPU / 16GB / Premium SSD, Ice Lake v5
+    # generation. Switched from D4ds_v4 because we moved this pipeline to
+    # subscription 37deca37-... ("Azure Network Agent - Standalone Test")
+    # to dodge RG-count quota pressure on the original 9b8218f9-...
+    # subscription. On 37deca37 the DDSv4 family has only 100 vCPU quota
+    # (need 160+ at n=2), but DSv5 has 1000 vCPU quota with 920 free, so
+    # D4s_v5/D8s_v5 fits with headroom. Larger tiers (n5/n10/n20) still
+    # need quota planning on the new sub before promotion.
+    # Performance for our workload (mostly idle pause pods + cilium-agent
+    # + CL2 measurement client) is not bound on CPU generation.
     default_node_pool = {
       name                 = "default"
-      node_count           = 2
+      node_count           = 20
       auto_scaling_enabled = false
       vm_size              = "Standard_D4s_v5"
     }
@@ -108,15 +136,15 @@ aks_cli_config_list = [
     # only on this label, so it doesn't compete with workload pods. Mirrors
     # the `prompool` pattern from
     # scenarios/perf-eval/cnl-azurecni-overlay-cilium/terraform-inputs/azure.tfvars.
-    # D8s_v3 (8 vCPU / 32GB) is sized for our 1Gi-request Prometheus with
-    # ample headroom — much smaller than #1053's D32s_v5 because our
-    # workload spec is also much smaller.
+    # D8s_v5 (8 vCPU / 32GB) is sized for our 1Gi-request Prometheus with
+    # ample headroom; matches the family swap of the default pool (DSv5
+    # quota of 1000 vCPU on subscription 37deca37 fits n=2 with margin).
     extra_node_pool = [
       {
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8s_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]
@@ -141,7 +169,7 @@ aks_cli_config_list = [
 
     default_node_pool = {
       name                 = "default"
-      node_count           = 2
+      node_count           = 20
       auto_scaling_enabled = false
       vm_size              = "Standard_D4s_v5"
     }
@@ -150,7 +178,7 @@ aks_cli_config_list = [
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D8s_v3"
+        vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]

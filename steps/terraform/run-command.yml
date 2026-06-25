@@ -16,6 +16,9 @@ parameters:
 - name: skip_resource_deletion
   type: string
   default: "false"
+- name: preserve_state_on_apply_failure
+  type: string
+  default: "false"
 
 steps:
 - script: |
@@ -44,11 +47,26 @@ steps:
         terraform ${{ parameters.command }} --auto-approve ${{ parameters.arguments }} -var-file $terraform_input_file -var json_input="$terraform_input_variables" 2>&1 | tee terraform_${{ parameters.command }}.log
         exit_code=${PIPESTATUS[0]}
         if [[ $exit_code -ne 0 ]]; then
+          # 2026-05-17: PRESERVE_STATE_ON_APPLY_FAILURE opt-in (clustermesh-scale).
+          # The default scorched-earth cleanup (delete-everything + rm state) at
+          # N=20 turns a single recoverable peering flake into 3 cascading
+          # retries (build 67467: peering flake → cleanup fires async deletes
+          # for 520 resources → AzDO retries 30s later → terraform sees state-
+          # less workspace → tries to create resources still being deleted in
+          # Azure → "already exists" or "AnotherOperationInProgress"). When
+          # PRESERVE_STATE_ON_APPLY_FAILURE=true we skip cleanup entirely and
+          # let terraform retry from the partial state — it's idempotent for
+          # already-created resources and only retries the failed ones, which
+          # is the standard hashicorp-recommended pattern for partial apply.
           if [[ ${{ parameters.command }} == "apply" && "$CLOUD" == "azure" ]]; then
-            echo "Delete resources and remove state file before retrying"
-            ids=$(az resource list --location $region --resource-group $RUN_ID --query [*].id -o tsv)
-            az resource delete --ids $ids --verbose
-            rm -r terraform.tfstate.d/$region
+            if [[ "${{ parameters.preserve_state_on_apply_failure }}" == "true" ]]; then
+              echo "preserve_state_on_apply_failure=true; skipping scorched-earth cleanup so terraform retry can reconcile from existing state"
+            else
+              echo "Delete resources and remove state file before retrying"
+              ids=$(az resource list --location $region --resource-group $RUN_ID --query [*].id -o tsv)
+              az resource delete --ids $ids --verbose
+              rm -r terraform.tfstate.d/$region
+            fi
           fi
           if [[ ${{ parameters.command }} == "destroy" && "$CLOUD" == "aws" ]]; then
             echo "Delete all the network interfaces before retrying"

@@ -26,7 +26,10 @@ SCHEDULING_THROUGHPUT_PREFIX = "SchedulingThroughput"
 def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provider, cl2_config_file="config.yaml", overrides=False, enable_prometheus=False, tear_down_prometheus=True,
                     enable_exec_service=False, scrape_kubelets=False,
                     scrape_containerd=False, scrape_ksm=False, scrape_metrics_server=False,
-                    prometheus_memory_request=None):
+                    prometheus_memory_request=None,
+                    prometheus_pvc_storage_class=None,
+                    prometheus_storage_class_provisioner=None,
+                    prometheus_storage_class_volume_type=None):
     docker_client = DockerClient()
 
     command = f"""--provider={provider} --v=2
@@ -50,6 +53,20 @@ def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provi
         # prometheus manifests is rejected by k8s admission. Optional
         # parameter — None preserves CL2 default for existing callers.
         command += f" --prometheus-memory-request={prometheus_memory_request}"
+
+    # Prometheus PVC storage class. CL2's bundled prometheus manifests default to
+    # a `ssd` StorageClass backed by `kubernetes.io/gce-pd`, which does NOT
+    # provision on AKS — the prometheus-k8s PVC stays unbound and the pod stays
+    # Pending, so every measurement gather returns "no endpoints". On AKS, pass
+    # an existing CSI class (e.g. managed-csi) here. None preserves CL2 default
+    # for existing (GCE) callers.
+    if prometheus_pvc_storage_class:
+        command += f" --prometheus-pvc-storage-class={prometheus_pvc_storage_class}"
+    if prometheus_storage_class_provisioner:
+        command += f" --prometheus-storage-class-provisioner={prometheus_storage_class_provisioner}"
+    if prometheus_storage_class_volume_type:
+        command += f" --prometheus-storage-class-volume-type={prometheus_storage_class_volume_type}"
+
 
     if overrides:
         command += " --testoverrides=/root/perf-tests/clusterloader2/config/overrides.yaml"
