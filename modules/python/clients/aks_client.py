@@ -428,6 +428,21 @@ class AKSClient:
             "gpu_mig_strategy": strategy,
         }
 
+    @staticmethod
+    def _log_gpu_mode(metadata: Dict[str, Any]) -> None:
+        """Echo the normalized GPU-mode metadata to the console for traceability."""
+        if metadata.get("gpu_mode") in (None, "none"):
+            return
+        logger.info(
+            "GPU pool metadata: gpu_mode=%s enable_managed_gpu=%s mig_enabled=%s "
+            "gpu_instance_profile=%s gpu_mig_strategy=%s",
+            metadata.get("gpu_mode"),
+            metadata.get("enable_managed_gpu"),
+            metadata.get("mig_enabled"),
+            metadata.get("gpu_instance_profile"),
+            metadata.get("gpu_mig_strategy"),
+        )
+
     def create_node_pool(
         self,
         node_pool_name: str,
@@ -481,6 +496,7 @@ class AKSClient:
                 gpu_mig_strategy,
             ),
         }
+        self._log_gpu_mode(metadata)
 
         # Create operation context to track the operation
         with self._get_operation_context()(
@@ -633,6 +649,7 @@ class AKSClient:
                 gpu_mig_strategy,
             ),
         }
+        self._log_gpu_mode(metadata)
         node_pool = self.get_node_pool(node_pool_name, cluster_name)
 
         current_count = node_pool.count
@@ -902,6 +919,7 @@ class AKSClient:
                     gpu_mig_strategy,
                 ),
             }
+            self._log_gpu_mode(step_metadata)
 
             # Create operation context for this specific step
             with self._get_operation_context()(

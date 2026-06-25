@@ -676,6 +676,25 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         with self.assertRaises(ValueError):
             gpu_meta(True, True, "MIG1g", "bogus")
 
+    def test_log_gpu_mode_console_echo(self):
+        """_log_gpu_mode echoes GPU metadata to the console for GPU pools only."""
+        log_gpu_mode = AKSClient._log_gpu_mode  # pylint: disable=protected-access
+        with self.assertLogs("clients.aks_client", level="INFO") as cm:
+            log_gpu_mode(
+                {
+                    "gpu_mode": "fully_managed",
+                    "enable_managed_gpu": True,
+                    "mig_enabled": True,
+                    "gpu_instance_profile": "MIG1g",
+                    "gpu_mig_strategy": "mixed",
+                }
+            )
+        self.assertTrue(any("gpu_mode=fully_managed" in m for m in cm.output))
+        self.assertTrue(any("gpu_mig_strategy=mixed" in m for m in cm.output))
+        # Non-GPU operations must not emit the GPU metadata line.
+        with self.assertNoLogs("clients.aks_client", level="INFO"):
+            log_gpu_mode({"gpu_mode": "none"})
+
     @mock.patch("clients.aks_client.time")
     def test_scale_node_pool_records_gpu_mode_metadata(self, mock_time):
         """Scale ops persist gpu_mode + MIG fields even though the SDK read-back drops them."""
