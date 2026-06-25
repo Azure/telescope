@@ -1437,6 +1437,7 @@ class TestMainArgumentParsing(unittest.TestCase):
             policy_canary_enabled="false",
             policy_scale_cnp_per_ns=50,
             policy_scale_hold_duration="5m",
+            mock_mode="false",
         )
 
     @patch.object(clustermesh_scale_module, "execute_clusterloader2")
