@@ -1,18 +1,8 @@
 """AKS Machine API client.
 
-Subclasses ``AKSClient`` to inherit auth, ContainerServiceClient,
-KubernetesClient, ``get_cluster_name``, ``get_cluster_data``, and the existing
-node-pool CRUD methods. Adds raw REST methods for the Machine API which is not
-yet exposed in the Azure SDK.
-
-Public methods (``create_machine_agentpool``, ``scale_machine``) wrap their work
-in ``OperationContext``: the context is opened inside the client method,
-metadata is enriched with ``op.add_metadata`` along the way, success returns
-None, failures are logged and re-raised so ``OperationContext`` records them.
-``MachineCRUD`` therefore stays a thin try/except wrapper.
-
-The non-batch scale path PUTs machines one at a time. The batch dispatch
-(``use_batch_api=True``) uses the private ``BatchPutMachine`` header contract.
+Extends ``AKSClient`` with raw Machine API REST methods. Public methods wrap
+work in ``OperationContext``; ``MachineCRUD`` stays a thin try/except wrapper.
+The batch scale path uses the private ``BatchPutMachine`` header contract.
 """
 import json
 import logging
@@ -470,8 +460,7 @@ class AKSMachineClient(AKSClient):
         """Scale a Machine-mode agentpool by creating ``scale_machine_count`` machines.
 
         Opens an ``OperationContext`` here, enriches with successful machine
-        names, per-batch command execution times, per-percentile readiness
-        envelope, and the cluster snapshot.
+        names, batch timings, readiness metadata, and the cluster snapshot.
         Returns on success; re-raises on failure so the context records the
         trace.
 
@@ -513,8 +502,6 @@ class AKSMachineClient(AKSClient):
             cluster_name=cluster_name,
             resource_group=self.resource_group,
             vm_size=vm_size,
-            scale_machine_count=scale_machine_count,
-            use_batch_api=use_batch_api,
             machine_workers=machine_workers,
             timeout=timeout,
             readiness_wait_timeout=readiness_wait_timeout,
@@ -916,10 +903,7 @@ class AKSMachineClient(AKSClient):
         put_timeout = min(request.timeout, _PER_REQUEST_TIMEOUT_CAP)
         start_time = datetime.now(timezone.utc)
         self._make_batch_request(
-            "PUT",
-            url,
-            body,
-            put_timeout,
+            "PUT", url, body, put_timeout,
             batch_header_value=batch_header_value,
             chunk_idx=chunk_idx,
             first_machine_name=first_machine_name,
@@ -930,8 +914,7 @@ class AKSMachineClient(AKSClient):
             request, "batch_command_execution_times", None
         )
         if batch_command_execution_times is None:
-            batch_command_execution_times = {}
-            request.batch_command_execution_times = batch_command_execution_times
+            batch_command_execution_times = request.batch_command_execution_times = {}
         metric = {
             "start_time": start_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "end_time": end_time.strftime("%Y-%m-%dT%H:%M:%SZ"),

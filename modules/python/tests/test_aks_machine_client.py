@@ -1,17 +1,6 @@
 #!/usr/bin/env python3
-"""Unit tests for AKSMachineClient (subclass of AKSClient).
-
-All public methods open an ``OperationContext`` (patched here) and write the
-result file via ``Operation.save_to_file`` on context exit. Tests verify:
-- success path completes without raising and enriches ``op.add_metadata`` with
-  the right keys
-- failure path raises (so the OperationContext records ``success=False``)
-
-Tests also cover both scale paths and the batch-path helpers.
-"""
+"""Unit tests for AKSMachineClient."""
 # pylint: disable=protected-access
-# Tests intentionally exercise private helpers directly; the leading underscore
-# is conventional rather than semantic privacy.
 import itertools
 import tempfile
 import unittest
@@ -46,14 +35,10 @@ class TestAKSMachineClient(unittest.TestCase):
 
         self.mock_k8s = self.mock_k8s_class.return_value
         self.mock_operation = mock.MagicMock()
-        self.mock_operation_context.return_value.__enter__.return_value = (
-            self.mock_operation
-        )
+        self.mock_operation_context.return_value.__enter__.return_value = self.mock_operation
         self.mock_operation_context.return_value.__exit__.return_value = None
 
-        # Hermetic per-test temp dir avoids cross-platform /tmp assumptions
-        # and parallel-run collisions. ``with`` doesn't fit the setUp/tearDown
-        # lifecycle, so we explicitly cleanup() in tearDown.
+        # TemporaryDirectory does not fit the setUp/tearDown lifecycle.
         self._tmp_dir = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
         self.test_result_dir = self._tmp_dir.name
 
@@ -67,9 +52,7 @@ class TestAKSMachineClient(unittest.TestCase):
 
         # Stub inherited helpers that the Machine methods enrich metadata with.
         self.client.get_cluster_name = mock.MagicMock(return_value="fake-cluster")
-        self.client.get_cluster_data = mock.MagicMock(
-            return_value={"name": "fake-cluster"}
-        )
+        self.client.get_cluster_data = mock.MagicMock(return_value={"name": "fake-cluster"})
         fake_pool = mock.MagicMock()
         fake_pool.as_dict.return_value = {"name": "fake-pool"}
         self.client.get_node_pool = mock.MagicMock(return_value=fake_pool)
@@ -301,18 +284,15 @@ class TestAKSMachineClient(unittest.TestCase):
     def test_scale_machine_batch_path_dispatches_to_batch(self):
         """The use_batch_api=True branch calls _scale_machine_batch (not _individually)
         and records batch command timings in operation metadata."""
-        names = [f"scale2-machine-{i+1}" for i in range(2)]
-        batch_metrics = {
-            "scale2-machine-1": {
-                "start_time": "2026-06-23T00:00:00Z",
-                "end_time": "2026-06-23T00:00:01Z",
-                "execution_time_seconds": 1.0,
-                "total_machines_in_batch": 2,
-            }
+        batch_metric = {
+            "start_time": "2026-06-23T00:00:00Z",
+            "end_time": "2026-06-23T00:00:01Z",
+            "execution_time_seconds": 1.0,
+            "total_machines_in_batch": 2,
         }
 
         def fake_batch(request, batch_names):
-            request.batch_command_execution_times.update(batch_metrics)
+            request.batch_command_execution_times["scale2-machine-1"] = batch_metric
             return batch_names
 
         with mock.patch.object(
@@ -352,7 +332,7 @@ class TestAKSMachineClient(unittest.TestCase):
         }
         self.assertIn("command_execution_time", added_keys)
         self.mock_operation.add_metadata.assert_any_call(
-            "batch_command_execution_times", batch_metrics
+            "batch_command_execution_times", {"scale2-machine-1": batch_metric}
         )
 
     # ---- _create_single_machine ----
@@ -886,11 +866,8 @@ class TestAKSMachineClient(unittest.TestCase):
         mock_make_batch.assert_called_once()
         self.assertEqual(set(request.batch_command_execution_times), {"m-1"})
         metric = request.batch_command_execution_times["m-1"]
-        self.assertIn("start_time", metric)
-        self.assertIn("end_time", metric)
-        timestamp_pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"
-        self.assertRegex(metric["start_time"], timestamp_pattern)
-        self.assertRegex(metric["end_time"], timestamp_pattern)
+        self.assertRegex(metric["start_time"], r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+        self.assertRegex(metric["end_time"], r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
         self.assertIsInstance(metric["execution_time_seconds"], float)
         self.assertGreaterEqual(metric["execution_time_seconds"], 0.0)
         self.assertEqual(metric["total_machines_in_batch"], 3)
