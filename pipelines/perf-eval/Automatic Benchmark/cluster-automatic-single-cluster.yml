@@ -1,4 +1,7 @@
 trigger: none
+
+pool:
+  name: 'AKS-Telescope-Airlock'
 schedules:
   # AKS Automatic On-Demand Schedule
   - cron: "0 15/6 * * *"

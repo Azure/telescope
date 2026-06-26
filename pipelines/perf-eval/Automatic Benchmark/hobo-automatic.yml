@@ -1,5 +1,8 @@
 trigger: none
 
+pool:
+  name: 'AKS-Telescope-Airlock'
+
 schedules:
   - cron: "0 15 * * *"
     displayName: "Daily HOBO Automatic"
