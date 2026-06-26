@@ -933,8 +933,8 @@ class AKSMachineClient(AKSClient):
             batch_command_execution_times = {}
             request.batch_command_execution_times = batch_command_execution_times
         metric = {
-            "start_time": start_time.isoformat().replace("+00:00", "Z"),
-            "end_time": end_time.isoformat().replace("+00:00", "Z"),
+            "start_time": start_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "end_time": end_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "execution_time_seconds": execution_time_seconds,
             "total_machines_in_batch": len(chunk),
         }

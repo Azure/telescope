@@ -888,6 +888,9 @@ class TestAKSMachineClient(unittest.TestCase):
         metric = request.batch_command_execution_times["m-1"]
         self.assertIn("start_time", metric)
         self.assertIn("end_time", metric)
+        timestamp_pattern = r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$"
+        self.assertRegex(metric["start_time"], timestamp_pattern)
+        self.assertRegex(metric["end_time"], timestamp_pattern)
         self.assertIsInstance(metric["execution_time_seconds"], float)
         self.assertGreaterEqual(metric["execution_time_seconds"], 0.0)
         self.assertEqual(metric["total_machines_in_batch"], 3)
