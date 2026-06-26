@@ -1,18 +1,8 @@
 """AKS Machine API client.
 
-Subclasses ``AKSClient`` to inherit auth, ContainerServiceClient,
-KubernetesClient, ``get_cluster_name``, ``get_cluster_data``, and the existing
-node-pool CRUD methods. Adds raw REST methods for the Machine API which is not
-yet exposed in the Azure SDK.
-
-Public methods (``create_machine_agentpool``, ``scale_machine``) wrap their work
-in ``OperationContext``: the context is opened inside the client method,
-metadata is enriched with ``op.add_metadata`` along the way, success returns
-None, failures are logged and re-raised so ``OperationContext`` records them.
-``MachineCRUD`` therefore stays a thin try/except wrapper.
-
-The non-batch scale path PUTs machines one at a time. The batch dispatch
-(``use_batch_api=True``) uses the private ``BatchPutMachine`` header contract.
+Extends ``AKSClient`` with raw Machine API REST methods. Public methods wrap
+work in ``OperationContext``; ``MachineCRUD`` stays a thin try/except wrapper.
+The batch scale path uses the private ``BatchPutMachine`` header contract.
 """
 import json
 import logging
@@ -20,6 +10,7 @@ import math
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Set
 
@@ -469,7 +460,7 @@ class AKSMachineClient(AKSClient):
         """Scale a Machine-mode agentpool by creating ``scale_machine_count`` machines.
 
         Opens an ``OperationContext`` here, enriches with successful machine
-        names, per-percentile readiness envelope, and the cluster snapshot.
+        names, batch timings, readiness metadata, and the cluster snapshot.
         Returns on success; re-raises on failure so the context records the
         trace.
 
@@ -511,11 +502,11 @@ class AKSMachineClient(AKSClient):
             cluster_name=cluster_name,
             resource_group=self.resource_group,
             vm_size=vm_size,
-            scale_machine_count=scale_machine_count,
-            use_batch_api=use_batch_api,
             machine_workers=machine_workers,
             timeout=timeout,
             readiness_wait_timeout=readiness_wait_timeout,
+            batch_command_execution_times={},
+            batch_command_execution_times_lock=threading.Lock(),
         )
         with self._get_operation_context()(
             "scale_machine", "azure", metadata, result_dir=self.result_dir
@@ -548,6 +539,11 @@ class AKSMachineClient(AKSClient):
                 else:
                     successful = self._scale_machine_individually(request, names)
                 op.add_metadata("command_execution_time", time.time() - command_t0)
+                if use_batch_api:
+                    op.add_metadata(
+                        "batch_command_execution_times",
+                        dict(request.batch_command_execution_times),
+                    )
                 op.add_metadata("successful_machines", len(successful))
 
                 # Fail fast on partial landing BEFORE waiting on the agentpool
@@ -905,14 +901,36 @@ class AKSMachineClient(AKSClient):
         # but it does not bound total wall time for the chunk because retry
         # and backoff handling can still extend the overall elapsed time.
         put_timeout = min(request.timeout, _PER_REQUEST_TIMEOUT_CAP)
+        start_time = datetime.now(timezone.utc)
         self._make_batch_request(
-            "PUT",
-            url,
-            body,
-            put_timeout,
+            "PUT", url, body, put_timeout,
             batch_header_value=batch_header_value,
             chunk_idx=chunk_idx,
             first_machine_name=first_machine_name,
+        )
+        end_time = datetime.now(timezone.utc)
+        execution_time_seconds = (end_time - start_time).total_seconds()
+        batch_command_execution_times = getattr(
+            request, "batch_command_execution_times", None
+        )
+        if batch_command_execution_times is None:
+            batch_command_execution_times = request.batch_command_execution_times = {}
+        metric = {
+            "start_time": start_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "end_time": end_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "execution_time_seconds": execution_time_seconds,
+            "total_machines_in_batch": len(chunk),
+        }
+        metric_lock = getattr(request, "batch_command_execution_times_lock", None)
+        if metric_lock is None:
+            batch_command_execution_times[first_machine_name] = metric
+        else:
+            with metric_lock:
+                batch_command_execution_times[first_machine_name] = metric
+        logger.info(
+            f"chunk {chunk_idx}: BatchPutMachine PUT completed for {len(chunk)} "
+            f"machines in {execution_time_seconds:.3f} seconds "
+            f"(target={first_machine_name})"
         )
         return list(chunk)
 
