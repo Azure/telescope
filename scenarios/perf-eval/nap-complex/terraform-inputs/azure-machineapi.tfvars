@@ -352,7 +352,7 @@ aks_cli_config_list = [
       },
       {
         name = "aks-custom-headers"
-        value = "value = "AKSHTTPCustomFeatures=Microsoft.ContainerService/AKSHTTPCustomFeatures,AKSHTTPCustomFeatures=Microsoft.ContainerService/DisableSelfContainedVHD,BootstrappingMethodTestOnly=aksmachineapiheaderbatch""
+        value = "AKSHTTPCustomFeatures=Microsoft.ContainerService/AKSHTTPCustomFeatures,AKSHTTPCustomFeatures=DisableSelfContainedVHD,BootstrappingMethodTestOnly=aksmachineapiheaderbatch"
       }
     ]
   }
