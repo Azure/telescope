@@ -15,15 +15,13 @@ import lib.steps.azure
 # you own; avoid for system namespaces.
 ValidateWorkloadHealth = lambda \
     serviceConnection: str, \
-    kind: str, \
+    kind: "deployment" | "statefulset" | "daemonset" | "job" | "pod" | "*", \
     name: str = "", \
     namespace: str = "default", \
     errorPatterns: str = "panic|fatal", \
     displayName: str = "", \
     continueOnError: bool = Undefined \
     -> steps.Step {
-    assert kind in ["deployment", "statefulset", "daemonset", "job", "pod", "*"], \
-        "kind must be one of: deployment, statefulset, daemonset, job, pod, * (got ${kind})"
     assert (kind == "*" and name == "") or (kind != "*" and name != ""), \
         "name must be empty when kind=='*' and non-empty otherwise (got kind='${kind}', name='${name}')"
     assert "'" not in errorPatterns, \
