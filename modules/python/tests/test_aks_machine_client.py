@@ -734,8 +734,8 @@ class TestAKSMachineClient(unittest.TestCase):
         ]
         self.assertEqual(sorted(chunk_lengths), [2, 2])
 
-    def test_scale_machine_batch_worker_failure_propagates(self):
-        """A failed BatchPutMachine worker fails the scale operation."""
+    def test_scale_machine_batch_per_worker_failure_isolated(self):
+        """One worker raising does not poison the other worker's success list."""
         request = SimpleNamespace(
             agent_pool_name="apool",
             cluster_name="fake-cluster",
@@ -745,16 +745,19 @@ class TestAKSMachineClient(unittest.TestCase):
             machine_workers=2,
         )
         names = ["m-1", "m-2", "m-3", "m-4"]
+        counter = itertools.count()
+
         def fake_create(req, chunk, worker_id):  # pylint: disable=unused-argument
-            if worker_id == 0:
-                raise RuntimeError("worker 0 boom")
+            if next(counter) == 0:
+                raise RuntimeError("first worker boom")
             return list(chunk)
 
         with mock.patch.object(
             AKSMachineClient, "_create_batch_machines", side_effect=fake_create
         ):
-            with self.assertRaisesRegex(RuntimeError, "worker 0 boom"):
-                self.client._scale_machine_batch(request, names)
+            successful = self.client._scale_machine_batch(request, names)
+        # Exactly one worker's slice survives.
+        self.assertEqual(len(successful), 2)
 
     def test_scale_machine_batch_rejects_non_exact_multiple(self):
         """scale_machine_count must be an exact multiple of machine_workers."""

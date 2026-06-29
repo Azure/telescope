@@ -789,8 +789,8 @@ class AKSMachineClient(AKSClient):
         ``_BATCH_MAX_MACHINES_PER_REQUEST``. ``ValueError`` is raised otherwise
         so the failure surfaces before any partial batch submission reaches ARM.
 
-        Batch request failures propagate so the operation records the original
-        ARM error instead of a later partial-success count.
+        Per-worker exceptions are caught and logged; failed slices are excluded
+        from ``successful`` and batch timings are recorded on ``request``.
         """
         n = len(names)
         workers = request.machine_workers
@@ -814,12 +814,22 @@ class AKSMachineClient(AKSClient):
         def run_worker(worker_id: int) -> List[str]:
             start = worker_id * per_worker
             chunk = names[start:start + per_worker]
-            return self._create_batch_machines(request, chunk, worker_id)
+            try:
+                return self._create_batch_machines(request, chunk, worker_id)
+            except Exception:
+                logger.exception(f"batch worker {worker_id} failed")
+                return []
 
         with ThreadPoolExecutor(max_workers=workers) as ex:
             futures = [ex.submit(run_worker, w) for w in range(workers)]
             for fut in as_completed(futures):
-                successful.extend(fut.result())
+                try:
+                    created = fut.result()
+                except Exception:
+                    # run_worker already swallows; this is belt-and-suspenders.
+                    logger.exception("unexpected error retrieving batch worker result")
+                    continue
+                successful.extend(created)
         return successful
 
     def _create_batch_machines(
