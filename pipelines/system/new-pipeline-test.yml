@@ -1450,6 +1450,10 @@ stages:
             - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-2-mock.tfvars"
           matrix:
             n2_mock:
+              cl2_prom_snapshot_enabled: "true"
+              cl2_prom_snapshot_target: "blob"
+              cl2_prom_snapshot_storage_account: "cmshscaleprom"
+              cl2_prom_snapshot_container: "snapshots"
               cluster_count: 2
               mesh_size: 2
               share_infra_scenarios: "pod-churn-combined"
@@ -1530,6 +1534,10 @@ stages:
             - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-20-mock.tfvars"
           matrix:
             n20_mock:
+              cl2_prom_snapshot_enabled: "true"
+              cl2_prom_snapshot_target: "blob"
+              cl2_prom_snapshot_storage_account: "cmshscaleprom"
+              cl2_prom_snapshot_container: "snapshots"
               cluster_count: 20
               mesh_size: 20
               share_infra_scenarios: "pod-churn-combined"
@@ -1612,6 +1620,10 @@ stages:
             - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-100-mock-shared.tfvars"
           matrix:
             n100_mock:
+              cl2_prom_snapshot_enabled: "true"
+              cl2_prom_snapshot_target: "blob"
+              cl2_prom_snapshot_storage_account: "cmshscaleprom"
+              cl2_prom_snapshot_container: "snapshots"
               cluster_count: 100
               mesh_size: 100
               share_infra_scenarios: "pod-churn-combined"
