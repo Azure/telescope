@@ -1559,3 +1559,86 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
           skip_publish: false
+
+  # ===========================================================================
+  # n=100 MOCK spike — the 10k-node headline tier (100 clusters × 100 virtual
+  # nodes). SHARED-VNET (azure-100-mock-shared.tfvars): peered topology is
+  # infeasible here (N*(N-1)=9,900 peerings). Builds on the n=20 spike (build
+  # 71650, 19/20 PASS, Fleet meshed all 20) plus three n=100 enablers landed
+  # alongside this stage:
+  #   1. PARALLEL mock-layer deploy (deploy-mock-layer.yml) — MOCK_DEPLOY_
+  #      CONCURRENCY clusters at a time. Sequential was 152m@20 -> ~12.7h@100;
+  #      at concurrency 8 it's ~100m. MOCK_DEPLOY_MAX_FAILURES tolerates a few
+  #      transient per-cluster deploy blips so one doesn't sink a multi-hour run.
+  #   2. CL2 prometheus-setup RETRY (run-cl2-on-cluster.sh + execute.yml) —
+  #      mock mode defaults CL2_MAX_ATTEMPTS=2, retrying ONLY the transient
+  #      "server unable to handle request (post namespaces)" early-setup failure
+  #      that took out mesh-2 at n=20 (no junit yet -> cheap retry).
+  #   3. cl2_max_concurrent=12 (vs default 4) -- at n=100, waves-of-4 = 25 CL2
+  #      waves; 12 cuts it to ~9. (12 is the tested ceiling per execute.yml.)
+  #
+  # vCPU budget: 100 x (2 default + 1 prompool) x D8_v3(8) = 2400 vCPU -- fits
+  # the eastus2euap Dv3 quota (~4992 free), vs real n=100's 4800.
+  #
+  # timeout 1200m (20h): est. TF apply ~4h + validate ~40m + parallel deploy ~2h
+  # + CL2(conc 12) ~3.5h + destroy ~3h ~= 13h; headroom under the AzDO 24h cap,
+  # cleanup inside the budget. Tighten from the first run's per-phase timings.
+  # ===========================================================================
+  - stage: azure_eastus2euap_n100_mock
+    dependsOn: []
+    condition: always()
+    displayName: "n=100 MOCK spike (KWOK + mock-cilium-agent, 100 virtual nodes/cluster x 100 = 10k)"
+    variables:
+      MOCK_ACR_HOST: mockmeshshared11225.azurecr.io
+      MOCK_AGENT_TAG: v26
+      MOCK_NODE_COUNT: 100
+      MOCK_CONSUME_CLUSTERMESH: true
+      MOCK_DEPLOY_CONCURRENCY: 8
+      MOCK_DEPLOY_MAX_FAILURES: 3
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 30m
+          topology: clustermesh-scale-mock
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-100-mock-shared.tfvars"
+          matrix:
+            n100_mock:
+              cluster_count: 100
+              mesh_size: 100
+              share_infra_scenarios: "pod-churn-combined"
+              cl2_config_file: ""
+              cl2_max_concurrent: 12
+              test_type: shared
+              test_type_suffix: "-mock"
+              mock_mode: true
+              global_namespace_count: 1
+              namespaces: 5
+              deployments_per_namespace: 2
+              replicas_per_deployment: 5
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 20
+              churn_cycles: 2
+              churn_up_duration: 90s
+              churn_down_duration: 90s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 1200
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false

@@ -54,6 +54,14 @@ steps:
       # scale.py configure (--mock-mode) consumes. Falls back to a directly-set
       # CL2_MOCK_MODE pipeline variable, then to false → real runs unchanged.
       export CL2_MOCK_MODE="${MOCK_MODE:-${CL2_MOCK_MODE:-false}}"
+      # CL2 attempt count for the per-cluster worker (run-cl2-on-cluster.sh). At
+      # scale a single cluster's AKS apiserver can throw a transient "server is
+      # currently unable to handle the request (post namespaces)" that kills CL2's
+      # prometheus-stack setup BEFORE any measurement (n=20 spike build 71650,
+      # mesh-2). The worker retries ONLY that early-setup signature (no junit yet),
+      # never real test outcomes. Default 2 in mock mode (cheap early retry), 1 in
+      # real mode → real runs are byte-for-byte unchanged. Honor an explicit override.
+      export CL2_MAX_ATTEMPTS="${CL2_MAX_ATTEMPTS:-$( [ "$CL2_MOCK_MODE" = "true" ] && echo 2 || echo 1 )}"
       # Phase 4a — Scenario #2 (Pod Churn Stress) knobs. Shell defaults so
       # matrix entries that don't set these (event-throughput, default-config)
       # silently fall back to the documented Phase 4a defaults rather than

@@ -64,42 +64,38 @@ echo "===================================================================="
 # the 2Gi limit then OOM'd Prom under our cardinality, crashlooping mid-run.
 #
 # We can't change the CL2 image, but we CAN patch the Prometheus CR after
-# prometheus-operator creates it. Run a polling background process that
-# waits for the CR to exist, patches its `spec.resources.limits.memory` to
-# 12Gi, then exits. Prom-operator reconciles the StatefulSet within a few
-# seconds of the patch. The polling is cheap (1 kubectl get per 3s) and
-# safely no-ops if the CR never appears (e.g. enable_prometheus=False
-# scenarios).
+# prometheus-operator creates it. Run a polling background process that waits
+# for the CR to exist and CONTINUOUSLY enforces `spec.resources.limits.memory`
+# = target (patching whenever it diverges). It must keep running and re-patch
+# across CL2 retries (CL2_MAX_ATTEMPTS>1 deletes+recreates the monitoring stack
+# on a transient prometheus-setup failure → a fresh CR at the 2Gi default), so
+# the budget scales with the attempt count. Polling is cheap and no-ops if the
+# CR never appears (enable_prometheus=False scenarios).
 PROM_LIMIT="${CL2_PROMETHEUS_MEMORY_LIMIT_GI:-12}Gi"
 PROM_PATCH_LOG="$report_dir/prom-cr-patch.log"
 {
-  echo "[prom-patcher] starting; target limit=$PROM_LIMIT" >&2
-  _deadline=$(( $(date +%s) + 600 ))  # 10min budget — CL2 startup well under
-  _patched=0
+  echo "[prom-patcher] starting; target limit=$PROM_LIMIT, attempts=${CL2_MAX_ATTEMPTS:-1}" >&2
+  # 10min per attempt — covers CL2 startup for each (re)deploy of the stack.
+  _deadline=$(( $(date +%s) + 600 * ${CL2_MAX_ATTEMPTS:-1} ))
+  _patches=0
   while [ "$(date +%s)" -lt "$_deadline" ]; do
-    if KUBECONFIG="$kubeconfig" kubectl -n monitoring get prometheus k8s \
-         -o jsonpath='{.spec.resources.limits.memory}' 2>/dev/null | grep -q .; then
-      _current=$(KUBECONFIG="$kubeconfig" kubectl -n monitoring get prometheus k8s \
-                  -o jsonpath='{.spec.resources.limits.memory}' 2>/dev/null || echo "")
-      echo "[prom-patcher] found prometheus/k8s CR (current limit=$_current), patching to $PROM_LIMIT" >&2
+    _current=$(KUBECONFIG="$kubeconfig" kubectl -n monitoring get prometheus k8s \
+                -o jsonpath='{.spec.resources.limits.memory}' 2>/dev/null || echo "")
+    # Patch whenever the CR exists but its limit isn't the target (covers both
+    # first appearance and a retry's freshly-recreated CR).
+    if [ -n "$_current" ] && [ "$_current" != "$PROM_LIMIT" ]; then
+      echo "[prom-patcher] prometheus/k8s CR limit=$_current → patching to $PROM_LIMIT" >&2
       if KUBECONFIG="$kubeconfig" kubectl -n monitoring patch prometheus k8s \
            --type=merge -p "{\"spec\":{\"resources\":{\"limits\":{\"memory\":\"$PROM_LIMIT\"}}}}" >&2; then
-        echo "[prom-patcher] patch OK; verifying reconcile..." >&2
-        sleep 5
-        _new=$(KUBECONFIG="$kubeconfig" kubectl -n monitoring get prometheus k8s \
-                -o jsonpath='{.spec.resources.limits.memory}' 2>/dev/null || echo "")
-        echo "[prom-patcher] post-patch limit=$_new" >&2
-        _patched=1
-        break
+        _patches=$((_patches + 1))
+        echo "[prom-patcher] patch #$_patches OK" >&2
       else
         echo "[prom-patcher] patch failed; will retry in 5s" >&2
       fi
     fi
     sleep 3
   done
-  if [ "$_patched" -eq 0 ]; then
-    echo "[prom-patcher] timed out after 10min waiting for prometheus/k8s CR; Prom may be disabled for this scenario (--enable-prometheus-server=False)" >&2
-  fi
+  echo "[prom-patcher] exiting after $_patches patch(es) over ${CL2_MAX_ATTEMPTS:-1} attempt budget" >&2
 } > "$PROM_PATCH_LOG" 2>&1 &
 PROM_PATCH_PID=$!
 echo "  $role: spawned prometheus-cr-patcher (PID=$PROM_PATCH_PID, log=$PROM_PATCH_LOG)"
@@ -172,19 +168,66 @@ if [ "${CL2_PROM_SNAPSHOT_ENABLED:-false}" = "true" ]; then
 elif [ "$tear_down_prometheus_flag" = "1" ]; then
   exec_extra_args+=(--tear-down-prometheus)
 fi
-(
-  cd "$python_workdir" || exit 1
-  PYTHONPATH="${PYTHONPATH:-}:$python_workdir" python3 -u "$python_script_file" execute \
-    --cl2-image "$cl2_image" \
-    --cl2-config-dir "$cl2_config_dir" \
-    --cl2-report-dir "$report_dir" \
-    --cl2-config-file "$cl2_config_file" \
-    --kubeconfig "$kubeconfig" \
-    --provider "$provider" \
-    --mock-mode "${CL2_MOCK_MODE:-false}" \
-    "${exec_extra_args[@]}"
-) || true
+# CL2 invocation, with OPTIONAL retry on transient prometheus-stack setup
+# failures. Default CL2_MAX_ATTEMPTS=1 → exactly one run → behavior is
+# byte-for-byte unchanged for every existing scenario. The mock topology sets
+# CL2_MAX_ATTEMPTS>1 because at scale (n=20 spike build 71650, mesh-2) a single
+# cluster's AKS apiserver can throw a transient "server is currently unable to
+# handle the request (post namespaces)" while CL2 creates the monitoring
+# namespace, killing prometheus setup BEFORE any measurement runs — so CL2
+# writes NO junit. That early-setup failure is cheap to retry (no churn ran
+# yet). We retry ONLY when (a) CL2 produced no junit (it died in setup, not a
+# real test outcome — those write junit and are handled by the gate below) AND
+# (b) the captured output matches the prometheus-stack-setup failure signature.
+CL2_MAX_ATTEMPTS="${CL2_MAX_ATTEMPTS:-1}"
+cl2_attempt=0
+cl2_run_log="$(mktemp "${TMPDIR:-/tmp}/cl2-${role}-XXXXXX.log")"
+while :; do
+  cl2_attempt=$((cl2_attempt + 1))
+  (
+    cd "$python_workdir" || exit 1
+    PYTHONPATH="${PYTHONPATH:-}:$python_workdir" python3 -u "$python_script_file" execute \
+      --cl2-image "$cl2_image" \
+      --cl2-config-dir "$cl2_config_dir" \
+      --cl2-report-dir "$report_dir" \
+      --cl2-config-file "$cl2_config_file" \
+      --kubeconfig "$kubeconfig" \
+      --provider "$provider" \
+      --mock-mode "${CL2_MOCK_MODE:-false}" \
+      "${exec_extra_args[@]}"
+  ) 2>&1 | tee "$cl2_run_log" || true
 
+  # CL2 wrote junit → it got past setup into measurements; the junit gate below
+  # owns the pass/fail decision. NEVER retry a real test outcome.
+  if [ -f "$report_dir/junit.xml" ]; then
+    break
+  fi
+  # No junit → CL2 died during setup. Retry only on the transient prometheus-
+  # stack-setup signature, and only while attempts remain.
+  if [ "$cl2_attempt" -lt "$CL2_MAX_ATTEMPTS" ] \
+     && grep -qE 'setting up prometheus stack|unable to handle the request|prometheus stack: timed out' "$cl2_run_log" 2>/dev/null; then
+    echo "##vso[task.logissue type=warning;] $role: CL2 prometheus-stack setup failed (transient infra); retrying (attempt $((cl2_attempt + 1))/$CL2_MAX_ATTEMPTS)"
+    # Clear any half-built monitoring stack so the retry deploys clean, then POLL
+    # until the namespace is fully gone — CL2's retry will POST the monitoring
+    # namespace and must not race a still-Terminating one ("object is being
+    # deleted"). Cap the wait; if it won't drain we proceed and let the retry
+    # surface any residual conflict rather than hang here.
+    KUBECONFIG="$kubeconfig" kubectl delete namespace monitoring \
+      --ignore-not-found --wait=false >/dev/null 2>&1 || true
+    _ns_gone_deadline=$(( $(date +%s) + 180 ))
+    while KUBECONFIG="$kubeconfig" kubectl get namespace monitoring >/dev/null 2>&1; do
+      if [ "$(date +%s)" -ge "$_ns_gone_deadline" ]; then
+        echo "  $role: monitoring namespace still Terminating after 180s; proceeding with retry anyway"
+        break
+      fi
+      sleep 5
+    done
+    sleep 5
+    continue
+  fi
+  break
+done
+rm -f "$cl2_run_log" 2>/dev/null || true
 if [ -f "$report_dir/junit.xml" ]; then
   # Count failure/error attrs from <testsuite ... failures="N" errors="M">.
   junit_failures=$(grep -oE 'failures="[0-9]+"' "$report_dir/junit.xml" | head -1 | grep -oE '[0-9]+' || echo 0)
