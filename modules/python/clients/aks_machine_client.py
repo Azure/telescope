@@ -504,9 +504,7 @@ class AKSMachineClient(AKSClient):
             vm_size=vm_size,
             machine_workers=machine_workers,
             timeout=timeout,
-            readiness_wait_timeout=readiness_wait_timeout,
             batch_command_execution_times={},
-            batch_command_execution_times_lock=threading.Lock(),
         )
         with self._get_operation_context()(
             "scale_machine", "azure", metadata, result_dir=self.result_dir
@@ -791,9 +789,8 @@ class AKSMachineClient(AKSClient):
         ``_BATCH_MAX_MACHINES_PER_REQUEST``. ``ValueError`` is raised otherwise
         so the failure surfaces before any partial batch submission reaches ARM.
 
-        Per-worker exceptions are caught and logged; the worker's slice is
-        excluded from the returned ``successful`` list. The input ``request``
-        is not mutated.
+        Per-worker exceptions are caught and logged; failed slices are excluded
+        from ``successful`` and batch timings are recorded on ``request``.
         """
         n = len(names)
         workers = request.machine_workers
@@ -910,23 +907,12 @@ class AKSMachineClient(AKSClient):
         )
         end_time = datetime.now(timezone.utc)
         execution_time_seconds = (end_time - start_time).total_seconds()
-        batch_command_execution_times = getattr(
-            request, "batch_command_execution_times", None
-        )
-        if batch_command_execution_times is None:
-            batch_command_execution_times = request.batch_command_execution_times = {}
-        metric = {
+        request.batch_command_execution_times[first_machine_name] = {
             "start_time": start_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "end_time": end_time.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "execution_time_seconds": execution_time_seconds,
             "total_machines_in_batch": len(chunk),
         }
-        metric_lock = getattr(request, "batch_command_execution_times_lock", None)
-        if metric_lock is None:
-            batch_command_execution_times[first_machine_name] = metric
-        else:
-            with metric_lock:
-                batch_command_execution_times[first_machine_name] = metric
         logger.info(
             f"chunk {chunk_idx}: BatchPutMachine PUT completed for {len(chunk)} "
             f"machines in {execution_time_seconds:.3f} seconds "

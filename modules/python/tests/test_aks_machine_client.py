@@ -277,7 +277,6 @@ class TestAKSMachineClient(unittest.TestCase):
 
         request = mock_individual.call_args.args[0]
         self.assertEqual(request.timeout, 900)
-        self.assertEqual(request.readiness_wait_timeout, 900)
         self.assertEqual(mock_wait_ap.call_args.args[1], 900)
         self.assertEqual(mock_wait_ready.call_args.kwargs["timeout"], 900)
 
@@ -855,6 +854,7 @@ class TestAKSMachineClient(unittest.TestCase):
             resource_group="fake-rg",
             vm_size="Standard_D2_v3",
             timeout=60,
+            batch_command_execution_times={},
         )
         with mock.patch.object(
             AKSMachineClient, "_make_batch_request"
