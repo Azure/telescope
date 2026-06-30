@@ -51,6 +51,33 @@ steps:
       acr_name="${MOCK_ACR_HOST%%.*}"
       acr_id=$(az acr show --name "$acr_name" --query id -o tsv --only-show-errors 2>/dev/null || true)
 
+      # Fail-fast preflight: the mock agents pull ${MOCK_ACR_HOST}/mock-cilium-agent
+      # ANONYMOUSLY, so a missing ACR or missing tag otherwise degrades into ALL N
+      # clusters ImagePullBackOff'ing for the full ~10m readiness window before this
+      # step fails (build 72055: the ACR was GC-deleted -> 100 clusters NXDOMAIN'd for
+      # 10m). Catch it here in seconds with an actionable message instead.
+      if [ -z "$acr_id" ]; then
+        echo "##[error] Mock ACR '$acr_name' (MOCK_ACR_HOST=$MOCK_ACR_HOST) does not exist or is not accessible."
+        echo "##[error] Likely GC-deleted. Recreate it, push mock-cilium-agent:${MOCK_AGENT_TAG:-v26}, and GC-protect its RG. See mock-clustermesh/docs/verification-runbook.sh (SECTION 2 / 4B)."
+        exit 1
+      fi
+      # Anonymous pull is the agents' primary access path; if it's off, pulls fall back
+      # to the best-effort per-cluster AcrPull grant below (may be insufficient) -> warn.
+      anon_enabled=$(az acr show --name "$acr_name" --query anonymousPullEnabled -o tsv --only-show-errors 2>/dev/null || true)
+      if [ "$anon_enabled" != "true" ]; then
+        echo "##[warning] ACR '$acr_name' has anonymousPullEnabled=$anon_enabled (expected true). Mock-agent pulls will rely on the best-effort per-cluster AcrPull grant; run 'az acr update -n $acr_name --anonymous-pull-enabled true' if pods ImagePullBackOff."
+      fi
+      mock_tag="${MOCK_AGENT_TAG:-v26}"
+      tag_err=$(az acr repository show --name "$acr_name" --image "mock-cilium-agent:${mock_tag}" --only-show-errors 2>&1) && tag_rc=0 || tag_rc=$?
+      if [ "${tag_rc:-0}" -eq 0 ]; then
+        echo "Preflight OK: ACR '$acr_name' hosts mock-cilium-agent:${mock_tag}."
+      elif grep -qiE 'manifest[ _-]?unknown|(tag|repository|manifest|image).{0,40}(not[ _-]?found|does not exist)' <<<"$tag_err"; then
+        echo "##[error] Image 'mock-cilium-agent:${mock_tag}' is MISSING from ACR '$acr_name'. Build+push it before re-running (mock-clustermesh/docs/verification-runbook.sh SECTION 2)."
+        exit 1
+      else
+        echo "##[warning] Could not verify mock-cilium-agent:${mock_tag} in '$acr_name' (perms/transient); continuing — the per-cluster readiness gate is the backstop. Detail: ${tag_err}"
+      fi
+
       total=$(echo "$clusters" | jq 'length')
       want="${MOCK_NODE_COUNT:-100}"
       # Bounded-parallel deploy: at n=100 a sequential per-cluster loop is ~12h
