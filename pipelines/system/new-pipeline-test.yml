@@ -3,26 +3,208 @@ trigger: none
 pool:
   name: 'AKS-Telescope-Airlock'
 
-variables:
-  SCENARIO_TYPE: <scenario-type>
-  SCENARIO_NAME: <scenario-name>
+schedules:
+  # Azure Machine API scale schedule
+  - cron: "0 3 * * *"
+    displayName: "Machine API scale daily"
+    branches:
+      include:
+        - main
+    always: true
+  # Azure Machine API scale schedule with DisableSelfContainedVHD custom feature
+  - cron: "0 15 * * *"
+    displayName: "Machine API DisableSelfContainedVHD scale daily"
+    branches:
+      include:
+        - main
+    always: true
 
+variables:
+  SCENARIO_TYPE: perf-eval
+  SCENARIO_NAME: k8s-cluster-crud-machine
+  AZURE_SERVICE_CONNECTION: Azure-for-Telescope-Large-Cluster-Sub
+  AZURE_SUBSCRIPTION_ID: 854c9ddb-fe9e-4aea-8d58-99ed88282881
 stages:
-  - stage: <stage-name> # format: <cloud>[_<region>]+ (e.g. azure_eastus2, aws_eastus_westus)
+  - stage: azure_canadacentral_small_scale_10
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], 'Machine API scale daily'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
     dependsOn: []
     jobs:
-      - template: /jobs/competitive-test.yml # must keep as is
+      - template: /jobs/competitive-test.yml
         parameters:
-          cloud: <cloud> # e.g. azure, aws
-          regions: # list of regions
-            - region1 # e.g. eastus2
-          topology: <topology> # e.g. cluster-autoscaler
-          engine: <engine> # e.g. clusterloader2
-          matrix: # list of test parameters to customize the provisioned resources
-            <case-name>:
-              <key1>: <value1>
-              <key2>: <value2>
-          max_parallel: <number of concurrent jobs> # required
-          credential_type: service_connection # required
+          cloud: azure
+          regions:
+            - canadacentral
+          topology: k8s-cluster-crud-machine
+          engine: machine
+          matrix:
+            canadacentral-small-scale-10:
+              vm_size: Standard_D2_v3
+              pool_name: smallpool1
+              scale_machine_count: 10
+              machine_workers: 5
+              use_batch_api: "false"
+              step_time_out: 900
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection
           ssh_key_enabled: false
-          timeout_in_minutes: 60 # if not specified, default is 60
+
+  - stage: azure_canadacentral_medium_scale_500
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], 'Machine API scale daily'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - canadacentral
+          topology: k8s-cluster-crud-machine
+          engine: machine
+          matrix:
+            canadacentral-medium-scale-500:
+              vm_size: Standard_D2_v3
+              pool_name: mediumpool1
+              scale_machine_count: 500
+              machine_workers: 10
+              use_batch_api: "true"
+              step_time_out: 2400
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: azure_canadacentral_large_scale_1000
+    condition: |
+        and(
+          or(
+            eq(variables['Build.CronSchedule.DisplayName'], 'Machine API scale daily'),
+            eq(variables['Build.Reason'], 'Manual')
+          ),
+          in(dependencies.azure_canadacentral_small_scale_10.result, 'Succeeded', 'SucceededWithIssues', 'Skipped'),
+          in(dependencies.azure_canadacentral_medium_scale_500.result, 'Succeeded', 'SucceededWithIssues', 'Skipped')
+        )
+    dependsOn:
+      - azure_canadacentral_small_scale_10
+      - azure_canadacentral_medium_scale_500
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - canadacentral
+          topology: k8s-cluster-crud-machine
+          engine: machine
+          matrix:
+            canadacentral-large-scale-1000:
+              vm_size: Standard_D2_v3
+              pool_name: largepool1
+              scale_machine_count: 1000
+              machine_workers: 20
+              use_batch_api: "true"
+              step_time_out: 3600
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: azure_canadacentral_small_scale_10_disable_self_contained_vhd
+    condition: |
+        eq(variables['Build.CronSchedule.DisplayName'], 'Machine API DisableSelfContainedVHD scale daily')
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - canadacentral
+          topology: k8s-cluster-crud-machine
+          engine: machine
+          matrix:
+            canadacentral-small-scale-10-disable-self-contained-vhd:
+              vm_size: Standard_D2_v3
+              pool_name: smallpool1
+              scale_machine_count: 10
+              machine_workers: 5
+              use_batch_api: "false"
+              aks_cli_custom_headers: "AKSHTTPCustomFeatures=DisableSelfContainedVHD"
+              step_time_out: 900
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: azure_canadacentral_medium_scale_500_disable_self_contained_vhd
+    condition: |
+        eq(variables['Build.CronSchedule.DisplayName'], 'Machine API DisableSelfContainedVHD scale daily')
+    dependsOn: []
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - canadacentral
+          topology: k8s-cluster-crud-machine
+          engine: machine
+          matrix:
+            canadacentral-medium-scale-500-disable-self-contained-vhd:
+              vm_size: Standard_D2_v3
+              pool_name: mediumpool1
+              scale_machine_count: 500
+              machine_workers: 10
+              use_batch_api: "true"
+              aks_cli_custom_headers: "AKSHTTPCustomFeatures=DisableSelfContainedVHD"
+              step_time_out: 2400
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false
+
+  - stage: azure_canadacentral_large_scale_1000_disable_self_contained_vhd
+    condition: |
+        and(
+          eq(variables['Build.CronSchedule.DisplayName'], 'Machine API DisableSelfContainedVHD scale daily'),
+          in(
+            dependencies.azure_canadacentral_small_scale_10_disable_self_contained_vhd.result,
+            'Succeeded',
+            'SucceededWithIssues',
+            'Skipped'
+          ),
+          in(
+            dependencies.azure_canadacentral_medium_scale_500_disable_self_contained_vhd.result,
+            'Succeeded',
+            'SucceededWithIssues',
+            'Skipped'
+          )
+        )
+    dependsOn:
+      - azure_canadacentral_small_scale_10_disable_self_contained_vhd
+      - azure_canadacentral_medium_scale_500_disable_self_contained_vhd
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - canadacentral
+          topology: k8s-cluster-crud-machine
+          engine: machine
+          matrix:
+            canadacentral-large-scale-1000-disable-self-contained-vhd:
+              vm_size: Standard_D2_v3
+              pool_name: largepool1
+              scale_machine_count: 1000
+              machine_workers: 20
+              use_batch_api: "true"
+              aks_cli_custom_headers: "AKSHTTPCustomFeatures=DisableSelfContainedVHD"
+              step_time_out: 3600
+          max_parallel: 1
+          timeout_in_minutes: 360
+          credential_type: service_connection
+          ssh_key_enabled: false
