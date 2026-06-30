@@ -34,7 +34,7 @@ ValidateWorkloadHealth = lambda \
 set +e
 
 failures=0
-fail() { echo "FAIL: $*"; failures=$((failures + 1)); }
+fail() { echo "FAILED WORKLOAD CHECK: $*"; failures=$((failures + 1)); }
 
 # check_controllers KIND DESIRED_PATH READY_PATH [NAME]
 # If NAME is given, check just that one; otherwise check every instance of KIND.
@@ -47,6 +47,12 @@ check_controllers() {
     names=$(kubectl -n "${namespace}" get "$kind" -o jsonpath='{.items[*].metadata.name}')
   fi
   for n in $names; do
+    # Probe existence first so a missing object / API error fails loudly
+    # instead of silently defaulting desired/ready to 0.
+    if ! kubectl -n "${namespace}" get "$kind" "$n" -o name >/dev/null 2>&1; then
+      fail "$kind ${namespace}/$n: cannot read resource (missing or kubectl error)"
+      continue
+    fi
     desired=$(kubectl -n "${namespace}" get "$kind" "$n" -o jsonpath="$desired_path")
     ready=$(kubectl -n "${namespace}" get "$kind" "$n" -o jsonpath="$ready_path")
     [ -z "$ready" ] && ready=0
@@ -71,11 +77,19 @@ check_jobs() {
     names=$(kubectl -n "${namespace}" get jobs -o jsonpath='{.items[*].metadata.name}')
   fi
   for n in $names; do
+    # Probe existence first so a missing object / API error fails loudly
+    # instead of silently defaulting succeeded/active to 0.
+    if ! kubectl -n "${namespace}" get job "$n" -o name >/dev/null 2>&1; then
+      fail "job ${namespace}/$n: cannot read resource (missing or kubectl error)"
+      continue
+    fi
     completions=$(kubectl -n "${namespace}" get job "$n" -o jsonpath='{.spec.completions}')
     succeeded=$(kubectl -n "${namespace}" get job "$n" -o jsonpath='{.status.succeeded}')
     active=$(kubectl -n "${namespace}" get job "$n" -o jsonpath='{.status.active}')
     failed_cond=$(kubectl -n "${namespace}" get job "$n" \\
       -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}')
+    # These fields are legitimately omitted by the API when their value is 0
+    # or unset; the existence probe above already covers the kubectl-error case.
     [ -z "$completions" ] && completions=1
     [ -z "$succeeded" ] && succeeded=0
     [ -z "$active" ] && active=0
@@ -126,48 +140,57 @@ check_pod() {
   fi
 }
 
-# 1. Resolve target controllers and pod set.
+# check_pods POD_LIST
+# Scan each pod in a whitespace-separated list. Fails if the list is empty.
+check_pods() {
+  local pods=$1 pod
+  if [ -z "$pods" ]; then
+    fail "no pods found for ${desc}"
+    return
+  fi
+  for pod in $pods; do
+    check_pod "$pod"
+  done
+}
+
+# check_controller_pods KIND NAME
+# Resolve the controller's pods via its matchLabels and scan them.
+check_controller_pods() {
+  local kind=$1 name=$2 selector
+  selector=$(kubectl -n "${namespace}" get "$kind" "$name" \\
+    -o go-template='{{range $k,$v := .spec.selector.matchLabels}}{{$k}}={{$v}},{{end}}' \\
+    | sed 's/,$//')
+  if [ -z "$selector" ]; then
+    fail "$kind ${namespace}/$name has no matchLabels selector (matchExpressions not supported)"
+    return
+  fi
+  check_pods "$(kubectl -n "${namespace}" get pods -l "$selector" -o jsonpath='{.items[*].metadata.name}')"
+}
+
 case "${kind}" in
   "*")
     check_controllers deployment  '{.spec.replicas}'                 '{.status.readyReplicas}'
     check_controllers statefulset '{.spec.replicas}'                 '{.status.readyReplicas}'
     check_controllers daemonset   '{.status.desiredNumberScheduled}' '{.status.numberReady}'
     check_jobs ""
-    pods=$(kubectl -n "${namespace}" get pods -o jsonpath='{.items[*].metadata.name}')
+    check_pods "$(kubectl -n "${namespace}" get pods -o jsonpath='{.items[*].metadata.name}')"
     ;;
   pod)
-    pods="${name}"
+    check_pods "${name}"
     ;;
-  deployment|statefulset|daemonset|job)
-    case "${kind}" in
-      daemonset)
-        check_controllers daemonset '{.status.desiredNumberScheduled}' '{.status.numberReady}' "${name}" ;;
-      deployment|statefulset)
-        check_controllers "${kind}" '{.spec.replicas}' '{.status.readyReplicas}' "${name}" ;;
-      job)
-        check_jobs "${name}" ;;
-    esac
-    # Resolve the controller's pods via its matchLabels.
-    selector=$(kubectl -n "${namespace}" get "${kind}" "${name}" \\
-      -o go-template='{{range $k,$v := .spec.selector.matchLabels}}{{$k}}={{$v}},{{end}}' \\
-      | sed 's/,$//')
-    if [ -z "$selector" ]; then
-      fail "${kind} ${namespace}/${name} has no matchLabels selector (matchExpressions not supported)"
-      pods=""
-    else
-      pods=$(kubectl -n "${namespace}" get pods -l "$selector" -o jsonpath='{.items[*].metadata.name}')
-    fi
+  deployment|statefulset)
+    check_controllers "${kind}" '{.spec.replicas}' '{.status.readyReplicas}' "${name}"
+    check_controller_pods "${kind}" "${name}"
+    ;;
+  daemonset)
+    check_controllers daemonset '{.status.desiredNumberScheduled}' '{.status.numberReady}' "${name}"
+    check_controller_pods "${kind}" "${name}"
+    ;;
+  job)
+    check_jobs "${name}"
+    check_controller_pods "${kind}" "${name}"
     ;;
 esac
-
-if [ -z "$pods" ]; then
-  fail "no pods found for ${desc}"
-fi
-
-# 2. For each pod, check status and scan full logs.
-for pod in $pods; do
-  check_pod "$pod"
-done
 
 if [ "$failures" -gt 0 ]; then
   echo "Validation failed with $failures error(s) for ${desc}"
