@@ -673,7 +673,26 @@ steps:
         # rechecks. Exits as soon as all nodes are Ready; gives a
         # final diag dump on timeout (which clusters/nodes are still
         # NotReady).
+        # Time-bounded kubectl for diagnostics — fail fast on a flaky apiserver
+        # instead of hanging, and fold stderr into the output.
+        kdiag() { kubectl --request-timeout=25s "$@" 2>&1; }
+        # Light snapshot of the cilium-agent (the AKS CNI that gates node Ready)
+        # for one node — used both in the periodic in-loop snapshot and the final
+        # timeout dump.
+        dump_cilium_for_node() {
+          local _n="$1" _cil
+          _cil=$(kubectl --request-timeout=25s -n kube-system get pod -l k8s-app=cilium \
+                  --field-selector "spec.nodeName=$_n" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+          if [ -z "$_cil" ]; then
+            echo "  [diag] $_n: NO cilium-agent pod scheduled (DaemonSet skipped it — taint/nodeSelector/operator stuck?)"
+            return 0
+          fi
+          echo "  [diag] $_n: cilium-agent=$_cil"
+          kdiag -n kube-system get pod "$_cil" \
+            -o jsonpath='{range .status.containerStatuses[*]}{"    "}{.name}: ready={.ready} restarts={.restartCount} state={.state}{"\n"}{end}' || true
+        }
         node_ready_deadline=$(( $(date +%s) + 900 ))
+        _iter=0
         while true; do
           if kubectl wait --for=condition=Ready nodes --all --timeout=30s >/dev/null 2>&1; then
             echo "All nodes Ready"
@@ -681,17 +700,66 @@ steps:
           fi
           if [ "$(date +%s)" -ge "$node_ready_deadline" ]; then
             echo "##vso[task.logissue type=error;] $role: node readiness timeout after 15 min"
-            echo "--- final node state ---"
-            kubectl get nodes -o wide || true
-            echo "--- NotReady nodes describe ---"
-            for n in $(kubectl get nodes --no-headers 2>/dev/null | awk '$2 != "Ready" {print $1}'); do
-              echo "--- $n ---"
-              kubectl describe node "$n" 2>&1 | head -50 || true
+            # Best-effort, apiserver-flakiness-resilient diagnostics. The previous
+            # dump did ONE `get nodes`/`describe` with no request-timeout and no
+            # cilium data — build 72011 hit a transient apiserver i/o timeout HERE
+            # and captured nothing, never showing the cilium-agent that actually
+            # gates node Ready on AKS+Cilium. set +e so a single failed probe can't
+            # abort the dump before the important parts.
+            set +e
+            nr_nodes=""
+            for _t in 1 2 3 4 5; do
+              nr_nodes=$(kubectl --request-timeout=25s get nodes --no-headers 2>/dev/null | awk '$2 != "Ready" {print $1}')
+              if [ -n "$nr_nodes" ]; then break; fi
+              if kubectl --request-timeout=25s get nodes >/dev/null 2>&1; then break; fi  # genuinely all-Ready now
+              echo "  [diag] apiserver unreachable, retry $_t/5 in 10s..."; sleep 10
             done
+            echo "--- all nodes ---"; kdiag get nodes -o wide
+            if [ -z "$nr_nodes" ]; then
+              echo "  [diag] no NotReady node names captured (apiserver flaky, or nodes recovered after the deadline)"
+            fi
+            for n in $nr_nodes; do
+              echo "==================== NotReady node: $n ===================="
+              echo "--- node conditions ---"
+              kdiag get node "$n" -o jsonpath='{range .status.conditions[*]}{.type}={.status} ({.reason}) {.message}{"\n"}{end}'
+              echo "--- node describe (tail = recent events) ---"
+              kdiag describe node "$n" | tail -60
+              echo "--- AKS cilium-agent on $n (the node-Ready gate) ---"
+              cil=$(kubectl --request-timeout=25s -n kube-system get pod -l k8s-app=cilium \
+                     --field-selector "spec.nodeName=$n" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+              if [ -n "$cil" ]; then
+                kdiag -n kube-system get pod "$cil" -o wide
+                kdiag -n kube-system get pod "$cil" -o jsonpath='{range .status.containerStatuses[*]}{.name}: ready={.ready} restarts={.restartCount} state={.state}{"\n"}{end}'
+                echo "--- cilium-agent describe (events) ---"; kdiag -n kube-system describe pod "$cil" | tail -50
+                echo "--- cilium-agent logs current (tail 150) ---"
+                kdiag -n kube-system logs "$cil" -c cilium-agent --tail=150 || kdiag -n kube-system logs "$cil" --tail=150
+                echo "--- cilium-agent logs previous (tail 100) ---"
+                kdiag -n kube-system logs "$cil" -c cilium-agent --previous --tail=100 || echo "  [diag] no previous logs (no prior restart)"
+              else
+                echo "  [diag] NO cilium-agent pod on $n (DaemonSet didn't place one — taint/nodeSelector/operator stuck?)"
+              fi
+            done
+            echo "==================== cluster cilium health: $role ===================="
+            echo "--- cilium DaemonSet ---"; kdiag -n kube-system get ds cilium -o wide
+            echo "--- all cilium-agent pods ---"; kdiag -n kube-system get pods -l k8s-app=cilium -o wide
+            echo "--- cilium-operator + any non-Running cilium pod ---"
+            kdiag -n kube-system get pods -o wide | grep -iE 'NAME|cilium' | awk 'NR==1 || $3!="Running"'
+            echo "--- recent kube-system Warning events ---"
+            kdiag -n kube-system get events --field-selector type=Warning --sort-by=.lastTimestamp | tail -25
             exit 1
           fi
           not_ready=$(kubectl get nodes --no-headers 2>/dev/null | awk '$2 != "Ready"' | wc -l)
           echo "$(date -u +%H:%M:%S): ${not_ready} node(s) NotReady, waiting (deadline at $(date -u -d @${node_ready_deadline} +%H:%M:%S))"
+          # Periodic LIGHT snapshot (every ~5 min) of the NotReady nodes' cilium-
+          # agent container status — insurance so we still have cilium state even if
+          # the apiserver is unreachable at the exact timeout moment (build 72011).
+          _iter=$((_iter + 1))
+          if [ $(( _iter % 10 )) -eq 0 ]; then
+            echo "  [diag snapshot @ $(date -u +%H:%M:%S)] cilium-agent on NotReady node(s):"
+            for n in $(kubectl --request-timeout=20s get nodes --no-headers 2>/dev/null | awk '$2 != "Ready" {print $1}'); do
+              dump_cilium_for_node "$n" || true
+            done
+          fi
           sleep 30
         done
 
