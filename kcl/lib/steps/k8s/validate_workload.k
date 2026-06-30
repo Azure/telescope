@@ -1,21 +1,21 @@
 import azure_pipelines.ap.steps
 import lib.steps.azure
 
-# ValidateWorkloadHealth validates that a Kubernetes workload (Deployment,
-# StatefulSet, DaemonSet, Job, or Pod) is healthy. It first checks the
-# resource/pod status, then scans the full container logs for error patterns.
-# Requires kubectl on the agent and a kubeconfig already in place (e.g. via
-# GetCredentials).
+# ValidateWorkloadHealth validates that a Kubernetes controller workload
+# (Deployment, StatefulSet, or DaemonSet) is healthy. It first checks the
+# resource status, then scans the full container logs of its pods for error
+# patterns. Requires kubectl on the agent and a kubeconfig already in place
+# (e.g. via GetCredentials).
 #
-# For Jobs, healthy means succeeded >= completions (all done) OR active>0
-# without a Failed condition (still in progress). Anything else fails.
+# Job is intentionally not handled here -- use ValidateJobRunning /
+# ValidateJobCompleted in validate_job.k instead.
 #
-# kind="*" is a wildcard: enumerate every Deployment/StatefulSet/DaemonSet/Job
-# in `namespace` and check each, then check every pod. Use it for namespaces
-# you own; avoid for system namespaces.
+# kind="*" is a wildcard: enumerate every Deployment/StatefulSet/DaemonSet in
+# `namespace` and check each, then check every pod. Use it for namespaces you
+# own; avoid for system namespaces.
 ValidateWorkloadHealth = lambda \
     serviceConnection: str, \
-    kind: "deployment" | "statefulset" | "daemonset" | "job" | "pod" | "*", \
+    kind: "deployment" | "statefulset" | "daemonset" | "*", \
     name: str = "", \
     namespace: str = "default", \
     errorPatterns: str = "panic|fatal", \
@@ -60,44 +60,6 @@ check_controllers() {
     echo "$kind ${namespace}/$n: ready=$ready desired=$desired"
     if [ "$ready" != "$desired" ] || [ "$desired" = "0" ]; then
       fail "$kind ${namespace}/$n not fully ready ($ready/$desired)"
-    fi
-  done
-}
-
-# check_jobs [NAME]
-# Healthy = succeeded >= completions (done) OR active>0 without Failed condition
-# (still running). Otherwise (Failed=True, or stalled with active=0 and not
-# enough successes) fail.
-check_jobs() {
-  local name=$1
-  local n names completions succeeded active failed_cond
-  if [ -n "$name" ]; then
-    names="$name"
-  else
-    names=$(kubectl -n "${namespace}" get jobs -o jsonpath='{.items[*].metadata.name}')
-  fi
-  for n in $names; do
-    # Probe existence first so a missing object / API error fails loudly
-    # instead of silently defaulting succeeded/active to 0.
-    if ! kubectl -n "${namespace}" get job "$n" -o name >/dev/null 2>&1; then
-      fail "job ${namespace}/$n: cannot read resource (missing or kubectl error)"
-      continue
-    fi
-    completions=$(kubectl -n "${namespace}" get job "$n" -o jsonpath='{.spec.completions}')
-    succeeded=$(kubectl -n "${namespace}" get job "$n" -o jsonpath='{.status.succeeded}')
-    active=$(kubectl -n "${namespace}" get job "$n" -o jsonpath='{.status.active}')
-    failed_cond=$(kubectl -n "${namespace}" get job "$n" \\
-      -o jsonpath='{.status.conditions[?(@.type=="Failed")].status}')
-    # These fields are legitimately omitted by the API when their value is 0
-    # or unset; the existence probe above already covers the kubectl-error case.
-    [ -z "$completions" ] && completions=1
-    [ -z "$succeeded" ] && succeeded=0
-    [ -z "$active" ] && active=0
-    echo "job ${namespace}/$n: succeeded=$succeeded/$completions active=$active failed=$failed_cond"
-    if [ "$failed_cond" = "True" ]; then
-      fail "job ${namespace}/$n failed"
-    elif [ "$succeeded" -lt "$completions" ] && [ "$active" = "0" ]; then
-      fail "job ${namespace}/$n stalled (succeeded=$succeeded/$completions, no active pods)"
     fi
   done
 }
@@ -172,11 +134,7 @@ case "${kind}" in
     check_controllers deployment  '{.spec.replicas}'                 '{.status.readyReplicas}'
     check_controllers statefulset '{.spec.replicas}'                 '{.status.readyReplicas}'
     check_controllers daemonset   '{.status.desiredNumberScheduled}' '{.status.numberReady}'
-    check_jobs ""
     check_pods "$(kubectl -n "${namespace}" get pods -o jsonpath='{.items[*].metadata.name}')"
-    ;;
-  pod)
-    check_pods "${name}"
     ;;
   deployment|statefulset)
     check_controllers "${kind}" '{.spec.replicas}' '{.status.readyReplicas}' "${name}"
@@ -184,10 +142,6 @@ case "${kind}" in
     ;;
   daemonset)
     check_controllers daemonset '{.status.desiredNumberScheduled}' '{.status.numberReady}' "${name}"
-    check_controller_pods "${kind}" "${name}"
-    ;;
-  job)
-    check_jobs "${name}"
     check_controller_pods "${kind}" "${name}"
     ;;
 esac
