@@ -176,15 +176,15 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
 
         # Define timestamps for clarity
         start_time = 100
-        nodes_ready_time = 130
         arm_done_time = 150
-        mock_time.time.side_effect = [start_time, arm_done_time]
+        nodes_ready_time = 130
+        mock_time.time.side_effect = [start_time, arm_done_time, nodes_ready_time]
 
         mock_operation = mock.MagicMock()
         self.mock_agent_pools.begin_create_or_update.return_value = mock_operation
 
         ready_nodes = [mock.MagicMock(), mock.MagicMock()]
-        self.mock_k8s.wait_for_nodes_ready.return_value = (ready_nodes, nodes_ready_time)
+        self.mock_k8s.wait_for_nodes_ready.return_value = ready_nodes
 
         # Mock the node pool that will be retrieved after creation
         mock_created_node_pool = mock.MagicMock()
@@ -221,7 +221,6 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
             node_count=node_count,
             operation_timeout_in_minutes=10,
             label_selector=f"agentpool={node_pool_name}",
-            return_timestamp=True,
         )
 
         # Verify timing measurements are calculated and stored correctly
@@ -240,15 +239,15 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
 
         # Define timestamps for clarity
         start_time = 100
-        nodes_ready_time = 130
         arm_done_time = 150
-        mock_time.time.side_effect = [start_time, arm_done_time]
+        nodes_ready_time = 130
+        mock_time.time.side_effect = [start_time, arm_done_time, nodes_ready_time]
 
         mock_operation = mock.MagicMock()
         self.mock_agent_pools.begin_create_or_update.return_value = mock_operation
 
         ready_nodes = [mock.MagicMock()]
-        self.mock_k8s.wait_for_nodes_ready.return_value = (ready_nodes, nodes_ready_time)
+        self.mock_k8s.wait_for_nodes_ready.return_value = ready_nodes
 
         # Add nvidia-smi verification mock
         self.mock_k8s.verify_nvidia_smi_on_node = mock.MagicMock(
@@ -290,7 +289,6 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
             node_count=node_count,
             operation_timeout_in_minutes=10,
             label_selector=f"agentpool={node_pool_name}",
-            return_timestamp=True,
         )
 
         # Check that NVIDIA verification was performed
@@ -308,7 +306,7 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         mock_subprocess_run.return_value = mock.MagicMock(returncode=0, stderr="")
 
         ready_nodes = [mock.MagicMock()]
-        self.mock_k8s.wait_for_nodes_ready.return_value = (ready_nodes, 130)
+        self.mock_k8s.wait_for_nodes_ready.return_value = ready_nodes
         self.mock_k8s.verify_managed_gpu_systemd_services = mock.MagicMock(return_value={})
         self.mock_k8s.verify_nvidia_smi_on_node = mock.MagicMock()
 
@@ -347,9 +345,10 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
 
         # Define timestamps for clarity
         start_time = 100
-        nodes_ready_time = 130
         arm_done_time = 150
-        mock_time.time.side_effect = [start_time, arm_done_time]
+        nodes_ready_time = 130
+        mock_time.time.side_effect = [start_time, arm_done_time, nodes_ready_time]
+        mock_time.sleep = mock.MagicMock()
 
         mock_node_pool = mock.MagicMock()
         mock_node_pool.count = 1  # Current count
@@ -361,7 +360,7 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         self.mock_agent_pools.begin_create_or_update.return_value = mock_operation
 
         ready_nodes = [mock.MagicMock(), mock.MagicMock(), mock.MagicMock()]
-        self.mock_k8s.wait_for_nodes_ready.return_value = (ready_nodes, nodes_ready_time)
+        self.mock_k8s.wait_for_nodes_ready.return_value = ready_nodes
 
         # Mock get_cluster_data to return a dictionary for JSON serialization
         self.aks_client.get_cluster_data = mock.MagicMock(
@@ -383,7 +382,6 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
             node_count=node_count,
             operation_timeout_in_minutes=10,
             label_selector=f"agentpool={node_pool_name}",
-            return_timestamp=True,
         )
         self.assertEqual(mock_node_pool.count, node_count)
 
@@ -402,9 +400,10 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
 
         # Define timestamps for clarity
         start_time = 100
-        nodes_ready_time = 130
         arm_done_time = 150
-        mock_time.time.side_effect = [start_time, arm_done_time]
+        nodes_ready_time = 130
+        mock_time.time.side_effect = [start_time, arm_done_time, nodes_ready_time]
+        mock_time.sleep = mock.MagicMock()
 
         mock_node_pool = mock.MagicMock()
         mock_node_pool.count = 3  # Current count
@@ -421,7 +420,7 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         self.mock_agent_pools.begin_create_or_update.return_value = mock_operation
 
         ready_nodes = [mock.MagicMock()]
-        self.mock_k8s.wait_for_nodes_ready.return_value = (ready_nodes, nodes_ready_time)
+        self.mock_k8s.wait_for_nodes_ready.return_value = ready_nodes
 
         # Mock get_node_pool to return the node pool with as_dict method
         self.aks_client.get_node_pool = mock.MagicMock(return_value=mock_node_pool)
@@ -438,7 +437,6 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
             node_count=node_count,
             operation_timeout_in_minutes=10,
             label_selector=f"agentpool={node_pool_name}",
-            return_timestamp=True,
         )
         self.assertEqual(mock_node_pool.count, node_count)
 
@@ -488,9 +486,10 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
 
         # Define timestamps for clarity
         start_time = 100
-        nodes_ready_time = 130
         arm_done_time = 150
-        mock_time.time.side_effect = [start_time, arm_done_time]
+        nodes_ready_time = 130
+        mock_time.time.side_effect = [start_time, arm_done_time, nodes_ready_time]
+        mock_time.sleep = mock.MagicMock()
 
         mock_node_pool = mock.MagicMock()
         mock_node_pool.count = 1  # Current count
@@ -513,7 +512,7 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         self.mock_agent_pools.begin_create_or_update.return_value = mock_operation
 
         ready_nodes = [mock.MagicMock(), mock.MagicMock(), mock.MagicMock()]
-        self.mock_k8s.wait_for_nodes_ready.return_value = (ready_nodes, nodes_ready_time)
+        self.mock_k8s.wait_for_nodes_ready.return_value = ready_nodes
 
         # Add nvidia-smi verification mock
         self.mock_k8s.verify_nvidia_smi_on_node = mock.MagicMock(
@@ -534,7 +533,6 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
             node_count=node_count,
             operation_timeout_in_minutes=10,
             label_selector=f"agentpool={node_pool_name}",
-            return_timestamp=True,
         )
         self.assertEqual(mock_node_pool.count, node_count)
 
@@ -552,14 +550,9 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         self.aks_client.vm_size = "Standard_NC40ads_H100_v5"
 
         # Define timestamps for clarity (progressive has multiple steps)
-        # Each step calls time.time() twice: once for start, once for arm completion
-        step1_start = 100
-        step1_nodes_ready = 130
-        step1_arm_done = 150
-        step2_start = 200
-        step2_nodes_ready = 230
-        step2_arm_done = 250
-        mock_time.time.side_effect = [step1_start, step1_arm_done, step2_start, step2_arm_done]
+        # Each step calls time.time() 3x: start, arm_done, nodes_ready
+        mock_time.time.side_effect = [100, 150, 130, 200, 250, 230]
+        mock_time.sleep = mock.MagicMock()
 
         mock_node_pool = mock.MagicMock()
         mock_node_pool.count = 1  # Current count
@@ -589,8 +582,8 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
             mock.MagicMock(),
         ]  # Second step to 3 nodes
         self.mock_k8s.wait_for_nodes_ready.side_effect = [
-            (ready_nodes1, step1_nodes_ready),
-            (ready_nodes2, step2_nodes_ready)
+            ready_nodes1,
+            ready_nodes2,
         ]
 
         # Add nvidia-smi verification mock
@@ -629,9 +622,10 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
 
         # Define timestamps for clarity
         start_time = 100
-        nodes_ready_time = 130
         arm_done_time = 150
-        mock_time.time.side_effect = [start_time, arm_done_time]
+        nodes_ready_time = 130
+        mock_time.time.side_effect = [start_time, arm_done_time, nodes_ready_time]
+        mock_time.sleep = mock.MagicMock()
 
         mock_node_pool = mock.MagicMock()
         mock_node_pool.count = 3  # Current count
@@ -649,7 +643,7 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         self.mock_agent_pools.begin_create_or_update.return_value = mock_operation
 
         ready_nodes = [mock.MagicMock()]
-        self.mock_k8s.wait_for_nodes_ready.return_value = (ready_nodes, nodes_ready_time)
+        self.mock_k8s.wait_for_nodes_ready.return_value = ready_nodes
 
         # Add nvidia-smi verification mock
         self.mock_k8s.verify_nvidia_smi_on_node = mock.MagicMock(
@@ -670,7 +664,6 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
             node_count=node_count,
             operation_timeout_in_minutes=10,
             label_selector=f"agentpool={node_pool_name}",
-            return_timestamp=True,
         )
         self.assertEqual(mock_node_pool.count, node_count)
 
