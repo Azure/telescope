@@ -81,46 +81,75 @@ SYSTEM_MEM_PER_NODE_MI = 800    # kube-system + kubelet overhead (Mi)
 
 # Tier-bucketed resource sizing for the scrape pipeline. Each bucket gives
 # requests/limits for the three components that bottleneck under load:
-#   - vmagent         (scrape engine; memory scales ~4 MiB / target)
-#   - vmagent-proxy   (CONNECT translator; CPU scales with target count)
+#   - vmagent         (scrape engine; sharded horizontally via native clustering)
+#   - vmagent-proxy   (CONNECT translator; one sidecar per vmagent shard)
 #   - konn-server     (per-pod; replica count is scaled separately in runner)
-# Buckets keep the surface area small and the values are headroomed ~2× the
-# observed peak at the upper edge of each bucket.
+# vmagent/vmagent-proxy values are PER-SHARD. `shards` is the vmagent replica
+# count for the tier; sharding splits scrape targets across replicas using
+# vmagent native clustering (-promscrape.cluster.*), so each shard holds
+# ~total_targets/shards and its memory scales down accordingly.
+#
+# Memory limits are ~2× the observed/projected per-shard steady RSS. Recorded
+# RSS lags sub-second spikes (WAL flush + remote-write backlog), so limits are
+# intentionally larger than observed steady-state usage. Observed monolithic
+# RSS: tier 150 → 213 MiB, 300 → 285 MiB, 500 → 2126 MiB, 1000 → 3336 MiB.
 def _r(cpu_req, mem_req, cpu_lim, mem_lim):
     return {"cpu_req": cpu_req, "mem_req": mem_req,
             "cpu_lim": cpu_lim, "mem_lim": mem_lim}
 
 TIER_RESOURCE_BUCKETS = [
-    # (upper_tier, {"vmagent":..., "vmagent_proxy":..., "konn_server":...})
-    # vmagent memory limit headroomed ~2× observed RSS at the upper edge:
-    #   tier 150 → 213 MiB, tier 300 → 285 MiB, tier 500 → 2126 MiB observed.
-    (200,  {"vmagent":       _r("100m", "256Mi", "500m", "1Gi"),
-            "vmagent_proxy": _r("100m", "128Mi", "1",    "256Mi"),
-            "konn_server":   _r("100m", "128Mi", "500m", "512Mi")}),
-    (500,  {"vmagent":       _r("500m", "1Gi",   "2",    "4Gi"),
-            "vmagent_proxy": _r("500m", "256Mi", "4",    "1Gi"),
-            "konn_server":   _r("200m", "256Mi", "1",    "1Gi")}),
-    (1000, {"vmagent":       _r("1",    "2Gi",   "4",    "8Gi"),
-            "vmagent_proxy": _r("1",    "512Mi", "6",    "1Gi"),
-            "konn_server":   _r("300m", "512Mi", "1",    "2Gi")}),
-    (1500, {"vmagent":       _r("2",    "4Gi",   "6",    "12Gi"),
-            "vmagent_proxy": _r("1",    "1Gi",   "8",    "2Gi"),
-            "konn_server":   _r("500m", "512Mi", "2",    "2Gi")}),
+    # (upper_tier, shards, {"vmagent":..., "vmagent_proxy":..., "konn_server":...})
+    # vmagent/vmagent_proxy resources are PER-SHARD.
+    (200,  1, {"vmagent":       _r("100m", "256Mi", "500m", "512Mi"),
+               "vmagent_proxy": _r("100m", "128Mi", "1",    "256Mi"),
+               "konn_server":   _r("100m", "128Mi", "500m", "512Mi")}),
+    (350,  1, {"vmagent":       _r("250m", "512Mi", "1",    "1Gi"),
+               "vmagent_proxy": _r("250m", "256Mi", "2",    "512Mi"),
+               "konn_server":   _r("200m", "256Mi", "1",    "1Gi")}),
+    (600,  1, {"vmagent":       _r("500m", "1Gi",   "2",    "3Gi"),
+               "vmagent_proxy": _r("500m", "256Mi", "4",    "1Gi"),
+               "konn_server":   _r("200m", "256Mi", "1",    "1Gi")}),
+    (1000, 3, {"vmagent":       _r("500m", "1Gi",   "2",    "3Gi"),
+               "vmagent_proxy": _r("500m", "256Mi", "4",    "1Gi"),
+               "konn_server":   _r("300m", "512Mi", "1",    "2Gi")}),
+    (1500, 3, {"vmagent":       _r("1",    "2Gi",   "3",    "4Gi"),
+               "vmagent_proxy": _r("500m", "512Mi", "6",    "1Gi"),
+               "konn_server":   _r("500m", "512Mi", "2",    "2Gi")}),
 ]
+# Above the top bucket: shard so each vmagent holds ~TARGETS_PER_SHARD targets.
+TARGETS_PER_SHARD = 4000
+FAKE_ROLES_COUNT = 11  # keep in sync with len(FAKE_EXPORTER_ROLES)
 TIER_RESOURCES_OVER = {
-    "vmagent":       _r("2", "8Gi", "8", "16Gi"),
-    "vmagent_proxy": _r("2", "2Gi", "8", "2Gi"),
+    "vmagent":       _r("1", "2Gi", "4", "4Gi"),
+    "vmagent_proxy": _r("1", "512Mi", "6", "2Gi"),
     "konn_server":   _r("500m", "1Gi", "2", "4Gi"),
 }
 
 
+def compute_shard_count(tier: int) -> int:
+    """Return the vmagent replica (shard) count for `tier`.
+
+    Sharding splits scrape targets across vmagent replicas via native
+    clustering, so each shard runs its own proxy sidecar — removing the
+    single-proxy GIL bottleneck that capped throughput at ~5.7k targets.
+    """
+    for upper, shards, _ in TIER_RESOURCE_BUCKETS:
+        if tier <= upper:
+            return shards
+    import math
+    target_count = tier * FAKE_ROLES_COUNT
+    return max(1, math.ceil(target_count / TARGETS_PER_SHARD))
+
+
 def compute_resources_for_tier(tier: int) -> dict:
-    """Return per-component requests/limits sized for `tier`.
+    """Return PER-SHARD requests/limits sized for `tier`.
 
     Returns a dict keyed by component name ('vmagent', 'vmagent_proxy',
     'konn_server'), each value a dict with cpu_req/mem_req/cpu_lim/mem_lim.
+    vmagent/vmagent_proxy values are per-shard; use compute_shard_count() for
+    the replica count.
     """
-    for upper, bucket in TIER_RESOURCE_BUCKETS:
+    for upper, _shards, bucket in TIER_RESOURCE_BUCKETS:
         if tier <= upper:
             return bucket
     return TIER_RESOURCES_OVER

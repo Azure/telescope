@@ -16,7 +16,7 @@ from .config import (
     KONN_SERVER_IMAGE, NODE_ALLOCATABLE_CPU, NODE_ALLOCATABLE_MEM_MI,
     PODS_PER_NODE, REAL_TARGET_ROLES, SINGLETON_POD_TARGET_ROLES,
     SYSTEM_CPU_PER_NODE, SYSTEM_MEM_PER_NODE_MI, VMAGENT_IMAGE,
-    VMSINGLE_IMAGE, compute_resources_for_tier, log,
+    VMSINGLE_IMAGE, compute_resources_for_tier, compute_shard_count, log,
 )
 from .deploy import (
     deploy_fake_exporters, deploy_konnectivity_agents,
@@ -113,9 +113,12 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
     proxied_targets = tier * len(FAKE_EXPORTER_ROLES) + tier + 50
     server_count = max(1, (proxied_targets + 499) // 500)
     tier_resources = compute_resources_for_tier(tier)
+    shard_count = compute_shard_count(tier)
     log.info("Konnectivity server replicas: %d (tier %d, proxied≈%d)",
              server_count, tier, proxied_targets)
-    log.info("Tier %d resources: vmagent=%s/%s (lim %s/%s), proxy=%s/%s (lim %s/%s), "
+    log.info("VMAgent shards: %d (≈%d targets/shard)",
+             shard_count, (tier * len(FAKE_EXPORTER_ROLES)) // shard_count)
+    log.info("Tier %d per-shard resources: vmagent=%s/%s (lim %s/%s), proxy=%s/%s (lim %s/%s), "
              "konn-server=%s/%s (lim %s/%s)",
              tier,
              tier_resources["vmagent"]["cpu_req"], tier_resources["vmagent"]["mem_req"],
@@ -158,7 +161,8 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
     deploy_vmsingle(cp_kubeconfig, namespace)
     deploy_vmagent(cp_kubeconfig, namespace, dp_api_server,
                    vmagent_resources=tier_resources["vmagent"],
-                   proxy_resources=tier_resources["vmagent_proxy"])
+                   proxy_resources=tier_resources["vmagent_proxy"],
+                   replicas=shard_count)
     tier_start_ts = time.time()  # ADX time-series window starts here
     wall_start_ts = tier_start_ts
 
@@ -204,12 +208,12 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
         # 12d. Push per-tier summary row to ADX (additive)
         try:
             agent_replicas = int(tier)
-            vmagent_replicas = 1  # current deploy uses a single vmagent replica
+            vmagent_replicas = shard_count
             dp_node_count = (len(get_node_ips(dp_kubeconfig))
                              if real_targets else compute_fake_nodes_needed(tier))
         except Exception:
             agent_replicas = int(tier)
-            vmagent_replicas = 1
+            vmagent_replicas = shard_count
             dp_node_count = 0
 
         adx_export_summary_if_configured(

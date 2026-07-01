@@ -254,8 +254,10 @@ def deploy_vmsingle(kubeconfig: str, namespace: str) -> None:
 
 def deploy_vmagent(kubeconfig: str, namespace: str, dp_api_server: str,
                    vmagent_resources: dict | None = None,
-                   proxy_resources: dict | None = None) -> None:
-    log.info("Deploying VMAgent in %s (SD via %s)...", namespace, dp_api_server)
+                   proxy_resources: dict | None = None,
+                   replicas: int = 1) -> None:
+    log.info("Deploying VMAgent in %s (SD via %s, %d shard(s))...",
+             namespace, dp_api_server, replicas)
     vm = vmagent_resources or {"cpu_req": "500m", "mem_req": "1Gi",
                                "cpu_lim": "2", "mem_lim": "4Gi"}
     px = proxy_resources or {"cpu_req": "500m", "mem_req": "256Mi",
@@ -271,6 +273,7 @@ def deploy_vmagent(kubeconfig: str, namespace: str, dp_api_server: str,
     replacements = {
         "__NAMESPACE__": namespace,
         "__VMAGENT_IMAGE__": VMAGENT_IMAGE,
+        "__VMAGENT_REPLICAS__": str(replicas),
         "__VMAGENT_CPU_REQ__": vm["cpu_req"],
         "__VMAGENT_MEM_REQ__": vm["mem_req"],
         "__VMAGENT_CPU_LIM__": vm["cpu_lim"],
@@ -283,8 +286,8 @@ def deploy_vmagent(kubeconfig: str, namespace: str, dp_api_server: str,
     manifest = render_template(MANIFEST_DIR / "vmagent.yaml", replacements)
     kubectl_apply(kubeconfig, manifest)
     kubectl(kubeconfig, "-n", namespace, "rollout", "status",
-            "statefulset/vmagent", "--timeout=180s")
-    log.info("VMAgent ready in %s", namespace)
+            "statefulset/vmagent", "--timeout=300s")
+    log.info("VMAgent ready in %s (%d shard(s))", namespace, replicas)
 
 
 def rollout_restart(kubeconfig: str, namespace: str, resource: str) -> None:

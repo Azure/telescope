@@ -6,10 +6,11 @@
 # Template variables:
 #   __NAMESPACE__        — test namespace
 #   __VMAGENT_IMAGE__    — VMAgent image
-#   __VMAGENT_CPU_REQ__ / __VMAGENT_MEM_REQ__ — vmagent requests
-#   __VMAGENT_CPU_LIM__ / __VMAGENT_MEM_LIM__ — vmagent limits
-#   __PROXY_CPU_REQ__   / __PROXY_MEM_REQ__   — vmagent-proxy requests
-#   __PROXY_CPU_LIM__   / __PROXY_MEM_LIM__   — vmagent-proxy limits
+#   __VMAGENT_REPLICAS__ — vmagent shard count (native clustering members)
+#   __VMAGENT_CPU_REQ__ / __VMAGENT_MEM_REQ__ — vmagent requests (per shard)
+#   __VMAGENT_CPU_LIM__ / __VMAGENT_MEM_LIM__ — vmagent limits (per shard)
+#   __PROXY_CPU_REQ__   / __PROXY_MEM_REQ__   — vmagent-proxy requests (per shard)
+#   __PROXY_CPU_LIM__   / __PROXY_MEM_LIM__   — vmagent-proxy limits (per shard)
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -195,7 +196,7 @@ metadata:
   labels:
     app: vmagent
 spec:
-  replicas: 1
+  replicas: __VMAGENT_REPLICAS__
   serviceName: vmagent
   selector:
     matchLabels:
@@ -206,12 +207,24 @@ spec:
         app: vmagent
     spec:
       containers:
-        # VMAgent — scrapes targets through the proxy sidecar
+        # VMAgent — scrapes targets through the proxy sidecar.
+        # Native clustering shards scrape targets across replicas: each pod
+        # scrapes only the subset whose target hash maps to its member number
+        # (derived from the StatefulSet pod ordinal), so N replicas each carry
+        # ~1/N of the targets and run an independent proxy sidecar.
         - name: vmagent
           image: __VMAGENT_IMAGE__
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
           args:
             - -promscrape.config=/config/prometheus.yml
             - -httpListenAddr=:8429
+            - -promscrape.cluster.membersCount=__VMAGENT_REPLICAS__
+            - -promscrape.cluster.memberNum=$(POD_NAME)
+            - -promscrape.cluster.replicationFactor=1
             - -promscrape.suppressDuplicateScrapeTargetErrors
             - -promscrape.noStaleMarkers=true
             - -promscrape.config.strictParse=true
