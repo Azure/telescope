@@ -44,7 +44,13 @@ aks_config_list = [
     network_profile = {
       network_plugin      = "azure"
       network_plugin_mode = "overlay"
-      pod_cidr            = "172.16.0.0/12"
+      # 100.64.0.0/10 (CGNAT space): avoids the default AKS service_cidr
+      # (10.0.0.0/16), the 10.224.0.0/12 VNet, and the AKS-reserved ranges
+      # (172.30/16, 172.31/16, 169.254/16, 192.0.2/24, 224.0.0.0/4).
+      # 172.16.0.0/12 was rejected after AKS tightened pod-CIDR overlap
+      # validation. /10 gives 16k /24 node blocks — ample for 5K+ nodes.
+      # Same choice as the cnl-azurecni-overlay-cilium scenario.
+      pod_cidr            = "100.64.0.0/10"
     }
     default_node_pool = {
       name                         = "nodepool1"
