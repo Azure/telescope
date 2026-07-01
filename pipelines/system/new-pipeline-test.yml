@@ -1603,6 +1603,11 @@ stages:
       MOCK_CONSUME_CLUSTERMESH: true
       MOCK_DEPLOY_CONCURRENCY: 8
       MOCK_DEPLOY_MAX_FAILURES: 3
+      # Fleet ClusterMeshProfile RP fails to deploy clustermesh-apiserver at n=100
+      # (builds 72112 concat-name collision / 72129 100/100 apiserver not ready).
+      # Enable auto delete+recreate recovery (fires at half wait-budget) to give
+      # Fleet a second reconcile attempt — mirrors the non-mock stages above.
+      CMP_AUTO_RECOVERY_ENABLED: "true"
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
