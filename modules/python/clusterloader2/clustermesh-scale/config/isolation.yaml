@@ -1,0 +1,234 @@
+name: clustermesh-isolation
+
+# Scale scenario #5: Multi-Cluster Failure Isolation.
+#
+# Goal (scale testing.txt line 92-102): induce heavy churn in ONE cluster,
+# verify peer clusters remain stable (no cascade in CPU/memory/etc).
+#
+# Topology: every cluster runs the same 200-pod workload + global services.
+# The Method:Exec kill phase routes to the target cluster (default
+# clustermesh-1) only — peer clusters' isolation-churn.sh script sleeps
+# for the same kill duration so their Prometheus scrape window aligns
+# with target's churn window. Without that alignment, peer CL2 would
+# tear down Prometheus before target's churn finishes, destroying the
+# isolation signal.
+#
+# Cross-scenario A/B in Kusto: filter `test_type == "isolation"`, derive
+# `role = iff(cluster == "<target_role>", "target", "peer")`, then
+# compare resource measurements across role. Healthy isolation means
+# peers' CPU/memory/etc are at baseline values during the churn window;
+# cascading failure means peers' resources track target's spikes.
+#
+# Sequence:
+#   1. Annotate workload namespaces (CFP-39876 opt-in).
+#   2. Start measurements.
+#   3. Deploy 200-pod workload + global services on every cluster.
+#   4. Initial WaitForControlledPodsRunning gate.
+#   5. Warmup sleep.
+#   6. Method:Exec → isolation-churn.sh. On target: runs pod-churn-killer.sh
+#      kill loop (delete KILL_BATCH random workload pods every
+#      KILL_INTERVAL_SECONDS for KILL_DURATION_SECONDS). On peers: sleeps
+#      for KILL_DURATION_SECONDS to keep CL2/Prom lifecycle aligned.
+#   7. Settle sleep — backlog drain on target, observe-window close on peers.
+#   8. Gather measurements (peers should be flat; target should show spike).
+#   9. Teardown.
+
+{{$namespaces := DefaultParam .CL2_NAMESPACES 5}}
+{{$globalNamespaces := DefaultParam .CL2_GLOBAL_NAMESPACE_COUNT $namespaces}}
+{{$deploymentsPerNamespace := DefaultParam .CL2_DEPLOYMENTS_PER_NAMESPACE 4}}
+{{$replicasPerDeployment := DefaultParam .CL2_REPLICAS_PER_DEPLOYMENT 10}}
+{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "20m"}}
+{{$apiServerCallsPerSecond := DefaultParam .CL2_API_SERVER_CALLS_PER_SECOND 20}}
+{{$warmupDuration := DefaultParam .CL2_WARMUP_DURATION "60s"}}
+{{$holdDuration := DefaultParam .CL2_HOLD_DURATION "60s"}}
+
+# Reuse the same target-context knob as scenario #4 (apiserver-failure):
+# both scenarios target the same cluster by convention. Override via the
+# matrix var if a different target is needed.
+{{$apiserverKillTargetContext := DefaultParam .CL2_APISERVER_KILL_TARGET_CONTEXT "clustermesh-1"}}
+
+# Reuse the pod-churn kill-loop knobs from scenario #2 (pod-churn-combined):
+# semantically identical (kill workload pods at controlled rate). Avoids
+# adding new matrix vars for the same parameter shape.
+{{$killDurationSeconds := DefaultParam .CL2_KILL_DURATION_SECONDS 600}}
+{{$killIntervalSeconds := DefaultParam .CL2_KILL_INTERVAL_SECONDS 10}}
+{{$killBatch := DefaultParam .CL2_KILL_BATCH 5}}
+# Method:Exec timeout — kill duration + 5min headroom (allows peer's sleep
+# to complete + final pod-churn-killer cleanup line).
+{{$killExecTimeout := DefaultParam .CL2_KILL_EXEC_TIMEOUT "15m"}}
+
+{{$workloadGroup := "clustermesh-isolation"}}
+{{$workloadBasename := "iso"}}
+
+namespace:
+  number: {{$namespaces}}
+  prefix: clustermesh-iso
+  deleteStaleNamespaces: true
+  deleteAutomanagedNamespaces: true
+  enableExistingNamespaces: false
+  deleteNamespaceTimeout: 20m
+
+tuningSets:
+  - name: Sequence
+    parallelismLimitedLoad:
+      parallelismLimit: 1
+  - name: DeploymentCreateQps
+    qpsLoad:
+      qps: {{$apiServerCallsPerSecond}}
+
+steps:
+  # ----- CFP-39876 opt-in: annotate workload namespaces -----
+  - name: Annotate workload namespaces for ACNS cross-cluster sync
+    measurements:
+      - Identifier: AnnotateNamespacesForGlobalSync
+        Method: Exec
+        Params:
+          streamOutput: true
+          timeout: 1m
+          command:
+          - bash
+          - /root/perf-tests/clusterloader2/config/annotate-namespaces.sh
+          - "{{$namespaces}}"
+          - "clustermesh-iso"
+          - "{{$globalNamespaces}}"
+
+  # ----- Start measurements -----
+  - module:
+      path: /modules/measurements/control-plane.yaml
+      params:
+        action: start
+        group: {{$workloadGroup}}
+
+  - module:
+      path: /modules/measurements/cilium.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/clustermesh-metrics.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/etcd-metrics.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/pod-churn-stress.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/clustermesh.yaml
+      params:
+        actionName: create
+        tuningSet: DeploymentCreateQps
+
+  # ----- Workload deploy + initial settle -----
+  - name: Start tracking isolation Deployments
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-iso-initial
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: start
+          apiVersion: apps/v1
+          kind: Deployment
+          checkIfPodsAreUpdated: true
+          labelSelector: group = {{$workloadGroup}}
+          operationTimeout: {{$operationTimeout}}
+
+  - module:
+      path: /modules/pod-churn-workload.yaml
+      params:
+        actionName: apply
+        replicas: {{$replicasPerDeployment}}
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        tuningSet: DeploymentCreateQps
+        group: {{$workloadGroup}}
+        basename: {{$workloadBasename}}
+
+  - name: Wait for initial isolation pods to be Running
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-iso-initial
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+
+  - name: Warmup before isolation churn
+    measurements:
+      - Identifier: WarmupSleep
+        Method: Sleep
+        Params:
+          duration: {{$warmupDuration}}
+
+  # ----- ISOLATION CHURN (target-only kill loop; peers sleep-observe) -----
+  - name: Drive heavy pod-churn on target cluster only
+    measurements:
+      - Identifier: IsolationChurnRunner
+        Method: Exec
+        Params:
+          streamOutput: true
+          timeout: {{$killExecTimeout}}
+          command:
+          - bash
+          - /root/perf-tests/clusterloader2/config/isolation-churn.sh
+          - "{{$apiserverKillTargetContext}}"
+          - "{{$killDurationSeconds}}"
+          - "{{$killIntervalSeconds}}"
+          - "{{$killBatch}}"
+          - "{{$workloadGroup}}"
+
+  # ----- Settle: backlog drain on target, observe-window close on peers -----
+  - name: Settle after isolation churn
+    measurements:
+      - Identifier: SettleSleep
+        Method: Sleep
+        Params:
+          duration: {{$holdDuration}}
+
+  # ----- Gather measurements (peer flat-vs-target spike comparison) -----
+  - module:
+      path: /modules/measurements/control-plane.yaml
+      params:
+        action: gather
+        group: {{$workloadGroup}}
+
+  - module:
+      path: /modules/measurements/cilium.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/clustermesh-metrics.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/etcd-metrics.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/pod-churn-stress.yaml
+      params:
+        action: gather
+
+  # ----- Teardown -----
+  - module:
+      path: /modules/pod-churn-workload.yaml
+      params:
+        actionName: delete
+        replicas: 0
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        tuningSet: DeploymentCreateQps
+        group: {{$workloadGroup}}
+        basename: {{$workloadBasename}}
+
+  - module:
+      path: /modules/clustermesh.yaml
+      params:
+        actionName: delete
+        tuningSet: DeploymentCreateQps

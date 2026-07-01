@@ -1,0 +1,32 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: kvstoremesh-standalone
+  namespace: monitoring
+spec:
+  # Catch-all for kvstoremesh when it is deployed as a SEPARATE Deployment
+  # (newer AKS managed Cilium / ACNS variants) instead of a sidecar in the
+  # clustermesh-apiserver pod. The sidecar case is already covered by the
+  # main clustermesh-apiserver PodMonitor's :9964 endpoint. If kvstoremesh
+  # runs as a sidecar, this selector matches nothing and the PodMonitor is
+  # silent. Default port 9964.
+  selector:
+    matchExpressions:
+      - key: k8s-app
+        operator: In
+        values:
+          - clustermesh-apiserver-kvstoremesh
+          - kvstoremesh
+  namespaceSelector:
+    matchNames:
+      - kube-system
+  podMetricsEndpoints:
+    - interval: {{.Interval}}
+      honorLabels: true
+      path: /metrics
+      relabelings:
+        - sourceLabels: [__address__]
+          action: replace
+          targetLabel: __address__
+          regex: (.+?)(\:\d+)?
+          replacement: $1:9964

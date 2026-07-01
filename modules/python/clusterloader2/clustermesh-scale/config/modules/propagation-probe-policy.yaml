@@ -1,0 +1,31 @@
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: {{.Name}}
+  labels:
+    group: {{.Group}}
+spec:
+  # Apply to the propagation-probe backend pods (the nginx Deployment).
+  # endpointSelector matches pods labeled `group=<.Group>` (which the
+  # propagation-probe-deployment.yaml template sets).
+  endpointSelector:
+    matchLabels:
+      group: {{.Group}}
+  # L4 ingress rule allowing TCP/80 (the nginx backend port).
+  #
+  # Build 69231 evidence: a permissive empty `ingress: [{}]` rule was
+  # optimized away by Cilium — no actual policy regeneration triggered,
+  # so cilium_policy_regeneration_time_stats_seconds_bucket stayed at 0
+  # samples even with the increase() over full window fix.
+  #
+  # An L4 toPorts rule forces Cilium to actually COMPILE a policy
+  # (BPF program update to enforce the L4 port match) → triggers
+  # cilium_policy_regeneration_time_stats_seconds per affected endpoint.
+  # Still permissive in the "what traffic is allowed" sense (any source
+  # can reach port 80) — so the connectivity probe still succeeds, but
+  # the policy actually exercises the regeneration path.
+  ingress:
+    - toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP

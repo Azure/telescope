@@ -13,6 +13,13 @@ name: clustermesh-scale-test
 {{$replicasPerDeployment := DefaultParam .CL2_REPLICAS_PER_DEPLOYMENT 2}}
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "15m"}}
 {{$apiServerCallsPerSecond := DefaultParam .CL2_API_SERVER_CALLS_PER_SECOND 5}}
+# MOCK mode (KWOK + mock-cilium-agent framework): when true, workload Pods are
+# scheduled onto KWOK virtual nodes and a PodMonitor is added so Prometheus scrapes
+# the mock-cilium-agents (app=mock-cilium-agent:9962). Default false → unchanged on
+# real-node runs. See mock-clustermesh/ for the framework.
+# Normalized to a real boolean via printf+eq so a string override ("true"/"false")
+# can't be accidentally truthy in Go templates (only the literal true/"true" enables it).
+{{$mockMode := eq (printf "%v" (DefaultParam .CL2_MOCK_MODE false)) "true"}}
 
 namespace:
   number: {{$namespaces}}
@@ -59,6 +66,7 @@ steps:
       params:
         actionName: create
         tuningSet: DeploymentCreateQps
+        mockMode: {{$mockMode}}
 
   - module:
       path: /modules/scale-test.yaml
@@ -69,6 +77,7 @@ steps:
         replicasPerDeployment: {{$replicasPerDeployment}}
         tuningSet: DeploymentCreateQps
         operationTimeout: {{$operationTimeout}}
+        mockMode: {{$mockMode}}
 
   # ----- Gather measurements -----
   # Mirror the start block above. Order matches network-scale convention.
@@ -103,3 +112,4 @@ steps:
       params:
         actionName: delete
         tuningSet: DeploymentCreateQps
+        mockMode: {{$mockMode}}

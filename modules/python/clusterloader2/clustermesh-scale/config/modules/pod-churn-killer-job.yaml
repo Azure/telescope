@@ -1,0 +1,107 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{.Name}}
+  labels:
+    group: {{.Group}}
+spec:
+  # Never restart on failure — if the killer crashes we want loud junit
+  # failure, not silent retry that backoffs past the measurement window.
+  # backoffLimit:0 plus restartPolicy:Never together ensure exactly one
+  # attempt.
+  backoffLimit: 0
+  # Job has its own deadline as a defense-in-depth bound: even if the
+  # in-script `while` loop never terminates for some reason, the Job
+  # controller kills the pod at killDuration + 60s buffer.
+  activeDeadlineSeconds: {{.ActiveDeadlineSeconds}}
+  template:
+    metadata:
+      labels:
+        group: {{.Group}}
+        app: {{.Name}}
+    spec:
+      serviceAccountName: {{.SAName}}
+      restartPolicy: Never
+      # Short grace period: the killer's signal handler exits immediately;
+      # nothing in the script needs to flush state.
+      terminationGracePeriodSeconds: 5
+      containers:
+        - name: killer
+          image: {{.Image}}
+          # bitnami/kubectl ships kubectl + bash + coreutils (shuf, xargs,
+          # cut, date) which the kill loop depends on. Verified by inspection
+          # of telescope-upstream/modules/kustomize/fio/.../ds.yaml usage.
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              set -o pipefail
+              # Graceful shutdown: SIGTERM from the Job controller (delete or
+              # activeDeadlineSeconds) lands here. We exit 0 so the Job is
+              # marked Succeeded — the rubber-duck critique called out that
+              # an in-flight 143 exit would mark the Job Failed and trigger
+              # junit error.
+              trap 'echo "killer: received SIGTERM, exiting"; exit 0' TERM INT
+
+              KILL_DURATION_SECONDS="${KILL_DURATION_SECONDS:-600}"
+              KILL_INTERVAL_SECONDS="${KILL_INTERVAL_SECONDS:-10}"
+              KILL_BATCH="${KILL_BATCH:-5}"
+              LABEL_SELECTOR="${LABEL_SELECTOR:-group=clustermesh-pod-churn-kill}"
+
+              echo "killer: starting (duration=${KILL_DURATION_SECONDS}s interval=${KILL_INTERVAL_SECONDS}s batch=${KILL_BATCH} selector=${LABEL_SELECTOR})"
+
+              END_EPOCH=$(( $(date +%s) + KILL_DURATION_SECONDS ))
+              ROUND=0
+              KILLED_TOTAL=0
+              while [ "$(date +%s)" -lt "$END_EPOCH" ]; do
+                ROUND=$((ROUND + 1))
+                # List candidate pods cluster-wide matching the label
+                # selector. -o name yields `pod/<name>` per line; we strip
+                # the prefix and prepend the namespace via go-template.
+                # Random selection: shuf | head -n. shuf gracefully returns
+                # fewer than batch when the pool is small (mid-cycle when
+                # ReplicaSet has not yet replaced previous kills).
+                mapfile -t TARGETS < <(
+                  kubectl get pods -A -l "$LABEL_SELECTOR" \
+                    -o jsonpath='{range .items[*]}{.metadata.namespace}/{.metadata.name}{"\n"}{end}' \
+                  | shuf | head -n "$KILL_BATCH"
+                )
+
+                if [ "${#TARGETS[@]}" -eq 0 ]; then
+                  echo "killer: round=${ROUND} no candidates matched selector ${LABEL_SELECTOR}"
+                else
+                  for nsname in "${TARGETS[@]}"; do
+                    ns="${nsname%%/*}"
+                    name="${nsname##*/}"
+                    # --grace-period=0 + --force: immediate evict, no graceful
+                    # shutdown wait. Realistic "node failure"-style event for
+                    # the pod-event propagation path.
+                    if kubectl delete pod -n "$ns" "$name" \
+                        --grace-period=0 --force --ignore-not-found \
+                        > /dev/null 2>&1; then
+                      KILLED_TOTAL=$((KILLED_TOTAL + 1))
+                    fi
+                  done
+                  echo "killer: round=${ROUND} killed=${#TARGETS[@]} cumulative=${KILLED_TOTAL}"
+                fi
+
+                sleep "$KILL_INTERVAL_SECONDS"
+              done
+
+              echo "killer: done duration=${KILL_DURATION_SECONDS}s rounds=${ROUND} cumulative=${KILLED_TOTAL}"
+              exit 0
+          env:
+            - name: KILL_DURATION_SECONDS
+              value: "{{.KillDurationSeconds}}"
+            - name: KILL_INTERVAL_SECONDS
+              value: "{{.KillIntervalSeconds}}"
+            - name: KILL_BATCH
+              value: "{{.KillBatch}}"
+            - name: LABEL_SELECTOR
+              value: "{{.WorkloadLabelSelector}}"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi

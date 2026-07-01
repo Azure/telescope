@@ -44,12 +44,602 @@ steps:
       echo "##vso[task.setvariable variable=CLUSTERMESH_COUNT]$count"
     displayName: "Enumerate clustermesh clusters"
 
+  # ----------------------------------------------------------------------------
+  # Pre-gate: wait for every cluster's clustermesh-apiserver Deployment to be
+  # Available AND its Service to have an external LoadBalancer IP, in parallel.
+  #
+  # Why this step exists
+  # --------------------
+  # Fleet's ClusterMeshProfile reconciler only pushes a peer's kubeconfig into
+  # other clusters' apiserver configs once that peer's LB has an external IP.
+  # If we start the per-cluster peering loop below before every cluster's LB
+  # is up, the X/Y readout in `cilium-dbg status` stalls at "Y < N-1" — Fleet
+  # has only pushed the kubeconfigs for the subset of peers that ARE LB-ready,
+  # and bumping the retry budget in the loop doesn't help because the missing
+  # peer kubeconfigs will never arrive while their LBs are still pending.
+  #
+  # Empirically at N=20, ~25% of clustermesh-apiserver LBs are still pending
+  # IP assignment when terraform apply returns success, because Azure LB
+  # provisioning happens asynchronously after Service creation. Per-cluster
+  # budget: 30min at N=2/5/10, 120min at N=20 (build 67404 found Fleet's
+  # ClusterMeshProfile reconciler at N=20 leaves 8/20 clusters with NO
+  # clustermesh-apiserver Deployment even after 90min — Cilium itself was
+  # 21/21 ready on those clusters, just Fleet's helm-release push got stuck).
+  #
+  # n=20 mitigation: a background re-applier re-issues `az fleet
+  # clustermeshprofile apply` every 10 min during the wait. This nudges
+  # the Fleet RP reconciler to retry pushing the clustermesh-apiserver
+  # helm release to any member it dropped on the first pass. The apply
+  # is idempotent so the 12 already-ready clusters won't be disturbed.
+  # ----------------------------------------------------------------------------
+  - script: |
+      set -euo pipefail
+      set -x
+
+      clusters=$(cat "$HOME/.kube/clustermesh-clusters.json")
+      cluster_count=$(echo "$clusters" | jq 'length')
+
+      # Per-cluster timeout scales with mesh size. At N=20 Fleet reconciles
+      # in waves and 30 min is not enough; even 90 min wasn't enough without
+      # an active re-apply (build 67404 evidence). 120 min + periodic
+      # re-apply at N>=15 surfaces wedged states as failure rather than
+      # hanging the job indefinitely.
+      if [ "$cluster_count" -ge 15 ]; then
+        WAIT_BUDGET_SECONDS=7200  # 120 min
+      else
+        WAIT_BUDGET_SECONDS=1800  # 30 min — original budget for N<=10
+      fi
+      echo "Wait-for-apiserver per-cluster budget: ${WAIT_BUDGET_SECONDS}s (cluster_count=$cluster_count)"
+
+      # Sequential kubeconfig fetch — parallel `az aks get-credentials`
+      # writes race on the shared ~/.azure MSAL token cache (same reason
+      # execute.yml pre-fetches kubeconfigs sequentially).
+      for row in $(echo "$clusters" | jq -c '.[]'); do
+        name=$(echo "$row" | jq -r '.name')
+        rg=$(echo   "$row" | jq -r '.rg')
+        role=$(echo "$row" | jq -r '.role')
+        kc="$HOME/.kube/$role.config"
+        KUBECONFIG="$kc" az aks get-credentials \
+          --resource-group "$rg" --name "$name" --overwrite-existing --only-show-errors
+      done
+
+      # Fleet RG = same as cluster RG (terraform module.fleet runs in the
+      # same RG as the AKS clusters). Pull from the first cluster.
+      FLEET_RG=$(echo "$clusters" | jq -r '.[0].rg')
+      FLEET_NAME="clustermesh-flt"          # hardcoded by terraform module.fleet
+      FLEET_PROFILE="clustermesh-cmp"       # hardcoded by terraform module.fleet
+      echo "Fleet RG=$FLEET_RG fleet=$FLEET_NAME profile=$FLEET_PROFILE"
+
+      # Background ClusterMeshProfile re-applier (N>=15 only). At smaller
+      # mesh sizes the first apply reliably reaches all members within a
+      # few minutes, so the re-apply just adds noise.
+      REAPPLY_LOG="$(pwd)/clustermeshprofile-reapply.log"
+      if [ "$cluster_count" -ge 15 ]; then
+        {
+          echo "[reapplier] starting; re-issuing fleet clustermeshprofile apply every 600s"
+          # Wait 5 min before first re-apply so we don't double-trigger
+          # the initial apply that terraform just did 0-15s ago.
+          sleep 300
+          while true; do
+            _ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+            echo "[reapplier] $_ts re-applying clustermeshprofile..."
+            if az fleet clustermeshprofile apply \
+                 --resource-group "$FLEET_RG" \
+                 --fleet-name "$FLEET_NAME" \
+                 --name "$FLEET_PROFILE" \
+                 --output none --only-show-errors 2>&1; then
+              echo "[reapplier] $_ts re-apply OK"
+            else
+              echo "[reapplier] $_ts re-apply FAILED (Fleet RP may be busy; will retry)"
+            fi
+            # Optional: dump current profile state for diagnostics
+            az fleet clustermeshprofile show \
+              --resource-group "$FLEET_RG" \
+              --fleet-name "$FLEET_NAME" \
+              --name "$FLEET_PROFILE" \
+              --query "{provisioningState:properties.provisioningState, members:properties.memberClusters}" \
+              -o yaml --only-show-errors 2>&1 || true
+            sleep 600
+          done
+        } > "$REAPPLY_LOG" 2>&1 &
+        REAPPLY_PID=$!
+        echo "Spawned clustermeshprofile re-applier (PID=$REAPPLY_PID, log=$REAPPLY_LOG)"
+        trap 'kill $REAPPLY_PID 2>/dev/null || true' EXIT
+      fi
+
+      # Background clustermeshprofile AUTO-RECOVERY (build 69155 evidence):
+      # Fleet's clustermeshprofile apply intermittently fails to push
+      # clustermesh-apiserver Deployment to a subset of members — pod
+      # never appears, periodic re-apply alone doesn't unstick it.
+      # Build 69155 hit this at N=2 (g0 + g20 cells), causing 30min
+      # wait timeout and failed builds. Manual recovery is: delete the
+      # clustermeshprofile + recreate + apply (re-randomizes Fleet's
+      # internal allocation and re-triggers the helm-release push).
+      #
+      # This background task fires ONCE at WAIT_BUDGET_SECONDS / 2 if
+      # any cluster still has deployment=<none>. Default OFF (opt-in
+      # via CMP_AUTO_RECOVERY_ENABLED=true) until proven safe by
+      # observing it work on a few smokes. Detection always runs +
+      # logs clearly so we have data on how often it would fire.
+      CMP_AUTO_RECOVERY_ENABLED="${CMP_AUTO_RECOVERY_ENABLED:-false}"
+      RECOVERY_LOG="$(pwd)/clustermeshprofile-recovery.log"
+      RECOVERY_TRIGGER_FLAG="$(pwd)/.cmp_recovery_fired"
+      rm -f "$RECOVERY_TRIGGER_FLAG"
+      {
+        # Half-budget trigger point — gives Fleet a fair chance to
+        # reconcile on its own before we step in.
+        sleep $(( WAIT_BUDGET_SECONDS / 2 ))
+        _ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+        echo "[recovery] $_ts checking for missing clustermesh-apiserver Deployments..."
+        missing=""
+        for row in $(echo "$clusters" | jq -c '.[]'); do
+          role=$(echo "$row" | jq -r '.role')
+          kc="$HOME/.kube/$role.config"
+          avail=$(KUBECONFIG="$kc" kubectl -n kube-system get deployment clustermesh-apiserver \
+            -o jsonpath='{.status.conditions[?(@.type=="Available")].status}' 2>/dev/null || true)
+          if [ -z "$avail" ]; then
+            missing="$missing $role"
+          fi
+        done
+        if [ -z "$missing" ]; then
+          echo "[recovery] $_ts all clustermesh-apiserver Deployments present at t+$((WAIT_BUDGET_SECONDS / 2))s; no recovery needed"
+          exit 0
+        fi
+        echo "[recovery] $_ts DETECTED MISSING clustermesh-apiserver Deployments on:$missing (failure_mode=fleet_partial_apiserver_deploy)"
+        echo "##vso[task.logissue type=warning;] Fleet partial apiserver deploy detected at t+$((WAIT_BUDGET_SECONDS / 2))s on:$missing"
+        touch "$RECOVERY_TRIGGER_FLAG"
+        if [ "$CMP_AUTO_RECOVERY_ENABLED" != "true" ]; then
+          echo "[recovery] CMP_AUTO_RECOVERY_ENABLED=$CMP_AUTO_RECOVERY_ENABLED; detection-only — NOT firing delete+recreate (set env var to opt in)"
+          exit 0
+        fi
+        echo "[recovery] $_ts FIRING auto-recovery: delete + recreate + apply clustermeshprofile"
+        # Step 1: delete the existing profile. Best-effort — if it's
+        # already gone (race) the create below still succeeds.
+        az fleet clustermeshprofile delete \
+          --resource-group "$FLEET_RG" \
+          --fleet-name "$FLEET_NAME" \
+          --name "$FLEET_PROFILE" \
+          --yes --output none --only-show-errors 2>&1 || \
+          echo "[recovery] delete reported error (continuing); profile may already be gone"
+        # Wait for deletion to propagate. Up to 2min.
+        for i in $(seq 1 12); do
+          if ! az fleet clustermeshprofile show \
+                 --resource-group "$FLEET_RG" --fleet-name "$FLEET_NAME" \
+                 --name "$FLEET_PROFILE" --only-show-errors >/dev/null 2>&1; then
+            echo "[recovery] profile fully deleted after ${i}0s"
+            break
+          fi
+          sleep 10
+        done
+        # Step 2: recreate with the same selector.
+        if ! az fleet clustermeshprofile create \
+               --resource-group "$FLEET_RG" \
+               --fleet-name "$FLEET_NAME" \
+               --name "$FLEET_PROFILE" \
+               --selector mesh=true \
+               --output none --only-show-errors 2>&1; then
+          echo "[recovery] FAIL: create failed; aborting recovery"
+          exit 1
+        fi
+        # Step 3: apply.
+        if ! az fleet clustermeshprofile apply \
+               --resource-group "$FLEET_RG" \
+               --fleet-name "$FLEET_NAME" \
+               --name "$FLEET_PROFILE" \
+               --output none --only-show-errors 2>&1; then
+          echo "[recovery] FAIL: apply after recreate failed"
+          exit 1
+        fi
+        _ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+        echo "[recovery] $_ts auto-recovery delete+recreate+apply complete; remaining wait budget will determine if Fleet redeploys apiservers"
+      } > "$RECOVERY_LOG" 2>&1 &
+      RECOVERY_PID=$!
+      echo "Spawned clustermeshprofile recovery watcher (PID=$RECOVERY_PID, log=$RECOVERY_LOG, enabled=$CMP_AUTO_RECOVERY_ENABLED, trigger=t+$((WAIT_BUDGET_SECONDS / 2))s)"
+
+      # Parallel poll for clustermesh-apiserver readiness on every cluster.
+      # Each subshell gets WAIT_BUDGET_SECONDS; we collect failures rather
+      # than fail-fast on the first one so the operator sees the full set of
+      # slow Fleet reconciles in one shot instead of one cluster at a time.
+      #
+      # Periodic diagnostic dump every 5 min (build 67384 enhancement):
+      # if a cluster's deployment is still <none> after 5 min we log what
+      # Fleet's seen on that cluster so we can distinguish "Fleet hasn't
+      # pushed the config yet" from "config pushed but Helm release stuck".
+      pids=()
+      roles=()
+      for row in $(echo "$clusters" | jq -c '.[]'); do
+        role=$(echo "$row" | jq -r '.role')
+        name=$(echo "$row" | jq -r '.name')
+        (
+          kc="$HOME/.kube/$role.config"
+          deadline=$(( $(date +%s) + WAIT_BUDGET_SECONDS ))
+          start=$(date +%s)
+          last_state=""
+          last_diag=$start
+          while [ "$(date +%s)" -lt "$deadline" ]; do
+            avail=$(KUBECONFIG="$kc" kubectl -n kube-system get deployment clustermesh-apiserver \
+                -o jsonpath='{.status.conditions[?(@.type=="Available")].status}' 2>/dev/null || true)
+            ip=$(KUBECONFIG="$kc" kubectl -n kube-system get svc clustermesh-apiserver \
+                -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
+            if [ "$avail" = "True" ] && [ -n "$ip" ]; then
+              elapsed=$(( $(date +%s) - start ))
+              echo "[$role] OK (deployment=Available, LB IP=$ip, elapsed=${elapsed}s)"
+              exit 0
+            fi
+            last_state="deployment=${avail:-<none>}, LB=${ip:-<none>}"
+            # 5-min diagnostic snapshot if deployment hasn't appeared yet.
+            now=$(date +%s)
+            if [ "$avail" = "" ] && [ $(( now - last_diag )) -ge 300 ]; then
+              elapsed=$(( now - start ))
+              echo "[$role] DIAG @ t+${elapsed}s: clustermesh-apiserver deployment not yet created"
+              # Does the namespace at least have ANY clustermesh-* resources?
+              echo "[$role] DIAG: kube-system clustermesh-* resources:"
+              KUBECONFIG="$kc" kubectl -n kube-system get all -l app.kubernetes.io/name=clustermesh-apiserver 2>&1 | head -5 || true
+              # Has Cilium itself come up?
+              echo "[$role] DIAG: cilium-agent DaemonSet:"
+              KUBECONFIG="$kc" kubectl -n kube-system get ds cilium 2>&1 | head -3 || true
+              # Recent kube-system Warning events (e.g., ImagePullBackOff)
+              echo "[$role] DIAG: recent kube-system Warning events:"
+              KUBECONFIG="$kc" kubectl -n kube-system get events \
+                --field-selector type=Warning --sort-by='.lastTimestamp' 2>&1 | tail -5 || true
+              # Fleet-side view of this member (n=20 debug 2026-05-17): if
+              # Fleet thinks this member is missing or has bad state, the
+              # reconciler will never push clustermesh-apiserver to it.
+              echo "[$role] DIAG: fleet member $role state (from Fleet RP):"
+              az fleet member show \
+                --resource-group "$FLEET_RG" \
+                --fleet-name "$FLEET_NAME" \
+                --name "$role" \
+                --query "{provisioningState:provisioningState, clusterResourceId:clusterResourceId, labels:labels}" \
+                -o yaml --only-show-errors 2>&1 | head -10 || true
+              # Fleet-side: is this cluster in the profile's applied set?
+              echo "[$role] DIAG: clustermeshprofile applied members (is $role in the set?):"
+              az fleet clustermeshprofile list-members \
+                --resource-group "$FLEET_RG" \
+                --fleet-name "$FLEET_NAME" \
+                --name "$FLEET_PROFILE" \
+                --query "[].{name:name, provisioningState:provisioningState}" \
+                -o table --only-show-errors 2>&1 | head -25 || true
+              # AKS-side: is the cluster being updated by ACNS?
+              echo "[$role] DIAG: AKS provisioningState (is ACNS reconciling?):"
+              az aks show --resource-group "$FLEET_RG" --name "$_name" \
+                --query "{state:provisioningState, powerState:powerState.code}" \
+                -o json --only-show-errors 2>&1 | head -5 || true
+              last_diag=$now
+            fi
+            sleep 15
+          done
+          elapsed=$(( $(date +%s) - start ))
+          echo "[$role] FAIL: clustermesh-apiserver not ready within $(( WAIT_BUDGET_SECONDS / 60 )) min ($last_state, elapsed=${elapsed}s)" >&2
+          exit 1
+        ) &
+        pids+=("$!")
+        roles+=("$role")
+      done
+
+      failed=0
+      for i in "${!pids[@]}"; do
+        if ! wait "${pids[$i]}"; then
+          echo "##vso[task.logissue type=error;] ${roles[$i]}: clustermesh-apiserver not ready within $(( WAIT_BUDGET_SECONDS / 60 )) min"
+          failed=$((failed + 1))
+        fi
+      done
+
+      # Dump the re-applier's accumulated log so it shows up in the AzDO
+      # step output (the background daemon's stdout went to a file).
+      if [ -f "$REAPPLY_LOG" ]; then
+        echo "------- clustermeshprofile re-applier log -------"
+        cat "$REAPPLY_LOG" || true
+        echo "------- end re-applier log -------"
+      fi
+      # Same for the auto-recovery watcher: always dump if it produced any
+      # output (detection-only mode produces a single "no recovery needed"
+      # or "DETECTED MISSING" line; full recovery mode produces several).
+      if [ -f "$RECOVERY_LOG" ] && [ -s "$RECOVERY_LOG" ]; then
+        echo "------- clustermeshprofile recovery log -------"
+        cat "$RECOVERY_LOG" || true
+        echo "------- end recovery log -------"
+      fi
+      # Stop the recovery watcher subshell if it's still alive (may be
+      # sleeping its initial WAIT_BUDGET/2 if the wait succeeded fast).
+      kill "$RECOVERY_PID" 2>/dev/null || true
+
+      if [ "$failed" -gt 0 ]; then
+        echo "##vso[task.logissue type=error;] $failed of $cluster_count clustermesh-apiserver(s) not ready; peering will not converge"
+        exit 1
+      fi
+      echo "All $cluster_count clustermesh-apiserver Deployments+LBs ready; Fleet can now push peer configs"
+    displayName: "Wait for clustermesh-apiserver Deployments + LBs (parallel)"
+
+  # ----------------------------------------------------------------------------
+  # n=20 debug enhancement 2026-05-16: VNet peering inventory.
+  # At N=20 we expect N*(N-1) = 380 VNet peerings (one pair each way). Terraform
+  # `apply` returns success even when some peerings are still propagating or
+  # silently fail to reach `Connected` state (e.g. on regional VNet quota throttle
+  # or peering reconciler lag). A missing/Disconnected peering means cross-mesh
+  # data-path fails for THAT specific pair, which CL2 surfaces as latency_spike
+  # or mesh_failure_burst — but the root cause (peering not Connected) is buried.
+  # This step inventories peering state RIGHT AFTER terraform apply so we have
+  # a baseline; non-Connected peerings get flagged as Warning but don't fail
+  # the step (some lag is normal; the CL2 verdict surfaces real impact).
+  # ----------------------------------------------------------------------------
+  - script: |
+      set -uo pipefail
+      clusters=$(cat "$HOME/.kube/clustermesh-clusters.json")
+      cluster_count=$(echo "$clusters" | jq 'length')
+      expected_peerings=$(( cluster_count * (cluster_count - 1) ))
+
+      if [ "$cluster_count" -lt 3 ]; then
+        echo "VNet peering inventory: skipping (cluster_count=$cluster_count, not enough to be interesting)"
+        exit 0
+      fi
+
+      # Shared-VNet detection: in shared-VNet topology there is ONE VNet
+      # for all N clusters and 0 peerings expected. Listing peerings across
+      # N clusters in this mode is wasted work (~15 min of az calls at N=100)
+      # AND triggers a misleading "9900 expected pairs not found" warning.
+      # Probe the first cluster's RG: if there's only 1 VNet in the RG, we're
+      # in shared mode; skip the inventory.
+      first_rg=$(echo "$clusters" | jq -r '.[0].rg')
+      vnet_count_in_rg=$(az network vnet list --resource-group "$first_rg" --query 'length(@)' -o tsv --only-show-errors 2>/dev/null || echo "0")
+      if [ "$vnet_count_in_rg" = "1" ] && [ "$cluster_count" -gt 1 ]; then
+        echo "VNet peering inventory: shared-VNet topology detected (1 VNet in RG $first_rg, $cluster_count clusters); skipping per-cluster peering enumeration. Expected peerings: 0."
+        exit 0
+      fi
+
+      echo "VNet peering inventory: expected $expected_peerings peerings across $cluster_count clusters"
+
+      total_listed=0
+      total_disconnected=0
+      disconnected_pairs=""
+      for row in $(echo "$clusters" | jq -c '.[]'); do
+        name=$(echo "$row" | jq -r '.name')
+        rg=$(echo   "$row" | jq -r '.rg')
+        # VNet is named "${cluster_short_name}-vnet" by the terraform module.
+        # Use `az network vnet list` to be agnostic to the exact name pattern.
+        vnet=$(az network vnet list --resource-group "$rg" --query "[0].name" -o tsv --only-show-errors 2>/dev/null || echo "")
+        if [ -z "$vnet" ]; then
+          echo "[$name] WARNING: no VNet found in $rg (peering check skipped)"
+          continue
+        fi
+        peerings=$(az network vnet peering list \
+          --resource-group "$rg" --vnet-name "$vnet" \
+          --query "[].{name:name, state:peeringState, sync:peeringSyncLevel}" -o tsv \
+          --only-show-errors 2>/dev/null || echo "")
+        if [ -z "$peerings" ]; then
+          echo "[$name/$vnet] no peerings listed"
+          continue
+        fi
+        cluster_count_peerings=$(echo "$peerings" | wc -l)
+        bad=$(echo "$peerings" | awk -F'\t' '$2 != "Connected"' | wc -l)
+        total_listed=$((total_listed + cluster_count_peerings))
+        total_disconnected=$((total_disconnected + bad))
+        if [ "$bad" -gt 0 ]; then
+          disconnected_pairs="$disconnected_pairs\n[$name/$vnet] $bad/$cluster_count_peerings not Connected:\n$(echo "$peerings" | awk -F'\t' '$2 != "Connected" {print "  "$0}')"
+        fi
+      done
+
+      echo "VNet peering inventory: listed=$total_listed disconnected=$total_disconnected expected=$expected_peerings"
+      if [ "$total_listed" -lt "$expected_peerings" ]; then
+        echo "##vso[task.logissue type=warning;] VNet peering: only $total_listed of $expected_peerings expected pairs found (some VNets may not have been provisioned)"
+      fi
+      if [ "$total_disconnected" -gt 0 ]; then
+        # shellcheck disable=SC2059
+        printf "$disconnected_pairs\n"
+        echo "##vso[task.logissue type=warning;] VNet peering: $total_disconnected pair(s) not in Connected state — cross-mesh data-path may fail for those pairs"
+      fi
+      # Non-fatal: subsequent steps (clustermesh validate + CL2) will surface
+      # real impact via test verdicts. This inventory just gives us a fingerprint
+      # to correlate later failures against.
+      exit 0
+    displayName: "VNet peering inventory (n>=3 debug snapshot)"
+    condition: succeeded()
+
   - script: |
       set -euo pipefail
       set -x
 
       clusters=$(cat "$HOME/.kube/clustermesh-clusters.json")
       expected_remote=$(( $(echo "$clusters" | jq 'length') - 1 ))
+
+      # Fleet-side peer-list dump (N>=10 only — at smaller N Fleet always
+      # converges cleanly so the noise isn't worth it). Build 67525 evidence:
+      # at N=20 Fleet pushed 3 mangled peer entries (e.g., "mesh-2013",
+      # "mesh-1515", "mesh-115" — digit-pair concatenations) to every
+      # cluster's Cilium config. Those mangled peers' etcd lookups fail
+      # ("cluster configuration: not found") and the mesh never converges.
+      # This dump captures: (1) Fleet's view via az fleet APIs, (2) the
+      # actual peer list Cilium received via the cilium-config ConfigMap.
+      # The configmap is the smoking gun — it shows the exact peer-name
+      # entries Fleet pushed, mangling and all, so we can correlate Fleet
+      # RP behavior with the on-cluster state.
+      cluster_count=$(echo "$clusters" | jq 'length')
+      if [ "$cluster_count" -ge 3 ]; then
+        FLEET_RG=$(echo "$clusters" | jq -r '.[0].rg')
+        FLEET_NAME="clustermesh-flt"
+        FLEET_PROFILE="clustermesh-cmp"
+        echo "===================================================================="
+        echo "  Fleet ClusterMeshProfile state (N=$cluster_count, debug dump)"
+        echo "===================================================================="
+        echo "--- az fleet member list (Fleet's view of members + assigned IDs) ---"
+        az fleet member list \
+          --resource-group "$FLEET_RG" --fleet-name "$FLEET_NAME" \
+          --query "[].{name:name, provisioningState:provisioningState, clusterResourceId:clusterResourceId}" \
+          -o table --only-show-errors 2>&1 || true
+        echo ""
+        echo "--- az fleet clustermeshprofile show (profile state) ---"
+        az fleet clustermeshprofile show \
+          --resource-group "$FLEET_RG" --fleet-name "$FLEET_NAME" \
+          --name "$FLEET_PROFILE" \
+          -o yaml --only-show-errors 2>&1 | head -80 || true
+        echo ""
+
+        # ====================================================================
+        # KEY DIAGNOSTIC: cilium-config cluster-id + cluster-name table.
+        # ====================================================================
+        # Build 67525 evidence (Azure Fleet RP bug at n=20 on the
+        # standalone-test sub): Fleet's reconciler renders Cilium's
+        # `cluster-name` field as `<fleet-member-name><cluster-id>`
+        # CONCATENATED (e.g., mesh-1 with cluster-id=4 → cluster-name
+        # "mesh-14" instead of "mesh-1"). And it sometimes skips reconciling
+        # 1-3 clusters entirely, leaving their cluster-name at the default
+        # AKS-derived "clustermesh<N>" (no dash) and cluster-id="0".
+        #
+        # Both bugs are 100% visible from the cilium-config ConfigMap on
+        # each cluster — we just need to pull it. The expected value is
+        # cluster-name=<member-name> (e.g. "mesh-1"). Anything else flags
+        # the bug. Tabulating across all clusters makes the pattern jump
+        # out instantly.
+        #
+        # This runs BEFORE the per-cluster validate loop because Fleet
+        # state is set at provision time — no point polling for mesh
+        # convergence if Fleet already broke the configs.
+        echo "===================================================================="
+        echo "  cluster-id / cluster-name table — Fleet reconcile sanity check"
+        echo "===================================================================="
+        echo ""
+        printf "  %-12s %-12s %-12s %-25s %s\n" "AKS_cluster" "Fleet_role" "cluster-id" "cluster-name(claimed)" "Status"
+        printf "  %-12s %-12s %-12s %-25s %s\n" "---------" "---------" "---------" "---------------------" "------"
+        fleet_bug_count=0
+        fleet_skip_count=0
+        fleet_unexpected_count=0
+        # Accumulator for concat-mode rendered names so we can spot collisions
+        # at N=100 (e.g. mesh-1+id=15 vs mesh-11+id=5 both render as
+        # "mesh-115"). Cilium ClusterMesh requires unique cluster-name values
+        # across the mesh — duplicates silently break peer resolution.
+        _concat_names_table=""
+        for _row in $(echo "$clusters" | jq -c '.[]'); do
+          _name=$(echo "$_row" | jq -r '.name')
+          _rg=$(echo "$_row" | jq -r '.rg')
+          _role=$(echo "$_row" | jq -r '.role')
+          _kc="$HOME/.kube/${_role}.config"
+          # Ensure kubeconfig exists. The per-cluster validate loop fetches
+          # them, but we run BEFORE that loop. Fetch sequentially here too.
+          if [ ! -f "$_kc" ]; then
+            KUBECONFIG="$_kc" az aks get-credentials \
+              --resource-group "$_rg" --name "$_name" --overwrite-existing \
+              --only-show-errors >/dev/null 2>&1 || true
+          fi
+          _cid=$(KUBECONFIG="$_kc" kubectl -n kube-system get cm cilium-config \
+                   -o jsonpath='{.data.cluster-id}' 2>/dev/null || echo "?")
+          _cn=$(KUBECONFIG="$_kc" kubectl -n kube-system get cm cilium-config \
+                  -o jsonpath='{.data.cluster-name}' 2>/dev/null || echo "?")
+          # The Fleet member name (e.g., "mesh-1") is what cluster-name
+          # SHOULD be set to. Anything else flags one of two bug modes:
+          # (a) concatenation bug: cluster-name = mesh-N + cluster-id
+          # (b) reconcile-skipped: cluster-name = clustermesh<N> + cluster-id=0
+          _status="OK"
+          if [ "$_cn" = "$_role" ]; then
+            _status="OK"
+          elif [ "$_cid" = "0" ]; then
+            # Reconciler skip: clustermesh-apiserver never installed on this
+            # cluster, cluster-id stays at default 0, cluster-name falls back
+            # to the auto-derived "clustermesh<N>". This is the REAL Fleet
+            # bug — convergence breaks because peers can't find this cluster
+            # under any expected name.
+            _status="FLEET-SKIPPED (cluster-id=0, default name)"
+            fleet_skip_count=$((fleet_skip_count + 1))
+          elif [ "$_cn" = "${_role}${_cid}" ]; then
+            # By-design Fleet rendering: cluster-name = <member-name><cluster-id>.
+            # When ALL clusters get this treatment consistently, mesh
+            # convergence works fine (everyone advertises + references peers
+            # under the same naming scheme). Build 67608 (n=10) had this on
+            # all 10/10 clusters and converged cleanly. Only flagged as
+            # warning when mixed with SKIPPED below.
+            _status="FLEET-CONCAT (by-design)"
+            fleet_bug_count=$((fleet_bug_count + 1))
+            # Track the rendered name to detect collisions at N=100. Appended
+            # one-per-line so `sort | uniq -d` finds duplicates.
+            _concat_names_table=$(printf "%s\n%s" "$_concat_names_table" "$_cn")
+          else
+            _status="UNEXPECTED (name='${_cn}', id='${_cid}')"
+            fleet_unexpected_count=$((fleet_unexpected_count + 1))
+          fi
+          printf "  %-12s %-12s %-12s %-25s %s\n" "$_name" "$_role" "$_cid" "$_cn" "$_status"
+        done
+        echo ""
+        if [ "$fleet_skip_count" -gt 0 ] || [ "$fleet_unexpected_count" -gt 0 ]; then
+          # REAL bug pattern: some clusters skipped or in unexpected state.
+          # Build 67525 (n=20) had 17 CONCAT + 3 SKIPPED → mesh stuck at 16/19
+          # peers because the 3 skipped clusters never advertised.
+          echo "##vso[task.logissue type=warning;] AZURE FLEET RP BUG DETECTED at N=$cluster_count: ${fleet_skip_count} cluster(s) SKIPPED by reconciler (cluster-id=0, no clustermesh-apiserver), ${fleet_unexpected_count} cluster(s) in unexpected state, ${fleet_bug_count} cluster(s) with concat-naming (by-design). Mesh convergence WILL fail due to skipped/unexpected clusters — see Phase 4b plan.md / files/fleet-clustermeshprofile-bug-67525.md for evidence + workarounds (n<=10, or move to OLD sub)."
+        elif [ "$fleet_bug_count" -gt 0 ]; then
+          # All clusters that aren't OK are CONCAT-by-design. Internally
+          # consistent → mesh converges IFF the rendered cluster-names are
+          # unique. At N=100, two distinct (member, cluster-id) pairs can
+          # produce the same concat string — e.g. "mesh-1"+"15" =
+          # "mesh-115" = "mesh-11"+"5". Cilium ClusterMesh requires unique
+          # cluster-names; collisions silently break peer resolution.
+          dup_concat=$(echo "$_concat_names_table" | sort | uniq -d)
+          if [ -n "$dup_concat" ]; then
+            echo "##vso[task.logissue type=error;] FLEET concat-naming COLLISION at N=$cluster_count: the following cluster-name values appear on >1 cluster, which Cilium ClusterMesh cannot resolve. Failing fast. Duplicates:"
+            echo "$dup_concat"
+            exit 1
+          fi
+          # All concat-rendered names are unique → convergence-safe.
+          echo "Fleet reconcile state: by-design — ${fleet_bug_count}/${cluster_count} clusters use Fleet concat-naming (cluster-name = <member>+<cluster-id>), 0 skipped, 0 unexpected, 0 duplicate rendered names. Mesh convergence OK (validated at n=10 build 67608)."
+        else
+          echo "Fleet reconcile state: clean (all cluster-name values match Fleet member names)"
+        fi
+        echo ""
+
+        # ====================================================================
+        # Fail-fast confirmation for the SKIP-BUG (cluster-id=0).
+        # ====================================================================
+        # Cilium ClusterMesh requires cluster-id ∈ [1, 255]. cluster-id=0 after
+        # wait-for-apiserver has succeeded means Fleet's reconciler never ran
+        # for this cluster — the exact signature from build 67525 (3/20
+        # SKIPPED, mesh stuck at 16/19 peers, build timed out at 12h).
+        #
+        # Concat-naming (fleet_bug_count) is by-design and convergence-safe;
+        # only fleet_skip_count drives this fail-fast. Unexpected state is
+        # flagged separately above but doesn't drive fail-fast (lower
+        # confidence of cause without forensic data).
+        #
+        # 3 × 60s confirmation rides out rare ConfigMap-write lag (Fleet RP
+        # can be slow to push cluster-id even after clustermesh-apiserver is
+        # Available). If clusters recover within ~3 min, validate-cilium
+        # below can proceed normally.
+        if [ "$fleet_skip_count" -gt 0 ]; then
+          echo "===================================================================="
+          echo "  Fleet SKIP-BUG confirmation loop"
+          echo "===================================================================="
+          echo "Upfront detector saw ${fleet_skip_count} cluster(s) with cluster-id=0;"
+          echo "confirming across 3 retries (60s apart) before failing fast..."
+          for round in 1 2 3; do
+            round_skip=0
+            for _row in $(echo "$clusters" | jq -c '.[]'); do
+              _role=$(echo "$_row" | jq -r '.role')
+              _kc="$HOME/.kube/${_role}.config"
+              _cid=$(KUBECONFIG="$_kc" kubectl -n kube-system get cm cilium-config \
+                       -o jsonpath='{.data.cluster-id}' 2>/dev/null || echo "")
+              if [ "$_cid" = "0" ]; then
+                round_skip=$((round_skip + 1))
+              fi
+            done
+            if [ "$round_skip" -eq 0 ]; then
+              echo "Round ${round}: all clusters recovered (no cluster-id=0). Continuing to validate-cilium loop."
+              fleet_skip_count=0
+              break
+            fi
+            echo "Round ${round}: ${round_skip} cluster(s) still have cluster-id=0; waiting 60s..."
+            fleet_skip_count=$round_skip
+            if [ "$round" -lt 3 ]; then sleep 60; fi
+          done
+
+          if [ "$fleet_skip_count" -gt 0 ]; then
+            # The per-cluster validate-cilium loop below times out at 30 min
+            # per stuck cluster — letting it run at N=100 would waste up to
+            # ${fleet_skip_count} × 30 min on hopeless retries. Exit non-zero
+            # so destroy fires immediately. cleanup-resources condition is
+            # `ne(SKIP_RESOURCE_MANAGEMENT, 'true')` (no `succeeded()`), so
+            # the RG still gets cleaned up.
+            echo "##vso[task.logissue type=error;] Fleet RP SKIP-BUG CONFIRMED at N=${cluster_count}: ${fleet_skip_count} cluster(s) have cluster-id=0 after wait-for-apiserver succeeded + 3 min of retries. This is the build-67525 pattern. Failing fast to release infra ~$((fleet_skip_count * 30))min sooner than validate-cilium per-cluster timeout loop would. Destroy step (no succeeded() predicate) will still run."
+            exit 1
+          fi
+          echo ""
+        fi
+      fi
 
       failures=0
       for row in $(echo "$clusters" | jq -c '.[]'); do
@@ -71,7 +661,107 @@ steps:
 
         echo "--- nodes ---"
         kubectl get nodes -o wide
-        kubectl wait --for=condition=Ready nodes --all --timeout=5m
+        # Wait until ALL nodes reach Ready. Originally a single
+        # `kubectl wait --timeout=5m` call, but a 5min hard timeout is
+        # brittle when 1-2 of N nodes flap NotReady transiently at
+        # startup (kubelet image pull, CNI sandbox init). Smoke build
+        # 67014 hit this — 2 of 21 nodes briefly NotReady, kubectl
+        # wait timed out, validate step failed, CL2 skipped (~30min
+        # of provisioned infra wasted).
+        #
+        # New behavior: retry-with-resample loop, 15min budget, 30s
+        # rechecks. Exits as soon as all nodes are Ready; gives a
+        # final diag dump on timeout (which clusters/nodes are still
+        # NotReady).
+        # Time-bounded kubectl for diagnostics — fail fast on a flaky apiserver
+        # instead of hanging, and fold stderr into the output.
+        kdiag() { kubectl --request-timeout=25s "$@" 2>&1; }
+        # Light snapshot of the cilium-agent (the AKS CNI that gates node Ready)
+        # for one node — used both in the periodic in-loop snapshot and the final
+        # timeout dump.
+        dump_cilium_for_node() {
+          local _n="$1" _cil
+          _cil=$(kubectl --request-timeout=25s -n kube-system get pod -l k8s-app=cilium \
+                  --field-selector "spec.nodeName=$_n" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+          if [ -z "$_cil" ]; then
+            echo "  [diag] $_n: NO cilium-agent pod scheduled (DaemonSet skipped it — taint/nodeSelector/operator stuck?)"
+            return 0
+          fi
+          echo "  [diag] $_n: cilium-agent=$_cil"
+          kdiag -n kube-system get pod "$_cil" \
+            -o jsonpath='{range .status.containerStatuses[*]}{"    "}{.name}: ready={.ready} restarts={.restartCount} state={.state}{"\n"}{end}' || true
+        }
+        node_ready_deadline=$(( $(date +%s) + 900 ))
+        _iter=0
+        while true; do
+          if kubectl wait --for=condition=Ready nodes --all --timeout=30s >/dev/null 2>&1; then
+            echo "All nodes Ready"
+            break
+          fi
+          if [ "$(date +%s)" -ge "$node_ready_deadline" ]; then
+            echo "##vso[task.logissue type=error;] $role: node readiness timeout after 15 min"
+            # Best-effort, apiserver-flakiness-resilient diagnostics. The previous
+            # dump did ONE `get nodes`/`describe` with no request-timeout and no
+            # cilium data — build 72011 hit a transient apiserver i/o timeout HERE
+            # and captured nothing, never showing the cilium-agent that actually
+            # gates node Ready on AKS+Cilium. set +e so a single failed probe can't
+            # abort the dump before the important parts.
+            set +e
+            nr_nodes=""
+            for _t in 1 2 3 4 5; do
+              nr_nodes=$(kubectl --request-timeout=25s get nodes --no-headers 2>/dev/null | awk '$2 != "Ready" {print $1}')
+              if [ -n "$nr_nodes" ]; then break; fi
+              if kubectl --request-timeout=25s get nodes >/dev/null 2>&1; then break; fi  # genuinely all-Ready now
+              echo "  [diag] apiserver unreachable, retry $_t/5 in 10s..."; sleep 10
+            done
+            echo "--- all nodes ---"; kdiag get nodes -o wide
+            if [ -z "$nr_nodes" ]; then
+              echo "  [diag] no NotReady node names captured (apiserver flaky, or nodes recovered after the deadline)"
+            fi
+            for n in $nr_nodes; do
+              echo "==================== NotReady node: $n ===================="
+              echo "--- node conditions ---"
+              kdiag get node "$n" -o jsonpath='{range .status.conditions[*]}{.type}={.status} ({.reason}) {.message}{"\n"}{end}'
+              echo "--- node describe (tail = recent events) ---"
+              kdiag describe node "$n" | tail -60
+              echo "--- AKS cilium-agent on $n (the node-Ready gate) ---"
+              cil=$(kubectl --request-timeout=25s -n kube-system get pod -l k8s-app=cilium \
+                     --field-selector "spec.nodeName=$n" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+              if [ -n "$cil" ]; then
+                kdiag -n kube-system get pod "$cil" -o wide
+                kdiag -n kube-system get pod "$cil" -o jsonpath='{range .status.containerStatuses[*]}{.name}: ready={.ready} restarts={.restartCount} state={.state}{"\n"}{end}'
+                echo "--- cilium-agent describe (events) ---"; kdiag -n kube-system describe pod "$cil" | tail -50
+                echo "--- cilium-agent logs current (tail 150) ---"
+                kdiag -n kube-system logs "$cil" -c cilium-agent --tail=150 || kdiag -n kube-system logs "$cil" --tail=150
+                echo "--- cilium-agent logs previous (tail 100) ---"
+                kdiag -n kube-system logs "$cil" -c cilium-agent --previous --tail=100 || echo "  [diag] no previous logs (no prior restart)"
+              else
+                echo "  [diag] NO cilium-agent pod on $n (DaemonSet didn't place one — taint/nodeSelector/operator stuck?)"
+              fi
+            done
+            echo "==================== cluster cilium health: $role ===================="
+            echo "--- cilium DaemonSet ---"; kdiag -n kube-system get ds cilium -o wide
+            echo "--- all cilium-agent pods ---"; kdiag -n kube-system get pods -l k8s-app=cilium -o wide
+            echo "--- cilium-operator + any non-Running cilium pod ---"
+            kdiag -n kube-system get pods -o wide | grep -iE 'NAME|cilium' | awk 'NR==1 || $3!="Running"'
+            echo "--- recent kube-system Warning events ---"
+            kdiag -n kube-system get events --field-selector type=Warning --sort-by=.lastTimestamp | tail -25
+            exit 1
+          fi
+          not_ready=$(kubectl get nodes --no-headers 2>/dev/null | awk '$2 != "Ready"' | wc -l)
+          echo "$(date -u +%H:%M:%S): ${not_ready} node(s) NotReady, waiting (deadline at $(date -u -d @${node_ready_deadline} +%H:%M:%S))"
+          # Periodic LIGHT snapshot (every ~5 min) of the NotReady nodes' cilium-
+          # agent container status — insurance so we still have cilium state even if
+          # the apiserver is unreachable at the exact timeout moment (build 72011).
+          _iter=$((_iter + 1))
+          if [ $(( _iter % 10 )) -eq 0 ]; then
+            echo "  [diag snapshot @ $(date -u +%H:%M:%S)] cilium-agent on NotReady node(s):"
+            for n in $(kubectl --request-timeout=20s get nodes --no-headers 2>/dev/null | awk '$2 != "Ready" {print $1}'); do
+              dump_cilium_for_node "$n" || true
+            done
+          fi
+          sleep 30
+        done
 
         echo "--- cilium agent pods ---"
         kubectl -n kube-system get pods -l k8s-app=cilium -o wide
@@ -112,8 +802,14 @@ steps:
         # "configured/connected" first because it counts apiserver clients,
         # while the in-pod view requires the Secret to be reloaded. We gate on
         # the in-pod view because the data path needs the agent's local state.
+        # Mesh convergence retry budget. At N=20 we observed mesh-2 +
+        # mesh-6 take ~24 min to reach 19/19 connected (initial-sync + Fleet
+        # member-secret reload at scale). Budget of 120 * 15s = 30 min
+        # accommodates that slowest-cluster tail. Smaller N (2/5/10) finish
+        # in <5 min and exit the loop early via the break, so no cost on
+        # green runs at small N.
         connected=0
-        for i in $(seq 1 60); do
+        for i in $(seq 1 120); do
           out=$(kubectl -n kube-system exec ds/cilium -- cilium-dbg status 2>&1 || true)
           echo "$out"
           # Parse "<ready>/<total> remote clusters ready" line.
@@ -124,61 +820,35 @@ steps:
             break
           fi
 
-          # ============== DEBUG-DUMP-BEGIN (REMOVE BEFORE MERGE) ==============
-          # Every 6 iterations dump richer state: in-pod cilium-cli view of the
-          # mesh, clustermesh-apiserver pod state, and Fleet-side member status.
-          # These help diagnose why convergence is stalling. Strip before final
-          # PR review.
-          if [ "$((i % 6))" -eq 0 ]; then
-            echo "------- [debug] retry $i: cilium clustermesh status (runner cli) -------"
-            cilium clustermesh status --context "$(kubectl config current-context)" --wait=false 2>&1 || true
-
-            echo "------- [debug] retry $i: clustermesh-apiserver pods -------"
-            kubectl -n kube-system get pods -l k8s-app=clustermesh-apiserver -o wide 2>&1 || true
-            kubectl -n kube-system describe pods -l k8s-app=clustermesh-apiserver 2>&1 | tail -40 || true
-
-            echo "------- [debug] retry $i: clustermesh-apiserver service -------"
-            # Service of type LoadBalancer for the clustermesh-apiserver. If
-            # EXTERNAL-IP stays "<pending>", the AKS control-plane identity is
-            # missing Network Contributor on the VNet (cloud-controller-manager
-            # cannot provision the internal LB). Look in describe events for
-            # AuthorizationFailed / forbidden messages.
-            kubectl -n kube-system get svc clustermesh-apiserver -o wide 2>&1 || true
-            kubectl -n kube-system describe svc clustermesh-apiserver 2>&1 | tail -25 || true
-
-            echo "------- [debug] retry $i: cilium agent restarts / readiness -------"
-            kubectl -n kube-system get pods -l k8s-app=cilium -o wide 2>&1 || true
-
-            echo "------- [debug] retry $i: Fleet ClusterMeshProfile profile-level status -------"
-            # Profile-level mesh state (NotConnected/Connecting/Connected/Failed)
-            # plus the last operation error if any. This is the authoritative
-            # control-plane view of whether the mesh has converged.
-            az fleet clustermeshprofile show \
-              --resource-group "$rg" \
-              --fleet-name clustermesh-flt \
-              --name clustermesh-cmp \
-              --query "{state:properties.status.state, provisioningState:properties.provisioningState, lastError:properties.status.lastOperationError}" \
-              -o jsonc 2>&1 || true
-
-            echo "------- [debug] retry $i: Fleet ClusterMeshProfile members (connection state) -------"
-            # Per-member: provisioningState is just ARM-level (join accepted);
-            # meshProperties.status.state is the actual Cilium connection state.
-            az fleet clustermeshprofile list-members \
-              --resource-group "$rg" \
-              --fleet-name clustermesh-flt \
-              --name clustermesh-cmp \
-              --query "[].{name:name, provisioning:properties.provisioningState, mesh:properties.meshProperties.status.state, lastUpdated:properties.meshProperties.status.lastUpdatedAt, error:properties.meshProperties.status.error.message}" \
-              -o table 2>&1 || true
-          fi
-          # =============== DEBUG-DUMP-END (REMOVE BEFORE MERGE) ===============
-
-          echo "  waiting for $expected_remote remote clusters to be ready (got $ready), retry $i/60..."
-          sleep 10
+          echo "  waiting for $expected_remote remote clusters to be ready (got $ready), retry $i/120..."
+          sleep 15
         done
 
         if [ "$connected" -ne 1 ]; then
           echo "##vso[task.logissue type=error;] $role: clustermesh not Connected to $expected_remote remote clusters"
           failures=$((failures + 1))
+          # Build 67525 debug dump (Fleet n=20 mangled-peer bug). On mesh-
+          # convergence failure, capture the actual peer list Cilium has
+          # so we can identify mangled-name entries — the smoking gun for
+          # the Fleet RP bug. Dump: (1) cilium-config ConfigMap's
+          # clustermesh-related fields, (2) any clustermesh-related
+          # Secret keys, (3) endpoint list. All on a best-effort basis.
+          echo "--- $role: PEER-LIST DEBUG DUMP (mesh-convergence failure) ---"
+          echo "--- cilium-config ConfigMap (clustermesh.config) ---"
+          kubectl -n kube-system get cm cilium-config -o yaml 2>&1 \
+            | grep -E 'clustermesh|^[^[:space:]]+: |^  [a-z][a-z-]+:' \
+            | head -100 || true
+          echo "--- Secrets in kube-system matching clustermesh* ---"
+          kubectl -n kube-system get secrets -o name 2>&1 \
+            | grep -iE 'clustermesh|cilium-clustermesh' || echo "(no clustermesh-related secrets)"
+          echo "--- cilium-clustermesh Secret keys (just keys, NOT contents) ---"
+          kubectl -n kube-system get secret cilium-clustermesh -o jsonpath='{.data}' 2>&1 \
+            | python3 -c "import sys,json; d=json.loads(sys.stdin.read()) if sys.stdin else {}; [print(f'  key: {k}') for k in sorted(d.keys())]" 2>&1 \
+            || echo "(cilium-clustermesh secret not present)"
+          echo "--- cilium-dbg status REMOTE CLUSTERS (full output, not just summary) ---"
+          kubectl -n kube-system exec ds/cilium -- cilium-dbg status --verbose 2>&1 \
+            | grep -A 4 -E '^[[:space:]]+(mesh-|remote-)' | head -80 || true
+          echo "--- end PEER-LIST DEBUG DUMP for $role ---"
         fi
 
         echo "--- cilium clustermesh status (runner-side, richer diagnostics) ---"
@@ -216,8 +886,14 @@ steps:
       ns="cm-smoke"
 
       cleanup() {
-        KUBECONFIG="$kc_first"  kubectl delete ns "$ns" --ignore-not-found --wait=false || true
-        KUBECONFIG="$kc_second" kubectl delete ns "$ns" --ignore-not-found --wait=false || true
+        # WAIT for delete (was --wait=false 2026-05-20). The %global=0
+        # experiment cell requires NO global services to exist when CL2
+        # starts measurements; async deletion can leave the cm-smoke
+        # global service alive during the first ~30s of the workload
+        # window, contaminating the 0%-global baseline measurement.
+        # 60s wait covers the typical finalizer drain on a healthy mesh.
+        KUBECONFIG="$kc_first"  kubectl delete ns "$ns" --ignore-not-found --wait=true --timeout=60s || true
+        KUBECONFIG="$kc_second" kubectl delete ns "$ns" --ignore-not-found --wait=true --timeout=60s || true
       }
       trap cleanup EXIT
 
@@ -337,65 +1013,6 @@ steps:
       done
 
       if [ "$ok" -ne 1 ]; then
-        # ============== SMOKE-FAILURE-DEBUG-DUMP (REMOVE BEFORE MERGE) ==============
-        # On failure, dump enough state to distinguish Cilium global-service
-        # sync issues from cross-VNet pod-IP routing issues. Specifically:
-        #   1. cilium clustermesh status — should show "Global services: 1" if sync OK
-        #   2. cilium service list (in-pod) — should have an entry for cm-smoke/echo
-        #      with remote-cluster backends in cluster 2
-        #   3. kubectl describe svc / get endpoints echo — k8s view (cluster 2 should
-        #      have NO local endpoints, that's expected)
-        #   4. From inside the curl pod: DNS resolve, then direct-IP curl to a
-        #      cluster-1 echo pod IP — bypasses ClusterIP, tests raw L3 across VNets
-        echo
-        echo "================ SMOKE FAILURE DIAG (cluster $first_role -- backend) ================"
-        KUBECONFIG="$kc_first"  cilium clustermesh status --context "$(KUBECONFIG="$kc_first"  kubectl config current-context)" --wait=false 2>&1 || true
-        KUBECONFIG="$kc_first"  kubectl -n "$ns" describe svc echo 2>&1 || true
-        KUBECONFIG="$kc_first"  kubectl -n "$ns" get endpoints echo -o wide 2>&1 || true
-        KUBECONFIG="$kc_first"  kubectl -n "$ns" get pods -l app=echo -o wide 2>&1 || true
-        echo "------- $first_role: cilium-config (clustermesh-relevant flags) -------"
-        # Authoritative source for whether the cilium agent is configured to
-        # process global services. Look for: enable-cluster-mesh,
-        # cluster-mesh-shared-services, clustermesh-config, identity-allocation-mode,
-        # enable-services. AKS/ACNS may gate global services with a feature flag.
-        KUBECONFIG="$kc_first"  kubectl -n kube-system get cm cilium-config -o yaml 2>&1 \
-          | grep -iE 'cluster-mesh|clustermesh|service|global|identity' || true
-        echo "------- $first_role: cilium service list (full, head 40) -------"
-        KUBECONFIG="$kc_first"  kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium service list 2>&1 | head -40 || true
-        echo "------- $first_role: cilium-operator logs (tail 60) -------"
-        KUBECONFIG="$kc_first"  kubectl -n kube-system logs -l io.cilium/app=operator --tail=60 2>&1 \
-          | grep -iE 'global|clustermesh|cluster-mesh|cm-smoke|service' || true
-
-        echo
-        echo "================ SMOKE FAILURE DIAG (cluster $second_role -- client) ================"
-        KUBECONFIG="$kc_second" cilium clustermesh status --context "$(KUBECONFIG="$kc_second" kubectl config current-context)" --wait=false 2>&1 || true
-        KUBECONFIG="$kc_second" kubectl -n "$ns" describe svc echo 2>&1 || true
-        KUBECONFIG="$kc_second" kubectl -n "$ns" get endpoints echo -o wide 2>&1 || true
-        echo "------- $second_role: cilium-config (clustermesh-relevant flags) -------"
-        KUBECONFIG="$kc_second" kubectl -n kube-system get cm cilium-config -o yaml 2>&1 \
-          | grep -iE 'cluster-mesh|clustermesh|service|global|identity' || true
-        echo "------- $second_role: cilium service list (full, head 40) -------"
-        KUBECONFIG="$kc_second" kubectl -n kube-system exec ds/cilium -c cilium-agent -- cilium service list 2>&1 | head -40 || true
-        echo "------- $second_role: cilium-operator logs (tail 60) -------"
-        KUBECONFIG="$kc_second" kubectl -n kube-system logs -l io.cilium/app=operator --tail=60 2>&1 \
-          | grep -iE 'global|clustermesh|cluster-mesh|cm-smoke|service' || true
-
-        echo
-        echo "------- DNS + direct-pod-IP probe from curl pod (bypass ClusterIP) -------"
-        # ClusterIP plumbing is a Cilium-clustermesh concern; direct pod-IP
-        # connectivity is a VNet-peering concern. Hitting a backend pod IP
-        # directly disambiguates the two failure modes.
-        KUBECONFIG="$kc_second" kubectl -n "$ns" exec curl -- nslookup echo.cm-smoke.svc.cluster.local 2>&1 || true
-        backend_ip=$(KUBECONFIG="$kc_first" kubectl -n "$ns" get pod -l app=echo -o jsonpath='{.items[0].status.podIP}' 2>/dev/null || true)
-        echo "first cluster's echo pod IP: ${backend_ip:-<none>}"
-        if [ -n "${backend_ip:-}" ]; then
-          KUBECONFIG="$kc_second" kubectl -n "$ns" exec curl -- \
-            curl -fsS -m 5 "http://${backend_ip}:8080/hostname" 2>&1 || \
-            echo "  direct pod-IP curl ALSO failed → cross-VNet routing issue (peering / pod-CIDR routes)"
-        fi
-        echo "============================ END SMOKE DIAG ============================"
-        # =========================== END SMOKE-FAILURE-DEBUG-DUMP ===========================
-
         echo "##vso[task.logissue type=error;] Cross-cluster data-path smoke failed: $second_role could not reach service in $first_role"
         exit 1
       fi

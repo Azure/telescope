@@ -25,56 +25,234 @@ steps:
       export CL2_REPLICAS_PER_DEPLOYMENT="$REPLICAS_PER_DEPLOYMENT"
       export MESH_SIZE="${MESH_SIZE:-$CLUSTERMESH_COUNT}"
       export TEST_TYPE="${TEST_TYPE:-default-config}"
+      # %global matrix experiment: share-infra mode emits one row per scenario
+      # with test_type=<scenario_basename>. To discriminate cells of the
+      # 3×4 (N × %global) matrix in Kusto WITHOUT a schema change, the
+      # matrix entry sets `test_type_suffix: -shared-vnet-gXX` (auto-exported
+      # as TEST_TYPE_SUFFIX). The share-infra collect loop below APPENDS
+      # this suffix to each per-row test_type, producing rows like
+      # `event-throughput-shared-vnet-g20`, `pod-churn-combined-shared-vnet-g20`,
+      # `isolation-shared-vnet-g20` — fully Kusto-discriminable.
+      #
+      # Single-scenario cells set test_type directly (e.g. pod-churn-combined-
+      # shared-vnet-g20) and leave TEST_TYPE_SUFFIX empty so no double-
+      # suffixing occurs. The single-scenario branch below does NOT apply
+      # the suffix; only the share-infra branch does.
+      export TEST_TYPE_SUFFIX="${TEST_TYPE_SUFFIX:-}"
       export TRIGGER_REASON="${TRIGGER_REASON:-$BUILD_REASON}"
+      # Phase 4a — pod-churn knobs recorded in each JSONL row so Kusto can
+      # filter/group on the exact stressor parameters. Non-churn matrix
+      # entries leave these unset → fall back to 0/"" defaults that
+      # scale.py collect treats as "not a churn run".
+      export CL2_CHURN_CYCLES="${CHURN_CYCLES:-0}"
+      export CL2_CHURN_UP_DURATION="${CHURN_UP_DURATION:-}"
+      export CL2_CHURN_DOWN_DURATION="${CHURN_DOWN_DURATION:-}"
+      export CL2_KILL_DURATION_SECONDS="${KILL_DURATION_SECONDS:-0}"
+      export CL2_KILL_INTERVAL_SECONDS="${KILL_INTERVAL_SECONDS:-0}"
+      export CL2_KILL_BATCH="${KILL_BATCH:-0}"
+      # Phase 4b — Scenario #5 (Multi-Cluster Failure Isolation) target context.
+      # Reused from scenario #4 by convention; used here to special-case the
+      # per-cluster churn knobs (only the target row carries non-zero kill
+      # values; peer rows carry zeros even though the share-infra scenario
+      # was configured with churn knobs).
+      export CL2_APISERVER_KILL_TARGET_CONTEXT="${APISERVER_KILL_TARGET_CONTEXT:-clustermesh-1}"
+      # Phase 4b — Scenario #6 (Upper Bound / Saturation) collect knobs.
+      # Default to empty string so non-saturation test_types skip the
+      # classifier entirely (zero overhead). For upper-bound test_types,
+      # the matrix sets these → scale.py collect emits SaturationRung +
+      # SaturationSummary rows tagging which signal tripped per rung.
+      export CL2_SATURATION_QPS_LIST="${SATURATION_QPS_LIST:-}"
+      export CL2_SATURATION_RESTARTS_LIST="${SATURATION_RESTARTS_LIST:-}"
+      export CL2_SATURATION_OPS_PER_SEC_LIST="${SATURATION_OPS_PER_SEC_LIST:-}"
 
       clusters=$(cat "$HOME/.kube/clustermesh-clusters.json")
       cluster_count=$(echo "$clusters" | jq 'length')
 
       # Aggregate every per-cluster JSONL into a single TEST_RESULTS_FILE.
-      # Each line carries `cluster: <role>` so downstream Kusto queries can
-      # group/filter by cluster across the mesh.
+      # Each line carries `cluster: <role>` and `test_type: <name>` so
+      # downstream Kusto queries can group/filter by cluster AND scenario
+      # across the mesh.
       mkdir -p "$(dirname "$TEST_RESULTS_FILE")"
       : > "$TEST_RESULTS_FILE"
 
-      for row in $(echo "$clusters" | jq -c '.[]'); do
-        role=$(echo "$row" | jq -r '.role')
-        report_dir="${CL2_REPORT_DIR}/${role}"
-
-        if [ ! -d "$report_dir" ]; then
-          echo "##vso[task.logissue type=warning;] $role: missing report dir $report_dir, skipping"
-          continue
+      # Helper: collect one (scenario, cluster) pair. Args:
+      #   $1 scenario name (also used as test_type)
+      #   $2 cluster role
+      #   $3 per-cluster CL2 report dir (already includes scenario subdir
+      #      in share-infra mode; just <CL2_REPORT_DIR>/<role> in single
+      #      scenario mode)
+      #   $4 result file path
+      #   $5 churn_cycles value (0 to record "not a churn scenario")
+      #   $6 churn_up_duration value ("" to record "not a churn scenario")
+      #   $7 churn_down_duration value
+      #   $8 kill_duration_seconds value
+      #   $9 kill_interval_seconds value
+      #   $10 kill_batch value
+      #   $11 scenario_start_timestamp value
+      #   $12 saturation_qps_list value ("" for non-saturation scenarios)
+      #   $13 saturation_restarts_list value ("" for non-saturation scenarios)
+      #   $14 saturation_ops_per_sec_list value ("" for non-saturation; Phase B)
+      collect_one() {
+        local _scen="$1" _role="$2" _report="$3" _out="$4"
+        local _cc="$5" _cu="$6" _cd="$7" _kds="$8" _kis="$9" _kb="${10}" _st="${11}"
+        local _sqps="${12:-}" _sres="${13:-}" _sops="${14:-}"
+        if [ ! -d "$_report" ]; then
+          echo "##vso[task.logissue type=warning;] $_scen/$_role: missing report dir $_report, skipping"
+          return 1
         fi
-
-        # If CL2 errored out before producing junit.xml (e.g. prometheus stack
-        # setup timeout), skip aggregation for this cluster — scale.py collect
-        # would crash on the missing file. The execute step already logged a
-        # warning per-cluster; we don't want to also abort the whole pipeline
-        # at collect time when partial data may be useful.
-        if [ ! -f "$report_dir/junit.xml" ]; then
-          echo "##vso[task.logissue type=warning;] $role: $report_dir/junit.xml not found (CL2 likely failed); skipping collect for this cluster"
-          continue
+        if [ ! -f "$_report/junit.xml" ]; then
+          echo "##vso[task.logissue type=warning;] $_scen/$_role: $_report/junit.xml not found (CL2 likely failed); skipping collect"
+          return 1
         fi
-
-        per_cluster_result="${TEST_RESULTS_FILE%.*}.${role}.${TEST_RESULTS_FILE##*.}"
-
+        local _rc=0
         PYTHONPATH=$PYTHONPATH:$(pwd) python3 $PYTHON_SCRIPT_FILE collect \
-          --cl2_report_dir "$report_dir" \
+          --cl2_report_dir "$_report" \
           --cloud_info "${CLOUD_INFO:-}" \
           --run_id "$RUN_ID" \
           --run_url "$RUN_URL" \
-          --result_file "$per_cluster_result" \
-          --start_timestamp "$START_TIME" \
-          --cluster-name "$role" \
+          --result_file "$_out" \
+          --start_timestamp "$_st" \
+          --cluster-name "$_role" \
           --cluster-count "$cluster_count" \
           --mesh-size "$MESH_SIZE" \
-          --test_type "$TEST_TYPE" \
+          --test_type "$_scen" \
           --namespaces "$CL2_NAMESPACES" \
           --deployments-per-namespace "$CL2_DEPLOYMENTS_PER_NAMESPACE" \
           --replicas-per-deployment "$CL2_REPLICAS_PER_DEPLOYMENT" \
-          --trigger_reason "${TRIGGER_REASON:-}"
+          --churn-cycles "$_cc" \
+          --churn-up-duration "$_cu" \
+          --churn-down-duration "$_cd" \
+          --kill-duration-seconds "$_kds" \
+          --kill-interval-seconds "$_kis" \
+          --kill-batch "$_kb" \
+          --saturation-qps-list "$_sqps" \
+          --saturation-restarts-list "$_sres" \
+          --saturation-ops-per-sec-list "$_sops" \
+          --trigger_reason "${TRIGGER_REASON:-}" || _rc=$?
+        if [ "$_rc" -ne 0 ]; then
+          echo "##vso[task.logissue type=warning;] $_scen/$_role: scale.py collect exited $_rc; skipping aggregation"
+          return 1
+        fi
+        if [ ! -f "$_out" ]; then
+          echo "##vso[task.logissue type=warning;] $_scen/$_role: per-cluster result file $_out missing after collect; skipping"
+          return 1
+        fi
+        return 0
+      }
 
-        cat "$per_cluster_result" >> "$TEST_RESULTS_FILE"
-      done
+      # Helper: set the 7 collect arg vars (cc/cu/cd/kds/kis/kb/st) for a
+      # given scenario name. For pod-churn-* scenarios, use the matrix-exported
+      # CL2_CHURN_* / CL2_KILL_* values directly. For non-churn scenarios
+      # (event-throughput, default-config), emit zeros/empties so the JSONL
+      # doesn't mis-tag those rows.
+      #
+      # Implementation note: an earlier version used `IFS=$'\t' read` to parse
+      # tab-separated values from a printf string. That was buggy because tab
+      # is whitespace-IFS and bash collapses consecutive tabs into a single
+      # delimiter — non-churn scenarios (which had empty cu/cd fields) ended
+      # up with shifted values. Direct assignment avoids that pitfall.
+      #
+      # Also sets sqps/sres for upper-bound (Scenario #6). These vars are
+      # passed to collect_one as $12/$13; saturation classifier in scale.py
+      # collect skips when sqps is empty (non-upper-bound scenarios).
+      set_churn_args_for_scenario() {
+        local _scen="$1" _st="$2"
+        case "$_scen" in
+          pod-churn-*)
+            cc="$CL2_CHURN_CYCLES"
+            cu="$CL2_CHURN_UP_DURATION"
+            cd_v="$CL2_CHURN_DOWN_DURATION"
+            kds="$CL2_KILL_DURATION_SECONDS"
+            kis="$CL2_KILL_INTERVAL_SECONDS"
+            kb="$CL2_KILL_BATCH"
+            sqps=""
+            sres=""
+            sops=""
+            ;;
+          upper-bound)
+            cc=0
+            cu=""
+            cd_v=""
+            kds=0
+            kis=0
+            kb=0
+            sqps="$CL2_SATURATION_QPS_LIST"
+            sres="$CL2_SATURATION_RESTARTS_LIST"
+            sops="$CL2_SATURATION_OPS_PER_SEC_LIST"
+            ;;
+          *)
+            cc=0
+            cu=""
+            cd_v=""
+            kds=0
+            kis=0
+            kb=0
+            sqps=""
+            sres=""
+            sops=""
+            ;;
+        esac
+        st="$_st"
+      }
+
+      # Share-infra mode: SHARE_INFRA_META is a JSON array of
+      # {scenario, start_timestamp} produced by execute.yml. Iterate
+      # per-scenario × per-cluster, aggregating ALL rows into one blob with
+      # per-row test_type attribution.
+      if [ -n "${SHARE_INFRA_META:-}" ] && [ -f "$SHARE_INFRA_META" ]; then
+        echo "Share-infra collect: reading scenarios from $SHARE_INFRA_META"
+        scenarios_json=$(cat "$SHARE_INFRA_META")
+        for sn in $(echo "$scenarios_json" | jq -c '.[]'); do
+          SCENARIO=$(echo "$sn" | jq -r '.scenario')
+          SCENARIO_START=$(echo "$sn" | jq -r '.start_timestamp')
+          echo "----- collecting scenario: $SCENARIO (start=$SCENARIO_START) -----"
+          set_churn_args_for_scenario "$SCENARIO" "$SCENARIO_START"
+          for row in $(echo "$clusters" | jq -c '.[]'); do
+            role=$(echo "$row" | jq -r '.role')
+            name=$(echo "$row" | jq -r '.name')
+            report_dir="${CL2_REPORT_DIR}/${SCENARIO}/${role}"
+            per_cluster_result="${TEST_RESULTS_FILE%.*}.${SCENARIO}.${role}.${TEST_RESULTS_FILE##*.}"
+            # Phase 4b — Scenario #5 (Isolation) per-cluster churn-knob
+            # override: only the TARGET cluster's row gets actual kill knobs;
+            # peer rows stay at zeros (default). This honestly represents
+            # "kill duration/interval/batch describe what THIS cluster did",
+            # not "what the scenario was configured to do globally".
+            #
+            # The matrix-exported APISERVER_KILL_TARGET_CONTEXT (default
+            # clustermesh-1) is compared against the cluster's `name` field
+            # from the discovered-clusters JSON (AKS resource name = kubectl
+            # context name set by `az aks get-credentials`).
+            cc_row="$cc"; cu_row="$cu"; cd_row="$cd_v"
+            kds_row="$kds"; kis_row="$kis"; kb_row="$kb"
+            if [ "$SCENARIO" = "isolation" ] && [ "$name" = "$CL2_APISERVER_KILL_TARGET_CONTEXT" ]; then
+              cc_row=0
+              cu_row=""
+              cd_row=""
+              kds_row="$CL2_KILL_DURATION_SECONDS"
+              kis_row="$CL2_KILL_INTERVAL_SECONDS"
+              kb_row="$CL2_KILL_BATCH"
+            fi
+            if collect_one "${SCENARIO}${TEST_TYPE_SUFFIX}" "$role" "$report_dir" "$per_cluster_result" \
+                "$cc_row" "$cu_row" "$cd_row" "$kds_row" "$kis_row" "$kb_row" "$st" \
+                "$sqps" "$sres" "$sops"; then
+              cat "$per_cluster_result" >> "$TEST_RESULTS_FILE"
+            fi
+          done
+        done
+      else
+        # Single-scenario mode (prod path — unchanged behavior).
+        set_churn_args_for_scenario "$TEST_TYPE" "$START_TIME"
+        for row in $(echo "$clusters" | jq -c '.[]'); do
+          role=$(echo "$row" | jq -r '.role')
+          report_dir="${CL2_REPORT_DIR}/${role}"
+          per_cluster_result="${TEST_RESULTS_FILE%.*}.${role}.${TEST_RESULTS_FILE##*.}"
+          if collect_one "$TEST_TYPE" "$role" "$report_dir" "$per_cluster_result" \
+              "$cc" "$cu" "$cd_v" "$kds" "$kis" "$kb" "$st" \
+              "$sqps" "$sres" "$sops"; then
+            cat "$per_cluster_result" >> "$TEST_RESULTS_FILE"
+          fi
+        done
+      fi
 
       echo "Aggregated results from $cluster_count clusters into $TEST_RESULTS_FILE"
       wc -l "$TEST_RESULTS_FILE" || true
@@ -86,3 +264,103 @@ steps:
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/results
       BUILD_REASON: $(Build.Reason)
     displayName: "Collect + aggregate results across clustermesh clusters"
+
+  # Prometheus TSDB snapshot publish (when CL2_PROM_SNAPSHOT_ENABLED=true the
+  # per-cluster CL2 runner places prom-snapshot-*.tar.gz files under
+  # CL2_REPORT_DIR/[scenario]/[role]/). Two delivery targets, both
+  # owned-by-us (independent of Telescope's storage/Kusto):
+  #
+  #   target=artifact (default): publish as AzDO pipeline artifact
+  #     - Pros: zero external infra, downloadable from Build page
+  #     - Cons: 10GB-per-artifact cap; fine at n=3 smoke (~50-200MB total)
+  #
+  #   target=blob: upload to OUR storage account (cmshscaleprom by default)
+  #     - Pros: scales to N=100 (~30-50GB), 90+ day retention
+  #     - Cons: needs SP to have Storage Blob Data Contributor on the account
+  #     - Auth: --auth-mode login (uses the AzDO service connection's SP
+  #       OAuth token; no shared keys; matches sub's "no shared key access"
+  #       policy)
+  #
+  # Load locally with:
+  #   az storage blob download-batch --source snapshots \
+  #     --pattern "<branch>/<scenario>/<run_id>/*" --destination ./snap \
+  #     --account-name <account> --auth-mode login
+  #   tar xzf ./snap/prom-snapshot-<role>-<id>.tar.gz
+  #   docker run --rm -v "$PWD/<snap_dir>:/prometheus" -p 9090:9090 \
+  #     prom/prometheus --storage.tsdb.path=/prometheus
+  - bash: |
+      set -euo pipefail
+      shopt -s globstar nullglob
+      mkdir -p "$STAGING_DIR"
+      count=0 total_bytes=0
+      for snap in "$CL2_REPORT_DIR"/**/prom-snapshot-*.tar.gz; do
+        rel=${snap#"$CL2_REPORT_DIR/"}
+        dest_dir="$STAGING_DIR/$(dirname "$rel")"
+        mkdir -p "$dest_dir"
+        cp "$snap" "$dest_dir/"
+        size=$(stat -c%s "$snap" 2>/dev/null || echo 0)
+        count=$((count + 1))
+        total_bytes=$((total_bytes + size))
+      done
+      echo "Staged $count prometheus snapshot tarball(s), total ${total_bytes} bytes, into $STAGING_DIR"
+      ls -laR "$STAGING_DIR" || true
+    env:
+      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/results
+      STAGING_DIR: $(Build.ArtifactStagingDirectory)/prom-snapshots
+    displayName: "Stage Prometheus TSDB snapshots"
+    condition: and(succeededOrFailed(), eq(variables['cl2_prom_snapshot_enabled'], 'true'))
+  # Target=artifact path (small smokes). Always-attempted when snapshot is
+  # enabled; artifact stays under the build page's Artifacts dropdown.
+  - task: PublishPipelineArtifact@1
+    inputs:
+      targetPath: $(Build.ArtifactStagingDirectory)/prom-snapshots
+      artifact: prom-snapshots-$(System.JobAttempt)-$(System.JobName)
+      publishLocation: pipeline
+    displayName: "Publish Prometheus TSDB snapshots as pipeline artifact"
+    condition: and(succeededOrFailed(), eq(variables['cl2_prom_snapshot_enabled'], 'true'))
+  # Target=blob path (larger scales). Opt-in via cl2_prom_snapshot_target=blob.
+  # Uses the same AzDO service connection as the rest of the pipeline (SP's
+  # OAuth via AzureCLI@2's built-in auth, no shared keys — matches sub
+  # policy "Storage accounts should prevent shared key access"). Destination
+  # structure: prom-snapshots/<branch>/<scenario>/<run_id>/<role>.tar.gz
+  # Single AzureCLI@2 task handles both `az login --service-principal` (auto)
+  # and the upload — we cannot use `- template:` here because step-level
+  # templates don't accept runtime `condition:` (matrix vars not available
+  # at compile time, so `${{ if }}` template expressions also fail).
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(AZURE_SERVICE_CONNECTION)
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -euo pipefail
+        shopt -s globstar nullglob
+        count=0
+        total_bytes=0
+        for snap in "$CL2_REPORT_DIR"/**/prom-snapshot-*.tar.gz; do
+          rel=${snap#"$CL2_REPORT_DIR/"}
+          scenario_seg=$(dirname "$rel" | cut -d/ -f1)
+          blob_name="${BUILD_BRANCH}/${scenario_seg}/${RUN_ID}/$(basename "$snap")"
+          size=$(stat -c%s "$snap" 2>/dev/null || echo 0)
+          echo "Uploading $snap (${size} bytes) -> ${STORAGE_ACCOUNT_NAME}/${CONTAINER_NAME}/${blob_name}"
+          az storage blob upload \
+            --account-name "$STORAGE_ACCOUNT_NAME" \
+            --container-name "$CONTAINER_NAME" \
+            --name "$blob_name" \
+            --file "$snap" \
+            --auth-mode login \
+            --overwrite >/dev/null
+          count=$((count + 1))
+          total_bytes=$((total_bytes + size))
+        done
+        echo "Uploaded $count snapshot tarball(s), total ${total_bytes} bytes, to ${STORAGE_ACCOUNT_NAME}/${CONTAINER_NAME}"
+    env:
+      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/results
+      STORAGE_ACCOUNT_NAME: $(cl2_prom_snapshot_storage_account)
+      CONTAINER_NAME: $(cl2_prom_snapshot_container)
+      RUN_ID: $(RUN_ID)
+      BUILD_BRANCH: $(Build.SourceBranchName)
+    displayName: "Upload Prometheus TSDB snapshots to our storage account"
+    condition: and(succeededOrFailed(),
+                   eq(variables['cl2_prom_snapshot_enabled'], 'true'),
+                   eq(variables['cl2_prom_snapshot_target'], 'blob'))

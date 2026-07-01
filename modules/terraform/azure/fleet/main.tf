@@ -249,9 +249,55 @@ resource "terraform_data" "clustermeshprofile" {
 
   # create + apply are two separate az calls. Use bash with `set -euo pipefail`
   # so any failure aborts the chain.
+  #
+  # Idempotent create: under `preserve_state_on_apply_failure: true` (set on
+  # N>=20 clustermesh-scale runs), terraform may re-run this provisioner if
+  # the previous attempt failed at `apply`. `az fleet clustermeshprofile
+  # create` would then fail with "already exists" and never reach `apply`,
+  # leaving the profile unconfigured. Guard the create with a `show`
+  # precheck so retries succeed.
+  #
+  # Apply-with-retry (N=100 hardening): the `apply` operation is a Fleet RP
+  # LRO that pushes peer kubeconfigs to every member's cilium-config. At
+  # N=20 this typically completes in 3-10 min. At N=100 the work scales
+  # roughly linearly with member count (each member needs its config patched
+  # with the other 99 peers), so an apply can take 30-60 min and `az`'s
+  # default CLI timeout can fire mid-LRO. The retry wrapper handles:
+  #   - Transient Fleet RP busy errors (the RP serializes profile applies
+  #     across the regional Fleet — concurrent applies from other tests
+  #     would block ours briefly)
+  #   - CLI-side LRO timeout (azure-cli default is generous but not infinite)
+  # 5 attempts × 60s backoff between tries = ~5min of retry budget. If the
+  # apply genuinely succeeded by the 2nd or 3rd retry, the profile reconcile
+  # is idempotent (Fleet just reapplies the same selector → same member set).
   provisioner "local-exec" {
     interpreter = ["bash", "-c"]
-    command     = "set -euo pipefail; ${self.input.create_command}; ${self.input.apply_command}"
+    command     = <<-EOT
+      set -euo pipefail
+      # Idempotent create: skip if the profile already exists from a prior
+      # apply attempt that landed under preserve_state_on_apply_failure.
+      _show='az fleet clustermeshprofile show --subscription ${var.subscription_id} --resource-group ${var.resource_group_name} --fleet-name ${var.fleet_name} --name ${var.cmp_name} --only-show-errors'
+      if $_show >/dev/null 2>&1; then
+        echo "[clustermeshprofile] already exists (likely retry after preserved state); skipping create"
+      else
+        echo "[clustermeshprofile] create: ${self.input.create_command}"
+        ${self.input.create_command}
+      fi
+      apply_max=5
+      for i in $(seq 1 $apply_max); do
+        echo "[clustermeshprofile] apply attempt $i/$apply_max: ${self.input.apply_command}"
+        if ${self.input.apply_command}; then
+          echo "[clustermeshprofile] apply succeeded on attempt $i"
+          exit 0
+        fi
+        if [ "$i" -lt "$apply_max" ]; then
+          echo "[clustermeshprofile] apply attempt $i failed, retrying in 60s..."
+          sleep 60
+        fi
+      done
+      echo "[clustermeshprofile] apply failed after $apply_max attempts" >&2
+      exit 1
+    EOT
   }
 
   # Destroy-time: Fleet's API has a chicken-and-egg between member-delete
@@ -295,11 +341,14 @@ resource "terraform_data" "clustermeshprofile" {
       # 3. Poll the profile's APPLIED member count until it reaches 0. Re-issue
       # `apply` periodically as a nudge in case the first one was a no-op
       # (e.g. Fleet RP hadn't yet observed the relabeled members).
-      # Budget: 120 x 5s = 10 min.
+      # Budget: 360 x 5s = 30 min. Bumped from 120 (10 min) for N=100 — at
+      # 100 members Fleet RP reconcile-after-relabel can take 15-25 min in
+      # the worst case based on N=20 timing (3-5 min observed). Cheap
+      # insurance vs a failed destroy.
       drained=false
-      for i in $(seq 1 120); do
+      for i in $(seq 1 360); do
         count=$(eval "${self.input.list_applied_count_command}" 2>/dev/null | tr -d '[:space:]')
-        echo "[poll-members] attempt $i/120: applied count='$count'"
+        echo "[poll-members] attempt $i/360: applied count='$count'"
         if [ "$count" = "0" ]; then
           drained=true
           break
@@ -318,18 +367,20 @@ resource "terraform_data" "clustermeshprofile" {
 
       # 4. Delete the profile. Brief retry as a backstop in case there's still
       # propagation lag between list-members showing 0 and delete being allowed.
+      # Bumped 30 → 60 attempts (5 min) for N=100 — same rationale as the
+      # poll-members bump above.
       echo "[delete-profile] ${self.input.delete_command}"
-      for i in $(seq 1 30); do
+      for i in $(seq 1 60); do
         if eval "${self.input.delete_command}"; then
           echo "[delete-profile] succeeded on attempt $i"
           exit 0
         fi
-        if [ "$i" -lt 30 ]; then
-          echo "[delete-profile] retry $i/30 in 5s"
+        if [ "$i" -lt 60 ]; then
+          echo "[delete-profile] retry $i/60 in 5s"
           sleep 5
         fi
       done
-      echo "[delete-profile] gave up after 30 attempts; downstream cleanup will proceed"
+      echo "[delete-profile] gave up after 60 attempts; downstream cleanup will proceed"
       exit 0
     EOT
   }

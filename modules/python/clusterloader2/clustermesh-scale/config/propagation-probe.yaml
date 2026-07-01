@@ -1,0 +1,189 @@
+name: clustermesh-propagation-probe
+
+# Scenario: Propagation + global-service probe (next-iteration validation).
+#
+# Goal: directly measure two things customers care about that prior scenarios
+# only proxied:
+#   (1) PROPAGATION LATENCY: end-to-end "pod created in cluster A is visible
+#       in cluster B" decomposed into 5 lifecycle phases (apiserver write,
+#       schedule, CNI ADD, pod ready, mesh propagation). Replaces the
+#       cilium_kvstoremesh_kvstore_operations_duration_seconds proxy with
+#       a direct measurement.
+#   (2) DATAPATH READINESS: when a peer cluster CAN actually `curl` the
+#       global Service DNS name (discovered at runtime from the workload
+#       Service in the probe namespace) — the user-visible "the mesh
+#       works" answer.
+#
+# How it works:
+#   - Every cluster runs a tiny http-echo backend Deployment + global
+#     Service (service.cilium.io/global=true) via CL2. The Service is
+#     the customer-facing abstraction that load-balances across all
+#     backends mesh-wide.
+#   - HOST-SIDE orchestrator (execute.yml's launch_propagation_probe →
+#     config/propagation-probe.sh) runs from the AzDO agent (which has
+#     all N kubeconfigs). Fires PROBE_COUNT probes; per probe creates
+#     an agnhost serve-hostname pod on a random source cluster, polls
+#     all sampled peers for ipcache/identity/CEP appearance, records
+#     8 timestamps + optional cross-peer curl via global Service DNS.
+#   - The orchestrator runs IN PARALLEL with CL2 (mirroring node-churner
+#     pattern). Per-cluster CL2 keeps Prometheus alive + gathers
+#     measurements during the probe window so we get correlated
+#     prometheus + per-probe JSONL data.
+#
+# Why this is a SEPARATE scenario:
+#   - Existing scenarios (event-throughput, pod-churn) churn pods at
+#     scale — the probe pod's transient nature would get lost in the
+#     noise. This scenario is a CONTROLLED-CONDITIONS BASELINE: minimal
+#     workload, all energy in the probe.
+#   - Once baseline numbers are known, we can integrate the probe into
+#     other scenarios for under-load measurements (via the same
+#     CL2_PROPAGATION_PROBE_ENABLED env knob in execute.yml).
+
+{{$namespaces := DefaultParam .CL2_NAMESPACES 1}}
+{{$deploymentsPerNamespace := DefaultParam .CL2_DEPLOYMENTS_PER_NAMESPACE 1}}
+{{$replicasPerDeployment := DefaultParam .CL2_REPLICAS_PER_DEPLOYMENT 2}}
+{{$globalNamespaces := DefaultParam .CL2_GLOBAL_NAMESPACE_COUNT $namespaces}}
+{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "20m"}}
+{{$apiServerCallsPerSecond := DefaultParam .CL2_API_SERVER_CALLS_PER_SECOND 20}}
+
+# Window for the host-side probe orchestrator to run. Default sized so
+# the default 20-probe × 30s-interval × ~60s per-probe peer wait fits
+# inside this hold window with headroom.
+{{$probeWindowDuration := DefaultParam .CL2_PROBE_WINDOW_DURATION "30m"}}
+
+namespace:
+  number: {{$namespaces}}
+  prefix: clustermesh-probe
+  deleteStaleNamespaces: true
+  deleteAutomanagedNamespaces: true
+  enableExistingNamespaces: false
+  deleteNamespaceTimeout: 20m
+
+tuningSets:
+  - name: Sequence
+    parallelismLimitedLoad:
+      parallelismLimit: 1
+  - name: DeploymentCreateQps
+    qpsLoad:
+      qps: {{$apiServerCallsPerSecond}}
+
+steps:
+  # ----- CFP-39876 opt-in: annotate workload namespaces -----
+  # Required for AKS-managed Cilium opt-in mode: without
+  # clustermesh.cilium.io/global=true on the NAMESPACE, none of its
+  # resources (Identity/Endpoint/Service) sync across the mesh.
+  - name: Annotate workload namespaces for ACNS cross-cluster sync
+    measurements:
+      - Identifier: AnnotateNamespacesForGlobalSync
+        Method: Exec
+        Params:
+          streamOutput: true
+          timeout: 1m
+          command:
+          - bash
+          - /root/perf-tests/clusterloader2/config/annotate-namespaces.sh
+          - "{{$namespaces}}"
+          - "clustermesh-probe"
+          - "{{$globalNamespaces}}"
+
+  # ----- Start measurements -----
+  - module:
+      path: /modules/measurements/control-plane.yaml
+      params:
+        action: start
+        group: clustermesh-propagation-probe
+
+  - module:
+      path: /modules/measurements/cilium.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/clustermesh-metrics.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/clustermesh-throughput.yaml
+      params:
+        action: start
+
+  - module:
+      path: /modules/measurements/etcd-metrics.yaml
+      params:
+        action: start
+
+  # ----- Bring up the global-service backend on every cluster -----
+  # Real http-echo (agnhost serve-hostname) so the host-side connectivity
+  # probe has a real server to curl via the global Service DNS.
+  - module:
+      path: /modules/clustermesh.yaml
+      params:
+        actionName: create
+        tuningSet: DeploymentCreateQps
+
+  - module:
+      path: /modules/propagation-probe-workload.yaml
+      params:
+        actionName: create
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        replicasPerDeployment: {{$replicasPerDeployment}}
+        tuningSet: DeploymentCreateQps
+        operationTimeout: {{$operationTimeout}}
+
+  # ----- Probe window -----
+  # CL2 sleeps here while the HOST-SIDE orchestrator runs the actual
+  # probes (launched from execute.yml's launch_propagation_probe). Per-
+  # cluster CL2 stays alive so Prometheus keeps scraping; gather steps
+  # below capture the metric state under the probe stimulus.
+  - name: Probe window ({{$probeWindowDuration}}) — host-side orchestrator runs here
+    measurements:
+      - Identifier: ProbeWindow
+        Method: Sleep
+        Params:
+          duration: {{$probeWindowDuration}}
+
+  # ----- Gather measurements -----
+  - module:
+      path: /modules/measurements/control-plane.yaml
+      params:
+        action: gather
+        group: clustermesh-propagation-probe
+
+  - module:
+      path: /modules/measurements/cilium.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/clustermesh-metrics.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/clustermesh-throughput.yaml
+      params:
+        action: gather
+
+  - module:
+      path: /modules/measurements/etcd-metrics.yaml
+      params:
+        action: gather
+
+  # ----- Cleanup -----
+  - module:
+      path: /modules/propagation-probe-workload.yaml
+      params:
+        actionName: delete
+        namespaces: {{$namespaces}}
+        deploymentsPerNamespace: {{$deploymentsPerNamespace}}
+        replicasPerDeployment: 0
+        tuningSet: DeploymentCreateQps
+        operationTimeout: {{$operationTimeout}}
+
+  - module:
+      path: /modules/clustermesh.yaml
+      params:
+        actionName: delete
+        tuningSet: DeploymentCreateQps

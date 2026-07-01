@@ -1,0 +1,217 @@
+name: clustermesh-policy-scale
+
+# Scenario: NetworkPolicy at scale (CiliumNetworkPolicy stress test).
+#
+# Goal: measure how Cilium policy implementation latency, endpoint
+# regeneration cost, and BPF map pressure scale as the number of
+# CiliumNetworkPolicies grows. Today's headline matrix runs with ZERO
+# policies in steady state (or 1 canary CNP per ns via propagation-
+# probe); customers routinely deploy 50-500+ CNPs.
+#
+# How it works:
+#   1. Deploy a small pause-pod backend workload (same shape as
+#      propagation-probe but minimal — we don't need traffic, just
+#      pods for CNPs to match against).
+#   2. Create N CiliumNetworkPolicies per namespace (controlled by
+#      CL2_POLICY_SCALE_CNP_PER_NS, default 50). Each CNP is a
+#      permissive L4 toPorts rule on TCP/80 targeting the workload
+#      pods by label. Each forces a real BPF program compile so the
+#      cilium_policy_regeneration_time_stats_seconds histogram fires.
+#   3. Hold the mesh with all CNPs active for the measurement window
+#      (CL2_POLICY_SCALE_HOLD_DURATION, default 5m).
+#   4. Delete all CNPs in one sweep — measures the cleanup-side
+#      regen latency too.
+#   5. Gather Phase 1 + Phase 2 + Phase 3 measurements.
+#
+# Cross-N scaling: trigger this scenario at N=2/5/10/20 (existing
+# tfvars) with CL2_POLICY_SCALE_CNP_PER_NS swept across {10, 50, 100}.
+# Each (N, cnps/ns) point gives a (policy implementation delay, endpoint
+# regen p99) pair → 2D scaling heatmap.
+#
+# Why this is a SEPARATE scenario (not a knob on pod-churn-combined):
+#   - pod-churn-combined exercises pod-lifecycle cost; mixing CNP
+#     creation into it muddies which signal moved.
+#   - This scenario isolates policy cost as the sole independent variable.
+
+{{$namespaces := DefaultParam .CL2_NAMESPACES 5}}
+{{$globalNamespaces := DefaultParam .CL2_GLOBAL_NAMESPACE_COUNT $namespaces}}
+{{$deploymentsPerNamespace := DefaultParam .CL2_DEPLOYMENTS_PER_NAMESPACE 1}}
+{{$replicasPerDeployment := DefaultParam .CL2_REPLICAS_PER_DEPLOYMENT 4}}
+{{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "20m"}}
+{{$apiServerCallsPerSecond := DefaultParam .CL2_API_SERVER_CALLS_PER_SECOND 20}}
+
+# CNP scale knob — default 50 per namespace; sweep 10/50/100/200 in
+# pipeline cells. At ns=5 default this yields 250/500/1000 total CNPs
+# per cluster. Cross-cluster aggregate at N=20 mesh = up to 20K CNPs.
+{{$cnpPerNamespace := DefaultParam .CL2_POLICY_SCALE_CNP_PER_NS 50}}
+
+# Hold duration: how long all CNPs remain active before deletion. Long
+# enough for policy implementation delay metric to capture steady-state
+# p99 (which is per-event, but %v window aggregation needs a meaningful
+# sample count).
+{{$holdDuration := DefaultParam .CL2_POLICY_SCALE_HOLD_DURATION "5m"}}
+
+{{$workloadGroup := "clustermesh-policy-scale"}}
+
+namespace:
+  number: {{$namespaces}}
+  prefix: clustermesh-pscale
+  deleteStaleNamespaces: true
+  deleteAutomanagedNamespaces: true
+  enableExistingNamespaces: false
+  deleteNamespaceTimeout: 20m
+
+tuningSets:
+  - name: Sequence
+    parallelismLimitedLoad:
+      parallelismLimit: 1
+  - name: PolicyCreateQps
+    qpsLoad:
+      qps: {{$apiServerCallsPerSecond}}
+
+steps:
+  # ----- ACNS namespace opt-in -----
+  # Annotate so cross-cluster propagation is enabled. Without this CNPs
+  # are local-only and the cross-cluster policy story is fictional.
+  - name: Annotate workload namespaces for ACNS cross-cluster sync
+    measurements:
+      - Identifier: AnnotateNamespacesForGlobalSync
+        Method: Exec
+        Params:
+          streamOutput: true
+          timeout: 1m
+          command:
+            - bash
+            - /root/perf-tests/clusterloader2/config/annotate-namespaces.sh
+            - "{{$namespaces}}"
+            - "clustermesh-pscale"
+            - "{{$globalNamespaces}}"
+
+  # ----- Start measurements -----
+  - module:
+      path: /modules/measurements/control-plane.yaml
+      params:
+        action: start
+        group: {{$workloadGroup}}
+  - module:
+      path: /modules/measurements/cilium.yaml
+      params:
+        action: start
+  - module:
+      path: /modules/measurements/clustermesh-metrics.yaml
+      params:
+        action: start
+
+  # ----- Phase 1: deploy small backend workload (CNP targets) -----
+  - name: Track policy-scale workload
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-pscale
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: start
+          apiVersion: apps/v1
+          kind: Deployment
+          checkIfPodsAreUpdated: true
+          labelSelector: group = clustermesh-policy-scale
+          operationTimeout: {{$operationTimeout}}
+
+  - name: Deploy policy-scale backend pods
+    phases:
+      - namespaceRange:
+          min: 1
+          max: {{$namespaces}}
+        replicasPerNamespace: {{$deploymentsPerNamespace}}
+        tuningSet: PolicyCreateQps
+        objectBundle:
+          - basename: pscale-backend
+            objectTemplatePath: /modules/propagation-probe-deployment.yaml
+            templateFillMap:
+              Replicas: {{$replicasPerDeployment}}
+              Group: clustermesh-policy-scale
+
+  - name: Wait for policy-scale backend pods ready
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-pscale
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+          timeout: {{$operationTimeout}}
+
+  # ----- Phase 2: create N CNPs per namespace -----
+  # Each CNP gets a unique name via CL2's instance index (basename + idx).
+  # All CNPs target the same group label so they aggregate in policy
+  # selector evaluation. This is the worst case for Cilium identity-to-
+  # policy matching cost: many policies, same selector.
+  - name: Create CL2_POLICY_SCALE_CNP_PER_NS CiliumNetworkPolicies per namespace
+    phases:
+      - namespaceRange:
+          min: 1
+          max: {{$namespaces}}
+        replicasPerNamespace: {{$cnpPerNamespace}}
+        tuningSet: PolicyCreateQps
+        objectBundle:
+          - basename: pscale-cnp
+            objectTemplatePath: /modules/propagation-probe-policy.yaml
+            templateFillMap:
+              Group: clustermesh-policy-scale
+
+  # ----- Phase 3: hold mesh with all CNPs active -----
+  # Sleep so policy_implementation_delay and endpoint_regeneration_time
+  # histograms gather meaningful sample counts during steady-state.
+  - name: Hold mesh with all CNPs active ({{$holdDuration}})
+    measurements:
+      - Identifier: HoldPolicySteadyState
+        Method: Sleep
+        Params:
+          duration: {{$holdDuration}}
+
+  # ----- Phase 4: delete all CNPs -----
+  - name: Delete all CNPs (measure cleanup-side regen latency)
+    phases:
+      - namespaceRange:
+          min: 1
+          max: {{$namespaces}}
+        replicasPerNamespace: 0
+        tuningSet: PolicyCreateQps
+        objectBundle:
+          - basename: pscale-cnp
+            objectTemplatePath: /modules/propagation-probe-policy.yaml
+            templateFillMap:
+              Group: clustermesh-policy-scale
+
+  # ----- Phase 5: delete workload + gather -----
+  - name: Delete policy-scale backend pods
+    phases:
+      - namespaceRange:
+          min: 1
+          max: {{$namespaces}}
+        replicasPerNamespace: 0
+        tuningSet: PolicyCreateQps
+        objectBundle:
+          - basename: pscale-backend
+            objectTemplatePath: /modules/propagation-probe-deployment.yaml
+            templateFillMap:
+              Replicas: 0
+              Group: clustermesh-policy-scale
+
+  - name: Wait for policy-scale backend pods deletion
+    measurements:
+      - Identifier: WaitForControlledPodsRunning-pscale
+        Method: WaitForControlledPodsRunning
+        Params:
+          action: gather
+          timeout: {{$operationTimeout}}
+
+  - module:
+      path: /modules/measurements/clustermesh-metrics.yaml
+      params:
+        action: gather
+  - module:
+      path: /modules/measurements/cilium.yaml
+      params:
+        action: gather
+  - module:
+      path: /modules/measurements/control-plane.yaml
+      params:
+        action: gather
+        group: {{$workloadGroup}}

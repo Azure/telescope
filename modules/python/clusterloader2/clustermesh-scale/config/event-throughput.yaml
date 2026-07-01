@@ -22,6 +22,7 @@ name: clustermesh-event-throughput
 #   8. Tear down the workload + PodMonitor.
 
 {{$namespaces := DefaultParam .CL2_NAMESPACES 5}}
+{{$globalNamespaces := DefaultParam .CL2_GLOBAL_NAMESPACE_COUNT $namespaces}}
 {{$deploymentsPerNamespace := DefaultParam .CL2_DEPLOYMENTS_PER_NAMESPACE 4}}
 {{$replicasPerDeployment := DefaultParam .CL2_REPLICAS_PER_DEPLOYMENT 10}}
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "20m"}}
@@ -47,6 +48,26 @@ tuningSets:
       qps: {{$apiServerCallsPerSecond}}
 
 steps:
+  # ----- ACNS namespace opt-in (CFP-39876) -----
+  # AKS-managed Cilium ships with clustermesh-default-global-namespace=false,
+  # so workload namespaces need clustermesh.cilium.io/global=true to sync
+  # their CiliumIdentity/Endpoint/Services across the mesh. Without this,
+  # cross-cluster propagation metrics are structurally 0. See plan.md
+  # note #14 + ACNS team confirmation 2026-05-11.
+  - name: Annotate workload namespaces for ACNS cross-cluster sync
+    measurements:
+      - Identifier: AnnotateNamespacesForGlobalSync
+        Method: Exec
+        Params:
+          streamOutput: true
+          timeout: 1m
+          command:
+          - bash
+          - /root/perf-tests/clusterloader2/config/annotate-namespaces.sh
+          - "{{$namespaces}}"
+          - "clustermesh-et"
+          - "{{$globalNamespaces}}"
+
   # ----- Start measurements -----
   - module:
       path: /modules/measurements/control-plane.yaml
