@@ -64,54 +64,50 @@ check_controllers() {
   done
 }
 
-check_pod() {
-  local pod=$1
-  echo "::: checking pod ${namespace}/$pod"
-  local phase ready_cond not_ready log_output matches
-  phase=$(kubectl -n "${namespace}" get pod "$pod" -o jsonpath='{.status.phase}' 2>/dev/null)
-  case "$phase" in
-    Succeeded)
-      # Job pod that finished cleanly; skip readiness checks, still scan logs.
-      ;;
-    Running)
-      ready_cond=$(kubectl -n "${namespace}" get pod "$pod" \\
-        -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}')
-      if [ "$ready_cond" != "True" ]; then
-        fail "pod ${namespace}/$pod Ready condition=$ready_cond (expected True)"
-        return
-      fi
-      not_ready=$(kubectl -n "${namespace}" get pod "$pod" \\
-        -o jsonpath='{range .status.containerStatuses[?(@.ready==false)]}{.name} {end}')
-      if [ -n "$not_ready" ]; then
-        fail "pod ${namespace}/$pod has not-ready containers: $not_ready"
-        return
-      fi
-      ;;
-    *)
-      fail "pod ${namespace}/$pod phase=$phase (expected Running or Succeeded)"
-      return
-      ;;
-  esac
-  log_output=$(kubectl -n "${namespace}" logs "$pod" --all-containers=true --prefix=true 2>&1)
-  matches=$(printf '%s\\n' "$log_output" | grep -wEi '${errorPatterns}')
-  if [ -n "$matches" ]; then
-    echo "--- error lines in ${namespace}/$pod ---"
-    printf '%s\\n' "$matches"
-    echo "--- end ---"
-    fail "pod ${namespace}/$pod logs contain error pattern"
-  fi
-}
-
 # check_pods POD_LIST
-# Scan each pod in a whitespace-separated list. Fails if the list is empty.
+# Check each pod in a whitespace-separated list: status is Running (Ready
+# condition True, all containers ready) or Succeeded, then scan its logs for
+# errorPatterns. Fails if the list is empty.
 check_pods() {
-  local pods=$1 pod
+  local pods=$1 pod phase ready_cond not_ready log_output matches
   if [ -z "$pods" ]; then
     fail "no pods found for ${desc}"
     return
   fi
   for pod in $pods; do
-    check_pod "$pod"
+    echo "::: checking pod ${namespace}/$pod"
+    phase=$(kubectl -n "${namespace}" get pod "$pod" -o jsonpath='{.status.phase}' 2>/dev/null)
+    case "$phase" in
+      Succeeded)
+        # Finished cleanly; skip readiness checks, still scan logs below.
+        ;;
+      Running)
+        ready_cond=$(kubectl -n "${namespace}" get pod "$pod" \\
+          -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}')
+        if [ "$ready_cond" != "True" ]; then
+          fail "pod ${namespace}/$pod Ready condition=$ready_cond (expected True)"
+          continue
+        fi
+        not_ready=$(kubectl -n "${namespace}" get pod "$pod" \\
+          -o jsonpath='{range .status.containerStatuses[?(@.ready==false)]}{.name} {end}')
+        if [ -n "$not_ready" ]; then
+          fail "pod ${namespace}/$pod has not-ready containers: $not_ready"
+          continue
+        fi
+        ;;
+      *)
+        fail "pod ${namespace}/$pod phase=$phase (expected Running or Succeeded)"
+        continue
+        ;;
+    esac
+    log_output=$(kubectl -n "${namespace}" logs "$pod" --all-containers=true --prefix=true 2>&1)
+    matches=$(printf '%s\\n' "$log_output" | grep -wEi '${errorPatterns}')
+    if [ -n "$matches" ]; then
+      echo "--- error lines in ${namespace}/$pod ---"
+      printf '%s\\n' "$matches"
+      echo "--- end ---"
+      fail "pod ${namespace}/$pod logs contain error pattern"
+    fi
   done
 }
 
