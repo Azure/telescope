@@ -40,12 +40,13 @@ fail() { echo "FAILED WORKLOAD CHECK: $*"; failures=$((failures + 1)); }
 # If NAME is given, check just that one; otherwise check every instance of KIND.
 check_controllers() {
   local kind=$1 desired_path=$2 ready_path=$3 name=$4
-  local n desired ready names
+  local names
   if [ -n "$name" ]; then
     names="$name"
   else
     names=$(kubectl -n "${namespace}" get "$kind" -o jsonpath='{.items[*].metadata.name}')
   fi
+  local n
   for n in $names; do
     # Probe existence first so a missing object / API error fails loudly
     # instead of silently defaulting desired/ready to 0.
@@ -53,8 +54,8 @@ check_controllers() {
       fail "$kind ${namespace}/$n: cannot read resource (missing or kubectl error)"
       continue
     fi
-    desired=$(kubectl -n "${namespace}" get "$kind" "$n" -o jsonpath="$desired_path")
-    ready=$(kubectl -n "${namespace}" get "$kind" "$n" -o jsonpath="$ready_path")
+    local desired=$(kubectl -n "${namespace}" get "$kind" "$n" -o jsonpath="$desired_path")
+    local ready=$(kubectl -n "${namespace}" get "$kind" "$n" -o jsonpath="$ready_path")
     [ -z "$ready" ] && ready=0
     [ -z "$desired" ] && desired=0
     echo "$kind ${namespace}/$n: ready=$ready desired=$desired"
@@ -69,26 +70,27 @@ check_controllers() {
 # condition True, all containers ready) or Succeeded, then scan its logs for
 # errorPatterns. Fails if the list is empty.
 check_pods() {
-  local pods=$1 pod phase ready_cond not_ready log_output matches
+  local pods=$1
   if [ -z "$pods" ]; then
     fail "no pods found for ${desc}"
     return
   fi
+  local pod
   for pod in $pods; do
     echo "::: checking pod ${namespace}/$pod"
-    phase=$(kubectl -n "${namespace}" get pod "$pod" -o jsonpath='{.status.phase}' 2>/dev/null)
+    local phase=$(kubectl -n "${namespace}" get pod "$pod" -o jsonpath='{.status.phase}' 2>/dev/null)
     case "$phase" in
       Succeeded)
         # Finished cleanly; skip readiness checks, still scan logs below.
         ;;
       Running)
-        ready_cond=$(kubectl -n "${namespace}" get pod "$pod" \\
+        local ready_cond=$(kubectl -n "${namespace}" get pod "$pod" \\
           -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}')
         if [ "$ready_cond" != "True" ]; then
           fail "pod ${namespace}/$pod Ready condition=$ready_cond (expected True)"
           continue
         fi
-        not_ready=$(kubectl -n "${namespace}" get pod "$pod" \\
+        local not_ready=$(kubectl -n "${namespace}" get pod "$pod" \\
           -o jsonpath='{range .status.containerStatuses[?(@.ready==false)]}{.name} {end}')
         if [ -n "$not_ready" ]; then
           fail "pod ${namespace}/$pod has not-ready containers: $not_ready"
@@ -100,8 +102,8 @@ check_pods() {
         continue
         ;;
     esac
-    log_output=$(kubectl -n "${namespace}" logs "$pod" --all-containers=true --prefix=true 2>&1)
-    matches=$(printf '%s\\n' "$log_output" | grep -wEi '${errorPatterns}')
+    local log_output=$(kubectl -n "${namespace}" logs "$pod" --all-containers=true --prefix=true 2>&1)
+    local matches=$(printf '%s\\n' "$log_output" | grep -wEi '${errorPatterns}')
     if [ -n "$matches" ]; then
       echo "--- error lines in ${namespace}/$pod ---"
       printf '%s\\n' "$matches"
@@ -114,8 +116,8 @@ check_pods() {
 # check_controller_pods KIND NAME
 # Resolve the controller's pods via its matchLabels and scan them.
 check_controller_pods() {
-  local kind=$1 name=$2 selector
-  selector=$(kubectl -n "${namespace}" get "$kind" "$name" \\
+  local kind=$1 name=$2
+  local selector=$(kubectl -n "${namespace}" get "$kind" "$name" \\
     -o go-template='{{range $k,$v := .spec.selector.matchLabels}}{{$k}}={{$v}},{{end}}' \\
     | sed 's/,$//')
   if [ -z "$selector" ]; then
