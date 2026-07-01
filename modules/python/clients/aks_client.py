@@ -16,6 +16,7 @@ import logging
 import os
 import subprocess
 import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Optional, Any
 
 # Third party imports
@@ -60,6 +61,93 @@ class AKSClient:
         from crud.operation import OperationContext # pylint: disable=import-outside-toplevel
 
         return OperationContext
+
+    def _instrument_nodepool_provisioning(
+        self,
+        node_pool_name: str,
+        cluster_name: str,
+        parameters: Any,
+        node_count: int,
+        op,
+        use_retry: bool = False,
+    ) -> list:
+        """
+        Run ARM operation and K8s node readiness check concurrently using threads.
+
+        Args:
+            node_pool_name: Name of the node pool being provisioned
+            cluster_name: Name of the AKS cluster
+            parameters: Parameters for begin_create_or_update (dict or node pool object)
+            node_count: Expected number of nodes to be ready
+            op: Operation context for recording timing metadata
+            use_retry: If True, use _begin_update_with_retry for transient error handling
+
+        Returns:
+            List of ready nodes
+
+        Raises:
+            Exception: If either the ARM operation or K8s readiness check fails.
+        """
+        start_time = time.time()
+        label_selector = f"agentpool={node_pool_name}"
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            if use_retry:
+                arm_future = executor.submit(
+                    lambda: (
+                        self._begin_update_with_retry(node_pool_name, cluster_name, parameters),
+                        time.time(),
+                    )
+                )
+            else:
+                poller = self.aks_client.agent_pools.begin_create_or_update(
+                    resource_group_name=self.resource_group,
+                    resource_name=cluster_name,
+                    agent_pool_name=node_pool_name,
+                    parameters=parameters,
+                )
+                arm_future = executor.submit(lambda: (poller.result(), time.time()))
+            k8s_future = executor.submit(
+                lambda: (
+                    self.k8s_client.wait_for_nodes_ready(
+                        node_count=node_count,
+                        operation_timeout_in_minutes=self.operation_timeout_minutes,
+                        label_selector=label_selector,
+                    ),
+                    time.time(),
+                )
+            )
+
+        arm_exc = arm_future.exception()
+        k8s_exc = k8s_future.exception()
+
+        if arm_exc or k8s_exc:
+            elapsed = time.time() - start_time
+            arm_status = f"FAILED: {arm_exc}" if arm_exc else "succeeded"
+            k8s_status = f"FAILED: {k8s_exc}" if k8s_exc else "succeeded"
+            logger.error(
+                "Concurrent operation failed after %.2fs - ARM: %s, K8s readiness: %s",
+                elapsed, arm_status, k8s_status
+            )
+            if arm_exc:
+                raise arm_exc
+            raise k8s_exc
+
+        _, arm_timestamp = arm_future.result()
+        ready_nodes, ready_timestamp = k8s_future.result()
+
+        node_readiness_time = ready_timestamp - start_time
+        command_execution_time = arm_timestamp - start_time
+
+        op.add_metadata("node_readiness_time", node_readiness_time)
+        op.add_metadata("command_execution_time", command_execution_time)
+        logger.info(
+            "[%s] ARM completed in %.2fs, K8s nodes ready in %.2fs | Delta: %.2fs",
+            node_pool_name, command_execution_time, node_readiness_time,
+            abs(command_execution_time - node_readiness_time)
+        )
+
+        return ready_nodes
 
     def __init__(
         self,
@@ -519,23 +607,17 @@ class AKSClient:
                         gpu_instance_profile=gpu_instance_profile,
                         gpu_mig_strategy=gpu_mig_strategy,
                     )
+                    label_selector = f"agentpool={node_pool_name}"
+                    ready_nodes = self.k8s_client.wait_for_nodes_ready(
+                        node_count=node_count,
+                        operation_timeout_in_minutes=self.operation_timeout_minutes,
+                        label_selector=label_selector,
+                    )
                 else:
-                    # Create the node pool via SDK
-                    self.aks_client.agent_pools.begin_create_or_update(
-                        resource_group_name=self.resource_group,
-                        resource_name=cluster_name,
-                        agent_pool_name=node_pool_name,
-                        parameters=parameters,
-                    ).result()
-
-                label_selector = f"agentpool={node_pool_name}"
-
-                # Wait for nodes to be ready
-                ready_nodes = self.k8s_client.wait_for_nodes_ready(
-                    node_count=node_count,
-                    operation_timeout_in_minutes=self.operation_timeout_minutes,
-                    label_selector=label_selector,
-                )
+                    # Run ARM and K8s readiness concurrently to capture both timings
+                    ready_nodes = self._instrument_nodepool_provisioning(
+                        node_pool_name, cluster_name, parameters, node_count, op
+                    )
 
                 logger.info(
                     f"All {node_count} nodes in pool {node_pool_name} are ready"
@@ -688,24 +770,17 @@ class AKSClient:
                 node_pool.count = node_count
 
                 logger.info(f"Scaling node pool {node_pool_name} to {node_count} nodes")
-                self._begin_update_with_retry(
-                    node_pool_name=node_pool_name,
-                    cluster_name=cluster_name,
-                    node_pool=node_pool,
-                )
 
                 logger.info(
                     f"Waiting for {node_count} nodes in pool {node_pool_name} to be ready..."
                 )
 
-                # Use agentpool=node_pool_name as default label if not specified
-                label_selector = f"agentpool={node_pool_name}"
-
-                ready_nodes = self.k8s_client.wait_for_nodes_ready(
-                    node_count=node_count,
-                    operation_timeout_in_minutes=self.operation_timeout_minutes,
-                    label_selector=label_selector,
+                # Run ARM and K8s readiness concurrently to capture both timings
+                ready_nodes = self._instrument_nodepool_provisioning(
+                    node_pool_name, cluster_name, node_pool, node_count, op,
+                    use_retry=True,
                 )
+
                 logger.info(
                     f"All {node_count} nodes in pool {node_pool_name} are ready"
                 )
@@ -882,7 +957,6 @@ class AKSClient:
 
         logger.info(f"Planned scaling steps: {list(steps)}")
 
-        result = None
         completed_steps = []
 
         # Execute scaling operation for each step
@@ -924,28 +998,14 @@ class AKSClient:
                         "cluster_info", self.get_cluster_data(cluster_name)
                     )
                     node_pool.count = step  # Update node count in the node pool object
-                    self._begin_update_with_retry(
-                        node_pool_name=node_pool_name,
-                        cluster_name=cluster_name,
-                        node_pool=node_pool,
-                        label=f"step {step} ",
-                    )
-                    result = node_pool
 
-                    # Use agentpool=node_pool_name as default label if not specified
-                    label_selector = f"agentpool={node_pool_name}"
-
-                    ready_nodes = self.k8s_client.wait_for_nodes_ready(
-                        node_count=step,
-                        operation_timeout_in_minutes=self.operation_timeout_minutes,
-                        label_selector=label_selector,
+                    # Run ARM and K8s readiness concurrently to capture both timings
+                    ready_nodes = self._instrument_nodepool_provisioning(
+                        node_pool_name, cluster_name, node_pool, step, op,
+                        use_retry=True,
                     )
+
                     logger.info(f"All {step} nodes in pool {node_pool_name} are ready")
-
-                    if result is None:
-                        logger.error(f"Progressive scaling failed at step {step}")
-                        op.add_metadata("error", "Scaling operation returned None")
-                        return None
 
                     op.add_metadata(
                         "ready_nodes", len(ready_nodes) if ready_nodes else 0

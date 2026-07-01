@@ -174,7 +174,11 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         vm_size = "Standard_DS2_v2"
         node_count = 2
 
-        mock_time.time.side_effect = [100, 150]  # Start and end times
+        # Define timestamps for clarity
+        start_time = 100
+        arm_done_time = 150
+        nodes_ready_time = 130
+        mock_time.time.side_effect = [start_time, arm_done_time, nodes_ready_time]
 
         mock_operation = mock.MagicMock()
         self.mock_agent_pools.begin_create_or_update.return_value = mock_operation
@@ -219,6 +223,12 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
             label_selector=f"agentpool={node_pool_name}",
         )
 
+        # Verify timing measurements are calculated and stored correctly
+        # node_readiness_time = nodes_ready_time - start_time = 130 - 100 = 30
+        # command_execution_time = arm_done_time - start_time = 150 - 100 = 50
+        self.mock_operation.add_metadata.assert_any_call("node_readiness_time", 30)
+        self.mock_operation.add_metadata.assert_any_call("command_execution_time", 50)
+
     @mock.patch("clients.aks_client.time")
     def test_create_node_pool_gpu(self, mock_time):
         """Test creating a GPU node pool with driver verification"""
@@ -227,7 +237,11 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         vm_size = "Standard_NC6s_v3"  # GPU VM size
         node_count = 1
 
-        mock_time.time.side_effect = [100, 150]  # Start and end times
+        # Define timestamps for clarity
+        start_time = 100
+        arm_done_time = 150
+        nodes_ready_time = 130
+        mock_time.time.side_effect = [start_time, arm_done_time, nodes_ready_time]
 
         mock_operation = mock.MagicMock()
         self.mock_agent_pools.begin_create_or_update.return_value = mock_operation
@@ -329,7 +343,12 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         node_pool_name = "test-pool"
         node_count = 3
 
-        mock_time.time.side_effect = [100, 150]  # Start and end times
+        # Define timestamps for clarity
+        start_time = 100
+        arm_done_time = 150
+        nodes_ready_time = 130
+        mock_time.time.side_effect = [start_time, arm_done_time, nodes_ready_time]
+        mock_time.sleep = mock.MagicMock()
 
         mock_node_pool = mock.MagicMock()
         mock_node_pool.count = 1  # Current count
@@ -366,6 +385,12 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         )
         self.assertEqual(mock_node_pool.count, node_count)
 
+        # Verify timing measurements are calculated and stored correctly
+        # node_readiness_time = nodes_ready_time - start_time = 130 - 100 = 30
+        # command_execution_time = arm_done_time - start_time = 150 - 100 = 50
+        self.mock_operation.add_metadata.assert_any_call("node_readiness_time", 30)
+        self.mock_operation.add_metadata.assert_any_call("command_execution_time", 50)
+
     @mock.patch("clients.aks_client.time")
     def test_scale_node_pool_down(self, mock_time):
         """Test scaling a node pool down"""
@@ -373,7 +398,12 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         node_pool_name = "test-pool"
         node_count = 1
 
-        mock_time.time.side_effect = [100, 150]  # Start and end times
+        # Define timestamps for clarity
+        start_time = 100
+        arm_done_time = 150
+        nodes_ready_time = 130
+        mock_time.time.side_effect = [start_time, arm_done_time, nodes_ready_time]
+        mock_time.sleep = mock.MagicMock()
 
         mock_node_pool = mock.MagicMock()
         mock_node_pool.count = 3  # Current count
@@ -454,7 +484,12 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         # Set VM size that triggers NVIDIA verification
         self.aks_client.vm_size = "Standard_NC40ads_H100_v5"
 
-        mock_time.time.side_effect = [100, 150]  # Start and end times
+        # Define timestamps for clarity
+        start_time = 100
+        arm_done_time = 150
+        nodes_ready_time = 130
+        mock_time.time.side_effect = [start_time, arm_done_time, nodes_ready_time]
+        mock_time.sleep = mock.MagicMock()
 
         mock_node_pool = mock.MagicMock()
         mock_node_pool.count = 1  # Current count
@@ -514,12 +549,10 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         # Set VM size that triggers NVIDIA verification
         self.aks_client.vm_size = "Standard_NC40ads_H100_v5"
 
-        mock_time.time.side_effect = [
-            100,
-            150,
-            200,
-            250,
-        ]  # Start and end times including progressive scaling
+        # Define timestamps for clarity (progressive has multiple steps)
+        # Each step calls time.time() 3x: start, arm_done, nodes_ready
+        mock_time.time.side_effect = [100, 150, 130, 200, 250, 230]
+        mock_time.sleep = mock.MagicMock()
 
         mock_node_pool = mock.MagicMock()
         mock_node_pool.count = 1  # Current count
@@ -548,7 +581,10 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
             mock.MagicMock(),
             mock.MagicMock(),
         ]  # Second step to 3 nodes
-        self.mock_k8s.wait_for_nodes_ready.side_effect = [ready_nodes1, ready_nodes2]
+        self.mock_k8s.wait_for_nodes_ready.side_effect = [
+            ready_nodes1,
+            ready_nodes2,
+        ]
 
         # Add nvidia-smi verification mock
         self.mock_k8s.verify_nvidia_smi_on_node = mock.MagicMock(
@@ -584,7 +620,12 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         node_pool_name = "gpu-pool"
         node_count = 1
 
-        mock_time.time.side_effect = [100, 150]  # Start and end times
+        # Define timestamps for clarity
+        start_time = 100
+        arm_done_time = 150
+        nodes_ready_time = 130
+        mock_time.time.side_effect = [start_time, arm_done_time, nodes_ready_time]
+        mock_time.sleep = mock.MagicMock()
 
         mock_node_pool = mock.MagicMock()
         mock_node_pool.count = 3  # Current count
