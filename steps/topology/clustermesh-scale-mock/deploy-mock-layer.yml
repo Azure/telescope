@@ -80,6 +80,14 @@ steps:
 
       total=$(echo "$clusters" | jq 'length')
       want="${MOCK_NODE_COUNT:-100}"
+      # provision-kwok-layer.sh drops the cluster-id from the podCIDR/nodeIP scheme
+      # when NODE_COUNT>250 (2-octet node index), so those values are only unique
+      # WITHIN one cluster. Guard against a multi-cluster run above 250 nodes/cluster,
+      # which would silently produce duplicate Pod/node IPs across the mesh.
+      if [ "$want" -gt 250 ] && [ "$total" -gt 1 ]; then
+        echo "##[error] MOCK_NODE_COUNT=$want is single-cluster-only (>250); this run has $total clusters. Use <=250 nodes/cluster for multi-cluster tiers."
+        exit 1
+      fi
       # Bounded-parallel deploy: at n=100 a sequential per-cluster loop is ~12h
       # (measured 152m at n=20 → ~7.6m/cluster). Fan out CONCURRENCY clusters at a
       # time; each cluster's deploy is fully independent (own kubeconfig, own
@@ -134,7 +142,9 @@ steps:
 
           # Readiness gate: every virtual node must have a Running mock-agent before
           # we let CL2 run, else CL2 measures KWOK nodes with no agents → garbage.
-          deadline=$(( $(date +%s) + 600 ))
+          # Timeout is configurable (MOCK_READINESS_TIMEOUT_S) — 100 agents come up
+          # in <10m, but 10k agents on one cluster need much longer.
+          deadline=$(( $(date +%s) + ${MOCK_READINESS_TIMEOUT_S:-600} ))
           while true; do
             running=$(KUBECONFIG="$kubeconfig" kubectl -n mock-clustermesh get pods \
               -l app=mock-cilium-agent --field-selector=status.phase=Running \
@@ -144,7 +154,7 @@ steps:
               return 0
             fi
             if [ "$(date +%s)" -ge "$deadline" ]; then
-              echo "$role: ONLY $running/$want mock-cilium-agents Running after 10m"
+              echo "$role: ONLY $running/$want mock-cilium-agents Running after ${MOCK_READINESS_TIMEOUT_S:-600}s"
               KUBECONFIG="$kubeconfig" kubectl -n mock-clustermesh get pods -l app=mock-cilium-agent \
                 -o jsonpath='{range .items[?(@.status.phase!="Running")]}{.metadata.name}{": "}{.status.containerStatuses[0].state}{"\n"}{end}' 2>/dev/null | head || true
               return 1

@@ -192,25 +192,45 @@ fi
 # ---------------------------------------------------------------------------
 # STEP 3: N virtual nodes (distinct podCIDR) + N mock-agents (with metrics)
 # ---------------------------------------------------------------------------
-echo ">>> Step 3: Creating ${NODE_COUNT} virtual node(s) + agent(s)..."
+echo ">>> Step 3: Generating ${NODE_COUNT} virtual node(s) + agent(s)..."
+# Stream all manifests into two files and bulk-apply once per file (below).
+# At NODE_COUNT=10000 the old per-node `kubectl apply -f -` (2 calls/node = 20k
+# serial round-trips + process spawns) takes hours; bulk apply is minutes. For
+# small N (multi-cluster tiers) this is identical output, just faster.
+NODES_FILE="${WORK}/kwok-nodes.yaml"
+AGENTS_FILE="${WORK}/mock-agents.yaml"
+: > "$NODES_FILE"
+: > "$AGENTS_FILE"
+if [ "${NODE_COUNT}" -gt 32768 ]; then
+  echo "ERROR: NODE_COUNT=${NODE_COUNT} exceeds 32768 (the >250 nodeIP scheme 100.128+.x tops out there)." >&2
+  exit 1
+fi
 for i in $(seq 0 $((NODE_COUNT - 1))); do
   NODE="kwok-node-${i}"
-  # Globally-unique podCIDR per (cluster, node): 100.<cluster_id>.<node>.0/24.
-  # The cluster-id in the 2nd octet makes Pod IPs unique ACROSS the mesh (not just
-  # within a cluster), so cross-cluster service backends don't collide — a remote
-  # cluster's pods have distinct IPs from local pods. Uses the 100.0.0.0/8 synthetic
-  # space (never routed; these are phantom-pod identifiers) to avoid any overlap with
-  # the real VNet (10.0.0.0/8) node/pod/service subnets.
-  PODCIDR="100.${CLUSTER_ID}.${i}.0/24"
-  # Distinct InternalIP per node. By default KWOK assigns the kwok-controller's own
-  # Pod IP (--node-ip=$(POD_IP)) to EVERY node, so all CiliumNodes would propagate the
-  # same node IP cross-cluster. Setting status.addresses per node (KWOK respects it)
-  # gives each virtual node a unique, globally-unique node IP. Uses the .255 third
-  # octet so it never overlaps the podCIDRs (which use 0..NODE_COUNT).
-  NODEIP="100.${CLUSTER_ID}.255.${i}"
+  # Globally-unique podCIDR + nodeIP per node in the synthetic 100.0.0.0/8 space
+  # (never routed; phantom-pod identifiers) so they never overlap the real VNet
+  # (10.0.0.0/8). The node index needs TWO octets once NODE_COUNT>256:
+  #   * NODE_COUNT<=250 (multi-cluster tiers): keep 100.<cluster_id>.<i>.0/24 —
+  #     cluster-id in octet 2 makes Pod IPs unique ACROSS the mesh so remote
+  #     backends don't collide; nodeIP 100.<cid>.255.<i> (the .255 octet avoids
+  #     the podCIDRs at 0..NODE_COUNT).
+  #   * NODE_COUNT>250 (single-cluster baseline only): use a 2-octet index
+  #     100.<i/256>.<i%256>.0/24 (supports up to 32768 nodes — bounded by the
+  #     nodeIP octet 100.128+.x below). This DROPS the cluster-id, so it is
+  #     single-cluster-only — do NOT set NODE_COUNT>250 with more than one
+  #     cluster. nodeIP goes in a disjoint 100.128+.x block.
+  if [ "${NODE_COUNT}" -le 250 ]; then
+    PODCIDR="100.${CLUSTER_ID}.${i}.0/24"
+    NODEIP="100.${CLUSTER_ID}.255.${i}"
+  else
+    _hi=$(( i / 256 )); _lo=$(( i % 256 ))
+    PODCIDR="100.${_hi}.${_lo}.0/24"
+    NODEIP="100.$(( 128 + _hi )).${_lo}.1"
+  fi
 
   # --- KWOK virtual node ---
-  K apply -f - >/dev/null <<EOF
+  cat >> "$NODES_FILE" <<EOF
+---
 apiVersion: v1
 kind: Node
 metadata:
@@ -244,7 +264,8 @@ EOF
   #   - --prometheus-serve-addr=:${METRICS_PORT} exposes cilium_process_* + control-plane
   #     metrics (no collision: hostNetwork=false → own Pod IP).
   #   - serves-node label = the explicit node->agent reverse link (agent-only label).
-  K apply -f - >/dev/null <<EOF
+  cat >> "$AGENTS_FILE" <<EOF
+---
 apiVersion: v1
 kind: Pod
 metadata:
@@ -309,16 +330,53 @@ ${CM_MOUNT}
 ${CM_VOLUME}
   restartPolicy: OnFailure
 EOF
-  echo "   ${NODE} (podCIDR ${PODCIDR}) + mock-cilium-agent-${i}"
+  if [ "$(( i % 2000 ))" -eq 0 ]; then echo "   ...generated manifests for ${i}/${NODE_COUNT}"; fi
 done
+
+# Bulk apply: split each manifest file into ~500-doc chunks and apply with bounded
+# parallelism (xargs -P). One kubectl process per chunk (connection reuse) instead
+# of NODE_COUNT*2 separate `apply -f -` calls. Nodes FIRST — each agent references
+# its kwok node via K8S_NODE_NAME. Per-chunk errors are tolerated; the readiness
+# gate in deploy-mock-layer.yml is the real backstop.
+apply_bulk() {
+  local src="$1" tag="$2"
+  awk -v dir="${WORK}" -v tag="$tag" '
+    /^---/ { if (c++ % 500 == 0) n++ }
+    { print > sprintf("%s/%s-%04d.yaml", dir, tag, n) }
+  ' "$src"
+  # Apply chunks 8-in-parallel. stdout ("created" x N) is suppressed; stderr is
+  # NOT — transient per-chunk errors (apiserver throttling at 10k) are surfaced,
+  # not swallowed. Completeness is enforced by the count gate after both calls.
+  ls "${WORK}/${tag}-"*.yaml \
+    | xargs -P 8 -I{} kubectl --kubeconfig="$KUBECONFIG_FILE" apply -f {} >/dev/null \
+    || echo ">>> Step 3: WARN — some ${tag} chunk(s) reported apply errors (verifying counts next)"
+}
+echo ">>> Step 3: bulk-applying ${NODE_COUNT} KWOK node(s)..."
+apply_bulk "$NODES_FILE" nodes
+echo ">>> Step 3: bulk-applying ${NODE_COUNT} mock-cilium-agent(s)..."
+apply_bulk "$AGENTS_FILE" agents
+
+# Completeness gate: the bulk apply tolerates transient per-chunk errors, so verify
+# the full set actually landed and FAIL loudly if short. This replaces the old
+# per-object errexit contract AND additionally checks the KWOK nodes (which the
+# downstream readiness gate never counts).
+set +e
+got_nodes=$(K get nodes -l type=kwok --no-headers 2>/dev/null | wc -l)
+got_agents=$(K -n "${AGENT_NS}" get pods -l app=mock-cilium-agent --no-headers 2>/dev/null | wc -l)
+set -e
+echo ">>> Step 3: applied ${got_nodes}/${NODE_COUNT} node(s), ${got_agents}/${NODE_COUNT} agent(s)"
+if [ "${got_nodes:-0}" -lt "${NODE_COUNT}" ] || [ "${got_agents:-0}" -lt "${NODE_COUNT}" ]; then
+  echo "ERROR: KWOK node / mock-agent apply incomplete (${got_nodes}/${got_agents} of ${NODE_COUNT}); aborting." >&2
+  exit 1
+fi
 
 rm -rf "${WORK}"
 echo ""
 echo ">>> Waiting 40s for nodes Ready + agents Running..."
 sleep 40
-echo "=== Virtual nodes ==="
-K get nodes -l type=kwok -o custom-columns='NAME:.metadata.name,STATUS:.status.conditions[-1].type,PODCIDR:.spec.podCIDR'
-echo "=== Agents ==="
-K -n "${AGENT_NS}" get pods -l app=mock-cilium-agent -o custom-columns='NAME:.metadata.name,READY:.status.phase,NODE_ENV:.spec.containers[0].env[1].value'
+echo "=== Virtual nodes: $(K get nodes -l type=kwok --no-headers 2>/dev/null | wc -l)/${NODE_COUNT} present (showing 5) ==="
+K get nodes -l type=kwok --no-headers 2>/dev/null | head -5 || true
+echo "=== Agents: $(K -n "${AGENT_NS}" get pods -l app=mock-cilium-agent --no-headers 2>/dev/null | wc -l)/${NODE_COUNT} present (showing 5) ==="
+K -n "${AGENT_NS}" get pods -l app=mock-cilium-agent --no-headers 2>/dev/null | head -5 || true
 echo ""
 echo ">>> Done. cluster=${CLUSTER_NAME} id=${CLUSTER_ID} nodes=${NODE_COUNT}"
