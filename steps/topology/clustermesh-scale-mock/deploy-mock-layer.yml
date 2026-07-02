@@ -88,6 +88,13 @@ steps:
         echo "##[error] MOCK_NODE_COUNT=$want is single-cluster-only (>250); this run has $total clusters. Use <=250 nodes/cluster for multi-cluster tiers."
         exit 1
       fi
+      # MOCK_CLUSTER_ID/NAME force a fixed cluster identity (no-Fleet single-cluster
+      # baseline). If set on a multi-cluster run, every cluster would get the SAME
+      # identity (duplicate cluster-ids + duplicate mock CIDRs) — reject it.
+      if [ "$total" -gt 1 ] && { [ -n "${MOCK_CLUSTER_ID:-}" ] || [ -n "${MOCK_CLUSTER_NAME:-}" ]; }; then
+        echo "##[error] MOCK_CLUSTER_ID/MOCK_CLUSTER_NAME override is single-cluster-only; this run has $total clusters. Unset them for multi-cluster tiers (they read identity from Fleet cilium-config)."
+        exit 1
+      fi
       # Bounded-parallel deploy: at n=100 a sequential per-cluster loop is ~12h
       # (measured 152m at n=20 → ~7.6m/cluster). Fan out CONCURRENCY clusters at a
       # time; each cluster's deploy is fully independent (own kubeconfig, own
@@ -138,6 +145,8 @@ steps:
             ACR_HOST="${MOCK_ACR_HOST}" \
             AGENT_TAG="${MOCK_AGENT_TAG:-v26}" \
             CONSUME_CLUSTERMESH="${MOCK_CONSUME_CLUSTERMESH:-true}" \
+            MOCK_CLUSTER_ID="${MOCK_CLUSTER_ID:-}" \
+            MOCK_CLUSTER_NAME="${MOCK_CLUSTER_NAME:-}" \
             bash "$MOCK_PROVISION_SCRIPT" || return 1
 
           # Readiness gate: every virtual node must have a Running mock-agent before

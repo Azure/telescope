@@ -79,6 +79,12 @@ steps:
       set -euo pipefail
       set -x
 
+      _fleet_enabled="${CLUSTERMESH_FLEET_ENABLED:-true}"
+      if [ "${_fleet_enabled,,}" = "false" ]; then
+        echo "CLUSTERMESH_FLEET_ENABLED=${CLUSTERMESH_FLEET_ENABLED:-} — Fleet/ClusterMesh disabled (single-cluster baseline); skipping clustermesh-apiserver wait."
+        exit 0
+      fi
+
       clusters=$(cat "$HOME/.kube/clustermesh-clusters.json")
       cluster_count=$(echo "$clusters" | jq 'length')
 
@@ -441,6 +447,12 @@ steps:
   - script: |
       set -euo pipefail
       set -x
+
+      _fleet_enabled="${CLUSTERMESH_FLEET_ENABLED:-true}"
+      if [ "${_fleet_enabled,,}" = "false" ]; then
+        echo "CLUSTERMESH_FLEET_ENABLED=${CLUSTERMESH_FLEET_ENABLED:-} — Fleet/ClusterMesh disabled (single-cluster baseline); skipping Cilium+ClusterMesh mesh validation."
+        exit 0
+      fi
 
       clusters=$(cat "$HOME/.kube/clustermesh-clusters.json")
       expected_remote=$(( $(echo "$clusters" | jq 'length') - 1 ))

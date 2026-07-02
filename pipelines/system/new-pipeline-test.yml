@@ -1668,9 +1668,14 @@ stages:
       MOCK_ACR_HOST: mockmeshshared11225.azurecr.io
       MOCK_AGENT_TAG: v26
       MOCK_NODE_COUNT: 10000
-      # Single-cluster baseline: allow a "mesh" of one (relaxes the >=2-cluster
-      # enumerate guard in validate-resources.yml + execute.yml).
+      # No Fleet/ClusterMesh for a single cluster (see azure-1-mock-10k.tfvars):
+      # skip the mesh-only validate steps, allow a "mesh" of one in the enumerate
+      # guard, and hand the mock agents their cluster identity directly (the
+      # cilium-config has no Fleet cluster-id when Fleet is disabled).
+      CLUSTERMESH_FLEET_ENABLED: "false"
       CLUSTERMESH_MIN_CLUSTERS: "1"
+      MOCK_CLUSTER_ID: "1"
+      MOCK_CLUSTER_NAME: "clustermesh-1"
       # Single cluster => no remote peers; agents run publish-only (no consume path).
       MOCK_CONSUME_CLUSTERMESH: false
       MOCK_DEPLOY_CONCURRENCY: 1
@@ -1681,8 +1686,6 @@ stages:
       # cardinality) — give it a large limit on the 128 GiB prompool node. If it
       # still OOMs, sample the agent scrape (control-plane metrics are low-card).
       CL2_PROMETHEUS_MEMORY_LIMIT_GI: "96"
-      # Harmless with a single Fleet member; kept as a safety net for apiserver deploy.
-      CMP_AUTO_RECOVERY_ENABLED: "true"
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:

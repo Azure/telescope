@@ -64,16 +64,20 @@ echo "  agent ns   : ${AGENT_NS}"
 echo "=============================================="
 
 # ---------------------------------------------------------------------------
-# Read the Fleet-assigned cluster identity (do NOT hardcode).
+# Cluster identity. Multi-cluster mesh tiers read the Fleet-assigned identity
+# from cilium-config (do NOT hardcode). The single-cluster / no-Fleet baseline
+# has no Fleet identity (cluster-id stays 0), so it passes MOCK_CLUSTER_ID /
+# MOCK_CLUSTER_NAME explicitly. The ${VAR:-...} fallback runs the cilium-config
+# read ONLY when the override is unset, so mesh-tier behavior is unchanged.
 # ---------------------------------------------------------------------------
-CLUSTER_NAME="$(K -n kube-system get cm cilium-config -o jsonpath='{.data.cluster-name}')"
-CLUSTER_ID="$(K -n kube-system get cm cilium-config -o jsonpath='{.data.cluster-id}')"
+CLUSTER_NAME="${MOCK_CLUSTER_NAME:-$(K -n kube-system get cm cilium-config -o jsonpath='{.data.cluster-name}')}"
+CLUSTER_ID="${MOCK_CLUSTER_ID:-$(K -n kube-system get cm cilium-config -o jsonpath='{.data.cluster-id}')}"
 if [[ -z "${CLUSTER_NAME}" || -z "${CLUSTER_ID}" || "${CLUSTER_ID}" == "0" ]]; then
-  echo "ERROR: cluster not Fleet-meshed (cluster-name='${CLUSTER_NAME}' cluster-id='${CLUSTER_ID}')." >&2
-  echo "       Apply the Fleet ClusterMesh profile first." >&2
+  echo "ERROR: no cluster identity (cluster-name='${CLUSTER_NAME}' cluster-id='${CLUSTER_ID}')." >&2
+  echo "       Fleet-mesh the cluster first, or pass MOCK_CLUSTER_ID / MOCK_CLUSTER_NAME (no-Fleet baseline)." >&2
   exit 1
 fi
-echo ">>> Fleet identity: cluster-name=${CLUSTER_NAME} cluster-id=${CLUSTER_ID}"
+echo ">>> Cluster identity: cluster-name=${CLUSTER_NAME} cluster-id=${CLUSTER_ID}"
 
 # ---------------------------------------------------------------------------
 # Inherit the CONTROL-PLANE-relevant subset of the managed (Fleet/AKS) cilium

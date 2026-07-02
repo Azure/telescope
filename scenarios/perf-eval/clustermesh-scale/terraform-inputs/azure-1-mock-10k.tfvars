@@ -121,18 +121,21 @@ aks_cli_config_list = [
 ]
 
 # =============================================================================
-# Fleet + ClusterMesh — single member (no peers).
-# Kept (rather than dropped) because provision-kwok-layer.sh reads cluster-name/
-# cluster-id from the Fleet-populated cilium-config. With one member the mesh has
-# 0 remote peers => a clean "no mesh fan-out" baseline; agents run publish-only
-# (the stage sets MOCK_CONSUME_CLUSTERMESH=false).
+# Fleet + ClusterMesh — DISABLED for the single-cluster baseline.
+# A single cluster has no peers, so ClusterMesh is pure overhead: the Fleet
+# hub/member-join/CMP + clustermesh-apiserver add ~15-17m of wall-clock and an
+# idle apiserver (0 peers, agents publish-only) that would only pollute the
+# baseline's control-plane signal. So we drop it. The mock agents get their
+# cluster identity from the stage instead of the Fleet-populated cilium-config
+# (MOCK_CLUSTER_ID / MOCK_CLUSTER_NAME -> provision-kwok-layer.sh), and the
+# mesh-only validate steps are skipped (CLUSTERMESH_FLEET_ENABLED=false).
 # =============================================================================
 vnet_peering_config = {
   enabled = false
 }
 
 fleet_config = {
-  enabled            = true
+  enabled            = false
   fleet_name         = "clustermesh-flt"
   cmp_name           = "clustermesh-cmp"
   member_label_key   = "mesh"

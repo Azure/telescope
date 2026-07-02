@@ -92,7 +92,7 @@ steps:
       az fleet clustermeshprofile --help >/dev/null
       echo "Fleet preview CLI installed from $whl"
     displayName: "Install Fleet preview CLI (clustermesh scenarios)"
-    condition: startsWith(variables['SCENARIO_NAME'], 'clustermesh')
+    condition: and(startsWith(variables['SCENARIO_NAME'], 'clustermesh'), ne(variables['CLUSTERMESH_FLEET_ENABLED'], 'false'))
 
   - script: |
       # Install cilium-cli on the runner for richer ClusterMesh diagnostics.
