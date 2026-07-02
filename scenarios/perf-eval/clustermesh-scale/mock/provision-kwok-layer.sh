@@ -340,35 +340,52 @@ done
 # gate in deploy-mock-layer.yml is the real backstop.
 apply_bulk() {
   local src="$1" tag="$2"
-  awk -v dir="${WORK}" -v tag="$tag" '
-    /^---/ { if (c++ % 500 == 0) n++ }
-    { print > sprintf("%s/%s-%04d.yaml", dir, tag, n) }
-  ' "$src"
-  # Apply chunks 8-in-parallel. stdout ("created" x N) is suppressed; stderr is
-  # NOT — transient per-chunk errors (apiserver throttling at 10k) are surfaced,
-  # not swallowed. Completeness is enforced by the count gate after both calls.
+  # Chunk once; the retry loop below re-applies the same chunks (idempotent).
+  if ! ls "${WORK}/${tag}-"*.yaml >/dev/null 2>&1; then
+    awk -v dir="${WORK}" -v tag="$tag" '
+      /^---/ { if (c++ % 500 == 0) n++ }
+      { print > sprintf("%s/%s-%04d.yaml", dir, tag, n) }
+    ' "$src"
+  fi
+  # Apply chunks in parallel. stdout ("created" x N) suppressed; stderr surfaced.
+  # kubectl apply is idempotent, so the retry loop can re-run this to fill gaps left
+  # by transient failures (see below).
   ls "${WORK}/${tag}-"*.yaml \
-    | xargs -P 8 -I{} kubectl --kubeconfig="$KUBECONFIG_FILE" apply -f {} >/dev/null \
-    || echo ">>> Step 3: WARN — some ${tag} chunk(s) reported apply errors (verifying counts next)"
+    | xargs -P "${MOCK_APPLY_PARALLELISM:-4}" -I{} kubectl --kubeconfig="$KUBECONFIG_FILE" apply -f {} >/dev/null \
+    || echo ">>> Step 3: WARN — some ${tag} chunk(s) reported apply errors (will verify + retry)"
 }
-echo ">>> Step 3: bulk-applying ${NODE_COUNT} KWOK node(s)..."
-apply_bulk "$NODES_FILE" nodes
-echo ">>> Step 3: bulk-applying ${NODE_COUNT} mock-cilium-agent(s)..."
-apply_bulk "$AGENTS_FILE" agents
 
-# Completeness gate: the bulk apply tolerates transient per-chunk errors, so verify
-# the full set actually landed and FAIL loudly if short. This replaces the old
-# per-object errexit contract AND additionally checks the KWOK nodes (which the
-# downstream readiness gate never counts).
-set +e
-got_nodes=$(K get nodes -l type=kwok --no-headers 2>/dev/null | wc -l)
-got_agents=$(K -n "${AGENT_NS}" get pods -l app=mock-cilium-agent --no-headers 2>/dev/null | wc -l)
-set -e
-echo ">>> Step 3: applied ${got_nodes}/${NODE_COUNT} node(s), ${got_agents}/${NODE_COUNT} agent(s)"
-if [ "${got_nodes:-0}" -lt "${NODE_COUNT}" ] || [ "${got_agents:-0}" -lt "${NODE_COUNT}" ]; then
-  echo "ERROR: KWOK node / mock-agent apply incomplete (${got_nodes}/${got_agents} of ${NODE_COUNT}); aborting." >&2
-  exit 1
-fi
+# Apply + verify WITH RETRY. The AKS pod admission webhook (aks-webhook-admission-
+# controller / ccp-webhook, 10s timeout) times out under bursts of thousands of pod
+# creates, and the apiserver throttles/saturates at 10k objects — so one pass leaves
+# gaps (build 72334: 9963/10000 agents applied, node read throttled to 958). kubectl
+# apply is idempotent, so re-applying after a settle fills the gaps once load subsides.
+# Gentler default parallelism (4) reduces the initial failure rate. FAIL only if still
+# short after MOCK_APPLY_MAX_ATTEMPTS. (For the multi-cluster tiers N is small, so this
+# converges on attempt 1.)
+attempt=1
+max_attempts="${MOCK_APPLY_MAX_ATTEMPTS:-6}"
+while :; do
+  echo ">>> Step 3: apply attempt ${attempt}/${max_attempts} (parallelism=${MOCK_APPLY_PARALLELISM:-4})..."
+  apply_bulk "$NODES_FILE" nodes
+  apply_bulk "$AGENTS_FILE" agents
+  sleep 15   # let the apiserver settle before counting (avoids throttled reads)
+  set +e
+  got_nodes=$(K get nodes -l type=kwok --no-headers 2>/dev/null | wc -l)
+  got_agents=$(K -n "${AGENT_NS}" get pods -l app=mock-cilium-agent --no-headers 2>/dev/null | wc -l)
+  set -e
+  echo ">>> Step 3: after attempt ${attempt}: ${got_nodes}/${NODE_COUNT} node(s), ${got_agents}/${NODE_COUNT} agent(s)"
+  if [ "${got_nodes:-0}" -ge "${NODE_COUNT}" ] && [ "${got_agents:-0}" -ge "${NODE_COUNT}" ]; then
+    break
+  fi
+  if [ "$attempt" -ge "$max_attempts" ]; then
+    echo "ERROR: KWOK node / mock-agent apply incomplete after ${max_attempts} attempts (${got_nodes}/${got_agents} of ${NODE_COUNT}); aborting." >&2
+    exit 1
+  fi
+  echo ">>> Step 3: incomplete (transient AKS webhook / apiserver load) — retrying in $((attempt * 20))s..."
+  sleep $((attempt * 20))
+  attempt=$((attempt + 1))
+done
 
 rm -rf "${WORK}"
 echo ""
