@@ -17,7 +17,20 @@ steps:
 
     cilium_manifest_dir="${CILIUM_MANIFEST_DIR:-1.19}"
     cilium_image_registry="${CILIUM_IMAGE_REGISTRY:-mcr.microsoft.com/containernetworking}"
-    cilium_version_tag="${CILIUM_VERSION_TAG:-v1.18.9-260508}"
+
+    # Resolve Cilium version tag: use explicit override or discover latest v1.19 from MCR
+    if [ -n "${CILIUM_VERSION_TAG:-}" ]; then
+      cilium_version_tag="${CILIUM_VERSION_TAG}"
+    else
+      echo "Querying MCR for latest Cilium v1.19 image tag..."
+      cilium_version_tag=$(curl -sf "https://mcr.microsoft.com/v2/containernetworking/cilium/cilium/tags/list" \
+        | jq -r '.tags[]' | grep '^v1\.19\.' | sort -V | tail -1)
+      if [ -z "${cilium_version_tag}" ]; then
+        echo "##vso[task.logissue type=error;]Failed to discover Cilium v1.19 tag from MCR"
+        exit 1
+      fi
+    fi
+    echo "Using Cilium image tag: ${cilium_version_tag}"
 
     rm -rf azure-container-networking
     git clone --depth 1 https://github.com/Azure/azure-container-networking
@@ -84,7 +97,20 @@ steps:
 
     cilium_manifest_dir="${CILIUM_MANIFEST_DIR:-1.19}"
     cilium_image_registry="${CILIUM_IMAGE_REGISTRY:-mcr.microsoft.com/containernetworking}"
-    cilium_version_tag="${CILIUM_VERSION_TAG:-v1.18.9-260508}"
+
+    # Resolve Cilium version tag: use explicit override or discover latest v1.19 from MCR
+    if [ -n "${CILIUM_VERSION_TAG:-}" ]; then
+      cilium_version_tag="${CILIUM_VERSION_TAG}"
+    else
+      echo "Querying MCR for latest Cilium v1.19 image tag..."
+      cilium_version_tag=$(curl -sf "https://mcr.microsoft.com/v2/containernetworking/cilium/cilium/tags/list" \
+        | jq -r '.tags[]' | grep '^v1\.19\.' | sort -V | tail -1)
+      if [ -z "${cilium_version_tag}" ]; then
+        echo "##vso[task.logissue type=error;]Failed to discover Cilium v1.19 tag from MCR"
+        exit 1
+      fi
+    fi
+    echo "Using Cilium image tag: ${cilium_version_tag}"
 
     rm -rf azure-container-networking
     git clone --depth 1 --branch msp/com-init https://github.com/Azure/azure-container-networking

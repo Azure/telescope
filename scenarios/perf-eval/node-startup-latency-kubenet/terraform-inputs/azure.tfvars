@@ -52,6 +52,6 @@ aks_config_list = [
         node_labels          = { "node-startup-latency" = "true" }
       }
     ]
-    kubernetes_version = "1.33"
+    kubernetes_version = "1.36"
   }
 ]
