@@ -30,8 +30,11 @@ steps:
         -o json)
 
       count=$(echo "$clusters" | jq 'length')
-      if [ "$count" -lt 2 ]; then
-        echo "##vso[task.logissue type=error;] Expected >=2 clustermesh AKS clusters tagged run_id=${RUN_ID}, found $count"
+      # Mesh tiers require >=2 clusters; the single-cluster baseline sets
+      # CLUSTERMESH_MIN_CLUSTERS=1 (a "mesh" of one, 0 remote peers).
+      min_clusters="${CLUSTERMESH_MIN_CLUSTERS:-2}"
+      if [ "$count" -lt "$min_clusters" ]; then
+        echo "##vso[task.logissue type=error;] Expected >=${min_clusters} clustermesh AKS clusters tagged run_id=${RUN_ID}, found $count"
         exit 1
       fi
 
@@ -877,6 +880,13 @@ steps:
       # only validated control plane.
 
       clusters=$(cat "$HOME/.kube/clustermesh-clusters.json")
+      # Cross-cluster smoke needs a remote peer to curl; meaningless with one
+      # cluster (the single-cluster baseline). Skip cleanly rather than fail.
+      _smoke_n=$(echo "$clusters" | jq 'length')
+      if [ "$_smoke_n" -lt 2 ]; then
+        echo "Cross-cluster data-path smoke: single cluster ($_smoke_n) — no remote peer to reach; skipping (expected for the single-cluster baseline)."
+        exit 0
+      fi
       first_role=$(echo  "$clusters" | jq -r '.[0].role')
       second_role=$(echo "$clusters" | jq -r '.[1].role')
 

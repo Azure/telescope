@@ -281,8 +281,9 @@ steps:
         -o json)
 
       cluster_count=$(echo "$clusters" | jq 'length')
-      if [ "$cluster_count" -lt 2 ]; then
-        echo "##vso[task.logissue type=error;] Expected >=2 clustermesh clusters, found $cluster_count"
+      min_clusters="${CLUSTERMESH_MIN_CLUSTERS:-2}"
+      if [ "$cluster_count" -lt "$min_clusters" ]; then
+        echo "##vso[task.logissue type=error;] Expected >=${min_clusters} clustermesh clusters, found $cluster_count"
         exit 1
       fi
 

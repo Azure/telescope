@@ -1668,6 +1668,9 @@ stages:
       MOCK_ACR_HOST: mockmeshshared11225.azurecr.io
       MOCK_AGENT_TAG: v26
       MOCK_NODE_COUNT: 10000
+      # Single-cluster baseline: allow a "mesh" of one (relaxes the >=2-cluster
+      # enumerate guard in validate-resources.yml + execute.yml).
+      CLUSTERMESH_MIN_CLUSTERS: "1"
       # Single cluster => no remote peers; agents run publish-only (no consume path).
       MOCK_CONSUME_CLUSTERMESH: false
       MOCK_DEPLOY_CONCURRENCY: 1
