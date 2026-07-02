@@ -1709,21 +1709,26 @@ stages:
               test_type: shared
               test_type_suffix: "-mock"
               mock_mode: true
-              global_namespace_count: 1
-              namespaces: 5
+              # Workload scaled x100 vs the per-cluster mesh tiers so the TOTAL matches
+              # 72210 (100 clusters x 50 pods = 5000; x 20 API/s = 2000; x kill 5 = 500;
+              # x 1 global-ns = 100). Fair same-total-X comparison: the FULL 5000-pod
+              # churn on ONE apiserver (consolidated) vs 72210's 5000 spread across 100
+              # apiservers + mesh. Node/agent count (10k) already matches.
+              global_namespace_count: 100
+              namespaces: 500
               deployments_per_namespace: 2
               replicas_per_deployment: 5
               hold_duration: 2m
               warmup_duration: 30s
               restart_count: 0
-              api_server_calls_per_second: 20
+              api_server_calls_per_second: 2000
               churn_cycles: 2
               churn_up_duration: 90s
               churn_down_duration: 90s
               kill_duration: 10m
               kill_duration_seconds: 600
               kill_interval_seconds: 10
-              kill_batch: 5
+              kill_batch: 500
               kill_job_deadline_seconds: 660
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
