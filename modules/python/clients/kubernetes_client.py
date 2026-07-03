@@ -1975,6 +1975,19 @@ class KubernetesClient:
             metadata = deep.get("metadata", {})
             latencies["cilium_identity_count"] = metadata.get("cilium_identity_count")
             latencies["cilium_bpf_map_pressure"] = metadata.get("cilium_bpf_map_pressure")
+            latencies["cilium_version"] = metadata.get("cilium_version")
+
+        # Fallback: extract Cilium version from container image if not in metrics
+        if not latencies.get("cilium_version"):
+            cni_containers = timestamps.get("cni_containers", [])
+            for container in cni_containers:
+                image = container.get("image", "")
+                if "cilium" in image.lower():
+                    # Match version pattern like :v1.19.3-260520 or :1.19.3
+                    match = re.search(r':v?(\d+\.\d+\.\d+(?:-\d+)?)', image)
+                    if match:
+                        latencies["cilium_version"] = match.group(1)
+                        break
 
         return latencies
 
