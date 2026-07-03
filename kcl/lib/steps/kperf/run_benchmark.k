@@ -21,3 +21,22 @@ runkperf -v 3 bench \\
         target = target
     }
 }
+
+# RunKperfRunnerGroup runs `kperf rg run` with the specified runner image, runner
+# group manifest, and optional affinity selector.
+RunKperfRunnerGroup = lambda runnerImage: str, runnerGroup: str, affinity: str = "", target: str = None -> steps.Step {
+    affinityFlag = "--affinity=\"${affinity}\" \\\n  " if affinity else ""
+    steps.Script {
+        script = """
+set -euo pipefail
+set -x
+
+kperf rg run \\
+  --runner-image=${runnerImage} \\
+  --runnergroup="${runnerGroup}" \\
+  ${affinityFlag}
+"""
+        displayName = "Run kperf runner group"
+        target = target
+    }
+}
