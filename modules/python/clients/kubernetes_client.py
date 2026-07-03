@@ -805,8 +805,9 @@ class KubernetesClient:
         Extracts:
           - cilium_bootstrap_seconds{scope=...} per scope
           - cilium_endpoint_regeneration_time_stats_seconds per scope (mean)
-          - cilium_identity_count
+          - cilium_identity_count (or cilium_identity gauge sum)
           - cilium_bpf_map_pressure
+          - cilium_version (from cilium_version_info labels)
 
         Returns:
             Dict with 'bootstrap', 'endpoint_regen', and 'metadata' keys
@@ -820,6 +821,10 @@ class KubernetesClient:
                 "cilium_version": None,
             },
         }
+
+        # Track identity gauge values to sum up (Cilium 1.14+ uses per-type gauges)
+        identity_gauge_total = 0
+        identity_gauge_found = False
 
         for line in metrics_text.splitlines():
             if line.startswith("#"):
@@ -852,12 +857,32 @@ class KubernetesClient:
                 except (IndexError, ValueError):
                     continue
 
-            # Metadata
+            # Metadata: cilium_version_info{version="1.19.3", ...} 1
+            elif line.startswith("cilium_version_info{"):
+                try:
+                    if 'version="' in line:
+                        version = line.split('version="')[1].split('"')[0]
+                        result["metadata"]["cilium_version"] = version
+                except (IndexError, ValueError):
+                    pass
+
+            # Metadata: cilium_identity_count (legacy single gauge)
             elif line.startswith("cilium_identity_count "):
                 try:
                     result["metadata"]["cilium_identity_count"] = int(float(line.split(" ")[1]))
                 except (IndexError, ValueError):
                     pass
+
+            # Metadata: cilium_identity{type="..."} N (Cilium 1.14+ per-type gauges)
+            # Sum all types to get total identity count
+            elif line.startswith("cilium_identity{"):
+                try:
+                    value = int(float(line.split("} ")[1]))
+                    identity_gauge_total += value
+                    identity_gauge_found = True
+                except (IndexError, ValueError):
+                    pass
+
             elif line.startswith("cilium_bpf_map_pressure{"):
                 try:
                     value = float(line.split("} ")[1])
@@ -867,6 +892,10 @@ class KubernetesClient:
                         result["metadata"]["cilium_bpf_map_pressure"] = value
                 except (IndexError, ValueError):
                     pass
+
+        # Use per-type identity gauges if legacy count wasn't found
+        if result["metadata"]["cilium_identity_count"] is None and identity_gauge_found:
+            result["metadata"]["cilium_identity_count"] = identity_gauge_total
 
         # Compute mean for endpoint regen phases
         regen_means = {}

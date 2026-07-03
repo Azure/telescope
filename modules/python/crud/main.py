@@ -149,6 +149,8 @@ def handle_node_pool_operation(node_pool_crud, args):
 
 def handle_autoscale_latency(node_pool_crud, args):
     """Measure node and pod startup latency via cluster autoscaler."""
+    import time
+
     try:
         # Get the kubernetes client from the cloud-specific CRUD class
         if args.cloud == "azure":
@@ -164,6 +166,8 @@ def handle_autoscale_latency(node_pool_crud, args):
         cni_label = args.cni_daemonset_label if args.cni_daemonset_label else None
         cni_taint = args.cni_blocking_taint if args.cni_blocking_taint else None
         iterations = getattr(args, "iterations", 1) or 1
+        cooldown = getattr(args, "iteration_cooldown", 0) or 0
+
         for iteration in range(1, iterations + 1):
             pod_name = f"latency-probe-{iteration}"
             logger.info("Starting autoscale latency iteration %d/%d (pod: %s)",
@@ -184,6 +188,12 @@ def handle_autoscale_latency(node_pool_crud, args):
                 op.add_metadata("autoscale_latency", result)
 
             logger.info("Iteration %d/%d complete", iteration, iterations)
+
+            # Wait between iterations if cooldown is specified (but not after last iteration)
+            if cooldown > 0 and iteration < iterations:
+                logger.info("Waiting %d seconds for autoscaler cooldown before next iteration...",
+                           cooldown)
+                time.sleep(cooldown)
 
         return 0
     except Exception as e:
@@ -453,6 +463,13 @@ def main():
         type=int,
         default=3,
         help="Number of scale-up iterations to measure (default: 3)",
+    )
+    autoscale_parser.add_argument(
+        "--iteration-cooldown",
+        type=int,
+        default=0,
+        help="Seconds to wait between iterations for autoscaler cooldown (default: 0). "
+             "Set to 180-300 to avoid autoscaler backoff delays in total_e2e_seconds.",
     )
     autoscale_parser.set_defaults(func=handle_autoscale_latency)
 
