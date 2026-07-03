@@ -31,6 +31,8 @@ RunKperfRunnerGroup = lambda runnerImage: str, runnerGroup: str, affinity: str =
 set -euo pipefail
 set -x
 
+kperf rg delete
+
 kperf rg run \\
   --runner-image=${runnerImage} \\
   --runnergroup="${runnerGroup}" \\
