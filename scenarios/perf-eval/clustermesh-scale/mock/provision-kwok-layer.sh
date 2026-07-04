@@ -250,6 +250,14 @@ metadata:
     node-role.kubernetes.io/agent: ""
     type: kwok
 spec:
+  # providerID stops the AKS cloud-node-lifecycle controller from deleting these
+  # virtual nodes ("...does not exist in the cloud provider"). Without it, at scale
+  # the controller deletes KWOK nodes faster than we can apply them (build 72344:
+  # 10k nodes fluctuated 600-1300, never converged). A non-azure "kwok://" scheme
+  # makes the Azure provider skip the instance-exists check. Verified on a live AKS
+  # cluster: providerID nodes survive with 0 DeletingNode events; no-providerID
+  # nodes get deleted. Harmless for the mesh tiers (<=100 nodes) too.
+  providerID: kwok://${NODE}
   podCIDR: ${PODCIDR}
   podCIDRs: [${PODCIDR}]
   taints:
