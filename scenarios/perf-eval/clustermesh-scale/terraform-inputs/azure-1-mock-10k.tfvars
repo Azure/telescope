@@ -104,14 +104,16 @@ aks_cli_config_list = [
     }
 
     # Dedicated Prometheus node (label prometheus=true; CL2 pins prometheus-k8s
-    # here via CL2_PROMETHEUS_NODE_SELECTOR). D32_v3 = 128 GiB for the 10k-target
-    # scrape; the stage bumps the Prometheus mem limit to match.
+    # here via CL2_PROMETHEUS_NODE_SELECTOR). D64_v3 = 256 GiB — one Prometheus
+    # scraping 10k agent targets is a cardinality wall (~45M series); this gives
+    # it the most memory in the Dv3 family (build 72539 died at the 12Gi default).
+    # If it still OOMs/times out we fall back to reducing the agent scrape.
     extra_node_pool = [
       {
         name                 = "prompool"
         node_count           = 1
         auto_scaling_enabled = false
-        vm_size              = "Standard_D32_v3"
+        vm_size              = "Standard_D64_v3"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
         ]

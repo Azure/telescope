@@ -62,6 +62,11 @@ steps:
       # never real test outcomes. Default 2 in mock mode (cheap early retry), 1 in
       # real mode → real runs are byte-for-byte unchanged. Honor an explicit override.
       export CL2_MAX_ATTEMPTS="${CL2_MAX_ATTEMPTS:-$( [ "$CL2_MOCK_MODE" = "true" ] && echo 2 || echo 1 )}"
+      # Prometheus memory limit (Gi). Consumed by scale.py (initial CL2 override)
+      # AND run-cl2-on-cluster.sh's prom-cr-patcher. Exported here so the stage
+      # variable reliably reaches both; unset -> the scripts default to 12Gi
+      # (mesh tiers unchanged). The 10k baseline sets it high (big prompool node).
+      export CL2_PROMETHEUS_MEMORY_LIMIT_GI="${CL2_PROMETHEUS_MEMORY_LIMIT_GI:-}"
       # Phase 4a — Scenario #2 (Pod Churn Stress) knobs. Shell defaults so
       # matrix entries that don't set these (event-throughput, default-config)
       # silently fall back to the documented Phase 4a defaults rather than

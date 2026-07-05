@@ -1683,9 +1683,11 @@ stages:
       # 10k agents on ONE cluster take far longer to all reach Running than 100.
       MOCK_READINESS_TIMEOUT_S: "2400"
       # One Prometheus scrapes 10k agent targets (~100x the mesh tiers' per-cluster
-      # cardinality) — give it a large limit on the 128 GiB prompool node. If it
-      # still OOMs, sample the agent scrape (control-plane metrics are low-card).
-      CL2_PROMETHEUS_MEMORY_LIMIT_GI: "96"
+      # cardinality). prompool is a 256 GiB node (D64_v3); give Prometheus a 200 GiB
+      # limit (headroom for OS/kubelet). Propagated via execute.yml -> scale.py
+      # initial override + run-cl2 prom-cr-patcher. If it still OOMs/times out at
+      # 200 GiB, the fallback is to reduce the agent scrape (sample or drop metrics).
+      CL2_PROMETHEUS_MEMORY_LIMIT_GI: "200"
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:

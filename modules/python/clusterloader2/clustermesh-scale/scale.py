@@ -148,8 +148,14 @@ def configure_clusterloader2(
         # D8ds_v4 prompool has 32GB RAM so 12Gi is safe with headroom.
         # CL2_PROMETHEUS_MEMORY_LIMIT is honored as a CL2 overrides key
         # (unlike the *_FACTOR knobs which are silently broken — see
-        # plan.md "What we built" item 16).
-        f.write("CL2_PROMETHEUS_MEMORY_LIMIT: 12Gi\n")
+        # plan.md "What we built" item 16). Configurable via env
+        # CL2_PROMETHEUS_MEMORY_LIMIT_GI (default 12Gi) so large scrapes (e.g.
+        # the 10k single-cluster baseline: ~10k agent targets) can START
+        # Prometheus with a high limit instead of the 12Gi default OOM'ing
+        # before run-cl2-on-cluster.sh's prom-cr-patcher bumps it. Mesh tiers
+        # leave the env unset -> 12Gi, unchanged.
+        _prom_limit_gi = os.environ.get("CL2_PROMETHEUS_MEMORY_LIMIT_GI") or "12"
+        f.write(f"CL2_PROMETHEUS_MEMORY_LIMIT: {_prom_limit_gi}Gi\n")
         # Pin Prometheus to the dedicated `prompool` node (label
         # prometheus=true is set in azure-2.tfvars extra_node_pool). Without
         # this, prometheus-k8s lands on the default workload pool and
