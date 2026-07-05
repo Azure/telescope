@@ -121,9 +121,14 @@ src, dst = sys.argv[1], sys.argv[2]
 docs = list(yaml.safe_load_all(open(src)))
 for d in docs:
     if d and d.get('kind') == 'Deployment' and d['metadata']['name'] == 'kwok-controller':
+        # Pin to real AKS nodes (kubernetes.azure.com/cluster), but keep OFF the
+        # dedicated Prometheus node (labeled prometheus=true) so the CL2 monitoring
+        # stack always has room there. See the agent affinity below for the rationale.
         d['spec']['template']['spec']['affinity'] = {'nodeAffinity': {
             'requiredDuringSchedulingIgnoredDuringExecution': {'nodeSelectorTerms': [
-                {'matchExpressions': [{'key': 'kubernetes.azure.com/cluster', 'operator': 'Exists'}]}]}}}
+                {'matchExpressions': [
+                    {'key': 'kubernetes.azure.com/cluster', 'operator': 'Exists'},
+                    {'key': 'prometheus', 'operator': 'DoesNotExist'}]}]}}}
 yaml.safe_dump_all(docs, open(dst, 'w'), default_flow_style=False)
 PY
 K apply -f "${WORK}/kwok-patched.yaml" >/dev/null
@@ -296,7 +301,15 @@ spec:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
         nodeSelectorTerms:
-        - matchExpressions: [{ key: kubernetes.azure.com/cluster, operator: Exists }]
+        # Run on real AKS nodes (kubernetes.azure.com/cluster exists) but NEVER on the
+        # dedicated Prometheus node (labeled prometheus=true). At 10k agents on a single
+        # cluster the agents would otherwise pack every real node to max-pods, including
+        # the prompool, starving CL2's prometheus stack (operator + prometheus-k8s could
+        # not schedule -> 8min late -> blew CL2's prometheus-ready budget, build 72558).
+        # Excluding one small prompool is free (10k agents fit on the remaining pool).
+        - matchExpressions:
+          - { key: kubernetes.azure.com/cluster, operator: Exists }
+          - { key: prometheus, operator: DoesNotExist }
   containers:
   - name: mock-cilium-agent
     image: ${ACR_HOST}/mock-cilium-agent:${AGENT_TAG}
