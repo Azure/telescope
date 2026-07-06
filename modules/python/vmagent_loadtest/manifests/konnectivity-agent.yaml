@@ -50,7 +50,8 @@ spec:
             - --enable-profiling
             - --admin-bind-address=0.0.0.0
             - --admin-server-port=8094
-            - -v=2
+            # v=0: quiet per-CONNECT logging at scale (see server rationale).
+            - -v=0
           ports:
             - name: health
               containerPort: 8082

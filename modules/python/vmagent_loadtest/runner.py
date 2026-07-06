@@ -62,7 +62,8 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
                     real_targets: bool = False,
                     resource_group: str = "", dp_cluster_name: str = "",
                     nodepool: str = DEFAULT_NODEPOOL,
-                    run_label: str = "") -> dict:
+                    run_label: str = "",
+                    skip_diagnostics: bool = False) -> dict:
     ns_prefix = f"loadtest-{run_label}-" if run_label else "loadtest-"
     namespace = f"{ns_prefix}{tier}"
 
@@ -185,7 +186,10 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
         time.sleep(5)
 
         # 11c. Collect pprof profiles from konn-server, konn-agent, and vmagent
-        pprof_results = collect_pprof(cp_kubeconfig, dp_kubeconfig, namespace, work_dir, label=f"tier{tier}")
+        if skip_diagnostics:
+            log.info("Skipping pprof collection (--skip-diagnostics)")
+        else:
+            pprof_results = collect_pprof(cp_kubeconfig, dp_kubeconfig, namespace, work_dir, label=f"tier{tier}")
 
         # 12. Evaluate pass/fail
         pass_fail = evaluate_pass_fail(measurements, expected_targets=min_targets)
@@ -241,12 +245,15 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
         )
     finally:
         # Always collect diagnostics (logs, events, pod descriptions) for RCA
-        try:
-            diagnostics = collect_diagnostics(
-                cp_kubeconfig, dp_kubeconfig, namespace, work_dir,
-                include_fake_exporters=not real_targets)
-        except Exception as e:
-            log.warning("Diagnostics collection failed: %s", e)
+        if skip_diagnostics:
+            log.info("Skipping diagnostics collection (--skip-diagnostics)")
+        else:
+            try:
+                diagnostics = collect_diagnostics(
+                    cp_kubeconfig, dp_kubeconfig, namespace, work_dir,
+                    include_fake_exporters=not real_targets)
+            except Exception as e:
+                log.warning("Diagnostics collection failed: %s", e)
 
     # 13. Write results
     results_dir.mkdir(parents=True, exist_ok=True)

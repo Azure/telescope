@@ -21,6 +21,7 @@ steps:
     RUN_LABEL="${RUN_LABEL:-}"
     PARALLEL="${PARALLEL:-false}"
     MAX_CONCURRENCY="${MAX_CONCURRENCY:-}"
+    SKIP_DIAGNOSTICS="${SKIP_DIAGNOSTICS:-false}"
 
     EXTRA_ARGS="--resource-group ${{ parameters.dp_resource_group }} --dp-cluster-name ${{ parameters.dp_cluster_name }}"
     if [[ "$REAL_TARGETS" == "true" ]]; then
@@ -28,6 +29,9 @@ steps:
     fi
     if [[ -n "$RUN_LABEL" ]]; then
       EXTRA_ARGS="$EXTRA_ARGS --run-label $RUN_LABEL"
+    fi
+    if [[ "$SKIP_DIAGNOSTICS" == "true" ]]; then
+      EXTRA_ARGS="$EXTRA_ARGS --skip-diagnostics"
     fi
 
     # Parallel mode: invoke main.py ONCE with all tiers. Only supported for
@@ -145,3 +149,5 @@ steps:
     SOAK_MINUTES: $(SOAK_MINUTES)
     REAL_TARGETS: $(REAL_TARGETS)
     RUN_LABEL: $(RUN_LABEL)
+    PARALLEL: $(PARALLEL)
+    SKIP_DIAGNOSTICS: $(SKIP_DIAGNOSTICS)

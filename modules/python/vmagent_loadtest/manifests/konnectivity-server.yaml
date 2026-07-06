@@ -53,7 +53,9 @@ spec:
             - --enable-profiling
             - --admin-port=8095
             - --admin-bind-address=0.0.0.0
-            - --v=2
+            # v=0: verbose logging (v=2) at 10k+ CONNECTs/s burns CPU+IO on the
+            # component under load. Raise only when debugging dial failures.
+            - --v=0
           ports:
             - name: agent
               containerPort: 8081

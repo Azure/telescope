@@ -27,7 +27,7 @@ aks_config_list = [
     extra_node_pool = [
       {
         name                = "controlplane"
-        node_count          = 3
+        node_count          = 5
         auto_scaling_enabled = false
         vm_size             = "Standard_D4_v3"
         os_disk_type        = "Managed"

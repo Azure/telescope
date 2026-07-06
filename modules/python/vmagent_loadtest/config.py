@@ -111,18 +111,23 @@ TIER_RESOURCE_BUCKETS = [
                "konn_server":   _r("200m", "256Mi", "1",    "1Gi")}),
     (1000, 3, {"vmagent":       _r("500m", "1Gi",   "2",    "3Gi"),
                "vmagent_proxy": _r("500m", "256Mi", "4",    "1Gi"),
-               "konn_server":   _r("300m", "512Mi", "1",    "2Gi")}),
-    (1500, 3, {"vmagent":       _r("1",    "2Gi",   "3",    "4Gi"),
+               "konn_server":   _r("200m", "512Mi", "1",    "2Gi")}),
+    # tier 1500 needs 4 shards: 3 shards put ~5767 targets/shard which pushed
+    # scrape_duration to ~5s. 4 shards -> ~4325/shard (proven-good range, tier
+    # 1200 ran 4613/shard at 0.26s).
+    # Requests right-sized to measured usage (vmagent RSS ~300-450MiB flat
+    # across tiers thanks to pooling+sharding); limits stay high for burst.
+    (1500, 4, {"vmagent":       _r("500m", "1Gi",   "3",    "4Gi"),
                "vmagent_proxy": _r("500m", "512Mi", "6",    "1Gi"),
-               "konn_server":   _r("500m", "512Mi", "2",    "2Gi")}),
+               "konn_server":   _r("200m", "384Mi", "2",    "2Gi")}),
 ]
 # Above the top bucket: shard so each vmagent holds ~TARGETS_PER_SHARD targets.
-TARGETS_PER_SHARD = 4000
+TARGETS_PER_SHARD = 3700
 FAKE_ROLES_COUNT = 11  # keep in sync with len(FAKE_EXPORTER_ROLES)
 TIER_RESOURCES_OVER = {
-    "vmagent":       _r("1", "2Gi", "4", "4Gi"),
-    "vmagent_proxy": _r("1", "512Mi", "6", "2Gi"),
-    "konn_server":   _r("500m", "1Gi", "2", "4Gi"),
+    "vmagent":       _r("500m", "1Gi", "4", "4Gi"),
+    "vmagent_proxy": _r("500m", "512Mi", "6", "2Gi"),
+    "konn_server":   _r("200m", "384Mi", "2", "4Gi"),
 }
 
 

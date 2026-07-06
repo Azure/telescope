@@ -24,143 +24,151 @@ data:
   #   do_CONNECT — HTTPS targets (real kubelet/cadvisor); bidirectional byte relay
   proxy.py: |
     #!/usr/bin/env python3
-    """vmagent-proxy: HTTP/HTTPS → CONNECT adapter for konnectivity-server."""
-    import http.server, http.client, socket, ssl, sys, threading, io, select
+    """vmagent-proxy (POOLED): HTTP/HTTPS -> CONNECT adapter for konnectivity-server.
+
+    Difference vs baseline proxy: the do_GET path (all fake-exporter HTTP scrapes)
+    reuses established mTLS+CONNECT tunnels via a per-target connection pool, instead
+    of doing a fresh TCP+TLS handshake + CONNECT on every single scrape. At ~183
+    scrapes/s (tier 500) that eliminates ~183 TLS handshakes/s of GIL-bound CPU.
+
+    Graceful fallback: if a pooled tunnel is stale (target closed keep-alive), the
+    request transparently retries on a fresh tunnel, so behaviour is never worse
+    than the baseline.
+    """
+    import http.server, http.client, socket, ssl, threading, select
+    import queue, collections
+    from urllib.parse import urlparse
 
     PROXY_ADDR = ("konnectivity-server", 8083)
     CERT_DIR = "/certs"
     LISTEN_PORT = 8080
+    POOL_MAX_IDLE_PER_TARGET = 1  # retain at most 1 idle tunnel per target (bounds fds/mem)
 
     def make_ssl_context():
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
         ctx.load_cert_chain(f"{CERT_DIR}/client.crt", f"{CERT_DIR}/client.key")
         ctx.load_verify_locations(f"{CERT_DIR}/ca.crt")
         ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE  # self-signed certs in test
+        ctx.verify_mode = ssl.CERT_NONE
         return ctx
 
     ssl_ctx = make_ssl_context()
 
+    # ---- per-target tunnel pool -------------------------------------------------
+    _pools = collections.defaultdict(lambda: queue.LifoQueue(maxsize=POOL_MAX_IDLE_PER_TARGET))
+
+    def _open_tunnel(target):
+        """Establish a fresh mTLS conn to konn-server + CONNECT tunnel to target."""
+        raw = socket.create_connection(PROXY_ADDR, timeout=10)
+        conn = ssl_ctx.wrap_socket(raw, server_hostname="konnectivity-server")
+        conn.sendall(f"CONNECT {target} HTTP/1.1\r\nHost: {target}\r\n\r\n".encode())
+        resp = b""
+        while b"\r\n\r\n" not in resp:
+            chunk = conn.recv(4096)
+            if not chunk:
+                raise ConnectionError("konnectivity-server closed connection")
+            resp += chunk
+        status = resp.split(b"\r\n")[0].decode()
+        if "200" not in status:
+            raise ConnectionError(f"CONNECT failed: {status}")
+        return conn
+
+    def _get_tunnel(target):
+        q = _pools[target]
+        try:
+            return q.get_nowait()   # reuse idle tunnel
+        except queue.Empty:
+            return _open_tunnel(target)
+
+    def _return_tunnel(target, conn):
+        try:
+            _pools[target].put_nowait(conn)
+        except queue.Full:
+            try: conn.close()
+            except Exception: pass
+
+
     class ProxyHandler(http.server.BaseHTTPRequestHandler):
-        def do_GET(self):
-            # Extract target host:port from the absolute-form URL
-            # VMAgent sends: GET http://10.0.0.5:9090/metrics HTTP/1.1
+        # HTTP/1.0 downstream (vmagent<->proxy): one short-lived thread per scrape.
+        # HTTP/1.1 keep-alive here caused thread-per-connection explosion + proxy
+        # OOM. Only the UPSTREAM tunnels (proxy->konn->target) are pooled/reused.
+        protocol_version = "HTTP/1.0"
+
+        def _target_and_path(self):
             if self.path.startswith("http://"):
-                from urllib.parse import urlparse
                 u = urlparse(self.path)
-                target_host = u.hostname
-                target_port = u.port or 80
-                path = u.path or "/"
-            else:
-                target_host = self.headers.get("Host", "").split(":")[0]
-                target_port = 9090
-                path = self.path
+                return f"{u.hostname}:{u.port or 80}", (u.path or "/")
+            host = self.headers.get("Host", "").split(":")[0]
+            return f"{host}:9090", self.path
 
-            target = f"{target_host}:{target_port}"
-            try:
-                # 1. Open mTLS connection to konnectivity-server
-                raw = socket.create_connection(PROXY_ADDR, timeout=10)
-                conn = ssl_ctx.wrap_socket(raw, server_hostname="konnectivity-server")
-
-                # 2. Send CONNECT to create tunnel
-                connect_req = f"CONNECT {target} HTTP/1.1\r\nHost: {target}\r\n\r\n"
-                conn.sendall(connect_req.encode())
-
-                # 3. Read CONNECT response
-                resp_data = b""
-                while b"\r\n\r\n" not in resp_data:
-                    chunk = conn.recv(4096)
-                    if not chunk:
-                        raise ConnectionError("konnectivity-server closed connection")
-                    resp_data += chunk
-
-                status_line = resp_data.split(b"\r\n")[0].decode()
-                if "200" not in status_line:
-                    raise ConnectionError(f"CONNECT failed: {status_line}")
-
-                # 4. Send the actual GET through the tunnel
-                get_req = f"GET {path} HTTP/1.1\r\nHost: {target}\r\nConnection: close\r\n\r\n"
-                conn.sendall(get_req.encode())
-
-                # 5. Parse response using http.client (handles chunked encoding)
-                resp = http.client.HTTPResponse(conn)
-                resp.begin()
-                body = resp.read()
-
-                # 6. Forward decoded response to VMAgent
-                self.send_response(resp.status)
-                for key, val in resp.getheaders():
-                    if key.lower() not in ("transfer-encoding", "connection"):
-                        self.send_header(key, val)
-                self.send_header("Content-Length", str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
-                resp.close()
-                conn.close()
-
-            except Exception as e:
-                self.send_response(502)
-                self.send_header("Content-Type", "text/plain")
-                msg = f"proxy error: {e}".encode()
-                self.send_header("Content-Length", str(len(msg)))
-                self.end_headers()
-                self.wfile.write(msg)
+        def do_GET(self):
+            target, path = self._target_and_path()
+            # keep-alive GET so the tunnel can be reused for the next scrape
+            req = (f"GET {path} HTTP/1.1\r\nHost: {target}\r\n"
+                   f"Connection: keep-alive\r\n\r\n").encode()
+            last_err = None
+            for attempt in (1, 2):  # 1 = try pooled, 2 = fresh on failure
+                conn = _get_tunnel(target)
+                try:
+                    conn.sendall(req)
+                    resp = http.client.HTTPResponse(conn, method="GET")
+                    resp.begin()
+                    body = resp.read()
+                    reuse = not resp.will_close  # target honoured keep-alive
+                    # forward to vmagent
+                    self.send_response(resp.status)
+                    for k, v in resp.getheaders():
+                        if k.lower() not in ("transfer-encoding", "connection", "content-length"):
+                            self.send_header(k, v)
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
+                    if reuse:
+                        _return_tunnel(target, conn)
+                    else:
+                        conn.close()
+                    return
+                except Exception as e:
+                    last_err = e
+                    try: conn.close()
+                    except Exception: pass
+                    continue  # retry once on a fresh tunnel
+            # both attempts failed
+            self.send_response(502)
+            msg = f"proxy error: {last_err}".encode()
+            self.send_header("Content-Type", "text/plain")
+            self.send_header("Content-Length", str(len(msg)))
+            self.end_headers()
+            self.wfile.write(msg)
 
         def do_CONNECT(self):
-            """Handle HTTPS proxy: tunnel raw bytes through konnectivity."""
-            target = self.path  # host:port
+            # HTTPS targets: unchanged raw byte relay (not pooled — used by real kubelet)
+            target = self.path
             try:
-                # 1. Open mTLS connection to konnectivity-server
-                raw = socket.create_connection(PROXY_ADDR, timeout=10)
-                conn = ssl_ctx.wrap_socket(raw, server_hostname="konnectivity-server")
-
-                # 2. Send CONNECT to konnectivity to create tunnel to target
-                connect_req = f"CONNECT {target} HTTP/1.1\r\nHost: {target}\r\n\r\n"
-                conn.sendall(connect_req.encode())
-
-                # 3. Read CONNECT response from konnectivity
-                resp_data = b""
-                while b"\r\n\r\n" not in resp_data:
-                    chunk = conn.recv(4096)
-                    if not chunk:
-                        raise ConnectionError("konnectivity-server closed connection")
-                    resp_data += chunk
-
-                status_line = resp_data.split(b"\r\n")[0].decode()
-                if "200" not in status_line:
-                    raise ConnectionError(f"CONNECT failed: {status_line}")
-
-                # 4. Tell VMAgent the tunnel is established
+                conn = _open_tunnel(target)
                 self.send_response(200, "Connection Established")
                 self.end_headers()
-
-                # 5. Bidirectional relay: VMAgent ←→ konnectivity tunnel
-                client_sock = self.connection
-                tunnel_sock = conn
-                sockets = [client_sock, tunnel_sock]
+                client_sock, tunnel_sock = self.connection, conn
+                socks = [client_sock, tunnel_sock]
                 while True:
-                    readable, _, errored = select.select(sockets, [], sockets, 30)
-                    if errored:
+                    r, _, e = select.select(socks, [], socks, 30)
+                    if e:
                         break
-                    for s in readable:
+                    done = False
+                    for s in r:
                         data = s.recv(65536)
                         if not data:
-                            sockets = []  # break outer loop
+                            done = True
                             break
-                        if s is client_sock:
-                            tunnel_sock.sendall(data)
-                        else:
-                            client_sock.sendall(data)
-                    if not sockets:
+                        (tunnel_sock if s is client_sock else client_sock).sendall(data)
+                    if done:
                         break
-
                 conn.close()
-
             except Exception as e:
                 try:
                     self.send_response(502)
-                    self.send_header("Content-Type", "text/plain")
                     msg = f"CONNECT proxy error: {e}".encode()
+                    self.send_header("Content-Type", "text/plain")
                     self.send_header("Content-Length", str(len(msg)))
                     self.end_headers()
                     self.wfile.write(msg)
@@ -168,7 +176,8 @@ data:
                     pass
 
         def log_message(self, fmt, *args):
-            pass  # suppress per-request logging
+            pass
+
 
     class ThreadedServer(http.server.HTTPServer):
         allow_reuse_address = True
@@ -185,7 +194,7 @@ data:
             finally:
                 self.shutdown_request(request)
 
-    print(f"vmagent-proxy listening on :{LISTEN_PORT}, forwarding CONNECT to {PROXY_ADDR}", flush=True)
+    print(f"vmagent-proxy (POOLED) listening on :{LISTEN_PORT}, forwarding CONNECT to {PROXY_ADDR}", flush=True)
     ThreadedServer(("", LISTEN_PORT), ProxyHandler).serve_forever()
 ---
 apiVersion: apps/v1
@@ -229,12 +238,21 @@ spec:
             - -promscrape.noStaleMarkers=true
             - -promscrape.config.strictParse=true
             - -promscrape.maxScrapeSize=33554432
+            # Scale/memory tuning:
+            #   dropOriginalLabels — drop pre-relabel label copies (mem savings)
+            #   discovery.concurrency — faster SD convergence across shards
+            #   memory.allowedPercent — GC against 80% of limit to absorb spikes
+            #   remoteWrite.queues — more senders drain the WAL faster (anti-OOM)
+            - -promscrape.dropOriginalLabels=true
+            - -promscrape.discovery.concurrency=200
+            - -memory.allowedPercent=80
             - -remoteWrite.url=http://vmsingle:8428/api/v1/write
             - -remoteWrite.flushInterval=30s
             - -remoteWrite.sendTimeout=10s
             - -remoteWrite.maxDiskUsagePerURL=1073741824
             - -remoteWrite.rateLimit=524288
             - -remoteWrite.maxBlockSize=524288
+            - -remoteWrite.queues=8
             - -remoteWrite.tmpDataPath=/tmp/vmagent-remotewrite-data
             - -remoteWrite.dropSamplesOnOverload=true
           ports:
