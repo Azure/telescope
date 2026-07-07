@@ -107,6 +107,16 @@ def handle_node_pool_operation(node_pool_crud, args):
     command = args.command
     result = None
 
+    # gpu_instance_profile / gpu_mig_strategy are Azure-only MIG inputs. The AWS
+    # CRUD does not accept these kwargs (and has no **kwargs), so passing them for
+    # --cloud aws would raise TypeError. Only forward them on Azure.
+    azure_gpu_kwargs = {}
+    if args.cloud == "azure":
+        azure_gpu_kwargs = {
+            "gpu_instance_profile": args.gpu_instance_profile,
+            "gpu_mig_strategy": args.gpu_mig_strategy,
+        }
+
     try:
         if command == "create":
             # Prepare create arguments
@@ -116,8 +126,7 @@ def handle_node_pool_operation(node_pool_crud, args):
                 "node_count": args.node_count,
                 "gpu_node_pool": args.gpu_node_pool,
                 "enable_managed_gpu": args.enable_managed_gpu,
-                "gpu_instance_profile": args.gpu_instance_profile,
-                "gpu_mig_strategy": args.gpu_mig_strategy,
+                **azure_gpu_kwargs,
             }
 
             result = node_pool_crud.create_node_pool(**create_kwargs)
@@ -131,7 +140,7 @@ def handle_node_pool_operation(node_pool_crud, args):
                 "scale_step_size": args.scale_step_size,
                 "gpu_node_pool": args.gpu_node_pool,
                 "enable_managed_gpu": args.enable_managed_gpu,
-                "gpu_instance_profile": args.gpu_instance_profile,
+                **azure_gpu_kwargs,
             }
 
             result = node_pool_crud.scale_node_pool(**scale_kwargs)
@@ -151,6 +160,7 @@ def handle_node_pool_operation(node_pool_crud, args):
                 "gpu_node_pool": args.gpu_node_pool,
                 "enable_managed_gpu": args.enable_managed_gpu,
                 "step_wait_time": args.step_wait_time,
+                **azure_gpu_kwargs,
             }
 
             result = node_pool_crud.all(**all_kwargs)

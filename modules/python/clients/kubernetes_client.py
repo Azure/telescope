@@ -683,18 +683,29 @@ class KubernetesClient:
                 logger.info(f"Verifying NVIDIA drivers on node {node_name}")
                 node = self.describe_node(node_name)
 
-                # Check if the node has GPUs allocated values (whole GPU or MIG slices)
+                # Wait for the node to advertise a POSITIVE GPU/MIG count. The device
+                # plugin can register nvidia.com/gpu with value "0" before MIG instances
+                # are published, so a MIG-single node briefly looks GPU-less. Waiting on
+                # key presence (rather than a positive count) would race in during that
+                # window and skip the node; wait on the count instead.
                 start_time = time.time()
+                gpu_count = 0
                 while time.time() < start_time + 600:
                     allocatable = node.status.allocatable or {}
-                    if "nvidia.com/gpu" in allocatable or any(k.startswith("nvidia.com/mig-") for k in allocatable):
+                    gpu_count = int(allocatable.get("nvidia.com/gpu", "0"))
+                    mig_count = sum(
+                        int(v) for k, v in allocatable.items()
+                        if k.startswith("nvidia.com/mig-")
+                    )
+                    if gpu_count > 0 or mig_count > 0:
                         break
-                    node = self.describe_node(node_name)
-                    logger.info(f"Node allocatable resources: {node.status.allocatable}")
-                    logger.info(f"Waiting for GPUs to be allocated on node {node_name}...")
+                    logger.info(
+                        f"Waiting for GPUs to be allocated on node {node_name}... "
+                        f"(allocatable: {allocatable})"
+                    )
                     time.sleep(1)
-                gpu_count = int(node.status.allocatable.get("nvidia.com/gpu", "0"))
-                has_mig = any(k.startswith("nvidia.com/mig-") for k in node.status.allocatable)
+                    node = self.describe_node(node_name)
+                has_mig = any(k.startswith("nvidia.com/mig-") for k in (node.status.allocatable or {}))
 
                 logger.info(f"Node {node_name} has {gpu_count} GPUs, requesting all for validation")
 

@@ -1,4 +1,7 @@
 trigger: none
+
+pool:
+  name: 'AKS-Telescope-Airlock'
 schedules:
   # Two region chains run independently (different clusters via run_id, no conflict):
   #   australiaeast: H100-managed → A10-managed → H100-fully → A10-fully (sequential, up to 12h)

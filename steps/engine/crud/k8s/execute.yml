@@ -16,8 +16,8 @@ steps:
       --step-timeout "$STEP_TIME_OUT" \
       ${GPU_NODE_POOL:+--gpu-node-pool} \
       $([[ "${ENABLE_MANAGED_GPU,,}" == "true" ]] && echo "--enable-managed-gpu" || true) \
-      $([[ "${GPU_INSTANCE_PROFILE}" =~ ^MIG ]] && echo "--gpu-instance-profile ${GPU_INSTANCE_PROFILE}" || true) \
-      $([[ "${GPU_MIG_STRATEGY}" =~ ^(mixed|single)$ ]] && echo "--gpu-mig-strategy ${GPU_MIG_STRATEGY}" || true) \
+      $([[ "${ENABLE_MANAGED_GPU,,}" == "true" && "${GPU_INSTANCE_PROFILE}" =~ ^MIG ]] && echo "--gpu-instance-profile ${GPU_INSTANCE_PROFILE}" || true) \
+      $([[ "${ENABLE_MANAGED_GPU,,}" == "true" && "${GPU_MIG_STRATEGY}" =~ ^(mixed|single)$ ]] && echo "--gpu-mig-strategy ${GPU_MIG_STRATEGY}" || true) \
       --capacity-type "${CAPACITY_TYPE:-ON_DEMAND}"
 
     # Scale Up Node Pool
@@ -32,7 +32,8 @@ steps:
       --step-timeout "$STEP_TIME_OUT" \
       ${GPU_NODE_POOL:+--gpu-node-pool} \
       $([[ "${ENABLE_MANAGED_GPU,,}" == "true" ]] && echo "--enable-managed-gpu" || true) \
-      $([[ "${GPU_INSTANCE_PROFILE}" =~ ^MIG ]] && echo "--gpu-instance-profile ${GPU_INSTANCE_PROFILE}" || true)
+      $([[ "${ENABLE_MANAGED_GPU,,}" == "true" && "${GPU_INSTANCE_PROFILE}" =~ ^MIG ]] && echo "--gpu-instance-profile ${GPU_INSTANCE_PROFILE}" || true) \
+      $([[ "${ENABLE_MANAGED_GPU,,}" == "true" && "${GPU_MIG_STRATEGY}" =~ ^(mixed|single)$ ]] && echo "--gpu-mig-strategy ${GPU_MIG_STRATEGY}" || true)
 
   displayName: 'Execute K8s Create & Scale Up Operations for ${{ parameters.cloud }}'
   workingDirectory: modules/python
@@ -155,7 +156,10 @@ steps:
       --scale-step-size "$SCALE_STEP_SIZE" \
       --step-wait-time "$STEP_WAIT_TIME" \
       --step-timeout "$STEP_TIME_OUT" \
-      ${GPU_NODE_POOL:+--gpu-node-pool}
+      ${GPU_NODE_POOL:+--gpu-node-pool} \
+      $([[ "${ENABLE_MANAGED_GPU,,}" == "true" ]] && echo "--enable-managed-gpu" || true) \
+      $([[ "${ENABLE_MANAGED_GPU,,}" == "true" && "${GPU_INSTANCE_PROFILE}" =~ ^MIG ]] && echo "--gpu-instance-profile ${GPU_INSTANCE_PROFILE}" || true) \
+      $([[ "${ENABLE_MANAGED_GPU,,}" == "true" && "${GPU_MIG_STRATEGY}" =~ ^(mixed|single)$ ]] && echo "--gpu-mig-strategy ${GPU_MIG_STRATEGY}" || true)
 
     # Delete Node Pool
     PYTHONPATH=$PYTHONPATH:$(pwd) python3 "$PYTHON_SCRIPT_FILE" delete \
@@ -178,6 +182,9 @@ steps:
     STEP_TIME_OUT: $(STEP_TIME_OUT)
     RESULT_DIR: $(System.DefaultWorkingDirectory)/$(RUN_ID)
     GPU_NODE_POOL: $(GPU_NODE_POOL)
+    ENABLE_MANAGED_GPU: $(ENABLE_MANAGED_GPU)
+    GPU_INSTANCE_PROFILE: $(GPU_INSTANCE_PROFILE)
+    GPU_MIG_STRATEGY: $(GPU_MIG_STRATEGY)
     STEP_WAIT_TIME: $(STEP_WAIT_TIME)
     ${{ if eq(parameters.cloud, 'aws') }}:
       CAPACITY_TYPE: $(CAPACITY_TYPE)

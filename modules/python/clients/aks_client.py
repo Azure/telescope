@@ -268,11 +268,12 @@ class AKSClient:
         retries: int = 10,
         retry_wait: int = 30,
         poll_interval: int = 30,
-        timeout: int = 1200,
+        timeout: int = 1800,
     ) -> None:
         """
         Call begin_create_or_update with retry on OperationNotAllowed/EtagMismatch,
         polling every poll_interval seconds and raising TimeoutError after timeout seconds.
+        timeout defaults to 1800s (30 min) for slow GPU node provisioning (A100 MIG).
         """
         for attempt in range(retries):
             try:
@@ -363,6 +364,70 @@ class AKSClient:
                 )
         logger.info(f"az aks nodepool add succeeded for '{node_pool_name}'")
 
+    @staticmethod
+    def _gpu_mode_metadata(
+        gpu_node_pool: bool,
+        enable_managed_gpu: bool,
+        gpu_instance_profile: Optional[str] = None,
+        gpu_mig_strategy: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Build normalized GPU-mode metadata distinguishing managed vs fully-managed
+        GPU and MIG single vs mixed.
+
+        Derived from the operation INPUT flags rather than the AKS read-back: the
+        stable SDK does not model gpuProfile.nvidia.managementMode, so a
+        fully-managed pool's mode is dropped from nodepool_info. Flag combinations
+        are normalized for consistency: enable_managed_gpu / MIG only apply to a
+        GPU pool, and MIG only to fully-managed pools (dropped otherwise).
+
+        Returns a dict with gpu_mode ("none"|"managed"|"fully_managed"),
+        enable_managed_gpu, mig_enabled, gpu_instance_profile, gpu_mig_strategy.
+        Raises ValueError if gpu_mig_strategy is not None / "single" / "mixed".
+        """
+        strategy = (gpu_mig_strategy or None) and str(gpu_mig_strategy).lower()
+        if strategy not in (None, "single", "mixed"):
+            raise ValueError(
+                f"invalid gpu_mig_strategy {gpu_mig_strategy!r} (want single/mixed/None)"
+            )
+
+        is_gpu = bool(gpu_node_pool)
+        fully_managed = is_gpu and bool(enable_managed_gpu)
+
+        if not is_gpu:
+            gpu_mode = "none"
+        elif fully_managed:
+            gpu_mode = "fully_managed"
+        else:
+            gpu_mode = "managed"
+
+        # MIG only applies to fully-managed pools; drop it otherwise.
+        profile = gpu_instance_profile if fully_managed else None
+        strategy = strategy if fully_managed else None
+
+        return {
+            "gpu_mode": gpu_mode,
+            "enable_managed_gpu": fully_managed,
+            "mig_enabled": bool(profile or strategy),
+            "gpu_instance_profile": profile,
+            "gpu_mig_strategy": strategy,
+        }
+
+    @staticmethod
+    def _log_gpu_mode(metadata: Dict[str, Any]) -> None:
+        """Echo the normalized GPU-mode metadata to the console for traceability."""
+        if metadata.get("gpu_mode") in (None, "none"):
+            return
+        logger.info(
+            "GPU pool metadata: gpu_mode=%s enable_managed_gpu=%s mig_enabled=%s "
+            "gpu_instance_profile=%s gpu_mig_strategy=%s",
+            metadata.get("gpu_mode"),
+            metadata.get("enable_managed_gpu"),
+            metadata.get("mig_enabled"),
+            metadata.get("gpu_instance_profile"),
+            metadata.get("gpu_mig_strategy"),
+        )
+
     def create_node_pool(
         self,
         node_pool_name: str,
@@ -409,8 +474,14 @@ class AKSClient:
             "vm_size": vm_size,
             "node_count": node_count,
             "gpu_node_pool": gpu_node_pool,
-            "enable_managed_gpu": enable_managed_gpu,
+            **self._gpu_mode_metadata(
+                gpu_node_pool,
+                enable_managed_gpu,
+                gpu_instance_profile,
+                gpu_mig_strategy,
+            ),
         }
+        self._log_gpu_mode(metadata)
 
         # Create operation context to track the operation
         with self._get_operation_context()(
@@ -522,6 +593,7 @@ class AKSClient:
         progressive: bool = False,
         scale_step_size: int = 1,
         gpu_instance_profile: Optional[str] = None,
+        gpu_mig_strategy: Optional[str] = None,
     ) -> Any:
         """
         Scale a node pool to the specified node count.
@@ -555,7 +627,14 @@ class AKSClient:
             "gpu_node_pool": gpu_node_pool,
             "progressive_scaling": progressive,
             "scale_step_size": scale_step_size,
+            **self._gpu_mode_metadata(
+                gpu_node_pool,
+                enable_managed_gpu,
+                gpu_instance_profile,
+                gpu_mig_strategy,
+            ),
         }
+        self._log_gpu_mode(metadata)
         node_pool = self.get_node_pool(node_pool_name, cluster_name)
 
         current_count = node_pool.count
@@ -583,6 +662,7 @@ class AKSClient:
                 enable_managed_gpu=enable_managed_gpu,
                 node_pool=node_pool,
                 gpu_instance_profile=gpu_instance_profile,
+                gpu_mig_strategy=gpu_mig_strategy,
             )
 
         # Create operation context to track the operation
@@ -751,6 +831,7 @@ class AKSClient:
         enable_managed_gpu: bool = False,
         node_pool: Optional[Any] = None,
         gpu_instance_profile: Optional[str] = None,
+        gpu_mig_strategy: Optional[str] = None,
     ) -> Any:
         """
         Scale a node pool progressively with specified step size
@@ -816,7 +897,14 @@ class AKSClient:
                 "scale_step_size": scale_step_size,
                 "cluster_name": cluster_name or self.get_cluster_name(),
                 "gpu_node_pool": gpu_node_pool,
+                **self._gpu_mode_metadata(
+                    gpu_node_pool,
+                    enable_managed_gpu,
+                    gpu_instance_profile,
+                    gpu_mig_strategy,
+                ),
             }
+            self._log_gpu_mode(step_metadata)
 
             # Create operation context for this specific step
             with self._get_operation_context()(

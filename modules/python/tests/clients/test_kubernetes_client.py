@@ -2,6 +2,7 @@
 """
 Unit tests for KubernetesClient class
 """
+import itertools
 import unittest
 from unittest import mock
 from unittest.mock import patch, mock_open, MagicMock
@@ -2113,18 +2114,63 @@ class TestKubernetesClient(unittest.TestCase):
         result = self.client.verify_nvidia_smi_on_node([node])
         self.assertFalse(result)
 
+    @patch("time.time", side_effect=itertools.count(0, 1000))
+    @patch("time.sleep", return_value=None)
     @patch("clients.kubernetes_client.KubernetesClient.describe_node")
-    def test_verify_nvidia_smi_no_gpu_nodes(self, mock_describe_node):
-        """Test nvidia-smi verification skips nodes with no GPUs."""
+    def test_verify_nvidia_smi_no_gpu_nodes(self, mock_describe_node, _mock_sleep, _mock_time):
+        """Nodes that never advertise a positive GPU/MIG count are skipped (after the wait)."""
         node = MagicMock()
         node.metadata.name = "cpu-only-node"
         node.status.allocatable = {"nvidia.com/gpu": "0"}
 
-        # Mock describe_node to return the node with no GPUs
+        # describe_node keeps reporting 0 GPUs; the wait times out and the node is skipped.
         mock_describe_node.return_value = node
 
         result = self.client.verify_nvidia_smi_on_node([node])
         self.assertEqual(result, {})  # Should return empty dict as no nodes processed
+
+    @patch("time.time", side_effect=itertools.count(0, 1))
+    @patch("time.sleep", return_value=None)
+    @patch("clients.kubernetes_client.KubernetesClient.get_pod_logs")
+    @patch("kubernetes.client.CoreV1Api.delete_namespaced_pod")
+    @patch("kubernetes.client.CoreV1Api.read_namespaced_pod")
+    @patch("kubernetes.client.CoreV1Api.create_namespaced_pod")
+    @patch("clients.kubernetes_client.KubernetesClient.describe_node")
+    def test_verify_nvidia_smi_waits_for_mig_registration(
+        self,
+        mock_describe_node,
+        mock_create_pod,
+        mock_read_pod,
+        _mock_delete_pod,
+        mock_get_logs,
+        _mock_sleep,
+        _mock_time,
+    ):
+        """A node reporting 0 GPUs mid-registration is NOT skipped — wait for a positive count."""
+        node_name = "mig-single-node"
+        zero_node = MagicMock()
+        zero_node.metadata.name = node_name
+        zero_node.status.allocatable = {"nvidia.com/gpu": "0"}  # device plugin registered, not yet populated
+        ready_node = MagicMock()
+        ready_node.metadata.name = node_name
+        ready_node.status.allocatable = {"nvidia.com/gpu": "56"}  # MIG-single instances published
+
+        # First describe (pre-loop) sees 0; after one wait iteration it sees 56.
+        mock_describe_node.side_effect = [zero_node, ready_node]
+        mock_read_pod.side_effect = [
+            MagicMock(status=MagicMock(phase="Pending")),
+            MagicMock(status=MagicMock(phase="Succeeded")),
+        ]
+        mock_get_logs.return_value = "NVIDIA-SMI GPU driver info"
+
+        result = self.client.verify_nvidia_smi_on_node([zero_node])
+
+        # The node was verified, not skipped, and a whole GPU (MIG-single) was requested.
+        self.assertIn(node_name, result)
+        self.assertTrue(result[node_name]["device_status"])
+        self.assertGreaterEqual(mock_describe_node.call_count, 2)
+        pod_spec = mock_create_pod.call_args[1]["body"]
+        self.assertEqual(pod_spec.spec.containers[0].resources.limits["nvidia.com/gpu"], "1")
 
     @patch("kubernetes.client.AppsV1Api.create_namespaced_daemon_set")
     @patch("requests.get")
