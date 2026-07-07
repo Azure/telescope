@@ -71,14 +71,19 @@ data:
         status = resp.split(b"\r\n")[0].decode()
         if "200" not in status:
             raise ConnectionError(f"CONNECT failed: {status}")
-        return conn
+        # Bytes after the CONNECT response headers belong to the tunneled
+        # stream (e.g. the target's TLS ServerHello) and MUST be preserved,
+        # or the HTTPS handshake corrupts ("first record does not look like
+        # a TLS handshake").
+        leftover = resp.split(b"\r\n\r\n", 1)[1]
+        return conn, leftover
 
     def _get_tunnel(target):
         q = _pools[target]
         try:
-            return q.get_nowait()   # reuse idle tunnel
+            return q.get_nowait()   # reuse idle tunnel (HTTP path: no leftover)
         except queue.Empty:
-            return _open_tunnel(target)
+            return _open_tunnel(target)[0]
 
     def _return_tunnel(target, conn):
         try:
@@ -142,13 +147,22 @@ data:
             self.wfile.write(msg)
 
         def do_CONNECT(self):
-            # HTTPS targets: unchanged raw byte relay (not pooled — used by real kubelet)
+            # HTTPS targets (real kubelet/cadvisor): bidirectional raw byte relay.
             target = self.path
             try:
-                conn = _open_tunnel(target)
+                conn, leftover = _open_tunnel(target)
+                try:
+                    conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                    self.connection.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+                except Exception:
+                    pass
                 self.send_response(200, "Connection Established")
                 self.end_headers()
                 client_sock, tunnel_sock = self.connection, conn
+                # Forward any bytes already read past the CONNECT response so the
+                # target's TLS ServerHello is not lost.
+                if leftover:
+                    client_sock.sendall(leftover)
                 socks = [client_sock, tunnel_sock]
                 while True:
                     r, _, e = select.select(socks, [], socks, 30)
@@ -271,6 +285,13 @@ spec:
               readOnly: true
             - name: kubelet-token
               mountPath: /var/run/secrets/kubelet
+              readOnly: true
+            # konnectivity client certs — vmagent scrapes HTTPS targets
+            # (real-kubelet/real-cadvisor) by issuing CONNECT directly to
+            # konnectivity-server:8083 over mTLS via proxy_tls_config (mirrors
+            # production; bypasses the Python proxy for the HTTPS path).
+            - name: certs
+              mountPath: /certs
               readOnly: true
 
         # vmagent-proxy sidecar — converts VMAgent HTTP/HTTPS to CONNECT

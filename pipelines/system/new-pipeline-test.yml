@@ -1,5 +1,7 @@
 trigger: none
 
+pool:
+  name: 'AKS-Telescope-Airlock'
 
 variables:
   SCENARIO_TYPE: perf-eval
@@ -23,7 +25,6 @@ stages:
               REAL_TARGETS: "false"
               RUN_LABEL: "fake-targets"
               PARALLEL: "false"
-              SKIP_DIAGNOSTICS: "true"
           max_parallel: 1
           timeout_in_minutes: 500
           credential_type: service_connection

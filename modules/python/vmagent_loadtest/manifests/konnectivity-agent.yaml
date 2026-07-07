@@ -51,18 +51,29 @@ spec:
             - --admin-bind-address=0.0.0.0
             - --admin-server-port=8094
             # v=0: quiet per-CONNECT logging at scale (see server rationale).
-            - -v=0
+            - -v=2
           ports:
             - name: health
               containerPort: 8082
             - name: admin
               containerPort: 8094
+          # startupProbe holds off liveness until the agent first connects to
+          # the server (up to 300s). Without it, at high tiers the /ready
+          # liveness probe kills agents mid-connect during the ramp, causing
+          # hundreds of restarts (reason=Error).
+          startupProbe:
+            httpGet:
+              path: /ready
+              port: 8082
+            periodSeconds: 10
+            failureThreshold: 30
           livenessProbe:
             httpGet:
               path: /ready
               port: 8082
             initialDelaySeconds: 10
-            periodSeconds: 10
+            periodSeconds: 15
+            failureThreshold: 6
           resources:
             requests:
               cpu: 10m

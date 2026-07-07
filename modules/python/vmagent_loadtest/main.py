@@ -85,9 +85,10 @@ def main() -> None:
                         help=f"DP cluster nodepool name (default: {DEFAULT_NODEPOOL})")
     parser.add_argument("--max-retries", type=int, default=2,
                         help="Max retries per tier on failure (default: 2)")
-    parser.add_argument("--skip-diagnostics", action="store_true",
-                        help="Skip pprof + per-pod log/diagnostics collection "
-                             "(much faster; for local A/B iteration)")
+    parser.add_argument("--collect-diagnostics", action="store_true",
+                        help="Collect pprof + per-pod log/diagnostics. Default "
+                             "is to SKIP them (much faster). Opt in only when "
+                             "debugging a failure.")
     parser.add_argument("--run-label", default="",
                         help="Label prefix for namespaces (avoids collisions in parallel runs)")
     parser.add_argument("--parallel", action="store_true",
@@ -365,7 +366,7 @@ def main() -> None:
                         dp_cluster_name=args.dp_cluster_name,
                         nodepool=args.nodepool_name,
                         run_label=args.run_label,
-                        skip_diagnostics=args.skip_diagnostics,
+                        skip_diagnostics=not args.collect_diagnostics,
                     )
                     break
                 except Exception as e:

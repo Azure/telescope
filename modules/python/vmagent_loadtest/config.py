@@ -66,6 +66,11 @@ KUBELET_SA_NAME = "kubelet-scraper"
 # Default AKS nodepool name
 DEFAULT_NODEPOOL = "dataplane"
 
+# AKS hard cap: a single nodepool cannot exceed 1000 nodes. To reach larger
+# tiers (2000, 5000, ...) the dataplane is fanned out across multiple nodepools
+# named <base>, <base>2, <base>3, ... each holding up to this many nodes.
+MAX_NODES_PER_POOL = 1000
+
 # Max usable pods per node (AKS default max-pods=250, minus ~10 system pods)
 PODS_PER_NODE = 240
 

@@ -55,7 +55,7 @@ spec:
             - --admin-bind-address=0.0.0.0
             # v=0: verbose logging (v=2) at 10k+ CONNECTs/s burns CPU+IO on the
             # component under load. Raise only when debugging dial failures.
-            - --v=0
+            - --v=2
           ports:
             - name: agent
               containerPort: 8081

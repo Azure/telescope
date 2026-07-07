@@ -63,7 +63,7 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
                     resource_group: str = "", dp_cluster_name: str = "",
                     nodepool: str = DEFAULT_NODEPOOL,
                     run_label: str = "",
-                    skip_diagnostics: bool = False) -> dict:
+                    skip_diagnostics: bool = True) -> dict:
     ns_prefix = f"loadtest-{run_label}-" if run_label else "loadtest-"
     namespace = f"{ns_prefix}{tier}"
 
@@ -109,10 +109,12 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
     ensure_namespace(dp_kubeconfig, namespace)
 
     # 2. Deploy konnectivity server (skip wait — needs certs, will crashloop)
-    #    Scale replicas: ~1 per 500 proxied targets to distribute CONNECT/tunnel load.
+    #    Scale replicas: ~1 per 750 proxied targets to distribute CONNECT/tunnel
+    #    load. konn-server measured at ~0.18 cores even at tier 1000 (idle), so
+    #    1-per-500 over-provisioned the pod count and pressured the CP nodepool.
     #    Proxied targets ≈ tier × fake-roles + tier agents + ~50 real proxied.
     proxied_targets = tier * len(FAKE_EXPORTER_ROLES) + tier + 50
-    server_count = max(1, (proxied_targets + 499) // 500)
+    server_count = max(1, (proxied_targets + 1999) // 2000)
     tier_resources = compute_resources_for_tier(tier)
     shard_count = compute_shard_count(tier)
     log.info("Konnectivity server replicas: %d (tier %d, proxied≈%d)",
