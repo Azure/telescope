@@ -214,23 +214,45 @@ if [ "${NODE_COUNT}" -gt 32768 ]; then
   echo "ERROR: NODE_COUNT=${NODE_COUNT} exceeds 32768 (the >250 nodeIP scheme 100.128+.x tops out there)." >&2
   exit 1
 fi
+# For a >250-nodes/cluster MESH (MOCK_MESH_STRIDE set) the podCIDR/nodeIP use a
+# GLOBAL index (cluster_id*stride + node) that must stay < 32768 so podCIDR octet2
+# (gi/256) stays in 0..127 and nodeIP octet2 (128+gi/256) stays in 128..255.
+# Guard ONLY when scheme 2 is actually used (NODE_COUNT>250 AND stride set) so a
+# <=250 run that happens to inherit MOCK_MESH_STRIDE isn't rejected spuriously.
+if [ "${NODE_COUNT}" -gt 250 ] && [ -n "${MOCK_MESH_STRIDE:-}" ]; then
+  _max_gi=$(( CLUSTER_ID * MOCK_MESH_STRIDE + NODE_COUNT - 1 ))
+  if [ "${NODE_COUNT}" -gt "${MOCK_MESH_STRIDE}" ]; then
+    echo "ERROR: NODE_COUNT=${NODE_COUNT} exceeds MOCK_MESH_STRIDE=${MOCK_MESH_STRIDE} (per-cluster index would overflow into the next cluster's block)." >&2
+    exit 1
+  fi
+  if [ "${_max_gi}" -ge 32768 ]; then
+    echo "ERROR: global index cluster_id(${CLUSTER_ID})*stride(${MOCK_MESH_STRIDE})+nodes exceeds 32768 — reduce clusters/stride." >&2
+    exit 1
+  fi
+fi
 for i in $(seq 0 $((NODE_COUNT - 1))); do
   NODE="kwok-node-${i}"
   # Globally-unique podCIDR + nodeIP per node in the synthetic 100.0.0.0/8 space
   # (never routed; phantom-pod identifiers) so they never overlap the real VNet
   # (10.0.0.0/8). The node index needs TWO octets once NODE_COUNT>256:
-  #   * NODE_COUNT<=250 (multi-cluster tiers): keep 100.<cluster_id>.<i>.0/24 —
+  #   * NODE_COUNT<=250 (multi-cluster mesh tiers): 100.<cluster_id>.<i>.0/24 —
   #     cluster-id in octet 2 makes Pod IPs unique ACROSS the mesh so remote
   #     backends don't collide; nodeIP 100.<cid>.255.<i> (the .255 octet avoids
   #     the podCIDRs at 0..NODE_COUNT).
-  #   * NODE_COUNT>250 (single-cluster baseline only): use a 2-octet index
-  #     100.<i/256>.<i%256>.0/24 (supports up to 32768 nodes — bounded by the
-  #     nodeIP octet 100.128+.x below). This DROPS the cluster-id, so it is
-  #     single-cluster-only — do NOT set NODE_COUNT>250 with more than one
-  #     cluster. nodeIP goes in a disjoint 100.128+.x block.
+  #   * NODE_COUNT>250 + MOCK_MESH_STRIDE set (multi-cluster mesh, >250/cluster):
+  #     a GLOBAL index gi=<cluster_id>*<stride>+<i> gives every (cluster,node) a
+  #     unique /24 100.<gi/256>.<gi%256>.0/24 across the WHOLE mesh (stride>=nodes
+  #     keeps clusters' ranges disjoint); nodeIP in the disjoint 100.128+.x block.
+  #   * NODE_COUNT>250, no stride (single-cluster baseline): a 2-octet LOCAL index
+  #     100.<i/256>.<i%256>.0/24 (drops cluster-id — single-cluster only).
   if [ "${NODE_COUNT}" -le 250 ]; then
     PODCIDR="100.${CLUSTER_ID}.${i}.0/24"
     NODEIP="100.${CLUSTER_ID}.255.${i}"
+  elif [ -n "${MOCK_MESH_STRIDE:-}" ]; then
+    _gi=$(( CLUSTER_ID * MOCK_MESH_STRIDE + i ))
+    _hi=$(( _gi / 256 )); _lo=$(( _gi % 256 ))
+    PODCIDR="100.${_hi}.${_lo}.0/24"
+    NODEIP="100.$(( 128 + _hi )).${_lo}.1"
   else
     _hi=$(( i / 256 )); _lo=$(( i % 256 ))
     PODCIDR="100.${_hi}.${_lo}.0/24"
