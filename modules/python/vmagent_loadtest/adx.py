@@ -284,6 +284,8 @@ CREATE_RESULTS_TABLE_CMD = """
     KonnServerCpuMaxCores: real,
     VmagentMemMaxBytes: long,
     VmagentCpuMaxCores: real,
+    Source: string,
+    BuildId: string,
     ConfigJson: dynamic
 )
 """
@@ -321,6 +323,8 @@ CREATE_RESULTS_MAPPING_CMD = """
 '{"column":"KonnServerCpuMaxCores","Properties":{"Path":"$.KonnServerCpuMaxCores"}},'
 '{"column":"VmagentMemMaxBytes","Properties":{"Path":"$.VmagentMemMaxBytes"}},'
 '{"column":"VmagentCpuMaxCores","Properties":{"Path":"$.VmagentCpuMaxCores"}},'
+'{"column":"Source","Properties":{"Path":"$.Source"}},'
+'{"column":"BuildId","Properties":{"Path":"$.BuildId"}},'
 '{"column":"ConfigJson","Properties":{"Path":"$.ConfigJson"}}'
 ']'
 """
@@ -577,6 +581,10 @@ def export_run_summary(cluster_uri: str, database: str, run_id: str, tier: int,
         "KonnServerCpuMaxCores": float(m.get("konn_server_cpu_max_cores", 0.0) or 0.0),
         "VmagentMemMaxBytes": int(m.get("vmagent_mem_max_bytes", 0) or 0),
         "VmagentCpuMaxCores": float(m.get("vmagent_cpu_max_cores", 0.0) or 0.0),
+        # Distinguish ADO pipeline runs from local devbox runs. ADO sets
+        # TF_BUILD=True and BUILD_BUILDID on every agent job.
+        "Source": ("pipeline" if (os.environ.get("TF_BUILD") or os.environ.get("BUILD_BUILDID")) else "local"),
+        "BuildId": os.environ.get("BUILD_BUILDID", ""),
         "ConfigJson": config or {},
     }
     payload = (_json.dumps(row) + "\n").encode("utf-8")
