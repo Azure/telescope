@@ -80,12 +80,13 @@ steps:
 
       total=$(echo "$clusters" | jq 'length')
       want="${MOCK_NODE_COUNT:-100}"
-      # provision-kwok-layer.sh drops the cluster-id from the podCIDR/nodeIP scheme
-      # when NODE_COUNT>250 (2-octet node index), so those values are only unique
-      # WITHIN one cluster. Guard against a multi-cluster run above 250 nodes/cluster,
-      # which would silently produce duplicate Pod/node IPs across the mesh.
-      if [ "$want" -gt 250 ] && [ "$total" -gt 1 ]; then
-        echo "##[error] MOCK_NODE_COUNT=$want is single-cluster-only (>250); this run has $total clusters. Use <=250 nodes/cluster for multi-cluster tiers."
+      # provision-kwok-layer.sh's podCIDR/nodeIP scheme keeps Pod/node IPs unique
+      # ACROSS the mesh via the cluster-id (<=250/cluster) OR a global index
+      # (>250/cluster WHEN MOCK_MESH_STRIDE is set — see provision-kwok-layer.sh).
+      # Without a stride, >250/cluster drops the cluster-id (single-cluster only),
+      # so reject a >250 multi-cluster run that has NOT opted into the mesh scheme.
+      if [ "$want" -gt 250 ] && [ "$total" -gt 1 ] && [ -z "${MOCK_MESH_STRIDE:-}" ]; then
+        echo "##[error] MOCK_NODE_COUNT=$want >250 on a $total-cluster mesh needs MOCK_MESH_STRIDE (mesh-aware global-index podCIDR scheme); set MOCK_MESH_STRIDE>=$want, or use <=250 nodes/cluster."
         exit 1
       fi
       # MOCK_CLUSTER_ID/NAME force a fixed cluster identity (no-Fleet single-cluster
@@ -147,6 +148,7 @@ steps:
             CONSUME_CLUSTERMESH="${MOCK_CONSUME_CLUSTERMESH:-true}" \
             MOCK_CLUSTER_ID="${MOCK_CLUSTER_ID:-}" \
             MOCK_CLUSTER_NAME="${MOCK_CLUSTER_NAME:-}" \
+            MOCK_MESH_STRIDE="${MOCK_MESH_STRIDE:-}" \
             bash "$MOCK_PROVISION_SCRIPT" || return 1
 
           # Readiness gate: every virtual node must have a Running mock-agent before

@@ -1743,3 +1743,149 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
           skip_publish: false
+
+  - stage: azure_eastus2euap_n2_mock_2500
+    dependsOn: []
+    condition: always()
+    displayName: "n=2 x 2500 SHARDED (2 clusters x 2500 KWOK nodes + mock-cilium-agents, ClusterMesh)"
+    variables:
+      MOCK_ACR_HOST: mockmeshshared11225.azurecr.io
+      MOCK_AGENT_TAG: v26
+      MOCK_NODE_COUNT: 2500
+      # >250 nodes/cluster mesh: enable the global-index podCIDR scheme so Pod/node
+      # IPs stay unique ACROSS the mesh (provision-kwok-layer.sh). Must be >= nodes.
+      MOCK_MESH_STRIDE: 2500
+      MOCK_CONSUME_CLUSTERMESH: true
+      MOCK_DEPLOY_CONCURRENCY: 8
+      MOCK_DEPLOY_MAX_FAILURES: 0
+      MOCK_READINESS_TIMEOUT_S: "1800"
+      CMP_AUTO_RECOVERY_ENABLED: "true"
+      # Per-cluster Prometheus scrapes this cluster's 2500 agents (~2.4M series /
+      # ~7 GiB). D16_v3 (64 GiB) prompool; 32 GiB limit gives churn headroom.
+      CL2_PROMETHEUS_MEMORY_LIMIT_GI: "32"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 45m
+          topology: clustermesh-scale-mock
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-2-mock-2500.tfvars"
+          matrix:
+            n2_mock_2500:
+              cl2_prom_snapshot_enabled: "true"
+              cl2_prom_snapshot_target: "blob"
+              cl2_prom_snapshot_storage_account: "cmshscaleprom"
+              cl2_prom_snapshot_container: "snapshots"
+              cluster_count: 2
+              mesh_size: 2
+              share_infra_scenarios: "pod-churn-combined"
+              cl2_config_file: ""
+              cl2_max_concurrent: 2
+              test_type: shared
+              test_type_suffix: "-mock"
+              mock_mode: true
+              # Per-cluster workload = 5000-pod TOTAL / 2 clusters (same total as
+              # 1x5000 + 72210): 250 ns x2 x5 = 2500 pods; api 1000/s; kill 250; 50
+              # global ns/cluster (2 x 50 = 100 total global, matching the baseline).
+              global_namespace_count: 50
+              namespaces: 250
+              deployments_per_namespace: 2
+              replicas_per_deployment: 5
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 1000
+              churn_cycles: 2
+              churn_up_duration: 90s
+              churn_down_duration: 90s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 250
+              kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 1200
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+
+  - stage: azure_eastus2euap_n5_mock_1000
+    dependsOn: []
+    condition: always()
+    displayName: "n=5 x 1000 SHARDED (5 clusters x 1000 KWOK nodes + mock-cilium-agents, ClusterMesh)"
+    variables:
+      MOCK_ACR_HOST: mockmeshshared11225.azurecr.io
+      MOCK_AGENT_TAG: v26
+      MOCK_NODE_COUNT: 1000
+      MOCK_MESH_STRIDE: 1000
+      MOCK_CONSUME_CLUSTERMESH: true
+      MOCK_DEPLOY_CONCURRENCY: 8
+      MOCK_DEPLOY_MAX_FAILURES: 0
+      MOCK_READINESS_TIMEOUT_S: "1500"
+      CMP_AUTO_RECOVERY_ENABLED: "true"
+      # Per-cluster Prometheus scrapes this cluster's 1000 agents (~1M series /
+      # ~4 GiB). D16_v3 (64 GiB) prompool; 16 GiB limit.
+      CL2_PROMETHEUS_MEMORY_LIMIT_GI: "16"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2euap
+          preserve_state_on_apply_failure: "true"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 45m
+          topology: clustermesh-scale-mock
+          terraform_input_file_mapping:
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-5-mock-1000.tfvars"
+          matrix:
+            n5_mock_1000:
+              cl2_prom_snapshot_enabled: "true"
+              cl2_prom_snapshot_target: "blob"
+              cl2_prom_snapshot_storage_account: "cmshscaleprom"
+              cl2_prom_snapshot_container: "snapshots"
+              cluster_count: 5
+              mesh_size: 5
+              share_infra_scenarios: "pod-churn-combined"
+              cl2_config_file: ""
+              cl2_max_concurrent: 5
+              test_type: shared
+              test_type_suffix: "-mock"
+              mock_mode: true
+              # Per-cluster workload = 5000-pod TOTAL / 5 clusters: 100 ns x2 x5 =
+              # 1000 pods; api 400/s; kill 100; 20 global ns/cluster (5 x 20 = 100
+              # total global, matching the baseline).
+              global_namespace_count: 20
+              namespaces: 100
+              deployments_per_namespace: 2
+              replicas_per_deployment: 5
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 0
+              api_server_calls_per_second: 400
+              churn_cycles: 2
+              churn_up_duration: 90s
+              churn_down_duration: 90s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 100
+              kill_job_deadline_seconds: 660
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 1200
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
