@@ -8,7 +8,11 @@ variables:
   SCENARIO_NAME: vmagent-loadtest
 
 stages:
-  - stage: azure_vmagent_loadtest
+  # Two parallel stages: fake targets in westus2, real targets in eastus.
+  # dependsOn: [] on both makes them run concurrently. Within each stage the
+  # 1000/2000 tiers run sequentially (real-targets reshapes the DP nodepool
+  # per tier via multi-nodepool fan-out).
+  - stage: westus2_fake
     dependsOn: []
     jobs:
       - template: /jobs/competitive-test.yml
@@ -20,7 +24,7 @@ stages:
           engine: vmagent-loadtest
           matrix:
             fake_targets:
-              TIERS: "500,1000,1200,1500,2000"
+              TIERS: "1000,2000"
               SOAK_MINUTES: 15
               REAL_TARGETS: "false"
               RUN_LABEL: "fake-targets"
@@ -30,19 +34,25 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
 
-  - stage: compare_results
-    dependsOn: azure_vmagent_loadtest
-    condition: succeededOrFailed()
+  - stage: eastus_real
+    dependsOn: []
     jobs:
-      - job: compare
-        displayName: "Compare load test results"
-        timeoutInMinutes: 30
-        steps:
-        - checkout: self
-        - template: /steps/engine/vmagent-loadtest/compare.yml
-          parameters:
-            fake_artifact: "vmagent-loadtest-results-small_fake"
-            real_artifact: "vmagent-loadtest-results-real_targets"
-        - template: /steps/engine/vmagent-loadtest/publish-wiki.yml
-          parameters:
-            wiki_token: $(WIKI_PAT)
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus
+          topology: vmagent-loadtest
+          engine: vmagent-loadtest
+          matrix:
+            real_targets:
+              TIERS: "1000,2000"
+              SOAK_MINUTES: 15
+              REAL_TARGETS: "true"
+              RUN_LABEL: "real-targets"
+              PARALLEL: "false"
+          max_parallel: 1
+          timeout_in_minutes: 500
+          credential_type: service_connection
+          ssh_key_enabled: false
+
