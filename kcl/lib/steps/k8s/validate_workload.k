@@ -31,7 +31,11 @@ ValidateWorkloadHealth = lambda \
     title = displayName if displayName else defaultTitle
     desc = "all workloads in ${namespace}" if kind == "*" else "${kind} ${namespace}/${name}"
     script = """
-set +e
+# AzCli wraps this script with `set -exo pipefail`. Disable xtrace here so
+# tracing an assignment like `log_output=$(kubectl logs ...)` doesn't dump
+# the full captured log to stdout. Also disable errexit so we can accumulate
+# failures and report them at the end.
+set +ex
 
 failures=0
 fail() { echo "FAILED WORKLOAD CHECK: $*"; failures=$((failures + 1)); }
