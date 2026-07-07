@@ -1660,15 +1660,15 @@ stages:
           ssh_key_enabled: false
           skip_publish: false
 
-  - stage: azure_eastus2euap_n1_mock_10k
+  - stage: azure_eastus2euap_n1_mock_5k
     dependsOn: []
     condition: always()
-    displayName: "n=1 x 10k BASELINE (single cluster, 10k KWOK nodes + 10k mock-cilium-agents, no mesh)"
+    displayName: "n=1 x 5k BASELINE (single cluster, 5k KWOK nodes + 5k mock-cilium-agents, no mesh)"
     variables:
       MOCK_ACR_HOST: mockmeshshared11225.azurecr.io
       MOCK_AGENT_TAG: v26
-      MOCK_NODE_COUNT: 10000
-      # No Fleet/ClusterMesh for a single cluster (see azure-1-mock-10k.tfvars):
+      MOCK_NODE_COUNT: 5000
+      # No Fleet/ClusterMesh for a single cluster (see azure-1-mock-5k.tfvars):
       # skip the mesh-only validate steps, allow a "mesh" of one in the enumerate
       # guard, and hand the mock agents their cluster identity directly (the
       # cilium-config has no Fleet cluster-id when Fleet is disabled).
@@ -1680,14 +1680,12 @@ stages:
       MOCK_CONSUME_CLUSTERMESH: false
       MOCK_DEPLOY_CONCURRENCY: 1
       MOCK_DEPLOY_MAX_FAILURES: 0
-      # 10k agents on ONE cluster take far longer to all reach Running than 100.
+      # 5k agents on ONE cluster take longer to all reach Running than 100.
       MOCK_READINESS_TIMEOUT_S: "2400"
-      # One Prometheus scrapes 10k agent targets (~100x the mesh tiers' per-cluster
-      # cardinality). prompool is a 256 GiB node (D64_v3); give Prometheus a 200 GiB
-      # limit (headroom for OS/kubelet). Propagated via execute.yml -> scale.py
-      # initial override + run-cl2 prom-cr-patcher. If it still OOMs/times out at
-      # 200 GiB, the fallback is to reduce the agent scrape (sample or drop metrics).
-      CL2_PROMETHEUS_MEMORY_LIMIT_GI: "200"
+      # Prometheus scrapes all 5k agent targets. Measured live 2026-07-07: ~5.3M
+      # series / ~16 GiB (mock agents are lean, ~945 series/agent) — NOT a wall.
+      # prompool is a D32_v3 (128 GiB); 48 GiB limit gives churn headroom.
+      CL2_PROMETHEUS_MEMORY_LIMIT_GI: "48"
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -1702,9 +1700,9 @@ stages:
             operation_timeout: 45m
           topology: clustermesh-scale-mock
           terraform_input_file_mapping:
-            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-1-mock-10k.tfvars"
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-1-mock-5k.tfvars"
           matrix:
-            n1_mock_10k:
+            n1_mock_5k:
               cl2_prom_snapshot_enabled: "true"
               cl2_prom_snapshot_target: "blob"
               cl2_prom_snapshot_storage_account: "cmshscaleprom"
@@ -1717,11 +1715,12 @@ stages:
               test_type: shared
               test_type_suffix: "-mock"
               mock_mode: true
-              # Workload scaled x100 vs the per-cluster mesh tiers so the TOTAL matches
-              # 72210 (100 clusters x 50 pods = 5000; x 20 API/s = 2000; x kill 5 = 500;
-              # x 1 global-ns = 100). Fair same-total-X comparison: the FULL 5000-pod
-              # churn on ONE apiserver (consolidated) vs 72210's 5000 spread across 100
-              # apiservers + mesh. Node/agent count (10k) already matches.
+              # Workload = the SAME TOTAL as 72210 (5000 pods; 2000 API/s; kill 500;
+              # 100 global-ns), held constant so 1x5000 (consolidated) vs N x (5000/N)
+              # (sharded) is a fair same-total-X comparison. Only the topology (node
+              # count / cluster count) varies. NOTE: this baseline runs 5000 agents on
+              # ONE apiserver (the measured clean operational ceiling); the earlier
+              # 10k baseline shed agent/node traffic under APF and could not run cleanly.
               global_namespace_count: 100
               namespaces: 500
               deployments_per_namespace: 2
