@@ -1078,6 +1078,30 @@ steps:
             echo "-- recent kube-system events --"
             KUBECONFIG="$_kc" kubectl --context "$_name" -n kube-system get events \
               --sort-by=.lastTimestamp 2>&1 | tail -20 || true
+            # APF / kwok-controller / readiness diag. Root-cause of the n2 mesh-1
+            # readiness collapse (build 72911) was API Priority & Fairness starvation
+            # of the workload-low class throttling kwok-controller's pod-status PATCHes.
+            # These four probes surface that in-band, at the moment of failure, so future
+            # postmortems don't need a 30-min prom-snapshot dive.
+            echo "-- APF rejections by priority (non-zero; kwok status-PATCHes live in workload-low) --"
+            KUBECONFIG="$_kc" kubectl --context "$_name" get --raw /metrics 2>/dev/null \
+              | awk '/^apiserver_flowcontrol_rejected_requests_total/ && $NF+0 != 0 { if (++n <= 20) print } END { if (n==0) exit 1 }' \
+              || echo "(no non-zero APF rejections / metrics unavailable)"
+            echo "-- kwok-controller pod + restart count --"
+            KUBECONFIG="$_kc" kubectl --context "$_name" -n kube-system get pods \
+              -l 'app=kwok-controller' -o wide 2>&1 | head -10 || true
+            echo "-- kwok-controller client-side throttling (last 100 log lines) --"
+            KUBECONFIG="$_kc" kubectl --context "$_name" -n kube-system logs \
+              -l 'app=kwok-controller' --tail=100 2>/dev/null \
+              | grep -iE 'throttl|client-side|Waited for|429' | tail -15 || echo "(no throttle log lines)"
+            echo "-- fresh deployment readiness tally (fresh API read; bypasses CL2 informer -> real vs cosmetic) --"
+            KUBECONFIG="$_kc" kubectl --context "$_name" get deploy -A --no-headers 2>/dev/null \
+              | awk '{n=split($3,a,"/"); if(n==2){rd+=a[1]; ds+=a[2]; if(a[1]<a[2]) under++}} END{printf "  deployments=%d under-ready=%d readyReplicas=%d desiredReplicas=%d\n", NR, under+0, rd+0, ds+0}' \
+              || echo "(deploy tally failed)"
+            echo "-- kwok-controller APF objects present? (Step 1.5) --"
+            KUBECONFIG="$_kc" kubectl --context "$_name" get \
+              flowschema/kwok-controller prioritylevelconfiguration/kwok-controller 2>&1 | head -6 \
+              || echo "(kwok-controller APF objects MISSING — provision-kwok-layer Step 1.5 did not land)"
             echo ""
           done
           echo "-- sentinel dir contents (${SENTINEL_DIR:-unset}) --"

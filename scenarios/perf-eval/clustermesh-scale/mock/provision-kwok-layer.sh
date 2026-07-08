@@ -155,6 +155,84 @@ kretry K apply -f "${WORK}/stage-fast.yaml" >/dev/null
 MOCK_SETUP_MAX_ATTEMPTS=2 kretry K -n kube-system rollout status deploy/kwok-controller --timeout=120s
 
 # ---------------------------------------------------------------------------
+# STEP 1.5: APF protection for kwok-controller
+#
+# kwok-controller authenticates as a generic ServiceAccount, so its pod- and
+# node-status PATCHes fall into the built-in `workload-low` API Priority &
+# Fairness (APF) class — the SAME class the churn workload floods. Under
+# mesh+churn at 2500+ nodes/cluster the apiserver starves workload-low
+# (telescope build 72911, n2 mesh-1: ~695k time-out + ~213k queue-full rejects
+# on priority_level=workload-low), so kwok-controller could not set pods Ready
+# and ~40% of pods stayed Running-but-NotReady for the whole run — while mesh-2
+# (far less workload-low pressure) stayed 2500/2500. Diagnosed entirely from the
+# already-scraped KSM + apiserver_flowcontrol_* metrics in the prom snapshot.
+#
+# Give kwok-controller a DEDICATED priority level with guaranteed concurrency so
+# its control-loop writes are never starved by the workload it simulates. This is
+# a mock-framework fix (kwok is our SIMULATOR, not part of the system under test),
+# so it does NOT mask a real Cilium scale limit — the mock-cilium-agents stay in
+# workload-low on purpose, so genuine mesh-sync saturation still shows up.
+echo ">>> Step 1.5: APF PriorityLevelConfiguration + FlowSchema for kwok-controller..."
+cat > "${WORK}/kwok-apf.yaml" <<'EOF'
+apiVersion: flowcontrol.apiserver.k8s.io/v1
+kind: PriorityLevelConfiguration
+metadata:
+  name: kwok-controller
+spec:
+  type: Limited
+  limited:
+    # Guaranteed seats for kwok's control-loop writes. kwok is mock INFRA — in a real
+    # cluster the kubelet/node status updates it stands in for get privileged APF, not
+    # workload-low — so reserving capacity CORRECTS an artifact rather than distorting
+    # the test. lendablePercent returns half the seats to the shared pool when kwok is
+    # idle, so the scale-test workload isn't starved of concurrency between bursts.
+    nominalConcurrencyShares: 50
+    lendablePercent: 50
+    limitResponse:
+      # Queue (not Reject) so status-PATCH bursts wait instead of 429ing. Combined with
+      # distinguisherMethod ByNamespace (below), kwok's per-namespace pod-status writes
+      # shuffle-shard across all 64 queues instead of piling into one flow's ~6-queue hand.
+      type: Queue
+      queuing:
+        queues: 64
+        handSize: 6
+        queueLengthLimit: 50
+---
+apiVersion: flowcontrol.apiserver.k8s.io/v1
+kind: FlowSchema
+metadata:
+  name: kwok-controller
+spec:
+  priorityLevelConfiguration:
+    name: kwok-controller
+  # Lower precedence value = evaluated first; 500 beats built-in workload-high
+  # (1000) / workload-low (9000) / global-default (9900). Only the kwok-controller
+  # SA matches these rules, so nothing else is affected.
+  matchingPrecedence: 500
+  distinguisherMethod:
+    # ByNamespace so kwok's pod-status PATCHes (across 250-500 workload namespaces)
+    # fan out over the queue set; cluster-scoped node writes share the empty-ns flow.
+    type: ByNamespace
+  rules:
+    - subjects:
+        - kind: ServiceAccount
+          serviceAccount:
+            name: kwok-controller
+            namespace: kube-system
+      resourceRules:
+        # clusterScope:true is load-bearing — kwok patches nodes/status (cluster-scoped).
+        - verbs: ["*"]
+          apiGroups: ["*"]
+          resources: ["*"]
+          clusterScope: true
+          namespaces: ["*"]
+      nonResourceRules:
+        - verbs: ["*"]
+          nonResourceURLs: ["*"]
+EOF
+kretry K apply -f "${WORK}/kwok-apf.yaml" >/dev/null
+
+# ---------------------------------------------------------------------------
 # STEP 2: RBAC for the agents (ServiceAccount + cluster-admin; tighten later)
 # ---------------------------------------------------------------------------
 echo ">>> Step 2: RBAC (${AGENT_NS}/${AGENT_SA})..."
