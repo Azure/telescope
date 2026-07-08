@@ -1608,6 +1608,31 @@ stages:
       # Enable auto delete+recreate recovery (fires at half wait-budget) to give
       # Fleet a second reconcile attempt — mirrors the non-mock stages above.
       CMP_AUTO_RECOVERY_ENABLED: "true"
+      # Propagation-latency probe (see n2_mock_2500 for the design). n=100 is the
+      # EXTREME-fan-out tier: each source pod syncs to 99 peers, so this is the most
+      # valuable place to measure propagation latency. Reads the REAL ACNS agents (no
+      # mock-agent change). CONNECTIVITY off (mock has no datapath).
+      # RISK (first n=100+probe run — WATCH THIS): propagation-probe forces mesh-wide
+      # CL2 concurrency = cluster_count = 100 simultaneous CL2 containers (the code is
+      # commented "safe at n=20"). During the probe window they are all LIGHT (mock
+      # backend capped to 1 ns / 2 pods + Sleep, no churn), so 100 idle containers are
+      # expected to fit a scale-test agent — but if the AzDO agent hits memory pressure,
+      # the fallback is to cap mesh-wide concurrency (needs a probe source-selection
+      # tweak) or shorten CL2_PROBE_WINDOW_DURATION. Probe runs FIRST, so an OOM
+      # fast-fails before the pod-churn phase.
+      CL2_PROPAGATION_PROBE_ENABLED: "true"
+      CL2_PROPAGATION_PROBE_COUNT: "10"
+      CL2_PROPAGATION_PROBE_INTERVAL_S: "20"
+      CL2_PROPAGATION_PROBE_PEER_TIMEOUT: "120"
+      CL2_PROPAGATION_PROBE_PEER_SAMPLE: "20"
+      CL2_PROPAGATION_PROBE_CONNECTIVITY: "false"
+      CL2_PROBE_WINDOW_DURATION: "30m"
+      # 600s (vs 300s on the small tiers): at n=100 all 100 CL2 workers must start +
+      # annotate namespaces + create the probe backend before the host-side orchestrator
+      # begins firing; give the cold mesh more lead time (the probe picks a random source
+      # cluster; if it isn't ready its source-pod apply silently drops the row). Still fits
+      # the 30m window + 45m op-timeout.
+      CL2_PROBE_PREWAIT_S: "600"
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -1619,7 +1644,7 @@ stages:
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
             install: false
-            operation_timeout: 30m
+            operation_timeout: 45m
           topology: clustermesh-scale-mock
           terraform_input_file_mapping:
             - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-100-mock-shared.tfvars"
@@ -1631,7 +1656,7 @@ stages:
               cl2_prom_snapshot_container: "snapshots"
               cluster_count: 100
               mesh_size: 100
-              share_infra_scenarios: "pod-churn-combined"
+              share_infra_scenarios: "propagation-probe,pod-churn-combined"
               cl2_config_file: ""
               cl2_max_concurrent: 12
               test_type: shared
