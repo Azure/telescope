@@ -636,6 +636,10 @@ class KubernetesClient:
             image_pull_events = self._collect_image_pull_events(
                 pod.metadata.name, namespace)
 
+            # Collect init container logs with kubelet timestamps for sub-second precision
+            init_container_logs = self._collect_init_container_logs(
+                pod.metadata.name, namespace)
+
             entry = {
                 "cni_container_started": container_started,
                 "cni_pod_ready": cni_ready,
@@ -643,6 +647,7 @@ class KubernetesClient:
                 "init_containers": init_containers,
                 "containers": containers,
                 "image_pull_events": image_pull_events,
+                "init_container_logs": init_container_logs,
             }
             logger.info("CNI pod timestamps for node '%s': %s", node_name, entry)
             results[node_name] = entry
@@ -906,6 +911,143 @@ class KubernetesClient:
         result["endpoint_regen"] = regen_means
 
         return result
+
+    def _collect_init_container_logs(self, pod_name, namespace):
+        """
+        Read init container logs with kubelet-prepended timestamps for sub-second
+        precision timing of operations within consolidated init containers.
+
+        For each init container, reads logs with timestamps=True (kubelet prepends
+        RFC3339Nano timestamps to each line). Parses the first and last log line
+        timestamps to get precise start/end, and identifies step boundaries by
+        matching known operation patterns.
+
+        Returns:
+            List of dicts per init container:
+            {
+                "name": str,
+                "first_log_ts": ISO8601 with ns precision,
+                "last_log_ts": ISO8601 with ns precision,
+                "log_duration_seconds": float (precise),
+                "operations": [{"name": str, "started_at": str, "line": str}, ...]
+            }
+        """
+        results = []
+
+        # Known operation patterns for cilium-init-all (post-merge) and individual
+        # init containers (pre-merge). Maps regex pattern -> operation name.
+        operation_patterns = [
+            (r"install.?plugin|install.?cni|cni.?bin", "install-cni-binaries"),
+            (r"cilium.?mount|mount.*cgroup", "mount-cgroup"),
+            (r"cilium.?sysctlfix|sysctl", "apply-sysctl-overwrites"),
+            (r"mount.*bpf|bpf.*fs", "mount-bpf-fs"),
+            (r"init.?container\.sh|clean.*state|cilium.*state", "clean-cilium-state"),
+            (r"block.?wireserver|iptables.*FORWARD.*168\.63", "block-wireserver"),
+            (r"systemd.?networkd|foreign.?routes", "systemd-networkd-overrides"),
+        ]
+
+        try:
+            # Get list of init containers from the pod spec
+            pod = self.api.read_namespaced_pod(name=pod_name, namespace=namespace)
+            if not pod.spec.init_containers:
+                return results
+
+            import re
+            for ic in pod.spec.init_containers:
+                container_name = ic.name
+                try:
+                    log_bytes = self.api.read_namespaced_pod_log(
+                        name=pod_name,
+                        namespace=namespace,
+                        container=container_name,
+                        timestamps=True,
+                        _preload_content=False,
+                    ).data
+                    if isinstance(log_bytes, bytes):
+                        log_text = log_bytes.decode("utf-8", errors="replace")
+                    else:
+                        log_text = str(log_bytes)
+                except Exception as e:
+                    logger.debug("Failed to read logs for init container '%s' in "
+                                "pod '%s': %s", container_name, pod_name, e)
+                    continue
+
+                if not log_text.strip():
+                    results.append({
+                        "name": container_name,
+                        "first_log_ts": None,
+                        "last_log_ts": None,
+                        "log_duration_seconds": None,
+                        "operations": [],
+                    })
+                    continue
+
+                lines = log_text.strip().splitlines()
+                # Parse kubelet timestamps: "2026-07-07T15:05:29.123456789Z <content>"
+                ts_pattern = re.compile(
+                    r"^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d+Z)\s(.*)$"
+                )
+
+                first_ts = None
+                last_ts = None
+                operations = []
+                seen_ops = set()
+
+                for line in lines:
+                    m = ts_pattern.match(line)
+                    if not m:
+                        continue
+                    ts_str = m.group(1)
+                    content = m.group(2)
+
+                    if first_ts is None:
+                        first_ts = ts_str
+                    last_ts = ts_str
+
+                    # Match known operations
+                    for pattern, op_name in operation_patterns:
+                        if op_name not in seen_ops and re.search(pattern, content, re.IGNORECASE):
+                            operations.append({
+                                "name": op_name,
+                                "started_at": ts_str,
+                                "line": content[:200],
+                            })
+                            seen_ops.add(op_name)
+                            break
+
+                # Compute precise duration from log timestamps
+                log_duration = None
+                if first_ts and last_ts:
+                    try:
+                        from datetime import datetime, timezone
+                        # Parse nanosecond timestamps (truncate to microseconds for Python)
+                        def _parse_nano_ts(ts):
+                            # "2026-07-07T15:05:29.123456789Z" -> truncate to 6 decimal places
+                            parts = ts.rstrip("Z").split(".")
+                            if len(parts) == 2:
+                                frac = parts[1][:6].ljust(6, "0")
+                                return datetime.fromisoformat(f"{parts[0]}.{frac}+00:00")
+                            return datetime.fromisoformat(f"{parts[0]}+00:00")
+
+                        t_first = _parse_nano_ts(first_ts)
+                        t_last = _parse_nano_ts(last_ts)
+                        log_duration = round((t_last - t_first).total_seconds(), 6)
+                    except Exception:
+                        pass
+
+                results.append({
+                    "name": container_name,
+                    "first_log_ts": first_ts,
+                    "last_log_ts": last_ts,
+                    "log_duration_seconds": log_duration,
+                    "operations": operations,
+                })
+
+        except Exception as e:
+            logger.warning("Failed to collect init container logs for pod '%s': %s",
+                          pod_name, e)
+
+        return results
 
     def _collect_init_container_timestamps(self, pod):
         """
@@ -1388,6 +1530,7 @@ class KubernetesClient:
             cni_init_containers = []
             cni_containers = []
             cni_image_pull_events = []
+            cni_init_container_logs = []
             deep_cilium_metrics = None
             if cni_daemonset_label:
                 cni_timestamps = self.collect_cni_pod_timestamps(
@@ -1399,6 +1542,7 @@ class KubernetesClient:
                 cni_init_containers = cni_info.get("init_containers", [])
                 cni_containers = cni_info.get("containers", [])
                 cni_image_pull_events = cni_info.get("image_pull_events", [])
+                cni_init_container_logs = cni_info.get("init_container_logs", [])
 
                 # Scrape Cilium agent metrics via exec into the agent pod
                 deep_cilium_metrics = self.scrape_cilium_metrics(
@@ -1446,6 +1590,7 @@ class KubernetesClient:
                 "cni_init_containers": cni_init_containers,
                 "cni_containers": cni_containers,
                 "cni_image_pull_events": cni_image_pull_events,
+                "cni_init_container_logs": cni_init_container_logs,
                 "deep_cilium_metrics": deep_cilium_metrics,
                 "pod_scheduled": pod_scheduled,
                 "pod_initialized": pod_initialized,
