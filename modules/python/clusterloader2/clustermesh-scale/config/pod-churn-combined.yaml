@@ -88,7 +88,7 @@ steps:
         Method: Exec
         Params:
           streamOutput: true
-          timeout: 1m
+          timeout: 10m
           command:
           - bash
           - /root/perf-tests/clusterloader2/config/annotate-namespaces.sh

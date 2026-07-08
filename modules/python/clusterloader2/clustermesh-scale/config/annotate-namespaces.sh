@@ -82,20 +82,38 @@ echo "annotate-namespaces: applying ${ANNOTATION} to first ${GLOBAL_NAMESPACE_CO
 
 FAIL_COUNT=0
 APPLIED_COUNT=0
+# Batch all target namespaces into ONE kubectl call. The previous per-namespace
+# loop issued N separate kubectl invocations (process start + TLS handshake each);
+# at high global-namespace counts (the consolidation comparison annotates up to 500
+# namespaces per cluster at 100% density) that overran the CL2 Exec timeout. A single
+# `kubectl annotate ns-1 ns-2 ... ns-N` does the same server-side PATCHes in one
+# round of process/connection setup. On failure we fall back to the per-namespace
+# loop so the exact failing namespace is still surfaced.
+NS_LIST=""
 for i in $(seq 1 "${GLOBAL_NAMESPACE_COUNT}"); do
-  NS="${NAMESPACE_PREFIX}-${i}"
-  # --overwrite tolerates re-runs (CL2 retries, multi-step configs). The
-  # namespace MUST already exist — CL2 creates managed namespaces before
-  # the first test step runs. If it's missing here, that's a real bug
-  # worth surfacing as an error (don't --ignore-not-found).
-  if "${KUBECTL}" annotate namespace "${NS}" "${ANNOTATION}" --overwrite >/dev/null 2>&1; then
-    echo "annotate-namespaces: ${NS} annotated"
-    APPLIED_COUNT=$((APPLIED_COUNT + 1))
-  else
-    echo "annotate-namespaces ERROR: failed to annotate ${NS}"
-    FAIL_COUNT=$((FAIL_COUNT + 1))
-  fi
+  NS_LIST="${NS_LIST} ${NAMESPACE_PREFIX}-${i}"
 done
+# shellcheck disable=SC2086  # word-splitting of NS_LIST is intentional (multiple args)
+if "${KUBECTL}" annotate namespace ${NS_LIST} "${ANNOTATION}" --overwrite >/dev/null 2>&1; then
+  APPLIED_COUNT="${GLOBAL_NAMESPACE_COUNT}"
+  echo "annotate-namespaces: batch-annotated ${APPLIED_COUNT} namespace(s)"
+else
+  echo "annotate-namespaces: batch annotate failed; falling back to per-namespace for exact attribution"
+  APPLIED_COUNT=0
+  for i in $(seq 1 "${GLOBAL_NAMESPACE_COUNT}"); do
+    NS="${NAMESPACE_PREFIX}-${i}"
+    # --overwrite tolerates re-runs (CL2 retries, multi-step configs). The
+    # namespace MUST already exist — CL2 creates managed namespaces before
+    # the first test step runs. If it's missing here, that's a real bug
+    # worth surfacing as an error (don't --ignore-not-found).
+    if "${KUBECTL}" annotate namespace "${NS}" "${ANNOTATION}" --overwrite >/dev/null 2>&1; then
+      APPLIED_COUNT=$((APPLIED_COUNT + 1))
+    else
+      echo "annotate-namespaces ERROR: failed to annotate ${NS}"
+      FAIL_COUNT=$((FAIL_COUNT + 1))
+    fi
+  done
+fi
 
 # Verification log — caller can grep this to confirm expected vs actual.
 echo "annotate-namespaces: requested=${GLOBAL_NAMESPACE_COUNT}, applied=${APPLIED_COUNT}, failed=${FAIL_COUNT}, total_namespaces=${NAMESPACE_COUNT}"

@@ -1715,13 +1715,16 @@ stages:
               test_type: shared
               test_type_suffix: "-mock"
               mock_mode: true
-              # Workload = the SAME TOTAL as 72210 (5000 pods; 2000 API/s; kill 500;
-              # 100 global-ns), held constant so 1x5000 (consolidated) vs N x (5000/N)
-              # (sharded) is a fair same-total-X comparison. Only the topology (node
-              # count / cluster count) varies. NOTE: this baseline runs 5000 agents on
-              # ONE apiserver (the measured clean operational ceiling); the earlier
-              # 10k baseline shed agent/node traffic under APF and could not run cleanly.
-              global_namespace_count: 100
+              # Workload = the SAME TOTAL as the sharded tiers (5000 pods; 2000 API/s;
+              # kill 500; ALL 500 namespaces global), held constant so 1x5000
+              # (consolidated) vs N x (5000/N) (sharded) is a fair same-total-X
+              # comparison. Only the topology (node/cluster count) varies. 100% global
+              # density (global_namespace_count == namespaces) MAXIMIZES the cross-
+              # cluster propagation signal this comparison measures — do NOT inherit the
+              # partial %global density from that separate density-sweep experiment.
+              # (Single cluster => no mesh; global annotation is a no-op here but kept
+              # identical to the sharded tiers so the workload is byte-for-byte the same.)
+              global_namespace_count: 500
               namespaces: 500
               deployments_per_namespace: 2
               replicas_per_deployment: 5
@@ -1806,9 +1809,12 @@ stages:
               test_type_suffix: "-mock"
               mock_mode: true
               # Per-cluster workload = 5000-pod TOTAL / 2 clusters (same total as
-              # 1x5000 + 72210): 250 ns x2 x5 = 2500 pods; api 1000/s; kill 250; 50
-              # global ns/cluster (2 x 50 = 100 total global, matching the baseline).
-              global_namespace_count: 50
+              # 1x5000): 250 ns x2 x5 = 2500 pods; api 1000/s; kill 250. 100% global
+              # density (global_namespace_count == namespaces) so ALL 2500 pods'
+              # identities/endpoints/services sync across the mesh — this maximizes the
+              # propagation cost the comparison measures. (Do NOT reuse the partial
+              # %global density from the separate density-sweep experiment.)
+              global_namespace_count: 250
               namespaces: 250
               deployments_per_namespace: 2
               replicas_per_deployment: 5
@@ -1889,9 +1895,11 @@ stages:
               test_type_suffix: "-mock"
               mock_mode: true
               # Per-cluster workload = 5000-pod TOTAL / 5 clusters: 100 ns x2 x5 =
-              # 1000 pods; api 400/s; kill 100; 20 global ns/cluster (5 x 20 = 100
-              # total global, matching the baseline).
-              global_namespace_count: 20
+              # 1000 pods; api 400/s; kill 100. 100% global density
+              # (global_namespace_count == namespaces) so ALL 1000 pods sync mesh-wide
+              # to 4 peers — the highest-fan-out tier, maximizing propagation cost. (Do
+              # NOT reuse the partial %global density from the density-sweep experiment.)
+              global_namespace_count: 100
               namespaces: 100
               deployments_per_namespace: 2
               replicas_per_deployment: 5
