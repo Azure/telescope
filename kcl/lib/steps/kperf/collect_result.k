@@ -27,18 +27,36 @@ cloud_info=$(jq -n \\
     cluster_id: $cluster_id
   }')
 
+# runkperf bench output: { description, loadSpec, result: {...}, info }  → extract .result
+# kperf rg run  output: { total, duration, errors, ... }                 → pass-through
+jq 'if has("result") then .result else . end' "${inputPath}" > "${inputPath}.norm"
+mv "${inputPath}.norm" "${inputPath}"
+
 # Check for errors and print error details if error rate exceeds threshold
-errors_number=$(jq -r '.result.errors | length' ${inputPath})
-error_rate_too_high=$(jq -r '(1 - .result.total / (.loadSpec.count * .loadSpec.loadProfile.spec.total)) > ${errorRateThreshold}' ${inputPath})
-if [[ "$errors_number" != "0" && "$error_rate_too_high" == "true" ]]; then
-  echo "Error rate exceeds ${errorRateThreshold}, printing error details:"
-  jq -r ".result.errors | map(. + {run_id: \\"$(RUN_ID)\\", cloud: \\"azure\\"}) | .[]" ${inputPath}
+# Error rate = failures / (successes + failures)
+#   .total       = successful requests (does NOT include errors)
+#   .errorStats  = per-type failure counts (omitempty; // {} fallback when absent)
+error_rate_too_high=$(jq -r --argjson t "${errorRateThreshold}" '
+  ([.errorStats // {} | .[]] | add // 0) as $errs
+  | (.total // 0) as $ok
+  | ($ok + $errs) as $done
+  | if $done > 0 then ($errs / $done) > $t else false end
+' "${inputPath}")
+
+if [[ "$error_rate_too_high" == "true" ]]; then
+  echo "Error rate exceeds ${errorRateThreshold}, errorStats summary:"
+  jq -c '.errorStats // {}' "${inputPath}"
+  echo "Error details (first 100):"
+  # errorStats only has counts; pull actual URL/message from .errors
+  jq -r --arg rid "$(RUN_ID)" \\
+    '.errors // [] | .[0:100] | map(. + {run_id: $rid, cloud: "azure"}) | .[]' \\
+    "${inputPath}"
 fi
 
 # Collect final result
 cat ${inputPath} \\
-  | jq 'del(.result.errors)' \\
-  | jq -c --argjson ci "$cloud_info" '{ cloud: $ci.cloud, region: $ci.region, fqdn: $ci.fqdn, k8s_version: $ci.k8s_version, sku_tier: $ci.sku_tier, subscription: $ci.subscription, cluster_id: $ci.cluster_id, flowcontrol: "${flowcontrol}", benchmarkSubcmdArgs: "${benchmarkSubcmdArgs}" } + .result | { result: . }' \\
+  | jq 'del(.errors)' \\
+  | jq -c --argjson ci "$cloud_info" '{ cloud: $ci.cloud, region: $ci.region, fqdn: $ci.fqdn, k8s_version: $ci.k8s_version, sku_tier: $ci.sku_tier, subscription: $ci.subscription, cluster_id: $ci.cluster_id, flowcontrol: "${flowcontrol}", benchmarkSubcmdArgs: "${benchmarkSubcmdArgs}" } + . | { result: . }' \\
   | jq -c '. + { timestamp: "'"$TIMESTAMP"'", run_id: "$(RUN_ID)", run_url: "$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)", pipeline: "$(Build.DefinitionName)" }' \\
   > ${outputPath}
 
