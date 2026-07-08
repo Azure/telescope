@@ -434,15 +434,6 @@ def main() -> None:
         report_file.write_text(report)
         log.info("Cross-tier scaling report: %s", report_file)
 
-    # Tear down the extra fan-out nodepools this run created for tiers > 1000
-    # (dataplane2, dataplane3, ...) so they don't linger and burn cores. The
-    # base nodepool is left intact (terraform-managed).
-    if args.resource_group and args.dp_cluster_name:
-        try:
-            delete_fanout_nodepools(args.resource_group, args.dp_cluster_name, args.nodepool_name)
-        except Exception as e:
-            log.warning("delete_fanout_nodepools failed: %s", e)
-
 
 if __name__ == "__main__":
     main()
