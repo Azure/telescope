@@ -20,7 +20,7 @@ stages:
           matrix:
             cilium_node_startup:
               pool_name: userpool
-              vm_size: Standard_D4s_v3
+              vm_size: Standard_D8s_v3
               step_time_out: 600
               cni_daemonset_label: "k8s-app=cilium"
               cni_blocking_taint: "node.cilium.io/agent-not-ready"
@@ -45,7 +45,7 @@ stages:
           matrix:
             byocni_node_startup:
               pool_name: userpool
-              vm_size: Standard_D4s_v3
+              vm_size: Standard_D8s_v3
               step_time_out: 900
               cni_daemonset_label: "k8s-app=cilium"
               cni_blocking_taint: "node.cilium.io/agent-not-ready"
@@ -71,7 +71,7 @@ stages:
           matrix:
             kubenet_node_startup:
               pool_name: userpool
-              vm_size: Standard_D4s_v3
+              vm_size: Standard_D8s_v3
               step_time_out: 600
               cni_daemonset_label: ""
           max_parallel: 1
@@ -95,7 +95,7 @@ stages:
           matrix:
             azure_cni_node_startup:
               pool_name: userpool
-              vm_size: Standard_D4s_v3
+              vm_size: Standard_D8s_v3
               step_time_out: 600
               cni_daemonset_label: ""
           max_parallel: 1
@@ -119,7 +119,7 @@ stages:
   #         matrix:
   #           byocni_unified_init_node_startup:
   #             pool_name: userpool
-  #             vm_size: Standard_D4s_v3
+  #             vm_size: Standard_D8s_v3
   #             step_time_out: 900
   #             cni_daemonset_label: "k8s-app=cilium"
   #             cni_blocking_taint: "node.cilium.io/agent-not-ready"
