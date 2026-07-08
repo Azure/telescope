@@ -55,6 +55,25 @@ CONSUME_CLUSTERMESH="${CONSUME_CLUSTERMESH:-true}"
 
 K() { kubectl --kubeconfig="$KUBECONFIG_FILE" "$@"; }
 
+# Retry an idempotent control-plane command on transient apiserver failures. A one-off
+# "ServiceUnavailable"/timeout on an early `kubectl apply` would otherwise abort the
+# ENTIRE cluster deploy under `set -euo pipefail` (build 72911: mesh-1 died on a single
+# ServiceUnavailable applying the ServiceAccount, failing the whole n=5 stage at
+# MOCK_DEPLOY_MAX_FAILURES=0 while the other 4 clusters were fine). Step 3 (node/agent
+# apply) has its own attempt loop; kretry covers the Step 1-2 setup calls. Commands MUST
+# be file-based/idempotent — never `apply -f -` with a heredoc, whose stdin can't be
+# replayed across attempts.
+kretry() {
+  local _a=1 _max="${MOCK_SETUP_MAX_ATTEMPTS:-5}" _rc=0
+  case "$_max" in ''|*[!0-9]*) _max=5;; esac   # guard: non-numeric override -> default
+  while :; do
+    _rc=0; "$@" && return 0 || _rc=$?
+    [ "$_a" -ge "$_max" ] && { echo "ERROR: '$*' failed after ${_max} attempts (rc=${_rc})." >&2; return "$_rc"; }
+    echo ">>> transient failure (rc=${_rc}) on '$*'; retry ${_a}/${_max} in $((_a * 5))s..." >&2
+    sleep $((_a * 5)); _a=$((_a + 1))
+  done
+}
+
 echo "=============================================="
 echo "  KWOK + mock-agent layer"
 echo "  kubeconfig : ${KUBECONFIG_FILE}"
@@ -131,15 +150,15 @@ for d in docs:
                     {'key': 'prometheus', 'operator': 'DoesNotExist'}]}]}}}
 yaml.safe_dump_all(docs, open(dst, 'w'), default_flow_style=False)
 PY
-K apply -f "${WORK}/kwok-patched.yaml" >/dev/null
-K apply -f "${WORK}/stage-fast.yaml" >/dev/null
-K -n kube-system rollout status deploy/kwok-controller --timeout=120s
+kretry K apply -f "${WORK}/kwok-patched.yaml" >/dev/null
+kretry K apply -f "${WORK}/stage-fast.yaml" >/dev/null
+MOCK_SETUP_MAX_ATTEMPTS=2 kretry K -n kube-system rollout status deploy/kwok-controller --timeout=120s
 
 # ---------------------------------------------------------------------------
 # STEP 2: RBAC for the agents (ServiceAccount + cluster-admin; tighten later)
 # ---------------------------------------------------------------------------
 echo ">>> Step 2: RBAC (${AGENT_NS}/${AGENT_SA})..."
-K apply -f - >/dev/null <<EOF
+cat > "${WORK}/rbac.yaml" <<EOF
 apiVersion: v1
 kind: Namespace
 metadata: { name: ${AGENT_NS} }
@@ -154,6 +173,7 @@ metadata: { name: ${AGENT_SA}-cluster-admin }
 roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: cluster-admin }
 subjects: [{ kind: ServiceAccount, name: ${AGENT_SA}, namespace: ${AGENT_NS} }]
 EOF
+kretry K apply -f "${WORK}/rbac.yaml" >/dev/null
 
 # ---------------------------------------------------------------------------
 # STEP 2.5: ClusterMesh CONSUME path (optional, default on).
@@ -173,11 +193,18 @@ CM_ARG=""; CM_MOUNT=""; CM_VOLUME=""
 if [[ "${CONSUME_CLUSTERMESH}" == "true" ]] && K -n kube-system get secret cilium-clustermesh >/dev/null 2>&1; then
   echo ">>> Step 2.5: Wiring clustermesh CONSUME path (copying secrets -> ${AGENT_NS})..."
   STRIP='del(.metadata.namespace,.metadata.resourceVersion,.metadata.uid,.metadata.creationTimestamp,.metadata.ownerReferences,.metadata.managedFields,.metadata.annotations,.status)'
+  # Copy pipeline as a function so kretry can replay it (each attempt re-runs the
+  # `get`, so unlike a heredoc there's no consumed-stdin problem). A transient
+  # apiserver failure mid-copy would otherwise silently skip a REQUIRED consume
+  # secret (the old code WARNed "not found" + continued), leaving agents running but
+  # NOT consuming mesh state — a hollow run that still "passes". A genuinely-absent
+  # secret exhausts the retries and is skipped (non-fatal, matching prior behavior).
+  copy_secret() { K -n kube-system get secret "$1" -o json 2>/dev/null | jq "${STRIP}" | K -n "${AGENT_NS}" apply -f - >/dev/null 2>&1; }
   for s in cilium-clustermesh clustermesh-apiserver-remote-cert clustermesh-apiserver-local-cert cilium-root-ca.crt; do
-    if K -n kube-system get secret "$s" -o json 2>/dev/null | jq "${STRIP}" | K -n "${AGENT_NS}" apply -f - >/dev/null 2>&1; then
+    if kretry copy_secret "$s"; then
       echo "      copied secret ${s}"
     else
-      echo "      WARN: secret ${s} not found in kube-system (skipping)"
+      echo "      WARN: secret ${s} not copied (absent or apiserver error after retries; skipping)"
     fi
   done
   CM_ARG="    - --clustermesh-config=/var/lib/cilium/clustermesh"
