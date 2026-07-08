@@ -1763,6 +1763,19 @@ stages:
       # Per-cluster Prometheus scrapes this cluster's 2500 agents (~2.4M series /
       # ~7 GiB). D16_v3 (64 GiB) prompool; 32 GiB limit gives churn headroom.
       CL2_PROMETHEUS_MEMORY_LIMIT_GI: "32"
+      # Propagation-latency probe: propagation-probe scenario runs FIRST (cold
+      # mesh) then pod-churn-combined. Host-side orchestrator times apply->peer
+      # ipcache/identity per probe by reading the REAL ACNS agents (mock agents
+      # additive; NO mock-agent changes). Connectivity(curl) OFF — mock has no
+      # datapath; we measure control-plane propagation. Backend forced minimal in
+      # mock mode (propagation-probe.yaml) so it fits the real pool beside agents.
+      CL2_PROPAGATION_PROBE_ENABLED: "true"
+      CL2_PROPAGATION_PROBE_COUNT: "10"
+      CL2_PROPAGATION_PROBE_INTERVAL_S: "20"
+      CL2_PROPAGATION_PROBE_PEER_TIMEOUT: "120"
+      CL2_PROPAGATION_PROBE_CONNECTIVITY: "false"
+      CL2_PROBE_WINDOW_DURATION: "30m"
+      CL2_PROBE_PREWAIT_S: "300"
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -1786,7 +1799,7 @@ stages:
               cl2_prom_snapshot_container: "snapshots"
               cluster_count: 2
               mesh_size: 2
-              share_infra_scenarios: "pod-churn-combined"
+              share_infra_scenarios: "propagation-probe,pod-churn-combined"
               cl2_config_file: ""
               cl2_max_concurrent: 2
               test_type: shared
@@ -1835,6 +1848,17 @@ stages:
       # Per-cluster Prometheus scrapes this cluster's 1000 agents (~1M series /
       # ~4 GiB). D16_v3 (64 GiB) prompool; 16 GiB limit.
       CL2_PROMETHEUS_MEMORY_LIMIT_GI: "16"
+      # Propagation-latency probe (see n2_mock_2500 for rationale). Runs
+      # propagation-probe FIRST (cold mesh) then pod-churn-combined; times
+      # apply->peer ipcache/identity via the REAL ACNS agents. n=5 -> 4-peer
+      # fan-out (vs n2's 1 peer) is the key propagation-cost differentiator.
+      CL2_PROPAGATION_PROBE_ENABLED: "true"
+      CL2_PROPAGATION_PROBE_COUNT: "10"
+      CL2_PROPAGATION_PROBE_INTERVAL_S: "20"
+      CL2_PROPAGATION_PROBE_PEER_TIMEOUT: "120"
+      CL2_PROPAGATION_PROBE_CONNECTIVITY: "false"
+      CL2_PROBE_WINDOW_DURATION: "30m"
+      CL2_PROBE_PREWAIT_S: "300"
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -1858,7 +1882,7 @@ stages:
               cl2_prom_snapshot_container: "snapshots"
               cluster_count: 5
               mesh_size: 5
-              share_infra_scenarios: "pod-churn-combined"
+              share_infra_scenarios: "propagation-probe,pod-churn-combined"
               cl2_config_file: ""
               cl2_max_concurrent: 5
               test_type: shared

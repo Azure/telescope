@@ -43,6 +43,15 @@ name: clustermesh-propagation-probe
 {{$deploymentsPerNamespace := DefaultParam .CL2_DEPLOYMENTS_PER_NAMESPACE 1}}
 {{$replicasPerDeployment := DefaultParam .CL2_REPLICAS_PER_DEPLOYMENT 2}}
 {{$globalNamespaces := DefaultParam .CL2_GLOBAL_NAMESPACE_COUNT $namespaces}}
+# MOCK framework (topology clustermesh-scale-mock): workload scale is provided by
+# the mock-cilium-agents (one per KWOK virtual node), NOT by CL2-created pods. This
+# scenario's backend Deployment is NOT kwok-targeted, so it lands on the REAL node
+# pool that is already packed with mock agents. Force a tiny fixed backend in mock
+# mode so it fits AND stays a controlled, tier-independent baseline (mesh load comes
+# from the agents + the churn scenario; the probe times its own source pods). Real-
+# agent runs keep the matrix-driven size (existing propagation-probe stages use 1).
+{{$mockMode := eq (printf "%v" (DefaultParam .CL2_MOCK_MODE false)) "true"}}
+{{if $mockMode}}{{$namespaces = 1}}{{$deploymentsPerNamespace = 1}}{{$replicasPerDeployment = 2}}{{$globalNamespaces = 1}}{{end}}
 {{$operationTimeout := DefaultParam .CL2_OPERATION_TIMEOUT "20m"}}
 {{$apiServerCallsPerSecond := DefaultParam .CL2_API_SERVER_CALLS_PER_SECOND 20}}
 
@@ -121,6 +130,7 @@ steps:
       params:
         actionName: create
         tuningSet: DeploymentCreateQps
+        mockMode: {{$mockMode}}
 
   - module:
       path: /modules/propagation-probe-workload.yaml
@@ -187,3 +197,4 @@ steps:
       params:
         actionName: delete
         tuningSet: DeploymentCreateQps
+        mockMode: {{$mockMode}}
