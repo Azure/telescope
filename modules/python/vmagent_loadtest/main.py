@@ -32,7 +32,7 @@ from vmagent_loadtest.cluster import az_login, create_clusters, delete_resource_
 from vmagent_loadtest.compare import compare_real_vs_fake, compare_cross_tier
 from vmagent_loadtest.config import DEFAULT_NODEPOOL, log
 from vmagent_loadtest.runner import cleanup, cleanup_tier, compute_fake_nodes_needed, run_single_tier
-from vmagent_loadtest.scaling import scale_dp_nodepool, wait_for_nodes_ready
+from vmagent_loadtest.scaling import scale_dp_nodepool, wait_for_nodes_ready, delete_fanout_nodepools
 from vmagent_loadtest import utils as _utils
 
 
@@ -259,6 +259,8 @@ def main() -> None:
 
     if args.cleanup:
         cleanup(args.cp_kubeconfig, args.dp_kubeconfig)
+        if args.resource_group and args.dp_cluster_name:
+            delete_fanout_nodepools(args.resource_group, args.dp_cluster_name, args.nodepool_name)
         return
 
     parallel_mode = (args.parallel and not args.real_targets and len(tiers) > 1)
@@ -431,6 +433,15 @@ def main() -> None:
         report_file = results_dir / f"comparison-cross-tier-{mode_label}.md"
         report_file.write_text(report)
         log.info("Cross-tier scaling report: %s", report_file)
+
+    # Tear down the extra fan-out nodepools this run created for tiers > 1000
+    # (dataplane2, dataplane3, ...) so they don't linger and burn cores. The
+    # base nodepool is left intact (terraform-managed).
+    if args.resource_group and args.dp_cluster_name:
+        try:
+            delete_fanout_nodepools(args.resource_group, args.dp_cluster_name, args.nodepool_name)
+        except Exception as e:
+            log.warning("delete_fanout_nodepools failed: %s", e)
 
 
 if __name__ == "__main__":

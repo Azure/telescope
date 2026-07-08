@@ -138,6 +138,35 @@ def scale_dp_nodepool(resource_group: str, cluster_name: str, nodepool: str,
     log.info("Scale requests submitted, waiting for nodes to be Ready...")
 
 
+def delete_fanout_nodepools(resource_group: str, cluster_name: str,
+                            nodepool: str) -> None:
+    """Delete the extra fan-out nodepools (<base>2, <base>3, ...) that the
+    multi-nodepool scaling created to exceed the AKS per-nodepool cap.
+
+    The base pool (``nodepool``) is left intact — it is provisioned by
+    terraform, not by this code. Called at teardown so tiers > 1000 don't
+    leave orphaned nodepools burning cores.
+    """
+    deleted = 0
+    for idx in range(1, 16):  # base2 .. base16 (covers well past 5k)
+        name = _pool_name(nodepool, idx)
+        if _get_nodepool(resource_group, cluster_name, name) is None:
+            continue
+        log.info("Deleting fan-out nodepool '%s'...", name)
+        run([
+            "az", "aks", "nodepool", "delete",
+            "--resource-group", resource_group,
+            "--cluster-name", cluster_name,
+            "--name", name,
+            "--no-wait",
+        ], check=False)
+        deleted += 1
+    if deleted:
+        log.info("Requested deletion of %d fan-out nodepool(s).", deleted)
+    else:
+        log.info("No fan-out nodepools to delete.")
+
+
 
 def wait_for_nodes_ready(kubeconfig: str, expected: int,
                          timeout_minutes: int = 30, poll_interval: int = 30) -> int:
