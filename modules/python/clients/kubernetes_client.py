@@ -938,12 +938,13 @@ class KubernetesClient:
         # init containers (pre-merge). Maps regex pattern -> operation name.
         operation_patterns = [
             (r"install.?plugin|install.?cni|cni.?bin", "install-cni-binaries"),
-            (r"cilium.?mount|mount.*cgroup", "mount-cgroup"),
+            (r"cilium.?mount|mount.*cgroup|Mounted cgroupv2", "mount-cgroup"),
             (r"cilium.?sysctlfix|sysctl", "apply-sysctl-overwrites"),
-            (r"mount.*bpf|bpf.*fs", "mount-bpf-fs"),
-            (r"init.?container\.sh|clean.*state|cilium.*state", "clean-cilium-state"),
-            (r"block.?wireserver|iptables.*FORWARD.*168\.63", "block-wireserver"),
+            (r"mount.*bpf|bpf.*fs|bpf on /sys/fs/bpf", "mount-bpf-fs"),
+            (r"init.?container\.sh|clean.*state|cilium.*state|rm -rf", "clean-cilium-state"),
+            (r"block.?wireserver|iptables.*FORWARD.*168\.63|installRuleIdempotent", "block-wireserver"),
             (r"systemd.?networkd|foreign.?routes", "systemd-networkd-overrides"),
+            (r"detach mode|BPF program detached|unpinned from|pinned resources", "iptables-blocker-detach"),
         ]
 
         try:
