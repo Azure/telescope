@@ -992,6 +992,7 @@ class KubernetesClient:
                 last_ts = None
                 operations = []
                 seen_ops = set()
+                raw_lines = []
 
                 for line in lines:
                     m = ts_pattern.match(line)
@@ -1003,6 +1004,10 @@ class KubernetesClient:
                     if first_ts is None:
                         first_ts = ts_str
                     last_ts = ts_str
+
+                    # Collect raw log lines (timestamp + content, capped at 50 lines)
+                    if len(raw_lines) < 50:
+                        raw_lines.append({"ts": ts_str, "line": content[:300]})
 
                     # Match known operations
                     for pattern, op_name in operation_patterns:
@@ -1041,6 +1046,7 @@ class KubernetesClient:
                     "last_log_ts": last_ts,
                     "log_duration_seconds": log_duration,
                     "operations": operations,
+                    "raw_lines": raw_lines,
                 })
 
         except Exception as e:
