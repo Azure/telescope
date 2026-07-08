@@ -1637,7 +1637,11 @@ stages:
               test_type: shared
               test_type_suffix: "-mock"
               mock_mode: true
-              global_namespace_count: 1
+              # 100% global density (global_namespace_count == namespaces) so ALL 50
+              # pods/cluster sync mesh-wide to 99 peers — the extreme-fan-out tier of
+              # the consolidation comparison. (Was 1 = 20%, inherited from the separate
+              # %global density-sweep experiment; NOT what this comparison measures.)
+              global_namespace_count: 5
               namespaces: 5
               deployments_per_namespace: 2
               replicas_per_deployment: 5
