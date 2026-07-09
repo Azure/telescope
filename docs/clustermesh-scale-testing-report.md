@@ -71,11 +71,27 @@ Mock pools: n1 = 25×D32_v3; n2/n5 = 7–13×D32_v3 + 1×D16 (prom) per cluster;
 
 ## 5. Scenarios (the workloads)
 
-CL2 (ClusterLoader2) scenarios under `modules/python/clusterloader2/clustermesh-scale/config/`. Workload shape is *namespaces × deployments × replicas* Pods; the first `GLOBAL_NAMESPACE_COUNT` namespaces get the `clustermesh.cilium.io/global` annotation so their Services/identities/endpoints sync cross-cluster (we run **100 % global density**). Each Pod create/delete produces a CiliumEndpoint + identity that must **propagate across the mesh** — that propagation is what most scenarios stress.
+CL2 (ClusterLoader2) scenarios under `modules/python/clusterloader2/clustermesh-scale/config/`. Workload shape is *namespaces × deployments × replicas* Pods; the first `GLOBAL_NAMESPACE_COUNT` namespaces get the `clustermesh.cilium.io/global` annotation so their Services/identities/endpoints sync cross-cluster (we run **100 % global density**). Each Pod create/delete produces a CiliumEndpoint + identity that must **propagate across the mesh** — that propagation is what most scenarios stress. At the comparison scale (§9) the fixed workload materializes as **5 000 CiliumEndpoints** (1/Pod), **≈1 000 CiliumIdentities** (≈1 per Deployment — each Deployment's pods carry a unique `app` label), and **1 000 global Services** — every one imported into *every* peer cluster.
+
+Every Deployment is created with a **paired Service** (a Deployment+Service object bundle), so **Services = Deployments = namespaces × deployments/ns**, and at 100 % global density every one is a *global* Service (it syncs mesh-wide). The **default per-cluster shape** each scenario deploys (its smoke/default `CL2_*` params) is:
+
+| Scenario | ns | dep/ns | rep/dep | Deployments | Services | Pods | Extra objects |
+|---|--:|--:|--:|--:|--:|--:|---|
+| event-throughput | 5 | 4 | 10 | 20 | 20 | 200 | rolling-restart burst |
+| pod-churn-combined | 5 | 4 | 10 | 20 | 20 | 200 | scale cycles + kill loop |
+| pod-churn-kill | 5 | 4 | 10 | 20 | 20 | 200 | delete 5 pods / 10 s |
+| pod-churn-scale | 5 | 4 | 10 | 20 | 20 | 200 | scale 0↔N ×5 |
+| isolation | 5 | 4 | 10 | 20 | 20 | 200 | kill loop in 1 cluster |
+| apiserver-failure | 5 | 4 | 10 | 20 | 20 | 200 | kill clustermesh-apiserver |
+| node-churn (comb/replace/scale) | 5 | 4 | 10 | 20 | 20 | 200 | node lifecycle churn |
+| upper-bound | 5 | 4 | 10 | 20 | 20 | 200 | QPS 100→10 000 rungs |
+| policy-scale | 5 | 1 | 4 | 5 | 5 | 20 | + 50 CNP/ns = **250 CNPs** |
+
+These are the **defaults** (used by the smoke stages); the consolidated-vs-sharded tiers in §9 override them to much larger counts. (`propagation-probe` is intentionally excluded — it's a **probe, not a scaled workload** (see §6): per cluster it deploys only a fixed tiny http-echo backend of **1 ns · 1 Deployment · 2 pods · 1 global Service** and measures a **single transient source pod per probe**, so it never grows with the tier.) Behaviour of each:
 
 - **event-throughput** — *How fast can the mesh propagate object changes?* Deploys the workload (5 ns × 4 dep × 10 rep = 200 Pods/cluster, all global), warms up, then fires a **rolling-restart burst** that churns endpoints/identities as fast as the apiserver allows (`API_SERVER_CALLS_PER_SECOND=20`), measuring cross-cluster **event/operation throughput + latency** (kvstoremesh) as the burst propagates. Answers: sustainable and peak cross-cluster event rate.
 
-- **pod-churn-combined** — The main churn workload. Deploys the workload, then runs two patterns back-to-back on it: **Phase A** deterministic scale cycles (scale every deployment 0↔N, ×5, 60 s each way) and **Phase B** a random **kill loop** (delete 5 random Pods every 10 s for 600 s while ReplicaSets recreate them). Measures convergence + mesh-sync cost under sustained churn. `pod-churn-kill` / `pod-churn-scale` are the two halves in isolation.
+- **pod-churn-combined** — The main churn workload. Deploys the workload, then runs two patterns back-to-back on it: **Phase A** deterministic scale cycles (scale every deployment 0↔N, ×5, 60 s each way — **10 full-workload replica swings**) and **Phase B** a random **kill loop** (delete 5 random Pods every 10 s for 600 s — **≈300 deletions** — while ReplicaSets recreate them). Measures convergence + mesh-sync cost under sustained churn. `pod-churn-kill` / `pod-churn-scale` are the two halves in isolation.
 
 - **node-churn-combined / replace / scale** — Node-lifecycle churn driven by a host-side `node-churner.sh`: **scale** adds/removes nodes, **replace** drains+deletes VMSS instances (new IPs), **combined** does both. CL2 holds a steady workload and gathers the mesh's reaction to node membership/IP changes. *(In mock this must churn KWOK `Node` objects, not VMSS.)*
 
@@ -143,16 +159,16 @@ Key mesh-cost signals used in §10: `cilium_clustermesh_remote_cluster_nodes` (f
 
 ## 9. Experiments — consolidated vs sharded
 
-The **same total workload (5 000 pods)** spread across a varying number of meshed clusters, at constant totals (500 namespaces, 100 % global density):
+The **same total workload (5 000 pods)** is spread across a varying number of meshed clusters. Every tier fixes `deployments/ns = 2` and `replicas/deployment = 5`; only the **sharding** (clusters × per-cluster size) changes. Nodes/cluster = `MOCK_NODE_COUNT` (one mock-cilium-agent per node). Main workload = `pod-churn-combined` (the sharded tiers also run a cold `propagation-probe` first).
 
-| Tier | Topology | Per-cluster | Mesh |
-|---|---|---|---|
-| **n1** | 1 × 5000 | 5 000 nodes/pods | **none** (baseline) |
-| **n2** | 2 × 2500 | 2 500 | 2-cluster |
-| **n5** | 5 × 1000 | 1 000 | 5-cluster |
-| **n100** | 100 × 100 | 100 nodes / 50 pods | 100-cluster (10 000 nodes) |
+| Tier | Clusters | Nodes/cl | ns/cl | dep/ns | rep/dep | Deploy/cl | Svc/cl | Pods/cl | Mesh |
+|---|--:|--:|--:|--:|--:|--:|--:|--:|---|
+| **n1** | 1 | 5 000 | 500 | 2 | 5 | 1 000 | 1 000 | 5 000 | **none** (baseline) |
+| **n2** | 2 | 2 500 | 250 | 2 | 5 | 500 | 500 | 2 500 | 2-cluster |
+| **n5** | 5 | 1 000 | 100 | 2 | 5 | 200 | 200 | 1 000 | 5-cluster |
+| **n100** | 100 | 100 | 5 | 2 | 5 | 10 | 10 | 50 | 100-cluster (10 000 nodes) |
 
-n1 (no mesh) is the consolidated baseline; n5 is the sharded end; n100 inverts the load entirely onto the mesh fabric.
+**Mesh-wide totals are held constant across all four tiers**: **500 namespaces · 1 000 Deployments · 1 000 global Services · 5 000 Pods · 5 000 CiliumEndpoints · ≈1 000 CiliumIdentities · 100 % global density** — only how they shard changes. n1 (no mesh) is the consolidated baseline; n5 is the sharded end; n100 inverts the load entirely onto the mesh fabric (50 pods/cluster but 10 000 nodes and 99 remote peers each).
 
 ---
 
@@ -176,6 +192,8 @@ Measured at peak churn from the pod-churn snapshots (n5 shown per-cluster). Both
 **② Mesh-sync load (n5 only — n1 has none):** kvstoremesh **183 events/s + 177 kvstore ops/s per cluster**; a `clustermesh-apiserver` HA pair per cluster.
 
 **③ Resource:** control-plane RSS 5.6 GiB (n1) → 1.7 GiB/cluster but **8.3 GiB total** (≈1.5× *more* mesh-wide); mock-agents equal mesh-wide (5 000 either way).
+
+**④ Propagation latency (n5, clean):** kvstoremesh **operation-duration P95 = 40–210 ms** — the mesh-sync step itself is **sub-second**; **remote-cluster failures = 0** (per-peer median increase 0, no propagation errors); probe-pod startup **p50 ≈ 6.5 s** (create→ready, ~5 s of it scheduling). So end-to-end *apply → visible-in-peer* is dominated by **pod startup**, not mesh sync. *(Source: CL2 `ClusterMeshKvstoreOperationDurationP95` + `PodStartupLatency` measurements, build 73002.)*
 
 **The key non-obvious finding:** `cilium_nodes_all_num` per agent = **5 026 (n1) ≈ 5 040 (n5)**, and mesh-wide `Σ` is **identical (25.3 M)** — the mesh **re-imports every remote node into every cluster**, so sharding does *not* reduce per-agent datapath state.
 
@@ -243,4 +261,8 @@ See **[`clustermesh-scale-failure-modes.md`](./clustermesh-scale-failure-modes.m
 
 ## 15. Appendix — key knobs
 
-`CL2_NAMESPACES`, `CL2_GLOBAL_NAMESPACE_COUNT` (100 % = all), `CL2_DEPLOYMENTS_PER_NAMESPACE`, `CL2_REPLICAS_PER_DEPLOYMENT`, `CL2_CHURN_CYCLES`, `CL2_KILL_DURATION_SECONDS/INTERVAL/BATCH`, `CL2_PROPAGATION_PROBE_*`, `MOCK_NODE_COUNT`, `MOCK_MESH_STRIDE`, `MOCK_DEPLOY_MAX_FAILURES`, `CMP_AUTO_RECOVERY_ENABLED`. Per-tier tfvars: `scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-{1-mock-5k,2-mock-2500,5-mock-1000,100-mock-shared}.tfvars`.
+`CL2_NAMESPACES`, `CL2_GLOBAL_NAMESPACE_COUNT` (100 % = all), `CL2_DEPLOYMENTS_PER_NAMESPACE`, `CL2_REPLICAS_PER_DEPLOYMENT`, `CL2_CHURN_CYCLES`, `CL2_KILL_DURATION_SECONDS/INTERVAL/BATCH`, `CL2_PROPAGATION_PROBE_*`, `MOCK_NODE_COUNT`, `MOCK_MESH_STRIDE`, `MOCK_DEPLOY_MAX_FAILURES`, `CMP_AUTO_RECOVERY_ENABLED`.
+
+**Values used** — *comparison tiers*: `DEPLOYMENTS_PER_NAMESPACE=2`, `REPLICAS_PER_DEPLOYMENT=5`, `NAMESPACES`=500/250/100/5 (n1/n2/n5/n100), `GLOBAL_NAMESPACE_COUNT=NAMESPACES` (100 %); *churn*: `CHURN_CYCLES=5`, `CHURN_UP/DOWN_DURATION=60s`, `KILL_BATCH=5`, `KILL_INTERVAL_SECONDS=10`, `KILL_DURATION_SECONDS=600`; *timing*: `WARMUP_DURATION=30s`, `HOLD_DURATION=2m`, `API_SERVER_CALLS_PER_SECOND=20`; *probe*: `PROBE_COUNT=20`, interval `30s`, `PROBE_WINDOW_DURATION=30m`. Smoke stages use the larger per-scenario defaults (`DEPLOYMENTS_PER_NAMESPACE=4`, `REPLICAS_PER_DEPLOYMENT=10`).
+
+Per-tier tfvars: `scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-{1-mock-5k,2-mock-2500,5-mock-1000,100-mock-shared}.tfvars`.
