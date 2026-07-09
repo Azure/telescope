@@ -1054,7 +1054,66 @@ class KubernetesClient:
             logger.warning("Failed to collect init container logs for pod '%s': %s",
                           pod_name, e)
 
+        # Post-process: for containers with no logs, infer duration from the gap
+        # between the previous container's last_log_ts and the next container's first_log_ts
+        self._infer_gap_durations(results)
+
         return results
+
+    def _infer_gap_durations(self, init_container_logs):
+        """
+        For init containers that produced no logs, infer their wall-clock duration
+        from the gap between adjacent containers' timestamps.
+
+        Adds 'inferred_duration_seconds' to each entry:
+        - For containers WITH logs: time from previous container's last_log_ts to
+          this container's last_log_ts (includes container start overhead + execution)
+        - For containers WITHOUT logs: time from previous container's last_log_ts to
+          next container's first_log_ts (the gap they occupy)
+        """
+        from datetime import datetime
+
+        def _parse_ts(ts_str):
+            if not ts_str:
+                return None
+            try:
+                parts = ts_str.rstrip("Z").split(".")
+                if len(parts) == 2:
+                    frac = parts[1][:6].ljust(6, "0")
+                    return datetime.fromisoformat(f"{parts[0]}.{frac}+00:00")
+                return datetime.fromisoformat(f"{parts[0]}+00:00")
+            except Exception:
+                return None
+
+        for i, entry in enumerate(init_container_logs):
+            # Find previous container's last timestamp
+            prev_end = None
+            for p in range(i - 1, -1, -1):
+                if init_container_logs[p].get("last_log_ts"):
+                    prev_end = _parse_ts(init_container_logs[p]["last_log_ts"])
+                    break
+
+            if entry.get("first_log_ts") is None and entry.get("last_log_ts") is None:
+                # No logs — infer from gap between prev end and next start
+                next_start = None
+                for n in range(i + 1, len(init_container_logs)):
+                    if init_container_logs[n].get("first_log_ts"):
+                        next_start = _parse_ts(init_container_logs[n]["first_log_ts"])
+                        break
+
+                if prev_end and next_start:
+                    entry["inferred_duration_seconds"] = round(
+                        (next_start - prev_end).total_seconds(), 6)
+                else:
+                    entry["inferred_duration_seconds"] = None
+            else:
+                # Has logs — infer wall-clock slot from prev end to this end
+                this_end = _parse_ts(entry.get("last_log_ts"))
+                if prev_end and this_end:
+                    entry["inferred_duration_seconds"] = round(
+                        (this_end - prev_end).total_seconds(), 6)
+                else:
+                    entry["inferred_duration_seconds"] = None
 
     def _collect_init_container_timestamps(self, pod):
         """
