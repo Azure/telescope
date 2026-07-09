@@ -21,7 +21,7 @@ stages:
             cilium_node_startup:
               pool_name: userpool
               vm_size: Standard_D8s_v3
-              step_time_out: 600
+              step_time_out: 900
               cni_daemonset_label: "k8s-app=cilium"
               cni_blocking_taint: "node.cilium.io/agent-not-ready"
           max_parallel: 1
@@ -72,7 +72,7 @@ stages:
             kubenet_node_startup:
               pool_name: userpool
               vm_size: Standard_D8s_v3
-              step_time_out: 600
+              step_time_out: 900
               cni_daemonset_label: ""
           max_parallel: 1
           timeout_in_minutes: 60
@@ -96,7 +96,7 @@ stages:
             azure_cni_node_startup:
               pool_name: userpool
               vm_size: Standard_D8s_v3
-              step_time_out: 600
+              step_time_out: 900
               cni_daemonset_label: ""
           max_parallel: 1
           timeout_in_minutes: 60
