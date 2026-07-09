@@ -10,6 +10,13 @@ schedules:
       include:
         - main
     always: true
+  # canadacentral - daily MachineAPI
+  - cron: "0 0 * * *"
+    displayName: "Every day at 12:00 AM MachineAPI"
+    branches:
+      include:
+        - main
+    always: true
 variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: nap-complex
@@ -17,6 +24,11 @@ variables:
 stages:
   - stage: azure_canadacentral_ondemand_complex_config
     dependsOn: []
+    condition: |
+      or(
+        eq(variables['Build.Reason'], 'Manual'),
+        eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 9:00 PM')
+      )
     variables:
       - group: NAP-MS-CanadaCentral
     jobs:
@@ -53,6 +65,11 @@ stages:
 
   - stage: azure_canadacentral_ondemand_complex_config_machineapi
     dependsOn: []
+    condition: |
+      or(
+        eq(variables['Build.Reason'], 'Manual'),
+        eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 12:00 AM MachineAPI')
+      )
     variables:
       - group: NAP-MS-CanadaCentral
       - template: /jobs/competitive-test.yml
