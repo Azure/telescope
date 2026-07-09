@@ -2,18 +2,17 @@ trigger: none
 
 pool:
   name: 'AKS-Telescope-Airlock'
-
 schedules:
-  # Azure Machine API scale schedule
-  - cron: "0 3 * * *"
-    displayName: "Machine API scale daily"
+  # AKS Automatic On-Demand Schedule
+  - cron: "0 15/6 * * *"
+    displayName: "Every day at 3:00 PM"
     branches:
       include:
         - main
     always: true
-  # Azure Machine API scale schedule with DisableSelfContainedVHD custom feature
-  - cron: "0 15 * * *"
-    displayName: "Machine API DisableSelfContainedVHD scale daily"
+  # AKS Automatic MachineAPI On-Demand Schedule
+  - cron: "0 3 * * *"
+    displayName: "3:00 AM Daily MachineAPI"
     branches:
       include:
         - main
@@ -21,14 +20,13 @@ schedules:
 
 variables:
   SCENARIO_TYPE: perf-eval
-  SCENARIO_NAME: k8s-cluster-crud-machine
-  AZURE_SERVICE_CONNECTION: Azure-for-Telescope-Large-Cluster-Sub
-  AZURE_SUBSCRIPTION_ID: 854c9ddb-fe9e-4aea-8d58-99ed88282881
+  SCENARIO_NAME: cluster-automatic
+
 stages:
-  - stage: azure_canadacentral_small_scale_10
+  - stage: azure_australiaeast_acn_off
     condition: |
         or(
-          eq(variables['Build.CronSchedule.DisplayName'], 'Machine API scale daily'),
+          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 3:00 PM'),
           eq(variables['Build.Reason'], 'Manual')
         )
     dependsOn: []
@@ -37,26 +35,100 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - canadacentral
-          topology: k8s-cluster-crud-machine
-          engine: machine
+            - australiaeast
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250912"
+          topology: cluster-automatic
           matrix:
-            canadacentral-small-scale-10:
-              vm_size: Standard_D2_v3
-              pool_name: smallpool1
-              scale_machine_count: 10
-              machine_workers: 5
-              use_batch_api: "false"
-              step_time_out: 900
+            automatic-acn-off-1-node:
+              cpu_per_node: 4
+              node_count: 1
+              pod_count: 1
+              scale_up_timeout: "30m"
+              scale_down_timeout: "30m"
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 1
+              warmup_deployment: true
+              vm_size: Standard_D4ds_v5
+              capacity_type: on-demand
+              warmup_deployment_template: automatic/warmup_deployment.yaml
+              deployment_template: automatic/deployment_template.yaml
+            automatic-acn-off-100-nodes:
+              cpu_per_node: 4
+              node_count: 100
+              pod_count: 100
+              scale_up_timeout: "30m"
+              scale_down_timeout: "30m"
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 1
+              warmup_deployment: true
+              vm_size: Standard_D4ds_v5
+              capacity_type: on-demand
+              warmup_deployment_template: automatic/warmup_deployment.yaml
+              deployment_template: automatic/deployment_template.yaml
           max_parallel: 1
-          timeout_in_minutes: 360
+          timeout_in_minutes: 90
           credential_type: service_connection
           ssh_key_enabled: false
-
-  - stage: azure_canadacentral_medium_scale_500
+  - stage: azure_australiaeast_acn_on
     condition: |
         or(
-          eq(variables['Build.CronSchedule.DisplayName'], 'Machine API scale daily'),
+          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 3:00 PM'),
+          eq(variables['Build.Reason'], 'Manual')
+        )
+    dependsOn: azure_australiaeast_acn_off
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - australiaeast
+          terraform_input_file_mapping:
+            - australiaeast: "scenarios/perf-eval/cluster-automatic/terraform-inputs/azure-automatic-benchmark-acn-on.tfvars"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250912"
+          topology: cluster-automatic
+          matrix:
+            automatic-acn-on-1-node:
+              cpu_per_node: 4
+              node_count: 1
+              pod_count: 1
+              scale_up_timeout: "30m"
+              scale_down_timeout: "30m"
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 1
+              warmup_deployment: true
+              vm_size: Standard_D4ds_v5
+              capacity_type: on-demand
+              warmup_deployment_template: automatic/warmup_deployment.yaml
+              deployment_template: automatic/deployment_template.yaml
+            automatic-acn-on-100-nodes:
+              cpu_per_node: 4
+              node_count: 100
+              pod_count: 100
+              scale_up_timeout: "30m"
+              scale_down_timeout: "30m"
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 1
+              warmup_deployment: true
+              vm_size: Standard_D4ds_v5
+              capacity_type: on-demand
+              warmup_deployment_template: automatic/warmup_deployment.yaml
+              deployment_template: automatic/deployment_template.yaml
+          max_parallel: 1
+          timeout_in_minutes: 90
+          credential_type: service_connection
+          ssh_key_enabled: false
+  - stage: azure_australiaeast_acn_off_machineapi
+    condition: |
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], '3:00 AM Daily MachineAPI'),
           eq(variables['Build.Reason'], 'Manual')
         )
     dependsOn: []
@@ -65,146 +137,95 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - canadacentral
-          topology: k8s-cluster-crud-machine
-          engine: machine
+            - australiaeast
+          terraform_input_file_mapping:
+            - australiaeast: "scenarios/perf-eval/cluster-automatic/terraform-inputs/azure-machineapi.tfvars"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250912"
+          topology: cluster-automatic
           matrix:
-            canadacentral-medium-scale-500:
-              vm_size: Standard_D2_v3
-              pool_name: mediumpool1
-              scale_machine_count: 500
-              machine_workers: 10
-              use_batch_api: "true"
-              step_time_out: 2400
+            automatic-acn-off-1-node:
+              cpu_per_node: 4
+              node_count: 1
+              pod_count: 1
+              scale_up_timeout: "30m"
+              scale_down_timeout: "30m"
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 1
+              warmup_deployment: true
+              vm_size: Standard_D4ds_v5
+              capacity_type: on-demand
+              warmup_deployment_template: automatic/warmup_deployment.yaml
+              deployment_template: automatic/deployment_template.yaml
+            automatic-acn-off-100-nodes:
+              cpu_per_node: 4
+              node_count: 100
+              pod_count: 100
+              scale_up_timeout: "30m"
+              scale_down_timeout: "30m"
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 1
+              warmup_deployment: true
+              vm_size: Standard_D4ds_v5
+              capacity_type: on-demand
+              warmup_deployment_template: automatic/warmup_deployment.yaml
+              deployment_template: automatic/deployment_template.yaml
           max_parallel: 1
-          timeout_in_minutes: 360
+          timeout_in_minutes: 90
           credential_type: service_connection
           ssh_key_enabled: false
-
-  - stage: azure_canadacentral_large_scale_1000
+  - stage: azure_australiaeast_acn_on_machineapi
     condition: |
-        and(
-          or(
-            eq(variables['Build.CronSchedule.DisplayName'], 'Machine API scale daily'),
-            eq(variables['Build.Reason'], 'Manual')
-          ),
-          in(dependencies.azure_canadacentral_small_scale_10.result, 'Succeeded', 'SucceededWithIssues', 'Skipped'),
-          in(dependencies.azure_canadacentral_medium_scale_500.result, 'Succeeded', 'SucceededWithIssues', 'Skipped')
+        or(
+          eq(variables['Build.CronSchedule.DisplayName'], '3:00 AM Daily MachineAPI'),
+          eq(variables['Build.Reason'], 'Manual')
         )
-    dependsOn:
-      - azure_canadacentral_small_scale_10
-      - azure_canadacentral_medium_scale_500
+    dependsOn: azure_australiaeast_acn_off_machineapi
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
           regions:
-            - canadacentral
-          topology: k8s-cluster-crud-machine
-          engine: machine
+            - australiaeast
+          terraform_input_file_mapping:
+            - australiaeast: "scenarios/perf-eval/cluster-automatic/terraform-inputs/azure-automatic-benchmark-acn-on-machineapi.tfvars"
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250912"
+          topology: cluster-automatic
           matrix:
-            canadacentral-large-scale-1000:
-              vm_size: Standard_D2_v3
-              pool_name: largepool1
-              scale_machine_count: 1000
-              machine_workers: 20
-              use_batch_api: "true"
-              step_time_out: 3600
+            automatic-acn-on-1-node:
+              cpu_per_node: 4
+              node_count: 1
+              pod_count: 1
+              scale_up_timeout: "30m"
+              scale_down_timeout: "30m"
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 1
+              warmup_deployment: true
+              vm_size: Standard_D4ds_v5
+              capacity_type: on-demand
+              warmup_deployment_template: automatic/warmup_deployment.yaml
+              deployment_template: automatic/deployment_template.yaml
+            automatic-acn-on-100-nodes:
+              cpu_per_node: 4
+              node_count: 100
+              pod_count: 100
+              scale_up_timeout: "30m"
+              scale_down_timeout: "30m"
+              node_label_selector: "karpenter.sh/nodepool = default"
+              node_selector: "{karpenter.sh/nodepool: default}"
+              loop_count: 1
+              warmup_deployment: true
+              vm_size: Standard_D4ds_v5
+              capacity_type: on-demand
+              warmup_deployment_template: automatic/warmup_deployment.yaml
+              deployment_template: automatic/deployment_template.yaml
           max_parallel: 1
-          timeout_in_minutes: 360
-          credential_type: service_connection
-          ssh_key_enabled: false
-
-  - stage: azure_canadacentral_small_scale_10_disable_self_contained_vhd
-    condition: |
-        eq(variables['Build.CronSchedule.DisplayName'], 'Machine API DisableSelfContainedVHD scale daily')
-    dependsOn: []
-    jobs:
-      - template: /jobs/competitive-test.yml
-        parameters:
-          cloud: azure
-          regions:
-            - canadacentral
-          topology: k8s-cluster-crud-machine
-          engine: machine
-          matrix:
-            canadacentral-small-scale-10-disable-self-contained-vhd:
-              vm_size: Standard_D2_v3
-              pool_name: smallpool1
-              scale_machine_count: 10
-              machine_workers: 5
-              use_batch_api: "false"
-              aks_cli_custom_headers: "AKSHTTPCustomFeatures=DisableSelfContainedVHD"
-              step_time_out: 900
-          max_parallel: 1
-          timeout_in_minutes: 360
-          credential_type: service_connection
-          ssh_key_enabled: false
-
-  - stage: azure_canadacentral_medium_scale_500_disable_self_contained_vhd
-    condition: |
-        eq(variables['Build.CronSchedule.DisplayName'], 'Machine API DisableSelfContainedVHD scale daily')
-    dependsOn: []
-    jobs:
-      - template: /jobs/competitive-test.yml
-        parameters:
-          cloud: azure
-          regions:
-            - canadacentral
-          topology: k8s-cluster-crud-machine
-          engine: machine
-          matrix:
-            canadacentral-medium-scale-500-disable-self-contained-vhd:
-              vm_size: Standard_D2_v3
-              pool_name: mediumpool1
-              scale_machine_count: 500
-              machine_workers: 10
-              use_batch_api: "true"
-              aks_cli_custom_headers: "AKSHTTPCustomFeatures=DisableSelfContainedVHD"
-              step_time_out: 2400
-          max_parallel: 1
-          timeout_in_minutes: 360
-          credential_type: service_connection
-          ssh_key_enabled: false
-
-  - stage: azure_canadacentral_large_scale_1000_disable_self_contained_vhd
-    condition: |
-        and(
-          eq(variables['Build.CronSchedule.DisplayName'], 'Machine API DisableSelfContainedVHD scale daily'),
-          in(
-            dependencies.azure_canadacentral_small_scale_10_disable_self_contained_vhd.result,
-            'Succeeded',
-            'SucceededWithIssues',
-            'Skipped'
-          ),
-          in(
-            dependencies.azure_canadacentral_medium_scale_500_disable_self_contained_vhd.result,
-            'Succeeded',
-            'SucceededWithIssues',
-            'Skipped'
-          )
-        )
-    dependsOn:
-      - azure_canadacentral_small_scale_10_disable_self_contained_vhd
-      - azure_canadacentral_medium_scale_500_disable_self_contained_vhd
-    jobs:
-      - template: /jobs/competitive-test.yml
-        parameters:
-          cloud: azure
-          regions:
-            - canadacentral
-          topology: k8s-cluster-crud-machine
-          engine: machine
-          matrix:
-            canadacentral-large-scale-1000-disable-self-contained-vhd:
-              vm_size: Standard_D2_v3
-              pool_name: largepool1
-              scale_machine_count: 1000
-              machine_workers: 20
-              use_batch_api: "true"
-              aks_cli_custom_headers: "AKSHTTPCustomFeatures=DisableSelfContainedVHD"
-              step_time_out: 3600
-          max_parallel: 1
-          timeout_in_minutes: 360
+          timeout_in_minutes: 90
           credential_type: service_connection
           ssh_key_enabled: false
