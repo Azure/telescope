@@ -1,7 +1,7 @@
 # ClusterMesh Scale Testing — Report
 
 **Status:** draft · **Scope:** real-cluster scenario testing + the mock (KWOK) scale framework + the consolidated-vs-sharded experiment
-**Data:** Prometheus snapshots under `~/prom-snapshots/` (see [Data & reproduction](#12-data--reproduction))
+**Data:** Prometheus snapshots in Azure Storage (`cmshscaleprom`) — see [Data & reproduction](#14-data--reproduction)
 
 ---
 
@@ -252,10 +252,29 @@ See **[`clustermesh-scale-failure-modes.md`](./clustermesh-scale-failure-modes.m
 
 ## 14. Data & reproduction
 
-- **Snapshots:** `~/prom-snapshots/cmp-5k/` — `n1-1x5000-72937`, `n5-5x1000-73002/` (+ `-probe/`), `n2-…-NOISY/` (do-not-use); plus `pod-churn-100x100-72210/`, `propagation-probe-70850/`. See `cmp-5k/README.md`.
-- **Load a tier:** `~/prom-snapshots/run-local-prom-native.sh <tarball> <port>` (single) or `prom-server.sh import <tarballs…>` (consolidated). Cluster label = `source_cluster`. Data is historical — query with explicit `time=`/windows.
-- **Dashboards:** `~/prom-snapshots/grafana.sh start` → http://localhost:3000.
-- **Run a tier:** trigger the `New Pipeline Test` stage for the tier (from the UI, subscription `37deca37…`, region eastus2euap); results + Prometheus snapshots upload as pipeline artifacts.
+**Prometheus snapshots — Azure Storage.** All tier snapshots live in storage account **`cmshscaleprom`**, container **`snapshots`** (RG `clustermesh-scale-prom-snapshots`, sub `37deca37…`, region eastus). Access is **Entra-ID only** — shared-key and public access are disabled, so you need the **`Storage Blob Data Reader`** role on the account (ask the owner). Layout: `clustermesh-scale-2/<scenario>/<buildId>-<rg>/prom-snapshot-<cluster>-<ts>.tar.gz` — one blob per cluster, so **blob-count = cluster-count = tier**.
+
+| Tier | Blobs | Container folder |
+|---|--:|---|
+| **n1** 1×5000 (baseline, clean) | 1 | `pod-churn-combined/72937-6d786c8e/` |
+| **n5** 5×1000 (sharded, clean) | 5 | `pod-churn-combined/73002-a692b14e/` (+ `propagation-probe/73002-a692b14e/`) |
+| **n2** 2×2500 (sharded, **NOISY — do-not-use**) | 2 | `pod-churn-combined/72973-ba735658/` |
+| **n100** 100×100 (10k, 20 % density) | 97 | `pod-churn-combined/72210-72713705/` |
+
+**Download a tier** (Entra-ID auth; grabs all clusters of the tier at once):
+```bash
+az login
+az storage blob download-batch --account-name cmshscaleprom --auth-mode login \
+  --source snapshots --destination ./n5 \
+  --pattern "clustermesh-scale-2/pod-churn-combined/73002-a692b14e/*"
+```
+List everything: `az storage blob list --account-name cmshscaleprom --container-name snapshots --auth-mode login -o table`.
+
+**Load a downloaded tier:** `run-local-prom-native.sh <tarball> <port>` (single cluster) or `prom-server.sh import <tarballs…>` (consolidated — query all clusters together). Cluster label = `source_cluster`; data is historical, so query with explicit `time=`/windows. (A local convenience copy also lives under `~/prom-snapshots/cmp-5k/`.)
+
+**Dashboards:** `grafana.sh start` → http://localhost:3000.
+
+**Run a tier:** trigger the `New Pipeline Test` stage for the tier (UI, subscription `37deca37…`, region eastus2euap); results + Prometheus snapshots auto-upload to the `cmshscaleprom` container above (and as pipeline artifacts).
 
 ---
 
