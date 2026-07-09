@@ -15,24 +15,28 @@ owner          = "aks"
 # the stage) so Pod/node IPs stay unique ACROSS the mesh.
 #
 # Per cluster: 7 x Standard_D32_v3 default pool (hosts 1000 mock-agent Pods) +
-# 1 x Standard_D16_v3 prompool (per-cluster Prometheus). Separate VNets (10.<id>.0.0/16)
-# + pairwise peering + Fleet ClusterMesh (mesh-1..mesh-5).
+# 1 x Standard_D16_v3 prompool (per-cluster Prometheus). 1 SHARED VNet 10.0.0.0/8, NO peering (pod-to-pod native L3)
+# + Fleet ClusterMesh (mesh-1..mesh-5).
 # =============================================================================
 
 network_config_list = [
   {
-    role               = "mesh-1"
-    vnet_name          = "clustermesh-1-vnet"
-    vnet_address_space = "10.1.0.0/16"
+    # SHARED VNet: all 5 clusters live in one 10.0.0.0/8 VNet (per-cluster
+    # node 10.<id>.0.0/24 + pod 10.<id>.32.0/19). Pod-to-pod is native L3 with
+    # ZERO peerings (vnet_peering_config.enabled=false) — same topology as
+    # azure-100-mock-shared.tfvars, which shared-VNet is mandatory for at n=100.
+    role               = "shared"
+    vnet_name          = "clustermesh-shared-vnet"
+    vnet_address_space = "10.0.0.0/8"
     subnet = [
       {
         name           = "clustermesh-1-node"
         address_prefix = "10.1.0.0/24"
       },
       {
-        # /19 (8190 IPs) — Azure CNI (pod subnet) gives every one of the ~1000
-        # mock-agent Pods a real IP; the churn workload runs on KWOK virtual
-        # nodes (synthetic 100.0.0.0/8 CIDRs), NOT this subnet.
+        # /19 (8190 IPs) — Azure CNI pod subnet gives every mock-agent Pod a real
+        # IP; the churn workload runs on KWOK virtual nodes (synthetic 100.0.0.0/8
+        # CIDRs), NOT this subnet.
         name           = "clustermesh-1-pod"
         address_prefix = "10.1.32.0/19"
         delegations = [
@@ -42,25 +46,15 @@ network_config_list = [
             service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
           }
         ]
-      }
-    ]
-    network_security_group_name = ""
-    nic_public_ip_associations  = []
-    nsr_rules                   = []
-  },
-  {
-    role               = "mesh-2"
-    vnet_name          = "clustermesh-2-vnet"
-    vnet_address_space = "10.2.0.0/16"
-    subnet = [
+      },
       {
         name           = "clustermesh-2-node"
         address_prefix = "10.2.0.0/24"
       },
       {
-        # /19 (8190 IPs) — Azure CNI (pod subnet) gives every one of the ~1000
-        # mock-agent Pods a real IP; the churn workload runs on KWOK virtual
-        # nodes (synthetic 100.0.0.0/8 CIDRs), NOT this subnet.
+        # /19 (8190 IPs) — Azure CNI pod subnet gives every mock-agent Pod a real
+        # IP; the churn workload runs on KWOK virtual nodes (synthetic 100.0.0.0/8
+        # CIDRs), NOT this subnet.
         name           = "clustermesh-2-pod"
         address_prefix = "10.2.32.0/19"
         delegations = [
@@ -70,25 +64,15 @@ network_config_list = [
             service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
           }
         ]
-      }
-    ]
-    network_security_group_name = ""
-    nic_public_ip_associations  = []
-    nsr_rules                   = []
-  },
-  {
-    role               = "mesh-3"
-    vnet_name          = "clustermesh-3-vnet"
-    vnet_address_space = "10.3.0.0/16"
-    subnet = [
+      },
       {
         name           = "clustermesh-3-node"
         address_prefix = "10.3.0.0/24"
       },
       {
-        # /19 (8190 IPs) — Azure CNI (pod subnet) gives every one of the ~1000
-        # mock-agent Pods a real IP; the churn workload runs on KWOK virtual
-        # nodes (synthetic 100.0.0.0/8 CIDRs), NOT this subnet.
+        # /19 (8190 IPs) — Azure CNI pod subnet gives every mock-agent Pod a real
+        # IP; the churn workload runs on KWOK virtual nodes (synthetic 100.0.0.0/8
+        # CIDRs), NOT this subnet.
         name           = "clustermesh-3-pod"
         address_prefix = "10.3.32.0/19"
         delegations = [
@@ -98,25 +82,15 @@ network_config_list = [
             service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
           }
         ]
-      }
-    ]
-    network_security_group_name = ""
-    nic_public_ip_associations  = []
-    nsr_rules                   = []
-  },
-  {
-    role               = "mesh-4"
-    vnet_name          = "clustermesh-4-vnet"
-    vnet_address_space = "10.4.0.0/16"
-    subnet = [
+      },
       {
         name           = "clustermesh-4-node"
         address_prefix = "10.4.0.0/24"
       },
       {
-        # /19 (8190 IPs) — Azure CNI (pod subnet) gives every one of the ~1000
-        # mock-agent Pods a real IP; the churn workload runs on KWOK virtual
-        # nodes (synthetic 100.0.0.0/8 CIDRs), NOT this subnet.
+        # /19 (8190 IPs) — Azure CNI pod subnet gives every mock-agent Pod a real
+        # IP; the churn workload runs on KWOK virtual nodes (synthetic 100.0.0.0/8
+        # CIDRs), NOT this subnet.
         name           = "clustermesh-4-pod"
         address_prefix = "10.4.32.0/19"
         delegations = [
@@ -126,25 +100,15 @@ network_config_list = [
             service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
           }
         ]
-      }
-    ]
-    network_security_group_name = ""
-    nic_public_ip_associations  = []
-    nsr_rules                   = []
-  },
-  {
-    role               = "mesh-5"
-    vnet_name          = "clustermesh-5-vnet"
-    vnet_address_space = "10.5.0.0/16"
-    subnet = [
+      },
       {
         name           = "clustermesh-5-node"
         address_prefix = "10.5.0.0/24"
       },
       {
-        # /19 (8190 IPs) — Azure CNI (pod subnet) gives every one of the ~1000
-        # mock-agent Pods a real IP; the churn workload runs on KWOK virtual
-        # nodes (synthetic 100.0.0.0/8 CIDRs), NOT this subnet.
+        # /19 (8190 IPs) — Azure CNI pod subnet gives every mock-agent Pod a real
+        # IP; the churn workload runs on KWOK virtual nodes (synthetic 100.0.0.0/8
+        # CIDRs), NOT this subnet.
         name           = "clustermesh-5-pod"
         address_prefix = "10.5.32.0/19"
         delegations = [
@@ -154,7 +118,7 @@ network_config_list = [
             service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
           }
         ]
-      }
+      },
     ]
     network_security_group_name = ""
     nic_public_ip_associations  = []
@@ -179,6 +143,10 @@ aks_cli_config_list = [
       # Azure CNI w/ pod subnet supports up to 250. 1000 agents / 250 = 4 nodes floor;
       # the 7-node pool below leaves headroom for system daemonsets.
       { name = "max-pods", value = "250" },
+      # Shared VNet is 10.0.0.0/8 -> AKS default service-cidr 10.0.0.0/16 overlaps;
+      # override to a non-overlapping range (matches azure-100-mock-shared).
+      { name = "service-cidr", value = "192.168.0.0/24" },
+      { name = "dns-service-ip", value = "192.168.0.10" },
     ]
 
     # Default pool hosts the 1000 mock-cilium-agent Pods (real pods, ~9m CPU/56Mi
@@ -221,6 +189,10 @@ aks_cli_config_list = [
       # Azure CNI w/ pod subnet supports up to 250. 1000 agents / 250 = 4 nodes floor;
       # the 7-node pool below leaves headroom for system daemonsets.
       { name = "max-pods", value = "250" },
+      # Shared VNet is 10.0.0.0/8 -> AKS default service-cidr 10.0.0.0/16 overlaps;
+      # override to a non-overlapping range (matches azure-100-mock-shared).
+      { name = "service-cidr", value = "192.168.0.0/24" },
+      { name = "dns-service-ip", value = "192.168.0.10" },
     ]
 
     # Default pool hosts the 1000 mock-cilium-agent Pods (real pods, ~9m CPU/56Mi
@@ -263,6 +235,10 @@ aks_cli_config_list = [
       # Azure CNI w/ pod subnet supports up to 250. 1000 agents / 250 = 4 nodes floor;
       # the 7-node pool below leaves headroom for system daemonsets.
       { name = "max-pods", value = "250" },
+      # Shared VNet is 10.0.0.0/8 -> AKS default service-cidr 10.0.0.0/16 overlaps;
+      # override to a non-overlapping range (matches azure-100-mock-shared).
+      { name = "service-cidr", value = "192.168.0.0/24" },
+      { name = "dns-service-ip", value = "192.168.0.10" },
     ]
 
     # Default pool hosts the 1000 mock-cilium-agent Pods (real pods, ~9m CPU/56Mi
@@ -305,6 +281,10 @@ aks_cli_config_list = [
       # Azure CNI w/ pod subnet supports up to 250. 1000 agents / 250 = 4 nodes floor;
       # the 7-node pool below leaves headroom for system daemonsets.
       { name = "max-pods", value = "250" },
+      # Shared VNet is 10.0.0.0/8 -> AKS default service-cidr 10.0.0.0/16 overlaps;
+      # override to a non-overlapping range (matches azure-100-mock-shared).
+      { name = "service-cidr", value = "192.168.0.0/24" },
+      { name = "dns-service-ip", value = "192.168.0.10" },
     ]
 
     # Default pool hosts the 1000 mock-cilium-agent Pods (real pods, ~9m CPU/56Mi
@@ -347,6 +327,10 @@ aks_cli_config_list = [
       # Azure CNI w/ pod subnet supports up to 250. 1000 agents / 250 = 4 nodes floor;
       # the 7-node pool below leaves headroom for system daemonsets.
       { name = "max-pods", value = "250" },
+      # Shared VNet is 10.0.0.0/8 -> AKS default service-cidr 10.0.0.0/16 overlaps;
+      # override to a non-overlapping range (matches azure-100-mock-shared).
+      { name = "service-cidr", value = "192.168.0.0/24" },
+      { name = "dns-service-ip", value = "192.168.0.10" },
     ]
 
     # Default pool hosts the 1000 mock-cilium-agent Pods (real pods, ~9m CPU/56Mi
@@ -376,7 +360,8 @@ aks_cli_config_list = [
 ]
 
 vnet_peering_config = {
-  enabled = true
+  # Shared VNet: pods route natively (L3); no peering needed or created.
+  enabled = false
 }
 
 fleet_config = {
