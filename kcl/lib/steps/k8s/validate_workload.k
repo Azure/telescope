@@ -3,9 +3,10 @@ import lib.steps.azure
 
 # ValidateWorkloadHealth validates that a Kubernetes controller workload
 # (Deployment, StatefulSet, or DaemonSet) is healthy. It first checks the
-# resource status, then scans the full container logs of its pods for error
-# patterns. Requires kubectl on the agent and a kubeconfig already in place
-# (e.g. via GetCredentials).
+# resource status, then inspects each pod's live status for OOMKilled
+# containers and excessive restarts, and finally scans the full container
+# logs of its pods for error patterns. Requires kubectl on the agent and a
+# kubeconfig already in place (e.g. via GetCredentials).
 #
 # Job is intentionally not handled here -- use ValidateJobRunning /
 # ValidateJobCompleted in validate_job.k instead.
@@ -13,12 +14,17 @@ import lib.steps.azure
 # kind="*" is a wildcard: enumerate every Deployment/StatefulSet/DaemonSet in
 # `namespace` and check each, then check every pod. Use it for namespaces you
 # own; avoid for system namespaces.
+#
+# restartThreshold: per-pod cumulative container restart count. Restarts
+# at or below the threshold are logged only; above the threshold fails. Any
+# OOMKilled reason always fails regardless of restart count.
 ValidateWorkloadHealth = lambda \
     serviceConnection: str, \
     kind: "deployment" | "statefulset" | "daemonset" | "*", \
     name: str = "", \
     namespace: str = "default", \
     errorPatterns: str = "panic|fatal", \
+    restartThreshold: int = 3, \
     displayName: str = "", \
     continueOnError: bool = Undefined \
     -> steps.Step {
@@ -26,6 +32,8 @@ ValidateWorkloadHealth = lambda \
         "name must be empty when kind=='*' and non-empty otherwise (got kind='${kind}', name='${name}')"
     assert "'" not in errorPatterns, \
         "errorPatterns must not contain single quotes (got ${errorPatterns})"
+    assert restartThreshold >= 0, \
+        "restartThreshold must be >= 0 (got ${restartThreshold})"
 
     defaultTitle = "Validate all workloads in ${namespace}" if kind == "*" else "Validate ${kind}/${name}"
     title = displayName if displayName else defaultTitle
@@ -83,6 +91,32 @@ check_pods() {
   for pod in $pods; do
     echo "::: checking pod ${namespace}/$pod"
     local phase=$(kubectl -n "${namespace}" get pod "$pod" -o jsonpath='{.status.phase}' 2>/dev/null)
+
+    # Restart + OOM check first, before phase/Ready gating, so an OOMing pod
+    # in CrashLoopBackOff still gets the OOMKilled signal reported (instead
+    # of being masked by the Ready-condition failure). Consult live pod
+    # status only; Kubernetes does not retain termination history beyond
+    # .state and .lastState. Covers regular and init containers.
+    local status_lines=$(kubectl -n "${namespace}" get pod "$pod" \\
+      -o jsonpath='{range .status.containerStatuses[*]}{.name}|{.restartCount}|{.lastState.terminated.reason}|{.state.terminated.reason}{"\\n"}{end}{range .status.initContainerStatuses[*]}{.name}|{.restartCount}|{.lastState.terminated.reason}|{.state.terminated.reason}{"\\n"}{end}')
+
+    # Iterate over each container status line: accumulate restarts and flag any OOMKilled.
+    local total_restarts=0
+    while IFS='|' read -r cname rcount last_reason cur_reason; do
+      [ -z "$cname" ] && continue
+      [ -z "$rcount" ] && rcount=0
+      total_restarts=$((total_restarts + rcount))
+      if [ "$last_reason" = "OOMKilled" ] || [ "$cur_reason" = "OOMKilled" ]; then
+        fail "pod ${namespace}/$pod container $cname OOMKilled (restartCount=$rcount)"
+      fi
+    done < <(printf '%s\\n' "$status_lines")
+
+    if [ "$total_restarts" -gt ${restartThreshold} ]; then
+      fail "pod ${namespace}/$pod has $total_restarts container restart(s), exceeds threshold ${restartThreshold}"
+    elif [ "$total_restarts" -gt 0 ]; then
+      echo "pod ${namespace}/$pod has $total_restarts container restart(s) (within threshold ${restartThreshold})"
+    fi
+
     case "$phase" in
       Succeeded)
         # Finished cleanly; skip readiness checks, still scan logs below.
@@ -106,6 +140,7 @@ check_pods() {
         continue
         ;;
     esac
+
     local log_output=$(kubectl -n "${namespace}" logs "$pod" --all-containers=true --prefix=true 2>&1)
     local matches=$(printf '%s\\n' "$log_output" | grep -wEi '${errorPatterns}')
     if [ -n "$matches" ]; then
