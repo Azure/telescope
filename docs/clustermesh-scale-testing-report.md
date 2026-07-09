@@ -1,0 +1,246 @@
+# ClusterMesh Scale Testing — Report
+
+**Status:** draft · **Scope:** real-cluster scenario testing + the mock (KWOK) scale framework + the consolidated-vs-sharded experiment
+**Data:** Prometheus snapshots under `~/prom-snapshots/` (see [Data & reproduction](#12-data--reproduction))
+
+---
+
+## 1. TL;DR
+
+We built and validated a way to **scale-test AKS + ACNS ClusterMesh at 5k–10k nodes without paying for 5k–10k worker VMs**. Real workload nodes are replaced by **KWOK virtual nodes** and each node's Cilium agent by a **forked "mock" cilium agent** (real control plane, fake datapath). This runs the *real* Cilium/Fleet/ClusterMesh control plane at a fraction of the vCPU (~10×+ reduction).
+
+On top of it we ran a **consolidated-vs-sharded experiment** (the same 5 000-pod workload spread across 1 / 2 / 5 / 100 clusters) and **proved the core ClusterMesh sharding tradeoff**:
+
+> Sharding a fixed workload across meshed clusters **distributes the Kubernetes control-plane load** (each apiserver goes from *saturated* to *relaxed*) but **does not reduce the Cilium datapath load** — the mesh re-imports every remote cluster's state into every cluster — and it **adds a mesh-sync layer** (clustermesh-apiserver + kvstoremesh). **Sharding buys scalability, not efficiency.**
+
+---
+
+## 2. Motivation
+
+A faithful ClusterMesh scale test at, say, 100 clusters × 100 nodes (10 000 nodes) would need **10 000 real worker VMs** — tens of thousands of vCPU, huge cost, and long provisioning. Most of what we want to measure, though, is **control-plane and mesh behavior** (identity/endpoint propagation, kvstoremesh throughput, apiserver load, convergence) — none of which needs a real datapath on the workload nodes.
+
+**Idea:** mock out the two expensive things:
+- **The nodes** → KWOK virtual nodes (free API objects, no VM).
+- **The per-node Cilium agent** → a forked cilium binary in **DryMode** (real control-plane logic, no BPF/datapath), one lightweight Pod per virtual node.
+
+The real AKS control plane, the real ACNS Cilium agents on the (few) real nodes, real Azure Fleet, and real ClusterMesh all stay in place.
+
+---
+
+## 3. Framework architecture
+
+```
+Real AKS cluster (managed control plane: apiserver, etcd)
+ ├─ ACNS: real Cilium agents (k8s-app=cilium) on the few REAL nodes
+ ├─ Fleet ClusterMesh: real clustermesh-apiserver + kvstoremesh (per cluster)
+ └─ MOCK layer (provision-kwok-layer.sh):
+      ├─ KWOK controller  → materializes N virtual Nodes (label type=kwok, taint kwok.x-k8s.io/node=fake)
+      ├─ N × mock-cilium-agent Pods (app=mock-cilium-agent, --identity-allocation-mode=crd, DryMode)
+      └─ workload Pods scheduled onto the KWOK nodes (fake datapath)
+```
+
+- **mock-cilium-agent**: forked cilium, real control-plane state (CiliumNode, CiliumEndpoint, identities, ClusterMesh consume), **no datapath**. Footprint **~9 m CPU / 56 Mi mem** each (measured via `kubectl top`).
+- **Deploy layer** (`scenarios/perf-eval/clustermesh-scale/mock/provision-kwok-layer.sh`) is AKS-specific (reads cilium-config, node affinity); the agent fork is platform-agnostic.
+
+### vCPU cost — real vs mock (same unit)
+
+A *real* scale test needs **one VM per node**; the mock replaces each node's VM with a lightweight agent **Pod** (~9 m CPU) packed onto a thin real pool. Comparing like-for-like in **vCPU** (real = 1× Standard_D4_v3 = 4 vCPU/node, a modest AKS node):
+
+| Tier | Nodes | Real (1 VM/node) | Mock (agent pool) | Reduction |
+|------|-------|------------------|-------------------|-----------|
+| n1 (1×5000) | 5 000 | 20 000 vCPU | **832 vCPU** | **24×** |
+| n2 (2×2500) | 5 000 | 20 000 vCPU | **864 vCPU** | **23×** |
+| n5 (5×1000) | 5 000 | 20 000 vCPU | **1 200 vCPU** | **17×** |
+| n100 (100×100) | 10 000 | 40 000 vCPU | **2 400 vCPU** | **17×** |
+
+Mock pools: n1 = 25×D32_v3; n2/n5 = 7–13×D32_v3 + 1×D16 (prom) per cluster; n100 = 2×D8_v3 + 1×D8 per cluster. The vCPU we spend is for the **agent Pods**, not the nodes — and the saving grows with real-node size.
+
+![vCPU: real vs mock](img/vcpu-savings.png)
+
+---
+
+## 4. Backend setup
+
+- **Clusters:** AKS, **Azure CNI Powered by Cilium** (`network-plugin=azure`, `network-dataplane=cilium`), **pod subnet** (dynamic IP allocation, *not* overlay), **ACNS** enabled, `max-pods` 110–250, `service-cidr 192.168.0.0/24` (overridden on shared VNet to avoid overlapping `10.0.0.0/8`).
+- **Mesh:** **Azure Fleet ClusterMesh** — one `ClusterMeshProfile` (`mesh=true` selector), members = clusters. Fleet deploys `clustermesh-apiserver` (+ its own etcd + kvstoremesh) to each member.
+- **VNet topology:** **shared VNet** (`10.0.0.0/8`, per-cluster subnets, **zero peerings**) for all tiers — uniform, and mandatory at n=100 (peering = N·(N−1) is infeasible). Pod-to-pod is native L3.
+- **Node pools:** a thin default pool hosts the mock-agent Pods; a dedicated `prometheus=true` pool hosts CL2's per-cluster Prometheus.
+- **Pipeline:** the Azure/telescope `New Pipeline Test` (per-tier stages), region **eastus2euap** (EUAP, where ACNS/Fleet preview lives), subscription `37deca37…` (~5 000 Dv3 quota).
+
+---
+
+## 5. Scenarios (the workloads)
+
+CL2 (ClusterLoader2) scenarios under `modules/python/clusterloader2/clustermesh-scale/config/`. Workload shape is *namespaces × deployments × replicas* Pods; the first `GLOBAL_NAMESPACE_COUNT` namespaces get the `clustermesh.cilium.io/global` annotation so their Services/identities/endpoints sync cross-cluster (we run **100 % global density**). Each Pod create/delete produces a CiliumEndpoint + identity that must **propagate across the mesh** — that propagation is what most scenarios stress.
+
+- **event-throughput** — *How fast can the mesh propagate object changes?* Deploys the workload (5 ns × 4 dep × 10 rep = 200 Pods/cluster, all global), warms up, then fires a **rolling-restart burst** that churns endpoints/identities as fast as the apiserver allows (`API_SERVER_CALLS_PER_SECOND=20`), measuring cross-cluster **event/operation throughput + latency** (kvstoremesh) as the burst propagates. Answers: sustainable and peak cross-cluster event rate.
+
+- **pod-churn-combined** — The main churn workload. Deploys the workload, then runs two patterns back-to-back on it: **Phase A** deterministic scale cycles (scale every deployment 0↔N, ×5, 60 s each way) and **Phase B** a random **kill loop** (delete 5 random Pods every 10 s for 600 s while ReplicaSets recreate them). Measures convergence + mesh-sync cost under sustained churn. `pod-churn-kill` / `pod-churn-scale` are the two halves in isolation.
+
+- **node-churn-combined / replace / scale** — Node-lifecycle churn driven by a host-side `node-churner.sh`: **scale** adds/removes nodes, **replace** drains+deletes VMSS instances (new IPs), **combined** does both. CL2 holds a steady workload and gathers the mesh's reaction to node membership/IP changes. *(In mock this must churn KWOK `Node` objects, not VMSS.)*
+
+- **isolation** — Blast-radius test. Runs a heavy kill loop in **one** target cluster while peers sit idle for the same window, then compares resource/latency metrics **target vs peers** to confirm a churning cluster doesn't destabilize its mesh peers.
+
+- **apiserver-failure** — Mesh control-plane resilience. With a steady workload + global Services, kills the `clustermesh-apiserver` Pod on a target cluster and measures **recovery time / event-backlog drain** — does cross-cluster state survive and recover a mesh-apiserver restart?
+
+- **policy-scale** — NetworkPolicy scale. Deploys a small backend, creates **50 CiliumNetworkPolicies/namespace (250/cluster)**, holds, deletes. Measures **policy implementation/regeneration latency** and endpoint/BPF pressure as CNP count grows. The CNP is permissive L4 — it exercises policy *compilation/distribution*, not allow/deny.
+
+- **upper-bound** — Ceiling finder. Runs increasingly aggressive **rungs** (event QPS `100→10 000`, restart bursts `1→15`), each for a fixed duration with per-rung measurements, to locate where the mesh/control-plane saturates.
+
+Measurement modules gathered: `control-plane`, `cilium`, `clustermesh-metrics`, `clustermesh-throughput`, `etcd-metrics`, `pod-churn-stress`, `node-churn`, `apiserver-failure`.
+
+---
+
+## 6. Probe suite (mesh-behavior probes)
+
+Host-side orchestrators (bash, not CL2 `Exec`) that hold **all** clusters' kubeconfigs and time cross-cluster **propagation / recovery** behavior directly against the real Cilium agents.
+
+- **propagation-probe** — *The headline latency probe.* Creates a source Pod in one cluster, waits for its IP, then polls **every peer cluster's real Cilium agent** (`cilium-dbg bpf ipcache list`, `identity list -o json`, CiliumEndpoint CRDs) and times how long the new Pod's **IP / identity / CEP** takes to appear in each peer = end-to-end mesh propagation latency. Optional variants add a peer-side `curl` to the global Service (connectivity), removal timing, and first-packet.
+
+- **mesh-detach-rejoin** — Membership-change latency. Uses `az fleet member update` to relabel a victim cluster **out** of the mesh, re-applies the ClusterMeshProfile, and polls the remaining clusters' `cilium-dbg status` (`ClusterMesh: X/Y remote clusters ready`) to time how long peers take to notice the **detach** and then the **rejoin**.
+
+- **mesh-failover** — Datapath reroute latency. Snapshots a victim's backend Pod IPs, confirms peers hold them in their **BPF LB maps**, scales the victim's backends to 0, then polls peers' LB maps until those IPs disappear = how fast the mesh reroutes away from dead backends. *(Real datapath.)*
+
+- **mesh-policy-propagation** — Fleet-wide policy latency. Creates a unique CNP, applies it to all clusters **in parallel**, and polls each cluster's `cilium-dbg policy get` to time per-cluster apply + policy-loaded latency across the fleet.
+
+- **mesh-recovery** — Agent-recovery latency. Snapshots peer ipcache, **kills a target cluster's cilium-agent Pod**, then polls for peer ipcache to diverge (stale entries) and re-converge once the new agent is up = how fast the mesh heals after an agent loss.
+
+- **mesh-restart-survival** — Connection survival. Launches peer `curl`-loops hitting a global Service every second, **restarts the victim's clustermesh-apiserver**, and computes the fraction of requests that kept succeeding through the restart = do established cross-cluster connections survive a mesh control-plane restart? *(Real datapath.)*
+
+---
+
+## 7. Mock-compatibility matrix ⭐
+
+The mock framework has a **real control plane but no datapath** on workload nodes (KWOK + DryMode agents). The rule: **control-plane / mesh-state behavior is faithful; anything that needs real packet forwarding, service load-balancing, or policy *enforcement* is not.**
+
+| Scenario / Probe | Mock-compatible | Why |
+|---|:--:|---|
+| event-throughput | ✅ | pure control-plane / mesh-state event churn |
+| pod-churn (combined/kill/scale) | ✅ | control-plane pod-lifecycle & identity/endpoint churn |
+| isolation | ✅ | resource-isolation across control planes (no traffic) |
+| apiserver-failure | ✅ | clustermesh-apiserver recovery (control-plane) |
+| upper-bound | ✅ | control-plane saturation sweep |
+| node-churn (combined/replace/scale) | ⚠️ **adapt** | churns **real VMSS** instances; mock uses KWOK nodes → must churn KWOK `Node` objects instead |
+| policy-scale | ⚠️ **partial** | CNP *propagation/compile* metrics ok-ish; DryMode agent does **no BPF enforcement**, so implementation/enforcement latency isn't real |
+| **propagation-probe** | ⚠️ **partial** | IP/identity/CEP **state propagation** ✅ (reads real ACNS agents); **connectivity curl** ❌ (KWOK pods have no datapath) |
+| mesh-detach-rejoin | ✅ | Fleet membership / remote-cluster readiness (mesh-state) |
+| mesh-recovery | ✅ | ipcache/identity re-sync + agent readiness (mesh-state) |
+| mesh-policy-propagation | ⚠️ **partial** | policy presence/propagation ✅; enforcement/impl-delay ❌ (no BPF) |
+| **mesh-failover** | ❌ **no** | reads peer **BPF LB maps** / real service load-balancing |
+| **mesh-restart-survival** | ❌ **no** | measures real cross-cluster **curl connections** surviving |
+
+**So:** the state/propagation and control-plane-load scenarios port cleanly; the two datapath probes (`mesh-failover`, `mesh-restart-survival`) and the enforcement/connectivity portions of others must stay on **real clusters**.
+
+---
+
+## 8. Metrics reference
+
+The full propagation/throughput signal reference is **[`MESH-METRICS.md`](./MESH-METRICS.md)** (co-located in this folder): the agent's view of remote clusters (`job=cilium`, `:9962`); **kvstoremesh** — the propagation engine (`:9964`) — its event/operation throughput & latency, API rate limiter → etcd, and StateDB; the labels you'll see everywhere; a per-metric sample query; and the snapshot query windows. Read it as the "how to read the data" companion to this report.
+
+Key mesh-cost signals used in §10: `cilium_clustermesh_remote_cluster_nodes` (fan-out), `cilium_clustermesh_remote_clusters`, `cilium_clustermesh_global_services`, `cilium_nodes_all_num` (per-agent node awareness), `cilium_kvstoremesh_kvstore_events_*` (propagation throughput/latency), and `apiserver_flowcontrol_*` (control-plane saturation).
+
+---
+
+## 9. Experiments — consolidated vs sharded
+
+The **same total workload (5 000 pods)** spread across a varying number of meshed clusters, at constant totals (500 namespaces, 100 % global density):
+
+| Tier | Topology | Per-cluster | Mesh |
+|---|---|---|---|
+| **n1** | 1 × 5000 | 5 000 nodes/pods | **none** (baseline) |
+| **n2** | 2 × 2500 | 2 500 | 2-cluster |
+| **n5** | 5 × 1000 | 1 000 | 5-cluster |
+| **n100** | 100 × 100 | 100 nodes / 50 pods | 100-cluster (10 000 nodes) |
+
+n1 (no mesh) is the consolidated baseline; n5 is the sharded end; n100 inverts the load entirely onto the mesh fabric.
+
+---
+
+## 10. Results — the load tradeoff (n1 vs n5)
+
+Measured at peak churn from the pod-churn snapshots (n5 shown per-cluster). Both tiers verified clean (n1 converged 99.6 %, n5 100 % across all 5 clusters).
+
+**Structural (obvious):** nodes/cluster 5 026 → 1 008; apiserver req/s **174 875 → 16 524**.
+
+**① Control-plane stress (the ceiling-setter):**
+
+| | n1 (1×5000) | n5 (per cluster) |
+|---|---|---|
+| apiserver inflight | 143 | 14 |
+| apiserver watches (longrunning) | 13 736 | 2 585 |
+| p99 latency (non-watch) | 180 ms | 110 ms |
+| **workload-low rejects** | **275/s, sustained 100 % of the run** | **~0** |
+
+→ n1's single apiserver is **saturated** (rejecting workload-low continuously) — the single-cluster ceiling. Sharding relaxes it ~10×.
+
+**② Mesh-sync load (n5 only — n1 has none):** kvstoremesh **183 events/s + 177 kvstore ops/s per cluster**; a `clustermesh-apiserver` HA pair per cluster.
+
+**③ Resource:** control-plane RSS 5.6 GiB (n1) → 1.7 GiB/cluster but **8.3 GiB total** (≈1.5× *more* mesh-wide); mock-agents equal mesh-wide (5 000 either way).
+
+**The key non-obvious finding:** `cilium_nodes_all_num` per agent = **5 026 (n1) ≈ 5 040 (n5)**, and mesh-wide `Σ` is **identical (25.3 M)** — the mesh **re-imports every remote node into every cluster**, so sharding does *not* reduce per-agent datapath state.
+
+**Conclusion:** sharding **transforms** the load (saturated single apiserver → distributed relaxed apiservers **+ a mesh-sync layer + more total resource**) — **scalability, not efficiency.**
+
+![n1 vs n5 load tradeoff](img/load-tradeoff-n1-vs-n5.png)
+
+### 10.1 At the extreme — the 10k tier (100×100)
+
+100 clusters × 100 nodes = **10 000 nodes** takes the tradeoff to its limit. From the 72210 snapshot (≈100 clusters captured; note it was at **20 % global density**, so *service/kvstoremesh sync* signals are dampened ~5×, but the *fan-out topology* below is density-independent):
+
+| Signal | 100×100 | n1 (1×5000) |
+|---|---|---|
+| apiserver inflight / cluster | **~1.2** | 143 |
+| apiserver req/s / cluster | **~1 700** | 174 875 |
+| remote clusters / agent | **99** | 0 |
+| nodes tracked / agent (`cilium_nodes_all_num`) | **~10 159** (the *entire* mesh) | 5 026 |
+| agent→remote-cluster watch relationships (mesh-wide) | **~990 000** | 0 |
+
+**The load fully inverts.** Each of the 100 apiservers is nearly *idle* (1.2 inflight vs n1's saturated 143) — but the **mesh** does enormous work: every agent watches all 99 remotes and tracks the **full 10 000-node mesh** (its ~100 local + ~10 000 remote). Mesh-wide that's ~990 k agent→remote watch relationships. So at 100×100 the bottleneck is the **mesh fabric**, not any apiserver — which is exactly where we hit the wall: **Fleet only deployed ~35/100 `clustermesh-apiserver`s** at n=100 (§11). The 10k tier is the sharding tradeoff maximized: near-zero per-cluster k8s load, maximal mesh fan-out.
+
+---
+
+## 11. Findings & fixes
+
+- **APF / kwok-controller readiness fix.** At ≥2 500 nodes/cluster the churn workload flooded the apiserver's `workload-low` API-Priority-and-Fairness class; `kwok-controller`'s pod/node-status writes (also `workload-low`) got starved → ~40 % of pods stuck *Running-but-NotReady*. **Fix:** a dedicated APF `FlowSchema` + `PriorityLevelConfiguration` for the `kwok-controller` SA. Validated live: `workload-low` took ~5 700 rejects while kwok-controller had **0** and all nodes converged.
+- **Fleet ClusterMesh flakiness.** `clustermesh-apiserver` deploy is non-deterministic at scale: clean at n≤20, but at **n=100 only ~35/100 apiservers deployed** (a Fleet wedge). Auto-recovery (delete+recreate the CMP) is **counter-productive at n=100** — it tears down the working apiservers and recovers none (should be gated off above small N).
+- **Telemetry gap — per-component CPU/mem.** `scrape_kubelets=False` in mock mode (KWOK nodes have no kubelet → Prometheus readiness timeout) also disables **cAdvisor**, so the container CPU/mem measurements (etcd/cilium/clustermesh) return empty. **Fix direction:** scope kubelet scraping to real nodes (`type!=kwok`).
+
+See **[`clustermesh-scale-failure-modes.md`](./clustermesh-scale-failure-modes.md)** for the fuller catalogue of failure modes (Fleet flakiness, apiserver shedding, the 10k wedge, etc.).
+
+---
+
+## 12. Limitations & mock fidelity
+
+**Faithfully reproduced:** real Cilium control-plane logic, real Fleet/ClusterMesh, real `clustermesh-apiserver` + kvstoremesh, real CiliumIdentity/Endpoint churn, real apiserver/etcd load, real cross-cluster **state** propagation.
+
+**NOT reproduced:** the **datapath** — no real packet forwarding, no service load-balancing, no NetworkPolicy **enforcement**, no real connectivity. Results about *control-plane scale and mesh cost* are valid; results about *connectivity/enforcement* are not (use real clusters — see the matrix).
+
+**Other limits:** apiserver/etcd of the workload clusters are AKS-managed (opaque CPU/mem); n=100 Fleet reliability is fragile; per-component CPU/mem needs the cAdvisor fix or `kubectl top`.
+
+---
+
+## 13. Validation status
+
+| Item | Status |
+|---|---|
+| n1 (1×5000) | ✅ clean run + snapshot (build 72937) |
+| n5 (5×1000) | ✅ clean run + snapshot (build 73002) |
+| n2 (2×2500) | ⚠️ **needs clean rerun** — 72973 had mesh-2 stall at 45 %; 73029/73030 reruns failed |
+| n100 (100×100) | ⛔ blocked on Fleet n=100 wedge (35/100 apiservers) |
+| APF fix | ✅ validated live |
+| consolidated-vs-sharded (n1 vs n5) | ✅ proven |
+
+---
+
+## 14. Data & reproduction
+
+- **Snapshots:** `~/prom-snapshots/cmp-5k/` — `n1-1x5000-72937`, `n5-5x1000-73002/` (+ `-probe/`), `n2-…-NOISY/` (do-not-use); plus `pod-churn-100x100-72210/`, `propagation-probe-70850/`. See `cmp-5k/README.md`.
+- **Load a tier:** `~/prom-snapshots/run-local-prom-native.sh <tarball> <port>` (single) or `prom-server.sh import <tarballs…>` (consolidated). Cluster label = `source_cluster`. Data is historical — query with explicit `time=`/windows.
+- **Dashboards:** `~/prom-snapshots/grafana.sh start` → http://localhost:3000.
+- **Run a tier:** trigger the `New Pipeline Test` stage for the tier (from the UI, subscription `37deca37…`, region eastus2euap); results + Prometheus snapshots upload as pipeline artifacts.
+
+---
+
+## 15. Appendix — key knobs
+
+`CL2_NAMESPACES`, `CL2_GLOBAL_NAMESPACE_COUNT` (100 % = all), `CL2_DEPLOYMENTS_PER_NAMESPACE`, `CL2_REPLICAS_PER_DEPLOYMENT`, `CL2_CHURN_CYCLES`, `CL2_KILL_DURATION_SECONDS/INTERVAL/BATCH`, `CL2_PROPAGATION_PROBE_*`, `MOCK_NODE_COUNT`, `MOCK_MESH_STRIDE`, `MOCK_DEPLOY_MAX_FAILURES`, `CMP_AUTO_RECOVERY_ENABLED`. Per-tier tfvars: `scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-{1-mock-5k,2-mock-2500,5-mock-1000,100-mock-shared}.tfvars`.
