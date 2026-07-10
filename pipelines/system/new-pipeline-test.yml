@@ -12,7 +12,7 @@ schedules:
     always: true
   # AKS Automatic MachineAPI On-Demand Schedule
   - cron: "0 3 * * *"
-    displayName: "3:00 AM Daily MachineAPI"
+    displayName: "Every day at 3:00 AM with Machine API"
     branches:
       include:
         - main
@@ -128,7 +128,7 @@ stages:
   - stage: azure_australiaeast_acn_off_machineapi
     condition: |
         or(
-          eq(variables['Build.CronSchedule.DisplayName'], '3:00 AM Daily MachineAPI'),
+          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 3:00 AM with Machine API'),
           eq(variables['Build.Reason'], 'Manual')
         )
     dependsOn: []
@@ -180,7 +180,7 @@ stages:
   - stage: azure_australiaeast_acn_on_machineapi
     condition: |
         or(
-          eq(variables['Build.CronSchedule.DisplayName'], '3:00 AM Daily MachineAPI'),
+          eq(variables['Build.CronSchedule.DisplayName'], 'Every day at 3:00 AM with Machine API'),
           eq(variables['Build.Reason'], 'Manual')
         )
     dependsOn: azure_australiaeast_acn_off_machineapi
