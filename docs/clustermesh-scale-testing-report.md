@@ -224,6 +224,29 @@ Build **73076** is the first **clean 100 % global-density 10k run**: 100 cluster
 - **Sync stays cheap even at full fan-out.** With 99 peers and the full node import, kvstoremesh operations still complete at **p95 ~20 ms** — the propagation engine is not the bottleneck at 10k.
 - **The wall is mesh *formation*, not steady state.** Once formed, the 10k mesh runs cleanly (pod-churn 100/100). The limiter is **Azure Fleet deploying 100 clustermesh-apiservers**, which wedges ~75 % of the time (3 of the last 4 n=100 runs stalled at ~30–35/100 with the rest never created; §11). This is why the framework now ships a **surgical batched member re-join** recovery (§11) — steady-state mesh operation at 10 000 nodes is comfortable; getting Fleet to *form* the mesh is the hard part.
 
+### 10.2 Propagation latency — measured numbers
+
+Two different signals measure "how fast does a change propagate", at two very different layers:
+
+**(a) End-to-end `apply → visible-in-peer`** — the `propagation-probe` (§6): create a pod in cluster A, poll every peer's real Cilium agent until the pod's IP appears in its BPF ipcache. This is the user-facing latency. *(Direct per-probe timings are host-side JSONL, stored in Kusto — not in the Prometheus snapshots.)*
+
+| Setup | `apply → peer-ipcache` | Notes |
+|---|---|---|
+| 2×50 mock, idle | **33–38 s** | matches real-cluster baseline (~35 s) |
+| 2×300 mock, idle | **~43 s** median (37/38/43/51/52) | |
+| 2×300 mock, **under load** (600 global endpoints churning) | **56–69 s** | **propagation degrades under load** (~1.3–1.6×) |
+
+The dominant term is **pod startup + poll granularity** (tens of seconds), and it's **load-sensitive** — the mesh sync queue backs up under concurrent churn, which is exactly the effect the scale tiers stress. `t_peer_identity` is set on every probe; `t_peer_cep = 0` because a remote pod's CiliumEndpoint is *not* a peer CRD — it lives only in the peer agent's kvstore-sourced ipcache/identity state (see §12).
+
+**(b) kvstoremesh operation duration** — the mesh-sync step itself (etcd read/write/lease behind the propagation), the Prometheus proxy that **is** in the snapshots (`cilium_kvstoremesh_kvstore_operations_duration_seconds`, query in [`MESH-METRICS.md`](./MESH-METRICS.md)):
+
+| Tier | op-duration p95 | remote-cluster failures |
+|---|---|---|
+| n5 (5×1000, build 73002) | **40–210 ms** | 0 |
+| n100 (100×100, build 73076) | **~20 ms** | 0 |
+
+**These measure different things**: (a) is end-to-end object visibility (**tens of seconds**, dominated by pod lifecycle); (b) is the mesh's internal sync operation (**tens of milliseconds**). The mesh's own propagation engine is fast and clean even at 10k; the user-visible latency is dominated by pod startup and is the part that degrades under load.
+
 ---
 
 ## 11. Findings & fixes
