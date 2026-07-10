@@ -72,6 +72,7 @@ stages:
       )
     variables:
       - group: NAP-MS-CanadaCentral
+    jobs:
       - template: /jobs/competitive-test.yml
         parameters:
           cloud: azure
