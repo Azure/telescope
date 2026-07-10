@@ -171,6 +171,29 @@ steps:
       # observing it work on a few smokes. Detection always runs +
       # logs clearly so we have data on how often it would fire.
       CMP_AUTO_RECOVERY_ENABLED="${CMP_AUTO_RECOVERY_ENABLED:-false}"
+      # Surgical batched member re-join (build 73026 evidence): at N=100 the
+      # Fleet ClusterMeshProfile reconciler wedges — it deploys ~30/100
+      # clustermesh-apiserver Deployments in the first ~30min then flatlines,
+      # leaving the rest at deployment=<none> (never created — NOT slow: the
+      # successful 72210 converged all 100 in ~32min, so the 120min budget is
+      # ~4x headroom). Delete+recreate of the WHOLE CMP (CMP_AUTO_RECOVERY_ENABLED)
+      # is counter-productive at scale: it tears down the working apiservers and
+      # re-triggers the SAME all-members burst that saturated the Fleet RP to
+      # begin with (observed on 73026: 60 recovery/reapplier events, still 30/100).
+      # This mode instead re-joins ONLY the stuck members, in small batches, so
+      # the RP is never asked for more than CMP_REJOIN_BATCH_SIZE concurrent
+      # projections. The re-join is a label toggle
+      # (mesh=true -> mesh=detaching -> mesh=true): the CMP selector is mesh=true,
+      # so relabeling to a non-matching value detaches the member (az fleet member
+      # update REPLACES the labels map, it is not additive), and relabeling back
+      # re-selects it, forcing Fleet to reconcile it fresh. This also sidesteps
+      # `az fleet member delete`'s MemberBelongsToClusterMesh rejection while a
+      # member is attached. Opt-in via CMP_REJOIN_ENABLED=true; takes precedence
+      # over CMP_AUTO_RECOVERY_ENABLED.
+      CMP_REJOIN_ENABLED="${CMP_REJOIN_ENABLED:-false}"
+      CMP_REJOIN_BATCH_SIZE="${CMP_REJOIN_BATCH_SIZE:-20}"
+      CMP_REJOIN_DETACH_SETTLE_SECONDS="${CMP_REJOIN_DETACH_SETTLE_SECONDS:-30}"
+      CMP_REJOIN_BATCH_WAIT_SECONDS="${CMP_REJOIN_BATCH_WAIT_SECONDS:-420}"
       RECOVERY_LOG="$(pwd)/clustermeshprofile-recovery.log"
       RECOVERY_TRIGGER_FLAG="$(pwd)/.cmp_recovery_fired"
       rm -f "$RECOVERY_TRIGGER_FLAG"
@@ -197,8 +220,136 @@ steps:
         echo "[recovery] $_ts DETECTED MISSING clustermesh-apiserver Deployments on:$missing (failure_mode=fleet_partial_apiserver_deploy)"
         echo "##vso[task.logissue type=warning;] Fleet partial apiserver deploy detected at t+$((WAIT_BUDGET_SECONDS / 2))s on:$missing"
         touch "$RECOVERY_TRIGGER_FLAG"
+        if [ "$CMP_REJOIN_ENABLED" = "true" ]; then
+          # ---- Surgical batched member re-join (preferred at large N) ----
+          # $missing is a space-separated list of stuck roles == Fleet member names.
+          set -- $missing
+          total_stuck=$#
+          echo "[rejoin] $_ts firing surgical batched re-join for $total_stuck stuck member(s); batch=$CMP_REJOIN_BATCH_SIZE settle=${CMP_REJOIN_DETACH_SETTLE_SECONDS}s batch_wait=${CMP_REJOIN_BATCH_WAIT_SECONDS}s"
+          # Members currently relabeled mesh=detaching (i.e. dropped from the CMP
+          # selector) and NOT yet restored to mesh=true. Reattach is MANDATORY:
+          # a member left at mesh=detaching is permanently dropped from the mesh,
+          # which is strictly worse than the stuck-but-selected state we started
+          # from. We therefore (a) retry reattach, and (b) install a trap that
+          # restores any still-detached member if this watcher is killed (the
+          # foreground wait loop does `kill "$RECOVERY_PID"` when it finishes)
+          # or exits for any reason.
+          declare -A detached_set=()
+          restore_detached() {
+            if [ "${#detached_set[@]}" -eq 0 ]; then return 0; fi
+            local r
+            echo "[rejoin] restore: reattaching ${#detached_set[@]} still-detached member(s): ${!detached_set[*]}"
+            for r in "${!detached_set[@]}"; do
+              if az fleet member update --resource-group "$FLEET_RG" --fleet-name "$FLEET_NAME" \
+                   --name "$r" --labels mesh=true --output none --only-show-errors 2>&1; then
+                unset 'detached_set[$r]'
+              else
+                echo "[rejoin]   restore reattach $r FAILED"
+              fi
+            done
+            az fleet clustermeshprofile apply --resource-group "$FLEET_RG" \
+              --fleet-name "$FLEET_NAME" --name "$FLEET_PROFILE" \
+              --output none --only-show-errors 2>&1 || true
+          }
+          trap 'restore_detached || true' EXIT
+          trap 'restore_detached || true; exit 143' TERM INT
+          # Keep the whole re-join comfortably inside the foreground wait budget
+          # (this watcher woke at t+WAIT_BUDGET/2, so it has ~WAIT_BUDGET/2 left);
+          # leave a 120s margin so re-joined apiservers get some convergence time
+          # and the trap can restore before the foreground kills us.
+          rejoin_deadline=$(( $(date +%s) + (WAIT_BUDGET_SECONDS / 2) - 120 ))
+          batch=()
+          batch_idx=0
+          rejoin_batch() {
+            if [ ${#batch[@]} -eq 0 ]; then return 0; fi
+            batch_idx=$((batch_idx + 1))
+            local bt r
+            bt=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+            echo "[rejoin] $bt batch #$batch_idx (${#batch[@]} members): ${batch[*]}"
+            # Detach: relabel to a value the CMP selector (mesh=true) won't match.
+            # Only members whose detach SUCCEEDS are tracked for reattach.
+            for r in "${batch[@]}"; do
+              if az fleet member update --resource-group "$FLEET_RG" --fleet-name "$FLEET_NAME" \
+                   --name "$r" --labels mesh=detaching --output none --only-show-errors 2>&1; then
+                detached_set["$r"]=1
+              else
+                echo "[rejoin]   detach $r FAILED (continuing; not detached)"
+              fi
+            done
+            sleep "$CMP_REJOIN_DETACH_SETTLE_SECONDS"
+            # Re-attach (MANDATORY, retried). On success drop from detached_set;
+            # on persistent failure leave it there so the trap retries at exit.
+            for r in "${batch[@]}"; do
+              if [ -z "${detached_set[$r]:-}" ]; then continue; fi
+              local ok="" attempt
+              for attempt in 1 2 3; do
+                if az fleet member update --resource-group "$FLEET_RG" --fleet-name "$FLEET_NAME" \
+                     --name "$r" --labels mesh=true --output none --only-show-errors 2>&1; then
+                  ok=1; break
+                fi
+                echo "[rejoin]   reattach $r attempt $attempt FAILED; retrying"
+                sleep 10
+              done
+              if [ -n "$ok" ]; then
+                unset 'detached_set[$r]'
+              else
+                echo "##vso[task.logissue type=warning;] [rejoin] reattach $r FAILED after 3 attempts; left mesh=detaching, will retry at cleanup"
+              fi
+            done
+            # Re-apply the CMP so Fleet reconciles the re-selected members promptly.
+            if ! az fleet clustermeshprofile apply --resource-group "$FLEET_RG" \
+                   --fleet-name "$FLEET_NAME" --name "$FLEET_PROFILE" \
+                   --output none --only-show-errors 2>&1; then
+              echo "[rejoin]   clustermeshprofile apply after batch #$batch_idx FAILED (reapplier will retry)"
+            fi
+            # Bounded wait for THIS batch's apiservers before starting the next,
+            # so the RP never sees more than one batch of projections at a time.
+            local bdeadline still a
+            bdeadline=$(( $(date +%s) + CMP_REJOIN_BATCH_WAIT_SECONDS ))
+            while [ "$(date +%s)" -lt "$bdeadline" ]; do
+              still=""
+              for r in "${batch[@]}"; do
+                a=$(KUBECONFIG="$HOME/.kube/$r.config" kubectl -n kube-system \
+                    get deployment clustermesh-apiserver \
+                    -o jsonpath='{.status.conditions[?(@.type=="Available")].status}' 2>/dev/null || true)
+                if [ "$a" != "True" ]; then still="$still $r"; fi
+              done
+              if [ -z "$still" ]; then
+                echo "[rejoin]   batch #$batch_idx all Available"
+                break
+              fi
+              sleep 15
+            done
+            batch=()
+          }
+          for r in "$@"; do
+            batch+=("$r")
+            if [ ${#batch[@]} -ge "$CMP_REJOIN_BATCH_SIZE" ]; then
+              if [ "$(date +%s)" -ge "$rejoin_deadline" ]; then
+                echo "[rejoin] approaching foreground deadline; skipping remaining stuck members (${#batch[@]} queued + trailing)"
+                batch=()
+                break
+              fi
+              rejoin_batch
+            fi
+          done
+          if [ "$(date +%s)" -lt "$rejoin_deadline" ]; then
+            rejoin_batch
+          elif [ ${#batch[@]} -gt 0 ]; then
+            echo "[rejoin] approaching foreground deadline; skipping final partial batch (${#batch[@]} members)"
+            batch=()
+          fi
+          # Final explicit restore (also guaranteed by the EXIT trap); then clear
+          # the traps so the clean exit below doesn't re-run cleanup.
+          restore_detached || true
+          trap - EXIT TERM INT
+          _ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          echo "[rejoin] $_ts surgical batched re-join complete for $total_stuck member(s); remaining wait budget determines final convergence"
+          exit 0
+        fi
+
         if [ "$CMP_AUTO_RECOVERY_ENABLED" != "true" ]; then
-          echo "[recovery] CMP_AUTO_RECOVERY_ENABLED=$CMP_AUTO_RECOVERY_ENABLED; detection-only — NOT firing delete+recreate (set env var to opt in)"
+          echo "[recovery] CMP_REJOIN_ENABLED=$CMP_REJOIN_ENABLED CMP_AUTO_RECOVERY_ENABLED=$CMP_AUTO_RECOVERY_ENABLED; detection-only — NOT firing recovery (set one to opt in)"
           exit 0
         fi
         echo "[recovery] $_ts FIRING auto-recovery: delete + recreate + apply clustermeshprofile"
@@ -243,7 +394,7 @@ steps:
         echo "[recovery] $_ts auto-recovery delete+recreate+apply complete; remaining wait budget will determine if Fleet redeploys apiservers"
       } > "$RECOVERY_LOG" 2>&1 &
       RECOVERY_PID=$!
-      echo "Spawned clustermeshprofile recovery watcher (PID=$RECOVERY_PID, log=$RECOVERY_LOG, enabled=$CMP_AUTO_RECOVERY_ENABLED, trigger=t+$((WAIT_BUDGET_SECONDS / 2))s)"
+      echo "Spawned clustermeshprofile recovery watcher (PID=$RECOVERY_PID, log=$RECOVERY_LOG, rejoin=$CMP_REJOIN_ENABLED, cmp_recreate=$CMP_AUTO_RECOVERY_ENABLED, trigger=t+$((WAIT_BUDGET_SECONDS / 2))s)"
 
       # Parallel poll for clustermesh-apiserver readiness on every cluster.
       # Each subshell gets WAIT_BUDGET_SECONDS; we collect failures rather

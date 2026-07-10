@@ -1604,10 +1604,17 @@ stages:
       MOCK_DEPLOY_CONCURRENCY: 8
       MOCK_DEPLOY_MAX_FAILURES: 3
       # Fleet ClusterMeshProfile RP fails to deploy clustermesh-apiserver at n=100
-      # (builds 72112 concat-name collision / 72129 100/100 apiserver not ready).
-      # Enable auto delete+recreate recovery (fires at half wait-budget) to give
-      # Fleet a second reconcile attempt — mirrors the non-mock stages above.
-      CMP_AUTO_RECOVERY_ENABLED: "true"
+      # (72112 concat-name collision / 72129 + 72983 + 73026: only ~30-35/100
+      # apiservers deploy, the rest stuck at deployment=<none>). Delete+recreate
+      # recovery (CMP_AUTO_RECOVERY_ENABLED) is counter-productive here — it tears
+      # down the working apiservers and re-triggers the SAME all-members burst that
+      # saturated the RP (73026: fired 60 events, still 30/100). Use surgical
+      # BATCHED RE-JOIN instead: re-join ONLY the stuck members in batches of 20
+      # (label toggle mesh=true->detaching->true + CMP apply, waiting per batch) so
+      # the RP never sees >20 concurrent projections. Takes precedence over
+      # cmp-recreate; see steps/topology/clustermesh-scale/validate-resources.yml.
+      CMP_AUTO_RECOVERY_ENABLED: "false"
+      CMP_REJOIN_ENABLED: "true"
       # Propagation-latency probe (see n2_mock_2500 for the design). n=100 is the
       # EXTREME-fan-out tier: each source pod syncs to 99 peers, so this is the most
       # valuable place to measure propagation latency. Reads the REAL ACNS agents (no
