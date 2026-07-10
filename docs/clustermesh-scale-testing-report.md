@@ -201,19 +201,28 @@ Measured at peak churn from the pod-churn snapshots (n5 shown per-cluster). Both
 
 ![n1 vs n5 load tradeoff](img/load-tradeoff-n1-vs-n5.png)
 
-### 10.1 At the extreme — the 10k tier (100×100)
+### 10.1 At the extreme — the 10k tier (100×100) at 100 % density
 
-100 clusters × 100 nodes = **10 000 nodes** takes the tradeoff to its limit. From the 72210 snapshot (≈100 clusters captured; note it was at **20 % global density**, so *service/kvstoremesh sync* signals are dampened ~5×, but the *fan-out topology* below is density-independent):
+Build **73076** is the first **clean 100 % global-density 10k run**: 100 clusters × 100 KWOK nodes = **10 000 nodes**, 50 pods/cluster (5 000 mesh-wide), `pod-churn-combined`. Fleet converged all **100/100** clustermesh-apiservers on its own (~41 min), the mock layer (10k nodes + 10k mock-agents) came up, and the workload ran **100/100 clusters clean** — only 2 clusters hit *transient* apiserver blips (`failed to get cluster version` / `server unable to handle request`), soft-failed, data still captured. The per-agent figures below were **verified on two independent clusters** (mesh-1, mesh-50); every cluster is identical.
 
-| Signal | 100×100 | n1 (1×5000) |
-|---|---|---|
-| apiserver inflight / cluster | **~1.2** | 143 |
-| apiserver req/s / cluster | **~1 700** | 174 875 |
-| remote clusters / agent | **99** | 0 |
-| nodes tracked / agent (`cilium_nodes_all_num`) | **~10 159** (the *entire* mesh) | 5 026 |
-| agent→remote-cluster watch relationships (mesh-wide) | **~990 000** | 0 |
+| Signal (per agent, @100 % density) | 100×100 |
+|---|---|
+| remote clusters / agent | **99** (all peers) |
+| nodes tracked / agent (`cilium_nodes_all_num`) | **~10 300** — the *entire* mesh (~103 local + ~10 200 remote) |
+| global services / agent | **10** (same-named services, merged mesh-wide) |
+| agents / cluster | **~103** |
+| kvstoremesh op-duration p95 / p99 | **~20 ms / ~190 ms** |
+| kvstoremesh sync throughput / cluster | **~69 events/s + ~57 api-limiter req/s** |
+| apiserver inflight / APF rejects / cluster | **2–6 / 0** (~17 k req/s, mostly lease+watch chatter) |
 
-**The load fully inverts.** Each of the 100 apiservers is nearly *idle* (1.2 inflight vs n1's saturated 143) — but the **mesh** does enormous work: every agent watches all 99 remotes and tracks the **full 10 000-node mesh** (its ~100 local + ~10 000 remote). Mesh-wide that's ~990 k agent→remote watch relationships. So at 100×100 the bottleneck is the **mesh fabric**, not any apiserver — which is exactly where we hit the wall: **Fleet only deployed ~35/100 `clustermesh-apiserver`s** at n=100 (§11). The 10k tier is the sharding tradeoff maximized: near-zero per-cluster k8s load, maximal mesh fan-out.
+**Findings (10k, standalone):**
+
+- **Total node awareness — sharding *globalizes* node state.** Every one of the ~10 300 agents imports the *whole* 10 000-node mesh, so mesh-wide there are ≈ **106 million node-tracking relationships** (~10 300 agents × ~10 300 nodes). Splitting the fleet into 100 clusters did **not** localize node state; it made every agent aware of every node.
+- **All-to-all watch fabric.** ~103 agents/cluster × 99 remotes ≈ 10 200 agent→remote-cluster watches per cluster → ≈ **1.0 million** mesh-wide. This is the dominant scaling term, and it grows as N².
+- **Services merge by name, not by cluster.** The 10 same-named services on each cluster collapse into **10 mesh-wide global services**, each load-balancing ~**500 backends** (100 clusters × 5 replicas). Cross-cluster service identity is by namespace/name.
+- **The k8s control plane is featherweight per cluster.** apiserver inflight **2–6**, **0 APF rejects**; the ~17 k req/s is dominated by lease/node/watch chatter from 100 nodes + agents, not queuing. No single apiserver is stressed — the entire cost lives in the **mesh fabric**.
+- **Sync stays cheap even at full fan-out.** With 99 peers and the full node import, kvstoremesh operations still complete at **p95 ~20 ms** — the propagation engine is not the bottleneck at 10k.
+- **The wall is mesh *formation*, not steady state.** Once formed, the 10k mesh runs cleanly (pod-churn 100/100). The limiter is **Azure Fleet deploying 100 clustermesh-apiservers**, which wedges ~75 % of the time (3 of the last 4 n=100 runs stalled at ~30–35/100 with the rest never created; §11). This is why the framework now ships a **surgical batched member re-join** recovery (§11) — steady-state mesh operation at 10 000 nodes is comfortable; getting Fleet to *form* the mesh is the hard part.
 
 ---
 
@@ -244,7 +253,7 @@ See **[`clustermesh-scale-failure-modes.md`](./clustermesh-scale-failure-modes.m
 | n1 (1×5000) | ✅ clean run + snapshot (build 72937) |
 | n5 (5×1000) | ✅ clean run + snapshot (build 73002) |
 | n2 (2×2500) | ⚠️ **needs clean rerun** — 72973 had mesh-2 stall at 45 %; 73029/73030 reruns failed |
-| n100 (100×100) | ⛔ blocked on Fleet n=100 wedge (35/100 apiservers) |
+| n100 (100×100) | ✅ **clean 100 % density run** (73076: 100/100 apiservers, pod-churn 100/100 clusters) — Fleet self-converged; surgical-rejoin recovery added for the ~75 % wedge case |
 | APF fix | ✅ validated live |
 | consolidated-vs-sharded (n1 vs n5) | ✅ proven |
 
@@ -259,7 +268,8 @@ See **[`clustermesh-scale-failure-modes.md`](./clustermesh-scale-failure-modes.m
 | **n1** 1×5000 (baseline, clean) | 1 | `pod-churn-combined/72937-6d786c8e/` |
 | **n5** 5×1000 (sharded, clean) | 5 | `pod-churn-combined/73002-a692b14e/` (+ `propagation-probe/73002-a692b14e/`) |
 | **n2** 2×2500 (sharded, **NOISY — do-not-use**) | 2 | `pod-churn-combined/72973-ba735658/` |
-| **n100** 100×100 (10k, 20 % density) | 97 | `pod-churn-combined/72210-72713705/` |
+| **n100** 100×100 (10k, **100 % density, clean**) | 96 | `pod-churn-combined/73076-72713705/` (+ `propagation-probe/73076-72713705/`, 97) |
+| n100 100×100 (older, 20 % density) | 97 | `pod-churn-combined/72210-72713705/` |
 
 **Download a tier** (Entra-ID auth; grabs all clusters of the tier at once):
 ```bash
