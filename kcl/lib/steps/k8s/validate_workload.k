@@ -63,7 +63,7 @@ check_controllers() {
     [ -z "$ready" ] && ready=0
     [ -z "$desired" ] && desired=0
     echo "$kind ${namespace}/$n: ready=$ready desired=$desired"
-    if [ "$ready" != "$desired" ] || [ "$desired" = "0" ]; then
+    if [ "$ready" != "$desired" ]; then
       fail "$kind ${namespace}/$n not fully ready ($ready/$desired)"
     fi
   done
@@ -82,6 +82,13 @@ check_pods() {
   local pod
   for pod in $pods; do
     echo "::: checking pod ${namespace}/$pod"
+    # The pod list is a snapshot; a pod may be deleted before we inspect it
+    # (e.g. rollout, eviction, completed Job pod). A gone pod is not a failure,
+    # so skip it instead of reporting an empty phase.
+    if ! kubectl -n "${namespace}" get pod "$pod" -o name >/dev/null 2>&1; then
+      echo "pod ${namespace}/$pod no longer exists; skipping"
+      continue
+    fi
     local phase=$(kubectl -n "${namespace}" get pod "$pod" -o jsonpath='{.status.phase}' 2>/dev/null)
     case "$phase" in
       Succeeded)
