@@ -302,7 +302,15 @@ steps:
         count=$((count + 1))
         total_bytes=$((total_bytes + size))
       done
-      echo "Staged $count prometheus snapshot tarball(s), total ${total_bytes} bytes, into $STAGING_DIR"
+      audit_count=0
+      for audit in "$CL2_REPORT_DIR"/**/telemetry/telemetry-audit-self-hosted.{json,md}; do
+        rel=${audit#"$CL2_REPORT_DIR/"}
+        dest_dir="$STAGING_DIR/$(dirname "$rel")"
+        mkdir -p "$dest_dir"
+        cp "$audit" "$dest_dir/"
+        audit_count=$((audit_count + 1))
+      done
+      echo "Staged $count prometheus snapshot tarball(s), total ${total_bytes} bytes, plus $audit_count telemetry audit file(s), into $STAGING_DIR"
       ls -laR "$STAGING_DIR" || true
     env:
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/results
@@ -337,6 +345,7 @@ steps:
         shopt -s globstar nullglob
         count=0
         total_bytes=0
+        audit_count=0
         for snap in "$CL2_REPORT_DIR"/**/prom-snapshot-*.tar.gz; do
           rel=${snap#"$CL2_REPORT_DIR/"}
           scenario_seg=$(dirname "$rel" | cut -d/ -f1)
@@ -353,7 +362,23 @@ steps:
           count=$((count + 1))
           total_bytes=$((total_bytes + size))
         done
-        echo "Uploaded $count snapshot tarball(s), total ${total_bytes} bytes, to ${STORAGE_ACCOUNT_NAME}/${CONTAINER_NAME}"
+        for audit in "$CL2_REPORT_DIR"/**/telemetry/telemetry-audit-self-hosted.{json,md}; do
+          rel=${audit#"$CL2_REPORT_DIR/"}
+          scenario_seg=$(echo "$rel" | cut -d/ -f1)
+          role_seg=$(basename "$(dirname "$(dirname "$audit")")")
+          extension=${audit##*.}
+          blob_name="${BUILD_BRANCH}/telemetry-audit-self-hosted/${scenario_seg}/${RUN_ID}/telemetry-audit-self-hosted-${role_seg}.${extension}"
+          echo "Uploading $audit -> ${STORAGE_ACCOUNT_NAME}/${CONTAINER_NAME}/${blob_name}"
+          az storage blob upload \
+            --account-name "$STORAGE_ACCOUNT_NAME" \
+            --container-name "$CONTAINER_NAME" \
+            --name "$blob_name" \
+            --file "$audit" \
+            --auth-mode login \
+            --overwrite >/dev/null
+          audit_count=$((audit_count + 1))
+        done
+        echo "Uploaded $count snapshot tarball(s), total ${total_bytes} bytes, plus $audit_count telemetry audit file(s), to ${STORAGE_ACCOUNT_NAME}/${CONTAINER_NAME}"
     env:
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/results
       STORAGE_ACCOUNT_NAME: $(cl2_prom_snapshot_storage_account)

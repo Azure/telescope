@@ -300,6 +300,26 @@ KUBECONFIG="$kubeconfig" kubectl -n kube-system logs \
   -l io.cilium/app=operator --tail=2000 --prefix=true \
   > "$log_dir/cilium-operator.log" 2>&1 || true
 
+# Coverage audit runs before the optional snapshot and Prometheus teardown so
+# every run records exactly which telemetry families and scrape targets landed
+# in its TSDB. Missing coverage is a warning, not a workload-result failure.
+telemetry_audit_script="$(dirname "$python_script_file")/telemetry/audit_self_hosted.py"
+if [ -f "$telemetry_audit_script" ]; then
+  telemetry_audit_dir="$report_dir/telemetry"
+  telemetry_audit_args=(
+    --kubeconfig "$kubeconfig"
+    --output-prefix "$telemetry_audit_dir/telemetry-audit-self-hosted"
+  )
+  if [ "${CL2_MOCK_MODE:-false}" = "true" ]; then
+    telemetry_audit_args+=(--require-real-node-kubelet)
+  fi
+  if ! python3 "$telemetry_audit_script" "${telemetry_audit_args[@]}"; then
+    echo "##vso[task.logissue type=warning;] $role: self-hosted Prometheus telemetry audit is incomplete; inspect $telemetry_audit_dir/telemetry-audit-self-hosted.json"
+  fi
+else
+  echo "##vso[task.logissue type=warning;] $role: telemetry audit script not found at $telemetry_audit_script"
+fi
+
 # Prometheus TSDB snapshot (opt-in via CL2_PROM_SNAPSHOT_ENABLED=true).
 # Use kubectl port-forward + host curl to trigger /api/v1/admin/tsdb/snapshot
 # — avoids depending on what's inside the prometheus container (busybox wget

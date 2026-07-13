@@ -1467,9 +1467,8 @@ class TestMainArgumentParsing(unittest.TestCase):
         )
 
     @patch.object(clustermesh_scale_module, "run_cl2_command")
-    def test_execute_mock_mode_disables_kubelet_scrape(self, mock_run):
-        """In mock mode, kubelet scraping is disabled (KWOK nodes have no real
-        kubelet, so kubelet targets stay down and block CL2's Prometheus gate)."""
+    def test_execute_mock_mode_uses_real_node_kubelet_monitor(self, mock_run):
+        """Mock mode replaces CL2's all-node job with the real-node monitor."""
         common = {
             "cl2_image": "img",
             "cl2_config_dir": "/cfg",
@@ -1480,9 +1479,13 @@ class TestMainArgumentParsing(unittest.TestCase):
         }
         clustermesh_scale_module.execute_clusterloader2(**common, mock_mode="true")
         assert mock_run.call_args.kwargs["scrape_kubelets"] is False
+        assert mock_run.call_args.kwargs["prometheus_additional_monitors_path"] == (
+            "/root/perf-tests/clusterloader2/config/prometheus-additional-monitors"
+        )
         mock_run.reset_mock()
         clustermesh_scale_module.execute_clusterloader2(**common, mock_mode="false")
         assert mock_run.call_args.kwargs["scrape_kubelets"] is True
+        assert mock_run.call_args.kwargs["prometheus_additional_monitors_path"] is None
 
     @patch.object(clustermesh_scale_module, "collect_clusterloader2")
     def test_collect_command_parsing(self, mock_collect):

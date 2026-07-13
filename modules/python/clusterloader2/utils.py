@@ -29,7 +29,8 @@ def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provi
                     prometheus_memory_request=None,
                     prometheus_pvc_storage_class=None,
                     prometheus_storage_class_provisioner=None,
-                    prometheus_storage_class_volume_type=None):
+                    prometheus_storage_class_volume_type=None,
+                    prometheus_additional_monitors_path=None):
     docker_client = DockerClient()
 
     command = f"""--provider={provider} --v=2
@@ -66,6 +67,11 @@ def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provi
         command += f" --prometheus-storage-class-provisioner={prometheus_storage_class_provisioner}"
     if prometheus_storage_class_volume_type:
         command += f" --prometheus-storage-class-volume-type={prometheus_storage_class_volume_type}"
+    if prometheus_additional_monitors_path:
+        command += (
+            " --prometheus-additional-monitors-path="
+            f"{prometheus_additional_monitors_path}"
+        )
 
 
     if overrides:

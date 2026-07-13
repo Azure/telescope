@@ -1,0 +1,70 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: real-node-kubelet
+  namespace: monitoring
+spec:
+  # The real Cilium DaemonSet has exactly one pod on every real Linux node and
+  # no pods on KWOK virtual nodes. Use those pods only as discovery anchors,
+  # then replace the target address with each pod's host IP and kubelet port.
+  selector:
+    matchLabels:
+      k8s-app: cilium
+  namespaceSelector:
+    matchNames:
+      - kube-system
+  podMetricsEndpoints:
+    - interval: 15s
+      port: prometheus
+      scheme: https
+      path: /metrics
+      # CL2 creates this token Secret before applying additional monitors and
+      # grants its default/monitoringserviceaccount access to nodes/metrics.
+      bearerTokenSecret:
+        name: prometheus-token
+        key: token
+      tlsConfig:
+        insecureSkipVerify: true
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_phase]
+          regex: Running
+          action: keep
+        - sourceLabels: [__meta_kubernetes_pod_host_ip]
+          regex: (.+)
+          replacement: $1:10250
+          targetLabel: __address__
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+        - replacement: kubelet-real-nodes
+          targetLabel: job
+        # Remove only the Cilium discovery-anchor target labels. This is target
+        # relabeling; labels emitted by kubelet metrics are not removed.
+        - regex: pod|container|namespace
+          action: labeldrop
+    - interval: 15s
+      port: prometheus
+      scheme: https
+      path: /metrics/cadvisor
+      honorLabels: true
+      # Same CL2-created token used by its built-in kubelet ServiceMonitor.
+      bearerTokenSecret:
+        name: prometheus-token
+        key: token
+      tlsConfig:
+        insecureSkipVerify: true
+      relabelings:
+        - sourceLabels: [__meta_kubernetes_pod_phase]
+          regex: Running
+          action: keep
+        - sourceLabels: [__meta_kubernetes_pod_host_ip]
+          regex: (.+)
+          replacement: $1:10250
+          targetLabel: __address__
+        - sourceLabels: [__meta_kubernetes_pod_node_name]
+          targetLabel: node
+        - replacement: cadvisor-real-nodes
+          targetLabel: job
+        # Keep cAdvisor's scraped pod/container/namespace labels while dropping
+        # the unrelated Cilium anchor labels attached during pod discovery.
+        - regex: pod|container|namespace
+          action: labeldrop

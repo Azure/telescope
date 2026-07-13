@@ -313,12 +313,19 @@ def execute_clusterloader2(
     tear_down_prometheus=False,
     mock_mode="false",
 ):
-    # In mock mode most nodes are KWOK virtual nodes with no real kubelet, so
-    # CL2's per-node kubelet scrape targets are permanently down (observed
-    # ~200/217 targets "down") and CL2's Prometheus readiness gate times out
-    # before any measurement runs. Disable kubelet scraping in mock mode; the
-    # SUT metrics (clustermesh-apiserver + mock-agent PodMonitor) don't need it.
-    scrape_kubelets = str(mock_mode).strip().lower() != "true"
+    mock_mode_enabled = str(mock_mode).strip().lower() == "true"
+    # CL2's built-in kubelet ServiceMonitor discovers every Node object. In mock
+    # mode that creates permanently-down targets for every KWOK node and blocks
+    # the Prometheus readiness gate. Keep that binary job off, then load an
+    # additional PodMonitor before the gate runs. It uses the real Cilium
+    # DaemonSet as a one-pod-per-real-node discovery anchor and rewrites each
+    # target to the host kubelet's :10250 /metrics and /metrics/cadvisor paths.
+    scrape_kubelets = not mock_mode_enabled
+    additional_monitors_path = (
+        "/root/perf-tests/clusterloader2/config/prometheus-additional-monitors"
+        if mock_mode_enabled
+        else None
+    )
     run_cl2_command(
         kubeconfig,
         cl2_image,
@@ -363,6 +370,7 @@ def execute_clusterloader2(
         prometheus_pvc_storage_class=("managed-csi" if provider == "aks" else None),
         prometheus_storage_class_provisioner=("disk.csi.azure.com" if provider == "aks" else None),
         prometheus_storage_class_volume_type=("StandardSSD_LRS" if provider == "aks" else None),
+        prometheus_additional_monitors_path=additional_monitors_path,
     )
 
 
@@ -2029,9 +2037,9 @@ def main():
                          "mode so the next scenario's CL2 can deploy a fresh Prom). "
                          "Default is to preserve Prom for failure-diagnostic dumping.")
     pe.add_argument("--mock-mode", type=str, default="false",
-                    help="When 'true', disable kubelet scraping: KWOK virtual nodes "
-                         "have no real kubelet, so kubelet targets stay permanently "
-                         "down and would block CL2's Prometheus readiness gate.")
+                    help="When 'true', replace CL2's all-node kubelet scrape with a "
+                         "real-node-only kubelet/cAdvisor PodMonitor. KWOK virtual "
+                         "nodes have no kubelet and are never added as targets.")
 
     # execute-parallel — fan out CL2 across N clusters with bounded concurrency
     pep = subparsers.add_parser(

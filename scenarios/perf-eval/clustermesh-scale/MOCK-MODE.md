@@ -35,6 +35,7 @@ harness agent); the **mock** agents are what represent the simulated nodes.
 | Thin-worker-pool tfvars | `terraform-inputs/azure-2-mock.tfvars` | `default_node_pool` = 2× D8s_v5 (hosts mock-agent Pods) instead of 20× D4s_v5. n=20 variant = same transform on `azure-20.tfvars`. |
 | CL2 mock gating | `modules/.../config/config.yaml`, `modules/scale-test*.yaml`, `modules/clustermesh.yaml` | `CL2_MOCK_MODE=true` → workload Pods get `nodeSelector type=kwok` + the `kwok.x-k8s.io/node` toleration, and a PodMonitor for `app=mock-cilium-agent:9962` is added so Prometheus scrapes the mock agents. Default `false` → real runs unchanged. |
 | Mock-agent PodMonitor | `modules/clustermesh/podmonitor-mock-agent.yaml` | Scrapes the mock agents on :9962 in the `mock-clustermesh` namespace. |
+| Real-node kubelet/cAdvisor monitor | `config/prometheus-additional-monitors/real-node-kubelet.yaml` | Loaded before CL2's Prometheus readiness gate via `--prometheus-additional-monitors-path`. Uses the real Cilium DaemonSet as a one-pod-per-real-node discovery anchor, then scrapes each host's kubelet `/metrics` and `/metrics/cadvisor` on :10250. KWOK nodes never become targets. |
 | AKS prometheus storage fix | `modules/python/clusterloader2/utils.py`, `clustermesh-scale/scale.py` | Passes `--prometheus-pvc-storage-class=managed-csi` for `provider=aks`. CL2's default `ssd`/`kubernetes.io/gce-pd` class does NOT provision on AKS → prometheus-k8s stays Pending → "no endpoints". |
 | `CL2_MOCK_MODE` wiring | `clustermesh-scale/scale.py` (`--mock-mode`), engine `execute.yml` (re-export) | Matrix var `mock_mode` → `MOCK_MODE` → `CL2_MOCK_MODE` → overrides → templates. |
 | Mock topology | `steps/topology/clustermesh-scale-mock/` | `validate-resources.yml` = base validate + `deploy-mock-layer.yml` (loops clusters, runs the vendored provision script). `execute`/`collect` delegate to base. |
@@ -132,6 +133,8 @@ docker run --rm --network host \
   -v <results-dir>:/root/perf-tests/clusterloader2/results \
   ghcr.io/azure/clusterloader2:v20250513 \
   --provider=aks --enable-prometheus-server=true \
+  --prometheus-scrape-kubelets=false \
+  --prometheus-additional-monitors-path=/root/perf-tests/clusterloader2/config/prometheus-additional-monitors \
   --prometheus-pvc-storage-class=managed-csi \
   --prometheus-storage-class-provisioner=disk.csi.azure.com \
   --kubeconfig /root/.kube/config \
@@ -151,6 +154,11 @@ exec plugin.)
 - With an adequate steady-state window, the `cilium.yaml` measurement reads the
   **mock** agents (Cilium Avg CPU Perc50 ≈ 0.008 cpu ≈ 8m, matching `kubectl top`),
   and `clustermesh-metrics.yaml` reads Identity Count / Remote Clusters Connected.
+- The real-node kubelet/cAdvisor monitor is wired for the next mock canary. Each
+  run now writes `telemetry/telemetry-audit-self-hosted.{json,md}` before
+  snapshot teardown so missing `kubelet_*` / `container_*` families or down
+  real-node targets are explicit rather than discovered later from an empty
+  offline query.
 
 ## Known consideration: measurement window
 
