@@ -29,6 +29,16 @@ data:
     REQUEST_TIMEOUT_SECONDS = float(os.environ.get("REQUEST_TIMEOUT_SECONDS", "10"))
     LISTEN_PORT = int(os.environ.get("LISTEN_PORT", "9100"))
     BACKEND_TTL_SECONDS = float(os.environ.get("BACKEND_TTL_SECONDS", "120"))
+    IDENTITY_ENV = {
+        "run_id": "CLUSTERMESH_RUN_ID",
+        "cluster_role": "CLUSTERMESH_CLUSTER_ROLE",
+        "cluster_name": "CLUSTERMESH_CLUSTER_NAME",
+        "cluster_resource_id": "CLUSTERMESH_CLUSTER_RESOURCE_ID",
+        "subscription_id": "CLUSTERMESH_SUBSCRIPTION_ID",
+        "resource_group": "CLUSTERMESH_RESOURCE_GROUP",
+        "region": "CLUSTERMESH_REGION",
+        "prometheus_cluster_alias": "CLUSTERMESH_PROMETHEUS_CLUSTER_ALIAS",
+    }
 
     PROCESS_METRICS = {
         "process_cpu_seconds_total": "cpu_seconds",
@@ -42,6 +52,22 @@ data:
         "request_errors": 0,
         "successful_requests": 0,
     }
+
+
+    def escape_label_value(value):
+        return (
+            str(value)
+            .replace("\\", "\\\\")
+            .replace("\n", "\\n")
+            .replace('"', '\\"')
+        )
+
+
+    def render_labels(labels):
+        return ",".join(
+            f'{name}="{escape_label_value(value)}"'
+            for name, value in sorted(labels.items())
+        )
 
 
     def parse_process_metrics(text):
@@ -116,6 +142,10 @@ data:
             snapshot = list(BACKENDS.values())
             errors = STATS["request_errors"]
             successes = STATS["successful_requests"]
+            identity_labels = {
+                label: os.environ.get(environment, "")
+                for label, environment in IDENTITY_ENV.items()
+            }
 
         lines = [
             "# HELP aks_apiserver_backend_process_cpu_seconds_total "
@@ -146,6 +176,16 @@ data:
             "# TYPE aks_apiserver_backend_exporter_request_errors_total counter",
             f"aks_apiserver_backend_exporter_request_errors_total {errors}",
         ]
+        if all(identity_labels.values()):
+            lines.extend(
+                [
+                    "# HELP clustermesh_cluster_identity_info "
+                    "Static AKS cluster identity attached to this telemetry snapshot.",
+                    "# TYPE clustermesh_cluster_identity_info gauge",
+                    "clustermesh_cluster_identity_info"
+                    f"{{{render_labels(identity_labels)}}} 1",
+                ]
+            )
         for backend in sorted(snapshot, key=lambda item: item["backend_id"]):
             labels = f'backend_id="{backend["backend_id"]}"'
             lines.extend(

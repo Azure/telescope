@@ -284,7 +284,7 @@ steps:
       clusters=$(az resource list \
         --resource-type Microsoft.ContainerService/managedClusters \
         --location "$REGION" \
-        --query "[?tags.run_id=='${RUN_ID}' && starts_with(tags.role, 'mesh-')].{name:name, rg:resourceGroup, role:tags.role}" \
+        --query "[?tags.run_id=='${RUN_ID}' && starts_with(tags.role, 'mesh-')].{name:name, rg:resourceGroup, role:tags.role, id:id}" \
         -o json)
 
       cluster_count=$(echo "$clusters" | jq 'length')

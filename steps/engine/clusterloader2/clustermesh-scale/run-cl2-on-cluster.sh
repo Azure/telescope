@@ -50,6 +50,22 @@ tear_down_prometheus_flag="${10:-0}"
 
 mkdir -p "$report_dir"
 
+identity_ready=true
+for identity_value in \
+  "${CLUSTERMESH_RUN_ID:-}" \
+  "${CLUSTERMESH_CLUSTER_ROLE:-}" \
+  "${CLUSTERMESH_CLUSTER_NAME:-}" \
+  "${CLUSTERMESH_CLUSTER_RESOURCE_ID:-}" \
+  "${CLUSTERMESH_SUBSCRIPTION_ID:-}" \
+  "${CLUSTERMESH_RESOURCE_GROUP:-}" \
+  "${CLUSTERMESH_REGION:-}" \
+  "${CLUSTERMESH_PROMETHEUS_CLUSTER_ALIAS:-}"; do
+  if [ -z "$identity_value" ]; then
+    identity_ready=false
+    break
+  fi
+done
+
 echo "===================================================================="
 echo "  Running CL2 on $role"
 echo "===================================================================="
@@ -78,6 +94,7 @@ PROM_PATCH_LOG="$report_dir/prom-cr-patch.log"
   # 10min per attempt — covers CL2 startup for each (re)deploy of the stack.
   _deadline=$(( $(date +%s) + 600 * ${CL2_MAX_ATTEMPTS:-1} ))
   _patches=0
+  _identity_patches=0
   while [ "$(date +%s)" -lt "$_deadline" ]; do
     _current=$(KUBECONFIG="$kubeconfig" kubectl -n monitoring get prometheus k8s \
                 -o jsonpath='{.spec.resources.limits.memory}' 2>/dev/null || echo "")
@@ -111,9 +128,48 @@ PROM_PATCH_LOG="$report_dir/prom-cr-patch.log"
         echo "[prom-patcher] patch failed; will retry in 5s" >&2
       fi
     fi
+    if [ "$identity_ready" = "true" ]; then
+      _identity_deployment=$(KUBECONFIG="$kubeconfig" kubectl -n monitoring get \
+        deployment apiserver-backend-exporter -o json 2>/dev/null || true)
+      if [ -n "$_identity_deployment" ]; then
+        _current_run_id=$(echo "$_identity_deployment" | jq -r '
+          .spec.template.spec.containers[]
+          | select(.name == "exporter")
+          | (.env // [])
+          | map(select(.name == "CLUSTERMESH_RUN_ID"))
+          | .[0].value // ""
+        ')
+        _current_resource_id=$(echo "$_identity_deployment" | jq -r '
+          .spec.template.spec.containers[]
+          | select(.name == "exporter")
+          | (.env // [])
+          | map(select(.name == "CLUSTERMESH_CLUSTER_RESOURCE_ID"))
+          | .[0].value // ""
+        ')
+        if [ "$_current_run_id" != "$CLUSTERMESH_RUN_ID" ] || \
+           [ "$_current_resource_id" != "$CLUSTERMESH_CLUSTER_RESOURCE_ID" ]; then
+          echo "[prom-patcher] injecting cluster identity into apiserver-backend-exporter" >&2
+          if KUBECONFIG="$kubeconfig" kubectl -n monitoring set env \
+              deployment/apiserver-backend-exporter \
+              CLUSTERMESH_RUN_ID="$CLUSTERMESH_RUN_ID" \
+              CLUSTERMESH_CLUSTER_ROLE="$CLUSTERMESH_CLUSTER_ROLE" \
+              CLUSTERMESH_CLUSTER_NAME="$CLUSTERMESH_CLUSTER_NAME" \
+              CLUSTERMESH_CLUSTER_RESOURCE_ID="$CLUSTERMESH_CLUSTER_RESOURCE_ID" \
+              CLUSTERMESH_SUBSCRIPTION_ID="$CLUSTERMESH_SUBSCRIPTION_ID" \
+              CLUSTERMESH_RESOURCE_GROUP="$CLUSTERMESH_RESOURCE_GROUP" \
+              CLUSTERMESH_REGION="$CLUSTERMESH_REGION" \
+              CLUSTERMESH_PROMETHEUS_CLUSTER_ALIAS="$CLUSTERMESH_PROMETHEUS_CLUSTER_ALIAS" \
+              >&2; then
+            _identity_patches=$((_identity_patches + 1))
+          else
+            echo "[prom-patcher] identity injection failed; will retry" >&2
+          fi
+        fi
+      fi
+    fi
     sleep 3
   done
-  echo "[prom-patcher] exiting after $_patches patch(es) over ${CL2_MAX_ATTEMPTS:-1} attempt budget" >&2
+  echo "[prom-patcher] exiting after $_patches Prometheus patch(es) and $_identity_patches identity patch(es) over ${CL2_MAX_ATTEMPTS:-1} attempt budget" >&2
 } > "$PROM_PATCH_LOG" 2>&1 &
 PROM_PATCH_PID=$!
 echo "  $role: spawned prometheus-cr-patcher (PID=$PROM_PATCH_PID, log=$PROM_PATCH_LOG)"

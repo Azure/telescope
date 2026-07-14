@@ -52,7 +52,7 @@ apiVersion: azmonitoring.coreos.com/v1
 kind: PodMonitor
 metadata:
   name: apiserver-backend-exporter
-  namespace: monitoring
+  namespace: kube-system
 spec:
   labelLimit: 63
   labelNameLengthLimit: 511

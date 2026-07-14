@@ -15,6 +15,22 @@ CONFIGMAP_PATH = (
     / "apiserver-backend-exporter"
     / "configmap.yaml"
 )
+WORKER_PATH = (
+    Path(__file__).resolve().parents[3]
+    / "steps"
+    / "engine"
+    / "clusterloader2"
+    / "clustermesh-scale"
+    / "run-cl2-on-cluster.sh"
+)
+AZURE_MONITORS_PATH = (
+    Path(__file__).resolve().parents[3]
+    / "scenarios"
+    / "perf-eval"
+    / "clustermesh-scale"
+    / "telemetry"
+    / "azure-monitor-custom-monitors.yaml"
+)
 
 
 def load_exporter():
@@ -46,7 +62,18 @@ def test_exporter_script_compiles_and_parses_process_metrics():
     }
 
 
-def test_exporter_renders_each_backend_independently():
+def test_exporter_renders_each_backend_independently(monkeypatch):
+    for environment in (
+        "CLUSTERMESH_RUN_ID",
+        "CLUSTERMESH_CLUSTER_ROLE",
+        "CLUSTERMESH_CLUSTER_NAME",
+        "CLUSTERMESH_CLUSTER_RESOURCE_ID",
+        "CLUSTERMESH_SUBSCRIPTION_ID",
+        "CLUSTERMESH_RESOURCE_GROUP",
+        "CLUSTERMESH_REGION",
+        "CLUSTERMESH_PROMETHEUS_CLUSTER_ALIAS",
+    ):
+        monkeypatch.delenv(environment, raising=False)
     _, exporter = load_exporter()
     now = time.time()
     exporter["BACKENDS"].update(
@@ -82,3 +109,68 @@ def test_exporter_renders_each_backend_independently():
         '{backend_id="2000"} 512'
         in metrics
     )
+    assert "clustermesh_cluster_identity_info" not in metrics
+
+
+def test_exporter_renders_cluster_identity(monkeypatch):
+    identity = {
+        "CLUSTERMESH_RUN_ID": "73599-a1b2",
+        "CLUSTERMESH_CLUSTER_ROLE": "mesh-1",
+        "CLUSTERMESH_CLUSTER_NAME": "clustermesh-1",
+        "CLUSTERMESH_CLUSTER_RESOURCE_ID": (
+            "/subscriptions/sub-1/resourceGroups/rg-1/providers/"
+            "Microsoft.ContainerService/managedClusters/clustermesh-1"
+        ),
+        "CLUSTERMESH_SUBSCRIPTION_ID": "sub-1",
+        "CLUSTERMESH_RESOURCE_GROUP": "rg-1",
+        "CLUSTERMESH_REGION": "eastus2euap",
+        "CLUSTERMESH_PROMETHEUS_CLUSTER_ALIAS": "73599_a1b2_mesh_1",
+    }
+    for name, value in identity.items():
+        monkeypatch.setenv(name, value)
+
+    _, exporter = load_exporter()
+    metrics = exporter["render_metrics"]()
+
+    assert (
+        'clustermesh_cluster_identity_info{cluster_name="clustermesh-1",'
+        'cluster_resource_id="/subscriptions/sub-1/resourceGroups/rg-1/'
+        'providers/Microsoft.ContainerService/managedClusters/clustermesh-1",'
+        'cluster_role="mesh-1",prometheus_cluster_alias="73599_a1b2_mesh_1",'
+        'region="eastus2euap",resource_group="rg-1",run_id="73599-a1b2",'
+        'subscription_id="sub-1"} 1'
+        in metrics
+    )
+
+
+def test_worker_injects_identity_into_exporter():
+    worker = WORKER_PATH.read_text(encoding="utf-8")
+
+    assert "deployment/apiserver-backend-exporter" in worker
+    for environment in (
+        "CLUSTERMESH_RUN_ID",
+        "CLUSTERMESH_CLUSTER_ROLE",
+        "CLUSTERMESH_CLUSTER_NAME",
+        "CLUSTERMESH_CLUSTER_RESOURCE_ID",
+        "CLUSTERMESH_SUBSCRIPTION_ID",
+        "CLUSTERMESH_RESOURCE_GROUP",
+        "CLUSTERMESH_REGION",
+        "CLUSTERMESH_PROMETHEUS_CLUSTER_ALIAS",
+    ):
+        assert f'{environment}="${environment}"' in worker
+
+
+def test_managed_exporter_monitor_survives_monitoring_namespace_retry():
+    monitors = list(
+        yaml.safe_load_all(AZURE_MONITORS_PATH.read_text(encoding="utf-8"))
+    )
+    exporter_monitor = next(
+        monitor
+        for monitor in monitors
+        if monitor["metadata"]["name"] == "apiserver-backend-exporter"
+    )
+
+    assert exporter_monitor["metadata"]["namespace"] == "kube-system"
+    assert exporter_monitor["spec"]["namespaceSelector"]["matchNames"] == [
+        "monitoring"
+    ]

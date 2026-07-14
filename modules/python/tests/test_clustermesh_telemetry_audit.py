@@ -21,6 +21,34 @@ audit_module = importlib.util.module_from_spec(MODULE_SPEC)
 MODULE_SPEC.loader.exec_module(audit_module)
 
 
+def identity_series(manifest):
+    series = []
+    for cluster in manifest["clusters"]:
+        resource_group = cluster.get("rg", f"rg-{cluster['role']}")
+        resource_id = cluster.get(
+            "id",
+            f"/subscriptions/sub-1/resourceGroups/{resource_group}/providers/"
+            "Microsoft.ContainerService/managedClusters/"
+            f"{cluster['name']}",
+        )
+        series.append(
+            {
+                "run_id": manifest.get("run_id", "run-1"),
+                "cluster_role": cluster["role"],
+                "cluster_name": cluster["name"],
+                "cluster_resource_id": resource_id,
+                "subscription_id": "sub-1",
+                "resource_group": resource_group,
+                "region": manifest.get("region", "eastus2euap"),
+                "prometheus_cluster_alias": cluster.get(
+                    "prometheus_cluster_alias",
+                    cluster["name"],
+                ),
+            }
+        )
+    return series
+
+
 def test_self_hosted_audit_requires_real_node_targets():
     metric_names = [
         "apiserver_request_total",
@@ -94,6 +122,7 @@ def test_managed_audit_requires_every_cluster_for_core_components():
         ],
         "process_cpu_seconds_total": process_series,
         "process_resident_memory_bytes": process_series,
+        "clustermesh_cluster_identity_info": identity_series(manifest),
     }
     metric_names = [
         "apiserver_request_total",
@@ -152,6 +181,7 @@ def test_managed_audit_reports_missing_scheduler_cluster():
         ],
         "process_cpu_seconds_total": process_series,
         "process_resident_memory_bytes": process_series,
+        "clustermesh_cluster_identity_info": identity_series(manifest),
     }
 
     report = audit_module.build_managed_audit([], series, manifest)
@@ -210,6 +240,7 @@ def test_managed_audit_uses_run_unique_cluster_alias():
         ],
         "process_cpu_seconds_total": series,
         "process_resident_memory_bytes": series,
+        "clustermesh_cluster_identity_info": identity_series(manifest),
     }
 
     report = audit_module.build_managed_audit([], series_by_metric, manifest)
@@ -231,7 +262,10 @@ def test_managed_audit_rejects_up_without_component_metrics():
 
     report = audit_module.build_managed_audit(
         ["up"],
-        {"up": up_series},
+        {
+            "up": up_series,
+            "clustermesh_cluster_identity_info": identity_series(manifest),
+        },
         manifest,
     )
 
@@ -239,6 +273,27 @@ def test_managed_audit_rejects_up_without_component_metrics():
     required_components = [
         check
         for check in report["checks"]
-        if check["required"] and not check["name"].startswith("resource:")
+        if (
+            check["name"] in audit_module.MANAGED_COMPONENTS
+            and audit_module.MANAGED_COMPONENTS[check["name"]]["required"]
+        )
     ]
     assert all(check["status"] == "missing" for check in required_components)
+
+
+def test_managed_audit_requires_cluster_identity_series():
+    manifest = {
+        "clusters": [
+            {"name": "clustermesh-1", "role": "mesh-1"},
+        ],
+    }
+
+    report = audit_module.build_managed_audit([], {}, manifest)
+
+    identity = next(
+        check
+        for check in report["checks"]
+        if check["name"] == "cluster-identity"
+    )
+    assert identity["status"] == "missing"
+    assert identity["missing_clusters"] == ["mesh-1"]

@@ -3,11 +3,13 @@
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import urlencode
 
 
 METRIC_GROUPS = {
@@ -74,6 +76,16 @@ PROMETHEUS_PROXY_ROOT = (
     "/api/v1/namespaces/monitoring/services/"
     "http:prometheus-k8s:9090/proxy"
 )
+IDENTITY_LABEL_ENV = {
+    "run_id": "CLUSTERMESH_RUN_ID",
+    "cluster_role": "CLUSTERMESH_CLUSTER_ROLE",
+    "cluster_name": "CLUSTERMESH_CLUSTER_NAME",
+    "cluster_resource_id": "CLUSTERMESH_CLUSTER_RESOURCE_ID",
+    "subscription_id": "CLUSTERMESH_SUBSCRIPTION_ID",
+    "resource_group": "CLUSTERMESH_RESOURCE_GROUP",
+    "region": "CLUSTERMESH_REGION",
+    "prometheus_cluster_alias": "CLUSTERMESH_PROMETHEUS_CLUSTER_ALIAS",
+}
 
 
 def _matching_metrics(metric_names, prefixes=(), exact=()):
@@ -107,6 +119,8 @@ def build_audit(
     targets,
     require_real_node_kubelet=False,
     require_kwok_resource=False,
+    identity_series=None,
+    expected_identity=None,
 ):
     """Build the self-hosted Prometheus coverage report."""
     checks = []
@@ -125,6 +139,29 @@ def build_audit(
                 "sample_metrics": matches[:20],
             }
         )
+
+    identity_series = identity_series or []
+    expected_identity = expected_identity or {}
+    matching_identity = []
+    for labels in identity_series:
+        if not all(labels.get(name) for name in IDENTITY_LABEL_ENV):
+            continue
+        if any(
+            expected_value and labels.get(name) != expected_value
+            for name, expected_value in expected_identity.items()
+        ):
+            continue
+        matching_identity.append(labels)
+    checks.append(
+        {
+            "name": "cluster-identity",
+            "required": True,
+            "status": "covered" if matching_identity else "missing",
+            "sample_count": len(identity_series),
+            "matching_samples": len(matching_identity),
+            "expected_identity": expected_identity,
+        }
+    )
 
     jobs = _target_jobs(targets)
     exporter = jobs.get(
@@ -225,6 +262,10 @@ def _markdown(report):
             details.append(
                 f"{check['up_targets']}/{check['target_count']} targets up"
             )
+        if "sample_count" in check:
+            details.append(
+                f"{check['matching_samples']}/{check['sample_count']} samples match"
+            )
         required = "yes" if check["required"] else "no"
         detail_text = "; ".join(details) or "-"
         lines.append(
@@ -283,11 +324,26 @@ def main(argv=None):
             args.kubeconfig,
             "/api/v1/targets",
         ).get("activeTargets", [])
+        identity_data = _prometheus_get(
+            args.kubeconfig,
+            "/api/v1/query?"
+            + urlencode({"query": "clustermesh_cluster_identity_info"}),
+        )
+        identity_series = [
+            sample.get("metric", {})
+            for sample in identity_data.get("result", [])
+        ]
+        expected_identity = {
+            label: os.environ.get(environment, "")
+            for label, environment in IDENTITY_LABEL_ENV.items()
+        }
         report = build_audit(
             metric_names,
             targets,
             require_real_node_kubelet=args.require_real_node_kubelet,
             require_kwok_resource=args.require_kwok_resource,
+            identity_series=identity_series,
+            expected_identity=expected_identity,
         )
         json_path, markdown_path = write_report(report, args.output_prefix)
     except (OSError, subprocess.SubprocessError, ValueError, RuntimeError) as error:

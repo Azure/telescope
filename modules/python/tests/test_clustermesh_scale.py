@@ -1936,23 +1936,89 @@ class TestExecuteParallel(unittest.TestCase):
         finally:
             os.remove(cf)
 
-    def test_extra_fields_in_cluster_object_are_ignored(self):
-        """Pipeline writes name/rg/kubeconfig/role; execute_parallel must tolerate extras.
+    def test_cluster_fields_populate_worker_identity_environment(self):
+        """Pipeline cluster metadata is passed to the snapshot identity exporter.
 
         Same JSON file is consumed by collect.yml (which uses name/rg/role),
-        so execute_parallel must NOT reject the additional fields.
+        while execute_parallel passes the canonical identity to each worker.
         """
         clusters = [
-            {"role": "mesh-1", "kubeconfig": "/k1", "name": "aks-1", "rg": "rg-1"},
-            {"role": "mesh-2", "kubeconfig": "/k2", "name": "aks-2", "rg": "rg-2"},
+            {
+                "role": "mesh-1",
+                "kubeconfig": "/k1",
+                "name": "aks-1",
+                "rg": "rg-1",
+                "id": (
+                    "/subscriptions/sub-1/resourceGroups/rg-1/providers/"
+                    "Microsoft.ContainerService/managedClusters/aks-1"
+                ),
+            },
+            {
+                "role": "mesh-2",
+                "kubeconfig": "/k2",
+                "name": "aks-2",
+                "rg": "rg-2",
+                "id": (
+                    "/subscriptions/sub-1/resourceGroups/rg-2/providers/"
+                    "Microsoft.ContainerService/managedClusters/aks-2"
+                ),
+            },
         ]
         cf = self._write_clusters(clusters)
         try:
             _FakePopen.reset(wait_seconds=0)
-            with patch.object(clustermesh_scale_module.subprocess, "Popen", _FakePopen):
-                rc = self._call_execute_parallel(cf)
+            with patch.dict(
+                os.environ,
+                {"RUN_ID": "73599-a1b2", "REGION": "eastus2euap"},
+            ):
+                with patch.object(
+                    clustermesh_scale_module.subprocess,
+                    "Popen",
+                    _FakePopen,
+                ):
+                    rc = self._call_execute_parallel(cf)
             self.assertEqual(rc, 0)
             self.assertEqual(len(_FakePopen.instances), 2)
+            for process in _FakePopen.instances:
+                role = process.args[2]
+                suffix = role.removeprefix("mesh-")
+                environment = process.kwargs["env"]
+                self.assertEqual(
+                    environment["CLUSTERMESH_RUN_ID"],
+                    "73599-a1b2",
+                )
+                self.assertEqual(
+                    environment["CLUSTERMESH_CLUSTER_ROLE"],
+                    role,
+                )
+                self.assertEqual(
+                    environment["CLUSTERMESH_CLUSTER_NAME"],
+                    f"aks-{suffix}",
+                )
+                self.assertEqual(
+                    environment["CLUSTERMESH_SUBSCRIPTION_ID"],
+                    "sub-1",
+                )
+                self.assertEqual(
+                    environment["CLUSTERMESH_CLUSTER_RESOURCE_ID"],
+                    (
+                        f"/subscriptions/sub-1/resourceGroups/rg-{suffix}/"
+                        "providers/Microsoft.ContainerService/managedClusters/"
+                        f"aks-{suffix}"
+                    ),
+                )
+                self.assertEqual(
+                    environment["CLUSTERMESH_RESOURCE_GROUP"],
+                    f"rg-{suffix}",
+                )
+                self.assertEqual(
+                    environment["CLUSTERMESH_REGION"],
+                    "eastus2euap",
+                )
+                self.assertEqual(
+                    environment["CLUSTERMESH_PROMETHEUS_CLUSTER_ALIAS"],
+                    f"73599_a1b2_mesh_{suffix}",
+                )
         finally:
             os.remove(cf)
 

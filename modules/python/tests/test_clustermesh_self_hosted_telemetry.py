@@ -109,6 +109,7 @@ def test_audit_requires_real_node_kubelet_targets():
         "pod_memory_working_set_bytes",
         "node_cpu_usage_seconds_total",
         "node_memory_working_set_bytes",
+        "clustermesh_cluster_identity_info",
     ]
     targets = [
         {"labels": {"job": "apiserver-backend-exporter"}, "health": "up"},
@@ -122,6 +123,18 @@ def test_audit_requires_real_node_kubelet_targets():
         targets,
         require_real_node_kubelet=True,
         require_kwok_resource=True,
+        identity_series=[
+            {
+                "run_id": "run-1",
+                "cluster_role": "mesh-1",
+                "cluster_name": "clustermesh-1",
+                "cluster_resource_id": "/subscriptions/sub-1/clustermesh-1",
+                "subscription_id": "sub-1",
+                "resource_group": "rg-1",
+                "region": "eastus2euap",
+                "prometheus_cluster_alias": "run_1_mesh_1",
+            }
+        ],
     )
 
     assert report["complete"] is True
@@ -146,6 +159,7 @@ def test_audit_fails_when_cadvisor_target_is_down():
         "pod_memory_working_set_bytes",
         "node_cpu_usage_seconds_total",
         "node_memory_working_set_bytes",
+        "clustermesh_cluster_identity_info",
     ]
     targets = [
         {"labels": {"job": "apiserver-backend-exporter"}, "health": "up"},
@@ -159,6 +173,18 @@ def test_audit_fails_when_cadvisor_target_is_down():
         targets,
         require_real_node_kubelet=True,
         require_kwok_resource=True,
+        identity_series=[
+            {
+                "run_id": "run-1",
+                "cluster_role": "mesh-1",
+                "cluster_name": "clustermesh-1",
+                "cluster_resource_id": "/subscriptions/sub-1/clustermesh-1",
+                "subscription_id": "sub-1",
+                "resource_group": "rg-1",
+                "region": "eastus2euap",
+                "prometheus_cluster_alias": "run_1_mesh_1",
+            }
+        ],
     )
 
     cadvisor = next(

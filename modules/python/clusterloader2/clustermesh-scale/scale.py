@@ -24,6 +24,7 @@ import argparse
 import concurrent.futures
 import json
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -539,6 +540,34 @@ def _install_parallel_signal_handlers():
     signal.signal(signal.SIGTERM, _terminate_all)
 
 
+def _cluster_identity_env(cluster):
+    resource_id = str(cluster.get("id") or "")
+    resource_id_parts = resource_id.strip("/").split("/")
+    subscription_id = ""
+    for index, part in enumerate(resource_id_parts[:-1]):
+        if part.lower() == "subscriptions":
+            subscription_id = resource_id_parts[index + 1]
+            break
+
+    run_id = os.environ.get("RUN_ID", "")
+    role = str(cluster["role"])
+    alias_source = f"{run_id}_{role}" if run_id else role
+    return {
+        "CLUSTERMESH_RUN_ID": run_id,
+        "CLUSTERMESH_CLUSTER_ROLE": role,
+        "CLUSTERMESH_CLUSTER_NAME": str(cluster.get("name") or ""),
+        "CLUSTERMESH_CLUSTER_RESOURCE_ID": resource_id,
+        "CLUSTERMESH_SUBSCRIPTION_ID": subscription_id,
+        "CLUSTERMESH_RESOURCE_GROUP": str(cluster.get("rg") or ""),
+        "CLUSTERMESH_REGION": os.environ.get("REGION", ""),
+        "CLUSTERMESH_PROMETHEUS_CLUSTER_ALIAS": re.sub(
+            r"[^A-Za-z0-9]",
+            "_",
+            alias_source,
+        ),
+    }
+
+
 def execute_parallel(
     clusters_file,
     max_concurrent,
@@ -627,8 +656,10 @@ def execute_parallel(
                 # fresh Prom); 0 = preserve Prom for failure-diagnostic dump.
                 "1" if tear_down_prometheus else "0",
             ]
+            worker_env = _cluster_identity_env(c)
             fut = executor.submit(
                 _run_one_cluster, role, worker_script, worker_args,
+                env=worker_env,
                 timeout_seconds=worker_timeout_seconds,
             )
             futures[fut] = role

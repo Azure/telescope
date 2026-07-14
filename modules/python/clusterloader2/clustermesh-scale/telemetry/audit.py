@@ -111,6 +111,7 @@ MANAGED_COMPONENTS = {
 
 MANAGED_SERIES_METRICS = (
     "up",
+    "clustermesh_cluster_identity_info",
     "process_cpu_seconds_total",
     "process_resident_memory_bytes",
     "apiserver_request_total",
@@ -123,6 +124,16 @@ MANAGED_SERIES_METRICS = (
     "cluster_autoscaler_nodes_count",
     "karpenter_nodes_created_total",
     "node_auto_provisioning_nodes_created_total",
+)
+IDENTITY_LABELS = (
+    "run_id",
+    "cluster_role",
+    "cluster_name",
+    "cluster_resource_id",
+    "subscription_id",
+    "resource_group",
+    "region",
+    "prometheus_cluster_alias",
 )
 
 PROMETHEUS_PROXY_ROOT = (
@@ -240,6 +251,46 @@ def _job_matches(actual_job, expected_job):
     return actual == expected or actual.endswith(expected)
 
 
+def _subscription_id(resource_id):
+    parts = resource_id.strip("/").split("/")
+    for index, part in enumerate(parts[:-1]):
+        if part.lower() == "subscriptions":
+            return parts[index + 1]
+    return ""
+
+
+def _expected_identity(manifest, cluster):
+    resource_id = cluster.get("id", "")
+    return {
+        "run_id": manifest.get("run_id", ""),
+        "cluster_role": cluster.get("role", ""),
+        "cluster_name": cluster.get("name", ""),
+        "cluster_resource_id": resource_id,
+        "subscription_id": _subscription_id(resource_id),
+        "resource_group": cluster.get("rg", ""),
+        "region": manifest.get("region", ""),
+        "prometheus_cluster_alias": cluster.get(
+            "prometheus_cluster_alias",
+            cluster.get("name", ""),
+        ),
+    }
+
+
+def _identity_matches(labels, expected):
+    if not all(_label_value(labels, name) for name in IDENTITY_LABELS):
+        return False
+    for name, expected_value in expected.items():
+        if not expected_value:
+            continue
+        actual_value = _label_value(labels, name)
+        if name in ("cluster_resource_id", "subscription_id"):
+            if actual_value.lower() != expected_value.lower():
+                return False
+        elif actual_value != expected_value:
+            return False
+    return True
+
+
 def build_managed_audit(metric_names, series_by_metric, manifest):
     """Build the managed-Prometheus control-plane coverage report."""
     expected_clusters = {
@@ -304,6 +355,33 @@ def build_managed_audit(metric_names, series_by_metric, manifest):
                 "evidence_metrics": sorted(evidence_metrics),
             }
         )
+
+    identity_series = series_by_metric.get(
+        "clustermesh_cluster_identity_info",
+        [],
+    )
+    missing_identity = []
+    for cluster in manifest.get("clusters", []):
+        expected = _expected_identity(manifest, cluster)
+        if not any(
+            _identity_matches(labels, expected)
+            for labels in identity_series
+        ):
+            missing_identity.append(cluster["role"])
+    checks.append(
+        {
+            "name": "cluster-identity",
+            "required": True,
+            "status": "covered" if not missing_identity else "missing",
+            "sample_count": len(identity_series),
+            "covered_clusters": sorted(
+                cluster["role"]
+                for cluster in manifest.get("clusters", [])
+                if cluster["role"] not in missing_identity
+            ),
+            "missing_clusters": sorted(missing_identity),
+        }
+    )
 
     for metric_name in (
         "process_cpu_seconds_total",
