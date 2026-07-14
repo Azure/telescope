@@ -1,0 +1,9 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: apiserver-backend-exporter
+rules:
+  - nonResourceURLs:
+      - /metrics
+    verbs:
+      - get

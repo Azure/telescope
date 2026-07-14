@@ -14,6 +14,11 @@ spec:
       labels:
         name: {{.Name}}
         group: {{.Group}}
+      {{if .MockMode}}
+      annotations:
+        kwok.x-k8s.io/usage-cpu: "{{.KwokUsageCPU}}"
+        kwok.x-k8s.io/usage-memory: "{{.KwokUsageMemory}}"
+      {{end}}
     spec:
       {{if .MockMode}}
       # MOCK mode: schedule the workload Pods onto the KWOK virtual nodes (which

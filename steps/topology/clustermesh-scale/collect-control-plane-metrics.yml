@@ -1,0 +1,36 @@
+parameters:
+  - name: cloud
+    type: string
+  - name: region
+    type: string
+
+steps:
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(AZURE_SERVICE_CONNECTION)
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -euo pipefail
+        bash "$COLLECT_SCRIPT"
+    env:
+      MANIFEST_PATH: $(Pipeline.Workspace)/aks-control-plane-metrics/run-manifest.json
+      AUDIT_SCRIPT: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/telemetry/audit.py
+      TSDB_EXPORT_SCRIPT: >-
+        $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/telemetry/amw_tsdb_snapshot.py
+      PLATFORM_EXPORT_SCRIPT: >-
+        $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/telemetry/aks_platform_to_openmetrics.py
+      OUTPUT_DIR: $(Build.ArtifactStagingDirectory)/aks-control-plane-metrics
+      COLLECT_SCRIPT: >-
+        $(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/telemetry/collect-managed-prometheus.sh
+      BUILD_BRANCH: $(Build.SourceBranchName)
+    displayName: "Audit and persist AKS control-plane metrics"
+
+  - task: PublishPipelineArtifact@1
+    inputs:
+      targetPath: $(Build.ArtifactStagingDirectory)/aks-control-plane-metrics
+      artifact: aks-control-plane-metrics-$(System.JobAttempt)-$(System.JobName)
+      publishLocation: pipeline
+    displayName: "Publish AKS control-plane telemetry audit"
+    condition: and(succeededOrFailed(),
+                   eq(variables['AKS_CONTROL_PLANE_METRICS_ENABLED'], 'true'))

@@ -44,7 +44,12 @@ METRIC_GROUPS = {
         "required": False,
     },
     "etcd-client": {
-        "exact": ("etcd_request_duration_seconds",),
+        # This is a histogram family on current AKS releases; the unsuffixed
+        # base name is metadata-only and doesn't appear in label-name values.
+        "exact": (
+            "etcd_request_duration_seconds_count",
+            "etcd_request_duration_seconds_sum",
+        ),
         "required": True,
     },
     "process-cpu": {
@@ -53,6 +58,14 @@ METRIC_GROUPS = {
     },
     "process-memory": {
         "exact": ("process_resident_memory_bytes",),
+        "required": True,
+    },
+    "apiserver-backend-cpu": {
+        "exact": ("aks_apiserver_backend_process_cpu_seconds_total",),
+        "required": True,
+    },
+    "apiserver-backend-memory": {
+        "exact": ("aks_apiserver_backend_process_resident_memory_bytes",),
         "required": True,
     },
 }
@@ -89,7 +102,12 @@ def _target_jobs(targets):
     return dict(sorted(jobs.items()))
 
 
-def build_audit(metric_names, targets, require_real_node_kubelet=False):
+def build_audit(
+    metric_names,
+    targets,
+    require_real_node_kubelet=False,
+    require_kwok_resource=False,
+):
     """Build the self-hosted Prometheus coverage report."""
     checks = []
     for name, definition in METRIC_GROUPS.items():
@@ -109,6 +127,21 @@ def build_audit(metric_names, targets, require_real_node_kubelet=False):
         )
 
     jobs = _target_jobs(targets)
+    exporter = jobs.get(
+        "apiserver-backend-exporter",
+        {"total": 0, "up": 0, "down": 0, "scrape_urls": []},
+    )
+    exporter_healthy = exporter["total"] > 0 and exporter["down"] == 0
+    checks.append(
+        {
+            "name": "target:apiserver-backend-exporter",
+            "required": True,
+            "status": "covered" if exporter_healthy else "missing",
+            "target_count": exporter["total"],
+            "up_targets": exporter["up"],
+            "down_targets": exporter["down"],
+        }
+    )
     if require_real_node_kubelet:
         for job_name in ("kubelet-real-nodes", "cadvisor-real-nodes"):
             target = jobs.get(
@@ -126,6 +159,38 @@ def build_audit(metric_names, targets, require_real_node_kubelet=False):
                     "down_targets": target["down"],
                 }
             )
+    if require_kwok_resource:
+        for metric_name in (
+            "pod_cpu_usage_seconds_total",
+            "pod_memory_working_set_bytes",
+            "node_cpu_usage_seconds_total",
+            "node_memory_working_set_bytes",
+        ):
+            covered = metric_name in metric_names
+            checks.append(
+                {
+                    "name": f"kwok:{metric_name}",
+                    "required": True,
+                    "status": "covered" if covered else "missing",
+                    "metric_count": 1 if covered else 0,
+                    "sample_metrics": [metric_name] if covered else [],
+                }
+            )
+        target = jobs.get(
+            "kwok-resource",
+            {"total": 0, "up": 0, "down": 0, "scrape_urls": []},
+        )
+        healthy = target["total"] > 0 and target["down"] == 0
+        checks.append(
+            {
+                "name": "target:kwok-resource",
+                "required": True,
+                "status": "covered" if healthy else "missing",
+                "target_count": target["total"],
+                "up_targets": target["up"],
+                "down_targets": target["down"],
+            }
+        )
 
     complete = all(
         check["status"] == "covered"
@@ -203,6 +268,7 @@ def parse_args(argv=None):
     parser.add_argument("--kubeconfig", required=True)
     parser.add_argument("--output-prefix", required=True)
     parser.add_argument("--require-real-node-kubelet", action="store_true")
+    parser.add_argument("--require-kwok-resource", action="store_true")
     return parser.parse_args(argv)
 
 
@@ -221,6 +287,7 @@ def main(argv=None):
             metric_names,
             targets,
             require_real_node_kubelet=args.require_real_node_kubelet,
+            require_kwok_resource=args.require_kwok_resource,
         )
         json_path, markdown_path = write_report(report, args.output_prefix)
     except (OSError, subprocess.SubprocessError, ValueError, RuntimeError) as error:

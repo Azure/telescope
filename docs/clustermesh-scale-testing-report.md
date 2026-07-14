@@ -155,6 +155,29 @@ The full propagation/throughput signal reference is **[`MESH-METRICS.md`](./MESH
 
 Key mesh-cost signals used in §10: `cilium_clustermesh_remote_cluster_nodes` (fan-out), `cilium_clustermesh_remote_clusters`, `cilium_clustermesh_global_services`, `cilium_nodes_all_num` (per-agent node awareness), `cilium_kvstoremesh_kvstore_events_*` (propagation throughput/latency), and `apiserver_flowcontrol_*` (control-plane saturation).
 
+### 8.1 Telemetry coverage audit
+
+Build 73076's snapshots predate the telemetry-completeness changes below. They remain the source for the published 10k results, but their missing families cannot be reconstructed after the fact.
+
+| Source / component | Build 73076 | New-run collection path | Persistence |
+|---|---|---|---|
+| kube-apiserver request/APF/watch/storage | ✅ complete (`job=master`) | unchanged CL2 Prometheus scrape | per-cluster TSDB snapshot |
+| KSM object state/inventory | ✅ 177 `kube_*` names | unchanged (`scrape_ksm=True`) | per-cluster TSDB snapshot |
+| Cilium / mock-agent / clustermesh / kvstoremesh | ✅ | unchanged PodMonitors | per-cluster TSDB snapshot |
+| **real-node kubelet + cAdvisor** | ❌ absent | mock mode now loads an early `real-node-kubelet` PodMonitor. It uses the real Cilium DaemonSet as a one-pod-per-real-node discovery anchor, rewrites each target to `hostIP:10250`, and scrapes `/metrics` + `/metrics/cadvisor`. KWOK nodes never become targets. | per-cluster TSDB snapshot |
+| **AKS-managed apiserver CPU/memory** | ❌ | aggregate percentages from AKS platform metrics + per-backend CPU/RSS from the `apiserver-backend-exporter`, which fingerprints HA replicas by `process_start_time_seconds` | native CL2 snapshot + reconstructed managed TSDB |
+| **AKS etcd server health/DB/leader** | ❌ | full `controlplane-etcd` metrics (minimal ingestion disabled) + aggregate CPU/memory/DB utilization from AKS platform metrics | persistent AMW + reconstructed managed TSDB |
+| **scheduler / controller-manager** | ❌ | full `controlplane-kube-scheduler` + `controlplane-kube-controller-manager` functional metrics | persistent AMW + reconstructed managed TSDB |
+| **KWOK pod/node CPU-memory** | ❌ | KWOK `ResourceUsage`/`Metric` CRDs expose explicitly synthetic container/pod/node usage to Prometheus and metrics-server | native CL2 snapshot |
+
+Every future CL2 run writes `telemetry/telemetry-audit-self-hosted.{json,md}` before snapshot/teardown. The pipeline artifact carries them beside the TSDB tarball; blob storage keeps them under a separate `telemetry-audit-self-hosted/` prefix so the snapshot-folder invariant (**blob-count = cluster-count**) stays true. The opt-in AKS control-plane canary also writes `telemetry-audit-managed.{json,md}` plus a run manifest containing the AMW, query window, enabled targets, cluster ARM IDs, and run-unique alphanumeric Prometheus cluster aliases (`<run_id>_<role>`, punctuation normalized to `_`). Missing required families are warnings (the workload result is preserved) but are explicit in the published audit.
+
+The managed path is intentionally separate from the native TSDB snapshot: AKS control-plane endpoints cannot be scraped reliably by self-hosted Prometheus, and AMW has no `/admin/tsdb/snapshot` or `remote_read`. Raw control-plane series therefore stay in the persistent AMW. For offline use, the pipeline enumerates every metric name, exports fixed-step PromQL matrices, merges all available AKS platform metrics, and backfills native Prometheus blocks with `promtool`. This reconstructed tarball is queryable but not lossless: exact scrape timestamps, staleness markers, exemplars, and native histograms cannot be recovered.
+
+**Hard AKS boundaries:** managed control-plane scrape configs intentionally drop `go_*` and `process_(cpu|max|resident|virtual|open)_.*` before customer keep-lists. Scheduler/controller-manager CPU-memory and per-replica etcd CPU/RSS are therefore not customer-visible. API server per-replica CPU/RSS is recovered separately by the backend-fingerprinting exporter; etcd CPU-memory remains aggregate-only.
+
+The full scheduler/controller metric sets still provide defensible **busy-time lower bounds**, not actual process CPU: `rate(scheduler_scheduling_attempt_duration_seconds_sum[5m])` for the scheduler and `sum(rate(workqueue_work_duration_seconds_sum{job="controlplane-kube-controller-manager"}[5m]))` for controller handlers. Queue depth/duration and unfinished-work metrics complete the saturation story. No defensible RSS reconstruction exists for these hidden processes.
+
 ---
 
 ## 9. Experiments — consolidated vs sharded
@@ -253,7 +276,10 @@ The dominant term is **pod startup + poll granularity** (tens of seconds), and i
 
 - **APF / kwok-controller readiness fix.** At ≥2 500 nodes/cluster the churn workload flooded the apiserver's `workload-low` API-Priority-and-Fairness class; `kwok-controller`'s pod/node-status writes (also `workload-low`) got starved → ~40 % of pods stuck *Running-but-NotReady*. **Fix:** a dedicated APF `FlowSchema` + `PriorityLevelConfiguration` for the `kwok-controller` SA. Validated live: `workload-low` took ~5 700 rejects while kwok-controller had **0** and all nodes converged.
 - **Fleet ClusterMesh flakiness.** `clustermesh-apiserver` deploy is non-deterministic at scale: clean at n≤20, but at **n=100 only ~35/100 apiservers deployed** (a Fleet wedge). Auto-recovery (delete+recreate the CMP) is **counter-productive at n=100** — it tears down the working apiservers and recovers none (should be gated off above small N).
-- **Telemetry gap — per-component CPU/mem.** `scrape_kubelets=False` in mock mode (KWOK nodes have no kubelet → Prometheus readiness timeout) also disables **cAdvisor**, so the container CPU/mem measurements (etcd/cilium/clustermesh) return empty. **Fix direction:** scope kubelet scraping to real nodes (`type!=kwok`).
+- **Telemetry gap — per-component CPU/mem.** `scrape_kubelets=False` in mock mode (KWOK nodes have no kubelet → Prometheus readiness timeout) also disabled **cAdvisor**, so the container CPU/mem measurements returned empty. **Implemented for the next run:** keep CL2's binary all-node job off, but load a pre-readiness PodMonitor that discovers only real nodes through their Cilium DaemonSet pods and scrapes kubelet/cAdvisor at `hostIP:10250`. This avoids creating even transient KWOK targets.
+- **Telemetry gap — API server per-replica CPU/RSS.** Direct `/metrics` contains process counters, but a normal Prometheus job corrupts the counter by bouncing across HA backends. A lightweight exporter now makes fresh authenticated requests, fingerprints replicas by `process_start_time_seconds`, and exposes stable per-backend CPU/RSS series. A live six-backend probe measured ~0.15–0.22 cores and ~532–639 MB RSS per backend.
+- **Telemetry gap — KWOK usage.** Virtual pods have no real process usage, but KWOK's `ResourceUsage`/`Metric` API can expose explicitly synthetic container/pod/node CPU-memory. The path was validated through both Prometheus node discovery and metrics-server (`kubectl top`).
+- **Telemetry gap — AKS-managed control plane.** Self-hosted Prometheus cannot reliably scrape the hidden AKS control-plane replicas. An opt-in n=2 canary now attaches every run cluster to one persistent AMW, enables every supported cluster/control-plane target with minimal ingestion disabled, exports all available AKS platform metrics, and builds a queryable reconstructed TSDB tarball. The live local proof captured 1 678 managed metric names with zero query errors and produced a 12 MB offline snapshot. **Pipeline canary validation is still required.**
 
 See **[`clustermesh-scale-failure-modes.md`](./clustermesh-scale-failure-modes.md)** for the fuller catalogue of failure modes (Fleet flakiness, apiserver shedding, the 10k wedge, etc.).
 
@@ -265,7 +291,7 @@ See **[`clustermesh-scale-failure-modes.md`](./clustermesh-scale-failure-modes.m
 
 **NOT reproduced:** the **datapath** — no real packet forwarding, no service load-balancing, no NetworkPolicy **enforcement**, no real connectivity. Results about *control-plane scale and mesh cost* are valid; results about *connectivity/enforcement* are not (use real clusters — see the matrix).
 
-**Other limits:** apiserver/etcd of the workload clusters are AKS-managed (opaque CPU/mem); n=100 Fleet reliability is fragile; per-component CPU/mem needs the cAdvisor fix or `kubectl top`.
+**Other limits:** historical snapshots still lack the new telemetry; KWOK usage is synthetic by definition; scheduler/controller-manager CPU-memory and per-replica etcd CPU/RSS are intentionally unavailable through AKS customer APIs; reconstructed AMW snapshots cannot preserve exact scrape timestamps/staleness/exemplars/native histograms; n=100 Fleet reliability is fragile.
 
 ---
 
@@ -279,6 +305,13 @@ See **[`clustermesh-scale-failure-modes.md`](./clustermesh-scale-failure-modes.m
 | n100 (100×100) | ✅ **clean 100 % density run** (73076: 100/100 apiservers, pod-churn 100/100 clusters) — Fleet self-converged; surgical-rejoin recovery added for the ~75 % wedge case |
 | APF fix | ✅ validated live |
 | consolidated-vs-sharded (n1 vs n5) | ✅ proven |
+| real-node kubelet/cAdvisor scrape | ✅ build 73451: 3/3 kubelet + 3/3 cAdvisor real-node targets up on both clusters; container CPU-memory verified |
+| API server backend CPU/RSS exporter | 🧪 local six-backend probe + mock exporter smoke passed; pipeline canary pending |
+| KWOK synthetic CPU-memory | 🧪 local Prometheus + metrics-server smoke passed; pipeline canary pending |
+| AKS managed control-plane metrics | 🧪 dedicated live AKS+AMW proof passed; pipeline canary pending |
+| reconstructed managed TSDB export | 🧪 1 678 metrics / 5.59 M samples / 12 MB tar loaded successfully; pipeline canary pending |
+| automated telemetry coverage audit | ✅ self-hosted artifacts validated in build 73451; etcd histogram-family false negative fixed locally. Managed pipeline artifact validation pending |
+| AKS control-plane/audit logs | 🧪 all supported diagnostic categories wired to persistent resource-specific Log Analytics tables; full-telemetry stage pending |
 
 ---
 
@@ -309,11 +342,56 @@ List everything: `az storage blob list --account-name cmshscaleprom --container-
 
 **Run a tier:** trigger the `New Pipeline Test` stage for the tier (UI, subscription `37deca37…`, region eastus2euap); results + Prometheus snapshots auto-upload to the `cmshscaleprom` container above (and as pipeline artifacts).
 
+**Self-hosted telemetry audits (new runs):**
+
+```
+clustermesh-scale-2/telemetry-audit-self-hosted/<scenario>/<run_id>/
+  telemetry-audit-self-hosted-<role>.json
+  telemetry-audit-self-hosted-<role>.md
+```
+
+**AKS control-plane metrics (new-run canary).** The n=2 mock smoke is the opt-in rollout stage. On its first run it registers the subscription preview feature, creates/reuses Azure Monitor workspace `cmsh-scale-eastus2euap-amw` in persistent RG `clustermesh-scale-prom-snapshots`, and attaches both AKS clusters. The workspace is deliberately outside the ephemeral run RG, so its raw Prometheus data survives cleanup. Audit artifacts are uploaded beside the snapshots at:
+
+```
+clustermesh-scale-2/managed-control-plane/<run_id>/
+  run-manifest.json
+  telemetry-audit-managed.json
+  telemetry-audit-managed.md
+  aks-platform-<role>.json
+  aks-platform-<role>.openmetrics
+  control-plane-log-summary.json
+  control-plane-log-sample-<role>.json
+  amw-export-manifest.json
+  prom-snapshot-amw-<timestamp>.tar.gz
+```
+
+Query the retained workspace directly (the AMW API requires an exact metric-name matcher):
+
+```bash
+ENDPOINT=$(az monitor account show \
+  --resource-group clustermesh-scale-prom-snapshots \
+  --name cmsh-scale-eastus2euap-amw \
+  --query properties.metrics.prometheusQueryEndpoint -o tsv)
+TOKEN=$(az account get-access-token \
+  --resource https://prometheus.monitor.azure.com \
+  --query accessToken -o tsv)
+curl -fsS -G "$ENDPOINT/api/v1/query_range" \
+  -H "Authorization: Bearer $TOKEN" \
+  --data-urlencode 'query=up{job="controlplane-etcd",cluster="<run_id>_mesh_1"}' \
+  --data-urlencode 'start=2026-07-13T00:00:00Z' \
+  --data-urlencode 'end=2026-07-13T01:00:00Z' \
+  --data-urlencode 'step=15s'
+```
+
+The run manifest supplies the exact start/end window and cluster IDs. AMW `/query_range` supports at most 32 days; `/series` supports at most 12 hours, so the automated inventory audit caps its series window while the raw retained data remains complete.
+
+**Control-plane/audit logs.** The full-telemetry stage creates/reuses Log Analytics workspace `cmsh-scale-controlplane-law` in `eastus2`, then dynamically enables every diagnostic log category advertised by each AKS cluster in resource-specific mode. This includes kube-apiserver, kube-audit, kube-audit-admin, scheduler, controller-manager, autoscaler, cloud-controller-manager, guard, CSI, Fleet and Karpenter categories when available. The full raw stream remains in `AKSControlPlane`, `AKSAudit`, and `AKSAuditAdmin`; pipeline artifacts contain run-window counts and a bounded 5 000-row sample per cluster.
+
 ---
 
 ## 15. Appendix — key knobs
 
-`CL2_NAMESPACES`, `CL2_GLOBAL_NAMESPACE_COUNT` (100 % = all), `CL2_DEPLOYMENTS_PER_NAMESPACE`, `CL2_REPLICAS_PER_DEPLOYMENT`, `CL2_CHURN_CYCLES`, `CL2_KILL_DURATION_SECONDS/INTERVAL/BATCH`, `CL2_PROPAGATION_PROBE_*`, `MOCK_NODE_COUNT`, `MOCK_MESH_STRIDE`, `MOCK_DEPLOY_MAX_FAILURES`, `CMP_AUTO_RECOVERY_ENABLED`.
+`CL2_NAMESPACES`, `CL2_GLOBAL_NAMESPACE_COUNT` (100 % = all), `CL2_DEPLOYMENTS_PER_NAMESPACE`, `CL2_REPLICAS_PER_DEPLOYMENT`, `CL2_CHURN_CYCLES`, `CL2_KILL_DURATION_SECONDS/INTERVAL/BATCH`, `CL2_PROPAGATION_PROBE_*`, `CL2_KWOK_USAGE_CPU`, `CL2_KWOK_USAGE_MEMORY`, `MOCK_NODE_COUNT`, `MOCK_MESH_STRIDE`, `MOCK_DEPLOY_MAX_FAILURES`, `CMP_AUTO_RECOVERY_ENABLED`, `AKS_CONTROL_PLANE_METRICS_ENABLED`, `AKS_CONTROL_PLANE_METRICS_REGISTER_PREVIEW`, `AKS_CONTROL_PLANE_AMW_RESOURCE_GROUP`, `AKS_CONTROL_PLANE_AMW_NAME`, `AKS_CONTROL_PLANE_LAW_NAME`, `AKS_CONTROL_PLANE_LOG_RETENTION_DAYS`, `AKS_PLATFORM_METRICS_TIMEOUT_SECONDS`, `AKS_CONTROL_PLANE_LOGS_TIMEOUT_SECONDS`, `AKS_MANAGED_TSDB_*`.
 
 **Values used** — *comparison tiers*: `DEPLOYMENTS_PER_NAMESPACE=2`, `REPLICAS_PER_DEPLOYMENT=5`, `NAMESPACES`=500/250/100/5 (n1/n2/n5/n100), `GLOBAL_NAMESPACE_COUNT=NAMESPACES` (100 %); *churn*: `CHURN_CYCLES=5`, `CHURN_UP/DOWN_DURATION=60s`, `KILL_BATCH=5`, `KILL_INTERVAL_SECONDS=10`, `KILL_DURATION_SECONDS=600`; *timing*: `WARMUP_DURATION=30s`, `HOLD_DURATION=2m`, `API_SERVER_CALLS_PER_SECOND=20`; *probe*: `PROBE_COUNT=20`, interval `30s`, `PROBE_WINDOW_DURATION=30m`. Smoke stages use the larger per-scenario defaults (`DEPLOYMENTS_PER_NAMESPACE=4`, `REPLICAS_PER_DEPLOYMENT=10`).
 

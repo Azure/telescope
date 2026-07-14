@@ -11,6 +11,8 @@ name: clustermesh-scale-test-module
 {{$tuningSet := .tuningSet}}
 {{$operationTimeout := .operationTimeout}}
 {{$mockMode := DefaultParam .mockMode false}}
+{{$kwokUsageCPU := DefaultParam .CL2_KWOK_USAGE_CPU "1m"}}
+{{$kwokUsageMemory := DefaultParam .CL2_KWOK_USAGE_MEMORY "1Mi"}}
 
 {{$totalDeployments := MultiplyInt $namespaces $deploymentsPerNamespace}}
 
@@ -50,6 +52,8 @@ steps:
               Replicas: {{$replicasPerDeployment}}
               Group: clustermesh-scale-test
               MockMode: {{$mockMode}}
+              KwokUsageCPU: {{$kwokUsageCPU}}
+              KwokUsageMemory: {{$kwokUsageMemory}}
 
   - name: Wait for deployments to be {{$actionName}}d
     measurements:

@@ -48,6 +48,23 @@ steps:
             basename: kvstoremesh-standalone
             templateFillMap:
               Interval: {{$interval}}
+          # The API server Service load-balances across hidden HA backends. This
+          # exporter fingerprints each backend by process_start_time_seconds and
+          # exposes per-backend CPU/RSS without mixing counters across replicas.
+          - objectTemplatePath: "modules/apiserver-backend-exporter/configmap.yaml"
+            basename: apiserver-backend-exporter-config
+          - objectTemplatePath: "modules/apiserver-backend-exporter/serviceaccount.yaml"
+            basename: apiserver-backend-exporter-sa
+          - objectTemplatePath: "modules/apiserver-backend-exporter/clusterrole.yaml"
+            basename: apiserver-backend-exporter-role
+          - objectTemplatePath: "modules/apiserver-backend-exporter/clusterrolebinding.yaml"
+            basename: apiserver-backend-exporter-binding
+          - objectTemplatePath: "modules/apiserver-backend-exporter/service.yaml"
+            basename: apiserver-backend-exporter-service
+          - objectTemplatePath: "modules/apiserver-backend-exporter/deployment.yaml"
+            basename: apiserver-backend-exporter-deployment
+          - objectTemplatePath: "modules/apiserver-backend-exporter/podmonitor.yaml"
+            basename: apiserver-backend-exporter-monitor
           {{if $mockMode}}
           # MOCK mode: scrape the mock-cilium-agents so the cilium.yaml +
           # clustermesh-metrics.yaml measurements capture the simulated agents.

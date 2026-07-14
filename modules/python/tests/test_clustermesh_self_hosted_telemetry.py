@@ -29,6 +29,13 @@ MONITOR_PATH = (
     / "prometheus-additional-monitors"
     / "real-node-kubelet.yaml"
 )
+KWOK_RESOURCE_PATH = MONITOR_PATH.parent / "00-kwok-resource-usage.yaml"
+KWOK_SCRAPE_PATH = MONITOR_PATH.parent / "02-kwok-resource-scrape-secret.yaml"
+EVENT_DEPLOYMENT_PATH = (
+    MONITOR_PATH.parents[1]
+    / "modules"
+    / "event-throughput-deployment.yaml"
+)
 
 
 def test_real_node_monitor_scrapes_kubelet_and_cadvisor():
@@ -51,6 +58,38 @@ def test_real_node_monitor_scrapes_kubelet_and_cadvisor():
     )
 
 
+def test_kwok_resource_usage_and_node_discovery_are_configured():
+    resources = list(
+        yaml.safe_load_all(KWOK_RESOURCE_PATH.read_text(encoding="utf-8"))
+    )
+    kinds = {resource["kind"] for resource in resources}
+    metric = next(resource for resource in resources if resource["kind"] == "Metric")
+    secret = yaml.safe_load(KWOK_SCRAPE_PATH.read_text(encoding="utf-8"))
+    scrape_configs = yaml.safe_load(
+        secret["stringData"]["prometheus-additional.yaml"]
+    )
+
+    assert kinds == {"Metric", "ClusterResourceUsage"}
+    assert metric["spec"]["path"] == "/metrics/nodes/{nodeName}/metrics/resource"
+    assert {
+        item["name"] for item in metric["spec"]["metrics"]
+    } >= {
+        "container_cpu_usage_seconds_total",
+        "container_memory_working_set_bytes",
+        "node_cpu_usage_seconds_total",
+        "node_memory_working_set_bytes",
+    }
+    assert scrape_configs[0]["job_name"] == "kwok-resource"
+    assert scrape_configs[0]["kubernetes_sd_configs"] == [{"role": "node"}]
+
+
+def test_mock_workload_template_includes_synthetic_usage_annotations():
+    template = EVENT_DEPLOYMENT_PATH.read_text(encoding="utf-8")
+
+    assert 'kwok.x-k8s.io/usage-cpu: "{{.KwokUsageCPU}}"' in template
+    assert 'kwok.x-k8s.io/usage-memory: "{{.KwokUsageMemory}}"' in template
+
+
 def test_audit_requires_real_node_kubelet_targets():
     metric_names = [
         "apiserver_request_total",
@@ -61,19 +100,28 @@ def test_audit_requires_real_node_kubelet_targets():
         "container_memory_working_set_bytes",
         "cilium_version",
         "cilium_kvstoremesh_kvstore_events_total",
-        "etcd_request_duration_seconds",
+        "etcd_request_duration_seconds_count",
         "process_cpu_seconds_total",
         "process_resident_memory_bytes",
+        "aks_apiserver_backend_process_cpu_seconds_total",
+        "aks_apiserver_backend_process_resident_memory_bytes",
+        "pod_cpu_usage_seconds_total",
+        "pod_memory_working_set_bytes",
+        "node_cpu_usage_seconds_total",
+        "node_memory_working_set_bytes",
     ]
     targets = [
+        {"labels": {"job": "apiserver-backend-exporter"}, "health": "up"},
         {"labels": {"job": "kubelet-real-nodes"}, "health": "up"},
         {"labels": {"job": "cadvisor-real-nodes"}, "health": "up"},
+        {"labels": {"job": "kwok-resource"}, "health": "up"},
     ]
 
     report = audit_module.build_audit(
         metric_names,
         targets,
         require_real_node_kubelet=True,
+        require_kwok_resource=True,
     )
 
     assert report["complete"] is True
@@ -89,19 +137,28 @@ def test_audit_fails_when_cadvisor_target_is_down():
         "container_cpu_usage_seconds_total",
         "container_memory_working_set_bytes",
         "cilium_version",
-        "etcd_request_duration_seconds",
+        "etcd_request_duration_seconds_count",
         "process_cpu_seconds_total",
         "process_resident_memory_bytes",
+        "aks_apiserver_backend_process_cpu_seconds_total",
+        "aks_apiserver_backend_process_resident_memory_bytes",
+        "pod_cpu_usage_seconds_total",
+        "pod_memory_working_set_bytes",
+        "node_cpu_usage_seconds_total",
+        "node_memory_working_set_bytes",
     ]
     targets = [
+        {"labels": {"job": "apiserver-backend-exporter"}, "health": "up"},
         {"labels": {"job": "kubelet-real-nodes"}, "health": "up"},
         {"labels": {"job": "cadvisor-real-nodes"}, "health": "down"},
+        {"labels": {"job": "kwok-resource"}, "health": "up"},
     ]
 
     report = audit_module.build_audit(
         metric_names,
         targets,
         require_real_node_kubelet=True,
+        require_kwok_resource=True,
     )
 
     cadvisor = next(

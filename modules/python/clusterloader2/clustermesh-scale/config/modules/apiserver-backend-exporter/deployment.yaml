@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: apiserver-backend-exporter
+  namespace: monitoring
+  labels:
+    app: apiserver-backend-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: apiserver-backend-exporter
+  template:
+    metadata:
+      labels:
+        app: apiserver-backend-exporter
+    spec:
+      serviceAccountName: apiserver-backend-exporter
+      containers:
+        - name: exporter
+          image: mcr.microsoft.com/devcontainers/python:1-3.12-bookworm
+          command:
+            - python3
+            - /opt/exporter/exporter.py
+          env:
+            - name: REQUESTS_PER_CYCLE
+              value: "16"
+            - name: POLL_INTERVAL_SECONDS
+              value: "15"
+          ports:
+            - name: metrics
+              containerPort: 9100
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: metrics
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          volumeMounts:
+            - name: script
+              mountPath: /opt/exporter
+              readOnly: true
+      volumes:
+        - name: script
+          configMap:
+            name: apiserver-backend-exporter

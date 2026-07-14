@@ -1,0 +1,19 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: apiserver-backend-exporter
+  namespace: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: apiserver-backend-exporter
+  namespaceSelector:
+    matchNames:
+      - monitoring
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+      relabelings:
+        - replacement: apiserver-backend-exporter
+          targetLabel: job

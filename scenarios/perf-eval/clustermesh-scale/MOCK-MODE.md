@@ -36,6 +36,8 @@ harness agent); the **mock** agents are what represent the simulated nodes.
 | CL2 mock gating | `modules/.../config/config.yaml`, `modules/scale-test*.yaml`, `modules/clustermesh.yaml` | `CL2_MOCK_MODE=true` → workload Pods get `nodeSelector type=kwok` + the `kwok.x-k8s.io/node` toleration, and a PodMonitor for `app=mock-cilium-agent:9962` is added so Prometheus scrapes the mock agents. Default `false` → real runs unchanged. |
 | Mock-agent PodMonitor | `modules/clustermesh/podmonitor-mock-agent.yaml` | Scrapes the mock agents on :9962 in the `mock-clustermesh` namespace. |
 | Real-node kubelet/cAdvisor monitor | `config/prometheus-additional-monitors/real-node-kubelet.yaml` | Loaded before CL2's Prometheus readiness gate via `--prometheus-additional-monitors-path`. Uses the real Cilium DaemonSet as a one-pod-per-real-node discovery anchor, then scrapes each host's kubelet `/metrics` and `/metrics/cadvisor` on :10250. KWOK nodes never become targets. |
+| KWOK synthetic resource usage | `config/prometheus-additional-monitors/00-kwok-resource-usage.yaml`, `02-kwok-resource-scrape-secret.yaml` | Applies KWOK `ResourceUsage`/`Metric` CRDs and a node-discovery scrape job. Workload annotations configure synthetic container/pod/node CPU-memory; values are explicitly simulation data. |
+| API server backend resources | `modules/apiserver-backend-exporter/` | Fingerprints hidden API server HA replicas by `process_start_time_seconds` and exposes stable per-backend CPU counters/RSS to the native snapshot. |
 | AKS prometheus storage fix | `modules/python/clusterloader2/utils.py`, `clustermesh-scale/scale.py` | Passes `--prometheus-pvc-storage-class=managed-csi` for `provider=aks`. CL2's default `ssd`/`kubernetes.io/gce-pd` class does NOT provision on AKS → prometheus-k8s stays Pending → "no endpoints". |
 | `CL2_MOCK_MODE` wiring | `clustermesh-scale/scale.py` (`--mock-mode`), engine `execute.yml` (re-export) | Matrix var `mock_mode` → `MOCK_MODE` → `CL2_MOCK_MODE` → overrides → templates. |
 | Mock topology | `steps/topology/clustermesh-scale-mock/` | `validate-resources.yml` = base validate + `deploy-mock-layer.yml` (loops clusters, runs the vendored provision script). `execute`/`collect` delegate to base. |
@@ -159,6 +161,10 @@ exec plugin.)
   snapshot teardown so missing `kubelet_*` / `container_*` families or down
   real-node targets are explicit rather than discovered later from an empty
   offline query.
+- KWOK synthetic usage was validated locally through Prometheus and
+  metrics-server: configured 25m/64Mi and 40m/96Mi workloads appeared per pod,
+  per container, and per virtual node, and `kubectl top` returned the simulated
+  values.
 
 ## Known consideration: measurement window
 

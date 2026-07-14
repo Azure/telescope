@@ -149,6 +149,8 @@ class TestConfigureClustermeshScale(unittest.TestCase):
             self.assertIn('CL2_PROMETHEUS_NODE_SELECTOR: "prometheus: \\"true\\""', content)
             self.assertIn("CL2_PROMETHEUS_SCRAPE_CILIUM_AGENT: true", content)
             self.assertIn("CL2_PROMETHEUS_SCRAPE_CILIUM_OPERATOR: true", content)
+            self.assertIn('CL2_KWOK_USAGE_CPU: "1m"', content)
+            self.assertIn('CL2_KWOK_USAGE_MEMORY: "1Mi"', content)
             self.assertIn("CL2_POD_STARTUP_LATENCY_THRESHOLD: 3m", content)
             self.assertIn("CL2_ENABLE_VIOLATIONS_FOR_API_CALL_PROMETHEUS_SIMPLE: false", content)
             self.assertNotIn("CL2_PROMETHEUS_MEMORY_REQUEST", content)
@@ -1438,6 +1440,8 @@ class TestMainArgumentParsing(unittest.TestCase):
             policy_scale_cnp_per_ns=50,
             policy_scale_hold_duration="5m",
             mock_mode="false",
+            kwok_usage_cpu="1m",
+            kwok_usage_memory="1Mi",
         )
 
     @patch.object(clustermesh_scale_module, "execute_clusterloader2")

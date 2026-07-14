@@ -74,19 +74,37 @@ echo "===================================================================="
 PROM_LIMIT="${CL2_PROMETHEUS_MEMORY_LIMIT_GI:-12}Gi"
 PROM_PATCH_LOG="$report_dir/prom-cr-patch.log"
 {
-  echo "[prom-patcher] starting; target limit=$PROM_LIMIT, attempts=${CL2_MAX_ATTEMPTS:-1}" >&2
+  echo "[prom-patcher] starting; target limit=$PROM_LIMIT, attempts=${CL2_MAX_ATTEMPTS:-1}, mock=${CL2_MOCK_MODE:-false}" >&2
   # 10min per attempt — covers CL2 startup for each (re)deploy of the stack.
   _deadline=$(( $(date +%s) + 600 * ${CL2_MAX_ATTEMPTS:-1} ))
   _patches=0
   while [ "$(date +%s)" -lt "$_deadline" ]; do
     _current=$(KUBECONFIG="$kubeconfig" kubectl -n monitoring get prometheus k8s \
                 -o jsonpath='{.spec.resources.limits.memory}' 2>/dev/null || echo "")
+    _scrape_name=$(KUBECONFIG="$kubeconfig" kubectl -n monitoring get prometheus k8s \
+                -o jsonpath='{.spec.additionalScrapeConfigs.name}' 2>/dev/null || echo "")
+    _scrape_key=$(KUBECONFIG="$kubeconfig" kubectl -n monitoring get prometheus k8s \
+                -o jsonpath='{.spec.additionalScrapeConfigs.key}' 2>/dev/null || echo "")
+    _needs_patch=""
+    _patch="{\"spec\":{\"resources\":{\"limits\":{\"memory\":\"$PROM_LIMIT\"}}"
+    _scrape_secret_ready=""
+    if [ "${CL2_MOCK_MODE:-false}" = "true" ] && \
+       KUBECONFIG="$kubeconfig" kubectl -n monitoring get secret \
+         clustermesh-additional-scrapes >/dev/null 2>&1; then
+      _scrape_secret_ready=1
+      _patch="${_patch},\"additionalScrapeConfigs\":{\"name\":\"clustermesh-additional-scrapes\",\"key\":\"prometheus-additional.yaml\"}"
+      if [ "$_scrape_name" != "clustermesh-additional-scrapes" ] || \
+         [ "$_scrape_key" != "prometheus-additional.yaml" ]; then
+        _needs_patch=1
+      fi
+    fi
+    _patch="${_patch}}}"
     # Patch whenever the CR exists but its limit isn't the target (covers both
     # first appearance and a retry's freshly-recreated CR).
-    if [ -n "$_current" ] && [ "$_current" != "$PROM_LIMIT" ]; then
-      echo "[prom-patcher] prometheus/k8s CR limit=$_current → patching to $PROM_LIMIT" >&2
+    if [ -n "$_current" ] && { [ "$_current" != "$PROM_LIMIT" ] || [ -n "$_needs_patch" ]; }; then
+      echo "[prom-patcher] prometheus/k8s limit=$_current additionalScrapeConfigs=${_scrape_name:-<none>}/${_scrape_key:-<none>} secretReady=${_scrape_secret_ready:-false} → patching" >&2
       if KUBECONFIG="$kubeconfig" kubectl -n monitoring patch prometheus k8s \
-           --type=merge -p "{\"spec\":{\"resources\":{\"limits\":{\"memory\":\"$PROM_LIMIT\"}}}}" >&2; then
+           --type=merge -p "$_patch" >&2; then
         _patches=$((_patches + 1))
         echo "[prom-patcher] patch #$_patches OK" >&2
       else
@@ -311,7 +329,10 @@ if [ -f "$telemetry_audit_script" ]; then
     --output-prefix "$telemetry_audit_dir/telemetry-audit-self-hosted"
   )
   if [ "${CL2_MOCK_MODE:-false}" = "true" ]; then
-    telemetry_audit_args+=(--require-real-node-kubelet)
+    telemetry_audit_args+=(
+      --require-real-node-kubelet
+      --require-kwok-resource
+    )
   fi
   if ! python3 "$telemetry_audit_script" "${telemetry_audit_args[@]}"; then
     echo "##vso[task.logissue type=warning;] $role: self-hosted Prometheus telemetry audit is incomplete; inspect $telemetry_audit_dir/telemetry-audit-self-hosted.json"

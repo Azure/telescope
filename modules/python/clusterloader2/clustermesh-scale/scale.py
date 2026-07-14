@@ -130,6 +130,8 @@ def configure_clusterloader2(
     policy_scale_cnp_per_ns=50,
     policy_scale_hold_duration="5m",
     mock_mode="false",
+    kwok_usage_cpu="1m",
+    kwok_usage_memory="1Mi",
 ):
     with open(override_file, "w", encoding="utf-8") as f:
         # Prometheus stack — keep the Cilium-scrape flags ON so the
@@ -171,6 +173,11 @@ def configure_clusterloader2(
         # config templates' `eq (printf "%v" ...) "true"` gate is robust whether
         # the matrix exports the value as "true" or "True".
         f.write(f"CL2_MOCK_MODE: {str(mock_mode).strip().lower()}\n")
+        # Synthetic workload usage reported by KWOK's ResourceUsage/Metric CRDs.
+        # These values are explicitly synthetic; actual mock-agent/resource
+        # consumption is still captured separately through real-node cAdvisor.
+        f.write(f'CL2_KWOK_USAGE_CPU: "{kwok_usage_cpu}"\n')
+        f.write(f'CL2_KWOK_USAGE_MEMORY: "{kwok_usage_memory}"\n')
         f.write("CL2_POD_STARTUP_LATENCY_THRESHOLD: 3m\n")
         # APIResponsivenessPrometheus default SLO (perc99 ≤ 1s) is tuned for
         # production-scale clusters in steady state; on Phase-1 dev clusters
@@ -2023,6 +2030,12 @@ def main():
                          "writes CL2_MOCK_MODE so the config templates schedule the "
                          "workload onto KWOK virtual nodes and add a PodMonitor for the "
                          "mock-cilium-agents. Default 'false' → real-node runs unchanged.")
+    pc.add_argument("--kwok-usage-cpu", type=str, default="1m",
+                    help="Synthetic per-container CPU usage exposed by KWOK in mock "
+                         "mode. Kubernetes quantity, default 1m.")
+    pc.add_argument("--kwok-usage-memory", type=str, default="1Mi",
+                    help="Synthetic per-container memory working set exposed by KWOK "
+                         "in mock mode. Kubernetes quantity, default 1Mi.")
 
     # execute
     pe = subparsers.add_parser("execute", help="Run CL2 against a single cluster")
@@ -2166,6 +2179,8 @@ def main():
             policy_scale_cnp_per_ns=args.policy_scale_cnp_per_ns,
             policy_scale_hold_duration=args.policy_scale_hold_duration,
             mock_mode=args.mock_mode,
+            kwok_usage_cpu=args.kwok_usage_cpu,
+            kwok_usage_memory=args.kwok_usage_memory,
         )
     elif args.command == "execute":
         execute_clusterloader2(
