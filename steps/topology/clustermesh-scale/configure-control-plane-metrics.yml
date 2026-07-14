@@ -12,8 +12,15 @@ steps:
       scriptLocation: inlineScript
       inlineScript: |
         set -euo pipefail
+        az account set --subscription "$TARGET_SUBSCRIPTION_ID"
+        actual_subscription_id=$(az account show --query id -o tsv)
+        if [[ "${actual_subscription_id,,}" != "${TARGET_SUBSCRIPTION_ID,,}" ]]; then
+          echo "Expected Azure subscription ${TARGET_SUBSCRIPTION_ID}, got ${actual_subscription_id}" >&2
+          exit 1
+        fi
         bash "$CONFIGURE_SCRIPT"
     env:
+      TARGET_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
       REGION: ${{ parameters.region }}
       CONFIGMAP_PATH: >-
         $(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/telemetry/ama-metrics-settings-configmap.yaml

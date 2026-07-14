@@ -5,6 +5,11 @@ parameters:
     type: string
 
 steps:
+  - bash: mkdir -p "$(Build.ArtifactStagingDirectory)/aks-control-plane-metrics"
+    displayName: "Prepare AKS control-plane telemetry artifact"
+    condition: and(succeededOrFailed(),
+                   eq(variables['AKS_CONTROL_PLANE_METRICS_ENABLED'], 'true'))
+
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(AZURE_SERVICE_CONNECTION)
@@ -12,8 +17,15 @@ steps:
       scriptLocation: inlineScript
       inlineScript: |
         set -euo pipefail
+        az account set --subscription "$TARGET_SUBSCRIPTION_ID"
+        actual_subscription_id=$(az account show --query id -o tsv)
+        if [[ "${actual_subscription_id,,}" != "${TARGET_SUBSCRIPTION_ID,,}" ]]; then
+          echo "Expected Azure subscription ${TARGET_SUBSCRIPTION_ID}, got ${actual_subscription_id}" >&2
+          exit 1
+        fi
         bash "$COLLECT_SCRIPT"
     env:
+      TARGET_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
       MANIFEST_PATH: $(Pipeline.Workspace)/aks-control-plane-metrics/run-manifest.json
       AUDIT_SCRIPT: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/telemetry/audit.py
       TSDB_EXPORT_SCRIPT: >-
