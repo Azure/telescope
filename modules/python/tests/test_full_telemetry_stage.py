@@ -43,6 +43,8 @@ def test_dedicated_full_telemetry_stage_is_isolated():
     assert "AKS_CONTROL_PLANE_LAW_NAME: cmsh-scale-controlplane-law" in pipeline
     assert 'kwok_usage_cpu: "25m"' in pipeline
     assert 'kwok_usage_memory: "64Mi"' in pipeline
+    assert 'AKS_MANAGED_TSDB_CHUNK_SECONDS: "600"' in pipeline
+    assert 'AKS_MANAGED_TSDB_WORKERS: "4"' in pipeline
     assert "timeout_in_minutes: 480" in pipeline
 
 

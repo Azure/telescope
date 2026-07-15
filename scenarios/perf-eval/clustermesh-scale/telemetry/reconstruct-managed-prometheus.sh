@@ -64,8 +64,8 @@ python3 "$TSDB_EXPORT_SCRIPT" \
   --start "$configured_at" \
   --end "$end_time" \
   --step-seconds "${AKS_MANAGED_TSDB_STEP_SECONDS:-15}" \
-  --chunk-seconds "${AKS_MANAGED_TSDB_CHUNK_SECONDS:-1800}" \
-  --workers "${AKS_MANAGED_TSDB_WORKERS:-8}" \
+  --chunk-seconds "${AKS_MANAGED_TSDB_CHUNK_SECONDS:-600}" \
+  --workers "${AKS_MANAGED_TSDB_WORKERS:-4}" \
   --metrics-per-block "${AKS_MANAGED_TSDB_METRICS_PER_BLOCK:-25}" \
   --promtool "$promtool" \
   "${extra_openmetrics_args[@]}" \

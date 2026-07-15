@@ -187,7 +187,7 @@ def export_metric(
     timestamp_fallbacks = 0
     name_map = {}
     label_map = {}
-    seen_timestamps = {}
+    last_timestamps = {}
     with output_path.open("w", encoding="utf-8") as output:
         for chunk_start, chunk_end in metric_chunks(
             start,
@@ -195,12 +195,6 @@ def export_metric(
             step,
             chunk_seconds,
         ):
-            data = api.query_range(
-                metric_name,
-                chunk_start,
-                chunk_end,
-                step,
-            )
             timestamp_data = api.query_range(
                 metric_name,
                 chunk_start,
@@ -208,7 +202,7 @@ def export_metric(
                 step,
                 timestamps=True,
             )
-            timestamp_values = {}
+            timestamp_series = {}
             for series in timestamp_data.get("result", []):
                 labels = tuple(
                     sorted(
@@ -217,10 +211,17 @@ def export_metric(
                         if name != "__name__"
                     )
                 )
-                for evaluation_time, source_time in series.get("values", []):
-                    timestamp_values[
-                        (labels, format_timestamp_seconds(evaluation_time))
-                    ] = float(source_time)
+                timestamp_series[labels] = series.get("values", [])
+            del timestamp_data
+
+            data = api.query_range(
+                metric_name,
+                chunk_start,
+                chunk_end,
+                step,
+            )
+            source_values = None
+            series = None
             for series in data.get("result", []):
                 labels = dict(series.get("metric", {}))
                 labels.setdefault("__name__", metric_name)
@@ -231,21 +232,32 @@ def export_metric(
                         if name != "__name__"
                     )
                 )
-                series_seen = seen_timestamps.setdefault(series_key, set())
+                source_values = timestamp_series.pop(series_key, [])
+                source_index = 0
                 series_count += 1
                 for evaluation_time, value in series.get("values", []):
-                    timestamp = timestamp_values.get(
-                        (
-                            series_key,
-                            format_timestamp_seconds(evaluation_time),
-                        )
-                    )
+                    evaluation_time = float(evaluation_time)
+                    while (
+                        source_index < len(source_values)
+                        and float(source_values[source_index][0]) < evaluation_time
+                    ):
+                        source_index += 1
+                    timestamp = None
+                    if (
+                        source_index < len(source_values)
+                        and float(source_values[source_index][0]) == evaluation_time
+                    ):
+                        timestamp = float(source_values[source_index][1])
                     if timestamp is None:
                         timestamp = evaluation_time
                         timestamp_fallbacks += 1
-                    if timestamp in series_seen:
+                    previous_timestamp = last_timestamps.get(series_key)
+                    if (
+                        previous_timestamp is not None
+                        and timestamp <= previous_timestamp
+                    ):
                         continue
-                    series_seen.add(timestamp)
+                    last_timestamps[series_key] = timestamp
                     output.write(
                         openmetrics_line(
                             labels,
@@ -256,6 +268,10 @@ def export_metric(
                         )
                     )
                     sample_count += 1
+            timestamp_series.clear()
+            data = None
+            source_values = None
+            series = None
     return {
         "metric": metric_name,
         "series": series_count,

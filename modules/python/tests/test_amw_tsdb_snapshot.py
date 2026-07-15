@@ -68,6 +68,8 @@ def test_metric_names_are_deduplicated_case_insensitively():
 
 def test_export_metric_recovers_and_deduplicates_source_timestamps(tmp_path):
     class Api:
+        calls = []
+
         @staticmethod
         def query_range(
             _metric_name,
@@ -76,6 +78,7 @@ def test_export_metric_recovers_and_deduplicates_source_timestamps(tmp_path):
             _step,
             timestamps=False,
         ):
+            Api.calls.append(timestamps)
             values = (
                 [[15, "7"], [30, "22"], [45, "22"]]
                 if timestamps
@@ -110,3 +113,58 @@ def test_export_metric_recovers_and_deduplicates_source_timestamps(tmp_path):
     ]
     assert result["samples"] == 2
     assert result["timestamp_fallbacks"] == 0
+    assert Api.calls == [True, False]
+
+
+def test_export_metric_releases_chunk_before_next_query(tmp_path):
+    released = []
+
+    class Response(dict):
+        def __init__(self, name, payload):
+            super().__init__(payload)
+            self.name = name
+
+        def __del__(self):
+            released.append(self.name)
+
+    class Api:
+        @staticmethod
+        def query_range(
+            _metric_name,
+            start,
+            _end,
+            _step,
+            timestamps=False,
+        ):
+            chunk = int(start)
+            if chunk > 0 and timestamps:
+                assert "data-0" in released
+            value = str(chunk + 1)
+            return Response(
+                f"{'timestamps' if timestamps else 'data'}-{chunk}",
+                {
+                    "result": [
+                        {
+                            "metric": {
+                                "__name__": "probe_metric",
+                                "cluster": "mesh",
+                            },
+                            "values": [[start, value]],
+                        }
+                    ]
+                },
+            )
+
+    output = tmp_path / "metric.openmetrics"
+    snapshot_module.export_metric(
+        Api(),
+        "probe_metric",
+        output,
+        start=0,
+        end=45,
+        step=15,
+        chunk_seconds=15,
+    )
+
+    assert "data-0" in released
+    assert "timestamps-0" in released
