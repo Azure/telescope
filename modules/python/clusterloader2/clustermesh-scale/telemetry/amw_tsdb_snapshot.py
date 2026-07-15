@@ -26,6 +26,7 @@ from urllib.request import Request, urlopen
 
 METRIC_NAME_RE = re.compile(r"[^a-zA-Z0-9_:]")
 LABEL_NAME_RE = re.compile(r"[^a-zA-Z0-9_]")
+BLOCK_LABEL_NAME_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
 
 def parse_time(value):
@@ -71,8 +72,23 @@ def format_timestamp_seconds(value):
     return timestamp or "0"
 
 
-def openmetrics_line(labels, value, timestamp, name_map, label_map):
+def openmetrics_line(
+    labels,
+    value,
+    timestamp,
+    name_map,
+    label_map,
+    block_labels=None,
+):
     original_metric = labels.get("__name__", "")
+    collisions = sorted(
+        set(labels).intersection(block_labels or {}).difference({"__name__"})
+    )
+    if collisions:
+        raise ValueError(
+            f"{original_metric} already has block label(s): "
+            + ", ".join(collisions)
+        )
     metric_name = sanitize_metric_name(original_metric)
     if metric_name != original_metric:
         name_map[original_metric] = metric_name
@@ -164,6 +180,101 @@ def deduplicate_metric_names(metric_names):
     return sorted(selected.values()), duplicates
 
 
+def parse_block_labels(entries):
+    labels = {}
+    for entry in entries:
+        if "=" not in entry:
+            raise ValueError(f"block label must be name=value: {entry}")
+        name, value = entry.split("=", 1)
+        if not BLOCK_LABEL_NAME_RE.fullmatch(name):
+            raise ValueError(f"invalid block label name: {name}")
+        if not value:
+            raise ValueError(f"block label value must not be empty: {name}")
+        if name in labels:
+            raise ValueError(f"block label specified more than once: {name}")
+        labels[name] = value
+    return labels
+
+
+def openmetrics_label_names(line):
+    stripped = line.strip()
+    if not stripped or stripped.startswith("#"):
+        return set()
+    opening = stripped.find("{")
+    if opening < 0:
+        return set()
+
+    names = set()
+    index = opening + 1
+    while index < len(stripped):
+        while index < len(stripped) and stripped[index] in " \t,":
+            index += 1
+        if index >= len(stripped) or stripped[index] == "}":
+            return names
+
+        start = index
+        while index < len(stripped) and (
+            stripped[index].isalnum() or stripped[index] == "_"
+        ):
+            index += 1
+        name = stripped[start:index]
+        while index < len(stripped) and stripped[index] in " \t":
+            index += 1
+        if not name or index >= len(stripped) or stripped[index] != "=":
+            raise ValueError(f"invalid OpenMetrics labels: {stripped}")
+        names.add(name)
+        index += 1
+        while index < len(stripped) and stripped[index] in " \t":
+            index += 1
+        if index >= len(stripped) or stripped[index] != '"':
+            raise ValueError(f"invalid OpenMetrics label value: {stripped}")
+        index += 1
+        escaped = False
+        while index < len(stripped):
+            character = stripped[index]
+            index += 1
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                break
+        else:
+            raise ValueError(f"unterminated OpenMetrics label value: {stripped}")
+    raise ValueError(f"unterminated OpenMetrics labels: {stripped}")
+
+
+def validate_extra_openmetrics(paths, block_labels):
+    reserved = set(block_labels)
+    for path_value in paths:
+        path = Path(path_value)
+        with path.open("r", encoding="utf-8") as source:
+            for line_number, line in enumerate(source, start=1):
+                collisions = sorted(
+                    openmetrics_label_names(line).intersection(reserved)
+                )
+                if collisions:
+                    raise ValueError(
+                        f"{path}:{line_number} already has block label(s): "
+                        + ", ".join(collisions)
+                    )
+
+
+def promtool_import_command(promtool, batch_path, blocks_dir, block_labels):
+    command = [
+        str(Path(promtool).expanduser()),
+        "tsdb",
+        "create-blocks-from",
+        "openmetrics",
+    ]
+    command.extend(
+        f"--label={name}={value}"
+        for name, value in sorted(block_labels.items())
+    )
+    command.extend([str(batch_path), str(blocks_dir)])
+    return command
+
+
 def metric_chunks(start, end, step, chunk_seconds):
     samples_per_chunk = max(1, int(chunk_seconds // step))
     cursor = start
@@ -181,6 +292,7 @@ def export_metric(
     end,
     step,
     chunk_seconds,
+    block_labels=None,
 ):
     sample_count = 0
     series_count = 0
@@ -265,6 +377,7 @@ def export_metric(
                             timestamp,
                             name_map,
                             label_map,
+                            block_labels=block_labels,
                         )
                     )
                     sample_count += 1
@@ -304,6 +417,8 @@ def create_snapshot(args):
 
     all_metric_names = api.metric_names()
     metric_names, case_duplicates = deduplicate_metric_names(all_metric_names)
+    block_labels = parse_block_labels(args.block_label)
+    validate_extra_openmetrics(args.extra_openmetrics, block_labels)
     if args.metric_regex:
         matcher = re.compile(args.metric_regex)
         metric_names = [name for name in metric_names if matcher.search(name)]
@@ -328,6 +443,7 @@ def create_snapshot(args):
                 end,
                 args.step_seconds,
                 args.chunk_seconds,
+                block_labels=block_labels,
             )
             result["path"] = str(metric_path)
             return result, None
@@ -384,14 +500,12 @@ def create_snapshot(args):
                 metric_path.unlink()
             combined.write("# EOF\n")
         subprocess.run(
-            [
-                str(Path(args.promtool).expanduser()),
-                "tsdb",
-                "create-blocks-from",
-                "openmetrics",
-                str(batch_path),
-                str(blocks_dir),
-            ],
+            promtool_import_command(
+                args.promtool,
+                batch_path,
+                blocks_dir,
+                block_labels,
+            ),
             check=True,
         )
         if args.keep_openmetrics:
@@ -437,6 +551,7 @@ def create_snapshot(args):
         "extra_openmetrics": args.extra_openmetrics,
         "openmetrics_batches": batch_files,
         "metrics_per_block": args.metrics_per_block,
+        "block_labels": block_labels,
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
     manifest_path = blocks_dir / "amw-export-manifest.json"
@@ -477,6 +592,12 @@ def parse_args():
     parser.add_argument("--max-metrics", type=int, default=0)
     parser.add_argument("--allow-partial", action="store_true")
     parser.add_argument("--keep-openmetrics", action="store_true")
+    parser.add_argument(
+        "--block-label",
+        action="append",
+        default=[],
+        help="Constant name=value label added to every reconstructed series.",
+    )
     parser.add_argument(
         "--extra-openmetrics",
         action="append",

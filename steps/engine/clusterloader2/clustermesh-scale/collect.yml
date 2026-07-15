@@ -290,18 +290,40 @@ steps:
   #     prom/prometheus --storage.tsdb.path=/prometheus
   - bash: |
       set -euo pipefail
+      bash "$RELABEL_SCRIPT"
+    env:
+      CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/results
+      RUN_ID: $(RUN_ID)
+      BUILD_ID: $(Build.BuildId)
+      SNAPSHOT_TIER: $(System.JobName)
+      RELABEL_SCRIPT: >-
+        $(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/telemetry/relabel-prometheus-snapshots.sh
+    displayName: "Relabel Prometheus TSDB snapshot blocks"
+    condition: and(succeededOrFailed(),
+                   eq(variables['cl2_prom_snapshot_enabled'], 'true'))
+
+  - bash: |
+      set -euo pipefail
       shopt -s globstar nullglob
       mkdir -p "$STAGING_DIR"
       count=0 total_bytes=0
-      for snap in "$CL2_REPORT_DIR"/**/prom-snapshot-*.tar.gz; do
-        rel=${snap#"$CL2_REPORT_DIR/"}
-        dest_dir="$STAGING_DIR/$(dirname "$rel")"
-        mkdir -p "$dest_dir"
-        cp "$snap" "$dest_dir/"
-        size=$(stat -c%s "$snap" 2>/dev/null || echo 0)
-        count=$((count + 1))
-        total_bytes=$((total_bytes + size))
-      done
+      if [ "$SNAPSHOT_RELABEL_READY" = "true" ]; then
+        for snap in "$CL2_REPORT_DIR"/**/prom-snapshot-*.tar.gz; do
+          rel=${snap#"$CL2_REPORT_DIR/"}
+          dest_dir="$STAGING_DIR/$(dirname "$rel")"
+          mkdir -p "$dest_dir"
+          dest_path="$dest_dir/$(basename "$snap")"
+          rm -f "$dest_path"
+          if ! ln "$snap" "$dest_path"; then
+            cp --reflink=auto "$snap" "$dest_path"
+          fi
+          size=$(stat -c%s "$snap" 2>/dev/null || echo 0)
+          count=$((count + 1))
+          total_bytes=$((total_bytes + size))
+        done
+      else
+        echo "##vso[task.logissue type=warning;] Snapshot block relabeling failed; skipping unlabeled TSDB tarballs."
+      fi
       audit_count=0
       for audit in "$CL2_REPORT_DIR"/**/telemetry/telemetry-audit-self-hosted.{json,md}; do
         rel=${audit#"$CL2_REPORT_DIR/"}
@@ -315,6 +337,7 @@ steps:
     env:
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/results
       STAGING_DIR: $(Build.ArtifactStagingDirectory)/prom-snapshots
+      SNAPSHOT_RELABEL_READY: $(CL2_PROM_SNAPSHOT_RELABEL_READY)
     displayName: "Stage Prometheus TSDB snapshots"
     condition: and(succeededOrFailed(), eq(variables['cl2_prom_snapshot_enabled'], 'true'))
   # Target=artifact path (small smokes). Always-attempted when snapshot is
@@ -352,22 +375,26 @@ steps:
         count=0
         total_bytes=0
         audit_count=0
-        for snap in "$CL2_REPORT_DIR"/**/prom-snapshot-*.tar.gz; do
-          rel=${snap#"$CL2_REPORT_DIR/"}
-          scenario_seg=$(dirname "$rel" | cut -d/ -f1)
-          blob_name="${BUILD_BRANCH}/${scenario_seg}/${RUN_ID}/$(basename "$snap")"
-          size=$(stat -c%s "$snap" 2>/dev/null || echo 0)
-          echo "Uploading $snap (${size} bytes) -> ${STORAGE_ACCOUNT_NAME}/${CONTAINER_NAME}/${blob_name}"
-          az storage blob upload \
-            --account-name "$STORAGE_ACCOUNT_NAME" \
-            --container-name "$CONTAINER_NAME" \
-            --name "$blob_name" \
-            --file "$snap" \
-            --auth-mode login \
-            --overwrite >/dev/null
-          count=$((count + 1))
-          total_bytes=$((total_bytes + size))
-        done
+        if [ "$SNAPSHOT_RELABEL_READY" = "true" ]; then
+          for snap in "$CL2_REPORT_DIR"/**/prom-snapshot-*.tar.gz; do
+            rel=${snap#"$CL2_REPORT_DIR/"}
+            scenario_seg=$(dirname "$rel" | cut -d/ -f1)
+            blob_name="${BUILD_BRANCH}/${scenario_seg}/${RUN_ID}/$(basename "$snap")"
+            size=$(stat -c%s "$snap" 2>/dev/null || echo 0)
+            echo "Uploading $snap (${size} bytes) -> ${STORAGE_ACCOUNT_NAME}/${CONTAINER_NAME}/${blob_name}"
+            az storage blob upload \
+              --account-name "$STORAGE_ACCOUNT_NAME" \
+              --container-name "$CONTAINER_NAME" \
+              --name "$blob_name" \
+              --file "$snap" \
+              --auth-mode login \
+              --overwrite >/dev/null
+            count=$((count + 1))
+            total_bytes=$((total_bytes + size))
+          done
+        else
+          echo "##vso[task.logissue type=warning;] Snapshot block relabeling failed; skipping unlabeled TSDB uploads."
+        fi
         for audit in "$CL2_REPORT_DIR"/**/telemetry/telemetry-audit-self-hosted.{json,md}; do
           rel=${audit#"$CL2_REPORT_DIR/"}
           scenario_seg=$(echo "$rel" | cut -d/ -f1)
@@ -385,6 +412,11 @@ steps:
           audit_count=$((audit_count + 1))
         done
         echo "Uploaded $count snapshot tarball(s), total ${total_bytes} bytes, plus $audit_count telemetry audit file(s), to ${STORAGE_ACCOUNT_NAME}/${CONTAINER_NAME}"
+        if [ "$count" -gt 0 ]; then
+          rm -f "$CL2_REPORT_DIR"/**/prom-snapshot-*.tar.gz
+          find "$STAGING_DIR" -type f -name 'prom-snapshot-*.tar.gz' -delete
+          echo "Released uploaded native snapshot tarballs from the agent workspace."
+        fi
     env:
       TARGET_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/results
@@ -392,6 +424,8 @@ steps:
       CONTAINER_NAME: $(cl2_prom_snapshot_container)
       RUN_ID: $(RUN_ID)
       BUILD_BRANCH: $(Build.SourceBranchName)
+      SNAPSHOT_RELABEL_READY: $(CL2_PROM_SNAPSHOT_RELABEL_READY)
+      STAGING_DIR: $(Build.ArtifactStagingDirectory)/prom-snapshots
     displayName: "Upload Prometheus TSDB snapshots to our storage account"
     condition: and(succeededOrFailed(),
                    eq(variables['cl2_prom_snapshot_enabled'], 'true'),

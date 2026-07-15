@@ -56,6 +56,31 @@ def test_custom_scrapes_cover_hidden_and_mock_targets():
     }
 
 
+def test_native_snapshot_relabel_uses_streaming_block_rewriter():
+    relabel = (
+        TELEMETRY_DIR / "relabel-prometheus-snapshots.sh"
+    ).read_text(encoding="utf-8")
+    rewriter = (
+        TELEMETRY_DIR / "tsdb-index-relabel" / "main.go"
+    ).read_text(encoding="utf-8")
+
+    assert 'go_version="${GO_VERSION:-1.25.5}"' in relabel
+    assert "9e9b755d63b36acf30c12a9a3fc379243714c1c6d3dd72861da637f336ebb35b" in relabel
+    assert "tsdb-index-relabel" in relabel
+    assert 'GOTOOLCHAIN=local' in relabel
+    assert '--label "run=$run_label"' in relabel
+    assert '--label "build=$build_label"' in relabel
+    assert '--label "tier=$tier_label"' in relabel
+    assert '--label "snapshot_cluster=$snapshot_cluster"' in relabel
+    assert "tools bucket rewrite" not in relabel
+    assert "index.NewWriter" in rewriter
+    assert "rawChunkWriter" in rewriter
+    assert "writeRemappedTombstones" in rewriter
+    assert "compareChunkMetas" in rewriter
+    assert "atomicExchangeDirectories" in rewriter
+    assert 'rm -rf "$snapshot_work"' in relabel
+
+
 def test_scripts_use_current_aks_profile_and_full_export():
     configure = (
         TELEMETRY_DIR / "configure-managed-prometheus.sh"
@@ -201,10 +226,15 @@ def test_split_collection_scripts_handoff_and_preserve_outputs(tmp_path):
             import pathlib
             import sys
             output = pathlib.Path(sys.argv[sys.argv.index("--output-dir") + 1])
+            labels = [
+                sys.argv[index + 1]
+                for index, argument in enumerate(sys.argv)
+                if argument == "--block-label"
+            ]
             data = output / "data"
             data.mkdir(exist_ok=True)
             (data / "amw-export-manifest.json").write_text(
-                json.dumps({"samples": 1})
+                json.dumps({"samples": 1, "block_labels": labels})
             )
             (output / "prom-snapshot-amw-test.tar.gz").write_bytes(b"snapshot")
             """
@@ -224,6 +254,8 @@ def test_split_collection_scripts_handoff_and_preserve_outputs(tmp_path):
             "MANIFEST_PATH": str(manifest_path),
             "OUTPUT_DIR": str(output_dir),
             "RUN_ID": "test-run",
+            "BUILD_ID": "123",
+            "SNAPSHOT_TIER": "n2-sharded",
             "AUDIT_SCRIPT": str(audit_script),
             "PLATFORM_EXPORT_SCRIPT": str(platform_script),
             "TSDB_EXPORT_SCRIPT": str(snapshot_script),
@@ -268,6 +300,14 @@ def test_split_collection_scripts_handoff_and_preserve_outputs(tmp_path):
     assert (output_dir / "aks-platform-mesh-1.openmetrics").is_file()
     assert (output_dir / "amw-export-manifest.json").is_file()
     assert (output_dir / "prom-snapshot-amw-test.tar.gz").is_file()
+    export_manifest = json.loads(
+        (output_dir / "amw-export-manifest.json").read_text(encoding="utf-8")
+    )
+    assert export_manifest["block_labels"] == [
+        "run=test-run",
+        "build=123",
+        "tier=n2-sharded",
+    ]
     uploads = az_log.read_text(encoding="utf-8")
     assert "storage blob upload" in uploads
     assert "prom-snapshot-amw-test.tar.gz" in uploads

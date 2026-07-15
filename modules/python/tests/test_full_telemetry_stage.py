@@ -57,6 +57,8 @@ def test_full_telemetry_azure_tasks_use_ui_selected_subscription():
         template = path.read_text(encoding="utf-8")
         assert 'az account set --subscription "$TARGET_SUBSCRIPTION_ID"' in template
         assert "TARGET_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)" in template
+    configure = CONFIGURE_TEMPLATE_PATH.read_text(encoding="utf-8")
+    assert "AKS_TELEMETRY_CONFIGURED]true" in configure
 
 
 def test_control_plane_artifact_directory_exists_after_configuration_failure():
@@ -80,3 +82,24 @@ def test_managed_collection_phases_are_separate_visible_tasks():
     assert positions == sorted(positions)
     assert template.count("az account set --subscription") == 4
     assert "AKS_TELEMETRY_WINDOW_READY" in template
+    assert "AKS_TELEMETRY_CONFIGURED" in template
+    assert template.count("succeededOrFailed()") >= 4
+
+
+def test_native_snapshots_are_relabelled_before_publish_and_upload():
+    template = SNAPSHOT_TEMPLATE_PATH.read_text(encoding="utf-8")
+
+    relabel_position = template.index(
+        "Relabel Prometheus TSDB snapshot blocks"
+    )
+    stage_position = template.index("Stage Prometheus TSDB snapshots")
+    upload_position = template.index(
+        "Upload Prometheus TSDB snapshots to our storage account"
+    )
+    assert relabel_position < stage_position < upload_position
+    assert "relabel-prometheus-snapshots.sh" in template
+    assert "BUILD_ID: $(Build.BuildId)" in template
+    assert "SNAPSHOT_TIER: $(System.JobName)" in template
+    assert template.count("SNAPSHOT_RELABEL_READY") >= 2
+    assert 'ln "$snap" "$dest_path"' in template
+    assert "Released uploaded native snapshot tarballs" in template

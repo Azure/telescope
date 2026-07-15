@@ -336,7 +336,9 @@ az storage blob download-batch --account-name cmshscaleprom --auth-mode login \
 ```
 List everything: `az storage blob list --account-name cmshscaleprom --container-name snapshots --auth-mode login -o table`.
 
-**Load a downloaded tier:** `run-local-prom-native.sh <tarball> <port>` (single cluster) or `prom-server.sh import <tarballs…>` (consolidated — query all clusters together). Cluster label = `source_cluster`; data is historical, so query with explicit `time=`/windows. (A local convenience copy also lives under `~/prom-snapshots/cmp-5k/`.)
+**Load a downloaded tier:** `run-local-prom-native.sh <tarball> <port>` (single cluster) or `prom-server.sh import <tarballs…>` (consolidated — query all clusters together). New snapshots bake `run`, `build`, `tier`, and `snapshot_cluster` into every native TSDB series before upload, so overlapping runs and clusters remain independently queryable without overwriting metric-native labels such as Cilium's `source_cluster`. Data is historical, so query with explicit `time=`/windows. (A local convenience copy also lives under `~/prom-snapshots/cmp-5k/`.)
+
+The largest real n1 snapshot rewrite (6.07 million series, 27.25 million chunks, 3.4 GB expanded) completed in 5m09s with 1.66 GB peak RAM. The clean n100 pod-churn plus propagation snapshots total 5.64 GB compressed. Snapshot staging uses hard links instead of a second full copy, and uploaded native tarballs are removed before managed TSDB reconstruction.
 
 **Dashboards:** `grafana.sh start` → http://localhost:3000.
 
@@ -383,7 +385,7 @@ curl -fsS -G "$ENDPOINT/api/v1/query_range" \
   --data-urlencode 'step=15s'
 ```
 
-Both the native per-cluster TSDB and reconstructed AMW TSDB include a queryable `clustermesh_cluster_identity_info` series. Its labels preserve the run ID, mesh role, AKS cluster name, full ARM resource ID, subscription ID, resource group, region, and run-unique managed-Prometheus alias. The run manifest retains the same mapping alongside the exact start/end window. AMW `/query_range` supports at most 32 days; `/series` supports at most 12 hours, so the automated inventory audit caps its series window while the raw retained data remains complete.
+Both the native per-cluster TSDB and reconstructed AMW TSDB include a queryable `clustermesh_cluster_identity_info` series. Its labels preserve the run ID, mesh role, AKS cluster name, full ARM resource ID, subscription ID, resource group, region, and run-unique managed-Prometheus alias. Every reconstructed AMW block also receives constant `run`, `build`, and `tier` labels through `promtool`; native blocks additionally receive `snapshot_cluster` through a bounded streaming rewrite that externally sorts series, copies encoded chunk records byte-for-byte into the new order, and remaps tombstones without decoding samples. Overlapping time-range blocks still produce a Prometheus startup warning, but their series identities are disjoint and can be selected with `{run="…"}` and `{tier="…"}` without one run masking another. The run manifest retains the same mapping alongside the exact start/end window. AMW `/query_range` supports at most 32 days; `/series` supports at most 12 hours, so the automated inventory audit caps its series window while the raw retained data remains complete.
 
 The pipeline exposes managed collection as separate tasks in one job: bounded ingestion wait, audit/log/platform export, AMW TSDB reconstruction, and blob upload. This preserves the same output directory and manifest while making long reconstruction work visible and allowing partial artifacts to upload if a later phase fails.
 

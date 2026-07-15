@@ -66,6 +66,66 @@ def test_metric_names_are_deduplicated_case_insensitively():
     assert duplicates == {"Metric_A": ["metric_a"]}
 
 
+def test_block_labels_are_validated_and_added_to_promtool_command(tmp_path):
+    labels = snapshot_module.parse_block_labels(
+        ["run=run-1", "build=123", "tier=n2_sharded"]
+    )
+    command = snapshot_module.promtool_import_command(
+        "/usr/bin/promtool",
+        tmp_path / "input.openmetrics",
+        tmp_path / "data",
+        labels,
+    )
+
+    assert labels == {
+        "run": "run-1",
+        "build": "123",
+        "tier": "n2_sharded",
+    }
+    assert "--label=build=123" in command
+    assert "--label=run=run-1" in command
+    assert "--label=tier=n2_sharded" in command
+
+
+def test_block_label_collisions_are_rejected(tmp_path):
+    try:
+        snapshot_module.parse_block_labels(["run=a", "run=b"])
+    except ValueError as error:
+        assert "more than once" in str(error)
+    else:
+        raise AssertionError("duplicate block label was accepted")
+
+    extra = tmp_path / "extra.openmetrics"
+    extra.write_text(
+        'probe_metric{note="contains,run=value",tier="existing"} 1\n# EOF\n',
+        encoding="utf-8",
+    )
+    try:
+        snapshot_module.validate_extra_openmetrics(
+            [extra],
+            {"run": "new", "tier": "n2"},
+        )
+    except ValueError as error:
+        assert "tier" in str(error)
+        assert "run" not in str(error)
+    else:
+        raise AssertionError("extra OpenMetrics collision was accepted")
+
+    try:
+        snapshot_module.openmetrics_line(
+            {"__name__": "probe_metric", "run": "existing"},
+            "1",
+            1,
+            {},
+            {},
+            block_labels={"run": "new"},
+        )
+    except ValueError as error:
+        assert "run" in str(error)
+    else:
+        raise AssertionError("queried metric collision was accepted")
+
+
 def test_export_metric_recovers_and_deduplicates_source_timestamps(tmp_path):
     class Api:
         calls = []

@@ -24,8 +24,11 @@ Explanations for the **mesh** metrics found in the local Prometheus snapshots
    Suffix `_total` = counter, `_bucket`/`_count`/`_sum` = histogram, otherwise gauge.
 
 ## Labels you'll see everywhere (added by the pipeline / Cilium)
-- `source_cluster` — the cluster whose agent/apiserver **reported** the sample
-  (added by CL2 so all clusters coexist in one Prometheus).
+- `snapshot_cluster` — the cluster whose Prometheus snapshot contained the
+  sample (baked into native blocks so snapshots coexist safely).
+- `source_cluster` — a metric-native Cilium label identifying the source
+  cluster for that specific observation; it is never overwritten by snapshot
+  relabeling.
 - `target_cluster` — the **remote** peer a per-remote metric refers to.
 - `scope` — kvstore data kind: `identities/v1`, `ip/v1` (endpoints), `services/v1`,
   `nodes/v1`, `serviceexports/v1`, plus internal (`cilium/.heartbeat`, `lease`, …).

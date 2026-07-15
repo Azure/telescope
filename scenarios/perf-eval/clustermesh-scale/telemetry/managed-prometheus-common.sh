@@ -5,6 +5,11 @@ managed_telemetry_enabled() {
   [ "${enabled,,}" = "true" ]
 }
 
+snapshot_label_value() {
+  printf '%s' "$1" \
+    | sed -E 's/[^a-zA-Z0-9_.:-]+/_/g; s/^_+//; s/_+$//'
+}
+
 initialize_managed_telemetry() {
   : "${MANIFEST_PATH:?MANIFEST_PATH is required}"
   : "${OUTPUT_DIR:?OUTPUT_DIR is required}"

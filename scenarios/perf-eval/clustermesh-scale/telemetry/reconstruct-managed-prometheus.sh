@@ -11,9 +11,14 @@ if ! managed_telemetry_enabled; then
 fi
 
 : "${TSDB_EXPORT_SCRIPT:?TSDB_EXPORT_SCRIPT is required}"
+: "${BUILD_ID:?BUILD_ID is required}"
+: "${SNAPSHOT_TIER:?SNAPSHOT_TIER is required}"
 
 initialize_managed_telemetry
 load_collection_window
+run_label=$(snapshot_label_value "$RUN_ID")
+build_label=$(snapshot_label_value "$BUILD_ID")
+tier_label=$(snapshot_label_value "$SNAPSHOT_TIER")
 
 prometheus_version="${AMW_PROMETHEUS_VERSION:-3.13.0}"
 promtool_dir="$OUTPUT_DIR/promtool-${prometheus_version}"
@@ -68,6 +73,9 @@ python3 "$TSDB_EXPORT_SCRIPT" \
   --workers "${AKS_MANAGED_TSDB_WORKERS:-4}" \
   --metrics-per-block "${AKS_MANAGED_TSDB_METRICS_PER_BLOCK:-25}" \
   --promtool "$promtool" \
+  --block-label "run=$run_label" \
+  --block-label "build=$build_label" \
+  --block-label "tier=$tier_label" \
   "${extra_openmetrics_args[@]}" \
   --output-dir "$OUTPUT_DIR"
 

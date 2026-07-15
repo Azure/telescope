@@ -19,6 +19,7 @@ steps:
           exit 1
         fi
         bash "$CONFIGURE_SCRIPT"
+        echo "##vso[task.setvariable variable=AKS_TELEMETRY_CONFIGURED]true"
     env:
       TARGET_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
       REGION: ${{ parameters.region }}
