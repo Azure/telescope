@@ -1,0 +1,216 @@
+name: AKS Pod Sandboxing Pod Startup
+pool: AKS-Telescope-Airlock
+stages:
+- stage: measure
+  displayName: Kata Pod Startup
+  jobs:
+  - job: measure_pod_startup
+    displayName: Measure pause pod startup with Kata sandboxing
+    timeoutInMinutes: 90
+    steps:
+    - bash: |2
+
+        set -eo pipefail
+
+        job_id="$(System.JobId)"
+        RUN_ID=$(Build.BuildId)-${job_id:0:8}
+        echo "Run ID: $RUN_ID"
+
+        echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
+      displayName: Set Run ID
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+          az config set defaults.location="uksouth"
+          az account show
+      displayName: Login to Azure
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |+
+          set -exo pipefail
+
+          az group create \
+            --name "$(RUN_ID)" \
+            --location "uksouth" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+
+      displayName: Create resource group in uksouth (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az aks create \
+            --name "kata-pod-startup" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --location "uksouth" \
+            --kubernetes-version "1.35" \
+            --os-sku AzureLinux \
+            --node-count 1 \
+            --node-vm-size Standard_D2s_v3 \
+            --network-plugin azure \
+            --network-plugin-mode overlay \
+            --tier standard \
+            --tags SkipAKSCluster=true SkipASMAzSecPackAutoConfig=true SkipLinuxAzSecPack=true
+      displayName: Create AKS cluster
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az aks nodepool add \
+            --cluster-name "kata-pod-startup" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --name "katapool" \
+            --node-count 1 \
+            --node-vm-size "Standard_D4s_v3" \
+            --os-sku AzureLinux \
+            --workload-runtime KataMshvVmIsolation \
+            --mode User
+      displayName: Add Kata VM-isolation node pool
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az aks get-credentials \
+            --name "kata-pod-startup" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --overwrite-existing \
+            -f $(Pipeline.Workspace)/kubeconfig
+      displayName: Get credentials for kata-pod-startup
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          export KUBECONFIG="$(Pipeline.Workspace)/kubeconfig"
+
+          cat <<'EOF' | kubectl apply -f -
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: pause-sandbox
+          spec:
+            runtimeClassName: kata-mshv-vm-isolation
+            containers:
+              - name: pause
+                image: mcr.microsoft.com/oss/kubernetes/pause:3.6
+          EOF
+
+          kubectl wait --for=condition=Ready pod/pause-sandbox --timeout=10m
+
+          pod_json=$(kubectl get pod pause-sandbox -o json)
+          events_json=$(kubectl get events --field-selector involvedObject.name=pause-sandbox -o json)
+
+          python3 - "$pod_json" "$events_json" <<'PY'
+          import json, sys, datetime
+
+          pod = json.loads(sys.argv[1])
+          events = json.loads(sys.argv[2])
+
+          def parse(ts):
+              if not ts:
+                  return None
+              return datetime.datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
+
+          def event_time(reason):
+              for e in events.get("items", []):
+                  if e.get("reason") == reason:
+                      return e.get("firstTimestamp") or e.get("eventTime")
+              return None
+
+          scheduled = event_time("Scheduled")
+          pulling = event_time("Pulling")
+          pulled = event_time("Pulled")
+          created = event_time("Created")
+          started = event_time("Started")
+
+          ready = None
+          for c in pod.get("status", {}).get("conditions", []):
+              if c.get("type") == "Ready" and c.get("status") == "True":
+                  ready = c.get("lastTransitionTime")
+                  break
+
+          startup_latency = None
+          if scheduled and ready:
+              startup_latency = (parse(ready) - parse(scheduled)).total_seconds()
+
+          import os
+          result = {
+              "run_id": os.environ.get("RUN_ID", ""),
+              "cluster": "kata-pod-startup",
+              "runtime_class": "kata-mshv-vm-isolation",
+              "node_sku": "Standard_D4s_v3",
+              "k8s_version": "1.35",
+              "pod_name": "pause-sandbox",
+              "image": "mcr.microsoft.com/oss/kubernetes/pause:3.6",
+              "scheduled_time": scheduled,
+              "pulling_time": pulling,
+              "pulled_time": pulled,
+              "created_time": created,
+              "started_time": started,
+              "ready_time": ready,
+              "startup_latency_seconds": startup_latency,
+          }
+
+          with open("/tmp/run-result.json", "w") as f:
+              json.dump(result, f, indent=2)
+
+          print(json.dumps(result, indent=2))
+
+          if startup_latency is None or startup_latency <= 0:
+              raise SystemExit("Startup latency could not be computed")
+          PY
+      displayName: Schedule pause pod and measure startup
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az storage blob upload \
+            --account-name "telescopev2" \
+            --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
+            --container-name "aks" \
+            --name "$(RUN_ID)/run-result.json" \
+            --file /tmp/run-result.json \
+            --auth-mode key
+      displayName: Upload result to storage account
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+      condition: always()
+      displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
