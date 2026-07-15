@@ -129,9 +129,12 @@ PROM_PATCH_LOG="$report_dir/prom-cr-patch.log"
       fi
     fi
     if [ "$identity_ready" = "true" ]; then
-      _identity_deployment=$(KUBECONFIG="$kubeconfig" kubectl -n monitoring get \
-        deployment apiserver-backend-exporter -o json 2>/dev/null || true)
-      if [ -n "$_identity_deployment" ]; then
+      _identity_deployment_name=$(KUBECONFIG="$kubeconfig" kubectl -n monitoring get \
+        deployment -l app=apiserver-backend-exporter \
+        -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+      if [ -n "$_identity_deployment_name" ]; then
+        _identity_deployment=$(KUBECONFIG="$kubeconfig" kubectl -n monitoring get \
+          deployment "$_identity_deployment_name" -o json 2>/dev/null || true)
         _current_run_id=$(echo "$_identity_deployment" | jq -r '
           .spec.template.spec.containers[]
           | select(.name == "exporter")
@@ -150,7 +153,7 @@ PROM_PATCH_LOG="$report_dir/prom-cr-patch.log"
            [ "$_current_resource_id" != "$CLUSTERMESH_CLUSTER_RESOURCE_ID" ]; then
           echo "[prom-patcher] injecting cluster identity into apiserver-backend-exporter" >&2
           if KUBECONFIG="$kubeconfig" kubectl -n monitoring set env \
-              deployment/apiserver-backend-exporter \
+              "deployment/$_identity_deployment_name" \
               CLUSTERMESH_RUN_ID="$CLUSTERMESH_RUN_ID" \
               CLUSTERMESH_CLUSTER_ROLE="$CLUSTERMESH_CLUSTER_ROLE" \
               CLUSTERMESH_CLUSTER_NAME="$CLUSTERMESH_CLUSTER_NAME" \

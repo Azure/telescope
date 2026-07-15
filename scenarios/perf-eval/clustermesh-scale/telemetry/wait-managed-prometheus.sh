@@ -56,6 +56,7 @@ if ! wait_for_platform_metrics; then
 fi
 
 end_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+log_end_time="$end_time"
 build_log_summary_query
 
 wait_for_logs() {
@@ -63,6 +64,8 @@ wait_for_logs() {
   local deadline=$(( $(date +%s) + timeout ))
   local count
   while [ "$(date +%s)" -lt "$deadline" ]; do
+    log_end_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    build_log_summary_query
     count=$(az monitor log-analytics query \
       --workspace "$law_customer_id" \
       --analytics-query "$log_summary_query" \
@@ -80,6 +83,7 @@ wait_for_logs() {
 if ! wait_for_logs; then
   echo "##vso[task.logissue type=warning;] AKS control-plane/audit logs did not appear before timeout; workspace remains authoritative and can be queried later."
 fi
+log_end_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 start_epoch=$(date -u -d "$configured_at" +%s)
 end_epoch=$(date -u -d "$end_time" +%s)
@@ -96,14 +100,20 @@ jq \
   --arg collected_at "$end_time" \
   --arg audit_window_start "$audit_start" \
   --arg audit_window_end "$end_time" \
+  --arg logs_window_end "$log_end_time" \
   '. + {
     collected_at: $collected_at,
     audit_window: {
       start: $audit_window_start,
       end: $audit_window_end
+    },
+    logs_window: {
+      start: .configured_at,
+      end: $logs_window_end
     }
   }' "$MANIFEST_PATH" > "$collection_manifest_tmp"
 mv "$collection_manifest_tmp" "$collection_manifest"
 
 echo "Managed telemetry collection window: $audit_start .. $end_time"
+echo "Managed telemetry log window: $configured_at .. $log_end_time"
 echo "##vso[task.setvariable variable=AKS_TELEMETRY_WINDOW_READY]true"

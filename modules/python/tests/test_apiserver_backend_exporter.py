@@ -15,6 +15,8 @@ CONFIGMAP_PATH = (
     / "apiserver-backend-exporter"
     / "configmap.yaml"
 )
+MODULE_PATH = CONFIGMAP_PATH.parents[1] / "clustermesh.yaml"
+EXPORTER_DIR = CONFIGMAP_PATH.parent
 WORKER_PATH = (
     Path(__file__).resolve().parents[3]
     / "steps"
@@ -34,7 +36,11 @@ AZURE_MONITORS_PATH = (
 
 
 def load_exporter():
-    configmap = yaml.safe_load(CONFIGMAP_PATH.read_text(encoding="utf-8"))
+    rendered = CONFIGMAP_PATH.read_text(encoding="utf-8").replace(
+        "{{.Name}}",
+        "apiserver-backend-exporter-test",
+    )
+    configmap = yaml.safe_load(rendered)
     source = configmap["data"]["exporter.py"]
     namespace = {"__name__": "apiserver_backend_exporter_test"}
     exec(compile(source, str(CONFIGMAP_PATH), "exec"), namespace)
@@ -148,7 +154,8 @@ def test_exporter_renders_cluster_identity(monkeypatch):
 def test_worker_injects_identity_into_exporter():
     worker = WORKER_PATH.read_text(encoding="utf-8")
 
-    assert "deployment/apiserver-backend-exporter" in worker
+    assert "deployment -l app=apiserver-backend-exporter" in worker
+    assert '"deployment/$_identity_deployment_name"' in worker
     for environment in (
         "CLUSTERMESH_RUN_ID",
         "CLUSTERMESH_CLUSTER_ROLE",
@@ -160,6 +167,24 @@ def test_worker_injects_identity_into_exporter():
         "CLUSTERMESH_PROMETHEUS_CLUSTER_ALIAS",
     ):
         assert f'{environment}="${environment}"' in worker
+
+
+def test_exporter_cluster_scoped_rbac_is_not_namespaced():
+    module = MODULE_PATH.read_text(encoding="utf-8")
+
+    assert '- namespaceList:\n        - ""' in module
+    assert (
+        'objectTemplatePath: "modules/apiserver-backend-exporter/clusterrole.yaml"'
+        in module
+    )
+    assert (
+        "objectTemplatePath: "
+        '"modules/apiserver-backend-exporter/clusterrolebinding.yaml"'
+        in module
+    )
+    for path in EXPORTER_DIR.glob("*.yaml"):
+        template = path.read_text(encoding="utf-8")
+        assert "name: {{.Name}}" in template
 
 
 def test_managed_exporter_monitor_survives_monitoring_namespace_retry():

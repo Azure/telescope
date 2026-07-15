@@ -435,6 +435,8 @@ def test_split_collection_scripts_handoff_and_preserve_outputs(tmp_path):
     )
     assert collection_manifest["collected_at"]
     assert collection_manifest["audit_window"]["start"]
+    assert collection_manifest["logs_window"]["start"]
+    assert collection_manifest["logs_window"]["end"]
     assert (output_dir / "telemetry-audit-managed.json").is_file()
     assert (output_dir / "aks-platform-mesh-1.openmetrics").is_file()
     assert (output_dir / "amw-export-manifest.json").is_file()

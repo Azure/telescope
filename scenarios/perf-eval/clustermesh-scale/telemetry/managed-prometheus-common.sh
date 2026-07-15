@@ -94,16 +94,18 @@ load_collection_window() {
 
   end_time=$(jq -r '.collected_at' "$collection_manifest")
   audit_start=$(jq -r '.audit_window.start' "$collection_manifest")
+  log_end_time=$(jq -r '.logs_window.end // .collected_at' "$collection_manifest")
 }
 
 build_log_summary_query() {
+  local query_end="${log_end_time:-$end_time}"
   log_summary_query=$(cat <<EOF
 let ResourceIds=dynamic(${resource_ids_json});
 union withsource=TableName isfuzzy=true
   AKSControlPlane,
   AKSAudit,
   AKSAuditAdmin
-| where TimeGenerated between (datetime(${configured_at}) .. datetime(${end_time}))
+| where TimeGenerated between (datetime(${configured_at}) .. datetime(${query_end}))
 | where _ResourceId in~ (ResourceIds)
 | summarize Count=count(), First=min(TimeGenerated), Last=max(TimeGenerated)
   by TableName, Category=tostring(column_ifexists("Category", ""))

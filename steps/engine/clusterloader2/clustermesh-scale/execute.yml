@@ -53,7 +53,8 @@ steps:
       # `mock_mode` auto-exports as MOCK_MODE; re-export under the CL2_* name that
       # scale.py configure (--mock-mode) consumes. Falls back to a directly-set
       # CL2_MOCK_MODE pipeline variable, then to false → real runs unchanged.
-      export CL2_MOCK_MODE="${MOCK_MODE:-${CL2_MOCK_MODE:-false}}"
+      cl2_mock_mode_raw="${MOCK_MODE:-${CL2_MOCK_MODE:-false}}"
+      export CL2_MOCK_MODE="${cl2_mock_mode_raw,,}"
       export CL2_KWOK_USAGE_CPU="${KWOK_USAGE_CPU:-${CL2_KWOK_USAGE_CPU:-1m}}"
       export CL2_KWOK_USAGE_MEMORY="${KWOK_USAGE_MEMORY:-${CL2_KWOK_USAGE_MEMORY:-1Mi}}"
       # CL2 attempt count for the per-cluster worker (run-cl2-on-cluster.sh). At

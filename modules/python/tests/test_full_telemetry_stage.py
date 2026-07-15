@@ -32,6 +32,14 @@ SNAPSHOT_TEMPLATE_PATH = (
     / "clustermesh-scale"
     / "collect.yml"
 )
+EXECUTE_TEMPLATE_PATH = (
+    REPOSITORY_ROOT
+    / "steps"
+    / "engine"
+    / "clusterloader2"
+    / "clustermesh-scale"
+    / "execute.yml"
+)
 
 
 def test_dedicated_full_telemetry_stage_is_isolated():
@@ -46,6 +54,12 @@ def test_dedicated_full_telemetry_stage_is_isolated():
     assert 'AKS_MANAGED_TSDB_CHUNK_SECONDS: "600"' in pipeline
     assert 'AKS_MANAGED_TSDB_WORKERS: "4"' in pipeline
     assert "timeout_in_minutes: 480" in pipeline
+
+
+def test_mock_mode_is_normalized_for_shell_gates():
+    execute = EXECUTE_TEMPLATE_PATH.read_text(encoding="utf-8")
+
+    assert 'export CL2_MOCK_MODE="${cl2_mock_mode_raw,,}"' in execute
 
 
 def test_full_telemetry_azure_tasks_use_ui_selected_subscription():

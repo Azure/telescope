@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: apiserver-backend-exporter
+  name: {{.Name}}
   namespace: monitoring
 data:
   exporter.py: |

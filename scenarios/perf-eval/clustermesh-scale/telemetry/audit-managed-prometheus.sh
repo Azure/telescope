@@ -30,7 +30,7 @@ union withsource=TableName isfuzzy=true
   AKSControlPlane,
   AKSAudit,
   AKSAuditAdmin
-| where TimeGenerated between (datetime(${configured_at}) .. datetime(${end_time}))
+| where TimeGenerated between (datetime(${configured_at}) .. datetime(${log_end_time}))
 | where _ResourceId =~ "${cluster_id}"
 | extend CategoryValue=tostring(column_ifexists("Category", ""))
 | project

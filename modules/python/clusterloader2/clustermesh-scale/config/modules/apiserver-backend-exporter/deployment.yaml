@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: apiserver-backend-exporter
+  name: {{.Name}}
   namespace: monitoring
   labels:
     app: apiserver-backend-exporter
@@ -15,7 +15,7 @@ spec:
       labels:
         app: apiserver-backend-exporter
     spec:
-      serviceAccountName: apiserver-backend-exporter
+      serviceAccountName: {{.Name}}
       containers:
         - name: exporter
           image: mcr.microsoft.com/devcontainers/python:1-3.12-bookworm
@@ -49,4 +49,4 @@ spec:
       volumes:
         - name: script
           configMap:
-            name: apiserver-backend-exporter
+            name: {{.Name}}
