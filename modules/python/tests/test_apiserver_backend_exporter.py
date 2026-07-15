@@ -55,6 +55,8 @@ def test_exporter_script_compiles_and_parses_process_metrics():
     )
 
     assert "ThreadingHTTPServer" in source
+    assert "{{" not in source
+    assert "}}" not in source
     assert values == {
         "cpu_seconds": 123.5,
         "rss_bytes": 456.0,
