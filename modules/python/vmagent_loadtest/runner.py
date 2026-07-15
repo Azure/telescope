@@ -63,7 +63,9 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
                     resource_group: str = "", dp_cluster_name: str = "",
                     nodepool: str = DEFAULT_NODEPOOL,
                     run_label: str = "",
-                    skip_diagnostics: bool = True) -> dict:
+                    skip_diagnostics: bool = True,
+                    rate_limit: int = 524288,
+                    max_block_size: int = 524288) -> dict:
     ns_prefix = f"loadtest-{run_label}-" if run_label else "loadtest-"
     namespace = f"{ns_prefix}{tier}"
 
@@ -165,7 +167,9 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
     deploy_vmagent(cp_kubeconfig, namespace, dp_api_server,
                    vmagent_resources=tier_resources["vmagent"],
                    proxy_resources=tier_resources["vmagent_proxy"],
-                   replicas=shard_count)
+                   replicas=shard_count,
+                   rate_limit=rate_limit,
+                   max_block_size=max_block_size)
     tier_start_ts = time.time()  # ADX time-series window starts here
     wall_start_ts = tier_start_ts
 

@@ -30,8 +30,18 @@ stages:
               REAL_TARGETS: "false"
               RUN_LABEL: "fake-targets"
               PARALLEL: "false"
+              RATE_LIMIT: 524288      # .5 MiB/s — current prod default (unchanged baseline)
+              MAX_BLOCK_SIZE: 524288  # .5 MiB — current prod default (unchanged baseline)
+            fake_targets_rate2x:
+              TIERS: "1000,1500"
+              SOAK_MINUTES: 15
+              REAL_TARGETS: "false"
+              RUN_LABEL: "rate2x"
+              PARALLEL: "false"
+              RATE_LIMIT: 2097152     # 2 MiB/s (4x) — candidate from aks-operator PR #16345543
+              MAX_BLOCK_SIZE: 524288  # unchanged; bump only if rate2x alone still backlogs
           max_parallel: 1
-          timeout_in_minutes: 360
+          timeout_in_minutes: 600
           credential_type: service_connection
           ssh_key_enabled: false
 

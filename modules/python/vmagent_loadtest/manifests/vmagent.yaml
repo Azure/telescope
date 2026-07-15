@@ -11,6 +11,8 @@
 #   __VMAGENT_CPU_LIM__ / __VMAGENT_MEM_LIM__ — vmagent limits (per shard)
 #   __PROXY_CPU_REQ__   / __PROXY_MEM_REQ__   — vmagent-proxy requests (per shard)
 #   __PROXY_CPU_LIM__   / __PROXY_MEM_LIM__   — vmagent-proxy limits (per shard)
+#   __VMAGENT_RATE_LIMIT__      — -remoteWrite.rateLimit bytes/sec (prod default: 524288 = .5 MiB/s)
+#   __VMAGENT_MAX_BLOCK_SIZE__  — -remoteWrite.maxBlockSize bytes (prod default: 524288 = .5 MiB)
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -264,8 +266,8 @@ spec:
             - -remoteWrite.flushInterval=30s
             - -remoteWrite.sendTimeout=10s
             - -remoteWrite.maxDiskUsagePerURL=1073741824
-            - -remoteWrite.rateLimit=524288
-            - -remoteWrite.maxBlockSize=524288
+            - -remoteWrite.rateLimit=__VMAGENT_RATE_LIMIT__
+            - -remoteWrite.maxBlockSize=__VMAGENT_MAX_BLOCK_SIZE__
             - -remoteWrite.queues=8
             - -remoteWrite.tmpDataPath=/tmp/vmagent-remotewrite-data
             - -remoteWrite.dropSamplesOnOverload=true

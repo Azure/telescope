@@ -255,9 +255,11 @@ def deploy_vmsingle(kubeconfig: str, namespace: str) -> None:
 def deploy_vmagent(kubeconfig: str, namespace: str, dp_api_server: str,
                    vmagent_resources: dict | None = None,
                    proxy_resources: dict | None = None,
-                   replicas: int = 1) -> None:
-    log.info("Deploying VMAgent in %s (SD via %s, %d shard(s))...",
-             namespace, dp_api_server, replicas)
+                   replicas: int = 1,
+                   rate_limit: int = 524288,
+                   max_block_size: int = 524288) -> None:
+    log.info("Deploying VMAgent in %s (SD via %s, %d shard(s), rateLimit=%d, maxBlockSize=%d)...",
+             namespace, dp_api_server, replicas, rate_limit, max_block_size)
     vm = vmagent_resources or {"cpu_req": "500m", "mem_req": "1Gi",
                                "cpu_lim": "2", "mem_lim": "4Gi"}
     px = proxy_resources or {"cpu_req": "500m", "mem_req": "256Mi",
@@ -282,6 +284,8 @@ def deploy_vmagent(kubeconfig: str, namespace: str, dp_api_server: str,
         "__PROXY_MEM_REQ__": px["mem_req"],
         "__PROXY_CPU_LIM__": px["cpu_lim"],
         "__PROXY_MEM_LIM__": px["mem_lim"],
+        "__VMAGENT_RATE_LIMIT__": str(rate_limit),
+        "__VMAGENT_MAX_BLOCK_SIZE__": str(max_block_size),
     }
     manifest = render_template(MANIFEST_DIR / "vmagent.yaml", replacements)
     kubectl_apply(kubeconfig, manifest)

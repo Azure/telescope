@@ -433,6 +433,14 @@ def collect_metrics(cp_kubeconfig: str, dp_kubeconfig: str,
             measurements["vmagent_resident_memory_bytes"] = extract_prom_value(
                 vmagent_metrics, r"^process_resident_memory_bytes\s"
             )
+            # Persistent-queue backlog (fq) — the on-disk bytes not yet
+            # remote-written. Directly reflects rateLimit/maxBlockSize
+            # tuning: higher backlog = more data at risk on ungraceful
+            # shutdown/reschedule. Summed across all remote-write URLs
+            # (usually one, but sum() covers multi-URL configs safely).
+            measurements["vmagent_remotewrite_pending_data_bytes"] = extract_prom_sum(
+                vmagent_metrics, r"^vmagent_remotewrite_pending_data_bytes\{"
+            )
     except Exception as e:
         log.warning("Failed to collect VMAgent self-metrics: %s", e)
         for key in ["vmagent_goroutines", "vmagent_scrape_duration_sum_seconds",
@@ -441,7 +449,8 @@ def collect_metrics(cp_kubeconfig: str, dp_kubeconfig: str,
                     "vmagent_samples_scraped", "vmagent_samples_post_relabeling",
                     "vmagent_tcpdialer_dials_total", "vmagent_tcpdialer_dial_sum_seconds",
                     "vmagent_tcpdialer_dial_count", "vmagent_tcpdialer_dial_mean_seconds",
-                    "vmagent_resident_memory_bytes"]:
+                    "vmagent_resident_memory_bytes",
+                    "vmagent_remotewrite_pending_data_bytes"]:
             measurements.setdefault(key, 0)
 
     # --- Konnectivity server metrics (port 8095) ---

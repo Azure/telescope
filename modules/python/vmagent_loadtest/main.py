@@ -85,6 +85,12 @@ def main() -> None:
                         help=f"DP cluster nodepool name (default: {DEFAULT_NODEPOOL})")
     parser.add_argument("--max-retries", type=int, default=2,
                         help="Max retries per tier on failure (default: 2)")
+    parser.add_argument("--rate-limit", type=int, default=524288,
+                        help="-remoteWrite.rateLimit bytes/sec passed to vmagent "
+                             "(default: 524288 = .5 MiB/s, matches prod default)")
+    parser.add_argument("--max-block-size", type=int, default=524288,
+                        help="-remoteWrite.maxBlockSize bytes passed to vmagent "
+                             "(default: 524288 = .5 MiB, matches prod default)")
     parser.add_argument("--collect-diagnostics", action="store_true",
                         help="Collect pprof + per-pod log/diagnostics. Default "
                              "is to SKIP them (much faster). Opt in only when "
@@ -200,6 +206,8 @@ def main() -> None:
             dp_cluster_name=args.dp_cluster_name,
             nodepool=args.nodepool_name,
             run_label="real",
+            rate_limit=args.rate_limit,
+            max_block_size=args.max_block_size,
         )
         cleanup_tier(args.cp_kubeconfig, args.dp_kubeconfig, tier, run_label="real")
 
@@ -219,6 +227,8 @@ def main() -> None:
             dp_cluster_name=args.dp_cluster_name,
             nodepool=args.nodepool_name,
             run_label="fake",
+            rate_limit=args.rate_limit,
+            max_block_size=args.max_block_size,
         )
         cleanup_tier(args.cp_kubeconfig, args.dp_kubeconfig, tier, run_label="fake")
 
@@ -318,6 +328,8 @@ def main() -> None:
                     dp_cluster_name="",
                     nodepool=args.nodepool_name,
                     run_label=args.run_label,
+                    rate_limit=args.rate_limit,
+                    max_block_size=args.max_block_size,
                 )
                 futures[fut] = tier
 
@@ -369,6 +381,8 @@ def main() -> None:
                         nodepool=args.nodepool_name,
                         run_label=args.run_label,
                         skip_diagnostics=not args.collect_diagnostics,
+                        rate_limit=args.rate_limit,
+                        max_block_size=args.max_block_size,
                     )
                     break
                 except Exception as e:

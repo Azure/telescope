@@ -22,8 +22,13 @@ steps:
     PARALLEL="${PARALLEL:-false}"
     MAX_CONCURRENCY="${MAX_CONCURRENCY:-}"
     COLLECT_DIAGNOSTICS="${COLLECT_DIAGNOSTICS:-false}"
+    # -remoteWrite.rateLimit / -remoteWrite.maxBlockSize passed to vmagent.
+    # Defaults match prod's pre-change values (524288 = .5 MiB/s, .5 MiB).
+    RATE_LIMIT="${RATE_LIMIT:-524288}"
+    MAX_BLOCK_SIZE="${MAX_BLOCK_SIZE:-524288}"
 
     EXTRA_ARGS="--resource-group ${{ parameters.dp_resource_group }} --dp-cluster-name ${{ parameters.dp_cluster_name }}"
+    EXTRA_ARGS="$EXTRA_ARGS --rate-limit $RATE_LIMIT --max-block-size $MAX_BLOCK_SIZE"
     if [[ "$REAL_TARGETS" == "true" ]]; then
       EXTRA_ARGS="$EXTRA_ARGS --real-targets"
     fi
@@ -153,3 +158,5 @@ steps:
     RUN_LABEL: $(RUN_LABEL)
     PARALLEL: $(PARALLEL)
     COLLECT_DIAGNOSTICS: $(COLLECT_DIAGNOSTICS)
+    RATE_LIMIT: $(RATE_LIMIT)
+    MAX_BLOCK_SIZE: $(MAX_BLOCK_SIZE)
