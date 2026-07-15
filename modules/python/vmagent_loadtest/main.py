@@ -91,6 +91,13 @@ def main() -> None:
     parser.add_argument("--max-block-size", type=int, default=524288,
                         help="-remoteWrite.maxBlockSize bytes passed to vmagent "
                              "(default: 524288 = .5 MiB, matches prod default)")
+    parser.add_argument("--measure-drain", action="store_true",
+                        help="After metrics collection, poll "
+                             "vmagent_remotewrite_pending_data_bytes over a fixed "
+                             "window to directly measure backlog drain rate under "
+                             "continued normal operation (preStop-hook proxy test)")
+    parser.add_argument("--drain-observe-seconds", type=int, default=120,
+                        help="Observation window for --measure-drain (default: 120)")
     parser.add_argument("--collect-diagnostics", action="store_true",
                         help="Collect pprof + per-pod log/diagnostics. Default "
                              "is to SKIP them (much faster). Opt in only when "
@@ -208,6 +215,8 @@ def main() -> None:
             run_label="real",
             rate_limit=args.rate_limit,
             max_block_size=args.max_block_size,
+            measure_drain=args.measure_drain,
+            drain_observe_seconds=args.drain_observe_seconds,
         )
         cleanup_tier(args.cp_kubeconfig, args.dp_kubeconfig, tier, run_label="real")
 
@@ -229,6 +238,8 @@ def main() -> None:
             run_label="fake",
             rate_limit=args.rate_limit,
             max_block_size=args.max_block_size,
+            measure_drain=args.measure_drain,
+            drain_observe_seconds=args.drain_observe_seconds,
         )
         cleanup_tier(args.cp_kubeconfig, args.dp_kubeconfig, tier, run_label="fake")
 
@@ -330,6 +341,8 @@ def main() -> None:
                     run_label=args.run_label,
                     rate_limit=args.rate_limit,
                     max_block_size=args.max_block_size,
+                    measure_drain=args.measure_drain,
+                    drain_observe_seconds=args.drain_observe_seconds,
                 )
                 futures[fut] = tier
 
@@ -383,6 +396,8 @@ def main() -> None:
                         skip_diagnostics=not args.collect_diagnostics,
                         rate_limit=args.rate_limit,
                         max_block_size=args.max_block_size,
+                        measure_drain=args.measure_drain,
+                        drain_observe_seconds=args.drain_observe_seconds,
                     )
                     break
                 except Exception as e:

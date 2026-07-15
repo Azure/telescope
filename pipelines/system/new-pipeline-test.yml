@@ -35,6 +35,8 @@ stages:
               PARALLEL: "false"
               RATE_LIMIT: 524288      # .5 MiB/s — current prod default (unchanged baseline)
               MAX_BLOCK_SIZE: 524288  # .5 MiB — current prod default (unchanged baseline)
+              MEASURE_DRAIN: "true"
+              DRAIN_OBSERVE_SECONDS: 120
             fake_targets_rate2x:
               TIERS: "100,200,300"
               SOAK_MINUTES: 15
@@ -43,6 +45,8 @@ stages:
               PARALLEL: "false"
               RATE_LIMIT: 2097152     # 2 MiB/s (4x) — candidate from aks-operator PR #16345543
               MAX_BLOCK_SIZE: 524288  # unchanged; bump only if rate2x alone still backlogs
+              MEASURE_DRAIN: "true"
+              DRAIN_OBSERVE_SECONDS: 120
           max_parallel: 1
           timeout_in_minutes: 300
           credential_type: service_connection

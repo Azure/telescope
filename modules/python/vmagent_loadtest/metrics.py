@@ -93,6 +93,64 @@ def extract_histogram_percentiles(metrics_text: str, metric_name: str,
     return result
 
 
+def observe_remotewrite_drain(cp_kubeconfig: str, namespace: str, work_dir: Path,
+                               duration_seconds: int = 120,
+                               interval_seconds: int = 10,
+                               pod: str = "vmagent-0") -> dict:
+    """Poll vmagent_remotewrite_pending_data_bytes on a live pod over a fixed
+    window, to directly measure backlog drain rate under continued normal
+    operation (i.e. the preStop-hook scenario: vmagent keeps scraping AND
+    draining its fq queue at -remoteWrite.rateLimit bytes/sec, without any
+    shutdown signal). This is a more direct test of "does raising rateLimit
+    shrink drain time" than a single before/after snapshot, since the queue
+    balance point shifts continuously as new scrapes keep landing.
+
+    Returns a dict with the raw time series plus derived summary stats:
+    initial/final pending bytes, percent reduced, and (if it ever dropped to
+    <1% of the initial value) seconds elapsed to reach that point.
+    """
+    samples = []
+    try:
+        with PortForward(cp_kubeconfig, namespace, pod, 8429, 18429) as pf:
+            deadline = time.time() + duration_seconds
+            t0 = time.time()
+            while time.time() < deadline:
+                try:
+                    metrics_text = retry_request(f"{pf.url}/metrics").text
+                    pending = extract_prom_sum(
+                        metrics_text, r"^vmagent_remotewrite_pending_data_bytes\{")
+                except Exception as e:
+                    log.debug("drain-observe sample failed: %s", e)
+                    pending = None
+                samples.append({"t": round(time.time() - t0, 1), "pending_bytes": pending})
+                time.sleep(interval_seconds)
+    except Exception as e:
+        log.warning("Failed to observe VMAgent remote-write drain: %s", e)
+
+    raw_dir = work_dir / "raw" / namespace
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    (raw_dir / "remotewrite_drain_series.json").write_text(json.dumps(samples, indent=2))
+
+    valid = [s for s in samples if s["pending_bytes"] is not None]
+    result = {
+        "remotewrite_drain_series": samples,
+        "remotewrite_drain_initial_bytes": valid[0]["pending_bytes"] if valid else 0.0,
+        "remotewrite_drain_final_bytes": valid[-1]["pending_bytes"] if valid else 0.0,
+        "remotewrite_drain_seconds_to_empty": None,
+    }
+    initial = result["remotewrite_drain_initial_bytes"]
+    result["remotewrite_drain_pct_reduced"] = (
+        round(100.0 * (initial - result["remotewrite_drain_final_bytes"]) / initial, 2)
+        if initial > 0 else 0.0
+    )
+    empty_threshold = max(initial * 0.01, 1.0)
+    for s in valid:
+        if s["pending_bytes"] <= empty_threshold:
+            result["remotewrite_drain_seconds_to_empty"] = s["t"]
+            break
+    return result
+
+
 def count_pods(kubeconfig: str, namespace: str, label: str) -> int:
     result = kubectl(kubeconfig, "-n", namespace, "get", "pods",
                      "-l", label, "--no-headers", check=False)

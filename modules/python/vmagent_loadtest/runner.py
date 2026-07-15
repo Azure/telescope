@@ -29,7 +29,10 @@ from .adx import (
     export_summary_if_configured as adx_export_summary_if_configured,
     collect_resource_peaks as adx_collect_resource_peaks,
 )
-from .metrics import collect_diagnostics, collect_metrics, collect_pprof, evaluate_pass_fail, wait_for_targets
+from .metrics import (
+    collect_diagnostics, collect_metrics, collect_pprof, evaluate_pass_fail,
+    observe_remotewrite_drain, wait_for_targets,
+)
 from .scaling import scale_dp_nodepool, wait_for_nodes_ready
 from .utils import kubectl
 
@@ -65,7 +68,9 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
                     run_label: str = "",
                     skip_diagnostics: bool = True,
                     rate_limit: int = 524288,
-                    max_block_size: int = 524288) -> dict:
+                    max_block_size: int = 524288,
+                    measure_drain: bool = False,
+                    drain_observe_seconds: int = 120) -> dict:
     ns_prefix = f"loadtest-{run_label}-" if run_label else "loadtest-"
     namespace = f"{ns_prefix}{tier}"
 
@@ -187,6 +192,23 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
     pass_fail = {}
     try:
         measurements = collect_metrics(cp_kubeconfig, dp_kubeconfig, namespace, tier, work_dir)
+
+        # 11a. Optionally observe remote-write backlog drain over a fixed
+        # window (opt-in; tests whether a preStop-hook-style delay before
+        # SIGTERM would actually shrink the persistent queue under this
+        # rateLimit/maxBlockSize config).
+        if measure_drain:
+            log.info("Observing remote-write drain for %ds...", drain_observe_seconds)
+            drain_stats = observe_remotewrite_drain(
+                cp_kubeconfig, namespace, work_dir,
+                duration_seconds=drain_observe_seconds)
+            measurements.update(drain_stats)
+            log.info("Drain observation: initial=%.0fB final=%.0fB reduced=%.1f%% "
+                     "seconds_to_empty=%s",
+                     drain_stats["remotewrite_drain_initial_bytes"],
+                     drain_stats["remotewrite_drain_final_bytes"],
+                     drain_stats["remotewrite_drain_pct_reduced"],
+                     drain_stats["remotewrite_drain_seconds_to_empty"])
 
         # 11b. Brief pause to let port-forward ports fully release before pprof
         time.sleep(5)
