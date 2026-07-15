@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck source=managed-prometheus-common.sh
+source "$script_dir/managed-prometheus-common.sh"
+
 enabled="${AKS_CONTROL_PLANE_METRICS_ENABLED:-false}"
 if [ "${enabled,,}" != "true" ]; then
   echo "AKS control-plane managed Prometheus is disabled; skipping configuration."
@@ -35,13 +39,17 @@ for required_file in \
   fi
 done
 
+register_preview="${AKS_CONTROL_PLANE_METRICS_REGISTER_PREVIEW:-false}"
+force_container_service_reregistration=false
+if [ "${register_preview,,}" = "true" ]; then
+  force_container_service_reregistration=true
+fi
 feature_name="AzureMonitorMetricsControlPlanePreview"
 feature_state=$(az feature show \
   --namespace Microsoft.ContainerService \
   --name "$feature_name" \
   --query properties.state -o tsv 2>/dev/null || true)
 if [ "$feature_state" != "Registered" ]; then
-  register_preview="${AKS_CONTROL_PLANE_METRICS_REGISTER_PREVIEW:-false}"
   if [ "${register_preview,,}" != "true" ]; then
     echo "AKS control-plane metrics preview is $feature_state, not Registered." >&2
     echo "Register it once with:" >&2
@@ -81,7 +89,12 @@ for namespace in \
   Microsoft.AlertsManagement \
   Microsoft.OperationalInsights; do
   echo "Ensuring resource provider $namespace is registered..."
-  az provider register --namespace "$namespace" --wait --output none
+  if [ "$namespace" = "Microsoft.ContainerService" ] &&
+     [ "$force_container_service_reregistration" = "true" ]; then
+    ensure_azure_provider_registered "$namespace" true
+  else
+    ensure_azure_provider_registered "$namespace"
+  fi
 done
 
 subscription_id=$(az account show --query id -o tsv)

@@ -81,6 +81,140 @@ def test_native_snapshot_relabel_uses_streaming_block_rewriter():
     assert 'rm -rf "$snapshot_work"' in relabel
 
 
+def test_provider_registration_retries_transient_cli_failure(tmp_path):
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    state_file = tmp_path / "state"
+    show_count_file = tmp_path / "show-count"
+    fake_az = fake_bin / "az"
+    fake_az.write_text(
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env bash
+            set -euo pipefail
+            if [ "${1:-} ${2:-}" = "provider show" ]; then
+              count=0
+              [ ! -f "$SHOW_COUNT_FILE" ] || count=$(cat "$SHOW_COUNT_FILE")
+              count=$((count + 1))
+              echo "$count" > "$SHOW_COUNT_FILE"
+              if [ "$count" -eq 1 ]; then
+                echo "Connection reset by peer" >&2
+                exit 1
+              fi
+              if [ -f "$STATE_FILE" ]; then
+                echo Registered
+              else
+                echo NotRegistered
+              fi
+              exit 0
+            fi
+            if [ "${1:-} ${2:-}" = "provider register" ]; then
+              touch "$STATE_FILE"
+              echo "Connection reset by peer" >&2
+              exit 1
+            fi
+            echo "Unexpected az command: $*" >&2
+            exit 1
+            """
+        ),
+        encoding="utf-8",
+    )
+    fake_az.chmod(fake_az.stat().st_mode | stat.S_IXUSR)
+    common_script = TELEMETRY_DIR / "managed-prometheus-common.sh"
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "PATH": f"{fake_bin}:{environment['PATH']}",
+            "STATE_FILE": str(state_file),
+            "SHOW_COUNT_FILE": str(show_count_file),
+            "AKS_PROVIDER_REGISTRATION_TIMEOUT_SECONDS": "5",
+            "AKS_PROVIDER_REGISTRATION_POLL_SECONDS": "0",
+        }
+    )
+
+    result = subprocess.run(
+        [
+            "bash",
+            "-c",
+            f'source "{common_script}"; '
+            "ensure_azure_provider_registered Microsoft.Monitor",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=10,
+    )
+
+    assert state_file.is_file()
+    assert "Unable to query resource provider" in result.stdout
+    assert "registration request" in result.stdout
+    assert "is registered" in result.stdout
+
+
+def test_provider_registration_can_force_preview_reregistration(tmp_path):
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    register_count_file = tmp_path / "register-count"
+    fake_az = fake_bin / "az"
+    fake_az.write_text(
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env bash
+            set -euo pipefail
+            if [ "${1:-} ${2:-}" = "provider show" ]; then
+              echo Registered
+              exit 0
+            fi
+            if [ "${1:-} ${2:-}" = "provider register" ]; then
+              count=0
+              [ ! -f "$REGISTER_COUNT_FILE" ] || count=$(cat "$REGISTER_COUNT_FILE")
+              count=$((count + 1))
+              echo "$count" > "$REGISTER_COUNT_FILE"
+              if [ "$count" -eq 1 ]; then
+                echo "Connection reset by peer" >&2
+                exit 1
+              fi
+              exit 0
+            fi
+            echo "Unexpected az command: $*" >&2
+            exit 1
+            """
+        ),
+        encoding="utf-8",
+    )
+    fake_az.chmod(fake_az.stat().st_mode | stat.S_IXUSR)
+    common_script = TELEMETRY_DIR / "managed-prometheus-common.sh"
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "PATH": f"{fake_bin}:{environment['PATH']}",
+            "REGISTER_COUNT_FILE": str(register_count_file),
+            "AKS_PROVIDER_REGISTRATION_TIMEOUT_SECONDS": "5",
+            "AKS_PROVIDER_REGISTRATION_POLL_SECONDS": "0",
+        }
+    )
+
+    result = subprocess.run(
+        [
+            "bash",
+            "-c",
+            f'source "{common_script}"; '
+            "ensure_azure_provider_registered Microsoft.ContainerService true",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=10,
+    )
+
+    assert register_count_file.read_text(encoding="utf-8").strip() == "2"
+    assert "Forcing resource provider re-registration" in result.stdout
+    assert "Forced resource provider registration request" in result.stdout
+    assert "is registered" in result.stdout
+
+
 def test_scripts_use_current_aks_profile_and_full_export():
     configure = (
         TELEMETRY_DIR / "configure-managed-prometheus.sh"
@@ -106,6 +240,11 @@ def test_scripts_use_current_aks_profile_and_full_export():
     assert "Microsoft.OperationalInsights" in configure
     assert "az monitor diagnostic-settings categories list" in configure
     assert "--export-to-resource-specific true" in configure
+    assert "ensure_azure_provider_registered" in configure
+    assert 'ensure_azure_provider_registered "$namespace" true' in configure
+    assert 'force_container_service_reregistration=true' in configure
+    assert 'AKS_CONTROL_PLANE_METRICS_REGISTER_PREVIEW:-false' in configure
+    assert "--wait" not in configure
     assert "wait-managed-prometheus.sh" in collect
     assert "audit-managed-prometheus.sh" in collect
     assert "reconstruct-managed-prometheus.sh" in collect

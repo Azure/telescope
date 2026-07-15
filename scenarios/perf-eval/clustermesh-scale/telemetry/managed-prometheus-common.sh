@@ -5,6 +5,63 @@ managed_telemetry_enabled() {
   [ "${enabled,,}" = "true" ]
 }
 
+ensure_azure_provider_registered() {
+  local namespace="${1:?Azure resource provider namespace is required}"
+  local force_registration="${2:-false}"
+  local timeout="${AKS_PROVIDER_REGISTRATION_TIMEOUT_SECONDS:-1800}"
+  local poll_seconds="${AKS_PROVIDER_REGISTRATION_POLL_SECONDS:-15}"
+  local deadline=$(( $(date +%s) + timeout ))
+  local registration_requested=false
+  local state=""
+  local error_file
+
+  while [ "$(date +%s)" -lt "$deadline" ]; do
+    error_file=$(mktemp)
+    if state=$(az provider show \
+        --namespace "$namespace" \
+        --query registrationState \
+        -o tsv 2>"$error_file"); then
+      rm -f "$error_file"
+      if [ "$state" = "Registered" ] && {
+        [ "${force_registration,,}" != "true" ] ||
+          [ "$registration_requested" = "true" ]
+      }; then
+        echo "Resource provider $namespace is registered."
+        return 0
+      fi
+    else
+      echo "##vso[task.logissue type=warning;] Unable to query resource provider $namespace: $(tr '\n' ' ' < "$error_file")"
+      rm -f "$error_file"
+      state=""
+    fi
+
+    if [ "${force_registration,,}" = "true" ] &&
+       [ "$registration_requested" != "true" ]; then
+      echo "Forcing resource provider re-registration for $namespace..."
+      if az provider register \
+          --namespace "$namespace" \
+          --output none; then
+        registration_requested=true
+      else
+        echo "##vso[task.logissue type=warning;] Forced resource provider registration request for $namespace failed; retrying."
+      fi
+    elif [ "$state" != "Registering" ]; then
+      echo "Requesting resource provider registration for $namespace..."
+      if ! az provider register \
+          --namespace "$namespace" \
+          --output none; then
+        echo "##vso[task.logissue type=warning;] Resource provider registration request for $namespace failed; polling and retrying."
+      fi
+    else
+      echo "Resource provider $namespace is Registering."
+    fi
+    sleep "$poll_seconds"
+  done
+
+  echo "Timed out waiting for resource provider $namespace registration." >&2
+  return 1
+}
+
 snapshot_label_value() {
   printf '%s' "$1" \
     | sed -E 's/[^a-zA-Z0-9_.:-]+/_/g; s/^_+//; s/_+$//'
