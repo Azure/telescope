@@ -69,6 +69,8 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
                     skip_diagnostics: bool = True,
                     rate_limit: int = 524288,
                     max_block_size: int = 524288,
+                    flush_interval: str = "30s",
+                    queues: int = 8,
                     measure_drain: bool = False,
                     drain_observe_seconds: int = 120) -> dict:
     ns_prefix = f"loadtest-{run_label}-" if run_label else "loadtest-"
@@ -174,7 +176,9 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
                    proxy_resources=tier_resources["vmagent_proxy"],
                    replicas=shard_count,
                    rate_limit=rate_limit,
-                   max_block_size=max_block_size)
+                   max_block_size=max_block_size,
+                   flush_interval=flush_interval,
+                   queues=queues)
     tier_start_ts = time.time()  # ADX time-series window starts here
     wall_start_ts = tier_start_ts
 

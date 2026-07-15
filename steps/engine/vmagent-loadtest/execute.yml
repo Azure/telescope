@@ -26,11 +26,16 @@ steps:
     # Defaults match prod's pre-change values (524288 = .5 MiB/s, .5 MiB).
     RATE_LIMIT="${RATE_LIMIT:-524288}"
     MAX_BLOCK_SIZE="${MAX_BLOCK_SIZE:-524288}"
+    # -remoteWrite.flushInterval / -remoteWrite.queues passed to vmagent.
+    # Defaults match prod's current values (30s flush, 8 queues).
+    FLUSH_INTERVAL="${FLUSH_INTERVAL:-30s}"
+    QUEUES="${QUEUES:-8}"
     MEASURE_DRAIN="${MEASURE_DRAIN:-false}"
     DRAIN_OBSERVE_SECONDS="${DRAIN_OBSERVE_SECONDS:-120}"
 
     EXTRA_ARGS="--resource-group ${{ parameters.dp_resource_group }} --dp-cluster-name ${{ parameters.dp_cluster_name }}"
     EXTRA_ARGS="$EXTRA_ARGS --rate-limit $RATE_LIMIT --max-block-size $MAX_BLOCK_SIZE"
+    EXTRA_ARGS="$EXTRA_ARGS --flush-interval $FLUSH_INTERVAL --queues $QUEUES"
     if [[ "$MEASURE_DRAIN" == "true" ]]; then
       EXTRA_ARGS="$EXTRA_ARGS --measure-drain --drain-observe-seconds $DRAIN_OBSERVE_SECONDS"
     fi
@@ -165,5 +170,7 @@ steps:
     COLLECT_DIAGNOSTICS: $(COLLECT_DIAGNOSTICS)
     RATE_LIMIT: $(RATE_LIMIT)
     MAX_BLOCK_SIZE: $(MAX_BLOCK_SIZE)
+    FLUSH_INTERVAL: $(FLUSH_INTERVAL)
+    QUEUES: $(QUEUES)
     MEASURE_DRAIN: $(MEASURE_DRAIN)
     DRAIN_OBSERVE_SECONDS: $(DRAIN_OBSERVE_SECONDS)

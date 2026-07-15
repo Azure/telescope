@@ -10,12 +10,21 @@ variables:
 stages:
   # Two parallel stages: fake targets in westus2, real targets in eastus.
   # dependsOn: [] on both makes them run concurrently. Within westus2_fake the
-  # baseline and rate2x legs run sequentially (max_parallel: 1); tiers kept
-  # small (100/200/300) so vmagent_remotewrite_pending_data_bytes stays below
-  # the 1GiB maxDiskUsagePerURL cap — needed to get a real (uncapped) backlog
-  # comparison between rate limits. At tiers >=1000 (see build 73602) the
-  # queue saturates the cap identically regardless of rate limit, so backlog
-  # readings there don't reflect the rate limit at all.
+  # four legs run sequentially (max_parallel: 1); tiers kept small (100/200/300)
+  # so vmagent_remotewrite_pending_data_bytes stays below the 1GiB
+  # maxDiskUsagePerURL cap — needed to get a real (uncapped) backlog
+  # comparison. At tiers >=1000 (see build 73602) the queue saturates the cap
+  # identically regardless of config, so backlog readings there are useless.
+  #
+  # 2x2 design isolating rateLimit vs flushInterval, since both are levers on
+  # "flush more before dying": fake_targets (both at prod defaults) and
+  # fake_targets_rate2x (4x rateLimit only) already ran in build 73648 and
+  # showed rate2x lowers steady-state backlog 1.6x-9.3x at these tiers.
+  # flushInterval defaults to 30s in prod (vmagent's own upstream default is
+  # 1s) — that's up to 30s of fresh samples sitting unflushed in memory before
+  # they even reach the block-send path, independent of rateLimit/backlog.
+  # fake_targets_flush1s isolates that effect alone; fake_targets_rate2x_flush1s
+  # combines both to see if they compound.
   - stage: westus2_fake
     dependsOn: []
     jobs:
@@ -35,6 +44,8 @@ stages:
               PARALLEL: "false"
               RATE_LIMIT: 524288      # .5 MiB/s — current prod default (unchanged baseline)
               MAX_BLOCK_SIZE: 524288  # .5 MiB — current prod default (unchanged baseline)
+              FLUSH_INTERVAL: "30s"   # current prod default (unchanged baseline)
+              QUEUES: 8               # current prod default (unchanged baseline)
               MEASURE_DRAIN: "true"
               DRAIN_OBSERVE_SECONDS: 120
             fake_targets_rate2x:
@@ -45,10 +56,36 @@ stages:
               PARALLEL: "false"
               RATE_LIMIT: 2097152     # 2 MiB/s (4x) — candidate from aks-operator PR #16345543
               MAX_BLOCK_SIZE: 524288  # unchanged; bump only if rate2x alone still backlogs
+              FLUSH_INTERVAL: "30s"   # unchanged — isolates rateLimit effect alone
+              QUEUES: 8               # current prod default (unchanged baseline)
+              MEASURE_DRAIN: "true"
+              DRAIN_OBSERVE_SECONDS: 120
+            fake_targets_flush1s:
+              TIERS: "100,200,300"
+              SOAK_MINUTES: 15
+              REAL_TARGETS: "false"
+              RUN_LABEL: "flush1s"
+              PARALLEL: "false"
+              RATE_LIMIT: 524288      # unchanged — isolates flushInterval effect alone
+              MAX_BLOCK_SIZE: 524288  # current prod default (unchanged baseline)
+              FLUSH_INTERVAL: "1s"    # vmagent's own upstream default; prod currently runs 30s
+              QUEUES: 8               # current prod default (unchanged baseline)
+              MEASURE_DRAIN: "true"
+              DRAIN_OBSERVE_SECONDS: 120
+            fake_targets_rate2x_flush1s:
+              TIERS: "100,200,300"
+              SOAK_MINUTES: 15
+              REAL_TARGETS: "false"
+              RUN_LABEL: "rate2x-flush1s"
+              PARALLEL: "false"
+              RATE_LIMIT: 2097152     # combined with flush1s below to test compounding effect
+              MAX_BLOCK_SIZE: 524288
+              FLUSH_INTERVAL: "1s"
+              QUEUES: 8               # current prod default (unchanged baseline)
               MEASURE_DRAIN: "true"
               DRAIN_OBSERVE_SECONDS: 120
           max_parallel: 1
-          timeout_in_minutes: 300
+          timeout_in_minutes: 600
           credential_type: service_connection
           ssh_key_enabled: false
 

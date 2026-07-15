@@ -91,6 +91,13 @@ def main() -> None:
     parser.add_argument("--max-block-size", type=int, default=524288,
                         help="-remoteWrite.maxBlockSize bytes passed to vmagent "
                              "(default: 524288 = .5 MiB, matches prod default)")
+    parser.add_argument("--flush-interval", type=str, default="30s",
+                        help="-remoteWrite.flushInterval duration passed to vmagent "
+                             "(default: 30s, matches prod default; vmagent's own "
+                             "upstream default is 1s)")
+    parser.add_argument("--queues", type=int, default=8,
+                        help="-remoteWrite.queues count passed to vmagent "
+                             "(default: 8, matches prod default)")
     parser.add_argument("--measure-drain", action="store_true",
                         help="After metrics collection, poll "
                              "vmagent_remotewrite_pending_data_bytes over a fixed "
@@ -215,6 +222,8 @@ def main() -> None:
             run_label="real",
             rate_limit=args.rate_limit,
             max_block_size=args.max_block_size,
+            flush_interval=args.flush_interval,
+            queues=args.queues,
             measure_drain=args.measure_drain,
             drain_observe_seconds=args.drain_observe_seconds,
         )
@@ -238,6 +247,8 @@ def main() -> None:
             run_label="fake",
             rate_limit=args.rate_limit,
             max_block_size=args.max_block_size,
+            flush_interval=args.flush_interval,
+            queues=args.queues,
             measure_drain=args.measure_drain,
             drain_observe_seconds=args.drain_observe_seconds,
         )
@@ -341,6 +352,8 @@ def main() -> None:
                     run_label=args.run_label,
                     rate_limit=args.rate_limit,
                     max_block_size=args.max_block_size,
+                    flush_interval=args.flush_interval,
+                    queues=args.queues,
                     measure_drain=args.measure_drain,
                     drain_observe_seconds=args.drain_observe_seconds,
                 )
@@ -396,6 +409,8 @@ def main() -> None:
                         skip_diagnostics=not args.collect_diagnostics,
                         rate_limit=args.rate_limit,
                         max_block_size=args.max_block_size,
+                        flush_interval=args.flush_interval,
+                        queues=args.queues,
                         measure_drain=args.measure_drain,
                         drain_observe_seconds=args.drain_observe_seconds,
                     )
