@@ -16,6 +16,10 @@ fi
 
 initialize_managed_telemetry
 load_collection_window
+if [ "$managed_prometheus_ready" != "true" ]; then
+  echo "Managed Prometheus samples are not ready; skipping TSDB reconstruction."
+  exit 0
+fi
 run_label=$(snapshot_label_value "$RUN_ID")
 build_label=$(snapshot_label_value "$BUILD_ID")
 tier_label=$(snapshot_label_value "$SNAPSHOT_TIER")

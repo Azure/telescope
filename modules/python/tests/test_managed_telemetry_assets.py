@@ -120,6 +120,16 @@ def test_provider_registration_retries_transient_cli_failure(tmp_path):
         encoding="utf-8",
     )
     fake_az.chmod(fake_az.stat().st_mode | stat.S_IXUSR)
+    fake_curl = fake_bin / "curl"
+    fake_curl.write_text(
+        "#!/usr/bin/env bash\n"
+        "printf '%s\\n' "
+        "'{\"status\":\"success\",\"data\":{\"result\":["
+        "{\"metric\":{\"cluster\":\"test_run_mesh_1\"},"
+        "\"values\":[[1,\"1\"]]}]}}'\n",
+        encoding="utf-8",
+    )
+    fake_curl.chmod(fake_curl.stat().st_mode | stat.S_IXUSR)
     common_script = TELEMETRY_DIR / "managed-prometheus-common.sh"
     environment = os.environ.copy()
     environment.update(
@@ -256,6 +266,7 @@ def test_scripts_use_current_aks_profile_and_full_export():
     assert "AKSAuditAdmin" in audit
     assert '"$PLATFORM_EXPORT_SCRIPT"' in audit
     assert '"$TSDB_EXPORT_SCRIPT"' in reconstruct
+    assert 'if [ "$managed_prometheus_ready" != "true" ]' in reconstruct
     assert "tsdb create-blocks-from" not in reconstruct
     assert "az storage blob upload" in upload
 
@@ -326,6 +337,16 @@ def test_split_collection_scripts_handoff_and_preserve_outputs(tmp_path):
         encoding="utf-8",
     )
     fake_az.chmod(fake_az.stat().st_mode | stat.S_IXUSR)
+    fake_curl = fake_bin / "curl"
+    fake_curl.write_text(
+        "#!/usr/bin/env bash\n"
+        "printf '%s\\n' "
+        "'{\"status\":\"success\",\"data\":{\"result\":["
+        "{\"metric\":{\"cluster\":\"test_run_mesh_1\"},"
+        "\"values\":[[1,\"1\"]]}]}}'\n",
+        encoding="utf-8",
+    )
+    fake_curl.chmod(fake_curl.stat().st_mode | stat.S_IXUSR)
 
     audit_script = tmp_path / "audit.py"
     audit_script.write_text(
@@ -402,6 +423,8 @@ def test_split_collection_scripts_handoff_and_preserve_outputs(tmp_path):
             "FAKE_AZ_LOG": str(az_log),
             "AKS_PLATFORM_METRICS_TIMEOUT_SECONDS": "1",
             "AKS_CONTROL_PLANE_LOGS_TIMEOUT_SECONDS": "1",
+            "AKS_MANAGED_PROMETHEUS_TIMEOUT_SECONDS": "5",
+            "AKS_MANAGED_PROMETHEUS_POLL_SECONDS": "0",
             "PATH": f"{fake_bin}:{environment['PATH']}",
         }
     )
@@ -437,6 +460,7 @@ def test_split_collection_scripts_handoff_and_preserve_outputs(tmp_path):
     assert collection_manifest["audit_window"]["start"]
     assert collection_manifest["logs_window"]["start"]
     assert collection_manifest["logs_window"]["end"]
+    assert collection_manifest["managed_prometheus_ready"] is True
     assert (output_dir / "telemetry-audit-managed.json").is_file()
     assert (output_dir / "aks-platform-mesh-1.openmetrics").is_file()
     assert (output_dir / "amw-export-manifest.json").is_file()
@@ -452,3 +476,64 @@ def test_split_collection_scripts_handoff_and_preserve_outputs(tmp_path):
     uploads = az_log.read_text(encoding="utf-8")
     assert "storage blob upload" in uploads
     assert "prom-snapshot-amw-test.tar.gz" in uploads
+
+
+def test_reconstruction_skips_when_managed_samples_are_not_ready(tmp_path):
+    output_dir = tmp_path / "output"
+    output_dir.mkdir()
+    manifest_path = tmp_path / "source-manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "configured_at": "2026-07-14T00:00:00Z",
+                "query": {
+                    "resource_endpoint": "https://example",
+                    "resource_scope": "/subscriptions/sub/resourceGroups/rg",
+                },
+                "logs": {"workspace": {"customer_id": "law-id"}},
+                "clusters": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (output_dir / "run-manifest.json").write_text(
+        json.dumps(
+            {
+                "collected_at": "2026-07-14T00:10:00Z",
+                "audit_window": {"start": "2026-07-14T00:00:00Z"},
+                "logs_window": {"end": "2026-07-14T00:10:00Z"},
+                "managed_prometheus_ready": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    marker = tmp_path / "snapshot-called"
+    snapshot_script = tmp_path / "snapshot.py"
+    snapshot_script.write_text(
+        f"from pathlib import Path\nPath({str(marker)!r}).touch()\n",
+        encoding="utf-8",
+    )
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "AKS_CONTROL_PLANE_METRICS_ENABLED": "true",
+            "MANIFEST_PATH": str(manifest_path),
+            "OUTPUT_DIR": str(output_dir),
+            "RUN_ID": "test-run",
+            "BUILD_ID": "123",
+            "SNAPSHOT_TIER": "n2",
+            "TSDB_EXPORT_SCRIPT": str(snapshot_script),
+        }
+    )
+
+    result = subprocess.run(
+        ["bash", str(TELEMETRY_DIR / "reconstruct-managed-prometheus.sh")],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=20,
+    )
+
+    assert "not ready; skipping" in result.stdout
+    assert not marker.exists()

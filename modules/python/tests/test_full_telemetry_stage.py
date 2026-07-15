@@ -97,6 +97,7 @@ def test_managed_collection_phases_are_separate_visible_tasks():
     assert template.count("az account set --subscription") == 4
     assert "AKS_TELEMETRY_WINDOW_READY" in template
     assert "AKS_TELEMETRY_CONFIGURED" in template
+    assert "AKS_MANAGED_PROMETHEUS_READY" in template
     assert template.count("succeededOrFailed()") >= 4
 
 

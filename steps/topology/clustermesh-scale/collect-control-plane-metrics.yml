@@ -93,7 +93,8 @@ steps:
     displayName: "Reconstruct managed Prometheus TSDB"
     condition: and(succeededOrFailed(),
                    eq(variables['AKS_CONTROL_PLANE_METRICS_ENABLED'], 'true'),
-                   eq(variables['AKS_TELEMETRY_WINDOW_READY'], 'true'))
+                   eq(variables['AKS_TELEMETRY_WINDOW_READY'], 'true'),
+                   eq(variables['AKS_MANAGED_PROMETHEUS_READY'], 'true'))
 
   - task: AzureCLI@2
     inputs:

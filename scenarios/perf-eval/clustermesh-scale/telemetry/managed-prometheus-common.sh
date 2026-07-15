@@ -95,6 +95,9 @@ load_collection_window() {
   end_time=$(jq -r '.collected_at' "$collection_manifest")
   audit_start=$(jq -r '.audit_window.start' "$collection_manifest")
   log_end_time=$(jq -r '.logs_window.end // .collected_at' "$collection_manifest")
+  managed_prometheus_ready=$(jq -r \
+    '.managed_prometheus_ready // false' \
+    "$collection_manifest")
 }
 
 build_log_summary_query() {
