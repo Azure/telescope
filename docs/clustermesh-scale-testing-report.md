@@ -385,6 +385,8 @@ curl -fsS -G "$ENDPOINT/api/v1/query_range" \
 
 Both the native per-cluster TSDB and reconstructed AMW TSDB include a queryable `clustermesh_cluster_identity_info` series. Its labels preserve the run ID, mesh role, AKS cluster name, full ARM resource ID, subscription ID, resource group, region, and run-unique managed-Prometheus alias. The run manifest retains the same mapping alongside the exact start/end window. AMW `/query_range` supports at most 32 days; `/series` supports at most 12 hours, so the automated inventory audit caps its series window while the raw retained data remains complete.
 
+The pipeline exposes managed collection as separate tasks in one job: bounded ingestion wait, audit/log/platform export, AMW TSDB reconstruction, and blob upload. This preserves the same output directory and manifest while making long reconstruction work visible and allowing partial artifacts to upload if a later phase fails.
+
 **Control-plane/audit logs.** The full-telemetry stage creates/reuses Log Analytics workspace `cmsh-scale-controlplane-law` in `eastus2`, then dynamically enables every diagnostic log category advertised by each AKS cluster in resource-specific mode. This includes kube-apiserver, kube-audit, kube-audit-admin, scheduler, controller-manager, autoscaler, cloud-controller-manager, guard, CSI, Fleet and Karpenter categories when available. The full raw stream remains in `AKSControlPlane`, `AKSAudit`, and `AKSAuditAdmin`; pipeline artifacts contain run-window counts and a bounded 5 000-row sample per cluster.
 
 ---

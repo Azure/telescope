@@ -62,3 +62,19 @@ def test_control_plane_artifact_directory_exists_after_configuration_failure():
 
     assert "Prepare AKS control-plane telemetry artifact" in template
     assert 'condition: and(succeededOrFailed(),' in template
+
+
+def test_managed_collection_phases_are_separate_visible_tasks():
+    template = COLLECT_TEMPLATE_PATH.read_text(encoding="utf-8")
+    display_names = [
+        "Wait for AKS telemetry ingestion",
+        "Audit and export AKS telemetry",
+        "Reconstruct managed Prometheus TSDB",
+        "Upload managed telemetry artifacts",
+        "Publish AKS control-plane telemetry artifacts",
+    ]
+
+    positions = [template.index(name) for name in display_names]
+    assert positions == sorted(positions)
+    assert template.count("az account set --subscription") == 4
+    assert "AKS_TELEMETRY_WINDOW_READY" in template
