@@ -40,7 +40,7 @@ az aks nodepool add \\
   --node-count 1 \\
   --node-vm-size "${KATA_NODE_SKU}" \\
   --os-sku AzureLinux \\
-  --workload-runtime KataMshvVmIsolation \\
+  --workload-runtime KataVmIsolation \\
   --mode User
 """
 

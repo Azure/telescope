@@ -82,7 +82,7 @@ stages:
             --node-count 1 \
             --node-vm-size "Standard_D4s_v3" \
             --os-sku AzureLinux \
-            --workload-runtime KataMshvVmIsolation \
+            --workload-runtime KataVmIsolation \
             --mode User
       displayName: Add Kata VM-isolation node pool
     - task: AzureCLI@2
