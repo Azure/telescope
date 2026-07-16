@@ -162,10 +162,13 @@ capture_amw_capacity() {
               )
             }
           }
-        | .capacity_ok = (
+        | .within_nominal_limits = (
             .capacity_samples_complete
             and .active_series.maximum_percent < 100
             and .events_per_minute.maximum_percent < 100
+          )
+        | .capacity_ok = (
+            .capacity_samples_complete
             and .limit_throttling.events_dropped == 0
             and .limit_throttling.time_series_samples_dropped == 0
           )' "$raw_tmp" > "$summary_tmp"
@@ -232,6 +235,7 @@ capture_amw_capacity() {
         events_dropped: 0,
         time_series_samples_dropped: 0
       },
+      within_nominal_limits: false,
       capacity_ok: false
     }' > "$summary_tmp"
   mv "$raw_tmp" "$raw_output"
@@ -336,9 +340,11 @@ write_amw_capacity_markdown() {
   status=$(jq -r \
     'if .capacity_samples_complete != true
      then "unverifiable"
-     elif .capacity_ok
-     then "complete"
-     else "throttled"
+     elif .capacity_ok != true
+     then "throttled"
+     elif .within_nominal_limits != true
+     then "complete (above nominal utilization)"
+     else "complete"
      end' \
     "$summary_path")
   {

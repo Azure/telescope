@@ -283,6 +283,17 @@ def test_amw_capacity_guard_accepts_headroom_and_rejects_throttling(tmp_path):
               {"name":{"value":"EventsPerMinuteIngestedPercentUtilization"},"timeseries":[{"data":[{"maximum":0}]}]}
             ]}
             JSON
+            elif [ "${HIGH_UTILIZATION:-false}" = "true" ]; then
+              cat <<'JSON'
+            {"value":[
+              {"name":{"value":"ActiveTimeSeries"},"timeseries":[{"data":[{"maximum":488181}]}]},
+              {"name":{"value":"ActiveTimeSeriesLimit"},"timeseries":[{"data":[{"maximum":1000000}]}]},
+              {"name":{"value":"ActiveTimeSeriesPercentUtilization"},"timeseries":[{"data":[{"maximum":48.8181}]}]},
+              {"name":{"value":"EventsPerMinuteIngested"},"timeseries":[{"data":[{"maximum":1345995}]}]},
+              {"name":{"value":"EventsPerMinuteIngestedLimit"},"timeseries":[{"data":[{"maximum":1000000}]}]},
+              {"name":{"value":"EventsPerMinuteIngestedPercentUtilization"},"timeseries":[{"data":[{"maximum":134.5995}]}]}
+            ]}
+            JSON
             elif [ "${THROTTLED:-false}" = "true" ]; then
               cat <<'JSON'
             {"value":[
@@ -364,6 +375,31 @@ def test_amw_capacity_guard_accepts_headroom_and_rejects_throttling(tmp_path):
     assert summary["capacity_ok"] is True
 
     environment["IDLE"] = "false"
+    environment["HIGH_UTILIZATION"] = "true"
+    runtime_command = (
+        f'source "{common_script}"; '
+        f'capture_amw_capacity test-amw start end "{raw_path}" '
+        f'"{summary_path}"; '
+        f'write_amw_capacity_markdown "{summary_path}" "{markdown_path}"; '
+        f'amw_capacity_runtime_ok "{summary_path}"'
+    )
+    high_utilization = subprocess.run(
+        ["bash", "-c", runtime_command],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=10,
+    )
+    assert high_utilization.returncode == 0
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert summary["within_nominal_limits"] is False
+    assert summary["capacity_ok"] is True
+    assert "Status: **complete (above nominal utilization)**" in (
+        markdown_path.read_text(encoding="utf-8")
+    )
+
+    environment["HIGH_UTILIZATION"] = "false"
     environment["PARTIAL"] = "true"
     partial = subprocess.run(
         ["bash", "-c", command],
