@@ -79,7 +79,8 @@ events = json.loads(sys.argv[2])
 def parse(ts):
     if not ts:
         return None
-    return datetime.datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
+    ts = ts.replace("Z", "+00:00")
+    return datetime.datetime.fromisoformat(ts)
 
 def event_time(reason):
     for e in events.get("items", []):
