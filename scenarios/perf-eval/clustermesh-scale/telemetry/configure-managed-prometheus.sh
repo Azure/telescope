@@ -128,7 +128,7 @@ amw_query_endpoint=$(echo "$amw_json" | jq -r \
   '.metrics.prometheusQueryEndpoint // .properties.metrics.prometheusQueryEndpoint // empty')
 
 preflight_window_minutes="${AKS_AMW_PREFLIGHT_WINDOW_MINUTES:-15}"
-preflight_threshold="${AKS_AMW_PREFLIGHT_MAX_UTILIZATION_PERCENT:-50}"
+preflight_threshold="${AKS_AMW_PREFLIGHT_MAX_UTILIZATION_PERCENT:-40}"
 if ! [[ "$preflight_window_minutes" =~ ^[1-9][0-9]*$ ]]; then
   echo "AKS_AMW_PREFLIGHT_WINDOW_MINUTES must be a positive integer." >&2
   exit 1

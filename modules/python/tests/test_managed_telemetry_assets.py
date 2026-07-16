@@ -647,6 +647,7 @@ def test_scripts_use_current_aks_profile_and_full_export():
     assert "ensure_azure_provider_registered" in configure
     assert "capture_amw_capacity" in configure
     assert "amw_capacity_preflight_ok" in configure
+    assert "AKS_AMW_PREFLIGHT_MAX_UTILIZATION_PERCENT:-40" in configure
     assert "CONTROL_PLANE_MONITORS_PATH" in configure
     assert "CUSTOM_SCRAPES_PATH" not in configure
     assert "MOCK_MONITOR_PATH" not in configure
