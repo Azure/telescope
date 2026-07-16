@@ -88,7 +88,8 @@ stages:
           az aks update \
             --name "kata-pod-startup" \
             --resource-group "$(RUN_ID)" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --yes
       displayName: Add Kata VM-isolation node pool
     - task: AzureCLI@2
       inputs:

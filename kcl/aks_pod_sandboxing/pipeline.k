@@ -46,7 +46,8 @@ az aks nodepool add \\
 az aks update \\
   --name "${CLUSTER}" \\
   --resource-group "${RESOURCE_GROUP}" \\
-  --subscription "${SUBSCRIPTION_ID}"
+  --subscription "${SUBSCRIPTION_ID}" \\
+  --yes
 """
 
 scheduleAndMeasureScript = """
