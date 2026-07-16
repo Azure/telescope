@@ -163,6 +163,49 @@ def deploy_fake_exporters(kubeconfig: str, replicas: int, profile: str = "defaul
     log.info("Fake exporters ready: %d total pods", total)
 
 
+def scale_fake_exporters(kubeconfig: str, replicas: int) -> None:
+    """Scale all fake-exporter StatefulSets to `replicas`.
+
+    Used to pause (replicas=0) scrape-target generation before a genuine
+    remote-write drain-time measurement, and to resume (replicas=<tier>)
+    afterward. Pausing mirrors what happens on SIGTERM in real vmagent: its
+    promscrape scrape loops are canceled and only the remote-write drain
+    continues, so measuring drain rate while targets are still being
+    actively scraped conflates "can drain keep up with arrivals" with
+    "how fast does the existing backlog actually drain" -- two different
+    questions. Best-effort: failures are logged, not raised, since this is
+    a diagnostic aid and shouldn't fail the whole tier run.
+    """
+    log.info("Scaling fake exporters to %d replicas...", replicas)
+    for sts_name, _app, _port in FAKE_EXPORTER_ROLES:
+        result = kubectl(kubeconfig, "-n", FAKE_EXPORTER_NS, "scale",
+                         f"statefulset/{sts_name}", f"--replicas={replicas}",
+                         check=False)
+        if result.returncode != 0:
+            log.warning("Failed to scale %s to %d replicas: %s",
+                       sts_name, replicas, result.stderr.strip())
+
+
+def wait_for_fake_exporters_gone(kubeconfig: str, timeout_seconds: int = 90) -> bool:
+    """Wait until no fake-exporter pods remain (after scale_fake_exporters(0)).
+
+    Returns True if all pods terminated within the timeout, False otherwise
+    (caller should proceed anyway -- this is best-effort synchronization,
+    not a hard requirement).
+    """
+    deadline = time.time() + timeout_seconds
+    while time.time() < deadline:
+        result = kubectl(kubeconfig, "-n", FAKE_EXPORTER_NS, "get", "pods",
+                         "-o", "jsonpath={.items[*].metadata.name}", check=False)
+        remaining = result.stdout.strip() if result.returncode == 0 else ""
+        if not remaining:
+            log.info("All fake-exporter pods terminated.")
+            return True
+        time.sleep(5)
+    log.warning("Timed out waiting for fake-exporter pods to terminate after %ds", timeout_seconds)
+    return False
+
+
 def get_dp_api_server(dp_kubeconfig: str) -> str:
     """Extract the API server URL from a kubeconfig file."""
     with open(dp_kubeconfig) as f:

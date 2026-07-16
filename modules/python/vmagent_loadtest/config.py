@@ -105,7 +105,7 @@ def _r(cpu_req, mem_req, cpu_lim, mem_lim):
 TIER_RESOURCE_BUCKETS = [
     # (upper_tier, shards, {"vmagent":..., "vmagent_proxy":..., "konn_server":...})
     # vmagent/vmagent_proxy resources are PER-SHARD.
-    (200,  1, {"vmagent":       _r("100m", "256Mi", "500m", "512Mi"),
+    (200,  1, {"vmagent":       _r("100m", "256Mi", "500m", "768Mi"),
                "vmagent_proxy": _r("100m", "128Mi", "1",    "256Mi"),
                "konn_server":   _r("100m", "128Mi", "500m", "512Mi")}),
     (350,  1, {"vmagent":       _r("250m", "512Mi", "1",    "1Gi"),

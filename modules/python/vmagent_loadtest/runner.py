@@ -22,7 +22,8 @@ from .deploy import (
     deploy_fake_exporters, deploy_konnectivity_agents,
     deploy_konnectivity_server, deploy_vmagent, deploy_vmsingle,
     ensure_namespace, get_dp_api_server, get_node_ips, get_server_lb_ip,
-    rollout_restart, setup_dp_access,
+    rollout_restart, scale_fake_exporters, setup_dp_access,
+    wait_for_fake_exporters_gone,
 )
 from .adx import (
     export_if_configured as adx_export_if_configured,
@@ -35,6 +36,26 @@ from .metrics import (
 )
 from .scaling import scale_dp_nodepool, wait_for_nodes_ready
 from .utils import kubectl
+
+
+def _flush_interval_seconds(flush_interval: str) -> int:
+    """Parse a Go duration string like '30s', '1m', '500ms' into whole seconds.
+
+    Only handles the simple single-unit forms vmagent's -remoteWrite.flushInterval
+    actually takes in this harness (e.g. '1s', '30s', '1m'); falls back to 30
+    (prod's current default) if parsing fails.
+    """
+    try:
+        s = flush_interval.strip()
+        if s.endswith("ms"):
+            return max(1, round(int(s[:-2]) / 1000))
+        if s.endswith("s"):
+            return int(s[:-1])
+        if s.endswith("m"):
+            return int(s[:-1]) * 60
+        return int(s)
+    except (ValueError, AttributeError):
+        return 30
 
 
 def compute_fake_nodes_needed(tier: int) -> int:
@@ -200,19 +221,49 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
         # 11a. Optionally observe remote-write backlog drain over a fixed
         # window (opt-in; tests whether a preStop-hook-style delay before
         # SIGTERM would actually shrink the persistent queue under this
-        # rateLimit/maxBlockSize config).
+        # rateLimit/maxBlockSize/flushInterval config). For fake-targets runs,
+        # scrape generation is paused first so this measures genuine drain
+        # rate against the *existing* backlog -- mirroring what happens on
+        # SIGTERM, when promscrape's scrape loops are canceled and only the
+        # remote-write drain continues -- rather than conflating it with
+        # "can drain keep up with sustained arrivals" (a different question).
         if measure_drain:
+            paused_exporters = False
+            if not real_targets:
+                try:
+                    scale_fake_exporters(dp_kubeconfig, 0)
+                    wait_for_fake_exporters_gone(dp_kubeconfig)
+                    # Let any in-flight scrapes/blocks still forming settle:
+                    # at least one flush_interval plus a fixed buffer.
+                    settle_seconds = max(35, _flush_interval_seconds(flush_interval) + 15)
+                    log.info("Settling %ds after pausing exporters before drain observation...",
+                             settle_seconds)
+                    time.sleep(settle_seconds)
+                    paused_exporters = True
+                except Exception as e:
+                    log.warning("Failed to pause fake exporters before drain observation "
+                               "(will measure with targets still live): %s", e)
             log.info("Observing remote-write drain for %ds...", drain_observe_seconds)
-            drain_stats = observe_remotewrite_drain(
-                cp_kubeconfig, namespace, work_dir,
-                duration_seconds=drain_observe_seconds)
-            measurements.update(drain_stats)
-            log.info("Drain observation: initial=%.0fB final=%.0fB reduced=%.1f%% "
-                     "seconds_to_empty=%s",
-                     drain_stats["remotewrite_drain_initial_bytes"],
-                     drain_stats["remotewrite_drain_final_bytes"],
-                     drain_stats["remotewrite_drain_pct_reduced"],
-                     drain_stats["remotewrite_drain_seconds_to_empty"])
+            try:
+                drain_stats = observe_remotewrite_drain(
+                    cp_kubeconfig, namespace, work_dir,
+                    duration_seconds=drain_observe_seconds)
+                measurements.update(drain_stats)
+                measurements["remotewrite_drain_exporters_paused"] = paused_exporters
+                log.info("Drain observation: initial=%.0fB final=%.0fB reduced=%.1f%% "
+                         "seconds_to_empty=%s exporters_paused=%s",
+                         drain_stats["remotewrite_drain_initial_bytes"],
+                         drain_stats["remotewrite_drain_final_bytes"],
+                         drain_stats["remotewrite_drain_pct_reduced"],
+                         drain_stats["remotewrite_drain_seconds_to_empty"],
+                         paused_exporters)
+            finally:
+                if paused_exporters:
+                    try:
+                        scale_fake_exporters(dp_kubeconfig, tier)
+                    except Exception as e:
+                        log.warning("Failed to resume fake exporters after drain "
+                                   "observation: %s", e)
 
         # 11b. Brief pause to let port-forward ports fully release before pprof
         time.sleep(5)
