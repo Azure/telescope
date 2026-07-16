@@ -84,6 +84,11 @@ stages:
             --os-sku AzureLinux \
             --workload-runtime KataVmIsolation \
             --mode User
+
+          az aks update \
+            --name "kata-pod-startup" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
       displayName: Add Kata VM-isolation node pool
     - task: AzureCLI@2
       inputs:
@@ -116,7 +121,7 @@ stages:
           metadata:
             name: pause-sandbox
           spec:
-            runtimeClassName: kata-mshv-vm-isolation
+            runtimeClassName: kata-vm-isolation
             containers:
               - name: pause
                 image: mcr.microsoft.com/oss/kubernetes/pause:3.6
@@ -164,7 +169,7 @@ stages:
           result = {
               "run_id": os.environ.get("RUN_ID", ""),
               "cluster": "kata-pod-startup",
-              "runtime_class": "kata-mshv-vm-isolation",
+              "runtime_class": "kata-vm-isolation",
               "node_sku": "Standard_D4s_v3",
               "k8s_version": "1.35",
               "pod_name": "pause-sandbox",

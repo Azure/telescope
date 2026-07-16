@@ -12,7 +12,7 @@ K8S_VERSION = "1.35"
 KATA_POOL_NAME = "katapool"
 KATA_NODE_SKU = "Standard_D4s_v3"
 POD_NAME = "pause-sandbox"
-RUNTIME_CLASS = "kata-mshv-vm-isolation"
+RUNTIME_CLASS = "kata-vm-isolation"
 PAUSE_IMAGE = "mcr.microsoft.com/oss/kubernetes/pause:3.6"
 
 createClusterScript = """
@@ -42,6 +42,11 @@ az aks nodepool add \\
   --os-sku AzureLinux \\
   --workload-runtime KataVmIsolation \\
   --mode User
+
+az aks update \\
+  --name "${CLUSTER}" \\
+  --resource-group "${RESOURCE_GROUP}" \\
+  --subscription "${SUBSCRIPTION_ID}"
 """
 
 scheduleAndMeasureScript = """
