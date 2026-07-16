@@ -56,15 +56,18 @@ capture_amw_capacity() {
         -o json > "$drops_file"; then
       jq -n \
         --arg resource_id "$resource_id" \
-        --arg start "$start_time" \
-        --arg end "$end_time" \
+        --arg window_start "$start_time" \
+        --arg window_end "$end_time" \
         --slurpfile capacity "$capacity_file" \
         --slurpfile drops "$drops_file" \
         '{
           schema_version: 1,
           query_succeeded: true,
           resource_id: $resource_id,
-          window: {start: $start, end: $end},
+          window: {
+            "start": $window_start,
+            "end": $window_end
+          },
           capacity: $capacity[0],
           drops: $drops[0]
         }' > "$raw_tmp"
@@ -118,10 +121,8 @@ capture_amw_capacity() {
               or has_values("EventsPerMinuteIngestedPercentUtilization")
             ),
             capacity_samples_complete: (
-              has_values("ActiveTimeSeries")
-              and has_values("ActiveTimeSeriesLimit")
+              has_values("ActiveTimeSeriesLimit")
               and has_values("ActiveTimeSeriesPercentUtilization")
-              and has_values("EventsPerMinuteIngested")
               and has_values("EventsPerMinuteIngestedLimit")
               and has_values("EventsPerMinuteIngestedPercentUtilization")
             ),
@@ -183,26 +184,32 @@ capture_amw_capacity() {
 
   jq -n \
     --arg resource_id "$resource_id" \
-    --arg start "$start_time" \
-    --arg end "$end_time" \
+    --arg window_start "$start_time" \
+    --arg window_end "$end_time" \
     --arg error "Azure Monitor metrics query failed after $attempts attempt(s)" \
     '{
       schema_version: 1,
       query_succeeded: false,
       resource_id: $resource_id,
-      window: {start: $start, end: $end},
+      window: {
+        "start": $window_start,
+        "end": $window_end
+      },
       error: $error
     }' > "$raw_tmp"
   jq -n \
     --arg resource_id "$resource_id" \
-    --arg start "$start_time" \
-    --arg end "$end_time" \
+    --arg window_start "$start_time" \
+    --arg window_end "$end_time" \
     --arg error "Azure Monitor metrics query failed after $attempts attempt(s)" \
     '{
       schema_version: 1,
       query_succeeded: false,
       resource_id: $resource_id,
-      window: {start: $start, end: $end},
+      window: {
+        "start": $window_start,
+        "end": $window_end
+      },
       error: $error,
       capacity_samples: {
         active_series: false,
@@ -338,7 +345,7 @@ write_amw_capacity_markdown() {
     echo "# Azure Monitor workspace capacity audit"
     echo
     echo "- Status: **$status**"
-    echo "- Window: \`$(jq -r '.window.start' "$summary_path")\` to \`$(jq -r '.window.end' "$summary_path")\`"
+    echo "- Window: \`$(jq -r '.window["start"]' "$summary_path")\` to \`$(jq -r '.window["end"]' "$summary_path")\`"
     echo "- Active series: $(jq -r '.active_series.maximum' "$summary_path") / $(jq -r '.active_series.limit' "$summary_path") ($(jq -r '.active_series.maximum_percent' "$summary_path")%)"
     echo "- Events per minute received: $(jq -r '.events_per_minute.maximum_received' "$summary_path") / $(jq -r '.events_per_minute.limit' "$summary_path") ($(jq -r '.events_per_minute.maximum_percent' "$summary_path")%)"
     echo "- Limit-throttled events: $(jq -r '.limit_throttling.events_dropped' "$summary_path")"

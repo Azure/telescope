@@ -273,6 +273,16 @@ def test_amw_capacity_guard_accepts_headroom_and_rejects_throttling(tmp_path):
               {"name":{"value":"ActiveTimeSeries"},"timeseries":[{"data":[{"maximum":200000}]}]}
             ]}
             JSON
+            elif [ "${IDLE:-false}" = "true" ]; then
+              cat <<'JSON'
+            {"value":[
+              {"name":{"value":"ActiveTimeSeries"},"timeseries":[{"data":[{"maximum":0}]}]},
+              {"name":{"value":"ActiveTimeSeriesLimit"},"timeseries":[{"data":[{"maximum":1000000}]}]},
+              {"name":{"value":"ActiveTimeSeriesPercentUtilization"},"timeseries":[{"data":[{"maximum":0}]}]},
+              {"name":{"value":"EventsPerMinuteIngestedLimit"},"timeseries":[{"data":[{"maximum":1000000}]}]},
+              {"name":{"value":"EventsPerMinuteIngestedPercentUtilization"},"timeseries":[{"data":[{"maximum":0}]}]}
+            ]}
+            JSON
             elif [ "${THROTTLED:-false}" = "true" ]; then
               cat <<'JSON'
             {"value":[
@@ -338,6 +348,22 @@ def test_amw_capacity_guard_accepts_headroom_and_rejects_throttling(tmp_path):
     ] is True
     assert "Status: **complete**" in markdown_path.read_text(encoding="utf-8")
 
+    environment["IDLE"] = "true"
+    idle = subprocess.run(
+        ["bash", "-c", command],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=10,
+    )
+    assert idle.returncode == 0
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert summary["capacity_samples"]["events_per_minute"] is False
+    assert summary["capacity_samples_complete"] is True
+    assert summary["capacity_ok"] is True
+
+    environment["IDLE"] = "false"
     environment["PARTIAL"] = "true"
     partial = subprocess.run(
         ["bash", "-c", command],
@@ -551,6 +577,9 @@ def test_scripts_use_current_aks_profile_and_full_export():
     configure = (
         TELEMETRY_DIR / "configure-managed-prometheus.sh"
     ).read_text(encoding="utf-8")
+    common = (
+        TELEMETRY_DIR / "managed-prometheus-common.sh"
+    ).read_text(encoding="utf-8")
     collect = (
         TELEMETRY_DIR / "collect-managed-prometheus.sh"
     ).read_text(encoding="utf-8")
@@ -606,6 +635,9 @@ def test_scripts_use_current_aks_profile_and_full_export():
     assert '"$PLATFORM_EXPORT_SCRIPT"' in audit
     assert "AKS_AMW_CAPACITY_AUDITED]$capacity_audit_ok" in audit
     assert "AKS_AMW_CAPACITY_AUDITED" in collect_template
+    assert "--arg end " not in common
+    assert "--arg window_end " in common
+    assert '"end": $window_end' in common
     assert '"$TSDB_EXPORT_SCRIPT"' in reconstruct
     assert 'if [ "$managed_prometheus_ready" != "true" ]' in reconstruct
     assert "tsdb create-blocks-from" not in reconstruct

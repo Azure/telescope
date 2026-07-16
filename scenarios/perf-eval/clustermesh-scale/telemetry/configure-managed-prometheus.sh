@@ -415,7 +415,7 @@ jq -n \
         preflight_max_utilization_percent: (
           $preflight_threshold | tonumber
         ),
-        monitoring_window_start: $preflight_capacity.window.end,
+        monitoring_window_start: $preflight_capacity.window["end"],
         preflight: $preflight_capacity
       }
     },
