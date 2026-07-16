@@ -59,38 +59,12 @@ stages:
             --location "uksouth" \
             --kubernetes-version "1.35" \
             --os-sku AzureLinux \
-            --node-count 1 \
-            --node-vm-size Standard_D2s_v3 \
-            --network-plugin azure \
-            --network-plugin-mode overlay \
-            --tier standard \
-            --tags SkipAKSCluster=true SkipASMAzSecPackAutoConfig=true SkipLinuxAzSecPack=true
-      displayName: Create AKS cluster
-    - task: AzureCLI@2
-      inputs:
-        azureSubscription: Azure-for-Telescope-internal
-        scriptType: bash
-        scriptLocation: inlineScript
-        inlineScript: |
-          set -exo pipefail
-
-          az aks nodepool add \
-            --cluster-name "kata-pod-startup" \
-            --resource-group "$(RUN_ID)" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-            --name "katapool" \
-            --node-count 1 \
-            --node-vm-size "Standard_D4s_v3" \
-            --os-sku AzureLinux \
             --workload-runtime KataVmIsolation \
-            --mode User
-
-          az aks update \
-            --name "kata-pod-startup" \
-            --resource-group "$(RUN_ID)" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
-            --yes
-      displayName: Add Kata VM-isolation node pool
+            --node-count 3 \
+            --node-vm-size Standard_D4s_v3 \
+            --network-plugin azure \
+            --tier standard
+      displayName: Create AKS cluster
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -115,84 +89,19 @@ stages:
           set -exo pipefail
 
           export KUBECONFIG="$(Pipeline.Workspace)/kubeconfig"
+          export POD_NAME="pause-sandbox"
+          export CLUSTER="kata-pod-startup"
+          export RUNTIME_CLASS="kata-vm-isolation"
+          export NODE_SKU="Standard_D4s_v3"
+          export K8S_VERSION="1.35"
+          export PAUSE_IMAGE="mcr.microsoft.com/oss/kubernetes/pause:3.6"
 
-          cat <<'EOF' | kubectl apply -f -
-          apiVersion: v1
-          kind: Pod
-          metadata:
-            name: pause-sandbox
-          spec:
-            runtimeClassName: kata-vm-isolation
-            containers:
-              - name: pause
-                image: mcr.microsoft.com/oss/kubernetes/pause:3.6
-          EOF
+          MANIFEST="$(Build.SourcesDirectory)/kcl/aks_pod_sandboxing/pod.yaml"
+          MEASURE="$(Build.SourcesDirectory)/kcl/aks_pod_sandboxing/measure.py"
 
+          kubectl apply -f "$MANIFEST"
           kubectl wait --for=condition=Ready pod/pause-sandbox --timeout=10m
-
-          pod_json=$(kubectl get pod pause-sandbox -o json)
-          events_json=$(kubectl get events --field-selector involvedObject.name=pause-sandbox -o json)
-
-          python3 - "$pod_json" "$events_json" <<'PY'
-          import json, sys, datetime
-
-          pod = json.loads(sys.argv[1])
-          events = json.loads(sys.argv[2])
-
-          def parse(ts):
-              if not ts:
-                  return None
-              ts = ts.replace("Z", "+00:00")
-              return datetime.datetime.fromisoformat(ts)
-
-          def event_time(reason):
-              for e in events.get("items", []):
-                  if e.get("reason") == reason:
-                      return e.get("firstTimestamp") or e.get("eventTime")
-              return None
-
-          scheduled = event_time("Scheduled")
-          pulling = event_time("Pulling")
-          pulled = event_time("Pulled")
-          created = event_time("Created")
-          started = event_time("Started")
-
-          ready = None
-          for c in pod.get("status", {}).get("conditions", []):
-              if c.get("type") == "Ready" and c.get("status") == "True":
-                  ready = c.get("lastTransitionTime")
-                  break
-
-          startup_latency = None
-          if scheduled and ready:
-              startup_latency = (parse(ready) - parse(scheduled)).total_seconds()
-
-          import os
-          result = {
-              "run_id": os.environ.get("RUN_ID", ""),
-              "cluster": "kata-pod-startup",
-              "runtime_class": "kata-vm-isolation",
-              "node_sku": "Standard_D4s_v3",
-              "k8s_version": "1.35",
-              "pod_name": "pause-sandbox",
-              "image": "mcr.microsoft.com/oss/kubernetes/pause:3.6",
-              "scheduled_time": scheduled,
-              "pulling_time": pulling,
-              "pulled_time": pulled,
-              "created_time": created,
-              "started_time": started,
-              "ready_time": ready,
-              "startup_latency_seconds": startup_latency,
-          }
-
-          with open("/tmp/run-result.json", "w") as f:
-              json.dump(result, f, indent=2)
-
-          print(json.dumps(result, indent=2))
-
-          if startup_latency is None or startup_latency <= 0:
-              raise SystemExit("Startup latency could not be computed")
-          PY
+          python3 "$MEASURE"
       displayName: Schedule pause pod and measure startup
     - task: AzureCLI@2
       inputs:

@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pause-sandbox
+spec:
+  runtimeClassName: kata-vm-isolation
+  containers:
+    - name: pause
+      image: mcr.microsoft.com/oss/kubernetes/pause:3.6
