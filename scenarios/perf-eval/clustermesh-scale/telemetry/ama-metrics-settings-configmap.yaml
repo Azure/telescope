@@ -5,31 +5,31 @@ metadata:
   namespace: kube-system
 data:
   schema-version: v2
-  config-version: cmsh-v1
+  config-version: cmsh-v2
   cluster-metrics: |-
     default-targets-scrape-enabled: |-
-      kubelet = true
-      coredns = true
-      cadvisor = true
-      kubeproxy = true
-      apiserver = true
-      kubestate = true
-      nodeexporter = true
-      windowsexporter = true
-      windowskubeproxy = true
-      kappiebasic = true
-      networkobservabilityRetina = true
-      networkobservabilityHubble = true
-      networkobservabilityCilium = true
-      acstor-capacity-provisioner = true
-      acstor-metrics-exporter = true
-      local-csi-driver = true
-      ztunnel = true
-      istio-cni = true
-      dcgmexporter = true
+      kubelet = false
+      coredns = false
+      cadvisor = false
+      kubeproxy = false
+      apiserver = false
+      kubestate = false
+      nodeexporter = false
+      windowsexporter = false
+      windowskubeproxy = false
+      kappiebasic = false
+      networkobservabilityRetina = false
+      networkobservabilityHubble = false
+      networkobservabilityCilium = false
+      acstor-capacity-provisioner = false
+      acstor-metrics-exporter = false
+      local-csi-driver = false
+      ztunnel = false
+      istio-cni = false
+      dcgmexporter = false
       prometheuscollectorhealth = true
     pod-annotation-based-scraping: |-
-      podannotationnamespaceregex = ".*"
+      podannotationnamespaceregex = "$^"
     default-targets-metrics-keep-list: |-
       kubelet = ""
       coredns = ""
@@ -99,43 +99,3 @@ data:
     debug-mode = false
     https_config = true
     secrets_access_namespaces = ""
-  ksm-config: |-
-    labels_allow_list:
-      certificatesigningrequests: ["*"]
-      configmaps: ["*"]
-      cronjobs: ["*"]
-      daemonsets: ["*"]
-      deployments: ["*"]
-      endpoints: ["*"]
-      horizontalpodautoscalers: ["*"]
-      ingresses: ["*"]
-      jobs: ["*"]
-      leases: ["*"]
-      limitranges: ["*"]
-      mutatingwebhookconfigurations: ["*"]
-      namespaces: ["*"]
-      networkpolicies: ["*"]
-      nodes: ["*"]
-      persistentvolumeclaims: ["*"]
-      persistentvolumes: ["*"]
-      poddisruptionbudgets: ["*"]
-      pods: ["*"]
-      replicasets: ["*"]
-      replicationcontrollers: ["*"]
-      resourcequotas: ["*"]
-      secrets: ["*"]
-      services: ["*"]
-      statefulsets: ["*"]
-      storageclasses: ["*"]
-      validatingwebhookconfigurations: ["*"]
-      volumeattachments: ["*"]
-    annotations_allow_list:
-      namespaces:
-        - clustermesh.cilium.io/global
-      pods:
-        - prometheus.io/scrape
-        - prometheus.io/port
-        - prometheus.io/path
-        - cilium.io/cilium-configmap-checksum
-        - kwok.x-k8s.io/usage-cpu
-        - kwok.x-k8s.io/usage-memory

@@ -20,7 +20,7 @@ TELEMETRY_DIR = (
 )
 
 
-def test_maximal_settings_disable_minimal_ingestion_safely():
+def test_control_plane_settings_disable_duplicate_cluster_scrapes():
     config = yaml.safe_load(
         (TELEMETRY_DIR / "ama-metrics-settings-configmap.yaml").read_text(
             encoding="utf-8"
@@ -29,31 +29,42 @@ def test_maximal_settings_disable_minimal_ingestion_safely():
 
     cluster = config["data"]["cluster-metrics"]
     control_plane = config["data"]["controlplane-metrics"]
-    ksm = yaml.safe_load(config["data"]["ksm-config"])
 
     assert "enabled = false" in cluster
     assert "enabled = false" in control_plane
+    for target in (
+        "kubelet",
+        "coredns",
+        "cadvisor",
+        "kubeproxy",
+        "apiserver",
+        "kubestate",
+        "nodeexporter",
+        "networkobservabilityRetina",
+        "networkobservabilityHubble",
+        "networkobservabilityCilium",
+    ):
+        assert f"{target} = false" in cluster
+    assert "prometheuscollectorhealth = true" in cluster
+    assert 'podannotationnamespaceregex = "$^"' in cluster
     assert "kube-scheduler = true" in control_plane
     assert "kube-controller-manager = true" in control_plane
-    assert ksm["labels_allow_list"]["pods"] == ["*"]
-    assert "configmaps" not in ksm["annotations_allow_list"]
+    assert "ksm-config" not in config["data"]
 
 
-def test_custom_scrapes_cover_hidden_and_mock_targets():
-    config = yaml.safe_load(
-        (TELEMETRY_DIR / "ama-metrics-custom-scrapes.yaml").read_text(
-            encoding="utf-8"
+def test_managed_monitor_only_scrapes_apiserver_backend_exporter():
+    monitors = list(
+        yaml.safe_load_all(
+            (
+                TELEMETRY_DIR
+                / "azure-monitor-control-plane-monitors.yaml"
+            ).read_text(encoding="utf-8")
         )
     )
-    scrape_config = yaml.safe_load(config["data"]["prometheus-config"])
-    jobs = {job["job_name"] for job in scrape_config["scrape_configs"]}
 
-    assert jobs == {
-        "cilium-hubble-full",
-        "clustermesh-apiserver-full",
-        "kvstoremesh-full",
-        "kwok-resource",
-    }
+    assert [monitor["metadata"]["name"] for monitor in monitors] == [
+        "apiserver-backend-exporter"
+    ]
 
 
 def test_native_snapshot_relabel_uses_streaming_block_rewriter():
@@ -225,6 +236,317 @@ def test_provider_registration_can_force_preview_reregistration(tmp_path):
     assert "is registered" in result.stdout
 
 
+def test_amw_capacity_guard_accepts_headroom_and_rejects_throttling(tmp_path):
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_az = fake_bin / "az"
+    fake_az.write_text(
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env bash
+            set -euo pipefail
+            if [ "${FAIL_QUERY:-false}" = "true" ]; then
+              exit 1
+            elif [[ " $* " == *" TimeSeriesSamplesDropped "* ]]; then
+              if [ "${THROTTLED:-false}" = "true" ]; then
+                events=200
+                samples=100
+              else
+                events=0
+                samples=0
+              fi
+              cat <<JSON
+            {"value":[
+              {"name":{"value":"TimeSeriesSamplesDropped"},"timeseries":[{
+                "metadatavalues":[{"name":{"value":"Reason"},"value":"LimitThrottling"}],
+                "data":[{"total":$samples}]
+              }]},
+              {"name":{"value":"EventsDropped"},"timeseries":[{
+                "metadatavalues":[{"name":{"value":"Reason"},"value":"LimitThrottling"}],
+                "data":[{"total":$events}]
+              }]}
+            ]}
+            JSON
+            elif [ "${PARTIAL:-false}" = "true" ]; then
+              cat <<'JSON'
+            {"value":[
+              {"name":{"value":"ActiveTimeSeries"},"timeseries":[{"data":[{"maximum":200000}]}]}
+            ]}
+            JSON
+            elif [ "${THROTTLED:-false}" = "true" ]; then
+              cat <<'JSON'
+            {"value":[
+              {"name":{"value":"ActiveTimeSeries"},"timeseries":[{"data":[{"maximum":1265508}]}]},
+              {"name":{"value":"ActiveTimeSeriesLimit"},"timeseries":[{"data":[{"maximum":1000000}]}]},
+              {"name":{"value":"ActiveTimeSeriesPercentUtilization"},"timeseries":[{"data":[{"maximum":126.5508}]}]},
+              {"name":{"value":"EventsPerMinuteIngested"},"timeseries":[{"data":[{"maximum":3900000}]}]},
+              {"name":{"value":"EventsPerMinuteIngestedLimit"},"timeseries":[{"data":[{"maximum":1000000}]}]},
+              {"name":{"value":"EventsPerMinuteIngestedPercentUtilization"},"timeseries":[{"data":[{"maximum":390}]}]}
+            ]}
+            JSON
+            else
+              cat <<'JSON'
+            {"value":[
+              {"name":{"value":"ActiveTimeSeries"},"timeseries":[{"data":[{"maximum":200000}]}]},
+              {"name":{"value":"ActiveTimeSeriesLimit"},"timeseries":[{"data":[{"maximum":1000000}]}]},
+              {"name":{"value":"ActiveTimeSeriesPercentUtilization"},"timeseries":[{"data":[{"maximum":20}]}]},
+              {"name":{"value":"EventsPerMinuteIngested"},"timeseries":[{"data":[{"maximum":300000}]}]},
+              {"name":{"value":"EventsPerMinuteIngestedLimit"},"timeseries":[{"data":[{"maximum":1000000}]}]},
+              {"name":{"value":"EventsPerMinuteIngestedPercentUtilization"},"timeseries":[{"data":[{"maximum":30}]}]}
+            ]}
+            JSON
+            fi
+            """
+        ),
+        encoding="utf-8",
+    )
+    fake_az.chmod(fake_az.stat().st_mode | stat.S_IXUSR)
+    common_script = TELEMETRY_DIR / "managed-prometheus-common.sh"
+    raw_path = tmp_path / "capacity.json"
+    summary_path = tmp_path / "capacity-summary.json"
+    markdown_path = tmp_path / "capacity-summary.md"
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "PATH": f"{fake_bin}:{environment['PATH']}",
+            "AKS_AMW_METRICS_QUERY_ATTEMPTS": "1",
+            "AKS_AMW_METRICS_QUERY_RETRY_SECONDS": "0",
+        }
+    )
+    command = (
+        f'source "{common_script}"; '
+        f'capture_amw_capacity test-amw start end "{raw_path}" '
+        f'"{summary_path}"; '
+        f'write_amw_capacity_markdown "{summary_path}" "{markdown_path}"; '
+        f'amw_capacity_preflight_ok "{summary_path}" 50'
+    )
+
+    healthy = subprocess.run(
+        ["bash", "-c", command],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=10,
+    )
+    assert healthy.returncode == 0
+    assert json.loads(summary_path.read_text(encoding="utf-8"))[
+        "capacity_ok"
+    ] is True
+    assert json.loads(summary_path.read_text(encoding="utf-8"))[
+        "capacity_samples_complete"
+    ] is True
+    assert "Status: **complete**" in markdown_path.read_text(encoding="utf-8")
+
+    environment["PARTIAL"] = "true"
+    partial = subprocess.run(
+        ["bash", "-c", command],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=10,
+    )
+    assert partial.returncode != 0
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert summary["has_capacity_samples"] is True
+    assert summary["capacity_samples_complete"] is False
+    assert "Status: **unverifiable**" in markdown_path.read_text(
+        encoding="utf-8"
+    )
+
+    environment["PARTIAL"] = "false"
+    environment["THROTTLED"] = "true"
+    throttled = subprocess.run(
+        ["bash", "-c", command],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=10,
+    )
+    assert throttled.returncode != 0
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert summary["capacity_ok"] is False
+    assert summary["limit_throttling"] == {
+        "events_dropped": 200,
+        "time_series_samples_dropped": 100,
+    }
+
+    environment["THROTTLED"] = "false"
+    environment["FAIL_QUERY"] = "true"
+    failed_query = subprocess.run(
+        ["bash", "-c", command],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=10,
+    )
+    assert failed_query.returncode != 0
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert summary["query_succeeded"] is False
+    assert summary["capacity_ok"] is False
+    assert "Status: **unverifiable**" in markdown_path.read_text(
+        encoding="utf-8"
+    )
+
+
+def test_wait_marks_throttled_amw_unready(tmp_path):
+    output_dir = tmp_path / "output"
+    manifest_path = tmp_path / "run-manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "run_id": "test-run",
+                "configured_at": "2026-07-14T00:00:00Z",
+                "workspace": {"id": "test-amw"},
+                "query": {
+                    "resource_endpoint": "https://example",
+                    "resource_scope": "/subscriptions/test",
+                },
+                "logs": {"workspace": {"customer_id": "law-id"}},
+                "clusters": [
+                    {
+                        "role": "mesh-1",
+                        "id": "cluster-id",
+                        "prometheus_cluster_alias": "test_run_mesh_1",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_az = fake_bin / "az"
+    fake_az.write_text(
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env bash
+            set -euo pipefail
+            if [[ " $* " == *" TimeSeriesSamplesDropped "* ]]; then
+              cat <<'JSON'
+            {"value":[
+              {"name":{"value":"TimeSeriesSamplesDropped"},"timeseries":[{
+                "metadatavalues":[{"name":{"value":"Reason"},"value":"LimitThrottling"}],
+                "data":[{"total":100}]
+              }]},
+              {"name":{"value":"EventsDropped"},"timeseries":[{
+                "metadatavalues":[{"name":{"value":"Reason"},"value":"LimitThrottling"}],
+                "data":[{"total":200}]
+              }]}
+            ]}
+            JSON
+            elif [ "${1:-} ${2:-} ${3:-}" = "monitor metrics list" ]; then
+              cat <<'JSON'
+            {"value":[
+              {"name":{"value":"ActiveTimeSeries"},"timeseries":[{"data":[{"maximum":1265508}]}]},
+              {"name":{"value":"ActiveTimeSeriesLimit"},"timeseries":[{"data":[{"maximum":1000000}]}]},
+              {"name":{"value":"ActiveTimeSeriesPercentUtilization"},"timeseries":[{"data":[{"maximum":126.5508}]}]},
+              {"name":{"value":"EventsPerMinuteIngested"},"timeseries":[{"data":[{"maximum":3900000}]}]},
+              {"name":{"value":"EventsPerMinuteIngestedLimit"},"timeseries":[{"data":[{"maximum":1000000}]}]},
+              {"name":{"value":"EventsPerMinuteIngestedPercentUtilization"},"timeseries":[{"data":[{"maximum":390}]}]}
+            ]}
+            JSON
+            elif [ "${1:-} ${2:-} ${3:-}" = "monitor log-analytics query" ]; then
+              echo 1
+            elif [ "${1:-} ${2:-}" = "account get-access-token" ]; then
+              echo fake-token
+            else
+              echo "Unexpected az command: $*" >&2
+              exit 1
+            fi
+            """
+        ),
+        encoding="utf-8",
+    )
+    fake_az.chmod(fake_az.stat().st_mode | stat.S_IXUSR)
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "AKS_CONTROL_PLANE_METRICS_ENABLED": "true",
+            "MANIFEST_PATH": str(manifest_path),
+            "OUTPUT_DIR": str(output_dir),
+            "RUN_ID": "test-run",
+            "AKS_PLATFORM_METRICS_TIMEOUT_SECONDS": "1",
+            "AKS_CONTROL_PLANE_LOGS_TIMEOUT_SECONDS": "1",
+            "AKS_AMW_METRICS_QUERY_ATTEMPTS": "1",
+            "AKS_AMW_METRICS_QUERY_RETRY_SECONDS": "0",
+            "PATH": f"{fake_bin}:{environment['PATH']}",
+        }
+    )
+
+    result = subprocess.run(
+        ["bash", str(TELEMETRY_DIR / "wait-managed-prometheus.sh")],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=10,
+    )
+
+    collection = json.loads(
+        (output_dir / "run-manifest.json").read_text(encoding="utf-8")
+    )
+    assert collection["managed_prometheus_ready"] is False
+    assert collection["managed_prometheus_throttled"] is True
+    assert collection["amw_capacity_verified"] is True
+    assert collection["amw_capacity"]["capacity_ok"] is False
+    assert "AMW throttling started" in result.stdout
+    assert "Status: **throttled**" in (
+        output_dir / "amw-capacity-summary.md"
+    ).read_text(encoding="utf-8")
+
+    audit_script = tmp_path / "audit.py"
+    audit_script.write_text(
+        textwrap.dedent(
+            """\
+            import json
+            import pathlib
+            import sys
+            prefix = pathlib.Path(sys.argv[sys.argv.index("--output-prefix") + 1])
+            prefix.with_suffix(".json").write_text(json.dumps({"complete": True}))
+            prefix.with_suffix(".md").write_text("# audit\\n")
+            """
+        ),
+        encoding="utf-8",
+    )
+    platform_script = tmp_path / "platform.py"
+    platform_script.write_text(
+        textwrap.dedent(
+            """\
+            import json
+            import pathlib
+            import sys
+            output = pathlib.Path(sys.argv[sys.argv.index("--output") + 1])
+            manifest = pathlib.Path(sys.argv[sys.argv.index("--manifest") + 1])
+            output.write_text("azure_platform_test 1 1783987200\\n# EOF\\n")
+            manifest.write_text(json.dumps({"exported": ["test"]}))
+            """
+        ),
+        encoding="utf-8",
+    )
+    environment.update(
+        {
+            "AUDIT_SCRIPT": str(audit_script),
+            "PLATFORM_EXPORT_SCRIPT": str(platform_script),
+        }
+    )
+    audit = subprocess.run(
+        ["bash", str(TELEMETRY_DIR / "audit-managed-prometheus.sh")],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=10,
+    )
+    assert audit.returncode != 0
+    assert "window incomplete" in audit.stdout
+    assert (output_dir / "telemetry-audit-managed.json").is_file()
+    assert (output_dir / "aks-platform-mesh-1.openmetrics").is_file()
+
+
 def test_scripts_use_current_aks_profile_and_full_export():
     configure = (
         TELEMETRY_DIR / "configure-managed-prometheus.sh"
@@ -244,6 +566,13 @@ def test_scripts_use_current_aks_profile_and_full_export():
     upload = (
         TELEMETRY_DIR / "upload-managed-prometheus.sh"
     ).read_text(encoding="utf-8")
+    collect_template = (
+        REPO_ROOT
+        / "steps"
+        / "topology"
+        / "clustermesh-scale"
+        / "collect-control-plane-metrics.yml"
+    ).read_text(encoding="utf-8")
 
     assert "azureMonitorProfile.metrics.enabled" in configure
     assert "azureMonitorProfile.metrics.controlPlane.enabled" in configure
@@ -251,6 +580,14 @@ def test_scripts_use_current_aks_profile_and_full_export():
     assert "az monitor diagnostic-settings categories list" in configure
     assert "--export-to-resource-specific true" in configure
     assert "ensure_azure_provider_registered" in configure
+    assert "capture_amw_capacity" in configure
+    assert "amw_capacity_preflight_ok" in configure
+    assert "CONTROL_PLANE_MONITORS_PATH" in configure
+    assert "CUSTOM_SCRAPES_PATH" not in configure
+    assert "MOCK_MONITOR_PATH" not in configure
+    assert configure.index('-f "$rendered_config"') < configure.index(
+        "--enable-azure-monitor-metrics"
+    )
     assert 'ensure_azure_provider_registered "$namespace" true' in configure
     assert 'force_container_service_reregistration=true' in configure
     assert 'AKS_CONTROL_PLANE_METRICS_REGISTER_PREVIEW:-false' in configure
@@ -261,10 +598,14 @@ def test_scripts_use_current_aks_profile_and_full_export():
     assert "upload-managed-prometheus.sh" in collect
     assert "wait_for_platform_metrics" in wait
     assert "wait_for_logs" in wait
+    assert "managed_prometheus_throttled" in wait
+    assert "amw-capacity-summary.json" in wait
     assert "AKSControlPlane" in audit
     assert "AKSAudit" in audit
     assert "AKSAuditAdmin" in audit
     assert '"$PLATFORM_EXPORT_SCRIPT"' in audit
+    assert "AKS_AMW_CAPACITY_AUDITED]$capacity_audit_ok" in audit
+    assert "AKS_AMW_CAPACITY_AUDITED" in collect_template
     assert '"$TSDB_EXPORT_SCRIPT"' in reconstruct
     assert 'if [ "$managed_prometheus_ready" != "true" ]' in reconstruct
     assert "tsdb create-blocks-from" not in reconstruct
@@ -310,6 +651,31 @@ def test_split_collection_scripts_handoff_and_preserve_outputs(tmp_path):
             echo "$*" >> "$FAKE_AZ_LOG"
             command="${1:-} ${2:-} ${3:-}"
             if [ "$command" = "monitor metrics list" ]; then
+              if [[ " $* " == *" TimeSeriesSamplesDropped "* ]]; then
+                cat <<'JSON'
+            {"value":[
+              {"name":{"value":"TimeSeriesSamplesDropped"},"timeseries":[{
+                "metadatavalues":[{"name":{"value":"Reason"},"value":"LimitThrottling"}],
+                "data":[{"total":0}]
+              }]},
+              {"name":{"value":"EventsDropped"},"timeseries":[{
+                "metadatavalues":[{"name":{"value":"Reason"},"value":"LimitThrottling"}],
+                "data":[{"total":0}]
+              }]}
+            ]}
+            JSON
+              elif [[ " $* " == *" ActiveTimeSeries "* ]]; then
+                cat <<'JSON'
+            {"value":[
+              {"name":{"value":"ActiveTimeSeries"},"timeseries":[{"data":[{"maximum":200000}]}]},
+              {"name":{"value":"ActiveTimeSeriesLimit"},"timeseries":[{"data":[{"maximum":1000000}]}]},
+              {"name":{"value":"ActiveTimeSeriesPercentUtilization"},"timeseries":[{"data":[{"maximum":20}]}]},
+              {"name":{"value":"EventsPerMinuteIngested"},"timeseries":[{"data":[{"maximum":300000}]}]},
+              {"name":{"value":"EventsPerMinuteIngestedLimit"},"timeseries":[{"data":[{"maximum":1000000}]}]},
+              {"name":{"value":"EventsPerMinuteIngestedPercentUtilization"},"timeseries":[{"data":[{"maximum":30}]}]}
+            ]}
+            JSON
+              else
               cat <<'JSON'
             {"value":[
               {"timeseries":[{"data":[{"average":1}]}]},
@@ -318,6 +684,7 @@ def test_split_collection_scripts_handoff_and_preserve_outputs(tmp_path):
               {"timeseries":[{"data":[{"average":1}]}]}
             ]}
             JSON
+              fi
             elif [ "$command" = "monitor log-analytics query" ]; then
               if [[ " $* " == *" --query length(@) "* ]]; then
                 echo 1
@@ -425,6 +792,8 @@ def test_split_collection_scripts_handoff_and_preserve_outputs(tmp_path):
             "AKS_CONTROL_PLANE_LOGS_TIMEOUT_SECONDS": "1",
             "AKS_MANAGED_PROMETHEUS_TIMEOUT_SECONDS": "5",
             "AKS_MANAGED_PROMETHEUS_POLL_SECONDS": "0",
+            "AKS_AMW_METRICS_QUERY_ATTEMPTS": "1",
+            "AKS_AMW_METRICS_QUERY_RETRY_SECONDS": "0",
             "PATH": f"{fake_bin}:{environment['PATH']}",
         }
     )
@@ -461,7 +830,12 @@ def test_split_collection_scripts_handoff_and_preserve_outputs(tmp_path):
     assert collection_manifest["logs_window"]["start"]
     assert collection_manifest["logs_window"]["end"]
     assert collection_manifest["managed_prometheus_ready"] is True
+    assert collection_manifest["managed_prometheus_throttled"] is False
+    assert collection_manifest["amw_capacity_verified"] is True
+    assert collection_manifest["amw_capacity"]["capacity_ok"] is True
     assert (output_dir / "telemetry-audit-managed.json").is_file()
+    assert (output_dir / "amw-capacity-summary.json").is_file()
+    assert (output_dir / "amw-capacity-summary.md").is_file()
     assert (output_dir / "aks-platform-mesh-1.openmetrics").is_file()
     assert (output_dir / "amw-export-manifest.json").is_file()
     assert (output_dir / "prom-snapshot-amw-test.tar.gz").is_file()

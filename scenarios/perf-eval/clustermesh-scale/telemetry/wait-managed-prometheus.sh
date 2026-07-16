@@ -12,6 +12,37 @@ fi
 
 initialize_managed_telemetry
 
+capacity_raw="$OUTPUT_DIR/amw-capacity.json"
+capacity_summary="$OUTPUT_DIR/amw-capacity-summary.json"
+managed_prometheus_throttled=false
+amw_capacity_verified=false
+
+refresh_amw_capacity() {
+  local capacity_end
+  capacity_end=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  capture_amw_capacity \
+    "$amw_id" \
+    "$capacity_window_start" \
+    "$capacity_end" \
+    "$capacity_raw" \
+    "$capacity_summary"
+}
+
+check_runtime_amw_capacity() {
+  local runtime_rc=0
+  if ! refresh_amw_capacity; then
+    echo "##vso[task.logissue type=warning;] Unable to refresh AMW capacity metrics."
+    return 1
+  fi
+  amw_capacity_runtime_ok "$capacity_summary" || runtime_rc=$?
+  if [ "$runtime_rc" -eq 1 ]; then
+    amw_capacity_verified=false
+    return 1
+  fi
+  amw_capacity_verified=true
+  return "$runtime_rc"
+}
+
 platform_metric_names=(
   apiserver_cpu_usage_percentage
   apiserver_memory_usage_percentage
@@ -22,8 +53,13 @@ platform_metric_names=(
 wait_for_platform_metrics() {
   local timeout="${AKS_PLATFORM_METRICS_TIMEOUT_SECONDS:-3600}"
   local deadline=$(( $(date +%s) + timeout ))
-  local missing role cluster_id available
+  local missing role cluster_id available capacity_rc
   while [ "$(date +%s)" -lt "$deadline" ]; do
+    capacity_rc=0
+    check_runtime_amw_capacity || capacity_rc=$?
+    if [ "$capacity_rc" -eq 2 ]; then
+      return 2
+    fi
     missing=0
     while IFS= read -r cluster; do
       role=$(echo "$cluster" | jq -r '.role')
@@ -51,7 +87,12 @@ wait_for_platform_metrics() {
   return 1
 }
 
-if ! wait_for_platform_metrics; then
+platform_wait_rc=0
+wait_for_platform_metrics || platform_wait_rc=$?
+if [ "$platform_wait_rc" -eq 2 ]; then
+  managed_prometheus_throttled=true
+  echo "##vso[task.logissue type=error;] AMW throttling started while waiting for AKS platform metrics."
+elif [ "$platform_wait_rc" -ne 0 ]; then
   echo "##vso[task.logissue type=warning;] AKS platform CPU/memory metrics did not appear before timeout; exporting every available platform metric anyway."
 fi
 end_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -62,12 +103,18 @@ wait_for_managed_prometheus() {
   local deadline=$(( $(date +%s) + timeout ))
   local expected_clusters expected_count expected_regex
   local remaining command_timeout sleep_seconds token response available query
+  local capacity_rc
   expected_clusters=$(jq -c '[.clusters[].prometheus_cluster_alias]' "$MANIFEST_PATH")
   expected_count=$(echo "$expected_clusters" | jq 'length')
   expected_regex=$(echo "$expected_clusters" | jq -r 'join("|")')
   query="count by(cluster)(apiserver_request_total{cluster=~\"$expected_regex\"})"
 
   while [ "$(date +%s)" -lt "$deadline" ]; do
+    capacity_rc=0
+    check_runtime_amw_capacity || capacity_rc=$?
+    if [ "$capacity_rc" -eq 2 ]; then
+      return 2
+    fi
     remaining=$((deadline - $(date +%s)))
     if [ "$remaining" -le 0 ]; then
       break
@@ -133,8 +180,20 @@ wait_for_managed_prometheus() {
 }
 
 managed_prometheus_ready=false
-if wait_for_managed_prometheus; then
+managed_wait_rc=1
+if [ "$managed_prometheus_throttled" = "true" ]; then
+  managed_wait_rc=2
+else
+  managed_wait_rc=0
+  wait_for_managed_prometheus || managed_wait_rc=$?
+fi
+if [ "$managed_wait_rc" -eq 0 ]; then
   managed_prometheus_ready=true
+elif [ "$managed_wait_rc" -eq 2 ]; then
+  if [ "$managed_prometheus_throttled" != "true" ]; then
+    echo "##vso[task.logissue type=error;] AMW throttling started before run-scoped Prometheus samples became queryable."
+  fi
+  managed_prometheus_throttled=true
 else
   echo "##vso[task.logissue type=warning;] Managed Prometheus samples did not appear before timeout; audit/log/platform artifacts will be preserved, but zero-data TSDB reconstruction will be skipped."
 fi
@@ -163,10 +222,28 @@ wait_for_logs() {
   return 1
 }
 
-if ! wait_for_logs; then
+logs_wait_rc=0
+wait_for_logs || logs_wait_rc=$?
+if [ "$logs_wait_rc" -ne 0 ]; then
   echo "##vso[task.logissue type=warning;] AKS control-plane/audit logs did not appear before timeout; workspace remains authoritative and can be queried later."
 fi
 log_end_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+final_capacity_rc=0
+check_runtime_amw_capacity || final_capacity_rc=$?
+if [ "$final_capacity_rc" -eq 2 ]; then
+  managed_prometheus_throttled=true
+  managed_prometheus_ready=false
+elif [ "$final_capacity_rc" -ne 0 ]; then
+  amw_capacity_verified=false
+  managed_prometheus_ready=false
+  echo "##vso[task.logissue type=warning;] Final AMW capacity could not be verified; TSDB reconstruction will be skipped."
+fi
+if [ -s "$capacity_summary" ]; then
+  write_amw_capacity_markdown \
+    "$capacity_summary" \
+    "$OUTPUT_DIR/amw-capacity-summary.md"
+fi
 
 start_epoch=$(date -u -d "$configured_at" +%s)
 end_epoch=$(date -u -d "$end_time" +%s)
@@ -179,15 +256,25 @@ else
 fi
 
 collection_manifest_tmp="${collection_manifest}.tmp"
+capacity_summary_json='{}'
+if [ -s "$capacity_summary" ]; then
+  capacity_summary_json=$(cat "$capacity_summary")
+fi
 jq \
   --arg collected_at "$end_time" \
   --arg audit_window_start "$audit_start" \
   --arg audit_window_end "$end_time" \
   --arg logs_window_end "$log_end_time" \
   --argjson managed_prometheus_ready "$managed_prometheus_ready" \
+  --argjson managed_prometheus_throttled "$managed_prometheus_throttled" \
+  --argjson amw_capacity_verified "$amw_capacity_verified" \
+  --argjson amw_capacity "$capacity_summary_json" \
   '. + {
     collected_at: $collected_at,
     managed_prometheus_ready: $managed_prometheus_ready,
+    managed_prometheus_throttled: $managed_prometheus_throttled,
+    amw_capacity_verified: $amw_capacity_verified,
+    amw_capacity: $amw_capacity,
     audit_window: {
       start: $audit_window_start,
       end: $audit_window_end
@@ -201,5 +288,11 @@ mv "$collection_manifest_tmp" "$collection_manifest"
 
 echo "Managed telemetry collection window: $audit_start .. $end_time"
 echo "Managed telemetry log window: $configured_at .. $log_end_time"
+amw_capacity_ok=false
+if [ "$managed_prometheus_throttled" = "false" ] &&
+   [ "$amw_capacity_verified" = "true" ]; then
+  amw_capacity_ok=true
+fi
 echo "##vso[task.setvariable variable=AKS_TELEMETRY_WINDOW_READY]true"
 echo "##vso[task.setvariable variable=AKS_MANAGED_PROMETHEUS_READY]$managed_prometheus_ready"
+echo "##vso[task.setvariable variable=AKS_AMW_CAPACITY_OK]$amw_capacity_ok"

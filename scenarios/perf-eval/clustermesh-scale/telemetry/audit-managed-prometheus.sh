@@ -17,6 +17,39 @@ initialize_managed_telemetry
 load_collection_window
 build_log_summary_query
 
+capacity_raw="$OUTPUT_DIR/amw-capacity.json"
+capacity_summary="$OUTPUT_DIR/amw-capacity-summary.json"
+capacity_audit_ok=false
+capacity_status=1
+capacity_end=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+if capture_amw_capacity \
+    "$amw_id" \
+    "$capacity_window_start" \
+    "$capacity_end" \
+    "$capacity_raw" \
+    "$capacity_summary"; then
+  write_amw_capacity_markdown \
+    "$capacity_summary" \
+    "$OUTPUT_DIR/amw-capacity-summary.md"
+  capacity_status=0
+  amw_capacity_runtime_ok "$capacity_summary" || capacity_status=$?
+  if [ "$capacity_status" -eq 0 ]; then
+    capacity_audit_ok=true
+  elif [ "$capacity_status" -eq 2 ]; then
+    echo "##vso[task.logissue type=error;] AMW limit throttling made the managed Prometheus window incomplete."
+  else
+    echo "##vso[task.logissue type=error;] AMW returned incomplete capacity metrics; managed Prometheus completeness cannot be established."
+  fi
+else
+  if [ -s "$capacity_summary" ]; then
+    write_amw_capacity_markdown \
+      "$capacity_summary" \
+      "$OUTPUT_DIR/amw-capacity-summary.md"
+  fi
+  echo "##vso[task.logissue type=error;] Unable to audit AMW capacity; managed Prometheus completeness cannot be established."
+fi
+echo "##vso[task.setvariable variable=AKS_AMW_CAPACITY_AUDITED]$capacity_audit_ok"
+
 az monitor log-analytics query \
   --workspace "$law_customer_id" \
   --analytics-query "$log_summary_query" \
@@ -79,5 +112,8 @@ while IFS= read -r cluster; do
     --output "$OUTPUT_DIR/aks-platform-${role}.openmetrics" \
     --manifest "$OUTPUT_DIR/aks-platform-${role}.json"
 done < <(jq -c '.clusters[]' "$MANIFEST_PATH")
-
 echo "Managed telemetry audit, logs, and platform metrics written to $OUTPUT_DIR"
+echo "Managed telemetry audit, logs, and platform metrics written to $OUTPUT_DIR"
+if [ "$capacity_audit_ok" != "true" ]; then
+  exit 1
+fi

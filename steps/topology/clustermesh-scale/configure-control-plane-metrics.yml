@@ -25,12 +25,8 @@ steps:
       REGION: ${{ parameters.region }}
       CONFIGMAP_PATH: >-
         $(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/telemetry/ama-metrics-settings-configmap.yaml
-      CUSTOM_SCRAPES_PATH: >-
-        $(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/telemetry/ama-metrics-custom-scrapes.yaml
-      CUSTOM_MONITORS_PATH: >-
-        $(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/telemetry/azure-monitor-custom-monitors.yaml
-      MOCK_MONITOR_PATH: >-
-        $(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/telemetry/azure-monitor-mock-agent-monitor.yaml
+      CONTROL_PLANE_MONITORS_PATH: >-
+        $(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/telemetry/azure-monitor-control-plane-monitors.yaml
       MANIFEST_PATH: $(Pipeline.Workspace)/aks-control-plane-metrics/run-manifest.json
       CONFIGURE_SCRIPT: >-
         $(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/telemetry/configure-managed-prometheus.sh

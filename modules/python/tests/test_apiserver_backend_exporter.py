@@ -31,7 +31,7 @@ AZURE_MONITORS_PATH = (
     / "perf-eval"
     / "clustermesh-scale"
     / "telemetry"
-    / "azure-monitor-custom-monitors.yaml"
+    / "azure-monitor-control-plane-monitors.yaml"
 )
 
 

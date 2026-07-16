@@ -14,9 +14,7 @@ fi
 : "${RUN_ID:?RUN_ID is required}"
 : "${REGION:?REGION is required}"
 : "${CONFIGMAP_PATH:?CONFIGMAP_PATH is required}"
-: "${CUSTOM_SCRAPES_PATH:?CUSTOM_SCRAPES_PATH is required}"
-: "${CUSTOM_MONITORS_PATH:?CUSTOM_MONITORS_PATH is required}"
-: "${MOCK_MONITOR_PATH:?MOCK_MONITOR_PATH is required}"
+: "${CONTROL_PLANE_MONITORS_PATH:?CONTROL_PLANE_MONITORS_PATH is required}"
 : "${MANIFEST_PATH:?MANIFEST_PATH is required}"
 CLUSTERS_FILE="${CLUSTERS_FILE:-$HOME/.kube/clustermesh-clusters.json}"
 mkdir -p "$(dirname "$MANIFEST_PATH")"
@@ -29,15 +27,10 @@ if [ ! -f "$CONFIGMAP_PATH" ]; then
   echo "AMA metrics configmap not found at $CONFIGMAP_PATH" >&2
   exit 1
 fi
-for required_file in \
-  "$CUSTOM_SCRAPES_PATH" \
-  "$CUSTOM_MONITORS_PATH" \
-  "$MOCK_MONITOR_PATH"; do
-  if [ ! -f "$required_file" ]; then
-    echo "Managed Prometheus config not found at $required_file" >&2
-    exit 1
-  fi
-done
+if [ ! -f "$CONTROL_PLANE_MONITORS_PATH" ]; then
+  echo "Managed Prometheus control-plane monitor not found at $CONTROL_PLANE_MONITORS_PATH" >&2
+  exit 1
+fi
 
 register_preview="${AKS_CONTROL_PLANE_METRICS_REGISTER_PREVIEW:-false}"
 force_container_service_reregistration=false
@@ -134,6 +127,33 @@ amw_id=$(echo "$amw_json" | jq -r '.id')
 amw_query_endpoint=$(echo "$amw_json" | jq -r \
   '.metrics.prometheusQueryEndpoint // .properties.metrics.prometheusQueryEndpoint // empty')
 
+preflight_window_minutes="${AKS_AMW_PREFLIGHT_WINDOW_MINUTES:-15}"
+preflight_threshold="${AKS_AMW_PREFLIGHT_MAX_UTILIZATION_PERCENT:-50}"
+if ! [[ "$preflight_window_minutes" =~ ^[1-9][0-9]*$ ]]; then
+  echo "AKS_AMW_PREFLIGHT_WINDOW_MINUTES must be a positive integer." >&2
+  exit 1
+fi
+preflight_end=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+preflight_start=$(date -u \
+  -d "$preflight_window_minutes minutes ago" \
+  +%Y-%m-%dT%H:%M:%SZ)
+preflight_raw="$(dirname "$MANIFEST_PATH")/amw-capacity-preflight.json"
+preflight_summary="$(dirname "$MANIFEST_PATH")/amw-capacity-preflight-summary.json"
+if ! capture_amw_capacity \
+    "$amw_id" \
+    "$preflight_start" \
+    "$preflight_end" \
+    "$preflight_raw" \
+    "$preflight_summary"; then
+  echo "Unable to verify Azure Monitor workspace capacity before configuration." >&2
+  exit 1
+fi
+if ! amw_capacity_preflight_ok "$preflight_summary" "$preflight_threshold"; then
+  echo "##vso[task.logissue type=error;] Azure Monitor workspace does not have enough headroom for a new control-plane telemetry run."
+  exit 1
+fi
+preflight_capacity_json=$(cat "$preflight_summary")
+
 if ! az monitor log-analytics workspace show \
     --resource-group "$amw_resource_group" \
     --workspace-name "$law_name" \
@@ -189,19 +209,31 @@ configure_one() {
   cluster_alias=$(printf '%s_%s' "$RUN_ID" "$role" | sed 's/[^A-Za-z0-9]/_/g')
   cluster_id="/subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.ContainerService/managedClusters/${name}"
 
-  echo "[$role] enabling managed Prometheus -> $amw_name"
-  az aks update \
-    --resource-group "$resource_group" \
-    --name "$name" \
-    --enable-azure-monitor-metrics \
-    --azure-monitor-workspace-resource-id "$amw_id" \
-    --only-show-errors \
-    --output none
-
   rendered_config=$(mktemp)
   sed \
     "s|cluster_alias = \"\"|cluster_alias = \"$cluster_alias\"|" \
     "$CONFIGMAP_PATH" > "$rendered_config"
+  KUBECONFIG="$kubeconfig" kubectl create namespace monitoring \
+    --dry-run=client -o yaml \
+    | KUBECONFIG="$kubeconfig" kubectl apply -f - >/dev/null
+  if ! KUBECONFIG="$kubeconfig" kubectl apply \
+      -f "$rendered_config" >/dev/null; then
+    rm -f "$rendered_config"
+    return 1
+  fi
+
+  echo "[$role] enabling managed Prometheus -> $amw_name"
+  if ! az aks update \
+      --resource-group "$resource_group" \
+      --name "$name" \
+      --enable-azure-monitor-metrics \
+      --azure-monitor-workspace-resource-id "$amw_id" \
+      --only-show-errors \
+      --output none; then
+    rm -f "$rendered_config"
+    return 1
+  fi
+
   crd_deadline=$(( $(date +%s) + 600 ))
   until KUBECONFIG="$kubeconfig" kubectl get \
       crd/podmonitors.azmonitoring.coreos.com \
@@ -217,19 +249,11 @@ configure_one() {
     crd/podmonitors.azmonitoring.coreos.com \
     crd/servicemonitors.azmonitoring.coreos.com \
     --timeout=10m >/dev/null
-  KUBECONFIG="$kubeconfig" kubectl create namespace monitoring \
-    --dry-run=client -o yaml \
-    | KUBECONFIG="$kubeconfig" kubectl apply -f - >/dev/null
   if ! KUBECONFIG="$kubeconfig" kubectl apply \
       -f "$rendered_config" \
-      -f "$CUSTOM_SCRAPES_PATH" \
-      -f "$CUSTOM_MONITORS_PATH" >/dev/null; then
+      -f "$CONTROL_PLANE_MONITORS_PATH" >/dev/null; then
     rm -f "$rendered_config"
     return 1
-  fi
-  if KUBECONFIG="$kubeconfig" kubectl get namespace mock-clustermesh \
-      >/dev/null 2>&1; then
-    KUBECONFIG="$kubeconfig" kubectl apply -f "$MOCK_MONITOR_PATH" >/dev/null
   fi
   rm -f "$rendered_config"
   metrics_enabled=$(az aks show \
@@ -294,7 +318,7 @@ configure_one() {
       metric_categories: $metric_categories
     }' > "$(dirname "$MANIFEST_PATH")/diagnostics-${role}.json"
   rm -f "$categories_file" "$logs_file" "$metrics_file"
-  echo "[$role] managed Prometheus enabled and full control-plane config applied"
+  echo "[$role] managed Prometheus enabled with control-plane-only collection"
 }
 
 # Azure CLI commands share the MSAL token cache. Keep the safe default
@@ -372,6 +396,8 @@ jq -n \
   --arg law_resource_group "$amw_resource_group" \
   --arg law_customer_id "$law_customer_id" \
   --arg law_location "$law_location" \
+  --arg preflight_threshold "$preflight_threshold" \
+  --argjson preflight_capacity "$preflight_capacity_json" \
   --argjson diagnostics "$diagnostics_json" \
   --argjson clusters "$clusters_with_ids" \
   '{
@@ -384,7 +410,14 @@ jq -n \
       name: $amw_name,
       resource_group: $amw_resource_group,
       prometheus_query_endpoint: $amw_query_endpoint,
-      persistent_after_run: true
+      persistent_after_run: true,
+      capacity_guard: {
+        preflight_max_utilization_percent: (
+          $preflight_threshold | tonumber
+        ),
+        monitoring_window_start: $preflight_capacity.window.end,
+        preflight: $preflight_capacity
+      }
     },
     query: {
       resource_endpoint: $resource_endpoint,
@@ -403,6 +436,7 @@ jq -n \
       diagnostics: $diagnostics
     },
     control_plane: {
+      collection_scope: "control-plane-only",
       minimal_ingestion_profile: false,
       targets: [
         "apiserver",
@@ -411,7 +445,13 @@ jq -n \
         "kube-controller-manager",
         "cluster-autoscaler",
         "node-auto-provisioning"
-      ]
+      ],
+      supplemental_targets: [
+        "apiserver-backend-exporter",
+        "prometheuscollectorhealth"
+      ],
+      duplicate_cluster_metrics_enabled: false,
+      pod_annotation_scraping_enabled: false
     },
     clusters: $clusters
   }' > "$MANIFEST_PATH"
