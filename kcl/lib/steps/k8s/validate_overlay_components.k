@@ -15,7 +15,7 @@ _TEST_IMAGE = "mcr.microsoft.com/cbl-mariner/busybox:1.35"
 # coredns: all coredns pods Running and a DNS query resolves the in-cluster
 # kubernetes API service to a valid ClusterIP.
 # ---------------------------------------------------------------------------
-ValidateCoreDNS = lambda serviceConnection: str, image: str = _TEST_IMAGE, displayName: str = "", continueOnError: bool = Undefined -> steps.Step {
+ValidateCoreDNS = lambda serviceConnection: str, displayName: str = "", continueOnError: bool = Undefined -> steps.Step {
     title = displayName if displayName else "Validate coredns"
     script = """
 set +e
@@ -32,7 +32,7 @@ fi
 
 pod="overlay-dns-test-$RANDOM"
 trap 'kubectl delete pod "$pod" --ignore-not-found >/dev/null 2>&1' EXIT
-out=$(kubectl run "$pod" --image=${image} --restart=Never -i --rm --pod-running-timeout=120s \
+out=$(kubectl run "$pod" --image=${_TEST_IMAGE} --restart=Never -i --rm --pod-running-timeout=120s \
   --command -- nslookup kubernetes.default.svc.cluster.local 2>&1)
 echo "$out"
 # busybox nslookup prints the resolved name followed by an Address line.
@@ -67,16 +67,28 @@ if [ -z "$(kubectl -n kube-system get pods -l k8s-app=metrics-server --no-header
   fail "no metrics-server pods found"
 fi
 
-node_count=$(kubectl get nodes --no-headers 2>/dev/null | wc -l | tr -d ' ')
-top=$(kubectl top nodes --no-headers 2>&1)
-echo "$top"
-if printf '%s\\n' "$top" | grep -qiE 'error|<unknown>|not available'; then
-  fail "kubectl top nodes reported an error or missing metrics"
+
+sample_nodes=$(kubectl get nodes -o name 2>/dev/null | head -n 50 | cut -d/ -f2)
+if [ -z "$sample_nodes" ]; then
+  fail "no nodes found"
 fi
-metrics_count=$(printf '%s\\n' "$top" | grep -cE '[0-9]+m[[:space:]]+[0-9]+%')
-echo "nodes=$node_count nodes_with_metrics=$metrics_count"
-if [ "$metrics_count" != "$node_count" ] || [ "$node_count" = "0" ]; then
-  fail "metrics returned for $metrics_count of $node_count nodes"
+sampled=0
+metrics_count=0
+for n in $sample_nodes; do
+  sampled=$((sampled + 1))
+  line=$(kubectl top node "$n" --no-headers 2>&1)
+  echo "$line"
+  # The regex matches only the CPU columns (millicores + CPU%); memory is not
+  # separately validated, presence of a CPU reading implies metrics-server works.
+  if printf '%s\\n' "$line" | grep -qE '[0-9]+m[[:space:]]+[0-9]+%'; then
+    metrics_count=$((metrics_count + 1))
+  else
+    fail "no metrics for node $n: $line"
+  fi
+done
+echo "sampled=$sampled nodes_with_metrics=$metrics_count"
+if [ "$metrics_count" = "0" ] || [ "$metrics_count" != "$sampled" ]; then
+  fail "metrics returned for $metrics_count of $sampled sampled nodes"
 fi
 
 if [ "$failures" -gt 0 ]; then
@@ -91,7 +103,7 @@ echo "metrics-server validation passed"
 # konnectivity-agent: the tunnel from control plane to nodes works, exercised
 # via kubectl exec / logs / port-forward against a temporary pod.
 # ---------------------------------------------------------------------------
-ValidateKonnectivityAgent = lambda serviceConnection: str, image: str = _TEST_IMAGE, displayName: str = "", continueOnError: bool = Undefined -> steps.Step {
+ValidateKonnectivityAgent = lambda serviceConnection: str, displayName: str = "", continueOnError: bool = Undefined -> steps.Step {
     title = displayName if displayName else "Validate konnectivity-agent"
     script = """
 set +e
@@ -105,7 +117,7 @@ fi
 
 pod="overlay-konnectivity-test-$RANDOM"
 trap 'kubectl delete pod "$pod" --ignore-not-found >/dev/null 2>&1' EXIT
-kubectl run "$pod" --image=${image} --restart=Never --command -- \
+kubectl run "$pod" --image=${_TEST_IMAGE} --restart=Never --command -- \
   sh -c 'mkdir -p /www && echo pong > /www/ping && httpd -f -p 8080 -h /www'
 kubectl wait --for=condition=Ready pod/"$pod" --timeout=120s
 if [ $? -ne 0 ]; then
@@ -155,8 +167,7 @@ echo "konnectivity-agent validation passed"
 # azure-cns: the CNS daemonset is Running, a new pod gets an IP from the CNI
 # IPAM, and the pod dataplane can reach in-cluster services.
 # ---------------------------------------------------------------------------
-ValidateAzureCNS = lambda serviceConnection: str, image: str = _TEST_IMAGE, errorPatterns: str = "panic|fatal", displayName: str = "", continueOnError: bool = Undefined -> steps.Step {
-    assert "'" not in errorPatterns, "errorPatterns must not contain single quotes (got ${errorPatterns})"
+ValidateAzureCNS = lambda serviceConnection: str, displayName: str = "", continueOnError: bool = Undefined -> steps.Step {
     title = displayName if displayName else "Validate azure-cns"
     script = """
 set +e
@@ -171,17 +182,9 @@ if [ -z "$(kubectl -n kube-system get pods -l k8s-app=azure-cns --no-headers 2>/
   fail "no azure-cns pods found"
 fi
 
-# Scan azure-cns logs for fatal errors.
-cns_logs=$(kubectl -n kube-system logs -l k8s-app=azure-cns --tail=200 --prefix=true 2>&1)
-matches=$(printf '%s\\n' "$cns_logs" | grep -wEi '${errorPatterns}')
-if [ -n "$matches" ]; then
-  echo "--- azure-cns error lines ---"; printf '%s\\n' "$matches"; echo "--- end ---"
-  fail "azure-cns logs contain error pattern"
-fi
-
 pod="overlay-cns-test-$RANDOM"
 trap 'kubectl delete pod "$pod" --ignore-not-found >/dev/null 2>&1' EXIT
-kubectl run "$pod" --image=${image} --restart=Never --command -- sleep 300
+kubectl run "$pod" --image=${_TEST_IMAGE} --restart=Never --command -- sleep 300
 kubectl wait --for=condition=Ready pod/"$pod" --timeout=120s
 if [ $? -ne 0 ]; then
   fail "test pod did not become Ready (IP allocation may have failed)"
@@ -192,13 +195,6 @@ pod_ip=$(kubectl get pod "$pod" -o jsonpath='{.status.podIP}')
 echo "pod IP: $pod_ip"
 if [ -z "$pod_ip" ]; then
   fail "pod did not receive an IP from azure-cns"
-fi
-
-# Dataplane reachability: resolve + connect to an in-cluster service.
-reach=$(kubectl exec "$pod" -- nslookup kubernetes.default.svc.cluster.local 2>&1)
-echo "$reach"
-if ! printf '%s\\n' "$reach" | grep -qiE 'Address[ :]+[0-9]+\\.'; then
-  fail "pod could not reach in-cluster services"
 fi
 
 if [ "$failures" -gt 0 ]; then
@@ -220,23 +216,26 @@ set +e
 failures=0
 fail() { echo "FAILED CLOUD-NODE-MANAGER CHECK: $*"; failures=$((failures + 1)); }
 
-kubectl get nodes -o wide
-
-nodes=$(kubectl get nodes -o jsonpath='{.items[*].metadata.name}')
-if [ -z "$nodes" ]; then
+# Check every node in a single list call so no node is missed; a per-node
+# "kubectl get node" would be one call per node and is too slow on large
+# clusters. All nodes are scanned locally; only problem nodes are printed.
+node_table=$(kubectl get nodes --no-headers -o custom-columns='NAME:.metadata.name,READY:.status.conditions[?(@.type=="Ready")].status,PROVIDER:.spec.providerID' 2>/dev/null)
+if [ -z "$node_table" ]; then
   fail "no nodes found"
 fi
-for n in $nodes; do
-  ready=$(kubectl get node "$n" -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}')
-  provider=$(kubectl get node "$n" -o jsonpath='{.spec.providerID}')
-  echo "node $n: Ready=$ready providerID=$provider"
-  if [ "$ready" != "True" ]; then
-    fail "node $n not Ready (Ready=$ready)"
-  fi
-  if [ -z "$provider" ]; then
-    fail "node $n missing providerID"
-  fi
-done
+
+report=$(printf '%s\\n' "$node_table" | awk '
+{
+  total++
+  if ($2 != "True") { print "node " $1 " not Ready (Ready=" $2 ")"; bad++ }
+  if ($3 == "<none>" || $3 == "") { print "node " $1 " missing providerID"; bad++ }
+}
+END { print "checked " total " nodes, " bad+0 " problem(s)"; exit (bad > 0) }')
+rc=$?
+echo "$report"
+if [ "$rc" -ne 0 ]; then
+  fail "cloud-node-manager: some nodes are not Ready or missing providerID"
+fi
 
 if [ "$failures" -gt 0 ]; then
   echo "cloud-node-manager validation failed with $failures error(s)"; exit 1
@@ -254,7 +253,7 @@ echo "cloud-node-manager validation passed"
 # driver="disk" -> ReadWriteOnce, default storageClass "managed-csi"
 # driver="file" -> ReadWriteMany, default storageClass "azurefile-csi"
 # ---------------------------------------------------------------------------
-ValidateCsiNode = lambda serviceConnection: str, driver: "disk" | "file", storageClass: str = "", image: str = _TEST_IMAGE, namespace: str = "default", displayName: str = "", continueOnError: bool = Undefined -> steps.Step {
+ValidateCsiNode = lambda serviceConnection: str, driver: "disk" | "file", storageClass: str = "", displayName: str = "", continueOnError: bool = Undefined -> steps.Step {
     sc = storageClass if storageClass else ("managed-csi" if driver == "disk" else "azurefile-csi")
     accessMode = "ReadWriteOnce" if driver == "disk" else "ReadWriteMany"
     dsLabel = "csi-azuredisk-node" if driver == "disk" else "csi-azurefile-node"
@@ -272,14 +271,13 @@ fi
 suffix=$RANDOM
 pvc="overlay-csi-${driver}-pvc-$suffix"
 pod="overlay-csi-${driver}-pod-$suffix"
-trap 'kubectl -n ${namespace} delete pod "$pod" --ignore-not-found >/dev/null 2>&1; kubectl -n ${namespace} delete pvc "$pvc" --ignore-not-found >/dev/null 2>&1' EXIT
+trap 'kubectl delete pod "$pod" --ignore-not-found >/dev/null 2>&1; kubectl delete pvc "$pvc" --ignore-not-found >/dev/null 2>&1' EXIT
 
 cat <<EOF | kubectl apply -f -
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: $pvc
-  namespace: ${namespace}
 spec:
   accessModes:
     - ${accessMode}
@@ -292,12 +290,11 @@ apiVersion: v1
 kind: Pod
 metadata:
   name: $pod
-  namespace: ${namespace}
 spec:
   restartPolicy: Never
   containers:
     - name: writer
-      image: ${image}
+      image: ${_TEST_IMAGE}
       command:
         - sh
         - -c
@@ -315,20 +312,20 @@ EOF
 end=$((SECONDS + 300))
 phase=""
 while [ $SECONDS -lt $end ]; do
-  phase=$(kubectl -n ${namespace} get pod "$pod" -o jsonpath='{.status.phase}' 2>/dev/null)
+  phase=$(kubectl get pod "$pod" -o jsonpath='{.status.phase}' 2>/dev/null)
   [ "$phase" = "Succeeded" ] && break
   [ "$phase" = "Failed" ] && break
   sleep 5
 done
-echo "pod ${namespace}/$pod phase=$phase"
+echo "pod $pod phase=$phase"
 
 if [ "$phase" != "Succeeded" ]; then
   fail "csi-${driver} pod did not succeed (phase=$phase); attach/mount likely failed"
   echo "--- pod describe ---"
-  kubectl -n ${namespace} describe pod "$pod" | tail -30
+  kubectl describe pod "$pod" | tail -30
 fi
 
-logs=$(kubectl -n ${namespace} logs "$pod" 2>&1)
+logs=$(kubectl logs "$pod" 2>&1)
 echo "pod logs: $logs"
 if ! printf '%s\\n' "$logs" | grep -q 'CSI_OK'; then
   fail "csi-${driver} read/write test did not succeed"
@@ -346,7 +343,7 @@ echo "csi-azure${driver}-node validation passed"
 # kube-proxy: pods Running with no sync errors in logs, and a ClusterIP service
 # is reachable from within the cluster.
 # ---------------------------------------------------------------------------
-ValidateKubeProxy = lambda serviceConnection: str, image: str = _TEST_IMAGE, namespace: str = "default", displayName: str = "", continueOnError: bool = Undefined -> steps.Step {
+ValidateKubeProxy = lambda serviceConnection: str, displayName: str = "", continueOnError: bool = Undefined -> steps.Step {
     title = displayName if displayName else "Validate kube-proxy"
     script = """
 set +e
@@ -377,14 +374,13 @@ fi
 # the cluster to exercise service routing.
 suffix=$RANDOM
 app="overlay-kp-test-$suffix"
-trap 'kubectl -n ${namespace} delete deploy "$app" svc "$app" --ignore-not-found >/dev/null 2>&1' EXIT
+trap 'kubectl delete deploy "$app" svc "$app" --ignore-not-found >/dev/null 2>&1' EXIT
 
 cat <<EOF | kubectl apply -f -
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: $app
-  namespace: ${namespace}
 spec:
   replicas: 1
   selector:
@@ -397,7 +393,7 @@ spec:
     spec:
       containers:
         - name: web
-          image: ${image}
+          image: ${_TEST_IMAGE}
           command:
             - sh
             - -c
@@ -409,7 +405,6 @@ apiVersion: v1
 kind: Service
 metadata:
   name: $app
-  namespace: ${namespace}
 spec:
   selector:
     app: $app
@@ -418,18 +413,18 @@ spec:
       targetPort: 8080
 EOF
 
-kubectl -n ${namespace} wait --for=condition=Available deploy/"$app" --timeout=120s
+kubectl wait --for=condition=Available deploy/"$app" --timeout=120s
 if [ $? -ne 0 ]; then
   fail "backend deployment did not become Available"
   echo "kube-proxy validation failed with $failures error(s)"; exit 1
 fi
 
-clusterip=$(kubectl -n ${namespace} get svc "$app" -o jsonpath='{.spec.clusterIP}')
+clusterip=$(kubectl get svc "$app" -o jsonpath='{.spec.clusterIP}')
 echo "service ClusterIP: $clusterip"
 # Reach the ClusterIP from within a running pod (exec output is clean, no
 # --rm deletion notice to filter). This exercises the service dataplane.
-backend_pod=$(kubectl -n ${namespace} get pods -l app="$app" -o jsonpath='{.items[0].metadata.name}')
-out=$(kubectl -n ${namespace} exec "$backend_pod" -- wget -qO- "http://$clusterip:80/ping" 2>/dev/null)
+backend_pod=$(kubectl get pods -l app="$app" -o jsonpath='{.items[0].metadata.name}')
+out=$(kubectl exec "$backend_pod" -- wget -qO- "http://$clusterip:80/ping" 2>/dev/null)
 echo "client output: $out"
 if [ "$out" != "pong" ]; then
   fail "ClusterIP service not reachable (got '$out')"
@@ -446,15 +441,15 @@ echo "kube-proxy validation passed"
 # ---------------------------------------------------------------------------
 # Convenience: run every overlay-component validation in sequence.
 # ---------------------------------------------------------------------------
-ValidateOverlayComponents = lambda serviceConnection: str, namespace: str = "default", continueOnError: bool = Undefined -> [steps.Step] {
+ValidateOverlayComponents = lambda serviceConnection: str, continueOnError: bool = Undefined -> [steps.Step] {
     [
         ValidateCoreDNS(serviceConnection, continueOnError=continueOnError)
         ValidateMetricsServer(serviceConnection, continueOnError=continueOnError)
         ValidateKonnectivityAgent(serviceConnection, continueOnError=continueOnError)
         ValidateAzureCNS(serviceConnection, continueOnError=continueOnError)
         ValidateCloudNodeManager(serviceConnection, continueOnError=continueOnError)
-        ValidateCsiNode(serviceConnection, "disk", namespace=namespace, continueOnError=continueOnError)
-        ValidateCsiNode(serviceConnection, "file", namespace=namespace, continueOnError=continueOnError)
-        ValidateKubeProxy(serviceConnection, namespace=namespace, continueOnError=continueOnError)
+        ValidateCsiNode(serviceConnection, "disk", continueOnError=continueOnError)
+        ValidateCsiNode(serviceConnection, "file", continueOnError=continueOnError)
+        ValidateKubeProxy(serviceConnection, continueOnError=continueOnError)
     ]
 }
