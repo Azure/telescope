@@ -1760,6 +1760,18 @@ stages:
       MOCK_CONSUME_CLUSTERMESH: true
       MOCK_DEPLOY_CONCURRENCY: 8
       MOCK_DEPLOY_MAX_FAILURES: 3
+      CL2_PROMETHEUS_MEMORY_LIMIT_GI: "16"
+      CL2_ACNS_TELEMETRY_ENABLED: "true"
+      AKS_CONTROL_PLANE_METRICS_ENABLED: "true"
+      AKS_CONTROL_PLANE_METRICS_REGISTER_PREVIEW: "false"
+      AKS_CONTROL_PLANE_AMW_RESOURCE_GROUP: clustermesh-scale-prom-snapshots
+      AKS_CONTROL_PLANE_AMW_NAME_PREFIX: cmsh-scale-eastus2euap-amw
+      AKS_AMW_ARM_BATCH_SIZE: "10"
+      AKS_CONTROL_PLANE_METRICS_CONCURRENCY: "5"
+      AKS_CONTROL_PLANE_LAW_NAME: cmsh-scale-controlplane-law
+      AKS_CONTROL_PLANE_LAW_LOCATION: eastus2
+      AKS_CONTROL_PLANE_LOG_RETENTION_DAYS: "30"
+      AKS_PLATFORM_METRICS_TIMEOUT_SECONDS: "3600"
       # Fleet ClusterMeshProfile RP fails to deploy clustermesh-apiserver at n=100
       # (72112 concat-name collision / 72129 + 72983 + 73026: only ~30-35/100
       # apiservers deploy, the rest stuck at deployment=<none>). Delete+recreate
@@ -1790,12 +1802,12 @@ stages:
       CL2_PROPAGATION_PROBE_PEER_TIMEOUT: "120"
       CL2_PROPAGATION_PROBE_PEER_SAMPLE: "20"
       CL2_PROPAGATION_PROBE_CONNECTIVITY: "false"
-      CL2_PROBE_WINDOW_DURATION: "30m"
+      CL2_PROBE_WINDOW_DURATION: "60m"
       # 600s (vs 300s on the small tiers): at n=100 all 100 CL2 workers must start +
       # annotate namespaces + create the probe backend before the host-side orchestrator
       # begins firing; give the cold mesh more lead time (the probe picks a random source
       # cluster; if it isn't ready its source-pod apply silently drops the row). Still fits
-      # the 30m window + 45m op-timeout.
+      # the 60m window + 90m op-timeout.
       CL2_PROBE_PREWAIT_S: "600"
     jobs:
       - template: /jobs/competitive-test.yml
@@ -1808,7 +1820,7 @@ stages:
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
             install: false
-            operation_timeout: 45m
+            operation_timeout: 90m
           topology: clustermesh-scale-mock
           terraform_input_file_mapping:
             - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-100-mock-shared.tfvars"
@@ -1826,6 +1838,8 @@ stages:
               test_type: shared
               test_type_suffix: "-mock"
               mock_mode: true
+              kwok_usage_cpu: "25m"
+              kwok_usage_memory: "64Mi"
               # 100% global density (global_namespace_count == namespaces) so ALL 50
               # pods/cluster sync mesh-wide to 99 peers — the extreme-fan-out tier of
               # the consolidation comparison. (Was 1 = 20%, inherited from the separate

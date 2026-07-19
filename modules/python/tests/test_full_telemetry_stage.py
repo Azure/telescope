@@ -40,6 +40,24 @@ EXECUTE_TEMPLATE_PATH = (
     / "clustermesh-scale"
     / "execute.yml"
 )
+N100_TFVARS_PATH = (
+    REPOSITORY_ROOT
+    / "scenarios"
+    / "perf-eval"
+    / "clustermesh-scale"
+    / "terraform-inputs"
+    / "azure-100-mock-shared.tfvars"
+)
+POD_CHURN_PATH = (
+    REPOSITORY_ROOT
+    / "modules"
+    / "python"
+    / "clusterloader2"
+    / "clustermesh-scale"
+    / "config"
+    / "pod-churn-combined.yaml"
+)
+GLOBAL_SERVICE_PATH = POD_CHURN_PATH.parent / "modules" / "event-throughput-service.yaml"
 
 
 def test_dedicated_full_telemetry_stage_is_isolated():
@@ -148,3 +166,42 @@ def test_acns_probe_runs_before_snapshot_and_is_collected_before_teardown():
     snapshot = worker.index("prometheus TSDB snapshot -------")
     assert setup < collect < snapshot
     assert "--require-acns" in worker
+
+
+def test_n100_stage_has_complete_workload_and_telemetry_wiring():
+    pipeline = PIPELINE_PATH.read_text(encoding="utf-8")
+    start = pipeline.index("- stage: azure_eastus2euap_n100_mock")
+    end = pipeline.index("- stage: azure_eastus2euap_n1_mock_5k", start)
+    stage = pipeline[start:end]
+    pod_churn = POD_CHURN_PATH.read_text(encoding="utf-8")
+    service = GLOBAL_SERVICE_PATH.read_text(encoding="utf-8")
+    tfvars = N100_TFVARS_PATH.read_text(encoding="utf-8")
+
+    for expected in (
+        "cluster_count: 100",
+        "mesh_size: 100",
+        "MOCK_NODE_COUNT: 100",
+        "global_namespace_count: 5",
+        "namespaces: 5",
+        "deployments_per_namespace: 2",
+        "replicas_per_deployment: 5",
+        'kwok_usage_cpu: "25m"',
+        'kwok_usage_memory: "64Mi"',
+        'AKS_CONTROL_PLANE_METRICS_ENABLED: "true"',
+        "AKS_CONTROL_PLANE_AMW_NAME_PREFIX:",
+        'AKS_AMW_ARM_BATCH_SIZE: "10"',
+        'AKS_CONTROL_PLANE_METRICS_CONCURRENCY: "5"',
+        'CL2_ACNS_TELEMETRY_ENABLED: "true"',
+        'cl2_prom_snapshot_enabled: "true"',
+        'CL2_PROBE_WINDOW_DURATION: "60m"',
+        "operation_timeout: 90m",
+    ):
+        assert expected in stage
+    assert '"{{$namespaces}}"' in pod_churn
+    assert '"{{$globalNamespaces}}"' in pod_churn
+    assert "clustermesh.cilium.io/global=true" in pod_churn
+    assert 'service.cilium.io/global: "true"' in service
+    assert 'io.cilium/global-service: "true"' in service
+    assert tfvars.count('{ name = "enable-acns", value = "" }') == 100
+    assert tfvars.count('name                 = "prompool"') == 100
+    assert 'aks_name                      = "clustermesh-100"' in tfvars
