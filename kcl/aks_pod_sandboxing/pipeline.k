@@ -39,7 +39,7 @@ export PAUSE_IMAGE="${PAUSE_IMAGE}"
 
 MANIFEST="$(Pipeline.Workspace)/pod.yaml"
 
-kcl run "$(Build.SourcesDirectory)/kcl/aks_pod_sandboxing/pod.k" \\
+kcl run "$(Build.SourcesDirectory)/kcl/aks_pod_sandboxing/pod.k" -S pod \\
   -D podName="${POD_NAME}" \\
   -D runtimeClass="${RUNTIME_CLASS}" \\
   -D image="${PAUSE_IMAGE}" \\
@@ -88,9 +88,9 @@ output = ap.Pipeline {
                     scheduleAndMeasureScript),
                 common.UploadResult(
                     const.DEFAULT_SERVICE_CONNECTION,
-                    "telescopev2",
-                    "137f0351-8235-42a6-ac7a-6b46be2d21c7",
-                    "aks"),
+                    const.DEFAULT_STORAGE_ACCOUNT,
+                    const.DEFAULT_STORAGE_SUBSCRIPTION_ID,
+                    const.DEFAULT_STORAGE_CONTAINER),
                 azure.DeleteResourceGroup(
                     const.DEFAULT_SERVICE_CONNECTION,
                     RESOURCE_GROUP,

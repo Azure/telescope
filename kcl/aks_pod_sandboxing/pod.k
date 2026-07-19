@@ -1,18 +1,19 @@
-import manifests
+import k8s.api.core.v1 as core_v1
+import k8s.apimachinery.pkg.apis.meta.v1 as meta_v1
 
 podName = option("podName")
 runtimeClass = option("runtimeClass")
 image = option("image")
 
-manifests.yaml_stream([{
-    apiVersion = "v1"
-    kind = "Pod"
-    metadata.name = podName
-    spec = {
+pod: core_v1.Pod = {
+    metadata = meta_v1.ObjectMeta {
+        name = podName
+    }
+    spec = core_v1.PodSpec {
         runtimeClassName = runtimeClass
         containers = [{
             name = "pause"
             image = image
         }]
     }
-}])
+}

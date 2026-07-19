@@ -102,7 +102,7 @@ stages:
 
           MANIFEST="$(Pipeline.Workspace)/pod.yaml"
 
-          kcl run "$(Build.SourcesDirectory)/kcl/aks_pod_sandboxing/pod.k" \
+          kcl run "$(Build.SourcesDirectory)/kcl/aks_pod_sandboxing/pod.k" -S pod \
             -D podName="pause-sandbox" \
             -D runtimeClass="kata-vm-isolation" \
             -D image="mcr.microsoft.com/oss/kubernetes/pause:3.6" \
