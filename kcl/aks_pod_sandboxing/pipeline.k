@@ -4,12 +4,11 @@ import lib.const
 import lib.steps.azure
 import lib.steps.common
 
-SUBSCRIPTION_ID = const.DEFAULT_SUBSCRIPTION_ID
 RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "uksouth"
 CLUSTER = "kata-pod-startup"
-K8S_VERSION = "1.35"
-NODE_SKU = "Standard_D4s_v3" 
+K8S_VERSION = "1.36"
+NODE_SKU = "Standard_D4s_v3"
 POD_NAME = "pause-sandbox"
 RUNTIME_CLASS = "kata-vm-isolation"
 PAUSE_IMAGE = "mcr.microsoft.com/oss/kubernetes/pause:3.6"
@@ -18,13 +17,13 @@ createClusterScript = """
 az aks create \\
   --name "${CLUSTER}" \\
   --resource-group "${RESOURCE_GROUP}" \\
-  --subscription "${SUBSCRIPTION_ID}" \\
+  --subscription "${const.DEFAULT_SUBSCRIPTION_ID}" \\
   --location "${LOCATION}" \\
   --kubernetes-version "${K8S_VERSION}" \\
   --os-sku AzureLinux \\
   --workload-runtime KataVmIsolation \\
   --node-count 3 \\
-  --node-vm-size Standard_D4s_v3 \\
+  --node-vm-size ${NODE_SKU} \\
   --network-plugin azure \\
   --tier standard
 """
@@ -38,12 +37,17 @@ export NODE_SKU="${NODE_SKU}"
 export K8S_VERSION="${K8S_VERSION}"
 export PAUSE_IMAGE="${PAUSE_IMAGE}"
 
-MANIFEST="$(Build.SourcesDirectory)/kcl/aks_pod_sandboxing/pod.yaml"
-MEASURE="$(Build.SourcesDirectory)/kcl/aks_pod_sandboxing/measure.py"
+MANIFEST="$(Pipeline.Workspace)/pod.yaml"
+
+kcl run "$(Build.SourcesDirectory)/kcl/aks_pod_sandboxing/pod.k" \\
+  -D podName="${POD_NAME}" \\
+  -D runtimeClass="${RUNTIME_CLASS}" \\
+  -D image="${PAUSE_IMAGE}" \\
+  -o "$MANIFEST"
 
 kubectl apply -f "$MANIFEST"
 kubectl wait --for=condition=Ready pod/${POD_NAME} --timeout=10m
-python3 "$MEASURE"
+python3 "$(Build.SourcesDirectory)/kcl/aks_pod_sandboxing/measure.py"
 """
 
 output = ap.Pipeline {
@@ -60,13 +64,13 @@ output = ap.Pipeline {
                 common.SetRunId(),
                 azure.Login(
                     const.DEFAULT_SERVICE_CONNECTION,
-                    SUBSCRIPTION_ID,
+                    const.DEFAULT_SUBSCRIPTION_ID,
                     LOCATION),
                 azure.CreateResourceGroup(
                     const.DEFAULT_SERVICE_CONNECTION,
                     RESOURCE_GROUP,
                     LOCATION,
-                    SUBSCRIPTION_ID),
+                    const.DEFAULT_SUBSCRIPTION_ID),
                 azure.AzCli(
                     const.DEFAULT_SERVICE_CONNECTION,
                     "Create AKS cluster",
@@ -75,8 +79,9 @@ output = ap.Pipeline {
                     const.DEFAULT_SERVICE_CONNECTION,
                     CLUSTER,
                     RESOURCE_GROUP,
-                    SUBSCRIPTION_ID,
+                    const.DEFAULT_SUBSCRIPTION_ID,
                     "$(Pipeline.Workspace)/kubeconfig"),
+                common.InstallKcl(),
                 azure.AzCli(
                     const.DEFAULT_SERVICE_CONNECTION,
                     "Schedule pause pod and measure startup",
@@ -89,7 +94,7 @@ output = ap.Pipeline {
                 azure.DeleteResourceGroup(
                     const.DEFAULT_SERVICE_CONNECTION,
                     RESOURCE_GROUP,
-                    SUBSCRIPTION_ID),
+                    const.DEFAULT_SUBSCRIPTION_ID),
             ]
         }]
     }]

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Measure pod startup latency from pod events and write /tmp/run-result.json."""
+"""Measure pause pod startup timings and write /tmp/run-result.json."""
 
 import datetime
 import json
@@ -9,16 +9,10 @@ import sys
 
 
 POD_NAME = os.environ["POD_NAME"]
-CLUSTER = os.environ["CLUSTER"]
-RUNTIME_CLASS = os.environ["RUNTIME_CLASS"]
-NODE_SKU = os.environ["NODE_SKU"]
-K8S_VERSION = os.environ["K8S_VERSION"]
-PAUSE_IMAGE = os.environ["PAUSE_IMAGE"]
 
 
 def kubectl_json(*args):
-    out = subprocess.check_output(["kubectl", *args, "-o", "json"])
-    return json.loads(out)
+    return json.loads(subprocess.check_output(["kubectl", *args, "-o", "json"]))
 
 
 def parse(ts):
@@ -27,7 +21,6 @@ def parse(ts):
     return datetime.datetime.fromisoformat(ts.replace("Z", "+00:00"))
 
 
-pod = kubectl_json("get", "pod", POD_NAME)
 events = kubectl_json(
     "get", "events", "--field-selector", f"involvedObject.name={POD_NAME}"
 )
@@ -46,6 +39,8 @@ pulled = event_time("Pulled")
 created = event_time("Created")
 started = event_time("Started")
 
+
+pod = kubectl_json("get", "pod", POD_NAME)
 ready = None
 for c in pod.get("status", {}).get("conditions", []):
     if c.get("type") == "Ready" and c.get("status") == "True":
@@ -56,29 +51,23 @@ startup_latency = None
 if scheduled and ready:
     startup_latency = (parse(ready) - parse(scheduled)).total_seconds()
 
-run_id = os.environ.get("RUN_ID", "")
-build_id = os.environ.get("BUILD_BUILDID", "")
-build_uri = os.environ.get("SYSTEM_COLLECTIONURI", "").rstrip("/")
-project = os.environ.get("SYSTEM_TEAMPROJECT", "")
-run_url = (
-    f"{build_uri}/{project}/_build/results?buildId={build_id}"
-    if build_id and build_uri and project
-    else ""
-)
-
 result = {
     "timestamp": datetime.datetime.now(datetime.timezone.utc).strftime(
         "%Y-%m-%dT%H:%M:%SZ"
     ),
-    "run_id": run_id,
-    "run_url": run_url,
+    "run_id": os.environ.get("RUN_ID", ""),
+    "run_url": (
+        f"{os.environ['SYSTEM_COLLECTIONURI'].rstrip('/')}"
+        f"/{os.environ['SYSTEM_TEAMPROJECT']}"
+        f"/_build/results?buildId={os.environ['BUILD_BUILDID']}"
+    ),
     "result": {
-        "cluster": CLUSTER,
-        "runtime_class": RUNTIME_CLASS,
-        "node_sku": NODE_SKU,
-        "k8s_version": K8S_VERSION,
+        "cluster": os.environ["CLUSTER"],
+        "runtime_class": os.environ["RUNTIME_CLASS"],
+        "node_sku": os.environ["NODE_SKU"],
+        "k8s_version": os.environ["K8S_VERSION"],
         "pod_name": POD_NAME,
-        "image": PAUSE_IMAGE,
+        "image": os.environ["PAUSE_IMAGE"],
         "scheduled_time": scheduled,
         "pulling_time": pulling,
         "pulled_time": pulled,

@@ -57,7 +57,7 @@ stages:
             --resource-group "$(RUN_ID)" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --location "uksouth" \
-            --kubernetes-version "1.35" \
+            --kubernetes-version "1.36" \
             --os-sku AzureLinux \
             --workload-runtime KataVmIsolation \
             --node-count 3 \
@@ -80,6 +80,10 @@ stages:
             --overwrite-existing \
             -f $(Pipeline.Workspace)/kubeconfig
       displayName: Get credentials for kata-pod-startup
+    - bash: |-
+        set -exo pipefail
+        wget -q https://kcl-lang.io/script/install-cli.sh -O - | /bin/bash
+      displayName: Install KCL
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -93,15 +97,20 @@ stages:
           export CLUSTER="kata-pod-startup"
           export RUNTIME_CLASS="kata-vm-isolation"
           export NODE_SKU="Standard_D4s_v3"
-          export K8S_VERSION="1.35"
+          export K8S_VERSION="1.36"
           export PAUSE_IMAGE="mcr.microsoft.com/oss/kubernetes/pause:3.6"
 
-          MANIFEST="$(Build.SourcesDirectory)/kcl/aks_pod_sandboxing/pod.yaml"
-          MEASURE="$(Build.SourcesDirectory)/kcl/aks_pod_sandboxing/measure.py"
+          MANIFEST="$(Pipeline.Workspace)/pod.yaml"
+
+          kcl run "$(Build.SourcesDirectory)/kcl/aks_pod_sandboxing/pod.k" \
+            -D podName="pause-sandbox" \
+            -D runtimeClass="kata-vm-isolation" \
+            -D image="mcr.microsoft.com/oss/kubernetes/pause:3.6" \
+            -o "$MANIFEST"
 
           kubectl apply -f "$MANIFEST"
           kubectl wait --for=condition=Ready pod/pause-sandbox --timeout=10m
-          python3 "$MEASURE"
+          python3 "$(Build.SourcesDirectory)/kcl/aks_pod_sandboxing/measure.py"
       displayName: Schedule pause pod and measure startup
     - task: AzureCLI@2
       inputs:
