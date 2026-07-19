@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: acns-log-collector
+  namespace: acns-telemetry
+spec:
+  selector:
+    matchLabels:
+      app: acns-log-collector
+  template:
+    metadata:
+      labels:
+        app: acns-log-collector
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/os
+                    operator: In
+                    values: [linux]
+                  - key: type
+                    operator: DoesNotExist
+              - matchExpressions:
+                  - key: kubernetes.io/os
+                    operator: In
+                    values: [linux]
+                  - key: type
+                    operator: NotIn
+                    values: [kwok]
+      tolerations:
+        - operator: Exists
+      containers:
+        - name: collector
+          image: mcr.microsoft.com/cbl-mariner/busybox:2.0
+          command: [sh, -c, "trap : TERM INT; while true; do sleep 3600; done"]
+          securityContext:
+            privileged: true
+          resources:
+            requests:
+              cpu: 1m
+              memory: 4Mi
+            limits:
+              cpu: 25m
+              memory: 16Mi
+          volumeMounts:
+            - name: acns-logs
+              mountPath: /host-acns
+              readOnly: true
+      volumes:
+        - name: acns-logs
+          hostPath:
+            path: /var/log/acns/hubble
+            type: DirectoryOrCreate

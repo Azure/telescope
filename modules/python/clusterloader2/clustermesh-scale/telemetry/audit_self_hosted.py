@@ -86,6 +86,17 @@ IDENTITY_LABEL_ENV = {
     "region": "CLUSTERMESH_REGION",
     "prometheus_cluster_alias": "CLUSTERMESH_PROMETHEUS_CLUSTER_ALIAS",
 }
+ACNS_METRICS = (
+    "cilium_forward_count_total",
+    "cilium_forward_bytes_total",
+    "cilium_drop_count_total",
+    "cilium_drop_bytes_total",
+    "hubble_dns_queries_total",
+    "hubble_dns_responses_total",
+    "hubble_drop_total",
+    "hubble_tcp_flags_total",
+    "hubble_flows_processed_total",
+)
 
 
 def _matching_metrics(metric_names, prefixes=(), exact=()):
@@ -119,6 +130,7 @@ def build_audit(
     targets,
     require_real_node_kubelet=False,
     require_kwok_resource=False,
+    require_acns=False,
     identity_series=None,
     expected_identity=None,
 ):
@@ -228,6 +240,40 @@ def build_audit(
                 "down_targets": target["down"],
             }
         )
+    if require_acns:
+        for metric_name in ACNS_METRICS:
+            covered = metric_name in metric_names
+            checks.append(
+                {
+                    "name": f"acns:{metric_name}",
+                    "required": True,
+                    "status": "covered" if covered else "missing",
+                    "metric_count": 1 if covered else 0,
+                    "sample_metrics": [metric_name] if covered else [],
+                }
+            )
+        hubble_targets = [
+            target
+            for job_name, target in jobs.items()
+            if "hubble" in job_name.lower()
+        ]
+        target_count = sum(target["total"] for target in hubble_targets)
+        up_targets = sum(target["up"] for target in hubble_targets)
+        down_targets = sum(target["down"] for target in hubble_targets)
+        checks.append(
+            {
+                "name": "target:acns-hubble",
+                "required": True,
+                "status": (
+                    "covered"
+                    if target_count > 0 and down_targets == 0
+                    else "missing"
+                ),
+                "target_count": target_count,
+                "up_targets": up_targets,
+                "down_targets": down_targets,
+            }
+        )
 
     complete = all(
         check["status"] == "covered"
@@ -310,6 +356,7 @@ def parse_args(argv=None):
     parser.add_argument("--output-prefix", required=True)
     parser.add_argument("--require-real-node-kubelet", action="store_true")
     parser.add_argument("--require-kwok-resource", action="store_true")
+    parser.add_argument("--require-acns", action="store_true")
     return parser.parse_args(argv)
 
 
@@ -342,6 +389,7 @@ def main(argv=None):
             targets,
             require_real_node_kubelet=args.require_real_node_kubelet,
             require_kwok_resource=args.require_kwok_resource,
+            require_acns=args.require_acns,
             identity_series=identity_series,
             expected_identity=expected_identity,
         )

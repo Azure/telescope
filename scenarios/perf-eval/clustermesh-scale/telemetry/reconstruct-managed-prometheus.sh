@@ -16,6 +16,11 @@ fi
 
 initialize_managed_telemetry
 load_collection_window
+if [ "$schema_version" -ge 2 ] &&
+   [ "$(echo "$workspaces_json" | jq 'length')" -gt 1 ]; then
+  echo "Multi-workspace AMW reconstruction is deferred to external post-processing."
+  exit 0
+fi
 if [ "$managed_prometheus_ready" != "true" ]; then
   echo "Managed Prometheus samples are not ready; skipping TSDB reconstruction."
   exit 0

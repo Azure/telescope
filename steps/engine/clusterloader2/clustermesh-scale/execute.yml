@@ -278,6 +278,7 @@ steps:
       export CL2_PROM_SNAPSHOT_TARGET="${CL2_PROM_SNAPSHOT_TARGET:-artifact}"
       export CL2_PROM_SNAPSHOT_STORAGE_ACCOUNT="${CL2_PROM_SNAPSHOT_STORAGE_ACCOUNT:-cmshscaleprom}"
       export CL2_PROM_SNAPSHOT_CONTAINER="${CL2_PROM_SNAPSHOT_CONTAINER:-snapshots}"
+      export CL2_ACNS_TELEMETRY_ENABLED="${CL2_ACNS_TELEMETRY_ENABLED:-false}"
 
       # Same discovery pattern as topology/clustermesh-scale/validate-resources.yml.
       # We re-run it here rather than relying on a step variable so this engine

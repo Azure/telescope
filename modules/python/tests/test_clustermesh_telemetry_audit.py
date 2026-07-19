@@ -1,7 +1,9 @@
 """Tests for the ClusterMesh telemetry coverage auditor."""
 
 import importlib.util
+import json
 from pathlib import Path
+from types import SimpleNamespace
 
 
 MODULE_PATH = (
@@ -138,6 +140,125 @@ def test_managed_audit_requires_every_cluster_for_core_components():
     assert report["complete"] is True
     required = [check for check in report["checks"] if check["required"]]
     assert all(check["status"] == "covered" for check in required)
+
+
+def test_managed_audit_queries_each_cluster_workspace(tmp_path, monkeypatch):
+    clusters = [
+        {
+            "name": "clustermesh-1",
+            "role": "mesh-1",
+            "rg": "run-rg",
+            "id": "cluster-1",
+            "prometheus_cluster_alias": "run_mesh_1",
+            "workspace": {
+                "name": "amw-mesh-1",
+                "id": "amw-1",
+                "prometheus_query_endpoint": "https://amw-1.example",
+            },
+        },
+        {
+            "name": "clustermesh-2",
+            "role": "mesh-2",
+            "rg": "run-rg",
+            "id": "cluster-2",
+            "prometheus_cluster_alias": "run_mesh_2",
+            "workspace": {
+                "name": "amw-mesh-2",
+                "id": "amw-2",
+                "prometheus_query_endpoint": "https://amw-2.example",
+            },
+        },
+    ]
+    manifest = {
+        "schema_version": 2,
+        "run_id": "run",
+        "region": "eastus2euap",
+        "workspace": {"mode": "per-cluster"},
+        "workspaces": [cluster["workspace"] for cluster in clusters],
+        "clusters": clusters,
+    }
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    calls = []
+
+    def fake_get(endpoint, path, params=None, scope=""):
+        calls.append((endpoint, path, scope))
+        cluster = clusters[0] if "amw-1" in endpoint else clusters[1]
+        alias = cluster["prometheus_cluster_alias"]
+        jobs = [
+            "controlplane-apiserver",
+            "controlplane-etcd",
+            "controlplane-kube-scheduler",
+            "controlplane-kube-controller-manager",
+        ]
+        if path.endswith("/label/__name__/values"):
+            return [
+                "apiserver_request_total",
+                "apiserver_flowcontrol_rejected_requests_total",
+                "etcd_server_has_leader",
+                "etcd_mvcc_db_total_size_in_bytes",
+                "scheduler_schedule_attempts_total",
+                "leader_election_master_status",
+                "workqueue_depth",
+                "clustermesh_cluster_identity_info",
+            ]
+        metric_name = next(
+            value.split('"')[1]
+            for key, value in params
+            if key == "match[]"
+        )
+        if metric_name == "up":
+            return [{"job": job, "cluster": alias} for job in jobs]
+        if metric_name == "clustermesh_cluster_identity_info":
+            return identity_series(
+                {
+                    "run_id": "run",
+                    "region": "eastus2euap",
+                    "clusters": [cluster],
+                }
+            )
+        job_by_metric = {
+            "apiserver_request_total": "controlplane-apiserver",
+            "apiserver_flowcontrol_rejected_requests_total": (
+                "controlplane-apiserver"
+            ),
+            "etcd_server_has_leader": "controlplane-etcd",
+            "etcd_mvcc_db_total_size_in_bytes": "controlplane-etcd",
+            "scheduler_schedule_attempts_total": (
+                "controlplane-kube-scheduler"
+            ),
+            "leader_election_master_status": (
+                "controlplane-kube-scheduler"
+            ),
+            "workqueue_depth": "controlplane-kube-controller-manager",
+        }
+        job = job_by_metric.get(metric_name)
+        return [{"job": job, "cluster": alias}] if job else []
+
+    monkeypatch.setattr(audit_module, "_http_prometheus_get", fake_get)
+    report = audit_module.run_managed(
+        SimpleNamespace(
+            manifest=str(manifest_path),
+            start="2026-07-19T00:00:00Z",
+            end="2026-07-19T01:00:00Z",
+            endpoint="",
+            resource_scope="",
+        )
+    )
+
+    assert report["schema_version"] == 2
+    assert report["complete"] is True
+    assert {item["role"] for item in report["cluster_reports"]} == {
+        "mesh-1",
+        "mesh-2",
+    }
+    assert {
+        (endpoint, scope)
+        for endpoint, _, scope in calls
+    } == {
+        ("https://amw-1.example", "cluster-1"),
+        ("https://amw-2.example", "cluster-2"),
+    }
 
 
 def test_managed_audit_reports_missing_scheduler_cluster():

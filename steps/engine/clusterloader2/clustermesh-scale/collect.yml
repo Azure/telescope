@@ -332,7 +332,16 @@ steps:
         cp "$audit" "$dest_dir/"
         audit_count=$((audit_count + 1))
       done
-      echo "Staged $count prometheus snapshot tarball(s), total ${total_bytes} bytes, plus $audit_count telemetry audit file(s), into $STAGING_DIR"
+      acns_count=0
+      for acns_file in "$CL2_REPORT_DIR"/**/telemetry/acns/*; do
+        [ -f "$acns_file" ] || continue
+        rel=${acns_file#"$CL2_REPORT_DIR/"}
+        dest_dir="$STAGING_DIR/$(dirname "$rel")"
+        mkdir -p "$dest_dir"
+        cp "$acns_file" "$dest_dir/"
+        acns_count=$((acns_count + 1))
+      done
+      echo "Staged $count prometheus snapshot tarball(s), total ${total_bytes} bytes, plus $audit_count telemetry audit file(s) and $acns_count ACNS file(s), into $STAGING_DIR"
       ls -laR "$STAGING_DIR" || true
     env:
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/results
@@ -375,6 +384,7 @@ steps:
         count=0
         total_bytes=0
         audit_count=0
+        acns_count=0
         if [ "$SNAPSHOT_RELABEL_READY" = "true" ]; then
           for snap in "$CL2_REPORT_DIR"/**/prom-snapshot-*.tar.gz; do
             rel=${snap#"$CL2_REPORT_DIR/"}
@@ -411,7 +421,23 @@ steps:
             --overwrite >/dev/null
           audit_count=$((audit_count + 1))
         done
-        echo "Uploaded $count snapshot tarball(s), total ${total_bytes} bytes, plus $audit_count telemetry audit file(s), to ${STORAGE_ACCOUNT_NAME}/${CONTAINER_NAME}"
+        for acns_file in "$CL2_REPORT_DIR"/**/telemetry/acns/*; do
+          [ -f "$acns_file" ] || continue
+          rel=${acns_file#"$CL2_REPORT_DIR/"}
+          scenario_seg=$(echo "$rel" | cut -d/ -f1)
+          role_seg=$(echo "$rel" | cut -d/ -f2)
+          blob_name="${BUILD_BRANCH}/acns/${scenario_seg}/${RUN_ID}/${role_seg}/$(basename "$acns_file")"
+          echo "Uploading $acns_file -> ${STORAGE_ACCOUNT_NAME}/${CONTAINER_NAME}/${blob_name}"
+          az storage blob upload \
+            --account-name "$STORAGE_ACCOUNT_NAME" \
+            --container-name "$CONTAINER_NAME" \
+            --name "$blob_name" \
+            --file "$acns_file" \
+            --auth-mode login \
+            --overwrite >/dev/null
+          acns_count=$((acns_count + 1))
+        done
+        echo "Uploaded $count snapshot tarball(s), total ${total_bytes} bytes, plus $audit_count telemetry audit file(s) and $acns_count ACNS file(s), to ${STORAGE_ACCOUNT_NAME}/${CONTAINER_NAME}"
         if [ "$count" -gt 0 ]; then
           rm -f "$CL2_REPORT_DIR"/**/prom-snapshot-*.tar.gz
           find "$STAGING_DIR" -type f -name 'prom-snapshot-*.tar.gz' -delete

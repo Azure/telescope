@@ -15,70 +15,43 @@ fi
 
 initialize_managed_telemetry
 load_collection_window
-build_log_summary_query
 
-capacity_raw="$OUTPUT_DIR/amw-capacity.json"
-capacity_summary="$OUTPUT_DIR/amw-capacity-summary.json"
-capacity_audit_ok=false
-capacity_status=1
+capacity_audit_ok=true
 capacity_end=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-if capture_amw_capacity \
-    "$amw_id" \
-    "$capacity_window_start" \
-    "$capacity_end" \
-    "$capacity_raw" \
-    "$capacity_summary"; then
-  write_amw_capacity_markdown \
-    "$capacity_summary" \
-    "$OUTPUT_DIR/amw-capacity-summary.md"
-  capacity_status=0
-  amw_capacity_runtime_ok "$capacity_summary" || capacity_status=$?
-  if [ "$capacity_status" -eq 0 ]; then
-    capacity_audit_ok=true
-  elif [ "$capacity_status" -eq 2 ]; then
-    echo "##vso[task.logissue type=error;] AMW limit throttling made the managed Prometheus window incomplete."
-  else
-    echo "##vso[task.logissue type=error;] AMW returned incomplete capacity metrics; managed Prometheus completeness cannot be established."
+while IFS= read -r workspace; do
+  workspace_slot=$(echo "$workspace" | jq -r '.slot // .name')
+  workspace_id=$(echo "$workspace" | jq -r '.id')
+  capacity_window_start=$(echo "$workspace" | jq -r \
+    '.capacity_guard.monitoring_window_start // empty')
+  if [ -z "$capacity_window_start" ]; then
+    capacity_window_start="$configured_at"
   fi
-else
+  workspace_dir="$OUTPUT_DIR/workspace-${workspace_slot}"
+  mkdir -p "$workspace_dir"
+  capacity_raw="$workspace_dir/amw-capacity.json"
+  capacity_summary="$workspace_dir/amw-capacity-summary.json"
+  capacity_status=0
+  if ! capture_amw_capacity \
+      "$workspace_id" \
+      "$capacity_window_start" \
+      "$capacity_end" \
+      "$capacity_raw" \
+      "$capacity_summary"; then
+    capacity_status=1
+  else
+    amw_capacity_runtime_ok "$capacity_summary" || capacity_status=$?
+  fi
   if [ -s "$capacity_summary" ]; then
     write_amw_capacity_markdown \
       "$capacity_summary" \
-      "$OUTPUT_DIR/amw-capacity-summary.md"
+      "$workspace_dir/amw-capacity-summary.md"
   fi
-  echo "##vso[task.logissue type=error;] Unable to audit AMW capacity; managed Prometheus completeness cannot be established."
-fi
+  if [ "$capacity_status" -ne 0 ]; then
+    capacity_audit_ok=false
+    echo "##vso[task.logissue type=error;] AMW capacity audit failed for workspace slot $workspace_slot."
+  fi
+done < <(echo "$workspaces_json" | jq -c '.[]')
 echo "##vso[task.setvariable variable=AKS_AMW_CAPACITY_AUDITED]$capacity_audit_ok"
-
-az monitor log-analytics query \
-  --workspace "$law_customer_id" \
-  --analytics-query "$log_summary_query" \
-  -o json > "$OUTPUT_DIR/control-plane-log-summary.json" || true
-
-while IFS= read -r cluster; do
-  role=$(echo "$cluster" | jq -r '.role')
-  cluster_id=$(echo "$cluster" | jq -r '.id')
-  log_sample_query=$(cat <<EOF
-union withsource=TableName isfuzzy=true
-  AKSControlPlane,
-  AKSAudit,
-  AKSAuditAdmin
-| where TimeGenerated between (datetime(${configured_at}) .. datetime(${log_end_time}))
-| where _ResourceId =~ "${cluster_id}"
-| extend CategoryValue=tostring(column_ifexists("Category", ""))
-| project
-    TableName,
-    TimeGenerated,
-    Category=CategoryValue,
-    Record=pack_all()
-| top ${AKS_CONTROL_PLANE_LOG_SAMPLE_ROWS:-5000} by TimeGenerated desc
-EOF
-)
-  az monitor log-analytics query \
-    --workspace "$law_customer_id" \
-    --analytics-query "$log_sample_query" \
-    -o json > "$OUTPUT_DIR/control-plane-log-sample-${role}.json" || true
-done < <(jq -c '.clusters[]' "$MANIFEST_PATH")
 
 token=$(az account get-access-token \
   --resource https://prometheus.monitor.azure.com \
@@ -112,8 +85,8 @@ while IFS= read -r cluster; do
     --output "$OUTPUT_DIR/aks-platform-${role}.openmetrics" \
     --manifest "$OUTPUT_DIR/aks-platform-${role}.json"
 done < <(jq -c '.clusters[]' "$MANIFEST_PATH")
-echo "Managed telemetry audit, logs, and platform metrics written to $OUTPUT_DIR"
-echo "Managed telemetry audit, logs, and platform metrics written to $OUTPUT_DIR"
+
+echo "Managed telemetry audit and live-coupled platform metrics written to $OUTPUT_DIR"
 if [ "$capacity_audit_ok" != "true" ]; then
   exit 1
 fi

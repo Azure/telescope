@@ -1,0 +1,28 @@
+apiVersion: acn.azure.com/v1alpha1
+kind: ContainerNetworkLog
+metadata:
+  name: clustermesh-scale-acns
+spec:
+  includefilters:
+    - name: acns-probe-source
+      from:
+        namespacedPod:
+          - acns-telemetry/acns-
+      protocol:
+        - tcp
+        - udp
+        - dns
+      verdict:
+        - forwarded
+        - dropped
+    - name: acns-probe-destination
+      to:
+        namespacedPod:
+          - acns-telemetry/acns-
+      protocol:
+        - tcp
+        - udp
+        - dns
+      verdict:
+        - forwarded
+        - dropped

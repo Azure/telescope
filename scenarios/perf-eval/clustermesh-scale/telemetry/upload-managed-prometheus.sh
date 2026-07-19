@@ -18,9 +18,9 @@ storage_account="${CL2_PROM_SNAPSHOT_STORAGE_ACCOUNT:-cmshscaleprom}"
 container="${CL2_PROM_SNAPSHOT_CONTAINER:-snapshots}"
 build_branch="${BUILD_BRANCH:-unknown-branch}"
 uploaded=0
-for file in "$OUTPUT_DIR"/*; do
-  [ -f "$file" ] || continue
-  blob_name="${build_branch}/managed-control-plane/${RUN_ID}/$(basename "$file")"
+while IFS= read -r -d '' file; do
+  relative_path=${file#"$OUTPUT_DIR/"}
+  blob_name="${build_branch}/managed-control-plane/${RUN_ID}/${relative_path}"
   echo "Uploading $file -> $storage_account/$container/$blob_name"
   az storage blob upload \
     --account-name "$storage_account" \
@@ -31,6 +31,6 @@ for file in "$OUTPUT_DIR"/*; do
     --overwrite \
     --output none
   uploaded=$((uploaded + 1))
-done
+done < <(find "$OUTPUT_DIR" -type f -print0)
 
 echo "Uploaded $uploaded managed telemetry artifact(s)."

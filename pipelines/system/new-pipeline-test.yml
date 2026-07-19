@@ -1486,10 +1486,11 @@ stages:
   #   - real-node kubelet + cAdvisor
   #   - API-server HA backend CPU/RSS exporter
   #   - KWOK synthetic pod/container/node CPU-memory
-  #   - Azure Monitor managed Prometheus full cluster/control-plane scrape
+  #   - one Azure Monitor workspace per cluster for control-plane metrics
   #   - AKS platform metrics
-  #   - reconstructed managed TSDB tarball
-  #   - all AKS control-plane/audit diagnostic categories in Log Analytics
+  #   - ACNS Hubble DNS metrics and filtered host-local container network logs
+  #   - all AKS control-plane/audit diagnostic categories configured for
+  #     deferred Log Analytics export
   #
   # Persistent AMW/LAW resources live outside the ephemeral run RG. Clusters
   # still clean up normally after collection.
@@ -1507,17 +1508,13 @@ stages:
       AKS_CONTROL_PLANE_METRICS_ENABLED: "true"
       AKS_CONTROL_PLANE_METRICS_REGISTER_PREVIEW: "false"
       AKS_CONTROL_PLANE_AMW_RESOURCE_GROUP: clustermesh-scale-prom-snapshots
-      AKS_CONTROL_PLANE_AMW_NAME: cmsh-scale-eastus2euap-amw
+      AKS_CONTROL_PLANE_AMW_NAME_PREFIX: cmsh-scale-eastus2euap-amw
+      AKS_AMW_ARM_BATCH_SIZE: "10"
       AKS_CONTROL_PLANE_LAW_NAME: cmsh-scale-controlplane-law
       AKS_CONTROL_PLANE_LAW_LOCATION: eastus2
       AKS_CONTROL_PLANE_LOG_RETENTION_DAYS: "30"
       AKS_PLATFORM_METRICS_TIMEOUT_SECONDS: "3600"
-      AKS_CONTROL_PLANE_LOGS_TIMEOUT_SECONDS: "1800"
-      AKS_CONTROL_PLANE_LOG_SAMPLE_ROWS: "5000"
-      AKS_MANAGED_TSDB_STEP_SECONDS: "15"
-      AKS_MANAGED_TSDB_CHUNK_SECONDS: "600"
-      AKS_MANAGED_TSDB_WORKERS: "4"
-      AKS_MANAGED_TSDB_METRICS_PER_BLOCK: "25"
+      CL2_ACNS_TELEMETRY_ENABLED: "true"
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:

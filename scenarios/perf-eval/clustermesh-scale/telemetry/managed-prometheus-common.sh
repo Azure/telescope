@@ -443,10 +443,16 @@ initialize_managed_telemetry() {
   mkdir -p "$OUTPUT_DIR"
   collection_manifest="$OUTPUT_DIR/run-manifest.json"
   configured_at=$(jq -r '.configured_at' "$MANIFEST_PATH")
-  amw_id=$(jq -r '.workspace.id' "$MANIFEST_PATH")
-  capacity_window_start=$(jq -r \
-    '.workspace.capacity_guard.monitoring_window_start // .configured_at' \
-    "$MANIFEST_PATH")
+  schema_version=$(jq -r '.schema_version // 1' "$MANIFEST_PATH")
+  workspaces_json=$(jq -c '
+    if (.workspaces // [] | length) > 0 then
+      .workspaces
+    elif .workspace.id then
+      [.workspace]
+    else
+      []
+    end
+  ' "$MANIFEST_PATH")
   endpoint=$(jq -r '.query.resource_endpoint' "$MANIFEST_PATH")
   resource_scope=$(jq -r '.query.resource_scope' "$MANIFEST_PATH")
   law_customer_id=$(jq -r '.logs.workspace.customer_id' "$MANIFEST_PATH")

@@ -60,42 +60,10 @@ steps:
       RUN_ID: $(RUN_ID)
       AUDIT_PHASE_SCRIPT: >-
         $(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/telemetry/audit-managed-prometheus.sh
-    displayName: "Audit and export AKS telemetry"
+    displayName: "Audit managed telemetry and export platform metrics"
     condition: and(succeededOrFailed(),
                    eq(variables['AKS_CONTROL_PLANE_METRICS_ENABLED'], 'true'),
                    eq(variables['AKS_TELEMETRY_WINDOW_READY'], 'true'))
-
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(AZURE_SERVICE_CONNECTION)
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -euo pipefail
-        az account set --subscription "$TARGET_SUBSCRIPTION_ID"
-        actual_subscription_id=$(az account show --query id -o tsv)
-        if [[ "${actual_subscription_id,,}" != "${TARGET_SUBSCRIPTION_ID,,}" ]]; then
-          echo "Expected Azure subscription ${TARGET_SUBSCRIPTION_ID}, got ${actual_subscription_id}" >&2
-          exit 1
-        fi
-        bash "$RECONSTRUCT_SCRIPT"
-    env:
-      TARGET_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
-      MANIFEST_PATH: $(Pipeline.Workspace)/aks-control-plane-metrics/run-manifest.json
-      TSDB_EXPORT_SCRIPT: >-
-        $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/telemetry/amw_tsdb_snapshot.py
-      OUTPUT_DIR: $(Build.ArtifactStagingDirectory)/aks-control-plane-metrics
-      RUN_ID: $(RUN_ID)
-      BUILD_ID: $(Build.BuildId)
-      SNAPSHOT_TIER: $(System.JobName)
-      RECONSTRUCT_SCRIPT: >-
-        $(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/telemetry/reconstruct-managed-prometheus.sh
-    displayName: "Reconstruct managed Prometheus TSDB"
-    condition: and(succeededOrFailed(),
-                   eq(variables['AKS_CONTROL_PLANE_METRICS_ENABLED'], 'true'),
-                   eq(variables['AKS_TELEMETRY_WINDOW_READY'], 'true'),
-                   eq(variables['AKS_MANAGED_PROMETHEUS_READY'], 'true'),
-                   eq(variables['AKS_AMW_CAPACITY_AUDITED'], 'true'))
 
   - task: AzureCLI@2
     inputs:

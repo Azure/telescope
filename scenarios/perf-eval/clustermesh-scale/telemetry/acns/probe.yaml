@@ -1,0 +1,158 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: acns-telemetry
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: acns-server
+  namespace: acns-telemetry
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: acns-server
+  template:
+    metadata:
+      labels:
+        app: acns-server
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/os
+                    operator: In
+                    values: [linux]
+                  - key: type
+                    operator: DoesNotExist
+              - matchExpressions:
+                  - key: kubernetes.io/os
+                    operator: In
+                    values: [linux]
+                  - key: type
+                    operator: NotIn
+                    values: [kwok]
+      containers:
+        - name: server
+          image: mcr.microsoft.com/cbl-mariner/busybox:2.0
+          command:
+            - sh
+            - -c
+            - mkdir -p /www; echo acns-ok >/www/index.html; exec httpd -f -p 8080 -h /www
+          ports:
+            - name: http
+              containerPort: 8080
+          resources:
+            requests:
+              cpu: 5m
+              memory: 8Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: acns-server
+  namespace: acns-telemetry
+spec:
+  selector:
+    app: acns-server
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: acns-client
+  namespace: acns-telemetry
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: acns-client
+  template:
+    metadata:
+      labels:
+        app: acns-client
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/os
+                    operator: In
+                    values: [linux]
+                  - key: type
+                    operator: DoesNotExist
+              - matchExpressions:
+                  - key: kubernetes.io/os
+                    operator: In
+                    values: [linux]
+                  - key: type
+                    operator: NotIn
+                    values: [kwok]
+      containers:
+        - name: client
+          image: mcr.microsoft.com/cbl-mariner/busybox:2.0
+          command:
+            - sh
+            - -c
+            - |
+              while true; do
+                nslookup management.azure.com >/dev/null 2>&1 || true
+                wget -q -T 3 -O /dev/null http://acns-server:8080/ || true
+                wget -q -T 1 -O /dev/null http://1.1.1.1:81/ || true
+                sleep 5
+              done
+          resources:
+            requests:
+              cpu: 5m
+              memory: 8Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: acns-client-observability
+  namespace: acns-telemetry
+spec:
+  endpointSelector:
+    matchLabels:
+      app: acns-client
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: kube-system
+            k8s:k8s-app: kube-dns
+      toPorts:
+        - ports:
+            - port: "53"
+              protocol: UDP
+            - port: "53"
+              protocol: TCP
+          rules:
+            dns:
+              - matchPattern: "*"
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: acns-telemetry
+            k8s:app: acns-server
+      toPorts:
+        - ports:
+            - port: "8080"
+              protocol: TCP
+    - toFQDNs:
+        - matchName: management.azure.com
+      toPorts:
+        - ports:
+            - port: "443"
+              protocol: TCP

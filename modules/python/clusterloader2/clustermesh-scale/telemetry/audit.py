@@ -562,22 +562,81 @@ def run_managed(args):
     manifest = json.loads(Path(args.manifest).read_text(encoding="utf-8"))
     manifest["query_window_start"] = args.start
     manifest["query_window_end"] = args.end
-    metric_names = _http_prometheus_get(
+
+    clusters = manifest.get("clusters", [])
+    if clusters and all(
+        cluster.get("workspace", {}).get("prometheus_query_endpoint")
+        for cluster in clusters
+    ):
+        cluster_reports = []
+        combined_checks = []
+        for cluster in clusters:
+            cluster_manifest = dict(manifest)
+            cluster_manifest["clusters"] = [cluster]
+            cluster_manifest["workspace"] = cluster["workspace"]
+            endpoint = cluster["workspace"]["prometheus_query_endpoint"]
+            report = _run_managed_query(
+                args,
+                cluster_manifest,
+                endpoint,
+                cluster["id"],
+            )
+            role = cluster["role"]
+            cluster_reports.append(
+                {
+                    "role": role,
+                    "workspace": cluster["workspace"],
+                    "complete": report["complete"],
+                    "checks": report["checks"],
+                }
+            )
+            for check in report["checks"]:
+                combined = dict(check)
+                combined["name"] = f"{role}:{check['name']}"
+                combined["cluster_role"] = role
+                combined_checks.append(combined)
+        return {
+            "schema_version": 2,
+            "source": "azure-monitor-managed-prometheus",
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "complete": all(report["complete"] for report in cluster_reports),
+            "workspace": manifest.get("workspace", {}),
+            "workspaces": manifest.get("workspaces", []),
+            "query_window_start": args.start,
+            "query_window_end": args.end,
+            "checks": combined_checks,
+            "cluster_reports": cluster_reports,
+        }
+
+    if not args.endpoint:
+        raise ValueError(
+            "--endpoint is required for legacy single-workspace manifests"
+        )
+    return _run_managed_query(
+        args,
+        manifest,
         args.endpoint,
+        args.resource_scope,
+    )
+
+
+def _run_managed_query(args, manifest, endpoint, resource_scope):
+    metric_names = _http_prometheus_get(
+        endpoint,
         "/api/v1/label/__name__/values",
-        scope=args.resource_scope,
+        scope=resource_scope,
     )
     series_by_metric = {}
     for metric_name in MANAGED_SERIES_METRICS:
         series_by_metric[metric_name] = _http_prometheus_get(
-            args.endpoint,
+            endpoint,
             "/api/v1/series",
             params=[
                 ("match[]", f'{{__name__="{metric_name}"}}'),
                 ("start", args.start),
                 ("end", args.end),
             ],
-            scope=args.resource_scope,
+            scope=resource_scope,
         )
     return build_managed_audit(metric_names, series_by_metric, manifest)
 
@@ -598,7 +657,7 @@ def parse_args(argv=None):
         "managed",
         help="Audit AKS control-plane metrics in Azure managed Prometheus",
     )
-    managed.add_argument("--endpoint", required=True)
+    managed.add_argument("--endpoint", default="")
     managed.add_argument("--resource-scope", default="")
     managed.add_argument("--manifest", required=True)
     managed.add_argument("--start", required=True)

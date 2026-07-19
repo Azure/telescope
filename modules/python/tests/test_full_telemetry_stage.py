@@ -49,10 +49,18 @@ def test_dedicated_full_telemetry_stage_is_isolated():
     assert "n2_mock_full_telemetry:" in pipeline
     assert 'AKS_CONTROL_PLANE_METRICS_ENABLED: "true"' in pipeline
     assert "AKS_CONTROL_PLANE_LAW_NAME: cmsh-scale-controlplane-law" in pipeline
+    assert (
+        "AKS_CONTROL_PLANE_AMW_NAME_PREFIX: "
+        "cmsh-scale-eastus2euap-amw"
+    ) in pipeline
+    assert 'AKS_AMW_ARM_BATCH_SIZE: "10"' in pipeline
+    assert 'CL2_ACNS_TELEMETRY_ENABLED: "true"' in pipeline
     assert 'kwok_usage_cpu: "25m"' in pipeline
     assert 'kwok_usage_memory: "64Mi"' in pipeline
-    assert 'AKS_MANAGED_TSDB_CHUNK_SECONDS: "600"' in pipeline
-    assert 'AKS_MANAGED_TSDB_WORKERS: "4"' in pipeline
+    assert "AKS_MANAGED_TSDB_CHUNK_SECONDS" not in pipeline[
+        pipeline.index("azure_eastus2euap_n2_mock_full_telemetry") :
+        pipeline.index("azure_eastus2euap_n2_mock_full_telemetry") + 5000
+    ]
     assert "timeout_in_minutes: 480" in pipeline
 
 
@@ -60,6 +68,10 @@ def test_mock_mode_is_normalized_for_shell_gates():
     execute = EXECUTE_TEMPLATE_PATH.read_text(encoding="utf-8")
 
     assert 'export CL2_MOCK_MODE="${cl2_mock_mode_raw,,}"' in execute
+    assert (
+        'export CL2_ACNS_TELEMETRY_ENABLED='
+        '"${CL2_ACNS_TELEMETRY_ENABLED:-false}"'
+    ) in execute
 
 
 def test_full_telemetry_azure_tasks_use_ui_selected_subscription():
@@ -86,18 +98,17 @@ def test_managed_collection_phases_are_separate_visible_tasks():
     template = COLLECT_TEMPLATE_PATH.read_text(encoding="utf-8")
     display_names = [
         "Wait for AKS telemetry ingestion",
-        "Audit and export AKS telemetry",
-        "Reconstruct managed Prometheus TSDB",
+        "Audit managed telemetry and export platform metrics",
         "Upload managed telemetry artifacts",
         "Publish AKS control-plane telemetry artifacts",
     ]
 
     positions = [template.index(name) for name in display_names]
     assert positions == sorted(positions)
-    assert template.count("az account set --subscription") == 4
+    assert template.count("az account set --subscription") == 3
+    assert "Reconstruct managed Prometheus TSDB" not in template
     assert "AKS_TELEMETRY_WINDOW_READY" in template
     assert "AKS_TELEMETRY_CONFIGURED" in template
-    assert "AKS_MANAGED_PROMETHEUS_READY" in template
     assert template.count("succeededOrFailed()") >= 4
 
 
@@ -118,3 +129,22 @@ def test_native_snapshots_are_relabelled_before_publish_and_upload():
     assert template.count("SNAPSHOT_RELABEL_READY") >= 2
     assert 'ln "$snap" "$dest_path"' in template
     assert "Released uploaded native snapshot tarballs" in template
+    assert "/telemetry/acns/" in template
+    assert 'blob_name="${BUILD_BRANCH}/acns/' in template
+
+
+def test_acns_probe_runs_before_snapshot_and_is_collected_before_teardown():
+    worker = (
+        REPOSITORY_ROOT
+        / "steps"
+        / "engine"
+        / "clusterloader2"
+        / "clustermesh-scale"
+        / "run-cl2-on-cluster.sh"
+    ).read_text(encoding="utf-8")
+
+    setup = worker.index("setup-acns-telemetry.sh")
+    collect = worker.index("collect-acns-telemetry.sh")
+    snapshot = worker.index("prometheus TSDB snapshot -------")
+    assert setup < collect < snapshot
+    assert "--require-acns" in worker

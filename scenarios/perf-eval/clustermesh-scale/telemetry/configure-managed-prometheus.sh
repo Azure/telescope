@@ -92,10 +92,34 @@ done
 
 subscription_id=$(az account show --query id -o tsv)
 amw_resource_group="${AKS_CONTROL_PLANE_AMW_RESOURCE_GROUP:-clustermesh-scale-prom-snapshots}"
-amw_name="${AKS_CONTROL_PLANE_AMW_NAME:-cmsh-scale-${REGION}-amw}"
+amw_name_prefix="${AKS_CONTROL_PLANE_AMW_NAME_PREFIX:-cmsh-scale-${REGION}-amw}"
+legacy_amw_name="${AKS_CONTROL_PLANE_AMW_NAME:-}"
 law_name="${AKS_CONTROL_PLANE_LAW_NAME:-cmsh-scale-controlplane-law}"
 law_location="${AKS_CONTROL_PLANE_LAW_LOCATION:-eastus2}"
 diagnostic_setting_name="${AKS_CONTROL_PLANE_DIAGNOSTIC_SETTING_NAME:-clustermesh-scale-full-telemetry}"
+amw_arm_batch_size="${AKS_AMW_ARM_BATCH_SIZE:-10}"
+preflight_window_minutes="${AKS_AMW_PREFLIGHT_WINDOW_MINUTES:-15}"
+preflight_threshold="${AKS_AMW_PREFLIGHT_MAX_UTILIZATION_PERCENT:-40}"
+
+if ! [[ "$amw_arm_batch_size" =~ ^[1-9][0-9]*$ ]]; then
+  echo "AKS_AMW_ARM_BATCH_SIZE must be a positive integer." >&2
+  exit 1
+fi
+if ! [[ "$preflight_window_minutes" =~ ^[1-9][0-9]*$ ]]; then
+  echo "AKS_AMW_PREFLIGHT_WINDOW_MINUTES must be a positive integer." >&2
+  exit 1
+fi
+
+mapfile -t source_cluster_rows < <(jq -c '.[]' "$CLUSTERS_FILE")
+if [ "${#source_cluster_rows[@]}" -eq 0 ]; then
+  echo "No clusters found in $CLUSTERS_FILE" >&2
+  exit 1
+fi
+if [ -n "$legacy_amw_name" ] &&
+   [ "${#source_cluster_rows[@]}" -gt 1 ]; then
+  echo "AKS_CONTROL_PLANE_AMW_NAME cannot be used for a multi-cluster run; use AKS_CONTROL_PLANE_AMW_NAME_PREFIX so every cluster receives its own workspace." >&2
+  exit 1
+fi
 
 if ! az group show --name "$amw_resource_group" --output none 2>/dev/null; then
   echo "Creating persistent telemetry resource group $amw_resource_group..."
@@ -106,53 +130,187 @@ if ! az group show --name "$amw_resource_group" --output none 2>/dev/null; then
     --output none
 fi
 
-if ! az monitor account show \
+workspace_spec_jsonl=$(mktemp)
+for row in "${source_cluster_rows[@]}"; do
+  role=$(echo "$row" | jq -r '.role')
+  slot=$(printf '%s' "$role" \
+    | tr '[:upper:]' '[:lower:]' \
+    | sed -E 's/[^a-z0-9-]+/-/g; s/^-+//; s/-+$//')
+  if [ -n "$legacy_amw_name" ]; then
+    workspace_name="$legacy_amw_name"
+    slot="shared"
+  else
+    workspace_name="${amw_name_prefix}-${slot}"
+  fi
+  if [ "${#workspace_name}" -gt 63 ]; then
+    echo "Azure Monitor workspace name exceeds 63 characters: $workspace_name" >&2
+    exit 1
+  fi
+  jq -cn \
+    --arg role "$role" \
+    --arg slot "$slot" \
+    --arg name "$workspace_name" \
+    '{role: $role, slot: $slot, name: $name}' \
+    >> "$workspace_spec_jsonl"
+done
+workspace_assignments=$(jq -s '.' "$workspace_spec_jsonl")
+workspace_specs=$(echo "$workspace_assignments" | jq 'unique_by(.name)')
+rm -f "$workspace_spec_jsonl"
+
+mapfile -t missing_workspace_names < <(
+  echo "$workspace_specs" | jq -r '.[].name' | while IFS= read -r workspace_name; do
+    if ! az monitor account show \
+        --resource-group "$amw_resource_group" \
+        --name "$workspace_name" \
+        --output none 2>/dev/null; then
+      printf '%s\n' "$workspace_name"
+    fi
+  done
+)
+
+deployment_prefix=$(printf 'cmsh-amw-%s' "$RUN_ID" \
+  | tr '[:upper:]' '[:lower:]' \
+  | sed -E 's/[^a-z0-9-]+/-/g; s/^-+//; s/-+$//')
+for ((batch_start = 0; batch_start < ${#missing_workspace_names[@]}; batch_start += amw_arm_batch_size)); do
+  batch_names=("${missing_workspace_names[@]:batch_start:amw_arm_batch_size}")
+  batch_json=$(printf '%s\n' "${batch_names[@]}" | jq -Rsc 'split("\n") | map(select(length > 0))')
+  arm_template=$(mktemp)
+  jq -n \
+    --arg location "$REGION" \
+    --argjson names "$batch_json" \
+    '{
+      "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+      contentVersion: "1.0.0.0",
+      resources: [
+        $names[] | {
+          type: "Microsoft.Monitor/accounts",
+          apiVersion: "2023-04-03",
+          name: .,
+          location: $location,
+          tags: {
+            scenario: "clustermesh-scale",
+            telemetry: "control-plane",
+            gc_skip: "true",
+            persistent: "true"
+          },
+          properties: {
+            publicNetworkAccess: "Enabled"
+          }
+        }
+      ]
+    }' > "$arm_template"
+  batch_number=$((batch_start / amw_arm_batch_size + 1))
+  deployment_name="${deployment_prefix}-${batch_number}"
+  deployment_name="${deployment_name:0:64}"
+  echo "Creating ${#batch_names[@]} Azure Monitor workspace(s) in ARM batch $batch_number..."
+  az deployment group create \
     --resource-group "$amw_resource_group" \
-    --name "$amw_name" \
-    --output none 2>/dev/null; then
-  echo "Creating persistent Azure Monitor workspace $amw_name..."
-  az monitor account create \
-    --resource-group "$amw_resource_group" \
-    --name "$amw_name" \
-    --location "$REGION" \
-    --tags scenario=clustermesh-scale telemetry=control-plane \
+    --name "$deployment_name" \
+    --mode Incremental \
+    --template-file "$arm_template" \
     --output none
-fi
+  rm -f "$arm_template"
+done
 
-amw_json=$(az monitor account show \
-  --resource-group "$amw_resource_group" \
-  --name "$amw_name" \
-  --output json)
-amw_id=$(echo "$amw_json" | jq -r '.id')
-amw_query_endpoint=$(echo "$amw_json" | jq -r \
-  '.metrics.prometheusQueryEndpoint // .properties.metrics.prometheusQueryEndpoint // empty')
+workspace_catalog_jsonl=$(mktemp)
+while IFS= read -r workspace_spec; do
+  workspace_name=$(echo "$workspace_spec" | jq -r '.name')
+  workspace_slot=$(echo "$workspace_spec" | jq -r '.slot')
+  workspace_json=$(az monitor account show \
+    --resource-group "$amw_resource_group" \
+    --name "$workspace_name" \
+    --output json)
+  workspace_id=$(echo "$workspace_json" | jq -r '.id')
+  workspace_query_endpoint=$(echo "$workspace_json" | jq -r \
+    '.metrics.prometheusQueryEndpoint // .properties.metrics.prometheusQueryEndpoint // empty')
+  jq -cn \
+    --arg slot "$workspace_slot" \
+    --arg name "$workspace_name" \
+    --arg id "$workspace_id" \
+    --arg resource_group "$amw_resource_group" \
+    --arg query_endpoint "$workspace_query_endpoint" \
+    '{
+      slot: $slot,
+      name: $name,
+      id: $id,
+      resource_group: $resource_group,
+      prometheus_query_endpoint: $query_endpoint,
+      persistent_after_run: true
+    }' >> "$workspace_catalog_jsonl"
+done < <(echo "$workspace_specs" | jq -c '.[]')
+workspace_catalog=$(jq -s '.' "$workspace_catalog_jsonl")
+rm -f "$workspace_catalog_jsonl"
 
-preflight_window_minutes="${AKS_AMW_PREFLIGHT_WINDOW_MINUTES:-15}"
-preflight_threshold="${AKS_AMW_PREFLIGHT_MAX_UTILIZATION_PERCENT:-40}"
-if ! [[ "$preflight_window_minutes" =~ ^[1-9][0-9]*$ ]]; then
-  echo "AKS_AMW_PREFLIGHT_WINDOW_MINUTES must be a positive integer." >&2
-  exit 1
-fi
 preflight_end=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 preflight_start=$(date -u \
   -d "$preflight_window_minutes minutes ago" \
   +%Y-%m-%dT%H:%M:%SZ)
-preflight_raw="$(dirname "$MANIFEST_PATH")/amw-capacity-preflight.json"
-preflight_summary="$(dirname "$MANIFEST_PATH")/amw-capacity-preflight-summary.json"
-if ! capture_amw_capacity \
-    "$amw_id" \
-    "$preflight_start" \
-    "$preflight_end" \
-    "$preflight_raw" \
-    "$preflight_summary"; then
-  echo "Unable to verify Azure Monitor workspace capacity before configuration." >&2
+workspace_preflight_jsonl=$(mktemp)
+while IFS= read -r workspace; do
+  workspace_slot=$(echo "$workspace" | jq -r '.slot')
+  workspace_id=$(echo "$workspace" | jq -r '.id')
+  preflight_raw="$(dirname "$MANIFEST_PATH")/amw-capacity-preflight-${workspace_slot}.json"
+  preflight_summary="$(dirname "$MANIFEST_PATH")/amw-capacity-preflight-${workspace_slot}-summary.json"
+  if ! capture_amw_capacity \
+      "$workspace_id" \
+      "$preflight_start" \
+      "$preflight_end" \
+      "$preflight_raw" \
+      "$preflight_summary"; then
+    echo "Unable to verify capacity for Azure Monitor workspace slot $workspace_slot." >&2
+    exit 1
+  fi
+  if ! amw_capacity_preflight_ok "$preflight_summary" "$preflight_threshold"; then
+    echo "##vso[task.logissue type=error;] Azure Monitor workspace slot $workspace_slot does not have enough headroom for a new control-plane telemetry run."
+    exit 1
+  fi
+  preflight_capacity=$(cat "$preflight_summary")
+  echo "$workspace" | jq -c \
+    --arg threshold "$preflight_threshold" \
+    --arg monitoring_window_start "$preflight_end" \
+    --argjson preflight "$preflight_capacity" \
+    '. + {
+      capacity_guard: {
+        preflight_max_utilization_percent: ($threshold | tonumber),
+        monitoring_window_start: $monitoring_window_start,
+        preflight: $preflight
+      }
+    }' >> "$workspace_preflight_jsonl"
+done < <(echo "$workspace_catalog" | jq -c '.[]')
+workspace_catalog=$(jq -s '.' "$workspace_preflight_jsonl")
+rm -f "$workspace_preflight_jsonl"
+
+cluster_catalog_jsonl=$(mktemp)
+for row in "${source_cluster_rows[@]}"; do
+  role=$(echo "$row" | jq -r '.role')
+  workspace_name=$(jq -r \
+    --arg role "$role" \
+    '.[] | select(.role == $role) | .name' \
+    <(echo "$workspace_assignments"))
+  workspace=$(echo "$workspace_catalog" | jq -c \
+    --arg name "$workspace_name" \
+    '.[] | select(.name == $name)')
+  echo "$row" | jq -c \
+    --arg subscription_id "$subscription_id" \
+    --arg run_id "$RUN_ID" \
+    --argjson workspace "$workspace" \
+    '. + {
+      id: ("/subscriptions/" + $subscription_id
+        + "/resourceGroups/" + .rg
+        + "/providers/Microsoft.ContainerService/managedClusters/" + .name),
+      prometheus_cluster_alias: (($run_id + "_" + .role)
+        | gsub("[^A-Za-z0-9]"; "_")),
+      workspace: $workspace
+    }' >> "$cluster_catalog_jsonl"
+done
+clusters_with_ids=$(jq -s '.' "$cluster_catalog_jsonl")
+rm -f "$cluster_catalog_jsonl"
+mapfile -t cluster_rows < <(echo "$clusters_with_ids" | jq -c '.[]')
+
+if [ "${#cluster_rows[@]}" -eq 0 ]; then
+  echo "No mapped clusters found after workspace assignment." >&2
   exit 1
 fi
-if ! amw_capacity_preflight_ok "$preflight_summary" "$preflight_threshold"; then
-  echo "##vso[task.logissue type=error;] Azure Monitor workspace does not have enough headroom for a new control-plane telemetry run."
-  exit 1
-fi
-preflight_capacity_json=$(cat "$preflight_summary")
 
 if ! az monitor log-analytics workspace show \
     --resource-group "$amw_resource_group" \
@@ -175,12 +333,6 @@ law_json=$(az monitor log-analytics workspace show \
 law_id=$(echo "$law_json" | jq -r '.id')
 law_customer_id=$(echo "$law_json" | jq -r '.customerId')
 
-mapfile -t cluster_rows < <(jq -c '.[]' "$CLUSTERS_FILE")
-if [ "${#cluster_rows[@]}" -eq 0 ]; then
-  echo "No clusters found in $CLUSTERS_FILE" >&2
-  exit 1
-fi
-
 # az aks get-credentials writes the shared Azure CLI token cache. Keep this
 # sequential; the later cluster updates are safe to run with bounded parallelism.
 for row in "${cluster_rows[@]}"; do
@@ -202,12 +354,15 @@ configure_one() {
   local row="$1"
   local role name resource_group kubeconfig metrics_enabled controlplane_enabled
   local cluster_alias rendered_config cluster_id categories_file logs_file metrics_file
+  local workspace_name workspace_id
   role=$(echo "$row" | jq -r '.role')
   name=$(echo "$row" | jq -r '.name')
   resource_group=$(echo "$row" | jq -r '.rg')
+  workspace_name=$(echo "$row" | jq -r '.workspace.name')
+  workspace_id=$(echo "$row" | jq -r '.workspace.id')
   kubeconfig="$HOME/.kube/$role.config"
-  cluster_alias=$(printf '%s_%s' "$RUN_ID" "$role" | sed 's/[^A-Za-z0-9]/_/g')
-  cluster_id="/subscriptions/${subscription_id}/resourceGroups/${resource_group}/providers/Microsoft.ContainerService/managedClusters/${name}"
+  cluster_alias=$(echo "$row" | jq -r '.prometheus_cluster_alias')
+  cluster_id=$(echo "$row" | jq -r '.id')
 
   rendered_config=$(mktemp)
   sed \
@@ -222,12 +377,12 @@ configure_one() {
     return 1
   fi
 
-  echo "[$role] enabling managed Prometheus -> $amw_name"
+  echo "[$role] enabling managed Prometheus -> $workspace_name"
   if ! az aks update \
       --resource-group "$resource_group" \
       --name "$name" \
       --enable-azure-monitor-metrics \
-      --azure-monitor-workspace-resource-id "$amw_id" \
+      --azure-monitor-workspace-resource-id "$workspace_id" \
       --only-show-errors \
       --output none; then
     rm -f "$rendered_config"
@@ -362,16 +517,6 @@ fi
 
 configured_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 diagnostics_json=$(jq -s '.' "$(dirname "$MANIFEST_PATH")"/diagnostics-*.json)
-clusters_with_ids=$(jq \
-  --arg subscription_id "$subscription_id" \
---arg run_id "$RUN_ID" \
-'[.[] | . + {
-    id: ("/subscriptions/" + $subscription_id
-      + "/resourceGroups/" + .rg
-      + "/providers/Microsoft.ContainerService/managedClusters/" + .name),
-    prometheus_cluster_alias: (($run_id + "_" + .role)
-      | gsub("[^A-Za-z0-9]"; "_"))
-  }]' "$CLUSTERS_FILE")
 resource_group_count=$(echo "$clusters_with_ids" | jq '[.[].rg] | unique | length')
 if [ "$resource_group_count" -eq 1 ]; then
   run_resource_group=$(echo "$clusters_with_ids" | jq -r '.[0].rg')
@@ -387,38 +532,26 @@ jq -n \
   --arg region "$REGION" \
   --arg resource_scope "$resource_scope" \
   --arg resource_endpoint "$resource_endpoint" \
-  --arg amw_id "$amw_id" \
-  --arg amw_name "$amw_name" \
   --arg amw_resource_group "$amw_resource_group" \
-  --arg amw_query_endpoint "$amw_query_endpoint" \
   --arg law_id "$law_id" \
   --arg law_name "$law_name" \
   --arg law_resource_group "$amw_resource_group" \
   --arg law_customer_id "$law_customer_id" \
   --arg law_location "$law_location" \
-  --arg preflight_threshold "$preflight_threshold" \
-  --argjson preflight_capacity "$preflight_capacity_json" \
+  --argjson workspaces "$workspace_catalog" \
   --argjson diagnostics "$diagnostics_json" \
   --argjson clusters "$clusters_with_ids" \
   '{
-    schema_version: 1,
+    schema_version: 2,
     run_id: $run_id,
     configured_at: $configured_at,
     region: $region,
     workspace: {
-      id: $amw_id,
-      name: $amw_name,
+      mode: (if ($workspaces | length) == 1 then "single" else "per-cluster" end),
       resource_group: $amw_resource_group,
-      prometheus_query_endpoint: $amw_query_endpoint,
-      persistent_after_run: true,
-      capacity_guard: {
-        preflight_max_utilization_percent: (
-          $preflight_threshold | tonumber
-        ),
-        monitoring_window_start: $preflight_capacity.window["end"],
-        preflight: $preflight_capacity
-      }
+      persistent_after_run: true
     },
+    workspaces: $workspaces,
     query: {
       resource_endpoint: $resource_endpoint,
       resource_scope: $resource_scope
@@ -433,7 +566,8 @@ jq -n \
         persistent_after_run: true
       },
       export_to_resource_specific: true,
-      diagnostics: $diagnostics
+      diagnostics: $diagnostics,
+      deferred_export: true
     },
     control_plane: {
       collection_scope: "control-plane-only",
@@ -453,13 +587,17 @@ jq -n \
       duplicate_cluster_metrics_enabled: false,
       pod_annotation_scraping_enabled: false
     },
+    processing: {
+      amw_reconstruction: "deferred",
+      law_export: "deferred",
+      aksinfra_export: "deferred"
+    },
     clusters: $clusters
   }' > "$MANIFEST_PATH"
 
 echo "Managed Prometheus configured for ${#cluster_rows[@]} cluster(s)."
-echo "Persistent workspace: $amw_id"
+echo "Persistent workspaces: $(echo "$workspace_catalog" | jq -r 'map(.name) | join(", ")')"
 echo "Run manifest: $MANIFEST_PATH"
 echo "##vso[task.setvariable variable=AKS_CONTROL_PLANE_METRICS_MANIFEST]$MANIFEST_PATH"
 echo "##vso[task.setvariable variable=AKS_CONTROL_PLANE_METRICS_CONFIGURED_AT]$configured_at"
-echo "##vso[task.setvariable variable=AKS_CONTROL_PLANE_AMW_ID]$amw_id"
 echo "##vso[task.setvariable variable=AKS_CONTROL_PLANE_LAW_ID]$law_id"

@@ -49,6 +49,8 @@ python_workdir="$9"
 tear_down_prometheus_flag="${10:-0}"
 
 mkdir -p "$report_dir"
+repo_root=$(cd -- "$(dirname -- "$python_script_file")/../../../.." && pwd)
+acns_telemetry_failed=0
 
 identity_ready=true
 for identity_value in \
@@ -69,6 +71,15 @@ done
 echo "===================================================================="
 echo "  Running CL2 on $role"
 echo "===================================================================="
+
+if [ "${CL2_ACNS_TELEMETRY_ENABLED:-false}" = "true" ]; then
+  acns_setup_script="$repo_root/scenarios/perf-eval/clustermesh-scale/telemetry/setup-acns-telemetry.sh"
+  echo "------- $role: configuring ACNS telemetry probe -------"
+  if ! KUBECONFIG="$kubeconfig" bash "$acns_setup_script"; then
+    echo "##vso[task.logissue type=error;] $role: ACNS telemetry setup failed."
+    acns_telemetry_failed=1
+  fi
+fi
 
 # Background Prometheus memory-limit patcher (Phase D fix 2026-05-16):
 # CL2's bundled prometheus manifest hardcodes `resources.limits.memory: 2Gi`
@@ -377,6 +388,17 @@ KUBECONFIG="$kubeconfig" kubectl -n kube-system logs \
   -l io.cilium/app=operator --tail=2000 --prefix=true \
   > "$log_dir/cilium-operator.log" 2>&1 || true
 
+if [ "${CL2_ACNS_TELEMETRY_ENABLED:-false}" = "true" ]; then
+  acns_collect_script="$repo_root/scenarios/perf-eval/clustermesh-scale/telemetry/collect-acns-telemetry.sh"
+  acns_output_dir="$report_dir/telemetry/acns"
+  echo "------- $role: collecting ACNS telemetry -------"
+  if ! KUBECONFIG="$kubeconfig" OUTPUT_DIR="$acns_output_dir" \
+      bash "$acns_collect_script"; then
+    echo "##vso[task.logissue type=error;] $role: ACNS telemetry collection failed."
+    acns_telemetry_failed=1
+  fi
+fi
+
 # Coverage audit runs before the optional snapshot and Prometheus teardown so
 # every run records exactly which telemetry families and scrape targets landed
 # in its TSDB. Missing coverage is a warning, not a workload-result failure.
@@ -393,8 +415,14 @@ if [ -f "$telemetry_audit_script" ]; then
       --require-kwok-resource
     )
   fi
+  if [ "${CL2_ACNS_TELEMETRY_ENABLED:-false}" = "true" ]; then
+    telemetry_audit_args+=(--require-acns)
+  fi
   if ! python3 "$telemetry_audit_script" "${telemetry_audit_args[@]}"; then
     echo "##vso[task.logissue type=warning;] $role: self-hosted Prometheus telemetry audit is incomplete; inspect $telemetry_audit_dir/telemetry-audit-self-hosted.json"
+    if [ "${CL2_ACNS_TELEMETRY_ENABLED:-false}" = "true" ]; then
+      acns_telemetry_failed=1
+    fi
   fi
 else
   echo "##vso[task.logissue type=warning;] $role: telemetry audit script not found at $telemetry_audit_script"
@@ -559,6 +587,11 @@ if [ "$cl2_passed" -ne 1 ]; then
   echo "------- end CL2 FAILURE DIAG -------"
 
   echo "##vso[task.logissue type=warning;] $role: CL2 run failed (junit missing or has failures/errors at $report_dir/junit.xml)"
+  exit 1
+fi
+
+if [ "$acns_telemetry_failed" -ne 0 ]; then
+  echo "##vso[task.logissue type=error;] $role: ACNS telemetry smoke is incomplete."
   exit 1
 fi
 
