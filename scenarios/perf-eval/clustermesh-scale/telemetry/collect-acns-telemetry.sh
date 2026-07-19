@@ -92,6 +92,8 @@ jq -n \
 
 kubectl delete containernetworklog clustermesh-scale-acns \
   --ignore-not-found >/dev/null 2>&1 || true
+kubectl delete containernetworkmetric container-network-metric \
+  --ignore-not-found >/dev/null 2>&1 || true
 kubectl delete namespace acns-telemetry \
   --ignore-not-found --wait=false >/dev/null 2>&1 || true
 

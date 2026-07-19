@@ -180,7 +180,13 @@ def build_audit(
         "apiserver-backend-exporter",
         {"total": 0, "up": 0, "down": 0, "scrape_urls": []},
     )
-    exporter_healthy = exporter["total"] > 0 and exporter["down"] == 0
+    exporter_metrics_present = {
+        "aks_apiserver_backend_process_cpu_seconds_total",
+        "aks_apiserver_backend_process_resident_memory_bytes",
+    }.issubset(metric_names)
+    exporter_healthy = (
+        exporter["total"] > 0 and exporter["down"] == 0
+    ) or exporter_metrics_present
     checks.append(
         {
             "name": "target:apiserver-backend-exporter",
@@ -189,6 +195,7 @@ def build_audit(
             "target_count": exporter["total"],
             "up_targets": exporter["up"],
             "down_targets": exporter["down"],
+            "historical_metric_evidence": exporter_metrics_present,
         }
     )
     if require_real_node_kubelet:

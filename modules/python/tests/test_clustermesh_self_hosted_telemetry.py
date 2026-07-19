@@ -51,6 +51,7 @@ TELEMETRY_DIR = (
 )
 ACNS_PROBE_PATH = TELEMETRY_DIR / "acns" / "probe.yaml"
 ACNS_CNL_PATH = TELEMETRY_DIR / "acns" / "container-network-log.yaml"
+ACNS_METRIC_PATH = TELEMETRY_DIR / "acns" / "container-network-metric.yaml"
 ACNS_COLLECTOR_PATH = TELEMETRY_DIR / "acns" / "log-collector.yaml"
 ACNS_SETUP_SCRIPT = TELEMETRY_DIR / "setup-acns-telemetry.sh"
 ACNS_COLLECT_SCRIPT = TELEMETRY_DIR / "collect-acns-telemetry.sh"
@@ -123,6 +124,9 @@ def test_acns_probe_is_real_node_only_and_captures_filtered_logs():
         if resource["kind"] == "CiliumNetworkPolicy"
     )
     cnl = yaml.safe_load(ACNS_CNL_PATH.read_text(encoding="utf-8"))
+    network_metric = yaml.safe_load(
+        ACNS_METRIC_PATH.read_text(encoding="utf-8")
+    )
     collector = yaml.safe_load(ACNS_COLLECTOR_PATH.read_text(encoding="utf-8"))
 
     assert {"acns-client", "acns-server"} <= set(deployments)
@@ -150,6 +154,8 @@ def test_acns_probe_is_real_node_only_and_captures_filtered_logs():
         )
     assert any("toFQDNs" in rule for rule in policy["spec"]["egress"])
     assert cnl["spec"]["includefilters"]
+    assert network_metric["kind"] == "ContainerNetworkMetric"
+    assert network_metric["spec"]["filters"][0]["metric"] == "dns"
     assert {
         protocol
         for item in cnl["spec"]["includefilters"]
@@ -192,6 +198,7 @@ def test_acns_setup_and_host_log_collection_smoke(tmp_path):
             set -euo pipefail
             echo "$*" >> "$KUBECTL_LOG"
             if [ "${1:-} ${2:-}" = "get crd/containernetworklogs.acn.azure.com" ] ||
+               [ "${1:-} ${2:-}" = "get crd/containernetworkmetrics.acn.azure.com" ] ||
                [ "${1:-} ${2:-}" = "get crd/ciliumnetworkpolicies.cilium.io" ]; then
               exit 0
             elif [ "${1:-}" = "apply" ]; then
@@ -323,6 +330,32 @@ def test_audit_requires_real_node_kubelet_targets():
 
     assert report["complete"] is True
     assert {check["status"] for check in report["checks"]} == {"covered"}
+
+    post_teardown = audit_module.build_audit(
+        metric_names,
+        [target for target in targets if target["labels"]["job"] != "apiserver-backend-exporter"],
+        require_real_node_kubelet=True,
+        require_kwok_resource=True,
+        identity_series=[
+            {
+                "run_id": "run-1",
+                "cluster_role": "mesh-1",
+                "cluster_name": "clustermesh-1",
+                "cluster_resource_id": "/subscriptions/sub-1/clustermesh-1",
+                "subscription_id": "sub-1",
+                "resource_group": "rg-1",
+                "region": "eastus2euap",
+                "prometheus_cluster_alias": "run_1_mesh_1",
+            }
+        ],
+    )
+    exporter_check = next(
+        check
+        for check in post_teardown["checks"]
+        if check["name"] == "target:apiserver-backend-exporter"
+    )
+    assert exporter_check["status"] == "covered"
+    assert exporter_check["historical_metric_evidence"] is True
 
 
 def test_audit_fails_when_cadvisor_target_is_down():

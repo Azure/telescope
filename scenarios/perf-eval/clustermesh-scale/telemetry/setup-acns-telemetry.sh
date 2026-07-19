@@ -13,6 +13,7 @@ deadline=$(( $(date +%s) + timeout_seconds ))
 
 for crd in \
   containernetworklogs.acn.azure.com \
+  containernetworkmetrics.acn.azure.com \
   ciliumnetworkpolicies.cilium.io; do
   until kubectl get "crd/$crd" >/dev/null 2>&1; do
     if [ "$(date +%s)" -ge "$deadline" ]; then
@@ -25,6 +26,7 @@ done
 
 kubectl apply \
   -f "$script_dir/acns/probe.yaml" \
+  -f "$script_dir/acns/container-network-metric.yaml" \
   -f "$script_dir/acns/container-network-log.yaml" \
   -f "$script_dir/acns/log-collector.yaml" >/dev/null
 

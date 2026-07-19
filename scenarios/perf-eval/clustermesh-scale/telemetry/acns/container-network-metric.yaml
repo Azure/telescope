@@ -1,0 +1,20 @@
+apiVersion: acn.azure.com/v1alpha1
+kind: ContainerNetworkMetric
+metadata:
+  name: container-network-metric
+spec:
+  filters:
+    - metric: dns
+      includeFilters:
+        - name: acns-dns-source
+          from:
+            namespacedPod:
+              - acns-telemetry/acns-client-
+          protocol:
+            - dns
+        - name: acns-dns-destination
+          to:
+            namespacedPod:
+              - acns-telemetry/acns-client-
+          protocol:
+            - dns
