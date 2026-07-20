@@ -1318,6 +1318,17 @@ steps:
           wait_mesh_failover_probe "$SCENARIO"
           wait_mesh_restart_survival_probe "$SCENARIO"
 
+          scenario_end=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          jq \
+            --arg scenario_end "$scenario_end" \
+            --argjson result "$scenario_rc" \
+            '.[-1] += {
+              end_timestamp: $scenario_end,
+              result_code: $result
+            }' \
+            "$SHARE_INFRA_META" > "${SHARE_INFRA_META}.tmp" &&
+            mv "${SHARE_INFRA_META}.tmp" "$SHARE_INFRA_META"
+
           # Proactive failure debug dump (added 2026-05-14 after build 67114).
           # User direction: assume failure, keep debug logs persistent across
           # runs; remove only after green. Runs unconditionally for node-churn

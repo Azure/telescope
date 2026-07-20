@@ -902,6 +902,20 @@ def test_scripts_use_current_aks_profile_and_full_export():
 def test_split_collection_scripts_handoff_and_preserve_outputs(tmp_path):
     output_dir = tmp_path / "output"
     output_dir.mkdir()
+    scenario_meta = tmp_path / "share-infra-meta.json"
+    scenario_meta.write_text(
+        json.dumps(
+            [
+                {
+                    "scenario": "pod-churn-combined",
+                    "start_timestamp": "2026-07-14T00:00:00Z",
+                    "end_timestamp": "2026-07-14T00:30:00Z",
+                    "result_code": 0,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
     manifest_path = tmp_path / "run-manifest.json"
     manifest_path.write_text(
         json.dumps(
@@ -1062,6 +1076,7 @@ def test_split_collection_scripts_handoff_and_preserve_outputs(tmp_path):
             "MANIFEST_PATH": str(manifest_path),
             "OUTPUT_DIR": str(output_dir),
             "RUN_ID": "test-run",
+            "SHARE_INFRA_META": str(scenario_meta),
             "AUDIT_SCRIPT": str(audit_script),
             "PLATFORM_EXPORT_SCRIPT": str(platform_script),
             "BUILD_BRANCH": "test-branch",
@@ -1106,6 +1121,14 @@ def test_split_collection_scripts_handoff_and_preserve_outputs(tmp_path):
     assert collection_manifest["logs_window"]["start"]
     assert collection_manifest["logs_window"]["end"] is None
     assert collection_manifest["logs_window"]["deferred"] is True
+    assert collection_manifest["scenario_windows"] == [
+        {
+            "scenario": "pod-churn-combined",
+            "start_timestamp": "2026-07-14T00:00:00Z",
+            "end_timestamp": "2026-07-14T00:30:00Z",
+            "result_code": 0,
+        }
+    ]
     assert collection_manifest["managed_prometheus_ready"] is True
     assert collection_manifest["managed_prometheus_throttled"] is False
     assert collection_manifest["amw_capacity_verified"] is True

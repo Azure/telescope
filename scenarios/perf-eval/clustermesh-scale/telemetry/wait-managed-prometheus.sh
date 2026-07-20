@@ -238,6 +238,11 @@ else
 fi
 
 collection_manifest_tmp="${collection_manifest}.tmp"
+scenario_windows='[]'
+if [ -n "${SHARE_INFRA_META:-}" ] &&
+   [ -s "$SHARE_INFRA_META" ]; then
+  scenario_windows=$(cat "$SHARE_INFRA_META")
+fi
 jq \
   --arg collected_at "$end_time" \
   --arg audit_window_start "$audit_start" \
@@ -248,6 +253,7 @@ jq \
   --argjson amw_capacity_verified "$amw_capacity_verified" \
   --argjson managed_readiness "$managed_readiness" \
   --argjson capacity_audits "$capacity_audits" \
+  --argjson scenario_windows "$scenario_windows" \
   '. + {
     collected_at: $collected_at,
     platform_metrics_ready: $platform_metrics_ready,
@@ -256,6 +262,7 @@ jq \
     amw_capacity_verified: $amw_capacity_verified,
     managed_readiness: $managed_readiness,
     capacity_audits: $capacity_audits,
+    scenario_windows: $scenario_windows,
     audit_window: {
       start: $audit_window_start,
       end: $audit_window_end

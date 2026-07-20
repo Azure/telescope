@@ -90,6 +90,8 @@ def test_mock_mode_is_normalized_for_shell_gates():
         'export CL2_ACNS_TELEMETRY_ENABLED='
         '"${CL2_ACNS_TELEMETRY_ENABLED:-false}"'
     ) in execute
+    assert "end_timestamp: $scenario_end" in execute
+    assert "result_code: $result" in execute
 
 
 def test_full_telemetry_azure_tasks_use_ui_selected_subscription():
