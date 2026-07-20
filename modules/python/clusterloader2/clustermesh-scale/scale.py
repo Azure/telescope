@@ -951,7 +951,8 @@ def _emit_saturation_profile_rows(
             "classifier_version": str,
             "thresholds": {<criterion>: float},
             "verdict": str,  # clean | latency_spike | queue_unbounded |
-                             # cpu_exhaust | mesh_failure_burst | etcd_tail
+                             # cpu_exhaust | mesh_failure_burst | etcd_tail |
+                             # measurement_incomplete
             "dominant_signal_ratio": float,
             "rung_completed": bool,
             "measurement_missing": [str],
@@ -1212,6 +1213,7 @@ def _emit_saturation_profile_rows(
     max_clean_qps = None
     max_clean_ops_per_sec = None
     clean_streak_broken = False
+    measurement_incomplete_rungs = []
 
     with open(result_file, "a", encoding="utf-8") as out:
         for rung_idx, qps in enumerate(qps_list):
@@ -1255,14 +1257,21 @@ def _emit_saturation_profile_rows(
                 else:
                     signals[sig_name] = transform(raw)  # pylint: disable=not-callable
 
-            # Rung "completed" iff at least one signal landed AND the
-            # latency signal landed (proxy for "the rung executed and CL2
-            # gathered measurements for it"). Tuned conservatively so a
-            # half-collected rung is flagged for re-investigation rather
-            # than silently summarized.
-            rung_completed = (
-                signals.get("latency_p99_ms") is not None
-                and len(measurement_missing) < len(signal_map)
+            # Rung "completed"/measurement-valid iff EVERY verdict-driving
+            # signal landed and is numeric — latency_p99_ms,
+            # queue_size_perc99, apiserver_max_cpu_cores,
+            # mesh_failure_rate_max, and etcd_commit_p99_ms (the keys of
+            # SATURATION_THRESHOLDS, i.e. every criterion in `criteria`
+            # below). A rung whose verdict is "clean" because one of
+            # these signals silently failed to collect is indistinguishable
+            # from a genuinely clean rung unless we require the full set —
+            # partial collection must NOT be treated as a valid upper-bound
+            # measurement. Context-only signals (queue_size_max,
+            # observed_event_rate_p99) are informational and may remain
+            # absent without invalidating the rung.
+            required_signals = SATURATION_THRESHOLDS.keys()
+            rung_completed = all(
+                signals.get(sig_name) is not None for sig_name in required_signals
             )
             if rung_completed:
                 rungs_completed += 1
@@ -1283,32 +1292,20 @@ def _emit_saturation_profile_rows(
                 all_verdicts[criterion] = v / threshold
 
             tripped = {c: r for c, r in all_verdicts.items() if r >= 1.0}
-            if tripped:
+            if not rung_completed:
+                # Missing one or more of the required verdict-driving
+                # signals means the rung's measurement is incomplete. Do
+                # not infer a product saturation mode (or a Prometheus
+                # OOM) from absent data: the same shape can be caused by
+                # a harness/query failure. scenario_evidence.py
+                # independently invalidates the upper-bound contract
+                # when this happens.
+                verdict = "measurement_incomplete"
+                dominant_ratio = 0.0
+                measurement_incomplete_rungs.append(rung_idx)
+            elif tripped:
                 verdict = max(tripped, key=tripped.get)
                 dominant_ratio = tripped[verdict]
-            elif (not rung_completed and rungs_completed > 0):
-                # Phase 4b — Scenario #6 monitoring_oom verdict (added
-                # 2026-05-15 after build 67279 showed Prometheus crashed
-                # mid-run at Rung 2-3, losing all measurements for those
-                # rungs). When an earlier rung completed but the current
-                # rung's measurements all came back empty, the most likely
-                # explanation is that the monitoring stack (Prometheus
-                # pod) ran out of memory / went CrashLoopBackOff under
-                # the elevated workload pressure of the higher rung.
-                # That IS a saturation finding per spec line 113
-                # ("Resource exhaustion occurs") — record it as a real
-                # verdict instead of silently leaving the rung as
-                # verdict=clean rung_completed=False which underclaims
-                # the failure.
-                #
-                # Synthetic dominant_signal_ratio=999.0 so dashboards
-                # ordering verdicts by severity rank this above other
-                # tripped criteria. The actual signal that drove the
-                # OOM (CPU, memory, query queue, cardinality explosion)
-                # is NOT distinguishable from blob output alone — needs
-                # Prom pod logs to triage.
-                verdict = "monitoring_oom"
-                dominant_ratio = 999.0
             else:
                 verdict = "clean"
                 dominant_ratio = max(all_verdicts.values()) if all_verdicts else 0.0
@@ -1350,6 +1347,7 @@ def _emit_saturation_profile_rows(
                 "verdict": verdict,
                 "dominant_signal_ratio": dominant_ratio,
                 "rung_completed": rung_completed,
+                "measurement_valid": rung_completed,
                 "measurement_missing": measurement_missing,
                 "signals": signals,
                 "all_verdicts": all_verdicts,
@@ -1390,6 +1388,10 @@ def _emit_saturation_profile_rows(
             "data": {
                 "rungs_configured": len(qps_list),
                 "rungs_completed": rungs_completed,
+                "measurement_integrity_complete": (
+                    rungs_completed == len(qps_list)
+                ),
+                "measurement_incomplete_rungs": measurement_incomplete_rungs,
                 "max_clean_qps": max_clean_qps,
                 "max_clean_ops_per_sec": max_clean_ops_per_sec,
                 "first_failure_rung_index": first_failure_index,

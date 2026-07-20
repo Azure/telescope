@@ -195,6 +195,44 @@ steps:
         st="$_st"
       }
 
+      # Fix: annotate every share-infra aggregated JSONL row with the
+      # scenario policy's authoritative validity fields, so invalid rows
+      # (measurement_valid=false) are explicitly filterable in Kusto and
+      # never indistinguishable from valid successes just because the
+      # JUnit-derived `status` field happened to read "success". Adds the
+      # fields both top-level (Kusto column convenience, matching the
+      # existing top-level parameter convention in scale.py's row
+      # template) and nested under test_details (where the rest of a
+      # row's scenario context already lives). Leaves the JUnit-derived
+      # `status`/`result`/`group`/`measurement` fields completely
+      # untouched for backwards compatibility with existing queries.
+      annotate_row_with_policy() {
+        local _file="$1" _valid="$2" _reasons_json="$3"
+        local _suite_continue="$4" _infra_healthy="$5" _recovery_valid="$6"
+        jq -c \
+          --argjson measurement_valid "$_valid" \
+          --argjson measurement_invalid_reasons "$_reasons_json" \
+          --argjson suite_continue "$_suite_continue" \
+          --argjson infrastructure_healthy "$_infra_healthy" \
+          --argjson recovery_valid "$_recovery_valid" \
+          '. + {
+             measurement_valid: $measurement_valid,
+             measurement_invalid_reasons: $measurement_invalid_reasons,
+             suite_continue: $suite_continue,
+             infrastructure_healthy: $infrastructure_healthy,
+             recovery_valid: $recovery_valid
+           }
+           | .test_details = ((.test_details // {}) + {
+               measurement_valid: $measurement_valid,
+               measurement_invalid_reasons: $measurement_invalid_reasons,
+               suite_continue: $suite_continue,
+               infrastructure_healthy: $infrastructure_healthy,
+               recovery_valid: $recovery_valid
+             })' \
+          "$_file" > "${_file}.annotated" &&
+          mv "${_file}.annotated" "$_file"
+      }
+
       # Share-infra mode: SHARE_INFRA_META is a JSON array of
       # {scenario, start_timestamp} produced by execute.yml. Iterate
       # per-scenario × per-cluster, aggregating ALL rows into one blob with
@@ -212,6 +250,39 @@ steps:
           SCENARIO_START=$(echo "$sn" | jq -r '.start_timestamp')
           echo "----- collecting scenario: $SCENARIO (start=$SCENARIO_START) -----"
           set_churn_args_for_scenario "$SCENARIO" "$SCENARIO_START"
+
+          # Fix: read the FINAL scenario-policy.json (execute.yml's B.8/
+          # B.8.5 stages finalize it before this collect step runs) ONCE
+          # per scenario, so every row emitted for it can be annotated
+          # with the same authoritative validity fields. Fail-safe to
+          # measurement_valid=false (with an explicit reason) if the
+          # policy output is missing or malformed -- an aggregated row
+          # must never silently look valid just because its source
+          # policy file couldn't be read.
+          scenario_policy_file="${CL2_REPORT_DIR}/${SCENARIO}/scenario-policy.json"
+          row_measurement_valid=false
+          row_measurement_invalid_reasons_json='["scenario policy output missing or malformed"]'
+          row_suite_continue=null
+          row_infrastructure_healthy=null
+          row_recovery_valid=null
+          if scenario_policy_json=$(jq -c . "$scenario_policy_file" 2>/dev/null) &&
+             [ -n "$scenario_policy_json" ]; then
+            row_measurement_valid=$(jq -r '.measurement_valid // false' <<<"$scenario_policy_json")
+            if [ "$row_measurement_valid" != "true" ] && [ "$row_measurement_valid" != "false" ]; then
+              row_measurement_valid=false
+            fi
+            if [ "$row_measurement_valid" = "true" ]; then
+              row_measurement_invalid_reasons_json='[]'
+            else
+              row_measurement_invalid_reasons_json=$(jq -c '.measurement_reasons // ["scenario policy output missing or malformed"]' <<<"$scenario_policy_json")
+            fi
+            row_suite_continue=$(jq -r '.suite_continue' <<<"$scenario_policy_json")
+            row_infrastructure_healthy=$(jq -r '.infrastructure_healthy' <<<"$scenario_policy_json")
+            row_recovery_valid=$(jq -r '.recovery_valid' <<<"$scenario_policy_json")
+          else
+            echo "##vso[task.logissue type=warning;] $SCENARIO: scenario-policy.json missing or malformed at $scenario_policy_file; annotating aggregated rows measurement_valid=false"
+          fi
+
           for row in $(echo "$clusters" | jq -c '.[]'); do
             role=$(echo "$row" | jq -r '.role')
             name=$(echo "$row" | jq -r '.name')
@@ -240,6 +311,9 @@ steps:
             if collect_one "${SCENARIO}${TEST_TYPE_SUFFIX}" "$role" "$report_dir" "$per_cluster_result" \
                 "$cc_row" "$cu_row" "$cd_row" "$kds_row" "$kis_row" "$kb_row" "$st" \
                 "$sqps" "$sres" "$sops"; then
+              annotate_row_with_policy "$per_cluster_result" "$row_measurement_valid" \
+                "$row_measurement_invalid_reasons_json" "$row_suite_continue" \
+                "$row_infrastructure_healthy" "$row_recovery_valid"
               cat "$per_cluster_result" >> "$TEST_RESULTS_FILE"
             fi
           done
@@ -312,22 +386,35 @@ steps:
       shopt -s globstar nullglob
       mkdir -p "$STAGING_DIR"
       count=0 total_bytes=0
-      if [ "$SNAPSHOT_RELABEL_READY" = "true" ]; then
-        for snap in "$CL2_REPORT_DIR"/**/prom-snapshot-*.tar.gz; do
-          rel=${snap#"$CL2_REPORT_DIR/"}
-          dest_dir="$STAGING_DIR/$(dirname "$rel")"
-          mkdir -p "$dest_dir"
-          dest_path="$dest_dir/$(basename "$snap")"
-          rm -f "$dest_path"
-          if ! ln "$snap" "$dest_path"; then
-            cp --reflink=auto "$snap" "$dest_path"
-          fi
-          size=$(stat -c%s "$snap" 2>/dev/null || echo 0)
-          count=$((count + 1))
-          total_bytes=$((total_bytes + size))
-        done
+      # Fix: TSDB tarball staging stays conditional on snapshots actually
+      # being enabled (checked here, in-script, rather than via the
+      # step-level `condition:` which now runs unconditionally so the
+      # small lifecycle/evidence files below always get staged). This
+      # also means the "relabeling failed" warning only fires when
+      # snapshots are genuinely enabled and relabeling broke -- when
+      # snapshots are simply disabled there is nothing to relabel, so we
+      # log a quiet informational line instead of a noisy pipeline
+      # warning.
+      if [ "$SNAPSHOT_ENABLED" = "true" ]; then
+        if [ "$SNAPSHOT_RELABEL_READY" = "true" ]; then
+          for snap in "$CL2_REPORT_DIR"/**/prom-snapshot-*.tar.gz; do
+            rel=${snap#"$CL2_REPORT_DIR/"}
+            dest_dir="$STAGING_DIR/$(dirname "$rel")"
+            mkdir -p "$dest_dir"
+            dest_path="$dest_dir/$(basename "$snap")"
+            rm -f "$dest_path"
+            if ! ln "$snap" "$dest_path"; then
+              cp --reflink=auto "$snap" "$dest_path"
+            fi
+            size=$(stat -c%s "$snap" 2>/dev/null || echo 0)
+            count=$((count + 1))
+            total_bytes=$((total_bytes + size))
+          done
+        else
+          echo "##vso[task.logissue type=warning;] Snapshot block relabeling failed; skipping unlabeled TSDB tarballs."
+        fi
       else
-        echo "##vso[task.logissue type=warning;] Snapshot block relabeling failed; skipping unlabeled TSDB tarballs."
+        echo "Prometheus TSDB snapshots disabled; skipping TSDB tarball staging (lifecycle/evidence files are still staged below)."
       fi
       audit_count=0
       for audit in "$CL2_REPORT_DIR"/**/telemetry/telemetry-audit-self-hosted.{json,md}; do
@@ -350,11 +437,18 @@ steps:
       for lifecycle_file in \
           "$CL2_REPORT_DIR"/**/worker-summary.json \
           "$CL2_REPORT_DIR"/**/scenario-policy.json \
+          "$CL2_REPORT_DIR"/**/scenario-evidence.json \
+          "$CL2_REPORT_DIR"/**/mock-layer-reconcile-*.json \
+          "$CL2_REPORT_DIR"/**/scenario-cleanup-reconcile.json \
           "$CL2_REPORT_DIR"/**/artifact-preservation-summary.json \
+          "$CL2_REPORT_DIR"/**/artifact-preservation-final-summary.json \
           "$CL2_REPORT_DIR"/**/scenario-health-gate.json \
           "$CL2_REPORT_DIR"/**/NodeChurnTimings_*.json \
           "$CL2_REPORT_DIR"/**/ApiserverFailureTimings_*.json \
-          "$CL2_REPORT_DIR"/**/IsolationChurnTimings_*.json; do
+          "$CL2_REPORT_DIR"/**/IsolationChurnTimings_*.json \
+          "$CL2_REPORT_DIR"/**/EventThroughputEvidence.json \
+          "$CL2_REPORT_DIR"/**/PodChurnEvidence.json \
+          "$CL2_REPORT_DIR"/**/PolicyScaleEvidence.json; do
         [ -f "$lifecycle_file" ] || continue
         rel=${lifecycle_file#"$CL2_REPORT_DIR/"}
         dest_dir="$STAGING_DIR/$(dirname "$rel")"
@@ -367,9 +461,14 @@ steps:
     env:
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/results
       STAGING_DIR: $(Build.ArtifactStagingDirectory)/prom-snapshots
+      SNAPSHOT_ENABLED: $(cl2_prom_snapshot_enabled)
       SNAPSHOT_RELABEL_READY: $(CL2_PROM_SNAPSHOT_RELABEL_READY)
     displayName: "Stage Prometheus TSDB snapshots"
-    condition: and(succeededOrFailed(), eq(variables['cl2_prom_snapshot_enabled'], 'true'))
+    # Fix: this step now always runs (succeededOrFailed() only) so the
+    # small lifecycle/evidence files are staged unconditionally, even
+    # when Prometheus TSDB snapshots are disabled. TSDB-tarball-specific
+    # work stays gated on SNAPSHOT_ENABLED inside the script above.
+    condition: succeededOrFailed()
   # Target=artifact path (small smokes). Blob-target runs upload directly to
   # our storage account below and must not also hit AzDO's 10GB artifact cap.
   - task: PublishPipelineArtifact@1
@@ -381,6 +480,20 @@ steps:
     condition: and(succeededOrFailed(),
                    eq(variables['cl2_prom_snapshot_enabled'], 'true'),
                    eq(variables['cl2_prom_snapshot_target'], 'artifact'))
+  # Fix: when Prometheus TSDB snapshots are disabled, neither the artifact
+  # publish above nor the blob upload below runs, so the small
+  # lifecycle/evidence files staged unconditionally above would otherwise
+  # never leave the agent workspace. This dedicated publish step covers
+  # that gap without making the (potentially large) snapshot
+  # upload/publish paths themselves unconditional.
+  - task: PublishPipelineArtifact@1
+    inputs:
+      targetPath: $(Build.ArtifactStagingDirectory)/prom-snapshots
+      artifact: lifecycle-evidence-$(System.JobAttempt)-$(System.JobName)
+      publishLocation: pipeline
+    displayName: "Publish lifecycle/evidence files as pipeline artifact (snapshots disabled)"
+    condition: and(succeededOrFailed(),
+                   ne(variables['cl2_prom_snapshot_enabled'], 'true'))
   # Target=blob path (larger scales). Opt-in via cl2_prom_snapshot_target=blob.
   # Uses the same AzDO service connection as the rest of the pipeline (SP's
   # OAuth via AzureCLI@2's built-in auth, no shared keys — matches sub
@@ -464,15 +577,36 @@ steps:
         for lifecycle_file in \
             "$CL2_REPORT_DIR"/**/worker-summary.json \
             "$CL2_REPORT_DIR"/**/scenario-policy.json \
+            "$CL2_REPORT_DIR"/**/scenario-evidence.json \
+            "$CL2_REPORT_DIR"/**/mock-layer-reconcile-*.json \
+            "$CL2_REPORT_DIR"/**/scenario-cleanup-reconcile.json \
             "$CL2_REPORT_DIR"/**/artifact-preservation-summary.json \
+            "$CL2_REPORT_DIR"/**/artifact-preservation-final-summary.json \
             "$CL2_REPORT_DIR"/**/scenario-health-gate.json \
             "$CL2_REPORT_DIR"/**/NodeChurnTimings_*.json \
             "$CL2_REPORT_DIR"/**/ApiserverFailureTimings_*.json \
-            "$CL2_REPORT_DIR"/**/IsolationChurnTimings_*.json; do
+            "$CL2_REPORT_DIR"/**/IsolationChurnTimings_*.json \
+            "$CL2_REPORT_DIR"/**/EventThroughputEvidence.json \
+            "$CL2_REPORT_DIR"/**/PodChurnEvidence.json \
+            "$CL2_REPORT_DIR"/**/PolicyScaleEvidence.json; do
           [ -f "$lifecycle_file" ] || continue
           rel=${lifecycle_file#"$CL2_REPORT_DIR/"}
           scenario_seg=$(echo "$rel" | cut -d/ -f1)
-          blob_name="${BUILD_BRANCH}/lifecycle/${scenario_seg}/${RUN_ID}/$(basename "$lifecycle_file")"
+          lifecycle_basename=$(basename "$lifecycle_file")
+          case "$lifecycle_basename" in
+            EventThroughputEvidence.json|PodChurnEvidence.json|PolicyScaleEvidence.json)
+              # These basenames repeat once per role's CL2 report
+              # subdirectory (unlike NodeChurnTimings_*.json et al., which
+              # embed the role in the filename); qualify with role so two
+              # roles' evidence files don't collide on upload.
+              role_seg=$(basename "$(dirname "$lifecycle_file")")
+              lifecycle_blob_name="${role_seg}-${lifecycle_basename}"
+              ;;
+            *)
+              lifecycle_blob_name="$lifecycle_basename"
+              ;;
+          esac
+          blob_name="${BUILD_BRANCH}/lifecycle/${scenario_seg}/${RUN_ID}/${lifecycle_blob_name}"
           echo "Uploading $lifecycle_file -> ${STORAGE_ACCOUNT_NAME}/${CONTAINER_NAME}/${blob_name}"
           az storage blob upload \
             --account-name "$STORAGE_ACCOUNT_NAME" \

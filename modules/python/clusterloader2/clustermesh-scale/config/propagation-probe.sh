@@ -103,6 +103,240 @@ if [ "$CLUSTER_COUNT" -lt 2 ]; then
   exit 1
 fi
 
+# Workload-readiness barrier — bounded wait (replaces reliance on
+# execute.yml's fixed CL2_PROBE_PREWAIT_S sleep, which is a guess at how
+# long CL2 needs to create the propagation-probe backend workload and can
+# expire before CL2 reaches that step, especially while ACNS/Prometheus
+# setup is still running concurrently). Polls every cluster in
+# CLUSTERS_JSON until PROBE_NS + a labeled Deployment (fully
+# available/updated) + a labeled Service all exist, or the timeout
+# elapses. Default timeout is scale-aware since larger meshes take
+# longer for CL2 to roll out the workload across every cluster.
+PROBE_WORKLOAD_READY_POLL_S="${PROBE_WORKLOAD_READY_POLL_S:-5}"
+if [ -n "${PROBE_WORKLOAD_READY_TIMEOUT_S:-}" ]; then
+  : # explicit override wins regardless of cluster count
+elif [ "$CLUSTER_COUNT" -ge 50 ]; then
+  PROBE_WORKLOAD_READY_TIMEOUT_S=1800
+else
+  PROBE_WORKLOAD_READY_TIMEOUT_S=900
+fi
+
+# Every kubectl call the barrier makes is bounded by BOTH kubectl's own
+# --request-timeout (bounds the server-side API call) AND an outer
+# coreutils `timeout` process bound (also catches client-side hangs --
+# e.g. a stuck exec-credential/auth-plugin -- that --request-timeout alone
+# does not cover). A single unreachable/slow API server can therefore
+# never turn one cluster's check into an unbounded hang of the whole
+# barrier. Configurable; both must be positive integers (seconds).
+PROBE_WORKLOAD_READY_KUBECTL_REQUEST_TIMEOUT_S="${PROBE_WORKLOAD_READY_KUBECTL_REQUEST_TIMEOUT_S:-10}"
+PROBE_WORKLOAD_READY_KUBECTL_PROCESS_TIMEOUT_S="${PROBE_WORKLOAD_READY_KUBECTL_PROCESS_TIMEOUT_S:-15}"
+for _ready_timeout_name in \
+    PROBE_WORKLOAD_READY_KUBECTL_REQUEST_TIMEOUT_S \
+    PROBE_WORKLOAD_READY_KUBECTL_PROCESS_TIMEOUT_S; do
+  _ready_timeout_val="${!_ready_timeout_name}"
+  if ! [[ "$_ready_timeout_val" =~ ^[0-9]+$ ]] || [ "$_ready_timeout_val" -eq 0 ]; then
+    echo "FATAL: $_ready_timeout_name must be a positive integer (seconds), got '$_ready_timeout_val'" >&2
+    exit 1
+  fi
+done
+unset _ready_timeout_name _ready_timeout_val
+if ! command -v timeout >/dev/null 2>&1; then
+  echo "FATAL: coreutils 'timeout' is required to bound the workload-readiness barrier's kubectl calls" >&2
+  exit 1
+fi
+
+# Bounded-parallel readiness concurrency: polling all CLUSTER_COUNT
+# clusters fully serially would let a single readiness pass take
+# CLUSTER_COUNT × (3 kubectl calls) at large N, eating into the barrier's
+# own deadline. Default 12 once the mesh is large enough (>=50 clusters)
+# that unbounded parallelism would be excessive; below that, one wave
+# covers every cluster (concurrency == CLUSTER_COUNT). Explicit override
+# always wins. The internal PROBE_WORKLOAD_READY_TIMEOUT_S deadline above
+# remains authoritative regardless of concurrency.
+if [ -n "${PROBE_WORKLOAD_READY_CONCURRENCY:-}" ]; then
+  : # explicit override wins regardless of cluster count
+elif [ "$CLUSTER_COUNT" -ge 50 ]; then
+  PROBE_WORKLOAD_READY_CONCURRENCY=12
+else
+  PROBE_WORKLOAD_READY_CONCURRENCY="$CLUSTER_COUNT"
+fi
+if ! [[ "$PROBE_WORKLOAD_READY_CONCURRENCY" =~ ^[0-9]+$ ]] || \
+    [ "$PROBE_WORKLOAD_READY_CONCURRENCY" -eq 0 ]; then
+  echo "FATAL: PROBE_WORKLOAD_READY_CONCURRENCY must be a positive integer, got '$PROBE_WORKLOAD_READY_CONCURRENCY'" >&2
+  exit 1
+fi
+
+# Bounded kubectl wrapper used ONLY by the workload-readiness barrier (see
+# knobs above). KUBECONFIG is exported to `timeout`, which execs kubectl
+# as its child, so the kubeconfig still reaches kubectl normally.
+_ready_kubectl() {
+  local _kc="$1"
+  shift
+  KUBECONFIG="$_kc" timeout --signal=KILL \
+    "${PROBE_WORKLOAD_READY_KUBECTL_PROCESS_TIMEOUT_S}s" \
+    kubectl --request-timeout="${PROBE_WORKLOAD_READY_KUBECTL_REQUEST_TIMEOUT_S}s" "$@"
+}
+
+# Checks whether cluster index $1's PROBE_NS namespace, a Deployment
+# labeled group=clustermesh-propagation-probe (with all desired replicas
+# available+updated), and a Service with the same label all exist. On
+# any API failure (non-zero-exit/empty kubectl output, INCLUDING a
+# request-timeout or outer-timeout kill), treats the cluster as NOT ready
+# — an API error/timeout is never accepted as readiness, never
+# zero-ready. Sets WORKLOAD_READY_REASON with a diagnostic on failure.
+check_cluster_workload_ready() {
+  local _idx="$1" _kc _ctx _rc
+  _kc=$(jq -r ".[$_idx].kubeconfig" < "$CLUSTERS_JSON")
+  _ctx=$(jq -r ".[$_idx].name" < "$CLUSTERS_JSON")
+
+  _ready_kubectl "$_kc" --context "$_ctx" \
+    get namespace "$PROBE_NS" >/dev/null 2>&1
+  _rc=$?
+  if [ "$_rc" -ne 0 ]; then
+    if [ "$_rc" -eq 124 ] || [ "$_rc" -eq 137 ]; then
+      WORKLOAD_READY_REASON="namespace ${PROBE_NS} check timed out after ${PROBE_WORKLOAD_READY_KUBECTL_PROCESS_TIMEOUT_S}s (kubectl hung or unreachable API)"
+    else
+      WORKLOAD_READY_REASON="namespace ${PROBE_NS} not found (or API error)"
+    fi
+    return 1
+  fi
+
+  local _deploy_json _deploy_count _not_ready
+  _deploy_json=$(_ready_kubectl "$_kc" --context "$_ctx" -n "$PROBE_NS" \
+    get deployment -l group=clustermesh-propagation-probe -o json 2>/dev/null)
+  _rc=$?
+  _deploy_count=$(jq -r '.items | length' <<<"$_deploy_json" 2>/dev/null)
+  if [ -z "$_deploy_json" ] || [ -z "$_deploy_count" ]; then
+    if [ "$_rc" -eq 124 ] || [ "$_rc" -eq 137 ]; then
+      WORKLOAD_READY_REASON="listing Deployments (group=clustermesh-propagation-probe) timed out after ${PROBE_WORKLOAD_READY_KUBECTL_PROCESS_TIMEOUT_S}s"
+    else
+      WORKLOAD_READY_REASON="API error listing Deployments (group=clustermesh-propagation-probe)"
+    fi
+    return 1
+  fi
+  if [ "$_deploy_count" -lt 1 ]; then
+    WORKLOAD_READY_REASON="no Deployment labeled group=clustermesh-propagation-probe found"
+    return 1
+  fi
+  _not_ready=$(jq -r '
+    [.items[] | select(
+       ((.spec.replicas // 1) as $want |
+        ((.status.availableReplicas // 0) < $want) or
+        ((.status.updatedReplicas // 0) < $want))
+     ) | .metadata.name] | length
+  ' <<<"$_deploy_json" 2>/dev/null)
+  if [ -z "$_not_ready" ] || [ "$_not_ready" -ne 0 ]; then
+    WORKLOAD_READY_REASON="${_not_ready:-all} Deployment(s) labeled group=clustermesh-propagation-probe not fully available/updated"
+    return 1
+  fi
+
+  local _svc_json _svc_count
+  _svc_json=$(_ready_kubectl "$_kc" --context "$_ctx" -n "$PROBE_NS" \
+    get svc -l group=clustermesh-propagation-probe -o json 2>/dev/null)
+  _rc=$?
+  _svc_count=$(jq -r '.items | length' <<<"$_svc_json" 2>/dev/null)
+  if [ -z "$_svc_json" ] || [ -z "$_svc_count" ]; then
+    if [ "$_rc" -eq 124 ] || [ "$_rc" -eq 137 ]; then
+      WORKLOAD_READY_REASON="listing Services (group=clustermesh-propagation-probe) timed out after ${PROBE_WORKLOAD_READY_KUBECTL_PROCESS_TIMEOUT_S}s"
+    else
+      WORKLOAD_READY_REASON="API error listing Services (group=clustermesh-propagation-probe)"
+    fi
+    return 1
+  fi
+  if [ "$_svc_count" -lt 1 ]; then
+    WORKLOAD_READY_REASON="no Service labeled group=clustermesh-propagation-probe found"
+    return 1
+  fi
+
+  WORKLOAD_READY_REASON=""
+  return 0
+}
+
+# Blocks (bounded by PROBE_WORKLOAD_READY_TIMEOUT_S -- this internal
+# deadline is authoritative and is NOT extended by concurrency) until
+# every cluster in CLUSTERS_JSON reports ready. Returns 0 once all are
+# ready, or 1 (with per-cluster diagnostics on stderr) once the deadline
+# elapses.
+#
+# Each readiness pass checks clusters with bounded parallelism
+# (PROBE_WORKLOAD_READY_CONCURRENCY at a time, see knob above) rather than
+# fully serially -- at large N a serial pass alone could take
+# CLUSTER_COUNT × (3 bounded kubectl calls), eating into the deadline
+# before even one full pass completes. Each cluster's check runs in its
+# own subshell writing its outcome to a dedicated temp file (NOT a shared
+# bash array/variable) so concurrent subshells can never race on shared
+# state; the temp directory is removed before returning (both on success
+# and on timeout) and is also covered by the script's EXIT trap as a
+# safety net if the barrier is interrupted mid-pass.
+wait_for_workload_ready() {
+  local _start _now _deadline _i _all_ready _name
+  _start=$(date +%s)
+  _deadline=$((_start + PROBE_WORKLOAD_READY_TIMEOUT_S))
+  echo "[probe] workload-readiness barrier: waiting up to ${PROBE_WORKLOAD_READY_TIMEOUT_S}s for namespace=${PROBE_NS} + Deployment/Service(group=clustermesh-propagation-probe) on all ${CLUSTER_COUNT} clusters (concurrency=${PROBE_WORKLOAD_READY_CONCURRENCY})..."
+  local -a _reasons
+  for _i in $(seq 0 $((CLUSTER_COUNT - 1))); do
+    _reasons[_i]="not checked yet"
+  done
+
+  WORKLOAD_READY_STATE_DIR=$(mktemp -d)
+
+  while true; do
+    rm -f "$WORKLOAD_READY_STATE_DIR"/cluster-*.status "$WORKLOAD_READY_STATE_DIR"/cluster-*.reason
+
+    local -a _pids=()
+    for _i in $(seq 0 $((CLUSTER_COUNT - 1))); do
+      (
+        if check_cluster_workload_ready "$_i"; then
+          echo 0 > "$WORKLOAD_READY_STATE_DIR/cluster-${_i}.status"
+        else
+          echo 1 > "$WORKLOAD_READY_STATE_DIR/cluster-${_i}.status"
+          printf '%s' "$WORKLOAD_READY_REASON" > "$WORKLOAD_READY_STATE_DIR/cluster-${_i}.reason"
+        fi
+      ) &
+      _pids+=("$!")
+      if [ "${#_pids[@]}" -ge "$PROBE_WORKLOAD_READY_CONCURRENCY" ]; then
+        wait "${_pids[0]}" || true
+        _pids=("${_pids[@]:1}")
+      fi
+    done
+    local _pid
+    for _pid in "${_pids[@]}"; do
+      wait "$_pid" || true
+    done
+
+    _all_ready=true
+    for _i in $(seq 0 $((CLUSTER_COUNT - 1))); do
+      if [ "$(cat "$WORKLOAD_READY_STATE_DIR/cluster-${_i}.status" 2>/dev/null || echo 1)" = "0" ]; then
+        _reasons[_i]=""
+      else
+        _reasons[_i]=$(cat "$WORKLOAD_READY_STATE_DIR/cluster-${_i}.reason" 2>/dev/null || echo "readiness check did not report (subshell crashed?)")
+        _all_ready=false
+      fi
+    done
+
+    if [ "$_all_ready" = "true" ]; then
+      echo "[probe] workload-readiness barrier: satisfied on all ${CLUSTER_COUNT} clusters after $(( $(date +%s) - _start ))s"
+      rm -rf "$WORKLOAD_READY_STATE_DIR"
+      WORKLOAD_READY_STATE_DIR=""
+      return 0
+    fi
+    _now=$(date +%s)
+    if [ "$_now" -ge "$_deadline" ]; then
+      echo "[probe] WORKLOAD-READINESS TIMEOUT after ${PROBE_WORKLOAD_READY_TIMEOUT_S}s waiting for propagation-probe backend workload. Per-cluster diagnostics:" >&2
+      for _i in $(seq 0 $((CLUSTER_COUNT - 1))); do
+        if [ -n "${_reasons[_i]}" ]; then
+          _name=$(jq -r ".[$_i].name" < "$CLUSTERS_JSON")
+          echo "  - cluster[$_i] (${_name}): ${_reasons[_i]}" >&2
+        fi
+      done
+      rm -rf "$WORKLOAD_READY_STATE_DIR"
+      WORKLOAD_READY_STATE_DIR=""
+      return 1
+    fi
+    sleep "$PROBE_WORKLOAD_READY_POLL_S"
+  done
+}
+
 # MS-approved container images (avoid CSSC external-registry policy violations).
 # - CURL_IMAGE: cbl-mariner base has curl pre-installed; used by the peer-side
 #   connectivity probe client pod.
@@ -730,11 +964,29 @@ cleanup_probe_pods() {
     local _kc _ctx
     _kc=$(jq -r ".[$i].kubeconfig" < "$CLUSTERS_JSON")
     _ctx=$(jq -r ".[$i].name" < "$CLUSTERS_JSON")
-    KUBECONFIG="$_kc" kubectl --context "$_ctx" -n "$PROBE_NS" \
+    _ready_kubectl "$_kc" --context "$_ctx" -n "$PROBE_NS" \
       delete pod -l app=propagation-probe --grace-period=0 --force --wait=false > /dev/null 2>&1 || true
   done
 }
-trap cleanup_probe_pods EXIT
+# Set by wait_for_workload_ready while its bounded-parallel readiness pass
+# is in flight; cleaned up on every normal return path there, and also
+# here as a safety net if the script is killed mid-barrier.
+WORKLOAD_READY_STATE_DIR=""
+cleanup_on_exit() {
+  [ -n "$WORKLOAD_READY_STATE_DIR" ] && rm -rf "$WORKLOAD_READY_STATE_DIR"
+  cleanup_probe_pods
+}
+trap cleanup_on_exit EXIT
+
+# Workload-readiness barrier MUST run before cilium preflight and before
+# any probe Pod creation — it is the correctness-bearing wait now (the
+# execute.yml prewait sleep is only a best-effort head start and can
+# expire before CL2 finishes creating the backend workload).
+if ! wait_for_workload_ready; then
+  echo "[probe] aborting: propagation-probe backend workload never became ready — emit empty PropagationTimings.jsonl so collect.py sees zero rows (rather than missing file)" >&2
+  : > "$PROP_OUT"
+  exit 1
+fi
 
 # Now run preflight (function defined above). All function definitions
 # need to be in scope before we invoke them — preflight calls

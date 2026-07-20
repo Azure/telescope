@@ -51,6 +51,11 @@ name: clustermesh-policy-scale
 # sample count).
 {{$holdDuration := DefaultParam .CL2_POLICY_SCALE_HOLD_DURATION "5m"}}
 
+# Evidence verification poll budget — bounded wait for the exact
+# expected/deleted CNP counts to converge (config/policy-scale-evidence.sh).
+# 15m default covers n=100 CNPs/ns without inventing an unbounded wait.
+{{$verifyTimeout := DefaultParam .CL2_POLICY_SCALE_VERIFY_TIMEOUT_SECONDS 900}}
+
 {{$workloadGroup := "clustermesh-policy-scale"}}
 
 namespace:
@@ -155,6 +160,28 @@ steps:
             templateFillMap:
               Group: clustermesh-policy-scale
 
+  # ----- Evidence: verify active CNP state -----
+  # File-only, post-hoc proof that all configured CiliumNetworkPolicies
+  # actually exist (exact total + exact per-namespace count) before the
+  # steady-state hold begins. See config/policy-scale-evidence.sh;
+  # scenario_evidence.py reads
+  # /root/perf-tests/clusterloader2/results/PolicyScaleEvidence.json.
+  - name: Verify active policy-scale evidence
+    measurements:
+      - Identifier: VerifyPolicyScaleActiveEvidence
+        Method: Exec
+        Params:
+          streamOutput: true
+          timeout: {{$verifyTimeout}}s
+          command:
+            - bash
+            - /root/perf-tests/clusterloader2/config/policy-scale-evidence.sh
+            - active
+            - "{{$namespaces}}"
+            - "{{$cnpPerNamespace}}"
+            - /root/perf-tests/clusterloader2/results/PolicyScaleEvidence.json
+            - "{{$verifyTimeout}}"
+
   # ----- Phase 3: hold mesh with all CNPs active -----
   # Sleep so policy_implementation_delay and endpoint_regeneration_time
   # histograms gather meaningful sample counts during steady-state.
@@ -178,6 +205,26 @@ steps:
             objectTemplatePath: /modules/propagation-probe-policy.yaml
             templateFillMap:
               Group: clustermesh-policy-scale
+
+  # ----- Evidence: verify all CNPs deleted -----
+  # Runs immediately after the deletion sweep above, before backend
+  # workload teardown — merges into the same PolicyScaleEvidence.json
+  # atomically.
+  - name: Verify deleted policy-scale evidence
+    measurements:
+      - Identifier: VerifyPolicyScaleDeletedEvidence
+        Method: Exec
+        Params:
+          streamOutput: true
+          timeout: {{$verifyTimeout}}s
+          command:
+            - bash
+            - /root/perf-tests/clusterloader2/config/policy-scale-evidence.sh
+            - deleted
+            - "{{$namespaces}}"
+            - "{{$cnpPerNamespace}}"
+            - /root/perf-tests/clusterloader2/results/PolicyScaleEvidence.json
+            - "{{$verifyTimeout}}"
 
   # ----- Phase 5: delete workload + gather -----
   - name: Delete policy-scale backend pods

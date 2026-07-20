@@ -70,42 +70,69 @@ fi
 
 metric_deadline=$(( $(date +%s) + metric_ready_timeout_seconds ))
 last_endpoint="unavailable"
-last_probe_error="no running Cilium or collector pod found"
+last_probe_error="no Running acns-client Pod found in acns-telemetry namespace"
 last_metrics=""
+# acns-client is the DNS traffic generator (see acns/probe.yaml). Only the
+# Cilium/Hubble endpoint co-located on the SAME node as the Running
+# acns-client Pod is guaranteed to observe its DNS traffic and expose
+# hubble_dns_queries_total/hubble_dns_responses_total. An arbitrary
+# "first" Cilium Pod (e.g. picked alphabetically or by list order) may sit
+# on a node with no DNS activity and can false-fail readiness even though
+# ACNS is correctly configured. Re-resolve client/cilium/collector on
+# every poll since the client Deployment can be rescheduled to a new node.
 while true; do
+  client_pod=""
+  client_node=""
+  cilium_pod=""
+  cilium_node=""
   cilium_endpoint=""
   collector_pod=""
-  if IFS=$'\t' read -r cilium_pod cilium_node cilium_endpoint < <(
-    kubectl -n kube-system get pods -l k8s-app=cilium \
-      -o jsonpath='{range .items[?(@.status.phase=="Running")]}{.metadata.name}{"\t"}{.spec.nodeName}{"\t"}{.status.podIP}{"\n"}{end}' \
+
+  if IFS=$'\t' read -r client_pod client_node < <(
+    kubectl -n acns-telemetry get pods -l app=acns-client \
+      -o jsonpath='{range .items[?(@.status.phase=="Running")]}{.metadata.name}{"\t"}{.spec.nodeName}{"\n"}{end}' \
       2>/dev/null | head -1
-  ) &&
-     IFS=$'\t' read -r collector_pod collector_node < <(
-       kubectl -n acns-telemetry get pods -l app=acns-log-collector \
-         -o jsonpath='{range .items[?(@.status.phase=="Running")]}{.metadata.name}{"\t"}{.spec.nodeName}{"\n"}{end}' \
-         2>/dev/null \
-         | awk -F $'\t' -v node="$cilium_node" \
-             '$2 == node {print $1 "\t" $2; exit}'
-     ) &&
-     [ -n "$cilium_endpoint" ] &&
-     [ -n "$collector_pod" ]; then
-    last_endpoint="http://${cilium_endpoint}:9965/metrics from ${cilium_pod} on ${cilium_node} via ${collector_pod}"
-    if last_metrics=$(kubectl -n acns-telemetry exec "$collector_pod" \
-        -c collector -- wget -q -T 5 -O - \
-        "http://${cilium_endpoint}:9965/metrics" 2>&1); then
-      last_probe_error=""
-      if grep -Eq '^(# (HELP|TYPE) )?hubble_dns_queries_total([ {]|$)' \
-          <<<"$last_metrics" &&
-         grep -Eq '^(# (HELP|TYPE) )?hubble_dns_responses_total([ {]|$)' \
-          <<<"$last_metrics"; then
-        echo "ACNS telemetry is configured and DNS metric families are available from $last_endpoint."
-        exit 0
+  ) && [ -n "$client_pod" ] && [ -n "$client_node" ]; then
+
+    if IFS=$'\t' read -r cilium_pod cilium_node cilium_endpoint < <(
+      kubectl -n kube-system get pods -l k8s-app=cilium \
+        -o jsonpath='{range .items[?(@.status.phase=="Running")]}{.metadata.name}{"\t"}{.spec.nodeName}{"\t"}{.status.podIP}{"\n"}{end}' \
+        2>/dev/null \
+        | awk -F $'\t' -v node="$client_node" '$2 == node {print; exit}'
+    ) && [ -n "$cilium_endpoint" ]; then
+
+      if IFS=$'\t' read -r collector_pod _ < <(
+        kubectl -n acns-telemetry get pods -l app=acns-log-collector \
+          -o jsonpath='{range .items[?(@.status.phase=="Running")]}{.metadata.name}{"\t"}{.spec.nodeName}{"\n"}{end}' \
+          2>/dev/null \
+          | awk -F $'\t' -v node="$client_node" '$2 == node {print; exit}'
+      ) && [ -n "$collector_pod" ]; then
+
+        last_endpoint="http://${cilium_endpoint}:9965/metrics from ${cilium_pod} on ${client_node} (acns-client=${client_pod}) via ${collector_pod}"
+        if last_metrics=$(kubectl -n acns-telemetry exec "$collector_pod" \
+            -c collector -- wget -q -T 5 -O - \
+            "http://${cilium_endpoint}:9965/metrics" 2>&1); then
+          last_probe_error=""
+          if grep -Eq '^(# (HELP|TYPE) )?hubble_dns_queries_total([ {]|$)' \
+              <<<"$last_metrics" &&
+             grep -Eq '^(# (HELP|TYPE) )?hubble_dns_responses_total([ {]|$)' \
+              <<<"$last_metrics"; then
+            echo "ACNS telemetry is configured and DNS metric families are available from $last_endpoint."
+            exit 0
+          fi
+          last_probe_error="Hubble endpoint responded without both DNS metric families"
+        else
+          last_probe_error="$last_metrics"
+          last_metrics=""
+        fi
+      else
+        last_probe_error="No Running acns-log-collector Pod found on acns-client node ${client_node} (acns-client=${client_pod})"
       fi
-      last_probe_error="Hubble endpoint responded without both DNS metric families"
     else
-      last_probe_error="$last_metrics"
-      last_metrics=""
+      last_probe_error="No Running Cilium Pod found on acns-client node ${client_node} (acns-client=${client_pod})"
     fi
+  else
+    last_probe_error="No Running acns-client Pod found in acns-telemetry namespace"
   fi
 
   if [ "$(date +%s)" -ge "$metric_deadline" ]; then
@@ -124,6 +151,7 @@ if [ -n "$last_metrics" ]; then
 fi
 kubectl get containernetworkmetric container-network-metric -o yaml >&2 || true
 kubectl describe containernetworkmetric container-network-metric >&2 || true
+kubectl -n acns-telemetry get pods -l app=acns-client -o wide >&2 || true
 kubectl -n kube-system get pods -l k8s-app=cilium -o wide >&2 || true
 kubectl -n acns-telemetry get pods -l app=acns-log-collector -o wide >&2 || true
 exit 1

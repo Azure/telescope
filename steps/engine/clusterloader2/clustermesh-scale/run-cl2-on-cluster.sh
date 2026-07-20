@@ -413,6 +413,7 @@ if [ -f "$telemetry_audit_script" ]; then
     telemetry_audit_args+=(
       --require-real-node-kubelet
       --require-kwok-resource
+      --expected-mock-agent-targets "${CL2_MOCK_NODE_COUNT:-0}"
     )
   fi
   if [ "${CL2_ACNS_TELEMETRY_ENABLED:-false}" = "true" ]; then

@@ -41,6 +41,23 @@
 #                     watches against the local clustermesh-apiserver (consuming
 #                     remote identities/endpoints/nodes/services). Set false for
 #                     a publish-only layer.
+#   MOCK_STATE_DIR    when set, the EXACT generated desired-state manifests
+#                     (KWOK Nodes + mock-cilium-agent Pods), the already-rendered
+#                     KWOK support manifests (patched kwok-controller Deployment,
+#                     stage-fast, APF PriorityLevel/FlowSchema, agent RBAC) under
+#                     a support/ subdir, plus a metadata.json describing them,
+#                     are persisted here ATOMICALLY after a successful
+#                     provisioning pass, so an out-of-band reconciler can later
+#                     recreate/repair only these deterministic, owned objects
+#                     without re-deriving OR re-downloading the desired state
+#                     itself. Unset (default): no persistence; behavior is
+#                     unchanged.
+#   MOCK_RUN_ID       the pipeline RUN_ID this provisioning pass belongs to.
+#                     Persisted verbatim into metadata.json's "run_id" field so
+#                     an out-of-band reconciler (given an --run-id) can detect
+#                     and refuse stale desired state left over from a different
+#                     run. Unset (default): persisted as an empty string, and
+#                     any --run-id check against it is the caller's choice.
 set -euo pipefail
 
 KUBECONFIG_FILE="${KUBECONFIG_FILE:?KUBECONFIG_FILE required}"
@@ -52,6 +69,8 @@ AGENT_SA="${AGENT_SA:-mock-cilium-agent}"
 KWOK_VER="${KWOK_VER:-v0.7.0}"
 METRICS_PORT="${METRICS_PORT:-9962}"
 CONSUME_CLUSTERMESH="${CONSUME_CLUSTERMESH:-true}"
+MOCK_STATE_DIR="${MOCK_STATE_DIR:-}"
+MOCK_RUN_ID="${MOCK_RUN_ID:-}"
 
 K() { kubectl --kubeconfig="$KUBECONFIG_FILE" "$@"; }
 
@@ -267,22 +286,27 @@ kretry K apply -f "${WORK}/rbac.yaml" >/dev/null
 # LOCAL service (clustermesh-apiserver.kube-system.svc:2379), so no cross-cluster
 # networking is involved. The FORK stays agnostic — this is deploy-layer only.
 # ---------------------------------------------------------------------------
-CM_ARG=""; CM_MOUNT=""; CM_VOLUME=""
-if [[ "${CONSUME_CLUSTERMESH}" == "true" ]] && K -n kube-system get secret cilium-clustermesh >/dev/null 2>&1; then
+CM_ARG=""; CM_MOUNT=""; CM_VOLUME=""; CONSUME_CLUSTERMESH_ACTIVE=false
+if [[ "${CONSUME_CLUSTERMESH}" == "true" ]]; then
+  if ! K -n kube-system get secret cilium-clustermesh >/dev/null 2>&1; then
+    echo "ERROR: CONSUME_CLUSTERMESH=true but kube-system/cilium-clustermesh is missing; refusing a publish-only hollow run." >&2
+    exit 1
+  fi
   echo ">>> Step 2.5: Wiring clustermesh CONSUME path (copying secrets -> ${AGENT_NS})..."
   STRIP='del(.metadata.namespace,.metadata.resourceVersion,.metadata.uid,.metadata.creationTimestamp,.metadata.ownerReferences,.metadata.managedFields,.metadata.annotations,.status)'
   # Copy pipeline as a function so kretry can replay it (each attempt re-runs the
   # `get`, so unlike a heredoc there's no consumed-stdin problem). A transient
   # apiserver failure mid-copy would otherwise silently skip a REQUIRED consume
   # secret (the old code WARNed "not found" + continued), leaving agents running but
-  # NOT consuming mesh state — a hollow run that still "passes". A genuinely-absent
-  # secret exhausts the retries and is skipped (non-fatal, matching prior behavior).
+  # NOT consuming mesh state — a hollow run that still "passes". Every source
+  # secret is therefore mandatory when consume mode is requested.
   copy_secret() { K -n kube-system get secret "$1" -o json 2>/dev/null | jq "${STRIP}" | K -n "${AGENT_NS}" apply -f - >/dev/null 2>&1; }
   for s in cilium-clustermesh clustermesh-apiserver-remote-cert clustermesh-apiserver-local-cert cilium-root-ca.crt; do
     if kretry copy_secret "$s"; then
       echo "      copied secret ${s}"
     else
-      echo "      WARN: secret ${s} not copied (absent or apiserver error after retries; skipping)"
+      echo "ERROR: required consume secret ${s} was not copied after retries; refusing to start hollow mock agents." >&2
+      exit 1
     fi
   done
   CM_ARG="    - --clustermesh-config=/var/lib/cilium/clustermesh"
@@ -292,13 +316,19 @@ if [[ "${CONSUME_CLUSTERMESH}" == "true" ]] && K -n kube-system get secret ciliu
     projected:
       defaultMode: 256
       sources:
-      - secret: { name: cilium-clustermesh, optional: true }
-      - secret: { name: clustermesh-apiserver-remote-cert, optional: true, items: [ { key: tls.key, path: common-etcd-client.key }, { key: tls.crt, path: common-etcd-client.crt } ] }
-      - secret: { name: cilium-root-ca.crt, optional: true, items: [ { key: ca.crt, path: common-etcd-client-ca.crt } ] }
-      - secret: { name: clustermesh-apiserver-local-cert, optional: true, items: [ { key: tls.key, path: local-etcd-client.key }, { key: tls.crt, path: local-etcd-client.crt } ] }
-      - secret: { name: cilium-root-ca.crt, optional: true, items: [ { key: ca.crt, path: local-etcd-client-ca.crt } ] }
+      - secret: { name: cilium-clustermesh }
+      - secret: { name: clustermesh-apiserver-remote-cert, items: [ { key: tls.key, path: common-etcd-client.key }, { key: tls.crt, path: common-etcd-client.crt } ] }
+      - secret: { name: cilium-root-ca.crt, items: [ { key: ca.crt, path: common-etcd-client-ca.crt } ] }
+      - secret: { name: clustermesh-apiserver-local-cert, items: [ { key: tls.key, path: local-etcd-client.key }, { key: tls.crt, path: local-etcd-client.crt } ] }
+      - secret: { name: cilium-root-ca.crt, items: [ { key: ca.crt, path: local-etcd-client-ca.crt } ] }
 YAML
 )
+  # Recorded into metadata.json (STEP 3.5 below) so an out-of-band reconciler
+  # knows whether it must also verify/repair the 4 copied consume secrets --
+  # it never guesses this from CONSUME_CLUSTERMESH alone, since that only
+  # reflects the OPERATOR's intent, not whether the source secret actually
+  # existed here (this "if" already checked that).
+  CONSUME_CLUSTERMESH_ACTIVE=true
 else
   echo ">>> Step 2.5: ClusterMesh CONSUME path DISABLED (publish-only). Set CONSUME_CLUSTERMESH=true to enable."
 fi
@@ -538,6 +568,91 @@ while :; do
   sleep $((attempt * 20))
   attempt=$((attempt + 1))
 done
+
+# ---------------------------------------------------------------------------
+# STEP 3.5: persist the desired-state snapshot (optional).
+#
+# Copies the EXACT manifests just applied above (not re-derived — byte-for-byte
+# the same $NODES_FILE / $AGENTS_FILE this run generated), the EXACT already-
+# rendered KWOK support manifests from Steps 1/1.5/2 (kwok-patched.yaml,
+# stage-fast.yaml, kwok-apf.yaml, rbac.yaml — never redownloaded/rederived by
+# a later reconciler), plus a metadata.json describing this deploy, into
+# MOCK_STATE_DIR. This lets a separate reconciler recreate/repair only these
+# deterministic, owned objects later (e.g. after node churn, attrition, or a
+# kwok-controller crash) WITHOUT re-deriving the desired state (podCIDR/nodeIP
+# scheme, cluster identity, inherited cilium-config, ...) or re-fetching the
+# support manifests — both only happen here, once, right after a
+# verified-successful apply.
+#
+# Published safely, NOT via an instantaneous atomic swap: built in a sibling
+# temp dir on the SAME filesystem as MOCK_STATE_DIR (so a crash/interrupt
+# mid-copy only abandons the temp dir, never corrupts a prior snapshot), then
+# put in place with two renames (old-dir-aside, then temp-dir-into-place).
+# Each individual rename(2) is atomic, but the two-step swap is NOT gap-free —
+# a reader could observe MOCK_STATE_DIR transiently absent between them. That
+# is fine here: this run-scoped path ($HOME/.kube/mock-layer-state/<run_id>/
+# <role>, see deploy-mock-layer.yml) has NO concurrent reader during
+# provisioning — deploy-mock-layer.yml clears this exact path before invoking
+# this script, and the only other consumer (mock_layer_reconcile.py) runs in a
+# LATER, separate pipeline step, strictly after this script has already
+# exited. Do not rely on this dance for true concurrent-reader safety if that
+# assumption ever changes.
+if [[ -n "${MOCK_STATE_DIR}" ]]; then
+  echo ">>> Step 3.5: persisting desired-state manifests to ${MOCK_STATE_DIR}..."
+  STATE_PARENT="$(dirname "${MOCK_STATE_DIR}")"
+  mkdir -p "${STATE_PARENT}"
+  STATE_TMP="$(mktemp -d "${STATE_PARENT}/.mock-layer-state.XXXXXX")"
+  cp "${NODES_FILE}" "${STATE_TMP}/nodes.yaml"
+  cp "${AGENTS_FILE}" "${STATE_TMP}/agents.yaml"
+  mkdir -p "${STATE_TMP}/support"
+  cp "${WORK}/kwok-patched.yaml" "${STATE_TMP}/support/kwok-controller.yaml"
+  cp "${WORK}/stage-fast.yaml"   "${STATE_TMP}/support/stage-fast.yaml"
+  cp "${WORK}/kwok-apf.yaml"     "${STATE_TMP}/support/kwok-apf.yaml"
+  cp "${WORK}/rbac.yaml"         "${STATE_TMP}/support/rbac.yaml"
+  python3 - "${STATE_TMP}/metadata.json" <<PY
+import json, sys
+dst = sys.argv[1]
+metadata = {
+    "schema_version": 2,
+    "generated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+    "run_id": "${MOCK_RUN_ID}",
+    "cluster_name": "${CLUSTER_NAME}",
+    "cluster_id": "${CLUSTER_ID}",
+    "node_count": ${NODE_COUNT},
+    "agent_namespace": "${AGENT_NS}",
+    "agent_service_account": "${AGENT_SA}",
+    "agent_label_selector": "app=mock-cilium-agent",
+    "node_label_selector": "type=kwok",
+    "serves_node_label": "mock-clustermesh/serves-node",
+    "kwok_node_annotation": {"key": "kwok.x-k8s.io/node", "value": "fake"},
+    "acr_host": "${ACR_HOST}",
+    "agent_tag": "${AGENT_TAG}",
+    "agent_image": "${ACR_HOST}/mock-cilium-agent:${AGENT_TAG}",
+    "metrics_port": ${METRICS_PORT},
+    "kwok_version": "${KWOK_VER}",
+    "consume_clustermesh": $( [ "${CONSUME_CLUSTERMESH_ACTIVE}" = "true" ] && echo True || echo False ),
+    "node_manifest": "nodes.yaml",
+    "agent_manifest": "agents.yaml",
+    "support_manifest_dir": "support",
+    "support_manifests": {
+        "kwok_controller": "support/kwok-controller.yaml",
+        "stage": "support/stage-fast.yaml",
+        "apf": "support/kwok-apf.yaml",
+        "rbac": "support/rbac.yaml",
+    },
+}
+with open(dst, "w", encoding="utf-8") as fh:
+    json.dump(metadata, fh, indent=2, sort_keys=True)
+    fh.write("\n")
+PY
+  if [ -e "${MOCK_STATE_DIR}" ]; then
+    rm -rf "${MOCK_STATE_DIR}.stale"
+    mv -T "${MOCK_STATE_DIR}" "${MOCK_STATE_DIR}.stale"
+  fi
+  mv -T "${STATE_TMP}" "${MOCK_STATE_DIR}"
+  rm -rf "${MOCK_STATE_DIR}.stale"
+  echo ">>> Step 3.5: persisted nodes.yaml + agents.yaml + support/ + metadata.json to ${MOCK_STATE_DIR}"
+fi
 
 rm -rf "${WORK}"
 echo ""

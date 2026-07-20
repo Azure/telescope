@@ -141,6 +141,18 @@ steps:
           fi
 
           echo "== $role: provisioning KWOK + mock-cilium-agent layer =="
+          # Deterministic, RUN_ID-scoped per-role state dir: provision-kwok-layer.sh
+          # persists the EXACT generated desired Node/Pod manifests + support
+          # manifests + metadata here (atomically, after a successful apply) so an
+          # out-of-band reconciler can later repair this cluster's mock layer
+          # without re-deriving its desired state. Scoping by RUN_ID (rather than
+          # just $role) prevents a later run from silently reconciling against a
+          # STALE desired state left behind by a prior run that reused the same
+          # role name (e.g. a re-run of this pipeline on the same cluster fleet) --
+          # each run gets its own state root, and mock_layer_reconcile.py cross-
+          # checks metadata.run_id against --run-id to reject any mismatch.
+          mock_state_dir="$HOME/.kube/mock-layer-state/$RUN_ID/$role"
+          rm -rf "$mock_state_dir"
           KUBECONFIG_FILE="$kubeconfig" \
             NODE_COUNT="${MOCK_NODE_COUNT:-100}" \
             ACR_HOST="${MOCK_ACR_HOST}" \
@@ -149,6 +161,8 @@ steps:
             MOCK_CLUSTER_ID="${MOCK_CLUSTER_ID:-}" \
             MOCK_CLUSTER_NAME="${MOCK_CLUSTER_NAME:-}" \
             MOCK_MESH_STRIDE="${MOCK_MESH_STRIDE:-}" \
+            MOCK_RUN_ID="${RUN_ID}" \
+            MOCK_STATE_DIR="$mock_state_dir" \
             bash "$MOCK_PROVISION_SCRIPT" || return 1
 
           # Readiness gate: every virtual node must have a Running mock-agent before

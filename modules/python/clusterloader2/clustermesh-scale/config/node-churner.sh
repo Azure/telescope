@@ -368,6 +368,7 @@ write_timing_file() {
     --arg target_node_resource_group "$NODE_RESOURCE_GROUP" \
     --arg target_vmss "$TARGET_VMSS" \
     --argjson original_node_count "$ORIGINAL_NODE_COUNT" \
+    --argjson node_replace_batch_size "$NODE_REPLACE_BATCH_SIZE" \
     --argjson ready_quorum_reached "$READY_QUORUM_REACHED" \
     --argjson scenario_valid "$SCENARIO_VALID" \
     --argjson cleanup_failed "$CLEANUP_FAILED" \
@@ -394,6 +395,7 @@ write_timing_file() {
       target_node_resource_group:$target_node_resource_group,
       target_vmss:$target_vmss,
       original_node_count:$original_node_count,
+      node_replace_batch_size:$node_replace_batch_size,
       ready_quorum_reached:$ready_quorum_reached,
       scenario_valid:$scenario_valid,
       cleanup_failed:$cleanup_failed,

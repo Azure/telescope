@@ -19,6 +19,13 @@
 #   $2 KILL_INTERVAL_SECONDS    Seconds between successive kill rounds.
 #   $3 KILL_BATCH               Pods deleted per round.
 #   $4 WORKLOAD_GROUP           Label-selector group value.
+#   $5 TIMING_OUTPUT_PATH       Optional. When set, an atomic JSON summary
+#                               (inputs, rounds, killed_total, stimulus_valid,
+#                               exit/error state) is always written here on
+#                               exit — including early-exit/error paths —
+#                               for later post-hoc evidence validation. When
+#                               omitted, behavior/stdout is unchanged from
+#                               before this arg existed.
 #
 # Exits 0 on successful completion of the time-bounded loop. Exits 127
 # if kubectl is unavailable in this CL2 image (Method: Exec marks the
@@ -32,7 +39,50 @@ KILL_DURATION_SECONDS="${1:-600}"
 KILL_INTERVAL_SECONDS="${2:-10}"
 KILL_BATCH="${3:-5}"
 WORKLOAD_GROUP="${4:-clustermesh-pod-churn}"
+TIMING_OUTPUT_PATH="${5:-}"
 LABEL_SELECTOR="group=${WORKLOAD_GROUP}"
+
+# write_timing_output <rounds> <killed_total> <exit_code> <error_message>
+#
+# No-op when TIMING_OUTPUT_PATH wasn't provided (preserves pre-existing
+# stdout-only behavior byte-for-byte). Otherwise always emits a JSON
+# summary — even on the early kubectl-unavailable exit path — atomically
+# (tmp file + mv) so a concurrently-reading validator never observes a
+# partially written file. No jq/python3 available in this container, so
+# the JSON is hand-built; WORKLOAD_GROUP/error_message are shell values
+# that don't currently contain JSON metacharacters (CL2 label selectors).
+write_timing_output() {
+  local rounds="$1"
+  local killed_total="$2"
+  local exit_code="$3"
+  local error_message="$4"
+
+  if [ -z "${TIMING_OUTPUT_PATH}" ]; then
+    return 0
+  fi
+
+  local stimulus_valid=false
+  if [ "${exit_code}" -eq 0 ] && [ "${killed_total}" -gt 0 ]; then
+    stimulus_valid=true
+  fi
+
+  mkdir -p "$(dirname "${TIMING_OUTPUT_PATH}")"
+  local tmp_path="${TIMING_OUTPUT_PATH}.tmp"
+  cat > "${tmp_path}" <<EOF
+{
+  "kill_duration_seconds": ${KILL_DURATION_SECONDS},
+  "kill_interval_seconds": ${KILL_INTERVAL_SECONDS},
+  "kill_batch": ${KILL_BATCH},
+  "workload_group": "${WORKLOAD_GROUP}",
+  "rounds": ${rounds},
+  "killed_total": ${killed_total},
+  "exit_code": ${exit_code},
+  "error": "${error_message}",
+  "stimulus_valid": ${stimulus_valid}
+}
+EOF
+  mv -f "${tmp_path}" "${TIMING_OUTPUT_PATH}"
+}
 
 if ! command -v kubectl >/dev/null 2>&1; then
   # Fallback: the pipeline's execute.yml pre-stages kubectl into the
@@ -49,6 +99,7 @@ if ! command -v kubectl >/dev/null 2>&1; then
          "pre-staged binary at ${PREBAKED_KUBECTL} is also missing — "\
          "verify execute.yml pre-stage step ran successfully"
     echo "killer ERROR: PATH=$PATH"
+    write_timing_output 0 0 127 "kubectl_unavailable"
     exit 127
   fi
 fi
@@ -122,4 +173,5 @@ while [ "$(date +%s)" -lt "${END_EPOCH}" ]; do
 done
 
 echo "killer: done duration=${KILL_DURATION_SECONDS}s rounds=${ROUND} cumulative=${KILLED_TOTAL}"
+write_timing_output "${ROUND}" "${KILLED_TOTAL}" 0 ""
 exit 0

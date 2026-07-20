@@ -21,7 +21,9 @@ name: clustermesh-pod-churn-combined
 #      failure-driven event path. If kubectl is unavailable in the CL2
 #      image (Method: Exec dependency), this measurement returns 127 and
 #      CL2 marks it failed but the surrounding settle/gather/teardown
-#      steps still run, preserving Phase A scale-cycle data.
+#      steps still run, preserving Phase A scale-cycle data. An atomic
+#      PodChurnEvidence.json timing summary (rounds/killed_total/
+#      stimulus_valid) is always written for post-hoc evidence validation.
 #   7. Final WaitForControlledPodsRunning gather + settle.
 #   8. Gather measurements (all modules above).
 #   9. Teardown (workload + PodMonitor).
@@ -258,6 +260,7 @@ steps:
           - "{{$killIntervalSeconds}}"
           - "{{$killBatch}}"
           - "{{$workloadGroup}}"
+          - /root/perf-tests/clusterloader2/results/PodChurnEvidence.json
 
   # ----- Final convergence -----
   - name: Start tracking post-kill convergence

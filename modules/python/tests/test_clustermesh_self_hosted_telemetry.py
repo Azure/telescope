@@ -219,6 +219,8 @@ def test_acns_setup_and_host_log_collection_smoke(tmp_path):
               printf CONFIGURED
             elif [[ " $* " == *" get containernetworkmetric container-network-metric -o jsonpath="* ]]; then
               printf CONFIGURED
+            elif [[ " $* " == *" -n acns-telemetry get pods -l app=acns-client -o jsonpath="* ]]; then
+              printf 'acns-client-a\\tnode-a\\n'
             elif [[ " $* " == *" -n kube-system get pods -l k8s-app=cilium -o jsonpath="* ]]; then
               printf 'cilium-a\\tnode-a\\t10.0.0.4\\n'
             elif [[ " $* " == *" -n acns-telemetry get pods -l app=acns-log-collector -o jsonpath="* ]]; then
@@ -329,6 +331,8 @@ def test_acns_setup_fails_when_dns_metric_families_remain_absent(tmp_path):
             elif [[ " $* " == *" get containernetworklog clustermesh-scale-acns -o jsonpath="* ]] ||
                  [[ " $* " == *" get containernetworkmetric container-network-metric -o jsonpath="* ]]; then
               printf CONFIGURED
+            elif [[ " $* " == *" -n acns-telemetry get pods -l app=acns-client -o jsonpath="* ]]; then
+              printf 'acns-client-a\\tnode-a\\n'
             elif [[ " $* " == *" -n kube-system get pods -l k8s-app=cilium -o jsonpath="* ]]; then
               printf 'cilium-a\\tnode-a\\t10.0.0.4\\n'
             elif [[ " $* " == *" -n acns-telemetry get pods -l app=acns-log-collector -o jsonpath="* ]]; then
@@ -375,11 +379,290 @@ def test_acns_setup_fails_when_dns_metric_families_remain_absent(tmp_path):
     assert result.returncode == 1
     assert "Timed out waiting for hubble_dns_queries_total" in result.stderr
     assert (
-        "http://10.0.0.4:9965/metrics from cilium-a on node-a via collector-a"
+        "http://10.0.0.4:9965/metrics from cilium-a on node-a "
+        "(acns-client=acns-client-a) via collector-a"
         in result.stderr
     )
     assert "hubble_flows_processed_total" in result.stderr
     assert "state: CONFIGURED" in result.stderr
+
+
+def test_acns_setup_follows_acns_client_node_and_ignores_arbitrary_first_cilium_node(
+    tmp_path,
+):
+    # acns-client runs on node-b. The FIRST Cilium Pod returned by the API
+    # (cilium-a on node-a) has no DNS metrics — a naive "pick the first
+    # Cilium Pod" strategy would false-fail readiness. The correct Cilium
+    # Pod (cilium-b, co-located with acns-client on node-b) does have DNS
+    # metrics and must be the one selected/probed.
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    kubectl_log = tmp_path / "kubectl.log"
+    fake_kubectl = fake_bin / "kubectl"
+    fake_kubectl.write_text(
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env bash
+            set -euo pipefail
+            echo "$*" >> "$KUBECTL_LOG"
+            if [ "${1:-} ${2:-}" = "get crd/containernetworklogs.acn.azure.com" ] ||
+               [ "${1:-} ${2:-}" = "get crd/containernetworkmetrics.acn.azure.com" ] ||
+               [ "${1:-} ${2:-}" = "get crd/ciliumnetworkpolicies.cilium.io" ] ||
+               [ "${1:-}" = "apply" ] ||
+               [[ " $* " == *" rollout status "* ]]; then
+              exit 0
+            elif [[ " $* " == *" get containernetworklog clustermesh-scale-acns -o jsonpath="* ]] ||
+                 [[ " $* " == *" get containernetworkmetric container-network-metric -o jsonpath="* ]]; then
+              printf CONFIGURED
+            elif [[ " $* " == *" -n acns-telemetry get pods -l app=acns-client -o jsonpath="* ]]; then
+              printf 'acns-client-b\\tnode-b\\n'
+            elif [[ " $* " == *" -n kube-system get pods -l k8s-app=cilium -o jsonpath="* ]]; then
+              printf 'cilium-a\\tnode-a\\t10.0.0.4\\n'
+              printf 'cilium-b\\tnode-b\\t10.0.1.5\\n'
+            elif [[ " $* " == *" -n acns-telemetry get pods -l app=acns-log-collector -o jsonpath="* ]]; then
+              printf 'collector-a\\tnode-a\\n'
+              printf 'collector-b\\tnode-b\\n'
+            elif [[ " $* " == *" exec collector-b -c collector -- wget "*"10.0.1.5:9965"* ]]; then
+              printf '%s\\n' \
+                '# TYPE hubble_dns_queries_total counter' \
+                'hubble_dns_queries_total{query="management.azure.com"} 1' \
+                '# TYPE hubble_dns_responses_total counter' \
+                'hubble_dns_responses_total{rcode="No Error"} 1'
+            elif [[ " $* " == *" exec collector-a -c collector -- wget "*"10.0.0.4:9965"* ]]; then
+              printf '%s\\n' '# TYPE hubble_flows_processed_total counter' 'hubble_flows_processed_total 1'
+            else
+              echo "Unexpected kubectl command: $*" >&2
+              exit 1
+            fi
+            """
+        ),
+        encoding="utf-8",
+    )
+    fake_kubectl.chmod(fake_kubectl.stat().st_mode | stat.S_IXUSR)
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "CL2_ACNS_TELEMETRY_ENABLED": "true",
+            "CL2_ACNS_METRIC_READY_TIMEOUT_SECONDS": "5",
+            "CL2_ACNS_METRIC_POLL_SECONDS": "0",
+            "KUBECONFIG": str(tmp_path / "kubeconfig"),
+            "KUBECTL_LOG": str(kubectl_log),
+            "PATH": f"{fake_bin}:{environment['PATH']}",
+        }
+    )
+
+    result = subprocess.run(
+        ["bash", str(ACNS_SETUP_SCRIPT)],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=10,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "from cilium-b on node-b" in result.stdout
+    assert "via collector-b" in result.stdout
+    kubectl_calls = kubectl_log.read_text(encoding="utf-8")
+    # The arbitrary first (no-DNS) Cilium node must never be probed for
+    # metrics — only queried while resolving the node list.
+    assert "exec collector-a" not in kubectl_calls
+
+
+def test_acns_setup_fails_with_actionable_error_when_no_cilium_pod_on_client_node(
+    tmp_path,
+):
+    # acns-client is Running on node-b, but no Cilium Pod is Running there
+    # (only node-a has one). This must fail with a targeted diagnostic
+    # naming the client's node, not silently probe a different node.
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_kubectl = fake_bin / "kubectl"
+    fake_kubectl.write_text(
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env bash
+            set -euo pipefail
+            if [ "${1:-} ${2:-}" = "get crd/containernetworklogs.acn.azure.com" ] ||
+               [ "${1:-} ${2:-}" = "get crd/containernetworkmetrics.acn.azure.com" ] ||
+               [ "${1:-} ${2:-}" = "get crd/ciliumnetworkpolicies.cilium.io" ] ||
+               [ "${1:-}" = "apply" ] ||
+               [[ " $* " == *" rollout status "* ]]; then
+              exit 0
+            elif [[ " $* " == *" get containernetworklog clustermesh-scale-acns -o jsonpath="* ]] ||
+                 [[ " $* " == *" get containernetworkmetric container-network-metric -o jsonpath="* ]]; then
+              printf CONFIGURED
+            elif [[ " $* " == *" -n acns-telemetry get pods -l app=acns-client -o jsonpath="* ]]; then
+              printf 'acns-client-b\\tnode-b\\n'
+            elif [[ " $* " == *" -n kube-system get pods -l k8s-app=cilium -o jsonpath="* ]]; then
+              printf 'cilium-a\\tnode-a\\t10.0.0.4\\n'
+            elif [[ " $* " == *" -o wide "* ]] || [[ " $* " == *" -o yaml "* ]] ||
+                 [[ " $* " == *"describe"* ]]; then
+              printf '%s\\n' 'diagnostic'
+            else
+              echo "Unexpected kubectl command: $*" >&2
+              exit 1
+            fi
+            """
+        ),
+        encoding="utf-8",
+    )
+    fake_kubectl.chmod(fake_kubectl.stat().st_mode | stat.S_IXUSR)
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "CL2_ACNS_TELEMETRY_ENABLED": "true",
+            "CL2_ACNS_METRIC_READY_TIMEOUT_SECONDS": "0",
+            "CL2_ACNS_METRIC_POLL_SECONDS": "0",
+            "KUBECONFIG": str(tmp_path / "kubeconfig"),
+            "PATH": f"{fake_bin}:{environment['PATH']}",
+        }
+    )
+
+    result = subprocess.run(
+        ["bash", str(ACNS_SETUP_SCRIPT)],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=10,
+    )
+
+    assert result.returncode == 1
+    assert (
+        "No Running Cilium Pod found on acns-client node node-b "
+        "(acns-client=acns-client-b)" in result.stderr
+    )
+
+
+def test_acns_setup_fails_with_actionable_error_when_no_collector_pod_on_client_node(
+    tmp_path,
+):
+    # Cilium IS Running on the client's node, but no acns-log-collector
+    # Pod is Running there — probing is impossible without a same-node
+    # collector, so this must fail with a targeted diagnostic.
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_kubectl = fake_bin / "kubectl"
+    fake_kubectl.write_text(
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env bash
+            set -euo pipefail
+            if [ "${1:-} ${2:-}" = "get crd/containernetworklogs.acn.azure.com" ] ||
+               [ "${1:-} ${2:-}" = "get crd/containernetworkmetrics.acn.azure.com" ] ||
+               [ "${1:-} ${2:-}" = "get crd/ciliumnetworkpolicies.cilium.io" ] ||
+               [ "${1:-}" = "apply" ] ||
+               [[ " $* " == *" rollout status "* ]]; then
+              exit 0
+            elif [[ " $* " == *" get containernetworklog clustermesh-scale-acns -o jsonpath="* ]] ||
+                 [[ " $* " == *" get containernetworkmetric container-network-metric -o jsonpath="* ]]; then
+              printf CONFIGURED
+            elif [[ " $* " == *" -n acns-telemetry get pods -l app=acns-client -o jsonpath="* ]]; then
+              printf 'acns-client-b\\tnode-b\\n'
+            elif [[ " $* " == *" -n kube-system get pods -l k8s-app=cilium -o jsonpath="* ]]; then
+              printf 'cilium-b\\tnode-b\\t10.0.1.5\\n'
+            elif [[ " $* " == *" -n acns-telemetry get pods -l app=acns-log-collector -o jsonpath="* ]]; then
+              printf 'collector-a\\tnode-a\\n'
+            elif [[ " $* " == *" -o wide "* ]] || [[ " $* " == *" -o yaml "* ]] ||
+                 [[ " $* " == *"describe"* ]]; then
+              printf '%s\\n' 'diagnostic'
+            else
+              echo "Unexpected kubectl command: $*" >&2
+              exit 1
+            fi
+            """
+        ),
+        encoding="utf-8",
+    )
+    fake_kubectl.chmod(fake_kubectl.stat().st_mode | stat.S_IXUSR)
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "CL2_ACNS_TELEMETRY_ENABLED": "true",
+            "CL2_ACNS_METRIC_READY_TIMEOUT_SECONDS": "0",
+            "CL2_ACNS_METRIC_POLL_SECONDS": "0",
+            "KUBECONFIG": str(tmp_path / "kubeconfig"),
+            "PATH": f"{fake_bin}:{environment['PATH']}",
+        }
+    )
+
+    result = subprocess.run(
+        ["bash", str(ACNS_SETUP_SCRIPT)],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=10,
+    )
+
+    assert result.returncode == 1
+    assert (
+        "No Running acns-log-collector Pod found on acns-client node "
+        "node-b (acns-client=acns-client-b)" in result.stderr
+    )
+
+
+def test_acns_setup_fails_with_actionable_error_when_no_acns_client_pod(tmp_path):
+    # No Running acns-client Pod at all (e.g. still starting up / crashed) —
+    # must fail with a clear diagnostic instead of silently falling back
+    # to an arbitrary Cilium node.
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_kubectl = fake_bin / "kubectl"
+    fake_kubectl.write_text(
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env bash
+            set -euo pipefail
+            if [ "${1:-} ${2:-}" = "get crd/containernetworklogs.acn.azure.com" ] ||
+               [ "${1:-} ${2:-}" = "get crd/containernetworkmetrics.acn.azure.com" ] ||
+               [ "${1:-} ${2:-}" = "get crd/ciliumnetworkpolicies.cilium.io" ] ||
+               [ "${1:-}" = "apply" ] ||
+               [[ " $* " == *" rollout status "* ]]; then
+              exit 0
+            elif [[ " $* " == *" get containernetworklog clustermesh-scale-acns -o jsonpath="* ]] ||
+                 [[ " $* " == *" get containernetworkmetric container-network-metric -o jsonpath="* ]]; then
+              printf CONFIGURED
+            elif [[ " $* " == *" -n acns-telemetry get pods -l app=acns-client -o jsonpath="* ]]; then
+              printf ''
+            elif [[ " $* " == *" -o wide "* ]] || [[ " $* " == *" -o yaml "* ]] ||
+                 [[ " $* " == *"describe"* ]]; then
+              printf '%s\\n' 'diagnostic'
+            else
+              echo "Unexpected kubectl command: $*" >&2
+              exit 1
+            fi
+            """
+        ),
+        encoding="utf-8",
+    )
+    fake_kubectl.chmod(fake_kubectl.stat().st_mode | stat.S_IXUSR)
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "CL2_ACNS_TELEMETRY_ENABLED": "true",
+            "CL2_ACNS_METRIC_READY_TIMEOUT_SECONDS": "0",
+            "CL2_ACNS_METRIC_POLL_SECONDS": "0",
+            "KUBECONFIG": str(tmp_path / "kubeconfig"),
+            "PATH": f"{fake_bin}:{environment['PATH']}",
+        }
+    )
+
+    result = subprocess.run(
+        ["bash", str(ACNS_SETUP_SCRIPT)],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=10,
+    )
+
+    assert result.returncode == 1
+    assert (
+        "No Running acns-client Pod found in acns-telemetry namespace"
+        in result.stderr
+    )
 
 
 def test_audit_requires_real_node_kubelet_targets():
@@ -512,6 +795,88 @@ def test_audit_fails_when_cadvisor_target_is_down():
     )
     assert report["complete"] is False
     assert cadvisor["status"] == "missing"
+
+
+def test_audit_requires_exact_mock_agent_target_coverage():
+    metric_names = [
+        "apiserver_request_total",
+        "apiserver_flowcontrol_rejected_requests_total",
+        "kube_pod_info",
+        "kubelet_running_pods",
+        "container_cpu_usage_seconds_total",
+        "container_memory_working_set_bytes",
+        "cilium_version",
+        "etcd_request_duration_seconds_count",
+        "process_cpu_seconds_total",
+        "process_resident_memory_bytes",
+        "aks_apiserver_backend_process_cpu_seconds_total",
+        "aks_apiserver_backend_process_resident_memory_bytes",
+        "clustermesh_cluster_identity_info",
+    ]
+    targets = [
+        {"labels": {"job": "apiserver-backend-exporter"}, "health": "up"},
+        *[
+            {
+                "labels": {"job": "monitoring/mock-cilium-agent-0"},
+                "health": "up",
+            }
+            for _ in range(100)
+        ],
+    ]
+
+    report = audit_module.build_audit(
+        metric_names,
+        targets,
+        expected_mock_agent_targets=100,
+        identity_series=[
+            {
+                "run_id": "run-1",
+                "cluster_role": "mesh-1",
+                "cluster_name": "clustermesh-1",
+                "cluster_resource_id": "/subscriptions/sub-1/clustermesh-1",
+                "subscription_id": "sub-1",
+                "resource_group": "rg-1",
+                "region": "eastus2euap",
+                "prometheus_cluster_alias": "run_1_mesh_1",
+            }
+        ],
+    )
+
+    mock_agents = next(
+        check
+        for check in report["checks"]
+        if check["name"] == "target:mock-cilium-agent"
+    )
+    assert mock_agents["status"] == "covered"
+    assert mock_agents["target_count"] == 100
+    assert mock_agents["up_targets"] == 100
+
+    targets[-1]["health"] = "down"
+    incomplete = audit_module.build_audit(
+        metric_names,
+        targets,
+        expected_mock_agent_targets=100,
+        identity_series=[
+            {
+                "run_id": "run-1",
+                "cluster_role": "mesh-1",
+                "cluster_name": "clustermesh-1",
+                "cluster_resource_id": "/subscriptions/sub-1/clustermesh-1",
+                "subscription_id": "sub-1",
+                "resource_group": "rg-1",
+                "region": "eastus2euap",
+                "prometheus_cluster_alias": "run_1_mesh_1",
+            }
+        ],
+    )
+    mock_agents = next(
+        check
+        for check in incomplete["checks"]
+        if check["name"] == "target:mock-cilium-agent"
+    )
+    assert incomplete["complete"] is False
+    assert mock_agents["status"] == "missing"
+    assert mock_agents["down_targets"] == 1
 
 
 def test_audit_requires_acns_metric_families_and_hubble_target():

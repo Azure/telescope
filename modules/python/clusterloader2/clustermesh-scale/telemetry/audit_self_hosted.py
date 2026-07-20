@@ -131,6 +131,7 @@ def build_audit(
     require_real_node_kubelet=False,
     require_kwok_resource=False,
     require_acns=False,
+    expected_mock_agent_targets=0,
     identity_series=None,
     expected_identity=None,
 ):
@@ -245,6 +246,31 @@ def build_audit(
                 "target_count": target["total"],
                 "up_targets": target["up"],
                 "down_targets": target["down"],
+            }
+        )
+    if expected_mock_agent_targets > 0:
+        mock_targets = [
+            target
+            for job_name, target in jobs.items()
+            if "mock-cilium-agent" in job_name
+        ]
+        target_count = sum(target["total"] for target in mock_targets)
+        up_targets = sum(target["up"] for target in mock_targets)
+        down_targets = sum(target["down"] for target in mock_targets)
+        healthy = (
+            target_count == expected_mock_agent_targets
+            and up_targets == expected_mock_agent_targets
+            and down_targets == 0
+        )
+        checks.append(
+            {
+                "name": "target:mock-cilium-agent",
+                "required": True,
+                "status": "covered" if healthy else "missing",
+                "expected_target_count": expected_mock_agent_targets,
+                "target_count": target_count,
+                "up_targets": up_targets,
+                "down_targets": down_targets,
             }
         )
     if require_acns:
@@ -364,6 +390,7 @@ def parse_args(argv=None):
     parser.add_argument("--require-real-node-kubelet", action="store_true")
     parser.add_argument("--require-kwok-resource", action="store_true")
     parser.add_argument("--require-acns", action="store_true")
+    parser.add_argument("--expected-mock-agent-targets", type=int, default=0)
     return parser.parse_args(argv)
 
 
@@ -397,6 +424,7 @@ def main(argv=None):
             require_real_node_kubelet=args.require_real_node_kubelet,
             require_kwok_resource=args.require_kwok_resource,
             require_acns=args.require_acns,
+            expected_mock_agent_targets=args.expected_mock_agent_targets,
             identity_series=identity_series,
             expected_identity=expected_identity,
         )

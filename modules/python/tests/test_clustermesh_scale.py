@@ -2653,8 +2653,12 @@ class TestSaturationClassifier(unittest.TestCase):
         self.assertEqual(s["first_failure_mode"], "latency_spike")
 
     def test_missing_measurements_flag_incomplete_rung(self):
-        """If a rung's measurement files are missing, measurement_missing
-        lists the gaps. Latency present → rung_completed still true."""
+        """A rung is only measurement-valid when ALL verdict-driving signals
+        (latency, queue_size_perc99, apiserver_max_cpu_cores,
+        mesh_failure_rate_max, etcd_commit_p99_ms) are present and numeric.
+        Latency alone landing is NOT sufficient — a partially-collected rung
+        must be flagged incomplete/invalid, not silently treated as
+        complete just because the gating latency signal showed up."""
         _write_metric_file(
             self.report_dir, "ClusterMesh Kvstore Operation Duration",
             "Rung0", {"Perc99": 0.020},
@@ -2662,15 +2666,23 @@ class TestSaturationClassifier(unittest.TestCase):
         lines = self._run_collect("20")
         rung = next(r for r in lines if r.get("measurement") == "SaturationRung")
         d = rung["result"]["data"]
-        self.assertTrue(d["rung_completed"])
+        self.assertFalse(d["rung_completed"])
+        self.assertFalse(d["measurement_valid"])
+        self.assertEqual(d["verdict"], "measurement_incomplete")
         self.assertIn("queue_size_perc99", d["measurement_missing"])
         self.assertIn("apiserver_max_cpu_cores", d["measurement_missing"])
         self.assertIn("mesh_failure_rate_max", d["measurement_missing"])
         self.assertIn("etcd_commit_p99_ms", d["measurement_missing"])
+        summary = [r for r in lines if r.get("measurement") == "SaturationSummary"][0]
+        s = summary["result"]["data"]
+        self.assertEqual(s["rungs_completed"], 0)
+        self.assertFalse(s["measurement_integrity_complete"])
+        self.assertEqual(s["measurement_incomplete_rungs"], [0])
 
     def test_rung_completed_false_when_latency_missing(self):
-        """Latency is the gating signal — without it, rung is incomplete
-        regardless of how many other signals landed."""
+        """Latency is one of the required verdict-driving signals — without
+        it, the rung is incomplete regardless of how many other required
+        signals landed."""
         _write_metric_file(
             self.report_dir, "ClusterMesh Kvstore Sync Queue Size",
             "Rung0", {"Max": 5, "Perc99": 3},
@@ -2695,6 +2707,39 @@ class TestSaturationClassifier(unittest.TestCase):
         rung = next(r for r in lines if r.get("measurement") == "SaturationRung")
         self.assertFalse(rung["result"]["data"]["rung_completed"])
         self.assertIn("latency_p99_ms", rung["result"]["data"]["measurement_missing"])
+        summary = [r for r in lines if r.get("measurement") == "SaturationSummary"][0]
+        self.assertEqual(summary["result"]["data"]["rungs_completed"], 0)
+
+    def test_rung_completed_false_when_only_etcd_missing(self):
+        """Every verdict-driving signal is required, not just latency —
+        a rung with latency + queue + cpu + mesh-failure present but ONLY
+        etcd_commit_p99_ms missing must still be measurement_incomplete /
+        measurement_valid=false, never silently treated as a valid 'clean'
+        upper-bound measurement."""
+        _write_metric_file(
+            self.report_dir, "ClusterMesh Kvstore Operation Duration",
+            "Rung0", {"Perc99": 0.020},
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMesh Kvstore Sync Queue Size",
+            "Rung0", {"Max": 5, "Perc99": 3},
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMesh APIServer Pod CPU",
+            "Rung0", {"PerPodMax": 0.3, "TotalMax": 0.3, "TotalAvg": 0.2},
+        )
+        _write_metric_file(
+            self.report_dir, "ClusterMesh Remote Cluster Failure Rate",
+            "Rung0", {"Max": 0.01},
+        )
+        # etcd_commit_p99_ms's file is intentionally NOT written.
+        lines = self._run_collect("20")
+        rung = next(r for r in lines if r.get("measurement") == "SaturationRung")
+        d = rung["result"]["data"]
+        self.assertFalse(d["rung_completed"])
+        self.assertFalse(d["measurement_valid"])
+        self.assertEqual(d["verdict"], "measurement_incomplete")
+        self.assertIn("etcd_commit_p99_ms", d["measurement_missing"])
         summary = [r for r in lines if r.get("measurement") == "SaturationSummary"][0]
         self.assertEqual(summary["result"]["data"]["rungs_completed"], 0)
 
@@ -2767,56 +2812,56 @@ class TestSaturationClassifier(unittest.TestCase):
         self.assertEqual(rungs[1]["result"]["data"]["configured_restarts"], 2)
         self.assertEqual(rungs[2]["result"]["data"]["configured_restarts"], 1)
 
-    def test_monitoring_oom_verdict_when_prom_dies_mid_run(self):
-        """Phase 4b — Scenario #6 monitoring_oom verdict (added 2026-05-15
-        after build 67279). When an earlier rung successfully completed but
-        a later rung has zero signals, the most likely explanation is the
-        Prometheus stack OOM'ed under load. That IS a saturation finding
-        per spec line 113 ('Resource exhaustion occurs') so we record it
-        as verdict=monitoring_oom rather than silently leaving it as
-        verdict=clean rung_completed=False (which underclaims the failure).
+    def test_missing_later_rung_is_measurement_incomplete(self):
+        """Missing rung data is not enough evidence to claim Prometheus OOM
+        or product saturation; it is an explicit measurement-integrity
+        failure that requires diagnostics.
         """
         # Rung 0: clean (Prom alive, all signals land)
         self._write_clean_rung(0)
         # Rung 1: NOTHING — Prom crashed mid-run before its gather phase
-        # (no files written for this rung). Classifier should detect
-        # "previous rung had signals, this one doesn't → monitoring_oom".
+        # (no files written for this rung).
         lines = self._run_collect("20,40")
         rungs = sorted(
             [r for r in lines if r.get("measurement") == "SaturationRung"],
             key=lambda r: r["result"]["data"]["rung_index"],
         )
         self.assertEqual(rungs[0]["result"]["data"]["verdict"], "clean")
-        self.assertEqual(rungs[1]["result"]["data"]["verdict"], "monitoring_oom")
-        self.assertEqual(rungs[1]["result"]["data"]["dominant_signal_ratio"], 999.0)
+        self.assertEqual(
+            rungs[1]["result"]["data"]["verdict"], "measurement_incomplete"
+        )
+        self.assertEqual(rungs[1]["result"]["data"]["dominant_signal_ratio"], 0.0)
         self.assertFalse(rungs[1]["result"]["data"]["rung_completed"])
-        # Summary records monitoring_oom as the first failure mode.
+        self.assertFalse(rungs[1]["result"]["data"]["measurement_valid"])
         summary = [r for r in lines if r.get("measurement") == "SaturationSummary"][0]
         s = summary["result"]["data"]
         self.assertEqual(s["max_clean_qps"], 20)
-        self.assertEqual(s["first_failure_mode"], "monitoring_oom")
+        self.assertEqual(s["first_failure_mode"], "measurement_incomplete")
         self.assertEqual(s["first_failure_qps"], 40)
+        self.assertFalse(s["measurement_integrity_complete"])
+        self.assertEqual(s["measurement_incomplete_rungs"], [1])
 
-    def test_monitoring_oom_not_emitted_when_no_prior_rung_completed(self):
-        """If even Rung 0 has zero signals, that's NOT monitoring_oom —
-        it's an upstream config / deployment problem (Prom never came up,
-        or scale.py was misconfigured). Stay at verdict=clean
-        rung_completed=False so postmortem investigates the right layer."""
+    def test_missing_initial_rungs_are_measurement_incomplete(self):
+        """If even Rung 0 has no signals, every missing rung is explicitly
+        incomplete rather than clean or inferred saturation.
+        """
         # Don't write any files. Every rung will have zero signals.
         lines = self._run_collect("20,40")
         rungs = sorted(
             [r for r in lines if r.get("measurement") == "SaturationRung"],
             key=lambda r: r["result"]["data"]["rung_index"],
         )
-        # Both rungs should be clean (not monitoring_oom) because no
-        # earlier rung established that Prom WAS working.
         for r in rungs:
-            self.assertNotEqual(r["result"]["data"]["verdict"], "monitoring_oom",
-                                f"rung {r['result']['data']['rung_index']}: "
-                                f"monitoring_oom should only fire after a "
-                                f"prior rung completed")
-            self.assertEqual(r["result"]["data"]["verdict"], "clean")
+            self.assertEqual(
+                r["result"]["data"]["verdict"], "measurement_incomplete"
+            )
             self.assertFalse(r["result"]["data"]["rung_completed"])
+            self.assertFalse(r["result"]["data"]["measurement_valid"])
+        summary = [
+            r for r in lines if r.get("measurement") == "SaturationSummary"
+        ][0]["result"]["data"]
+        self.assertFalse(summary["measurement_integrity_complete"])
+        self.assertEqual(summary["measurement_incomplete_rungs"], [0, 1])
 
     def test_classifier_matches_build_67211_production_filename_format(self):
         """REGRESSION: build 67211 (first n=2 upper-bound smoke 2026-05-14)

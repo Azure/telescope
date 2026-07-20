@@ -88,3 +88,158 @@ def test_upper_bound_allows_ten_percent_hard_worker_loss():
 
     assert decision["success"] is True
     assert decision["worker_allowed_failures"] == 10
+
+
+def test_initial_evaluation_leaves_lifecycle_fields_null():
+    """Before cleanup runs, the four recovery signals are unknown."""
+    decision = evaluate_policy(
+        "pod-churn-combined",
+        100,
+        _summary(100, []),
+    )
+
+    assert decision["measurement_valid"] is True
+    assert decision["recovery_valid"] is None
+    assert decision["infrastructure_healthy"] is None
+    assert decision["artifact_preserved"] is None
+    assert decision["mock_reconcile_valid"] is None
+    assert decision["suite_continue"] is None
+    # Suite continuation is unknown yet, so only this scenario's own
+    # measurement validity can decide overall_failure at this point.
+    assert decision["overall_failure"] is False
+
+
+def test_evidence_invalid_fails_measurement_but_not_by_itself_suite_continue():
+    decision = evaluate_policy(
+        "event-throughput",
+        100,
+        _summary(100, []),
+        evidence_valid=False,
+    )
+
+    assert decision["measurement_valid"] is False
+    assert decision["success"] is False
+    assert any(
+        "scenario evidence validation failed" in reason
+        for reason in decision["measurement_reasons"]
+    )
+    assert decision["reasons"] == decision["measurement_reasons"]
+    # evidence_valid folds into measurement_valid only, never suite_continue.
+    assert decision["suite_continue"] is None
+
+
+def test_measurement_invalid_with_healthy_recovery_continues_the_suite():
+    """An invalid MEASUREMENT (e.g. tolerated worker loss / bad evidence)
+    must not by itself stop the suite if the shared infra recovered."""
+    decision = evaluate_policy(
+        "event-throughput",
+        100,
+        _summary(100, []),
+        evidence_valid=False,
+        recovery_valid=True,
+        infrastructure_healthy=True,
+        artifact_preserved=True,
+        mock_reconcile_valid=True,
+    )
+
+    assert decision["measurement_valid"] is False
+    assert decision["suite_continue"] is True
+    assert decision["overall_failure"] is True
+    assert decision["suite_stop_reasons"] == []
+
+
+def test_recovery_failure_stops_the_suite_even_if_measurement_was_valid():
+    decision = evaluate_policy(
+        "event-throughput",
+        100,
+        _summary(100, []),
+        recovery_valid=False,
+        infrastructure_healthy=True,
+        artifact_preserved=True,
+        mock_reconcile_valid=True,
+    )
+
+    assert decision["measurement_valid"] is True
+    assert decision["suite_continue"] is False
+    assert decision["overall_failure"] is True
+    assert (
+        "post-scenario recovery/cleanup was not verified"
+        in decision["suite_stop_reasons"]
+    )
+
+
+def test_infrastructure_unhealthy_stops_the_suite():
+    decision = evaluate_policy(
+        "event-throughput",
+        100,
+        _summary(100, []),
+        recovery_valid=True,
+        infrastructure_healthy=False,
+        artifact_preserved=True,
+        mock_reconcile_valid=True,
+    )
+
+    assert decision["measurement_valid"] is True
+    assert decision["suite_continue"] is False
+    assert decision["overall_failure"] is True
+    assert (
+        "shared infrastructure health gate did not pass"
+        in decision["suite_stop_reasons"]
+    )
+
+
+def test_artifact_preservation_failure_stops_the_suite():
+    decision = evaluate_policy(
+        "event-throughput",
+        100,
+        _summary(100, []),
+        recovery_valid=True,
+        infrastructure_healthy=True,
+        artifact_preserved=False,
+        mock_reconcile_valid=True,
+    )
+
+    assert decision["suite_continue"] is False
+    assert decision["overall_failure"] is True
+    assert (
+        "scenario artifact preservation failed" in decision["suite_stop_reasons"]
+    )
+
+
+def test_mock_reconcile_failure_stops_the_suite():
+    decision = evaluate_policy(
+        "event-throughput",
+        100,
+        _summary(100, []),
+        recovery_valid=True,
+        infrastructure_healthy=True,
+        artifact_preserved=True,
+        mock_reconcile_valid=False,
+    )
+
+    assert decision["suite_continue"] is False
+    assert decision["overall_failure"] is True
+    assert (
+        "mock layer reconciliation failed" in decision["suite_stop_reasons"]
+    )
+
+
+def test_tolerated_worker_loss_with_healthy_recovery_fully_continues():
+    """A tolerated hard-worker loss plus a clean recovery is the normal,
+    fully-green continuation path: measurement_valid AND suite_continue
+    are both true, so overall_failure is false."""
+    decision = evaluate_policy(
+        "pod-churn-combined",
+        100,
+        _summary(100, ["mesh-7", "mesh-8", "mesh-9"]),
+        recovery_valid=True,
+        infrastructure_healthy=True,
+        artifact_preserved=True,
+        mock_reconcile_valid=True,
+    )
+
+    assert decision["measurement_valid"] is True
+    assert decision["tolerated_worker_failures"] is True
+    assert decision["suite_continue"] is True
+    assert decision["overall_failure"] is False
+    assert decision["suite_stop_reasons"] == []

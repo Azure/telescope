@@ -121,6 +121,29 @@ steps:
         Params:
           duration: {{$warmupDuration}}
 
+  # ----- Evidence: capture pre-restart Deployment/Pod state -----
+  # File-only, post-hoc proof that the burst restart actually recreated
+  # pods (not just observed them Ready again). See
+  # config/event-throughput-evidence.sh for the full contract; scenario_evidence.py
+  # reads /root/perf-tests/clusterloader2/results/EventThroughputEvidence.json.
+  - name: Capture pre-restart event-throughput evidence
+    measurements:
+      - Identifier: CaptureEventThroughputEvidence
+        Method: Exec
+        Params:
+          streamOutput: true
+          timeout: 3m
+          command:
+          - bash
+          - /root/perf-tests/clusterloader2/config/event-throughput-evidence.sh
+          - capture
+          - "{{$namespaces}}"
+          - "{{$deploymentsPerNamespace}}"
+          - "{{$replicasPerDeployment}}"
+          - clustermesh-event-throughput
+          - "{{$restartGeneration}}"
+          - /root/perf-tests/clusterloader2/results/EventThroughputEvidence.json
+
   # ----- Burst: rolling-restart of every Deployment -----
   - module:
       path: /modules/event-throughput-workload.yaml
@@ -132,6 +155,28 @@ steps:
         replicasPerDeployment: {{$replicasPerDeployment}}
         tuningSet: DeploymentCreateQps
         operationTimeout: {{$operationTimeout}}
+
+  # ----- Evidence: verify post-restart Deployment/Pod state -----
+  # Runs immediately after the restart module's own
+  # WaitForControlledPodsRunning gather step above, before the settle
+  # sleep — merges into the same EventThroughputEvidence.json atomically.
+  - name: Verify post-restart event-throughput evidence
+    measurements:
+      - Identifier: VerifyEventThroughputEvidence
+        Method: Exec
+        Params:
+          streamOutput: true
+          timeout: 3m
+          command:
+          - bash
+          - /root/perf-tests/clusterloader2/config/event-throughput-evidence.sh
+          - verify
+          - "{{$namespaces}}"
+          - "{{$deploymentsPerNamespace}}"
+          - "{{$replicasPerDeployment}}"
+          - clustermesh-event-throughput
+          - "{{$restartGeneration}}"
+          - /root/perf-tests/clusterloader2/results/EventThroughputEvidence.json
 
   # ----- Settle: let kvstore queues drain post-burst -----
   - name: Settle after burst

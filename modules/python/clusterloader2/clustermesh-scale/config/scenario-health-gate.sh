@@ -195,8 +195,13 @@ observe_cluster() {
   local prometheus_k8s_count=0 monitoring_resource_count=0
   local monitoring_resources='[]'
   local cilium_desired=-1 cilium_ready=-1
-  local mock_node_count=0 mock_ready_node_count=0
-  local mock_agent_count=0 mock_running_agent_count=0
+  local mock_node_count=0 mock_ready_node_count=0 mock_schedulable_node_count=0
+  local mock_node_names='[]'
+  local mock_agent_count=0 mock_running_agent_count=0 mock_ready_agent_count=0
+  local mock_coverage_served_count=0 mock_coverage_unique_count=0
+  local mock_coverage_duplicate_count=0
+  local mock_coverage_missing_nodes='[]' mock_coverage_orphan_agents='[]'
+  local mock_coverage_exact_match=true
   local remote_ready=-1 remote_total=-1
   local identity_count=0 global_service_count=0
   local endpoint_namespaces=""
@@ -351,9 +356,11 @@ observe_cluster() {
     failures=$(append_failure "$failures" "get Cilium DaemonSet failed: $K_ERROR")
   fi
 
+  local mock_nodes_available=false
   if [ "$expected_mock_count" -gt 0 ]; then
     if kube "$kubeconfig" "$context" get nodes -l type=kwok -o json; then
       if jq -e '.items | type == "array"' <<<"$K_OUT" >/dev/null 2>&1; then
+        mock_nodes_available=true
         mock_node_count=$(jq '.items | length' <<<"$K_OUT")
         mock_ready_node_count=$(jq '
           [.items[]
@@ -361,10 +368,17 @@ observe_cluster() {
                .type == "Ready" and .status == "True"))]
           | length
         ' <<<"$K_OUT")
+        # "schedulable" = spec.unschedulable is absent/false (cordoned nodes
+        # set it true and must not count toward a healthy mock layer).
+        mock_schedulable_node_count=$(jq '
+          [.items[] | select((.spec.unschedulable // false) | not)] | length
+        ' <<<"$K_OUT")
+        mock_node_names=$(jq -c '[.items[].metadata.name] | sort' <<<"$K_OUT")
         if [ "$mock_node_count" -ne "$expected_mock_count" ] ||
-           [ "$mock_ready_node_count" -ne "$expected_mock_count" ]; then
+           [ "$mock_ready_node_count" -ne "$expected_mock_count" ] ||
+           [ "$mock_schedulable_node_count" -ne "$expected_mock_count" ]; then
           failures=$(append_failure "$failures" \
-            "KWOK nodes expected/present/Ready=${expected_mock_count}/${mock_node_count}/${mock_ready_node_count}")
+            "KWOK nodes expected/present/Ready/schedulable=${expected_mock_count}/${mock_node_count}/${mock_ready_node_count}/${mock_schedulable_node_count}")
         fi
       else
         failures=$(append_failure "$failures" \
@@ -380,10 +394,62 @@ observe_cluster() {
         mock_agent_count=$(jq '.items | length' <<<"$K_OUT")
         mock_running_agent_count=$(jq \
           '[.items[] | select(.status.phase == "Running")] | length' <<<"$K_OUT")
+        # "all container statuses Ready" -- Running phase alone can still
+        # be reported for a Pod whose container is crash-looping/not-Ready.
+        mock_ready_agent_count=$(jq '
+          [.items[]
+           | select(.status.phase == "Running")
+           | select((.status.containerStatuses // []) | length > 0)
+           | select(all(.status.containerStatuses[]; .ready == true))]
+          | length
+        ' <<<"$K_OUT")
         if [ "$mock_agent_count" -ne "$expected_mock_count" ] ||
-           [ "$mock_running_agent_count" -ne "$expected_mock_count" ]; then
+           [ "$mock_running_agent_count" -ne "$expected_mock_count" ] ||
+           [ "$mock_ready_agent_count" -ne "$expected_mock_count" ]; then
           failures=$(append_failure "$failures" \
-            "mock Cilium agents expected/present/Running=${expected_mock_count}/${mock_agent_count}/${mock_running_agent_count}")
+            "mock Cilium agents expected/present/Running/Ready=${expected_mock_count}/${mock_agent_count}/${mock_running_agent_count}/${mock_ready_agent_count}")
+        fi
+
+        # mock-clustermesh/serves-node coverage: every agent must serve a
+        # nonempty, unique node name; the set of served names must exactly
+        # match the live KWOK node names -- no duplicates (two agents
+        # claiming the same node), no orphans (an agent serving a node that
+        # no longer exists or has no label), and no missing coverage (a
+        # node with no serving agent).
+        mock_coverage_json=$(jq -c --argjson nodes "$mock_node_names" '
+          (.items | length) as $total_agents
+          | ([.items[] | ((.metadata.labels // {})["mock-clustermesh/serves-node"] // empty)]) as $served
+          | ($served | length) as $served_count
+          | ($served | unique) as $unique_served
+          | ($unique_served | length) as $unique_count
+          | ($nodes - $unique_served) as $missing
+          | ($unique_served - $nodes) as $orphans
+          | {
+              served_count: $served_count,
+              unique_count: $unique_count,
+              duplicate_count: ($served_count - $unique_count),
+              unlabeled_count: ($total_agents - $served_count),
+              missing_nodes: $missing,
+              orphan_agents: $orphans,
+              exact_match: (
+                $served_count == $total_agents and
+                $served_count == $unique_count and
+                ($missing | length) == 0 and
+                ($orphans | length) == 0 and
+                $unique_count == ($nodes | length)
+              )
+            }
+        ' <<<"$K_OUT")
+        mock_coverage_served_count=$(jq -r '.served_count' <<<"$mock_coverage_json")
+        mock_coverage_unique_count=$(jq -r '.unique_count' <<<"$mock_coverage_json")
+        mock_coverage_duplicate_count=$(jq -r '.duplicate_count' <<<"$mock_coverage_json")
+        mock_coverage_missing_nodes=$(jq -c '.missing_nodes' <<<"$mock_coverage_json")
+        mock_coverage_orphan_agents=$(jq -c '.orphan_agents' <<<"$mock_coverage_json")
+        mock_coverage_exact_match=$(jq -r '.exact_match' <<<"$mock_coverage_json")
+        if [ "$mock_nodes_available" = "true" ] &&
+           [ "$mock_coverage_exact_match" != "true" ]; then
+          failures=$(append_failure "$failures" \
+            "mock-clustermesh/serves-node coverage mismatch: served=${mock_coverage_served_count} unique=${mock_coverage_unique_count} duplicates=${mock_coverage_duplicate_count} missing_nodes=$(jq -r 'join(",")' <<<"$mock_coverage_missing_nodes") orphan_agents=$(jq -r 'join(",")' <<<"$mock_coverage_orphan_agents")")
         fi
       else
         failures=$(append_failure "$failures" \
@@ -474,8 +540,16 @@ observe_cluster() {
     --argjson mock_expected "$expected_mock_count" \
     --argjson mock_node_count "$mock_node_count" \
     --argjson mock_ready_node_count "$mock_ready_node_count" \
+    --argjson mock_schedulable_node_count "$mock_schedulable_node_count" \
     --argjson mock_agent_count "$mock_agent_count" \
     --argjson mock_running_agent_count "$mock_running_agent_count" \
+    --argjson mock_ready_agent_count "$mock_ready_agent_count" \
+    --argjson mock_coverage_served_count "$mock_coverage_served_count" \
+    --argjson mock_coverage_unique_count "$mock_coverage_unique_count" \
+    --argjson mock_coverage_duplicate_count "$mock_coverage_duplicate_count" \
+    --argjson mock_coverage_missing_nodes "$mock_coverage_missing_nodes" \
+    --argjson mock_coverage_orphan_agents "$mock_coverage_orphan_agents" \
+    --argjson mock_coverage_exact_match "$mock_coverage_exact_match" \
     --argjson remote_expected "$expected_remote_count" \
     --argjson remote_ready "$remote_ready" \
     --argjson remote_total "$remote_total" \
@@ -510,8 +584,18 @@ observe_cluster() {
         expected: $mock_expected,
         nodes: $mock_node_count,
         ready_nodes: $mock_ready_node_count,
+        schedulable_nodes: $mock_schedulable_node_count,
         agents: $mock_agent_count,
-        running_agents: $mock_running_agent_count
+        running_agents: $mock_running_agent_count,
+        ready_agents: $mock_ready_agent_count,
+        serves_node_coverage: {
+          served_count: $mock_coverage_served_count,
+          unique_count: $mock_coverage_unique_count,
+          duplicate_count: $mock_coverage_duplicate_count,
+          missing_nodes: $mock_coverage_missing_nodes,
+          orphan_agents: $mock_coverage_orphan_agents,
+          exact_match: $mock_coverage_exact_match
+        }
       },
       clustermesh: {
         expected_remote: $remote_expected,
@@ -616,6 +700,7 @@ write_summary() {
     '{
       schema_version: 1,
       success: $success,
+      infrastructure_healthy: $success,
       started_at: $started_at,
       completed_at: $completed_at,
       scenario: $scenario,

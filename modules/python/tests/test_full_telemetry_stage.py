@@ -297,3 +297,209 @@ def test_n100_stage_has_complete_workload_and_telemetry_wiring():
     assert "node_count           = 12" in tfvars
     assert "clustermesh-churn=true:NoSchedule" in tfvars
     assert 'aks_name                      = "clustermesh-100"' in tfvars
+
+
+def test_execute_yml_classifies_early_artifact_preservation_summary():
+    """Fix: execute.yml must parse the early preservation summary
+    (authoritative) rather than treat every nonzero exit code as a
+    shared-infrastructure failure. A scenario-local incomplete
+    preservation folds into evidence_valid/measurement_valid but must
+    NOT by itself flip artifact_preserved to false."""
+    template = EXECUTE_TEMPLATE_PATH.read_text(encoding="utf-8")
+
+    assert "artifact-preservation-summary.json" in template
+    assert "artifact_infrastructure_failure" in template
+    assert "artifact_scenario_incomplete" in template
+    infra_pos = template.index('if [ "$artifact_infrastructure_failure" = "true" ]')
+    incomplete_pos = template.index('if [ "$artifact_scenario_incomplete" = "true" ]')
+    artifact_preserved_false_pos = template.index(
+        "artifact_preserved=false", infra_pos
+    )
+    evidence_invalid_pos = template.index("evidence_valid=false", incomplete_pos)
+    # infrastructure_failure must be the ONLY path that flips
+    # artifact_preserved to false; scenario_incomplete must fold into
+    # evidence/measurement validity instead.
+    assert infra_pos < artifact_preserved_false_pos < incomplete_pos
+    assert incomplete_pos < evidence_invalid_pos
+    assert "measurement invalidated, later scenarios are not stopped" in template
+    assert "this will stop later scenarios" in template
+
+
+def test_execute_yml_final_lifecycle_preservation_wiring():
+    """Fix: execute.yml must invoke PRESERVE_LIFECYCLE_ONLY=true after the
+    final scenario-policy.py call/SHARE_INFRA_META write for each
+    scenario, using a distinct artifact-preservation-final-summary.json,
+    and must re-finalize policy/metadata + stop the suite if that final
+    upload hits an infrastructure failure."""
+    template = EXECUTE_TEMPLATE_PATH.read_text(encoding="utf-8")
+
+    final_policy_call_pos = template.index("B.8: finalize the scenario policy decision")
+    lifecycle_section_pos = template.index(
+        "B.8.5: final lifecycle-only artifact upload"
+    )
+    measurement_section_pos = template.index("B.9: measurement validity")
+    assert final_policy_call_pos < lifecycle_section_pos < measurement_section_pos
+
+    lifecycle_section = template[lifecycle_section_pos:measurement_section_pos]
+    assert "PRESERVE_LIFECYCLE_ONLY=true" in lifecycle_section
+    assert "artifact-preservation-final-summary.json" in lifecycle_section
+    assert "final_lifecycle_infrastructure_failure" in lifecycle_section
+    assert "re-finalizing policy and stopping later scenarios" in lifecycle_section
+    # On final-upload infra failure, must re-run scenario_policy.py with
+    # artifact_preserved=false and persist the recomputed suite_continue.
+    assert '--artifact-preserved "$artifact_preserved"' in lifecycle_section
+    assert "suite_continue=false" in lifecycle_section
+    assert "SHARE_INFRA_META" in lifecycle_section
+
+    # Fix: the final lifecycle budget must be computed and folded into the
+    # pre-flight suite budget check so a scenario isn't started without
+    # enough remaining time to run this final upload.
+    assert "scenario_final_lifecycle_budget_seconds" in template
+    assert "final_lifecycle_budget" in template
+
+
+def test_execute_yml_wait_propagation_probe_is_bounded():
+    """Fix: wait_propagation_probe must never use an unbounded shell
+    `wait` on the host-side propagation-probe orchestrator's PID -- it
+    must poll the PID against a conservative, computed deadline and, if
+    that deadline expires, terminate the whole process group via the
+    existing terminate_process_group helper and return rc=124 (the
+    coreutils `timeout` convention already used elsewhere in this file).
+    On normal completion the already-finalized PropagationTimings.jsonl
+    must be left untouched -- this function only observes exit status."""
+    template = EXECUTE_TEMPLATE_PATH.read_text(encoding="utf-8")
+
+    budget_fn_pos = template.index("propagation_probe_wait_budget_seconds()")
+    wait_fn_pos = template.index("wait_propagation_probe() {")
+    assert budget_fn_pos < wait_fn_pos, (
+        "propagation_probe_wait_budget_seconds must be defined before "
+        "wait_propagation_probe uses it"
+    )
+
+    # Budget must be scale/config-aware: workload-ready timeout (explicit
+    # override or scale-aware default), probe count, peer timeout,
+    # interval, and a margin.
+    budget_fn_end = template.index("\n\n", budget_fn_pos)
+    budget_fn_body = template[budget_fn_pos:budget_fn_end]
+    assert "propagation_probe_workload_ready_timeout_seconds" in budget_fn_body
+    assert "CL2_PROPAGATION_PROBE_COUNT" in budget_fn_body
+    assert "CL2_PROPAGATION_PROBE_PEER_TIMEOUT" in budget_fn_body
+    assert "CL2_PROPAGATION_PROBE_INTERVAL_S" in budget_fn_body
+    assert "margin" in budget_fn_body.lower()
+
+    wait_fn_end = template.index("\n      }\n", wait_fn_pos)
+    wait_fn_body = template[wait_fn_pos:wait_fn_end]
+
+    # The ONLY `wait "$PROBE_PID"` call must be reached after the bounded
+    # polling loop breaks (i.e. it must not be the unconditional first
+    # thing the function does) -- guard against a regression back to a
+    # bare blocking wait.
+    assert 'wait "$PROBE_PID"' in wait_fn_body
+    deadline_check_pos = wait_fn_body.index('"$_deadline"')
+    plain_wait_pos = wait_fn_body.index('wait "$PROBE_PID"')
+    assert deadline_check_pos < plain_wait_pos, (
+        "wait_propagation_probe must check its computed deadline before "
+        "reaping PROBE_PID -- an unbounded `wait \"$PROBE_PID\"` as the "
+        "first statement would defeat the whole bound"
+    )
+    assert "propagation_probe_wait_budget_seconds" in wait_fn_body
+    assert 'terminate_process_group "$PROBE_PID"' in wait_fn_body
+    assert "PROBE_WAIT_RC=124" in wait_fn_body
+    assert "return 124" in wait_fn_body
+
+
+def test_collect_yml_aggregated_rows_are_annotated_with_scenario_policy():
+    """Fix: aggregated JSONL rows in share-infra collect must be
+    annotated with the scenario policy's authoritative validity fields
+    -- both top-level and under test_details -- so invalid rows are
+    explicitly filterable and never indistinguishable from valid
+    successes. Must fail safe to measurement_valid=false if the final
+    scenario-policy.json is missing or malformed."""
+    template = SNAPSHOT_TEMPLATE_PATH.read_text(encoding="utf-8")
+
+    assert "annotate_row_with_policy" in template
+    definition_pos = template.index("annotate_row_with_policy() {")
+    call_pos = template.index("annotate_row_with_policy ", definition_pos + 1)
+    collect_one_pos = template.index('if collect_one "${SCENARIO}', call_pos - 2000)
+    cat_pos = template.index(
+        'cat "$per_cluster_result" >> "$TEST_RESULTS_FILE"', collect_one_pos
+    )
+    # annotate_row_with_policy must run on the per-cluster result BEFORE
+    # it is appended into the aggregated TEST_RESULTS_FILE.
+    assert collect_one_pos < call_pos < cat_pos
+
+    for field in (
+        "measurement_valid",
+        "measurement_invalid_reasons",
+        "suite_continue",
+        "infrastructure_healthy",
+        "recovery_valid",
+    ):
+        assert field in template
+    assert ".test_details = ((.test_details // {})" in template
+    assert "scenario-policy.json" in template
+    assert "scenario policy output missing or malformed" in template
+
+
+def test_collect_yml_lifecycle_files_stage_unconditionally_when_snapshots_disabled():
+    """Fix: small lifecycle/evidence files must stage even when
+    Prometheus TSDB snapshots are disabled -- only TSDB-tarball-specific
+    work (and its "relabeling failed" warning) stays conditional on
+    snapshots actually being enabled, checked inside the script."""
+    template = SNAPSHOT_TEMPLATE_PATH.read_text(encoding="utf-8")
+
+    stage_display_pos = template.index('displayName: "Stage Prometheus TSDB snapshots"')
+    stage_condition_pos = template.index("condition:", stage_display_pos)
+    stage_condition = template[stage_condition_pos : stage_condition_pos + 60]
+    assert stage_condition.startswith("condition: succeededOrFailed()")
+
+    assert 'SNAPSHOT_ENABLED: $(cl2_prom_snapshot_enabled)' in template
+    assert 'if [ "$SNAPSHOT_ENABLED" = "true" ]; then' in template
+    assert (
+        "Prometheus TSDB snapshots disabled; skipping TSDB tarball staging"
+        in template
+    )
+
+    # A dedicated publish step must cover the "snapshots disabled" case so
+    # the unconditionally-staged lifecycle files still leave the agent.
+    publish_disabled_pos = template.index(
+        'displayName: "Publish lifecycle/evidence files as pipeline artifact '
+        '(snapshots disabled)"'
+    )
+    publish_disabled_condition = template[
+        publish_disabled_pos : publish_disabled_pos + 200
+    ]
+    assert "ne(variables['cl2_prom_snapshot_enabled'], 'true')" in publish_disabled_condition
+
+    # The existing snapshot-specific artifact publish/blob-upload steps
+    # must remain gated on snapshots actually being enabled -- requirement
+    # 5 explicitly forbids making those unconditional.
+    publish_enabled_pos = template.index(
+        'displayName: "Publish Prometheus TSDB snapshots as pipeline artifact"'
+    )
+    publish_enabled_condition = template[
+        publish_enabled_pos : publish_enabled_pos + 250
+    ]
+    assert "eq(variables['cl2_prom_snapshot_enabled'], 'true')" in publish_enabled_condition
+    upload_pos = template.index(
+        'displayName: "Upload Prometheus TSDB snapshots to our storage account"'
+    )
+    upload_condition = template[upload_pos : upload_pos + 250]
+    assert "eq(variables['cl2_prom_snapshot_enabled'], 'true')" in upload_condition
+
+
+def test_collect_yml_lifecycle_glob_patterns_include_final_summary():
+    """Fix: both lifecycle glob loops (local staging + blob upload) must
+    pick up the new artifact-preservation-final-summary.json file."""
+    template = SNAPSHOT_TEMPLATE_PATH.read_text(encoding="utf-8")
+
+    assert (
+        template.count(
+            '"$CL2_REPORT_DIR"/**/artifact-preservation-final-summary.json'
+        )
+        == 2
+    )
+    assert (
+        template.count('"$CL2_REPORT_DIR"/**/artifact-preservation-summary.json')
+        == 2
+    )

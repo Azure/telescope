@@ -71,7 +71,10 @@ steps:
       # CL2_MOCK_MODE pipeline variable, then to false → real runs unchanged.
       cl2_mock_mode_raw="${MOCK_MODE:-${CL2_MOCK_MODE:-false}}"
       export CL2_MOCK_MODE="${cl2_mock_mode_raw,,}"
-      export CL2_MOCK_NODE_COUNT="${MOCK_NODE_COUNT:-0}"
+      # Default 100 virtual nodes in mock mode (matches deploy-mock-layer.yml's own
+      # MOCK_NODE_COUNT default, so an unset override behaves identically for both
+      # provisioning and CL2 configuration); real mode stays 0 (unchanged).
+      export CL2_MOCK_NODE_COUNT="${MOCK_NODE_COUNT:-$( [ "$CL2_MOCK_MODE" = "true" ] && echo 100 || echo 0 )}"
       export CL2_KWOK_USAGE_CPU="${KWOK_USAGE_CPU:-${CL2_KWOK_USAGE_CPU:-1m}}"
       export CL2_KWOK_USAGE_MEMORY="${KWOK_USAGE_MEMORY:-${CL2_KWOK_USAGE_MEMORY:-1Mi}}"
       # CL2 attempt count for the per-cluster worker (run-cl2-on-cluster.sh). At
@@ -165,8 +168,13 @@ steps:
       #     per peer — adequate statistical coverage.
       #   PEER_TIMEOUT=120s — at N=100 under load, propagation can take
       #     30-90s; 120s gives margin without dragging out failed probes.
-      #   PREWAIT_S=300 — at N=100 shared-VNet, LB IP provisioning + Cilium
-      #     service sync takes 3-5min after backend Deployment Ready.
+      #   PREWAIT_S=300 — best-effort head start only (avoids hammering
+      #     the API before CL2 has even started creating the backend
+      #     workload). NOT correctness-bearing: propagation-probe.sh now
+      #     runs its own bounded workload-readiness barrier (namespace +
+      #     Deployment available/updated + Service, per cluster) before
+      #     preflight/probe creation, so a short/expired prewait can no
+      #     longer cause CL2 to still be mid-setup when probing starts.
       # Smaller smokes (n=2) override these to tighter values via the
       # matrix entry for faster turnaround (e.g. cl2_probe_window_duration
       # set to 20m in the n2_propagation_probe cell).
@@ -196,9 +204,15 @@ steps:
       export CL2_PROPAGATION_PROBE_FIRST_PACKET_TIMEOUT_S="${CL2_PROPAGATION_PROBE_FIRST_PACKET_TIMEOUT_S:-60}"
       export CL2_PROBE_WINDOW_DURATION="${CL2_PROBE_WINDOW_DURATION:-60m}"
       # Host-side orchestrator launches the probe in a background subshell
-      # after a prewait sleep — gives CL2 time to deploy the backend
-      # Deployments + global Services in every cluster before probes fire.
+      # after a prewait sleep — best-effort head start only (see the
+      # correctness note above the ENABLED knob). The real, correctness-
+      # bearing wait is propagation-probe.sh's own bounded
+      # workload-readiness barrier, controlled by
+      # CL2_PROPAGATION_PROBE_WORKLOAD_READY_TIMEOUT_S (passed through as
+      # PROBE_WORKLOAD_READY_TIMEOUT_S). Leave unset to let the script use
+      # its scale-aware default (900s below 50 clusters, 1800s at >=50).
       export CL2_PROBE_PREWAIT_S="${CL2_PROBE_PREWAIT_S:-300}"
+      export CL2_PROPAGATION_PROBE_WORKLOAD_READY_TIMEOUT_S="${CL2_PROPAGATION_PROBE_WORKLOAD_READY_TIMEOUT_S:-}"
       # Probe namespace: must match the scenario yaml's namespace.prefix-1
       # (CL2 creates clustermesh-probe-1 from namespace.number=1 + prefix
       # clustermesh-probe). Override only if changing the scenario yaml.
@@ -560,6 +574,23 @@ steps:
         fi
       }
 
+      # Budget for the final lifecycle-only preservation pass (B.8.5) --
+      # much smaller than scenario_artifact_budget_seconds since it only
+      # uploads a handful of small JSON files (no TSDB tarballs, no
+      # relabeling, no worker/snapshot validation).
+      scenario_final_lifecycle_budget_seconds() {
+        if [ "${CL2_PROM_SNAPSHOT_ENABLED,,}" != "true" ] ||
+           [ "${CL2_PROM_SNAPSHOT_TARGET,,}" != "blob" ]; then
+          echo 0
+          return
+        fi
+        if [ "$cluster_count" -ge 50 ]; then
+          echo 180
+        else
+          echo 60
+        fi
+      }
+
       scenario_diag_budget_seconds() {
         if [ "$cluster_count" -ge 50 ]; then
           echo 900
@@ -568,12 +599,88 @@ steps:
         fi
       }
 
+      # Conservative bound for ONE mock_layer_reconcile.py pass (the
+      # before-scenario and after-scenario invocations each get their own
+      # outer `timeout`). Zero in real (non-mock) mode since the reconciler
+      # never runs there. Callers that need the two-pass total (before +
+      # after) multiply this by 2.
+      scenario_mock_reconcile_budget_seconds() {
+        if [ "${CL2_MOCK_MODE:-false}" != "true" ]; then
+          echo 0
+          return
+        fi
+        if [ "$cluster_count" -ge 50 ]; then
+          echo 600
+        else
+          echo 120
+        fi
+      }
+
+      # Conservative bound for ONE scenario_cleanup_reconcile.py pass. Unlike
+      # scenario_mock_reconcile_budget_seconds this is NOT mock-mode-gated --
+      # a scenario's own namespaces/ACNS residue/monitoring exporter objects
+      # can be left behind regardless of mock vs real clusters, so this
+      # bounded cleanup always runs and its budget is always counted.
+      scenario_cleanup_reconcile_budget_seconds() {
+        if [ "$cluster_count" -ge 50 ]; then
+          echo 300
+        else
+          echo 120
+        fi
+      }
+
+      # propagation-probe.sh's own internal default for
+      # PROBE_WORKLOAD_READY_TIMEOUT_S -- mirrored here (rather than
+      # queried from the running background process) so
+      # wait_propagation_probe can compute an outer bound BEFORE the
+      # process necessarily reaches that point. Explicit override always
+      # wins, matching the script's own precedence.
+      propagation_probe_workload_ready_timeout_seconds() {
+        if [ -n "${CL2_PROPAGATION_PROBE_WORKLOAD_READY_TIMEOUT_S:-}" ]; then
+          echo "$CL2_PROPAGATION_PROBE_WORKLOAD_READY_TIMEOUT_S"
+        elif [ "$cluster_count" -ge 50 ]; then
+          echo 1800
+        else
+          echo 900
+        fi
+      }
+
+      # Conservative outer bound for the ENTIRE host-side propagation-probe
+      # orchestrator (launch_propagation_probe's background process):
+      # its best-effort prewait, its own correctness-bearing
+      # workload-readiness barrier (explicit or scale-aware default), then
+      # PROBE_COUNT iterations each bounded by (interval + peer_timeout +
+      # a fixed per-iteration Pod-lifecycle overhead: t_ip_assigned(60s) +
+      # t_pod_ready(60s) + t_local_ep(30s), rounded up to 180s), plus a
+      # configurable margin. This bound only exists so
+      # wait_propagation_probe (see below) can never hang forever even if
+      # the background process somehow got stuck outside its own internal
+      # deadline (e.g. a stuck non-bounded command, or a runaway sleep) --
+      # it is deliberately generous, NOT a tight SLA.
+      propagation_probe_wait_budget_seconds() {
+        local _prewait _ready _count _interval _peer _per_iter_overhead _margin
+        _prewait="${CL2_PROBE_PREWAIT_S:-300}"
+        _ready=$(propagation_probe_workload_ready_timeout_seconds)
+        _count="${CL2_PROPAGATION_PROBE_COUNT:-20}"
+        _interval="${CL2_PROPAGATION_PROBE_INTERVAL_S:-30}"
+        _peer="${CL2_PROPAGATION_PROBE_PEER_TIMEOUT:-60}"
+        _per_iter_overhead=180
+        _margin="${CL2_PROPAGATION_PROBE_WAIT_MARGIN_SECONDS:-300}"
+        echo $(( _prewait + _ready + _count * (_interval + _peer + _per_iter_overhead) + _margin ))
+      }
+
       scenario_post_budget_seconds() {
-        local _quiet _artifact _diag
+        local _quiet _artifact _diag _mock_reconcile _cleanup_reconcile
         _quiet=$(scenario_quiet_window_seconds "$1")
         _artifact=$(scenario_artifact_budget_seconds)
         _diag=$(scenario_diag_budget_seconds)
-        echo $(( _quiet + CL2_HEALTH_GATE_TIMEOUT_BUFFER_SECONDS + _artifact + _diag ))
+        # Only the "after" reconcile pass falls in the post-scenario window;
+        # the "before" pass is accounted for separately by callers computing
+        # a scenario's total protected-budget requirement (see
+        # scenario_mock_reconcile_budget_seconds's doc comment above).
+        _mock_reconcile=$(scenario_mock_reconcile_budget_seconds)
+        _cleanup_reconcile=$(scenario_cleanup_reconcile_budget_seconds)
+        echo $(( _quiet + CL2_HEALTH_GATE_TIMEOUT_BUFFER_SECONDS + _artifact + _diag + _mock_reconcile + _cleanup_reconcile ))
       }
 
       # Scenarios that drive their stimulus via node-churner.sh on the AzDO
@@ -610,6 +717,92 @@ steps:
           propagation-probe) return 0 ;;
         esac
         return 1
+      }
+
+      # Reconciles the shared mock (KWOK node + bare Cilium agent) layer's
+      # actual state back to its declared desired state. Runs twice per
+      # scenario in mock mode:
+      #   - "before": repairs drift left over from the PREVIOUS scenario/run
+      #     so this scenario starts from a known-good shared-infra baseline.
+      #     A failure here means the shared mock infra itself is unsafe —
+      #     NOT a scenario measurement failure — so the caller stops the
+      #     whole suite rather than attributing it to this scenario.
+      #   - "after": repairs missing/deleted/Failed bare mock agents,
+      #     missing/NotReady KWOK nodes, and agents stranded on NotReady
+      #     real nodes that this scenario's stimulus may have left behind,
+      #     before the health gate proves baseline recovery.
+      # No-op (returns 0, writes nothing) outside mock mode.
+      # mock_layer_reconcile.py has no built-in outer-timeout flag, only
+      # bounded per-cluster attempts/settle/request timeouts — the outer
+      # `timeout` wrapper here is what bounds the whole pass.
+      run_mock_layer_reconcile() {
+        local _label="$1" _output="$2"
+        if [ "${CL2_MOCK_MODE:-false}" != "true" ]; then
+          return 0
+        fi
+        mkdir -p "$(dirname "$_output")"
+        local _concurrency
+        if [ "$cluster_count" -ge 50 ]; then
+          _concurrency=12
+        else
+          _concurrency="$cluster_count"
+        fi
+        local _budget
+        _budget=$(scenario_mock_reconcile_budget_seconds)
+        local _rc=0
+        timeout --signal=TERM --kill-after=30s "${_budget}s" \
+          python3 "$MOCK_RECONCILER_SCRIPT" \
+          --clusters "$HOME/.kube/clustermesh-clusters.json" \
+          --state-root "$HOME/.kube/mock-layer-state/${RUN_ID}" \
+          --run-id "${RUN_ID}" \
+          --expected-mock-count "${CL2_MOCK_NODE_COUNT}" \
+          --max-concurrent "$_concurrency" \
+          --attempts 5 \
+          --settle-seconds 15 \
+          --request-timeout-seconds 30 \
+          --summary-file "$_output" || _rc=$?
+        if [ "$_rc" -ne 0 ]; then
+          echo "##vso[task.logissue type=error;] mock-layer-reconcile (${_label}) failed rc=${_rc} for ${SCENARIO}; see ${_output}"
+        fi
+        return "$_rc"
+      }
+
+      # Post-scenario ACTIVE cleanup of THIS scenario's own recoverable
+      # Kubernetes residue (its clustermesh-<prefix>* namespaces, the shared
+      # ACNS ContainerNetworkLog/ContainerNetworkMetric CRs + acns-telemetry
+      # namespace, and the allowlisted scenario-owned monitoring/exporter
+      # objects) -- run in EVERY mode, not just mock. This is repair, not
+      # proof: scenario-health-gate.sh remains the proof-only, final
+      # authority on whether the shared baseline actually recovered, so a
+      # failure here is logged but NEVER independently stops the suite --
+      # the health gate that runs right after this decides that. scoped to
+      # an exact allowlist (see scenario_cleanup_reconcile.py's module
+      # docstring); unknown/extra objects are never touched.
+      run_scenario_cleanup_reconcile() {
+        local _output="$1"
+        mkdir -p "$(dirname "$_output")"
+        local _concurrency
+        if [ "$cluster_count" -ge 50 ]; then
+          _concurrency=12
+        else
+          _concurrency="$cluster_count"
+        fi
+        local _budget
+        _budget=$(scenario_cleanup_reconcile_budget_seconds)
+        local _rc=0
+        timeout --signal=TERM --kill-after=30s "${_budget}s" \
+          python3 "$SCENARIO_CLEANUP_RECONCILER" \
+          --clusters "$HOME/.kube/clustermesh-clusters.json" \
+          --scenario "$SCENARIO" \
+          --max-concurrent "$_concurrency" \
+          --attempts 5 \
+          --settle-seconds 15 \
+          --request-timeout-seconds 30 \
+          --summary-file "$_output" || _rc=$?
+        if [ "$_rc" -ne 0 ]; then
+          echo "##vso[task.logissue type=error;] scenario-cleanup-reconcile failed rc=${_rc} for ${SCENARIO}; see ${_output} (scenario-health-gate.sh remains authoritative)"
+        fi
+        return "$_rc"
       }
 
       LAST_PROCESS_GROUP_PID=""
@@ -692,7 +885,7 @@ steps:
           bash -c '
             prewait="$1"
             shift
-            echo "[propagation-probe] prewait ${prewait}s for backend Deployments + global Services to stabilize..."
+            echo "[propagation-probe] best-effort prewait ${prewait}s before launch (correctness-bearing readiness is enforced inside propagation-probe.sh)..."
             sleep "$prewait"
             exec "$@"
           ' _ "$_prewait" \
@@ -703,6 +896,7 @@ steps:
             REMOVE_PROBE_TIMEOUT_S="${CL2_PROPAGATION_PROBE_REMOVE_TIMEOUT_S:-60}" \
             FIRST_PACKET_PROBE_TIMEOUT_S="${CL2_PROPAGATION_PROBE_FIRST_PACKET_TIMEOUT_S:-60}" \
             SERVICE_BACKEND_PROBE_TIMEOUT_S="${CL2_PROPAGATION_PROBE_SERVICE_BACKEND_TIMEOUT_S:-60}" \
+            PROBE_WORKLOAD_READY_TIMEOUT_S="${CL2_PROPAGATION_PROBE_WORKLOAD_READY_TIMEOUT_S:-}" \
             bash "$_probe_script" \
             "${CL2_PROPAGATION_PROBE_COUNT:-20}" \
             "${CL2_PROPAGATION_PROBE_INTERVAL_S:-30}" \
@@ -716,18 +910,57 @@ steps:
         echo "propagation-probe: launched PID=$PROBE_PID for scenario=${_scen}; log=${_probe_log}"
       }
 
+      # Bounded wait for the host-side propagation-probe orchestrator.
+      # Polls PROBE_PID rather than using a bare shell `wait` (which would
+      # block forever if the background process somehow outlived its own
+      # internal workload-readiness/PROBE_COUNT deadlines) -- see
+      # propagation_probe_wait_budget_seconds for how the outer bound is
+      # computed. If that bound is exceeded the whole process GROUP is
+      # terminated via the existing terminate_process_group helper and
+      # this returns rc=124 (matching the coreutils `timeout` convention
+      # used elsewhere in this file). On normal completion the already-
+      # finalized PropagationTimings.jsonl/ConnectivityResults.jsonl are
+      # left untouched -- this function only observes exit status.
       wait_propagation_probe() {
         local _scen="$1"
         PROBE_WAIT_RC=0
         if [ -z "${PROBE_PID:-}" ]; then
           return 0
         fi
-        echo "propagation-probe: waiting on PID=$PROBE_PID for scenario=${_scen}"
-        local _rc=0
-        wait "$PROBE_PID" || _rc=$?
+        local _budget _rc=0 _state
+        _budget=$(propagation_probe_wait_budget_seconds)
+        local _deadline
+        _deadline=$(( $(date +%s) + _budget ))
+        echo "propagation-probe: waiting on PID=$PROBE_PID for scenario=${_scen} (bounded to ${_budget}s)"
+        while true; do
+          # Linux-specific liveness check: kill -0 alone reports true for
+          # zombie (already-exited, not-yet-reaped) children, which would
+          # make a plain `kill -0` polling loop never observe completion.
+          # Checking /proc's process state avoids that false positive;
+          # kill -0 remains the fallback if /proc is unavailable.
+          if [ -r "/proc/${PROBE_PID}/stat" ]; then
+            _state=$(awk '{print $3}' "/proc/${PROBE_PID}/stat" 2>/dev/null)
+            if [ "$_state" = "Z" ] || [ -z "$_state" ]; then
+              break
+            fi
+          elif ! kill -0 "$PROBE_PID" 2>/dev/null; then
+            break
+          fi
+          if [ "$(date +%s)" -ge "$_deadline" ]; then
+            echo "##vso[task.logissue type=error;] propagation-probe: scenario=${_scen} exceeded bounded wait"
+            echo "  budget=${_budget}s terminating process group PID=${PROBE_PID}"
+            terminate_process_group "$PROBE_PID" "propagation-probe(wait-timeout)"
+            PROBE_WAIT_RC=124
+            PROBE_PID=""
+            return 124
+          fi
+          sleep 2
+        done
+        wait "$PROBE_PID" 2>/dev/null || _rc=$?
         PROBE_WAIT_RC="$_rc"
         if [ "$_rc" -ne 0 ]; then
-          echo "##vso[task.logissue type=warning;] propagation-probe: scenario=${_scen} exited rc=${_rc}; check PropagationTimings.jsonl + propagation-probe.log"
+          echo "##vso[task.logissue type=warning;] propagation-probe: scenario=${_scen} exited rc=${_rc}"
+          echo "  check PropagationTimings.jsonl + propagation-probe.log"
         else
           echo "propagation-probe: scenario=${_scen} completed cleanly"
         fi
@@ -1416,13 +1649,19 @@ steps:
           scenario_budget=$(scenario_budget_seconds "$SCENARIO")
           scenario_post_budget=$(scenario_post_budget_seconds "$SCENARIO")
           artifact_preservation_budget=$(scenario_artifact_budget_seconds)
+          final_lifecycle_budget=$(scenario_final_lifecycle_budget_seconds)
           scenario_diag_budget=$(scenario_diag_budget_seconds)
+          # scenario_post_budget already folds in ONE (the "after") mock
+          # reconcile pass; add the "before" pass here so the pre-flight
+          # budget check covers both without touching the finalization
+          # reserve, which is kept as its own separate additive term below.
+          mock_reconcile_pre_budget=$(scenario_mock_reconcile_budget_seconds)
           if [ "$CL2_SUITE_TOTAL_BUDGET_SECONDS" -gt 0 ]; then
             now_epoch=$(date +%s)
             elapsed_seconds=$(( now_epoch - suite_job_start_epoch ))
             remaining_seconds=$(( CL2_SUITE_TOTAL_BUDGET_SECONDS - elapsed_seconds ))
-            required_seconds=$(( scenario_budget + scenario_post_budget + CL2_SUITE_FINALIZATION_RESERVE_SECONDS ))
-            echo "Suite budget: elapsed=${elapsed_seconds}s remaining=${remaining_seconds}s scenario_estimate=${scenario_budget}s post_scenario_estimate=${scenario_post_budget}s finalization_reserve=${CL2_SUITE_FINALIZATION_RESERVE_SECONDS}s"
+            required_seconds=$(( scenario_budget + scenario_post_budget + mock_reconcile_pre_budget + final_lifecycle_budget + CL2_SUITE_FINALIZATION_RESERVE_SECONDS ))
+            echo "Suite budget: elapsed=${elapsed_seconds}s remaining=${remaining_seconds}s scenario_estimate=${scenario_budget}s post_scenario_estimate=${scenario_post_budget}s mock_reconcile_pre_estimate=${mock_reconcile_pre_budget}s final_lifecycle_estimate=${final_lifecycle_budget}s finalization_reserve=${CL2_SUITE_FINALIZATION_RESERVE_SECONDS}s"
             if [ "$remaining_seconds" -lt "$required_seconds" ]; then
               skipped_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
               jq \
@@ -1450,6 +1689,33 @@ steps:
             overall_rc=1
             break
           fi
+
+          # Pre-scenario shared-infra recovery (mock mode only). This is
+          # NOT this scenario's measurement — it's proving/repairing the
+          # shared mock layer BEFORE this scenario's stimulus runs. A
+          # failure here means the environment is unsafe for ANY further
+          # scenario, so we record it as a skipped entry (like the budget
+          # check above) and stop the whole suite.
+          mock_reconcile_before_output="${CL2_REPORT_DIR}/${SCENARIO}/mock-layer-reconcile-before.json"
+          if ! run_mock_layer_reconcile "before" "$mock_reconcile_before_output"; then
+            skipped_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+            jq \
+              --arg name "$SCENARIO" \
+              --arg skipped_at "$skipped_at" \
+              --arg reason "pre_scenario_mock_reconcile_failed" \
+              '. += [{
+                scenario: $name,
+                skipped: true,
+                skipped_at: $skipped_at,
+                skip_reason: $reason
+              }]' \
+              "$SHARE_INFRA_META" > "${SHARE_INFRA_META}.tmp" &&
+              mv "${SHARE_INFRA_META}.tmp" "$SHARE_INFRA_META"
+            echo "##vso[task.logissue type=error;] Not starting ${SCENARIO}: pre-scenario shared-infra mock-layer recovery failed; environment is unsafe for further scenarios"
+            overall_rc=1
+            break
+          fi
+
           echo "============================================="
           echo "Scenario [${scenario_idx}/${#SCENARIO_LIST[@]}]: ${SCENARIO}"
           echo "============================================="
@@ -1652,6 +1918,38 @@ steps:
               "$HOME/.kube/clustermesh-clusters.json" | head -1)
           fi
 
+          # B.3: file-only scenario evidence validation. Missing/malformed
+          # output means evidence_valid=false; this invalidates THIS
+          # scenario's measurement but does not itself stop later
+          # scenarios (that's governed by suite_continue below, which
+          # evidence_valid does not feed into).
+          evidence_output="${CL2_REPORT_DIR}/${SCENARIO}/scenario-evidence.json"
+          evidence_rc=0
+          python3 "$SCENARIO_EVIDENCE_SCRIPT" \
+            --scenario "$SCENARIO" \
+            --report-dir "${CL2_REPORT_DIR}/${SCENARIO}" \
+            --worker-summary "$worker_summary" \
+            --cluster-count "$cluster_count" \
+            --target-role "$target_role" \
+            --propagation-probe-count "${CL2_PROPAGATION_PROBE_COUNT:-20}" \
+            --propagation-peer-sample "${CL2_PROPAGATION_PROBE_PEER_SAMPLE:-20}" \
+            --saturation-qps-list "$CL2_SATURATION_QPS_LIST" \
+            --output "$evidence_output" || evidence_rc=$?
+          evidence_valid=false
+          if evidence_json=$(jq -c . "$evidence_output" 2>/dev/null) &&
+             [ -n "$evidence_json" ]; then
+            if jq -e '.measurement_valid == true' <<<"$evidence_json" >/dev/null 2>&1; then
+              evidence_valid=true
+            else
+              jq -r '.reasons[]? // empty' <<<"$evidence_json" |
+                while IFS= read -r reason; do
+                  echo "##vso[task.logissue type=error;] ${SCENARIO}: evidence: ${reason}"
+                done
+            fi
+          else
+            echo "##vso[task.logissue type=error;] ${SCENARIO}: scenario evidence output missing or malformed at ${evidence_output} (rc=${evidence_rc})"
+          fi
+
           policy_output="${CL2_REPORT_DIR}/${SCENARIO}/scenario-policy.json"
           policy_rc=0
           python3 "$SCENARIO_POLICY_SCRIPT" \
@@ -1661,14 +1959,16 @@ steps:
             --target-role "$target_role" \
             --non-worker-failure "$non_worker_failure" \
             --target-stimulus-valid "$target_stimulus_valid" \
+            --evidence-valid "$evidence_valid" \
             --output "$policy_output" || policy_rc=$?
-          scenario_policy_rc="$policy_rc"
+          measurement_valid=false
           worker_failed_count="$cluster_count"
           allowed_worker_failures=0
           failure_rate=0
           failed_roles_json='[]'
           worker_threshold_exceeded=true
           if [ -s "$policy_output" ]; then
+            measurement_valid=$(jq -r '.measurement_valid' "$policy_output")
             worker_failed_count=$(jq -r '.worker_failed_count' "$policy_output")
             allowed_worker_failures=$(jq -r '.worker_allowed_failures' "$policy_output")
             failure_rate=$(jq -r '.worker_failure_rate_percent' "$policy_output")
@@ -1679,14 +1979,13 @@ steps:
                 "$policy_output" >/dev/null; then
               echo "##vso[task.logissue type=warning;] ${SCENARIO}: tolerating ${worker_failed_count}/${cluster_count} hard worker failure(s), allowed=${allowed_worker_failures} (${failure_rate}%)"
             fi
-            if [ "$policy_rc" -ne 0 ]; then
-              jq -r '.reasons[]' "$policy_output" |
+            if [ "$measurement_valid" != "true" ]; then
+              jq -r '.measurement_reasons[]' "$policy_output" |
                 while IFS= read -r reason; do
                   echo "##vso[task.logissue type=error;] ${SCENARIO}: ${reason}"
                 done
             fi
           else
-            scenario_policy_rc=1
             echo "##vso[task.logissue type=error;] ${SCENARIO}: scenario policy output is missing"
           fi
 
@@ -1708,16 +2007,58 @@ steps:
               CL2_PROM_SNAPSHOT_ENABLED="$CL2_PROM_SNAPSHOT_ENABLED" \
               CL2_PROM_SNAPSHOT_TARGET="$CL2_PROM_SNAPSHOT_TARGET" \
               bash "$SCENARIO_ARTIFACT_PRESERVER" || artifact_preservation_rc=$?
-          if [ "$artifact_preservation_rc" -ne 0 ]; then
-            scenario_policy_rc=1
-            echo "##vso[task.logissue type=error;] ${SCENARIO}: per-scenario artifact preservation failed"
+
+          # Fix: parse the preservation script's OWN summary (authoritative)
+          # rather than treating every nonzero exit code as a shared
+          # evidence-infrastructure failure. The summary distinguishes:
+          #   - infrastructure_failure=true (Azure auth, blob upload/verify,
+          #     required tooling) -- or a missing/malformed summary, which
+          #     is fail-safe-treated the same way -- means the shared
+          #     evidence infrastructure itself is unsafe. artifact_preserved
+          #     is set false, which (via scenario_policy.py's
+          #     suite_stop_reasons/suite_continue) MUST stop later
+          #     scenarios.
+          #   - scenario_incomplete=true (missing/invalid worker summary,
+          #     missing/invalid role snapshots, relabel failure) with
+          #     infrastructure_failure=false means only THIS scenario's OWN
+          #     artifact set is incomplete. artifact_preserved stays true
+          #     (does NOT stop the suite) but folds into evidence_valid so
+          #     the final scenario_policy.py call below marks THIS
+          #     scenario's measurement_valid=false.
+          artifact_summary_file="${CL2_REPORT_DIR}/${SCENARIO}/artifact-preservation-summary.json"
+          artifact_preserved=true
+          artifact_infrastructure_failure=false
+          artifact_scenario_incomplete=false
+          if artifact_summary_json=$(jq -c . "$artifact_summary_file" 2>/dev/null) &&
+             [ -n "$artifact_summary_json" ]; then
+            artifact_infrastructure_failure=$(jq -r '.infrastructure_failure' <<<"$artifact_summary_json" 2>/dev/null)
+            artifact_scenario_incomplete=$(jq -r '.scenario_incomplete' <<<"$artifact_summary_json" 2>/dev/null)
+            if [ "$artifact_infrastructure_failure" != "true" ] && [ "$artifact_infrastructure_failure" != "false" ]; then
+              artifact_infrastructure_failure=true
+              echo "##vso[task.logissue type=error;] ${SCENARIO}: artifact preservation summary is missing infrastructure_failure; treating as an infrastructure failure"
+            fi
+            if [ "$artifact_scenario_incomplete" != "true" ] && [ "$artifact_scenario_incomplete" != "false" ]; then
+              artifact_scenario_incomplete=true
+            fi
+          else
+            artifact_infrastructure_failure=true
+            echo "##vso[task.logissue type=error;] ${SCENARIO}: artifact preservation summary is missing or malformed at ${artifact_summary_file} (rc=${artifact_preservation_rc})"
+          fi
+
+          if [ "$artifact_infrastructure_failure" = "true" ]; then
+            artifact_preserved=false
+            echo "##vso[task.logissue type=error;] ${SCENARIO}: per-scenario artifact preservation hit a shared evidence-infrastructure failure; this will stop later scenarios"
+          fi
+          if [ "$artifact_scenario_incomplete" = "true" ]; then
+            evidence_valid=false
+            measurement_valid=false
+            echo "##vso[task.logissue type=error;] ${SCENARIO}: per-scenario artifact preservation is incomplete for this scenario only; measurement invalidated, later scenarios are not stopped by this alone"
           fi
 
           scenario_end=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           jq \
             --arg scenario_end "$scenario_end" \
             --argjson result "$scenario_rc" \
-            --argjson policy_result "$scenario_policy_rc" \
             --argjson worker_failed_count "$worker_failed_count" \
             --argjson worker_allowed_failures "$allowed_worker_failures" \
             --argjson worker_failure_rate_percent "$failure_rate" \
@@ -1725,17 +2066,26 @@ steps:
             --argjson failed_roles "$failed_roles_json" \
             --argjson target_stimulus_valid "$target_stimulus_valid" \
             --argjson artifact_preservation_rc "$artifact_preservation_rc" \
+            --argjson evidence_valid "$evidence_valid" \
+            --argjson artifact_preserved "$artifact_preserved" \
+            --argjson artifact_infrastructure_failure "$artifact_infrastructure_failure" \
+            --argjson artifact_scenario_incomplete "$artifact_scenario_incomplete" \
+            --argjson measurement_valid "$measurement_valid" \
             '.[-1] += {
               end_timestamp: $scenario_end,
               result_code: $result,
-              policy_result_code: $policy_result,
               worker_failed_count: $worker_failed_count,
               worker_allowed_failures: $worker_allowed_failures,
               worker_failure_rate_percent: $worker_failure_rate_percent,
               worker_threshold_exceeded: $worker_threshold_exceeded,
               failed_roles: $failed_roles,
               target_stimulus_valid: $target_stimulus_valid,
-              artifact_preservation_rc: $artifact_preservation_rc
+              artifact_preservation_rc: $artifact_preservation_rc,
+              evidence_valid: $evidence_valid,
+              artifact_preserved: $artifact_preserved,
+              artifact_infrastructure_failure: $artifact_infrastructure_failure,
+              artifact_scenario_incomplete: $artifact_scenario_incomplete,
+              measurement_valid: $measurement_valid
             }' \
             "$SHARE_INFRA_META" > "${SHARE_INFRA_META}.tmp" &&
             mv "${SHARE_INFRA_META}.tmp" "$SHARE_INFRA_META"
@@ -1770,6 +2120,34 @@ steps:
               }' \
               "$SHARE_INFRA_META" > "${SHARE_INFRA_META}.tmp" &&
               mv "${SHARE_INFRA_META}.tmp" "$SHARE_INFRA_META"
+
+          fi
+
+          # B.4.5: post-scenario ACTIVE cleanup of THIS scenario's own
+          # recoverable Kubernetes residue (namespaces, ACNS CRs, allowlisted
+          # monitoring/exporter objects) -- run AFTER diagnostics but BEFORE
+          # the mock-layer reconcile + health gate, so both of those observe
+          # an environment this scenario has already cleaned up after
+          # itself. This is repair, not proof: scenario-health-gate.sh below
+          # remains the proof-only, final authority, so a failure here is
+          # logged but does NOT independently stop the suite -- the health
+          # gate decides that.
+          cleanup_reconcile_output="${CL2_REPORT_DIR}/${SCENARIO}/scenario-cleanup-reconcile.json"
+          if ! run_scenario_cleanup_reconcile "$cleanup_reconcile_output"; then
+            echo "##vso[task.logissue type=warning;] ${SCENARIO}: scenario-cleanup-reconcile did not fully converge; deferring to the post-scenario health gate"
+          fi
+
+          # B.5: post-scenario shared-infra recovery (mock mode only), run
+          # AFTER diagnostics but BEFORE the health gate so the gate proves
+          # the layer this reconcile pass just repaired. Repairs
+          # missing/deleted/Failed bare mock agents, missing/NotReady KWOK
+          # nodes, and agents stranded on NotReady real nodes. A failure
+          # here is a shared-infra failure (mock_reconcile_valid=false)
+          # and MUST stop later scenarios.
+          mock_reconcile_after_output="${CL2_REPORT_DIR}/${SCENARIO}/mock-layer-reconcile-after.json"
+          mock_reconcile_valid=true
+          if ! run_mock_layer_reconcile "after" "$mock_reconcile_after_output"; then
+            mock_reconcile_valid=false
           fi
 
           cleanup_quiet_seconds=$(scenario_quiet_window_seconds "$SCENARIO")
@@ -1782,6 +2160,10 @@ steps:
             cleanup_concurrency="$cluster_count"
           fi
           cleanup_summary="${CL2_REPORT_DIR}/${SCENARIO}/scenario-health-gate.json"
+          # B.6: always run the health gate — even when measurement or
+          # evidence already failed — to prove baseline recovery. It is
+          # proof-only (no repair inside it); repair already happened via
+          # the reconciler passes above.
           cleanup_gate_rc=0
           expected_mock_count=0
           if [ "$CL2_MOCK_MODE" = "true" ]; then
@@ -1798,26 +2180,278 @@ steps:
             --poll-interval-seconds 30 \
             --concurrency "$cleanup_concurrency" \
             --summary-file "$cleanup_summary" || cleanup_gate_rc=$?
+
+          # B.7: recovery_valid is normally just the health gate's result;
+          # node-churn scenarios ALSO require the churner's own pool
+          # restoration (cleanup_failed=false) — a target stimulus failure
+          # or recovery timeout invalidates THIS scenario's measurement
+          # (via target_stimulus_valid above) but, by design, does not by
+          # itself stop later scenarios as long as the health gate proves
+          # the shared baseline is healthy (intentional scenario isolation).
+          infrastructure_healthy=true
           if [ "$cleanup_gate_rc" -ne 0 ]; then
-            scenario_policy_rc=1
-            overall_rc=1
-            echo "##vso[task.logissue type=error;] ${SCENARIO}: post-scenario cleanup/health gate failed; later scenarios cannot run safely"
+            infrastructure_healthy=false
+            echo "##vso[task.logissue type=error;] ${SCENARIO}: post-scenario health gate failed"
           fi
+          recovery_valid="$infrastructure_healthy"
+          if is_node_churn_scenario "$SCENARIO" && [ "$_cleanup_failed" = "true" ]; then
+            recovery_valid=false
+            echo "##vso[task.logissue type=error;] ${SCENARIO}: node-churner cleanup_failed=true; recovery not verified"
+          fi
+
+          # B.8: finalize the scenario policy decision now that every
+          # lifecycle signal is known, overwriting scenario-policy.json
+          # with the explicit booleans.
+          policy_rc=0
+          failed_policy_output="${policy_output}.artifact-failure"
+          rm -f "$failed_policy_output"
+          python3 "$SCENARIO_POLICY_SCRIPT" \
+            --scenario "$SCENARIO" \
+            --cluster-count "$cluster_count" \
+            --worker-summary "$worker_summary" \
+            --target-role "$target_role" \
+            --non-worker-failure "$non_worker_failure" \
+            --target-stimulus-valid "$target_stimulus_valid" \
+            --evidence-valid "$evidence_valid" \
+            --recovery-valid "$recovery_valid" \
+            --infrastructure-healthy "$infrastructure_healthy" \
+            --artifact-preserved "$artifact_preserved" \
+            --mock-reconcile-valid "$mock_reconcile_valid" \
+            --output "$policy_output" || policy_rc=$?
+          suite_continue=false
+          overall_failure=true
+          if [ -s "$policy_output" ]; then
+            measurement_valid=$(jq -r '.measurement_valid' "$policy_output")
+            suite_continue=$(jq -r '.suite_continue' "$policy_output")
+            overall_failure=$(jq -r '.overall_failure' "$policy_output")
+            if [ "$suite_continue" != "true" ]; then
+              jq -r '.suite_stop_reasons[]? // empty' "$policy_output" |
+                while IFS= read -r reason; do
+                  echo "##vso[task.logissue type=error;] ${SCENARIO}: ${reason}"
+                done
+            fi
+          else
+            echo "##vso[task.logissue type=error;] ${SCENARIO}: final scenario policy output is missing"
+          fi
+
           jq \
             --argjson cleanup_gate_rc "$cleanup_gate_rc" \
             --argjson cleanup_quiet_seconds "$cleanup_quiet_seconds" \
-            --argjson policy_result "$scenario_policy_rc" \
+            --argjson recovery_valid "$recovery_valid" \
+            --argjson infrastructure_healthy "$infrastructure_healthy" \
+            --argjson artifact_preserved "$artifact_preserved" \
+            --argjson mock_reconcile_valid "$mock_reconcile_valid" \
+            --argjson evidence_valid "$evidence_valid" \
+            --argjson measurement_valid "$measurement_valid" \
+            --argjson suite_continue "$suite_continue" \
+            --argjson overall_failure "$overall_failure" \
             '.[-1] += {
               cleanup_gate_rc: $cleanup_gate_rc,
               cleanup_quiet_window_seconds: $cleanup_quiet_seconds,
-              policy_result_code: $policy_result
+              recovery_valid: $recovery_valid,
+              infrastructure_healthy: $infrastructure_healthy,
+              artifact_preserved: $artifact_preserved,
+              mock_reconcile_valid: $mock_reconcile_valid,
+              evidence_valid: $evidence_valid,
+              measurement_valid: $measurement_valid,
+              suite_continue: $suite_continue,
+              overall_failure: $overall_failure
             }' \
             "$SHARE_INFRA_META" > "${SHARE_INFRA_META}.tmp" &&
             mv "${SHARE_INFRA_META}.tmp" "$SHARE_INFRA_META"
 
-          if [ "$scenario_policy_rc" -ne 0 ]; then
-            echo "##vso[task.logissue type=warning;] Scenario ${SCENARIO} failed its continuation policy (raw_rc=${scenario_rc}); preserving data and stopping the remaining suite"
+          # B.8.5: final lifecycle-only artifact upload. Everything this
+          # scenario will ever write to scenario-policy.json/
+          # scenario-health-gate.json/mock-layer-reconcile-*.json is now
+          # on disk -- re-upload just these small durable-state files
+          # (PRESERVE_LIFECYCLE_ONLY=true) so Blob storage carries the
+          # FINAL suite_continue/recovery fields even if the job dies
+          # before the end-of-stage collect() step runs. Uploads the
+          # EARLY artifact-preservation-summary.json alongside them but
+          # writes its OWN artifact-preservation-final-summary.json only
+          # after all uploads finish (avoids a recursive self-upload
+          # race). A failure here is ALWAYS an infrastructure failure --
+          # the mode skips every scenario-local requirement -- so it must
+          # override artifact_preserved and re-finalize the policy/
+          # metadata that was just written above, then stop the suite.
+          final_lifecycle_infrastructure_failure=false
+          if [ "${CL2_PROM_SNAPSHOT_ENABLED,,}" = "true" ] &&
+             [ "${CL2_PROM_SNAPSHOT_TARGET,,}" = "blob" ]; then
+            final_lifecycle_rc=0
+            timeout --signal=TERM --kill-after=30s \
+              "${final_lifecycle_budget}s" \
+              env \
+                PRESERVE_LIFECYCLE_ONLY=true \
+                SCENARIO_REPORT_DIR="${CL2_REPORT_DIR}/${SCENARIO}" \
+                SCENARIO_NAME="$SCENARIO" \
+                RUN_ID="$RUN_ID" \
+                BUILD_ID="$BUILD_ID" \
+                SNAPSHOT_TIER="$SNAPSHOT_TIER" \
+                BUILD_BRANCH="$BUILD_BRANCH" \
+                STORAGE_ACCOUNT_NAME="$CL2_PROM_SNAPSHOT_STORAGE_ACCOUNT" \
+                CONTAINER_NAME="$CL2_PROM_SNAPSHOT_CONTAINER" \
+                TARGET_SUBSCRIPTION_ID="$TARGET_SUBSCRIPTION_ID" \
+                WORKER_SUMMARY_FILE="$worker_summary" \
+                RELABEL_SCRIPT="$SNAPSHOT_RELABEL_SCRIPT" \
+                CL2_PROM_SNAPSHOT_ENABLED="$CL2_PROM_SNAPSHOT_ENABLED" \
+                CL2_PROM_SNAPSHOT_TARGET="$CL2_PROM_SNAPSHOT_TARGET" \
+                bash "$SCENARIO_ARTIFACT_PRESERVER" || final_lifecycle_rc=$?
+
+            final_lifecycle_summary_file="${CL2_REPORT_DIR}/${SCENARIO}/artifact-preservation-final-summary.json"
+            final_lifecycle_infrastructure_failure=true
+            if final_lifecycle_summary_json=$(jq -c . "$final_lifecycle_summary_file" 2>/dev/null) &&
+               [ -n "$final_lifecycle_summary_json" ]; then
+              final_lifecycle_infrastructure_failure=$(jq -r '.infrastructure_failure' <<<"$final_lifecycle_summary_json" 2>/dev/null)
+              if [ "$final_lifecycle_infrastructure_failure" != "true" ] && [ "$final_lifecycle_infrastructure_failure" != "false" ]; then
+                final_lifecycle_infrastructure_failure=true
+              fi
+            else
+              echo "##vso[task.logissue type=error;] ${SCENARIO}: final lifecycle artifact summary is missing or malformed at ${final_lifecycle_summary_file} (rc=${final_lifecycle_rc})"
+            fi
+          else
+            echo "${SCENARIO}: final lifecycle Blob refresh skipped because snapshot target is not enabled Blob; final lifecycle files will be retained by collect.yml's pipeline-artifact path."
+          fi
+
+          if [ "$final_lifecycle_infrastructure_failure" = "true" ]; then
+            artifact_preserved=false
+            echo "##vso[task.logissue type=error;] ${SCENARIO}: final lifecycle artifact upload hit a shared evidence-infrastructure failure; re-finalizing policy and stopping later scenarios"
+
+            # Re-finalize scenario-policy.json + SHARE_INFRA_META with
+            # artifact_preserved now false, so the durable record (Blob,
+            # best-effort above, and the local files) agree that later
+            # scenarios must not run.
+            policy_rc=0
+            python3 "$SCENARIO_POLICY_SCRIPT" \
+              --scenario "$SCENARIO" \
+              --cluster-count "$cluster_count" \
+              --worker-summary "$worker_summary" \
+              --target-role "$target_role" \
+              --non-worker-failure "$non_worker_failure" \
+              --target-stimulus-valid "$target_stimulus_valid" \
+              --evidence-valid "$evidence_valid" \
+              --recovery-valid "$recovery_valid" \
+              --infrastructure-healthy "$infrastructure_healthy" \
+              --artifact-preserved "$artifact_preserved" \
+              --mock-reconcile-valid "$mock_reconcile_valid" \
+              --output "$failed_policy_output" || policy_rc=$?
+            suite_continue=false
+            overall_failure=true
+            if [ "$policy_rc" -eq 0 ] &&
+               jq -e '
+                 .artifact_preserved == false and
+                 .suite_continue == false and
+                 .overall_failure == true
+               ' "$failed_policy_output" >/dev/null 2>&1; then
+              mv "$failed_policy_output" "$policy_output"
+              measurement_valid=$(jq -r '.measurement_valid' "$policy_output")
+              suite_continue=$(jq -r '.suite_continue' "$policy_output")
+              overall_failure=$(jq -r '.overall_failure' "$policy_output")
+            else
+              rm -f "$failed_policy_output"
+              echo "##vso[task.logissue type=error;] ${SCENARIO}: re-finalized scenario policy output is missing or unsafe; forcing the existing local policy to the artifact-failure stop state"
+              if jq '
+                  .artifact_preserved = false
+                  | .suite_continue = false
+                  | .overall_failure = true
+                  | .suite_stop_reasons = (
+                      ((.suite_stop_reasons // []) +
+                       ["final lifecycle artifact upload failed"])
+                      | unique
+                    )
+                ' "$policy_output" > "${policy_output}.tmp" 2>/dev/null; then
+                mv "${policy_output}.tmp" "$policy_output"
+                measurement_valid=$(jq -r '.measurement_valid // false' "$policy_output")
+              else
+                rm -f "${policy_output}.tmp"
+                jq -n \
+                  --arg scenario "$SCENARIO" \
+                  '{
+                    schema_version: 1,
+                    scenario: $scenario,
+                    measurement_valid: false,
+                    measurement_reasons: [
+                      "scenario policy re-finalization failed"
+                    ],
+                    recovery_valid: false,
+                    infrastructure_healthy: false,
+                    artifact_preserved: false,
+                    mock_reconcile_valid: false,
+                    suite_continue: false,
+                    suite_stop_reasons: [
+                      "final lifecycle artifact upload failed"
+                    ],
+                    overall_failure: true,
+                    success: false,
+                    reasons: [
+                      "scenario policy re-finalization failed"
+                    ]
+                  }' > "$policy_output"
+                measurement_valid=false
+              fi
+            fi
+            jq \
+              --argjson artifact_preserved "$artifact_preserved" \
+              --argjson measurement_valid "$measurement_valid" \
+              --argjson suite_continue "$suite_continue" \
+              --argjson overall_failure "$overall_failure" \
+              '.[-1] += {
+                artifact_preserved: $artifact_preserved,
+                measurement_valid: $measurement_valid,
+                suite_continue: $suite_continue,
+                overall_failure: $overall_failure
+              }' \
+              "$SHARE_INFRA_META" > "${SHARE_INFRA_META}.tmp" &&
+              mv "${SHARE_INFRA_META}.tmp" "$SHARE_INFRA_META"
+
+            # One bounded retry after the authoritative failure policy has
+            # been written. A transient failure in the first lifecycle pass
+            # may clear; even if another lifecycle file still fails, this
+            # retry gives the re-finalized scenario-policy.json
+            # (artifact_preserved=false, suite_continue=false) a chance to
+            # replace the earlier optimistic copy in Blob storage.
+            final_lifecycle_retry_rc=0
+            timeout --signal=TERM --kill-after=30s \
+              "${final_lifecycle_budget}s" \
+              env \
+                PRESERVE_LIFECYCLE_ONLY=true \
+                SCENARIO_REPORT_DIR="${CL2_REPORT_DIR}/${SCENARIO}" \
+                SCENARIO_NAME="$SCENARIO" \
+                RUN_ID="$RUN_ID" \
+                BUILD_ID="$BUILD_ID" \
+                SNAPSHOT_TIER="$SNAPSHOT_TIER" \
+                BUILD_BRANCH="$BUILD_BRANCH" \
+                STORAGE_ACCOUNT_NAME="$CL2_PROM_SNAPSHOT_STORAGE_ACCOUNT" \
+                CONTAINER_NAME="$CL2_PROM_SNAPSHOT_CONTAINER" \
+                TARGET_SUBSCRIPTION_ID="$TARGET_SUBSCRIPTION_ID" \
+                WORKER_SUMMARY_FILE="$worker_summary" \
+                RELABEL_SCRIPT="$SNAPSHOT_RELABEL_SCRIPT" \
+                CL2_PROM_SNAPSHOT_ENABLED="$CL2_PROM_SNAPSHOT_ENABLED" \
+                CL2_PROM_SNAPSHOT_TARGET="$CL2_PROM_SNAPSHOT_TARGET" \
+                bash "$SCENARIO_ARTIFACT_PRESERVER" || final_lifecycle_retry_rc=$?
+            if [ "$final_lifecycle_retry_rc" -ne 0 ]; then
+              echo "##vso[task.logissue type=warning;] ${SCENARIO}: retrying the final lifecycle failure record also failed rc=${final_lifecycle_retry_rc}; local collect artifacts remain authoritative"
+            fi
+          fi
+
+          # B.9: measurement validity and suite continuation are
+          # independent decisions. An invalid measurement alone (e.g. a
+          # target stimulus timeout, or evidence failure) marks the build
+          # SucceededWithIssues but — as long as suite_continue=true — the
+          # remaining scenarios still run, since the health gate above
+          # already proved the shared baseline recovered. Only stop the
+          # whole suite when suite_continue=false (recovery, infra,
+          # artifact preservation, or mock reconcile actually failed).
+          if [ "$measurement_valid" != "true" ]; then
             overall_rc=1
+            if [ "$suite_continue" = "true" ]; then
+              echo "##vso[task.logissue type=warning;] ${SCENARIO}: measurement invalid, but shared infra recovered — continuing the suite"
+            else
+              echo "##vso[task.logissue type=warning;] ${SCENARIO}: measurement invalid"
+            fi
+          fi
+          if [ "$suite_continue" != "true" ]; then
+            overall_rc=1
+            echo "##vso[task.logissue type=error;] Scenario ${SCENARIO}: unsafe environment — stopping the remaining suite (suite_continue=false)"
             break
           fi
 
@@ -1838,7 +2472,7 @@ steps:
               scenario: $scenario,
               skipped: true,
               skipped_at: $skipped_at,
-              skip_reason: "prior_scenario_failure_or_policy_stop"
+              skip_reason: "prior_environment_failure_or_budget_stop"
             }]' \
             "$SHARE_INFRA_META" > "${SHARE_INFRA_META}.tmp" &&
             mv "${SHARE_INFRA_META}.tmp" "$SHARE_INFRA_META"
@@ -1971,6 +2605,9 @@ steps:
       REGION: ${{ parameters.region }}
       PYTHON_SCRIPT_FILE: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/scale.py
       SCENARIO_POLICY_SCRIPT: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/scenario_policy.py
+      SCENARIO_EVIDENCE_SCRIPT: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/scenario_evidence.py
+      MOCK_RECONCILER_SCRIPT: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/mock_layer_reconcile.py
+      SCENARIO_CLEANUP_RECONCILER: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/scenario_cleanup_reconcile.py
       WORKER_SCRIPT: $(Pipeline.Workspace)/s/steps/engine/clusterloader2/clustermesh-scale/run-cl2-on-cluster.sh
       CL2_IMAGE: ${{ parameters.engine_input.image }}
       CL2_CONFIG_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/config

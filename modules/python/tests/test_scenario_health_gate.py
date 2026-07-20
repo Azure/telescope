@@ -130,15 +130,23 @@ def _write_fake_tools(tmp_path: Path) -> tuple[Path, Path, Path]:
               printf '%s\\n' \
                 '{"status":{"desiredNumberScheduled":1,"numberReady":1}}'
             elif [[ " $args " == *" get nodes -l type=kwok -o json "* ]]; then
-              cat <<'JSON'
+              if [ -n "${FAKE_MOCK_NODES_JSON:-}" ] && [ -f "$FAKE_MOCK_NODES_JSON" ]; then
+                cat "$FAKE_MOCK_NODES_JSON"
+              else
+                cat <<'JSON'
             {"items":[
-              {"status":{"conditions":[{"type":"Ready","status":"True"}]}},
-              {"status":{"conditions":[{"type":"Ready","status":"True"}]}}
+              {"metadata":{"name":"kwok-node-1"},"spec":{"unschedulable":false},"status":{"conditions":[{"type":"Ready","status":"True"}]}},
+              {"metadata":{"name":"kwok-node-2"},"spec":{"unschedulable":false},"status":{"conditions":[{"type":"Ready","status":"True"}]}}
             ]}
             JSON
+              fi
             elif [[ " $args " == *" -n mock-clustermesh get pods -l app=mock-cilium-agent -o json "* ]]; then
-              printf '%s\\n' \
-                '{"items":[{"status":{"phase":"Running"}},{"status":{"phase":"Running"}}]}'
+              if [ -n "${FAKE_MOCK_AGENTS_JSON:-}" ] && [ -f "$FAKE_MOCK_AGENTS_JSON" ]; then
+                cat "$FAKE_MOCK_AGENTS_JSON"
+              else
+                printf '%s\\n' \
+                  '{"items":[{"metadata":{"labels":{"mock-clustermesh/serves-node":"kwok-node-1"}},"status":{"phase":"Running","containerStatuses":[{"ready":true}]}},{"metadata":{"labels":{"mock-clustermesh/serves-node":"kwok-node-2"}},"status":{"phase":"Running","containerStatuses":[{"ready":true}]}}]}'
+              fi
             elif [[ " $args " == *" -n kube-system exec ds/cilium -c cilium-agent -- cilium-dbg status "* ]]; then
               printf '%s\\n' 'ClusterMesh: 0/0 remote clusters ready.'
             elif [[ " $args " == *" get ciliumidentities.cilium.io -o name "* ]]; then
@@ -173,6 +181,8 @@ def _run_gate(
     *,
     quiet_window: int,
     timeout: int,
+    mock_nodes_json: str | None = None,
+    mock_agents_json: str | None = None,
 ) -> tuple[subprocess.CompletedProcess[str], dict, int]:
     fake_bin, clock_file, poll_file = _write_fake_tools(tmp_path)
     inventory = tmp_path / "clusters.json"
@@ -199,6 +209,14 @@ def _run_gate(
             "PATH": f"{fake_bin}:{environment['PATH']}",
         }
     )
+    if mock_nodes_json is not None:
+        mock_nodes_path = tmp_path / "mock-nodes.json"
+        mock_nodes_path.write_text(mock_nodes_json, encoding="utf-8")
+        environment["FAKE_MOCK_NODES_JSON"] = str(mock_nodes_path)
+    if mock_agents_json is not None:
+        mock_agents_path = tmp_path / "mock-agents.json"
+        mock_agents_path.write_text(mock_agents_json, encoding="utf-8")
+        environment["FAKE_MOCK_AGENTS_JSON"] = str(mock_agents_path)
     result = subprocess.run(
         [
             "bash",
@@ -242,6 +260,7 @@ def test_health_gate_succeeds_after_transient_cleanup(tmp_path):
     assert result.returncode == 0
     assert poll_count == 4
     assert summary["success"] is True
+    assert summary["infrastructure_healthy"] is True
     assert summary["scenario"] == "pod-churn-combined"
     assert summary["stable_seconds"] == 2
     assert summary["clusters"][0]["healthy"] is True
@@ -254,6 +273,15 @@ def test_health_gate_succeeds_after_transient_cleanup(tmp_path):
         == 0
     )
     assert summary["clusters"][0]["mock"]["ready_nodes"] == 2
+    assert summary["clusters"][0]["mock"]["schedulable_nodes"] == 2
+    assert summary["clusters"][0]["mock"]["ready_agents"] == 2
+    coverage = summary["clusters"][0]["mock"]["serves_node_coverage"]
+    assert coverage["served_count"] == 2
+    assert coverage["unique_count"] == 2
+    assert coverage["duplicate_count"] == 0
+    assert coverage["missing_nodes"] == []
+    assert coverage["orphan_agents"] == []
+    assert coverage["exact_match"] is True
     assert summary["clusters"][0]["fingerprint"]["cilium_identities"] == 5
     assert "get namespaces failed: Unable to connect" in result.stderr
     assert "PodMonitor/hubble-metrics-old" in result.stderr
@@ -295,6 +323,157 @@ def test_health_gate_times_out_with_actionable_summary(tmp_path):
     )
     assert "ClusterMesh scenario health gate timed out" in result.stderr
     assert "before starting another observation cycle" in result.stderr
+
+
+def _healthy_nodes_json() -> str:
+    return json.dumps(
+        {
+            "items": [
+                {
+                    "metadata": {"name": "kwok-node-1"},
+                    "spec": {"unschedulable": False},
+                    "status": {"conditions": [{"type": "Ready", "status": "True"}]},
+                },
+                {
+                    "metadata": {"name": "kwok-node-2"},
+                    "spec": {"unschedulable": False},
+                    "status": {"conditions": [{"type": "Ready", "status": "True"}]},
+                },
+            ]
+        }
+    )
+
+
+def _healthy_agents_json() -> str:
+    return json.dumps(
+        {
+            "items": [
+                {
+                    "metadata": {
+                        "labels": {"mock-clustermesh/serves-node": "kwok-node-1"}
+                    },
+                    "status": {
+                        "phase": "Running",
+                        "containerStatuses": [{"ready": True}],
+                    },
+                },
+                {
+                    "metadata": {
+                        "labels": {"mock-clustermesh/serves-node": "kwok-node-2"}
+                    },
+                    "status": {
+                        "phase": "Running",
+                        "containerStatuses": [{"ready": True}],
+                    },
+                },
+            ]
+        }
+    )
+
+
+def test_health_gate_detects_unschedulable_kwok_node(tmp_path):
+    nodes = json.loads(_healthy_nodes_json())
+    nodes["items"][1]["spec"]["unschedulable"] = True
+    result, summary, _ = _run_gate(
+        tmp_path,
+        "transient-cleanup",
+        quiet_window=1,
+        timeout=2,
+        mock_nodes_json=json.dumps(nodes),
+        mock_agents_json=_healthy_agents_json(),
+    )
+
+    assert result.returncode == 1
+    assert summary["success"] is False
+    assert summary["infrastructure_healthy"] is False
+    cluster = summary["clusters"][0]
+    assert cluster["mock"]["nodes"] == 2
+    assert cluster["mock"]["ready_nodes"] == 2
+    assert cluster["mock"]["schedulable_nodes"] == 1
+    assert any(
+        "KWOK nodes expected/present/Ready/schedulable=2/2/2/1" in failure
+        for failure in cluster["failures"]
+    )
+
+
+def test_health_gate_detects_unready_mock_agent_container(tmp_path):
+    agents = json.loads(_healthy_agents_json())
+    agents["items"][1]["status"]["containerStatuses"] = [{"ready": False}]
+    result, summary, _ = _run_gate(
+        tmp_path,
+        "transient-cleanup",
+        quiet_window=1,
+        timeout=2,
+        mock_nodes_json=_healthy_nodes_json(),
+        mock_agents_json=json.dumps(agents),
+    )
+
+    assert result.returncode == 1
+    assert summary["success"] is False
+    cluster = summary["clusters"][0]
+    assert cluster["mock"]["agents"] == 2
+    assert cluster["mock"]["running_agents"] == 2
+    assert cluster["mock"]["ready_agents"] == 1
+    assert any(
+        "mock Cilium agents expected/present/Running/Ready=2/2/2/1" in failure
+        for failure in cluster["failures"]
+    )
+
+
+def test_health_gate_detects_duplicate_and_missing_serves_node_coverage(tmp_path):
+    agents = json.loads(_healthy_agents_json())
+    # Both agents claim to serve the same node; kwok-node-2 ends up with no
+    # serving agent at all.
+    agents["items"][1]["metadata"]["labels"][
+        "mock-clustermesh/serves-node"
+    ] = "kwok-node-1"
+    result, summary, _ = _run_gate(
+        tmp_path,
+        "transient-cleanup",
+        quiet_window=1,
+        timeout=2,
+        mock_nodes_json=_healthy_nodes_json(),
+        mock_agents_json=json.dumps(agents),
+    )
+
+    assert result.returncode == 1
+    assert summary["success"] is False
+    coverage = summary["clusters"][0]["mock"]["serves_node_coverage"]
+    assert coverage["served_count"] == 2
+    assert coverage["unique_count"] == 1
+    assert coverage["duplicate_count"] == 1
+    assert coverage["missing_nodes"] == ["kwok-node-2"]
+    assert coverage["orphan_agents"] == []
+    assert coverage["exact_match"] is False
+    assert any(
+        "mock-clustermesh/serves-node coverage mismatch" in failure
+        for failure in summary["clusters"][0]["failures"]
+    )
+
+
+def test_health_gate_detects_orphan_serves_node_agent(tmp_path):
+    agents = json.loads(_healthy_agents_json())
+    # Second agent claims a node name that no longer exists.
+    agents["items"][1]["metadata"]["labels"][
+        "mock-clustermesh/serves-node"
+    ] = "kwok-node-stale"
+    result, summary, _ = _run_gate(
+        tmp_path,
+        "transient-cleanup",
+        quiet_window=1,
+        timeout=2,
+        mock_nodes_json=_healthy_nodes_json(),
+        mock_agents_json=json.dumps(agents),
+    )
+
+    assert result.returncode == 1
+    assert summary["success"] is False
+    coverage = summary["clusters"][0]["mock"]["serves_node_coverage"]
+    assert coverage["unique_count"] == 2
+    assert coverage["duplicate_count"] == 0
+    assert coverage["missing_nodes"] == ["kwok-node-2"]
+    assert coverage["orphan_agents"] == ["kwok-node-stale"]
+    assert coverage["exact_match"] is False
 
 
 def test_health_gate_hard_bounds_a_hung_kubectl(tmp_path):
