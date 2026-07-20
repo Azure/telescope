@@ -156,6 +156,12 @@ def test_acns_probe_is_real_node_only_and_captures_filtered_logs():
     assert cnl["spec"]["includefilters"]
     assert network_metric["kind"] == "ContainerNetworkMetric"
     assert network_metric["spec"]["filters"][0]["metric"] == "dns"
+    for metric_filter in network_metric["spec"]["filters"][0]["includeFilters"]:
+        endpoint = metric_filter.get("from") or metric_filter.get("to")
+        assert endpoint["labelSelector"]["matchLabels"] == {
+            "app": "acns-client",
+            "k8s.io/namespace": "acns-telemetry",
+        }
     assert {
         protocol
         for item in cnl["spec"]["includefilters"]
@@ -209,6 +215,8 @@ def test_acns_setup_and_host_log_collection_smoke(tmp_path):
               printf CONFIGURED
             elif [[ " $* " == *" get containernetworklog clustermesh-scale-acns -o json "* ]]; then
               printf '%s\\n' '{"status":{"state":"CONFIGURED"}}'
+            elif [[ " $* " == *" get containernetworkmetric container-network-metric -o json "* ]]; then
+              printf '%s\\n' '{"spec":{"filters":[{"metric":"dns"}]}}'
             elif [[ " $* " == *" get pods -o wide "* ]]; then
               printf '%s\\n' 'NAME READY STATUS' 'collector-a 1/1 Running'
             elif [[ " $* " == *" logs deployment/acns-client "* ]]; then
@@ -238,6 +246,7 @@ def test_acns_setup_and_host_log_collection_smoke(tmp_path):
     environment.update(
         {
             "CL2_ACNS_TELEMETRY_ENABLED": "true",
+            "CL2_ACNS_METRIC_RECONCILE_SECONDS": "0",
             "KUBECONFIG": str(tmp_path / "kubeconfig"),
             "KUBECTL_LOG": str(kubectl_log),
             "FAKE_LOG_DIR": str(fake_logs),
@@ -269,6 +278,8 @@ def test_acns_setup_and_host_log_collection_smoke(tmp_path):
     assert summary["complete"] is True
     assert summary["expected_archives"] == 2
     assert summary["nonempty_log_archives"] == 2
+    assert summary["metric_config_captured"] is True
+    assert (output_dir / "container-network-metric.json").exists()
     assert {item["node"] for item in summary["archives"]} == {
         "node-a",
         "node-b",

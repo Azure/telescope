@@ -9,6 +9,7 @@ fi
 : "${KUBECONFIG:?KUBECONFIG is required}"
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 timeout_seconds="${CL2_ACNS_SETUP_TIMEOUT_SECONDS:-600}"
+metric_reconcile_seconds="${CL2_ACNS_METRIC_RECONCILE_SECONDS:-30}"
 deadline=$(( $(date +%s) + timeout_seconds ))
 
 for crd in \
@@ -42,6 +43,9 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
   state=$(kubectl get containernetworklog clustermesh-scale-acns \
     -o jsonpath='{.status.state}' 2>/dev/null || true)
   if [ "$state" = "CONFIGURED" ]; then
+    # Dynamic Hubble metric filters reconcile independently of CNL and take
+    # approximately 30 seconds according to the AKS ACNS contract.
+    sleep "$metric_reconcile_seconds"
     echo "ACNS telemetry probe and filtered container network logs are configured."
     exit 0
   fi

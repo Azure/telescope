@@ -110,6 +110,8 @@ def test_mock_mode_is_normalized_for_shell_gates():
     assert "cleanup_recovered: $cleanup_recovered" in execute
     assert "NODE_CHURNER_WAIT_RC" in execute
     assert "finalizer completion is unverifiable" in execute
+    assert "ado_set_variable SHARE_INFRA_META" in execute
+    assert "ado_complete_with_issues" in execute
 
 
 def test_full_telemetry_azure_tasks_use_ui_selected_subscription():

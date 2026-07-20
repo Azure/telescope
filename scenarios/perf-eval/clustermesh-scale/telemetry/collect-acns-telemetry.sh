@@ -12,6 +12,14 @@ mkdir -p "$OUTPUT_DIR"
 
 kubectl get containernetworklog clustermesh-scale-acns -o json \
   > "$OUTPUT_DIR/container-network-log.json"
+metric_config_captured=true
+if ! kubectl get containernetworkmetric container-network-metric -o json \
+    > "$OUTPUT_DIR/container-network-metric.json"; then
+  metric_config_captured=false
+  printf '%s\n' '{"error":"ContainerNetworkMetric resource unavailable during collection"}' \
+    > "$OUTPUT_DIR/container-network-metric.json"
+  echo "ContainerNetworkMetric resource unavailable during ACNS collection." >&2
+fi
 kubectl -n acns-telemetry get pods -o wide \
   > "$OUTPUT_DIR/pods.txt"
 kubectl -n acns-telemetry logs deployment/acns-client --tail=500 \
@@ -72,7 +80,8 @@ archive_count=$(echo "$archives" | jq 'length')
 complete=false
 if [ "$expected_archive_count" -gt 0 ] &&
    [ "$archive_count" -eq "$expected_archive_count" ] &&
-   [ "$nonempty_log_archives" -gt 0 ]; then
+   [ "$nonempty_log_archives" -gt 0 ] &&
+   [ "$metric_config_captured" = "true" ]; then
   complete=true
 fi
 jq -n \
@@ -80,6 +89,7 @@ jq -n \
   --argjson complete "$complete" \
   --argjson expected_archives "$expected_archive_count" \
   --argjson nonempty_log_archives "$nonempty_log_archives" \
+  --argjson metric_config_captured "$metric_config_captured" \
   --argjson archives "$archives" \
   '{
     schema_version: 1,
@@ -87,6 +97,7 @@ jq -n \
     complete: $complete,
     expected_archives: $expected_archives,
     nonempty_log_archives: $nonempty_log_archives,
+    metric_config_captured: $metric_config_captured,
     archives: $archives
   }' > "$OUTPUT_DIR/summary.json"
 

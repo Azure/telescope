@@ -20,6 +20,22 @@ steps:
       set -eo pipefail
       set -x
 
+      # Azure logging commands must not be emitted while xtrace is enabled.
+      # Otherwise the agent can parse bash's quoted `+ echo '##vso[...]'`
+      # diagnostic as a second command and append a literal quote to values.
+      ado_set_variable() {
+        local _name="$1" _value="$2"
+        set +x
+        printf '##vso[task.setvariable variable=%s]%s\n' "$_name" "$_value"
+        set -x
+      }
+
+      ado_complete_with_issues() {
+        set +x
+        printf '%s\n' '##vso[task.complete result=SucceededWithIssues;]'
+        set -x
+      }
+
       # Matrix variables (namespaces, mesh_size, deployments_per_namespace,
       # replicas_per_deployment, hold_duration, warmup_duration, restart_count,
       # api_server_calls_per_second, test_type) are auto-exported by AzDO to
@@ -320,7 +336,7 @@ steps:
       clusters_with_kubeconfig=$(echo "$clusters" | jq --arg home "$HOME" \
         '[.[] | . + {kubeconfig: ($home + "/.kube/" + .role + ".config")}]')
       echo "$clusters_with_kubeconfig" > "$HOME/.kube/clustermesh-clusters.json"
-      echo "##vso[task.setvariable variable=CLUSTERMESH_COUNT]$cluster_count"
+      ado_set_variable CLUSTERMESH_COUNT "$cluster_count"
 
       # CL2 overrides are written once — params are identical for every cluster
       # in this run (the per-cluster variation is which kubeconfig CL2 hits).
@@ -1417,7 +1433,7 @@ steps:
 
         # Make the meta file available to collect.yml via a step variable —
         # written as task.setvariable so the next step in the same job picks it up.
-        echo "##vso[task.setvariable variable=SHARE_INFRA_META]$SHARE_INFRA_META"
+        ado_set_variable SHARE_INFRA_META "$SHARE_INFRA_META"
 
         echo "============================================="
         echo "Share-infra summary: ${#SCENARIO_LIST[@]} scenarios processed, overall_rc=${overall_rc}"
@@ -1437,7 +1453,7 @@ steps:
         # block) still exit 1 — those happen BEFORE any data is gathered
         # so skipping downstream is the right call.
         if [ "$overall_rc" -ne 0 ]; then
-          echo "##vso[task.complete result=SucceededWithIssues;]"
+          ado_complete_with_issues
         fi
         exit 0
       fi
@@ -1530,7 +1546,7 @@ steps:
       # (they happen before any data is gathered).
       if [ "$single_scenario_rc" -ne 0 ]; then
         echo "##vso[task.logissue type=warning;] Single-scenario CL2 exited rc=${single_scenario_rc} — some workers failed. Per-worker details in scale.py output above; per-cluster rows in blob carry status field. Emitting SucceededWithIssues so collect/upload still runs and successful workers' data is preserved."
-        echo "##vso[task.complete result=SucceededWithIssues;]"
+        ado_complete_with_issues
       fi
       exit 0
     workingDirectory: modules/python
