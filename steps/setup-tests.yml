@@ -55,6 +55,24 @@ steps:
 
   - script: |
       set -e
+
+      echo "Wait for apt/dpkg locks"
+      # Wait for background package upgrades to release the apt/dpkg locks before proceeding.
+      wait_for_apt_locks() {
+        local waited=0
+        while sudo fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/lib/apt/lists/lock /var/cache/apt/archives/lock >/dev/null 2>&1; do
+          if [ "$waited" -gt 10 ]; then
+            echo "Gave up waiting for apt/dpkg locks to be released."
+            break
+          fi
+          echo "Waiting for apt/dpkg locks to be released... (attempt ${waited})"
+          sleep 30
+          waited=$((waited + 1))
+        done
+      }
+
+      wait_for_apt_locks
+
       echo "Install Python dependencies"
       # Constrain pip to versions below 24 due to compatibility issues with some packages and breaking changes introduced in pip 24.
       pip3 install --upgrade "pip<24"
