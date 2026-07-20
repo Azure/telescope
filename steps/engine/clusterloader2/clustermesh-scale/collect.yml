@@ -349,15 +349,17 @@ steps:
       SNAPSHOT_RELABEL_READY: $(CL2_PROM_SNAPSHOT_RELABEL_READY)
     displayName: "Stage Prometheus TSDB snapshots"
     condition: and(succeededOrFailed(), eq(variables['cl2_prom_snapshot_enabled'], 'true'))
-  # Target=artifact path (small smokes). Always-attempted when snapshot is
-  # enabled; artifact stays under the build page's Artifacts dropdown.
+  # Target=artifact path (small smokes). Blob-target runs upload directly to
+  # our storage account below and must not also hit AzDO's 10GB artifact cap.
   - task: PublishPipelineArtifact@1
     inputs:
       targetPath: $(Build.ArtifactStagingDirectory)/prom-snapshots
       artifact: prom-snapshots-$(System.JobAttempt)-$(System.JobName)
       publishLocation: pipeline
     displayName: "Publish Prometheus TSDB snapshots as pipeline artifact"
-    condition: and(succeededOrFailed(), eq(variables['cl2_prom_snapshot_enabled'], 'true'))
+    condition: and(succeededOrFailed(),
+                   eq(variables['cl2_prom_snapshot_enabled'], 'true'),
+                   eq(variables['cl2_prom_snapshot_target'], 'artifact'))
   # Target=blob path (larger scales). Opt-in via cl2_prom_snapshot_target=blob.
   # Uses the same AzDO service connection as the rest of the pipeline (SP's
   # OAuth via AzureCLI@2's built-in auth, no shared keys — matches sub

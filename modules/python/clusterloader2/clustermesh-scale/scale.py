@@ -1410,8 +1410,18 @@ def _emit_node_churn_timing_rows(cl2_report_dir, template, result_file):
           "original_node_count": int,
           "ready_quorum_reached": bool,
           "cleanup_failed": bool,
+          "cleanup_recovery_attempted": bool,
+          "cleanup_recovered": bool,
+          "cleanup_recovery_seconds": int,
           "scenario_valid": bool,         // false if a circuit-breaker fired
           "truncated": bool,              // true if churner ran past CL2 sleep
+          "cordoned_nodes": [str],
+          "final_provisioning_state": str,
+          "final_node_count": int,
+          "final_ready_node_count": int,
+          "final_unschedulable_node_count": int,
+          "final_cilium_desired": int,
+          "final_cilium_ready": int,
           "started_epoch": int,
           "ended_epoch": int,
           "duration_seconds": int,
@@ -1457,8 +1467,12 @@ def _emit_node_churn_timing_rows(cl2_report_dir, template, result_file):
         "scenario", "target_context", "target_cluster_name",
         "target_resource_group", "target_nodepool",
         "original_node_count", "ready_quorum_reached", "cleanup_failed",
-        "scenario_valid", "truncated", "started_epoch", "ended_epoch",
-        "duration_seconds",
+        "cleanup_recovery_attempted", "cleanup_recovered",
+        "cleanup_recovery_seconds", "scenario_valid", "truncated",
+        "cordoned_nodes", "final_provisioning_state", "final_node_count",
+        "final_ready_node_count", "final_unschedulable_node_count",
+        "final_cilium_desired", "final_cilium_ready", "started_epoch",
+        "ended_epoch", "duration_seconds",
     )
     with open(result_file, "a", encoding="utf-8") as out:
         for tf in timing_files:

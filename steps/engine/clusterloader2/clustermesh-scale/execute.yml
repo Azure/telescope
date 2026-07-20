@@ -111,6 +111,9 @@ steps:
       export CL2_NODE_CHURN_COMBINED_DURATION_SECONDS="${NODE_CHURN_COMBINED_DURATION_SECONDS:-3300}"
       export CL2_NODE_REPLACE_BATCH_SIZE="${NODE_REPLACE_BATCH_SIZE:-10}"
       export CL2_NODE_CHURN_READY_TIMEOUT_SECONDS="${NODE_CHURN_READY_TIMEOUT_SECONDS:-300}"
+      export CL2_NODE_CHURN_FINALIZER_TIMEOUT_SECONDS="${NODE_CHURN_FINALIZER_TIMEOUT_SECONDS:-900}"
+      export CL2_NODE_CHURN_RECOVERY_GRACE_SECONDS="${NODE_CHURN_RECOVERY_GRACE_SECONDS:-0}"
+      export CL2_SHARE_INFRA_SETTLE_SECONDS="${SHARE_INFRA_SETTLE_SECONDS:-60}"
       # Phase 4b — Scenario #6 (Upper Bound / Saturation) knobs.
       # upper-bound.yaml consumes these via CL2's DefaultParam template
       # func; non-saturation scenarios ignore them. Defaults mirror
@@ -1012,14 +1015,14 @@ steps:
       # Wait helper — caller invokes after execute-parallel returns.
       wait_node_churner() {
         local _scen="$1"
+        NODE_CHURNER_WAIT_RC=0
         if [ -z "${NODE_CHURNER_PID:-}" ]; then
           return 0
         fi
         echo "node-churner: waiting on PID=$NODE_CHURNER_PID for scenario=${_scen}"
-        local _rc=0
-        wait "$NODE_CHURNER_PID" || _rc=$?
-        if [ "$_rc" -ne 0 ]; then
-          echo "##vso[task.logissue type=warning;] node-churner: scenario=${_scen} exited rc=${_rc}; check NodeChurnTimings_*.json for scenario_valid / cleanup_failed flags"
+        wait "$NODE_CHURNER_PID" || NODE_CHURNER_WAIT_RC=$?
+        if [ "$NODE_CHURNER_WAIT_RC" -ne 0 ]; then
+          echo "##vso[task.logissue type=warning;] node-churner: scenario=${_scen} exited rc=${NODE_CHURNER_WAIT_RC}; cleanup completion is unverifiable"
         fi
         NODE_CHURNER_PID=""
         return 0
@@ -1269,6 +1272,7 @@ steps:
           # BEFORE execute-parallel so the churner is ready to consume CL2
           # sentinels as soon as the per-cluster CL2 containers start.
           NODE_CHURNER_PID=""
+          NODE_CHURNER_WAIT_RC=0
           if is_node_churn_scenario "$SCENARIO"; then
             launch_node_churner "$SCENARIO" "${CL2_REPORT_DIR}/${SCENARIO}"
           fi
@@ -1309,6 +1313,9 @@ steps:
           # the next scenario starts, otherwise the next CL2 invocation
           # could run against an in-flux topology.
           wait_node_churner "$SCENARIO"
+          if [ "${NODE_CHURNER_WAIT_RC:-0}" -ne 0 ]; then
+            scenario_rc="$NODE_CHURNER_WAIT_RC"
+          fi
           # Same for propagation + recovery probes: wait so JSONLs are
           # finalized before collect runs.
           wait_propagation_probe "$SCENARIO"
@@ -1342,14 +1349,54 @@ steps:
           # loop — running additional scenarios against a half-scaled cluster
           # would contaminate their data.
           if is_node_churn_scenario "$SCENARIO"; then
-            _churner_timing_file="${CL2_REPORT_DIR}/${SCENARIO}/${CL2_NODE_CHURN_TARGET_CONTEXT}/NodeChurnTimings_${CL2_NODE_CHURN_TARGET_CONTEXT}.json"
+            if [ "${NODE_CHURNER_WAIT_RC:-0}" -ne 0 ]; then
+              echo "##vso[task.logissue type=error;] node-churner process did not exit cleanly for ${SCENARIO}; finalizer completion is unverifiable, aborting remaining share-infra scenarios"
+              overall_rc=1
+              break
+            fi
+            # Report directories are keyed by Fleet role (mesh-1), while the
+            # timing filename is keyed by AKS context (clustermesh-1). Search
+            # the scenario subtree rather than assuming those names match.
+            _churner_timing_file=$(find "${CL2_REPORT_DIR}/${SCENARIO}" \
+              -maxdepth 2 -type f \
+              -name "NodeChurnTimings_${CL2_NODE_CHURN_TARGET_CONTEXT}.json" \
+              -print -quit 2>/dev/null || true)
             if [ -f "$_churner_timing_file" ]; then
-              _cleanup_failed=$(jq -r '.cleanup_failed // false' "$_churner_timing_file")
+              if ! _churner_timing_json=$(jq -c . "$_churner_timing_file" 2>/dev/null); then
+                echo "##vso[task.logissue type=error;] node-churner timing file is malformed for ${SCENARIO}; cleanup state is unverifiable, aborting remaining share-infra scenarios"
+                overall_rc=1
+                break
+              fi
+              _cleanup_failed=$(jq -r '.cleanup_failed // false' <<<"$_churner_timing_json")
+              _cleanup_recovered=$(jq -r '.cleanup_recovered // false' <<<"$_churner_timing_json")
+              _scenario_valid=$(jq -r '.scenario_valid // false' <<<"$_churner_timing_json")
+              jq \
+                --argjson cleanup_failed "$_cleanup_failed" \
+                --argjson cleanup_recovered "$_cleanup_recovered" \
+                --argjson scenario_valid "$_scenario_valid" \
+                '.[-1] += {
+                  cleanup_failed: $cleanup_failed,
+                  cleanup_recovered: $cleanup_recovered,
+                  scenario_valid: $scenario_valid
+                }' \
+                "$SHARE_INFRA_META" > "${SHARE_INFRA_META}.tmp" &&
+                mv "${SHARE_INFRA_META}.tmp" "$SHARE_INFRA_META"
+              if [ "$_cleanup_recovered" = "true" ]; then
+                echo "##vso[task.logissue type=warning;] node-churner required bounded recovery for ${SCENARIO}, then returned the target pool to healthy state"
+              fi
+              if [ "$_scenario_valid" != "true" ]; then
+                echo "##vso[task.logissue type=warning;] node-churner marked ${SCENARIO} scenario_valid=false; preserving telemetry and continuing to collect"
+                overall_rc=1
+              fi
               if [ "$_cleanup_failed" = "true" ]; then
                 echo "##vso[task.logissue type=error;] node-churner finalizer FAILED for ${SCENARIO}; aborting remaining share-infra scenarios to avoid contaminating their data on a half-scaled cluster"
                 overall_rc=1
                 break
               fi
+            else
+              echo "##vso[task.logissue type=error;] node-churner timing file is missing for ${SCENARIO}; cleanup state is unverifiable, aborting remaining share-infra scenarios"
+              overall_rc=1
+              break
             fi
           fi
 
@@ -1360,11 +1407,11 @@ steps:
 
           # Settle between scenarios — gives Cilium time to GC stale
           # identities/endpoints/services from the previous scenario before
-          # the next scenario's measurement window begins. Last scenario
-          # skips the settle.
+          # the next scenario's measurement window begins. Large, long-lived
+          # Fleet runs can override the default 60s; last scenario skips it.
           if [ "$scenario_idx" -lt "${#SCENARIO_LIST[@]}" ]; then
-            echo "Settle 60s between scenarios (kvstore GC + identity slot cooldown)..."
-            sleep 60
+            echo "Settle ${CL2_SHARE_INFRA_SETTLE_SECONDS}s between scenarios (kvstore GC + identity slot cooldown)..."
+            sleep "$CL2_SHARE_INFRA_SETTLE_SECONDS"
           fi
         done
 
@@ -1416,6 +1463,7 @@ steps:
       fi
       # Launch host-side stimulus for node-churn-* in single-scenario mode.
       NODE_CHURNER_PID=""
+      NODE_CHURNER_WAIT_RC=0
       if is_node_churn_scenario "$SINGLE_SCENARIO_BASENAME"; then
         launch_node_churner "$SINGLE_SCENARIO_BASENAME" "${CL2_REPORT_DIR}"
       fi
@@ -1453,6 +1501,9 @@ steps:
       wait_mesh_policy_propagation_probe "$SINGLE_SCENARIO_BASENAME"
       wait_mesh_failover_probe "$SINGLE_SCENARIO_BASENAME"
       wait_mesh_restart_survival_probe "$SINGLE_SCENARIO_BASENAME"
+      if [ "${NODE_CHURNER_WAIT_RC:-0}" -ne 0 ]; then
+        single_scenario_rc="$NODE_CHURNER_WAIT_RC"
+      fi
       # Proactive failure debug dump for single-scenario mode too. Run
       # unconditionally for node-churn AND upper-bound (rich state worth
       # dumping regardless of success); rc!=0 for everything else.

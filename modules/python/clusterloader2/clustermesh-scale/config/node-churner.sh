@@ -88,7 +88,9 @@ TARGET_KUBECONFIG="${14:-}"
 # Internal bounds (not exposed via positional args — fine-tuned per scenario
 # class, not per matrix entry).
 NODE_CHURN_OP_TIMEOUT_SECONDS=900         # per `az aks nodepool scale` op
-NODE_CHURN_FINALIZER_TIMEOUT_SECONDS=900  # cleanup pool restore
+NODE_CHURN_FINALIZER_TIMEOUT_SECONDS="${CL2_NODE_CHURN_FINALIZER_TIMEOUT_SECONDS:-900}"
+NODE_CHURN_RECOVERY_GRACE_SECONDS="${CL2_NODE_CHURN_RECOVERY_GRACE_SECONDS:-0}"
+NODE_CHURN_RECOVERY_POLL_SECONDS="${CL2_NODE_CHURN_RECOVERY_POLL_SECONDS:-60}"
 NODE_REPLACE_DRAIN_TIMEOUT_SECONDS=300    # per node drain
 NODE_REPLACE_WAIT_TIMEOUT_SECONDS=1500    # for kubelet Ready after refill (build 67133: bumped 1200→1500 — refill provisioning + bootstrap can take 12-15 min on a fresh VM)
 
@@ -187,12 +189,22 @@ STARTED_EPOCH=$(date +%s)
 READY_QUORUM_REACHED=false
 SCENARIO_VALID=true
 CLEANUP_FAILED=false
+CLEANUP_RECOVERY_ATTEMPTED=false
+CLEANUP_RECOVERED=false
+CLEANUP_RECOVERY_SECONDS=0
 TRUNCATED=false
 CIRCUIT_BROKEN=false
 OPS_JSON='[]'
+CORDONED_NODES_JSON='[]'
 ORIGINAL_NODE_COUNT=0
 NODE_RESOURCE_GROUP=""
 TARGET_VMSS=""
+FINAL_PROVISIONING_STATE="Unknown"
+FINAL_NODE_COUNT=0
+FINAL_READY_NODE_COUNT=0
+FINAL_UNSCHEDULABLE_NODE_COUNT=0
+FINAL_CILIUM_DESIRED=0
+FINAL_CILIUM_READY=0
 
 debug_dump() {
   local _label="$1"
@@ -205,7 +217,9 @@ debug_dump() {
     echo "scenario=${SCENARIO} target_cluster_name=${TARGET_CLUSTER_NAME} target_rg=${TARGET_RESOURCE_GROUP}"
     echo "target_nodepool=${TARGET_NODEPOOL} target_vmss=${TARGET_VMSS:-unset} NRG=${NODE_RESOURCE_GROUP:-unset}"
     echo "original_node_count=${ORIGINAL_NODE_COUNT:-unset} cluster_count_quorum=${CLUSTER_COUNT}"
-    echo "ready_quorum_reached=${READY_QUORUM_REACHED} scenario_valid=${SCENARIO_VALID} circuit_broken=${CIRCUIT_BROKEN} cleanup_failed=${CLEANUP_FAILED} truncated=${TRUNCATED}"
+    echo "ready_quorum_reached=${READY_QUORUM_REACHED} scenario_valid=${SCENARIO_VALID} circuit_broken=${CIRCUIT_BROKEN} cleanup_failed=${CLEANUP_FAILED} cleanup_recovery_attempted=${CLEANUP_RECOVERY_ATTEMPTED} cleanup_recovered=${CLEANUP_RECOVERED} truncated=${TRUNCATED}"
+    echo "final_health provisioning=${FINAL_PROVISIONING_STATE} nodes=${FINAL_NODE_COUNT}/${ORIGINAL_NODE_COUNT} ready=${FINAL_READY_NODE_COUNT}/${ORIGINAL_NODE_COUNT} unschedulable=${FINAL_UNSCHEDULABLE_NODE_COUNT} cilium=${FINAL_CILIUM_READY}/${FINAL_CILIUM_DESIRED}"
+    echo "cordoned_nodes=${CORDONED_NODES_JSON}"
     echo "TARGET_KUBECONFIG=${TARGET_KUBECONFIG:-unset} KUBECTL=${KUBECTL:-unset}"
     echo ""
     echo "-- sentinel dir listing (${SENTINEL_DIR}) --"
@@ -345,7 +359,17 @@ write_timing_file() {
     --argjson ready_quorum_reached "$READY_QUORUM_REACHED" \
     --argjson scenario_valid "$SCENARIO_VALID" \
     --argjson cleanup_failed "$CLEANUP_FAILED" \
+    --argjson cleanup_recovery_attempted "$CLEANUP_RECOVERY_ATTEMPTED" \
+    --argjson cleanup_recovered "$CLEANUP_RECOVERED" \
+    --argjson cleanup_recovery_seconds "$CLEANUP_RECOVERY_SECONDS" \
     --argjson truncated "$TRUNCATED" \
+    --argjson cordoned_nodes "$CORDONED_NODES_JSON" \
+    --arg final_provisioning_state "$FINAL_PROVISIONING_STATE" \
+    --argjson final_node_count "$FINAL_NODE_COUNT" \
+    --argjson final_ready_node_count "$FINAL_READY_NODE_COUNT" \
+    --argjson final_unschedulable_node_count "$FINAL_UNSCHEDULABLE_NODE_COUNT" \
+    --argjson final_cilium_desired "$FINAL_CILIUM_DESIRED" \
+    --argjson final_cilium_ready "$FINAL_CILIUM_READY" \
     --argjson started_epoch "$STARTED_EPOCH" \
     --argjson ended_epoch "$_ended" \
     --argjson duration_seconds "$_dur" \
@@ -360,7 +384,17 @@ write_timing_file() {
       ready_quorum_reached:$ready_quorum_reached,
       scenario_valid:$scenario_valid,
       cleanup_failed:$cleanup_failed,
+      cleanup_recovery_attempted:$cleanup_recovery_attempted,
+      cleanup_recovered:$cleanup_recovered,
+      cleanup_recovery_seconds:$cleanup_recovery_seconds,
       truncated:$truncated,
+      cordoned_nodes:$cordoned_nodes,
+      final_provisioning_state:$final_provisioning_state,
+      final_node_count:$final_node_count,
+      final_ready_node_count:$final_ready_node_count,
+      final_unschedulable_node_count:$final_unschedulable_node_count,
+      final_cilium_desired:$final_cilium_desired,
+      final_cilium_ready:$final_cilium_ready,
       started_epoch:$started_epoch,
       ended_epoch:$ended_epoch,
       duration_seconds:$duration_seconds,
@@ -539,67 +573,208 @@ snapshot_node_ips() {
   snapshot_node_state | jq -c '.ips' 2>>"$DEBUG_LOG" || echo "[]"
 }
 
-# -----------------------------------------------------------------------------
-# Finalizer — runs on EVERY exit path (trap). Idempotent.
-# -----------------------------------------------------------------------------
-finalizer() {
-  local _exit_rc=$?
-  log "finalizer: starting (exit_rc=${_exit_rc}); restoring pool to original_node_count=${ORIGINAL_NODE_COUNT}"
+# Refresh the target pool's customer-visible health, not just its ARM count.
+# A restored count is insufficient if surviving nodes remain cordoned or the
+# replacement node has not brought Cilium back to Ready.
+refresh_final_health() {
+  local _nodes_json _health_json _kc _cilium_json
+  FINAL_PROVISIONING_STATE=$(az aks nodepool show \
+    --cluster-name "$TARGET_CLUSTER_NAME" \
+    --resource-group "$TARGET_RESOURCE_GROUP" \
+    --name "$TARGET_NODEPOOL" \
+    --query provisioningState -o tsv 2>/dev/null || echo "Unknown")
+  [ -n "$FINAL_PROVISIONING_STATE" ] || FINAL_PROVISIONING_STATE="Unknown"
+
+  _nodes_json=$(target_kubectl_get_nodes_json 2>/dev/null || true)
+  if [ -n "$_nodes_json" ]; then
+    _health_json=$(echo "$_nodes_json" | jq -c --arg vmss "$TARGET_VMSS" '
+      [ .items[]
+        | select((.spec.providerID // "")
+          | contains("/virtualMachineScaleSets/" + $vmss + "/virtualMachines/"))
+      ] as $nodes
+      | {
+          node_count: ($nodes | length),
+          ready_node_count: ([
+            $nodes[]
+            | select(any(.status.conditions[]?;
+                .type == "Ready" and .status == "True"))
+          ] | length),
+          unschedulable_node_count: ([
+            $nodes[] | select(.spec.unschedulable == true)
+          ] | length)
+        }' 2>>"$DEBUG_LOG" || echo '{"node_count":0,"ready_node_count":0,"unschedulable_node_count":0}')
+    FINAL_NODE_COUNT=$(echo "$_health_json" | jq -r '.node_count // 0')
+    FINAL_READY_NODE_COUNT=$(echo "$_health_json" | jq -r '.ready_node_count // 0')
+    FINAL_UNSCHEDULABLE_NODE_COUNT=$(echo "$_health_json" | jq -r '.unschedulable_node_count // 0')
+  else
+    FINAL_NODE_COUNT=0
+    FINAL_READY_NODE_COUNT=0
+    FINAL_UNSCHEDULABLE_NODE_COUNT=0
+  fi
+
+  FINAL_CILIUM_DESIRED=0
+  FINAL_CILIUM_READY=0
+  _kc=$(resolve_target_kubeconfig)
+  if [ -n "$_kc" ] && [ -n "$KUBECTL" ]; then
+    _cilium_json=$(KUBECONFIG="$_kc" "$KUBECTL" --context "$TARGET_CLUSTER_NAME" \
+      -n kube-system get daemonset cilium -o json 2>>"$DEBUG_LOG" || true)
+    if [ -n "$_cilium_json" ]; then
+      FINAL_CILIUM_DESIRED=$(echo "$_cilium_json" | jq -r '.status.desiredNumberScheduled // 0')
+      FINAL_CILIUM_READY=$(echo "$_cilium_json" | jq -r '.status.numberReady // 0')
+    fi
+  fi
+}
+
+uncordon_target_nodes() {
+  local _kc _nodes_json _node _failed=0
+  _kc=$(resolve_target_kubeconfig)
+  if [ -z "$_kc" ] || [ -z "$KUBECTL" ]; then
+    return 1
+  fi
+
+  # First uncordon every node this run attempted to drain. If VMSS deletion
+  # failed, those nodes still exist and otherwise remain permanently
+  # unschedulable even though the nodepool count looks restored.
+  while IFS= read -r _node; do
+    [ -n "$_node" ] || continue
+    if KUBECONFIG="$_kc" "$KUBECTL" --context "$TARGET_CLUSTER_NAME" \
+        get node "$_node" >/dev/null 2>&1; then
+      KUBECONFIG="$_kc" "$KUBECTL" --context "$TARGET_CLUSTER_NAME" \
+        uncordon "$_node" >>"$DEBUG_LOG" 2>&1 || _failed=1
+    fi
+  done < <(echo "$CORDONED_NODES_JSON" | jq -r '.[]')
+
+  # Also repair pre-existing or partially-recorded residue on this VMSS.
+  _nodes_json=$(target_kubectl_get_nodes_json 2>/dev/null || true)
+  if [ -n "$_nodes_json" ]; then
+    while IFS= read -r _node; do
+      [ -n "$_node" ] || continue
+      KUBECONFIG="$_kc" "$KUBECTL" --context "$TARGET_CLUSTER_NAME" \
+        uncordon "$_node" >>"$DEBUG_LOG" 2>&1 || _failed=1
+    done < <(echo "$_nodes_json" | jq -r --arg vmss "$TARGET_VMSS" '
+      .items[]
+      | select((.spec.providerID // "")
+          | contains("/virtualMachineScaleSets/" + $vmss + "/virtualMachines/"))
+      | select(.spec.unschedulable == true)
+      | .metadata.name')
+  fi
+  return "$_failed"
+}
+
+target_pool_is_healthy() {
+  refresh_final_health
+  write_timing_file
+  [ "$FINAL_PROVISIONING_STATE" = "Succeeded" ] &&
+    [ "$FINAL_NODE_COUNT" -eq "$ORIGINAL_NODE_COUNT" ] &&
+    [ "$FINAL_READY_NODE_COUNT" -eq "$ORIGINAL_NODE_COUNT" ] &&
+    [ "$FINAL_UNSCHEDULABLE_NODE_COUNT" -eq 0 ] &&
+    [ "$FINAL_CILIUM_DESIRED" -gt 0 ] &&
+    [ "$FINAL_CILIUM_READY" -ge "$FINAL_CILIUM_DESIRED" ]
+}
+
+wait_target_pool_healthy() {
+  local _timeout="${1:-$NODE_CHURN_FINALIZER_TIMEOUT_SECONDS}"
+  local _deadline=$(( $(date +%s) + _timeout ))
+  while [ "$(date +%s)" -lt "$_deadline" ]; do
+    uncordon_target_nodes || true
+    if target_pool_is_healthy; then
+      return 0
+    fi
+    log "finalizer: waiting for healthy target pool: provisioning=${FINAL_PROVISIONING_STATE} nodes=${FINAL_NODE_COUNT}/${ORIGINAL_NODE_COUNT} ready=${FINAL_READY_NODE_COUNT}/${ORIGINAL_NODE_COUNT} unschedulable=${FINAL_UNSCHEDULABLE_NODE_COUNT} cilium=${FINAL_CILIUM_READY}/${FINAL_CILIUM_DESIRED}"
+    sleep 15
+  done
+  return 1
+}
+
+request_original_node_count() {
   local _current
+  if ! wait_vmss_succeeded "$NODE_CHURN_FINALIZER_TIMEOUT_SECONDS"; then
+    return 1
+  fi
   _current=$(az aks nodepool show \
     --cluster-name "$TARGET_CLUSTER_NAME" \
     --resource-group "$TARGET_RESOURCE_GROUP" \
     --name "$TARGET_NODEPOOL" \
-    --query count -o tsv 2>/dev/null || echo "$ORIGINAL_NODE_COUNT")
+    --query count -o tsv 2>/dev/null || echo "")
   if [ "$_current" = "$ORIGINAL_NODE_COUNT" ]; then
-    log "finalizer: pool already at original_node_count; checking provisioningState"
-    if wait_vmss_succeeded "$NODE_CHURN_FINALIZER_TIMEOUT_SECONDS"; then
-      log "finalizer: pool already restored and Succeeded"
-      write_timing_file
-      return 0
-    fi
-    log "finalizer: pool count matches but provisioningState != Succeeded; will explicitly scale to nudge reconcile"
+    return 0
   fi
-  # Build 67170 lesson: prior scale ops may have failed mid-scenario while
-  # AKS was still Updating. Wait for Succeeded before issuing the explicit
-  # scale-back-to-original — otherwise this scale fails with the SAME
-  # OperationNotAllowed error and cleanup_failed=true cascades incorrectly.
-  if ! wait_vmss_succeeded "$NODE_CHURN_FINALIZER_TIMEOUT_SECONDS"; then
-    err "finalizer: provisioningState never reached Succeeded within ${NODE_CHURN_FINALIZER_TIMEOUT_SECONDS}s; cannot proceed with restore"
-    CLEANUP_FAILED=true
-    debug_dump "FINALIZER cleanup_failed (waited for Succeeded; never got there)"
-    write_timing_file
-    return 1
-  fi
-  # Stderr captured to debug log (build 67170 lesson: the prior >/dev/null
-  # 2>&1 swallowed the real error message; we ended up guessing).
   if ! az aks nodepool scale \
       --cluster-name "$TARGET_CLUSTER_NAME" \
       --resource-group "$TARGET_RESOURCE_GROUP" \
       --name "$TARGET_NODEPOOL" \
       --node-count "$ORIGINAL_NODE_COUNT" \
       --no-wait --only-show-errors 2>/tmp/node-churner-finalizer.err; then
-    local _finalizer_err
-    _finalizer_err=$(tr '\n' ' ' < /tmp/node-churner-finalizer.err | head -c 500)
-    err "finalizer: az aks nodepool scale to ${ORIGINAL_NODE_COUNT} failed: ${_finalizer_err}"
-    echo "===== finalizer az error ====="     >> "$DEBUG_LOG"
-    cat /tmp/node-churner-finalizer.err       >> "$DEBUG_LOG"
-    echo "===== end finalizer az error =====" >> "$DEBUG_LOG"
-    CLEANUP_FAILED=true
-    debug_dump "FINALIZER cleanup_failed (az aks nodepool scale to original failed)"
-    write_timing_file
+    cat /tmp/node-churner-finalizer.err >>"$DEBUG_LOG" 2>/dev/null || true
     return 1
   fi
-  if ! wait_vmss_succeeded "$NODE_CHURN_FINALIZER_TIMEOUT_SECONDS"; then
-    err "finalizer: pool did NOT reach Succeeded within ${NODE_CHURN_FINALIZER_TIMEOUT_SECONDS}s"
-    CLEANUP_FAILED=true
-    debug_dump "FINALIZER cleanup_failed (provisioningState != Succeeded)"
+  wait_vmss_succeeded "$NODE_CHURN_FINALIZER_TIMEOUT_SECONDS"
+}
+
+# -----------------------------------------------------------------------------
+# Finalizer — runs on EVERY exit path (trap). Idempotent.
+# -----------------------------------------------------------------------------
+finalizer() {
+  local _exit_rc=$?
+  log "finalizer: starting (exit_rc=${_exit_rc}); restoring pool to original_node_count=${ORIGINAL_NODE_COUNT}"
+  uncordon_target_nodes || true
+  if request_original_node_count &&
+      wait_target_pool_healthy "$NODE_CHURN_FINALIZER_TIMEOUT_SECONDS"; then
+    CLEANUP_FAILED=false
+    log "finalizer: target pool restored and healthy"
     write_timing_file
-    return 1
+    return 0
   fi
-  log "finalizer: pool restored to ${ORIGINAL_NODE_COUNT}, Succeeded"
+
+  if [ "$NODE_CHURN_RECOVERY_GRACE_SECONDS" -gt 0 ]; then
+    local _recovery_start _recovery_deadline _state _current
+    CLEANUP_RECOVERY_ATTEMPTED=true
+    _recovery_start=$(date +%s)
+    _recovery_deadline=$(( _recovery_start + NODE_CHURN_RECOVERY_GRACE_SECONDS ))
+    echo "##vso[task.logissue type=warning;] node-churn finalizer entered a bounded recovery window for ${TARGET_CLUSTER_NAME}/${TARGET_NODEPOOL}; manual repair can be performed while health polling continues"
+    log "finalizer: entering ${NODE_CHURN_RECOVERY_GRACE_SECONDS}s recovery window; manual repair is safe while this poll loop is active and the pipeline will resume automatically once healthy"
+    while [ "$(date +%s)" -lt "$_recovery_deadline" ]; do
+      _state=$(az aks nodepool show \
+        --cluster-name "$TARGET_CLUSTER_NAME" \
+        --resource-group "$TARGET_RESOURCE_GROUP" \
+        --name "$TARGET_NODEPOOL" \
+        --query provisioningState -o tsv 2>/dev/null || echo "Unknown")
+      _current=$(az aks nodepool show \
+        --cluster-name "$TARGET_CLUSTER_NAME" \
+        --resource-group "$TARGET_RESOURCE_GROUP" \
+        --name "$TARGET_NODEPOOL" \
+        --query count -o tsv 2>/dev/null || echo "")
+      if [ "$_state" = "Succeeded" ] &&
+          [ -n "$_current" ] &&
+          [ "$_current" != "$ORIGINAL_NODE_COUNT" ]; then
+        log "finalizer recovery: pool is idle at count=${_current}; requesting original count=${ORIGINAL_NODE_COUNT}"
+        az aks nodepool scale \
+          --cluster-name "$TARGET_CLUSTER_NAME" \
+          --resource-group "$TARGET_RESOURCE_GROUP" \
+          --name "$TARGET_NODEPOOL" \
+          --node-count "$ORIGINAL_NODE_COUNT" \
+          --no-wait --only-show-errors >>"$DEBUG_LOG" 2>&1 || true
+      fi
+      CLEANUP_RECOVERY_SECONDS=$(( $(date +%s) - _recovery_start ))
+      if target_pool_is_healthy; then
+        CLEANUP_RECOVERED=true
+        CLEANUP_FAILED=false
+        log "finalizer recovery: target pool is healthy after ${CLEANUP_RECOVERY_SECONDS}s"
+        write_timing_file
+        return 0
+      fi
+      log "finalizer recovery: still degraded after ${CLEANUP_RECOVERY_SECONDS}s; provisioning=${FINAL_PROVISIONING_STATE} nodes=${FINAL_NODE_COUNT}/${ORIGINAL_NODE_COUNT} ready=${FINAL_READY_NODE_COUNT}/${ORIGINAL_NODE_COUNT} unschedulable=${FINAL_UNSCHEDULABLE_NODE_COUNT} cilium=${FINAL_CILIUM_READY}/${FINAL_CILIUM_DESIRED}"
+      sleep "$NODE_CHURN_RECOVERY_POLL_SECONDS"
+    done
+    CLEANUP_RECOVERY_SECONDS=$(( $(date +%s) - _recovery_start ))
+  fi
+
+  CLEANUP_FAILED=true
+  refresh_final_health
+  err "finalizer: target pool remains degraded; preserving diagnostics and allowing collect/upload/destroy to continue"
+  debug_dump "FINALIZER cleanup_failed after bounded recovery"
   write_timing_file
-  return 0
+  return 1
 }
 trap finalizer EXIT
 
@@ -817,6 +992,8 @@ run_replace_phase() {
     # so a stuck PDB doesn't block the whole batch.
     KUBECONFIG="$_kubeconfig" "$KUBECTL" --context "$TARGET_CLUSTER_NAME" \
       cordon "$_node_name" >/dev/null 2>&1 || true
+    CORDONED_NODES_JSON=$(echo "$CORDONED_NODES_JSON" |
+      jq -c --arg node "$_node_name" '. + [$node] | unique')
     if ! KUBECONFIG="$_kubeconfig" "$KUBECTL" --context "$TARGET_CLUSTER_NAME" \
         drain "$_node_name" --ignore-daemonsets --delete-emptydir-data --force \
         --grace-period=30 \

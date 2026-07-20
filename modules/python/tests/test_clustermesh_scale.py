@@ -632,6 +632,8 @@ class TestNodeChurnTimingPickup(unittest.TestCase):
                       scenario="node-churn-combined",
                       ready_quorum_reached=True,
                       scenario_valid=True, cleanup_failed=False,
+                      cleanup_recovery_attempted=False,
+                      cleanup_recovered=False,
                       truncated=False):
         ops = ops or []
         path = os.path.join(report_dir, f"NodeChurnTimings_{target_context}.json")
@@ -648,7 +650,17 @@ class TestNodeChurnTimingPickup(unittest.TestCase):
                 "ready_quorum_reached": ready_quorum_reached,
                 "scenario_valid": scenario_valid,
                 "cleanup_failed": cleanup_failed,
+                "cleanup_recovery_attempted": cleanup_recovery_attempted,
+                "cleanup_recovered": cleanup_recovered,
+                "cleanup_recovery_seconds": 0,
                 "truncated": truncated,
+                "cordoned_nodes": [],
+                "final_provisioning_state": "Succeeded",
+                "final_node_count": 20,
+                "final_ready_node_count": 20,
+                "final_unschedulable_node_count": 0,
+                "final_cilium_desired": 21,
+                "final_cilium_ready": 21,
                 "started_epoch": 1746000000,
                 "ended_epoch": 1746001500,
                 "duration_seconds": 1500,
@@ -723,6 +735,14 @@ class TestNodeChurnTimingPickup(unittest.TestCase):
                 self.assertEqual(s["result"]["data"]["op_count"], 3)
                 self.assertEqual(s["result"]["data"]["original_node_count"], 20)
                 self.assertTrue(s["result"]["data"]["ready_quorum_reached"])
+                self.assertEqual(
+                    s["result"]["data"]["final_provisioning_state"],
+                    "Succeeded",
+                )
+                self.assertEqual(
+                    s["result"]["data"]["final_ready_node_count"],
+                    20,
+                )
                 self.assertTrue(s["result"]["data"]["scenario_valid"])
                 # ops sorted by op_index
                 op_types = [o["result"]["data"]["op_type"] for o in ops]

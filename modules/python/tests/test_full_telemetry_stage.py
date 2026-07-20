@@ -62,6 +62,12 @@ GLOBAL_SERVICE_PATH = POD_CHURN_PATH.parent / "modules" / "event-throughput-serv
 
 def test_dedicated_full_telemetry_stage_is_isolated():
     pipeline = PIPELINE_PATH.read_text(encoding="utf-8")
+    start = pipeline.index("- stage: azure_eastus2euap_n2_mock_full_telemetry")
+    end = pipeline.index(
+        "\n  - stage: azure_eastus2euap_n2_mock\n",
+        start,
+    )
+    stage = pipeline[start:end]
 
     assert "azure_eastus2euap_n2_mock_full_telemetry" in pipeline
     assert "n2_mock_full_telemetry:" in pipeline
@@ -80,6 +86,11 @@ def test_dedicated_full_telemetry_stage_is_isolated():
         pipeline.index("azure_eastus2euap_n2_mock_full_telemetry") + 5000
     ]
     assert "timeout_in_minutes: 480" in pipeline
+    assert (
+        'share_infra_scenarios: "pod-churn-combined,node-churn-combined"'
+        in stage
+    )
+    assert "node_churn_recovery_grace_seconds: 900" in stage
 
 
 def test_mock_mode_is_normalized_for_shell_gates():
@@ -92,6 +103,13 @@ def test_mock_mode_is_normalized_for_shell_gates():
     ) in execute
     assert "end_timestamp: $scenario_end" in execute
     assert "result_code: $result" in execute
+    assert (
+        '-name "NodeChurnTimings_${CL2_NODE_CHURN_TARGET_CONTEXT}.json"'
+        in execute
+    )
+    assert "cleanup_recovered: $cleanup_recovered" in execute
+    assert "NODE_CHURNER_WAIT_RC" in execute
+    assert "finalizer completion is unverifiable" in execute
 
 
 def test_full_telemetry_azure_tasks_use_ui_selected_subscription():
@@ -149,6 +167,7 @@ def test_native_snapshots_are_relabelled_before_publish_and_upload():
     assert template.count("SNAPSHOT_RELABEL_READY") >= 2
     assert 'ln "$snap" "$dest_path"' in template
     assert "Released uploaded native snapshot tarballs" in template
+    assert "eq(variables['cl2_prom_snapshot_target'], 'artifact')" in template
     assert "/telemetry/acns/" in template
     assert 'blob_name="${BUILD_BRANCH}/acns/' in template
 
@@ -197,6 +216,11 @@ def test_n100_stage_has_complete_workload_and_telemetry_wiring():
         'cl2_prom_snapshot_enabled: "true"',
         'CL2_PROBE_WINDOW_DURATION: "60m"',
         "operation_timeout: 90m",
+        'share_infra_scenarios: "propagation-probe,pod-churn-combined,node-churn-combined"',
+        "share_infra_settle_seconds: 300",
+        "node_churn_combined_duration_seconds: 5400",
+        "node_churn_ready_timeout_seconds: 1200",
+        "node_churn_recovery_grace_seconds: 1800",
     ):
         assert expected in stage
     assert '"{{$namespaces}}"' in pod_churn

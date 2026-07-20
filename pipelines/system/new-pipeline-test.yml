@@ -1538,7 +1538,8 @@ stages:
               cl2_prom_snapshot_container: "snapshots"
               cluster_count: 2
               mesh_size: 2
-              share_infra_scenarios: "pod-churn-combined"
+              share_infra_scenarios: "pod-churn-combined,node-churn-combined"
+              share_infra_settle_seconds: 60
               cl2_config_file: ""
               test_type: shared
               test_type_suffix: "-mock-full-telemetry"
@@ -1561,6 +1562,9 @@ stages:
               kill_interval_seconds: 10
               kill_batch: 5
               kill_job_deadline_seconds: 660
+              node_churn_ready_timeout_seconds: 600
+              node_churn_finalizer_timeout_seconds: 900
+              node_churn_recovery_grace_seconds: 900
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           timeout_in_minutes: 480
@@ -1745,9 +1749,10 @@ stages:
   # vCPU budget: 100 x (2 default + 1 prompool) x D8_v3(8) = 2400 vCPU -- fits
   # the eastus2euap Dv3 quota (~4992 free), vs real n=100's 4800.
   #
-  # timeout 1200m (20h): est. TF apply ~4h + validate ~40m + parallel deploy ~2h
-  # + CL2(conc 12) ~3.5h + destroy ~3h ~= 13h; headroom under the AzDO 24h cap,
-  # cleanup inside the budget. Tighten from the first run's per-phase timings.
+  # timeout 1200m (20h): core provision/validate/mock/propagation/pod-churn was
+  # 11h in the clean n100 run. Per-cluster AMW work plus node churn adds several
+  # hours; bounded recovery is deliberately capped so telemetry upload and
+  # destroy retain budget under the practical AzDO 24h ceiling.
   # ===========================================================================
   - stage: azure_eastus2euap_n100_mock
     dependsOn: []
@@ -1832,7 +1837,8 @@ stages:
               cl2_prom_snapshot_container: "snapshots"
               cluster_count: 100
               mesh_size: 100
-              share_infra_scenarios: "propagation-probe,pod-churn-combined"
+              share_infra_scenarios: "propagation-probe,pod-churn-combined,node-churn-combined"
+              share_infra_settle_seconds: 300
               cl2_config_file: ""
               cl2_max_concurrent: 12
               test_type: shared
@@ -1860,6 +1866,15 @@ stages:
               kill_interval_seconds: 10
               kill_batch: 5
               kill_job_deadline_seconds: 660
+              # Node churn is deliberately last. The 90-minute observation
+              # window includes the all-100-worker readiness barrier plus the
+              # scale/replace stimulus. If restoration is initially degraded,
+              # the runner polls for 30 minutes so automatic or surgical
+              # operator repair can recover in place before collect/destroy.
+              node_churn_combined_duration_seconds: 5400
+              node_churn_ready_timeout_seconds: 1200
+              node_churn_finalizer_timeout_seconds: 900
+              node_churn_recovery_grace_seconds: 1800
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           timeout_in_minutes: 1200
