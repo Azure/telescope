@@ -61,10 +61,23 @@ steps:
       pip3 install -r $(Pipeline.Workspace)/s/modules/python/requirements.txt
 
       echo "Install Ubuntu packages"
-      # Recover from interrupted or broken package installations. The '|| true' ensures the script continues even if dpkg returns a non-zero exit code.
-      sudo dpkg --configure -a || true
-      sudo apt-get update
-      sudo apt-get -y install bc netcat
+      # Hosted/shared agents can have an automatic package operation in flight.
+      # Wait on dpkg's lock instead of failing an otherwise healthy long run.
+      configured=false
+      for attempt in $(seq 1 60); do
+        if sudo dpkg --configure -a; then
+          configured=true
+          break
+        fi
+        echo "dpkg is busy (attempt $attempt/60); retrying in 5s..."
+        sleep 5
+      done
+      if [ "$configured" != "true" ]; then
+        echo "Timed out waiting for dpkg configuration lock." >&2
+        exit 1
+      fi
+      sudo apt-get -o DPkg::Lock::Timeout=300 update
+      sudo apt-get -o DPkg::Lock::Timeout=300 -y install bc netcat
     displayName: "Install Dependencies"
 
   - template: /steps/cloud/${{ parameters.cloud }}/login.yml
