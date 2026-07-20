@@ -6,19 +6,6 @@ spec:
   filters:
     - metric: dns
       includeFilters:
-        - name: acns-dns-source
-          from:
-            labelSelector:
-              matchLabels:
-                app: acns-client
-                k8s.io/namespace: acns-telemetry
-          protocol:
-            - dns
-        - name: acns-dns-destination
-          to:
-            labelSelector:
-              matchLabels:
-                app: acns-client
-                k8s.io/namespace: acns-telemetry
+        - name: all-dns
           protocol:
             - dns

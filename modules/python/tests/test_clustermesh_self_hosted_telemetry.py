@@ -155,13 +155,17 @@ def test_acns_probe_is_real_node_only_and_captures_filtered_logs():
     assert any("toFQDNs" in rule for rule in policy["spec"]["egress"])
     assert cnl["spec"]["includefilters"]
     assert network_metric["kind"] == "ContainerNetworkMetric"
-    assert network_metric["spec"]["filters"][0]["metric"] == "dns"
-    for metric_filter in network_metric["spec"]["filters"][0]["includeFilters"]:
-        endpoint = metric_filter.get("from") or metric_filter.get("to")
-        assert endpoint["labelSelector"]["matchLabels"] == {
-            "app": "acns-client",
-            "k8s.io/namespace": "acns-telemetry",
+    assert network_metric["spec"]["filters"] == [
+        {
+            "metric": "dns",
+            "includeFilters": [
+                {
+                    "name": "all-dns",
+                    "protocol": ["dns"],
+                }
+            ],
         }
+    ]
     assert {
         protocol
         for item in cnl["spec"]["includefilters"]
@@ -213,6 +217,18 @@ def test_acns_setup_and_host_log_collection_smoke(tmp_path):
               exit 0
             elif [[ " $* " == *" get containernetworklog clustermesh-scale-acns -o jsonpath="* ]]; then
               printf CONFIGURED
+            elif [[ " $* " == *" get containernetworkmetric container-network-metric -o jsonpath="* ]]; then
+              printf CONFIGURED
+            elif [[ " $* " == *" -n kube-system get pods -l k8s-app=cilium -o jsonpath="* ]]; then
+              printf 'cilium-a\\tnode-a\\t10.0.0.4\\n'
+            elif [[ " $* " == *" -n acns-telemetry get pods -l app=acns-log-collector -o jsonpath="* ]]; then
+              printf 'collector-a\\tnode-a\\n'
+            elif [[ " $* " == *" exec collector-a -c collector -- wget "* ]]; then
+              printf '%s\\n' \
+                '# TYPE hubble_dns_queries_total counter' \
+                'hubble_dns_queries_total{query="management.azure.com"} 1' \
+                '# TYPE hubble_dns_responses_total counter' \
+                'hubble_dns_responses_total{rcode="No Error"} 1'
             elif [[ " $* " == *" get containernetworklog clustermesh-scale-acns -o json "* ]]; then
               printf '%s\\n' '{"status":{"state":"CONFIGURED"}}'
             elif [[ " $* " == *" get containernetworkmetric container-network-metric -o json "* ]]; then
@@ -246,7 +262,8 @@ def test_acns_setup_and_host_log_collection_smoke(tmp_path):
     environment.update(
         {
             "CL2_ACNS_TELEMETRY_ENABLED": "true",
-            "CL2_ACNS_METRIC_RECONCILE_SECONDS": "0",
+            "CL2_ACNS_METRIC_READY_TIMEOUT_SECONDS": "0",
+            "CL2_ACNS_METRIC_POLL_SECONDS": "0",
             "KUBECONFIG": str(tmp_path / "kubeconfig"),
             "KUBECTL_LOG": str(kubectl_log),
             "FAKE_LOG_DIR": str(fake_logs),
@@ -280,6 +297,8 @@ def test_acns_setup_and_host_log_collection_smoke(tmp_path):
     assert summary["nonempty_log_archives"] == 2
     assert summary["metric_config_captured"] is True
     assert (output_dir / "container-network-metric.json").exists()
+    kubectl_calls = kubectl_log.read_text(encoding="utf-8")
+    assert "http://10.0.0.4:9965/metrics" in kubectl_calls
     assert {item["node"] for item in summary["archives"]} == {
         "node-a",
         "node-b",
@@ -290,6 +309,77 @@ def test_acns_setup_and_host_log_collection_smoke(tmp_path):
                 member.name.endswith("events.log")
                 for member in archive.getmembers()
             )
+
+
+def test_acns_setup_fails_when_dns_metric_families_remain_absent(tmp_path):
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_kubectl = fake_bin / "kubectl"
+    fake_kubectl.write_text(
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env bash
+            set -euo pipefail
+            if [ "${1:-} ${2:-}" = "get crd/containernetworklogs.acn.azure.com" ] ||
+               [ "${1:-} ${2:-}" = "get crd/containernetworkmetrics.acn.azure.com" ] ||
+               [ "${1:-} ${2:-}" = "get crd/ciliumnetworkpolicies.cilium.io" ] ||
+               [ "${1:-}" = "apply" ] ||
+               [[ " $* " == *" rollout status "* ]]; then
+              exit 0
+            elif [[ " $* " == *" get containernetworklog clustermesh-scale-acns -o jsonpath="* ]] ||
+                 [[ " $* " == *" get containernetworkmetric container-network-metric -o jsonpath="* ]]; then
+              printf CONFIGURED
+            elif [[ " $* " == *" -n kube-system get pods -l k8s-app=cilium -o jsonpath="* ]]; then
+              printf 'cilium-a\\tnode-a\\t10.0.0.4\\n'
+            elif [[ " $* " == *" -n acns-telemetry get pods -l app=acns-log-collector -o jsonpath="* ]]; then
+              printf 'collector-a\\tnode-a\\n'
+            elif [[ " $* " == *" exec collector-a -c collector -- wget "* ]]; then
+              printf '%s\\n' \
+                '# TYPE hubble_flows_processed_total counter' \
+                'hubble_flows_processed_total 1'
+            elif [[ " $* " == *" get containernetworkmetric container-network-metric -o yaml "* ]]; then
+              printf '%s\\n' 'status:' '  state: CONFIGURED'
+            elif [[ " $* " == *" describe containernetworkmetric container-network-metric "* ]]; then
+              printf '%s\\n' 'Name: container-network-metric'
+            elif [[ " $* " == *" get pods "*"-o wide"* ]]; then
+              printf '%s\\n' 'NAME READY STATUS' 'cilium-a 1/1 Running'
+            else
+              echo "Unexpected kubectl command: $*" >&2
+              exit 1
+            fi
+            """
+        ),
+        encoding="utf-8",
+    )
+    fake_kubectl.chmod(fake_kubectl.stat().st_mode | stat.S_IXUSR)
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "CL2_ACNS_TELEMETRY_ENABLED": "true",
+            "CL2_ACNS_METRIC_READY_TIMEOUT_SECONDS": "0",
+            "CL2_ACNS_METRIC_POLL_SECONDS": "0",
+            "KUBECONFIG": str(tmp_path / "kubeconfig"),
+            "PATH": f"{fake_bin}:{environment['PATH']}",
+        }
+    )
+
+    result = subprocess.run(
+        ["bash", str(ACNS_SETUP_SCRIPT)],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=10,
+    )
+
+    assert result.returncode == 1
+    assert "Timed out waiting for hubble_dns_queries_total" in result.stderr
+    assert (
+        "http://10.0.0.4:9965/metrics from cilium-a on node-a via collector-a"
+        in result.stderr
+    )
+    assert "hubble_flows_processed_total" in result.stderr
+    assert "state: CONFIGURED" in result.stderr
 
 
 def test_audit_requires_real_node_kubelet_targets():
