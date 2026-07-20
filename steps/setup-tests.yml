@@ -23,6 +23,13 @@ steps:
       run_id: ${{ parameters.run_id }}
 
   - script: |
+      job_start_epoch=$(date +%s)
+      echo "ClusterMesh job start epoch: $job_start_epoch"
+      echo "##vso[task.setvariable variable=CLUSTERMESH_JOB_START_EPOCH]$job_start_epoch"
+    displayName: "Record ClusterMesh job start"
+    condition: startsWith(variables['SCENARIO_NAME'], 'clustermesh')
+
+  - script: |
       run_url="$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)"
       echo "Run URL: $run_url"
       echo "##vso[task.setvariable variable=RUN_URL]$run_url"
@@ -84,6 +91,61 @@ steps:
     parameters:
       region: ${{ parameters.region }}
       credential_type: ${{ parameters.credential_type }}
+
+  - script: |
+      set -euo pipefail
+
+      family_name="${CLUSTERMESH_VM_FAMILY_QUOTA_NAME:?CLUSTERMESH_VM_FAMILY_QUOTA_NAME is required}"
+      required="${CLUSTERMESH_REQUIRED_FAMILY_VCPUS:?CLUSTERMESH_REQUIRED_FAMILY_VCPUS is required}"
+      headroom="${CLUSTERMESH_QUOTA_HEADROOM_VCPUS:-0}"
+      for value in "$required" "$headroom"; do
+        if ! [[ "$value" =~ ^[0-9]+$ ]]; then
+          echo "ClusterMesh quota values must be non-negative integers: required=$required headroom=$headroom" >&2
+          exit 1
+        fi
+      done
+
+      actual_subscription_id=$(az account show --query id -o tsv)
+      if [[ "${actual_subscription_id,,}" != "${AZURE_SUBSCRIPTION_ID,,}" ]]; then
+        echo "Expected Azure subscription ${AZURE_SUBSCRIPTION_ID}, got ${actual_subscription_id}" >&2
+        exit 1
+      fi
+
+      usage=$(az vm list-usage --location "$REGION" -o json)
+      family=$(echo "$usage" | jq -c --arg name "$family_name" \
+        '[.[] | select(.name.value == $name)][0] // empty')
+      regional=$(echo "$usage" | jq -c \
+        '[.[] | select(.name.value == "cores")][0] // empty')
+      if [ -z "$family" ] || [ -z "$regional" ]; then
+        echo "Unable to resolve VM quota usage for family=$family_name or regional cores in $REGION." >&2
+        exit 1
+      fi
+
+      family_current=$(echo "$family" | jq -r '.currentValue')
+      family_limit=$(echo "$family" | jq -r '.limit')
+      regional_current=$(echo "$regional" | jq -r '.currentValue')
+      regional_limit=$(echo "$regional" | jq -r '.limit')
+      required_with_headroom=$(( required + headroom ))
+      family_available=$(( family_limit - family_current ))
+      regional_available=$(( regional_limit - regional_current ))
+
+      echo "ClusterMesh quota preflight: subscription=$actual_subscription_id region=$REGION"
+      echo "  family=$family_name current=$family_current limit=$family_limit available=$family_available"
+      echo "  regional cores current=$regional_current limit=$regional_limit available=$regional_available"
+      echo "  run requirement=$required vCPU + reserved headroom=$headroom vCPU"
+      if [ "$family_available" -lt "$required_with_headroom" ]; then
+        echo "Insufficient $family_name quota: need $required_with_headroom available vCPU, have $family_available." >&2
+        exit 1
+      fi
+      if [ "$regional_available" -lt "$required_with_headroom" ]; then
+        echo "Insufficient regional core quota: need $required_with_headroom available vCPU, have $regional_available." >&2
+        exit 1
+      fi
+    displayName: "Preflight ClusterMesh VM quota"
+    condition: and(startsWith(variables['SCENARIO_NAME'], 'clustermesh'),
+                   eq(variables['CLUSTERMESH_QUOTA_PREFLIGHT_ENABLED'], 'true'))
+    env:
+      REGION: ${{ parameters.region }}
 
   - script: |
       # Install the Azure Fleet preview CLI extension required by the

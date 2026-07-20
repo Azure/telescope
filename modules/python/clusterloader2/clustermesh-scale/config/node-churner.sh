@@ -18,10 +18,10 @@
 #     scenario: cycle target's `default` pool count ±$DELTA for $CYCLES.
 #   * "Node replacement (new IPs)" + "Force node recreation" → REPLACE
 #     scenario: drain K nodes; `az vmss delete-instances` drops VMSS capacity
-#     by K; then explicitly `az aks nodepool scale --node-count $ORIGINAL`
-#     to refill (AKS doesn't auto-refill after delete-instances — build 67133
-#     lesson). VMSS picks the next available instance IDs and provisions
-#     brand-new VMs with brand-new private IPs.
+#     by K; then force an AKS nodepool desired-state reconciliation to refill.
+#     If AKS still reports the original desired count, briefly nudge to
+#     original+1 before restoring original (build 74128 lesson). VMSS picks
+#     new instance IDs and provisions replacement VMs.
 #   * "Observe: IP update propagation, Temporary inconsistency windows" →
 #     pre/post node InternalIP snapshots, per-op duration, observed node
 #     count post-op. Peer-side propagation is captured by the parallel
@@ -46,7 +46,7 @@
 #   $1  SCENARIO                          node-churn-{scale,replace,combined}
 #   $2  TARGET_CLUSTER_NAME               AKS cluster name (== kubectl context)
 #   $3  TARGET_RESOURCE_GROUP             AKS RG (same RG as `az aks show`)
-#   $4  TARGET_NODEPOOL                   workload pool name (always `default`)
+#   $4  TARGET_NODEPOOL                   dedicated real-node churn pool
 #   $5  REPORT_DIR                        absolute path; timing JSON lands here
 #   $6  SENTINEL_DIR                      absolute path; CL2 writes sentinels here
 #   $7  CLUSTER_COUNT                     expected number of ready sentinels
@@ -88,6 +88,11 @@ TARGET_KUBECONFIG="${14:-}"
 # Internal bounds (not exposed via positional args — fine-tuned per scenario
 # class, not per matrix entry).
 NODE_CHURN_OP_TIMEOUT_SECONDS=900         # per `az aks nodepool scale` op
+NODE_CHURN_AZ_REQUEST_TIMEOUT_SECONDS="${CL2_NODE_CHURN_AZ_REQUEST_TIMEOUT_SECONDS:-120}"
+NODE_CHURN_AZ_QUERY_TIMEOUT_SECONDS="${CL2_NODE_CHURN_AZ_QUERY_TIMEOUT_SECONDS:-30}"
+NODE_CHURN_VMSS_DELETE_TIMEOUT_SECONDS="${CL2_NODE_CHURN_VMSS_DELETE_TIMEOUT_SECONDS:-600}"
+NODE_CHURN_POLL_SECONDS="${CL2_NODE_CHURN_POLL_SECONDS:-10}"
+NODE_CHURN_KUBECTL_TIMEOUT_SECONDS="${CL2_NODE_CHURN_KUBECTL_TIMEOUT_SECONDS:-30}"
 NODE_CHURN_FINALIZER_TIMEOUT_SECONDS="${CL2_NODE_CHURN_FINALIZER_TIMEOUT_SECONDS:-900}"
 NODE_CHURN_RECOVERY_GRACE_SECONDS="${CL2_NODE_CHURN_RECOVERY_GRACE_SECONDS:-0}"
 NODE_CHURN_RECOVERY_POLL_SECONDS="${CL2_NODE_CHURN_RECOVERY_POLL_SECONDS:-60}"
@@ -200,6 +205,7 @@ ORIGINAL_NODE_COUNT=0
 NODE_RESOURCE_GROUP=""
 TARGET_VMSS=""
 FINAL_PROVISIONING_STATE="Unknown"
+FINAL_VMSS_CAPACITY=0
 FINAL_NODE_COUNT=0
 FINAL_READY_NODE_COUNT=0
 FINAL_UNSCHEDULABLE_NODE_COUNT=0
@@ -218,7 +224,7 @@ debug_dump() {
     echo "target_nodepool=${TARGET_NODEPOOL} target_vmss=${TARGET_VMSS:-unset} NRG=${NODE_RESOURCE_GROUP:-unset}"
     echo "original_node_count=${ORIGINAL_NODE_COUNT:-unset} cluster_count_quorum=${CLUSTER_COUNT}"
     echo "ready_quorum_reached=${READY_QUORUM_REACHED} scenario_valid=${SCENARIO_VALID} circuit_broken=${CIRCUIT_BROKEN} cleanup_failed=${CLEANUP_FAILED} cleanup_recovery_attempted=${CLEANUP_RECOVERY_ATTEMPTED} cleanup_recovered=${CLEANUP_RECOVERED} truncated=${TRUNCATED}"
-    echo "final_health provisioning=${FINAL_PROVISIONING_STATE} nodes=${FINAL_NODE_COUNT}/${ORIGINAL_NODE_COUNT} ready=${FINAL_READY_NODE_COUNT}/${ORIGINAL_NODE_COUNT} unschedulable=${FINAL_UNSCHEDULABLE_NODE_COUNT} cilium=${FINAL_CILIUM_READY}/${FINAL_CILIUM_DESIRED}"
+    echo "final_health provisioning=${FINAL_PROVISIONING_STATE} vmss_capacity=${FINAL_VMSS_CAPACITY}/${ORIGINAL_NODE_COUNT} nodes=${FINAL_NODE_COUNT}/${ORIGINAL_NODE_COUNT} ready=${FINAL_READY_NODE_COUNT}/${ORIGINAL_NODE_COUNT} unschedulable=${FINAL_UNSCHEDULABLE_NODE_COUNT} cilium=${FINAL_CILIUM_READY}/${FINAL_CILIUM_DESIRED}"
     echo "cordoned_nodes=${CORDONED_NODES_JSON}"
     echo "TARGET_KUBECONFIG=${TARGET_KUBECONFIG:-unset} KUBECTL=${KUBECTL:-unset}"
     echo ""
@@ -294,6 +300,12 @@ write_aborted_timing() {
 EOF
 }
 
+if ! command -v timeout >/dev/null 2>&1; then
+  err "coreutils timeout is required for bounded Azure operations; aborting"
+  write_aborted_timing "coreutils timeout missing"
+  exit 0
+fi
+
 # -----------------------------------------------------------------------------
 # Resolve original pool size + VMSS info
 # -----------------------------------------------------------------------------
@@ -365,6 +377,7 @@ write_timing_file() {
     --argjson truncated "$TRUNCATED" \
     --argjson cordoned_nodes "$CORDONED_NODES_JSON" \
     --arg final_provisioning_state "$FINAL_PROVISIONING_STATE" \
+    --argjson final_vmss_capacity "$FINAL_VMSS_CAPACITY" \
     --argjson final_node_count "$FINAL_NODE_COUNT" \
     --argjson final_ready_node_count "$FINAL_READY_NODE_COUNT" \
     --argjson final_unschedulable_node_count "$FINAL_UNSCHEDULABLE_NODE_COUNT" \
@@ -390,6 +403,7 @@ write_timing_file() {
       truncated:$truncated,
       cordoned_nodes:$cordoned_nodes,
       final_provisioning_state:$final_provisioning_state,
+      final_vmss_capacity:$final_vmss_capacity,
       final_node_count:$final_node_count,
       final_ready_node_count:$final_ready_node_count,
       final_unschedulable_node_count:$final_unschedulable_node_count,
@@ -451,8 +465,16 @@ wait_vmss_succeeded() {
   local _timeout="${1:-$NODE_CHURN_OP_TIMEOUT_SECONDS}"
   local _deadline=$(( $(date +%s) + _timeout ))
   while [ "$(date +%s)" -lt "$_deadline" ]; do
-    local _state
-    _state=$(az aks nodepool show \
+    local _state _remaining _query_timeout
+    _remaining=$(( _deadline - $(date +%s) ))
+    if [ "$_remaining" -le 0 ]; then
+      break
+    fi
+    _query_timeout="$NODE_CHURN_AZ_QUERY_TIMEOUT_SECONDS"
+    if [ "$_query_timeout" -gt "$_remaining" ]; then
+      _query_timeout="$_remaining"
+    fi
+    _state=$(timeout "${_query_timeout}s" az aks nodepool show \
       --cluster-name "$TARGET_CLUSTER_NAME" \
       --resource-group "$TARGET_RESOURCE_GROUP" \
       --name "$TARGET_NODEPOOL" \
@@ -460,9 +482,80 @@ wait_vmss_succeeded() {
     if [ "$_state" = "Succeeded" ]; then
       return 0
     fi
-    sleep 10
+    sleep "$NODE_CHURN_POLL_SECONDS"
   done
   return 1
+}
+
+wait_nodepool_count_succeeded() {
+  local _target="$1"
+  local _timeout="${2:-$NODE_CHURN_OP_TIMEOUT_SECONDS}"
+  local _deadline=$(( $(date +%s) + _timeout ))
+  local _state _count _stable=0 _remaining _query_timeout
+  while [ "$(date +%s)" -lt "$_deadline" ]; do
+    _remaining=$(( _deadline - $(date +%s) ))
+    if [ "$_remaining" -le 0 ]; then
+      break
+    fi
+    _query_timeout="$NODE_CHURN_AZ_QUERY_TIMEOUT_SECONDS"
+    if [ "$_query_timeout" -gt "$_remaining" ]; then
+      _query_timeout="$_remaining"
+    fi
+    _state=$(timeout "${_query_timeout}s" az aks nodepool show \
+      --cluster-name "$TARGET_CLUSTER_NAME" \
+      --resource-group "$TARGET_RESOURCE_GROUP" \
+      --name "$TARGET_NODEPOOL" \
+      --query provisioningState -o tsv 2>/dev/null || echo "Unknown")
+    _remaining=$(( _deadline - $(date +%s) ))
+    if [ "$_remaining" -le 0 ]; then
+      break
+    fi
+    _query_timeout="$NODE_CHURN_AZ_QUERY_TIMEOUT_SECONDS"
+    if [ "$_query_timeout" -gt "$_remaining" ]; then
+      _query_timeout="$_remaining"
+    fi
+    _count=$(timeout "${_query_timeout}s" az aks nodepool show \
+      --cluster-name "$TARGET_CLUSTER_NAME" \
+      --resource-group "$TARGET_RESOURCE_GROUP" \
+      --name "$TARGET_NODEPOOL" \
+      --query count -o tsv 2>/dev/null || echo "")
+    if [ "$_state" = "Succeeded" ] && [ "$_count" = "$_target" ]; then
+      _stable=$(( _stable + 1 ))
+      if [ "$_stable" -ge 2 ]; then
+        return 0
+      fi
+    else
+      _stable=0
+    fi
+    sleep "$NODE_CHURN_POLL_SECONDS"
+  done
+  return 1
+}
+
+request_nodepool_count() {
+  local _target="$1"
+  local _timeout="${2:-$NODE_CHURN_OP_TIMEOUT_SECONDS}"
+  local _error_file="${3:-/tmp/node-churner-az.err}"
+  : > "$_error_file"
+  local _request_timeout="$NODE_CHURN_AZ_REQUEST_TIMEOUT_SECONDS"
+  if [ "$_request_timeout" -gt "$_timeout" ]; then
+    _request_timeout="$_timeout"
+  fi
+  if ! timeout "${_request_timeout}s" \
+      az aks nodepool scale \
+        --cluster-name "$TARGET_CLUSTER_NAME" \
+        --resource-group "$TARGET_RESOURCE_GROUP" \
+        --name "$TARGET_NODEPOOL" \
+        --node-count "$_target" \
+        --no-wait --only-show-errors --output none \
+        2>"$_error_file"; then
+    return 1
+  fi
+  if ! wait_nodepool_count_succeeded "$_target" "$_timeout"; then
+    echo "Timed out waiting for desired count=${_target} and provisioningState=Succeeded" \
+      >> "$_error_file"
+    return 1
+  fi
 }
 
 # Resolve target kubeconfig — TARGET_KUBECONFIG (positional arg 14) is
@@ -504,6 +597,7 @@ target_kubectl_get_nodes_json() {
     return 1
   fi
   _out=$(KUBECONFIG="$_kc" "$KUBECTL" --context "$TARGET_CLUSTER_NAME" \
+    --request-timeout="${NODE_CHURN_KUBECTL_TIMEOUT_SECONDS}s" \
     get nodes -o json 2>>"$DEBUG_LOG")
   _rc=$?
   if [ "$_rc" -ne 0 ] || [ -z "$_out" ]; then
@@ -543,6 +637,16 @@ observe_node_count() {
   echo "$_lines" | grep -c . | tr -d ' '
 }
 
+# Observe the backing VMSS capacity directly. Direct `az vmss
+# delete-instances` can reduce actual capacity without changing AKS's agent-pool
+# desired count, which is exactly the state that broke build 74128.
+observe_vmss_capacity() {
+  timeout "${NODE_CHURN_AZ_QUERY_TIMEOUT_SECONDS}s" az vmss show \
+    --resource-group "$NODE_RESOURCE_GROUP" \
+    --name "$TARGET_VMSS" \
+    --query sku.capacity -o tsv 2>/dev/null || echo ""
+}
+
 # Snapshot current Internal IPs AND node names for nodes in TARGET_VMSS.
 # Returns a JSON object {"ips":[...], "names":[...]} on stdout.
 #
@@ -578,12 +682,17 @@ snapshot_node_ips() {
 # replacement node has not brought Cilium back to Ready.
 refresh_final_health() {
   local _nodes_json _health_json _kc _cilium_json
-  FINAL_PROVISIONING_STATE=$(az aks nodepool show \
+  FINAL_PROVISIONING_STATE=$(timeout "${NODE_CHURN_AZ_QUERY_TIMEOUT_SECONDS}s" \
+    az aks nodepool show \
     --cluster-name "$TARGET_CLUSTER_NAME" \
     --resource-group "$TARGET_RESOURCE_GROUP" \
     --name "$TARGET_NODEPOOL" \
     --query provisioningState -o tsv 2>/dev/null || echo "Unknown")
   [ -n "$FINAL_PROVISIONING_STATE" ] || FINAL_PROVISIONING_STATE="Unknown"
+  FINAL_VMSS_CAPACITY=$(observe_vmss_capacity)
+  if ! [[ "$FINAL_VMSS_CAPACITY" =~ ^[0-9]+$ ]]; then
+    FINAL_VMSS_CAPACITY=0
+  fi
 
   _nodes_json=$(target_kubectl_get_nodes_json 2>/dev/null || true)
   if [ -n "$_nodes_json" ]; then
@@ -617,6 +726,7 @@ refresh_final_health() {
   _kc=$(resolve_target_kubeconfig)
   if [ -n "$_kc" ] && [ -n "$KUBECTL" ]; then
     _cilium_json=$(KUBECONFIG="$_kc" "$KUBECTL" --context "$TARGET_CLUSTER_NAME" \
+      --request-timeout="${NODE_CHURN_KUBECTL_TIMEOUT_SECONDS}s" \
       -n kube-system get daemonset cilium -o json 2>>"$DEBUG_LOG" || true)
     if [ -n "$_cilium_json" ]; then
       FINAL_CILIUM_DESIRED=$(echo "$_cilium_json" | jq -r '.status.desiredNumberScheduled // 0')
@@ -638,8 +748,10 @@ uncordon_target_nodes() {
   while IFS= read -r _node; do
     [ -n "$_node" ] || continue
     if KUBECONFIG="$_kc" "$KUBECTL" --context "$TARGET_CLUSTER_NAME" \
+        --request-timeout="${NODE_CHURN_KUBECTL_TIMEOUT_SECONDS}s" \
         get node "$_node" >/dev/null 2>&1; then
       KUBECONFIG="$_kc" "$KUBECTL" --context "$TARGET_CLUSTER_NAME" \
+        --request-timeout="${NODE_CHURN_KUBECTL_TIMEOUT_SECONDS}s" \
         uncordon "$_node" >>"$DEBUG_LOG" 2>&1 || _failed=1
     fi
   done < <(echo "$CORDONED_NODES_JSON" | jq -r '.[]')
@@ -650,6 +762,7 @@ uncordon_target_nodes() {
     while IFS= read -r _node; do
       [ -n "$_node" ] || continue
       KUBECONFIG="$_kc" "$KUBECTL" --context "$TARGET_CLUSTER_NAME" \
+        --request-timeout="${NODE_CHURN_KUBECTL_TIMEOUT_SECONDS}s" \
         uncordon "$_node" >>"$DEBUG_LOG" 2>&1 || _failed=1
     done < <(echo "$_nodes_json" | jq -r --arg vmss "$TARGET_VMSS" '
       .items[]
@@ -665,6 +778,7 @@ target_pool_is_healthy() {
   refresh_final_health
   write_timing_file
   [ "$FINAL_PROVISIONING_STATE" = "Succeeded" ] &&
+    [ "$FINAL_VMSS_CAPACITY" -eq "$ORIGINAL_NODE_COUNT" ] &&
     [ "$FINAL_NODE_COUNT" -eq "$ORIGINAL_NODE_COUNT" ] &&
     [ "$FINAL_READY_NODE_COUNT" -eq "$ORIGINAL_NODE_COUNT" ] &&
     [ "$FINAL_UNSCHEDULABLE_NODE_COUNT" -eq 0 ] &&
@@ -687,28 +801,65 @@ wait_target_pool_healthy() {
 }
 
 request_original_node_count() {
-  local _current
-  if ! wait_vmss_succeeded "$NODE_CHURN_FINALIZER_TIMEOUT_SECONDS"; then
+  local _timeout="${1:-$NODE_CHURN_FINALIZER_TIMEOUT_SECONDS}"
+  local _deadline=$(( $(date +%s) + _timeout ))
+  local _current _capacity _nudge_count _remaining _query_timeout
+  if ! wait_vmss_succeeded "$_timeout"; then
     return 1
   fi
-  _current=$(az aks nodepool show \
+  _remaining=$(( _deadline - $(date +%s) ))
+  if [ "$_remaining" -le 0 ]; then
+    return 1
+  fi
+  _query_timeout="$NODE_CHURN_AZ_QUERY_TIMEOUT_SECONDS"
+  if [ "$_query_timeout" -gt "$_remaining" ]; then
+    _query_timeout="$_remaining"
+  fi
+  _current=$(timeout "${_query_timeout}s" az aks nodepool show \
     --cluster-name "$TARGET_CLUSTER_NAME" \
     --resource-group "$TARGET_RESOURCE_GROUP" \
     --name "$TARGET_NODEPOOL" \
     --query count -o tsv 2>/dev/null || echo "")
-  if [ "$_current" = "$ORIGINAL_NODE_COUNT" ]; then
+  _capacity=$(observe_vmss_capacity)
+  if [ "$_current" = "$ORIGINAL_NODE_COUNT" ] &&
+      [ "$_capacity" = "$ORIGINAL_NODE_COUNT" ]; then
     return 0
   fi
-  if ! az aks nodepool scale \
-      --cluster-name "$TARGET_CLUSTER_NAME" \
-      --resource-group "$TARGET_RESOURCE_GROUP" \
-      --name "$TARGET_NODEPOOL" \
-      --node-count "$ORIGINAL_NODE_COUNT" \
-      --no-wait --only-show-errors 2>/tmp/node-churner-finalizer.err; then
+
+  # Build 74128: deleting both VMSS instances left AKS desired count at 2 while
+  # actual VMSS capacity became 0. A scale request back to 2 was rejected as a
+  # no-op, so the pool never refilled. Force an AKS RP reconcile by briefly
+  # changing desired count to original+1, then restore the original count.
+  if [ "$_current" = "$ORIGINAL_NODE_COUNT" ] &&
+      [[ "$_capacity" =~ ^[0-9]+$ ]] &&
+      [ "$_capacity" -lt "$ORIGINAL_NODE_COUNT" ]; then
+    _nudge_count=$(( ORIGINAL_NODE_COUNT + 1 ))
+    log "finalizer: desired count is already ${ORIGINAL_NODE_COUNT} but VMSS capacity is ${_capacity}; nudging desired count to ${_nudge_count}"
+    _remaining=$(( _deadline - $(date +%s) ))
+    if [ "$_remaining" -le 0 ]; then
+      return 1
+    fi
+    if ! request_nodepool_count \
+        "$_nudge_count" \
+        "$_remaining" \
+        /tmp/node-churner-finalizer.err; then
+      cat /tmp/node-churner-finalizer.err >>"$DEBUG_LOG" 2>/dev/null || true
+      return 1
+    fi
+  fi
+
+  _remaining=$(( _deadline - $(date +%s) ))
+  if [ "$_remaining" -le 0 ]; then
+    return 1
+  fi
+  if ! request_nodepool_count \
+      "$ORIGINAL_NODE_COUNT" \
+      "$_remaining" \
+      /tmp/node-churner-finalizer.err; then
     cat /tmp/node-churner-finalizer.err >>"$DEBUG_LOG" 2>/dev/null || true
     return 1
   fi
-  wait_vmss_succeeded "$NODE_CHURN_FINALIZER_TIMEOUT_SECONDS"
+  return 0
 }
 
 # -----------------------------------------------------------------------------
@@ -716,10 +867,17 @@ request_original_node_count() {
 # -----------------------------------------------------------------------------
 finalizer() {
   local _exit_rc=$?
+  local _finalizer_deadline _remaining
   log "finalizer: starting (exit_rc=${_exit_rc}); restoring pool to original_node_count=${ORIGINAL_NODE_COUNT}"
+  _finalizer_deadline=$(( $(date +%s) + NODE_CHURN_FINALIZER_TIMEOUT_SECONDS ))
   uncordon_target_nodes || true
-  if request_original_node_count &&
-      wait_target_pool_healthy "$NODE_CHURN_FINALIZER_TIMEOUT_SECONDS"; then
+  if request_original_node_count "$NODE_CHURN_FINALIZER_TIMEOUT_SECONDS"; then
+    _remaining=$(( _finalizer_deadline - $(date +%s) ))
+  else
+    _remaining=0
+  fi
+  if [ "$_remaining" -gt 0 ] &&
+      wait_target_pool_healthy "$_remaining"; then
     CLEANUP_FAILED=false
     log "finalizer: target pool restored and healthy"
     write_timing_file
@@ -727,33 +885,34 @@ finalizer() {
   fi
 
   if [ "$NODE_CHURN_RECOVERY_GRACE_SECONDS" -gt 0 ]; then
-    local _recovery_start _recovery_deadline _state _current
+    local _recovery_start _recovery_deadline _state
     CLEANUP_RECOVERY_ATTEMPTED=true
     _recovery_start=$(date +%s)
     _recovery_deadline=$(( _recovery_start + NODE_CHURN_RECOVERY_GRACE_SECONDS ))
     echo "##vso[task.logissue type=warning;] node-churn finalizer entered a bounded recovery window for ${TARGET_CLUSTER_NAME}/${TARGET_NODEPOOL}; manual repair can be performed while health polling continues"
     log "finalizer: entering ${NODE_CHURN_RECOVERY_GRACE_SECONDS}s recovery window; manual repair is safe while this poll loop is active and the pipeline will resume automatically once healthy"
     while [ "$(date +%s)" -lt "$_recovery_deadline" ]; do
-      _state=$(az aks nodepool show \
+      _remaining=$(( _recovery_deadline - $(date +%s) ))
+      if [ "$_remaining" -le 0 ]; then
+        break
+      fi
+      _query_timeout="$NODE_CHURN_AZ_QUERY_TIMEOUT_SECONDS"
+      if [ "$_query_timeout" -gt "$_remaining" ]; then
+        _query_timeout="$_remaining"
+      fi
+      _state=$(timeout "${_query_timeout}s" az aks nodepool show \
         --cluster-name "$TARGET_CLUSTER_NAME" \
         --resource-group "$TARGET_RESOURCE_GROUP" \
         --name "$TARGET_NODEPOOL" \
         --query provisioningState -o tsv 2>/dev/null || echo "Unknown")
-      _current=$(az aks nodepool show \
-        --cluster-name "$TARGET_CLUSTER_NAME" \
-        --resource-group "$TARGET_RESOURCE_GROUP" \
-        --name "$TARGET_NODEPOOL" \
-        --query count -o tsv 2>/dev/null || echo "")
-      if [ "$_state" = "Succeeded" ] &&
-          [ -n "$_current" ] &&
-          [ "$_current" != "$ORIGINAL_NODE_COUNT" ]; then
-        log "finalizer recovery: pool is idle at count=${_current}; requesting original count=${ORIGINAL_NODE_COUNT}"
-        az aks nodepool scale \
-          --cluster-name "$TARGET_CLUSTER_NAME" \
-          --resource-group "$TARGET_RESOURCE_GROUP" \
-          --name "$TARGET_NODEPOOL" \
-          --node-count "$ORIGINAL_NODE_COUNT" \
-          --no-wait --only-show-errors >>"$DEBUG_LOG" 2>&1 || true
+      if [ "$_state" = "Succeeded" ]; then
+        _remaining=$(( _recovery_deadline - $(date +%s) ))
+        if [ "$_remaining" -gt 0 ]; then
+          if [ "$_remaining" -gt "$NODE_CHURN_FINALIZER_TIMEOUT_SECONDS" ]; then
+            _remaining="$NODE_CHURN_FINALIZER_TIMEOUT_SECONDS"
+          fi
+          request_original_node_count "$_remaining" >>"$DEBUG_LOG" 2>&1 || true
+        fi
       fi
       CLEANUP_RECOVERY_SECONDS=$(( $(date +%s) - _recovery_start ))
       if target_pool_is_healthy; then
@@ -763,7 +922,7 @@ finalizer() {
         write_timing_file
         return 0
       fi
-      log "finalizer recovery: still degraded after ${CLEANUP_RECOVERY_SECONDS}s; provisioning=${FINAL_PROVISIONING_STATE} nodes=${FINAL_NODE_COUNT}/${ORIGINAL_NODE_COUNT} ready=${FINAL_READY_NODE_COUNT}/${ORIGINAL_NODE_COUNT} unschedulable=${FINAL_UNSCHEDULABLE_NODE_COUNT} cilium=${FINAL_CILIUM_READY}/${FINAL_CILIUM_DESIRED}"
+      log "finalizer recovery: still degraded after ${CLEANUP_RECOVERY_SECONDS}s; provisioning=${FINAL_PROVISIONING_STATE} vmss_capacity=${FINAL_VMSS_CAPACITY}/${ORIGINAL_NODE_COUNT} nodes=${FINAL_NODE_COUNT}/${ORIGINAL_NODE_COUNT} ready=${FINAL_READY_NODE_COUNT}/${ORIGINAL_NODE_COUNT} unschedulable=${FINAL_UNSCHEDULABLE_NODE_COUNT} cilium=${FINAL_CILIUM_READY}/${FINAL_CILIUM_DESIRED}"
       sleep "$NODE_CHURN_RECOVERY_POLL_SECONDS"
     done
     CLEANUP_RECOVERY_SECONDS=$(( $(date +%s) - _recovery_start ))
@@ -776,7 +935,17 @@ finalizer() {
   write_timing_file
   return 1
 }
+
 trap finalizer EXIT
+
+if [[ "$SCENARIO" == "node-churn-replace" ||
+      "$SCENARIO" == "node-churn-combined" ]] &&
+   [ "$NODE_REPLACE_BATCH_SIZE" -ge "$ORIGINAL_NODE_COUNT" ]; then
+  err "replace batch ${NODE_REPLACE_BATCH_SIZE} must be smaller than target pool size ${ORIGINAL_NODE_COUNT}; refusing to remove every node"
+  SCENARIO_VALID=false
+  write_timing_file
+  exit 0
+fi
 
 # Initial state — write the file so even an early abort leaves a row.
 write_timing_file
@@ -839,21 +1008,19 @@ run_scale_phase() {
     local _t0=$(date +%s)
     local _err=""
     local _ok=true
-    if ! az aks nodepool scale \
-        --cluster-name "$TARGET_CLUSTER_NAME" \
-        --resource-group "$TARGET_RESOURCE_GROUP" \
-        --name "$TARGET_NODEPOOL" \
-        --node-count "$_target" \
-        --only-show-errors 2>/tmp/node-churner-az.err; then
+    if ! request_nodepool_count \
+        "$_target" \
+        "$NODE_CHURN_OP_TIMEOUT_SECONDS" \
+        /tmp/node-churner-az.err; then
       _err=$(tr '\n' ' ' < /tmp/node-churner-az.err | head -c 500)
       _ok=false
+      SCENARIO_VALID=false
+      CIRCUIT_BROKEN=true
       # OperationNotAllowed / throttling — structural error, trip circuit breaker.
       if echo "$_err" | grep -qiE 'OperationNotAllowed|TooManyRequests|429|conflict'; then
         err "scale phase: structural Azure RP error on scale_up; tripping circuit breaker"
-        CIRCUIT_BROKEN=true
-        SCENARIO_VALID=false
-        debug_dump "CIRCUIT-BROKEN on scale_up op#${OP_INDEX} (Azure RP structural error)"
       fi
+      debug_dump "CIRCUIT-BROKEN on scale_up op#${OP_INDEX}"
     fi
     local _t1=$(date +%s)
     local _ncount
@@ -884,20 +1051,18 @@ run_scale_phase() {
     _t0=$(date +%s)
     _err=""
     _ok=true
-    if ! az aks nodepool scale \
-        --cluster-name "$TARGET_CLUSTER_NAME" \
-        --resource-group "$TARGET_RESOURCE_GROUP" \
-        --name "$TARGET_NODEPOOL" \
-        --node-count "$_target" \
-        --only-show-errors 2>/tmp/node-churner-az.err; then
+    if ! request_nodepool_count \
+        "$_target" \
+        "$NODE_CHURN_OP_TIMEOUT_SECONDS" \
+        /tmp/node-churner-az.err; then
       _err=$(tr '\n' ' ' < /tmp/node-churner-az.err | head -c 500)
       _ok=false
+      SCENARIO_VALID=false
+      CIRCUIT_BROKEN=true
       if echo "$_err" | grep -qiE 'OperationNotAllowed|TooManyRequests|429|conflict'; then
         err "scale phase: structural Azure RP error on scale_down; tripping circuit breaker"
-        CIRCUIT_BROKEN=true
-        SCENARIO_VALID=false
-        debug_dump "CIRCUIT-BROKEN on scale_down op#${OP_INDEX} (Azure RP structural error)"
       fi
+      debug_dump "CIRCUIT-BROKEN on scale_down op#${OP_INDEX}"
     fi
     _t1=$(date +%s)
     _ncount=$(observe_node_count)
@@ -907,11 +1072,16 @@ run_scale_phase() {
     [ "$_ok" = true ] && _cur="$_target"
     sleep "$NODE_CHURN_SETTLE_SECONDS"
   done
+  local _expected_scale_ops=$(( NODE_CHURN_CYCLES * 2 ))
+  if [ "$OP_INDEX" -lt "$_expected_scale_ops" ]; then
+    SCENARIO_VALID=false
+    err "scale phase recorded ${OP_INDEX}/${_expected_scale_ops} required operations"
+  fi
   log "scale phase: complete (ended at cycle current_count=${_cur})"
 }
 
 run_replace_phase() {
-  log "replace phase: drain + delete ${NODE_REPLACE_BATCH_SIZE} VMSS instance(s); AKS auto-refills"
+  log "replace phase: drain + delete ${NODE_REPLACE_BATCH_SIZE} VMSS instance(s); AKS reconciliation refills"
   if [ -z "$KUBECTL" ]; then
     err "replace phase: kubectl unavailable; skipping (cannot drain)"
     CIRCUIT_BROKEN=true
@@ -1039,14 +1209,25 @@ run_replace_phase() {
   local _t0=$(date +%s)
   local _err=""
   local _ok=true
+  local _remaining _delete_timeout
+  _remaining=$(( WALL_DEADLINE - $(date +%s) ))
+  _delete_timeout="$NODE_CHURN_VMSS_DELETE_TIMEOUT_SECONDS"
+  if [ "$_delete_timeout" -gt "$_remaining" ]; then
+    _delete_timeout="$_remaining"
+  fi
+  if [ "$_delete_timeout" -le 0 ]; then
+    _err="scenario wall deadline exhausted before VMSS deletion"
+    _ok=false
+    SCENARIO_VALID=false
   # shellcheck disable=SC2086  # word splitting intentional for instance ids
-  if ! az vmss delete-instances \
-      --resource-group "$NODE_RESOURCE_GROUP" \
-      --name "$TARGET_VMSS" \
-      --instance-ids ${_instance_ids_csv} \
-      --only-show-errors 2>/tmp/node-churner-az.err; then
+  elif ! timeout "${_delete_timeout}s" az vmss delete-instances \
+        --resource-group "$NODE_RESOURCE_GROUP" \
+        --name "$TARGET_VMSS" \
+        --instance-ids ${_instance_ids_csv} \
+        --only-show-errors 2>/tmp/node-churner-az.err; then
     _err=$(tr '\n' ' ' < /tmp/node-churner-az.err | head -c 500)
     _ok=false
+    SCENARIO_VALID=false
     if echo "$_err" | grep -qiE 'OperationNotAllowed|TooManyRequests|429|conflict'; then
       err "replace phase: structural Azure RP error on vmss delete-instances; tripping circuit breaker"
       CIRCUIT_BROKEN=true
@@ -1063,49 +1244,88 @@ run_replace_phase() {
   if [ "$CIRCUIT_BROKEN" = true ]; then return; fi
 
   # ---- 4. Explicit refill via AKS nodepool scale ----
-  # Build 67133 lesson: `az vmss delete-instances` drops VMSS capacity by K,
-  # and AKS observes the drop (nodepool count goes from N to N-K) but does
-  # NOT auto-refill back to N. The finalizer's `az aks nodepool scale
-  # --node-count $ORIGINAL` succeeded → so the explicit re-scale IS the
-  # correct primitive. Run it here as a dedicated op so the timing JSON
-  # records the refill latency separately from the kubelet-Ready wait.
-  #
-  # AKS-side refill picks up the next available VMSS instance ID and
-  # provisions a brand-new VM with a brand-new InternalIP — exactly the
-  # IP-churn signal the spec asks for.
+  # Azure has exposed both behaviors after direct VMSS deletion:
+  #   * desired count falls to actual capacity -> scale directly to ORIGINAL;
+  #   * desired count stays ORIGINAL while actual VMSS capacity falls (74128)
+  #     -> scaling to ORIGINAL is rejected as a no-op.
+  # In the second case, change desired count to ORIGINAL+1 first. That forces
+  # the AKS RP to reconcile actual capacity, then a second scale restores the
+  # original steady-state size. Starting with N nodes, deleting K, creating
+  # K+1, then removing one still guarantees at least K replacement nodes.
+  local _desired_after_delete _capacity_after_delete _refill_target _refill_op
+  _desired_after_delete=$(timeout "${NODE_CHURN_AZ_QUERY_TIMEOUT_SECONDS}s" \
+    az aks nodepool show \
+    --cluster-name "$TARGET_CLUSTER_NAME" \
+    --resource-group "$TARGET_RESOURCE_GROUP" \
+    --name "$TARGET_NODEPOOL" \
+    --query count -o tsv 2>/dev/null || echo "")
+  _capacity_after_delete=$(observe_vmss_capacity)
+  _refill_target="$ORIGINAL_NODE_COUNT"
+  _refill_op="replace_refill"
+  if [ "$_desired_after_delete" = "$ORIGINAL_NODE_COUNT" ] &&
+      [[ "$_capacity_after_delete" =~ ^[0-9]+$ ]] &&
+      [ "$_capacity_after_delete" -lt "$ORIGINAL_NODE_COUNT" ]; then
+    _refill_target=$(( ORIGINAL_NODE_COUNT + 1 ))
+    _refill_op="replace_refill_nudge"
+  fi
+
   OP_INDEX=$(( OP_INDEX + 1 ))
-  log "op#${OP_INDEX} replace_refill: az aks nodepool scale → ${ORIGINAL_NODE_COUNT} (re-add ${NODE_REPLACE_BATCH_SIZE} replacement(s))"
+  log "op#${OP_INDEX} ${_refill_op}: desired=${_desired_after_delete:-unknown} capacity=${_capacity_after_delete:-unknown}; az aks nodepool scale → ${_refill_target}"
   if ! wait_vmss_succeeded "$NODE_CHURN_OP_TIMEOUT_SECONDS"; then
-    err "replace phase: provisioningState != Succeeded before replace_refill; tripping circuit breaker"
+    err "replace phase: provisioningState != Succeeded before ${_refill_op}; tripping circuit breaker"
     CIRCUIT_BROKEN=true
     SCENARIO_VALID=false
-    debug_dump "PRE-OP wait_vmss_succeeded timeout before replace_refill op#${OP_INDEX}"
+    debug_dump "PRE-OP wait_vmss_succeeded timeout before ${_refill_op} op#${OP_INDEX}"
     return
   fi
   _t0=$(date +%s)
   _err=""
   _ok=true
-  if ! az aks nodepool scale \
-      --cluster-name "$TARGET_CLUSTER_NAME" \
-      --resource-group "$TARGET_RESOURCE_GROUP" \
-      --name "$TARGET_NODEPOOL" \
-      --node-count "$ORIGINAL_NODE_COUNT" \
-      --only-show-errors 2>/tmp/node-churner-az.err; then
+  if ! request_nodepool_count \
+      "$_refill_target" \
+      "$NODE_CHURN_OP_TIMEOUT_SECONDS" \
+      /tmp/node-churner-az.err; then
     _err=$(tr '\n' ' ' < /tmp/node-churner-az.err | head -c 500)
     _ok=false
+    SCENARIO_VALID=false
     if echo "$_err" | grep -qiE 'OperationNotAllowed|TooManyRequests|429|conflict'; then
-      err "replace phase: structural Azure RP error on replace_refill; tripping circuit breaker"
+      err "replace phase: structural Azure RP error on ${_refill_op}; tripping circuit breaker"
       CIRCUIT_BROKEN=true
-      SCENARIO_VALID=false
-      debug_dump "CIRCUIT-BROKEN on replace_refill op#${OP_INDEX} (Azure RP structural error)"
+      debug_dump "CIRCUIT-BROKEN on ${_refill_op} op#${OP_INDEX} (Azure RP structural error)"
     fi
   fi
   _t1=$(date +%s)
   _ncount=$(observe_node_count)
   [ -z "$_ncount" ] && _ncount=0
-  record_op "$OP_INDEX" "replace_refill" "$_t0" "$_t1" "$_ok" "$_ncount" '{}' '{}' "$_err"
+  record_op "$OP_INDEX" "$_refill_op" "$_t0" "$_t1" "$_ok" "$_ncount" '{}' '{}' "$_err"
 
-  if [ "$CIRCUIT_BROKEN" = true ]; then return; fi
+  if [ "$_ok" != true ] || [ "$CIRCUIT_BROKEN" = true ]; then return; fi
+
+  if [ "$_refill_target" -ne "$ORIGINAL_NODE_COUNT" ]; then
+    OP_INDEX=$(( OP_INDEX + 1 ))
+    log "op#${OP_INDEX} replace_refill_restore: az aks nodepool scale → ${ORIGINAL_NODE_COUNT}"
+    _t0=$(date +%s)
+    _err=""
+    _ok=true
+    if ! request_nodepool_count \
+        "$ORIGINAL_NODE_COUNT" \
+        "$NODE_CHURN_OP_TIMEOUT_SECONDS" \
+        /tmp/node-churner-az.err; then
+      _err=$(tr '\n' ' ' < /tmp/node-churner-az.err | head -c 500)
+      _ok=false
+      SCENARIO_VALID=false
+      if echo "$_err" | grep -qiE 'OperationNotAllowed|TooManyRequests|429|conflict'; then
+        CIRCUIT_BROKEN=true
+        err "replace phase: structural Azure RP error restoring original count"
+        debug_dump "CIRCUIT-BROKEN on replace_refill_restore op#${OP_INDEX}"
+      fi
+    fi
+    _t1=$(date +%s)
+    _ncount=$(observe_node_count)
+    [ -z "$_ncount" ] && _ncount=0
+    record_op "$OP_INDEX" "replace_refill_restore" "$_t0" "$_t1" "$_ok" "$_ncount" '{}' '{}' "$_err"
+    if [ "$_ok" != true ] || [ "$CIRCUIT_BROKEN" = true ]; then return; fi
+  fi
 
   # ---- 5. Wait for K8s Ready node count to return to ORIGINAL ----
   # AKS nodepool scale returns when Azure provisioning is complete, but
@@ -1152,6 +1372,10 @@ run_replace_phase() {
   local _new_node_count _new_ip_count
   _new_node_count=$(echo "$OPS_JSON" | jq -r '.[-1].new_node_count')
   _new_ip_count=$(echo "$OPS_JSON" | jq -r '.[-1].new_ip_count')
+  if [ "$_ok" = true ] && [ "$_new_node_count" -lt "$_selected_count" ]; then
+    SCENARIO_VALID=false
+    err "replace phase observed only ${_new_node_count}/${_selected_count} replacement node name(s)"
+  fi
   log "replace phase: complete (new_node_count=${_new_node_count} [authoritative], new_ip_count=${_new_ip_count} [informational; Azure may reuse freed IPs])"
 }
 

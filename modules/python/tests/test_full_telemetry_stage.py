@@ -40,6 +40,15 @@ EXECUTE_TEMPLATE_PATH = (
     / "clustermesh-scale"
     / "execute.yml"
 )
+SETUP_TEMPLATE_PATH = REPOSITORY_ROOT / "steps" / "setup-tests.yml"
+N2_TFVARS_PATH = (
+    REPOSITORY_ROOT
+    / "scenarios"
+    / "perf-eval"
+    / "clustermesh-scale"
+    / "terraform-inputs"
+    / "azure-2-mock.tfvars"
+)
 N100_TFVARS_PATH = (
     REPOSITORY_ROOT
     / "scenarios"
@@ -85,12 +94,26 @@ def test_dedicated_full_telemetry_stage_is_isolated():
         pipeline.index("azure_eastus2euap_n2_mock_full_telemetry") :
         pipeline.index("azure_eastus2euap_n2_mock_full_telemetry") + 5000
     ]
-    assert "timeout_in_minutes: 480" in pipeline
+    assert "timeout_in_minutes: 720" in stage
     assert (
-        'share_infra_scenarios: "pod-churn-combined,node-churn-combined"'
+        'share_infra_scenarios: "propagation-probe,event-throughput,'
+        'pod-churn-combined,apiserver-failure,policy-scale,isolation,'
+        'node-churn-combined,upper-bound"'
         in stage
     )
+    assert "restart_count: 1" in stage
+    assert "suite_total_budget_seconds: 43200" in stage
+    assert "suite_finalization_reserve_seconds: 3600" in stage
     assert "node_churn_recovery_grace_seconds: 900" in stage
+    assert "node_churn_target_nodepool: churnpool" in stage
+    assert "node_replace_batch_size: 2" in stage
+    assert "CLUSTERMESH_VM_FAMILY_QUOTA_NAME: standardDSv5Family" in stage
+    assert 'CLUSTERMESH_REQUIRED_FAMILY_VCPUS: "112"' in stage
+
+    tfvars = N2_TFVARS_PATH.read_text(encoding="utf-8")
+    assert tfvars.count('name                 = "churnpool"') == 1
+    assert "node_count           = 3" in tfvars
+    assert "clustermesh-churn=true:NoSchedule" in tfvars
 
 
 def test_mock_mode_is_normalized_for_shell_gates():
@@ -109,9 +132,24 @@ def test_mock_mode_is_normalized_for_shell_gates():
     )
     assert "cleanup_recovered: $cleanup_recovered" in execute
     assert "NODE_CHURNER_WAIT_RC" in execute
-    assert "finalizer completion is unverifiable" in execute
+    assert (
+        'export CL2_NODE_CHURN_TARGET_NODEPOOL='
+        '"${NODE_CHURN_TARGET_NODEPOOL:-default}"'
+    ) in execute
+    assert '"$CL2_NODE_CHURN_TARGET_NODEPOOL"' in execute
+    assert "cleanup completion is unverifiable" in execute
     assert "ado_set_variable SHARE_INFRA_META" in execute
     assert "ado_complete_with_issues" in execute
+    assert "scenario_policy.py" in execute
+    assert "worker_failure_rate_percent" in execute
+    assert '--summary-file "$worker_summary"' in execute
+    assert "scenario-health-gate.sh" in execute
+    assert "preserve-scenario-artifacts.sh" in execute
+    assert "CL2_SUITE_FINALIZATION_RESERVE_SECONDS" in execute
+    assert "timeout --signal=TERM --kill-after=60s" in execute
+    assert "start_logged_process_group" in execute
+    assert "terminate_process_group" in execute
+    assert "IsolationChurnTimings_" in execute
 
 
 def test_full_telemetry_azure_tasks_use_ui_selected_subscription():
@@ -125,6 +163,17 @@ def test_full_telemetry_azure_tasks_use_ui_selected_subscription():
         assert "TARGET_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)" in template
     configure = CONFIGURE_TEMPLATE_PATH.read_text(encoding="utf-8")
     assert "AKS_TELEMETRY_CONFIGURED]true" in configure
+
+
+def test_clustermesh_quota_preflight_uses_selected_subscription():
+    setup = SETUP_TEMPLATE_PATH.read_text(encoding="utf-8")
+
+    assert "Preflight ClusterMesh VM quota" in setup
+    assert 'actual_subscription_id=$(az account show --query id -o tsv)' in setup
+    assert 'AZURE_SUBSCRIPTION_ID' in setup
+    assert 'az vm list-usage --location "$REGION"' in setup
+    assert "CLUSTERMESH_REQUIRED_FAMILY_VCPUS" in setup
+    assert "CLUSTERMESH_QUOTA_HEADROOM_VCPUS" in setup
 
 
 def test_control_plane_artifact_directory_exists_after_configuration_failure():
@@ -172,6 +221,7 @@ def test_native_snapshots_are_relabelled_before_publish_and_upload():
     assert "eq(variables['cl2_prom_snapshot_target'], 'artifact')" in template
     assert "/telemetry/acns/" in template
     assert 'blob_name="${BUILD_BRANCH}/acns/' in template
+    assert 'blob_name="${BUILD_BRANCH}/lifecycle/' in template
 
 
 def test_acns_probe_runs_before_snapshot_and_is_collected_before_teardown():
@@ -211,18 +261,29 @@ def test_n100_stage_has_complete_workload_and_telemetry_wiring():
         'kwok_usage_cpu: "25m"',
         'kwok_usage_memory: "64Mi"',
         'AKS_CONTROL_PLANE_METRICS_ENABLED: "true"',
-        "AKS_CONTROL_PLANE_AMW_NAME_PREFIX:",
+        "AKS_CONTROL_PLANE_AMW_NAME_PREFIX: cmsh-scale-eastus2euap-n100-amw",
         'AKS_AMW_ARM_BATCH_SIZE: "10"',
         'AKS_CONTROL_PLANE_METRICS_CONCURRENCY: "5"',
         'CL2_ACNS_TELEMETRY_ENABLED: "true"',
         'cl2_prom_snapshot_enabled: "true"',
         'CL2_PROBE_WINDOW_DURATION: "60m"',
         "operation_timeout: 90m",
-        'share_infra_scenarios: "propagation-probe,pod-churn-combined,node-churn-combined"',
+        'share_infra_scenarios: "propagation-probe,event-throughput,'
+        'pod-churn-combined,apiserver-failure,policy-scale,isolation,'
+        'node-churn-combined,upper-bound"',
         "share_infra_settle_seconds: 300",
+        "agent_disk_min_free_gi: 40",
+        "suite_total_budget_seconds: 108000",
+        "suite_finalization_reserve_seconds: 10800",
+        "restart_count: 1",
         "node_churn_combined_duration_seconds: 5400",
+        "node_churn_target_nodepool: churnpool",
+        "node_replace_batch_size: 10",
         "node_churn_ready_timeout_seconds: 1200",
         "node_churn_recovery_grace_seconds: 1800",
+        "CLUSTERMESH_VM_FAMILY_QUOTA_NAME: standardDv3Family",
+        'CLUSTERMESH_REQUIRED_FAMILY_VCPUS: "2536"',
+        "timeout_in_minutes: 1800",
     ):
         assert expected in stage
     assert '"{{$namespaces}}"' in pod_churn
@@ -232,4 +293,7 @@ def test_n100_stage_has_complete_workload_and_telemetry_wiring():
     assert 'io.cilium/global-service: "true"' in service
     assert tfvars.count('{ name = "enable-acns", value = "" }') == 100
     assert tfvars.count('name                 = "prompool"') == 100
+    assert tfvars.count('name                 = "churnpool"') == 1
+    assert "node_count           = 12" in tfvars
+    assert "clustermesh-churn=true:NoSchedule" in tfvars
     assert 'aks_name                      = "clustermesh-100"' in tfvars

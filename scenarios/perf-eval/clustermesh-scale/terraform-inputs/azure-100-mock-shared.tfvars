@@ -1589,6 +1589,21 @@ aks_cli_config_list = [
           { name = "labels", value = "prometheus=true" },
         ]
       },
+      # Dedicated real-node churn target. Only mesh-1 pays this quota cost:
+      # 12 x D8_v3 = 96 vCPU, bringing the full n=100 steady-state Dv3
+      # requirement from 2,400 to 2,496 vCPU. The 12→17 scale phase peaks at
+      # 2,536 vCPU. Replacing 10 nodes leaves two survivors while the stable
+      # default pool continues hosting KWOK and mock-agent infrastructure.
+      {
+        name                 = "churnpool"
+        node_count           = 12
+        auto_scaling_enabled = false
+        vm_size              = "Standard_D8_v3"
+        optional_parameters = [
+          { name = "labels", value = "clustermesh-churn=true" },
+          { name = "node-taints", value = "clustermesh-churn=true:NoSchedule" },
+        ]
+      },
     ]
   },
   {

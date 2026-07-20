@@ -581,6 +581,7 @@ def execute_parallel(
     python_workdir,
     tear_down_prometheus=False,
     worker_timeout_seconds=None,
+    summary_file=None,
 ):
     """Fan out CL2 across N clusters with bounded concurrency.
 
@@ -682,6 +683,28 @@ def execute_parallel(
 
     failed = [r for r, code in results if code != 0]
     succeeded = [r for r, code in results if code == 0]
+    if summary_file:
+        summary = {
+            "schema_version": 1,
+            "total_workers": len(results),
+            "max_concurrent": max_concurrent,
+            "succeeded_count": len(succeeded),
+            "failed_count": len(failed),
+            "succeeded_roles": sorted(succeeded),
+            "failed_roles": sorted(failed),
+            "results": [
+                {"role": role, "exit_code": code}
+                for role, code in sorted(results)
+            ],
+        }
+        summary_dir = os.path.dirname(summary_file)
+        if summary_dir:
+            os.makedirs(summary_dir, exist_ok=True)
+        summary_tmp = f"{summary_file}.tmp"
+        with open(summary_tmp, "w", encoding="utf-8") as summary_handle:
+            json.dump(summary, summary_handle, indent=2, sort_keys=True)
+            summary_handle.write("\n")
+        os.replace(summary_tmp, summary_file)
     print(
         f"[execute-parallel] summary: {len(succeeded)} succeeded, "
         f"{len(failed)} failed (max_concurrent={max_concurrent})",
@@ -829,6 +852,7 @@ def collect_clusterloader2(
     # this file pattern, so we emit the row explicitly here. One row per
     # timing file (always exactly one — only the target cluster writes one).
     _emit_apiserver_failure_timing_rows(cl2_report_dir, template, result_file)
+    _emit_isolation_churn_timing_rows(cl2_report_dir, template, result_file)
 
     # Phase 4b — Scenario #7 (HA Configuration Validation) scaling pickup.
     # ha-config-scaler.sh writes HAConfigScalingTimings_<context>.json on
@@ -1417,6 +1441,7 @@ def _emit_node_churn_timing_rows(cl2_report_dir, template, result_file):
           "truncated": bool,              // true if churner ran past CL2 sleep
           "cordoned_nodes": [str],
           "final_provisioning_state": str,
+          "final_vmss_capacity": int,
           "final_node_count": int,
           "final_ready_node_count": int,
           "final_unschedulable_node_count": int,
@@ -1428,7 +1453,9 @@ def _emit_node_churn_timing_rows(cl2_report_dir, template, result_file):
           "ops": [
             {
               "op_index": int,
-              "op_type": "scale_up"|"scale_down"|"replace_drain"|"replace_delete"|"replace_refill"|"replace_wait",
+              "op_type": "scale_up"|"scale_down"|"replace_drain"|"replace_delete"|
+                         "replace_refill"|"replace_refill_nudge"|
+                         "replace_refill_restore"|"replace_wait",
               "start_epoch": int,
               "end_epoch": int,
               "duration_seconds": int,
@@ -1469,7 +1496,8 @@ def _emit_node_churn_timing_rows(cl2_report_dir, template, result_file):
         "original_node_count", "ready_quorum_reached", "cleanup_failed",
         "cleanup_recovery_attempted", "cleanup_recovered",
         "cleanup_recovery_seconds", "scenario_valid", "truncated",
-        "cordoned_nodes", "final_provisioning_state", "final_node_count",
+        "cordoned_nodes", "final_provisioning_state", "final_vmss_capacity",
+        "final_node_count",
         "final_ready_node_count", "final_unschedulable_node_count",
         "final_cilium_desired", "final_cilium_ready", "started_epoch",
         "ended_epoch", "duration_seconds",
@@ -1563,6 +1591,35 @@ def _emit_apiserver_failure_timing_rows(cl2_report_dir, template, result_file):
             row["group"] = "apiserver-failure"
             row["result"] = {"data": timing_data, "unit": "seconds"}
             out.write(json.dumps(row) + "\n")
+
+
+def _emit_isolation_churn_timing_rows(cl2_report_dir, template, result_file):
+    """Append the target-cluster isolation stimulus summary."""
+    timing_files = [
+        filename
+        for filename in os.listdir(cl2_report_dir)
+        if filename.startswith("IsolationChurnTimings_")
+        and filename.endswith(".json")
+    ]
+    if not timing_files:
+        return
+    with open(result_file, "a", encoding="utf-8") as output:
+        for filename in timing_files:
+            path = os.path.join(cl2_report_dir, filename)
+            try:
+                with open(path, "r", encoding="utf-8") as handle:
+                    timing = json.load(handle)
+            except (OSError, json.JSONDecodeError) as error:
+                print(
+                    f"[collect] WARN: failed to read {path}: {error}",
+                    file=sys.stderr,
+                )
+                continue
+            row = json.loads(json.dumps(template))
+            row["measurement"] = "IsolationChurnSummary"
+            row["group"] = "isolation"
+            row["result"] = {"data": timing, "unit": "count"}
+            output.write(json.dumps(row) + "\n")
 
 
 def _emit_propagation_probe_rows(cl2_report_dir, template, result_file):
@@ -2135,6 +2192,9 @@ def main():
                           "CL2 / docker / kubectl hangs that would otherwise block "
                           "the whole AzDO step until the 30h job timeout. "
                           "Recommend ~3-4× normal CL2 wall-clock for the scenario.")
+    pep.add_argument("--summary-file", type=str, default="",
+                     help="Optional JSON output path for per-role worker exit codes "
+                          "and succeeded/failed counts.")
 
     # collect
     pco = subparsers.add_parser("collect", help="Collect results for one cluster")
@@ -2256,6 +2316,7 @@ def main():
                 if args.worker_timeout_seconds > 0
                 else None
             ),
+            summary_file=(args.summary_file or None),
         )
         sys.exit(rc)
     elif args.command == "collect":

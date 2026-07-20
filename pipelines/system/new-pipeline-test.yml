@@ -1515,6 +1515,18 @@ stages:
       AKS_CONTROL_PLANE_LOG_RETENTION_DAYS: "30"
       AKS_PLATFORM_METRICS_TIMEOUT_SECONDS: "3600"
       CL2_ACNS_TELEMETRY_ENABLED: "true"
+      CLUSTERMESH_QUOTA_PREFLIGHT_ENABLED: "true"
+      CLUSTERMESH_VM_FAMILY_QUOTA_NAME: standardDSv5Family
+      CLUSTERMESH_REQUIRED_FAMILY_VCPUS: "112"
+      CLUSTERMESH_QUOTA_HEADROOM_VCPUS: "32"
+      CL2_PROPAGATION_PROBE_ENABLED: "true"
+      CL2_PROPAGATION_PROBE_COUNT: "3"
+      CL2_PROPAGATION_PROBE_INTERVAL_S: "10"
+      CL2_PROPAGATION_PROBE_PEER_TIMEOUT: "60"
+      CL2_PROPAGATION_PROBE_PEER_SAMPLE: "1"
+      CL2_PROPAGATION_PROBE_CONNECTIVITY: "false"
+      CL2_PROBE_WINDOW_DURATION: "20m"
+      CL2_PROBE_PREWAIT_S: "120"
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -1538,8 +1550,11 @@ stages:
               cl2_prom_snapshot_container: "snapshots"
               cluster_count: 2
               mesh_size: 2
-              share_infra_scenarios: "pod-churn-combined,node-churn-combined"
+              share_infra_scenarios: "propagation-probe,event-throughput,pod-churn-combined,apiserver-failure,policy-scale,isolation,node-churn-combined,upper-bound"
               share_infra_settle_seconds: 60
+              agent_disk_min_free_gi: 10
+              suite_total_budget_seconds: 43200
+              suite_finalization_reserve_seconds: 3600
               cl2_config_file: ""
               test_type: shared
               test_type_suffix: "-mock-full-telemetry"
@@ -1552,7 +1567,7 @@ stages:
               replicas_per_deployment: 5
               hold_duration: 2m
               warmup_duration: 30s
-              restart_count: 0
+              restart_count: 1
               api_server_calls_per_second: 20
               churn_cycles: 2
               churn_up_duration: 90s
@@ -1562,12 +1577,14 @@ stages:
               kill_interval_seconds: 10
               kill_batch: 5
               kill_job_deadline_seconds: 660
+              node_churn_target_nodepool: churnpool
+              node_replace_batch_size: 2
               node_churn_ready_timeout_seconds: 600
               node_churn_finalizer_timeout_seconds: 900
               node_churn_recovery_grace_seconds: 900
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
-          timeout_in_minutes: 480
+          timeout_in_minutes: 720
           credential_type: service_connection
           ssh_key_enabled: false
           skip_publish: false
@@ -1746,13 +1763,16 @@ stages:
   #   3. cl2_max_concurrent=12 (vs default 4) -- at n=100, waves-of-4 = 25 CL2
   #      waves; 12 cuts it to ~9. (12 is the tested ceiling per execute.yml.)
   #
-  # vCPU budget: 100 x (2 default + 1 prompool) x D8_v3(8) = 2400 vCPU -- fits
-  # the eastus2euap Dv3 quota (~4992 free), vs real n=100's 4800.
+  # vCPU budget: 100 x (2 default + 1 prompool) x D8_v3(8), plus the
+  # mesh-1-only 12-node churnpool = 2,496 Dv3 vCPU steady-state. Node-churn
+  # scales that pool to 17 nodes, so peak demand is 2,536 vCPU. The live quota
+  # preflight checks this peak plus 128 vCPU headroom in the UI-selected
+  # subscription before Terraform starts.
   #
-  # timeout 1200m (20h): core provision/validate/mock/propagation/pod-churn was
-  # 11h in the clean n100 run. Per-cluster AMW work plus node churn adds several
-  # hours; bounded recovery is deliberately capped so telemetry upload and
-  # destroy retain budget under the practical AzDO 24h ceiling.
+  # timeout 1800m (30h): this pool is self-hosted, for which Azure DevOps
+  # supports arbitrarily long jobs (timeout 0 means unlimited). We use an
+  # explicit 30h cap and protect the final 3h for telemetry, uploads, and
+  # destroy rather than risking a hard timeout after the full eight scenarios.
   # ===========================================================================
   - stage: azure_eastus2euap_n100_mock
     dependsOn: []
@@ -1770,13 +1790,17 @@ stages:
       AKS_CONTROL_PLANE_METRICS_ENABLED: "true"
       AKS_CONTROL_PLANE_METRICS_REGISTER_PREVIEW: "false"
       AKS_CONTROL_PLANE_AMW_RESOURCE_GROUP: clustermesh-scale-prom-snapshots
-      AKS_CONTROL_PLANE_AMW_NAME_PREFIX: cmsh-scale-eastus2euap-amw
+      AKS_CONTROL_PLANE_AMW_NAME_PREFIX: cmsh-scale-eastus2euap-n100-amw
       AKS_AMW_ARM_BATCH_SIZE: "10"
       AKS_CONTROL_PLANE_METRICS_CONCURRENCY: "5"
       AKS_CONTROL_PLANE_LAW_NAME: cmsh-scale-controlplane-law
       AKS_CONTROL_PLANE_LAW_LOCATION: eastus2
       AKS_CONTROL_PLANE_LOG_RETENTION_DAYS: "30"
       AKS_PLATFORM_METRICS_TIMEOUT_SECONDS: "3600"
+      CLUSTERMESH_QUOTA_PREFLIGHT_ENABLED: "true"
+      CLUSTERMESH_VM_FAMILY_QUOTA_NAME: standardDv3Family
+      CLUSTERMESH_REQUIRED_FAMILY_VCPUS: "2536"
+      CLUSTERMESH_QUOTA_HEADROOM_VCPUS: "128"
       # Fleet ClusterMeshProfile RP fails to deploy clustermesh-apiserver at n=100
       # (72112 concat-name collision / 72129 + 72983 + 73026: only ~30-35/100
       # apiservers deploy, the rest stuck at deployment=<none>). Delete+recreate
@@ -1837,8 +1861,11 @@ stages:
               cl2_prom_snapshot_container: "snapshots"
               cluster_count: 100
               mesh_size: 100
-              share_infra_scenarios: "propagation-probe,pod-churn-combined,node-churn-combined"
+              share_infra_scenarios: "propagation-probe,event-throughput,pod-churn-combined,apiserver-failure,policy-scale,isolation,node-churn-combined,upper-bound"
               share_infra_settle_seconds: 300
+              agent_disk_min_free_gi: 40
+              suite_total_budget_seconds: 108000
+              suite_finalization_reserve_seconds: 10800
               cl2_config_file: ""
               cl2_max_concurrent: 12
               test_type: shared
@@ -1856,7 +1883,7 @@ stages:
               replicas_per_deployment: 5
               hold_duration: 2m
               warmup_duration: 30s
-              restart_count: 0
+              restart_count: 1
               api_server_calls_per_second: 20
               churn_cycles: 2
               churn_up_duration: 90s
@@ -1866,7 +1893,9 @@ stages:
               kill_interval_seconds: 10
               kill_batch: 5
               kill_job_deadline_seconds: 660
-              # Node churn is deliberately last. The 90-minute observation
+              node_churn_target_nodepool: churnpool
+              node_replace_batch_size: 10
+              # Node churn is deliberately near the end. The 90-minute observation
               # window includes the all-100-worker readiness barrier plus the
               # scale/replace stimulus. If restoration is initially degraded,
               # the runner polls for 30 minutes so automatic or surgical
@@ -1877,7 +1906,7 @@ stages:
               node_churn_recovery_grace_seconds: 1800
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
-          timeout_in_minutes: 1200
+          timeout_in_minutes: 1800
           credential_type: service_connection
           ssh_key_enabled: false
           skip_publish: false

@@ -204,6 +204,11 @@ steps:
         scenarios_json=$(cat "$SHARE_INFRA_META")
         for sn in $(echo "$scenarios_json" | jq -c '.[]'); do
           SCENARIO=$(echo "$sn" | jq -r '.scenario')
+          SCENARIO_SKIPPED=$(echo "$sn" | jq -r '.skipped // false')
+          if [ "$SCENARIO_SKIPPED" = "true" ]; then
+            echo "----- scenario skipped by execution policy: $SCENARIO -----"
+            continue
+          fi
           SCENARIO_START=$(echo "$sn" | jq -r '.start_timestamp')
           echo "----- collecting scenario: $SCENARIO (start=$SCENARIO_START) -----"
           set_churn_args_for_scenario "$SCENARIO" "$SCENARIO_START"
@@ -341,7 +346,23 @@ steps:
         cp "$acns_file" "$dest_dir/"
         acns_count=$((acns_count + 1))
       done
-      echo "Staged $count prometheus snapshot tarball(s), total ${total_bytes} bytes, plus $audit_count telemetry audit file(s) and $acns_count ACNS file(s), into $STAGING_DIR"
+      lifecycle_count=0
+      for lifecycle_file in \
+          "$CL2_REPORT_DIR"/**/worker-summary.json \
+          "$CL2_REPORT_DIR"/**/scenario-policy.json \
+          "$CL2_REPORT_DIR"/**/artifact-preservation-summary.json \
+          "$CL2_REPORT_DIR"/**/scenario-health-gate.json \
+          "$CL2_REPORT_DIR"/**/NodeChurnTimings_*.json \
+          "$CL2_REPORT_DIR"/**/ApiserverFailureTimings_*.json \
+          "$CL2_REPORT_DIR"/**/IsolationChurnTimings_*.json; do
+        [ -f "$lifecycle_file" ] || continue
+        rel=${lifecycle_file#"$CL2_REPORT_DIR/"}
+        dest_dir="$STAGING_DIR/$(dirname "$rel")"
+        mkdir -p "$dest_dir"
+        cp "$lifecycle_file" "$dest_dir/"
+        lifecycle_count=$((lifecycle_count + 1))
+      done
+      echo "Staged $count prometheus snapshot tarball(s), total ${total_bytes} bytes, plus $audit_count telemetry audit file(s), $acns_count ACNS file(s), and $lifecycle_count lifecycle file(s), into $STAGING_DIR"
       ls -laR "$STAGING_DIR" || true
     env:
       CL2_REPORT_DIR: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/results
@@ -387,6 +408,7 @@ steps:
         total_bytes=0
         audit_count=0
         acns_count=0
+        lifecycle_count=0
         if [ "$SNAPSHOT_RELABEL_READY" = "true" ]; then
           for snap in "$CL2_REPORT_DIR"/**/prom-snapshot-*.tar.gz; do
             rel=${snap#"$CL2_REPORT_DIR/"}
@@ -439,7 +461,29 @@ steps:
             --overwrite >/dev/null
           acns_count=$((acns_count + 1))
         done
-        echo "Uploaded $count snapshot tarball(s), total ${total_bytes} bytes, plus $audit_count telemetry audit file(s) and $acns_count ACNS file(s), to ${STORAGE_ACCOUNT_NAME}/${CONTAINER_NAME}"
+        for lifecycle_file in \
+            "$CL2_REPORT_DIR"/**/worker-summary.json \
+            "$CL2_REPORT_DIR"/**/scenario-policy.json \
+            "$CL2_REPORT_DIR"/**/artifact-preservation-summary.json \
+            "$CL2_REPORT_DIR"/**/scenario-health-gate.json \
+            "$CL2_REPORT_DIR"/**/NodeChurnTimings_*.json \
+            "$CL2_REPORT_DIR"/**/ApiserverFailureTimings_*.json \
+            "$CL2_REPORT_DIR"/**/IsolationChurnTimings_*.json; do
+          [ -f "$lifecycle_file" ] || continue
+          rel=${lifecycle_file#"$CL2_REPORT_DIR/"}
+          scenario_seg=$(echo "$rel" | cut -d/ -f1)
+          blob_name="${BUILD_BRANCH}/lifecycle/${scenario_seg}/${RUN_ID}/$(basename "$lifecycle_file")"
+          echo "Uploading $lifecycle_file -> ${STORAGE_ACCOUNT_NAME}/${CONTAINER_NAME}/${blob_name}"
+          az storage blob upload \
+            --account-name "$STORAGE_ACCOUNT_NAME" \
+            --container-name "$CONTAINER_NAME" \
+            --name "$blob_name" \
+            --file "$lifecycle_file" \
+            --auth-mode login \
+            --overwrite >/dev/null
+          lifecycle_count=$((lifecycle_count + 1))
+        done
+        echo "Uploaded $count snapshot tarball(s), total ${total_bytes} bytes, plus $audit_count telemetry audit file(s), $acns_count ACNS file(s), and $lifecycle_count lifecycle file(s), to ${STORAGE_ACCOUNT_NAME}/${CONTAINER_NAME}"
         if [ "$count" -gt 0 ]; then
           rm -f "$CL2_REPORT_DIR"/**/prom-snapshot-*.tar.gz
           find "$STAGING_DIR" -type f -name 'prom-snapshot-*.tar.gz' -delete

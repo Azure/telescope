@@ -179,6 +179,7 @@ steps:
           - "{{$killIntervalSeconds}}"
           - "{{$killBatch}}"
           - "{{$workloadGroup}}"
+          - /root/perf-tests/clusterloader2/results
 
   # ----- Settle: backlog drain on target, observe-window close on peers -----
   - name: Settle after isolation churn

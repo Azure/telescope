@@ -129,9 +129,9 @@ aks_cli_config_list = [
     # (16 vCPU / 64Gi) at 5-8% CPU. The 100 virtual nodes are KWOK objects with no
     # real compute. SKU D8s_v5 (8 vCPU / 32GB, Ice Lake v5): on subscription
     # 37deca37 ("Azure Network Agent - Standalone Test") the DSv5 family has 1000
-    # vCPU quota; n=2-mock needs 2 clusters x (2 default + 1 prompool) x 8 = 48 vCPU.
-    # The thin pool hosts only mock-agent Pods + the CL2 measurement client, so it
-    # is not bound on CPU generation.
+    # vCPU quota; n=2-mock steady-state needs 48 vCPU plus 24 vCPU for the
+    # mesh-1 churnpool. Its 3→8 scale stimulus peaks at 112 DSv5 vCPU total.
+    # The thin pool hosts only mock-agent Pods + the CL2 measurement client.
     default_node_pool = {
       name                 = "default"
       node_count           = 2
@@ -147,6 +147,12 @@ aks_cli_config_list = [
     # D8s_v5 (8 vCPU / 32GB) is sized for our 1Gi-request Prometheus with
     # ample headroom; matches the family swap of the default pool (DSv5
     # quota of 1000 vCPU on subscription 37deca37 fits n=2 with margin).
+    #
+    # mesh-1 also has a small, tainted churnpool. Node churn must never target
+    # the two-node default pool: those nodes host the bare mock-agent Pods and
+    # KWOK controller, so replacing them destroys the test harness instead of
+    # measuring isolated node/IP churn. Three real nodes let the n=2 smoke
+    # replace two nodes while retaining one Cilium-observed survivor.
     extra_node_pool = [
       {
         name                 = "prompool"
@@ -155,6 +161,16 @@ aks_cli_config_list = [
         vm_size              = "Standard_D8s_v5"
         optional_parameters = [
           { name = "labels", value = "prometheus=true" },
+        ]
+      },
+      {
+        name                 = "churnpool"
+        node_count           = 3
+        auto_scaling_enabled = false
+        vm_size              = "Standard_D8s_v5"
+        optional_parameters = [
+          { name = "labels", value = "clustermesh-churn=true" },
+          { name = "node-taints", value = "clustermesh-churn=true:NoSchedule" },
         ]
       },
     ]

@@ -42,6 +42,7 @@ harness agent); the **mock** agents are what represent the simulated nodes.
 | `CL2_MOCK_MODE` wiring | `clustermesh-scale/scale.py` (`--mock-mode`), engine `execute.yml` (re-export) | Matrix var `mock_mode` → `MOCK_MODE` → `CL2_MOCK_MODE` → overrides → templates. |
 | Mock topology | `steps/topology/clustermesh-scale-mock/` | `validate-resources.yml` = base validate + `deploy-mock-layer.yml` (loops clusters, runs the vendored provision script). `execute`/`collect` delegate to base. |
 | Vendored deploy scripts | `scenarios/perf-eval/clustermesh-scale/mock/` | `provision-kwok-layer.sh` + `attrition-check.sh`, vendored from `mock-clustermesh/deploy/`. |
+| Dedicated node-churn pool | `terraform-inputs/azure-2-mock.tfvars`, `azure-100-mock-shared.tfvars` | Only mesh-1 gets a tainted `churnpool`. Node replacement targets this real pool so draining nodes cannot evict the bare mock agents or KWOK controller from the stable default pool. |
 
 ## How the mock layer is deployed (the `clustermesh-scale-mock` topology)
 

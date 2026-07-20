@@ -656,6 +656,7 @@ class TestNodeChurnTimingPickup(unittest.TestCase):
                 "truncated": truncated,
                 "cordoned_nodes": [],
                 "final_provisioning_state": "Succeeded",
+                "final_vmss_capacity": 20,
                 "final_node_count": 20,
                 "final_ready_node_count": 20,
                 "final_unschedulable_node_count": 0,
@@ -738,6 +739,10 @@ class TestNodeChurnTimingPickup(unittest.TestCase):
                 self.assertEqual(
                     s["result"]["data"]["final_provisioning_state"],
                     "Succeeded",
+                )
+                self.assertEqual(
+                    s["result"]["data"]["final_vmss_capacity"],
+                    20,
                 )
                 self.assertEqual(
                     s["result"]["data"]["final_ready_node_count"],
@@ -1577,6 +1582,7 @@ class TestMainArgumentParsing(unittest.TestCase):
             "--provider", "aks",
             "--python-script-file", "/path/to/scale.py",
             "--python-workdir", "/path/to/modules/python",
+            "--summary-file", "/path/to/summary.json",
         ]
         with patch.object(sys, "argv", test_args):
             with self.assertRaises(SystemExit) as cm:
@@ -1595,6 +1601,7 @@ class TestMainArgumentParsing(unittest.TestCase):
             python_workdir="/path/to/modules/python",
             tear_down_prometheus=False,
             worker_timeout_seconds=None,
+            summary_file="/path/to/summary.json",
         )
 
     @patch.object(clustermesh_scale_module, "execute_parallel")
@@ -1866,6 +1873,60 @@ class TestExecuteParallel(unittest.TestCase):
             self.assertEqual(len(_FakePopen.instances), 3)
         finally:
             os.remove(cf)
+
+    def test_writes_worker_summary_file(self):
+        clusters = [
+            {"role": "mesh-1", "kubeconfig": "/k1"},
+            {"role": "mesh-2", "kubeconfig": "/k2"},
+            {"role": "mesh-3", "kubeconfig": "/k3"},
+        ]
+        cf = self._write_clusters(clusters)
+        summary_file = tempfile.mktemp(suffix=".json")
+        try:
+            _FakePopen.reset(
+                wait_seconds=0,
+                role_config={
+                    "mesh-1": ([], 0),
+                    "mesh-2": ([], 1),
+                    "mesh-3": ([], 0),
+                },
+            )
+            with patch.object(
+                clustermesh_scale_module.subprocess,
+                "Popen",
+                _FakePopen,
+            ):
+                rc = clustermesh_scale_module.execute_parallel(
+                    clusters_file=cf,
+                    max_concurrent=3,
+                    worker_script="/w.sh",
+                    cl2_image="img",
+                    cl2_config_dir="/cfg",
+                    cl2_config_file="config.yaml",
+                    cl2_report_dir_base="/r",
+                    provider="aks",
+                    python_script_file="/scale.py",
+                    python_workdir="/wd",
+                    summary_file=summary_file,
+                )
+            self.assertEqual(rc, 1)
+            with open(summary_file, "r", encoding="utf-8") as handle:
+                summary = json.load(handle)
+            self.assertEqual(summary["succeeded_count"], 2)
+            self.assertEqual(summary["failed_count"], 1)
+            self.assertEqual(summary["failed_roles"], ["mesh-2"])
+            self.assertEqual(
+                summary["results"],
+                [
+                    {"role": "mesh-1", "exit_code": 0},
+                    {"role": "mesh-2", "exit_code": 1},
+                    {"role": "mesh-3", "exit_code": 0},
+                ],
+            )
+        finally:
+            os.remove(cf)
+            if os.path.exists(summary_file):
+                os.remove(summary_file)
 
     def test_respects_max_concurrent_bound(self):
         """No more than max_concurrent workers are in-flight simultaneously.

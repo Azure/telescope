@@ -19,6 +19,7 @@
 #   $3 KILL_INTERVAL_SECONDS   Seconds between kill rounds on target.
 #   $4 KILL_BATCH              Pods deleted per round on target.
 #   $5 WORKLOAD_GROUP          Label-selector group value for pod selection.
+#   $6 REPORT_DIR              CL2 report directory for target timing JSON.
 #
 # Exit codes:
 #   0 — always (target completes normally OR peer no-op observes for the
@@ -32,6 +33,8 @@ KILL_DURATION_SECONDS="${2:-600}"
 KILL_INTERVAL_SECONDS="${3:-10}"
 KILL_BATCH="${4:-5}"
 WORKLOAD_GROUP="${5:-clustermesh-isolation}"
+REPORT_DIR="${6:-/root/perf-tests/clusterloader2/results}"
+POD_CHURN_KILLER_SCRIPT="${POD_CHURN_KILLER_SCRIPT:-/root/perf-tests/clusterloader2/config/pod-churn-killer.sh}"
 
 # kubectl resolution: PATH first, then pre-staged binary (same pattern as
 # apiserver-failure-killer.sh and pod-churn-killer.sh).
@@ -57,8 +60,41 @@ if [ "${CURRENT_CONTEXT}" != "${TARGET_CONTEXT}" ]; then
 fi
 
 echo "isolation-churn: target cluster — delegating to pod-churn-killer.sh"
-exec bash /root/perf-tests/clusterloader2/config/pod-churn-killer.sh \
+mkdir -p "$REPORT_DIR"
+TIMING_FILE="${REPORT_DIR}/IsolationChurnTimings_${CURRENT_CONTEXT}.json"
+KILLER_LOG=$(mktemp)
+set +e
+bash "$POD_CHURN_KILLER_SCRIPT" \
   "${KILL_DURATION_SECONDS}" \
   "${KILL_INTERVAL_SECONDS}" \
   "${KILL_BATCH}" \
-  "${WORKLOAD_GROUP}"
+  "${WORKLOAD_GROUP}" 2>&1 | tee "$KILLER_LOG"
+KILLER_RC=${PIPESTATUS[0]}
+set -e
+
+ROUNDS=$(sed -nE 's/.*killer: done .* rounds=([0-9]+) cumulative=([0-9]+).*/\1/p' \
+  "$KILLER_LOG" | tail -1)
+KILLED_TOTAL=$(sed -nE 's/.*killer: done .* rounds=([0-9]+) cumulative=([0-9]+).*/\2/p' \
+  "$KILLER_LOG" | tail -1)
+ROUNDS="${ROUNDS:-0}"
+KILLED_TOTAL="${KILLED_TOTAL:-0}"
+cat > "$TIMING_FILE" <<EOF
+{
+  "target_context": "${CURRENT_CONTEXT}",
+  "duration_seconds": ${KILL_DURATION_SECONDS},
+  "interval_seconds": ${KILL_INTERVAL_SECONDS},
+  "batch_size": ${KILL_BATCH},
+  "rounds": ${ROUNDS},
+  "killed_total": ${KILLED_TOTAL},
+  "killer_exit_code": ${KILLER_RC},
+  "stimulus_valid": $([ "$KILLER_RC" -eq 0 ] && [ "$KILLED_TOTAL" -gt 0 ] && echo true || echo false)
+}
+EOF
+rm -f "$KILLER_LOG"
+
+if [ "$KILLER_RC" -ne 0 ] || [ "$KILLED_TOTAL" -le 0 ]; then
+  echo "isolation-churn ERROR: target stimulus invalid (rc=${KILLER_RC}, killed_total=${KILLED_TOTAL})"
+  exit 1
+fi
+echo "isolation-churn: target stimulus verified (rounds=${ROUNDS}, killed_total=${KILLED_TOTAL})"
+exit 0

@@ -50,9 +50,8 @@ name: clustermesh-upper-bound
 #   measurement JSONs, NOT inside CL2. Raw signal values + thresholds +
 #   classifier_version are emitted alongside verdicts so dashboards can
 #   recompute verdicts post-hoc if thresholds need calibration.
-# - NOT share-infra-eligible in v1 — a tripped rung can leave queue/memory
-#   residue that would contaminate following scenarios. Standalone matrix
-#   entries only until baseline data justifies share-infra positioning.
+# - Share-infra safe only as the FINAL scenario — a tripped rung can leave
+#   queue/memory residue, so no later scenario may consume the same Fleet.
 # - CL2's template engine has its OWN func map (see kubernetes/perf-tests
 #   clusterloader2/pkg/config/template_functions.go); sprig is NOT
 #   available. Use StringSplit, Loop, AddInt, MultiplyInt, SubtractInt,
