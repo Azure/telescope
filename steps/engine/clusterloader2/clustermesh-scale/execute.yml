@@ -604,6 +604,19 @@ steps:
       # outer `timeout`). Zero in real (non-mock) mode since the reconciler
       # never runs there. Callers that need the two-pass total (before +
       # after) multiply this by 2.
+      #
+      # 300s (n<50) / 600s (n>=50): even with the reconciler's per-cluster
+      # kubectl reads batched (list-all Stage, multi-resource named get for
+      # APF/RBAC, one multi-get each for the 4 source + 4 target
+      # clustermesh secrets -- see mock_layer_reconcile.py's
+      # support_infra_is_healthy/reconcile_clustermesh_secrets), a cluster
+      # can still need several of the bounded --attempts (default 5) *
+      # --settle-seconds (default 15s) repair/re-check cycles to converge,
+      # e.g. after a scenario left real repair work behind. 120s previously
+      # budgeted here left ~0 margin for even a single settle-bounded retry
+      # once request-timeout-seconds(30s) attempts stacked up, which is
+      # exactly what produced build 74186's pre-scenario timeout (rc=124)
+      # before this function's kubectl-call batching landed.
       scenario_mock_reconcile_budget_seconds() {
         if [ "${CL2_MOCK_MODE:-false}" != "true" ]; then
           echo 0
@@ -612,7 +625,7 @@ steps:
         if [ "$cluster_count" -ge 50 ]; then
           echo 600
         else
-          echo 120
+          echo 300
         fi
       }
 
@@ -761,6 +774,54 @@ steps:
           --settle-seconds 15 \
           --request-timeout-seconds 30 \
           --summary-file "$_output" || _rc=$?
+        # rc=124 (outer `timeout` fired) or rc=137 (the process ignored
+        # SIGTERM and was force-killed by --kill-after) means the reconciler
+        # was reaped mid-run. Thanks to its incremental --summary-file
+        # writes (one after each cluster's reconcile_cluster() completes --
+        # see mock_layer_reconcile.py's on_result callback in main())
+        # "$_output" USUALLY already reflects whichever clusters had
+        # finished, tagged "partial": true -- but it may not exist at all if
+        # the kill landed before the first cluster finished. Either way,
+        # always (re)write an authoritative timeout summary here so a
+        # downstream reader (scenario-health-gate.sh, or a human in the ADO
+        # log) never sees a missing file, or a stale one that doesn't know
+        # it was about to be killed.
+        if [ "$_rc" -eq 124 ] || [ "$_rc" -eq 137 ]; then
+          local _timed_out_at
+          _timed_out_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          if [ -s "$_output" ]; then
+            jq \
+              --arg timed_out_at "$_timed_out_at" \
+              --argjson budget "$_budget" \
+              --argjson rc "$_rc" \
+              '.success = false
+               | .timed_out = true
+               | .timed_out_at = $timed_out_at
+               | .budget_seconds = $budget
+               | .timeout_rc = $rc
+               | .phase = (.phase // "unknown")' \
+              "$_output" > "${_output}.tmp" && mv "${_output}.tmp" "$_output"
+          else
+            jq -n \
+              --arg label "$_label" \
+              --arg scenario "$SCENARIO" \
+              --arg timed_out_at "$_timed_out_at" \
+              --argjson budget "$_budget" \
+              --argjson rc "$_rc" \
+              '{
+                schema_version: 1,
+                success: false,
+                timed_out: true,
+                timed_out_at: $timed_out_at,
+                phase: "unknown",
+                label: $label,
+                scenario: $scenario,
+                budget_seconds: $budget,
+                timeout_rc: $rc,
+                note: "mock_layer_reconcile.py produced no summary before the outer timeout fired; see the ADO pipeline log around this step for the last flushed per-cluster progress lines (mock-layer-reconcile[<role>] phase: ...)"
+              }' > "$_output"
+          fi
+        fi
         if [ "$_rc" -ne 0 ]; then
           echo "##vso[task.logissue type=error;] mock-layer-reconcile (${_label}) failed rc=${_rc} for ${SCENARIO}; see ${_output}"
         fi

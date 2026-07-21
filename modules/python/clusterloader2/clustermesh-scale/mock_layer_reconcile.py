@@ -261,6 +261,26 @@ def load_desired_state(state_dir: str) -> DesiredState:
 
 
 # ---------------------------------------------------------------------------
+# Diagnostic progress logging
+# ---------------------------------------------------------------------------
+
+def _progress(role: str, phase: str, message: str) -> None:
+    """Emit one flushed diagnostic line for `role`'s reconciliation.
+
+    Printed with flush=True rather than relying on line-buffering -- Python
+    switches stdout to full block-buffering (not line-buffering) whenever it
+    isn't attached to a tty, which is exactly the case when this script's
+    stdout is captured into an ADO pipeline log. Without an explicit flush,
+    an outer `timeout` SIGTERM/SIGKILL can reap this process with useful
+    progress sitting in an unflushed buffer, leaving the log looking like
+    nothing happened at all (the original failure mode this addresses).
+    Never includes secret data/values -- only counts/names of the fixed,
+    non-sensitive CLUSTERMESH_SECRET_NAMES.
+    """
+    print(f"mock-layer-reconcile[{role}] {phase}: {message}", flush=True)
+
+
+# ---------------------------------------------------------------------------
 # kubectl plumbing -- bounded subprocess timeouts, no shell, no broad excepts.
 # ---------------------------------------------------------------------------
 
@@ -321,37 +341,42 @@ def kubectl_delete(kubeconfig, kind, name, timeout_seconds, namespace=None) -> N
     _run_kubectl(cmd, timeout_seconds + 5)
 
 
-def _is_not_found_error(exc: ReconcileError) -> bool:
-    """True if `exc` wraps a kubectl "NotFound" (get on an absent object)."""
-    message = str(exc)
-    return "NotFound" in message or "not found" in message
+def kubectl_list_by_name(kubeconfig, resource, timeout_seconds, namespace=None) -> Dict[str, dict]:
+    """List every live object of `resource` in ONE true Kubernetes LIST call
+    (`kubectl get <resource> -o json`, no explicit names) and return the
+    objects keyed by metadata.name.
 
-
-def kubectl_get_optional_json(kubeconfig, resource_args, timeout_seconds, namespace=None) -> Optional[dict]:
-    """Like kubectl_get_json, but returns None (instead of raising) on NotFound."""
-    try:
-        return kubectl_get_json(kubeconfig, resource_args, timeout_seconds, namespace=namespace)
-    except ReconcileError as exc:
-        if _is_not_found_error(exc):
-            return None
-        raise
-
-
-def kubectl_object_exists(kubeconfig, kind, name, timeout_seconds, namespace=None) -> bool:
-    """Existence probe for a (possibly cluster-scoped, possibly CRD-backed) object.
-
-    Used for the KWOK support-infra objects (Stage, PriorityLevelConfiguration,
-    FlowSchema, ServiceAccount, ClusterRoleBinding) where only presence -- not a
-    full desired-subset comparison -- is meaningful to check.
+    This is the one true batching primitive for "does this desired set of
+    names exist" checks: a single LIST is one apiserver round trip no matter
+    how many names the caller ultimately needs to check, whereas asking for
+    several explicitly-named refs in one kubectl invocation (e.g.
+    `kubectl get kind/name kind/name ...`) still costs the apiserver one GET
+    per name even though it is one subprocess/timeout -- it only ever looked
+    batched from the client side. Callers do the desired-name membership
+    check locally against the dict this returns.
     """
-    cmd = _base_cmd(kubeconfig, timeout_seconds, namespace) + ["get", kind.lower(), name]
-    try:
-        _run_kubectl(cmd, timeout_seconds)
-        return True
-    except ReconcileError as exc:
-        if _is_not_found_error(exc):
-            return False
-        raise
+    response = kubectl_get_json(kubeconfig, [resource], timeout_seconds, namespace=namespace)
+    items = response.get("items")
+    if not isinstance(items, list):
+        raise ReconcileError(f"kubectl get {resource} returned no usable 'items' list")
+    result: Dict[str, dict] = {}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        name = (item.get("metadata") or {}).get("name")
+        if name:
+            result[name] = item
+    return result
+
+
+def kubectl_list_names(kubeconfig, resource, timeout_seconds, namespace=None) -> set:
+    """List every live object of `resource` in ONE call and return its names.
+
+    Used to prove/disprove an entire desired set of names (e.g. every
+    persisted Stage) in a single round trip instead of one existence probe
+    per name -- the caller then does a local set comparison.
+    """
+    return set(kubectl_list_by_name(kubeconfig, resource, timeout_seconds, namespace=namespace))
 
 
 # ---------------------------------------------------------------------------
@@ -670,26 +695,39 @@ def reconcile_clustermesh_secrets(kubeconfig: str, agent_namespace: str, timeout
     """Ensure the four clustermesh consume-path secrets are present and in sync
     in `agent_namespace`, sourced from kube-system.
 
-    Returns the sorted list of secret names that were (re)applied because they
-    were missing or drifted (data/type) from the kube-system source. Raises
+    Batches the reads: ONE true `kubectl get secrets -o json` LIST in
+    kube-system, then ONE more in `agent_namespace` -- two kubectl round
+    trips total instead of eight (one get per secret per namespace) -- with
+    the four required names selected locally out of each LIST response.
+    Returns the sorted list of secret names that were (re)applied because
+    they were missing or drifted (data/type) from the kube-system source;
+    repairs themselves stay per-object applies. Raises
     UnsafeSourceSecretMissing if any SOURCE secret itself is absent from
-    kube-system -- that is unconditionally unsafe (the consume path can never
-    legitimately work without it), so it is never silently skipped/repaired.
+    kube-system -- that is unconditionally unsafe (the consume path can
+    never legitimately work without it), so it is never silently
+    skipped/repaired.
     """
+    sources = kubectl_list_by_name(
+        kubeconfig, "secrets", timeout_seconds, namespace=CLUSTERMESH_SOURCE_NAMESPACE,
+    )
+    missing_sources = sorted(
+        name for name in CLUSTERMESH_SECRET_NAMES if name not in sources
+    )
+    if missing_sources:
+        raise UnsafeSourceSecretMissing(
+            f"clustermesh consume path requires source secret(s) in "
+            f"{CLUSTERMESH_SOURCE_NAMESPACE}: {missing_sources}, but "
+            f"missing -- refusing to reconcile an unsafe consume-secret configuration"
+        )
+
+    targets = kubectl_list_by_name(
+        kubeconfig, "secrets", timeout_seconds, namespace=agent_namespace,
+    )
+
     repaired: List[str] = []
     for name in CLUSTERMESH_SECRET_NAMES:
-        source = kubectl_get_optional_json(
-            kubeconfig, ["secret", name], timeout_seconds, namespace=CLUSTERMESH_SOURCE_NAMESPACE,
-        )
-        if source is None:
-            raise UnsafeSourceSecretMissing(
-                f"clustermesh consume path requires source secret "
-                f"{CLUSTERMESH_SOURCE_NAMESPACE}/{name}, but it is missing -- "
-                f"refusing to reconcile an unsafe consume-secret configuration"
-            )
-        target = kubectl_get_optional_json(
-            kubeconfig, ["secret", name], timeout_seconds, namespace=agent_namespace,
-        )
+        source = sources[name]
+        target = targets.get(name)
         if _secret_is_drifted(source, target):
             kubectl_apply_doc(
                 kubeconfig,
@@ -704,6 +742,13 @@ def reconcile_clustermesh_secrets(kubeconfig: str, agent_namespace: str, timeout
 # ---------------------------------------------------------------------------
 # KWOK support-infra reconciliation (kwok-controller, Stage, APF, RBAC)
 # ---------------------------------------------------------------------------
+
+# Kubernetes resource (plural, lowercase) each APF kind LISTs as.
+_APF_RESOURCE_BY_KIND = {
+    "PriorityLevelConfiguration": "prioritylevelconfigurations",
+    "FlowSchema": "flowschemas",
+}
+
 
 def kwok_controller_available(
     kubeconfig: str, deploy_doc: dict, timeout_seconds: float
@@ -731,7 +776,30 @@ def support_infra_is_healthy(
 ) -> Tuple[bool, List[str]]:
     """Verify the persisted KWOK support infra: kwok-controller Deployment
     availability, desired Stage objects, APF PriorityLevelConfiguration/
-    FlowSchema, and the agent ServiceAccount/ClusterRoleBinding.
+    FlowSchema, the RBAC Namespace(s), and the agent
+    ServiceAccount/ClusterRoleBinding.
+
+    Batches every presence check into as few kubectl round trips as
+    possible (one per resource type/namespace, rather than one existence
+    probe per object): Stage/APF/Namespace/ServiceAccount/ClusterRoleBinding
+    are each proved via a single true `kubectl get <resource> -o json` LIST
+    call, with the desired names compared against the LIST result locally --
+    never one `get kind/name kind/name ...` per batch of named objects,
+    which still costs the apiserver one GET per name even packed into a
+    single kubectl subprocess/timeout. This is what previously drove
+    ~8-10 serial existence probes per cluster per attempt down to a small,
+    object-count-independent number of total calls.
+
+    A missing desired Namespace is recoverable support drift, not a hard
+    failure: recording it as a problem here (rather than letting the
+    subsequent namespaced ServiceAccount LIST 404 and raise) lets
+    reconcile_support_infra re-apply the persisted RBAC manifest -- which
+    includes the Namespace doc itself -- and recheck, instead of aborting
+    the whole cluster with a NotFound. A genuine failure of the (always
+    cluster-scoped, never NotFound-prone) Namespace LIST call itself --
+    e.g. an apiserver outage -- still propagates as a ReconcileError so
+    reconcile_support_infra fails closed rather than treating it as
+    resolvable drift.
     """
     manifests = desired.support_manifests
     assert manifests is not None  # callers only invoke this when support state exists
@@ -744,31 +812,91 @@ def support_infra_is_healthy(
     _, reasons = kwok_controller_available(kubeconfig, kwok_deploy, timeout_seconds)
     problems.extend(reasons)
 
-    for doc in manifests["stage"]:
-        if doc.get("kind") != "Stage":
-            continue
-        name = (doc.get("metadata") or {}).get("name")
-        if not kubectl_object_exists(kubeconfig, "stage", name, timeout_seconds):
-            problems.append(f"missing Stage {name}")
+    # Stage: ONE list call proves the whole desired set at once.
+    stage_names = [
+        (doc.get("metadata") or {}).get("name")
+        for doc in manifests["stage"] if doc.get("kind") == "Stage"
+    ]
+    if stage_names:
+        live_stage_names = kubectl_list_names(kubeconfig, "stage", timeout_seconds)
+        for name in stage_names:
+            if name not in live_stage_names:
+                problems.append(f"missing Stage {name}")
 
+    # APF (PriorityLevelConfiguration/FlowSchema): both cluster-scoped, so
+    # each kind is provable with one true LIST call -- one for
+    # PriorityLevelConfigurations, one for FlowSchemas -- with desired names
+    # compared locally against each LIST result.
+    apf_names_by_kind: Dict[str, List[str]] = {}
     for doc in manifests["apf"]:
         kind = doc.get("kind")
-        if kind not in ("PriorityLevelConfiguration", "FlowSchema"):
+        if kind in _APF_RESOURCE_BY_KIND:
+            apf_names_by_kind.setdefault(kind, []).append((doc.get("metadata") or {}).get("name"))
+    for kind, resource in _APF_RESOURCE_BY_KIND.items():
+        desired_names = apf_names_by_kind.get(kind)
+        if not desired_names:
             continue
-        name = (doc.get("metadata") or {}).get("name")
-        if not kubectl_object_exists(kubeconfig, kind, name, timeout_seconds):
-            problems.append(f"missing {kind} {name}")
+        live_names = kubectl_list_names(kubeconfig, resource, timeout_seconds)
+        for name in desired_names:
+            if name not in live_names:
+                problems.append(f"missing {kind} {name}")
 
+    # Namespace: cluster-scoped, so provable with one true LIST call, done
+    # BEFORE the namespaced ServiceAccount checks below. A missing desired
+    # Namespace is recorded as a problem (not raised) and its name is
+    # remembered so the ServiceAccount LIST for that namespace can be
+    # skipped -- listing ServiceAccounts in a namespace that doesn't exist
+    # is itself a kubectl NotFound failure (a raised ReconcileError), which
+    # would otherwise turn recoverable "namespace was deleted" drift into an
+    # unhandled exception instead of a normal, repairable unhealthy result.
+    namespace_names = [
+        (doc.get("metadata") or {}).get("name")
+        for doc in manifests["rbac"] if doc.get("kind") == "Namespace"
+    ]
+    missing_namespaces = set()
+    if namespace_names:
+        live_namespace_names = kubectl_list_names(kubeconfig, "namespaces", timeout_seconds)
+        for name in namespace_names:
+            if name not in live_namespace_names:
+                problems.append(f"missing Namespace {name}")
+                missing_namespaces.add(name)
+
+    # RBAC: ServiceAccount is namespaced, ClusterRoleBinding is cluster-scoped
+    # -- never combined into one command. Group ServiceAccount refs by their
+    # actual target namespace (usually just the agent namespace, but a
+    # persisted manifest could in principle name a different one) so each
+    # LIST call stays namespace-correct; ClusterRoleBinding gets its own
+    # single cluster-scoped LIST call.
+    sa_names_by_namespace: Dict[str, List[str]] = {}
+    crb_names = []
     for doc in manifests["rbac"]:
         kind = doc.get("kind")
         metadata = doc.get("metadata") or {}
         name = metadata.get("name")
         if kind == "ServiceAccount":
             namespace = metadata.get("namespace", desired.namespace)
-            if not kubectl_object_exists(kubeconfig, "serviceaccount", name, timeout_seconds, namespace=namespace):
-                problems.append(f"missing ServiceAccount {namespace}/{name}")
+            sa_names_by_namespace.setdefault(namespace, []).append(name)
         elif kind == "ClusterRoleBinding":
-            if not kubectl_object_exists(kubeconfig, "clusterrolebinding", name, timeout_seconds):
+            crb_names.append(name)
+
+    for namespace in sorted(sa_names_by_namespace):
+        if namespace in missing_namespaces:
+            # Already recorded as a missing Namespace above; a ServiceAccount
+            # LIST against a namespace that doesn't exist would itself raise
+            # a NotFound ReconcileError instead of yielding a clean
+            # membership check, so skip it here -- reconcile_support_infra
+            # will re-apply the persisted RBAC (Namespace+SA+CRB) and recheck.
+            continue
+        desired_names = sa_names_by_namespace[namespace]
+        live_sa_names = kubectl_list_names(kubeconfig, "serviceaccounts", timeout_seconds, namespace=namespace)
+        for name in desired_names:
+            if name not in live_sa_names:
+                problems.append(f"missing ServiceAccount {namespace}/{name}")
+
+    if crb_names:
+        live_crb_names = kubectl_list_names(kubeconfig, "clusterrolebindings", timeout_seconds)
+        for name in crb_names:
+            if name not in live_crb_names:
                 problems.append(f"missing ClusterRoleBinding {name}")
 
     return (not problems, problems)
@@ -1005,7 +1133,15 @@ def reconcile_cluster(
         desired = load_desired_state(state_dir)
     except ReconcileError as exc:
         result["errors"] = [str(exc)]
+        _progress(role, "desired-state", f"FAILED to load: {exc}")
         return result
+
+    _progress(
+        role, "desired-state",
+        f"loaded {len(desired.node_docs)} node(s)/{len(desired.agent_docs)} agent(s); "
+        f"support_manifests={'present' if desired.support_manifests is not None else 'absent'}; "
+        f"consume_clustermesh={bool(desired.metadata.get('consume_clustermesh'))}",
+    )
 
     # A persisted desired state must belong to the run currently reconciling
     # against it -- without this, a role-scoped-only state dir left over from a
@@ -1019,6 +1155,7 @@ def reconcile_cluster(
                 f"does not match the expected run_id {run_id!r} -- refusing to "
                 f"reconcile against a different run's desired state"
             ]
+            _progress(role, "desired-state", f"FAILED: {result['errors'][0]}")
             return result
 
     if expected_count is not None and len(desired.node_docs) != expected_count:
@@ -1026,19 +1163,27 @@ def reconcile_cluster(
             f"persisted desired state has {len(desired.node_docs)} node(s), "
             f"expected {expected_count}"
         ]
+        _progress(role, "desired-state", f"FAILED: {result['errors'][0]}")
         return result
 
     # KWOK support infra (kwok-controller, Stage, APF, RBAC) is the first
     # precondition. The persisted RBAC manifest also owns the mock agent
     # Namespace, so it must be restored before consume secrets can be copied
     # into that namespace.
+    _progress(role, "support", "checking support-infra (kwok-controller/stage/apf/rbac)")
     repaired_support, support_errors = reconcile_support_infra(
         kubeconfig, desired, attempts, settle_seconds, request_timeout_seconds,
     )
     result["repaired_support"] = repaired_support
     if support_errors:
         result["errors"] = support_errors
+        _progress(role, "support", f"FAILED: {'; '.join(support_errors)}")
         return result
+    _progress(
+        role, "support",
+        f"healthy (repaired {len(repaired_support)} reason(s))" if repaired_support
+        else "healthy (no repair needed)",
+    )
 
     # ClusterMesh consume secrets: an independent precondition, reconciled once
     # (with its own bounded retries) after support/RBAC has ensured the target
@@ -1046,6 +1191,7 @@ def reconcile_cluster(
     # fails the cluster immediately -- no amount of node/agent repair fixes a
     # broken consume path.
     if desired.metadata.get("consume_clustermesh"):
+        _progress(role, "secrets", "checking clustermesh consume secrets")
         secrets_errors: List[str] = []
         for attempt in range(1, attempts + 1):
             try:
@@ -1056,6 +1202,7 @@ def reconcile_cluster(
                 break
             except UnsafeSourceSecretMissing as exc:
                 result["errors"] = [str(exc)]
+                _progress(role, "secrets", f"FAILED (unsafe): {exc}")
                 return result
             except ReconcileError as exc:
                 secrets_errors = [str(exc)]
@@ -1063,7 +1210,13 @@ def reconcile_cluster(
                     time.sleep(settle_seconds)
         if secrets_errors:
             result["errors"] = secrets_errors
+            _progress(role, "secrets", f"FAILED: {'; '.join(secrets_errors)}")
             return result
+        _progress(
+            role, "secrets",
+            f"in sync (repaired {len(result['repaired_secrets'])} of "
+            f"{len(CLUSTERMESH_SECRET_NAMES)} names)",
+        )
 
     recreated_nodes: set = set()
     recreated_agents: set = set()
@@ -1078,26 +1231,45 @@ def reconcile_cluster(
             )
         except ReconcileError as exc:
             errors = [str(exc)]
+            _progress(role, "inventory", f"attempt {attempt}/{attempts}: FAILED: {exc}")
             if attempt < attempts:
                 time.sleep(settle_seconds)
                 continue
             break
 
+        _progress(
+            role, "inventory",
+            f"attempt {attempt}/{attempts}: live nodes={len(kwok_nodes)} "
+            f"agents={len(agent_pods)} real_nodes={len(real_nodes)}",
+        )
+
         plan = plan_repairs(desired, kwok_nodes, agent_pods, real_nodes)
+        _progress(
+            role, "plan",
+            f"attempt {attempt}/{attempts}: recreate_nodes={len(plan.nodes_to_recreate)} "
+            f"recreate_agents={len(plan.agents_to_recreate)} "
+            f"extra_nodes={len(plan.extra_nodes)} extra_agents={len(plan.extra_agents)}",
+        )
 
         if plan.extra_nodes or plan.extra_agents:
             errors = _extra_object_errors(plan)
+            _progress(role, "convergence", f"FAILED: unsafe drift: {'; '.join(errors)}")
             break
 
         if not plan.nodes_to_recreate and not plan.agents_to_recreate:
             errors = validate_converged(desired, kwok_nodes, agent_pods, real_nodes)
             converged = not errors
+            _progress(
+                role, "convergence",
+                "converged" if converged else f"FAILED validation: {'; '.join(errors)}",
+            )
             break
 
         try:
             apply_repairs(kubeconfig, desired, plan, request_timeout_seconds)
         except ReconcileError as exc:
             errors = [str(exc)]
+            _progress(role, "plan", f"attempt {attempt}/{attempts}: repair apply FAILED: {exc}")
             if attempt < attempts:
                 time.sleep(settle_seconds)
                 continue
@@ -1119,12 +1291,22 @@ def reconcile_cluster(
                 errors = ["repair attempts exhausted without reaching a converged state"]
         except ReconcileError as exc:
             errors = [str(exc)]
+        _progress(
+            role, "convergence",
+            "converged (final check)" if converged else f"FAILED: {'; '.join(errors)}",
+        )
 
     result["attempts_used"] = attempt
     result["recreated_nodes"] = sorted(recreated_nodes)
     result["recreated_agents"] = sorted(recreated_agents)
     result["errors"] = errors
     result["status"] = "ok" if converged else "failed"
+    _progress(
+        role, "done",
+        f"status={result['status']} attempts_used={attempt} "
+        f"recreated_nodes={len(result['recreated_nodes'])} "
+        f"recreated_agents={len(result['recreated_agents'])}",
+    )
     return result
 
 
@@ -1147,8 +1329,22 @@ def reconcile_all(
     settle_seconds: float,
     request_timeout_seconds: float,
     run_id: Optional[str] = None,
+    on_result=None,
 ) -> List[dict]:
-    results = []
+    """Reconcile every cluster (bounded concurrency), returning all results.
+
+    `on_result`, if given, is called as `on_result(result, results_so_far,
+    pending_roles)` synchronously in THIS (driving) thread immediately after
+    each cluster's reconcile_cluster() call returns -- i.e. serialized by
+    `as_completed`'s single-threaded iteration, never called concurrently --
+    so a caller (see main()'s incremental --summary-file write) can persist
+    partial progress without its own locking. This is what lets a killed
+    outer-timeout process still leave a JSON summary behind for every
+    cluster that had already finished, rather than only "nothing was ever
+    written" -- see write_summary()/main().
+    """
+    results: List[dict] = []
+    all_roles = [cluster["role"] for cluster in clusters]
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_concurrent) as executor:
         futures = {}
         for cluster in clusters:
@@ -1167,8 +1363,14 @@ def reconcile_all(
             )
             futures[future] = role
         for future in concurrent.futures.as_completed(futures):
-            results.append(future.result())
+            result = future.result()
+            results.append(result)
+            if on_result is not None:
+                done_roles = {r["role"] for r in results}
+                pending_roles = sorted(role for role in all_roles if role not in done_roles)
+                on_result(result, list(results), pending_roles)
     return results
+
 
 
 def write_summary(path: str, summary: dict) -> None:
@@ -1230,6 +1432,41 @@ def parse_args(argv=None):
     return parser.parse_args(argv)
 
 
+def _build_summary(args, results: List[dict], pending_roles: Optional[List[str]] = None) -> dict:
+    """Build the JSON summary dict written to --summary-file.
+
+    `pending_roles` is the set of cluster roles not yet reconciled at the
+    time of writing -- non-empty for an INCREMENTAL write emitted right
+    after each cluster completes (see main()'s on_result callback below),
+    empty for the final write once every cluster has a result. "partial":
+    true marks an incremental write so a reader (a human scanning the ADO
+    log, or a future automated consumer) can always tell a still-in-progress
+    summary apart from a genuinely complete run -- the file on disk always
+    reflects reality as of its last successful atomic write, so even a
+    process killed by an outer `timeout` mid-run leaves an accurate,
+    non-misleading summary behind for whichever clusters had already
+    finished, instead of either a stale/absent file or one that silently
+    looks "done".
+    """
+    pending_roles = sorted(pending_roles or [])
+    failed = sorted(r["role"] for r in results if r["status"] != "ok")
+    return {
+        "schema_version": 1,
+        "success": not failed and not pending_roles,
+        "partial": bool(pending_roles),
+        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "state_root": args.state_root,
+        "run_id": args.run_id,
+        "expected_mock_count": args.expected_mock_count,
+        "total_clusters": len(results) + len(pending_roles),
+        "healthy_count": len(results) - len(failed),
+        "failed_count": len(failed),
+        "failed_roles": failed,
+        "pending_roles": pending_roles,
+        "results": sorted(results, key=lambda r: r["role"]),
+    }
+
+
 def main(argv=None) -> int:
     args = parse_args(argv)
 
@@ -1258,6 +1495,9 @@ def main(argv=None) -> int:
         print("mock-layer-reconcile: --attempts must be >= 1", file=sys.stderr)
         return 1
 
+    def _write_incremental_summary(_result, results_so_far, pending_roles) -> None:
+        write_summary(args.summary_file, _build_summary(args, results_so_far, pending_roles))
+
     results = reconcile_all(
         clusters,
         state_root=args.state_root,
@@ -1267,24 +1507,13 @@ def main(argv=None) -> int:
         settle_seconds=args.settle_seconds,
         request_timeout_seconds=args.request_timeout_seconds,
         run_id=args.run_id,
+        on_result=_write_incremental_summary,
     )
 
-    failed = sorted(r["role"] for r in results if r["status"] != "ok")
-    summary = {
-        "schema_version": 1,
-        "success": not failed,
-        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "state_root": args.state_root,
-        "run_id": args.run_id,
-        "expected_mock_count": args.expected_mock_count,
-        "total_clusters": len(results),
-        "healthy_count": len(results) - len(failed),
-        "failed_count": len(failed),
-        "failed_roles": failed,
-        "results": sorted(results, key=lambda r: r["role"]),
-    }
+    summary = _build_summary(args, results, pending_roles=[])
     write_summary(args.summary_file, summary)
 
+    failed = summary["failed_roles"]
     print(
         f"mock-layer-reconcile: {summary['healthy_count']}/{summary['total_clusters']} "
         f"cluster(s) healthy" + (f"; failed: {failed}" if failed else "")

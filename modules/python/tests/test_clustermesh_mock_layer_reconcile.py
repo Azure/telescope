@@ -8,6 +8,8 @@ telemetry-audit tests fake their HTTP layer (see test_clustermesh_telemetry_audi
 
 import importlib.util
 import json
+import re
+import subprocess
 import types
 from pathlib import Path
 
@@ -257,13 +259,6 @@ def _namespace_of(cmd):
 class FakeKubeCluster:
     """Minimal fake standing in for a real apiserver across repair attempts."""
 
-    # Kinds handled generically by name-only existence (support-infra objects
-    # verified via kubectl_object_exists: a plain `get <kind> <name>`, no -o json).
-    _EXISTENCE_ONLY_KINDS = {
-        "stage", "prioritylevelconfiguration", "flowschema",
-        "serviceaccount", "clusterrolebinding",
-    }
-
     def __init__(
         self,
         healthy_real_node=HEALTHY_REAL_NODE,
@@ -274,9 +269,11 @@ class FakeKubeCluster:
         self.pods = {}  # (namespace, name) -> pod dict
         self.secrets = {}  # (namespace, name) -> secret dict
         self.deployments = {}  # (namespace, name) -> deployment dict
+        self.namespaces = set()  # live Namespace names
         self.existence_objects = set()  # (kind_lower, namespace_or_None, name)
         self.apply_calls = []
         self.delete_calls = []
+        self.get_calls = []  # every "get" cmd issued, in order -- proves call batching
         self.healthy_real_node = healthy_real_node
         self.permanently_broken_pods = set(permanently_broken_pods)
         self.transient_get_failures = transient_get_failures
@@ -298,7 +295,8 @@ class FakeKubeCluster:
 
     def add_support_infra(self, deployment_available_replicas=1, deployment_desired_replicas=1,
                            stage_names=("node-fast-ready", "pod-fast-ready"),
-                           apf=True, service_account=True, cluster_role_binding=True):
+                           apf=True, service_account=True, cluster_role_binding=True,
+                           namespace=True):
         """Seed a fully-healthy KWOK support infra (all objects present)."""
         self.deployments[("kube-system", "kwok-controller")] = {
             "metadata": {"name": "kwok-controller", "namespace": "kube-system"},
@@ -310,6 +308,8 @@ class FakeKubeCluster:
         if apf:
             self.existence_objects.add(("prioritylevelconfiguration", None, "kwok-controller"))
             self.existence_objects.add(("flowschema", None, "kwok-controller"))
+        if namespace:
+            self.namespaces.add(NAMESPACE)
         if service_account:
             self.existence_objects.add(("serviceaccount", NAMESPACE, SERVICE_ACCOUNT))
         if cluster_role_binding:
@@ -321,9 +321,25 @@ class FakeKubeCluster:
         for doc in agent_docs:
             self._apply(dict(doc))
 
+    def delete_namespace(self, namespace):
+        """Simulate `kubectl delete namespace <namespace>`: real Kubernetes
+        cascades this into deleting every namespaced object living inside it
+        (ServiceAccounts, Pods, Secrets, ...) -- mirror that here so tests can
+        exercise "the whole agent namespace vanished" as a single realistic
+        fault instead of only ever deleting one object kind at a time.
+        """
+        self.namespaces.discard(namespace)
+        self.existence_objects = {
+            (kind, ns, name) for (kind, ns, name) in self.existence_objects if ns != namespace
+        }
+        self.pods = {key: pod for key, pod in self.pods.items() if key[0] != namespace}
+        self.secrets = {key: secret for key, secret in self.secrets.items() if key[0] != namespace}
+
     def run(self, cmd, input=None, capture_output=True, text=True,  # pylint: disable=redefined-builtin
              timeout=None, check=False):
         del capture_output, text, timeout, check  # unused; fake honors them implicitly
+        if "get" in cmd:
+            self.get_calls.append(list(cmd))
         if "get" in cmd and self.transient_get_failures > 0:
             self.transient_get_failures -= 1
             return _failed("transient apiserver error")
@@ -333,14 +349,6 @@ class FakeKubeCluster:
             namespace = _namespace_of(cmd)
             items = [pod for (ns, _name), pod in self.pods.items() if ns == namespace]
             return _completed(json.dumps({"items": items}))
-        if "get" in cmd and "secret" in cmd:
-            idx = cmd.index("secret")
-            name = cmd[idx + 1]
-            namespace = _namespace_of(cmd)
-            secret = self.secrets.get((namespace, name))
-            if secret is None:
-                return _failed(f'Error from server (NotFound): secrets "{name}" not found')
-            return _completed(json.dumps(secret))
         if "get" in cmd and "deployment" in cmd:
             idx = cmd.index("deployment")
             name = cmd[idx + 1]
@@ -349,14 +357,64 @@ class FakeKubeCluster:
             if deployment is None:
                 return _failed(f'Error from server (NotFound): deployments.apps "{name}" not found')
             return _completed(json.dumps(deployment))
-        if "get" in cmd and any(kind in cmd for kind in self._EXISTENCE_ONLY_KINDS):
-            idx = cmd.index("get")
-            kind = cmd[idx + 1]
-            name = cmd[idx + 2]
+        if "get" in cmd and "stage" in cmd:
+            # kubectl_list_names (via kubectl_list_by_name): ONE true LIST
+            # call proving the whole Stage set at once (mirrors
+            # `kubectl get stage -o json`, no explicit names).
+            items = [
+                {"kind": "Stage", "metadata": {"name": name}}
+                for (kind, _ns, name) in self.existence_objects if kind == "stage"
+            ]
+            return _completed(json.dumps({"kind": "StageList", "items": items}))
+        if "get" in cmd and "secrets" in cmd:
+            # kubectl_list_by_name: ONE true `get secrets -o json` LIST per
+            # namespace -- the caller selects its desired names out locally.
             namespace = _namespace_of(cmd)
-            if (kind, namespace, name) not in self.existence_objects:
-                return _failed(f'Error from server (NotFound): {kind}s "{name}" not found')
-            return _completed("")
+            items = [secret for (ns, _name), secret in self.secrets.items() if ns == namespace]
+            return _completed(json.dumps({"kind": "SecretList", "items": items}))
+        if "get" in cmd and "serviceaccounts" in cmd:
+            # kubectl_list_by_name: ONE true LIST per desired namespace. Real
+            # kubectl 404s a namespaced LIST against a namespace that doesn't
+            # exist (e.g. the whole Namespace was deleted) -- mirror that so
+            # tests can prove the reconciler skips this call for a missing
+            # namespace instead of tripping over the NotFound.
+            namespace = _namespace_of(cmd)
+            if namespace is not None and namespace not in self.namespaces:
+                return _failed(f'Error from server (NotFound): namespaces "{namespace}" not found')
+            items = [
+                {"kind": "ServiceAccount", "metadata": {"name": name, "namespace": ns}}
+                for (kind, ns, name) in self.existence_objects
+                if kind == "serviceaccount" and ns == namespace
+            ]
+            return _completed(json.dumps({"kind": "ServiceAccountList", "items": items}))
+        if "get" in cmd and "namespaces" in cmd:
+            # kubectl_list_by_name: ONE true cluster-scoped LIST proving the
+            # whole desired Namespace set at once (never NotFound-prone --
+            # "namespaces" itself is always a valid cluster-scoped resource).
+            items = [{"kind": "Namespace", "metadata": {"name": name}} for name in self.namespaces]
+            return _completed(json.dumps({"kind": "NamespaceList", "items": items}))
+        if "get" in cmd and "clusterrolebindings" in cmd:
+            # kubectl_list_by_name: ONE cluster-scoped LIST, never combined
+            # with the namespaced ServiceAccount LIST above.
+            items = [
+                {"kind": "ClusterRoleBinding", "metadata": {"name": name}}
+                for (kind, _ns, name) in self.existence_objects if kind == "clusterrolebinding"
+            ]
+            return _completed(json.dumps({"kind": "ClusterRoleBindingList", "items": items}))
+        if "get" in cmd and "prioritylevelconfigurations" in cmd:
+            # kubectl_list_by_name: ONE LIST for all PriorityLevelConfigurations.
+            items = [
+                {"kind": "PriorityLevelConfiguration", "metadata": {"name": name}}
+                for (kind, _ns, name) in self.existence_objects if kind == "prioritylevelconfiguration"
+            ]
+            return _completed(json.dumps({"kind": "PriorityLevelConfigurationList", "items": items}))
+        if "get" in cmd and "flowschemas" in cmd:
+            # kubectl_list_by_name: ONE LIST for all FlowSchemas.
+            items = [
+                {"kind": "FlowSchema", "metadata": {"name": name}}
+                for (kind, _ns, name) in self.existence_objects if kind == "flowschema"
+            ]
+            return _completed(json.dumps({"kind": "FlowSchemaList", "items": items}))
         if "apply" in cmd:
             doc = yaml.safe_load(input)
             self.apply_calls.append(doc)
@@ -410,7 +468,7 @@ class FakeKubeCluster:
             namespace = doc["metadata"].get("namespace", NAMESPACE)
             self.existence_objects.add(("serviceaccount", namespace, name))
         elif kind == "Namespace":
-            pass  # not independently tracked; existence isn't checked by the reconciler
+            self.namespaces.add(name)
         else:
             raise AssertionError(f"unexpected apply kind: {kind}")
 
@@ -1023,7 +1081,87 @@ def test_missing_rbac_objects_are_repaired(tmp_path, monkeypatch):
     assert ("clusterrolebinding", None, f"{SERVICE_ACCOUNT}-cluster-admin") in cluster.existence_objects
 
 
-def test_unavailable_kwok_controller_is_repaired(tmp_path, monkeypatch):
+def test_deleted_agent_namespace_is_repaired_before_secrets_and_agents(tmp_path, monkeypatch):
+    """Deleting the WHOLE agent Namespace (as `kubectl delete namespace` would,
+    cascading away its ServiceAccount, agent Pods, and consume-path Secret
+    copies) must be repaired, not treated as a hard failure: the persisted
+    RBAC manifest (Namespace+ServiceAccount+ClusterRoleBinding) is re-applied
+    as recoverable support drift, and only once that succeeds do the
+    consume secrets and agent Pods -- which also depended on that namespace
+    existing -- get repaired in turn.
+    """
+    role = "mesh-1"
+    node_docs, agent_docs = write_state_dir(
+        tmp_path, role, node_count=1, metadata_overrides={"consume_clustermesh": True},
+    )
+    write_support_manifests(tmp_path, role)
+    cluster = FakeKubeCluster()
+    cluster.seed(node_docs, agent_docs)
+    cluster.add_support_infra()
+    _seed_clustermesh_sources(cluster)
+    for name, doc in _clustermesh_secret_docs().items():
+        cluster.add_secret(name, NAMESPACE, doc)
+
+    # Simulate the whole agent namespace vanishing: cascades away its
+    # ServiceAccount, agent Pod, and target Secret copies, exactly like a
+    # real `kubectl delete namespace mock-clustermesh` would.
+    cluster.delete_namespace(NAMESPACE)
+    assert NAMESPACE not in cluster.namespaces
+    assert (NAMESPACE, "mock-cilium-agent-0") not in cluster.pods
+    assert not any(ns == NAMESPACE for ns, _name in cluster.secrets)
+    assert ("serviceaccount", NAMESPACE, SERVICE_ACCOUNT) not in cluster.existence_objects
+
+    result = _reconcile(monkeypatch, cluster, role, tmp_path)
+
+    assert result["status"] == "ok"
+    # The missing Namespace was recorded as recoverable support drift (never
+    # an unhandled NotFound exception) and repaired.
+    assert any("Namespace" in reason for reason in result["repaired_support"])
+    assert NAMESPACE in cluster.namespaces
+    assert ("serviceaccount", NAMESPACE, SERVICE_ACCOUNT) in cluster.existence_objects
+    # Only once the namespace exists again can the secrets/agents that
+    # depend on it be repaired.
+    assert result["repaired_secrets"] == sorted(reconciler.CLUSTERMESH_SECRET_NAMES)
+    assert result["recreated_agents"] == ["mock-cilium-agent-0"]
+
+    # Support-infra repair (which restores the Namespace itself) runs, and
+    # completes, before any Secret/Pod is (re)applied.
+    kinds_applied = [doc["kind"] for doc in cluster.apply_calls]
+    assert kinds_applied.index("Namespace") < kinds_applied.index("Secret")
+    assert kinds_applied.index("Namespace") < kinds_applied.index("Pod")
+
+
+def test_namespace_list_api_failure_is_hard_failure_not_swallowed_as_drift(tmp_path, monkeypatch):
+    """A genuine failure of the (always cluster-scoped, never NotFound-prone)
+    Namespace LIST call itself -- e.g. an apiserver outage -- must still
+    raise/fail closed, never be silently treated as recoverable "missing
+    Namespace" support drift.
+    """
+    role = "mesh-1"
+    node_docs, agent_docs = write_state_dir(tmp_path, role, node_count=1)
+    write_support_manifests(tmp_path, role)
+    cluster = FakeKubeCluster()
+    cluster.seed(node_docs, agent_docs)
+    cluster.add_support_infra()
+
+    original_run = cluster.run
+
+    def _run_with_broken_namespace_list(cmd, **kwargs):
+        if "get" in cmd and "namespaces" in cmd:
+            return _failed("Error from server: etcdserver: request timed out")
+        return original_run(cmd, **kwargs)
+
+    monkeypatch.setattr(cluster, "run", _run_with_broken_namespace_list)
+
+    result = _reconcile(monkeypatch, cluster, role, tmp_path, attempts=2, settle_seconds=0)
+
+    assert result["status"] == "failed"
+    assert any("request timed out" in error for error in result["errors"])
+    # Never silently treated as recoverable drift -- no RBAC re-apply attempted.
+    assert not cluster.apply_calls
+
+
+
     role = "mesh-1"
     node_docs, agent_docs = write_state_dir(tmp_path, role, node_count=1)
     write_support_manifests(tmp_path, role)
@@ -1096,3 +1234,426 @@ def test_run_id_match_succeeds(tmp_path, monkeypatch):
     result = _reconcile(monkeypatch, cluster, role, tmp_path, run_id="run-A")
 
     assert result["status"] == "ok"
+
+
+# ---------------------------------------------------------------------------
+# 14. Batched kubectl reads (build 74186 fix) -- proves the ~20 serial
+#     object-by-object probes per cluster were collapsed into a small,
+#     size-independent number of round trips.
+# ---------------------------------------------------------------------------
+
+def test_support_infra_check_uses_a_fixed_small_number_of_kubectl_calls(tmp_path, monkeypatch):
+    """Regardless of how many Stage/APF/RBAC objects are desired, verifying
+    support-infra health must cost a FIXED small number of kubectl calls --
+    one true LIST per resource type/namespace (deployment-get, stage-list,
+    prioritylevelconfigurations-list, flowschemas-list, namespaces-list,
+    serviceaccounts-list, clusterrolebindings-list) -- never one existence
+    probe (or one apiserver-side GET per name packed into a single kubectl
+    invocation) per object, which is what previously drove ~8-10 serial calls
+    per cluster per attempt and contributed to build 74186's outer-timeout
+    kill (rc=124).
+    """
+    role = "mesh-1"
+    write_state_dir(tmp_path, role, node_count=1)
+    write_support_manifests(tmp_path, role)
+    cluster = FakeKubeCluster()
+    cluster.add_support_infra()  # fully healthy: 2 stage + 2 apf + namespace + SA + CRB
+    monkeypatch.setattr(reconciler.subprocess, "run", cluster.run)
+
+    desired = reconciler.load_desired_state(str(tmp_path / role))
+    healthy, problems = reconciler.support_infra_is_healthy(
+        f"/kube/{role}.config", desired, timeout_seconds=5,
+    )
+
+    assert healthy
+    assert not problems
+    # 1 deployment get + 1 stage list + 1 prioritylevelconfigurations list +
+    # 1 flowschemas list + 1 namespaces list + 1 serviceaccounts list +
+    # 1 clusterrolebindings list.
+    assert len(cluster.get_calls) == 7
+
+
+def test_support_infra_check_call_count_is_independent_of_object_count(tmp_path, monkeypatch):
+    """Adding MORE desired Stage objects must not add MORE kubectl calls --
+    the whole set is still proved with the same single list call."""
+    role = "mesh-1"
+    write_state_dir(tmp_path, role, node_count=1)
+    many_stage_docs = [
+        {"apiVersion": "kwok.x-k8s.io/v1alpha1", "kind": "Stage", "metadata": {"name": f"stage-{i}"}}
+        for i in range(10)
+    ]
+    write_support_manifests(tmp_path, role, stage=many_stage_docs)
+    cluster = FakeKubeCluster()
+    cluster.add_support_infra(stage_names=tuple(f"stage-{i}" for i in range(10)))
+    monkeypatch.setattr(reconciler.subprocess, "run", cluster.run)
+
+    desired = reconciler.load_desired_state(str(tmp_path / role))
+    healthy, problems = reconciler.support_infra_is_healthy(
+        f"/kube/{role}.config", desired, timeout_seconds=5,
+    )
+
+    assert healthy
+    assert not problems
+    assert len(cluster.get_calls) == 7  # same fixed count as the 2-Stage case above
+
+
+def test_secrets_reconcile_uses_two_batched_kubectl_calls(tmp_path, monkeypatch):
+    """4 source + 4 target secret gets must collapse into exactly 2 true
+    `get secrets -o json` LIST calls (one per namespace) instead of 8
+    individual `get secret <name>` invocations."""
+    role = "mesh-1"
+    write_state_dir(tmp_path, role, node_count=1)
+    cluster = FakeKubeCluster()
+    _seed_clustermesh_sources(cluster)
+    monkeypatch.setattr(reconciler.subprocess, "run", cluster.run)
+
+    repaired = reconciler.reconcile_clustermesh_secrets(
+        f"/kube/{role}.config", NAMESPACE, timeout_seconds=5,
+    )
+
+    assert repaired == sorted(reconciler.CLUSTERMESH_SECRET_NAMES)
+    assert len(cluster.get_calls) == 2
+
+
+def test_kubectl_list_by_name_keys_objects_by_name_and_validates_list_shape(monkeypatch):
+    """Direct unit test for kubectl_list_by_name's real kubectl LIST response
+    shape: ONE `kubectl get <resource> -o json` call always returns
+    {"kind": "<Resource>List", "items": [...]}, never a bare object and
+    never one entry per explicitly-named ref -- this is what makes it a true
+    server-side LIST (one apiserver round trip) rather than N GETs disguised
+    as a single kubectl invocation.
+    """
+    calls = []
+
+    def fake_run(cmd, input=None, capture_output=True, text=True,  # pylint: disable=redefined-builtin
+                 timeout=None, check=False):
+        del input, capture_output, text, timeout, check
+        calls.append(list(cmd))
+        return _completed(json.dumps({
+            "kind": "ServiceAccountList",
+            "items": [
+                {"kind": "ServiceAccount", "metadata": {"name": "sa-1"}},
+                {"kind": "ServiceAccount", "metadata": {"name": "sa-2"}},
+            ],
+        }))
+
+    monkeypatch.setattr(reconciler.subprocess, "run", fake_run)
+
+    result = reconciler.kubectl_list_by_name(
+        "/kube/mesh-1.config", "serviceaccounts", timeout_seconds=5,
+    )
+
+    assert set(result) == {"sa-1", "sa-2"}
+    assert result["sa-1"] == {"kind": "ServiceAccount", "metadata": {"name": "sa-1"}}
+    # Exactly ONE kubectl invocation regardless of how many names are desired.
+    assert len(calls) == 1
+
+
+def test_kubectl_list_by_name_handles_empty_list(monkeypatch):
+    """An empty LIST (no live objects of this resource type) must return an
+    empty mapping, not raise -- callers then treat every desired name as
+    missing via a plain local membership check."""
+    def fake_run(cmd, input=None, capture_output=True, text=True,  # pylint: disable=redefined-builtin
+                 timeout=None, check=False):
+        del cmd, input, capture_output, text, timeout, check
+        return _completed(json.dumps({"kind": "StageList", "items": []}))
+
+    monkeypatch.setattr(reconciler.subprocess, "run", fake_run)
+
+    result = reconciler.kubectl_list_by_name("/kube/mesh-1.config", "stage", timeout_seconds=5)
+    assert not result
+
+
+def test_kubectl_list_by_name_rejects_non_list_shape(monkeypatch):
+    """A malformed/unexpected response missing a usable 'items' list must
+    fail closed with ReconcileError rather than silently treating every
+    desired name as missing."""
+    def fake_run(cmd, input=None, capture_output=True, text=True,  # pylint: disable=redefined-builtin
+                 timeout=None, check=False):
+        del cmd, input, capture_output, text, timeout, check
+        return _completed(json.dumps({"kind": "ServiceAccount", "metadata": {"name": "sa-1"}}))
+
+    monkeypatch.setattr(reconciler.subprocess, "run", fake_run)
+
+    try:
+        reconciler.kubectl_list_by_name("/kube/mesh-1.config", "serviceaccounts", timeout_seconds=5)
+    except reconciler.ReconcileError as exc:
+        assert "serviceaccounts" in str(exc)
+    else:
+        raise AssertionError("expected ReconcileError for a non-List response shape")
+
+
+def test_multiple_missing_source_secrets_are_reported_together(tmp_path, monkeypatch):
+    """Extends the single-missing-source-secret hard-failure case: when
+    SEVERAL source secrets are simultaneously missing, the batched multi-get
+    must still surface every missing name in one error rather than only the
+    first, and must still fail closed without touching anything.
+    """
+    role = "mesh-1"
+    node_docs, agent_docs = write_state_dir(
+        tmp_path, role, node_count=1, metadata_overrides={"consume_clustermesh": True},
+    )
+    cluster = FakeKubeCluster()
+    cluster.seed(node_docs, agent_docs)
+    sources = _clustermesh_secret_docs()
+    missing_names = sorted(reconciler.CLUSTERMESH_SECRET_NAMES)[:2]
+    for name in missing_names:
+        del sources[name]
+    for name, doc in sources.items():
+        cluster.add_secret(name, reconciler.CLUSTERMESH_SOURCE_NAMESPACE, doc)
+
+    result = _reconcile(monkeypatch, cluster, role, tmp_path)
+
+    assert result["status"] == "failed"
+    assert any(all(name in error for name in missing_names) for error in result["errors"])
+    assert result["attempts_used"] == 0
+    assert not cluster.apply_calls
+    assert not cluster.delete_calls
+
+
+# ---------------------------------------------------------------------------
+# 15. Flushed per-phase progress logging (build 74186 diagnosability fix)
+# ---------------------------------------------------------------------------
+
+def test_progress_lines_are_emitted_per_phase_without_secret_data(tmp_path, monkeypatch, capsys):
+    role = "mesh-1"
+    node_docs, agent_docs = write_state_dir(
+        tmp_path, role, node_count=1, metadata_overrides={"consume_clustermesh": True},
+    )
+    write_support_manifests(tmp_path, role)
+    cluster = FakeKubeCluster()
+    cluster.seed(node_docs, agent_docs)
+    cluster.add_support_infra()
+    _seed_clustermesh_sources(cluster)
+
+    result = _reconcile(monkeypatch, cluster, role, tmp_path)
+    assert result["status"] == "ok"
+
+    out = capsys.readouterr().out
+    lines = [line for line in out.splitlines() if line.startswith(f"mock-layer-reconcile[{role}]")]
+    phases = [line.split("] ", 1)[1].split(":", 1)[0] for line in lines]
+
+    for expected_phase in ("desired-state", "support", "secrets", "inventory", "plan", "convergence", "done"):
+        assert expected_phase in phases, f"missing progress line for phase {expected_phase!r}: {lines}"
+
+    # Never leak actual secret values/data -- only counts/names of the fixed,
+    # non-sensitive CLUSTERMESH_SECRET_NAMES may appear.
+    for secret_doc in _clustermesh_secret_docs().values():
+        for value in secret_doc["data"].values():
+            assert value not in out
+
+
+def test_progress_lines_are_flushed_immediately(capsys):
+    """`_progress` must flush explicitly rather than relying on line
+    buffering -- exactly the buffering gap that made build 74186's timeout
+    kill look like "no output at all" even though real work had happened.
+    """
+    reconciler._progress("mesh-1", "phase-x", "message-y")  # pylint: disable=protected-access
+    out = capsys.readouterr().out
+    assert out == "mock-layer-reconcile[mesh-1] phase-x: message-y\n"
+
+
+# ---------------------------------------------------------------------------
+# 16. Incremental/atomic summary writing (build 74186 diagnosability fix)
+# ---------------------------------------------------------------------------
+
+def test_build_summary_marks_partial_when_roles_are_still_pending():
+    args = types.SimpleNamespace(state_root="/state", run_id="run-A", expected_mock_count=2)
+    finished = [{"role": "mesh-1", "status": "ok", "errors": []}]
+
+    partial_summary = reconciler._build_summary(  # pylint: disable=protected-access
+        args, finished, pending_roles=["mesh-2"],
+    )
+
+    assert partial_summary["partial"] is True
+    assert partial_summary["success"] is False  # can't be success while anything is still pending
+    assert partial_summary["pending_roles"] == ["mesh-2"]
+    assert partial_summary["healthy_count"] == 1
+    assert partial_summary["total_clusters"] == 2  # 1 finished + 1 pending
+
+
+def test_build_summary_final_write_has_no_pending_roles_and_reflects_failures():
+    args = types.SimpleNamespace(state_root="/state", run_id="run-A", expected_mock_count=2)
+    finished = [
+        {"role": "mesh-1", "status": "ok", "errors": []},
+        {"role": "mesh-2", "status": "failed", "errors": ["boom"]},
+    ]
+
+    final_summary = reconciler._build_summary(args, finished, pending_roles=[])  # pylint: disable=protected-access
+
+    assert final_summary["partial"] is False
+    assert final_summary["success"] is False
+    assert final_summary["pending_roles"] == []
+    assert final_summary["failed_roles"] == ["mesh-2"]
+    assert final_summary["healthy_count"] == 1
+    assert final_summary["failed_count"] == 1
+
+
+def test_reconcile_all_on_result_callback_writes_incremental_progress(tmp_path, monkeypatch):
+    """Proves reconcile_all's on_result hook -- what main() uses to persist a
+    partial summary after EVERY cluster, not just at the very end -- fires
+    once per completed cluster with a strictly shrinking pending_roles set,
+    so a process killed mid-run always leaves behind an accurate partial
+    summary instead of nothing (build 74186's original failure mode)."""
+    roles = ["mesh-1", "mesh-2"]
+    clusters = []
+    fakes = {}
+    for role in roles:
+        node_docs, agent_docs = write_state_dir(tmp_path, role, node_count=1)
+        cluster = FakeKubeCluster()
+        cluster.seed(node_docs, agent_docs)
+        fakes[role] = cluster
+        clusters.append({"role": role, "kubeconfig": f"/kube/{role}.config"})
+
+    def fake_subprocess_run(cmd, **kwargs):
+        # Route each call to the fake matching the invoked --kubeconfig.
+        role = None
+        if "--kubeconfig" in cmd:
+            kubeconfig = cmd[cmd.index("--kubeconfig") + 1]
+            role = Path(kubeconfig).stem
+        return fakes[role].run(cmd, **kwargs)
+
+    monkeypatch.setattr(reconciler.subprocess, "run", fake_subprocess_run)
+
+    calls = []
+
+    def on_result(result, results_so_far, pending_roles):
+        calls.append((result["role"], len(results_so_far), tuple(pending_roles)))
+
+    results = reconciler.reconcile_all(
+        clusters,
+        state_root=str(tmp_path),
+        expected_count=None,
+        max_concurrent=1,  # deterministic single-threaded completion order
+        attempts=3,
+        settle_seconds=0,
+        request_timeout_seconds=5,
+        on_result=on_result,
+    )
+
+    assert len(results) == 2
+    assert all(r["status"] == "ok" for r in results)
+    assert len(calls) == 2
+    # First callback: one cluster done, the other still pending.
+    assert calls[0][1] == 1
+    assert calls[0][2] == ("mesh-2",) or calls[0][0] == "mesh-2"
+    # Final callback: both done, nothing pending.
+    assert calls[1][1] == 2
+    assert calls[1][2] == ()
+
+
+# ---------------------------------------------------------------------------
+# 17. execute.yml outer-timeout budget (build 74186 fix)
+# ---------------------------------------------------------------------------
+
+EXECUTE_YML_PATH = (
+    Path(__file__).resolve().parents[3]
+    / "steps"
+    / "engine"
+    / "clusterloader2"
+    / "clustermesh-scale"
+    / "execute.yml"
+)
+
+
+def _extract_bash_function(script_text, func_name):
+    """Pull one `func_name() { ... }` block out of the embedded execute.yml
+    bash script by matching its closing brace at the SAME indentation as its
+    opening line -- avoids having to source (and thus execute) the entire
+    multi-thousand-line orchestration script just to unit-test one function.
+    """
+    match = re.search(
+        rf"^([ \t]*){re.escape(func_name)}\(\)\s*\{{\n(.*?\n)\1\}}\n",
+        script_text,
+        re.DOTALL | re.MULTILINE,
+    )
+    assert match, f"could not find function {func_name!r} in execute.yml"
+    return match.group(0)
+
+
+def _load_execute_yml_script():
+    with open(EXECUTE_YML_PATH, "r", encoding="utf-8") as handle:
+        doc = yaml.safe_load(handle)
+    return doc["steps"][1]["script"]
+
+
+def _run_budget_function(func_names, call, env):
+    script_text = _load_execute_yml_script()
+    functions_src = "".join(_extract_bash_function(script_text, name) for name in func_names)
+    bash_script = "#!/bin/bash\nset -eo pipefail\n" + functions_src + f"\n{call}\n"
+    full_env = dict(env)
+    proc = subprocess.run(  # pylint: disable=subprocess-run-check
+        ["bash", "-c", bash_script],
+        capture_output=True, text=True, timeout=10, env=full_env,
+    )
+    assert proc.returncode == 0, f"bash function invocation failed: {proc.stderr}"
+    return proc.stdout.strip()
+
+
+def test_mock_reconcile_budget_is_300s_below_50_clusters():
+    out = _run_budget_function(
+        ["scenario_mock_reconcile_budget_seconds"],
+        "cluster_count=2 scenario_mock_reconcile_budget_seconds",
+        env={"PATH": "/usr/bin:/bin", "CL2_MOCK_MODE": "true"},
+    )
+    assert out == "300"
+
+
+def test_mock_reconcile_budget_is_600s_at_or_above_50_clusters():
+    out = _run_budget_function(
+        ["scenario_mock_reconcile_budget_seconds"],
+        "cluster_count=50 scenario_mock_reconcile_budget_seconds",
+        env={"PATH": "/usr/bin:/bin", "CL2_MOCK_MODE": "true"},
+    )
+    assert out == "600"
+
+
+def test_mock_reconcile_budget_is_zero_outside_mock_mode():
+    out = _run_budget_function(
+        ["scenario_mock_reconcile_budget_seconds"],
+        "cluster_count=2 scenario_mock_reconcile_budget_seconds",
+        env={"PATH": "/usr/bin:/bin", "CL2_MOCK_MODE": "false"},
+    )
+    assert out == "0"
+
+
+def test_scenario_post_budget_seconds_reflects_bumped_mock_reconcile_budget():
+    """Proves the 300s bump propagates automatically through
+    scenario_post_budget_seconds (the shared "protected budget" accounting)
+    rather than needing every caller updated separately."""
+    out = _run_budget_function(
+        [
+            "scenario_quiet_window_seconds",
+            "scenario_artifact_budget_seconds",
+            "scenario_diag_budget_seconds",
+            "scenario_mock_reconcile_budget_seconds",
+            "scenario_cleanup_reconcile_budget_seconds",
+            "scenario_post_budget_seconds",
+        ],
+        'cluster_count=2 scenario_post_budget_seconds "generic-scenario"',
+        env={
+            "PATH": "/usr/bin:/bin",
+            "CL2_MOCK_MODE": "true",
+            "CL2_SHARE_INFRA_SETTLE_SECONDS": "60",
+            "CL2_HEALTH_GATE_TIMEOUT_BUFFER_SECONDS": "900",
+        },
+    )
+    # quiet(60) + buffer(900) + artifact(600) + diag(300) + mock_reconcile(300) + cleanup(120) = 2280
+    assert out == "2280"
+
+
+def test_run_mock_layer_reconcile_timeout_fallback_is_syntactically_wired():
+    """Static assertion that the rc=124/137 fallback summary logic exists and
+    references the required fields -- the full function also invokes a real
+    `python3`/`timeout` subprocess, so it is validated statically here rather
+    than executed end-to-end (that behavior is exercised by the Python-side
+    _build_summary/on_result tests above, which cover the same JSON shape)."""
+    script_text = _load_execute_yml_script()
+    function_src = _extract_bash_function(script_text, "run_mock_layer_reconcile")
+
+    assert '"$_rc" -eq 124' in function_src
+    assert '"$_rc" -eq 137' in function_src
+    assert ".success = false" in function_src or "success: false" in function_src
+    assert ".timed_out = true" in function_src or "timed_out: true" in function_src
+    assert "phase" in function_src
+    assert "mock-layer-reconcile[<role>] phase:" in function_src
