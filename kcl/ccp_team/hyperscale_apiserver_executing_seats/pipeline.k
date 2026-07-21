@@ -14,13 +14,13 @@ CLUSTER = "stg-${CONTROL_PLANE_SCALING_SIZE}-hyperscale-apiserver-seats"
 
 CL2_POOL = azure.NodePool {
     name = "cl2pool"
-    sku = "Standard_D16S_v4"
+    sku = "Standard_D16s_v3"
     count = 10
     taintPrefix = "cl2pool"
 }
 KWOK_POOL = azure.NodePool {
     name = "kwokpool"
-    sku = "Standard_D8_v3"
+    sku = "Standard_D2s_v3"
     count = 60
     taintPrefix = "kwok"
     labels = "kwok=true"
@@ -48,7 +48,7 @@ requestBody = util.escapeStr("""
           "name": "systempool",
           "mode": "System",
           "count": 3,
-          "vmSize": "Standard_D8S_v4",
+          "vmSize": "Standard_D8s_v3",
           "osType": "Linux",
           "maxPods": 250
         }

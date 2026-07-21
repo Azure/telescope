@@ -78,7 +78,7 @@ jobs:
                   \"name\": \"systempool\",
                   \"mode\": \"System\",
                   \"count\": 3,
-                  \"vmSize\": \"Standard_D8S_v4\",
+                  \"vmSize\": \"Standard_D8s_v3\",
                   \"osType\": \"Linux\",
                   \"maxPods\": 250
                 }
@@ -161,7 +161,7 @@ jobs:
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --name "cl2pool" \
             --node-count 10 \
-            --node-vm-size "Standard_D16S_v4" \
+            --node-vm-size "Standard_D16s_v3" \
             --mode User \
             --node-taints cl2pool=true:NoSchedule 2>&1)
           rc=$?
@@ -205,7 +205,7 @@ jobs:
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
             --name "kwokpool" \
             --node-count 60 \
-            --node-vm-size "Standard_D8_v3" \
+            --node-vm-size "Standard_D2s_v3" \
             --mode User \
             --node-taints kwok=true:NoSchedule \
           --labels "kwok=true" 2>&1)

@@ -13,7 +13,7 @@ NODE_COUNTS = {"H2": 2000, "H4": 4000, "H8": 8000}
 KWOK_NODES_PER_CONTROLLER = 100
 KWOK_POOL = azure.NodePool {
     name = "kwokpool"
-    sku = "Standard_D4_v3"
+    sku = "Standard_D4s_v3"
     count = 20
     taintPrefix = "kwok"
     labels = "kwok=true"
@@ -22,7 +22,7 @@ CL2_IMAGE = "ghcr.io/azure/clusterloader2:v20260220"
 CL2_NAMESPACE = "clusterloader2"
 CL2_POOL = azure.NodePool {
     name = "cl2pool"
-    sku = "Standard_D8S_v4"
+    sku = "Standard_D8s_v3"
     count = 1
     taintPrefix = "cl2pool"
 }
@@ -50,7 +50,7 @@ makeRequestBody = lambda scalingSize: str, cluster: str -> str {
           "name": "systempool",
           "mode": "System",
           "count": 3,
-          "vmSize": "Standard_D8S_v4",
+          "vmSize": "Standard_D8s_v3",
           "osType": "Linux",
           "maxPods": 250
         }
