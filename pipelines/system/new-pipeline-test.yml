@@ -1510,6 +1510,23 @@ stages:
       AKS_CONTROL_PLANE_AMW_RESOURCE_GROUP: clustermesh-scale-prom-snapshots
       AKS_CONTROL_PLANE_AMW_NAME_PREFIX: cmsh-scale-eastus2euap-amw
       AKS_AMW_ARM_BATCH_SIZE: "10"
+      # Bounded generation rotation (see configure-managed-prometheus.sh): the
+      # base prefix above (cmsh-scale-eastus2euap-amw) was already at
+      # 46.1408%/45.3612% active-series utilization in build 74208, above the
+      # 40% preflight threshold. Rather than failing outright or reusing the
+      # same saturated workspaces, retry against a bounded ring of 8
+      # "-rN" alternates keyed off this build's BuildId, so retries land on a
+      # fresh/under-threshold generation instead of the same overfull pair.
+      AKS_AMW_ROTATION_ENABLED: "true"
+      AKS_AMW_ROTATION_SLOT_COUNT: "8"
+      # One workspace per cluster (default AKS_AMW_CLUSTERS_PER_WORKSPACE=1)
+      # at the default 1M ingestion limits -- explicit here for clarity, but
+      # unchanged from the AKS_AMW_* config defaults. Only 2 clusters at n=2,
+      # so per-cluster workspaces stay far under the regional
+      # Microsoft.Monitor/accounts quota (see the n=100 stage below).
+      AKS_AMW_CLUSTERS_PER_WORKSPACE: "1"
+      AKS_AMW_MAX_ACTIVE_TIME_SERIES: "1000000"
+      AKS_AMW_MAX_EVENTS_PER_MINUTE: "1000000"
       AKS_CONTROL_PLANE_LAW_NAME: cmsh-scale-controlplane-law
       AKS_CONTROL_PLANE_LAW_LOCATION: eastus2
       AKS_CONTROL_PLANE_LOG_RETENTION_DAYS: "30"
@@ -1792,6 +1809,34 @@ stages:
       AKS_CONTROL_PLANE_AMW_RESOURCE_GROUP: clustermesh-scale-prom-snapshots
       AKS_CONTROL_PLANE_AMW_NAME_PREFIX: cmsh-scale-eastus2euap-n100-amw
       AKS_AMW_ARM_BATCH_SIZE: "10"
+      # Azure Monitor allows only 100 Microsoft.Monitor/accounts per
+      # subscription per region (AKS_AMW_REGIONAL_WORKSPACE_LIMIT default).
+      # The old one-workspace-per-cluster design would need 100 workspaces
+      # for this stage ALONE -- at n=100 that would exceed the regional quota
+      # by itself once the 3 pre-existing eastus2euap AMWs and the n=2
+      # full-telemetry stage's own workspace(s) are counted too. Instead,
+      # AKS_AMW_CLUSTERS_PER_WORKSPACE=2 shards the 100 clusters (sorted by
+      # numeric mesh role) into 100/2 = 50 "shard-NNN" workspaces under the
+      # cmsh-scale-eastus2euap-n100-amw prefix -- distinct from the n=2
+      # full-telemetry stage's base prefix so the two tiers never share a
+      # workspace. With the current n2 inventory (3 existing eastus2euap
+      # AMWs), the first n=100 run's regional total lands at 3 + 50 = 53,
+      # comfortably under the 100 limit (configure-managed-prometheus.sh
+      # fails closed BEFORE creation if that is ever not the case).
+      #
+      # Deliberately NO AKS_AMW_ROTATION_ENABLED / AKS_AMW_ROTATION_SLOT_COUNT
+      # here: bounded generation rotation (see the n=2 stage above) would
+      # create a SECOND set of up to 50 "-rN" shard workspaces the moment the
+      # first set is retried while saturated, silently pushing the regional
+      # total toward/over the 100 quota. An immediate retry of a saturated
+      # n=100 run is therefore intentionally left BLOCKED on preflight
+      # headroom rather than auto-creating another 50 workspaces; recovering
+      # requires an explicit operator decision (raise
+      # AKS_AMW_REGIONAL_WORKSPACE_LIMIT/ingestion limits, or archive/retire
+      # older workspaces) instead of silent, unbounded workspace growth.
+      AKS_AMW_CLUSTERS_PER_WORKSPACE: "2"
+      AKS_AMW_MAX_ACTIVE_TIME_SERIES: "2000000"
+      AKS_AMW_MAX_EVENTS_PER_MINUTE: "2000000"
       AKS_CONTROL_PLANE_METRICS_CONCURRENCY: "5"
       AKS_CONTROL_PLANE_LAW_NAME: cmsh-scale-controlplane-law
       AKS_CONTROL_PLANE_LAW_LOCATION: eastus2

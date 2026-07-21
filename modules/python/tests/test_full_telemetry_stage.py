@@ -116,6 +116,30 @@ def test_dedicated_full_telemetry_stage_is_isolated():
     assert "clustermesh-churn=true:NoSchedule" in tfvars
 
 
+def test_n2_full_telemetry_stage_enables_bounded_amw_rotation():
+    pipeline = PIPELINE_PATH.read_text(encoding="utf-8")
+    start = pipeline.index("- stage: azure_eastus2euap_n2_mock_full_telemetry")
+    end = pipeline.index(
+        "\n  - stage: azure_eastus2euap_n2_mock\n",
+        start,
+    )
+    stage = pipeline[start:end]
+
+    assert "AKS_CONTROL_PLANE_AMW_NAME_PREFIX: cmsh-scale-eastus2euap-amw" in stage
+    assert 'AKS_AMW_ROTATION_ENABLED: "true"' in stage
+    assert 'AKS_AMW_ROTATION_SLOT_COUNT: "8"' in stage
+    assert "AKS_CONTROL_PLANE_AMW_NAME:" not in stage
+    # n=2 keeps one workspace per cluster at the default 1M ingestion limits.
+    assert 'AKS_AMW_CLUSTERS_PER_WORKSPACE: "1"' in stage
+    assert 'AKS_AMW_MAX_ACTIVE_TIME_SERIES: "1000000"' in stage
+    assert 'AKS_AMW_MAX_EVENTS_PER_MINUTE: "1000000"' in stage
+
+
+def test_configure_control_plane_metrics_passes_build_id():
+    configure = CONFIGURE_TEMPLATE_PATH.read_text(encoding="utf-8")
+    assert "BUILD_ID: $(Build.BuildId)" in configure
+
+
 def test_mock_mode_is_normalized_for_shell_gates():
     execute = EXECUTE_TEMPLATE_PATH.read_text(encoding="utf-8")
 
@@ -297,6 +321,33 @@ def test_n100_stage_has_complete_workload_and_telemetry_wiring():
     assert "node_count           = 12" in tfvars
     assert "clustermesh-churn=true:NoSchedule" in tfvars
     assert 'aks_name                      = "clustermesh-100"' in tfvars
+
+
+def test_n100_stage_uses_static_sharded_workspaces_with_no_rotation():
+    pipeline = PIPELINE_PATH.read_text(encoding="utf-8")
+    start = pipeline.index("- stage: azure_eastus2euap_n100_mock")
+    end = pipeline.index("- stage: azure_eastus2euap_n1_mock_5k", start)
+    stage = pipeline[start:end]
+
+    assert (
+        "AKS_CONTROL_PLANE_AMW_NAME_PREFIX: cmsh-scale-eastus2euap-n100-amw"
+        in stage
+    )
+    # n=100 uses static clusters-per-workspace sharding + raised ingestion
+    # limits instead of the one-workspace-per-cluster default (100 clusters
+    # would need 100 workspaces on its own, see the comment in the stage).
+    assert 'AKS_AMW_CLUSTERS_PER_WORKSPACE: "2"' in stage
+    assert 'AKS_AMW_MAX_ACTIVE_TIME_SERIES: "2000000"' in stage
+    assert 'AKS_AMW_MAX_EVENTS_PER_MINUTE: "2000000"' in stage
+    # No automatic rotation for n=100: an immediate retry of a saturated run
+    # must stay blocked on preflight headroom (an explicit quota/retention
+    # decision), not silently create another 50 shard workspaces.
+    assert "AKS_AMW_ROTATION_ENABLED:" not in stage
+    assert "AKS_AMW_ROTATION_SLOT_COUNT:" not in stage
+    # Distinct from the n=2 full-telemetry stage's base prefix so the two
+    # tiers never share (or rotate into) each other's workspaces.
+    assert "cmsh-scale-eastus2euap-amw" not in stage
+    assert "AKS_CONTROL_PLANE_AMW_NAME:" not in stage
 
 
 def test_execute_yml_classifies_early_artifact_preservation_summary():

@@ -278,6 +278,8 @@ def test_configure_batches_two_cluster_workspaces_and_maps_manifest(tmp_path):
              "metrics":{"prometheusQueryEndpoint":"https://$name.example"}}
             JSON
               fi
+            elif [ "${1:-} ${2:-} ${3:-}" = "monitor account list" ]; then
+              echo '[]'
             elif [ "${1:-} ${2:-} ${3:-}" = "deployment group create" ]; then
               template=$(arg_value --template-file "$@")
               cp "$template" "$ARM_TEMPLATE_COPY"
@@ -1205,3 +1207,912 @@ def test_reconstruction_skips_when_managed_samples_are_not_ready(tmp_path):
 
     assert "not ready; skipping" in result.stdout
     assert not marker.exists()
+
+
+# ---------------------------------------------------------------------------
+# Bounded Azure Monitor workspace generation rotation
+# (configure-managed-prometheus.sh). Build 74208 (commit e39c832) failed
+# before scenarios started because both fixed n2 AMWs were already at
+# 46.1408%/45.3612% active-series utilization, above the 40% preflight
+# threshold, and the script had no fallback besides failing outright or
+# reusing the same saturated pair. These tests drive the real script
+# end-to-end with a fake `az`/`kubectl` on PATH so the selection algorithm
+# (candidate order, bounded ring wrap, "missing == fresh", "metrics-query
+# failure == unusable, never assumed fresh") is proven, not just asserted.
+# ---------------------------------------------------------------------------
+
+
+def _write_rotation_fake_az(fake_bin: Path) -> None:
+    fake_az = fake_bin / "az"
+    fake_az.write_text(
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env bash
+            set -euo pipefail
+            echo "$*" >> "$FAKE_AZ_LOG"
+            arg_value() {
+              local target="$1"
+              shift
+              while [ "$#" -gt 0 ]; do
+                if [ "$1" = "$target" ]; then
+                  printf '%s' "$2"
+                  return
+                fi
+                shift
+              done
+            }
+            if [ "${1:-} ${2:-}" = "feature show" ]; then
+              echo Registered
+            elif [ "${1:-} ${2:-}" = "provider show" ]; then
+              echo Registered
+            elif [ "${1:-} ${2:-}" = "account show" ]; then
+              echo sub-1
+            elif [ "${1:-} ${2:-}" = "group show" ]; then
+              exit 0
+            elif [ "${1:-} ${2:-} ${3:-}" = "monitor account show" ]; then
+              name=$(arg_value --name "$@")
+              [ -f "$WORKSPACE_DIR/$name" ] || exit 1
+              if [[ " $* " == *" --output json "* ]]; then
+                cat <<JSON
+            {"id":"/subscriptions/sub-1/resourceGroups/telemetry-rg/providers/Microsoft.Monitor/accounts/$name",
+             "metrics":{"prometheusQueryEndpoint":"https://$name.example"}}
+            JSON
+              fi
+            elif [ "${1:-} ${2:-} ${3:-}" = "monitor account list" ]; then
+              existing_count=$(find "$WORKSPACE_DIR" -mindepth 1 -maxdepth 1 -type f | wc -l | tr -d ' ')
+              extra="${REGIONAL_ACCOUNTS_EXTRA:-0}"
+              total=$((existing_count + extra))
+              jq -n --arg region "$REGION" --argjson total "$total" \
+                '[range(0; $total) | {location: $region, name: ("existing-account-" + (. | tostring))}]'
+            elif [ "${1:-} ${2:-} ${3:-}" = "deployment group create" ]; then
+              template=$(arg_value --template-file "$@")
+              resource_type=$(jq -r '.resources[0].type // empty' "$template")
+              if [ "$resource_type" = "Microsoft.Monitor/accounts/metricsContainers" ]; then
+                if [ -n "${LIMITS_ARM_TEMPLATE_COPY:-}" ]; then
+                  cp "$template" "$LIMITS_ARM_TEMPLATE_COPY"
+                fi
+              else
+                cp "$template" "$ARM_TEMPLATE_COPY"
+                for created_name in $(jq -r '.resources[].name' "$template"); do
+                  touch "$WORKSPACE_DIR/$created_name"
+                done
+              fi
+            elif [ "${1:-} ${2:-} ${3:-}" = "monitor metrics list" ]; then
+              resource=$(arg_value --resource "$@")
+              name=$(basename "$resource")
+              capacity_value=$(jq -r --arg name "$name" '.[$name] // "20"' "$CAPACITY_FILE")
+              if [ "$capacity_value" = "FAIL" ]; then
+                echo "simulated metrics query failure for $name" >&2
+                exit 1
+              fi
+              if [[ " $* " == *" TimeSeriesSamplesDropped "* ]]; then
+                cat <<'JSON'
+            {"value":[
+              {"name":{"value":"TimeSeriesSamplesDropped"},"timeseries":[]},
+              {"name":{"value":"EventsDropped"},"timeseries":[]}
+            ]}
+            JSON
+              else
+                cat <<JSON
+            {"value":[
+              {"name":{"value":"ActiveTimeSeriesLimit"},"timeseries":[{"data":[{"maximum":1000000}]}]},
+              {"name":{"value":"ActiveTimeSeriesPercentUtilization"},"timeseries":[{"data":[{"maximum":$capacity_value}]}]},
+              {"name":{"value":"EventsPerMinuteIngestedLimit"},"timeseries":[{"data":[{"maximum":1000000}]}]},
+              {"name":{"value":"EventsPerMinuteIngestedPercentUtilization"},"timeseries":[{"data":[{"maximum":$capacity_value}]}]}
+            ]}
+            JSON
+              fi
+            elif [ "${1:-} ${2:-}" = "resource show" ]; then
+              # Fresh, unattached Azure Monitor workspaces may never emit an
+              # ActiveTimeSeriesLimit/EventsPerMinuteIngestedLimit metric
+              # sample, so the real script verifies the requested ingestion
+              # limits by reading the metricsContainers/default ARM child
+              # resource directly instead. Simulate that here, including
+              # optional query failures and delayed convergence, driven by
+              # LIMITS_FILE.
+              resource_ids=$(arg_value --ids "$@")
+              name=$(echo "$resource_ids" | sed -E 's#.*/accounts/([^/]+)/metricsContainers/default$#\\1#')
+              if [ -n "${LIMITS_FILE:-}" ] && [ -s "$LIMITS_FILE" ]; then
+                query_fails=$(jq -r --arg name "$name" '.[$name].fail // false' "$LIMITS_FILE")
+                if [ "$query_fails" = "true" ]; then
+                  echo "simulated metricsContainers query failure for $name" >&2
+                  exit 1
+                fi
+                converge_after_attempt=$(jq -r --arg name "$name" '.[$name].converge_after_attempt // 1' "$LIMITS_FILE")
+                attempt=1
+                if [ -n "${RESOURCE_SHOW_STATE_DIR:-}" ]; then
+                  mkdir -p "$RESOURCE_SHOW_STATE_DIR"
+                  state_file="$RESOURCE_SHOW_STATE_DIR/$name"
+                  attempt=$(( $(cat "$state_file" 2>/dev/null || echo 0) + 1 ))
+                  echo "$attempt" > "$state_file"
+                fi
+                if [ "$attempt" -lt "$converge_after_attempt" ]; then
+                  active_limit=$(jq -r --arg name "$name" '.[$name].pending_active_limit // 0' "$LIMITS_FILE")
+                  events_limit=$(jq -r --arg name "$name" '.[$name].pending_events_limit // 0' "$LIMITS_FILE")
+                else
+                  active_limit=$(jq -r --arg name "$name" '.[$name].active_limit // 1000000' "$LIMITS_FILE")
+                  events_limit=$(jq -r --arg name "$name" '.[$name].events_limit // 1000000' "$LIMITS_FILE")
+                fi
+              else
+                active_limit=1000000
+                events_limit=1000000
+              fi
+              jq -n --argjson active "$active_limit" --argjson events "$events_limit" \
+                '{properties:{limits:{maxActiveTimeSeries:$active,maxEventsPerMinute:$events}}}'
+            elif [ "${1:-} ${2:-} ${3:-}" = "monitor log-analytics workspace" ]; then
+              if [ "${4:-}" = "show" ]; then
+                cat <<'JSON'
+            {"id":"law-resource-id","customerId":"law-customer-id"}
+            JSON
+              fi
+            elif [ "${1:-} ${2:-}" = "aks get-credentials" ]; then
+              file=$(arg_value --file "$@")
+              mkdir -p "$(dirname "$file")"
+              touch "$file"
+            elif [ "${1:-} ${2:-}" = "aks update" ]; then
+              exit 0
+            elif [ "${1:-} ${2:-}" = "aks show" ]; then
+              echo true
+            elif [[ " $* " == *" diagnostic-settings categories list "* ]]; then
+              cat <<'JSON'
+            {"value":[
+              {"categoryType":"Logs","name":"kube-audit"},
+              {"categoryType":"Metrics","name":"AllMetrics"}
+            ]}
+            JSON
+            elif [[ " $* " == *" diagnostic-settings create "* ]]; then
+              exit 0
+            else
+              echo "Unexpected az command: $*" >&2
+              exit 1
+            fi
+            """
+        ),
+        encoding="utf-8",
+    )
+    fake_az.chmod(fake_az.stat().st_mode | stat.S_IXUSR)
+
+
+def _write_rotation_fake_kubectl(fake_bin: Path) -> None:
+    fake_kubectl = fake_bin / "kubectl"
+    fake_kubectl.write_text(
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env bash
+            set -euo pipefail
+            if [ "${1:-} ${2:-}" = "create namespace" ]; then
+              printf '%s\\n' 'apiVersion: v1' 'kind: Namespace' 'metadata:' '  name: monitoring'
+            elif [ "${1:-} ${2:-} ${3:-}" = "apply -f -" ]; then
+              cat >/dev/null
+            else
+              exit 0
+            fi
+            """
+        ),
+        encoding="utf-8",
+    )
+    fake_kubectl.chmod(fake_kubectl.stat().st_mode | stat.S_IXUSR)
+
+
+def _run_rotation_configure(
+    tmp_path,
+    *,
+    roles,
+    existing_workspaces=None,
+    capacity=None,
+    limits=None,
+    regional_accounts_extra=0,
+    env_overrides=None,
+):
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    _write_rotation_fake_az(fake_bin)
+    _write_rotation_fake_kubectl(fake_bin)
+
+    workspace_dir = tmp_path / "workspaces"
+    workspace_dir.mkdir()
+    for name in existing_workspaces or []:
+        (workspace_dir / name).write_text("pre-existing", encoding="utf-8")
+
+    capacity_file = tmp_path / "capacity.json"
+    capacity_file.write_text(json.dumps(capacity or {}), encoding="utf-8")
+    limits_file = tmp_path / "limits.json"
+    limits_file.write_text(json.dumps(limits or {}), encoding="utf-8")
+
+    az_log = tmp_path / "az.log"
+    arm_template_copy = tmp_path / "arm-template.json"
+    limits_arm_template_copy = tmp_path / "limits-arm-template.json"
+
+    clusters_file = tmp_path / "clusters.json"
+    clusters_file.write_text(
+        json.dumps(
+            [
+                {"role": role, "name": f"aks-{role}", "rg": "run-rg"}
+                for role in roles
+            ]
+        ),
+        encoding="utf-8",
+    )
+    manifest_path = tmp_path / "run-manifest.json"
+
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "AKS_CONTROL_PLANE_METRICS_ENABLED": "true",
+            "AKS_CONTROL_PLANE_METRICS_REGISTER_PREVIEW": "false",
+            "AKS_CONTROL_PLANE_AMW_RESOURCE_GROUP": "telemetry-rg",
+            "AKS_CONTROL_PLANE_AMW_NAME_PREFIX": "test-amw",
+            "AKS_AMW_ARM_BATCH_SIZE": "10",
+            "AKS_AMW_METRICS_QUERY_ATTEMPTS": "1",
+            "AKS_AMW_METRICS_QUERY_RETRY_SECONDS": "0",
+            "AKS_AMW_LIMIT_VERIFY_ATTEMPTS": "1",
+            "AKS_AMW_LIMIT_VERIFY_RETRY_SECONDS": "0",
+            "RUN_ID": "build-123",
+            "REGION": "eastus2euap",
+            "CLUSTERS_FILE": str(clusters_file),
+            "CONFIGMAP_PATH": str(
+                TELEMETRY_DIR / "ama-metrics-settings-configmap.yaml"
+            ),
+            "CONTROL_PLANE_MONITORS_PATH": str(
+                TELEMETRY_DIR / "azure-monitor-control-plane-monitors.yaml"
+            ),
+            "MANIFEST_PATH": str(manifest_path),
+            "FAKE_AZ_LOG": str(az_log),
+            "WORKSPACE_DIR": str(workspace_dir),
+            "CAPACITY_FILE": str(capacity_file),
+            "LIMITS_FILE": str(limits_file),
+            "RESOURCE_SHOW_STATE_DIR": str(tmp_path / "resource-show-state"),
+            "REGIONAL_ACCOUNTS_EXTRA": str(regional_accounts_extra),
+            "ARM_TEMPLATE_COPY": str(arm_template_copy),
+            "LIMITS_ARM_TEMPLATE_COPY": str(limits_arm_template_copy),
+            "HOME": str(tmp_path),
+            "PATH": f"{fake_bin}:{environment['PATH']}",
+        }
+    )
+    environment.update(env_overrides or {})
+
+    result = subprocess.run(
+        ["bash", str(TELEMETRY_DIR / "configure-managed-prometheus.sh")],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=30,
+    )
+    manifest = None
+    if manifest_path.exists():
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    return result, manifest, workspace_dir, az_log
+
+
+def test_rotation_selects_base_when_missing(tmp_path):
+    result, manifest, workspace_dir, _ = _run_rotation_configure(
+        tmp_path,
+        roles=["mesh-1"],
+        env_overrides={
+            "AKS_AMW_ROTATION_ENABLED": "true",
+            "AKS_AMW_ROTATION_SLOT_COUNT": "8",
+            "BUILD_ID": "100",
+        },
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert manifest["workspace_rotation"] == {
+        "enabled": True,
+        "slot_count": 8,
+        "base_prefix": "test-amw",
+        "selected_prefix": "test-amw",
+        "generation": "base",
+        "build_id": "100",
+    }
+    assert manifest["workspaces"][0]["name"] == "test-amw-mesh-1"
+    assert manifest["workspaces"][0]["generation"] == "base"
+    assert manifest["workspaces"][0]["prefix"] == "test-amw"
+    assert (workspace_dir / "test-amw-mesh-1").exists()
+
+
+def test_rotation_selects_base_when_under_threshold(tmp_path):
+    result, manifest, _, _ = _run_rotation_configure(
+        tmp_path,
+        roles=["mesh-1"],
+        existing_workspaces=["test-amw-mesh-1"],
+        capacity={"test-amw-mesh-1": 10},
+        env_overrides={
+            "AKS_AMW_ROTATION_ENABLED": "true",
+            "AKS_AMW_ROTATION_SLOT_COUNT": "8",
+            "BUILD_ID": "100",
+        },
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert manifest["workspace_rotation"]["selected_prefix"] == "test-amw"
+    assert manifest["workspace_rotation"]["generation"] == "base"
+
+
+def test_rotation_over_threshold_chooses_deterministic_ring_slot(tmp_path):
+    # BUILD_ID % slot_count == 100 % 8 == 4, so the first ring candidate
+    # tried must be "-r4" -- deterministic, not the smallest free slot.
+    result, manifest, _, _ = _run_rotation_configure(
+        tmp_path,
+        roles=["mesh-1"],
+        existing_workspaces=["test-amw-mesh-1"],
+        capacity={"test-amw-mesh-1": 90},
+        env_overrides={
+            "AKS_AMW_ROTATION_ENABLED": "true",
+            "AKS_AMW_ROTATION_SLOT_COUNT": "8",
+            "BUILD_ID": "100",
+        },
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert manifest["workspace_rotation"]["selected_prefix"] == "test-amw-r4"
+    assert manifest["workspace_rotation"]["generation"] == "r4"
+
+
+def test_rotation_wraps_ring_when_first_ring_slot_is_also_full(tmp_path):
+    result, manifest, _, _ = _run_rotation_configure(
+        tmp_path,
+        roles=["mesh-1"],
+        existing_workspaces=["test-amw-mesh-1", "test-amw-r4-mesh-1"],
+        capacity={"test-amw-mesh-1": 90, "test-amw-r4-mesh-1": 95},
+        env_overrides={
+            "AKS_AMW_ROTATION_ENABLED": "true",
+            "AKS_AMW_ROTATION_SLOT_COUNT": "8",
+            "BUILD_ID": "100",
+        },
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert manifest["workspace_rotation"]["selected_prefix"] == "test-amw-r5"
+    assert manifest["workspace_rotation"]["generation"] == "r5"
+
+
+def test_rotation_fails_clearly_when_all_bounded_candidates_are_full(tmp_path):
+    result, manifest, _, _ = _run_rotation_configure(
+        tmp_path,
+        roles=["mesh-1"],
+        existing_workspaces=[
+            "test-amw-mesh-1",
+            "test-amw-r0-mesh-1",
+            "test-amw-r1-mesh-1",
+        ],
+        capacity={
+            "test-amw-mesh-1": 90,
+            "test-amw-r0-mesh-1": 91,
+            "test-amw-r1-mesh-1": 92,
+        },
+        env_overrides={
+            "AKS_AMW_ROTATION_ENABLED": "true",
+            "AKS_AMW_ROTATION_SLOT_COUNT": "2",
+            "BUILD_ID": "0",
+        },
+    )
+
+    assert result.returncode != 0
+    assert manifest is None
+    assert "over the 40% preflight threshold" in result.stderr
+    assert "bounded ring slot" in result.stderr
+    assert "refusing to synthesize an unbounded workspace name" in result.stderr
+
+
+def test_rotation_metric_query_failure_rejects_candidate_not_assumed_fresh(
+    tmp_path,
+):
+    # The base workspace EXISTS but its capacity query genuinely fails; that
+    # must reject the base candidate outright rather than treat it as fresh.
+    result, manifest, _, _ = _run_rotation_configure(
+        tmp_path,
+        roles=["mesh-1"],
+        existing_workspaces=["test-amw-mesh-1"],
+        capacity={"test-amw-mesh-1": "FAIL"},
+        env_overrides={
+            "AKS_AMW_ROTATION_ENABLED": "true",
+            "AKS_AMW_ROTATION_SLOT_COUNT": "8",
+            "BUILD_ID": "100",
+        },
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert manifest["workspace_rotation"]["selected_prefix"] != "test-amw"
+    assert manifest["workspace_rotation"]["selected_prefix"] == "test-amw-r4"
+    assert manifest["workspace_rotation"]["generation"] == "r4"
+
+
+def test_rotation_enforces_63_char_name_limit_per_candidate(tmp_path):
+    long_prefix = "x" * 60
+    result, manifest, _, _ = _run_rotation_configure(
+        tmp_path,
+        roles=["mesh-1"],
+        env_overrides={
+            "AKS_CONTROL_PLANE_AMW_NAME_PREFIX": long_prefix,
+            "AKS_AMW_ROTATION_ENABLED": "true",
+            "AKS_AMW_ROTATION_SLOT_COUNT": "2",
+            "BUILD_ID": "0",
+        },
+    )
+
+    assert result.returncode != 0
+    assert manifest is None
+    assert "exceeds 63 characters" in result.stderr
+
+
+def test_rotation_rejects_legacy_amw_name(tmp_path):
+    result, manifest, _, _ = _run_rotation_configure(
+        tmp_path,
+        roles=["mesh-1"],
+        env_overrides={
+            "AKS_CONTROL_PLANE_AMW_NAME": "legacy-shared-amw",
+            "AKS_AMW_ROTATION_ENABLED": "true",
+            "AKS_AMW_ROTATION_SLOT_COUNT": "2",
+            "BUILD_ID": "0",
+        },
+    )
+
+    assert result.returncode != 0
+    assert manifest is None
+    assert (
+        "AKS_CONTROL_PLANE_AMW_NAME cannot be combined with "
+        "AKS_AMW_ROTATION_ENABLED"
+    ) in result.stderr
+
+
+def test_rotation_slot_count_bounded_to_16(tmp_path):
+    result, manifest, _, _ = _run_rotation_configure(
+        tmp_path,
+        roles=["mesh-1"],
+        env_overrides={
+            "AKS_AMW_ROTATION_ENABLED": "true",
+            "AKS_AMW_ROTATION_SLOT_COUNT": "17",
+            "BUILD_ID": "0",
+        },
+    )
+
+    assert result.returncode != 0
+    assert manifest is None
+    assert (
+        "AKS_AMW_ROTATION_SLOT_COUNT must be a positive integer no greater "
+        "than 16"
+    ) in result.stderr
+
+
+def test_rotation_disabled_still_tags_generation_and_preserves_existing_tags(
+    tmp_path,
+):
+    result, manifest, _, _ = _run_rotation_configure(
+        tmp_path,
+        roles=["mesh-1", "mesh-2"],
+        env_overrides={"BUILD_ID": "77"},
+    )
+
+    assert result.returncode == 0, result.stderr
+    arm_template = json.loads(
+        (tmp_path / "arm-template.json").read_text(encoding="utf-8")
+    )
+    assert arm_template["resources"]
+    for resource in arm_template["resources"]:
+        assert resource["tags"]["gc_skip"] == "true"
+        assert resource["tags"]["persistent"] == "true"
+        assert resource["tags"]["workspace_generation"] == "base"
+        assert resource["tags"]["created_build_id"] == "77"
+    assert manifest["workspace_rotation"] == {
+        "enabled": False,
+        "slot_count": 1,
+        "base_prefix": "test-amw",
+        "selected_prefix": "test-amw",
+        "generation": "base",
+        "build_id": "77",
+    }
+    for workspace in manifest["workspaces"]:
+        assert workspace["generation"] == "base"
+        assert workspace["prefix"] == "test-amw"
+
+
+# ---------------------------------------------------------------------------
+# AMW sharding (AKS_AMW_CLUSTERS_PER_WORKSPACE), regional workspace quota
+# (AKS_AMW_REGIONAL_WORKSPACE_LIMIT), and per-workspace ingestion limit
+# overrides (AKS_AMW_MAX_ACTIVE_TIME_SERIES / AKS_AMW_MAX_EVENTS_PER_MINUTE)
+# in configure-managed-prometheus.sh. Azure Monitor allows only 100
+# Microsoft.Monitor/accounts per subscription per region; a strict
+# one-workspace-per-cluster design does not scale (n=100 would need 100
+# workspaces on its own), so a bounded number of clusters can share a
+# workspace, and the regional quota is checked BEFORE any ARM creation.
+# ---------------------------------------------------------------------------
+
+
+def test_clusters_per_workspace_default_preserves_per_role_workspace_names(
+    tmp_path,
+):
+    # AKS_AMW_CLUSTERS_PER_WORKSPACE defaults to 1: identical, backwards
+    # compatible role-derived slot/workspace names.
+    result, manifest, _, _ = _run_rotation_configure(
+        tmp_path,
+        roles=["mesh-1", "mesh-2"],
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert {w["name"] for w in manifest["workspaces"]} == {
+        "test-amw-mesh-1",
+        "test-amw-mesh-2",
+    }
+    assert {w["slot"] for w in manifest["workspaces"]} == {"mesh-1", "mesh-2"}
+    assert manifest["workspace_sharding"] == {
+        "clusters_per_workspace": 1,
+        "cluster_count": 2,
+        "workspace_count": 2,
+    }
+    for workspace in manifest["workspaces"]:
+        assert workspace["clusters_per_workspace"] == 1
+
+
+def test_sharding_100_clusters_at_cpw2_creates_50_deterministic_shards(
+    tmp_path,
+):
+    # CLUSTERS_FILE order is deliberately NOT sorted (descending) to prove
+    # the script sorts by numeric mesh role before sharding, rather than
+    # depending on on-disk row order.
+    roles = [f"mesh-{i}" for i in range(100, 0, -1)]
+    result, manifest, _, _ = _run_rotation_configure(
+        tmp_path,
+        roles=roles,
+        env_overrides={"AKS_AMW_CLUSTERS_PER_WORKSPACE": "2"},
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert manifest["workspace_sharding"] == {
+        "clusters_per_workspace": 2,
+        "cluster_count": 100,
+        "workspace_count": 50,
+    }
+    expected_names = {f"test-amw-shard-{i:03d}" for i in range(1, 51)}
+    assert {w["name"] for w in manifest["workspaces"]} == expected_names
+
+    cluster_by_role = {c["role"]: c for c in manifest["clusters"]}
+    assert (
+        cluster_by_role["mesh-1"]["workspace"]["name"]
+        == "test-amw-shard-001"
+    )
+    assert (
+        cluster_by_role["mesh-2"]["workspace"]["name"]
+        == "test-amw-shard-001"
+    )
+    assert (
+        cluster_by_role["mesh-99"]["workspace"]["name"]
+        == "test-amw-shard-050"
+    )
+    assert (
+        cluster_by_role["mesh-100"]["workspace"]["name"]
+        == "test-amw-shard-050"
+    )
+
+
+def test_sharding_odd_cluster_count_leaves_final_shard_partial(tmp_path):
+    roles = [f"mesh-{i}" for i in range(1, 6)]  # 5 clusters, cpw=2 -> 3 shards
+    result, manifest, _, _ = _run_rotation_configure(
+        tmp_path,
+        roles=roles,
+        env_overrides={"AKS_AMW_CLUSTERS_PER_WORKSPACE": "2"},
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert manifest["workspace_sharding"] == {
+        "clusters_per_workspace": 2,
+        "cluster_count": 5,
+        "workspace_count": 3,
+    }
+    cluster_by_role = {c["role"]: c for c in manifest["clusters"]}
+    assert (
+        cluster_by_role["mesh-1"]["workspace"]["name"]
+        == cluster_by_role["mesh-2"]["workspace"]["name"]
+        == "test-amw-shard-001"
+    )
+    assert (
+        cluster_by_role["mesh-3"]["workspace"]["name"]
+        == cluster_by_role["mesh-4"]["workspace"]["name"]
+        == "test-amw-shard-002"
+    )
+    assert cluster_by_role["mesh-5"]["workspace"]["name"] == "test-amw-shard-003"
+
+
+def test_regional_workspace_quota_fails_before_any_arm_creation(tmp_path):
+    # 5 missing candidate workspaces + 96 pre-existing regional accounts ==
+    # 101, over the default AKS_AMW_REGIONAL_WORKSPACE_LIMIT of 100. Must
+    # fail BEFORE any "deployment group create" call / workspace file.
+    roles = [f"mesh-{i}" for i in range(1, 6)]
+    result, manifest, workspace_dir, az_log = _run_rotation_configure(
+        tmp_path,
+        roles=roles,
+        regional_accounts_extra=96,
+    )
+
+    assert result.returncode != 0
+    assert manifest is None
+    assert list(workspace_dir.iterdir()) == []
+    assert "deployment group create" not in az_log.read_text(
+        encoding="utf-8"
+    )
+    combined_output = result.stdout + result.stderr
+    assert "existing=96" in combined_output
+    assert "missing_candidate=5" in combined_output
+    assert "projected_total=101" in combined_output
+    assert "limit=100" in combined_output
+    assert (
+        "exceeding AKS_AMW_REGIONAL_WORKSPACE_LIMIT" in result.stderr
+    )
+
+
+def test_regional_workspace_quota_passes_under_limit(tmp_path):
+    roles = [f"mesh-{i}" for i in range(1, 6)]
+    result, manifest, _, az_log = _run_rotation_configure(
+        tmp_path,
+        roles=roles,
+        regional_accounts_extra=94,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "deployment group create" in az_log.read_text(encoding="utf-8")
+    assert manifest["workspace_regional_quota"] == {
+        "region": "eastus2euap",
+        "limit": 100,
+        "existing_before_run": 94,
+        "created_this_run": 5,
+        "projected_total": 99,
+    }
+
+
+def test_manifest_records_sharding_limits_and_regional_quota(tmp_path):
+    result, manifest, _, _ = _run_rotation_configure(
+        tmp_path,
+        roles=["mesh-1", "mesh-2"],
+        regional_accounts_extra=5,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert manifest["workspace_sharding"] == {
+        "clusters_per_workspace": 1,
+        "cluster_count": 2,
+        "workspace_count": 2,
+    }
+    assert manifest["workspace_ingestion_limits"] == {
+        "max_active_time_series": 1000000,
+        "max_events_per_minute": 1000000,
+        "overrides_requested": False,
+    }
+    assert manifest["workspace_regional_quota"] == {
+        "region": "eastus2euap",
+        "limit": 100,
+        "existing_before_run": 5,
+        "created_this_run": 2,
+        "projected_total": 7,
+    }
+    for workspace in manifest["workspaces"]:
+        assert workspace["requested_limits"] == {
+            "max_active_time_series": 1000000,
+            "max_events_per_minute": 1000000,
+        }
+
+
+def test_ingestion_limit_override_deploys_metrics_container_child_resource(
+    tmp_path,
+):
+    result, manifest, _, _ = _run_rotation_configure(
+        tmp_path,
+        roles=["mesh-1"],
+        limits={
+            "test-amw-mesh-1": {
+                "active_limit": 2000000,
+                "events_limit": 2000000,
+            }
+        },
+        env_overrides={
+            "AKS_AMW_MAX_ACTIVE_TIME_SERIES": "2000000",
+            "AKS_AMW_MAX_EVENTS_PER_MINUTE": "2000000",
+        },
+    )
+
+    assert result.returncode == 0, result.stderr
+
+    arm_template = json.loads(
+        (tmp_path / "arm-template.json").read_text(encoding="utf-8")
+    )
+    for resource in arm_template["resources"]:
+        assert resource["tags"]["clusters_per_workspace"] == "1"
+        assert resource["tags"]["requested_max_active_time_series"] == "2000000"
+        assert resource["tags"]["requested_max_events_per_minute"] == "2000000"
+
+    limits_arm_template = json.loads(
+        (tmp_path / "limits-arm-template.json").read_text(encoding="utf-8")
+    )
+    assert limits_arm_template["resources"] == [
+        {
+            "type": "Microsoft.Monitor/accounts/metricsContainers",
+            "apiVersion": "2025-05-03-preview",
+            "name": "test-amw-mesh-1/default",
+            "location": "eastus2euap",
+            "properties": {
+                "limits": {
+                    "maxActiveTimeSeries": 2000000,
+                    "maxEventsPerMinute": 2000000,
+                }
+            },
+        }
+    ]
+
+    assert (
+        "Verified Azure Monitor workspace test-amw-mesh-1 ingestion limits "
+        "meet the requested values." in result.stdout
+    )
+    assert manifest["workspace_ingestion_limits"] == {
+        "max_active_time_series": 2000000,
+        "max_events_per_minute": 2000000,
+        "overrides_requested": True,
+    }
+    for workspace in manifest["workspaces"]:
+        assert workspace["clusters_per_workspace"] == 1
+        assert workspace["requested_limits"] == {
+            "max_active_time_series": 2000000,
+            "max_events_per_minute": 2000000,
+        }
+
+
+def test_ingestion_limit_verification_fails_closed_when_limit_not_met(
+    tmp_path,
+):
+    # Reported active-series limit (1.5M) never reaches the requested 2M.
+    result, manifest, _, _ = _run_rotation_configure(
+        tmp_path,
+        roles=["mesh-1"],
+        limits={
+            "test-amw-mesh-1": {
+                "active_limit": 1500000,
+                "events_limit": 2000000,
+            }
+        },
+        env_overrides={
+            "AKS_AMW_MAX_ACTIVE_TIME_SERIES": "2000000",
+            "AKS_AMW_MAX_EVENTS_PER_MINUTE": "2000000",
+        },
+    )
+
+    assert result.returncode != 0
+    assert manifest is None
+    assert "did not reach the requested values" in result.stderr
+    assert "failing closed" in result.stderr
+
+
+def test_ingestion_limit_verification_fails_closed_on_query_failure(
+    tmp_path,
+):
+    result, manifest, _, _ = _run_rotation_configure(
+        tmp_path,
+        roles=["mesh-1"],
+        limits={"test-amw-mesh-1": {"fail": True}},
+        env_overrides={
+            "AKS_AMW_MAX_ACTIVE_TIME_SERIES": "2000000",
+            "AKS_AMW_MAX_EVENTS_PER_MINUTE": "2000000",
+        },
+    )
+
+    assert result.returncode != 0
+    assert manifest is None
+    assert "Unable to query ingestion limits" in result.stderr
+    assert "failing closed" in result.stderr
+
+
+def test_ingestion_limit_verification_succeeds_on_delayed_convergence(
+    tmp_path,
+):
+    # The metricsContainers/default ARM child resource reports the
+    # pre-override limits on the first two polls (simulating the ARM
+    # override not having converged yet) and only reflects the requested
+    # 2M limits starting on the third poll. Verification must retry and
+    # ultimately succeed rather than failing closed on the earlier polls.
+    result, manifest, _, az_log = _run_rotation_configure(
+        tmp_path,
+        roles=["mesh-1"],
+        limits={
+            "test-amw-mesh-1": {
+                "active_limit": 2000000,
+                "events_limit": 2000000,
+                "pending_active_limit": 1000000,
+                "pending_events_limit": 1000000,
+                "converge_after_attempt": 3,
+            }
+        },
+        env_overrides={
+            "AKS_AMW_MAX_ACTIVE_TIME_SERIES": "2000000",
+            "AKS_AMW_MAX_EVENTS_PER_MINUTE": "2000000",
+            "AKS_AMW_LIMIT_VERIFY_ATTEMPTS": "5",
+            "AKS_AMW_LIMIT_VERIFY_RETRY_SECONDS": "0",
+        },
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert (
+        "not yet applied" in result.stderr
+    )
+    assert (
+        "Verified Azure Monitor workspace test-amw-mesh-1 ingestion limits "
+        "meet the requested values." in result.stdout
+    )
+    assert manifest["workspace_ingestion_limits"] == {
+        "max_active_time_series": 2000000,
+        "max_events_per_minute": 2000000,
+        "overrides_requested": True,
+    }
+    resource_show_calls = [
+        line
+        for line in az_log.read_text(encoding="utf-8").splitlines()
+        if line.startswith("resource show")
+    ]
+    assert len(resource_show_calls) >= 3
+
+
+def test_ingestion_limit_verification_queries_exact_resource_id_and_api_version(
+    tmp_path,
+):
+    # The ARM verification must target the metricsContainers/default child
+    # resource of the workspace being verified, at the same
+    # 2025-05-03-preview API version used to deploy the override, and must
+    # not fall back to a query that could silently target the wrong
+    # resource.
+    result, _, _, az_log = _run_rotation_configure(
+        tmp_path,
+        roles=["mesh-1"],
+        limits={
+            "test-amw-mesh-1": {
+                "active_limit": 2000000,
+                "events_limit": 2000000,
+            }
+        },
+        env_overrides={
+            "AKS_AMW_MAX_ACTIVE_TIME_SERIES": "2000000",
+            "AKS_AMW_MAX_EVENTS_PER_MINUTE": "2000000",
+        },
+    )
+
+    assert result.returncode == 0, result.stderr
+    expected_resource_id = (
+        "/subscriptions/sub-1/resourceGroups/telemetry-rg/providers/"
+        "Microsoft.Monitor/accounts/test-amw-mesh-1/metricsContainers/default"
+    )
+    resource_show_calls = [
+        line
+        for line in az_log.read_text(encoding="utf-8").splitlines()
+        if line.startswith("resource show")
+    ]
+    assert resource_show_calls, "expected an 'az resource show' invocation"
+    assert any(
+        f"--ids {expected_resource_id}" in call
+        and "--api-version 2025-05-03-preview" in call
+        for call in resource_show_calls
+    )
+
+
+def test_amw_clusters_per_workspace_rejects_out_of_range_values(tmp_path):
+    result, manifest, _, _ = _run_rotation_configure(
+        tmp_path,
+        roles=["mesh-1"],
+        env_overrides={"AKS_AMW_CLUSTERS_PER_WORKSPACE": "11"},
+    )
+
+    assert result.returncode != 0
+    assert manifest is None
+    assert (
+        "AKS_AMW_CLUSTERS_PER_WORKSPACE must be a positive integer no "
+        "greater than 10" in result.stderr
+    )
+
+
+def test_amw_regional_workspace_limit_rejects_non_positive_values(tmp_path):
+    result, manifest, _, _ = _run_rotation_configure(
+        tmp_path,
+        roles=["mesh-1"],
+        env_overrides={"AKS_AMW_REGIONAL_WORKSPACE_LIMIT": "0"},
+    )
+
+    assert result.returncode != 0
+    assert manifest is None
+    assert (
+        "AKS_AMW_REGIONAL_WORKSPACE_LIMIT must be a positive integer"
+        in result.stderr
+    )

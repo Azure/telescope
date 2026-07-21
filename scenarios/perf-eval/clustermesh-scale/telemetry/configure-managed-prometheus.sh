@@ -100,6 +100,27 @@ diagnostic_setting_name="${AKS_CONTROL_PLANE_DIAGNOSTIC_SETTING_NAME:-clustermes
 amw_arm_batch_size="${AKS_AMW_ARM_BATCH_SIZE:-10}"
 preflight_window_minutes="${AKS_AMW_PREFLIGHT_WINDOW_MINUTES:-15}"
 preflight_threshold="${AKS_AMW_PREFLIGHT_MAX_UTILIZATION_PERCENT:-40}"
+# Bounded generation rotation: when a workspace generation is over the
+# preflight threshold, retry against a small, fixed ring of alternate
+# generations instead of reusing the same (possibly saturated) workspaces or
+# synthesizing an unbounded, build-ID-derived resource name.
+amw_rotation_enabled="${AKS_AMW_ROTATION_ENABLED:-false}"
+amw_rotation_slot_count="${AKS_AMW_ROTATION_SLOT_COUNT:-1}"
+amw_build_id="${BUILD_ID:-unknown}"
+# Azure Monitor allows only 100 workspaces per subscription per region. A
+# one-workspace-per-cluster design does not scale past small cluster counts
+# (e.g. n=100 would need 100 workspaces on its own), so AMWs can be shared by
+# a bounded number of clusters, and the regional headroom is checked before
+# any workspace is created (see the quota guard below).
+amw_clusters_per_workspace="${AKS_AMW_CLUSTERS_PER_WORKSPACE:-1}"
+amw_default_max_active_time_series=1000000
+amw_default_max_events_per_minute=1000000
+amw_max_active_time_series="${AKS_AMW_MAX_ACTIVE_TIME_SERIES:-$amw_default_max_active_time_series}"
+amw_max_events_per_minute="${AKS_AMW_MAX_EVENTS_PER_MINUTE:-$amw_default_max_events_per_minute}"
+amw_regional_workspace_limit="${AKS_AMW_REGIONAL_WORKSPACE_LIMIT:-100}"
+# Shared across the metricsContainers deployment below and its ARM-level
+# verification, so both always target the same child-resource API version.
+amw_metrics_container_api_version="2025-05-03-preview"
 
 if ! [[ "$amw_arm_batch_size" =~ ^[1-9][0-9]*$ ]]; then
   echo "AKS_AMW_ARM_BATCH_SIZE must be a positive integer." >&2
@@ -109,8 +130,51 @@ if ! [[ "$preflight_window_minutes" =~ ^[1-9][0-9]*$ ]]; then
   echo "AKS_AMW_PREFLIGHT_WINDOW_MINUTES must be a positive integer." >&2
   exit 1
 fi
+if ! [[ "$amw_clusters_per_workspace" =~ ^[1-9][0-9]*$ ]] ||
+   [ "$amw_clusters_per_workspace" -gt 10 ]; then
+  echo "AKS_AMW_CLUSTERS_PER_WORKSPACE must be a positive integer no greater than 10." >&2
+  exit 1
+fi
+if ! [[ "$amw_max_active_time_series" =~ ^[1-9][0-9]*$ ]]; then
+  echo "AKS_AMW_MAX_ACTIVE_TIME_SERIES must be a positive integer." >&2
+  exit 1
+fi
+if ! [[ "$amw_max_events_per_minute" =~ ^[1-9][0-9]*$ ]]; then
+  echo "AKS_AMW_MAX_EVENTS_PER_MINUTE must be a positive integer." >&2
+  exit 1
+fi
+if ! [[ "$amw_regional_workspace_limit" =~ ^[1-9][0-9]*$ ]]; then
+  echo "AKS_AMW_REGIONAL_WORKSPACE_LIMIT must be a positive integer." >&2
+  exit 1
+fi
 
-mapfile -t source_cluster_rows < <(jq -c '.[]' "$CLUSTERS_FILE")
+# Sort clusters deterministically by numeric mesh role (e.g. "mesh-12" -> 12)
+# when the role encodes one; roles without a trailing number sort after the
+# numeric ones, alphabetically. Sharing order-derived shard assignments
+# (below) therefore does not depend on CLUSTERS_FILE's on-disk row order.
+mapfile -t source_cluster_rows < <(
+  jq -c '
+    map(
+      . as $row
+      | ([$row.role | scan("[0-9]+")]) as $matches
+      | $row + {
+          _numeric_role: (
+            if ($matches | length) > 0
+            then ($matches[-1] | tonumber)
+            else null
+            end
+          )
+        }
+    )
+    | sort_by([
+        (if ._numeric_role == null then 1 else 0 end),
+        (._numeric_role // 0),
+        .role
+      ])
+    | map(del(._numeric_role))
+    | .[]
+  ' "$CLUSTERS_FILE"
+)
 if [ "${#source_cluster_rows[@]}" -eq 0 ]; then
   echo "No clusters found in $CLUSTERS_FILE" >&2
   exit 1
@@ -119,6 +183,27 @@ if [ -n "$legacy_amw_name" ] &&
    [ "${#source_cluster_rows[@]}" -gt 1 ]; then
   echo "AKS_CONTROL_PLANE_AMW_NAME cannot be used for a multi-cluster run; use AKS_CONTROL_PLANE_AMW_NAME_PREFIX so every cluster receives its own workspace." >&2
   exit 1
+fi
+if [ -n "$legacy_amw_name" ] && [ "${amw_rotation_enabled,,}" = "true" ]; then
+  echo "AKS_CONTROL_PLANE_AMW_NAME cannot be combined with AKS_AMW_ROTATION_ENABLED; rotation requires per-role workspace names derived from AKS_CONTROL_PLANE_AMW_NAME_PREFIX." >&2
+  exit 1
+fi
+if [ -n "$legacy_amw_name" ] && [ "$amw_clusters_per_workspace" -ne 1 ]; then
+  echo "AKS_CONTROL_PLANE_AMW_NAME cannot be combined with AKS_AMW_CLUSTERS_PER_WORKSPACE != 1; the legacy single-workspace name already shares one workspace across every cluster." >&2
+  exit 1
+fi
+if [ "${amw_rotation_enabled,,}" = "true" ]; then
+  if ! [[ "$amw_rotation_slot_count" =~ ^[1-9][0-9]*$ ]] ||
+     [ "$amw_rotation_slot_count" -gt 16 ]; then
+    echo "AKS_AMW_ROTATION_SLOT_COUNT must be a positive integer no greater than 16." >&2
+    exit 1
+  fi
+  : "${BUILD_ID:?BUILD_ID is required when AKS_AMW_ROTATION_ENABLED is true}"
+  if ! [[ "$BUILD_ID" =~ ^[0-9]+$ ]]; then
+    echo "BUILD_ID must be a non-negative integer when AKS_AMW_ROTATION_ENABLED is true." >&2
+    exit 1
+  fi
+  amw_build_id="$BUILD_ID"
 fi
 
 if ! az group show --name "$amw_resource_group" --output none 2>/dev/null; then
@@ -130,32 +215,146 @@ if ! az group show --name "$amw_resource_group" --output none 2>/dev/null; then
     --output none
 fi
 
-workspace_spec_jsonl=$(mktemp)
-for row in "${source_cluster_rows[@]}"; do
-  role=$(echo "$row" | jq -r '.role')
-  slot=$(printf '%s' "$role" \
-    | tr '[:upper:]' '[:lower:]' \
-    | sed -E 's/[^a-z0-9-]+/-/g; s/^-+//; s/-+$//')
-  if [ -n "$legacy_amw_name" ]; then
-    workspace_name="$legacy_amw_name"
-    slot="shared"
-  else
-    workspace_name="${amw_name_prefix}-${slot}"
-  fi
-  if [ "${#workspace_name}" -gt 63 ]; then
-    echo "Azure Monitor workspace name exceeds 63 characters: $workspace_name" >&2
+# Builds the role->slot->workspace-name assignments for a candidate
+# workspace-name prefix. The slot label never changes across generations;
+# only the resource-name prefix does. Fails loudly (rather than truncating or
+# renaming) if any derived name exceeds the Azure Monitor workspace
+# 63-character limit -- this check applies identically to every candidate,
+# rotation or not.
+#
+# When AKS_AMW_CLUSTERS_PER_WORKSPACE (amw_clusters_per_workspace) is 1, the
+# slot is the (sanitized) cluster role, exactly as before -- fully backwards
+# compatible with existing catalog/manifest/audit consumers and pre-existing
+# per-role workspace names. When it is greater than 1, source_cluster_rows
+# (already sorted deterministically by numeric mesh role) is chunked into
+# consecutive groups of that size, and every row in a group maps to the same
+# `shard-NNN` slot/workspace name -- multiple cluster rows referencing the
+# same workspace is already handled by every downstream consumer (the
+# catalog dedups by unique workspace name; the per-role lookup below just
+# returns the same name for every role in the shard).
+build_workspace_assignments() {
+  local prefix="$1"
+  local out_file row_index row role slot workspace_name shard_number
+  out_file=$(mktemp)
+  for row_index in "${!source_cluster_rows[@]}"; do
+    row="${source_cluster_rows[$row_index]}"
+    role=$(echo "$row" | jq -r '.role')
+    if [ -n "$legacy_amw_name" ]; then
+      workspace_name="$legacy_amw_name"
+      slot="shared"
+    elif [ "$amw_clusters_per_workspace" -gt 1 ]; then
+      shard_number=$(( row_index / amw_clusters_per_workspace + 1 ))
+      slot=$(printf 'shard-%03d' "$shard_number")
+      workspace_name="${prefix}-${slot}"
+    else
+      slot=$(printf '%s' "$role" \
+        | tr '[:upper:]' '[:lower:]' \
+        | sed -E 's/[^a-z0-9-]+/-/g; s/^-+//; s/-+$//')
+      workspace_name="${prefix}-${slot}"
+    fi
+    if [ "${#workspace_name}" -gt 63 ]; then
+      echo "Azure Monitor workspace name exceeds 63 characters: $workspace_name" >&2
+      rm -f "$out_file"
+      return 1
+    fi
+    jq -cn \
+      --arg role "$role" \
+      --arg slot "$slot" \
+      --arg name "$workspace_name" \
+      '{role: $role, slot: $slot, name: $name}' \
+      >> "$out_file"
+  done
+  jq -s '.' "$out_file"
+  rm -f "$out_file"
+}
+
+preflight_end=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+preflight_start=$(date -u \
+  -d "$preflight_window_minutes minutes ago" \
+  +%Y-%m-%dT%H:%M:%SZ)
+
+amw_base_prefix="$amw_name_prefix"
+amw_selected_prefix="$amw_base_prefix"
+amw_generation="base"
+
+# Bounded candidate selection happens BEFORE any workspace is created. The
+# base prefix is always tried first; on a preflight failure we retry against
+# a fixed-size ring of "-rN" suffixes (never an unbounded build-ID-derived
+# name) starting at BUILD_ID % slot_count and wrapping exactly slot_count
+# times. A candidate workspace that does not exist yet is treated as
+# fresh/eligible (it still goes through the normal post-create preflight
+# below); a candidate is only rejected if an EXISTING workspace in it is over
+# threshold or its capacity cannot be verified (a genuine metrics-query
+# failure is never treated as "fresh").
+if [ "${amw_rotation_enabled,,}" = "true" ]; then
+  ring_start=$(( BUILD_ID % amw_rotation_slot_count ))
+  candidate_prefixes=("$amw_base_prefix")
+  candidate_generations=("base")
+  for ((ring_offset = 0; ring_offset < amw_rotation_slot_count; ring_offset++)); do
+    ring_slot=$(( (ring_start + ring_offset) % amw_rotation_slot_count ))
+    candidate_prefixes+=("${amw_base_prefix}-r${ring_slot}")
+    candidate_generations+=("r${ring_slot}")
+  done
+
+  amw_selection_found=false
+  for candidate_index in "${!candidate_prefixes[@]}"; do
+    candidate_prefix="${candidate_prefixes[$candidate_index]}"
+    candidate_generation="${candidate_generations[$candidate_index]}"
+    if ! candidate_assignments=$(build_workspace_assignments "$candidate_prefix"); then
+      exit 1
+    fi
+    candidate_names=$(echo "$candidate_assignments" | jq -r 'unique_by(.name) | .[].name')
+    candidate_usable=true
+    while IFS= read -r candidate_workspace_name; do
+      [ -n "$candidate_workspace_name" ] || continue
+      if ! az monitor account show \
+          --resource-group "$amw_resource_group" \
+          --name "$candidate_workspace_name" \
+          --output none 2>/dev/null; then
+        # Missing workspace: fresh/eligible; created + preflighted below.
+        continue
+      fi
+      candidate_workspace_id=$(az monitor account show \
+        --resource-group "$amw_resource_group" \
+        --name "$candidate_workspace_name" \
+        --output json | jq -r '.id')
+      candidate_raw=$(mktemp)
+      candidate_summary=$(mktemp)
+      if capture_amw_capacity \
+          "$candidate_workspace_id" \
+          "$preflight_start" \
+          "$preflight_end" \
+          "$candidate_raw" \
+          "$candidate_summary" &&
+         amw_capacity_preflight_ok "$candidate_summary" "$preflight_threshold"; then
+        rm -f "$candidate_raw" "$candidate_summary"
+        continue
+      fi
+      echo "Azure Monitor workspace generation '$candidate_generation' (workspace $candidate_workspace_name) is unusable: over the ${preflight_threshold}% preflight threshold or unverifiable." >&2
+      rm -f "$candidate_raw" "$candidate_summary"
+      candidate_usable=false
+      break
+    done <<< "$candidate_names"
+    if [ "$candidate_usable" = "true" ]; then
+      amw_selected_prefix="$candidate_prefix"
+      amw_generation="$candidate_generation"
+      amw_selection_found=true
+      break
+    fi
+  done
+
+  if [ "$amw_selection_found" != "true" ]; then
+    echo "##vso[task.logissue type=error;] All $(( amw_rotation_slot_count + 1 )) Azure Monitor workspace generation candidate(s) (base + ${amw_rotation_slot_count} bounded ring slot(s)) are over the ${preflight_threshold}% preflight threshold or unverifiable; refusing to synthesize an unbounded workspace name." >&2
     exit 1
   fi
-  jq -cn \
-    --arg role "$role" \
-    --arg slot "$slot" \
-    --arg name "$workspace_name" \
-    '{role: $role, slot: $slot, name: $name}' \
-    >> "$workspace_spec_jsonl"
-done
-workspace_assignments=$(jq -s '.' "$workspace_spec_jsonl")
+  echo "Selected Azure Monitor workspace generation '$amw_generation' (prefix: $amw_selected_prefix)."
+fi
+
+amw_name_prefix="$amw_selected_prefix"
+if ! workspace_assignments=$(build_workspace_assignments "$amw_name_prefix"); then
+  exit 1
+fi
 workspace_specs=$(echo "$workspace_assignments" | jq 'unique_by(.name)')
-rm -f "$workspace_spec_jsonl"
 
 mapfile -t missing_workspace_names < <(
   echo "$workspace_specs" | jq -r '.[].name' | while IFS= read -r workspace_name; do
@@ -168,6 +367,30 @@ mapfile -t missing_workspace_names < <(
   done
 )
 
+# Azure Monitor allows only AKS_AMW_REGIONAL_WORKSPACE_LIMIT (default 100)
+# Microsoft.Monitor/accounts per subscription per region. Count every
+# existing account in $REGION across the WHOLE subscription (not just this
+# resource group -- other scenarios/resource groups share the same regional
+# quota), then fail BEFORE any ARM creation if creating the missing
+# candidate workspaces would push the region over that limit. Workspaces the
+# candidate already has (an existing "$amw_resource_group" account) are
+# already included in the regional count, so they are not double-counted;
+# only the workspaces this run still needs to CREATE are added on top.
+existing_regional_workspace_count=$(
+  az monitor account list --output json \
+    | jq --arg region "$REGION" \
+      '[.[] | select((.location // "" | ascii_downcase) == ($region | ascii_downcase))] | length'
+)
+missing_workspace_count=${#missing_workspace_names[@]}
+projected_regional_workspace_count=$((
+  existing_regional_workspace_count + missing_workspace_count
+))
+echo "Azure Monitor regional workspace quota for $REGION: existing=$existing_regional_workspace_count missing_candidate=$missing_workspace_count projected_total=$projected_regional_workspace_count limit=$amw_regional_workspace_limit"
+if [ "$projected_regional_workspace_count" -gt "$amw_regional_workspace_limit" ]; then
+  echo "##vso[task.logissue type=error;] Creating $missing_workspace_count missing Azure Monitor workspace(s) in $REGION would raise the regional Microsoft.Monitor/accounts count from $existing_regional_workspace_count to $projected_regional_workspace_count, exceeding AKS_AMW_REGIONAL_WORKSPACE_LIMIT ($amw_regional_workspace_limit)." >&2
+  exit 1
+fi
+
 deployment_prefix=$(printf 'cmsh-amw-%s' "$RUN_ID" \
   | tr '[:upper:]' '[:lower:]' \
   | sed -E 's/[^a-z0-9-]+/-/g; s/^-+//; s/-+$//')
@@ -178,6 +401,11 @@ for ((batch_start = 0; batch_start < ${#missing_workspace_names[@]}; batch_start
   jq -n \
     --arg location "$REGION" \
     --argjson names "$batch_json" \
+    --arg generation "$amw_generation" \
+    --arg build_id "$amw_build_id" \
+    --arg clusters_per_workspace "$amw_clusters_per_workspace" \
+    --arg max_active_time_series "$amw_max_active_time_series" \
+    --arg max_events_per_minute "$amw_max_events_per_minute" \
     '{
       "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
       contentVersion: "1.0.0.0",
@@ -191,7 +419,12 @@ for ((batch_start = 0; batch_start < ${#missing_workspace_names[@]}; batch_start
             scenario: "clustermesh-scale",
             telemetry: "control-plane",
             gc_skip: "true",
-            persistent: "true"
+            persistent: "true",
+            workspace_generation: $generation,
+            created_build_id: $build_id,
+            clusters_per_workspace: $clusters_per_workspace,
+            requested_max_active_time_series: $max_active_time_series,
+            requested_max_events_per_minute: $max_events_per_minute
           },
           properties: {
             publicNetworkAccess: "Enabled"
@@ -229,22 +462,152 @@ while IFS= read -r workspace_spec; do
     --arg id "$workspace_id" \
     --arg resource_group "$amw_resource_group" \
     --arg query_endpoint "$workspace_query_endpoint" \
+    --arg generation "$amw_generation" \
+    --arg prefix "$amw_name_prefix" \
+    --argjson clusters_per_workspace "$amw_clusters_per_workspace" \
+    --argjson max_active_time_series "$amw_max_active_time_series" \
+    --argjson max_events_per_minute "$amw_max_events_per_minute" \
     '{
       slot: $slot,
       name: $name,
       id: $id,
       resource_group: $resource_group,
       prometheus_query_endpoint: $query_endpoint,
-      persistent_after_run: true
+      persistent_after_run: true,
+      generation: $generation,
+      prefix: $prefix,
+      clusters_per_workspace: $clusters_per_workspace,
+      requested_limits: {
+        max_active_time_series: $max_active_time_series,
+        max_events_per_minute: $max_events_per_minute
+      }
     }' >> "$workspace_catalog_jsonl"
 done < <(echo "$workspace_specs" | jq -c '.[]')
 workspace_catalog=$(jq -s '.' "$workspace_catalog_jsonl")
 rm -f "$workspace_catalog_jsonl"
 
-preflight_end=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-preflight_start=$(date -u \
-  -d "$preflight_window_minutes minutes ago" \
-  +%Y-%m-%dT%H:%M:%SZ)
+# If the requested ingestion limits differ from the Azure Monitor platform
+# defaults, deploy the Microsoft.Monitor/accounts/metricsContainers child
+# resource (2025-05-03-preview) for EVERY selected workspace (existing or
+# newly created) so configuration is deterministic regardless of whether the
+# workspace pre-existed this run. Microsoft supports auto-approved ingestion
+# limit increases up to 2,000,000 via this child resource. Applied in
+# amw_arm_batch_size-bounded batches, same as workspace creation above.
+amw_limits_overridden=false
+if [ "$amw_max_active_time_series" -ne "$amw_default_max_active_time_series" ] ||
+   [ "$amw_max_events_per_minute" -ne "$amw_default_max_events_per_minute" ]; then
+  amw_limits_overridden=true
+  mapfile -t amw_limit_workspace_names < <(echo "$workspace_specs" | jq -r '.[].name')
+  echo "Requested Azure Monitor ingestion limits (max_active_time_series=$amw_max_active_time_series, max_events_per_minute=$amw_max_events_per_minute) differ from the platform defaults; deploying metricsContainers/default overrides for ${#amw_limit_workspace_names[@]} workspace(s)."
+  limits_deployment_prefix=$(printf 'cmsh-amw-limits-%s' "$RUN_ID" \
+    | tr '[:upper:]' '[:lower:]' \
+    | sed -E 's/[^a-z0-9-]+/-/g; s/^-+//; s/-+$//')
+  for ((batch_start = 0; batch_start < ${#amw_limit_workspace_names[@]}; batch_start += amw_arm_batch_size)); do
+    batch_names=("${amw_limit_workspace_names[@]:batch_start:amw_arm_batch_size}")
+    batch_json=$(printf '%s\n' "${batch_names[@]}" | jq -Rsc 'split("\n") | map(select(length > 0))')
+    limits_arm_template=$(mktemp)
+    jq -n \
+      --arg location "$REGION" \
+      --arg api_version "$amw_metrics_container_api_version" \
+      --argjson names "$batch_json" \
+      --argjson max_active_time_series "$amw_max_active_time_series" \
+      --argjson max_events_per_minute "$amw_max_events_per_minute" \
+      '{
+        "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+        contentVersion: "1.0.0.0",
+        resources: [
+          $names[] | {
+            type: "Microsoft.Monitor/accounts/metricsContainers",
+            apiVersion: $api_version,
+            name: (. + "/default"),
+            location: $location,
+            properties: {
+              limits: {
+                maxActiveTimeSeries: $max_active_time_series,
+                maxEventsPerMinute: $max_events_per_minute
+              }
+            }
+          }
+        ]
+      }' > "$limits_arm_template"
+    limits_batch_number=$((batch_start / amw_arm_batch_size + 1))
+    limits_deployment_name="${limits_deployment_prefix}-${limits_batch_number}"
+    limits_deployment_name="${limits_deployment_name:0:64}"
+    echo "Deploying ingestion limit override(s) for ${#batch_names[@]} workspace(s) in ARM batch $limits_batch_number..."
+    az deployment group create \
+      --resource-group "$amw_resource_group" \
+      --name "$limits_deployment_name" \
+      --mode Incremental \
+      --template-file "$limits_arm_template" \
+      --output none
+    rm -f "$limits_arm_template"
+  done
+
+  # Bounded-wait/verify the requested limits actually took effect by reading
+  # the Microsoft.Monitor/accounts/metricsContainers/default ARM child
+  # resource directly, rather than through ingestion metrics. A freshly
+  # created, unattached Azure Monitor workspace has never ingested a sample,
+  # so it can legitimately emit zero ActiveTimeSeriesLimit /
+  # EventsPerMinuteIngestedLimit metric data points; a metrics-based check
+  # then parses that "no data" as a zero limit and fails closed even though
+  # the ARM-level override already converged. Reading the limits straight
+  # off the child resource sidesteps that gap. A query error or a limit that
+  # never reaches the requested value still retries, then fails closed.
+  amw_limit_verify_attempts="${AKS_AMW_LIMIT_VERIFY_ATTEMPTS:-6}"
+  amw_limit_verify_retry_seconds="${AKS_AMW_LIMIT_VERIFY_RETRY_SECONDS:-10}"
+  if ! [[ "$amw_limit_verify_attempts" =~ ^[1-9][0-9]*$ ]]; then
+    echo "AKS_AMW_LIMIT_VERIFY_ATTEMPTS must be a positive integer." >&2
+    exit 1
+  fi
+  if ! [[ "$amw_limit_verify_retry_seconds" =~ ^[0-9]+$ ]]; then
+    echo "AKS_AMW_LIMIT_VERIFY_RETRY_SECONDS must be a non-negative integer." >&2
+    exit 1
+  fi
+
+  while IFS= read -r workspace; do
+    workspace_name=$(echo "$workspace" | jq -r '.name')
+    workspace_id=$(echo "$workspace" | jq -r '.id')
+    metrics_container_id="${workspace_id}/metricsContainers/default"
+    limit_verified=false
+    for ((limit_attempt = 1; limit_attempt <= amw_limit_verify_attempts; limit_attempt++)); do
+      metrics_container_json=""
+      if metrics_container_json=$(az resource show \
+          --ids "$metrics_container_id" \
+          --api-version "$amw_metrics_container_api_version" \
+          --output json 2>/dev/null); then
+        reported_active_limit=$(echo "$metrics_container_json" \
+          | jq -r '.properties.limits.maxActiveTimeSeries // empty')
+        reported_events_limit=$(echo "$metrics_container_json" \
+          | jq -r '.properties.limits.maxEventsPerMinute // empty')
+        if [ -n "$reported_active_limit" ] && [ -n "$reported_events_limit" ] &&
+           awk \
+             -v active="$reported_active_limit" \
+             -v want_active="$amw_max_active_time_series" \
+             -v events="$reported_events_limit" \
+             -v want_events="$amw_max_events_per_minute" \
+             'BEGIN {exit !(active >= want_active && events >= want_events)}'; then
+          limit_verified=true
+          break
+        fi
+        echo "Azure Monitor workspace $workspace_name ingestion limits not yet applied (active_time_series=${reported_active_limit:-unknown}/$amw_max_active_time_series, events_per_minute=${reported_events_limit:-unknown}/$amw_max_events_per_minute); attempt $limit_attempt/$amw_limit_verify_attempts." >&2
+      else
+        echo "Unable to query ingestion limits for Azure Monitor workspace $workspace_name; attempt $limit_attempt/$amw_limit_verify_attempts." >&2
+      fi
+      if [ "$limit_attempt" -lt "$amw_limit_verify_attempts" ] && [ "$amw_limit_verify_retry_seconds" -gt 0 ]; then
+        sleep "$amw_limit_verify_retry_seconds"
+      fi
+    done
+    if [ "$limit_verified" != "true" ]; then
+      echo "##vso[task.logissue type=error;] Azure Monitor workspace $workspace_name ingestion limits did not reach the requested values (max_active_time_series>=$amw_max_active_time_series, max_events_per_minute>=$amw_max_events_per_minute) after $amw_limit_verify_attempts attempt(s); failing closed." >&2
+      exit 1
+    fi
+    echo "Verified Azure Monitor workspace $workspace_name ingestion limits meet the requested values."
+  done < <(echo "$workspace_catalog" | jq -c '.[]')
+fi
+
+# The candidate-selection preflight window computed above is reused here
+# rather than resampled, so the post-create check is evaluated against the
+# same headroom snapshot that made this generation eligible.
 workspace_preflight_jsonl=$(mktemp)
 while IFS= read -r workspace; do
   workspace_slot=$(echo "$workspace" | jq -r '.slot')
@@ -525,6 +888,29 @@ else
   resource_scope="/subscriptions/$subscription_id"
 fi
 resource_endpoint="https://query.${REGION}.prometheus.monitor.azure.com"
+if [ "${amw_rotation_enabled,,}" = "true" ]; then
+  amw_rotation_enabled_json=true
+else
+  amw_rotation_enabled_json=false
+fi
+if [ "$amw_limits_overridden" = "true" ]; then
+  amw_limits_overridden_json=true
+else
+  amw_limits_overridden_json=false
+fi
+
+# Large JSON blobs (workspace catalog, diagnostics, clusters) can each
+# exceed the kernel's per-argument length limit (MAX_ARG_STRLEN, 128KiB on
+# Linux) once cluster counts reach the dozens-to-hundreds range (e.g. n100),
+# causing `jq: Argument list too long`. Pass them via --slurpfile (reads
+# from a file, not argv) instead of --argjson (reads from a command-line
+# argument) to stay correct at scale.
+manifest_workspaces_file=$(mktemp)
+manifest_diagnostics_file=$(mktemp)
+manifest_clusters_file=$(mktemp)
+printf '%s' "$workspace_catalog" >"$manifest_workspaces_file"
+printf '%s' "$diagnostics_json" >"$manifest_diagnostics_file"
+printf '%s' "$clusters_with_ids" >"$manifest_clusters_file"
 
 jq -n \
   --arg run_id "$RUN_ID" \
@@ -538,10 +924,27 @@ jq -n \
   --arg law_resource_group "$amw_resource_group" \
   --arg law_customer_id "$law_customer_id" \
   --arg law_location "$law_location" \
-  --argjson workspaces "$workspace_catalog" \
-  --argjson diagnostics "$diagnostics_json" \
-  --argjson clusters "$clusters_with_ids" \
-  '{
+  --slurpfile workspaces_arr "$manifest_workspaces_file" \
+  --slurpfile diagnostics_arr "$manifest_diagnostics_file" \
+  --slurpfile clusters_arr "$manifest_clusters_file" \
+  --arg amw_base_prefix "$amw_base_prefix" \
+  --arg amw_selected_prefix "$amw_name_prefix" \
+  --arg amw_generation "$amw_generation" \
+  --argjson amw_rotation_enabled "$amw_rotation_enabled_json" \
+  --argjson amw_rotation_slot_count "$amw_rotation_slot_count" \
+  --arg amw_build_id "$amw_build_id" \
+  --argjson amw_clusters_per_workspace "$amw_clusters_per_workspace" \
+  --argjson amw_max_active_time_series "$amw_max_active_time_series" \
+  --argjson amw_max_events_per_minute "$amw_max_events_per_minute" \
+  --argjson amw_limits_overridden "$amw_limits_overridden_json" \
+  --argjson amw_regional_workspace_limit "$amw_regional_workspace_limit" \
+  --argjson amw_existing_regional_workspace_count "$existing_regional_workspace_count" \
+  --argjson amw_missing_workspace_count "$missing_workspace_count" \
+  --argjson amw_projected_regional_workspace_count "$projected_regional_workspace_count" \
+  '($workspaces_arr[0]) as $workspaces |
+  ($diagnostics_arr[0]) as $diagnostics |
+  ($clusters_arr[0]) as $clusters |
+  {
     schema_version: 2,
     run_id: $run_id,
     configured_at: $configured_at,
@@ -550,6 +953,31 @@ jq -n \
       mode: (if ($workspaces | length) == 1 then "single" else "per-cluster" end),
       resource_group: $amw_resource_group,
       persistent_after_run: true
+    },
+    workspace_rotation: {
+      enabled: $amw_rotation_enabled,
+      slot_count: $amw_rotation_slot_count,
+      base_prefix: $amw_base_prefix,
+      selected_prefix: $amw_selected_prefix,
+      generation: $amw_generation,
+      build_id: $amw_build_id
+    },
+    workspace_sharding: {
+      clusters_per_workspace: $amw_clusters_per_workspace,
+      cluster_count: ($clusters | length),
+      workspace_count: ($workspaces | length)
+    },
+    workspace_ingestion_limits: {
+      max_active_time_series: $amw_max_active_time_series,
+      max_events_per_minute: $amw_max_events_per_minute,
+      overrides_requested: $amw_limits_overridden
+    },
+    workspace_regional_quota: {
+      region: $region,
+      limit: $amw_regional_workspace_limit,
+      existing_before_run: $amw_existing_regional_workspace_count,
+      created_this_run: $amw_missing_workspace_count,
+      projected_total: $amw_projected_regional_workspace_count
     },
     workspaces: $workspaces,
     query: {

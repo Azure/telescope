@@ -23,6 +23,7 @@ steps:
     env:
       TARGET_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
       REGION: ${{ parameters.region }}
+      BUILD_ID: $(Build.BuildId)
       CONFIGMAP_PATH: >-
         $(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/telemetry/ama-metrics-settings-configmap.yaml
       CONTROL_PLANE_MONITORS_PATH: >-
