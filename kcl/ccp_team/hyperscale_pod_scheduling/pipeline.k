@@ -43,7 +43,7 @@ makeRequestBody = lambda scalingSize: str, cluster: str -> str {
     },
     "properties": {
       "controlPlaneScalingProfile": {"scalingSize": "${scalingSize}"},
-      "kubernetesVersion": "1.33.0",
+      "kubernetesVersion": "1.36.2",
       "dnsPrefix": "${cluster}-dns",
       "agentPoolProfiles": [
         {

@@ -71,7 +71,7 @@ jobs:
             },
             \"properties\": {
               \"controlPlaneScalingProfile\": {\"scalingSize\": \"H8\"},
-              \"kubernetesVersion\": \"1.33.0\",
+              \"kubernetesVersion\": \"1.36.2\",
               \"dnsPrefix\": \"stg-H8-hyperscale-apiserver-seats-dns\",
               \"agentPoolProfiles\": [
                 {

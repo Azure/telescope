@@ -80,7 +80,7 @@ stages:
               },
               \"properties\": {
                 \"controlPlaneScalingProfile\": {\"scalingSize\": \"H2\"},
-                \"kubernetesVersion\": \"1.33.0\",
+                \"kubernetesVersion\": \"1.36.2\",
                 \"dnsPrefix\": \"stg-H2-hyperscale-pod-scheduling-rate-dns\",
                 \"agentPoolProfiles\": [
                   {
@@ -396,7 +396,7 @@ stages:
               },
               \"properties\": {
                 \"controlPlaneScalingProfile\": {\"scalingSize\": \"H4\"},
-                \"kubernetesVersion\": \"1.33.0\",
+                \"kubernetesVersion\": \"1.36.2\",
                 \"dnsPrefix\": \"stg-H4-hyperscale-pod-scheduling-rate-dns\",
                 \"agentPoolProfiles\": [
                   {
@@ -712,7 +712,7 @@ stages:
               },
               \"properties\": {
                 \"controlPlaneScalingProfile\": {\"scalingSize\": \"H8\"},
-                \"kubernetesVersion\": \"1.33.0\",
+                \"kubernetesVersion\": \"1.36.2\",
                 \"dnsPrefix\": \"stg-H8-hyperscale-pod-scheduling-rate-dns\",
                 \"agentPoolProfiles\": [
                   {
