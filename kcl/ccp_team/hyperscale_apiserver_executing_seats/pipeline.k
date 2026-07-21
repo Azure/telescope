@@ -21,7 +21,7 @@ CL2_POOL = azure.NodePool {
 KWOK_POOL = azure.NodePool {
     name = "kwokpool"
     sku = "Standard_D2s_v3"
-    count = 60
+    count = 50
     taintPrefix = "kwok"
     labels = "kwok=true"
 }
