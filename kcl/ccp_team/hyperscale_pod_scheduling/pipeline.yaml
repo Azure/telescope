@@ -37,7 +37,7 @@ stages:
           set -exo pipefail
 
           az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
-          az config set defaults.location="southeastasia"
+          az config set defaults.location="westcentralus"
           az account show
       displayName: Login to Azure
     - task: AzureCLI@2
@@ -50,10 +50,10 @@ stages:
 
           az group create \
             --name "$(RUN_ID)" \
-            --location "southeastasia" \
+            --location "westcentralus" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
 
-      displayName: Create resource group in southeastasia (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+      displayName: Create resource group in westcentralus (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -67,7 +67,7 @@ stages:
             --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/stg-H2-hyperscale-pod-scheduling-rate?api-version=2026-01-02-preview" \
             --body "
           {
-              \"location\": \"southeastasia\",
+              \"location\": \"westcentralus\",
               \"identity\": { \"type\": \"SystemAssigned\" },
               \"sku\": {
                 \"name\": \"Base\",
@@ -364,7 +364,7 @@ stages:
           set -exo pipefail
 
           az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
-          az config set defaults.location="southeastasia"
+          az config set defaults.location="westcentralus"
           az account show
       displayName: Login to Azure
     - task: AzureCLI@2
@@ -377,10 +377,10 @@ stages:
 
           az group create \
             --name "$(RUN_ID)" \
-            --location "southeastasia" \
+            --location "westcentralus" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
 
-      displayName: Create resource group in southeastasia (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+      displayName: Create resource group in westcentralus (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -394,7 +394,7 @@ stages:
             --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/stg-H4-hyperscale-pod-scheduling-rate?api-version=2026-01-02-preview" \
             --body "
           {
-              \"location\": \"southeastasia\",
+              \"location\": \"westcentralus\",
               \"identity\": { \"type\": \"SystemAssigned\" },
               \"sku\": {
                 \"name\": \"Base\",
@@ -691,7 +691,7 @@ stages:
           set -exo pipefail
 
           az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
-          az config set defaults.location="southeastasia"
+          az config set defaults.location="westcentralus"
           az account show
       displayName: Login to Azure
     - task: AzureCLI@2
@@ -704,10 +704,10 @@ stages:
 
           az group create \
             --name "$(RUN_ID)" \
-            --location "southeastasia" \
+            --location "westcentralus" \
             --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
 
-      displayName: Create resource group in southeastasia (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+      displayName: Create resource group in westcentralus (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -721,7 +721,7 @@ stages:
             --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/stg-H8-hyperscale-pod-scheduling-rate?api-version=2026-01-02-preview" \
             --body "
           {
-              \"location\": \"southeastasia\",
+              \"location\": \"westcentralus\",
               \"identity\": { \"type\": \"SystemAssigned\" },
               \"sku\": {
                 \"name\": \"Base\",

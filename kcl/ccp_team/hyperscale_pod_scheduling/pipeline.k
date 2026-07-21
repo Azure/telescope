@@ -8,7 +8,7 @@ import lib.util
 
 SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
 RESOURCE_GROUP = "$(RUN_ID)"
-LOCATION = "southeastasia"
+LOCATION = "westcentralus"
 NODE_COUNTS = {"H2": 2000, "H4": 4000, "H8": 8000}
 KWOK_NODES_PER_CONTROLLER = 100
 KWOK_POOL = azure.NodePool {
