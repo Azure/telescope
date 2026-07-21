@@ -142,11 +142,7 @@ output = ap.Pipeline {
                     manifest = "kcl/ccp_team/hyperscale_apiserver_executing_seats/cl2.yaml"),
                   k8s.PrintCl2PodLogs(
                     const.DEFAULT_SERVICE_CONNECTION,
-                    "clusterloader2"),
-                azure.DeleteResourceGroup(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    RESOURCE_GROUP,
-                    SUBSCRIPTION_ID)
+                    "clusterloader2")
             ]
         }
     ]

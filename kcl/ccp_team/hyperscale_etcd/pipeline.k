@@ -268,22 +268,5 @@ echo "##vso[task.setvariable variable=BENCHMARK_START_TIME;isOutput=true]$START_
                     startTime="$(BENCHMARK_START_TIME)"),
             ]
         }
-        job.Job {
-            job = "cleanup"
-            displayName = "Cleanup"
-            timeoutInMinutes = 60
-            dependsOn = ["bootstrap", "report"]
-            condition = "and(always(), not(${USE_EXISTING_CLUSTER}), not(\${{ parameters.keep_cluster }}))"
-            variables = {
-                RESOURCE_GROUP = "$[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]"
-            }
-
-            steps = [
-                azure.DeleteResourceGroup(
-                    const.DEFAULT_SERVICE_CONNECTION,
-                    RESOURCE_GROUP,
-                    SUBSCRIPTION_ID)
-            ]
-        }
     ]
 }

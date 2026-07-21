@@ -499,24 +499,3 @@ jobs:
         echo "============================================"
     continueOnError: true
     displayName: Print ASI dashboard URL
-- job: cleanup
-  displayName: Cleanup
-  dependsOn:
-  - bootstrap
-  - report
-  condition: and(always(), not(ne('${{ parameters.existing_cluster_name }}', 'none')), not(${{ parameters.keep_cluster }}))
-  timeoutInMinutes: 60
-  variables:
-    RESOURCE_GROUP: $[ dependencies.bootstrap.outputs['resolve.RESOURCE_GROUP'] ]
-  steps:
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: Azure-for-Telescope-internal
-      scriptType: bash
-      scriptLocation: inlineScript
-      inlineScript: |
-        set -exo pipefail
-
-        az group delete --name "$(RESOURCE_GROUP)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
-    condition: always()
-    displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)

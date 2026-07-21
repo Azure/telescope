@@ -142,11 +142,7 @@ az rest \\
                 manifest = cl2Manifest),
             k8s.PrintCl2PodLogs(
                 const.DEFAULT_SERVICE_CONNECTION,
-                CL2_NAMESPACE),
-            azure.DeleteResourceGroup(
-                const.DEFAULT_SERVICE_CONNECTION,
-                RESOURCE_GROUP,
-                SUBSCRIPTION_ID)
+                CL2_NAMESPACE)
         ]
     }
 }
