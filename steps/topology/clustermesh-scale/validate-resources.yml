@@ -45,6 +45,137 @@ steps:
       echo "$clusters" > "$HOME/.kube/clustermesh-clusters.json"
 
       echo "##vso[task.setvariable variable=CLUSTERMESH_COUNT]$count"
+
+      # ---------------------------------------------------------------------
+      # Reusable AKS kubeconfig-fetch helper (build 74260 fix).
+      # ---------------------------------------------------------------------
+      # Written ONCE here (the first step of this job) to a file under
+      # $HOME/.kube — which persists across steps within the same
+      # Azure Pipelines job/agent — so every later `script:` step below
+      # (each of which is its OWN bash process; steps do not share shell
+      # state) can `source` the exact same helper instead of re-implementing
+      # or copy/pasting the retry + atomicity logic.
+      #
+      # Build 74260 evidence: ClusterMesh/KVStoreMesh was already Connected
+      # and the initial sequential kubeconfig prefetch (further down) had
+      # already succeeded for every cluster, but the per-cluster validate
+      # loop then unconditionally re-ran `az aks get-credentials` for
+      # mesh-1 anyway. Azure returned ServerTimeout after ~140s on that
+      # single, un-retried, redundant call and failed the whole job with
+      # Bash exit 1 (RG cleanup still ran and succeeded). fetch_kubeconfig()
+      # below retries transient failures with backoff; ensure_kubeconfig()
+      # (also defined here) is what callers should use so a good,
+      # already-fetched kubeconfig is reused instead of re-fetched.
+      mkdir -p "$HOME/.kube/lib"
+      cat <<'FETCH_KUBECONFIG_LIB' > "$HOME/.kube/lib/fetch-kubeconfig.sh"
+      # fetch_kubeconfig <resource-group> <cluster-name> <dest-kubeconfig-path>
+      #
+      #   - bounded outer timeout PER ATTEMPT
+      #     (FETCH_KUBECONFIG_ATTEMPT_TIMEOUT_SECONDS, default 180s — safely
+      #     above the ~140s ServerTimeout seen in build 74260)
+      #   - up to FETCH_KUBECONFIG_MAX_ATTEMPTS attempts (default 5) with
+      #     modest linear backoff (FETCH_KUBECONFIG_BACKOFF_SECONDS * attempt,
+      #     default base 15s)
+      #   - actionable logging on every attempt (attempt number, timeout,
+      #     failure reason)
+      #   - atomic replace: `az aks get-credentials` is pointed at a per-attempt
+      #     temp file in the SAME directory as the destination, and only a
+      #     verified-successful, non-empty result is `mv`'d (atomic rename on
+      #     the same filesystem) onto the destination. A failed/timed-out
+      #     attempt never truncates or corrupts an existing kubeconfig.
+      #   - fails immediately (no retry) on clearly structural errors —
+      #     ResourceNotFound, AuthorizationFailed/Forbidden, invalid/missing
+      #     subscription — since those will never succeed on retry.
+      fetch_kubeconfig() {
+        local rg="$1" name="$2" dest="$3"
+        local attempt_timeout="${FETCH_KUBECONFIG_ATTEMPT_TIMEOUT_SECONDS:-180}"
+        local max_attempts="${FETCH_KUBECONFIG_MAX_ATTEMPTS:-5}"
+        local backoff_base="${FETCH_KUBECONFIG_BACKOFF_SECONDS:-15}"
+        local dest_dir tmp attempt rc out backoff
+
+        if ! command -v timeout >/dev/null 2>&1; then
+          echo "[fetch-kubeconfig] coreutils 'timeout' not found on PATH;" \
+               "cannot bound az aks get-credentials calls; aborting" >&2
+          return 1
+        fi
+
+        dest_dir=$(dirname -- "$dest")
+        mkdir -p "$dest_dir"
+
+        for ((attempt = 1; attempt <= max_attempts; attempt++)); do
+          tmp="$(mktemp "${dest}.tmp.XXXXXX")"
+          echo "[fetch-kubeconfig] attempt ${attempt}/${max_attempts}:" \
+               "az aks get-credentials --resource-group ${rg} --name ${name}" \
+               "(bounded ${attempt_timeout}s)"
+          if out=$(KUBECONFIG="$tmp" timeout "${attempt_timeout}s" az aks get-credentials \
+              --resource-group "$rg" --name "$name" --overwrite-existing --only-show-errors 2>&1); then
+            if [ -s "$tmp" ]; then
+              mv -f -- "$tmp" "$dest"
+              echo "[fetch-kubeconfig] attempt ${attempt}/${max_attempts}: OK — ${dest} updated atomically"
+              return 0
+            fi
+            echo "[fetch-kubeconfig] attempt ${attempt}/${max_attempts}:" \
+                 "az reported success but output was empty; treating as a failed attempt"
+          else
+            rc=$?
+            echo "[fetch-kubeconfig] attempt ${attempt}/${max_attempts} FAILED (exit=${rc}): ${out}"
+            # Structural errors match regardless of word order (e.g. both
+            # "invalid subscription" and "subscription ... does not exist").
+            if echo "$out" | grep -Eqi 'ResourceNotFound|AuthorizationFailed|Forbidden|SubscriptionNotFound' \
+                || { echo "$out" | grep -Eqi 'subscription' && echo "$out" | grep -Eqi 'invalid|does not exist'; }; then
+              echo "##vso[task.logissue type=error;] [fetch-kubeconfig] structural error" \
+                   "fetching kubeconfig for ${name} (rg=${rg}) — not retrying: ${out}"
+              rm -f -- "$tmp"
+              return 1
+            fi
+          fi
+          rm -f -- "$tmp"
+          if [ "$attempt" -lt "$max_attempts" ]; then
+            backoff=$(( backoff_base * attempt ))
+            echo "[fetch-kubeconfig] retrying in ${backoff}s..."
+            sleep "$backoff"
+          fi
+        done
+
+        echo "##vso[task.logissue type=error;] [fetch-kubeconfig] exhausted ${max_attempts}" \
+             "attempts fetching kubeconfig for ${name} (rg=${rg}); giving up"
+        return 1
+      }
+
+      # kubeconfig_is_valid <kubeconfig-path>
+      #
+      # True iff the file exists, is non-empty, AND `kubectl config
+      # current-context` resolves against it within a bounded timeout
+      # (KUBECONFIG_VALIDATE_TIMEOUT_SECONDS, default 10s). Catches empty
+      # files and truncated/corrupt/context-less kubeconfigs without
+      # needing a live API call.
+      kubeconfig_is_valid() {
+        local kc="$1"
+        local vtimeout="${KUBECONFIG_VALIDATE_TIMEOUT_SECONDS:-10}"
+        [ -s "$kc" ] || return 1
+        command -v timeout >/dev/null 2>&1 || return 1
+        KUBECONFIG="$kc" timeout "${vtimeout}s" kubectl config current-context >/dev/null 2>&1
+      }
+
+      # ensure_kubeconfig <resource-group> <cluster-name> <dest-kubeconfig-path>
+      #
+      # Reuses an existing, valid kubeconfig at $dest; only calls
+      # fetch_kubeconfig (the retrying helper above) when $dest is
+      # missing or fails validation. This is the build-74260 fix: the
+      # per-cluster validate loop previously called `az aks
+      # get-credentials` unconditionally even when the prefetch step had
+      # already populated a good kubeconfig.
+      ensure_kubeconfig() {
+        local rg="$1" name="$2" dest="$3"
+        if kubeconfig_is_valid "$dest"; then
+          echo "[fetch-kubeconfig] reusing existing valid kubeconfig at ${dest} (no az aks get-credentials call)"
+          return 0
+        fi
+        echo "[fetch-kubeconfig] ${dest} missing or failed validation; fetching"
+        fetch_kubeconfig "$rg" "$name" "$dest"
+      }
+      FETCH_KUBECONFIG_LIB
+      chmod +r "$HOME/.kube/lib/fetch-kubeconfig.sh"
     displayName: "Enumerate clustermesh clusters"
 
   # ----------------------------------------------------------------------------
@@ -79,6 +210,9 @@ steps:
       set -euo pipefail
       set -x
 
+      # shellcheck source=/dev/null
+      source "$HOME/.kube/lib/fetch-kubeconfig.sh"
+
       _fleet_enabled="${CLUSTERMESH_FLEET_ENABLED:-true}"
       if [ "${_fleet_enabled,,}" = "false" ]; then
         echo "CLUSTERMESH_FLEET_ENABLED=${CLUSTERMESH_FLEET_ENABLED:-} — Fleet/ClusterMesh disabled (single-cluster baseline); skipping clustermesh-apiserver wait."
@@ -100,16 +234,17 @@ steps:
       fi
       echo "Wait-for-apiserver per-cluster budget: ${WAIT_BUDGET_SECONDS}s (cluster_count=$cluster_count)"
 
-      # Sequential kubeconfig fetch — parallel `az aks get-credentials`
-      # writes race on the shared ~/.azure MSAL token cache (same reason
-      # execute.yml pre-fetches kubeconfigs sequentially).
+      # Sequential kubeconfig fetch via the shared fetch_kubeconfig() helper
+      # (sourced above) — parallel `az aks get-credentials` writes race on
+      # the shared ~/.azure MSAL token cache (same reason execute.yml
+      # pre-fetches kubeconfigs sequentially), so this loop stays
+      # sequential even though the helper itself retries per-cluster.
       for row in $(echo "$clusters" | jq -c '.[]'); do
         name=$(echo "$row" | jq -r '.name')
         rg=$(echo   "$row" | jq -r '.rg')
         role=$(echo "$row" | jq -r '.role')
         kc="$HOME/.kube/$role.config"
-        KUBECONFIG="$kc" az aks get-credentials \
-          --resource-group "$rg" --name "$name" --overwrite-existing --only-show-errors
+        fetch_kubeconfig "$rg" "$name" "$kc"
       done
 
       # Fleet RG = same as cluster RG (terraform module.fleet runs in the
@@ -599,6 +734,9 @@ steps:
       set -euo pipefail
       set -x
 
+      # shellcheck source=/dev/null
+      source "$HOME/.kube/lib/fetch-kubeconfig.sh"
+
       _fleet_enabled="${CLUSTERMESH_FLEET_ENABLED:-true}"
       if [ "${_fleet_enabled,,}" = "false" ]; then
         echo "CLUSTERMESH_FLEET_ENABLED=${CLUSTERMESH_FLEET_ENABLED:-} — Fleet/ClusterMesh disabled (single-cluster baseline); skipping Cilium+ClusterMesh mesh validation."
@@ -679,13 +817,13 @@ steps:
           _rg=$(echo "$_row" | jq -r '.rg')
           _role=$(echo "$_row" | jq -r '.role')
           _kc="$HOME/.kube/${_role}.config"
-          # Ensure kubeconfig exists. The per-cluster validate loop fetches
-          # them, but we run BEFORE that loop. Fetch sequentially here too.
-          if [ ! -f "$_kc" ]; then
-            KUBECONFIG="$_kc" az aks get-credentials \
-              --resource-group "$_rg" --name "$_name" --overwrite-existing \
-              --only-show-errors >/dev/null 2>&1 || true
-          fi
+          # Ensure kubeconfig exists and is valid via the shared helper
+          # (sourced at the top of this step). The per-cluster validate loop
+          # below also ensures it, but we run BEFORE that loop; best-effort
+          # (|| true) since this is a diagnostic table, not the authoritative
+          # fetch — a failure here just means "?" columns below, which is
+          # still useful signal.
+          ensure_kubeconfig "$_rg" "$_name" "$_kc" || true
           _cid=$(KUBECONFIG="$_kc" kubectl -n kube-system get cm cilium-config \
                    -o jsonpath='{.data.cluster-id}' 2>/dev/null || echo "?")
           _cn=$(KUBECONFIG="$_kc" kubectl -n kube-system get cm cilium-config \
@@ -819,9 +957,18 @@ steps:
 
         # Per-cluster kubeconfig file at $HOME/.kube/<role>.config — keeps each
         # cluster's auth state isolated so concurrent kubectl calls don't race.
+        #
+        # Build 74260 fix: this used to unconditionally re-run `az aks
+        # get-credentials` here even though the initial sequential prefetch
+        # (in the "Wait for clustermesh-apiserver..." step) had already
+        # fetched every cluster's kubeconfig. That redundant call hit an
+        # Azure ServerTimeout (~140s, un-retried) on mesh-1 and failed the
+        # whole job. ensure_kubeconfig() reuses the existing, already-valid
+        # kubeconfig and only calls the retrying fetch_kubeconfig() helper
+        # if it's missing or fails the bounded `kubectl config
+        # current-context` validation check.
         kubeconfig="$HOME/.kube/$role.config"
-        KUBECONFIG="$kubeconfig" az aks get-credentials \
-          --resource-group "$rg" --name "$name" --overwrite-existing --only-show-errors
+        ensure_kubeconfig "$rg" "$name" "$kubeconfig"
 
         export KUBECONFIG="$kubeconfig"
 
