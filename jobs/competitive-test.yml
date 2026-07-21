@@ -39,6 +39,9 @@ parameters:
 - name: retry_attempt_count
   type: number
   default: 3
+- name: destroy_retry_attempt_count
+  type: number
+  default: 3
 - name: preserve_state_on_apply_failure
   type: string
   default: "false"
@@ -110,4 +113,4 @@ jobs:
       cloud: ${{ parameters.cloud }}
       regions: ${{ parameters.regions }}
       terraform_arguments: ${{ parameters.terraform_arguments }}
-      retry_attempt_count: ${{ parameters.retry_attempt_count }}
+      retry_attempt_count: ${{ parameters.destroy_retry_attempt_count }}

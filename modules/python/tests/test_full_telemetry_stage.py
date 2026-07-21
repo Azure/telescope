@@ -10,6 +10,7 @@ PIPELINE_PATH = (
     / "new-pipeline-test.yml"
 )
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+COMPETITIVE_JOB_PATH = REPOSITORY_ROOT / "jobs" / "competitive-test.yml"
 CONFIGURE_TEMPLATE_PATH = (
     REPOSITORY_ROOT
     / "steps"
@@ -47,6 +48,14 @@ AKS_CLI_MODULE_PATH = (
     / "terraform"
     / "azure"
     / "aks-cli"
+    / "main.tf"
+)
+FLEET_MODULE_PATH = (
+    REPOSITORY_ROOT
+    / "modules"
+    / "terraform"
+    / "azure"
+    / "fleet"
     / "main.tf"
 )
 N2_TFVARS_PATH = (
@@ -117,6 +126,7 @@ def test_dedicated_full_telemetry_stage_is_isolated():
     assert "node_replace_batch_size: 2" in stage
     assert "CLUSTERMESH_VM_FAMILY_QUOTA_NAME: standardDSv5Family" in stage
     assert 'CLUSTERMESH_REQUIRED_FAMILY_VCPUS: "112"' in stage
+    assert "destroy_retry_attempt_count: 0" in stage
 
     tfvars = N2_TFVARS_PATH.read_text(encoding="utf-8")
     assert tfvars.count('name                 = "churnpool"') == 1
@@ -160,6 +170,49 @@ def test_extra_nodepool_operations_are_serialized_and_recoverable():
     assert "--no-wait --only-show-errors" in nodepool_resource
     assert "FailedToDeleteVMSSInstances" in nodepool_resource
     assert "--yes" not in nodepool_resource
+
+
+def test_terraform_destroy_treats_missing_aks_and_fleet_as_success():
+    aks_module = AKS_CLI_MODULE_PATH.read_text(encoding="utf-8")
+    aks_resource_start = aks_module.index('resource "terraform_data" "aks_cli"')
+    aks_resource_end = aks_module.index(
+        "\n}\n\n# Gate any subsequent", aks_resource_start
+    )
+    aks_resource = aks_module[aks_resource_start:aks_resource_end]
+    assert "[aks_cli destroy] cluster or resource group already absent" in aks_resource
+    assert "ResourceGroupNotFound" in aks_resource
+
+    fleet_module = FLEET_MODULE_PATH.read_text(encoding="utf-8")
+    profile_start = fleet_module.index(
+        'resource "terraform_data" "clustermeshprofile"'
+    )
+    list_command_start = fleet_module.index("cmp_list_applied_count_command")
+    profile_resource = fleet_module[profile_start:]
+    assert 'count_out=$(eval "${self.input.list_applied_count_command}" 2>&1)' in (
+        profile_resource
+    )
+    assert '"--only-show-errors",' in fleet_module[list_command_start:profile_start]
+    assert "membership query returned no numeric count" in profile_resource
+    assert "membership query failed; skipping the remaining drain wait" in (
+        profile_resource
+    )
+    assert 'delete_out=$(eval "${self.input.delete_command}" 2>&1)' in (
+        profile_resource
+    )
+    assert profile_resource.count("ResourceGroupNotFound") >= 2
+
+
+def test_long_clustermesh_stages_do_not_replay_terraform_destroy():
+    job = COMPETITIVE_JOB_PATH.read_text(encoding="utf-8")
+    assert "- name: destroy_retry_attempt_count" in job
+    assert (
+        "retry_attempt_count: ${{ parameters.destroy_retry_attempt_count }}" in job
+    )
+
+    pipeline = PIPELINE_PATH.read_text(encoding="utf-8")
+    n100_start = pipeline.index("- stage: azure_eastus2euap_n100_mock")
+    n100_end = pipeline.index("- stage: azure_eastus2euap_n1_mock_5k", n100_start)
+    assert "destroy_retry_attempt_count: 0" in pipeline[n100_start:n100_end]
 
 
 def test_configure_control_plane_metrics_passes_build_id():

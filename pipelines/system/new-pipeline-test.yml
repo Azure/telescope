@@ -1558,6 +1558,10 @@ stages:
           regions:
             - eastus2euap
           preserve_state_on_apply_failure: "true"
+          # A bricked AKS delete must not replay the entire Terraform destroy
+          # task four times. One full attempt is followed by the unconditional
+          # resource-group cleanup step.
+          destroy_retry_attempt_count: 0
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"
@@ -1921,6 +1925,9 @@ stages:
           regions:
             - eastus2euap
           preserve_state_on_apply_failure: "true"
+          # Keep the protected finalization reserve for evidence and RG
+          # cleanup rather than multiplying one slow Azure destroy by four.
+          destroy_retry_attempt_count: 0
           engine: clusterloader2
           engine_input:
             image: "ghcr.io/azure/clusterloader2:v20250513"

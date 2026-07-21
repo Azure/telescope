@@ -223,6 +223,7 @@ locals {
     "--name", var.cmp_name,
     "--query", "'length(@)'",
     "--output", "tsv",
+    "--only-show-errors",
   ]) : "echo 0"
 }
 
@@ -343,11 +344,30 @@ resource "terraform_data" "clustermeshprofile" {
       # (e.g. Fleet RP hadn't yet observed the relabeled members).
       # Budget: 360 x 5s = 30 min. Bumped from 120 (10 min) for N=100 — at
       # 100 members Fleet RP reconcile-after-relabel can take 15-25 min in
-      # the worst case based on N=20 timing (3-5 min observed). Cheap
-      # insurance vs a failed destroy.
+      # the worst case based on N=20 timing (3-5 min observed). A missing
+      # profile/resource group exits immediately, and any other query error
+      # breaks the wait so cleanup cannot burn 30 minutes on an unreadable
+      # resource.
       drained=false
       for i in $(seq 1 360); do
-        count=$(eval "${self.input.list_applied_count_command}" 2>/dev/null | tr -d '[:space:]')
+        count_out=$(eval "${self.input.list_applied_count_command}" 2>&1)
+        count_rc=$?
+        if [ "$count_rc" -ne 0 ]; then
+          if echo "$count_out" | grep -qiE "NotFound|could not be found|ResourceNotFound|ResourceGroupNotFound"; then
+            echo "[poll-members] profile or resource group already absent; teardown complete"
+            exit 0
+          fi
+          echo "[poll-members] membership query failed; skipping the remaining drain wait: $count_out"
+          break
+        fi
+        # Preview extensions can emit warning text even when the command
+        # succeeds. Select the numeric-only line instead of concatenating all
+        # output, otherwise a warning plus "0" never compares equal to zero.
+        count=$(printf '%s\n' "$count_out" | awk '/^[[:space:]]*[0-9]+[[:space:]]*$/ { value=$1 } END { print value }')
+        if ! [[ "$count" =~ ^[0-9]+$ ]]; then
+          echo "[poll-members] membership query returned no numeric count; skipping the remaining drain wait: $count_out"
+          break
+        fi
         echo "[poll-members] attempt $i/360: applied count='$count'"
         if [ "$count" = "0" ]; then
           drained=true
@@ -371,10 +391,17 @@ resource "terraform_data" "clustermeshprofile" {
       # poll-members bump above.
       echo "[delete-profile] ${self.input.delete_command}"
       for i in $(seq 1 60); do
-        if eval "${self.input.delete_command}"; then
+        delete_out=$(eval "${self.input.delete_command}" 2>&1)
+        delete_rc=$?
+        if [ "$delete_rc" -eq 0 ]; then
           echo "[delete-profile] succeeded on attempt $i"
           exit 0
         fi
+        if echo "$delete_out" | grep -qiE "NotFound|could not be found|ResourceNotFound|ResourceGroupNotFound"; then
+          echo "[delete-profile] profile or resource group already absent; teardown complete"
+          exit 0
+        fi
+        echo "[delete-profile] attempt $i failed: $delete_out"
         if [ "$i" -lt 60 ]; then
           echo "[delete-profile] retry $i/60 in 5s"
           sleep 5
