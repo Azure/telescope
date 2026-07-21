@@ -9,7 +9,7 @@ azapi_config_list = [
     role               = "client"
     aks_name           = "ccp-provisioning-H4"
     dns_prefix         = "ccp-provisioning-H4"
-    kubernetes_version = "1.33.0"
+    kubernetes_version = "1.36.0"
     api_version        = "2026-01-02-preview"
 
     default_node_pool = {
