@@ -41,6 +41,14 @@ EXECUTE_TEMPLATE_PATH = (
     / "execute.yml"
 )
 SETUP_TEMPLATE_PATH = REPOSITORY_ROOT / "steps" / "setup-tests.yml"
+AKS_CLI_MODULE_PATH = (
+    REPOSITORY_ROOT
+    / "modules"
+    / "terraform"
+    / "azure"
+    / "aks-cli"
+    / "main.tf"
+)
 N2_TFVARS_PATH = (
     REPOSITORY_ROOT
     / "scenarios"
@@ -133,6 +141,25 @@ def test_n2_full_telemetry_stage_enables_bounded_amw_rotation():
     assert 'AKS_AMW_CLUSTERS_PER_WORKSPACE: "1"' in stage
     assert 'AKS_AMW_MAX_ACTIVE_TIME_SERIES: "1000000"' in stage
     assert 'AKS_AMW_MAX_EVENTS_PER_MINUTE: "1000000"' in stage
+
+
+def test_extra_nodepool_operations_are_serialized_and_recoverable():
+    module = AKS_CLI_MODULE_PATH.read_text(encoding="utf-8")
+    start = module.index('resource "terraform_data" "aks_nodepool_cli"')
+    end = module.index("\n}\n\n# Grant AKS identity", start)
+    nodepool_resource = module[start:end]
+
+    lock = 'lock_file="/tmp/telescope-aks-nodepool-$rg-$cluster.lock"'
+    add = 'out=$(eval "$cmd" 2>&1)'
+    assert lock in nodepool_resource
+    assert 'flock -x -w "$lock_wait_seconds" 9' in nodepool_resource
+    assert nodepool_resource.index(lock) < nodepool_resource.index(add)
+    assert nodepool_resource.index("flock -x") < nodepool_resource.index(
+        "operation_deadline=$((SECONDS + 5400))"
+    )
+    assert "--no-wait --only-show-errors" in nodepool_resource
+    assert "FailedToDeleteVMSSInstances" in nodepool_resource
+    assert "--yes" not in nodepool_resource
 
 
 def test_configure_control_plane_metrics_passes_build_id():

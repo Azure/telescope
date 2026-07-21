@@ -650,6 +650,13 @@ resource "terraform_data" "aks_nodepool_cli" {
   # escalate to fail-fast. Slow retries on terminal failures are how
   # 14h builds happen. Cheap retries (transient API throttle, brief
   # race window) are valuable; bricked-state retries are not.
+  #
+  # PER-CLUSTER SERIALIZATION (build 74265 evidence): Terraform starts
+  # for_each instances concurrently. On mesh-1 that launched prompool and
+  # churnpool writes within the same second. Azure accepted both operations,
+  # then churnpool failed while rolling back its VMSS. Serialize extra-pool
+  # operations with a host-local lock scoped to the resource group and
+  # cluster. Different clusters still provision in parallel at n=100.
   provisioner "local-exec" {
     interpreter = ["bash", "-c"]
     command     = <<-EOT
@@ -658,11 +665,24 @@ resource "terraform_data" "aks_nodepool_cli" {
       rg="${var.resource_group_name}"
       pool="${each.value.name}"
       cluster="${var.aks_cli_config.aks_name}"
-      deadline=$((SECONDS + 5400))
+      lock_file="/tmp/telescope-aks-nodepool-$rg-$cluster.lock"
+      lock_wait_seconds=5400
+
+      exec 9>"$lock_file"
+      echo "Waiting for exclusive AKS nodepool operation lock: $cluster/$pool"
+      if ! flock -x -w "$lock_wait_seconds" 9; then
+        echo "Timeout: $cluster nodepool $pool could not acquire the per-cluster operation lock within $${lock_wait_seconds}s" >&2
+        exit 1
+      fi
+      echo "Acquired exclusive AKS nodepool operation lock: $cluster/$pool"
+      # Lock contention and the actual pool operation have separate bounded
+      # budgets. A queued pool must still receive time to recover/create after
+      # the preceding same-cluster operation releases the lock.
+      operation_deadline=$((SECONDS + 5400))
 
       for i in $(seq 1 60); do
-        if [ "$SECONDS" -ge "$deadline" ]; then
-          echo "Timeout: $cluster nodepool $pool — 90m overall deadline reached" >&2
+        if [ "$SECONDS" -ge "$operation_deadline" ]; then
+          echo "Timeout: $cluster nodepool $pool — 90m operation budget reached after acquiring the lock" >&2
           exit 1
         fi
 
@@ -704,13 +724,38 @@ resource "terraform_data" "aks_nodepool_cli" {
             # than burning the full 60×30s retry budget (build 69021
             # evidence: 13.6h wasted on this exact pattern).
             echo "[retry $i/60] $cluster nodepool $pool in terminal Failed state; deleting before recreate"
-            del_out=$(az aks nodepool delete -g "$rg" --cluster-name "$cluster" -n "$pool" --yes --only-show-errors 2>&1) || \
-              echo "[retry $i/60] az aks nodepool delete reported error (will poll absence anyway): $del_out"
+            del_out=$(az aks nodepool delete -g "$rg" --cluster-name "$cluster" -n "$pool" --no-wait --only-show-errors 2>&1)
+            del_rc=$?
+            if [ "$del_rc" -ne 0 ]; then
+              if echo "$del_out" | grep -qiE "NotFound|could not be found|ResourceNotFound"; then
+                echo "[retry $i/60] $cluster nodepool $pool disappeared before delete; will recreate"
+                sleep 5
+                continue
+              fi
+              if echo "$del_out" | grep -qiE "OperationNotAllowed|AnotherOperationInProgress|RetryableError"; then
+                echo "[retry $i/60] $cluster nodepool $pool delete hit a transient Azure RP error: $del_out — sleeping 30s"
+                sleep 30
+                continue
+              fi
+              echo "[retry $i/60] $cluster nodepool $pool delete failed: $del_out" >&2
+              exit "$del_rc"
+            fi
             # Up to 10 min budget — typical AKS nodepool delete is 2-4 min.
             deleted=false
             transitioned=false
+            delete_started=$SECONDS
             for j in $(seq 1 30); do
-              cur=$(az aks nodepool show -g "$rg" --cluster-name "$cluster" -n "$pool" --query provisioningState -o tsv --only-show-errors 2>/dev/null || echo "absent")
+              cur_out=$(az aks nodepool show -g "$rg" --cluster-name "$cluster" -n "$pool" --query provisioningState -o tsv --only-show-errors 2>&1)
+              cur_rc=$?
+              if [ "$cur_rc" -eq 0 ]; then
+                cur="$cur_out"
+              elif echo "$cur_out" | grep -qiE "NotFound|could not be found|ResourceNotFound"; then
+                cur="absent"
+              else
+                echo "[retry $i/60] $cluster nodepool $pool delete status check failed transiently: $cur_out — waiting 20s"
+                sleep 20
+                continue
+              fi
               if [ "$cur" = "absent" ]; then
                 echo "[retry $i/60] $cluster nodepool $pool fully deleted; will recreate on next iteration"
                 deleted=true
@@ -720,8 +765,8 @@ resource "terraform_data" "aks_nodepool_cli" {
               if [ "$cur" != "Failed" ]; then
                 transitioned=true
               fi
-              # Bricked fast-fail: 120s elapsed (6 × 20s) and still Failed.
-              if [ "$j" -ge 6 ] && [ "$transitioned" != "true" ] && [ "$cur" = "Failed" ]; then
+              # Bricked fast-fail: 120s elapsed and still Failed.
+              if [ $((SECONDS - delete_started)) -ge 120 ] && [ "$transitioned" != "true" ] && [ "$cur" = "Failed" ]; then
                 echo "[retry $i/60] $cluster nodepool $pool BRICKED — state still Failed 120s after delete call (Azure RP rejected delete). Aborting; no further retry will help." >&2
                 exit 1
               fi
@@ -754,7 +799,9 @@ resource "terraform_data" "aks_nodepool_cli" {
         #   - already exists: a concurrent/very-recent apply attempt
         #     created the nodepool between our precheck and add. Retry —
         #     next precheck will see Succeeded/Updating and resolve.
-        if echo "$out" | grep -qiE "OperationNotAllowed|AnotherOperationInProgress|already[[:space:]]*exists"; then
+        #   - FailedToDeleteVMSSInstances: Azure failed to clean up a partial
+        #     nodepool create. Retry through the Failed-state delete path.
+        if echo "$out" | grep -qiE "OperationNotAllowed|AnotherOperationInProgress|FailedToDeleteVMSSInstances|already[[:space:]]*exists"; then
           echo "[retry $i/60] $cluster nodepool $pool transient AKS RP error; sleeping 30s"
           sleep 30
           continue
@@ -763,7 +810,7 @@ resource "terraform_data" "aks_nodepool_cli" {
         echo "$out" >&2
         exit $rc
       done
-      echo "Timeout: $cluster nodepool $pool create still blocked after 60 retries (~30m)" >&2
+      echo "Timeout: $cluster nodepool $pool create still blocked after 60 retries" >&2
       exit 1
     EOT
   }
@@ -824,4 +871,3 @@ resource "azurerm_role_assignment" "des_reader_cluster" {
     local.aks_system_assigned_principal_id != null ? local.aks_system_assigned_principal_id : error("Unable to determine AKS system-assigned identity principalId via azapi; cannot grant DES Reader role.")
   )
 }
-
