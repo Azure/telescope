@@ -11,6 +11,12 @@ PIPELINE_PATH = (
 )
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 COMPETITIVE_JOB_PATH = REPOSITORY_ROOT / "jobs" / "competitive-test.yml"
+TERRAFORM_RUN_COMMAND_PATH = (
+    REPOSITORY_ROOT / "steps" / "terraform" / "run-command.yml"
+)
+FAILED_AKS_CLEANUP_PATH = (
+    REPOSITORY_ROOT / "steps" / "terraform" / "cleanup-failed-aks.sh"
+)
 CONFIGURE_TEMPLATE_PATH = (
     REPOSITORY_ROOT
     / "steps"
@@ -127,6 +133,7 @@ def test_dedicated_full_telemetry_stage_is_isolated():
     assert "CLUSTERMESH_VM_FAMILY_QUOTA_NAME: standardDSv5Family" in stage
     assert 'CLUSTERMESH_REQUIRED_FAMILY_VCPUS: "112"' in stage
     assert "destroy_retry_attempt_count: 0" in stage
+    assert 'CMP_AUTO_RECOVERY_ENABLED: "true"' in stage
 
     tfvars = N2_TFVARS_PATH.read_text(encoding="utf-8")
     assert tfvars.count('name                 = "churnpool"') == 1
@@ -170,6 +177,39 @@ def test_extra_nodepool_operations_are_serialized_and_recoverable():
     assert "--no-wait --only-show-errors" in nodepool_resource
     assert "FailedToDeleteVMSSInstances" in nodepool_resource
     assert "--yes" not in nodepool_resource
+
+
+def test_preserved_apply_cleans_failed_aks_before_terraform_refresh():
+    run_command = TERRAFORM_RUN_COMMAND_PATH.read_text(encoding="utf-8")
+    cleanup = FAILED_AKS_CLEANUP_PATH.read_text(encoding="utf-8")
+
+    cleanup_call = (
+        'bash "$(Pipeline.Workspace)/s/steps/terraform/cleanup-failed-aks.sh"'
+    )
+    terraform_apply = (
+        'terraform ${{ parameters.command }} --auto-approve '
+        '${{ parameters.arguments }} -var-file $terraform_input_file '
+        '-var json_input="$terraform_input_variables" 2>&1 | tee'
+    )
+    assert cleanup_call in run_command
+    assert run_command.index(cleanup_call) < run_command.index(terraform_apply)
+    assert "preserve_state_on_apply_failure" in run_command
+
+    assert (
+        "[?provisioningState=='Failed' && "
+        "tags.telescope_provisioner=='aks-cli'].[name,tags.role]"
+    ) in cleanup
+    assert '--subscription "$ARM_SUBSCRIPTION_ID"' in cleanup
+    assert "--no-wait" in cleanup
+    assert "delete_transition_timeout" in cleanup
+    assert "cleanup_concurrency" in cleanup
+    assert 'state_prefix="module.aks-cli[\\"$role\\"].terraform_data."' in cleanup
+    assert 'terraform state rm "$address"' in cleanup
+
+    aks_module = AKS_CLI_MODULE_PATH.read_text(encoding="utf-8")
+    assert '"telescope_provisioner" = "aks-cli"' in aks_module
+    assert "Request to Subnet Handler Failed" in aks_module
+    assert "transient_sku_lookup" in aks_module
 
 
 def test_terraform_destroy_treats_missing_aks_and_fleet_as_success():

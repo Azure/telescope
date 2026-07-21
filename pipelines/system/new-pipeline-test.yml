@@ -1504,6 +1504,11 @@ stages:
       MOCK_AGENT_TAG: v26
       MOCK_NODE_COUNT: 100
       MOCK_CONSUME_CLUSTERMESH: true
+      # At n=2, a successful Fleet profile apply can still produce zero
+      # clustermesh-apiserver projections. The existing bounded watcher
+      # detects that at t+900s and recreates the profile, leaving another
+      # 15 minutes inside the formation gate for convergence.
+      CMP_AUTO_RECOVERY_ENABLED: "true"
       CL2_PROMETHEUS_MEMORY_LIMIT_GI: "16"
       AKS_CONTROL_PLANE_METRICS_ENABLED: "true"
       AKS_CONTROL_PLANE_METRICS_REGISTER_PREVIEW: "false"

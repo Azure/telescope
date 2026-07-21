@@ -1,6 +1,9 @@
 locals {
   tags_list = [
-    for key, value in merge(var.tags, { "role" = var.aks_cli_config.role }) :
+    for key, value in merge(var.tags, {
+      "role"                  = var.aks_cli_config.role
+      "telescope_provisioner" = "aks-cli"
+    }) :
     format("%s=%s", key, value)
   ]
 
@@ -439,11 +442,22 @@ resource "terraform_data" "aks_cli" {
         #   - OperationNotAllowed / AnotherOperationInProgress: another
         #     in-progress op on AKS/VNet/RG blocks the create.
         #   - RetryableError: catch-all from azure-cli's own classifier.
+        #   - Request to Subnet Handler Failed: transient AKS/Network RP
+        #     handoff failure observed repeatedly in builds 74274 and 74285.
+        #   - ListResourceSKUsFailed is retryable only when accompanied by a
+        #     network/identity timeout; structural SKU or permission failures
+        #     still fail fast.
         #   - already exists: friendly English text for ResourceAlreadyExists
         #     (build 67798 evidence: az CLI emits "The cluster 'X' under
         #     resource group 'Y' already exists" not "ResourceAlreadyExists"
         #     in stdout — original CamelCase-only grep missed this).
-        if echo "$out" | grep -qiE "ReferencedResourceNotProvisioned|VirtualNetworkNotInSucceededState|OperationNotAllowed|AnotherOperationInProgress|RetryableError|already[[:space:]]*exists"; then
+        transient_sku_lookup=false
+        if echo "$out" | grep -qi "ListResourceSKUsFailed" &&
+          echo "$out" | grep -qiE "Client\\.Timeout|request canceled|unable to resolve an endpoint|timed out|temporarily unavailable|connection reset"; then
+          transient_sku_lookup=true
+        fi
+        if [ "$transient_sku_lookup" = "true" ] ||
+          echo "$out" | grep -qiE "ReferencedResourceNotProvisioned|VirtualNetworkNotInSucceededState|OperationNotAllowed|AnotherOperationInProgress|RetryableError|Request to Subnet Handler Failed|already[[:space:]]*exists"; then
           echo "[aks_cli retry $i/15] transient Azure RP error; sleeping 60s before retry"
           sleep 60
           continue

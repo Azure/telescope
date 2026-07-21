@@ -43,6 +43,17 @@ steps:
           break
         fi
 
+        # A preserved-state retry must remove terminal Failed AKS clusters
+        # before Terraform refreshes their VNets. Otherwise an AKS-generated
+        # NSG left in Failed can make the VNet refresh fail first, preventing
+        # terraform_data.aks_cli from ever reaching its own delete/recreate
+        # recovery (build 74285).
+        if [[ "${{ parameters.command }}" == "apply" &&
+              "$CLOUD" == "azure" &&
+              "${{ parameters.preserve_state_on_apply_failure }}" == "true" ]]; then
+          bash "$(Pipeline.Workspace)/s/steps/terraform/cleanup-failed-aks.sh"
+        fi
+
         set +e
         terraform ${{ parameters.command }} --auto-approve ${{ parameters.arguments }} -var-file $terraform_input_file -var json_input="$terraform_input_variables" 2>&1 | tee terraform_${{ parameters.command }}.log
         exit_code=${PIPESTATUS[0]}
