@@ -14,14 +14,14 @@ CLUSTER = "stg-${CONTROL_PLANE_SCALING_SIZE}-hyperscale-apiserver-seats"
 
 CL2_POOL = azure.NodePool {
     name = "cl2pool"
-    sku = "Standard_D16s_v3"
-    count = 10
+    sku = "Standard_D8s_v3"
+    count = 7
     taintPrefix = "cl2pool"
 }
 KWOK_POOL = azure.NodePool {
     name = "kwokpool"
-    sku = "Standard_D2s_v3"
-    count = 50
+    sku = "Standard_D8s_v3"
+    count = 40
     taintPrefix = "kwok"
     labels = "kwok=true"
 }
