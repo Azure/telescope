@@ -203,6 +203,7 @@ def test_preserved_apply_cleans_failed_aks_before_terraform_refresh():
     assert "--no-wait" in cleanup
     assert "delete_transition_timeout" in cleanup
     assert "cleanup_concurrency" in cleanup
+    assert "No state file was found" in cleanup
     assert 'state_prefix="module.aks-cli[\\"$role\\"].terraform_data."' in cleanup
     assert 'terraform state rm "$address"' in cleanup
 

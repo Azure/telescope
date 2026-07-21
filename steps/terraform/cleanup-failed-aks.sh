@@ -20,7 +20,16 @@ for value in \
   fi
 done
 
-state_list=$(terraform state list)
+state_rc=0
+state_list=$(terraform state list 2>&1) || state_rc=$?
+if [ "$state_rc" -ne 0 ]; then
+  if echo "$state_list" | grep -qi "No state file was found"; then
+    state_list=""
+  else
+    echo "Failed to read Terraform state before AKS cleanup: $state_list" >&2
+    exit "$state_rc"
+  fi
+fi
 list_rc=0
 failed_rows_output=$(az aks list \
     --subscription "$ARM_SUBSCRIPTION_ID" \
