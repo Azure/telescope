@@ -52,6 +52,122 @@ mkdir -p "$report_dir"
 repo_root=$(cd -- "$(dirname -- "$python_script_file")/../../../.." && pwd)
 acns_telemetry_failed=0
 
+# Cleanup state shared by the single EXIT trap below. Populated later
+# (PROM_PATCH_PID / SNAPSHOT_PID once the background daemons are spawned,
+# azure_private_dir once the per-worker Azure CLI cache copy is made) —
+# declared here, empty, so the trap can be registered once and safely
+# reference them under `set -u` no matter how early the script exits.
+PROM_PATCH_PID=""
+SNAPSHOT_PID=""
+azure_private_dir=""
+_cleanup_worker_state() {
+  # Terminate background daemons (prom-cr-patcher, snapshot) regardless of
+  # CL2 outcome, otherwise they'd linger past job end and keep hitting
+  # kube-api.
+  kill ${PROM_PATCH_PID:-} ${SNAPSHOT_PID:-} 2>/dev/null || true
+  # Remove this worker's PRIVATE copy of the Azure CLI cache (never the
+  # host's shared ~/.azure — that's only ever read from, never written
+  # here). Safe to call even when no private dir was created.
+  if [ -n "$azure_private_dir" ]; then
+    rm -rf -- "$azure_private_dir"
+  fi
+}
+trap _cleanup_worker_state EXIT
+
+# Per-worker Azure CLI cache isolation (provider=aks only).
+#
+# run_cl2_command (modules/python/clusterloader2/utils.py) mounts an Azure
+# CLI config dir rw into every CL2 docker container so `az` calls inside CL2
+# (e.g. cloud-provider auth refresh) work. By default that's the host's
+# ~/.azure MSAL token cache. clustermesh-scale's n-cluster fan-out runs up
+# to N of these workers concurrently (scale.py execute_parallel), and
+# concurrent containers reading/writing the SAME cache can race and corrupt
+# it. So for aks we give each worker its OWN private copy: copy (never
+# move/mutate) ONLY the top-level REGULAR files of the host cache into a
+# fresh mktemp -d OUTSIDE report_dir (so it's never picked up as a test
+# artifact / uploaded), then export CL2_AZURE_CONFIG_DIR so utils.py mounts
+# the private copy instead of ~/.azure. Concurrent workers each get a
+# distinct mktemp -d, so there is no cross-worker contention. Unset for
+# every other provider — behavior there is byte-for-byte unchanged.
+#
+# Deliberately NOT a recursive copy: `az`/kubelogin only ever read the
+# root-level auth/profile files (azureProfile.json, msal_token_cache.json,
+# msal_http_cache.bin, clouds.config, config, ...). A real-world ~/.azure
+# also carries large subdirectories this worker never needs — azuredevops/
+# (~223MiB), cliextensions/ (~43MiB), logs/ (~7MiB), plus commands/ and
+# telemetry/ — which a naive `cp -R` would duplicate per worker. At n=100
+# concurrent workers that recursive copy amplifies to ~27GiB of throwaway
+# disk per run, so we copy top-level regular files only (no directories,
+# no symlinks).
+if [ "$provider" = "aks" ]; then
+  azure_host_dir="${HOME}/.azure"
+  if [ ! -d "$azure_host_dir" ]; then
+    # This scenario's kubeconfigs are populated via `az aks get-credentials`
+    # (see execute.yml), so CL2 relies on an Azure CLI auth cache existing
+    # before any worker starts. Fail loudly instead of letting CL2 hit a
+    # confusing auth error deep inside the container.
+    echo "##vso[task.logissue type=error;] $role: Azure CLI config dir not found at \$HOME/.azure; kubeconfig access for this scenario depends on Azure CLI auth (az aks get-credentials) having run first." >&2
+    exit 1
+  fi
+  # This script runs under `set -uo pipefail` (no `-e`), so a failing
+  # mktemp is NOT automatically fatal: `$(...)` command substitution would
+  # otherwise silently leave azure_private_dir empty and let control fall
+  # through to the `cp ... "$azure_private_dir/"` loop below, where an
+  # empty azure_private_dir turns the copy destination into bare "/" --
+  # i.e. `cp -p ... /`, attempting to copy Azure CLI cache files over the
+  # root filesystem. Explicitly check mktemp's exit status AND that it
+  # actually produced a path before ever reaching cp.
+  if ! azure_private_dir="$(mktemp -d "${TMPDIR:-/tmp}/cl2-azure-${role}-XXXXXX")" ||
+     [ -z "$azure_private_dir" ]; then
+    echo "##vso[task.logissue type=error;] $role: mktemp failed to create a worker-private Azure CLI cache directory" >&2
+    azure_private_dir=""
+    exit 1
+  fi
+  # Copy ONLY top-level REGULAR files from the host cache -- never
+  # directories and never symlinks. `az` / kubelogin only need the root
+  # auth/profile files (azureProfile.json, msal_token_cache.json,
+  # msal_http_cache.bin, clouds.config, config, service_principal_entries.json,
+  # etc.); everything else at the top level of ~/.azure is a directory
+  # (cliextensions/, azuredevops/, logs/, commands/, telemetry/, ...) that
+  # this worker does not need. A full recursive copy of a real-world
+  # ~/.azure can be 250+ MiB (223MiB azuredevops + 43MiB cliextensions +
+  # 7MiB logs alone) -- with clustermesh-scale's n-cluster fan-out running
+  # up to N workers concurrently, that would amplify into tens of GiB of
+  # disk per run. `-type f` (not `-xtype f`) deliberately excludes symlinks
+  # even if they resolve to a regular file, so a symlink under $HOME/.azure
+  # can never be used to pull an arbitrary file from outside the cache
+  # root into a worker's private copy. `-p` preserves the file mode.
+  copy_failed=0
+  copied_count=0
+  while IFS= read -r -d '' entry; do
+    if ! cp -p -- "$entry" "$azure_private_dir/"; then
+      copy_failed=1
+      break
+    fi
+    copied_count=$((copied_count + 1))
+  done < <(find "$azure_host_dir" -mindepth 1 -maxdepth 1 -type f -print0)
+
+  if [ "$copy_failed" -eq 1 ]; then
+    echo "##vso[task.logissue type=error;] $role: failed to populate worker-private Azure CLI cache" >&2
+    # Clean up the (partially populated, unusable) private dir ourselves
+    # before exiting -- don't rely solely on the EXIT trap for this.
+    rm -rf -- "$azure_private_dir"
+    azure_private_dir=""
+    exit 1
+  fi
+  if [ "$copied_count" -eq 0 ]; then
+    # An empty private cache is as useless as a missing one -- fail loudly
+    # instead of letting CL2 hit a confusing auth error deep inside the
+    # container.
+    echo "##vso[task.logissue type=error;] $role: no top-level regular files found under \$HOME/.azure ($azure_host_dir); refusing to proceed with an empty worker-private Azure CLI cache" >&2
+    rm -rf -- "$azure_private_dir"
+    azure_private_dir=""
+    exit 1
+  fi
+  export CL2_AZURE_CONFIG_DIR="$azure_private_dir"
+  echo "  $role: using worker-private Azure CLI cache at $azure_private_dir ($copied_count top-level file(s) copied)"
+fi
+
 identity_ready=true
 for identity_value in \
   "${CLUSTERMESH_RUN_ID:-}" \
@@ -229,10 +345,9 @@ SNAPSHOT_LOG="$report_dir/snapshots.log"
 SNAPSHOT_PID=$!
 echo "  $role: spawned snapshot-daemon (PID=$SNAPSHOT_PID, log=$SNAPSHOT_LOG)"
 
-# Ensure background daemons get terminated when this script exits, regardless
-# of CL2 outcome (otherwise they'd linger past job end and keep hitting kube-
-# api).
-trap 'kill $PROM_PATCH_PID $SNAPSHOT_PID 2>/dev/null || true' EXIT
+# Background daemons + the worker-private Azure CLI cache (if any) are
+# terminated/removed by the single _cleanup_worker_state EXIT trap
+# registered near the top of this script, which now sees the PIDs above.
 
 cl2_passed=0
 # Run CL2; collect outcome WITHOUT failing on a non-zero exit (so we can

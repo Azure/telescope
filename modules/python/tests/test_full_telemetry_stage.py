@@ -350,6 +350,36 @@ def test_n100_stage_uses_static_sharded_workspaces_with_no_rotation():
     assert "AKS_CONTROL_PLANE_AMW_NAME:" not in stage
 
 
+def test_n100_stage_mock_deploy_is_zero_tolerance():
+    """n=100 formation/mock-layer deployment must be zero-tolerance:
+    deploy-mock-layer.yml DROPS any tolerated-failure cluster from the CL2
+    inventory, so any nonzero MOCK_DEPLOY_MAX_FAILURES here would let a
+    100-member inventory silently shrink and masquerade as this n=100 tier.
+    Per-cluster provisioning retries (provision-kwok-layer.sh's kretry/apply-
+    attempt loops) are a separate mechanism and remain untouched."""
+    pipeline = PIPELINE_PATH.read_text(encoding="utf-8")
+    start = pipeline.index("- stage: azure_eastus2euap_n100_mock")
+    end = pipeline.index("- stage: azure_eastus2euap_n1_mock_5k", start)
+    stage = pipeline[start:end]
+
+    assert "MOCK_DEPLOY_MAX_FAILURES: 0" in stage
+    assert "MOCK_DEPLOY_MAX_FAILURES: 3" not in stage
+    # Bounded concurrency remains; only the failure tolerance changed.
+    assert "MOCK_DEPLOY_CONCURRENCY: 8" in stage
+
+    deploy_mock_layer = (
+        REPOSITORY_ROOT
+        / "steps"
+        / "topology"
+        / "clustermesh-scale-mock"
+        / "deploy-mock-layer.yml"
+    ).read_text(encoding="utf-8")
+    # The strict-by-default behavior (and the masquerade-as-n=N risk of
+    # raising it) lives in deploy-mock-layer.yml, shared by every mock stage.
+    assert 'MAX_FAILURES="${MOCK_DEPLOY_MAX_FAILURES:-0}"' in deploy_mock_layer
+    assert "masquerade as n=N" in deploy_mock_layer
+
+
 def test_execute_yml_classifies_early_artifact_preservation_summary():
     """Fix: execute.yml must parse the early preservation summary
     (authoritative) rather than treat every nonzero exit code as a

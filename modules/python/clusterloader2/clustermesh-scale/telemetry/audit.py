@@ -7,6 +7,7 @@ import os
 import subprocess
 import sys
 from collections import defaultdict
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlencode
@@ -568,19 +569,44 @@ def run_managed(args):
         cluster.get("workspace", {}).get("prometheus_query_endpoint")
         for cluster in clusters
     ):
-        cluster_reports = []
-        combined_checks = []
-        for cluster in clusters:
+        # Each cluster in a schema-v2 manifest owns a dedicated managed
+        # Prometheus workspace, so per-cluster queries are independent and
+        # safe to parallelize. Every cluster issues ~15 API calls (1
+        # label-values request + one /series request per entry in
+        # MANAGED_SERIES_METRICS), so at n100 scale serial execution can
+        # approach ~1500 calls end-to-end and threaten the 3h finalization
+        # reserve. --workers bounds the ThreadPoolExecutor so operators can
+        # trade query burstiness (risk of throttling a shared workspace or
+        # the Azure Monitor query endpoint) against wall-clock audit time
+        # per environment size.
+        workers = getattr(args, "workers", 1)
+
+        def _query_cluster(cluster):
             cluster_manifest = dict(manifest)
             cluster_manifest["clusters"] = [cluster]
             cluster_manifest["workspace"] = cluster["workspace"]
             endpoint = cluster["workspace"]["prometheus_query_endpoint"]
-            report = _run_managed_query(
+            return _run_managed_query(
                 args,
                 cluster_manifest,
                 endpoint,
                 cluster["id"],
             )
+
+        # executor.map() preserves input order in its result iterator
+        # (results are yielded in the order tasks were submitted, not the
+        # order they complete), so wrapping it in list() below yields
+        # deterministic, manifest-ordered results regardless of which
+        # worker finishes first. Iterating the iterator also re-raises any
+        # exception from a worker thread at that position, so a failure in
+        # any single cluster query still fails the whole audit instead of
+        # being swallowed.
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            reports = list(executor.map(_query_cluster, clusters))
+
+        cluster_reports = []
+        combined_checks = []
+        for cluster, report in zip(clusters, reports):
             role = cluster["role"]
             cluster_reports.append(
                 {
@@ -641,6 +667,21 @@ def _run_managed_query(args, manifest, endpoint, resource_scope):
     return build_managed_audit(metric_names, series_by_metric, manifest)
 
 
+def _positive_int(value):
+    """Argparse type validator requiring a positive integer."""
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as error:
+        raise argparse.ArgumentTypeError(
+            f"invalid positive int value: {value!r}"
+        ) from error
+    if parsed < 1:
+        raise argparse.ArgumentTypeError(
+            f"workers must be a positive integer, got {value!r}"
+        )
+    return parsed
+
+
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="mode", required=True)
@@ -663,6 +704,15 @@ def parse_args(argv=None):
     managed.add_argument("--start", required=True)
     managed.add_argument("--end", required=True)
     managed.add_argument("--output-prefix", required=True)
+    managed.add_argument(
+        "--workers",
+        type=_positive_int,
+        default=1,
+        help=(
+            "Number of concurrent worker threads used to query per-cluster "
+            "workspaces in schema-v2 manifests (default: 1)"
+        ),
+    )
     return parser.parse_args(argv)
 
 

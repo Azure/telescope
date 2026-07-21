@@ -58,6 +58,18 @@ token=$(az account get-access-token \
   --query accessToken -o tsv)
 export PROMETHEUS_BEARER_TOKEN="$token"
 
+# Bounds the ThreadPoolExecutor concurrency used for schema-v2 (one
+# workspace per cluster) audits. Each cluster issues ~15 API calls
+# (1 label-values + 1 /series per MANAGED_SERIES_METRICS entry), so at
+# n100 scale serial execution can approach ~1500 calls and threaten the 3h
+# finalization reserve. Higher worker counts trade wall-clock audit time
+# against burstier concurrent load on the per-cluster query endpoints.
+audit_workers="${AKS_MANAGED_PROMETHEUS_AUDIT_WORKERS:-4}"
+if ! [[ "$audit_workers" =~ ^[1-9][0-9]*$ ]]; then
+  echo "AKS_MANAGED_PROMETHEUS_AUDIT_WORKERS must be a positive integer." >&2
+  exit 1
+fi
+
 set +e
 python3 "$AUDIT_SCRIPT" managed \
   --endpoint "$endpoint" \
@@ -65,7 +77,8 @@ python3 "$AUDIT_SCRIPT" managed \
   --manifest "$MANIFEST_PATH" \
   --start "$audit_start" \
   --end "$end_time" \
-  --output-prefix "$OUTPUT_DIR/telemetry-audit-managed"
+  --output-prefix "$OUTPUT_DIR/telemetry-audit-managed" \
+  --workers "$audit_workers"
 audit_rc=$?
 set -e
 unset PROMETHEUS_BEARER_TOKEN

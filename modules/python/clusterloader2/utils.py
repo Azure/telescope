@@ -89,7 +89,23 @@ def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provi
         volumes[aws_path] = {'bind': '/root/.aws/credentials', 'mode': 'rw'}
 
     if provider == "aks":
-        azure_path = os.path.expanduser("~/.azure")
+        # Default: share the host's ~/.azure MSAL token cache, as before.
+        # CL2_AZURE_CONFIG_DIR (set by run-cl2-on-cluster.sh for the
+        # clustermesh-scale parallel fan-out) overrides this with a
+        # worker-private copy so concurrent containers don't race/corrupt
+        # the shared cache. Unset -> byte-for-byte unchanged behavior for
+        # every other caller/provider.
+        azure_config_override = os.environ.get("CL2_AZURE_CONFIG_DIR")
+        if azure_config_override:
+            if not os.path.isdir(azure_config_override):
+                raise ValueError(
+                    "CL2_AZURE_CONFIG_DIR is set to "
+                    f"'{azure_config_override}' but it does not exist or is "
+                    "not a directory"
+                )
+            azure_path = azure_config_override
+        else:
+            azure_path = os.path.expanduser("~/.azure")
         volumes[azure_path] = {'bind': '/root/.azure', 'mode': 'rw'}
 
     logger.info(

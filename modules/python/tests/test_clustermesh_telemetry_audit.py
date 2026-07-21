@@ -1,9 +1,16 @@
 """Tests for the ClusterMesh telemetry coverage auditor."""
 
+import argparse
 import importlib.util
 import json
+import re
+import threading
+import time
+from collections import Counter
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 
 MODULE_PATH = (
@@ -21,6 +28,9 @@ if MODULE_SPEC is None or MODULE_SPEC.loader is None:
     raise ImportError(f"Unable to load module from {MODULE_PATH}")
 audit_module = importlib.util.module_from_spec(MODULE_SPEC)
 MODULE_SPEC.loader.exec_module(audit_module)
+
+REPO_ROOT = Path(__file__).resolve().parents[3]
+PIPELINE_PATH = REPO_ROOT / "pipelines" / "system" / "new-pipeline-test.yml"
 
 
 def identity_series(manifest):
@@ -243,6 +253,7 @@ def test_managed_audit_queries_each_cluster_workspace(tmp_path, monkeypatch):
             end="2026-07-19T01:00:00Z",
             endpoint="",
             resource_scope="",
+            workers=1,
         )
     )
 
@@ -418,3 +429,293 @@ def test_managed_audit_requires_cluster_identity_series():
     )
     assert identity["status"] == "missing"
     assert identity["missing_clusters"] == ["mesh-1"]
+
+
+def _schema_v2_manifest(tmp_path, cluster_defs):
+    """Build+write a minimal schema-v2 (per-cluster workspace) manifest.
+
+    cluster_defs is a list of (role, endpoint, resource_id) tuples, in the
+    intended manifest cluster order.
+    """
+    clusters = []
+    for role, endpoint, resource_id in cluster_defs:
+        clusters.append(
+            {
+                "name": f"clustermesh-{role}",
+                "role": role,
+                "rg": "run-rg",
+                "id": resource_id,
+                "prometheus_cluster_alias": f"run_{role}",
+                "workspace": {
+                    "name": f"amw-{role}",
+                    "id": f"amw-id-{role}",
+                    "prometheus_query_endpoint": endpoint,
+                },
+            }
+        )
+    manifest = {
+        "schema_version": 2,
+        "run_id": "run",
+        "region": "eastus2euap",
+        "workspace": {"mode": "per-cluster"},
+        "workspaces": [cluster["workspace"] for cluster in clusters],
+        "clusters": clusters,
+    }
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    return manifest, manifest_path
+
+
+def _managed_args(manifest_path, workers):
+    return SimpleNamespace(
+        manifest=str(manifest_path),
+        start="2026-07-19T00:00:00Z",
+        end="2026-07-19T01:00:00Z",
+        endpoint="",
+        resource_scope="",
+        workers=workers,
+    )
+
+
+def test_run_managed_workers_execute_concurrently(tmp_path, monkeypatch):
+    cluster_count = 4
+    manifest, manifest_path = _schema_v2_manifest(
+        tmp_path,
+        [
+            (f"mesh-{i}", f"https://amw-{i}.example", f"cluster-{i}")
+            for i in range(cluster_count)
+        ],
+    )
+    # A barrier that requires every worker to arrive before any can proceed.
+    # With true bounded concurrency (workers == cluster_count) all 4 threads
+    # reach the barrier together; a serial (or under-parallelized) execution
+    # would leave threads waiting alone and the barrier would time out.
+    barrier = threading.Barrier(cluster_count, timeout=5)
+
+    def fake_run_managed_query(_args, _cluster_manifest, _endpoint, _scope):
+        barrier.wait()
+        return {"complete": True, "checks": []}
+
+    monkeypatch.setattr(audit_module, "_run_managed_query", fake_run_managed_query)
+
+    report = audit_module.run_managed(
+        _managed_args(manifest_path, workers=cluster_count)
+    )
+
+    assert report["complete"] is True
+    assert len(report["cluster_reports"]) == cluster_count
+    del manifest  # unused beyond construction
+
+
+def test_run_managed_single_worker_does_not_overlap(tmp_path, monkeypatch):
+    manifest, manifest_path = _schema_v2_manifest(
+        tmp_path,
+        [
+            ("mesh-0", "https://amw-0.example", "cluster-0"),
+            ("mesh-1", "https://amw-1.example", "cluster-1"),
+        ],
+    )
+    barrier = threading.Barrier(2, timeout=0.5)
+
+    def fake_run_managed_query(_args, _cluster_manifest, _endpoint, _scope):
+        barrier.wait()
+        return {"complete": True, "checks": []}
+
+    monkeypatch.setattr(audit_module, "_run_managed_query", fake_run_managed_query)
+
+    # With workers=1, clusters run strictly one-at-a-time, so the second
+    # cluster's call never arrives at the barrier while the first is
+    # waiting on it: the barrier times out and raises.
+    with pytest.raises(threading.BrokenBarrierError):
+        audit_module.run_managed(_managed_args(manifest_path, workers=1))
+    del manifest
+
+
+def test_run_managed_preserves_manifest_cluster_order(tmp_path, monkeypatch):
+    manifest, manifest_path = _schema_v2_manifest(
+        tmp_path,
+        [
+            ("mesh-a", "https://amw-a.example", "cluster-a"),
+            ("mesh-b", "https://amw-b.example", "cluster-b"),
+            ("mesh-c", "https://amw-c.example", "cluster-c"),
+        ],
+    )
+    # Sleep durations are deliberately inverted relative to manifest order,
+    # so under concurrency the LAST manifest cluster finishes FIRST. If
+    # run_managed's ordering depended on completion order rather than
+    # manifest order, cluster_reports/checks would come back as c, b, a.
+    sleep_by_role = {"mesh-a": 0.3, "mesh-b": 0.15, "mesh-c": 0.0}
+
+    def fake_run_managed_query(_args, cluster_manifest, _endpoint, _scope):
+        role = cluster_manifest["clusters"][0]["role"]
+        time.sleep(sleep_by_role[role])
+        return {
+            "complete": True,
+            "checks": [
+                {"name": "check", "status": "covered", "required": True}
+            ],
+        }
+
+    monkeypatch.setattr(audit_module, "_run_managed_query", fake_run_managed_query)
+
+    report = audit_module.run_managed(
+        _managed_args(manifest_path, workers=3)
+    )
+
+    assert [item["role"] for item in report["cluster_reports"]] == [
+        "mesh-a",
+        "mesh-b",
+        "mesh-c",
+    ]
+    assert [check["cluster_role"] for check in report["checks"]] == [
+        "mesh-a",
+        "mesh-b",
+        "mesh-c",
+    ]
+    del manifest
+
+
+def test_run_managed_propagates_worker_exception(tmp_path, monkeypatch):
+    manifest, manifest_path = _schema_v2_manifest(
+        tmp_path,
+        [
+            ("mesh-1", "https://amw-1.example", "cluster-1"),
+            ("mesh-2", "https://amw-2.example", "cluster-2"),
+        ],
+    )
+
+    def fake_run_managed_query(_args, cluster_manifest, _endpoint, _scope):
+        role = cluster_manifest["clusters"][0]["role"]
+        if role == "mesh-2":
+            raise RuntimeError("simulated managed Prometheus query failure")
+        return {"complete": True, "checks": []}
+
+    monkeypatch.setattr(audit_module, "_run_managed_query", fake_run_managed_query)
+
+    with pytest.raises(
+        RuntimeError, match="simulated managed Prometheus query failure"
+    ):
+        audit_module.run_managed(_managed_args(manifest_path, workers=2))
+    del manifest
+
+
+def test_run_managed_uses_exact_scope_for_shared_workspace_clusters(
+    tmp_path, monkeypatch
+):
+    shared_endpoint = "https://amw-shared.example"
+    manifest, manifest_path = _schema_v2_manifest(
+        tmp_path,
+        [
+            ("mesh-1", shared_endpoint, "cluster-1"),
+            ("mesh-2", shared_endpoint, "cluster-2"),
+        ],
+    )
+    calls = []
+    lock = threading.Lock()
+
+    def fake_get(endpoint, path, params=None, scope=""):
+        with lock:
+            calls.append((endpoint, scope))
+        del path, params
+        return []
+
+    monkeypatch.setattr(audit_module, "_http_prometheus_get", fake_get)
+
+    report = audit_module.run_managed(
+        _managed_args(manifest_path, workers=2)
+    )
+
+    assert report["schema_version"] == 2
+    # Both clusters share the SAME workspace endpoint, but concurrency must
+    # not leak or mix up the per-cluster x-ms-azure-scoping resource id: all
+    # calls hit the shared endpoint, tagged with exactly the right scope.
+    endpoints = {endpoint for endpoint, _ in calls}
+    assert endpoints == {shared_endpoint}
+    expected_calls_per_cluster = 1 + len(audit_module.MANAGED_SERIES_METRICS)
+    counts = Counter(scope for _, scope in calls)
+    assert counts == {
+        "cluster-1": expected_calls_per_cluster,
+        "cluster-2": expected_calls_per_cluster,
+    }
+    del manifest
+
+
+def test_positive_int_rejects_non_positive_and_non_numeric_values():
+    for bad_value in ("0", "-1", "abc", "1.5", ""):
+        with pytest.raises(argparse.ArgumentTypeError):
+            audit_module._positive_int(bad_value)  # pylint: disable=protected-access
+
+
+def test_positive_int_accepts_positive_integers():
+    assert audit_module._positive_int("1") == 1  # pylint: disable=protected-access
+    assert audit_module._positive_int("10") == 10  # pylint: disable=protected-access
+
+
+def test_managed_parser_rejects_invalid_workers(capsys):
+    with pytest.raises(SystemExit):
+        audit_module.parse_args(
+            [
+                "managed",
+                "--manifest",
+                "manifest.json",
+                "--start",
+                "s",
+                "--end",
+                "e",
+                "--output-prefix",
+                "out",
+                "--workers",
+                "0",
+            ]
+        )
+    captured = capsys.readouterr()
+    assert "workers" in captured.err
+
+
+def test_managed_parser_workers_defaults_to_one():
+    args = audit_module.parse_args(
+        [
+            "managed",
+            "--manifest",
+            "manifest.json",
+            "--start",
+            "s",
+            "--end",
+            "e",
+            "--output-prefix",
+            "out",
+        ]
+    )
+    assert args.workers == 1
+
+
+def _pipeline_stage_block(pipeline_text, stage_name):
+    pattern = re.compile(
+        rf"- stage:\s*{re.escape(stage_name)}\b.*?(?=\n\s*- stage:|\Z)",
+        re.DOTALL,
+    )
+    match = pattern.search(pipeline_text)
+    assert match, f"stage {stage_name} not found in {PIPELINE_PATH}"
+    return match.group(0)
+
+
+def test_pipeline_sets_static_managed_prometheus_audit_workers():
+    pipeline_text = PIPELINE_PATH.read_text(encoding="utf-8")
+
+    n2_block = _pipeline_stage_block(
+        pipeline_text, "azure_eastus2euap_n2_mock_full_telemetry"
+    )
+    n100_block = _pipeline_stage_block(pipeline_text, "azure_eastus2euap_n100_mock")
+
+    n2_match = re.search(
+        r'AKS_MANAGED_PROMETHEUS_AUDIT_WORKERS:\s*"(\d+)"', n2_block
+    )
+    n100_match = re.search(
+        r'AKS_MANAGED_PROMETHEUS_AUDIT_WORKERS:\s*"(\d+)"', n100_block
+    )
+    assert n2_match is not None, "n2 stage missing AKS_MANAGED_PROMETHEUS_AUDIT_WORKERS"
+    assert n100_match is not None, (
+        "n100 stage missing AKS_MANAGED_PROMETHEUS_AUDIT_WORKERS"
+    )
+    assert n2_match.group(1) == "2"
+    assert n100_match.group(1) == "10"

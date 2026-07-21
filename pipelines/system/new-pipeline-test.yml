@@ -1527,6 +1527,13 @@ stages:
       AKS_AMW_CLUSTERS_PER_WORKSPACE: "1"
       AKS_AMW_MAX_ACTIVE_TIME_SERIES: "1000000"
       AKS_AMW_MAX_EVENTS_PER_MINUTE: "1000000"
+      # audit-managed-prometheus.sh's schema-v2 (per-cluster workspace) audit
+      # bounds its ThreadPoolExecutor with this many workers. Only 2 clusters
+      # at n=2, so 2 workers query both clusters' workspaces in a single
+      # concurrent batch -- no query-load benefit to going higher here, and
+      # keeping it low avoids any unnecessary burst against the per-cluster
+      # query endpoints for this smoke-test tier.
+      AKS_MANAGED_PROMETHEUS_AUDIT_WORKERS: "2"
       AKS_CONTROL_PLANE_LAW_NAME: cmsh-scale-controlplane-law
       AKS_CONTROL_PLANE_LAW_LOCATION: eastus2
       AKS_CONTROL_PLANE_LOG_RETENTION_DAYS: "30"
@@ -1771,8 +1778,15 @@ stages:
   # alongside this stage:
   #   1. PARALLEL mock-layer deploy (deploy-mock-layer.yml) — MOCK_DEPLOY_
   #      CONCURRENCY clusters at a time. Sequential was 152m@20 -> ~12.7h@100;
-  #      at concurrency 8 it's ~100m. MOCK_DEPLOY_MAX_FAILURES tolerates a few
-  #      transient per-cluster deploy blips so one doesn't sink a multi-hour run.
+  #      at concurrency 8 it's ~100m. MOCK_DEPLOY_MAX_FAILURES is 0 (zero
+  #      tolerance): formation/mock-layer deploy must succeed on every one of
+  #      the 100 clusters. deploy-mock-layer.yml DROPS any failed cluster from
+  #      the CL2 inventory when failures are tolerated, so a nonzero tolerance
+  #      here would silently filter the 100-member inventory down and let a
+  #      partial mesh masquerade as this n=100 tier. Existing per-cluster
+  #      provisioning retries (provision-kwok-layer.sh's kretry/apply-attempt
+  #      loops) are unaffected and remain the mechanism for absorbing
+  #      transient blips.
   #   2. CL2 prometheus-setup RETRY (run-cl2-on-cluster.sh + execute.yml) —
   #      mock mode defaults CL2_MAX_ATTEMPTS=2, retrying ONLY the transient
   #      "server unable to handle request (post namespaces)" early-setup failure
@@ -1801,7 +1815,12 @@ stages:
       MOCK_NODE_COUNT: 100
       MOCK_CONSUME_CLUSTERMESH: true
       MOCK_DEPLOY_CONCURRENCY: 8
-      MOCK_DEPLOY_MAX_FAILURES: 3
+      # Zero tolerance: every one of the 100 clusters must get a working
+      # mock-cilium-agent layer. A nonzero value would let deploy-mock-layer.yml
+      # drop failed clusters from the CL2 inventory and run this stage as a
+      # smaller n<100 mesh while still reporting as n=100 (see the stage
+      # header comment above).
+      MOCK_DEPLOY_MAX_FAILURES: 0
       CL2_PROMETHEUS_MEMORY_LIMIT_GI: "16"
       CL2_ACNS_TELEMETRY_ENABLED: "true"
       AKS_CONTROL_PLANE_METRICS_ENABLED: "true"
@@ -1837,6 +1856,18 @@ stages:
       AKS_AMW_CLUSTERS_PER_WORKSPACE: "2"
       AKS_AMW_MAX_ACTIVE_TIME_SERIES: "2000000"
       AKS_AMW_MAX_EVENTS_PER_MINUTE: "2000000"
+      # audit-managed-prometheus.sh's schema-v2 audit issues ~15 API calls
+      # per cluster (1 label-values + 1 /series per MANAGED_SERIES_METRICS
+      # entry), so all 100 clusters serially would be ~1500 calls and risks
+      # eating into the 3h finalization reserve. 10 workers parallelizes
+      # that into 10 concurrent per-cluster query batches (~150 calls in
+      # flight at a time across the 50 shard-NNN workspaces from
+      # AKS_AMW_CLUSTERS_PER_WORKSPACE=2 above, i.e. at most 2 concurrent
+      # queries against any single shared workspace endpoint, still scoped
+      # per-cluster via the x-ms-azure-scoping header) -- trading higher
+      # burst load on the query endpoints for materially lower audit
+      # wall-clock time at this scale.
+      AKS_MANAGED_PROMETHEUS_AUDIT_WORKERS: "10"
       AKS_CONTROL_PLANE_METRICS_CONCURRENCY: "5"
       AKS_CONTROL_PLANE_LAW_NAME: cmsh-scale-controlplane-law
       AKS_CONTROL_PLANE_LAW_LOCATION: eastus2

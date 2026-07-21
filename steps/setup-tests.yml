@@ -148,6 +148,235 @@ steps:
       REGION: ${{ parameters.region }}
 
   - script: |
+      # Early managed-telemetry preflight, run BEFORE Terraform, so a doomed
+      # AKS control-plane managed-Prometheus configuration (missing preview
+      # feature registration, a provider surface that doesn't support the
+      # requested ingestion limits, or a regional AMW quota that is already
+      # exhausted) fails fast instead of after clusters/mesh are provisioned.
+      # configure-managed-prometheus.sh (steps/topology/clustermesh-scale/
+      # configure-control-plane-metrics.yml) re-checks/enforces all of this
+      # again at configure time; this preflight is a cheap, read-only,
+      # no-resource-creation early warning using the same UI-selected
+      # subscription and az CLI patterns as the VM quota preflight above.
+      set -euo pipefail
+
+      cluster_count="${CLUSTER_COUNT:?CLUSTER_COUNT is required}"
+      amw_clusters_per_workspace="${AKS_AMW_CLUSTERS_PER_WORKSPACE:-1}"
+      amw_regional_workspace_limit="${AKS_AMW_REGIONAL_WORKSPACE_LIMIT:-100}"
+      amw_max_active_time_series="${AKS_AMW_MAX_ACTIVE_TIME_SERIES:-1000000}"
+      amw_max_events_per_minute="${AKS_AMW_MAX_EVENTS_PER_MINUTE:-1000000}"
+      for name_value in \
+        "CLUSTER_COUNT=$cluster_count" \
+        "AKS_AMW_CLUSTERS_PER_WORKSPACE=$amw_clusters_per_workspace" \
+        "AKS_AMW_REGIONAL_WORKSPACE_LIMIT=$amw_regional_workspace_limit" \
+        "AKS_AMW_MAX_ACTIVE_TIME_SERIES=$amw_max_active_time_series" \
+        "AKS_AMW_MAX_EVENTS_PER_MINUTE=$amw_max_events_per_minute"; do
+        name="${name_value%%=*}"
+        value="${name_value#*=}"
+        if ! [[ "$value" =~ ^[1-9][0-9]*$ ]]; then
+          echo "$name must be a positive integer, got '$value'." >&2
+          exit 1
+        fi
+      done
+
+      # ---- selected-subscription verification ----
+      actual_subscription_id=$(az account show --query id -o tsv)
+      if [[ "${actual_subscription_id,,}" != "${AZURE_SUBSCRIPTION_ID,,}" ]]; then
+        echo "Expected Azure subscription ${AZURE_SUBSCRIPTION_ID}, got ${actual_subscription_id}" >&2
+        exit 1
+      fi
+
+      # ---- preview feature registration state ----
+      register_preview="${AKS_CONTROL_PLANE_METRICS_REGISTER_PREVIEW:-false}"
+      feature_name="AzureMonitorMetricsControlPlanePreview"
+      if [ "${register_preview,,}" = "true" ]; then
+        echo "AKS_CONTROL_PLANE_METRICS_REGISTER_PREVIEW=true; configure-managed-prometheus.sh will register $feature_name if it is not already Registered. Skipping the hard Registered-state requirement in this preflight."
+      else
+        feature_state=$(az feature show \
+          --namespace Microsoft.ContainerService \
+          --name "$feature_name" \
+          --query properties.state -o tsv 2>/dev/null || true)
+        if [ "$feature_state" != "Registered" ]; then
+          echo "##vso[task.logissue type=error;] AKS control-plane metrics preview feature $feature_name is ${feature_state:-unknown}, not Registered." >&2
+          echo "Register it once with:" >&2
+          echo "  az feature register --namespace Microsoft.ContainerService --name $feature_name" >&2
+          echo "then re-register Microsoft.ContainerService, or set AKS_CONTROL_PLANE_METRICS_REGISTER_PREVIEW=true so the configure step registers it." >&2
+          exit 1
+        fi
+        echo "Preview feature $feature_name is Registered."
+      fi
+
+      # ---- existing regional Azure Monitor accounts (AMWs), fetched once ----
+      # Shared by the direct ARM metricsContainers probe below and the
+      # regional workspace quota check further down, so this preflight makes
+      # exactly one `az monitor account list` call regardless of which of
+      # those checks end up needing it.
+      amw_existing_accounts_json=$(az monitor account list --output json)
+      amw_existing_regional_accounts_json=$(
+        printf '%s' "$amw_existing_accounts_json" \
+          | jq --arg region "$REGION" \
+            '[.[] | select((.location // "" | ascii_downcase) == ($region | ascii_downcase))]'
+      )
+      amw_existing_regional_workspace_count=$(
+        printf '%s' "$amw_existing_regional_accounts_json" | jq 'length'
+      )
+
+      # ---- Microsoft.Monitor/accounts/metricsContainers direct ARM verification ----
+      # Only required when the requested ingestion limits exceed the 1,000,000
+      # platform default -- that override is what deploys the metricsContainers
+      # child resource (see configure-managed-prometheus.sh).
+      #
+      # `az provider show` does NOT enumerate metricsContainers as a nested
+      # resourceType under Microsoft.Monitor/accounts (it only lists top-level
+      # resource types), so it can never reliably confirm this preview surface
+      # is actually usable -- it always reports "not exposed", a permanent
+      # false failure. Instead, verify directly against ARM: find the first
+      # existing Azure Monitor workspace (AMW) account in $REGION and GET its
+      # `<id>/metricsContainers/default` child resource at the exact preview
+      # api-version configure-managed-prometheus.sh will use. This makes a
+      # real, authoritative call against the actual resource/api-version
+      # combination instead of guessing from provider metadata.
+      #
+      # No resource is created by this probe. If no AMW exists yet in $REGION,
+      # this capability genuinely cannot be probed until configure-managed-
+      # prometheus.sh creates the first one -- that is logged as an
+      # informational skip, not a false failure; the configure step performs
+      # its own authoritative check once that first AMW exists.
+      #
+      # The probed AMW is arbitrary (the first one found regionally) and, at
+      # the platform default of 1,000,000, may never have had a
+      # metricsContainers/default child created for it -- so a
+      # ResourceNotFound/404 on THAT CHILD is not proof the api-version/
+      # feature is unsupported; it is only proof this particular AMW never
+      # created one. That case is logged as informational/inconclusive and
+      # this preflight continues (configure-time creation/verification
+      # remains authoritative). Genuine unsupported-surface errors
+      # (NoRegisteredProviderFound / InvalidApiVersion / UnsupportedApiVersion
+      # / an unsupported resource type) and authorization/subscription errors
+      # (AuthorizationFailed / Forbidden / subscription-scope failures) are
+      # still fail-fast, as is any other unexpected error -- reported with a
+      # sanitized, actionable message rather than the raw az CLI stderr.
+      _sanitize_az_error() {
+        # Single line, capped length, with GUIDs (subscription/tenant/
+        # object ids) redacted so pipeline logs never surface those
+        # verbatim from the underlying az CLI error.
+        printf '%s' "$1" \
+          | tr '\n' ' ' \
+          | sed -E 's/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/[redacted-guid]/g' \
+          | cut -c1-300
+      }
+      required_metrics_container_api_version="2025-05-03-preview"
+      if [ "$amw_max_active_time_series" -gt 1000000 ] ||
+         [ "$amw_max_events_per_minute" -gt 1000000 ]; then
+        amw_probe_id=$(printf '%s' "$amw_existing_regional_accounts_json" | jq -r '.[0].id // empty')
+        if [ -n "$amw_probe_id" ]; then
+          amw_probe_rc=0
+          amw_probe_stderr=$(az resource show \
+              --ids "${amw_probe_id}/metricsContainers/default" \
+              --api-version "$required_metrics_container_api_version" \
+              -o none 2>&1) || amw_probe_rc=$?
+          if [ "$amw_probe_rc" -eq 0 ]; then
+            echo "Verified Microsoft.Monitor/accounts/metricsContainers api-version $required_metrics_container_api_version directly against existing AMW $amw_probe_id (required for max_active_time_series=$amw_max_active_time_series, max_events_per_minute=$amw_max_events_per_minute)."
+          else
+            case "$amw_probe_stderr" in
+              *NoRegisteredProviderFound*|*InvalidApiVersion*|*UnsupportedApiVersion*|*"not supported"*|*ResourceTypeNotSupported*)
+                echo "##vso[task.logissue type=error;] Requested Azure Monitor ingestion limits (max_active_time_series=$amw_max_active_time_series, max_events_per_minute=$amw_max_events_per_minute) exceed the 1,000,000 platform default and require Microsoft.Monitor/accounts/metricsContainers api-version $required_metrics_container_api_version, but direct ARM verification against existing AMW $amw_probe_id shows this subscription/region does not support that resource type/api-version: $(_sanitize_az_error "$amw_probe_stderr")" >&2
+                exit 1
+                ;;
+              *AuthorizationFailed*|*Forbidden*|*SubscriptionNotFound*|*InvalidSubscriptionId*|*InvalidAuthenticationToken*)
+                echo "##vso[task.logissue type=error;] Direct ARM verification of Microsoft.Monitor/accounts/metricsContainers against existing AMW $amw_probe_id failed due to an authorization/subscription error: $(_sanitize_az_error "$amw_probe_stderr"). Confirm the pipeline's service connection/identity has Reader access to $amw_probe_id and that the selected subscription is correct." >&2
+                exit 1
+                ;;
+              *ResourceNotFound*|*NotFound*|*404*)
+                echo "Direct ARM probe of Microsoft.Monitor/accounts/metricsContainers/default against existing AMW $amw_probe_id returned ResourceNotFound (informational, inconclusive): this specific AMW may never have had a metricsContainers/default child created (e.g. it was created at the 1,000,000 platform default). This does NOT indicate api-version $required_metrics_container_api_version or the metricsContainers resource type is unsupported for the subscription. Continuing without a hard failure here -- configure-managed-prometheus.sh performs the authoritative creation/verification check at configure time."
+                ;;
+              *)
+                echo "##vso[task.logissue type=error;] Unexpected error while verifying Microsoft.Monitor/accounts/metricsContainers api-version $required_metrics_container_api_version against existing AMW $amw_probe_id: $(_sanitize_az_error "$amw_probe_stderr")" >&2
+                exit 1
+                ;;
+            esac
+          fi
+        else
+          echo "No existing Azure Monitor workspace found in $REGION yet; Microsoft.Monitor/accounts/metricsContainers api-version $required_metrics_container_api_version cannot be probed until configure-managed-prometheus.sh creates the first AMW. Continuing without a hard failure here -- the configure step performs its own authoritative check at creation time."
+        fi
+      fi
+
+      # ---- regional Azure Monitor workspace (AMW) quota ----
+      # desired = ceil(cluster_count / clusters_per_workspace). existing is
+      # counted across every Microsoft.Monitor/accounts in $REGION in the
+      # selected subscription (matches the real regional quota, which applies
+      # regardless of resource name/prefix).
+      amw_desired_workspace_count=$(( (cluster_count + amw_clusters_per_workspace - 1) / amw_clusters_per_workspace ))
+      amw_rotation_enabled="${AKS_AMW_ROTATION_ENABLED:-false}"
+      amw_name_prefix="${AKS_CONTROL_PLANE_AMW_NAME_PREFIX:-cmsh-scale-${REGION}-amw}"
+
+      if [ "${amw_rotation_enabled,,}" = "true" ]; then
+        # Rotation-enabled (e.g. n=2 full-telemetry): the actual generation
+        # (base prefix vs a bounded ring of "-rN" alternates) is only
+        # selected later at configure time, based on real-time per-
+        # generation capacity -- see configure-managed-prometheus.sh. This
+        # preflight cannot know which generation will be picked, so it
+        # conservatively assumes every desired workspace is newly created on
+        # top of whatever already exists regionally (an upper bound). This
+        # can only make the check fail sooner/tighter, never let a run past
+        # the real regional quota.
+        amw_missing_workspace_count=$amw_desired_workspace_count
+      else
+        # Rotation-disabled (e.g. n=100): workspace naming is fully
+        # deterministic from CLUSTER_COUNT / AKS_AMW_CLUSTERS_PER_WORKSPACE /
+        # AKS_CONTROL_PLANE_AMW_NAME_PREFIX and matches
+        # build_workspace_assignments() in configure-managed-prometheus.sh
+        # exactly: clusters_per_workspace=1 -> "<prefix>-mesh-<i>" for i in
+        # 1..cluster_count (cluster roles are "mesh-1".."mesh-N");
+        # clusters_per_workspace>1 -> "<prefix>-shard-<NNN>" for NNN in
+        # 001..ceil(cluster_count/clusters_per_workspace). Rather than
+        # assuming every desired workspace is newly created, compute
+        # precisely which target names are still MISSING from the region
+        # and only count those toward the projected total -- this is what
+        # lets an n=100 RERUN pass once the same base workspaces already
+        # exist, while still catching a genuine quota overflow when target
+        # names are still missing.
+        amw_target_workspace_names=()
+        if [ "$amw_clusters_per_workspace" -gt 1 ]; then
+          for ((amw_i = 1; amw_i <= amw_desired_workspace_count; amw_i++)); do
+            amw_target_workspace_names+=("$(printf '%s-shard-%03d' "$amw_name_prefix" "$amw_i")")
+          done
+        else
+          for ((amw_i = 1; amw_i <= cluster_count; amw_i++)); do
+            amw_target_workspace_names+=("${amw_name_prefix}-mesh-${amw_i}")
+          done
+        fi
+
+        declare -A amw_existing_name_set=()
+        while IFS= read -r amw_existing_name; do
+          [ -n "$amw_existing_name" ] && amw_existing_name_set["$amw_existing_name"]=1
+        done < <(printf '%s' "$amw_existing_regional_accounts_json" | jq -r '.[].name')
+
+        amw_missing_workspace_count=0
+        for amw_target_name in "${amw_target_workspace_names[@]}"; do
+          if [ -z "${amw_existing_name_set[$amw_target_name]:-}" ]; then
+            amw_missing_workspace_count=$((amw_missing_workspace_count + 1))
+          fi
+        done
+      fi
+
+      amw_projected_regional_workspace_count=$((
+        amw_existing_regional_workspace_count + amw_missing_workspace_count
+      ))
+      echo "Managed-telemetry AMW preflight: subscription=$actual_subscription_id region=$REGION rotation_enabled=${amw_rotation_enabled,,}"
+      echo "  cluster_count=$cluster_count clusters_per_workspace=$amw_clusters_per_workspace desired_workspaces=$amw_desired_workspace_count"
+      echo "  existing regional Microsoft.Monitor/accounts=$amw_existing_regional_workspace_count missing_workspaces=$amw_missing_workspace_count projected_total=$amw_projected_regional_workspace_count limit=$amw_regional_workspace_limit"
+      if [ "$amw_projected_regional_workspace_count" -gt "$amw_regional_workspace_limit" ]; then
+        echo "##vso[task.logissue type=error;] Projected Azure Monitor regional workspace count ($amw_projected_regional_workspace_count = existing $amw_existing_regional_workspace_count + missing $amw_missing_workspace_count) in $REGION would exceed AKS_AMW_REGIONAL_WORKSPACE_LIMIT ($amw_regional_workspace_limit)." >&2
+        exit 1
+      fi
+    displayName: "Preflight ClusterMesh managed-telemetry (control-plane metrics)"
+    condition: and(startsWith(variables['SCENARIO_NAME'], 'clustermesh'),
+                   eq(variables['AKS_CONTROL_PLANE_METRICS_ENABLED'], 'true'))
+    env:
+      REGION: ${{ parameters.region }}
+
+  - script: |
       # Install the Azure Fleet preview CLI extension required by the
       # clustermesh-scale scenario. The Fleet ClusterMeshProfile API surface
       # is private-preview and only the bundled wheel exposes the
