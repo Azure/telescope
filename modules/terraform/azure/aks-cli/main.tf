@@ -380,20 +380,25 @@ resource "terraform_data" "aks_cli" {
     #   - OperationNotAllowed / AnotherOperationInProgress: same race
     #     pattern as aks_nodepool_cli below; another in-progress operation
     #     on the AKS / VNet / RG blocks the create. Retry.
+    #   - AKSCapacityHeavyUsage: AKS explicitly rejected admission because
+    #     the fixed test region is saturated. Retrying immediately only burns
+    #     ADO task attempts, so use a multi-minute, per-cluster jittered wait.
     #
     # Strictly additive: first attempt = original behavior. Other
-    # Telescope scenarios (single-cluster, peered, etc.) hit zero retries
-    # on the happy path. Only the few clusters that lose the serialization
-    # race at N=100 shared-VNet pay the retry cost.
+    # Telescope scenarios hit zero retries on the happy path. Only explicit
+    # transient Network RP or regional-capacity rejections pay the retry cost.
     #
-    # Budget: 30 retries × 60s = 30 min. Enough for the worst Azure VNet
-    # propagation tail observed in clustermesh-scale runs.
+    # Budget: 15 attempts. Network serialization errors wait 60s; regional
+    # capacity admission waits 4-6m, for at most ~90m before ADO-level recovery.
     interpreter = ["bash", "-c"]
     command     = <<-EOT
       set -uo pipefail
       cmd=${jsonencode(self.input.aks_cli_command)}
       rg="${var.resource_group_name}"
       name="${var.aks_cli_config.aks_name}"
+      capacity_hash=$(printf '%s' "$name" | cksum)
+      capacity_hash="$${capacity_hash%% *}"
+      capacity_delay=$((240 + capacity_hash % 121))
       for i in $(seq 1 15); do
         # Idempotency precheck (build 67798 evidence): under
         # preserve_state_on_apply_failure + AzDO retryCountOnTaskFailure,
@@ -431,6 +436,17 @@ resource "terraform_data" "aks_cli" {
         out=$(eval "$cmd" 2>&1) && { echo "$out"; exit 0; }
         rc=$?
         echo "$out"
+        # AKS regional admission pressure is explicitly transient, but retrying
+        # every cluster at once creates a thundering herd. Spread retries over
+        # a deterministic 4-6 minute window based on the cluster name.
+        if echo "$out" | grep -qiE "AKSCapacityHeavyUsage|AKS is experiencing heavy usage"; then
+          if [ "$i" -ge 15 ]; then
+            break
+          fi
+          echo "[aks_cli retry $i/15] regional AKS capacity is saturated; sleeping $${capacity_delay}s before retry"
+          sleep "$capacity_delay"
+          continue
+        fi
         # Retryable Azure RP errors. All point to transient resource-busy
         # / serialization conditions that recover once the queue drains.
         # Match BOTH the CamelCase code text (in JSON details[]) AND the

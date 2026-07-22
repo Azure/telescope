@@ -249,6 +249,9 @@ def test_preserved_apply_cleans_failed_aks_before_terraform_refresh():
     assert "role                    = var.aks_cli_config.role" in aks_module
     assert "Request to Subnet Handler Failed" in aks_module
     assert "transient_sku_lookup" in aks_module
+    assert "AKSCapacityHeavyUsage" in aks_module
+    assert "capacity_delay=$((240 + capacity_hash % 121))" in aks_module
+    assert "sleep \"$capacity_delay\"" in aks_module
 
 
 def test_preserved_apply_recovers_and_imports_orphaned_vnets():
