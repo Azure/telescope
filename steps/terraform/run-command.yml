@@ -51,7 +51,12 @@ steps:
         if [[ "${{ parameters.command }}" == "apply" &&
               "$CLOUD" == "azure" &&
               "${{ parameters.preserve_state_on_apply_failure }}" == "true" ]]; then
-          bash "$(Pipeline.Workspace)/s/steps/terraform/cleanup-failed-aks.sh"
+          REGION="$region" \
+            bash "$(Pipeline.Workspace)/s/steps/terraform/cleanup-failed-aks.sh"
+          REGION="$region" \
+          TERRAFORM_INPUT_FILE="$terraform_input_file" \
+          TERRAFORM_INPUT_VARIABLES="$terraform_input_variables" \
+            bash "$(Pipeline.Workspace)/s/steps/terraform/reconcile-orphaned-vnets.sh"
         fi
 
         set +e

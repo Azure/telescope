@@ -17,6 +17,9 @@ TERRAFORM_RUN_COMMAND_PATH = (
 FAILED_AKS_CLEANUP_PATH = (
     REPOSITORY_ROOT / "steps" / "terraform" / "cleanup-failed-aks.sh"
 )
+ORPHANED_VNET_RECONCILE_PATH = (
+    REPOSITORY_ROOT / "steps" / "terraform" / "reconcile-orphaned-vnets.sh"
+)
 CONFIGURE_TEMPLATE_PATH = (
     REPOSITORY_ROOT
     / "steps"
@@ -196,7 +199,7 @@ def test_preserved_apply_cleans_failed_aks_before_terraform_refresh():
     assert "preserve_state_on_apply_failure" in run_command
 
     assert (
-        "[?provisioningState=='Failed' && "
+        "[?location=='$REGION' && provisioningState=='Failed' && "
         "tags.telescope_provisioner=='aks-cli'].[name,tags.role]"
     ) in cleanup
     assert '--subscription "$ARM_SUBSCRIPTION_ID"' in cleanup
@@ -211,6 +214,37 @@ def test_preserved_apply_cleans_failed_aks_before_terraform_refresh():
     assert '"telescope_provisioner" = "aks-cli"' in aks_module
     assert "Request to Subnet Handler Failed" in aks_module
     assert "transient_sku_lookup" in aks_module
+
+
+def test_preserved_apply_recovers_and_imports_orphaned_vnets():
+    run_command = TERRAFORM_RUN_COMMAND_PATH.read_text(encoding="utf-8")
+    reconcile = ORPHANED_VNET_RECONCILE_PATH.read_text(encoding="utf-8")
+
+    failed_aks_call = "cleanup-failed-aks.sh"
+    vnet_call = "reconcile-orphaned-vnets.sh"
+    terraform_apply = (
+        'terraform ${{ parameters.command }} --auto-approve '
+        '${{ parameters.arguments }} -var-file $terraform_input_file '
+        '-var json_input="$terraform_input_variables" 2>&1 | tee'
+    )
+    assert failed_aks_call in run_command
+    assert vnet_call in run_command
+    assert run_command.index(failed_aks_call) < run_command.index(vnet_call)
+    assert run_command.index(vnet_call) < run_command.index(terraform_apply)
+
+    assert (
+        "[?location=='$REGION' && "
+        "tags.run_id=='$RUN_ID'].[name,tags.role,id,provisioningState]"
+    ) in reconcile
+    assert 'az network vnet update \\' in reconcile
+    assert 'tags.telescope_recovery=$RUN_ID' in reconcile
+    assert 'update_rc" -eq 124' in reconcile
+    assert "reconcile_concurrency" in reconcile
+    assert 'address="module.virtual_network[\\"$role\\"].azurerm_virtual_network.vnet"' in (
+        reconcile
+    )
+    assert "terraform import" in reconcile
+    assert '-var "json_input=$TERRAFORM_INPUT_VARIABLES"' in reconcile
 
 
 def test_terraform_destroy_treats_missing_aks_and_fleet_as_success():

@@ -3,6 +3,7 @@ set -euo pipefail
 
 : "${ARM_SUBSCRIPTION_ID:?ARM_SUBSCRIPTION_ID is required}"
 : "${RUN_ID:?RUN_ID is required}"
+: "${REGION:?REGION is required}"
 
 cleanup_concurrency="${AKS_FAILED_CLUSTER_CLEANUP_CONCURRENCY:-10}"
 delete_timeout="${AKS_FAILED_CLUSTER_DELETE_TIMEOUT_SECONDS:-1800}"
@@ -34,7 +35,7 @@ list_rc=0
 failed_rows_output=$(az aks list \
     --subscription "$ARM_SUBSCRIPTION_ID" \
     --resource-group "$RUN_ID" \
-    --query "[?provisioningState=='Failed' && tags.telescope_provisioner=='aks-cli'].[name,tags.role]" \
+    --query "[?location=='$REGION' && provisioningState=='Failed' && tags.telescope_provisioner=='aks-cli'].[name,tags.role]" \
     --output tsv \
     --only-show-errors) || list_rc=$?
 if [ "$list_rc" -ne 0 ]; then
@@ -56,7 +57,8 @@ failed_clusters=()
 declare -A cluster_roles=()
 for row in "${failed_cluster_rows[@]}"; do
   IFS=$'\t' read -r cluster role <<<"$row"
-  if [ -z "$cluster" ] || [ -z "$role" ]; then
+  if [ -z "$cluster" ] || [ "$cluster" = "None" ] ||
+    [ -z "$role" ] || [ "$role" = "None" ]; then
     echo "Failed AKS row is missing cluster name or role tag: $row" >&2
     exit 1
   fi
