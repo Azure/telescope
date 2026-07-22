@@ -13,8 +13,8 @@ NODE_COUNTS = {"H2": 2000, "H4": 4000, "H8": 8000}
 KWOK_NODES_PER_CONTROLLER = 100
 KWOK_POOL = azure.NodePool {
     name = "kwokpool"
-    sku = "Standard_D4ds_v5"
-    count = 20
+    sku = "Standard_D8ds_v5"
+    count = 27
     taintPrefix = "kwok"
     labels = "kwok=true"
 }

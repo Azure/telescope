@@ -213,8 +213,8 @@ stages:
               --resource-group "$(RUN_ID)" \
               --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248" \
               --name "kwokpool" \
-              --node-count 20 \
-              --node-vm-size "Standard_D4ds_v5" \
+              --node-count 27 \
+              --node-vm-size "Standard_D8ds_v5" \
               --mode User \
               --node-taints kwok=true:NoSchedule \
             --labels "kwok=true" 2>&1)
@@ -529,8 +529,8 @@ stages:
               --resource-group "$(RUN_ID)" \
               --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248" \
               --name "kwokpool" \
-              --node-count 20 \
-              --node-vm-size "Standard_D4ds_v5" \
+              --node-count 27 \
+              --node-vm-size "Standard_D8ds_v5" \
               --mode User \
               --node-taints kwok=true:NoSchedule \
             --labels "kwok=true" 2>&1)
@@ -845,8 +845,8 @@ stages:
               --resource-group "$(RUN_ID)" \
               --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248" \
               --name "kwokpool" \
-              --node-count 20 \
-              --node-vm-size "Standard_D4ds_v5" \
+              --node-count 27 \
+              --node-vm-size "Standard_D8ds_v5" \
               --mode User \
               --node-taints kwok=true:NoSchedule \
             --labels "kwok=true" 2>&1)
