@@ -243,6 +243,33 @@ def test_terraform_destroy_treats_missing_aks_and_fleet_as_success():
     assert profile_resource.count("ResourceGroupNotFound") >= 2
 
 
+def test_fleet_apply_waits_for_stable_profile_and_recovery_requires_delete():
+    fleet_module = FLEET_MODULE_PATH.read_text(encoding="utf-8")
+    validate = (
+        REPOSITORY_ROOT
+        / "steps"
+        / "topology"
+        / "clustermesh-scale"
+        / "validate-resources.yml"
+    ).read_text(encoding="utf-8")
+
+    assert "cmp_apply_wait_seconds = length(var.members) >= 50 ? 5400 : 2700" in (
+        fleet_module
+    )
+    assert "--query properties.provisioningState" in fleet_module
+    assert "Succeeded|Failed|Applying|Updating|Creating" in fleet_module
+    assert "apply stable in Succeeded" in fleet_module
+    assert "apply did not reach stable Succeeded" in fleet_module
+
+    assert "profile_deleted=false" in validate
+    assert "ResourceNotFinalState" in validate
+    assert "profile_delete_attempts=90" in validate
+    assert "refusing recreate" in validate
+    assert validate.index('if [ "$profile_deleted" != "true" ]') < validate.index(
+        "# Step 2: recreate with the same selector."
+    )
+
+
 def test_long_clustermesh_stages_do_not_replay_terraform_destroy():
     job = COMPETITIVE_JOB_PATH.read_text(encoding="utf-8")
     assert "- name: destroy_retry_attempt_count" in job

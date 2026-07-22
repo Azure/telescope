@@ -488,24 +488,53 @@ steps:
           exit 0
         fi
         echo "[recovery] $_ts FIRING auto-recovery: delete + recreate + apply clustermeshprofile"
-        # Step 1: delete the existing profile. Best-effort — if it's
-        # already gone (race) the create below still succeeds.
-        az fleet clustermeshprofile delete \
+        # Step 1: delete the existing profile. Never recreate unless deletion
+        # is accepted and absence is verified. Build 74295 showed that an
+        # Applying profile rejects delete with ResourceNotFinalState; blindly
+        # continuing then makes create fail against the same active resource.
+        delete_rc=0
+        delete_out=$(az fleet clustermeshprofile delete \
           --resource-group "$FLEET_RG" \
           --fleet-name "$FLEET_NAME" \
           --name "$FLEET_PROFILE" \
-          --yes --output none --only-show-errors 2>&1 || \
-          echo "[recovery] delete reported error (continuing); profile may already be gone"
-        # Wait for deletion to propagate. Up to 2min.
-        for i in $(seq 1 12); do
+          --yes --output none --only-show-errors 2>&1) || delete_rc=$?
+        profile_deleted=false
+        if [ "$delete_rc" -ne 0 ]; then
+          if echo "$delete_out" | grep -qiE "NotFound|could not be found"; then
+            echo "[recovery] profile already absent"
+            profile_deleted=true
+          elif echo "$delete_out" | grep -qiE "ResourceNotFinalState|OperationNotAllowed|AnotherOperationInProgress"; then
+            echo "[recovery] profile still has an active operation; leaving it intact for the foreground gate"
+            exit 0
+          else
+            echo "[recovery] FAIL: delete rejected: $delete_out"
+            exit 1
+          fi
+        fi
+        # Wait for deletion to propagate. Large profiles get 15min; smaller
+        # tiers get 5min. The n=100 path normally uses surgical rejoin instead
+        # of profile recreation, but keep this fallback scale-safe.
+        profile_delete_attempts=30
+        if [ "$cluster_count" -ge 50 ]; then
+          profile_delete_attempts=90
+        fi
+        for i in $(seq 1 "$profile_delete_attempts"); do
+          if [ "$profile_deleted" = "true" ]; then
+            break
+          fi
           if ! az fleet clustermeshprofile show \
                  --resource-group "$FLEET_RG" --fleet-name "$FLEET_NAME" \
                  --name "$FLEET_PROFILE" --only-show-errors >/dev/null 2>&1; then
             echo "[recovery] profile fully deleted after ${i}0s"
+            profile_deleted=true
             break
           fi
           sleep 10
         done
+        if [ "$profile_deleted" != "true" ]; then
+          echo "[recovery] FAIL: profile deletion did not complete; refusing recreate"
+          exit 1
+        fi
         # Step 2: recreate with the same selector.
         if ! az fleet clustermeshprofile create \
                --resource-group "$FLEET_RG" \

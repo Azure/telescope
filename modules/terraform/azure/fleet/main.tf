@@ -225,6 +225,8 @@ locals {
     "--output", "tsv",
     "--only-show-errors",
   ]) : "echo 0"
+
+  cmp_apply_wait_seconds = length(var.members) >= 50 ? 5400 : 2700
 }
 
 resource "terraform_data" "clustermeshprofile" {
@@ -235,9 +237,10 @@ resource "terraform_data" "clustermeshprofile" {
   ]
 
   input = {
-    create_command = local.cmp_create_command
-    apply_command  = local.cmp_apply_command
-    delete_command = local.cmp_destroy_command
+    create_command     = local.cmp_create_command
+    apply_command      = local.cmp_apply_command
+    delete_command     = local.cmp_destroy_command
+    apply_wait_seconds = local.cmp_apply_wait_seconds
     # `list-members` (default mode) returns members APPLIED to the profile —
     # the same set the profile-delete API checks. We poll its count to know
     # when the relabel+apply reconcile has actually drained membership.
@@ -268,9 +271,11 @@ resource "terraform_data" "clustermeshprofile" {
   #     across the regional Fleet — concurrent applies from other tests
   #     would block ours briefly)
   #   - CLI-side LRO timeout (azure-cli default is generous but not infinite)
-  # 5 attempts × 60s backoff between tries = ~5min of retry budget. If the
-  # apply genuinely succeeded by the 2nd or 3rd retry, the profile reconcile
-  # is idempotent (Fleet just reapplies the same selector → same member set).
+  # The CLI can return success while the profile remains `Applying` for many
+  # minutes. Do not release Terraform into topology validation until the
+  # profile reaches terminal `Succeeded`; otherwise recovery races the active
+  # LRO with ResourceNotFinalState (build 74295). Small tiers get 45m; n>=50
+  # gets 90m.
   provisioner "local-exec" {
     interpreter = ["bash", "-c"]
     command     = <<-EOT
@@ -285,18 +290,63 @@ resource "terraform_data" "clustermeshprofile" {
         ${self.input.create_command}
       fi
       apply_max=5
+      apply_deadline=$((SECONDS + ${self.input.apply_wait_seconds}))
       for i in $(seq 1 $apply_max); do
-        echo "[clustermeshprofile] apply attempt $i/$apply_max: ${self.input.apply_command}"
-        if ${self.input.apply_command}; then
-          echo "[clustermeshprofile] apply succeeded on attempt $i"
-          exit 0
+        if [ "$SECONDS" -ge "$apply_deadline" ]; then
+          break
         fi
-        if [ "$i" -lt "$apply_max" ]; then
+        echo "[clustermeshprofile] apply attempt $i/$apply_max: ${self.input.apply_command}"
+        apply_rc=0
+        apply_out=$(${self.input.apply_command} 2>&1) || apply_rc=$?
+        echo "$apply_out"
+        poll_state=false
+        if [ "$apply_rc" -eq 0 ] ||
+          echo "$apply_out" | grep -qiE "ResourceNotFinalState|OperationNotAllowed|AnotherOperationInProgress"; then
+          poll_state=true
+        fi
+        if [ "$poll_state" = "true" ]; then
+          while true; do
+            state_rc=0
+            state_out=$($_show --query properties.provisioningState --output tsv 2>&1) || state_rc=$?
+            if [ "$state_rc" -ne 0 ]; then
+              echo "[clustermeshprofile] state query failed transiently: $state_out"
+            else
+              # The preview extension can emit warning text even on rc=0.
+              # Select only a standalone provisioning-state line so warning
+              # banners cannot turn "Succeeded" into an unknown state.
+              state=$(printf '%s\n' "$state_out" | awk \
+                '/^[[:space:]]*(Succeeded|Failed|Applying|Updating|Creating)[[:space:]]*$/ { value=$1 } END { print value }')
+              case "$state" in
+                Succeeded)
+                  echo "[clustermeshprofile] apply stable in Succeeded on attempt $i"
+                  exit 0
+                  ;;
+                Failed)
+                  echo "[clustermeshprofile] apply reached terminal Failed on attempt $i"
+                  break
+                  ;;
+                Applying|Updating|Creating|"")
+                  echo "[clustermeshprofile] apply still converging (state=$${state:-unknown})"
+                  ;;
+                *)
+                  echo "[clustermeshprofile] apply returned unknown state '$state'; continuing bounded wait"
+                  ;;
+              esac
+            fi
+            # Always perform the state check above once after an apply call,
+            # even if that call consumed the final seconds of the budget.
+            if [ "$SECONDS" -ge "$apply_deadline" ]; then
+              break
+            fi
+            sleep 20
+          done
+        fi
+        if [ "$i" -lt "$apply_max" ] && [ "$SECONDS" -lt "$apply_deadline" ]; then
           echo "[clustermeshprofile] apply attempt $i failed, retrying in 60s..."
           sleep 60
         fi
       done
-      echo "[clustermeshprofile] apply failed after $apply_max attempts" >&2
+      echo "[clustermeshprofile] apply did not reach stable Succeeded within ${self.input.apply_wait_seconds}s" >&2
       exit 1
     EOT
   }
