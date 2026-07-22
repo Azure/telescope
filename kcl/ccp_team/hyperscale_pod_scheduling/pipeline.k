@@ -11,12 +11,19 @@ RESOURCE_GROUP = "$(RUN_ID)"
 LOCATION = "westcentralus"
 NODE_COUNTS = {"H2": 2000, "H4": 4000, "H8": 8000}
 KWOK_NODES_PER_CONTROLLER = 100
-KWOK_POOL = azure.NodePool {
-    name = "kwokpool"
-    sku = "Standard_D8ds_v5"
-    count = 27
-    taintPrefix = "kwok"
-    labels = "kwok=true"
+# Each kwok-controller pod requests 2 CPU and is pinned to kwokpool nodes
+# (nodeSelector kwok=true), and a D4ds_v5 node only has enough allocatable
+# CPU for a single controller pod. So kwokpool must have at least one node
+# per controller (ceil(nodeCount / KWOK_NODES_PER_CONTROLLER)), otherwise
+# excess controllers stay Pending and node creation times out.
+makeKwokPool = lambda nodeCount: int -> azure.NodePool {
+    azure.NodePool {
+        name = "kwokpool"
+        sku = "Standard_D4ds_v5"
+        count = (nodeCount + KWOK_NODES_PER_CONTROLLER - 1) // KWOK_NODES_PER_CONTROLLER
+        taintPrefix = "kwok"
+        labels = "kwok=true"
+    }
 }
 CL2_IMAGE = "ghcr.io/azure/clusterloader2:v20260220"
 CL2_NAMESPACE = "clusterloader2"
@@ -74,6 +81,7 @@ makeRequestBody = lambda scalingSize: str, cluster: str -> str {
 
 makeBenchmarkingJob = lambda scalingSize: str, cl2Manifest: str -> job.Job {
     nodeCount = NODE_COUNTS[scalingSize]
+    kwokPool = makeKwokPool(nodeCount)
     cluster = "stg-${scalingSize}-hyperscale-pod-scheduling-rate"
     requestBody = makeRequestBody(scalingSize, cluster)
     createClusterScript = """
@@ -126,7 +134,7 @@ az rest \\
                 cluster,
                 RESOURCE_GROUP,
                 SUBSCRIPTION_ID,
-                KWOK_POOL),
+                kwokPool),
             *k8s.CreateKwokNodes(
               nodeCount,
               params = {
