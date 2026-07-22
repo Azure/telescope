@@ -42,7 +42,7 @@ requestBody = util.escapeStr("""
           "name": "systempool",
           "mode": "System",
           "count": 3,
-          "vmSize": "Standard_D2s_v3",
+          "vmSize": "Standard_D2ds_v5",
           "osType": "Linux",
           "maxPods": 50
         }
