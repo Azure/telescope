@@ -553,6 +553,9 @@ resource "terraform_data" "aks_wait_succeeded" {
       set -eo pipefail
       rg="${self.input.resource_group_name}"
       name="${self.input.aks_name}"
+      marker_dir="$HOME/.telescope/aks-recovery/$rg"
+      marker_file="$marker_dir/$name.stuck"
+      mkdir -p "$marker_dir"
       echo "Waiting for AKS $name to reach a stable Succeeded state..."
       sleep 60
       required=3
@@ -594,6 +597,7 @@ resource "terraform_data" "aks_wait_succeeded" {
           got=$((got + 1))
           if [ "$got" -ge "$required" ]; then
             echo "AKS $name stable in Succeeded ($got consecutive checks). Continuing."
+            rm -f "$marker_file"
             exit 0
           fi
         elif [ "$state" = "Failed" ]; then
@@ -601,6 +605,7 @@ resource "terraform_data" "aks_wait_succeeded" {
           # recreate, or `az aks update` per the AKS RP error message) is
           # outside this wait's contract; surface the error now.
           echo "AKS $name is in terminal Failed state — fail-fast (not polling further)"
+          rm -f "$marker_file"
           exit 1
         else
           if [ "$got" -gt 0 ]; then
@@ -613,6 +618,7 @@ resource "terraform_data" "aks_wait_succeeded" {
         if [ "$state" = "$prev_state" ]; then
           same_state_count=$((same_state_count + 1))
           if [ "$same_state_count" -ge "$stuck_threshold" ]; then
+            printf '%s\t%s\n' "$state" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$marker_file"
             echo "AKS $name STUCK in state '$state' for $((same_state_count * 20))s with no progress — fail-fast (not polling further)"
             exit 1
           fi
@@ -623,6 +629,7 @@ resource "terraform_data" "aks_wait_succeeded" {
         echo "AKS $name provisioningState=$state (Succeeded streak=$got/$required, same-state=$same_state_count/$stuck_threshold)"
         sleep 20
       done
+      printf '%s\t%s\n' "$${state:-Unknown}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$marker_file"
       echo "Timeout: AKS $name did not reach sustained Succeeded after ~30m"
       exit 1
     EOT
@@ -645,10 +652,8 @@ resource "terraform_data" "aks_nodepool_cli" {
   # observed at N>=5 cluster create concurrency where the regional RP queues
   # addon installs minutes behind the parent cluster create. The retry catches
   # that race; keeping the wait avoids noisy first-attempt failures in the
-  # common (non-lazy) case. 60 retries * 30s = 30min budget. Bumped from
-  # 30 (15min) for N=100 ClusterMesh runs — at 100 concurrent cluster
-  # creates the AKS RP queue can hold nodepool-add operations behind
-  # cluster-create operations far longer than at smaller N.
+  # common (non-lazy) case. The retry loop is wall-clock bounded so long-lived
+  # Azure operations do not accidentally consume a fixed iteration budget.
   #
   # Idempotency precheck (build 68577 evidence): under
   # preserve_state_on_apply_failure + AzDO retryCountOnTaskFailure, terraform
@@ -707,13 +712,11 @@ resource "terraform_data" "aks_nodepool_cli" {
       # Lock contention and the actual pool operation have separate bounded
       # budgets. A queued pool must still receive time to recover/create after
       # the preceding same-cluster operation releases the lock.
-      operation_deadline=$((SECONDS + 5400))
+      operation_deadline=$((SECONDS + 7200))
 
-      for i in $(seq 1 60); do
-        if [ "$SECONDS" -ge "$operation_deadline" ]; then
-          echo "Timeout: $cluster nodepool $pool — 90m operation budget reached after acquiring the lock" >&2
-          exit 1
-        fi
+      i=0
+      while [ "$SECONDS" -lt "$operation_deadline" ]; do
+        i=$((i + 1))
 
         # Precheck — classify show failures so transient throttle/auth
         # errors don't get silently treated as "absent" (which would
@@ -725,14 +728,14 @@ resource "terraform_data" "aks_nodepool_cli" {
         elif echo "$show_out" | grep -qiE "NotFound|could not be found|ResourceNotFound"; then
           existing_state="absent"
         else
-          echo "[retry $i/60] $cluster nodepool $pool show failed transiently: $show_out — sleeping 30s"
+          echo "[retry $i] $cluster nodepool $pool show failed transiently: $show_out — sleeping 30s"
           sleep 30
           continue
         fi
 
         case "$existing_state" in
           Succeeded)
-            echo "[retry $i/60] $cluster nodepool $pool already in Succeeded state from prior apply attempt; nothing to do"
+            echo "[retry $i] $cluster nodepool $pool already in Succeeded state from prior apply attempt; nothing to do"
             exit 0
             ;;
           Creating|Updating|Deleting)
@@ -740,33 +743,34 @@ resource "terraform_data" "aks_nodepool_cli" {
             # destructively delete — the pool may reach Succeeded on
             # its own, and deleting an in-flight op queues a delete
             # behind it (extra churn at N=100 AKS RP scale).
-            echo "[retry $i/60] $cluster nodepool $pool in transient state '$existing_state'; waiting 30s"
+            echo "[retry $i] $cluster nodepool $pool in transient state '$existing_state'; waiting 30s"
             sleep 30
             continue
             ;;
-          Failed)
+          Failed|Canceled)
             # Terminal failure — delete and recreate. BRICKED-DELETE
-            # fast-fail: watch for state transition Failed → Deleting
+            # fast-fail: watch for a transition out of the terminal state
             # within 120s of the delete call. If state stays Failed,
             # the nodepool is bricked (Azure RP rejected delete) and
             # no further polling will help — abort immediately rather
             # than burning the full 60×30s retry budget (build 69021
             # evidence: 13.6h wasted on this exact pattern).
-            echo "[retry $i/60] $cluster nodepool $pool in terminal Failed state; deleting before recreate"
+            terminal_state="$existing_state"
+            echo "[retry $i] $cluster nodepool $pool in terminal $terminal_state state; deleting before recreate"
             del_out=$(az aks nodepool delete -g "$rg" --cluster-name "$cluster" -n "$pool" --no-wait --only-show-errors 2>&1)
             del_rc=$?
             if [ "$del_rc" -ne 0 ]; then
               if echo "$del_out" | grep -qiE "NotFound|could not be found|ResourceNotFound"; then
-                echo "[retry $i/60] $cluster nodepool $pool disappeared before delete; will recreate"
+                echo "[retry $i] $cluster nodepool $pool disappeared before delete; will recreate"
                 sleep 5
                 continue
               fi
               if echo "$del_out" | grep -qiE "OperationNotAllowed|AnotherOperationInProgress|RetryableError"; then
-                echo "[retry $i/60] $cluster nodepool $pool delete hit a transient Azure RP error: $del_out — sleeping 30s"
+                echo "[retry $i] $cluster nodepool $pool delete hit a transient Azure RP error: $del_out — sleeping 30s"
                 sleep 30
                 continue
               fi
-              echo "[retry $i/60] $cluster nodepool $pool delete failed: $del_out" >&2
+              echo "[retry $i] $cluster nodepool $pool delete failed: $del_out" >&2
               exit "$del_rc"
             fi
             # Up to 10 min budget — typical AKS nodepool delete is 2-4 min.
@@ -781,29 +785,29 @@ resource "terraform_data" "aks_nodepool_cli" {
               elif echo "$cur_out" | grep -qiE "NotFound|could not be found|ResourceNotFound"; then
                 cur="absent"
               else
-                echo "[retry $i/60] $cluster nodepool $pool delete status check failed transiently: $cur_out — waiting 20s"
+                echo "[retry $i] $cluster nodepool $pool delete status check failed transiently: $cur_out — waiting 20s"
                 sleep 20
                 continue
               fi
               if [ "$cur" = "absent" ]; then
-                echo "[retry $i/60] $cluster nodepool $pool fully deleted; will recreate on next iteration"
+                echo "[retry $i] $cluster nodepool $pool fully deleted; will recreate on next iteration"
                 deleted=true
                 break
               fi
-              # Track transition out of Failed → bricked detection
-              if [ "$cur" != "Failed" ]; then
+              # Track transition out of the terminal state.
+              if [ "$cur" != "$terminal_state" ]; then
                 transitioned=true
               fi
-              # Bricked fast-fail: 120s elapsed and still Failed.
-              if [ $((SECONDS - delete_started)) -ge 120 ] && [ "$transitioned" != "true" ] && [ "$cur" = "Failed" ]; then
-                echo "[retry $i/60] $cluster nodepool $pool BRICKED — state still Failed 120s after delete call (Azure RP rejected delete). Aborting; no further retry will help." >&2
+              # Bricked fast-fail: 120s elapsed and state did not change.
+              if [ $((SECONDS - delete_started)) -ge 120 ] && [ "$transitioned" != "true" ] && [ "$cur" = "$terminal_state" ]; then
+                echo "[retry $i] $cluster nodepool $pool BRICKED — state still $terminal_state 120s after delete call (Azure RP rejected delete). Aborting; no further retry will help." >&2
                 exit 1
               fi
-              echo "[retry $i/60] $cluster nodepool $pool still present (state=$cur), waiting 20s..."
+              echo "[retry $i] $cluster nodepool $pool still present (state=$cur), waiting 20s..."
               sleep 20
             done
             if [ "$deleted" != "true" ]; then
-              echo "[retry $i/60] $cluster nodepool $pool delete did not complete in 10m; re-precheck on next iteration"
+              echo "[retry $i] $cluster nodepool $pool delete did not complete in 10m; re-precheck on next iteration"
               sleep 30
             fi
             continue
@@ -811,7 +815,7 @@ resource "terraform_data" "aks_nodepool_cli" {
           absent)
             ;;
           *)
-            echo "[retry $i/60] $cluster nodepool $pool in unknown state '$existing_state'; waiting 30s"
+            echo "[retry $i] $cluster nodepool $pool in unknown state '$existing_state'; waiting 30s"
             sleep 30
             continue
             ;;
@@ -830,8 +834,10 @@ resource "terraform_data" "aks_nodepool_cli" {
         #     next precheck will see Succeeded/Updating and resolve.
         #   - FailedToDeleteVMSSInstances: Azure failed to clean up a partial
         #     nodepool create. Retry through the Failed-state delete path.
-        if echo "$out" | grep -qiE "OperationNotAllowed|AnotherOperationInProgress|FailedToDeleteVMSSInstances|already[[:space:]]*exists"; then
-          echo "[retry $i/60] $cluster nodepool $pool transient AKS RP error; sleeping 30s"
+        #   - Canceled: Azure terminated a long-running nodepool operation.
+        #     Re-precheck and delete/recreate if the pool is terminal Canceled.
+        if echo "$out" | grep -qiE "OperationNotAllowed|AnotherOperationInProgress|FailedToDeleteVMSSInstances|Code:[[:space:]]*Canceled|Operation was canceled|already[[:space:]]*exists"; then
+          echo "[retry $i] $cluster nodepool $pool transient AKS RP error; sleeping 30s"
           sleep 30
           continue
         fi
@@ -839,7 +845,7 @@ resource "terraform_data" "aks_nodepool_cli" {
         echo "$out" >&2
         exit $rc
       done
-      echo "Timeout: $cluster nodepool $pool create still blocked after 60 retries" >&2
+      echo "Timeout: $cluster nodepool $pool — 120m operation budget reached after acquiring the lock" >&2
       exit 1
     EOT
   }

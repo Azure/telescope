@@ -9,6 +9,7 @@ cleanup_concurrency="${AKS_FAILED_CLUSTER_CLEANUP_CONCURRENCY:-10}"
 delete_timeout="${AKS_FAILED_CLUSTER_DELETE_TIMEOUT_SECONDS:-1800}"
 poll_seconds="${AKS_FAILED_CLUSTER_DELETE_POLL_SECONDS:-20}"
 delete_transition_timeout="${AKS_FAILED_CLUSTER_DELETE_TRANSITION_SECONDS:-120}"
+marker_root="$HOME/.telescope/aks-recovery/$RUN_ID"
 
 for value in \
   "$cleanup_concurrency" \
@@ -32,44 +33,60 @@ if [ "$state_rc" -ne 0 ]; then
   fi
 fi
 list_rc=0
-failed_rows_output=$(az aks list \
+cluster_rows_output=$(az aks list \
     --subscription "$ARM_SUBSCRIPTION_ID" \
     --resource-group "$RUN_ID" \
-    --query "[?location=='$REGION' && provisioningState=='Failed' && tags.telescope_provisioner=='aks-cli'].[name,tags.role]" \
+    --query "[?location=='$REGION' && tags.telescope_provisioner=='aks-cli' && (provisioningState=='Failed' || provisioningState=='Canceled' || provisioningState=='Updating' || provisioningState=='Creating')].[name,tags.role,provisioningState]" \
     --output tsv \
     --only-show-errors) || list_rc=$?
 if [ "$list_rc" -ne 0 ]; then
-  echo "Failed to enumerate terminal AKS clusters in $RUN_ID." >&2
+  echo "Failed to enumerate unhealthy AKS clusters in $RUN_ID." >&2
   exit "$list_rc"
 fi
 
-failed_cluster_rows=()
-if [ -n "$failed_rows_output" ]; then
-  mapfile -t failed_cluster_rows < <(printf '%s\n' "$failed_rows_output")
+cluster_rows=()
+if [ -n "$cluster_rows_output" ]; then
+  mapfile -t cluster_rows < <(printf '%s\n' "$cluster_rows_output")
 fi
 
-if [ "${#failed_cluster_rows[@]}" -eq 0 ]; then
-  echo "No terminal Failed AKS clusters require pre-apply cleanup."
+if [ "${#cluster_rows[@]}" -eq 0 ]; then
+  echo "No Failed, Canceled, Updating, or Creating AKS clusters require pre-apply cleanup."
   exit 0
 fi
 
-failed_clusters=()
+cleanup_clusters=()
 declare -A cluster_roles=()
-for row in "${failed_cluster_rows[@]}"; do
-  IFS=$'\t' read -r cluster role <<<"$row"
+declare -A cluster_states=()
+for row in "${cluster_rows[@]}"; do
+  IFS=$'\t' read -r cluster role state <<<"$row"
   if [ -z "$cluster" ] || [ "$cluster" = "None" ] ||
     [ -z "$role" ] || [ "$role" = "None" ]; then
-    echo "Failed AKS row is missing cluster name or role tag: $row" >&2
+    echo "Unhealthy AKS row is missing cluster name or role tag: $row" >&2
     exit 1
   fi
-  failed_clusters+=("$cluster")
+  if [ "$state" = "Updating" ] || [ "$state" = "Creating" ]; then
+    marker_file="$marker_root/$cluster.stuck"
+    if [ ! -s "$marker_file" ]; then
+      echo "[$cluster] $state without a stuck marker; leaving it intact."
+      continue
+    fi
+    echo "[$cluster] $state with waiter marker $(cat "$marker_file"); treating as stuck."
+  fi
+  cleanup_clusters+=("$cluster")
   cluster_roles["$cluster"]="$role"
+  cluster_states["$cluster"]="$state"
 done
 
-echo "Pre-apply cleanup found ${#failed_clusters[@]} terminal Failed AKS cluster(s): ${failed_clusters[*]}"
+if [ "${#cleanup_clusters[@]}" -eq 0 ]; then
+  echo "No terminal Failed/Canceled or marked stuck AKS clusters require cleanup."
+  exit 0
+fi
+
+echo "Pre-apply cleanup found ${#cleanup_clusters[@]} unhealthy AKS cluster(s): ${cleanup_clusters[*]}"
 
 cleanup_cluster() {
   local cluster="${1:?cluster name is required}"
+  local initial_state="${2:?initial provisioning state is required}"
   local attempt delete_accepted=false delete_out delete_rc
   local deadline delete_started show_out show_rc state transitioned=false
 
@@ -130,13 +147,13 @@ cleanup_cluster() {
     fi
 
     state=$(printf '%s' "$show_out" | tr -d '[:space:]')
-    if [ "$state" != "Failed" ]; then
+    if [ "$state" != "$initial_state" ]; then
       transitioned=true
     fi
     if [ "$transitioned" != "true" ] &&
-      [ "$state" = "Failed" ] &&
+      [ "$state" = "$initial_state" ] &&
       [ $(($(date +%s) - delete_started)) -ge "$delete_transition_timeout" ]; then
-      echo "[$cluster] delete was accepted but the cluster remained Failed for ${delete_transition_timeout}s." >&2
+      echo "[$cluster] delete was accepted but the cluster remained $initial_state for ${delete_transition_timeout}s." >&2
       return 1
     fi
     echo "[$cluster] deletion in progress (state=${state:-unknown})."
@@ -150,7 +167,9 @@ cleanup_cluster() {
 wait_batch() {
   local index
   for index in "${!cleanup_pids[@]}"; do
-    if ! wait "${cleanup_pids[$index]}"; then
+    if wait "${cleanup_pids[$index]}"; then
+      cleaned_clusters+=("${cleanup_batch_clusters[$index]}")
+    else
       cleanup_failures=$((cleanup_failures + 1))
     fi
     cat "${cleanup_logs[$index]}"
@@ -158,34 +177,34 @@ wait_batch() {
   done
   cleanup_pids=()
   cleanup_logs=()
+  cleanup_batch_clusters=()
 }
 
 cleanup_failures=0
+cleaned_clusters=()
 cleanup_pids=()
 cleanup_logs=()
-for cluster in "${failed_clusters[@]}"; do
+cleanup_batch_clusters=()
+for cluster in "${cleanup_clusters[@]}"; do
   log_file=$(mktemp "${TMPDIR:-/tmp}/failed-aks-${cluster}-XXXXXX.log")
-  cleanup_cluster "$cluster" >"$log_file" 2>&1 &
+  cleanup_cluster "$cluster" "${cluster_states[$cluster]}" >"$log_file" 2>&1 &
   cleanup_pids+=("$!")
   cleanup_logs+=("$log_file")
+  cleanup_batch_clusters+=("$cluster")
   if [ "${#cleanup_pids[@]}" -ge "$cleanup_concurrency" ]; then
     wait_batch
   fi
 done
 wait_batch
 
-if [ "$cleanup_failures" -ne 0 ]; then
-  echo "Failed to clean $cleanup_failures terminal AKS cluster(s) before Terraform apply." >&2
-  exit 1
-fi
-
 # terraform_data cannot observe that its CLI-created AKS resource disappeared.
 # Remove only the create/wait/extra-pool bookkeeping for each deleted cluster
 # so the upcoming apply executes those provisioners again. Provider-managed
 # identities, role assignments, and network resources stay in state and
 # reconcile normally.
-for cluster in "${failed_clusters[@]}"; do
+for cluster in "${cleaned_clusters[@]}"; do
   role="${cluster_roles[$cluster]}"
+  rm -f "$marker_root/$cluster.stuck"
   state_prefix="module.aks-cli[\"$role\"].terraform_data."
   mapfile -t stale_addresses < <(
     printf '%s\n' "$state_list" |
@@ -203,4 +222,9 @@ for cluster in "${failed_clusters[@]}"; do
   done
 done
 
-echo "Terminal Failed AKS pre-apply cleanup complete."
+if [ "$cleanup_failures" -ne 0 ]; then
+  echo "Failed to clean $cleanup_failures unhealthy AKS cluster(s) before Terraform apply." >&2
+  exit 1
+fi
+
+echo "Failed/stuck AKS pre-apply cleanup complete."

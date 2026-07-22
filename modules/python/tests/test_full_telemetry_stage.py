@@ -175,10 +175,13 @@ def test_extra_nodepool_operations_are_serialized_and_recoverable():
     assert 'flock -x -w "$lock_wait_seconds" 9' in nodepool_resource
     assert nodepool_resource.index(lock) < nodepool_resource.index(add)
     assert nodepool_resource.index("flock -x") < nodepool_resource.index(
-        "operation_deadline=$((SECONDS + 5400))"
+        "operation_deadline=$((SECONDS + 7200))"
     )
     assert "--no-wait --only-show-errors" in nodepool_resource
     assert "FailedToDeleteVMSSInstances" in nodepool_resource
+    assert "Failed|Canceled" in nodepool_resource
+    assert "Operation was canceled" in nodepool_resource
+    assert 'while [ "$SECONDS" -lt "$operation_deadline" ]' in nodepool_resource
     assert "--yes" not in nodepool_resource
 
 
@@ -199,13 +202,19 @@ def test_preserved_apply_cleans_failed_aks_before_terraform_refresh():
     assert "preserve_state_on_apply_failure" in run_command
 
     assert (
-        "[?location=='$REGION' && provisioningState=='Failed' && "
-        "tags.telescope_provisioner=='aks-cli'].[name,tags.role]"
+        "[?location=='$REGION' && "
+        "tags.telescope_provisioner=='aks-cli' && "
+        "(provisioningState=='Failed' || provisioningState=='Canceled' || "
+        "provisioningState=='Updating' || provisioningState=='Creating')]"
     ) in cleanup
     assert '--subscription "$ARM_SUBSCRIPTION_ID"' in cleanup
     assert "--no-wait" in cleanup
     assert "delete_transition_timeout" in cleanup
     assert "cleanup_concurrency" in cleanup
+    assert 'cleaned_clusters+=("${cleanup_batch_clusters[$index]}")' in cleanup
+    assert 'for cluster in "${cleaned_clusters[@]}"; do' in cleanup
+    assert 'marker_root="$HOME/.telescope/aks-recovery/$RUN_ID"' in cleanup
+    assert 'if [ ! -s "$marker_file" ]' in cleanup
     assert "No state file was found" in cleanup
     assert 'state_prefix="module.aks-cli[\\"$role\\"].terraform_data."' in cleanup
     assert 'terraform state rm "$address"' in cleanup
