@@ -359,6 +359,8 @@ resource "terraform_data" "aks_cli" {
   input = {
     aks_cli_command         = var.aks_cli_config.dry_run ? "echo '${local.aks_cli_command}'" : local.aks_cli_command,
     aks_cli_destroy_command = var.aks_cli_config.dry_run ? "echo '${local.aks_cli_destroy_command}'" : local.aks_cli_destroy_command
+    aks_name                = var.aks_cli_config.aks_name
+    role                    = var.aks_cli_config.role
   }
 
   provisioner "local-exec" {

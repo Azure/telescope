@@ -203,9 +203,8 @@ def test_preserved_apply_cleans_failed_aks_before_terraform_refresh():
 
     assert (
         "[?location=='$REGION' && "
-        "tags.telescope_provisioner=='aks-cli' && "
-        "(provisioningState=='Failed' || provisioningState=='Canceled' || "
-        "provisioningState=='Updating' || provisioningState=='Creating')]"
+        "tags.telescope_provisioner=='aks-cli'].[name,tags.role,"
+        "provisioningState]"
     ) in cleanup
     assert '--subscription "$ARM_SUBSCRIPTION_ID"' in cleanup
     assert "--no-wait" in cleanup
@@ -218,9 +217,14 @@ def test_preserved_apply_cleans_failed_aks_before_terraform_refresh():
     assert "No state file was found" in cleanup
     assert 'state_prefix="module.aks-cli[\\"$role\\"].terraform_data."' in cleanup
     assert 'terraform state rm "$address"' in cleanup
+    assert "Azure resource is absent but Terraform create state remains" in cleanup
+    assert "terraform show -json" in cleanup
+    assert "AKS inventory attempt $inventory_attempt/5" in cleanup
 
     aks_module = AKS_CLI_MODULE_PATH.read_text(encoding="utf-8")
     assert '"telescope_provisioner" = "aks-cli"' in aks_module
+    assert "aks_name                = var.aks_cli_config.aks_name" in aks_module
+    assert "role                    = var.aks_cli_config.role" in aks_module
     assert "Request to Subnet Handler Failed" in aks_module
     assert "transient_sku_lookup" in aks_module
 

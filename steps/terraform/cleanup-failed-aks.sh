@@ -32,30 +32,104 @@ if [ "$state_rc" -ne 0 ]; then
     exit "$state_rc"
   fi
 fi
-list_rc=0
-cluster_rows_output=$(az aks list \
+
+state_json='{}'
+if [ -n "$state_list" ]; then
+  show_rc=0
+  state_json=$(terraform show -json 2>&1) || show_rc=$?
+  if [ "$show_rc" -ne 0 ]; then
+    echo "Failed to read Terraform state JSON before AKS cleanup: $state_json" >&2
+    exit "$show_rc"
+  fi
+fi
+
+absent_state_clusters=()
+declare -A cluster_roles=()
+declare -A actual_clusters=()
+expected_rows_output=$(printf '%s' "$state_json" | jq -r '
+  .. | objects
+  | select(
+      .type? == "terraform_data"
+      and .name? == "aks_cli"
+      and (.values.input.aks_name? | type) == "string"
+      and (.values.input.role? | type) == "string"
+    )
+  | [.values.input.aks_name, .values.input.role]
+  | @tsv
+')
+
+cluster_inventory_output=""
+inventory_ok=false
+inventory_error_file=$(mktemp "${TMPDIR:-/tmp}/aks-inventory-XXXXXX.err")
+for inventory_attempt in $(seq 1 5); do
+  : >"$inventory_error_file"
+  list_rc=0
+  cluster_inventory_output=$(timeout 120s az aks list \
     --subscription "$ARM_SUBSCRIPTION_ID" \
     --resource-group "$RUN_ID" \
-    --query "[?location=='$REGION' && tags.telescope_provisioner=='aks-cli' && (provisioningState=='Failed' || provisioningState=='Canceled' || provisioningState=='Updating' || provisioningState=='Creating')].[name,tags.role,provisioningState]" \
+    --query "[?location=='$REGION' && tags.telescope_provisioner=='aks-cli'].[name,tags.role,provisioningState]" \
     --output tsv \
-    --only-show-errors) || list_rc=$?
-if [ "$list_rc" -ne 0 ]; then
-  echo "Failed to enumerate unhealthy AKS clusters in $RUN_ID." >&2
+    --only-show-errors 2>"$inventory_error_file") || list_rc=$?
+  inventory_error=$(cat "$inventory_error_file")
+  inventory_failure_output="$inventory_error"
+  if [ -z "$inventory_failure_output" ]; then
+    inventory_failure_output="$cluster_inventory_output"
+  fi
+  if [ "$list_rc" -eq 0 ]; then
+    inventory_ok=true
+    break
+  fi
+  if [ "$list_rc" -eq 124 ] || [ "$list_rc" -eq 137 ] ||
+    echo "$inventory_failure_output" |
+      grep -qiE "TooManyRequests|429|RetryableError|ServerTimeout|ServiceUnavailable|temporarily unavailable|connection reset|timed out"; then
+    echo "AKS inventory attempt $inventory_attempt/5 failed transiently: $inventory_failure_output"
+    sleep $((inventory_attempt * 10))
+    continue
+  fi
+  echo "Failed to enumerate AKS clusters in $RUN_ID: $inventory_failure_output" >&2
+  rm -f "$inventory_error_file"
   exit "$list_rc"
+done
+rm -f "$inventory_error_file"
+if [ "$inventory_ok" != "true" ]; then
+  echo "Failed to enumerate AKS clusters in $RUN_ID after 5 attempts." >&2
+  exit 1
 fi
 
 cluster_rows=()
-if [ -n "$cluster_rows_output" ]; then
-  mapfile -t cluster_rows < <(printf '%s\n' "$cluster_rows_output")
+if [ -n "$cluster_inventory_output" ]; then
+  while IFS=$'\t' read -r cluster role state; do
+    if [ -z "$cluster" ] || [ "$cluster" = "None" ] ||
+      [ -z "$role" ] || [ "$role" = "None" ]; then
+      echo "AKS inventory row is missing cluster name or role tag: $cluster $role $state" >&2
+      exit 1
+    fi
+    actual_clusters["$cluster"]="$state"
+    case "$state" in
+      Failed|Canceled|Updating|Creating)
+        cluster_rows+=("$cluster"$'\t'"$role"$'\t'"$state")
+        ;;
+    esac
+  done < <(printf '%s\n' "$cluster_inventory_output")
 fi
 
-if [ "${#cluster_rows[@]}" -eq 0 ]; then
+if [ -n "$expected_rows_output" ]; then
+  while IFS=$'\t' read -r cluster role; do
+    if [ -z "${actual_clusters[$cluster]+x}" ]; then
+      echo "[$cluster] Azure resource is absent but Terraform create state remains; resetting stale state."
+      absent_state_clusters+=("$cluster")
+      cluster_roles["$cluster"]="$role"
+    fi
+  done < <(printf '%s\n' "$expected_rows_output")
+fi
+
+if [ "${#cluster_rows[@]}" -eq 0 ] &&
+  [ "${#absent_state_clusters[@]}" -eq 0 ]; then
   echo "No Failed, Canceled, Updating, or Creating AKS clusters require pre-apply cleanup."
   exit 0
 fi
 
 cleanup_clusters=()
-declare -A cluster_roles=()
 declare -A cluster_states=()
 for row in "${cluster_rows[@]}"; do
   IFS=$'\t' read -r cluster role state <<<"$row"
@@ -77,12 +151,15 @@ for row in "${cluster_rows[@]}"; do
   cluster_states["$cluster"]="$state"
 done
 
-if [ "${#cleanup_clusters[@]}" -eq 0 ]; then
+if [ "${#cleanup_clusters[@]}" -eq 0 ] &&
+  [ "${#absent_state_clusters[@]}" -eq 0 ]; then
   echo "No terminal Failed/Canceled or marked stuck AKS clusters require cleanup."
   exit 0
 fi
 
-echo "Pre-apply cleanup found ${#cleanup_clusters[@]} unhealthy AKS cluster(s): ${cleanup_clusters[*]}"
+if [ "${#cleanup_clusters[@]}" -gt 0 ]; then
+  echo "Pre-apply cleanup found ${#cleanup_clusters[@]} unhealthy AKS cluster(s): ${cleanup_clusters[*]}"
+fi
 
 cleanup_cluster() {
   local cluster="${1:?cluster name is required}"
@@ -181,7 +258,7 @@ wait_batch() {
 }
 
 cleanup_failures=0
-cleaned_clusters=()
+cleaned_clusters=("${absent_state_clusters[@]}")
 cleanup_pids=()
 cleanup_logs=()
 cleanup_batch_clusters=()
