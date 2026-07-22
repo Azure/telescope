@@ -6,8 +6,8 @@ owner          = "aks"
 # =============================================================================
 # ClusterMesh Scale Test — 2 cluster tier — MOCK variant
 #
-# Same topology as azure-2.tfvars, EXCEPT the default_node_pool is a THIN worker
-# pool (2 x Standard_D8s_v5) instead of 20 x Standard_D4s_v5 real workload nodes.
+# Uses the n=100 shared-VNet topology with the n=2 mock compute footprint: a THIN
+# worker pool (2 x Standard_D8s_v5) instead of 20 x Standard_D4s_v5 real nodes.
 # The 100 virtual nodes/cluster are simulated by KWOK + mock-cilium-agent (real
 # Cilium control plane, DryMode datapath), deployed AFTER terraform by the
 # clustermesh-scale-mock topology step (provision-kwok-layer.sh). The thin pool
@@ -16,11 +16,12 @@ owner          = "aks"
 # node is a whole 4 vCPU VM; a virtual node is a free API object + a tiny Pod.
 # See mock-clustermesh/docs/design.md §6.1 for measured footprint.
 #
-# Mirrors fleet-setup-script.sh with SHARED_VNET=false (separate VNets + peering).
-# - 2 VNets (one per cluster) at 10.<id>.0.0/16
+# Mirrors the n=100 topology with one shared VNet and no peerings.
+# - 1 shared VNet at 10.0.0.0/8
 # - Per-cluster node subnet (10.<id>.0.0/24, 254 IPs) + pod subnet (10.<id>.4.0/22, 1022 IPs)
 # - 2 AKS clusters with Cilium + ACNS, Azure CNI w/ pod subnet (not overlay)
-# - Pairwise VNet peering between the two VNets (both directions)
+# - 0 VNet peerings; pod-to-pod native L3 inside the shared VNet
+# - Cluster-local service CIDR 192.168.0.0/24, outside the shared VNet
 # - Fleet + 2 fleet members (label mesh=true) + clustermeshprofile
 #
 # Pod subnet sizing: /22 (1022 IPs) is the floor for any Phase 2 scenario in
@@ -32,7 +33,7 @@ owner          = "aks"
 # subnets sized for their cluster + pod counts.
 #
 # Naming:
-#   VNet role         : mesh-1, mesh-2                (one VNet per role)
+#   VNet role         : shared                        (one VNet for both clusters)
 #   AKS role          : mesh-1, mesh-2                (one AKS per role)
 #   AKS cluster name  : clustermesh-1, clustermesh-2
 #   Fleet member name : mesh-1, mesh-2                (intentionally != cluster name)
@@ -42,9 +43,9 @@ owner          = "aks"
 
 network_config_list = [
   {
-    role               = "mesh-1"
-    vnet_name          = "clustermesh-1-vnet"
-    vnet_address_space = "10.1.0.0/16"
+    role               = "shared"
+    vnet_name          = "clustermesh-shared-vnet"
+    vnet_address_space = "10.0.0.0/8"
     subnet = [
       {
         name           = "clustermesh-1-node"
@@ -60,17 +61,7 @@ network_config_list = [
             service_delegation_actions = ["Microsoft.Network/virtualNetworks/subnets/join/action"]
           }
         ]
-      }
-    ]
-    network_security_group_name = ""
-    nic_public_ip_associations  = []
-    nsr_rules                   = []
-  },
-  {
-    role               = "mesh-2"
-    vnet_name          = "clustermesh-2-vnet"
-    vnet_address_space = "10.2.0.0/16"
-    subnet = [
+      },
       {
         name           = "clustermesh-2-node"
         address_prefix = "10.2.0.0/24"
@@ -113,6 +104,9 @@ aks_cli_config_list = [
       # agent, ACNS daemons, monitoring stack, and kube-system pods. Azure
       # CNI with pod subnet supports up to 250.
       { name = "max-pods", value = "110" },
+      # The AKS default 10.0.0.0/16 service CIDR overlaps the shared 10/8 VNet.
+      { name = "service-cidr", value = "192.168.0.0/24" },
+      { name = "dns-service-ip", value = "192.168.0.10" },
     ]
 
     # Default pool sizing: 20 nodes × D4ds_v4 (4 vCPU / 16GB).
@@ -189,6 +183,8 @@ aks_cli_config_list = [
       { name = "network-dataplane", value = "cilium" },
       { name = "enable-acns", value = "" },
       { name = "max-pods", value = "110" },
+      { name = "service-cidr", value = "192.168.0.0/24" },
+      { name = "dns-service-ip", value = "192.168.0.10" },
     ]
 
     default_node_pool = {
@@ -215,7 +211,7 @@ aks_cli_config_list = [
 # Fleet + ClusterMesh (new vars in this scenario)
 # =============================================================================
 vnet_peering_config = {
-  enabled = true
+  enabled = false
 }
 
 fleet_config = {

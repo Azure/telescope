@@ -32,7 +32,7 @@ harness agent); the **mock** agents are what represent the simulated nodes.
 
 | Piece | File | Notes |
 |-------|------|-------|
-| Thin-worker-pool tfvars | `terraform-inputs/azure-2-mock.tfvars` | `default_node_pool` = 2× D8s_v5 (hosts mock-agent Pods) instead of 20× D4s_v5. n=20 variant = same transform on `azure-20.tfvars`. |
+| Thin-worker-pool tfvars | `terraform-inputs/azure-2-mock.tfvars` | Uses the n=100 shared-VNet/no-peering layout. `default_node_pool` = 2× D8s_v5 (hosts mock-agent Pods) instead of 20× D4s_v5. |
 | CL2 mock gating | `modules/.../config/config.yaml`, `modules/scale-test*.yaml`, `modules/clustermesh.yaml` | `CL2_MOCK_MODE=true` → workload Pods get `nodeSelector type=kwok` + the `kwok.x-k8s.io/node` toleration, and a PodMonitor for `app=mock-cilium-agent:9962` is added so Prometheus scrapes the mock agents. Default `false` → real runs unchanged. |
 | Mock-agent PodMonitor | `modules/clustermesh/podmonitor-mock-agent.yaml` | Scrapes the mock agents on :9962 in the `mock-clustermesh` namespace. |
 | Real-node kubelet/cAdvisor monitor | `config/prometheus-additional-monitors/real-node-kubelet.yaml` | Loaded before CL2's Prometheus readiness gate via `--prometheus-additional-monitors-path`. Uses the real Cilium DaemonSet as a one-pod-per-real-node discovery anchor, then scrapes each host's kubelet `/metrics` and `/metrics/cadvisor` on :10250. KWOK nodes never become targets. |

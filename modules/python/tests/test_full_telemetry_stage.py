@@ -142,6 +142,28 @@ def test_dedicated_full_telemetry_stage_is_isolated():
     assert tfvars.count('name                 = "churnpool"') == 1
     assert "node_count           = 3" in tfvars
     assert "clustermesh-churn=true:NoSchedule" in tfvars
+    assert tfvars.count('vnet_name          = "clustermesh-shared-vnet"') == 1
+    assert tfvars.count("vnet_address_space =") == 1
+    assert "vnet_address_space = \"10.0.0.0/8\"" in tfvars
+    assert "vnet_peering_config = {\n  enabled = false\n}" in tfvars
+    assert "clustermesh-1-vnet" not in tfvars
+    assert "clustermesh-2-vnet" not in tfvars
+    assert 'name           = "clustermesh-1-node"' in tfvars
+    assert 'name           = "clustermesh-1-pod"' in tfvars
+    assert 'name           = "clustermesh-2-node"' in tfvars
+    assert 'name           = "clustermesh-2-pod"' in tfvars
+    assert (
+        tfvars.count(
+            '{ name = "service-cidr", value = "192.168.0.0/24" }'
+        )
+        == 2
+    )
+    assert (
+        tfvars.count(
+            '{ name = "dns-service-ip", value = "192.168.0.10" }'
+        )
+        == 2
+    )
 
 
 def test_n2_full_telemetry_stage_enables_bounded_amw_rotation():
