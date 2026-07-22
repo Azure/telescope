@@ -29,7 +29,11 @@ CL2_IMAGE = "ghcr.io/azure/clusterloader2:v20260220"
 CL2_NAMESPACE = "clusterloader2"
 CL2_POOL = azure.NodePool {
     name = "cl2pool"
-    sku = "Standard_D8ds_v5"
+    # D16ds_v5 (64Gi, ~58Gi allocatable) gives enough headroom above the
+    # ~25.6Gi cl2 actually consumes at real H8 scale (8000 nodes / 800k pods)
+    # -- D8ds_v5's ~26.3Gi allocatable left cl2 with almost no room and it
+    # was evicted for memory pressure (BackoffLimitExceeded).
+    sku = "Standard_D16ds_v5"
     count = 1
     taintPrefix = "cl2pool"
 }
