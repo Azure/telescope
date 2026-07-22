@@ -36,7 +36,7 @@ stages:
         inlineScript: |
           set -exo pipefail
 
-          az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+          az account set --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248"
           az config set defaults.location="westcentralus"
           az account show
       displayName: Login to Azure
@@ -51,9 +51,9 @@ stages:
           az group create \
             --name "$(RUN_ID)" \
             --location "westcentralus" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248" \
 
-      displayName: Create resource group in westcentralus (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+      displayName: Create resource group in westcentralus (c0d4b923-b5ea-4f8f-9b56-5390a9bf2248)
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -64,7 +64,7 @@ stages:
 
           az rest \
             --method put \
-            --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/stg-H2-hyperscale-pod-scheduling-rate?api-version=2026-01-02-preview" \
+            --uri "/subscriptions/c0d4b923-b5ea-4f8f-9b56-5390a9bf2248/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/stg-H2-hyperscale-pod-scheduling-rate?api-version=2026-01-02-preview" \
             --body "
           {
               \"location\": \"westcentralus\",
@@ -120,7 +120,7 @@ stages:
             STATE=$(az aks show \
               --name "stg-H2-hyperscale-pod-scheduling-rate" \
               --resource-group "$(RUN_ID)" \
-              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248" \
               --query "provisioningState" \
               --output tsv)
             echo "Cluster provisioning state: $STATE"
@@ -153,7 +153,7 @@ stages:
             output=$(az aks nodepool add \
               --cluster-name "stg-H2-hyperscale-pod-scheduling-rate" \
               --resource-group "$(RUN_ID)" \
-              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248" \
               --name "cl2pool" \
               --node-count 1 \
               --node-vm-size "Standard_D8s_v3" \
@@ -191,7 +191,7 @@ stages:
           az aks get-credentials \
             --name "stg-H2-hyperscale-pod-scheduling-rate" \
             --resource-group "$(RUN_ID)" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248" \
             --overwrite-existing
       displayName: Get credentials for stg-H2-hyperscale-pod-scheduling-rate
     - task: AzureCLI@2
@@ -211,7 +211,7 @@ stages:
             output=$(az aks nodepool add \
               --cluster-name "stg-H2-hyperscale-pod-scheduling-rate" \
               --resource-group "$(RUN_ID)" \
-              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248" \
               --name "kwokpool" \
               --node-count 20 \
               --node-vm-size "Standard_D4s_v3" \
@@ -352,7 +352,7 @@ stages:
         inlineScript: |
           set -exo pipefail
 
-          az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+          az account set --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248"
           az config set defaults.location="westcentralus"
           az account show
       displayName: Login to Azure
@@ -367,9 +367,9 @@ stages:
           az group create \
             --name "$(RUN_ID)" \
             --location "westcentralus" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248" \
 
-      displayName: Create resource group in westcentralus (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+      displayName: Create resource group in westcentralus (c0d4b923-b5ea-4f8f-9b56-5390a9bf2248)
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -380,7 +380,7 @@ stages:
 
           az rest \
             --method put \
-            --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/stg-H4-hyperscale-pod-scheduling-rate?api-version=2026-01-02-preview" \
+            --uri "/subscriptions/c0d4b923-b5ea-4f8f-9b56-5390a9bf2248/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/stg-H4-hyperscale-pod-scheduling-rate?api-version=2026-01-02-preview" \
             --body "
           {
               \"location\": \"westcentralus\",
@@ -436,7 +436,7 @@ stages:
             STATE=$(az aks show \
               --name "stg-H4-hyperscale-pod-scheduling-rate" \
               --resource-group "$(RUN_ID)" \
-              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248" \
               --query "provisioningState" \
               --output tsv)
             echo "Cluster provisioning state: $STATE"
@@ -469,7 +469,7 @@ stages:
             output=$(az aks nodepool add \
               --cluster-name "stg-H4-hyperscale-pod-scheduling-rate" \
               --resource-group "$(RUN_ID)" \
-              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248" \
               --name "cl2pool" \
               --node-count 1 \
               --node-vm-size "Standard_D8s_v3" \
@@ -507,7 +507,7 @@ stages:
           az aks get-credentials \
             --name "stg-H4-hyperscale-pod-scheduling-rate" \
             --resource-group "$(RUN_ID)" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248" \
             --overwrite-existing
       displayName: Get credentials for stg-H4-hyperscale-pod-scheduling-rate
     - task: AzureCLI@2
@@ -527,7 +527,7 @@ stages:
             output=$(az aks nodepool add \
               --cluster-name "stg-H4-hyperscale-pod-scheduling-rate" \
               --resource-group "$(RUN_ID)" \
-              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248" \
               --name "kwokpool" \
               --node-count 20 \
               --node-vm-size "Standard_D4s_v3" \
@@ -668,7 +668,7 @@ stages:
         inlineScript: |
           set -exo pipefail
 
-          az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+          az account set --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248"
           az config set defaults.location="westcentralus"
           az account show
       displayName: Login to Azure
@@ -683,9 +683,9 @@ stages:
           az group create \
             --name "$(RUN_ID)" \
             --location "westcentralus" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248" \
 
-      displayName: Create resource group in westcentralus (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+      displayName: Create resource group in westcentralus (c0d4b923-b5ea-4f8f-9b56-5390a9bf2248)
     - task: AzureCLI@2
       inputs:
         azureSubscription: Azure-for-Telescope-internal
@@ -696,7 +696,7 @@ stages:
 
           az rest \
             --method put \
-            --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/stg-H8-hyperscale-pod-scheduling-rate?api-version=2026-01-02-preview" \
+            --uri "/subscriptions/c0d4b923-b5ea-4f8f-9b56-5390a9bf2248/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/stg-H8-hyperscale-pod-scheduling-rate?api-version=2026-01-02-preview" \
             --body "
           {
               \"location\": \"westcentralus\",
@@ -752,7 +752,7 @@ stages:
             STATE=$(az aks show \
               --name "stg-H8-hyperscale-pod-scheduling-rate" \
               --resource-group "$(RUN_ID)" \
-              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248" \
               --query "provisioningState" \
               --output tsv)
             echo "Cluster provisioning state: $STATE"
@@ -785,7 +785,7 @@ stages:
             output=$(az aks nodepool add \
               --cluster-name "stg-H8-hyperscale-pod-scheduling-rate" \
               --resource-group "$(RUN_ID)" \
-              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248" \
               --name "cl2pool" \
               --node-count 1 \
               --node-vm-size "Standard_D8s_v3" \
@@ -823,7 +823,7 @@ stages:
           az aks get-credentials \
             --name "stg-H8-hyperscale-pod-scheduling-rate" \
             --resource-group "$(RUN_ID)" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248" \
             --overwrite-existing
       displayName: Get credentials for stg-H8-hyperscale-pod-scheduling-rate
     - task: AzureCLI@2
@@ -843,7 +843,7 @@ stages:
             output=$(az aks nodepool add \
               --cluster-name "stg-H8-hyperscale-pod-scheduling-rate" \
               --resource-group "$(RUN_ID)" \
-              --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+              --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248" \
               --name "kwokpool" \
               --node-count 20 \
               --node-vm-size "Standard_D4s_v3" \

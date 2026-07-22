@@ -8,7 +8,7 @@ import lib.util
 import lib.util.asi_dashboard
 import .bootstrap
 
-SUBSCRIPTION_ID = "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+SUBSCRIPTION_ID = "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248"
 LOCATION = "westcentralus"
 # TODO: Merge custom branch to upstream and use official image
 RUNNER_IMAGE = "ghcr.io/liyu-ma/kperf:hyperscale-etcd"

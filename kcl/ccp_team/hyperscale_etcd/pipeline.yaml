@@ -86,7 +86,7 @@ jobs:
       inlineScript: |
         set -exo pipefail
 
-        az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+        az account set --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248"
         az config set defaults.location="westcentralus"
         az account show
     displayName: Login to Azure
@@ -101,9 +101,9 @@ jobs:
         az group create \
           --name "$(RESOURCE_GROUP)" \
           --location "westcentralus" \
-          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248" \
 
-    displayName: Create resource group in westcentralus (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+    displayName: Create resource group in westcentralus (c0d4b923-b5ea-4f8f-9b56-5390a9bf2248)
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -114,7 +114,7 @@ jobs:
 
         az rest \
           --method put \
-          --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RESOURCE_GROUP)/providers/Microsoft.ContainerService/managedClusters/$(CLUSTER)?api-version=2026-01-02-preview" \
+          --uri "/subscriptions/c0d4b923-b5ea-4f8f-9b56-5390a9bf2248/resourceGroups/$(RESOURCE_GROUP)/providers/Microsoft.ContainerService/managedClusters/$(CLUSTER)?api-version=2026-01-02-preview" \
           --body "
         {
             \"location\": \"westcentralus\",
@@ -170,7 +170,7 @@ jobs:
           STATE=$(az aks show \
             --name "$(CLUSTER)" \
             --resource-group "$(RESOURCE_GROUP)" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248" \
             --query "provisioningState" \
             --output tsv)
           echo "Cluster provisioning state: $STATE"
@@ -225,7 +225,7 @@ jobs:
         az aks get-credentials \
           --name "$(CLUSTER)" \
           --resource-group "$(RESOURCE_GROUP)" \
-          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248" \
           --overwrite-existing
     displayName: Get credentials for $(CLUSTER)
   - script: |2
@@ -307,7 +307,7 @@ jobs:
         az aks get-credentials \
           --name "$(CLUSTER)" \
           --resource-group "$(RESOURCE_GROUP)" \
-          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248" \
           --overwrite-existing
     displayName: Get credentials for $(CLUSTER)
   - script: |2
@@ -389,7 +389,7 @@ jobs:
         az aks get-credentials \
           --name "$(CLUSTER)" \
           --resource-group "$(RESOURCE_GROUP)" \
-          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248" \
           --overwrite-existing
     displayName: Get credentials for $(CLUSTER)
   - script: |2
@@ -474,7 +474,7 @@ jobs:
         RESOURCE_UID=$(az aks show \
           --resource-group "$(RESOURCE_GROUP)" \
           --name "$(CLUSTER)" \
-          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248" \
           --query "resourceUid" -o tsv)
 
         if [ -z "$RESOURCE_UID" ]; then

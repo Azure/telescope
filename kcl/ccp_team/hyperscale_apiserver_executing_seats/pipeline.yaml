@@ -27,7 +27,7 @@ jobs:
       inlineScript: |
         set -exo pipefail
 
-        az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+        az account set --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248"
         az config set defaults.location="westcentralus"
         az account show
     displayName: Login to Azure
@@ -42,9 +42,9 @@ jobs:
         az group create \
           --name "$(RUN_ID)" \
           --location "westcentralus" \
-          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248" \
 
-    displayName: Create resource group in westcentralus (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+    displayName: Create resource group in westcentralus (c0d4b923-b5ea-4f8f-9b56-5390a9bf2248)
   - task: AzureCLI@2
     inputs:
       azureSubscription: Azure-for-Telescope-internal
@@ -55,7 +55,7 @@ jobs:
 
         az rest \
           --method put \
-          --uri "/subscriptions/b8ceb4e5-f05b-4562-a9f5-14acb1f24219/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/stg-H8-hyperscale-apiserver-seats?api-version=2026-01-02-preview" \
+          --uri "/subscriptions/c0d4b923-b5ea-4f8f-9b56-5390a9bf2248/resourceGroups/$(RUN_ID)/providers/Microsoft.ContainerService/managedClusters/stg-H8-hyperscale-apiserver-seats?api-version=2026-01-02-preview" \
           --body "
         {
             \"location\": \"westcentralus\",
@@ -111,7 +111,7 @@ jobs:
           STATE=$(az aks show \
             --name "stg-H8-hyperscale-apiserver-seats" \
             --resource-group "$(RUN_ID)" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248" \
             --query "provisioningState" \
             --output tsv)
           echo "Cluster provisioning state: $STATE"
@@ -138,7 +138,7 @@ jobs:
         az aks get-credentials \
           --name "stg-H8-hyperscale-apiserver-seats" \
           --resource-group "$(RUN_ID)" \
-          --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+          --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248" \
           --overwrite-existing
     displayName: Get credentials for stg-H8-hyperscale-apiserver-seats
   - task: AzureCLI@2
@@ -158,10 +158,10 @@ jobs:
           output=$(az aks nodepool add \
             --cluster-name "stg-H8-hyperscale-apiserver-seats" \
             --resource-group "$(RUN_ID)" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248" \
             --name "cl2pool" \
-            --node-count 7 \
-            --node-vm-size "Standard_D8s_v3" \
+            --node-count 10 \
+            --node-vm-size "Standard_D16s_v3" \
             --mode User \
             --node-taints cl2pool=true:NoSchedule 2>&1)
           rc=$?
@@ -202,9 +202,9 @@ jobs:
           output=$(az aks nodepool add \
             --cluster-name "stg-H8-hyperscale-apiserver-seats" \
             --resource-group "$(RUN_ID)" \
-            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --subscription "c0d4b923-b5ea-4f8f-9b56-5390a9bf2248" \
             --name "kwokpool" \
-            --node-count 40 \
+            --node-count 60 \
             --node-vm-size "Standard_D8s_v3" \
             --mode User \
             --node-taints kwok=true:NoSchedule \
