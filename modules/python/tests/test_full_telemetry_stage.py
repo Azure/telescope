@@ -51,6 +51,20 @@ EXECUTE_TEMPLATE_PATH = (
     / "clustermesh-scale"
     / "execute.yml"
 )
+MOCK_EXECUTE_TEMPLATE_PATH = (
+    REPOSITORY_ROOT
+    / "steps"
+    / "topology"
+    / "clustermesh-scale-mock"
+    / "execute-clusterloader2.yml"
+)
+MOCK_VALIDATE_TEMPLATE_PATH = (
+    REPOSITORY_ROOT
+    / "steps"
+    / "topology"
+    / "clustermesh-scale-mock"
+    / "validate-resources.yml"
+)
 SETUP_TEMPLATE_PATH = REPOSITORY_ROOT / "steps" / "setup-tests.yml"
 AKS_CLI_MODULE_PATH = (
     REPOSITORY_ROOT
@@ -413,6 +427,21 @@ def test_mock_mode_is_normalized_for_shell_gates():
     assert "start_logged_process_group" in execute
     assert "terminate_process_group" in execute
     assert "IsolationChurnTimings_" in execute
+    assert '--arg reconcile_label "$_label"' in execute
+    assert "label: $reconcile_label" in execute
+
+
+def test_mock_layer_is_deployed_after_managed_telemetry_configuration():
+    validate = MOCK_VALIDATE_TEMPLATE_PATH.read_text(encoding="utf-8")
+    execute = MOCK_EXECUTE_TEMPLATE_PATH.read_text(encoding="utf-8")
+
+    assert "deploy-mock-layer.yml" not in validate
+    configure_pos = execute.index("configure-control-plane-metrics.yml")
+    deploy_pos = execute.index("deploy-mock-layer.yml")
+    cl2_pos = execute.index(
+        "/steps/engine/clusterloader2/clustermesh-scale/execute.yml"
+    )
+    assert configure_pos < deploy_pos < cl2_pos
 
 
 def test_full_telemetry_azure_tasks_use_ui_selected_subscription():

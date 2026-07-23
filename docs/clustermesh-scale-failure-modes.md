@@ -31,6 +31,8 @@ at the bottom for the explicit scope statement.
 | `nodepool_stuck_failed_delete` | nodepool provisioningState=`Failed` AND `delete` call did not move state out of `Failed` within 120s | false (BRICKED) | n/a | abort immediately; nodepool needs manual delete | 69021 (mesh-50) |
 | `fleet_cluster_id_zero_skip` | `cilium-config` ConfigMap `cluster-id=0` on a Fleet member | true | 1800 | delete + recreate `clustermeshprofile` (re-randomizes IDs) | 68035 |
 | `acns_stuck_applying_non_euap` | `az fleet clustermeshprofile apply` hangs in `Applying` for >5min | false | n/a | abort and verify regional ClusterMesh synthesis rollout; Canada Central was unblocked 2026-05-24 | westus2/canadacentral pre-2026-05-24; Canada shared-VNet green in 69274 |
+| `mock_layer_mass_present_drift` | reconciler plans recreation of >=25% (minimum 10) of present KWOK Nodes | false | 300 | retry observation without deletion; fail safe with sampled drift reasons if the systemic condition persists | 74484 |
+| `managed_identity_labels_stripped` | `clustermesh_cluster_identity_info` exists with only `microsoft.amwresourceid` | true (schema-v2 only) | n/a | accept only when the query is bound to one exact AKS resource ID and dedicated workspace; shared-workspace audits remain strict | 74484 |
 | `vmextension_error_k_*` | `VMExtensionError_K[A-Za-z]+` (kubelet/CRI failures) | false | n/a | abort + dump CSE logs; non-retryable | 68700 |
 
 ---

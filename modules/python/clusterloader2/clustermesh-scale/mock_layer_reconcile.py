@@ -326,14 +326,40 @@ def kubectl_get_json(kubeconfig, resource_args, timeout_seconds, namespace=None)
 
 
 def kubectl_apply_doc(kubeconfig, doc, timeout_seconds, namespace=None) -> None:
+    kubectl_apply_docs(kubeconfig, [doc], timeout_seconds, namespace=namespace)
+
+
+def kubectl_apply_docs(kubeconfig, docs, timeout_seconds, namespace=None) -> None:
+    docs = list(docs)
+    if not docs:
+        return
     cmd = _base_cmd(kubeconfig, timeout_seconds, namespace) + ["apply", "-f", "-"]
-    manifest = yaml.safe_dump(doc, default_flow_style=False)
+    manifest = yaml.safe_dump_all(
+        docs,
+        default_flow_style=False,
+        explicit_start=True,
+    )
     _run_kubectl(cmd, timeout_seconds, input_text=manifest)
 
 
 def kubectl_delete(kubeconfig, kind, name, timeout_seconds, namespace=None) -> None:
+    kubectl_delete_many(
+        kubeconfig,
+        kind,
+        [name],
+        timeout_seconds,
+        namespace=namespace,
+    )
+
+
+def kubectl_delete_many(
+    kubeconfig, kind, names, timeout_seconds, namespace=None,
+) -> None:
+    names = list(names)
+    if not names:
+        return
     cmd = _base_cmd(kubeconfig, timeout_seconds, namespace) + [
-        "delete", kind, name, "--ignore-not-found=true",
+        "delete", kind, *names, "--ignore-not-found=true",
         f"--timeout={timeout_seconds}s",
     ]
     if kind == "pod":
@@ -1012,19 +1038,115 @@ def plan_repairs(
     )
 
 
+def repair_diagnostics(
+    desired: DesiredState,
+    plan: ReconcilePlan,
+    kwok_nodes: Dict[str, dict],
+    agent_pods: Dict[str, dict],
+    real_nodes: Dict[str, dict],
+) -> dict:
+    """Summarize why this plan wants each object recreated.
+
+    Keep the complete counts plus only a few named samples so a large drift
+    remains actionable without producing a multi-megabyte summary.
+    """
+    node_problems = {}
+    for name in plan.nodes_to_recreate:
+        node = kwok_nodes.get(name)
+        node_problems[name] = (
+            ["missing"]
+            if node is None
+            else node_is_healthy(node, desired.node_docs[name])[1]
+        )
+
+    agent_problems = {}
+    for name in plan.agents_to_recreate:
+        pod = agent_pods.get(name)
+        problems = (
+            ["missing"]
+            if pod is None
+            else agent_is_healthy(pod, desired.agent_docs[name], real_nodes)[1]
+        )
+        if not problems:
+            problems = ["paired-with-node-repair"]
+        agent_problems[name] = problems
+
+    def _summarize(problem_map):
+        counts = {}
+        for problems in problem_map.values():
+            for problem in problems:
+                counts[problem] = counts.get(problem, 0) + 1
+        return {
+            "problem_counts": [
+                {"problem": problem, "count": count}
+                for problem, count in sorted(
+                    counts.items(),
+                    key=lambda item: (-item[1], item[0]),
+                )
+            ],
+            "samples": {
+                name: problem_map[name]
+                for name in sorted(problem_map)[:3]
+            },
+        }
+
+    return {
+        "nodes": _summarize(node_problems),
+        "agents": _summarize(agent_problems),
+    }
+
+
+def mass_present_node_drift(
+    desired: DesiredState,
+    plan: ReconcilePlan,
+    kwok_nodes: Dict[str, dict],
+) -> Tuple[bool, int, int]:
+    """Detect a systemic transition that is unsafe to repair destructively.
+
+    Missing Nodes can be recreated safely from persisted desired state. Present
+    Nodes that simultaneously look unhealthy are different: deleting a large
+    fraction can turn a transient controller/API-server transition into a full
+    mock-layer outage. Refuse that bulk delete and let bounded retries observe
+    whether the shared condition clears. This fuse is deliberately Node-only:
+    Pods are replaceable scheduling units and batched agent-only repair does not
+    destroy the synthetic Node identities/CiliumNode state being measured.
+    """
+    present_repairs = sum(
+        1 for name in plan.nodes_to_recreate if name in kwok_nodes
+    )
+    threshold = max(10, (len(desired.node_docs) + 3) // 4)
+    return present_repairs >= threshold, present_repairs, threshold
+
+
 def apply_repairs(kubeconfig: str, desired: DesiredState, plan: ReconcilePlan, timeout_seconds: float) -> None:
     # Delete first (Node identity fields like podCIDR/providerID are immutable,
     # so a drifted/unhealthy object must be deleted before it can be reapplied).
-    for name in plan.agents_to_recreate:
-        kubectl_delete(kubeconfig, "pod", name, timeout_seconds, namespace=desired.namespace)
-    for name in plan.nodes_to_recreate:
-        kubectl_delete(kubeconfig, "node", name, timeout_seconds)
+    kubectl_delete_many(
+        kubeconfig,
+        "pod",
+        plan.agents_to_recreate,
+        timeout_seconds,
+        namespace=desired.namespace,
+    )
+    kubectl_delete_many(
+        kubeconfig,
+        "node",
+        plan.nodes_to_recreate,
+        timeout_seconds,
+    )
     # Recreate nodes before their agents (an agent's K8S_NODE_NAME identity
     # references its node), matching provision-kwok-layer.sh's apply order.
-    for name in plan.nodes_to_recreate:
-        kubectl_apply_doc(kubeconfig, desired.node_docs[name], timeout_seconds)
-    for name in plan.agents_to_recreate:
-        kubectl_apply_doc(kubeconfig, desired.agent_docs[name], timeout_seconds, namespace=desired.namespace)
+    kubectl_apply_docs(
+        kubeconfig,
+        (desired.node_docs[name] for name in plan.nodes_to_recreate),
+        timeout_seconds,
+    )
+    kubectl_apply_docs(
+        kubeconfig,
+        (desired.agent_docs[name] for name in plan.agents_to_recreate),
+        timeout_seconds,
+        namespace=desired.namespace,
+    )
 
 
 def _extra_object_errors(plan: ReconcilePlan) -> List[str]:
@@ -1125,6 +1247,7 @@ def reconcile_cluster(
         "recreated_agents": [],
         "repaired_secrets": [],
         "repaired_support": [],
+        "repair_diagnostics": {},
         "errors": [],
     }
 
@@ -1244,16 +1367,49 @@ def reconcile_cluster(
         )
 
         plan = plan_repairs(desired, kwok_nodes, agent_pods, real_nodes)
+        diagnostics = repair_diagnostics(
+            desired, plan, kwok_nodes, agent_pods, real_nodes,
+        )
+        if plan.nodes_to_recreate or plan.agents_to_recreate:
+            result["repair_diagnostics"] = diagnostics
         _progress(
             role, "plan",
             f"attempt {attempt}/{attempts}: recreate_nodes={len(plan.nodes_to_recreate)} "
             f"recreate_agents={len(plan.agents_to_recreate)} "
             f"extra_nodes={len(plan.extra_nodes)} extra_agents={len(plan.extra_agents)}",
         )
+        if plan.nodes_to_recreate or plan.agents_to_recreate:
+            _progress(
+                role,
+                "diagnostics",
+                f"attempt {attempt}/{attempts}: "
+                f"node_problems={diagnostics['nodes']['problem_counts'][:3]} "
+                f"agent_problems={diagnostics['agents']['problem_counts'][:3]}",
+            )
 
         if plan.extra_nodes or plan.extra_agents:
             errors = _extra_object_errors(plan)
             _progress(role, "convergence", f"FAILED: unsafe drift: {'; '.join(errors)}")
+            break
+
+        mass_drift, present_repairs, mass_drift_threshold = (
+            mass_present_node_drift(desired, plan, kwok_nodes)
+        )
+        if mass_drift:
+            errors = [
+                "unsafe systemic mock-node drift: "
+                f"{present_repairs}/{len(desired.node_docs)} present KWOK Nodes "
+                f"require recreation (safety threshold {mass_drift_threshold}); "
+                "refusing destructive bulk deletion"
+            ]
+            _progress(
+                role,
+                "mass-drift",
+                f"attempt {attempt}/{attempts}: {errors[0]}",
+            )
+            if attempt < attempts:
+                time.sleep(settle_seconds)
+                continue
             break
 
         if not plan.nodes_to_recreate and not plan.agents_to_recreate:

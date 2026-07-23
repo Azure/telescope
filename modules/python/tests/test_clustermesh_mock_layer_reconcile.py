@@ -239,7 +239,7 @@ def _clustermesh_secret_docs(data=None):
 
 # ---------------------------------------------------------------------------
 # Fake kubectl: a tiny in-memory cluster driven purely by the `subprocess.run`
-# calls the reconciler issues (get -o json / apply -f - / delete --wait=false).
+# calls the reconciler issues (get -o json / multi-doc apply / batched delete).
 # ---------------------------------------------------------------------------
 
 def _completed(stdout):
@@ -273,6 +273,8 @@ class FakeKubeCluster:
         self.existence_objects = set()  # (kind_lower, namespace_or_None, name)
         self.apply_calls = []
         self.delete_calls = []
+        self.apply_invocations = 0
+        self.delete_invocations = 0
         self.get_calls = []  # every "get" cmd issued, in order -- proves call batching
         self.healthy_real_node = healthy_real_node
         self.permanently_broken_pods = set(permanently_broken_pods)
@@ -416,19 +418,29 @@ class FakeKubeCluster:
             ]
             return _completed(json.dumps({"kind": "FlowSchemaList", "items": items}))
         if "apply" in cmd:
-            doc = yaml.safe_load(input)
-            self.apply_calls.append(doc)
-            self._apply(doc)
+            self.apply_invocations += 1
+            for doc in yaml.safe_load_all(input):
+                if doc is None:
+                    continue
+                self.apply_calls.append(doc)
+                self._apply(doc)
             return _completed("")
         if "delete" in cmd:
+            self.delete_invocations += 1
             idx = cmd.index("delete")
-            kind, name = cmd[idx + 1], cmd[idx + 2]
+            kind = cmd[idx + 1]
+            names = []
+            for arg in cmd[idx + 2:]:
+                if arg.startswith("--"):
+                    break
+                names.append(arg)
             namespace = _namespace_of(cmd)
-            self.delete_calls.append((kind, name))
-            if kind == "node":
-                self.nodes.pop(name, None)
-            elif kind == "pod":
-                self.pods.pop((namespace, name), None)
+            for name in names:
+                self.delete_calls.append((kind, name))
+                if kind == "node":
+                    self.nodes.pop(name, None)
+                elif kind == "pod":
+                    self.pods.pop((namespace, name), None)
             return _completed("")
         raise AssertionError(f"unexpected fake kubectl invocation: {cmd}")
 
@@ -641,6 +653,112 @@ def test_unhealthy_node_is_recreated(tmp_path, monkeypatch):
     assert result["recreated_nodes"] == ["kwok-node-0"]
     assert ("node", "kwok-node-0") in cluster.delete_calls
     assert cluster.nodes["kwok-node-0"]["status"]["conditions"] == [{"type": "Ready", "status": "True"}]
+
+
+def test_mass_present_node_drift_fails_safe_without_deletion(tmp_path, monkeypatch):
+    role = "mesh-1"
+    node_docs, agent_docs = write_state_dir(tmp_path, role, node_count=30)
+    cluster = FakeKubeCluster()
+    cluster.seed(node_docs, agent_docs)
+    for node in cluster.nodes.values():
+        if (node.get("metadata") or {}).get("labels", {}).get("type") == "kwok":
+            node["status"]["conditions"] = [{"type": "Ready", "status": "False"}]
+
+    result = _reconcile(
+        monkeypatch,
+        cluster,
+        role,
+        tmp_path,
+        attempts=2,
+        settle_seconds=0,
+    )
+
+    assert result["status"] == "failed"
+    assert any("unsafe systemic mock-node drift" in error for error in result["errors"])
+    assert result["repair_diagnostics"]["nodes"]["problem_counts"] == [
+        {"problem": "NotReady", "count": 30},
+    ]
+    assert cluster.delete_calls == []
+    assert cluster.apply_calls == []
+
+
+def test_mass_present_node_drift_can_recover_without_deletion(tmp_path, monkeypatch):
+    role = "mesh-1"
+    node_docs, agent_docs = write_state_dir(tmp_path, role, node_count=30)
+    cluster = FakeKubeCluster()
+    cluster.seed(node_docs, agent_docs)
+    for node in cluster.nodes.values():
+        if (node.get("metadata") or {}).get("labels", {}).get("type") == "kwok":
+            node["status"]["conditions"] = [{"type": "Ready", "status": "False"}]
+
+    def recover_nodes(_seconds):
+        for node in cluster.nodes.values():
+            if (node.get("metadata") or {}).get("labels", {}).get("type") == "kwok":
+                node["status"]["conditions"] = [{"type": "Ready", "status": "True"}]
+
+    monkeypatch.setattr(reconciler.time, "sleep", recover_nodes)
+    result = _reconcile(
+        monkeypatch,
+        cluster,
+        role,
+        tmp_path,
+        attempts=2,
+        settle_seconds=1,
+    )
+
+    assert result["status"] == "ok"
+    assert result["errors"] == []
+    assert cluster.delete_calls == []
+    assert cluster.apply_calls == []
+
+
+def test_many_missing_nodes_are_recreated_without_tripping_mass_drift_fuse(
+    tmp_path, monkeypatch,
+):
+    role = "mesh-1"
+    node_docs, agent_docs = write_state_dir(tmp_path, role, node_count=30)
+    cluster = FakeKubeCluster()
+    cluster.seed(node_docs, agent_docs)
+    cluster.nodes = {
+        name: node
+        for name, node in cluster.nodes.items()
+        if (node.get("metadata") or {}).get("labels", {}).get("type") != "kwok"
+    }
+
+    result = _reconcile(monkeypatch, cluster, role, tmp_path)
+
+    assert result["status"] == "ok"
+    assert len(result["recreated_nodes"]) == 30
+    assert len(result["recreated_agents"]) == 30
+    assert cluster.delete_invocations == 2
+    assert cluster.apply_invocations == 2
+
+
+def test_multi_object_repairs_are_batched_by_kind(tmp_path, monkeypatch):
+    role = "mesh-1"
+    node_docs, agent_docs = write_state_dir(tmp_path, role, node_count=3)
+    cluster = FakeKubeCluster()
+    cluster.seed(node_docs, agent_docs)
+    for index in range(3):
+        cluster.nodes[f"kwok-node-{index}"]["spec"]["podCIDRs"] = [
+            f"100.99.{index}.0/24"
+        ]
+
+    result = _reconcile(monkeypatch, cluster, role, tmp_path)
+
+    assert result["status"] == "ok"
+    assert result["recreated_nodes"] == [
+        "kwok-node-0",
+        "kwok-node-1",
+        "kwok-node-2",
+    ]
+    assert result["recreated_agents"] == [
+        "mock-cilium-agent-0",
+        "mock-cilium-agent-1",
+        "mock-cilium-agent-2",
+    ]
+    assert cluster.delete_invocations == 2
+    assert cluster.apply_invocations == 2
 
 
 # ---------------------------------------------------------------------------

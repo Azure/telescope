@@ -40,7 +40,7 @@ harness agent); the **mock** agents are what represent the simulated nodes.
 | API server backend resources | `modules/apiserver-backend-exporter/` | Fingerprints hidden API server HA replicas by `process_start_time_seconds` and exposes stable per-backend CPU counters/RSS to the native snapshot. |
 | AKS prometheus storage fix | `modules/python/clusterloader2/utils.py`, `clustermesh-scale/scale.py` | Passes `--prometheus-pvc-storage-class=managed-csi` for `provider=aks`. CL2's default `ssd`/`kubernetes.io/gce-pd` class does NOT provision on AKS → prometheus-k8s stays Pending → "no endpoints". |
 | `CL2_MOCK_MODE` wiring | `clustermesh-scale/scale.py` (`--mock-mode`), engine `execute.yml` (re-export) | Matrix var `mock_mode` → `MOCK_MODE` → `CL2_MOCK_MODE` → overrides → templates. |
-| Mock topology | `steps/topology/clustermesh-scale-mock/` | `validate-resources.yml` = base validate + `deploy-mock-layer.yml` (loops clusters, runs the vendored provision script). `execute`/`collect` delegate to base. |
+| Mock topology | `steps/topology/clustermesh-scale-mock/` | Base validation runs on real thin-pool nodes. Execute configures managed telemetry first, then deploys the mock layer, then starts CL2; this prevents `az aks update` from destabilizing fresh KWOK Nodes. |
 | Vendored deploy scripts | `scenarios/perf-eval/clustermesh-scale/mock/` | `provision-kwok-layer.sh` + `attrition-check.sh`, vendored from `mock-clustermesh/deploy/`. |
 | Dedicated node-churn pool | Region-specific n=2/n=100 mock tfvars | Only mesh-1 gets a tainted `churnpool`. Node replacement targets this real pool so draining nodes cannot evict the bare mock agents or KWOK controller from the stable default pool. |
 

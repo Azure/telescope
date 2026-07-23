@@ -803,7 +803,7 @@ steps:
               "$_output" > "${_output}.tmp" && mv "${_output}.tmp" "$_output"
           else
             jq -n \
-              --arg label "$_label" \
+              --arg reconcile_label "$_label" \
               --arg scenario "$SCENARIO" \
               --arg timed_out_at "$_timed_out_at" \
               --argjson budget "$_budget" \
@@ -814,7 +814,7 @@ steps:
                 timed_out: true,
                 timed_out_at: $timed_out_at,
                 phase: "unknown",
-                label: $label,
+                label: $reconcile_label,
                 scenario: $scenario,
                 budget_seconds: $budget,
                 timeout_rc: $rc,

@@ -9,14 +9,23 @@ parameters:
     type: object
     default: {}
 
-# MOCK-mode execute = the base clustermesh-scale CL2 run. Mock behavior is driven
-# entirely by the CL2_MOCK_MODE pipeline variable (set true for the mock variant):
-# it flows through the engine's scale.py configure into the overrides file, and the
-# config templates then schedule the workload onto KWOK nodes + scrape the mock
-# agents. No separate engine wiring is needed here.
+# Configure managed telemetry first because it mutates each AKS cluster through
+# `az aks update`. Deploy the synthetic layer only after those operations finish,
+# then start CL2 against a fresh, stable desired state.
 steps:
-  - template: /steps/topology/clustermesh-scale/execute-clusterloader2.yml@self
+  - template: /steps/topology/clustermesh-scale/configure-control-plane-metrics.yml@self
+    parameters:
+      cloud: ${{ parameters.cloud }}
+      region: ${{ parameters.regions[0] }}
+
+  - template: /steps/topology/clustermesh-scale-mock/deploy-mock-layer.yml@self
+    parameters:
+      cloud: ${{ parameters.cloud }}
+      engine: clusterloader2
+      regions: ${{ parameters.regions }}
+
+  - template: /steps/engine/clusterloader2/clustermesh-scale/execute.yml@self
     parameters:
       cloud: ${{ parameters.cloud }}
       engine_input: ${{ parameters.engine_input }}
-      regions: ${{ parameters.regions }}
+      region: ${{ parameters.regions[0] }}
