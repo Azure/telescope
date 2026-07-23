@@ -362,12 +362,41 @@ def build_managed_audit(metric_names, series_by_metric, manifest):
         [],
     )
     missing_identity = []
+    identity_coverage_mode = {}
+    managed_query_scope = manifest.get("managed_query_scope", "")
+    scoped_cluster = (
+        manifest.get("clusters", [None])[0]
+        if len(manifest.get("clusters", [])) == 1
+        else None
+    )
+    scoped_identity_available = bool(
+        scoped_cluster
+        and managed_query_scope
+        and managed_query_scope.lower() == scoped_cluster.get("id", "").lower()
+        and identity_series
+        and all(
+            not any(_label_value(labels, name) for name in IDENTITY_LABELS)
+            for labels in identity_series
+        )
+    )
     for cluster in manifest.get("clusters", []):
         expected = _expected_identity(manifest, cluster)
-        if not any(
+        if any(
             _identity_matches(labels, expected)
             for labels in identity_series
         ):
+            identity_coverage_mode[cluster["role"]] = "series-labels"
+        elif (
+            scoped_identity_available
+            and cluster.get("id", "").lower() == managed_query_scope.lower()
+        ):
+            # Azure Monitor can strip every exporter label while retaining the
+            # metric itself. A schema-v2 query is still bound to one exact AKS
+            # resource ID by x-ms-azure-scoping and one dedicated workspace, so
+            # current-window series presence proves this cluster's identity
+            # without weakening legacy/shared-workspace validation.
+            identity_coverage_mode[cluster["role"]] = "resource-scope"
+        else:
             missing_identity.append(cluster["role"])
     checks.append(
         {
@@ -375,6 +404,7 @@ def build_managed_audit(metric_names, series_by_metric, manifest):
             "required": True,
             "status": "covered" if not missing_identity else "missing",
             "sample_count": len(identity_series),
+            "coverage_mode": identity_coverage_mode,
             "covered_clusters": sorted(
                 cluster["role"]
                 for cluster in manifest.get("clusters", [])
@@ -585,6 +615,7 @@ def run_managed(args):
             cluster_manifest = dict(manifest)
             cluster_manifest["clusters"] = [cluster]
             cluster_manifest["workspace"] = cluster["workspace"]
+            cluster_manifest["managed_query_scope"] = cluster["id"]
             endpoint = cluster["workspace"]["prometheus_query_endpoint"]
             return _run_managed_query(
                 args,

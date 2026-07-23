@@ -428,6 +428,79 @@ def test_managed_audit_requires_cluster_identity_series():
         if check["name"] == "cluster-identity"
     )
     assert identity["status"] == "missing"
+
+
+def test_managed_audit_accepts_label_stripped_identity_for_exact_scope():
+    manifest = {
+        "managed_query_scope": "cluster-1",
+        "clusters": [
+            {
+                "id": "cluster-1",
+                "name": "clustermesh-1",
+                "role": "mesh-1",
+            },
+        ],
+    }
+    jobs = [
+        "controlplane-apiserver",
+        "controlplane-etcd",
+        "controlplane-kube-scheduler",
+        "controlplane-kube-controller-manager",
+    ]
+    component_series = [
+        {"job": job, "cluster": "clustermesh-1"}
+        for job in jobs
+    ]
+    series = {
+        "up": component_series,
+        "apiserver_request_total": [component_series[0]],
+        "etcd_server_has_leader": [component_series[1]],
+        "scheduler_schedule_attempts_total": [component_series[2]],
+        "workqueue_depth": [component_series[3]],
+        "clustermesh_cluster_identity_info": [
+            {"microsoft.amwresourceid": "amw-1"},
+        ],
+    }
+
+    report = audit_module.build_managed_audit([], series, manifest)
+
+    identity = next(
+        check
+        for check in report["checks"]
+        if check["name"] == "cluster-identity"
+    )
+    assert report["complete"] is True
+    assert identity["status"] == "covered"
+    assert identity["coverage_mode"] == {"mesh-1": "resource-scope"}
+
+
+def test_managed_audit_rejects_label_stripped_identity_without_scope():
+    manifest = {
+        "clusters": [
+            {
+                "id": "cluster-1",
+                "name": "clustermesh-1",
+                "role": "mesh-1",
+            },
+        ],
+    }
+
+    report = audit_module.build_managed_audit(
+        [],
+        {
+            "clustermesh_cluster_identity_info": [
+                {"microsoft.amwresourceid": "amw-1"},
+            ],
+        },
+        manifest,
+    )
+
+    identity = next(
+        check
+        for check in report["checks"]
+        if check["name"] == "cluster-identity"
+    )
+    assert identity["status"] == "missing"
     assert identity["missing_clusters"] == ["mesh-1"]
 
 
