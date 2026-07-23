@@ -1,5 +1,6 @@
 """Static checks for the isolated full-telemetry pipeline stage."""
 
+import re
 from pathlib import Path
 
 
@@ -73,7 +74,7 @@ N2_TFVARS_PATH = (
     / "perf-eval"
     / "clustermesh-scale"
     / "terraform-inputs"
-    / "azure-2-mock.tfvars"
+    / "azure-2-mock-shared-cc.tfvars"
 )
 N100_TFVARS_PATH = (
     REPOSITORY_ROOT
@@ -81,7 +82,7 @@ N100_TFVARS_PATH = (
     / "perf-eval"
     / "clustermesh-scale"
     / "terraform-inputs"
-    / "azure-100-mock-shared.tfvars"
+    / "azure-100-mock-shared-cc.tfvars"
 )
 POD_CHURN_PATH = (
     REPOSITORY_ROOT
@@ -97,28 +98,32 @@ GLOBAL_SERVICE_PATH = POD_CHURN_PATH.parent / "modules" / "event-throughput-serv
 
 def test_dedicated_full_telemetry_stage_is_isolated():
     pipeline = PIPELINE_PATH.read_text(encoding="utf-8")
-    start = pipeline.index("- stage: azure_eastus2euap_n2_mock_full_telemetry")
+    start = pipeline.index("- stage: azure_canadacentral_n2_mock_full_telemetry")
     end = pipeline.index(
         "\n  - stage: azure_eastus2euap_n2_mock\n",
         start,
     )
     stage = pipeline[start:end]
 
-    assert "azure_eastus2euap_n2_mock_full_telemetry" in pipeline
+    assert "azure_canadacentral_n2_mock_full_telemetry" in pipeline
     assert "n2_mock_full_telemetry:" in pipeline
     assert 'AKS_CONTROL_PLANE_METRICS_ENABLED: "true"' in pipeline
-    assert "AKS_CONTROL_PLANE_LAW_NAME: cmsh-scale-controlplane-law" in pipeline
+    assert (
+        "AKS_CONTROL_PLANE_LAW_NAME: cmsh-scale-controlplane-law-cc"
+        in pipeline
+    )
+    assert "AKS_CONTROL_PLANE_LAW_LOCATION: canadacentral" in stage
     assert (
         "AKS_CONTROL_PLANE_AMW_NAME_PREFIX: "
-        "cmsh-scale-eastus2euap-amw"
+        "cmsh-scale-canadacentral-amw"
     ) in pipeline
     assert 'AKS_AMW_ARM_BATCH_SIZE: "10"' in pipeline
     assert 'CL2_ACNS_TELEMETRY_ENABLED: "true"' in pipeline
     assert 'kwok_usage_cpu: "25m"' in pipeline
     assert 'kwok_usage_memory: "64Mi"' in pipeline
     assert "AKS_MANAGED_TSDB_CHUNK_SECONDS" not in pipeline[
-        pipeline.index("azure_eastus2euap_n2_mock_full_telemetry") :
-        pipeline.index("azure_eastus2euap_n2_mock_full_telemetry") + 5000
+        pipeline.index("azure_canadacentral_n2_mock_full_telemetry") :
+        pipeline.index("azure_canadacentral_n2_mock_full_telemetry") + 5000
     ]
     assert "timeout_in_minutes: 720" in stage
     assert (
@@ -133,8 +138,14 @@ def test_dedicated_full_telemetry_stage_is_isolated():
     assert "node_churn_recovery_grace_seconds: 900" in stage
     assert "node_churn_target_nodepool: churnpool" in stage
     assert "node_replace_batch_size: 2" in stage
-    assert "CLUSTERMESH_VM_FAMILY_QUOTA_NAME: standardDSv5Family" in stage
+    assert "CLUSTERMESH_VM_FAMILY_QUOTA_NAME: standardDSv4Family" in stage
     assert 'CLUSTERMESH_REQUIRED_FAMILY_VCPUS: "112"' in stage
+    assert "- canadacentral" in stage
+    assert (
+        '- canadacentral: "scenarios/perf-eval/clustermesh-scale/'
+        'terraform-inputs/azure-2-mock-shared-cc.tfvars"'
+        in stage
+    )
     assert "destroy_retry_attempt_count: 0" in stage
     assert 'CMP_AUTO_RECOVERY_ENABLED: "true"' in stage
 
@@ -153,6 +164,11 @@ def test_dedicated_full_telemetry_stage_is_isolated():
     assert 'name           = "clustermesh-2-node"' in tfvars
     assert 'name           = "clustermesh-2-pod"' in tfvars
     assert (
+        len(re.findall(r'vm_size\s*=\s*"Standard_D8s_v4"', tfvars))
+        == 5
+    )
+    assert re.search(r'vm_size\s*=\s*"Standard_D8s_v5"', tfvars) is None
+    assert (
         tfvars.count(
             '{ name = "service-cidr", value = "192.168.0.0/24" }'
         )
@@ -168,14 +184,17 @@ def test_dedicated_full_telemetry_stage_is_isolated():
 
 def test_n2_full_telemetry_stage_enables_bounded_amw_rotation():
     pipeline = PIPELINE_PATH.read_text(encoding="utf-8")
-    start = pipeline.index("- stage: azure_eastus2euap_n2_mock_full_telemetry")
+    start = pipeline.index("- stage: azure_canadacentral_n2_mock_full_telemetry")
     end = pipeline.index(
         "\n  - stage: azure_eastus2euap_n2_mock\n",
         start,
     )
     stage = pipeline[start:end]
 
-    assert "AKS_CONTROL_PLANE_AMW_NAME_PREFIX: cmsh-scale-eastus2euap-amw" in stage
+    assert (
+        "AKS_CONTROL_PLANE_AMW_NAME_PREFIX: cmsh-scale-canadacentral-amw"
+        in stage
+    )
     assert 'AKS_AMW_ROTATION_ENABLED: "true"' in stage
     assert 'AKS_AMW_ROTATION_SLOT_COUNT: "8"' in stage
     assert "AKS_CONTROL_PLANE_AMW_NAME:" not in stage
@@ -350,7 +369,7 @@ def test_long_clustermesh_stages_do_not_replay_terraform_destroy():
     )
 
     pipeline = PIPELINE_PATH.read_text(encoding="utf-8")
-    n100_start = pipeline.index("- stage: azure_eastus2euap_n100_mock")
+    n100_start = pipeline.index("- stage: azure_canadacentral_n100_mock")
     n100_end = pipeline.index("- stage: azure_eastus2euap_n1_mock_5k", n100_start)
     assert "destroy_retry_attempt_count: 0" in pipeline[n100_start:n100_end]
 
@@ -487,7 +506,7 @@ def test_acns_probe_runs_before_snapshot_and_is_collected_before_teardown():
 
 def test_n100_stage_has_complete_workload_and_telemetry_wiring():
     pipeline = PIPELINE_PATH.read_text(encoding="utf-8")
-    start = pipeline.index("- stage: azure_eastus2euap_n100_mock")
+    start = pipeline.index("- stage: azure_canadacentral_n100_mock")
     end = pipeline.index("- stage: azure_eastus2euap_n1_mock_5k", start)
     stage = pipeline[start:end]
     pod_churn = POD_CHURN_PATH.read_text(encoding="utf-8")
@@ -505,7 +524,9 @@ def test_n100_stage_has_complete_workload_and_telemetry_wiring():
         'kwok_usage_cpu: "25m"',
         'kwok_usage_memory: "64Mi"',
         'AKS_CONTROL_PLANE_METRICS_ENABLED: "true"',
-        "AKS_CONTROL_PLANE_AMW_NAME_PREFIX: cmsh-scale-eastus2euap-n100-amw",
+        "AKS_CONTROL_PLANE_AMW_NAME_PREFIX: cmsh-scale-canadacentral-n100-amw",
+        "AKS_CONTROL_PLANE_LAW_NAME: cmsh-scale-controlplane-law-cc",
+        "AKS_CONTROL_PLANE_LAW_LOCATION: canadacentral",
         'AKS_AMW_ARM_BATCH_SIZE: "10"',
         'AKS_CONTROL_PLANE_METRICS_CONCURRENCY: "5"',
         'CL2_ACNS_TELEMETRY_ENABLED: "true"',
@@ -525,11 +546,18 @@ def test_n100_stage_has_complete_workload_and_telemetry_wiring():
         "node_replace_batch_size: 10",
         "node_churn_ready_timeout_seconds: 1200",
         "node_churn_recovery_grace_seconds: 1800",
-        "CLUSTERMESH_VM_FAMILY_QUOTA_NAME: standardDv3Family",
+        "CLUSTERMESH_VM_FAMILY_QUOTA_NAME: standardDSv4Family",
         'CLUSTERMESH_REQUIRED_FAMILY_VCPUS: "2536"',
+        "azure-100-mock-shared-cc.tfvars",
+        'test_type_suffix: "-mock-cc"',
         "timeout_in_minutes: 1800",
     ):
         assert expected in stage
+    assert (
+        '- canadacentral: "scenarios/perf-eval/clustermesh-scale/'
+        'terraform-inputs/azure-100-mock-shared-cc.tfvars"'
+        in stage
+    )
     assert '"{{$namespaces}}"' in pod_churn
     assert '"{{$globalNamespaces}}"' in pod_churn
     assert "clustermesh.cilium.io/global=true" in pod_churn
@@ -538,6 +566,11 @@ def test_n100_stage_has_complete_workload_and_telemetry_wiring():
     assert tfvars.count('{ name = "enable-acns", value = "" }') == 100
     assert tfvars.count('name                 = "prompool"') == 100
     assert tfvars.count('name                 = "churnpool"') == 1
+    assert (
+        len(re.findall(r'vm_size\s*=\s*"Standard_D8s_v4"', tfvars))
+        == 201
+    )
+    assert re.search(r'vm_size\s*=\s*"Standard_D8_v3"', tfvars) is None
     assert "node_count           = 12" in tfvars
     assert "clustermesh-churn=true:NoSchedule" in tfvars
     assert 'aks_name                      = "clustermesh-100"' in tfvars
@@ -545,12 +578,12 @@ def test_n100_stage_has_complete_workload_and_telemetry_wiring():
 
 def test_n100_stage_uses_static_sharded_workspaces_with_no_rotation():
     pipeline = PIPELINE_PATH.read_text(encoding="utf-8")
-    start = pipeline.index("- stage: azure_eastus2euap_n100_mock")
+    start = pipeline.index("- stage: azure_canadacentral_n100_mock")
     end = pipeline.index("- stage: azure_eastus2euap_n1_mock_5k", start)
     stage = pipeline[start:end]
 
     assert (
-        "AKS_CONTROL_PLANE_AMW_NAME_PREFIX: cmsh-scale-eastus2euap-n100-amw"
+        "AKS_CONTROL_PLANE_AMW_NAME_PREFIX: cmsh-scale-canadacentral-n100-amw"
         in stage
     )
     # n=100 uses static clusters-per-workspace sharding + raised ingestion
@@ -566,7 +599,7 @@ def test_n100_stage_uses_static_sharded_workspaces_with_no_rotation():
     assert "AKS_AMW_ROTATION_SLOT_COUNT:" not in stage
     # Distinct from the n=2 full-telemetry stage's base prefix so the two
     # tiers never share (or rotate into) each other's workspaces.
-    assert "cmsh-scale-eastus2euap-amw" not in stage
+    assert "cmsh-scale-canadacentral-amw" not in stage
     assert "AKS_CONTROL_PLANE_AMW_NAME:" not in stage
 
 
@@ -578,7 +611,7 @@ def test_n100_stage_mock_deploy_is_zero_tolerance():
     Per-cluster provisioning retries (provision-kwok-layer.sh's kretry/apply-
     attempt loops) are a separate mechanism and remain untouched."""
     pipeline = PIPELINE_PATH.read_text(encoding="utf-8")
-    start = pipeline.index("- stage: azure_eastus2euap_n100_mock")
+    start = pipeline.index("- stage: azure_canadacentral_n100_mock")
     end = pipeline.index("- stage: azure_eastus2euap_n1_mock_5k", start)
     stage = pipeline[start:end]
 

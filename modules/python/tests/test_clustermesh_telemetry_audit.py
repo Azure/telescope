@@ -703,9 +703,11 @@ def test_pipeline_sets_static_managed_prometheus_audit_workers():
     pipeline_text = PIPELINE_PATH.read_text(encoding="utf-8")
 
     n2_block = _pipeline_stage_block(
-        pipeline_text, "azure_eastus2euap_n2_mock_full_telemetry"
+        pipeline_text, "azure_canadacentral_n2_mock_full_telemetry"
     )
-    n100_block = _pipeline_stage_block(pipeline_text, "azure_eastus2euap_n100_mock")
+    n100_block = _pipeline_stage_block(
+        pipeline_text, "azure_canadacentral_n100_mock"
+    )
 
     n2_match = re.search(
         r'AKS_MANAGED_PROMETHEUS_AUDIT_WORKERS:\s*"(\d+)"', n2_block
