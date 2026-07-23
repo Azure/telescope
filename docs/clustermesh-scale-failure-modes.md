@@ -30,7 +30,7 @@ at the bottom for the explicit scope statement.
 | `cluster_stuck_updating` | provisioningState=`Updating` for 30+ poll iterations w/ no state change | false (BRICKED) | n/a | abort immediately; cluster needs manual triage | 68577 (mesh-44) |
 | `nodepool_stuck_failed_delete` | nodepool provisioningState=`Failed` AND `delete` call did not move state out of `Failed` within 120s | false (BRICKED) | n/a | abort immediately; nodepool needs manual delete | 69021 (mesh-50) |
 | `fleet_cluster_id_zero_skip` | `cilium-config` ConfigMap `cluster-id=0` on a Fleet member | true | 1800 | delete + recreate `clustermeshprofile` (re-randomizes IDs) | 68035 |
-| `acns_stuck_applying_non_euap` | `az fleet clustermeshprofile apply` hangs in `Applying` for >5min | false | n/a | abort; region does not have ACNS rolled out | (all westus2/canadacentral builds pre-2026-05-24) |
+| `acns_stuck_applying_non_euap` | `az fleet clustermeshprofile apply` hangs in `Applying` for >5min | false | n/a | abort and verify regional ClusterMesh synthesis rollout; Canada Central was unblocked 2026-05-24 | westus2/canadacentral pre-2026-05-24; Canada shared-VNet green in 69274 |
 | `vmextension_error_k_*` | `VMExtensionError_K[A-Za-z]+` (kubelet/CRI failures) | false | n/a | abort + dump CSE logs; non-retryable | 68700 |
 
 ---
