@@ -401,7 +401,7 @@ apiVersion: v1
 kind: Node
 metadata:
   name: ${NODE}
-  annotations: { node.alpha.kubernetes.io/ttl: "0", kwok.x-k8s.io/node: fake }
+  annotations: { kwok.x-k8s.io/node: fake }
   labels:
     beta.kubernetes.io/arch: amd64
     beta.kubernetes.io/os: linux

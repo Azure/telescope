@@ -43,6 +43,12 @@ AGENT_LABEL_SELECTOR = "app=mock-cilium-agent"
 SERVES_NODE_LABEL = "mock-clustermesh/serves-node"
 KWOK_NODE_ANNOTATION_KEY = "kwok.x-k8s.io/node"
 KWOK_NODE_TYPE_LABEL_VALUE = "kwok"
+CONTROLLER_OWNED_NODE_ANNOTATIONS = {
+    # The Kubernetes node lifecycle controller rewrites this legacy annotation
+    # (AKS currently changes "0" to "15"). It is not mock identity and must
+    # never trigger Node recreation.
+    "node.alpha.kubernetes.io/ttl",
+}
 
 # The four clustermesh client secrets provision-kwok-layer.sh copies from
 # kube-system into the agent namespace when CONSUME_CLUSTERMESH is active (see
@@ -567,9 +573,16 @@ def node_is_healthy(node: dict, desired_doc: dict) -> Tuple[bool, List[str]]:
     desired_metadata = desired_doc.get("metadata") or {}
     for field_name in ("labels", "annotations"):
         if field_name in desired_metadata:
+            desired_value = desired_metadata[field_name]
+            if field_name == "annotations" and isinstance(desired_value, dict):
+                desired_value = {
+                    key: value
+                    for key, value in desired_value.items()
+                    if key not in CONTROLLER_OWNED_NODE_ANNOTATIONS
+                }
             problems.extend(
                 subset_diff(
-                    desired_metadata[field_name],
+                    desired_value,
                     node_metadata.get(field_name) or {},
                     f"metadata.{field_name}",
                 )

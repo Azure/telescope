@@ -1044,6 +1044,24 @@ def test_metadata_annotation_drift_is_replaced(tmp_path, monkeypatch):
     assert cluster.nodes["kwok-node-0"]["metadata"]["annotations"]["kwok.x-k8s.io/node"] == "fake"
 
 
+def test_controller_owned_ttl_annotation_drift_is_ignored(tmp_path, monkeypatch):
+    role = "mesh-1"
+    node_docs, agent_docs = write_state_dir(tmp_path, role, node_count=1)
+    cluster = FakeKubeCluster()
+    cluster.seed(node_docs, agent_docs)
+    cluster.nodes["kwok-node-0"]["metadata"]["annotations"][
+        "node.alpha.kubernetes.io/ttl"
+    ] = "15"
+
+    result = _reconcile(monkeypatch, cluster, role, tmp_path)
+
+    assert result["status"] == "ok"
+    assert result["recreated_nodes"] == []
+    assert result["recreated_agents"] == []
+    assert cluster.delete_calls == []
+    assert cluster.apply_calls == []
+
+
 # ---------------------------------------------------------------------------
 # 11. ClusterMesh consume-secret reconciliation
 # ---------------------------------------------------------------------------
