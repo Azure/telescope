@@ -21,6 +21,7 @@ SCRIPT = (
     / "config"
     / "policy-scale-evidence.sh"
 )
+CONFIG_PATH = SCRIPT.with_name("policy-scale.yaml")
 
 
 def _write_executable(path, content):
@@ -36,12 +37,26 @@ def test_script_bash_syntax():
     assert result.returncode == 0, f"bash -n failed: stderr={result.stderr}"
 
 
-def _fake_kubectl(counts_dir, namespaces):
+def _fake_kubectl(counts_dir, namespaces, delete_clears=False):
     """Builds a fake kubectl backed by per-namespace count files under
     `counts_dir` (one file per namespace, named "<ns>.count", containing an
     integer). `namespaces` is the list of clustermesh-pscale-* namespace
     names to report from `get ns`."""
     ns_lines = "\n".join(f'  echo "namespace/{ns}"' for ns in namespaces)
+    delete_block = ""
+    if delete_clears:
+        delete_block = f"""
+if [ "$1" = "delete" ] && [ "$2" = "ciliumnetworkpolicies" ]; then
+  ns=""
+  prev=""
+  for a in "$@"; do
+    if [ "$prev" = "-n" ]; then ns="$a"; fi
+    prev="$a"
+  done
+  echo 0 > "{counts_dir}/${{ns}}.count"
+  exit 0
+fi
+"""
     return f"""#!/bin/bash
 if [ "$1" = "get" ] && [ "$2" = "ns" ]; then
 {ns_lines}
@@ -59,6 +74,7 @@ if [ "$1" = "get" ] && [ "$2" = "ciliumnetworkpolicies" ]; then
   for i in $(seq 1 "$count"); do echo "cnp$i"; done
   exit 0
 fi
+{delete_block}
 exit 0
 """
 
@@ -183,6 +199,37 @@ def test_deleted_phase_nonzero_remaining_fails(tmp_path):
     data = json.loads(report_path.read_text())
     assert data["deleted"]["verified"] is False
     assert data["deleted"]["observed_count"] == 1
+
+
+def test_deleted_phase_repairs_residual_cnp_objects(tmp_path):
+    ns_names = ["clustermesh-pscale-1", "clustermesh-pscale-2"]
+    counts_dir = tmp_path / "counts"
+    _set_counts(
+        counts_dir,
+        {"clustermesh-pscale-1": 3, "clustermesh-pscale-2": 3},
+    )
+    kubectl = _fake_kubectl(counts_dir, ns_names, delete_clears=True)
+
+    active_result, report_path = _run(tmp_path, "active", 2, 3, kubectl)
+    assert active_result.returncode == 0
+
+    deleted_result, report_path = _run(
+        tmp_path,
+        "deleted",
+        2,
+        3,
+        kubectl,
+        report_path=report_path,
+    )
+
+    assert deleted_result.returncode == 0, (
+        deleted_result.stdout + deleted_result.stderr
+    )
+    data = json.loads(report_path.read_text())
+    assert data["deleted"]["verified"] is True
+    assert data["deleted"]["observed_count"] == 0
+    assert data["deleted"]["repair_delete_requested"] is True
+    assert data["deleted"]["repair_delete_errors"] == ""
 
 
 def test_deleted_phase_without_prior_active_fails_cleanly(tmp_path):
@@ -327,3 +374,10 @@ def test_deleted_phase_persistent_namespace_discovery_failure_not_accepted_as_ze
     assert data["deleted"]["verified"] is False
     assert data["deleted"]["query_success"] is False
     assert "boom" in data["deleted"]["query_error"]
+
+
+def test_cl2_exec_timeout_exceeds_internal_poll_budget():
+    config = CONFIG_PATH.read_text(encoding="utf-8")
+
+    assert "{{$verifyExecTimeout := AddInt $verifyTimeout 60}}" in config
+    assert config.count("timeout: {{$verifyExecTimeout}}s") == 2

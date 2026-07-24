@@ -729,6 +729,7 @@ def _check_policy_scale(ctx: EvidenceContext, report_dir: str, succeeded_roles: 
         return
 
     verified_roles = 0
+    repair_roles = []
     for role in succeeded_roles:
         data, error = _load_json_file(os.path.join(report_dir, role, "PolicyScaleEvidence.json"))
         if error:
@@ -755,6 +756,18 @@ def _check_policy_scale(ctx: EvidenceContext, report_dir: str, succeeded_roles: 
             problems.append("deleted.verified is not true")
         if deleted.get("observed_count") != 0:
             problems.append(f"deleted.observed_count={deleted.get('observed_count')!r} != 0")
+        repair_requested = deleted.get("repair_delete_requested") is True
+        if repair_requested:
+            repair_roles.append(role)
+        ctx.add(
+            f"policy_scale_delete_path[{role}]",
+            True,
+            (
+                "evidence repair re-issued label-scoped CNP deletion"
+                if repair_requested
+                else "primary CL2 deletion converged without repair"
+            ),
+        )
 
         policy_samples = _find_metric_value(
             os.path.join(report_dir, role),
@@ -781,6 +794,7 @@ def _check_policy_scale(ctx: EvidenceContext, report_dir: str, succeeded_roles: 
             verified_roles += 1
 
     ctx.counts["policy_scale_roles_verified"] = verified_roles
+    ctx.counts["policy_scale_delete_repair_roles"] = sorted(repair_roles)
 
 
 def _check_isolation(ctx: EvidenceContext, report_dir: str, target_role: str) -> None:

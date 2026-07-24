@@ -550,10 +550,18 @@ def test_apiserver_failure_not_recovered_fails(tmp_path):
 # policy-scale
 # ---------------------------------------------------------------------------
 
-def _policy_scale_evidence(active_verified=True, deleted_observed=0):
+def _policy_scale_evidence(
+    active_verified=True,
+    deleted_observed=0,
+    repair_delete_requested=False,
+):
     return {
         "active": {"expected_total": 250, "observed_total": 250, "verified": active_verified},
-        "deleted": {"observed_count": deleted_observed, "verified": deleted_observed == 0},
+        "deleted": {
+            "observed_count": deleted_observed,
+            "verified": deleted_observed == 0,
+            "repair_delete_requested": repair_delete_requested,
+        },
     }
 
 
@@ -580,6 +588,38 @@ def test_policy_scale_exact_counts_and_deletion_passes(tmp_path):
 
     assert rc == 0
     assert result["counts"]["policy_scale_roles_verified"] == 1
+    assert result["counts"]["policy_scale_delete_repair_roles"] == []
+
+
+def test_policy_scale_records_auto_repaired_delete_path(tmp_path):
+    report_dir, worker_summary = _make_common_fixture(
+        tmp_path,
+        "policy-scale",
+        roles=("mesh-1",),
+    )
+    _write_json(
+        report_dir / "mesh-1" / "PolicyScaleEvidence.json",
+        _policy_scale_evidence(repair_delete_requested=True),
+    )
+    _write_policy_metric_evidence(report_dir / "mesh-1")
+
+    rc, result = _run(
+        tmp_path,
+        "policy-scale",
+        report_dir,
+        worker_summary,
+        cluster_count=1,
+    )
+
+    assert rc == 0
+    assert result["counts"]["policy_scale_delete_repair_roles"] == ["mesh-1"]
+    check = next(
+        check
+        for check in result["checks"]
+        if check["name"] == "policy_scale_delete_path[mesh-1]"
+    )
+    assert check["passed"] is True
+    assert "repair re-issued" in check["detail"]
 
 
 def test_policy_scale_deletion_not_fully_removed_fails(tmp_path):

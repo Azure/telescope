@@ -311,6 +311,34 @@ EOF
     OBSERVED_COUNT=0
     QUERY_OK=false
     QUERY_ERR="not yet queried"
+    REPAIR_DELETE_REQUESTED=false
+    REPAIR_DELETE_ERRORS=""
+
+    # The CL2 deletion phase is primary. If it left matching CNPs behind,
+    # re-issue an idempotent label-scoped delete before polling so evidence
+    # collection also repairs the exact scenario-owned residue it validates.
+    IFS='|' read -r OBSERVED_COUNT QUERY_OK QUERY_ERR <<<"$(count_cnp_total_across_prefix)"
+    if [ "${QUERY_OK}" = "true" ] && [ "${OBSERVED_COUNT}" -gt 0 ]; then
+      REPAIR_DELETE_REQUESTED=true
+      echo "policy-scale-evidence: ${OBSERVED_COUNT} CNP(s) remain after the CL2 delete phase; issuing bounded label-scoped cleanup"
+      if REPAIR_NAMESPACES="$(discover_namespaces)"; then
+        while IFS= read -r ns; do
+          [ -z "${ns}" ] && continue
+          DELETE_OUT="$("${KUBECTL}" delete ciliumnetworkpolicies -n "${ns}" \
+            -l "${LABEL_SELECTOR}" --ignore-not-found=true --wait=false 2>&1)"
+          DELETE_RC=$?
+          if [ "${DELETE_RC}" -ne 0 ]; then
+            if [ -n "${REPAIR_DELETE_ERRORS}" ]; then
+              REPAIR_DELETE_ERRORS="${REPAIR_DELETE_ERRORS}; "
+            fi
+            REPAIR_DELETE_ERRORS="${REPAIR_DELETE_ERRORS}kubectl delete cnp -n ${ns} failed (rc=${DELETE_RC}): ${DELETE_OUT}"
+          fi
+        done <<< "${REPAIR_NAMESPACES}"
+      else
+        REPAIR_DELETE_ERRORS="${REPAIR_NAMESPACES}"
+      fi
+    fi
+
     while true; do
       IFS='|' read -r OBSERVED_COUNT QUERY_OK QUERY_ERR <<<"$(count_cnp_total_across_prefix)"
       if [ "${QUERY_OK}" = "true" ] && [ "${OBSERVED_COUNT}" -eq 0 ]; then
@@ -342,7 +370,9 @@ EOF
     "elapsed_seconds": ${ELAPSED},
     "timeout_seconds": ${POLL_TIMEOUT_SECONDS},
     "query_success": ${QUERY_OK},
-    "query_error": "$(json_escape "${QUERY_ERR}")"
+    "query_error": "$(json_escape "${QUERY_ERR}")",
+    "repair_delete_requested": ${REPAIR_DELETE_REQUESTED},
+    "repair_delete_errors": "$(json_escape "${REPAIR_DELETE_ERRORS}")"
   }
 }
 EOF
