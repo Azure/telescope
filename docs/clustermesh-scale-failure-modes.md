@@ -34,6 +34,8 @@ at the bottom for the explicit scope statement.
 | `mock_layer_mass_present_drift` | reconciler plans recreation of >=25% (minimum 10) of present KWOK Nodes | false | 300 | retry observation without deletion; fail safe with sampled drift reasons if the systemic condition persists | 74484 |
 | `kwok_ttl_annotation_drift` | `node.alpha.kubernetes.io/ttl` changes from persisted `"0"` to AKS-managed `"15"` | false drift (ignore) | n/a | omit from new manifests and ignore in legacy desired state; it is controller-owned, not mock identity | 74502 |
 | `managed_identity_labels_stripped` | `clustermesh_cluster_identity_info` exists with only `microsoft.amwresourceid` | true (schema-v2 only) | n/a | accept only when the query is bound to one exact AKS resource ID and dedicated workspace; shared-workspace audits remain strict | 74484 |
+| `self_hosted_audit_false_acns_failure` | ACNS checks are covered but another required self-hosted check is missing | true | n/a | gate ACNS failure on `acns_complete`, not the aggregate audit result; use historical identity lookup after exporter teardown | 74505 |
+| `coredns_monitor_residue` | post-scenario health reports `PodMonitor/coredns` or `ServiceMonitor/coredns` | true | 15 | delete both monitor kinds in the worker EXIT trap before scenario cleanup | 74505 |
 | `vmextension_error_k_*` | `VMExtensionError_K[A-Za-z]+` (kubelet/CRI failures) | false | n/a | abort + dump CSE logs; non-retryable | 68700 |
 
 ---

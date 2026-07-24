@@ -97,6 +97,9 @@ ACNS_METRICS = (
     "hubble_tcp_flags_total",
     "hubble_flows_processed_total",
 )
+IDENTITY_LOOKBACK_QUERY = (
+    "last_over_time(clustermesh_cluster_identity_info[6h])"
+)
 
 
 def _matching_metrics(metric_names, prefixes=(), exact=()):
@@ -130,6 +133,7 @@ def build_audit(
     targets,
     require_real_node_kubelet=False,
     require_kwok_resource=False,
+    require_kwok_pod_resource=False,
     require_acns=False,
     expected_mock_agent_targets=0,
     identity_series=None,
@@ -224,11 +228,17 @@ def build_audit(
             "node_memory_working_set_bytes",
         ):
             covered = metric_name in metric_names
+            pod_metric = metric_name.startswith("pod_")
+            required = not pod_metric or require_kwok_pod_resource
             checks.append(
                 {
                     "name": f"kwok:{metric_name}",
-                    "required": True,
-                    "status": "covered" if covered else "missing",
+                    "required": required,
+                    "status": (
+                        "covered"
+                        if covered
+                        else "missing" if required else "not-applicable"
+                    ),
                     "metric_count": 1 if covered else 0,
                     "sample_metrics": [metric_name] if covered else [],
                 }
@@ -313,11 +323,22 @@ def build_audit(
         for check in checks
         if check["required"]
     )
+    acns_checks = [
+        check
+        for check in checks
+        if check["name"].startswith("acns:")
+        or check["name"] == "target:acns-hubble"
+    ]
     return {
         "schema_version": 1,
         "source": "self-hosted-prometheus",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "complete": complete,
+        "acns_complete": (
+            all(check["status"] == "covered" for check in acns_checks)
+            if require_acns
+            else None
+        ),
         "metric_name_count": len(metric_names),
         "checks": checks,
         "target_jobs": jobs,
@@ -389,6 +410,7 @@ def parse_args(argv=None):
     parser.add_argument("--output-prefix", required=True)
     parser.add_argument("--require-real-node-kubelet", action="store_true")
     parser.add_argument("--require-kwok-resource", action="store_true")
+    parser.add_argument("--require-kwok-pod-resource", action="store_true")
     parser.add_argument("--require-acns", action="store_true")
     parser.add_argument("--expected-mock-agent-targets", type=int, default=0)
     return parser.parse_args(argv)
@@ -408,7 +430,11 @@ def main(argv=None):
         identity_data = _prometheus_get(
             args.kubeconfig,
             "/api/v1/query?"
-            + urlencode({"query": "clustermesh_cluster_identity_info"}),
+            + urlencode(
+                {
+                    "query": IDENTITY_LOOKBACK_QUERY
+                }
+            ),
         )
         identity_series = [
             sample.get("metric", {})
@@ -423,6 +449,7 @@ def main(argv=None):
             targets,
             require_real_node_kubelet=args.require_real_node_kubelet,
             require_kwok_resource=args.require_kwok_resource,
+            require_kwok_pod_resource=args.require_kwok_pod_resource,
             require_acns=args.require_acns,
             expected_mock_agent_targets=args.expected_mock_agent_targets,
             identity_series=identity_series,

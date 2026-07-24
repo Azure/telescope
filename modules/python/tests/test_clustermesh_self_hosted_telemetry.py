@@ -742,6 +742,42 @@ def test_audit_requires_real_node_kubelet_targets():
     assert exporter_check["historical_metric_evidence"] is True
 
 
+def test_kwok_pod_metrics_are_optional_for_real_node_probe_workload():
+    metric_names = [
+        "node_cpu_usage_seconds_total",
+        "node_memory_working_set_bytes",
+    ]
+    targets = [
+        {"labels": {"job": "kwok-resource"}, "health": "up"},
+    ]
+
+    report = audit_module.build_audit(
+        metric_names,
+        targets,
+        require_kwok_resource=True,
+    )
+    pod_checks = [
+        check for check in report["checks"]
+        if check["name"].startswith("kwok:pod_")
+    ]
+
+    assert {check["required"] for check in pod_checks} == {False}
+    assert {check["status"] for check in pod_checks} == {"not-applicable"}
+
+    strict = audit_module.build_audit(
+        metric_names,
+        targets,
+        require_kwok_resource=True,
+        require_kwok_pod_resource=True,
+    )
+    strict_pod_checks = [
+        check for check in strict["checks"]
+        if check["name"].startswith("kwok:pod_")
+    ]
+    assert {check["required"] for check in strict_pod_checks} == {True}
+    assert {check["status"] for check in strict_pod_checks} == {"missing"}
+
+
 def test_audit_fails_when_cadvisor_target_is_down():
     metric_names = [
         "apiserver_request_total",
@@ -921,3 +957,29 @@ def test_audit_requires_acns_metric_families_and_hubble_target():
         if check["name"] == "target:acns-hubble"
     )
     assert target["status"] == "covered"
+    assert report["acns_complete"] is True
+
+    missing_acns = audit_module.build_audit(
+        [name for name in metric_names if name != "hubble_dns_queries_total"],
+        targets,
+        require_acns=True,
+        identity_series=[
+            {
+                "run_id": "run-1",
+                "cluster_role": "mesh-1",
+                "cluster_name": "clustermesh-1",
+                "cluster_resource_id": "/subscriptions/sub-1/clustermesh-1",
+                "subscription_id": "sub-1",
+                "resource_group": "rg-1",
+                "region": "eastus2euap",
+                "prometheus_cluster_alias": "run_1_mesh_1",
+            }
+        ],
+    )
+    assert missing_acns["acns_complete"] is False
+
+
+def test_identity_audit_uses_historical_lookback():
+    assert audit_module.IDENTITY_LOOKBACK_QUERY == (
+        "last_over_time(clustermesh_cluster_identity_info[6h])"
+    )

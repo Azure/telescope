@@ -43,6 +43,17 @@ SCRIPT = (
 
 FAKE_KUBECTL = "#!/bin/bash\nexit 0\n"
 
+
+def test_worker_separates_acns_gate_and_cleans_coredns_monitor():
+    script = SCRIPT.read_text(encoding="utf-8")
+
+    assert ".acns_complete == true" in script
+    assert 'rm -f \\\n    "$telemetry_audit_dir/telemetry-audit-self-hosted.json"' in script
+    assert '--require-kwok-pod-resource' in script
+    assert '"$cl2_config_file" != "propagation-probe.yaml"' in script
+    assert "podmonitors.monitoring.coreos.com" in script
+    assert "servicemonitors.monitoring.coreos.com" in script
+
 # Stands in for modules/python/clusterloader2/clustermesh-scale/scale.py's
 # `execute` subcommand. Records the CL2_AZURE_CONFIG_DIR it observed and
 # writes a zero-failure junit.xml so run-cl2-on-cluster.sh's pass/fail gate

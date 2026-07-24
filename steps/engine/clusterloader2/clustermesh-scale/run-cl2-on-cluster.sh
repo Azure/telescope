@@ -71,6 +71,16 @@ _cleanup_worker_state() {
   if [ -n "$azure_private_dir" ]; then
     rm -rf -- "$azure_private_dir"
   fi
+  # CL2 can leave its CoreDNS monitor behind after deleting the rest of the
+  # per-scenario Prometheus objects. Remove both possible monitor kinds so the
+  # post-scenario health gate does not wait on telemetry-only residue.
+  for resource in \
+      podmonitors.monitoring.coreos.com \
+      servicemonitors.monitoring.coreos.com; do
+    kubectl --kubeconfig "$kubeconfig" -n monitoring delete "$resource" coredns \
+      --ignore-not-found=true --wait=false --request-timeout=15s \
+      >/dev/null 2>&1 || true
+  done
 }
 trap _cleanup_worker_state EXIT
 
@@ -530,15 +540,31 @@ if [ -f "$telemetry_audit_script" ]; then
       --require-kwok-resource
       --expected-mock-agent-targets "${CL2_MOCK_NODE_COUNT:-0}"
     )
+    # propagation-probe intentionally keeps its tiny backend/source Pods on
+    # real nodes, so pod-level KWOK resource metrics are not applicable.
+    if [ "$cl2_config_file" != "propagation-probe.yaml" ]; then
+      telemetry_audit_args+=(--require-kwok-pod-resource)
+    fi
   fi
   if [ "${CL2_ACNS_TELEMETRY_ENABLED:-false}" = "true" ]; then
     telemetry_audit_args+=(--require-acns)
   fi
-  if ! python3 "$telemetry_audit_script" "${telemetry_audit_args[@]}"; then
+  # Never let a crashed audit inherit a success JSON from a dirty/reused agent
+  # workspace at the same per-scenario path.
+  rm -f \
+    "$telemetry_audit_dir/telemetry-audit-self-hosted.json" \
+    "$telemetry_audit_dir/telemetry-audit-self-hosted.md"
+  telemetry_audit_rc=0
+  python3 "$telemetry_audit_script" "${telemetry_audit_args[@]}" ||
+    telemetry_audit_rc=$?
+  if [ "$telemetry_audit_rc" -ne 0 ]; then
     echo "##vso[task.logissue type=warning;] $role: self-hosted Prometheus telemetry audit is incomplete; inspect $telemetry_audit_dir/telemetry-audit-self-hosted.json"
-    if [ "${CL2_ACNS_TELEMETRY_ENABLED:-false}" = "true" ]; then
-      acns_telemetry_failed=1
-    fi
+  fi
+  if [ "${CL2_ACNS_TELEMETRY_ENABLED:-false}" = "true" ] &&
+     { [ ! -s "$telemetry_audit_dir/telemetry-audit-self-hosted.json" ] ||
+       ! jq -e '.acns_complete == true' \
+         "$telemetry_audit_dir/telemetry-audit-self-hosted.json" >/dev/null; }; then
+    acns_telemetry_failed=1
   fi
 else
   echo "##vso[task.logissue type=warning;] $role: telemetry audit script not found at $telemetry_audit_script"
