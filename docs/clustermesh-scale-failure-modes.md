@@ -36,6 +36,7 @@ at the bottom for the explicit scope statement.
 | `managed_identity_labels_stripped` | `clustermesh_cluster_identity_info` exists with only `microsoft.amwresourceid` | true (schema-v2 only) | n/a | accept only when the query is bound to one exact AKS resource ID and dedicated workspace; shared-workspace audits remain strict | 74484 |
 | `self_hosted_audit_false_acns_failure` | ACNS checks are covered but another required self-hosted check is missing | true | n/a | gate ACNS failure on `acns_complete`, not the aggregate audit result; use historical identity lookup after exporter teardown | 74505 |
 | `coredns_monitor_residue` | post-scenario health reports `PodMonitor/coredns` or `ServiceMonitor/coredns` | true | 15 | delete both monitor kinds in the worker EXIT trap before scenario cleanup | 74505 |
+| `mock_agent_monitor_omitted` | mock run has zero `mock-cilium-agent` Prometheus targets while agents are healthy | true | n/a | make the shared ClusterMesh module inherit global `CL2_MOCK_MODE` when a scenario omits its explicit `mockMode` parameter | 74578 |
 | `vmextension_error_k_*` | `VMExtensionError_K[A-Za-z]+` (kubelet/CRI failures) | false | n/a | abort + dump CSE logs; non-retryable | 68700 |
 
 ---

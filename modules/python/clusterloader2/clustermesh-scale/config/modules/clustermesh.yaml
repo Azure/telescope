@@ -4,7 +4,8 @@
 
 {{$tuningSet := DefaultParam .tuningSet "DeploymentCreateQps"}}
 {{$interval := DefaultParam .interval "15s"}}
-{{$mockMode := DefaultParam .mockMode false}}
+{{$globalMockMode := eq (printf "%v" (DefaultParam .CL2_MOCK_MODE false)) "true"}}
+{{$mockMode := DefaultParam .mockMode $globalMockMode}}
 {{ $replicasPerNamespace := 1 }}
 
 {{if eq .actionName "create"}}

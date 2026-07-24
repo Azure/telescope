@@ -172,6 +172,8 @@ def test_worker_injects_identity_into_exporter():
 def test_exporter_cluster_scoped_rbac_is_not_namespaced():
     module = MODULE_PATH.read_text(encoding="utf-8")
 
+    assert "DefaultParam .CL2_MOCK_MODE false" in module
+    assert "DefaultParam .mockMode $globalMockMode" in module
     assert '- namespaceList:\n        - ""' in module
     assert (
         'objectTemplatePath: "modules/apiserver-backend-exporter/clusterrole.yaml"'
