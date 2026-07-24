@@ -47,19 +47,56 @@ steps:
     input_variables: ${{ parameters.terraform_input_varibles }}
 
 - script: |
+    set -euo pipefail
+    fail_provision() {
+      echo "##vso[task.logissue type=error;] $1"
+      echo "##vso[task.setvariable variable=SKIP_RESOURCE_MANAGEMENT]true"
+      exit 1
+    }
     terraform_input_file=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_FILE')
-    deletion_delay=$(grep "deletion_delay" "$terraform_input_file" | awk -F'=' '{gsub(/^[ \t]+|[ \t]+$/, "", $2); gsub(/[^0-9]/, "", $2); print $2}')
-    echo "Deletion Delay: $deletion_delay hr"
-    deletion_due_time=$(date -u -d "+${deletion_delay} hour" +'%Y-%m-%dT%H:%M:%SZ')
-    echo "Deletion Due Time: $deletion_due_time"
-    echo "##vso[task.setvariable variable=DELETION_DUE_TIME]$deletion_due_time"
+    deletion_delay=$(grep "deletion_delay" "$terraform_input_file" 2>/dev/null | awk -F'=' '{gsub(/^[ \t]+|[ \t]+$/, "", $2); gsub(/[^0-9]/, "", $2); print $2}' || true)
+    if [ -n "$deletion_delay" ]; then
+      if ! [[ "$deletion_delay" =~ ^[0-9]+$ ]] || [ "$deletion_delay" -le 0 ]; then
+        fail_provision "Invalid deletion_delay in $terraform_input_file: $deletion_delay"
+      fi
+      echo "Deletion Delay: $deletion_delay hr"
 
-    owner=$(grep "owner" "$terraform_input_file" | awk -F'=' '{gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' | sed 's/^"//;s/"$//')
+      # Matrix variables are automatically exported to task environments by ADO.
+      # A long share-infra suite must never outlive the resource-group janitor
+      # lease. Reserve another four hours for provisioning, telemetry, destroy,
+      # and post-failure inspection beyond the scenario suite's own budget.
+      suite_budget_seconds="${SUITE_TOTAL_BUDGET_SECONDS:-0}"
+      lease_buffer_seconds="${RESOURCE_LEASE_BUFFER_SECONDS:-14400}"
+      if ! [[ "$suite_budget_seconds" =~ ^[0-9]+$ ]] ||
+         ! [[ "$lease_buffer_seconds" =~ ^[0-9]+$ ]]; then
+        fail_provision "Invalid suite/lease budget: suite=$suite_budget_seconds buffer=$lease_buffer_seconds"
+      fi
+      deletion_delay_seconds=$((deletion_delay * 3600))
+      required_lease_seconds=$((suite_budget_seconds + lease_buffer_seconds))
+      if [ "$suite_budget_seconds" -gt 0 ] &&
+         [ "$deletion_delay_seconds" -lt "$required_lease_seconds" ]; then
+        fail_provision "Resource lease is too short: deletion_delay=${deletion_delay}h (${deletion_delay_seconds}s), suite=${suite_budget_seconds}s, required_with_buffer=${required_lease_seconds}s. Increase deletion_delay before provisioning."
+      fi
+
+      deletion_due_time=$(date -u -d "+${deletion_delay} hour" +'%Y-%m-%dT%H:%M:%SZ')
+      echo "Deletion Due Time: $deletion_due_time"
+      echo "##vso[task.setvariable variable=DELETION_DUE_TIME]$deletion_due_time"
+    elif [ "$cloud" != "gcp" ]; then
+      fail_provision "Missing deletion_delay in $terraform_input_file for cloud=$cloud"
+    else
+      echo "No deletion_delay in $terraform_input_file; skipping lease calculation for GCP."
+    fi
+
+    owner=$(grep "owner" "$terraform_input_file" 2>/dev/null | awk -F'=' '{gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2}' | sed 's/^"//;s/"$//' || true)
+    if [ -z "$owner" ]; then
+      fail_provision "Missing owner in $terraform_input_file"
+    fi
     echo "Owner: $owner"
     echo "##vso[task.setvariable variable=OWNER]$owner"
-  displayName: "Get Deletion Due Time and Owner"
+  displayName: "Validate Resource Lease and Get Owner"
   condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
   env:
+    cloud: ${{ parameters.cloud }}
     region: ${{ parameters.regions[0] }}
 
 - script: |
@@ -68,7 +105,7 @@ steps:
     az group create --name $RUN_ID --location $region \
       --tags "run_id=$RUN_ID" "scenario=${SCENARIO_TYPE}-${SCENARIO_NAME}" "owner=${OWNER}" "creation_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "deletion_due_time=${DELETION_DUE_TIME}" "SkipAKSCluster=1" "SkipASB_Audit=true"
   displayName: "Create Resource Group"
-  condition: and(${{ eq(parameters.cloud, 'azure') }}, ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'))
+  condition: and(succeeded(), ${{ eq(parameters.cloud, 'azure') }}, ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'))
   env:
     region: ${{ parameters.regions[0] }}
 

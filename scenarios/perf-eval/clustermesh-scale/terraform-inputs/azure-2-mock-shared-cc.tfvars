@@ -1,6 +1,9 @@
-scenario_type  = "perf-eval"
-scenario_name  = "clustermesh-scale"
-deletion_delay = "4h"
+scenario_type = "perf-eval"
+scenario_name = "clustermesh-scale"
+# The full eight-scenario lifecycle can run for 12 hours after provisioning.
+# Keep a 24-hour lease so the janitor cannot reap infrastructure mid-suite and
+# there is still bounded post-failure inspection time.
+deletion_delay = "24h"
 owner          = "aks"
 
 # =============================================================================

@@ -66,6 +66,7 @@ MOCK_VALIDATE_TEMPLATE_PATH = (
     / "validate-resources.yml"
 )
 SETUP_TEMPLATE_PATH = REPOSITORY_ROOT / "steps" / "setup-tests.yml"
+PROVISION_TEMPLATE_PATH = REPOSITORY_ROOT / "steps" / "provision-resources.yml"
 AKS_CLI_MODULE_PATH = (
     REPOSITORY_ROOT
     / "modules"
@@ -164,6 +165,7 @@ def test_dedicated_full_telemetry_stage_is_isolated():
     assert 'CMP_AUTO_RECOVERY_ENABLED: "true"' in stage
 
     tfvars = N2_TFVARS_PATH.read_text(encoding="utf-8")
+    assert 'deletion_delay = "24h"' in tfvars
     assert tfvars.count('name                 = "churnpool"') == 1
     assert "node_count           = 3" in tfvars
     assert "clustermesh-churn=true:NoSchedule" in tfvars
@@ -466,6 +468,21 @@ def test_clustermesh_quota_preflight_uses_selected_subscription():
     assert 'az vm list-usage --location "$REGION"' in setup
     assert "CLUSTERMESH_REQUIRED_FAMILY_VCPUS" in setup
     assert "CLUSTERMESH_QUOTA_HEADROOM_VCPUS" in setup
+
+
+def test_resource_lease_outlives_share_infra_suite():
+    provision = PROVISION_TEMPLATE_PATH.read_text(encoding="utf-8")
+
+    assert "SUITE_TOTAL_BUDGET_SECONDS" in provision
+    assert 'RESOURCE_LEASE_BUFFER_SECONDS:-14400' in provision
+    assert "Resource lease is too short" in provision
+    assert 'elif [ "$cloud" != "gcp" ]' in provision
+    assert "task.setvariable variable=SKIP_RESOURCE_MANAGEMENT]true" in provision
+    assert "Missing owner in" in provision
+    assert "and(succeeded(), ${{ eq(parameters.cloud, 'azure') }}" in provision
+    assert provision.index("Resource lease is too short") < provision.index(
+        "Create Resource Group"
+    )
 
 
 def test_control_plane_artifact_directory_exists_after_configuration_failure():
