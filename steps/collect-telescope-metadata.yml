@@ -78,7 +78,7 @@ steps:
     echo "$telescope_metadata" > $TEST_RESULTS_DIR/telescope_metadata.json
     echo "##vso[task.setvariable variable=TELESCOPE_METADATA_FILE]$TEST_RESULTS_DIR/telescope_metadata.json"
   displayName: "Collect Telescope Metadata"
-  condition: always()
+  condition: succeededOrFailed()
   env:
     ENGINE: ${{ parameters.engine }}
     TOPOLOGY: ${{ parameters.topology }}
@@ -97,7 +97,7 @@ steps:
       echo  "##vso[task.logissue type=warning;]File $(TEST_RESULTS_FILE) does not exist."
     fi
   displayName: "Add RUN_ID to Test Results"
-  condition: always()
+  condition: succeededOrFailed()
 
 - ${{ if eq(variables['Build.SourceBranchName'], 'main') }}:
   - template: /steps/cloud/azure/upload-storage-account.yml

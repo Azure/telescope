@@ -23,11 +23,158 @@ steps:
       run_id: ${{ parameters.run_id }}
 
   - script: |
+      set -euo pipefail
+
+      fail_job_preflight() {
+        local message="$1"
+        echo "##vso[task.setvariable variable=SKIP_RESOURCE_MANAGEMENT]true"
+        echo "##vso[task.logissue type=error;]$message"
+        echo "$message" >&2
+        exit 1
+      }
+
+      parse_nonnegative_integer() {
+        local output_name="$1"
+        local input_name="$2"
+        local raw_value="$3"
+        local maximum="$4"
+        if ! [[ "$raw_value" =~ ^(0|[1-9][0-9]*)$ ]]; then
+          fail_job_preflight \
+            "$input_name must be a canonical non-negative integer, got '$raw_value'."
+        fi
+        if [ "${#raw_value}" -gt "${#maximum}" ] || {
+          [ "${#raw_value}" -eq "${#maximum}" ] &&
+            [[ "$raw_value" > "$maximum" ]]
+        }; then
+          fail_job_preflight "$input_name exceeds the supported maximum $maximum."
+        fi
+        printf -v "$output_name" '%d' "$raw_value"
+      }
+
       job_start_epoch=$(date +%s)
       echo "ClusterMesh job start epoch: $job_start_epoch"
       echo "##vso[task.setvariable variable=CLUSTERMESH_JOB_START_EPOCH]$job_start_epoch"
+
+      parse_nonnegative_integer suite_budget_seconds \
+        SUITE_TOTAL_BUDGET_SECONDS "${SUITE_TOTAL_BUDGET_SECONDS:-0}" 2147483647
+      parse_nonnegative_integer timeout_buffer_seconds \
+        SUITE_JOB_TIMEOUT_BUFFER_SECONDS \
+        "${SUITE_JOB_TIMEOUT_BUFFER_SECONDS:-3600}" 2147483647
+      parse_nonnegative_integer job_timeout_minutes \
+        CLUSTERMESH_JOB_TIMEOUT_MINUTES \
+        "${CLUSTERMESH_JOB_TIMEOUT_MINUTES:-0}" 35790
+
+      if [ "$suite_budget_seconds" -gt 0 ]; then
+        required_timeout_seconds=$((suite_budget_seconds + timeout_buffer_seconds))
+        if [ "$job_timeout_minutes" -eq 0 ]; then
+          echo "ClusterMesh job timeout: unlimited; suite=${suite_budget_seconds}s" \
+            "required post-suite buffer=${timeout_buffer_seconds}s"
+        else
+          actual_timeout_seconds=$((job_timeout_minutes * 60))
+          required_timeout_minutes=$(((required_timeout_seconds + 59) / 60))
+          echo "ClusterMesh job timeout envelope: actual=${job_timeout_minutes}m" \
+            "required>=${required_timeout_minutes}m suite=${suite_budget_seconds}s" \
+            "post-suite buffer=${timeout_buffer_seconds}s"
+          if [ "$actual_timeout_seconds" -lt "$required_timeout_seconds" ]; then
+            fail_job_preflight \
+              "ClusterMesh job timeout is too short: need at least ${required_timeout_minutes}m, got ${job_timeout_minutes}m."
+          fi
+        fi
+      fi
     displayName: "Record ClusterMesh job start"
     condition: startsWith(variables['SCENARIO_NAME'], 'clustermesh')
+
+  - script: |
+      set -euo pipefail
+
+      fail_capacity_preflight() {
+        local message="$1"
+        echo "##vso[task.setvariable variable=SKIP_RESOURCE_MANAGEMENT]true"
+        echo "##vso[task.logissue type=error;]$message"
+        echo "$message" >&2
+        exit 1
+      }
+
+      parse_nonnegative_integer() {
+        local output_name="$1"
+        local input_name="$2"
+        local raw_value="$3"
+        local maximum="$4"
+        if ! [[ "$raw_value" =~ ^(0|[1-9][0-9]*)$ ]]; then
+          fail_capacity_preflight \
+            "$input_name must be a canonical non-negative integer, got '$raw_value'."
+        fi
+        if [ "${#raw_value}" -gt "${#maximum}" ] || {
+          [ "${#raw_value}" -eq "${#maximum}" ] &&
+            [[ "$raw_value" > "$maximum" ]]
+        }; then
+          fail_capacity_preflight "$input_name exceeds the supported maximum $maximum."
+        fi
+        printf -v "$output_name" '%d' "$raw_value"
+      }
+
+      cpu_cores=$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc)
+      memory_total_kb=$(awk '/^MemTotal:/ {print $2}' /proc/meminfo)
+      memory_available_kb=$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)
+      disk_total_kb=""
+      disk_available_kb=""
+      read -r disk_total_kb disk_available_kb < <(
+        df -Pk "$PIPELINE_WORKSPACE" | awk 'NR == 2 {print $2, $4}'
+      ) || true
+
+      for name_value in \
+        "online CPU count=$cpu_cores" \
+        "total memory KiB=$memory_total_kb" \
+        "available memory KiB=$memory_available_kb" \
+        "workspace disk total KiB=$disk_total_kb" \
+        "workspace disk available KiB=$disk_available_kb"; do
+        name="${name_value%%=*}"
+        value="${name_value#*=}"
+        if ! [[ "$value" =~ ^[1-9][0-9]*$ ]]; then
+          fail_capacity_preflight "Unable to determine ClusterMesh agent $name."
+        fi
+      done
+
+      parse_nonnegative_integer minimum_disk_gi \
+        AGENT_DISK_MIN_FREE_GI "${AGENT_DISK_MIN_FREE_GI:-10}" 1048576
+      parse_nonnegative_integer minimum_memory_gi \
+        AGENT_MEMORY_MIN_FREE_GI "${AGENT_MEMORY_MIN_FREE_GI:-0}" 1048576
+
+      memory_total_mib=$((memory_total_kb / 1024))
+      memory_available_mib=$((memory_available_kb / 1024))
+      disk_total_gi=$((disk_total_kb / 1024 / 1024))
+      disk_available_gi=$((disk_available_kb / 1024 / 1024))
+      load_average=$(awk '{print $1, $2, $3}' /proc/loadavg)
+      open_file_limit=$(ulimit -n)
+      process_limit=$(ulimit -u)
+      docker_root=$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || true)
+
+      echo "ClusterMesh agent capacity:" \
+        "agent=${AGENT_NAME:-unknown} cpu=${cpu_cores} load=${load_average}"
+      echo "  memory=${memory_available_mib} MiB available /" \
+        "${memory_total_mib} MiB total; minimum=${minimum_memory_gi} GiB"
+      echo "  workspace disk=${disk_available_gi} GiB available /" \
+        "${disk_total_gi} GiB total; minimum=${minimum_disk_gi} GiB"
+      echo "  docker root=${docker_root:-unavailable}" \
+        "open-files=${open_file_limit} processes=${process_limit}"
+      echo "##vso[task.setvariable variable=CLUSTERMESH_AGENT_CPU_CORES]$cpu_cores"
+      echo "##vso[task.setvariable variable=CLUSTERMESH_AGENT_MEMORY_TOTAL_MIB]$memory_total_mib"
+      echo "##vso[task.setvariable variable=CLUSTERMESH_AGENT_MEMORY_AVAILABLE_MIB]$memory_available_mib"
+      echo "##vso[task.setvariable variable=CLUSTERMESH_AGENT_DISK_TOTAL_GI]$disk_total_gi"
+      echo "##vso[task.setvariable variable=CLUSTERMESH_AGENT_DISK_AVAILABLE_GI]$disk_available_gi"
+
+      if [ "$disk_available_kb" -lt $((minimum_disk_gi * 1024 * 1024)) ]; then
+        fail_capacity_preflight \
+          "ClusterMesh agent workspace disk is below the configured ${minimum_disk_gi} GiB watermark."
+      fi
+      if [ "$memory_available_kb" -lt $((minimum_memory_gi * 1024 * 1024)) ]; then
+        fail_capacity_preflight \
+          "ClusterMesh agent memory is below the configured ${minimum_memory_gi} GiB watermark."
+      fi
+    displayName: "Preflight ClusterMesh agent capacity"
+    condition: startsWith(variables['SCENARIO_NAME'], 'clustermesh')
+    env:
+      PIPELINE_WORKSPACE: $(Pipeline.Workspace)
 
   - script: |
       run_url="$(System.TeamFoundationCollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=logs&j=$(System.JobId)"

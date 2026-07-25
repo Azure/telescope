@@ -1589,8 +1589,13 @@ stages:
               share_infra_scenarios: "propagation-probe,event-throughput,pod-churn-combined,apiserver-failure,policy-scale,isolation,node-churn-combined,upper-bound"
               share_infra_settle_seconds: 60
               agent_disk_min_free_gi: 10
+              agent_memory_min_free_gi: 4
               suite_total_budget_seconds: 43200
               suite_finalization_reserve_seconds: 3600
+              # The suite budget starts at job initialization. Keep a separate
+              # two-hour hard-timeout tail for publish and cleanup even if the
+              # suite consumes its complete protected 12-hour envelope.
+              suite_job_timeout_buffer_seconds: 7200
               cl2_config_file: ""
               test_type: shared
               test_type_suffix: "-mock-full-telemetry-cc"
@@ -1620,7 +1625,8 @@ stages:
               node_churn_recovery_grace_seconds: 900
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
-          timeout_in_minutes: 720
+          timeout_in_minutes: 840
+          cancel_timeout_in_minutes: 60
           credential_type: service_connection
           ssh_key_enabled: false
           skip_publish: false
@@ -1813,10 +1819,11 @@ stages:
   # preflight checks this peak plus 128 vCPU headroom against Canada Central's
   # 62,000-vCPU DSv4 quota in the UI-selected subscription.
   #
-  # timeout 1800m (30h): this pool is self-hosted, for which Azure DevOps
-  # supports arbitrarily long jobs (timeout 0 means unlimited). We use an
-  # explicit 30h cap and protect the final 3h for telemetry, uploads, and
-  # destroy rather than risking a hard timeout after the full eight scenarios.
+  # timeout 2100m (35h): this pool is self-hosted, for which Azure DevOps
+  # supports arbitrarily long jobs (timeout 0 means unlimited). The scenario
+  # suite retains its 30h budget and protected final 3h; the additional 5h hard
+  # tail prevents Azure DevOps from killing telemetry, uploads, or destroy at
+  # the exact instant the suite budget expires.
   # ===========================================================================
   - stage: azure_canadacentral_n100_mock
     dependsOn: []
@@ -1957,8 +1964,13 @@ stages:
               share_infra_scenarios: "propagation-probe,event-throughput,pod-churn-combined,apiserver-failure,policy-scale,isolation,node-churn-combined,upper-bound"
               share_infra_settle_seconds: 300
               agent_disk_min_free_gi: 40
+              # Airlock agents observed in builds 74578/74597 have about
+              # 15.6 GiB total memory. Require a nearly idle host before
+              # provisioning 100 clusters and launching mesh-wide workers.
+              agent_memory_min_free_gi: 12
               suite_total_budget_seconds: 108000
               suite_finalization_reserve_seconds: 10800
+              suite_job_timeout_buffer_seconds: 18000
               cl2_config_file: ""
               cl2_max_concurrent: 12
               test_type: shared
@@ -1999,7 +2011,8 @@ stages:
               node_churn_recovery_grace_seconds: 1800
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
-          timeout_in_minutes: 1800
+          timeout_in_minutes: 2100
+          cancel_timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false
           skip_publish: false

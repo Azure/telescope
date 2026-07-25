@@ -136,6 +136,7 @@ steps:
       export CL2_NODE_CHURN_RECOVERY_GRACE_SECONDS="${NODE_CHURN_RECOVERY_GRACE_SECONDS:-0}"
       export CL2_SHARE_INFRA_SETTLE_SECONDS="${SHARE_INFRA_SETTLE_SECONDS:-60}"
       export CL2_AGENT_DISK_MIN_FREE_GI="${AGENT_DISK_MIN_FREE_GI:-10}"
+      export CL2_AGENT_MEMORY_MIN_FREE_GI="${AGENT_MEMORY_MIN_FREE_GI:-0}"
       export CL2_SUITE_TOTAL_BUDGET_SECONDS="${SUITE_TOTAL_BUDGET_SECONDS:-0}"
       export CL2_SUITE_FINALIZATION_RESERVE_SECONDS="${SUITE_FINALIZATION_RESERVE_SECONDS:-0}"
       export CL2_HEALTH_GATE_TIMEOUT_BUFFER_SECONDS="${HEALTH_GATE_TIMEOUT_BUFFER_SECONDS:-900}"
@@ -519,6 +520,21 @@ steps:
         echo "Agent disk headroom: $((_available_kb / 1024 / 1024)) GiB available; minimum=${CL2_AGENT_DISK_MIN_FREE_GI} GiB"
         if [ "$_available_kb" -lt "$_required_kb" ]; then
           echo "##vso[task.logissue type=error;] Agent disk headroom is below the configured watermark"
+          return 1
+        fi
+      }
+
+      check_agent_memory_headroom() {
+        local _available_kb _required_kb
+        _available_kb=$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)
+        _required_kb=$(( CL2_AGENT_MEMORY_MIN_FREE_GI * 1024 * 1024 ))
+        if ! [[ "$_available_kb" =~ ^[0-9]+$ ]]; then
+          echo "##vso[task.logissue type=error;] Unable to determine agent memory headroom"
+          return 1
+        fi
+        echo "Agent memory headroom: $((_available_kb / 1024 / 1024)) GiB available; minimum=${CL2_AGENT_MEMORY_MIN_FREE_GI} GiB"
+        if [ "$_available_kb" -lt "$_required_kb" ]; then
+          echo "##vso[task.logissue type=error;] Agent memory headroom is below the configured watermark"
           return 1
         fi
       }
@@ -1747,6 +1763,10 @@ steps:
             fi
           fi
           if ! check_agent_disk_headroom; then
+            overall_rc=1
+            break
+          fi
+          if ! check_agent_memory_headroom; then
             overall_rc=1
             break
           fi

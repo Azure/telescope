@@ -122,7 +122,10 @@ steps:
       terraform ${{ parameters.command }} ${{ parameters.arguments }}
     fi
   displayName: "Run Terraform ${{ parameters.command }} Command"
-  condition: ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true')
+  # Provisioning commands must never start after an earlier failure or job
+  # cancellation. Destroy remains cancellation-resilient so the job's
+  # cancelTimeoutInMinutes tail can release partially-created infrastructure.
+  condition: and(or(succeeded(), eq('${{ parameters.command }}', 'destroy')), ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'))
   retryCountOnTaskFailure: ${{ parameters.retry_attempt_count }}
   env:
     REGIONS: ${{ convertToJson(parameters.regions) }}

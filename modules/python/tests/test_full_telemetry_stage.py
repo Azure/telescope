@@ -140,7 +140,8 @@ def test_dedicated_full_telemetry_stage_is_isolated():
         pipeline.index("azure_canadacentral_n2_mock_full_telemetry") :
         pipeline.index("azure_canadacentral_n2_mock_full_telemetry") + 5000
     ]
-    assert "timeout_in_minutes: 720" in stage
+    assert "timeout_in_minutes: 840" in stage
+    assert "cancel_timeout_in_minutes: 60" in stage
     assert (
         'share_infra_scenarios: "propagation-probe,event-throughput,'
         'pod-churn-combined,apiserver-failure,policy-scale,isolation,'
@@ -150,6 +151,8 @@ def test_dedicated_full_telemetry_stage_is_isolated():
     assert "restart_count: 1" in stage
     assert "suite_total_budget_seconds: 43200" in stage
     assert "suite_finalization_reserve_seconds: 3600" in stage
+    assert "suite_job_timeout_buffer_seconds: 7200" in stage
+    assert "agent_memory_min_free_gi: 4" in stage
     assert "node_churn_recovery_grace_seconds: 900" in stage
     assert "node_churn_target_nodepool: churnpool" in stage
     assert "node_replace_batch_size: 2" in stage
@@ -475,6 +478,8 @@ def test_resource_lease_outlives_share_infra_suite():
 
     assert "SUITE_TOTAL_BUDGET_SECONDS" in provision
     assert 'RESOURCE_LEASE_BUFFER_SECONDS:-14400' in provision
+    assert "CLUSTERMESH_JOB_CANCEL_TIMEOUT_MINUTES" in provision
+    assert "job_envelope_seconds" in provision
     assert "Resource lease is too short" in provision
     assert 'elif [ "$cloud" != "gcp" ]' in provision
     assert "task.setvariable variable=SKIP_RESOURCE_MANAGEMENT]true" in provision
@@ -584,8 +589,10 @@ def test_n100_stage_has_complete_workload_and_telemetry_wiring():
         'node-churn-combined,upper-bound"',
         "share_infra_settle_seconds: 300",
         "agent_disk_min_free_gi: 40",
+        "agent_memory_min_free_gi: 12",
         "suite_total_budget_seconds: 108000",
         "suite_finalization_reserve_seconds: 10800",
+        "suite_job_timeout_buffer_seconds: 18000",
         "restart_count: 1",
         "node_churn_combined_duration_seconds: 5400",
         "node_churn_target_nodepool: churnpool",
@@ -596,7 +603,8 @@ def test_n100_stage_has_complete_workload_and_telemetry_wiring():
         'CLUSTERMESH_REQUIRED_FAMILY_VCPUS: "2536"',
         "azure-100-mock-shared-cc.tfvars",
         'test_type_suffix: "-mock-cc"',
-        "timeout_in_minutes: 1800",
+        "timeout_in_minutes: 2100",
+        "cancel_timeout_in_minutes: 120",
     ):
         assert expected in stage
     assert (

@@ -53,11 +53,33 @@ steps:
       echo "##vso[task.setvariable variable=SKIP_RESOURCE_MANAGEMENT]true"
       exit 1
     }
+    parse_nonnegative_integer() {
+      local output_name="$1"
+      local input_name="$2"
+      local raw_value="$3"
+      local maximum="$4"
+      if ! [[ "$raw_value" =~ ^(0|[1-9][0-9]*)$ ]]; then
+        fail_provision \
+          "$input_name must be a canonical non-negative integer, got '$raw_value'."
+      fi
+      if [ "${#raw_value}" -gt "${#maximum}" ] || {
+        [ "${#raw_value}" -eq "${#maximum}" ] &&
+          [[ "$raw_value" > "$maximum" ]]
+      }; then
+        fail_provision "$input_name exceeds the supported maximum $maximum."
+      fi
+      printf -v "$output_name" '%d' "$raw_value"
+    }
     terraform_input_file=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_FILE')
-    deletion_delay=$(grep "deletion_delay" "$terraform_input_file" 2>/dev/null | awk -F'=' '{gsub(/^[ \t]+|[ \t]+$/, "", $2); gsub(/[^0-9]/, "", $2); print $2}' || true)
-    if [ -n "$deletion_delay" ]; then
-      if ! [[ "$deletion_delay" =~ ^[0-9]+$ ]] || [ "$deletion_delay" -le 0 ]; then
-        fail_provision "Invalid deletion_delay in $terraform_input_file: $deletion_delay"
+    deletion_delay_value=$(grep -E '^[[:space:]]*deletion_delay[[:space:]]*=' "$terraform_input_file" 2>/dev/null | awk -F'=' '{gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2; exit}' || true)
+    deletion_delay_pattern='^"([1-9][0-9]*)h"([[:space:]]*(#|//).*)?$'
+    if [ -n "$deletion_delay_value" ]; then
+      if [[ "$deletion_delay_value" =~ $deletion_delay_pattern ]]; then
+        parse_nonnegative_integer deletion_delay \
+          deletion_delay "${BASH_REMATCH[1]}" 596523
+      else
+        fail_provision \
+          "Invalid deletion_delay in $terraform_input_file: $deletion_delay_value"
       fi
       echo "Deletion Delay: $deletion_delay hr"
 
@@ -65,17 +87,37 @@ steps:
       # A long share-infra suite must never outlive the resource-group janitor
       # lease. Reserve another four hours for provisioning, telemetry, destroy,
       # and post-failure inspection beyond the scenario suite's own budget.
-      suite_budget_seconds="${SUITE_TOTAL_BUDGET_SECONDS:-0}"
-      lease_buffer_seconds="${RESOURCE_LEASE_BUFFER_SECONDS:-14400}"
-      if ! [[ "$suite_budget_seconds" =~ ^[0-9]+$ ]] ||
-         ! [[ "$lease_buffer_seconds" =~ ^[0-9]+$ ]]; then
-        fail_provision "Invalid suite/lease budget: suite=$suite_budget_seconds buffer=$lease_buffer_seconds"
-      fi
+      parse_nonnegative_integer suite_budget_seconds \
+        SUITE_TOTAL_BUDGET_SECONDS "${SUITE_TOTAL_BUDGET_SECONDS:-0}" 2147483647
+      parse_nonnegative_integer lease_buffer_seconds \
+        RESOURCE_LEASE_BUFFER_SECONDS \
+        "${RESOURCE_LEASE_BUFFER_SECONDS:-14400}" 2147483647
+      parse_nonnegative_integer job_timeout_minutes \
+        CLUSTERMESH_JOB_TIMEOUT_MINUTES \
+        "${CLUSTERMESH_JOB_TIMEOUT_MINUTES:-0}" 35790
+      parse_nonnegative_integer job_cancel_timeout_minutes \
+        CLUSTERMESH_JOB_CANCEL_TIMEOUT_MINUTES \
+        "${CLUSTERMESH_JOB_CANCEL_TIMEOUT_MINUTES:-5}" 35790
       deletion_delay_seconds=$((deletion_delay * 3600))
-      required_lease_seconds=$((suite_budget_seconds + lease_buffer_seconds))
+      suite_lease_seconds=$((suite_budget_seconds + lease_buffer_seconds))
+      required_lease_seconds=$suite_lease_seconds
+      job_envelope_seconds=0
+      if [ "$suite_budget_seconds" -gt 0 ]; then
+        if [ "$job_timeout_minutes" -eq 0 ]; then
+          fail_provision \
+            "Budgeted ClusterMesh suites require a finite job timeout for resource-lease validation."
+        fi
+        job_envelope_seconds=$((
+          (job_timeout_minutes + job_cancel_timeout_minutes) * 60
+        ))
+        if [ "$job_envelope_seconds" -gt "$required_lease_seconds" ]; then
+          required_lease_seconds=$job_envelope_seconds
+        fi
+      fi
       if [ "$suite_budget_seconds" -gt 0 ] &&
          [ "$deletion_delay_seconds" -lt "$required_lease_seconds" ]; then
-        fail_provision "Resource lease is too short: deletion_delay=${deletion_delay}h (${deletion_delay_seconds}s), suite=${suite_budget_seconds}s, required_with_buffer=${required_lease_seconds}s. Increase deletion_delay before provisioning."
+        fail_provision \
+          "Resource lease is too short: deletion_delay=${deletion_delay}h (${deletion_delay_seconds}s), suite_with_buffer=${suite_lease_seconds}s, job_with_cancel=${job_envelope_seconds}s, required=${required_lease_seconds}s. Increase deletion_delay before provisioning."
       fi
 
       deletion_due_time=$(date -u -d "+${deletion_delay} hour" +'%Y-%m-%dT%H:%M:%SZ')
