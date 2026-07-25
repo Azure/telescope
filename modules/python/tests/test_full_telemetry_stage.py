@@ -576,6 +576,27 @@ def test_native_snapshot_admin_api_is_retried_with_diagnostics():
     assert "enableAdminAPI=${prom_admin_api:-unknown}" in worker
 
 
+def test_prometheus_patcher_outlives_long_scenarios():
+    worker = (
+        REPOSITORY_ROOT
+        / "steps"
+        / "engine"
+        / "clusterloader2"
+        / "clustermesh-scale"
+        / "run-cl2-on-cluster.sh"
+    ).read_text(encoding="utf-8")
+
+    assert 'CL2_PROM_PATCH_POLL_SECONDS:-10' in worker
+    assert 'CL2_PROM_PATCH_REQUEST_TIMEOUT_SECONDS:-15' in worker
+    assert "prom_patcher_kubectl" in worker
+    assert "lifetime=worker" in worker
+    assert "while true; do" in worker
+    assert "setsid bash -c run_prom_patcher" in worker
+    assert 'kill -- "-${PROM_PATCH_PID}"' in worker
+    assert "timeout --foreground" in worker
+    assert "600 * ${CL2_MAX_ATTEMPTS:-1}" not in worker
+
+
 def test_node_churn_false_cleanup_value_is_not_defaulted_to_true():
     execute = EXECUTE_TEMPLATE_PATH.read_text(encoding="utf-8")
 

@@ -55,7 +55,9 @@ name: clustermesh-policy-scale
 # expected/deleted CNP counts to converge (config/policy-scale-evidence.sh).
 # 15m default covers n=100 CNPs/ns without inventing an unbounded wait.
 {{$verifyTimeout := DefaultParam .CL2_POLICY_SCALE_VERIFY_TIMEOUT_SECONDS 900}}
-{{$verifyExecTimeout := AddInt $verifyTimeout 60}}
+{{$terminalGrace := DefaultParam .CL2_POLICY_SCALE_TERMINAL_GRACE_SECONDS 30}}
+{{$verifyWithGrace := AddInt $verifyTimeout $terminalGrace}}
+{{$verifyExecTimeout := AddInt $verifyWithGrace 60}}
 
 {{$workloadGroup := "clustermesh-policy-scale"}}
 
@@ -182,6 +184,9 @@ steps:
             - "{{$cnpPerNamespace}}"
             - /root/perf-tests/clusterloader2/results/PolicyScaleEvidence.json
             - "{{$verifyTimeout}}"
+            - clustermesh-pscale
+            - clustermesh-policy-scale
+            - "{{$terminalGrace}}"
 
   # ----- Phase 3: hold mesh with all CNPs active -----
   # Sleep so policy_implementation_delay and endpoint_regeneration_time
@@ -226,6 +231,9 @@ steps:
             - "{{$cnpPerNamespace}}"
             - /root/perf-tests/clusterloader2/results/PolicyScaleEvidence.json
             - "{{$verifyTimeout}}"
+            - clustermesh-pscale
+            - clustermesh-policy-scale
+            - "{{$terminalGrace}}"
 
   # ----- Phase 5: delete workload + gather -----
   - name: Delete policy-scale backend pods

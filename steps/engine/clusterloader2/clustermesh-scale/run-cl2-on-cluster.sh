@@ -64,7 +64,15 @@ _cleanup_worker_state() {
   # Terminate background daemons (prom-cr-patcher, snapshot) regardless of
   # CL2 outcome, otherwise they'd linger past job end and keep hitting
   # kube-api.
-  kill ${PROM_PATCH_PID:-} ${SNAPSHOT_PID:-} 2>/dev/null || true
+  if [ -n "${PROM_PATCH_PID:-}" ]; then
+    kill -- "-${PROM_PATCH_PID}" 2>/dev/null ||
+      kill "${PROM_PATCH_PID}" 2>/dev/null || true
+    wait "${PROM_PATCH_PID}" 2>/dev/null || true
+  fi
+  if [ -n "${SNAPSHOT_PID:-}" ]; then
+    kill "${SNAPSHOT_PID}" 2>/dev/null || true
+    wait "${SNAPSHOT_PID}" 2>/dev/null || true
+  fi
   # Remove this worker's PRIVATE copy of the Azure CLI cache (never the
   # host's shared ~/.azure — that's only ever read from, never written
   # here). Safe to call even when no private dir was created.
@@ -221,29 +229,49 @@ fi
 # for the CR to exist and CONTINUOUSLY enforces `spec.resources.limits.memory`
 # = target (patching whenever it diverges). It must keep running and re-patch
 # across CL2 retries (CL2_MAX_ATTEMPTS>1 deletes+recreates the monitoring stack
-# on a transient prometheus-setup failure → a fresh CR at the 2Gi default), so
-# the budget scales with the attempt count. Polling is cheap and no-ops if the
-# CR never appears (enable_prometheus=False scenarios).
+# on a transient prometheus-setup failure → a fresh CR at the 2Gi default) and
+# through post-run telemetry audit. Polling is cheap and no-ops if the CR never
+# appears (enable_prometheus=False scenarios).
 PROM_LIMIT="${CL2_PROMETHEUS_MEMORY_LIMIT_GI:-12}Gi"
+PROM_PATCH_POLL_SECONDS="${CL2_PROM_PATCH_POLL_SECONDS:-10}"
+PROM_PATCH_REQUEST_TIMEOUT_SECONDS="${CL2_PROM_PATCH_REQUEST_TIMEOUT_SECONDS:-15}"
+if ! [[ "$PROM_PATCH_POLL_SECONDS" =~ ^[1-9][0-9]*$ ]]; then
+  PROM_PATCH_POLL_SECONDS=10
+elif [ "$PROM_PATCH_POLL_SECONDS" -gt 60 ]; then
+  PROM_PATCH_POLL_SECONDS=60
+fi
+if ! [[ "$PROM_PATCH_REQUEST_TIMEOUT_SECONDS" =~ ^[1-9][0-9]*$ ]]; then
+  PROM_PATCH_REQUEST_TIMEOUT_SECONDS=15
+elif [ "$PROM_PATCH_REQUEST_TIMEOUT_SECONDS" -gt 60 ]; then
+  PROM_PATCH_REQUEST_TIMEOUT_SECONDS=60
+fi
+prom_patcher_kubectl() {
+  timeout --foreground "$((PROM_PATCH_REQUEST_TIMEOUT_SECONDS + 5))s" \
+    env KUBECONFIG="$kubeconfig" kubectl \
+    --request-timeout="${PROM_PATCH_REQUEST_TIMEOUT_SECONDS}s" "$@"
+}
 PROM_PATCH_LOG="$report_dir/prom-cr-patch.log"
-{
-  echo "[prom-patcher] starting; target limit=$PROM_LIMIT, attempts=${CL2_MAX_ATTEMPTS:-1}, mock=${CL2_MOCK_MODE:-false}" >&2
-  # 10min per attempt — covers CL2 startup for each (re)deploy of the stack.
-  _deadline=$(( $(date +%s) + 600 * ${CL2_MAX_ATTEMPTS:-1} ))
+run_prom_patcher() {
+  echo "[prom-patcher] starting; target limit=$PROM_LIMIT, lifetime=worker, poll=${PROM_PATCH_POLL_SECONDS}s, request-timeout=${PROM_PATCH_REQUEST_TIMEOUT_SECONDS}s, attempts=${CL2_MAX_ATTEMPTS:-1}, mock=${CL2_MOCK_MODE:-false}" >&2
+  # Stay alive through long policy/saturation scenarios and the post-CL2
+  # telemetry audit. CL2 can rewrite the Prometheus CR after initial setup;
+  # the worker EXIT trap still terminates this daemon immediately on completion.
   _patches=0
   _identity_patches=0
-  while [ "$(date +%s)" -lt "$_deadline" ]; do
-    _current=$(KUBECONFIG="$kubeconfig" kubectl -n monitoring get prometheus k8s \
-                -o jsonpath='{.spec.resources.limits.memory}' 2>/dev/null || echo "")
-    _scrape_name=$(KUBECONFIG="$kubeconfig" kubectl -n monitoring get prometheus k8s \
-                -o jsonpath='{.spec.additionalScrapeConfigs.name}' 2>/dev/null || echo "")
-    _scrape_key=$(KUBECONFIG="$kubeconfig" kubectl -n monitoring get prometheus k8s \
-                -o jsonpath='{.spec.additionalScrapeConfigs.key}' 2>/dev/null || echo "")
+  while true; do
+    _prometheus_json=$(prom_patcher_kubectl -n monitoring \
+      get prometheus k8s -o json 2>/dev/null || true)
+    _current=$(echo "$_prometheus_json" | jq -r \
+      '.spec.resources.limits.memory // ""' 2>/dev/null || true)
+    _scrape_name=$(echo "$_prometheus_json" | jq -r \
+      '.spec.additionalScrapeConfigs.name // ""' 2>/dev/null || true)
+    _scrape_key=$(echo "$_prometheus_json" | jq -r \
+      '.spec.additionalScrapeConfigs.key // ""' 2>/dev/null || true)
     _needs_patch=""
     _patch="{\"spec\":{\"resources\":{\"limits\":{\"memory\":\"$PROM_LIMIT\"}}"
     _scrape_secret_ready=""
     if [ "${CL2_MOCK_MODE:-false}" = "true" ] && \
-       KUBECONFIG="$kubeconfig" kubectl -n monitoring get secret \
+       prom_patcher_kubectl -n monitoring get secret \
          clustermesh-additional-scrapes >/dev/null 2>&1; then
       _scrape_secret_ready=1
       _patch="${_patch},\"additionalScrapeConfigs\":{\"name\":\"clustermesh-additional-scrapes\",\"key\":\"prometheus-additional.yaml\"}"
@@ -257,21 +285,23 @@ PROM_PATCH_LOG="$report_dir/prom-cr-patch.log"
     # first appearance and a retry's freshly-recreated CR).
     if [ -n "$_current" ] && { [ "$_current" != "$PROM_LIMIT" ] || [ -n "$_needs_patch" ]; }; then
       echo "[prom-patcher] prometheus/k8s limit=$_current additionalScrapeConfigs=${_scrape_name:-<none>}/${_scrape_key:-<none>} secretReady=${_scrape_secret_ready:-false} → patching" >&2
-      if KUBECONFIG="$kubeconfig" kubectl -n monitoring patch prometheus k8s \
+      if prom_patcher_kubectl -n monitoring patch prometheus k8s \
            --type=merge -p "$_patch" >&2; then
         _patches=$((_patches + 1))
         echo "[prom-patcher] patch #$_patches OK" >&2
       else
-        echo "[prom-patcher] patch failed; will retry in 5s" >&2
+        echo "[prom-patcher] patch failed; will retry in ${PROM_PATCH_POLL_SECONDS}s" >&2
       fi
     fi
     if [ "$identity_ready" = "true" ]; then
-      _identity_deployment_name=$(KUBECONFIG="$kubeconfig" kubectl -n monitoring get \
-        deployment -l app=apiserver-backend-exporter \
-        -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+      _identity_deployment_list=$(prom_patcher_kubectl -n monitoring get \
+        deployment -l app=apiserver-backend-exporter -o json \
+        2>/dev/null || true)
+      _identity_deployment=$(echo "$_identity_deployment_list" | jq -c \
+        '.items[0] // empty' 2>/dev/null || true)
+      _identity_deployment_name=$(echo "$_identity_deployment" | jq -r \
+        '.metadata.name // ""' 2>/dev/null || true)
       if [ -n "$_identity_deployment_name" ]; then
-        _identity_deployment=$(KUBECONFIG="$kubeconfig" kubectl -n monitoring get \
-          deployment "$_identity_deployment_name" -o json 2>/dev/null || true)
         _current_run_id=$(echo "$_identity_deployment" | jq -r '
           .spec.template.spec.containers[]
           | select(.name == "exporter")
@@ -289,7 +319,7 @@ PROM_PATCH_LOG="$report_dir/prom-cr-patch.log"
         if [ "$_current_run_id" != "$CLUSTERMESH_RUN_ID" ] || \
            [ "$_current_resource_id" != "$CLUSTERMESH_CLUSTER_RESOURCE_ID" ]; then
           echo "[prom-patcher] injecting cluster identity into apiserver-backend-exporter" >&2
-          if KUBECONFIG="$kubeconfig" kubectl -n monitoring set env \
+          if prom_patcher_kubectl -n monitoring set env \
               "deployment/$_identity_deployment_name" \
               CLUSTERMESH_RUN_ID="$CLUSTERMESH_RUN_ID" \
               CLUSTERMESH_CLUSTER_ROLE="$CLUSTERMESH_CLUSTER_ROLE" \
@@ -307,10 +337,14 @@ PROM_PATCH_LOG="$report_dir/prom-cr-patch.log"
         fi
       fi
     fi
-    sleep 3
+    sleep "$PROM_PATCH_POLL_SECONDS"
   done
-  echo "[prom-patcher] exiting after $_patches Prometheus patch(es) and $_identity_patches identity patch(es) over ${CL2_MAX_ATTEMPTS:-1} attempt budget" >&2
-} > "$PROM_PATCH_LOG" 2>&1 &
+  echo "[prom-patcher] exiting after $_patches Prometheus patch(es) and $_identity_patches identity patch(es)" >&2
+}
+export -f prom_patcher_kubectl run_prom_patcher
+export kubeconfig identity_ready PROM_LIMIT PROM_PATCH_POLL_SECONDS
+export PROM_PATCH_REQUEST_TIMEOUT_SECONDS
+setsid bash -c run_prom_patcher > "$PROM_PATCH_LOG" 2>&1 &
 PROM_PATCH_PID=$!
 echo "  $role: spawned prometheus-cr-patcher (PID=$PROM_PATCH_PID, log=$PROM_PATCH_LOG)"
 

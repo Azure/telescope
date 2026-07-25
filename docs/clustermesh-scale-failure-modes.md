@@ -41,7 +41,8 @@ at the bottom for the explicit scope statement.
 | `policy_scale_delete_evidence_timeout` | active CNP evidence passes, then deleted evidence is SIGKILLed at the same 15m internal/Exec deadline | true | 960 | re-issue idempotent label-scoped CNP deletion for residue and give Exec a 60s terminal-evidence buffer | 74578 |
 | `prom_snapshot_admin_api_empty` | snapshot POST intermittently returns no body/name while Prometheus remains Running | true | 150 | retry the admin API with bounded curl deadlines and preserve HTTP/curl/admin-API diagnostics | 74612 |
 | `node_churn_false_cleanup_failure` | timing JSON says `cleanup_failed=false`, but suite records `cleanup_failed=true` and skips upper-bound | true | n/a | use `has("cleanup_failed")` instead of jq `false // true`, which incorrectly selects the fallback | 74612 |
-| `policy_scale_cnp_finalizer_residue` | exactly one labeled CNP per policy namespace remains after 15m despite label-scoped deletion | false (finding) | 900 | keep the measurement invalid; record residual names, deletion timestamps, and finalizers before namespace cleanup | 74612 |
+| `policy_scale_empty_list_stderr_counted` | deleted evidence reports exactly one CNP per namespace, then residual detail is empty | true | n/a | use `kubectl get ... -o name` stdout only; never count the successful `No resources found` stderr diagnostic | 74612, 74639 |
+| `self_hosted_target_reload_race` | workload/JUnit passes but mock-agent and ACNS targets vanish before the post-run audit | true | worker lifetime | keep the Prometheus CR patcher alive until the worker EXIT trap instead of stopping after 10m/attempt | 74639 |
 | `vmextension_error_k_*` | `VMExtensionError_K[A-Za-z]+` (kubelet/CRI failures) | false | n/a | abort + dump CSE logs; non-retryable | 68700 |
 
 ---

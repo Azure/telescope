@@ -85,8 +85,16 @@ def _set_counts(counts_dir, counts_by_ns):
         (counts_dir / f"{ns}.count").write_text(str(count), encoding="utf-8")
 
 
-def _run(tmp_path, phase, namespaces, cnp_per_namespace, kubectl_script,
-         report_path=None, poll_timeout=2):
+def _run(
+    tmp_path,
+    phase,
+    namespaces,
+    cnp_per_namespace,
+    kubectl_script,
+    report_path=None,
+    poll_timeout=2,
+    terminal_grace=0,
+):
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir(exist_ok=True)
     _write_executable(fake_bin / "kubectl", kubectl_script)
@@ -98,6 +106,7 @@ def _run(tmp_path, phase, namespaces, cnp_per_namespace, kubectl_script,
         [
             "bash", str(SCRIPT), phase,
             str(namespaces), str(cnp_per_namespace), str(report_path), str(poll_timeout),
+            "clustermesh-pscale", "clustermesh-policy-scale", str(terminal_grace),
         ],
         check=False, capture_output=True, text=True, env=env, timeout=30,
     )
@@ -156,6 +165,31 @@ def test_active_phase_missing_namespace_fails(tmp_path):
     assert data["active"]["expected_namespace_count"] == 2
 
 
+def test_active_phase_rejects_observation_completed_after_deadline(tmp_path):
+    ns_names = ["clustermesh-pscale-1"]
+    counts_dir = tmp_path / "counts"
+    _set_counts(counts_dir, {"clustermesh-pscale-1": 1})
+    kubectl = _fake_kubectl(counts_dir, ns_names).replace(
+        'if [ "$1" = "get" ] && [ "$2" = "ciliumnetworkpolicies" ]; then',
+        """if [ "$1" = "get" ] && [ "$2" = "ciliumnetworkpolicies" ]; then
+  sleep 2""",
+    )
+
+    result, report_path = _run(
+        tmp_path,
+        "active",
+        1,
+        1,
+        kubectl,
+        poll_timeout=1,
+    )
+
+    assert result.returncode == 1
+    data = json.loads(report_path.read_text())
+    assert data["active"]["observed_total"] == 1
+    assert data["active"]["verified"] is False
+
+
 def test_deleted_phase_zero_remaining_passes(tmp_path):
     ns_names = ["clustermesh-pscale-1", "clustermesh-pscale-2"]
     counts_dir = tmp_path / "counts"
@@ -178,6 +212,72 @@ def test_deleted_phase_zero_remaining_passes(tmp_path):
     assert data["active"]["verified"] is True
     # Sidecar cleaned up.
     assert not (Path(str(report_path) + ".active-section.json")).exists()
+
+
+def test_deleted_phase_ignores_empty_list_stderr_diagnostic(tmp_path):
+    ns_names = ["clustermesh-pscale-1"]
+    counts_dir = tmp_path / "counts"
+    _set_counts(counts_dir, {"clustermesh-pscale-1": 1})
+    kubectl = _fake_kubectl(counts_dir, ns_names).replace(
+        '  for i in $(seq 1 "$count"); do echo "cnp$i"; done',
+        '''  if [ "$count" = "0" ]; then
+    echo "No resources found in clustermesh-pscale-1 namespace." >&2
+  fi
+  for i in $(seq 1 "$count"); do echo "cnp$i"; done''',
+    )
+
+    active_result, report_path = _run(tmp_path, "active", 1, 1, kubectl)
+    assert active_result.returncode == 0
+
+    _set_counts(counts_dir, {"clustermesh-pscale-1": 0})
+    deleted_result, report_path = _run(
+        tmp_path,
+        "deleted",
+        1,
+        1,
+        kubectl,
+        report_path=report_path,
+        poll_timeout=1,
+    )
+
+    assert deleted_result.returncode == 0, deleted_result.stdout + deleted_result.stderr
+    data = json.loads(report_path.read_text())
+    assert data["deleted"]["verified"] is True
+    assert data["deleted"]["observed_count"] == 0
+
+
+def test_deleted_phase_rejects_late_preliminary_zero_without_grace(tmp_path):
+    ns_names = ["clustermesh-pscale-1"]
+    counts_dir = tmp_path / "counts"
+    _set_counts(counts_dir, {"clustermesh-pscale-1": 1})
+    active_kubectl = _fake_kubectl(counts_dir, ns_names)
+    active_result, report_path = _run(
+        tmp_path, "active", 1, 1, active_kubectl
+    )
+    assert active_result.returncode == 0
+
+    _set_counts(counts_dir, {"clustermesh-pscale-1": 0})
+    deleted_kubectl = _fake_kubectl(counts_dir, ns_names).replace(
+        'if [ "$1" = "get" ] && [ "$2" = "ciliumnetworkpolicies" ]; then',
+        """if [ "$1" = "get" ] && [ "$2" = "ciliumnetworkpolicies" ]; then
+  sleep 2""",
+    )
+    deleted_result, report_path = _run(
+        tmp_path,
+        "deleted",
+        1,
+        1,
+        deleted_kubectl,
+        report_path=report_path,
+        poll_timeout=1,
+        terminal_grace=0,
+    )
+
+    assert deleted_result.returncode == 1
+    data = json.loads(report_path.read_text())
+    assert data["deleted"]["observed_count"] == 0
+    assert data["deleted"]["initial_observation_in_time"] is False
+    assert data["deleted"]["primary_verified"] is False
 
 
 def test_deleted_phase_nonzero_remaining_fails(tmp_path):
@@ -262,6 +362,79 @@ def test_deleted_failure_report_precedes_bounded_residual_diagnostics(tmp_path):
     assert data["active"]["verified"] is True
     assert data["deleted"]["verified"] is False
     assert data["deleted"]["observed_count"] == 1
+
+
+def test_deleted_report_survives_bounded_repair_timeout(tmp_path):
+    ns_names = ["clustermesh-pscale-1"]
+    counts_dir = tmp_path / "counts"
+    _set_counts(counts_dir, {"clustermesh-pscale-1": 1})
+    kubectl = _fake_kubectl(
+        counts_dir, ns_names, delete_clears=True
+    ).replace(
+        'if [ "$1" = "delete" ] && [ "$2" = "ciliumnetworkpolicies" ]; then',
+        """if [ "$1" = "delete" ] && [ "$2" = "ciliumnetworkpolicies" ]; then
+  sleep 20""",
+    )
+
+    active_result, report_path = _run(tmp_path, "active", 1, 1, kubectl)
+    assert active_result.returncode == 0
+
+    deleted_result, report_path = _run(
+        tmp_path,
+        "deleted",
+        1,
+        1,
+        kubectl,
+        report_path=report_path,
+        poll_timeout=1,
+    )
+
+    assert deleted_result.returncode == 1
+    data = json.loads(report_path.read_text())
+    assert data["deleted"]["verified"] is False
+    assert data["deleted"]["repair_delete_requested"] is True
+    assert data["deleted"]["repair_delete_errors"]
+
+
+def test_deleted_phase_accepts_convergence_in_terminal_grace(tmp_path):
+    ns_names = ["clustermesh-pscale-1"]
+    counts_dir = tmp_path / "counts"
+    _set_counts(counts_dir, {"clustermesh-pscale-1": 1})
+    calls_file = tmp_path / "cnp-query-calls"
+    kubectl = _fake_kubectl(counts_dir, ns_names).replace(
+        '  count=$(cat "'
+        + str(counts_dir)
+        + '/${ns}.count" 2>/dev/null || echo 0)',
+        f'''  calls=$(cat "{calls_file}" 2>/dev/null || echo 0)
+  calls=$((calls + 1))
+  echo "$calls" > "{calls_file}"
+  if [ "$calls" -ge 5 ]; then
+    count=0
+  else
+    count=$(cat "{counts_dir}/${{ns}}.count" 2>/dev/null || echo 0)
+  fi''',
+    )
+
+    active_result, report_path = _run(tmp_path, "active", 1, 1, kubectl)
+    assert active_result.returncode == 0
+
+    deleted_result, report_path = _run(
+        tmp_path,
+        "deleted",
+        1,
+        1,
+        kubectl,
+        report_path=report_path,
+        poll_timeout=1,
+        terminal_grace=10,
+    )
+
+    assert deleted_result.returncode == 0, deleted_result.stdout + deleted_result.stderr
+    data = json.loads(report_path.read_text())
+    assert data["deleted"]["verified"] is True
+    assert data["deleted"]["primary_verified"] is False
+    assert data["deleted"]["primary_observed_count"] == 1
+    assert data["deleted"]["terminal_grace_used"] is True
 
 
 def test_deleted_phase_without_prior_active_fails_cleanly(tmp_path):
@@ -411,5 +584,6 @@ def test_deleted_phase_persistent_namespace_discovery_failure_not_accepted_as_ze
 def test_cl2_exec_timeout_exceeds_internal_poll_budget():
     config = CONFIG_PATH.read_text(encoding="utf-8")
 
-    assert "{{$verifyExecTimeout := AddInt $verifyTimeout 60}}" in config
+    assert "{{$verifyWithGrace := AddInt $verifyTimeout $terminalGrace}}" in config
+    assert "{{$verifyExecTimeout := AddInt $verifyWithGrace 60}}" in config
     assert config.count("timeout: {{$verifyExecTimeout}}s") == 2

@@ -45,6 +45,8 @@
 #                               policy-scale.yaml's `namespace.prefix`).
 #   $7 WORKLOAD_GROUP            (optional) CNP label-selector group value.
 #                               Default "clustermesh-policy-scale".
+#   $8 TERMINAL_GRACE_SECONDS    (optional) Extra bounded observation window
+#                               after the primary poll deadline. Default 30.
 #
 # Exit codes:
 #   0 — this phase's contract is satisfied (active.verified / deleted.verified).
@@ -62,7 +64,14 @@ REPORT_PATH="${4:-/root/perf-tests/clusterloader2/results/PolicyScaleEvidence.js
 POLL_TIMEOUT_SECONDS="${5:-900}"
 NAMESPACE_PREFIX="${6:-clustermesh-pscale}"
 WORKLOAD_GROUP="${7:-clustermesh-policy-scale}"
+TERMINAL_GRACE_SECONDS="${8:-30}"
 POLL_INTERVAL_SECONDS=5
+KUBECTL_REQUEST_TIMEOUT="${CL2_POLICY_SCALE_KUBECTL_REQUEST_TIMEOUT:-3s}"
+if ! [[ "${TERMINAL_GRACE_SECONDS}" =~ ^(0|[1-9][0-9]*)$ ]]; then
+  TERMINAL_GRACE_SECONDS=30
+elif [ "${TERMINAL_GRACE_SECONDS}" -gt 300 ]; then
+  TERMINAL_GRACE_SECONDS=300
+fi
 
 ACTIVE_SIDECAR="${REPORT_PATH}.active-section.json"
 LABEL_SELECTOR="group=${WORKLOAD_GROUP}"
@@ -126,11 +135,16 @@ _sanitize_for_pipe_line() {
 # printed value.
 
 discover_namespaces() {
-  local out rc
-  out="$("${KUBECTL}" get ns -o name 2>&1)"
+  local out rc err err_file
+  err_file=$(mktemp)
+  out="$(timeout 5s "${KUBECTL}" get ns -o name \
+    --request-timeout="${KUBECTL_REQUEST_TIMEOUT}" 2>"${err_file}")"
   rc=$?
+  err=$(cat "${err_file}" 2>/dev/null || true)
+  rm -f "${err_file}"
   if [ "${rc}" -ne 0 ]; then
-    printf 'kubectl get ns failed (rc=%s): %s' "${rc}" "${out}"
+    printf 'kubectl get ns failed (rc=%s): %s%s' \
+      "${rc}" "${err}" "${out}"
     return 1
   fi
   printf '%s\n' "${out}" | sed 's#^namespace/##' | grep -E "^${NAMESPACE_PREFIX}-[0-9]+$" | sort -V
@@ -138,11 +152,17 @@ discover_namespaces() {
 }
 
 count_cnp_in_namespace() {
-  local out rc
-  out="$("${KUBECTL}" get ciliumnetworkpolicies -n "$1" -l "${LABEL_SELECTOR}" --no-headers 2>&1)"
+  local out rc err err_file
+  err_file=$(mktemp)
+  out="$(timeout 5s "${KUBECTL}" get ciliumnetworkpolicies -n "$1" \
+    -l "${LABEL_SELECTOR}" -o name \
+    --request-timeout="${KUBECTL_REQUEST_TIMEOUT}" 2>"${err_file}")"
   rc=$?
+  err=$(cat "${err_file}" 2>/dev/null || true)
+  rm -f "${err_file}"
   if [ "${rc}" -ne 0 ]; then
-    printf 'kubectl get cnp -n %s failed (rc=%s): %s' "$1" "${rc}" "${out}"
+    printf 'kubectl get cnp -n %s failed (rc=%s): %s%s' \
+      "$1" "${rc}" "${err}" "${out}"
     return 1
   fi
   if [ -z "${out}" ]; then
@@ -187,9 +207,8 @@ count_cnp_total_across_prefix() {
 }
 
 describe_residual_cnps() {
-  local details="" ns ns_list out rc
-  if ns_list="$(timeout 5s "${KUBECTL}" get ns -o name \
-      --request-timeout=3s 2>&1)"; then
+  local details="" ns ns_list out rc err err_file
+  if ns_list="$(discover_namespaces)"; then
     ns_list="$(printf '%s\n' "${ns_list}" | sed 's#^namespace/##' \
       | grep -E "^${NAMESPACE_PREFIX}-[0-9]+$" | sort -V)"
     :
@@ -199,15 +218,18 @@ describe_residual_cnps() {
   fi
   while IFS= read -r ns; do
     [ -z "${ns}" ] && continue
+    err_file=$(mktemp)
     out="$(timeout 5s "${KUBECTL}" get ciliumnetworkpolicies -n "${ns}" \
       -l "${LABEL_SELECTOR}" \
       -o jsonpath='{range .items[*]}{.metadata.namespace}{"/"}{.metadata.name}{"|deletionTimestamp="}{.metadata.deletionTimestamp}{"|finalizers="}{.metadata.finalizers}{"\n"}{end}' \
       --request-timeout=3s \
-      2>&1)"
+      2>"${err_file}")"
     rc=$?
+    err=$(cat "${err_file}" 2>/dev/null || true)
+    rm -f "${err_file}"
     if [ "${rc}" -ne 0 ]; then
       printf 'kubectl residual detail query failed for %s (rc=%s): %s' \
-        "${ns}" "${rc}" "${out}"
+        "${ns}" "${rc}" "${err}${out}"
       return 1
     fi
     if [ -n "${out}" ]; then
@@ -228,8 +250,14 @@ write_deleted_report() {
   "deleted": {
     "observed_count": ${OBSERVED_COUNT},
     "verified": ${DELETED_VERIFIED},
+    "primary_observed_count": ${PRIMARY_OBSERVED_COUNT},
+    "primary_query_success": ${PRIMARY_QUERY_OK},
+    "primary_verified": ${PRIMARY_VERIFIED},
+    "initial_observation_in_time": ${INITIAL_OBSERVATION_IN_TIME},
     "elapsed_seconds": ${ELAPSED},
     "timeout_seconds": ${POLL_TIMEOUT_SECONDS},
+    "terminal_grace_seconds": ${TERMINAL_GRACE_SECONDS},
+    "terminal_grace_used": ${TERMINAL_GRACE_USED},
     "query_success": ${QUERY_OK},
     "query_error": "$(json_escape "${QUERY_ERR}")",
     "repair_delete_requested": ${REPAIR_DELETE_REQUESTED},
@@ -252,8 +280,13 @@ case "${PHASE}" in
     NAMESPACE_COUNT=0
     ALL_QUERIES_OK=false
     QUERY_ERRORS_JSON=""
+    ACTIVE_OBSERVATION_IN_TIME=false
 
     while true; do
+      NOW_EPOCH=$(date +%s)
+      if [ "${NOW_EPOCH}" -gt "${DEADLINE}" ]; then
+        break
+      fi
       ALL_QUERIES_OK=true
       QUERY_ERRORS_JSON=""
       if NAMESPACE_LIST="$(discover_namespaces)"; then
@@ -291,19 +324,31 @@ case "${PHASE}" in
       done <<< "${NAMESPACE_LIST}"
       QUERY_ERRORS_JSON="${QUERY_ERRORS_JSON}, \"namespace_counts\": {${NS_ERRORS_JSON}}"
 
+      OBSERVED_AT_EPOCH=$(date +%s)
+      if [ "${OBSERVED_AT_EPOCH}" -gt "${DEADLINE}" ]; then
+        ACTIVE_OBSERVATION_IN_TIME=false
+        break
+      fi
+      ACTIVE_OBSERVATION_IN_TIME=true
       if [ "${ALL_QUERIES_OK}" = "true" ] && [ "${TOTAL}" -eq "${EXPECTED_TOTAL}" ] && \
          [ "${NAMESPACE_COUNT}" -eq "${NAMESPACES}" ] && [ "${ALL_EXACT}" = "true" ]; then
         break
       fi
-      if [ "$(date +%s)" -ge "${DEADLINE}" ]; then
+      REMAINING_SECONDS=$((DEADLINE - OBSERVED_AT_EPOCH))
+      if [ "${REMAINING_SECONDS}" -le 0 ]; then
         break
       fi
-      sleep "${POLL_INTERVAL_SECONDS}"
+      SLEEP_SECONDS="${POLL_INTERVAL_SECONDS}"
+      if [ "${SLEEP_SECONDS}" -gt "${REMAINING_SECONDS}" ]; then
+        SLEEP_SECONDS="${REMAINING_SECONDS}"
+      fi
+      sleep "${SLEEP_SECONDS}"
     done
 
     ELAPSED=$(( $(date +%s) - START_EPOCH ))
     ACTIVE_VERIFIED=false
-    if [ "${ALL_QUERIES_OK}" = "true" ] && [ "${TOTAL}" -eq "${EXPECTED_TOTAL}" ] && \
+    if [ "${ACTIVE_OBSERVATION_IN_TIME}" = "true" ] &&
+       [ "${ALL_QUERIES_OK}" = "true" ] && [ "${TOTAL}" -eq "${EXPECTED_TOTAL}" ] && \
        [ "${NAMESPACE_COUNT}" -eq "${NAMESPACES}" ] && [ "${ALL_EXACT}" = "true" ]; then
       ACTIVE_VERIFIED=true
     fi
@@ -374,14 +419,39 @@ EOF
     # re-issue an idempotent label-scoped delete before polling so evidence
     # collection also repairs the exact scenario-owned residue it validates.
     IFS='|' read -r OBSERVED_COUNT QUERY_OK QUERY_ERR <<<"$(count_cnp_total_across_prefix)"
+    INITIAL_OBSERVED_AT_EPOCH=$(date +%s)
+    INITIAL_OBSERVATION_IN_TIME=true
+    if [ "${INITIAL_OBSERVED_AT_EPOCH}" -gt "${DEADLINE}" ]; then
+      INITIAL_OBSERVATION_IN_TIME=false
+      QUERY_OK=false
+      QUERY_ERR="initial observation completed after the primary deadline"
+    fi
+    PRIMARY_OBSERVED_COUNT="${OBSERVED_COUNT}"
+    PRIMARY_QUERY_OK="${QUERY_OK}"
+    PRIMARY_VERIFIED=false
+    DELETED_VERIFIED=false
+    TERMINAL_GRACE_USED=false
+    ELAPSED=$(( $(date +%s) - START_EPOCH ))
+    write_deleted_report
     if [ "${QUERY_OK}" = "true" ] && [ "${OBSERVED_COUNT}" -gt 0 ]; then
       REPAIR_DELETE_REQUESTED=true
+      ELAPSED=$(( $(date +%s) - START_EPOCH ))
+      write_deleted_report
       echo "policy-scale-evidence: ${OBSERVED_COUNT} CNP(s) remain after the CL2 delete phase; issuing bounded label-scoped cleanup"
       if REPAIR_NAMESPACES="$(discover_namespaces)"; then
         while IFS= read -r ns; do
           [ -z "${ns}" ] && continue
-          DELETE_OUT="$("${KUBECTL}" delete ciliumnetworkpolicies -n "${ns}" \
-            -l "${LABEL_SELECTOR}" --ignore-not-found=true --wait=false 2>&1)"
+          if [ "$(date +%s)" -ge "${DEADLINE}" ]; then
+            if [ -n "${REPAIR_DELETE_ERRORS}" ]; then
+              REPAIR_DELETE_ERRORS="${REPAIR_DELETE_ERRORS}; "
+            fi
+            REPAIR_DELETE_ERRORS="${REPAIR_DELETE_ERRORS}repair deadline reached before namespace ${ns}"
+            break
+          fi
+          DELETE_OUT="$(timeout 5s "${KUBECTL}" delete \
+            ciliumnetworkpolicies -n "${ns}" -l "${LABEL_SELECTOR}" \
+            --ignore-not-found=true --wait=false \
+            --request-timeout="${KUBECTL_REQUEST_TIMEOUT}" 2>&1)"
           DELETE_RC=$?
           if [ "${DELETE_RC}" -ne 0 ]; then
             if [ -n "${REPAIR_DELETE_ERRORS}" ]; then
@@ -393,18 +463,78 @@ EOF
       else
         REPAIR_DELETE_ERRORS="${REPAIR_NAMESPACES}"
       fi
+      ELAPSED=$(( $(date +%s) - START_EPOCH ))
+      write_deleted_report
     fi
 
     while true; do
-      IFS='|' read -r OBSERVED_COUNT QUERY_OK QUERY_ERR <<<"$(count_cnp_total_across_prefix)"
+      NOW_EPOCH=$(date +%s)
+      if [ "${NOW_EPOCH}" -gt "${DEADLINE}" ]; then
+        break
+      fi
+      IFS='|' read -r NEXT_COUNT NEXT_QUERY_OK NEXT_QUERY_ERR <<<"$(count_cnp_total_across_prefix)"
+      OBSERVED_AT_EPOCH=$(date +%s)
+      if [ "${OBSERVED_AT_EPOCH}" -gt "${DEADLINE}" ]; then
+        break
+      fi
+      OBSERVED_COUNT="${NEXT_COUNT}"
+      QUERY_OK="${NEXT_QUERY_OK}"
+      QUERY_ERR="${NEXT_QUERY_ERR}"
       if [ "${QUERY_OK}" = "true" ] && [ "${OBSERVED_COUNT}" -eq 0 ]; then
         break
       fi
-      if [ "$(date +%s)" -ge "${DEADLINE}" ]; then
+      REMAINING_SECONDS=$((DEADLINE - OBSERVED_AT_EPOCH))
+      if [ "${REMAINING_SECONDS}" -le 0 ]; then
         break
       fi
-      sleep "${POLL_INTERVAL_SECONDS}"
+      SLEEP_SECONDS="${POLL_INTERVAL_SECONDS}"
+      if [ "${SLEEP_SECONDS}" -gt "${REMAINING_SECONDS}" ]; then
+        SLEEP_SECONDS="${REMAINING_SECONDS}"
+      fi
+      sleep "${SLEEP_SECONDS}"
     done
+
+    PRIMARY_OBSERVED_COUNT="${OBSERVED_COUNT}"
+    PRIMARY_QUERY_OK="${QUERY_OK}"
+    PRIMARY_VERIFIED=false
+    if [ "${PRIMARY_QUERY_OK}" = "true" ] &&
+       [ "${PRIMARY_OBSERVED_COUNT}" -eq 0 ]; then
+      PRIMARY_VERIFIED=true
+    fi
+
+    TERMINAL_GRACE_USED=false
+    if [ "${PRIMARY_VERIFIED}" != "true" ] &&
+       [ "${TERMINAL_GRACE_SECONDS}" -gt 0 ]; then
+      TERMINAL_GRACE_USED=true
+      GRACE_DEADLINE=$((DEADLINE + TERMINAL_GRACE_SECONDS))
+      echo "policy-scale-evidence: primary deadline result count=${PRIMARY_OBSERVED_COUNT} query_success=${PRIMARY_QUERY_OK}; observing for a terminal ${TERMINAL_GRACE_SECONDS}s grace"
+      while true; do
+        NOW_EPOCH=$(date +%s)
+        if [ "${NOW_EPOCH}" -gt "${GRACE_DEADLINE}" ]; then
+          break
+        fi
+        IFS='|' read -r NEXT_COUNT NEXT_QUERY_OK NEXT_QUERY_ERR <<<"$(count_cnp_total_across_prefix)"
+        OBSERVED_AT_EPOCH=$(date +%s)
+        if [ "${OBSERVED_AT_EPOCH}" -gt "${GRACE_DEADLINE}" ]; then
+          break
+        fi
+        OBSERVED_COUNT="${NEXT_COUNT}"
+        QUERY_OK="${NEXT_QUERY_OK}"
+        QUERY_ERR="${NEXT_QUERY_ERR}"
+        if [ "${QUERY_OK}" = "true" ] && [ "${OBSERVED_COUNT}" -eq 0 ]; then
+          break
+        fi
+        REMAINING_SECONDS=$((GRACE_DEADLINE - OBSERVED_AT_EPOCH))
+        if [ "${REMAINING_SECONDS}" -le 0 ]; then
+          break
+        fi
+        SLEEP_SECONDS="${POLL_INTERVAL_SECONDS}"
+        if [ "${SLEEP_SECONDS}" -gt "${REMAINING_SECONDS}" ]; then
+          SLEEP_SECONDS="${REMAINING_SECONDS}"
+        fi
+        sleep "${SLEEP_SECONDS}"
+      done
+    fi
     ELAPSED=$(( $(date +%s) - START_EPOCH ))
 
     # A persistent kubectl failure must NEVER be accepted as "0 CNPs
