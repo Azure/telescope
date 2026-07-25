@@ -199,6 +199,7 @@ def test_deleted_phase_nonzero_remaining_fails(tmp_path):
     data = json.loads(report_path.read_text())
     assert data["deleted"]["verified"] is False
     assert data["deleted"]["observed_count"] == 1
+    assert data["deleted"]["residual_objects"]
 
 
 def test_deleted_phase_repairs_residual_cnp_objects(tmp_path):
@@ -230,6 +231,37 @@ def test_deleted_phase_repairs_residual_cnp_objects(tmp_path):
     assert data["deleted"]["observed_count"] == 0
     assert data["deleted"]["repair_delete_requested"] is True
     assert data["deleted"]["repair_delete_errors"] == ""
+    assert data["deleted"]["residual_objects"] == ""
+
+
+def test_deleted_failure_report_precedes_bounded_residual_diagnostics(tmp_path):
+    ns_names = ["clustermesh-pscale-1"]
+    counts_dir = tmp_path / "counts"
+    _set_counts(counts_dir, {"clustermesh-pscale-1": 1})
+    kubectl = _fake_kubectl(counts_dir, ns_names).replace(
+        'if [ "$1" = "get" ] && [ "$2" = "ciliumnetworkpolicies" ]; then',
+        """if [ "$1" = "get" ] && [ "$2" = "ciliumnetworkpolicies" ]; then
+  if [[ "$*" == *"jsonpath="* ]]; then sleep 20; fi""",
+    )
+
+    active_result, report_path = _run(tmp_path, "active", 1, 1, kubectl)
+    assert active_result.returncode == 0
+
+    deleted_result, report_path = _run(
+        tmp_path,
+        "deleted",
+        1,
+        1,
+        kubectl,
+        report_path=report_path,
+        poll_timeout=1,
+    )
+
+    assert deleted_result.returncode == 1
+    data = json.loads(report_path.read_text())
+    assert data["active"]["verified"] is True
+    assert data["deleted"]["verified"] is False
+    assert data["deleted"]["observed_count"] == 1
 
 
 def test_deleted_phase_without_prior_active_fails_cleanly(tmp_path):

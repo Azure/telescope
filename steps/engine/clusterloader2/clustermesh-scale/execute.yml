@@ -1970,9 +1970,17 @@ steps:
             if [ "${NODE_CHURNER_WAIT_RC:-0}" -eq 0 ] &&
                [ -s "$_churner_timing_file" ] &&
                _churner_timing_json=$(jq -c . "$_churner_timing_file" 2>/dev/null); then
-              _cleanup_failed=$(jq -r '.cleanup_failed // true' <<<"$_churner_timing_json")
-              _cleanup_recovered=$(jq -r '.cleanup_recovered // false' <<<"$_churner_timing_json")
-              _scenario_valid=$(jq -r '.scenario_valid // false' <<<"$_churner_timing_json")
+              # jq's `false // true` evaluates to true, so boolean fields that
+              # legitimately contain false must be distinguished from absence.
+              _cleanup_failed=$(jq -r '
+                if has("cleanup_failed") then .cleanup_failed else true end
+              ' <<<"$_churner_timing_json")
+              _cleanup_recovered=$(jq -r '
+                if has("cleanup_recovered") then .cleanup_recovered else false end
+              ' <<<"$_churner_timing_json")
+              _scenario_valid=$(jq -r '
+                if has("scenario_valid") then .scenario_valid else false end
+              ' <<<"$_churner_timing_json")
             fi
             if [ "$_cleanup_recovered" = "true" ]; then
               echo "##vso[task.logissue type=warning;] node-churner required bounded recovery for ${SCENARIO}, then returned the target pool to healthy state"

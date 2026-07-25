@@ -39,6 +39,9 @@ at the bottom for the explicit scope statement.
 | `mock_agent_monitor_omitted` | mock run has zero `mock-cilium-agent` Prometheus targets while agents are healthy | true | n/a | make the shared ClusterMesh module inherit global `CL2_MOCK_MODE` when a scenario omits its explicit `mockMode` parameter | 74578 |
 | `resource_lease_expired_mid_suite` | both AKS API FQDNs become NXDOMAIN and the run RG disappears while CL2 is active | false for current run | n/a | set lease beyond suite budget plus provisioning/finalization buffer; fail before RG creation if too short | 74578 |
 | `policy_scale_delete_evidence_timeout` | active CNP evidence passes, then deleted evidence is SIGKILLed at the same 15m internal/Exec deadline | true | 960 | re-issue idempotent label-scoped CNP deletion for residue and give Exec a 60s terminal-evidence buffer | 74578 |
+| `prom_snapshot_admin_api_empty` | snapshot POST intermittently returns no body/name while Prometheus remains Running | true | 150 | retry the admin API with bounded curl deadlines and preserve HTTP/curl/admin-API diagnostics | 74612 |
+| `node_churn_false_cleanup_failure` | timing JSON says `cleanup_failed=false`, but suite records `cleanup_failed=true` and skips upper-bound | true | n/a | use `has("cleanup_failed")` instead of jq `false // true`, which incorrectly selects the fallback | 74612 |
+| `policy_scale_cnp_finalizer_residue` | exactly one labeled CNP per policy namespace remains after 15m despite label-scoped deletion | false (finding) | 900 | keep the measurement invalid; record residual names, deletion timestamps, and finalizers before namespace cleanup | 74612 |
 | `vmextension_error_k_*` | `VMExtensionError_K[A-Za-z]+` (kubelet/CRI failures) | false | n/a | abort + dump CSE logs; non-retryable | 68700 |
 
 ---

@@ -186,6 +186,61 @@ count_cnp_total_across_prefix() {
   printf '%s|%s|%s\n' "${total}" "${ok}" "$(_sanitize_for_pipe_line "${err}")"
 }
 
+describe_residual_cnps() {
+  local details="" ns ns_list out rc
+  if ns_list="$(timeout 5s "${KUBECTL}" get ns -o name \
+      --request-timeout=3s 2>&1)"; then
+    ns_list="$(printf '%s\n' "${ns_list}" | sed 's#^namespace/##' \
+      | grep -E "^${NAMESPACE_PREFIX}-[0-9]+$" | sort -V)"
+    :
+  else
+    printf 'namespace discovery failed: %s' "${ns_list}"
+    return 1
+  fi
+  while IFS= read -r ns; do
+    [ -z "${ns}" ] && continue
+    out="$(timeout 5s "${KUBECTL}" get ciliumnetworkpolicies -n "${ns}" \
+      -l "${LABEL_SELECTOR}" \
+      -o jsonpath='{range .items[*]}{.metadata.namespace}{"/"}{.metadata.name}{"|deletionTimestamp="}{.metadata.deletionTimestamp}{"|finalizers="}{.metadata.finalizers}{"\n"}{end}' \
+      --request-timeout=3s \
+      2>&1)"
+    rc=$?
+    if [ "${rc}" -ne 0 ]; then
+      printf 'kubectl residual detail query failed for %s (rc=%s): %s' \
+        "${ns}" "${rc}" "${out}"
+      return 1
+    fi
+    if [ -n "${out}" ]; then
+      if [ -n "${details}" ]; then
+        details="${details}; "
+      fi
+      details="${details}$(printf '%s' "${out}" | tr '\n' ',')"
+    fi
+  done <<< "${ns_list}"
+  printf '%s' "${details}"
+}
+
+write_deleted_report() {
+  local tmp_report="${REPORT_PATH}.tmp"
+  cat > "${tmp_report}" <<EOF
+{
+  "active": ${ACTIVE_SECTION},
+  "deleted": {
+    "observed_count": ${OBSERVED_COUNT},
+    "verified": ${DELETED_VERIFIED},
+    "elapsed_seconds": ${ELAPSED},
+    "timeout_seconds": ${POLL_TIMEOUT_SECONDS},
+    "query_success": ${QUERY_OK},
+    "query_error": "$(json_escape "${QUERY_ERR}")",
+    "repair_delete_requested": ${REPAIR_DELETE_REQUESTED},
+    "repair_delete_errors": "$(json_escape "${REPAIR_DELETE_ERRORS}")",
+    "residual_objects": "$(json_escape "${RESIDUAL_OBJECTS}")"
+  }
+}
+EOF
+  mv -f "${tmp_report}" "${REPORT_PATH}"
+}
+
 case "${PHASE}" in
   active)
     echo "policy-scale-evidence: active phase — expecting ${EXPECTED_TOTAL} CNPs total (${CNP_PER_NAMESPACE}/ns across ${NAMESPACES} '${NAMESPACE_PREFIX}-*' namespaces, selector=${LABEL_SELECTOR})"
@@ -313,6 +368,7 @@ EOF
     QUERY_ERR="not yet queried"
     REPAIR_DELETE_REQUESTED=false
     REPAIR_DELETE_ERRORS=""
+    RESIDUAL_OBJECTS=""
 
     # The CL2 deletion phase is primary. If it left matching CNPs behind,
     # re-issue an idempotent label-scoped delete before polling so evidence
@@ -360,24 +416,17 @@ EOF
       DELETED_VERIFIED=true
     fi
 
-    TMP_REPORT="${REPORT_PATH}.tmp"
-    cat > "${TMP_REPORT}" <<EOF
-{
-  "active": ${ACTIVE_SECTION},
-  "deleted": {
-    "observed_count": ${OBSERVED_COUNT},
-    "verified": ${DELETED_VERIFIED},
-    "elapsed_seconds": ${ELAPSED},
-    "timeout_seconds": ${POLL_TIMEOUT_SECONDS},
-    "query_success": ${QUERY_OK},
-    "query_error": "$(json_escape "${QUERY_ERR}")",
-    "repair_delete_requested": ${REPAIR_DELETE_REQUESTED},
-    "repair_delete_errors": "$(json_escape "${REPAIR_DELETE_ERRORS}")"
-  }
-}
-EOF
-    mv -f "${TMP_REPORT}" "${REPORT_PATH}"
+    # Persist the contract result before optional diagnostics. The CL2 Exec
+    # wrapper gives this script only 60 seconds beyond the poll deadline, so a
+    # degraded API must not prevent the invalid evidence from reaching disk.
+    write_deleted_report
     rm -f "${ACTIVE_SIDECAR}"
+
+    if [ "${QUERY_OK}" = "true" ] && [ "${OBSERVED_COUNT}" -gt 0 ]; then
+      RESIDUAL_OBJECTS="$(describe_residual_cnps 2>&1 || true)"
+      echo "policy-scale-evidence: residual CNP detail: ${RESIDUAL_OBJECTS:-unavailable}"
+      write_deleted_report
+    fi
 
     if [ "${DELETED_VERIFIED}" != "true" ]; then
       echo "policy-scale-evidence ERROR: deleted phase invalid (observed_count=${OBSERVED_COUNT}, expected 0, query_success=${QUERY_OK}) after ${ELAPSED}s"

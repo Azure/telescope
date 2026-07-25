@@ -616,12 +616,100 @@ if [ "${CL2_PROM_SNAPSHOT_ENABLED:-false}" = "true" ]; then
       kill "$PF_PID" 2>/dev/null || true
     else
       echo "  $role: prom-snapshot: port-forward listening on 127.0.0.1:$local_port"
-      snap_resp=$(curl -sfX POST "http://127.0.0.1:${local_port}/api/v1/admin/tsdb/snapshot" 2>&1 || true)
+      snapshot_max_attempts="${CL2_PROM_SNAPSHOT_MAX_ATTEMPTS:-5}"
+      snapshot_retry_seconds="${CL2_PROM_SNAPSHOT_RETRY_SECONDS:-2}"
+      if ! [[ "$snapshot_max_attempts" =~ ^[1-9][0-9]*$ ]]; then
+        snapshot_max_attempts=5
+      elif [ "$snapshot_max_attempts" -gt 10 ]; then
+        snapshot_max_attempts=10
+      fi
+      if ! [[ "$snapshot_retry_seconds" =~ ^(0|[1-9][0-9]*)$ ]]; then
+        snapshot_retry_seconds=2
+      fi
+      list_prom_snapshot_dirs() {
+        timeout 15s env KUBECONFIG="$kubeconfig" \
+          kubectl --request-timeout=10s -n monitoring \
+          exec "$prom_pod" -c prometheus -- sh -c \
+          'for d in /prometheus/snapshots/*; do [ -d "$d" ] && printf "%s\n" "${d##*/}"; done; exit 0' \
+          2>/dev/null | sort -u
+      }
+      snapshot_baseline_file=$(mktemp)
+      snapshot_baseline_ok=false
+      if list_prom_snapshot_dirs > "$snapshot_baseline_file"; then
+        snapshot_baseline_ok=true
+      else
+        : > "$snapshot_baseline_file"
+        snapshot_max_attempts=1
+      fi
+      snap_name=""
+      snap_resp=""
+      snap_http_code=""
+      snap_curl_rc=0
+      snap_curl_error=""
+      snapshot_ambiguous_dirs=""
+      snapshot_directory_check_failed=false
+      for _snapshot_attempt in $(seq 1 "$snapshot_max_attempts"); do
+        snap_response_file=$(mktemp)
+        snap_error_file=$(mktemp)
+        snap_curl_rc=0
+        snap_http_code=$(curl -sS --max-time 60 \
+          -o "$snap_response_file" -w '%{http_code}' -X POST \
+          "http://127.0.0.1:${local_port}/api/v1/admin/tsdb/snapshot" \
+          2>"$snap_error_file") || snap_curl_rc=$?
+        snap_resp=$(cat "$snap_response_file" 2>/dev/null || true)
+        snap_curl_error=$(cat "$snap_error_file" 2>/dev/null || true)
+        rm -f "$snap_response_file" "$snap_error_file"
+        snap_name=$(echo "$snap_resp" | grep -oE '"name":"[^"]+"' \
+          | head -1 | sed 's/.*"name":"\([^"]*\)".*/\1/')
+        if [ -n "$snap_name" ]; then
+          break
+        fi
+        # The snapshot POST is non-idempotent. A new directory after an empty
+        # response is ambiguous: Prometheus creates it before snapshotting is
+        # complete, so it must never be archived or deleted while the server
+        # may still be writing. Stop retrying and let Prometheus teardown own
+        # cleanup instead of creating a duplicate or a partial artifact.
+        if [ "$snapshot_baseline_ok" = "true" ]; then
+          if [ "$snapshot_retry_seconds" -gt 0 ]; then
+            sleep "$snapshot_retry_seconds"
+          fi
+          snapshot_current_file=$(mktemp)
+          if list_prom_snapshot_dirs > "$snapshot_current_file"; then
+            snapshot_ambiguous_dirs=$(comm -13 "$snapshot_baseline_file" \
+              "$snapshot_current_file")
+          else
+            snapshot_directory_check_failed=true
+          fi
+          rm -f "$snapshot_current_file"
+          if [ "$snapshot_directory_check_failed" = "true" ]; then
+            echo "  $role: prom-snapshot: unable to verify snapshot directories after an empty/lost response; refusing a non-idempotent retry"
+            break
+          fi
+          if [ -n "$snapshot_ambiguous_dirs" ]; then
+            echo "  $role: prom-snapshot: unverified snapshot directory appeared after an empty/lost response; refusing to archive or retry: $(echo "$snapshot_ambiguous_dirs" | tr '\n' ' ')"
+            break
+          fi
+        fi
+        if [ "$snap_curl_rc" -eq 28 ] ||
+           [[ "${snap_http_code:-}" =~ ^2[0-9][0-9]$ ]]; then
+          echo "  $role: prom-snapshot: request outcome is ambiguous (curl_rc=${snap_curl_rc}, http=${snap_http_code:-none}); refusing a non-idempotent retry"
+          break
+        fi
+        if [ "$_snapshot_attempt" -lt "$snapshot_max_attempts" ]; then
+          echo "  $role: prom-snapshot: admin API attempt ${_snapshot_attempt}/${snapshot_max_attempts} returned no snapshot name (curl_rc=${snap_curl_rc}, http=${snap_http_code:-none}); retrying in ${snapshot_retry_seconds}s"
+          if [ "$snapshot_baseline_ok" != "true" ] &&
+             [ "$snapshot_retry_seconds" -gt 0 ]; then
+            sleep "$snapshot_retry_seconds"
+          fi
+        fi
+      done
       kill "$PF_PID" 2>/dev/null || true
       wait "$PF_PID" 2>/dev/null || true
-      snap_name=$(echo "$snap_resp" | grep -oE '"name":"[^"]+"' | head -1 | sed 's/.*"name":"\([^"]*\)".*/\1/')
       if [ -z "$snap_name" ]; then
-        echo "##vso[task.logissue type=warning;] $role: prom-snapshot: admin API did not return a snapshot name (response: $snap_resp); admin API may be disabled (check kubectl get prometheus k8s -o jsonpath='{.spec.enableAdminAPI}'); skipping copy"
+        prom_admin_api=$(timeout 15s env KUBECONFIG="$kubeconfig" \
+          kubectl --request-timeout=10s -n monitoring get prometheus k8s \
+          -o jsonpath='{.spec.enableAdminAPI}' 2>/dev/null || true)
+        echo "##vso[task.logissue type=warning;] $role: prom-snapshot: admin API did not return a verified snapshot name after ${_snapshot_attempt} attempt(s) (curl_rc=${snap_curl_rc}, http=${snap_http_code:-none}, enableAdminAPI=${prom_admin_api:-unknown}, directory_check_failed=${snapshot_directory_check_failed}, ambiguous_dirs=$(echo "${snapshot_ambiguous_dirs:-<none>}" | tr '\n' ' '), response=${snap_resp:-<empty>}, curl_error=${snap_curl_error:-<empty>}); skipping copy"
       else
         snap_tar="${report_dir}/prom-snapshot-${role}-${snap_name}.tar.gz"
         snap_tar_partial="${snap_tar}.partial"
@@ -641,11 +729,28 @@ if [ "${CL2_PROM_SNAPSHOT_ENABLED:-false}" = "true" ]; then
           echo "##vso[task.logissue type=warning;] $role: prom-snapshot: tar of snapshot dir failed or gzip integrity check failed; dropping partial $snap_tar_partial"
           rm -f "$snap_tar_partial"
         fi
-        # Best-effort cleanup of the snapshot dir inside prom-pod so we
-        # don't leak disk if multiple runs share the same prom instance.
-        KUBECONFIG="$kubeconfig" kubectl -n monitoring exec "$prom_pod" -c prometheus -- \
-          rm -rf "/prometheus/snapshots/$snap_name" 2>/dev/null || true
       fi
+      snapshot_cleanup_names=""
+      if [ -n "$snap_name" ] && [ "$snapshot_baseline_ok" = "true" ]; then
+        snapshot_current_file=$(mktemp)
+        if list_prom_snapshot_dirs > "$snapshot_current_file"; then
+          snapshot_cleanup_names=$(comm -13 "$snapshot_baseline_file" \
+            "$snapshot_current_file")
+        fi
+        rm -f "$snapshot_current_file"
+      fi
+      if [ -n "$snap_name" ] && [ -z "$snapshot_cleanup_names" ]; then
+        snapshot_cleanup_names="$snap_name"
+      fi
+      while IFS= read -r snapshot_cleanup_name; do
+        [ -n "$snapshot_cleanup_name" ] || continue
+        timeout 15s env KUBECONFIG="$kubeconfig" \
+          kubectl --request-timeout=10s -n monitoring \
+          exec "$prom_pod" -c prometheus -- \
+          rm -rf "/prometheus/snapshots/$snapshot_cleanup_name" \
+          2>/dev/null || true
+      done <<< "$snapshot_cleanup_names"
+      rm -f "$snapshot_baseline_file"
     fi
     rm -f "$pf_log"
   fi

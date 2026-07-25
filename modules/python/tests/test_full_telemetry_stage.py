@@ -555,6 +555,34 @@ def test_acns_probe_runs_before_snapshot_and_is_collected_before_teardown():
     assert "--require-acns" in worker
 
 
+def test_native_snapshot_admin_api_is_retried_with_diagnostics():
+    worker = (
+        REPOSITORY_ROOT
+        / "steps"
+        / "engine"
+        / "clusterloader2"
+        / "clustermesh-scale"
+        / "run-cl2-on-cluster.sh"
+    ).read_text(encoding="utf-8")
+
+    assert 'CL2_PROM_SNAPSHOT_MAX_ATTEMPTS:-5' in worker
+    assert 'CL2_PROM_SNAPSHOT_RETRY_SECONDS:-2' in worker
+    assert "--max-time 60" in worker
+    assert "snapshot_baseline_file" in worker
+    assert "list_prom_snapshot_dirs" in worker
+    assert "comm -13" in worker
+    assert 'done; exit 0' in worker
+    assert "refusing to archive or retry" in worker
+    assert "enableAdminAPI=${prom_admin_api:-unknown}" in worker
+
+
+def test_node_churn_false_cleanup_value_is_not_defaulted_to_true():
+    execute = EXECUTE_TEMPLATE_PATH.read_text(encoding="utf-8")
+
+    assert '.cleanup_failed // true' not in execute
+    assert 'if has("cleanup_failed") then .cleanup_failed else true end' in execute
+
+
 def test_n100_stage_has_complete_workload_and_telemetry_wiring():
     pipeline = PIPELINE_PATH.read_text(encoding="utf-8")
     start = pipeline.index("- stage: azure_canadacentral_n100_mock")
