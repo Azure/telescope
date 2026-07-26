@@ -151,111 +151,40 @@ steps:
       export CL2_SATURATION_RUNG_DURATION_SECONDS="${SATURATION_RUNG_DURATION_SECONDS:-240}"
       export CL2_SATURATION_SETTLE_SECONDS="${SATURATION_SETTLE_SECONDS:-90}"
 
-      # Propagation+connectivity probe knobs. Probe orchestrator runs
-      # HOST-SIDE from execute.yml's launch_propagation_probe (NOT inside
-      # CL2 — the orchestrator needs all N kubeconfigs which only the host
-      # has). The CL2 scenario yaml's only probe-related knob is the
-      # sleep window (CL2_PROBE_WINDOW_DURATION) which CL2 holds while the
-      # host-side orchestrator runs in parallel. Default OFF (enabled=false)
-      # so existing scenarios are unaffected; matrix entries that opt in
-      # set cl2_propagation_probe_enabled=true.
-      #
-      # DEFAULTS SIZED FOR N=100 SAFETY:
-      #   COUNT=20 × (PEER_TIMEOUT=120 + connectivity ~10s + INTERVAL=30) = ~53min
-      #   WINDOW_DURATION=60m gives headroom over that worst case.
-      #   PEER_SAMPLE_MAX=20 caps concurrent kubectl exec at ~60 per probe
-      #     (20 peers × 3 parallel waits). At N=100 with 99 peers, sampling
-      #     20 random per probe over 20 probes gives expected ~4 measurements
-      #     per peer — adequate statistical coverage.
-      #   PEER_TIMEOUT=120s — at N=100 under load, propagation can take
-      #     30-90s; 120s gives margin without dragging out failed probes.
-      #   PREWAIT_S=300 — best-effort head start only (avoids hammering
-      #     the API before CL2 has even started creating the backend
-      #     workload). NOT correctness-bearing: propagation-probe.sh now
-      #     runs its own bounded workload-readiness barrier (namespace +
-      #     Deployment available/updated + Service, per cluster) before
-      #     preflight/probe creation, so a short/expired prewait can no
-      #     longer cause CL2 to still be mid-setup when probing starts.
-      # Smaller smokes (n=2) override these to tighter values via the
-      # matrix entry for faster turnaround (e.g. cl2_probe_window_duration
-      # set to 20m in the n2_propagation_probe cell).
+      # Host-side propagation probe defaults; small tiers override these.
       export CL2_PROPAGATION_PROBE_ENABLED="${CL2_PROPAGATION_PROBE_ENABLED:-false}"
       export CL2_PROPAGATION_PROBE_COUNT="${CL2_PROPAGATION_PROBE_COUNT:-20}"
       export CL2_PROPAGATION_PROBE_INTERVAL_S="${CL2_PROPAGATION_PROBE_INTERVAL_S:-30}"
       export CL2_PROPAGATION_PROBE_PEER_SAMPLE="${CL2_PROPAGATION_PROBE_PEER_SAMPLE:-20}"
       export CL2_PROPAGATION_PROBE_PEER_TIMEOUT="${CL2_PROPAGATION_PROBE_PEER_TIMEOUT:-120}"
       export CL2_PROPAGATION_PROBE_CONNECTIVITY="${CL2_PROPAGATION_PROBE_CONNECTIVITY:-false}"
-      # Extensions (env-toggled, default off — existing builds unaffected):
-      # REMOVE: after add probe, delete src pod + poll peers for ipcache
-      # removal. Measures stale-state risk (peers routing to dead pods).
-      # FIRST_PACKET: from t_pod_ready, tight-loop curl global Service
-      # from each peer until success returning src's hostname. Measures
-      # user-perceived "service works" latency.
+      # Optional removal and first-packet extensions.
       export CL2_PROPAGATION_PROBE_REMOVE_ENABLED="${CL2_PROPAGATION_PROBE_REMOVE_ENABLED:-false}"
       export CL2_PROPAGATION_PROBE_FIRST_PACKET_ENABLED="${CL2_PROPAGATION_PROBE_FIRST_PACKET_ENABLED:-false}"
-      # Service-backend membership probe (gap #3). Creates a transient global
-      # Service selecting the probe pod ON EVERY CLUSTER each probe iteration
-      # (Cilium global-service merge requires the service to exist on each
-      # peer for the source's backend to appear in that peer's BPF lb map),
-      # then polls peers' `cilium-dbg bpf lb list` for the pod IP. NOTE: at
-      # large N this creates N services per probe iteration — keep enabled
-      # only on small smokes (n<=5) until a sampled-cluster variant exists.
+      # Service-backend membership probe remains opt-in for small tiers.
       export CL2_PROPAGATION_PROBE_SERVICE_BACKEND_ENABLED="${CL2_PROPAGATION_PROBE_SERVICE_BACKEND_ENABLED:-false}"
       export CL2_PROPAGATION_PROBE_REMOVE_TIMEOUT_S="${CL2_PROPAGATION_PROBE_REMOVE_TIMEOUT_S:-60}"
       export CL2_PROPAGATION_PROBE_FIRST_PACKET_TIMEOUT_S="${CL2_PROPAGATION_PROBE_FIRST_PACKET_TIMEOUT_S:-60}"
       export CL2_PROBE_WINDOW_DURATION="${CL2_PROBE_WINDOW_DURATION:-60m}"
-      # Host-side orchestrator launches the probe in a background subshell
-      # after a prewait sleep — best-effort head start only (see the
-      # correctness note above the ENABLED knob). The real, correctness-
-      # bearing wait is propagation-probe.sh's own bounded
-      # workload-readiness barrier, controlled by
-      # CL2_PROPAGATION_PROBE_WORKLOAD_READY_TIMEOUT_S (passed through as
-      # PROBE_WORKLOAD_READY_TIMEOUT_S). Leave unset to let the script use
-      # its scale-aware default (900s below 50 clusters, 1800s at >=50).
+      # Prewait is best-effort; the probe script owns the readiness barrier.
       export CL2_PROBE_PREWAIT_S="${CL2_PROBE_PREWAIT_S:-300}"
       export CL2_PROPAGATION_PROBE_WORKLOAD_READY_TIMEOUT_S="${CL2_PROPAGATION_PROBE_WORKLOAD_READY_TIMEOUT_S:-}"
-      # Probe namespace: must match the scenario yaml's namespace.prefix-1
-      # (CL2 creates clustermesh-probe-1 from namespace.number=1 + prefix
-      # clustermesh-probe). Override only if changing the scenario yaml.
       export CL2_PROBE_NAMESPACE="${CL2_PROBE_NAMESPACE:-clustermesh-probe-1}"
 
-      # Policy canary (L1 of policy-scale-matrix). When true, the
-      # propagation-probe workload module also applies a permissive
-      # CiliumNetworkPolicy targeting the backend pods. Exercises the
-      # Phase 1 policy metrics (cilium_policy_regeneration_time_stats_
-      # seconds + cilium_policy_implementation_delay) which report 0
-      # without any CNP present. Opt-in per matrix entry; default off.
+      # Optional policy canary for propagation-probe.
       export CL2_POLICY_CANARY_ENABLED="${CL2_POLICY_CANARY_ENABLED:-false}"
 
-      # policy-scale scenario (NetworkPolicy at scale): N CNPs per namespace
-      # to measure policy implementation delay + endpoint regen cost vs CNP
-      # count. Default 50 → 250 CNPs at ns=5 default. Sweep 10/50/100/200
-      # in pipeline cells. Only used by policy-scale.yaml scenario.
+      # policy-scale CNP count and hold window.
       export CL2_POLICY_SCALE_CNP_PER_NS="${CL2_POLICY_SCALE_CNP_PER_NS:-50}"
       export CL2_POLICY_SCALE_HOLD_DURATION="${CL2_POLICY_SCALE_HOLD_DURATION:-5m}"
 
-      # Mesh-state recovery probe knobs (mesh-recovery-probe.sh). Runs
-      # host-side like propagation-probe; kills a cilium-agent pod on a
-      # target cluster mid-run and measures: time-to-divergence on peer
-      # ipcache, time-to-agent-restart, time-to-resync. Opt-in via
-      # CL2_RECOVERY_PROBE_ENABLED=true. Reuses propagation-probe's
-      # backend Deployments (must be enabled together).
+      # Optional mesh-state recovery probe.
       export CL2_RECOVERY_PROBE_ENABLED="${CL2_RECOVERY_PROBE_ENABLED:-false}"
       export CL2_RECOVERY_PROBE_COUNT="${CL2_RECOVERY_PROBE_COUNT:-3}"
       export CL2_RECOVERY_PROBE_INTERVAL_S="${CL2_RECOVERY_PROBE_INTERVAL_S:-120}"
       export CL2_RECOVERY_PROBE_TIMEOUT_S="${CL2_RECOVERY_PROBE_TIMEOUT_S:-300}"
 
-      # cluster-loss-recovery probe (mesh-detach-rejoin). Relabels one
-      # Fleet member out of the CMP selector, waits for ready==total==
-      # (N-2) on remaining clusters, then re-labels back and verifies
-      # return to (N-1). Opt-in via CL2_DETACH_REJOIN_PROBE_ENABLED=true.
-      # MINIMUM 3 clusters required (degenerate at n=2).
-      #
-      # Timing defaults sized after build 69300 evidence: PRE-STATE took
-      # >180s (120s prewait + 60s deadline) to reach steady state at n=3
-      # due to Azure LB allocation + Fleet CMP first-reconcile lag.
-      # Bumped to 300s prewait + 300s pre-state-via-detach-timeout default
-      # (PRE-STATE shares the detach-timeout knob to keep one tunable).
+      # Optional Fleet member detach/rejoin probe (n>=3).
       export CL2_DETACH_REJOIN_PROBE_ENABLED="${CL2_DETACH_REJOIN_PROBE_ENABLED:-false}"
       export CL2_DETACH_REJOIN_PREWAIT_S="${CL2_DETACH_REJOIN_PREWAIT_S:-300}"
       export CL2_DETACH_REJOIN_DETACH_TIMEOUT_S="${CL2_DETACH_REJOIN_DETACH_TIMEOUT_S:-300}"
@@ -263,22 +192,14 @@ steps:
       export CL2_DETACH_REJOIN_HOLD_S="${CL2_DETACH_REJOIN_HOLD_S:-60}"
       export CL2_DETACH_REJOIN_PRE_STATE_TIMEOUT_S="${CL2_DETACH_REJOIN_PRE_STATE_TIMEOUT_S:-300}"
 
-      # Cross-cluster CNP propagation probe: applies same CNP in parallel
-      # on every cluster, polls each for per-cluster compile/load latency.
-      # max(latency) = fleet-wide enforcement time. Opt-in via
-      # CL2_POLICY_PROP_PROBE_ENABLED=true. Needs >=2 clusters.
+      # Optional cross-cluster CNP propagation probe.
       export CL2_POLICY_PROP_PROBE_ENABLED="${CL2_POLICY_PROP_PROBE_ENABLED:-false}"
       export CL2_POLICY_PROP_PROBE_COUNT="${CL2_POLICY_PROP_PROBE_COUNT:-5}"
       export CL2_POLICY_PROP_PROBE_INTERVAL_S="${CL2_POLICY_PROP_PROBE_INTERVAL_S:-60}"
       export CL2_POLICY_PROP_PROBE_TIMEOUT_S="${CL2_POLICY_PROP_PROBE_TIMEOUT_S:-120}"
       export CL2_POLICY_PROP_PROBE_PREWAIT_S="${CL2_POLICY_PROP_PROBE_PREWAIT_S:-60}"
 
-      # Single-cluster backend failover probe (mesh-failover-probe.sh).
-      # Scales the propagation-probe backend Deployment to 0 on the victim
-      # cluster, polls every peer's BPF lb map for victim-IP removal +
-      # re-add upon scale-back-up. Measures global-Service load-balancer
-      # convergence time. Opt-in via CL2_FAILOVER_PROBE_ENABLED=true.
-      # Reuses propagation-probe's backend pods + global Service.
+      # Optional single-cluster backend failover probe.
       export CL2_FAILOVER_PROBE_ENABLED="${CL2_FAILOVER_PROBE_ENABLED:-false}"
       export CL2_FAILOVER_PROBE_COUNT="${CL2_FAILOVER_PROBE_COUNT:-3}"
       export CL2_FAILOVER_PROBE_INTERVAL_S="${CL2_FAILOVER_PROBE_INTERVAL_S:-60}"
@@ -286,14 +207,7 @@ steps:
       export CL2_FAILOVER_PROBE_PREWAIT_S="${CL2_FAILOVER_PROBE_PREWAIT_S:-60}"
       export CL2_FAILOVER_SELECTOR_LABEL="${CL2_FAILOVER_SELECTOR_LABEL:-group=clustermesh-propagation-probe}"
 
-      # clustermesh-apiserver restart survival probe (mesh-restart-survival-
-      # probe.sh). Starts long-lived curl pods on every peer running an
-      # in-pod 1Hz curl loop against the victim's global Service, then
-      # rolling-restarts clustermesh-apiserver on victim, verifies
-      # Deployment generation incremented, and computes per-peer survival
-      # ratio (transport-success / total). Opt-in via
-      # CL2_RESTART_SURVIVAL_PROBE_ENABLED=true. Reuses propagation-probe's
-      # backend pods + global Service.
+      # Optional clustermesh-apiserver restart-survival probe.
       export CL2_RESTART_SURVIVAL_PROBE_ENABLED="${CL2_RESTART_SURVIVAL_PROBE_ENABLED:-false}"
       export CL2_RESTART_SURVIVAL_PROBE_COUNT="${CL2_RESTART_SURVIVAL_PROBE_COUNT:-2}"
       export CL2_RESTART_SURVIVAL_PROBE_INTERVAL_S="${CL2_RESTART_SURVIVAL_PROBE_INTERVAL_S:-180}"
@@ -302,18 +216,7 @@ steps:
       export CL2_RESTART_SURVIVAL_DEPLOY_NAME="${CL2_RESTART_SURVIVAL_DEPLOY_NAME:-clustermesh-apiserver}"
       export CL2_RESTART_SURVIVAL_DEPLOY_NS="${CL2_RESTART_SURVIVAL_DEPLOY_NS:-kube-system}"
 
-      # Prometheus TSDB snapshot (run-cl2-on-cluster.sh). When true, the
-      # per-cluster CL2 runner skips CL2's --tear-down-prometheus, hits
-      # prometheus-k8s's /api/v1/admin/tsdb/snapshot, tars the snapshot
-      # dir out to the report dir, then deletes the Prometheus CR manually.
-      # Two delivery targets, both owned-by-us (independent of Telescope):
-      #   target=artifact (default) — AzDO pipeline artifact, 10GB cap.
-      #     Fine for n=3 smoke (~50-200MB total).
-      #   target=blob — uploads to our own storage account in the same sub
-      #     where AKS clusters deploy (37deca37 by default), via SP OAuth
-      #     (--auth-mode login). Scales to N=100 (~30-50GB).
-      # Default OFF (snapshot is auxiliary; we don't want every existing
-      # scenario paying the upload cost).
+      # Optional native Prometheus TSDB snapshot and ACNS telemetry.
       export CL2_PROM_SNAPSHOT_ENABLED="${CL2_PROM_SNAPSHOT_ENABLED:-false}"
       export CL2_PROM_SNAPSHOT_TARGET="${CL2_PROM_SNAPSHOT_TARGET:-artifact}"
       export CL2_PROM_SNAPSHOT_STORAGE_ACCOUNT="${CL2_PROM_SNAPSHOT_STORAGE_ACCOUNT:-cmshscaleprom}"
@@ -402,24 +305,7 @@ steps:
         --kwok-usage-memory "${CL2_KWOK_USAGE_MEMORY:-1Mi}" \
         --cl2_override_file "${CL2_CONFIG_DIR}/overrides.yaml"
 
-      # Phase 4a — pre-stage kubectl into the CL2 config dir so the
-      # pod-churn-killer.sh script (invoked via Method: Exec from inside
-      # the CL2 docker container) has a working kubectl binary regardless
-      # of whether the CL2 image bundles one. The cl2_config_dir is
-      # bind-mounted by run_cl2_command at /root/perf-tests/clusterloader2/config,
-      # so $CL2_CONFIG_DIR/kubectl on the host becomes accessible at
-      # /root/perf-tests/clusterloader2/config/kubectl inside the container.
-      #
-      # Why this lives in execute.yml rather than the Dockerfile: we don't
-      # control the CL2 image build (ghcr.io/azure/clusterloader2). Method:
-      # Exec is the only host-side hook CL2 exposes inside a test run.
-      # AzDO agents have curl + internet egress to dl.k8s.io (Kubernetes'
-      # canonical release host).
-      #
-      # Non-fatal: a curl failure here logs a warning but does NOT abort
-      # the step. pod-churn-killer.sh's preflight check exits 127 if the
-      # binary is missing, which CL2 records as a single measurement
-      # failure — scale-cycle data still lands cleanly.
+      # Pre-stage kubectl for Method:Exec scripts inside the CL2 container.
       if [ ! -x "${CL2_CONFIG_DIR}/kubectl" ]; then
         KUBECTL_VERSION="${KUBECTL_VERSION:-v1.30.0}"
         echo "Pre-staging kubectl ${KUBECTL_VERSION} for in-container use by Method: Exec scripts"
@@ -433,19 +319,7 @@ steps:
         fi
       fi
 
-      # Phase 4b — pre-pull CL2 docker image ONCE on the agent before
-      # parallel fan-out. Without this, scale.py execute-parallel spawns up
-      # to CL2_MAX_CONCURRENT (default 4, dev pipeline 8) `docker run`
-      # commands simultaneously, each of which independently pulls
-      # ghcr.io/azure/clusterloader2:<tag>. The parallel pull race against
-      # ghcr.io's anonymous-rate limit caused mesh-13's CL2 step to fail
-      # in build 67013 with `context deadline exceeded` on the token
-      # endpoint. Pre-pulling once means the parallel `docker run`s see
-      # the image cached locally and skip the pull entirely.
-      #
-      # Best-effort: `docker pull` failure here triggers a warning + lets
-      # the parallel-fanout retry on its own. Most runs will benefit from
-      # the cache hit; failures behave no worse than before.
+      # Best-effort single image pull avoids parallel GHCR pull races.
       echo "Pre-pulling CL2 image ${CL2_IMAGE} on the AzDO agent (sidesteps ghcr.io rate-limit race during parallel fanout)..."
       if docker pull "${CL2_IMAGE}" 2>&1 | tail -5; then
         echo "Pre-pull succeeded; subsequent docker runs will hit local cache"
@@ -453,42 +327,10 @@ steps:
         echo "##vso[task.logissue type=warning;] CL2 image pre-pull failed; per-cluster CL2 invocations will each attempt their own pull (ghcr.io rate-limit risk persists)"
       fi
 
-      # CL2 execution: single-scenario (default, prod path) or share-infra
-      # multi-scenario loop (dev pipeline iteration). See plan.md Phase 4b
-      # section for the design rationale.
-      #
-      # Gating env var SHARE_INFRA_SCENARIOS — comma-separated list of CL2
-      # config basenames (e.g. "event-throughput,pod-churn-combined"). When
-      # set, each entry runs sequentially against the same provisioned
-      # clusters with a 60s settle between scenarios. test_type per row in
-      # the JSONL is each scenario's own basename. When unset, fall through
-      # to the single-scenario invocation that prod pipeline expects.
+      # SHARE_INFRA_SCENARIOS runs configs sequentially on one provision.
       overall_rc=0
 
-      # Scenarios that REQUIRE every cluster's CL2 (and its Prometheus
-      # scrape window) to overlap the target's stimulus window — bumping
-      # max_concurrent to mesh_size means all clusters start CL2
-      # simultaneously. Used for:
-      #   - isolation:        target's pod-churn kill loop runs ON target;
-      #                       peer Prometheus must scrape concurrently to
-      #                       prove peers stay flat.
-      #   - node-churn-*:     stimulus is OUTSIDE CL2 (host-side az aks
-      #                       nodepool scale / vmss delete-instances). The
-      #                       readiness barrier in node-churner.sh requires
-      #                       all clusters' CL2 sentinels to land before
-      #                       node ops start — that's only possible if all
-      #                       CL2's are running concurrently.
-      #   - upper-bound:      saturation testing measures per-cluster
-      #                       failure point under aggregate mesh load. If
-      #                       peers don't load concurrently, each cluster's
-      #                       reading understates the real saturation curve
-      #                       (mesh-wide propagation is a function of N×load,
-      #                       not load×1). Plus: the in-run rung loop is
-      #                       not coordinated across clusters — we accept
-      #                       that rung-r on cluster A may overlap rung-(r±1)
-      #                       on cluster B in wall-time; the per-rung
-      #                       suffix in measurement filenames keeps the
-      #                       data attribution clean.
+      # These scenarios require overlapping observation windows on all peers.
       needs_mesh_wide_concurrency() {
         local _scen="$1"
         case "$_scen" in
@@ -590,10 +432,7 @@ steps:
         fi
       }
 
-      # Budget for the final lifecycle-only preservation pass (B.8.5) --
-      # much smaller than scenario_artifact_budget_seconds since it only
-      # uploads a handful of small JSON files (no TSDB tarballs, no
-      # relabeling, no worker/snapshot validation).
+      # Final lifecycle-only upload budget (small JSON files only).
       scenario_final_lifecycle_budget_seconds() {
         if [ "${CL2_PROM_SNAPSHOT_ENABLED,,}" != "true" ] ||
            [ "${CL2_PROM_SNAPSHOT_TARGET,,}" != "blob" ]; then
@@ -615,24 +454,7 @@ steps:
         fi
       }
 
-      # Conservative bound for ONE mock_layer_reconcile.py pass (the
-      # before-scenario and after-scenario invocations each get their own
-      # outer `timeout`). Zero in real (non-mock) mode since the reconciler
-      # never runs there. Callers that need the two-pass total (before +
-      # after) multiply this by 2.
-      #
-      # 300s (n<50) / 600s (n>=50): even with the reconciler's per-cluster
-      # kubectl reads batched (list-all Stage, multi-resource named get for
-      # APF/RBAC, one multi-get each for the 4 source + 4 target
-      # clustermesh secrets -- see mock_layer_reconcile.py's
-      # support_infra_is_healthy/reconcile_clustermesh_secrets), a cluster
-      # can still need several of the bounded --attempts (default 5) *
-      # --settle-seconds (default 15s) repair/re-check cycles to converge,
-      # e.g. after a scenario left real repair work behind. 120s previously
-      # budgeted here left ~0 margin for even a single settle-bounded retry
-      # once request-timeout-seconds(30s) attempts stacked up, which is
-      # exactly what produced build 74186's pre-scenario timeout (rc=124)
-      # before this function's kubectl-call batching landed.
+      # Bound for one mock-layer reconcile pass.
       scenario_mock_reconcile_budget_seconds() {
         if [ "${CL2_MOCK_MODE:-false}" != "true" ]; then
           echo 0
@@ -645,11 +467,7 @@ steps:
         fi
       }
 
-      # Conservative bound for ONE scenario_cleanup_reconcile.py pass. Unlike
-      # scenario_mock_reconcile_budget_seconds this is NOT mock-mode-gated --
-      # a scenario's own namespaces/ACNS residue/monitoring exporter objects
-      # can be left behind regardless of mock vs real clusters, so this
-      # bounded cleanup always runs and its budget is always counted.
+      # Bound for one scenario-owned cleanup pass.
       scenario_cleanup_reconcile_budget_seconds() {
         if [ "$cluster_count" -ge 50 ]; then
           echo 300
@@ -658,12 +476,7 @@ steps:
         fi
       }
 
-      # propagation-probe.sh's own internal default for
-      # PROBE_WORKLOAD_READY_TIMEOUT_S -- mirrored here (rather than
-      # queried from the running background process) so
-      # wait_propagation_probe can compute an outer bound BEFORE the
-      # process necessarily reaches that point. Explicit override always
-      # wins, matching the script's own precedence.
+      # Mirror the probe script's scale-aware readiness default.
       propagation_probe_workload_ready_timeout_seconds() {
         if [ -n "${CL2_PROPAGATION_PROBE_WORKLOAD_READY_TIMEOUT_S:-}" ]; then
           echo "$CL2_PROPAGATION_PROBE_WORKLOAD_READY_TIMEOUT_S"
@@ -674,18 +487,7 @@ steps:
         fi
       }
 
-      # Conservative outer bound for the ENTIRE host-side propagation-probe
-      # orchestrator (launch_propagation_probe's background process):
-      # its best-effort prewait, its own correctness-bearing
-      # workload-readiness barrier (explicit or scale-aware default), then
-      # PROBE_COUNT iterations each bounded by (interval + peer_timeout +
-      # a fixed per-iteration Pod-lifecycle overhead: t_ip_assigned(60s) +
-      # t_pod_ready(60s) + t_local_ep(30s), rounded up to 180s), plus a
-      # configurable margin. This bound only exists so
-      # wait_propagation_probe (see below) can never hang forever even if
-      # the background process somehow got stuck outside its own internal
-      # deadline (e.g. a stuck non-bounded command, or a runaway sleep) --
-      # it is deliberately generous, NOT a tight SLA.
+      # Generous outer bound for the complete host-side propagation probe.
       propagation_probe_wait_budget_seconds() {
         local _prewait _ready _count _interval _peer _per_iter_overhead _margin
         _prewait="${CL2_PROBE_PREWAIT_S:-300}"
@@ -703,10 +505,7 @@ steps:
         _quiet=$(scenario_quiet_window_seconds "$1")
         _artifact=$(scenario_artifact_budget_seconds)
         _diag=$(scenario_diag_budget_seconds)
-        # Only the "after" reconcile pass falls in the post-scenario window;
-        # the "before" pass is accounted for separately by callers computing
-        # a scenario's total protected-budget requirement (see
-        # scenario_mock_reconcile_budget_seconds's doc comment above).
+        # The pre-scenario reconcile is accounted for separately.
         _mock_reconcile=$(scenario_mock_reconcile_budget_seconds)
         _cleanup_reconcile=$(scenario_cleanup_reconcile_budget_seconds)
         echo $(( _quiet + CL2_HEALTH_GATE_TIMEOUT_BUFFER_SECONDS + _artifact + _diag + _mock_reconcile + _cleanup_reconcile ))
@@ -790,18 +589,7 @@ steps:
           --settle-seconds 15 \
           --request-timeout-seconds 30 \
           --summary-file "$_output" || _rc=$?
-        # rc=124 (outer `timeout` fired) or rc=137 (the process ignored
-        # SIGTERM and was force-killed by --kill-after) means the reconciler
-        # was reaped mid-run. Thanks to its incremental --summary-file
-        # writes (one after each cluster's reconcile_cluster() completes --
-        # see mock_layer_reconcile.py's on_result callback in main())
-        # "$_output" USUALLY already reflects whichever clusters had
-        # finished, tagged "partial": true -- but it may not exist at all if
-        # the kill landed before the first cluster finished. Either way,
-        # always (re)write an authoritative timeout summary here so a
-        # downstream reader (scenario-health-gate.sh, or a human in the ADO
-        # log) never sees a missing file, or a stale one that doesn't know
-        # it was about to be killed.
+        # Always persist an authoritative summary after an outer timeout.
         if [ "$_rc" -eq 124 ] || [ "$_rc" -eq 137 ]; then
           local _timed_out_at
           _timed_out_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -844,17 +632,7 @@ steps:
         return "$_rc"
       }
 
-      # Post-scenario ACTIVE cleanup of THIS scenario's own recoverable
-      # Kubernetes residue (its clustermesh-<prefix>* namespaces, the shared
-      # ACNS ContainerNetworkLog/ContainerNetworkMetric CRs + acns-telemetry
-      # namespace, and the allowlisted scenario-owned monitoring/exporter
-      # objects) -- run in EVERY mode, not just mock. This is repair, not
-      # proof: scenario-health-gate.sh remains the proof-only, final
-      # authority on whether the shared baseline actually recovered, so a
-      # failure here is logged but NEVER independently stops the suite --
-      # the health gate that runs right after this decides that. scoped to
-      # an exact allowlist (see scenario_cleanup_reconcile.py's module
-      # docstring); unknown/extra objects are never touched.
+      # Repair allowlisted scenario residue; the health gate remains proof.
       run_scenario_cleanup_reconcile() {
         local _output="$1"
         mkdir -p "$(dirname "$_output")"

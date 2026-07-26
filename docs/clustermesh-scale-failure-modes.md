@@ -44,6 +44,7 @@ at the bottom for the explicit scope statement.
 | `policy_scale_empty_list_stderr_counted` | deleted evidence reports exactly one CNP per namespace, then residual detail is empty | true | n/a | use `kubectl get ... -o name` stdout only; never count the successful `No resources found` stderr diagnostic | 74612, 74639 |
 | `self_hosted_target_reload_race` | workload/JUnit passes but mock-agent and ACNS live targets vanish after CL2 deletes their PodMonitors | true | scenario window | accept exact scenario-scoped historical `up` coverage only when no live targets remain; live-down/partial targets still fail | 74639, 74677 |
 | `node_churn_ready_barrier_shorter_than_prometheus_startup` | one CL2 worker signals ready after 10m while another valid Prometheus startup takes 11-15m, so churn records no operations | true | 1200 | align n=2 ready timeout with the 15m CL2 Prometheus readiness bound and add readiness time to the host churner runtime | 74677 |
+| `ado_inline_script_arg_max` | CmdLine task cannot start Node handler: `Argument list too long` | true | n/a | keep the expanded inline script below 120KB (Linux per-string exec limit is about 128KiB); guard its rendered byte size in tests | 74726 |
 | `vmextension_error_k_*` | `VMExtensionError_K[A-Za-z]+` (kubelet/CRI failures) | false | n/a | abort + dump CSE logs; non-retryable | 68700 |
 
 ---

@@ -3,6 +3,8 @@
 import re
 from pathlib import Path
 
+import yaml
+
 
 PIPELINE_PATH = (
     Path(__file__).resolve().parents[3]
@@ -623,6 +625,17 @@ def test_node_churn_false_cleanup_value_is_not_defaulted_to_true():
         ).read_text(encoding="utf-8")
         assert "AddInt" in config
         assert "CL2_NODE_CHURN_READY_TIMEOUT_SECONDS" in config
+
+
+def test_cl2_ado_inline_task_stays_below_execve_string_limit():
+    document = yaml.safe_load(EXECUTE_TEMPLATE_PATH.read_text(encoding="utf-8"))
+    script = next(
+        step["script"]
+        for step in document["steps"]
+        if step.get("displayName") == "Run CL2 across all clustermesh clusters"
+    )
+
+    assert len(script.encode("utf-8")) < 120_000
 
 
 def test_n100_stage_has_complete_workload_and_telemetry_wiring():
