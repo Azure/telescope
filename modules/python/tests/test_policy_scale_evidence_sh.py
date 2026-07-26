@@ -587,3 +587,5 @@ def test_cl2_exec_timeout_exceeds_internal_poll_budget():
     assert "{{$verifyWithGrace := AddInt $verifyTimeout $terminalGrace}}" in config
     assert "{{$verifyExecTimeout := AddInt $verifyWithGrace 60}}" in config
     assert config.count("timeout: {{$verifyExecTimeout}}s") == 2
+    assert config.count("path: /modules/clustermesh.yaml") == 2
+    assert config.index("actionName: create") < config.index("actionName: delete")

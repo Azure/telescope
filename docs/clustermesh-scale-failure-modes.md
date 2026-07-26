@@ -42,7 +42,8 @@ at the bottom for the explicit scope statement.
 | `prom_snapshot_admin_api_empty` | snapshot POST intermittently returns no body/name while Prometheus remains Running | true | 150 | retry the admin API with bounded curl deadlines and preserve HTTP/curl/admin-API diagnostics | 74612 |
 | `node_churn_false_cleanup_failure` | timing JSON says `cleanup_failed=false`, but suite records `cleanup_failed=true` and skips upper-bound | true | n/a | use `has("cleanup_failed")` instead of jq `false // true`, which incorrectly selects the fallback | 74612 |
 | `policy_scale_empty_list_stderr_counted` | deleted evidence reports exactly one CNP per namespace, then residual detail is empty | true | n/a | use `kubectl get ... -o name` stdout only; never count the successful `No resources found` stderr diagnostic | 74612, 74639 |
-| `self_hosted_target_reload_race` | workload/JUnit passes but mock-agent and ACNS targets vanish before the post-run audit | true | worker lifetime | keep the Prometheus CR patcher alive until the worker EXIT trap instead of stopping after 10m/attempt | 74639 |
+| `self_hosted_target_reload_race` | workload/JUnit passes but mock-agent and ACNS live targets vanish after CL2 deletes their PodMonitors | true | scenario window | accept exact scenario-scoped historical `up` coverage only when no live targets remain; live-down/partial targets still fail | 74639, 74677 |
+| `node_churn_ready_barrier_shorter_than_prometheus_startup` | one CL2 worker signals ready after 10m while another valid Prometheus startup takes 11-15m, so churn records no operations | true | 1200 | align n=2 ready timeout with the 15m CL2 Prometheus readiness bound and add readiness time to the host churner runtime | 74677 |
 | `vmextension_error_k_*` | `VMExtensionError_K[A-Za-z]+` (kubelet/CRI failures) | false | n/a | abort + dump CSE logs; non-retryable | 68700 |
 
 ---

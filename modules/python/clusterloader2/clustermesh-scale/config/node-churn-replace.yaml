@@ -36,6 +36,8 @@ name: clustermesh-node-churn-replace
 # Default 1500s = 25min covers VMSS delete-and-refill for K=10 instances
 # in parallel: each drain ≤ 5min + parallel VMSS provisioning ≤ 15min.
 {{$replaceDurationSeconds := DefaultParam .CL2_NODE_CHURN_REPLACE_DURATION_SECONDS 1500}}
+{{$readyTimeoutSeconds := DefaultParam .CL2_NODE_CHURN_READY_TIMEOUT_SECONDS 300}}
+{{$observationDurationSeconds := AddInt $replaceDurationSeconds $readyTimeoutSeconds}}
 
 {{$group := "clustermesh-node-churn-replace"}}
 {{$basename := "ncr"}}
@@ -156,7 +158,7 @@ steps:
       - Identifier: NodeChurnObservationSleep
         Method: Sleep
         Params:
-          duration: {{$replaceDurationSeconds}}s
+          duration: {{$observationDurationSeconds}}s
 
   - name: Wait for post-node-churn-replace pods to be Running
     measurements:

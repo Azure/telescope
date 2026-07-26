@@ -710,10 +710,16 @@ def test_isolation_nonzero_killer_exit_code_fails(tmp_path):
 # node-churn-scale / node-churn-replace / node-churn-combined
 # ---------------------------------------------------------------------------
 
-def _node_churn_timings(scenario_valid=True, cleanup_failed=False, ops=None):
+def _node_churn_timings(
+    scenario_valid=True,
+    cleanup_failed=False,
+    truncated=False,
+    ops=None,
+):
     return {
         "scenario_valid": scenario_valid,
         "cleanup_failed": cleanup_failed,
+        "truncated": truncated,
         "ops": ops if ops is not None else [
             {"op_index": 0, "op_type": "scale_up", "succeeded": True},
             {"op_index": 1, "op_type": "scale_down", "succeeded": True},
@@ -751,7 +757,25 @@ def test_node_churn_scale_failed_op_invalidates(tmp_path):
     )
 
     assert rc == 1
-    assert any("node_churn_all_operations_succeeded" in reason for reason in result["reasons"])
+    assert any(
+        "node_churn_all_operations_succeeded" in reason
+        for reason in result["reasons"]
+    )
+
+
+def test_node_churn_truncated_timing_invalidates(tmp_path):
+    report_dir, worker_summary = _make_common_fixture(tmp_path, "node-churn-scale", roles=("mesh-1",))
+    _write_json(
+        report_dir / "mesh-1" / "NodeChurnTimings_mesh-1.json",
+        _node_churn_timings(truncated=True),
+    )
+    rc, result = _run(
+        tmp_path, "node-churn-scale", report_dir, worker_summary, cluster_count=1,
+        extra_args=["--target-role", "mesh-1"],
+    )
+
+    assert rc == 1
+    assert any("node_churn_not_truncated" in reason for reason in result["reasons"])
 
 
 def test_node_churn_replace_requires_replace_wait(tmp_path):

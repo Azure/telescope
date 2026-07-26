@@ -888,6 +888,11 @@ def _check_node_churn(ctx: EvidenceContext, report_dir: str, target_role: str, s
         data.get("cleanup_failed") is False,
         f"cleanup_failed={data.get('cleanup_failed')!r}",
     )
+    ctx.add(
+        "node_churn_not_truncated",
+        data.get("truncated") is False,
+        f"truncated={data.get('truncated')!r}",
+    )
 
     ops = data.get("ops")
     if not isinstance(ops, list) or not ops:

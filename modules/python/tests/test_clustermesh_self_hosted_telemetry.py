@@ -983,3 +983,4 @@ def test_identity_audit_uses_historical_lookback():
     assert audit_module.IDENTITY_LOOKBACK_QUERY == (
         "last_over_time(clustermesh_cluster_identity_info[6h])"
     )
+    assert "mock-cilium-agent|hubble" in audit_module.HISTORICAL_TARGET_JOB_REGEX

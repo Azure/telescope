@@ -47,6 +47,7 @@ provider="$7"
 python_script_file="$8"
 python_workdir="$9"
 tear_down_prometheus_flag="${10:-0}"
+worker_started_epoch=$(date +%s)
 
 mkdir -p "$report_dir"
 repo_root=$(cd -- "$(dirname -- "$python_script_file")/../../../.." && pwd)
@@ -567,6 +568,7 @@ if [ -f "$telemetry_audit_script" ]; then
   telemetry_audit_args=(
     --kubeconfig "$kubeconfig"
     --output-prefix "$telemetry_audit_dir/telemetry-audit-self-hosted"
+    --target-lookback-seconds "$(( $(date +%s) - worker_started_epoch + 60 ))"
   )
   if [ "${CL2_MOCK_MODE:-false}" = "true" ]; then
     telemetry_audit_args+=(

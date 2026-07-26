@@ -561,7 +561,7 @@ steps:
             apiserver-failure) echo 1200 ;;
             policy-scale) echo 1800 ;;
             isolation) echo 1800 ;;
-            node-churn-scale|node-churn-replace|node-churn-combined) echo 5400 ;;
+            node-churn-scale|node-churn-replace|node-churn-combined) echo 7200 ;;
             upper-bound) echo 2400 ;;
             *) echo 1200 ;;
           esac
@@ -1463,9 +1463,15 @@ steps:
           CL2_NODE_CHURN_FINALIZER_TIMEOUT_SECONDS +
           CL2_NODE_CHURN_RECOVERY_GRACE_SECONDS +
           60 ))
+        node_churn_runtime=$(( \
+          _expected_dur +
+          CL2_NODE_CHURN_READY_TIMEOUT_SECONDS +
+          CL2_NODE_CHURN_FINALIZER_TIMEOUT_SECONDS +
+          CL2_NODE_CHURN_RECOVERY_GRACE_SECONDS +
+          60 ))
         setsid timeout --signal=TERM \
           --kill-after="${node_churn_cleanup_grace}s" \
-          "${_expected_dur}s" \
+          "${node_churn_runtime}s" \
           bash "$NODE_CHURNER_SCRIPT" \
             "$_scen" \
             "$_target_name" \

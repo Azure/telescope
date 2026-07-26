@@ -979,7 +979,7 @@ fi
 # Scenario dispatch
 # -----------------------------------------------------------------------------
 OP_INDEX=0
-WALL_DEADLINE=$(( STARTED_EPOCH + EXPECTED_DURATION_SECONDS ))
+WALL_DEADLINE=$(( $(date +%s) + EXPECTED_DURATION_SECONDS ))
 
 run_scale_phase() {
   log "scale phase: ${NODE_CHURN_CYCLES} cycles × (up by ${NODE_CHURN_DELTA}, down by ${NODE_CHURN_DELTA})"

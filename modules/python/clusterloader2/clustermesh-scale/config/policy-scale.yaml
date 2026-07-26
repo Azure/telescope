@@ -110,6 +110,12 @@ steps:
       params:
         action: start
 
+  - module:
+      path: /modules/clustermesh.yaml
+      params:
+        actionName: create
+        tuningSet: PolicyCreateQps
+
   # ----- Phase 1: deploy small backend workload (CNP targets) -----
   - name: Track policy-scale workload
     measurements:
@@ -271,3 +277,9 @@ steps:
       params:
         action: gather
         group: {{$workloadGroup}}
+
+  - module:
+      path: /modules/clustermesh.yaml
+      params:
+        actionName: delete
+        tuningSet: PolicyCreateQps

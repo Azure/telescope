@@ -36,6 +36,8 @@ name: clustermesh-node-churn-scale
 # settle margin. Per-tier overrides via matrix var
 # node_churn_scale_duration_seconds (auto-exported).
 {{$scaleDurationSeconds := DefaultParam .CL2_NODE_CHURN_SCALE_DURATION_SECONDS 1800}}
+{{$readyTimeoutSeconds := DefaultParam .CL2_NODE_CHURN_READY_TIMEOUT_SECONDS 300}}
+{{$observationDurationSeconds := AddInt $scaleDurationSeconds $readyTimeoutSeconds}}
 
 {{$group := "clustermesh-node-churn-scale"}}
 {{$basename := "ncs"}}
@@ -173,7 +175,7 @@ steps:
       - Identifier: NodeChurnObservationSleep
         Method: Sleep
         Params:
-          duration: {{$scaleDurationSeconds}}s
+          duration: {{$observationDurationSeconds}}s
 
   # ----- Final convergence -----
   - name: Wait for post-node-churn pods to be Running

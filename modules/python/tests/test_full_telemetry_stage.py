@@ -154,6 +154,7 @@ def test_dedicated_full_telemetry_stage_is_isolated():
     assert "suite_job_timeout_buffer_seconds: 7200" in stage
     assert "agent_memory_min_free_gi: 4" in stage
     assert "node_churn_recovery_grace_seconds: 900" in stage
+    assert "node_churn_ready_timeout_seconds: 1200" in stage
     assert "node_churn_target_nodepool: churnpool" in stage
     assert "node_replace_batch_size: 2" in stage
     assert "CLUSTERMESH_VM_FAMILY_QUOTA_NAME: standardDSv4Family" in stage
@@ -594,6 +595,7 @@ def test_prometheus_patcher_outlives_long_scenarios():
     assert "setsid bash -c run_prom_patcher" in worker
     assert 'kill -- "-${PROM_PATCH_PID}"' in worker
     assert "timeout --foreground" in worker
+    assert "--target-lookback-seconds" in worker
     assert "600 * ${CL2_MAX_ATTEMPTS:-1}" not in worker
 
 
@@ -602,6 +604,25 @@ def test_node_churn_false_cleanup_value_is_not_defaulted_to_true():
 
     assert '.cleanup_failed // true' not in execute
     assert 'if has("cleanup_failed") then .cleanup_failed else true end' in execute
+    assert "CL2_NODE_CHURN_READY_TIMEOUT_SECONDS +" in execute
+    assert "CL2_NODE_CHURN_FINALIZER_TIMEOUT_SECONDS +" in execute
+    assert "CL2_NODE_CHURN_RECOVERY_GRACE_SECONDS +" in execute
+    for config_name in (
+        "node-churn-scale.yaml",
+        "node-churn-replace.yaml",
+        "node-churn-combined.yaml",
+    ):
+        config = (
+            REPOSITORY_ROOT
+            / "modules"
+            / "python"
+            / "clusterloader2"
+            / "clustermesh-scale"
+            / "config"
+            / config_name
+        ).read_text(encoding="utf-8")
+        assert "AddInt" in config
+        assert "CL2_NODE_CHURN_READY_TIMEOUT_SECONDS" in config
 
 
 def test_n100_stage_has_complete_workload_and_telemetry_wiring():

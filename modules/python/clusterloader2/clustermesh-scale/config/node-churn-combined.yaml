@@ -29,6 +29,8 @@ name: clustermesh-node-churn-combined
 
 # Default 3300s = 55min: 30min scale phase + 25min replace phase + margin.
 {{$combinedDurationSeconds := DefaultParam .CL2_NODE_CHURN_COMBINED_DURATION_SECONDS 3300}}
+{{$readyTimeoutSeconds := DefaultParam .CL2_NODE_CHURN_READY_TIMEOUT_SECONDS 300}}
+{{$observationDurationSeconds := AddInt $combinedDurationSeconds $readyTimeoutSeconds}}
 
 {{$group := "clustermesh-node-churn-combined"}}
 {{$basename := "ncc"}}
@@ -149,7 +151,7 @@ steps:
       - Identifier: NodeChurnObservationSleep
         Method: Sleep
         Params:
-          duration: {{$combinedDurationSeconds}}s
+          duration: {{$observationDurationSeconds}}s
 
   - name: Wait for post-node-churn-combined pods to be Running
     measurements:

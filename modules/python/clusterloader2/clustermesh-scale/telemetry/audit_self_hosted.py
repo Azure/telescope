@@ -100,6 +100,7 @@ ACNS_METRICS = (
 IDENTITY_LOOKBACK_QUERY = (
     "last_over_time(clustermesh_cluster_identity_info[6h])"
 )
+HISTORICAL_TARGET_JOB_REGEX = ".*(mock-cilium-agent|hubble).*"
 
 
 def _matching_metrics(metric_names, prefixes=(), exact=()):
@@ -138,6 +139,7 @@ def build_audit(
     expected_mock_agent_targets=0,
     identity_series=None,
     expected_identity=None,
+    historical_targets=None,
 ):
     """Build the self-hosted Prometheus coverage report."""
     checks = []
@@ -181,6 +183,7 @@ def build_audit(
     )
 
     jobs = _target_jobs(targets)
+    historical_jobs = _target_jobs(historical_targets or [])
     exporter = jobs.get(
         "apiserver-backend-exporter",
         {"total": 0, "up": 0, "down": 0, "scrape_urls": []},
@@ -267,11 +270,32 @@ def build_audit(
         target_count = sum(target["total"] for target in mock_targets)
         up_targets = sum(target["up"] for target in mock_targets)
         down_targets = sum(target["down"] for target in mock_targets)
-        healthy = (
+        live_healthy = (
             target_count == expected_mock_agent_targets
             and up_targets == expected_mock_agent_targets
             and down_targets == 0
         )
+        historical_mock_targets = [
+            target
+            for job_name, target in historical_jobs.items()
+            if "mock-cilium-agent" in job_name
+        ]
+        historical_target_count = sum(
+            target["total"] for target in historical_mock_targets
+        )
+        historical_up_targets = sum(
+            target["up"] for target in historical_mock_targets
+        )
+        historical_down_targets = sum(
+            target["down"] for target in historical_mock_targets
+        )
+        historical_healthy = (
+            target_count == 0
+            and historical_target_count == expected_mock_agent_targets
+            and historical_up_targets == expected_mock_agent_targets
+            and historical_down_targets == 0
+        )
+        healthy = live_healthy or historical_healthy
         checks.append(
             {
                 "name": "target:mock-cilium-agent",
@@ -281,6 +305,10 @@ def build_audit(
                 "target_count": target_count,
                 "up_targets": up_targets,
                 "down_targets": down_targets,
+                "historical_target_count": historical_target_count,
+                "historical_up_targets": historical_up_targets,
+                "historical_down_targets": historical_down_targets,
+                "historical_target_evidence": historical_healthy,
             }
         )
     if require_acns:
@@ -303,18 +331,42 @@ def build_audit(
         target_count = sum(target["total"] for target in hubble_targets)
         up_targets = sum(target["up"] for target in hubble_targets)
         down_targets = sum(target["down"] for target in hubble_targets)
+        live_healthy = target_count > 0 and down_targets == 0
+        historical_hubble_targets = [
+            target
+            for job_name, target in historical_jobs.items()
+            if "hubble" in job_name.lower()
+        ]
+        historical_target_count = sum(
+            target["total"] for target in historical_hubble_targets
+        )
+        historical_up_targets = sum(
+            target["up"] for target in historical_hubble_targets
+        )
+        historical_down_targets = sum(
+            target["down"] for target in historical_hubble_targets
+        )
+        historical_healthy = (
+            target_count == 0
+            and historical_target_count > 0
+            and historical_down_targets == 0
+        )
         checks.append(
             {
                 "name": "target:acns-hubble",
                 "required": True,
                 "status": (
                     "covered"
-                    if target_count > 0 and down_targets == 0
+                    if live_healthy or historical_healthy
                     else "missing"
                 ),
                 "target_count": target_count,
                 "up_targets": up_targets,
                 "down_targets": down_targets,
+                "historical_target_count": historical_target_count,
+                "historical_up_targets": historical_up_targets,
+                "historical_down_targets": historical_down_targets,
+                "historical_target_evidence": historical_healthy,
             }
         )
 
@@ -342,6 +394,7 @@ def build_audit(
         "metric_name_count": len(metric_names),
         "checks": checks,
         "target_jobs": jobs,
+        "historical_target_jobs": historical_jobs,
     }
 
 
@@ -413,6 +466,7 @@ def parse_args(argv=None):
     parser.add_argument("--require-kwok-pod-resource", action="store_true")
     parser.add_argument("--require-acns", action="store_true")
     parser.add_argument("--expected-mock-agent-targets", type=int, default=0)
+    parser.add_argument("--target-lookback-seconds", type=int, default=7200)
     return parser.parse_args(argv)
 
 
@@ -444,6 +498,33 @@ def main(argv=None):
             label: os.environ.get(environment, "")
             for label, environment in IDENTITY_LABEL_ENV.items()
         }
+        target_lookback_seconds = max(args.target_lookback_seconds, 60)
+        historical_target_data = _prometheus_get(
+            args.kubeconfig,
+            "/api/v1/query?"
+            + urlencode(
+                {
+                    "query": (
+                        "max_over_time("
+                        f'up{{job=~"{HISTORICAL_TARGET_JOB_REGEX}"}}'
+                        f"[{target_lookback_seconds}s])"
+                    )
+                }
+            ),
+        )
+        historical_targets = []
+        for sample in historical_target_data.get("result", []):
+            value = sample.get("value", [None, "0"])
+            try:
+                healthy = float(value[1]) > 0
+            except (IndexError, TypeError, ValueError):
+                healthy = False
+            historical_targets.append(
+                {
+                    "labels": sample.get("metric", {}),
+                    "health": "up" if healthy else "down",
+                }
+            )
         report = build_audit(
             metric_names,
             targets,
@@ -454,6 +535,7 @@ def main(argv=None):
             expected_mock_agent_targets=args.expected_mock_agent_targets,
             identity_series=identity_series,
             expected_identity=expected_identity,
+            historical_targets=historical_targets,
         )
         json_path, markdown_path = write_report(report, args.output_prefix)
     except (OSError, subprocess.SubprocessError, ValueError, RuntimeError) as error:
