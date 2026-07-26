@@ -515,18 +515,27 @@ resource "terraform_data" "aks_cli" {
     interpreter = ["bash", "-c"]
     command     = <<-EOT
       set -uo pipefail
-      out=$(eval "${self.input.aks_cli_destroy_command}" 2>&1)
-      rc=$?
-      if [ "$rc" -eq 0 ]; then
-        echo "$out"
-        exit 0
-      fi
-      if echo "$out" | grep -qiE "NotFound|could not be found|ResourceNotFound|ResourceGroupNotFound"; then
-        echo "[aks_cli destroy] cluster or resource group already absent; nothing to delete"
-        exit 0
-      fi
-      echo "$out" >&2
-      exit "$rc"
+      for i in 1 2 3; do
+        out=$(eval "${self.input.aks_cli_destroy_command}" 2>&1)
+        rc=$?
+        if [ "$rc" -eq 0 ]; then
+          echo "$out"
+          exit 0
+        fi
+        if echo "$out" | grep -qiE "NotFound|could not be found|ResourceNotFound|ResourceGroupNotFound"; then
+          echo "[aks_cli destroy] cluster or resource group already absent; nothing to delete"
+          exit 0
+        fi
+        if [ "$i" -lt 3 ] &&
+           echo "$out" | grep -qiE "AnotherOperationInProgress|OperationNotAllowed|Conflict"; then
+          echo "[aks_cli destroy] transient Azure operation conflict (attempt $i/3); retrying in 30s"
+          sleep 30
+          continue
+        fi
+        echo "$out" >&2
+        exit "$rc"
+      done
+      exit 1
     EOT
   }
 }

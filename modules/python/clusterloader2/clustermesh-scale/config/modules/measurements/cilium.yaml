@@ -304,9 +304,9 @@ steps:
         # to policy metrics above — rate(1m) misses regen bursts that
         # happen >1min before gather phase).
         - name: TotalIncrease
-          query: sum(increase(cilium_endpoint_regenerations_count[%v]))
+          query: sum(increase(cilium_endpoint_regenerations_total[%v]))
         - name: MaxRate
-          query: max(rate(cilium_endpoint_regenerations_count[1m]))
+          query: max(rate(cilium_endpoint_regenerations_total[1m]))
 
     - Identifier: CiliumEndpointRegenerationDuration{{$suffix}}
       Method: GenericPrometheusQuery

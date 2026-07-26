@@ -335,6 +335,8 @@ def test_terraform_destroy_treats_missing_aks_and_fleet_as_success():
     aks_resource = aks_module[aks_resource_start:aks_resource_end]
     assert "[aks_cli destroy] cluster or resource group already absent" in aks_resource
     assert "ResourceGroupNotFound" in aks_resource
+    assert "AnotherOperationInProgress" in aks_resource
+    assert "attempt $i/3" in aks_resource
 
     fleet_module = FLEET_MODULE_PATH.read_text(encoding="utf-8")
     profile_start = fleet_module.index(
@@ -570,13 +572,33 @@ def test_native_snapshot_admin_api_is_retried_with_diagnostics():
 
     assert 'CL2_PROM_SNAPSHOT_MAX_ATTEMPTS:-5' in worker
     assert 'CL2_PROM_SNAPSHOT_RETRY_SECONDS:-2' in worker
+    assert 'CL2_PROM_SNAPSHOT_ERROR_RETRY_SECONDS:-10' in worker
     assert "--max-time 60" in worker
     assert "snapshot_baseline_file" in worker
     assert "list_prom_snapshot_dirs" in worker
     assert "comm -13" in worker
     assert 'done; exit 0' in worker
     assert "refusing to archive or retry" in worker
+    assert "snapshot_server_error" in worker
+    assert "snapshot_error_cleanup_ok" in worker
     assert "enableAdminAPI=${prom_admin_api:-unknown}" in worker
+
+
+def test_policy_regeneration_counter_uses_current_cilium_metric_name():
+    measurements = (
+        REPOSITORY_ROOT
+        / "modules"
+        / "python"
+        / "clusterloader2"
+        / "clustermesh-scale"
+        / "config"
+        / "modules"
+        / "measurements"
+        / "cilium.yaml"
+    ).read_text(encoding="utf-8")
+
+    assert "cilium_endpoint_regenerations_total" in measurements
+    assert "cilium_endpoint_regenerations_count" not in measurements
 
 
 def test_prometheus_patcher_outlives_long_scenarios():

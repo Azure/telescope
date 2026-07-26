@@ -45,6 +45,9 @@ at the bottom for the explicit scope statement.
 | `self_hosted_target_reload_race` | workload/JUnit passes but mock-agent and ACNS live targets vanish after CL2 deletes their PodMonitors | true | scenario window | accept exact scenario-scoped historical `up` coverage only when no live targets remain; live-down/partial targets still fail | 74639, 74677 |
 | `node_churn_ready_barrier_shorter_than_prometheus_startup` | one CL2 worker signals ready after 10m while another valid Prometheus startup takes 11-15m, so churn records no operations | true | 1200 | align n=2 ready timeout with the 15m CL2 Prometheus readiness bound and add readiness time to the host churner runtime | 74677 |
 | `ado_inline_script_arg_max` | CmdLine task cannot start Node handler: `Argument list too long` | true | n/a | keep the expanded inline script below 120KB (Linux per-string exec limit is about 128KiB); guard its rendered byte size in tests | 74726 |
+| `cilium_endpoint_regeneration_metric_renamed` | policy evidence has exact CNP counts but `Cilium Endpoint Regenerations TotalIncrease` is empty | true | n/a | query the current `cilium_endpoint_regenerations_total` counter instead of removed `_count` | 74727 |
+| `prom_snapshot_empty_head_chunk` | Prometheus snapshot API returns HTTP 500 `unexpected empty chunk found while rewriting chunk` | true | 60 | remove the completed failed snapshot directory, verify cleanup, wait, and retry; ambiguous/lost responses remain non-retryable | 74727 |
+| `aks_delete_subnet_operation_conflict` | synchronous `az aks delete` ends with `AnotherOperationInProgress` on a shared-VNet subnet | true | 3 attempts | retry only transient operation/conflict errors inside the destroy provisioner; RG cleanup remains the final backstop | 74727 |
 | `vmextension_error_k_*` | `VMExtensionError_K[A-Za-z]+` (kubelet/CRI failures) | false | n/a | abort + dump CSE logs; non-retryable | 68700 |
 
 ---

@@ -654,6 +654,7 @@ if [ "${CL2_PROM_SNAPSHOT_ENABLED:-false}" = "true" ]; then
       echo "  $role: prom-snapshot: port-forward listening on 127.0.0.1:$local_port"
       snapshot_max_attempts="${CL2_PROM_SNAPSHOT_MAX_ATTEMPTS:-5}"
       snapshot_retry_seconds="${CL2_PROM_SNAPSHOT_RETRY_SECONDS:-2}"
+      snapshot_error_retry_seconds="${CL2_PROM_SNAPSHOT_ERROR_RETRY_SECONDS:-10}"
       if ! [[ "$snapshot_max_attempts" =~ ^[1-9][0-9]*$ ]]; then
         snapshot_max_attempts=5
       elif [ "$snapshot_max_attempts" -gt 10 ]; then
@@ -661,6 +662,9 @@ if [ "${CL2_PROM_SNAPSHOT_ENABLED:-false}" = "true" ]; then
       fi
       if ! [[ "$snapshot_retry_seconds" =~ ^(0|[1-9][0-9]*)$ ]]; then
         snapshot_retry_seconds=2
+      fi
+      if ! [[ "$snapshot_error_retry_seconds" =~ ^(0|[1-9][0-9]*)$ ]]; then
+        snapshot_error_retry_seconds=10
       fi
       list_prom_snapshot_dirs() {
         timeout 15s env KUBECONFIG="$kubeconfig" \
@@ -695,6 +699,12 @@ if [ "${CL2_PROM_SNAPSHOT_ENABLED:-false}" = "true" ]; then
         snap_resp=$(cat "$snap_response_file" 2>/dev/null || true)
         snap_curl_error=$(cat "$snap_error_file" 2>/dev/null || true)
         rm -f "$snap_response_file" "$snap_error_file"
+        snapshot_server_error=false
+        if [ "$snap_curl_rc" -eq 0 ] &&
+           [[ "${snap_http_code:-}" =~ ^5[0-9][0-9]$ ]] &&
+           echo "$snap_resp" | grep -q '"status":"error"'; then
+          snapshot_server_error=true
+        fi
         snap_name=$(echo "$snap_resp" | grep -oE '"name":"[^"]+"' \
           | head -1 | sed 's/.*"name":"\([^"]*\)".*/\1/')
         if [ -n "$snap_name" ]; then
@@ -722,9 +732,45 @@ if [ "${CL2_PROM_SNAPSHOT_ENABLED:-false}" = "true" ]; then
             break
           fi
           if [ -n "$snapshot_ambiguous_dirs" ]; then
-            echo "  $role: prom-snapshot: unverified snapshot directory appeared after an empty/lost response; refusing to archive or retry: $(echo "$snapshot_ambiguous_dirs" | tr '\n' ' ')"
-            break
+            if [ "$snapshot_server_error" = "true" ]; then
+              snapshot_error_cleanup_ok=true
+              while IFS= read -r failed_snapshot_dir; do
+                [ -n "$failed_snapshot_dir" ] || continue
+                if ! timeout 15s env KUBECONFIG="$kubeconfig" \
+                  kubectl --request-timeout=10s -n monitoring \
+                  exec "$prom_pod" -c prometheus -- \
+                  rm -rf "/prometheus/snapshots/$failed_snapshot_dir" \
+                  2>/dev/null; then
+                  snapshot_error_cleanup_ok=false
+                fi
+              done <<< "$snapshot_ambiguous_dirs"
+              snapshot_verify_file=$(mktemp)
+              if list_prom_snapshot_dirs > "$snapshot_verify_file"; then
+                if [ -n "$(comm -13 "$snapshot_baseline_file" "$snapshot_verify_file")" ]; then
+                  snapshot_error_cleanup_ok=false
+                fi
+              else
+                snapshot_error_cleanup_ok=false
+              fi
+              rm -f "$snapshot_verify_file"
+              if [ "$snapshot_error_cleanup_ok" != "true" ]; then
+                echo "  $role: prom-snapshot: failed snapshot directory cleanup could not be verified; refusing retry"
+                break
+              fi
+              snapshot_ambiguous_dirs=""
+            else
+              echo "  $role: prom-snapshot: unverified snapshot directory appeared after an empty/lost response; refusing to archive or retry: $(echo "$snapshot_ambiguous_dirs" | tr '\n' ' ')"
+              break
+            fi
           fi
+        fi
+        if [ "$snapshot_server_error" = "true" ]; then
+          if [ "$_snapshot_attempt" -lt "$snapshot_max_attempts" ]; then
+            echo "  $role: prom-snapshot: Prometheus returned HTTP ${snap_http_code}; retrying after completed server error in ${snapshot_error_retry_seconds}s"
+            sleep "$snapshot_error_retry_seconds"
+            continue
+          fi
+          break
         fi
         if [ "$snap_curl_rc" -eq 28 ] ||
            [[ "${snap_http_code:-}" =~ ^2[0-9][0-9]$ ]]; then
