@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Authorized
-        run: echo "Authorized PR #${{ github.event.pull_request.number }} head=${{ github.event.pull_request.head.sha }}"
+        run: 'echo "Authorized PR ${{ github.event.pull_request.number }} head=${{ github.event.pull_request.head.sha }}"'
 
   terraform-test:
     needs: authorize
