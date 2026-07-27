@@ -31,6 +31,7 @@ import sys
 import tempfile
 import threading
 import time
+import uuid
 from datetime import datetime, timezone
 
 from clusterloader2.utils import parse_xml_to_json, run_cl2_command, process_cl2_reports
@@ -404,6 +405,100 @@ def _emit_prefixed_line(role, line):
         sys.stdout.flush()
 
 
+def _worker_process_group_alive(proc):
+    pid = getattr(proc, "pid", None)
+    if pid is None:
+        return proc.poll() is None
+    try:
+        os.killpg(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    try:
+        proc_entries = os.listdir("/proc")
+    except OSError:
+        return True
+    found_member = False
+    for entry in proc_entries:
+        if not entry.isdigit():
+            continue
+        try:
+            with open(f"/proc/{entry}/stat", "r", encoding="utf-8") as stat_file:
+                stat = stat_file.read()
+            fields = stat[stat.rfind(")") + 2:].split()
+            state = fields[0]
+            process_group = int(fields[2])
+        except (OSError, ValueError, IndexError):
+            continue
+        if process_group != pid:
+            continue
+        found_member = True
+        if state != "Z":
+            return True
+    if found_member:
+        return False
+    return True
+
+
+def _signal_worker_process_group(proc, sig):
+    pid = getattr(proc, "pid", None)
+    if pid is not None:
+        try:
+            os.killpg(pid, sig)
+            return
+        except ProcessLookupError:
+            return
+        except OSError:
+            pass
+    try:
+        if sig == signal.SIGKILL:
+            proc.kill()
+        else:
+            proc.terminate()
+    except ProcessLookupError:
+        pass
+
+
+def _worker_container_name(role, worker_args, child_env):
+    run_id = child_env.get("CLUSTERMESH_RUN_ID") or f"local-{os.getpid()}"
+    config_file = worker_args[4] if len(worker_args) > 4 else "scenario"
+    scenario = os.path.splitext(os.path.basename(config_file))[0]
+    raw_name = f"cl2-{run_id}-{role}-{scenario}-{uuid.uuid4().hex[:8]}"
+    return re.sub(r"[^A-Za-z0-9_.-]", "-", raw_name)[:128]
+
+
+def _force_remove_worker_containers(container_names, role):
+    names = sorted({name for name in container_names if name})
+    if not names:
+        return
+    try:
+        result = subprocess.run(
+            ["docker", "rm", "--force", *names],
+            capture_output=True,
+            check=False,
+            text=True,
+            timeout=30,
+        )
+    except (FileNotFoundError, subprocess.TimeoutExpired) as error:
+        _emit_prefixed_line(
+            role,
+            "##vso[task.logissue type=warning;] failed to remove timed-out "
+            f"CL2 container(s) {','.join(names)}: {error}\n",
+        )
+        return
+    diagnostics = [
+        line for line in result.stderr.splitlines()
+        if "No such container" not in line
+    ]
+    if result.returncode != 0 and diagnostics:
+        _emit_prefixed_line(
+            role,
+            "##vso[task.logissue type=warning;] failed to remove timed-out "
+            f"CL2 container(s) {','.join(names)}: {'; '.join(diagnostics)}\n",
+        )
+
+
 def _run_one_cluster(role, worker_script, worker_args, env=None,
                      timeout_seconds=None):
     """Spawn the per-cluster worker script and stream its merged stdout/stderr.
@@ -416,7 +511,7 @@ def _run_one_cluster(role, worker_script, worker_args, env=None,
     budget, the child process is terminated and exit code 124 is returned
     (mirrors `coreutils timeout`'s 124 = timed out). This is a watchdog for
     pathological hangs in CL2 docker / kubectl / az calls that would
-    otherwise block the AzDO step until the job-level 30h timeout fires —
+    otherwise block the AzDO step until the job-level timeout fires —
     losing all other workers' completed work + the collect+upload step.
     Per-worker timeout SHOULD comfortably exceed normal CL2 wall-clock for
     the scenario; at N=100 pod-churn-combined runs ~30-45 min per worker
@@ -430,6 +525,8 @@ def _run_one_cluster(role, worker_script, worker_args, env=None,
     if env:
         child_env.update(env)
     child_env.setdefault("PYTHONUNBUFFERED", "1")
+    container_name = _worker_container_name(role, worker_args, child_env)
+    child_env["CL2_WORKER_CONTAINER_NAME"] = container_name
     # Not using `with subprocess.Popen(...)` because the Popen handle is
     # registered in _PARALLEL_LIVE_POPENS for the SIGINT/SIGTERM handler;
     # `with` would close stdout at function exit and cancel signal-based
@@ -441,7 +538,9 @@ def _run_one_cluster(role, worker_script, worker_args, env=None,
         bufsize=1,
         text=True,
         env=child_env,
+        start_new_session=True,
     )
+    setattr(proc, "_cl2_container_name", container_name)
     with _PARALLEL_LIVE_POPENS_LOCK:
         _PARALLEL_LIVE_POPENS.append(proc)
     # Watchdog: when timeout_seconds is set, a daemon thread terminates the
@@ -457,9 +556,13 @@ def _run_one_cluster(role, worker_script, worker_args, env=None,
             # timeout (terminate then escalate to kill).
             deadline = time.monotonic() + timeout_seconds
             while time.monotonic() < deadline:
-                if proc.poll() is not None:
+                if (proc.poll() is not None
+                        and not _worker_process_group_alive(proc)):
                     return
-                time.sleep(5)
+                time.sleep(min(5, max(0, deadline - time.monotonic())))
+            if (proc.poll() is not None
+                    and not _worker_process_group_alive(proc)):
+                return
             # Timed out. Mark + terminate.
             watchdog_fired.set()
             _emit_prefixed_line(
@@ -467,20 +570,16 @@ def _run_one_cluster(role, worker_script, worker_args, env=None,
                 f"##vso[task.logissue type=error;] worker exceeded "
                 f"timeout_seconds={timeout_seconds}; sending SIGTERM\n",
             )
-            try:
-                proc.terminate()
-            except ProcessLookupError:
-                return
+            _signal_worker_process_group(proc, signal.SIGTERM)
+            _force_remove_worker_containers([container_name], role)
             # Give the worker 30s to handle SIGTERM gracefully (it has
             # log-capture cleanup); escalate to SIGKILL if it ignores us.
             for _ in range(30):
-                if proc.poll() is not None:
+                proc.poll()
+                if not _worker_process_group_alive(proc):
                     return
                 time.sleep(1)
-            try:
-                proc.kill()
-            except ProcessLookupError:
-                pass
+            _signal_worker_process_group(proc, signal.SIGKILL)
 
         watchdog = threading.Thread(target=_watchdog, daemon=True)
         watchdog.start()
@@ -514,8 +613,8 @@ def _install_parallel_signal_handlers():
     processes spawned by its workers, and each worker bash script in turn
     spawns `python3 scale.py execute` which spawns a docker container — so
     abrupt parent death without explicit teardown can leave orphan docker
-    containers running. We best-effort terminate the bash workers; the docker
-    container behind them will exit when its parent python child exits.
+    containers running. Each worker starts in its own session, so signaling its
+    process group reaches the bash wrapper and every Python/docker descendant.
     """
     def _terminate_all(signum, _frame):
         with _PARALLEL_STDOUT_LOCK:
@@ -525,11 +624,16 @@ def _install_parallel_signal_handlers():
             )
             sys.stdout.flush()
         with _PARALLEL_LIVE_POPENS_LOCK:
-            for proc in list(_PARALLEL_LIVE_POPENS):
-                try:
-                    proc.terminate()
-                except Exception:  # pylint: disable=broad-except
-                    pass
+            live_processes = list(_PARALLEL_LIVE_POPENS)
+        for proc in live_processes:
+            try:
+                _signal_worker_process_group(proc, signal.SIGTERM)
+            except Exception:  # pylint: disable=broad-except
+                pass
+        _force_remove_worker_containers(
+            [getattr(proc, "_cl2_container_name", "") for proc in live_processes],
+            "execute-parallel",
+        )
         # Re-raise default behavior for the original signal so the parent
         # exits with the conventional code (128+signum). This also unblocks
         # any executor.shutdown(wait=True) waiters.
@@ -2192,7 +2296,7 @@ def main():
                           "child is SIGTERM-ed (then SIGKILL after 30s) and the "
                           "worker is recorded as exit 124. Watchdog for pathological "
                           "CL2 / docker / kubectl hangs that would otherwise block "
-                          "the whole AzDO step until the 30h job timeout. "
+                          "the whole AzDO step until the job timeout. "
                           "Recommend ~3-4× normal CL2 wall-clock for the scenario.")
     pep.add_argument("--summary-file", type=str, default="",
                      help="Optional JSON output path for per-role worker exit codes "

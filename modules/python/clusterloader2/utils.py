@@ -110,9 +110,11 @@ def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provi
 
     logger.info(
         f"Running clusterloader2 with command: {command} and volumes: {volumes}")
+    container = None
+    container_name = os.environ.get("CL2_WORKER_CONTAINER_NAME") or None
     try:
         container = docker_client.run_container(
-            cl2_image, command, volumes, detach=True)
+            cl2_image, command, volumes, detach=True, name=container_name)
         for log in container.logs(stream=True):
             log_line = log.decode('utf-8').rstrip('\n')
             if log_line:
@@ -125,6 +127,18 @@ def run_cl2_command(kubeconfig, cl2_image, cl2_config_dir, cl2_report_dir, provi
     except docker.errors.ContainerError as e:
         logger.error(
             f"Container exited with a non-zero status code: {e.exit_status}\n{e.stderr.decode('utf-8')}")
+    finally:
+        if container_name and container is not None:
+            try:
+                container.remove(force=True)
+            except docker.errors.NotFound:
+                pass
+            except docker.errors.APIError as error:
+                logger.warning(
+                    "Failed to remove named CL2 container %s: %s",
+                    container_name,
+                    error,
+                )
 
 
 def get_measurement(file_path):

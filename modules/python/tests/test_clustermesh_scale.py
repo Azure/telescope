@@ -1777,8 +1777,14 @@ class TestExecuteParallel(unittest.TestCase):
             clustermesh_scale_module, "_install_parallel_signal_handlers", lambda: None
         )
         self._signal_patcher.start()
+        self._container_cleanup_patcher = patch.object(
+            clustermesh_scale_module,
+            "_force_remove_worker_containers",
+        )
+        self._container_cleanup_mock = self._container_cleanup_patcher.start()
 
     def tearDown(self):
+        self._container_cleanup_patcher.stop()
         self._signal_patcher.stop()
 
     def _write_clusters(self, clusters):
@@ -2100,6 +2106,12 @@ class TestExecuteParallel(unittest.TestCase):
                     environment["CLUSTERMESH_PROMETHEUS_CLUSTER_ALIAS"],
                     f"73599_a1b2_mesh_{suffix}",
                 )
+                self.assertTrue(
+                    environment["CL2_WORKER_CONTAINER_NAME"].startswith(
+                        f"cl2-73599-a1b2-{role}-"
+                    )
+                )
+                self.assertTrue(process.kwargs["start_new_session"])
         finally:
             os.remove(cf)
 
@@ -2140,7 +2152,7 @@ class TestExecuteParallel(unittest.TestCase):
         exit 124 (timeout) regardless of what the process eventually returns.
 
         Without this, a single stuck CL2 container at N=100 would block the
-        whole AzDO step until the 30h job timeout — losing all other 99
+        whole AzDO step until the job timeout — losing all other 99
         workers' completed work + the collect+upload step.
 
         Test models the hang by setting wait_seconds well above
@@ -2171,8 +2183,51 @@ class TestExecuteParallel(unittest.TestCase):
             # Overall RC is 1 (any non-zero worker fails the run); the
             # watchdog-fired flag forces exit 124 for the timed-out worker.
             self.assertEqual(rc, 1)
+            self._container_cleanup_mock.assert_called_once()
         finally:
             os.remove(cf)
+
+    def test_worker_timeout_terminates_descendant_process_group(self):
+        """The watchdog must stop descendants that outlive the bash wrapper."""
+        with tempfile.TemporaryDirectory() as directory:
+            worker = Path(directory) / "worker.sh"
+            child_pid_file = Path(directory) / "child.pid"
+            worker.write_text(
+                "#!/bin/bash\n"
+                "set -euo pipefail\n"
+                "pid_file=\"$2\"\n"
+                "python3 -c 'import signal,time; "
+                "signal.signal(signal.SIGHUP, signal.SIG_IGN); "
+                "time.sleep(60)' &\n"
+                "child=$!\n"
+                "echo \"$child\" > \"$pid_file\"\n"
+                "wait \"$child\"\n",
+                encoding="utf-8",
+            )
+
+            started = time.monotonic()
+            role, exit_code = clustermesh_scale_module._run_one_cluster(  # pylint: disable=protected-access
+                "mesh-1",
+                str(worker),
+                [str(child_pid_file)],
+                timeout_seconds=1,
+            )
+
+            self.assertEqual(role, "mesh-1")
+            self.assertEqual(exit_code, 124)
+            self.assertLess(time.monotonic() - started, 10)
+            child_pid = int(child_pid_file.read_text(encoding="utf-8"))
+            child_stat = Path(f"/proc/{child_pid}/stat")
+            deadline = time.monotonic() + 5
+            while child_stat.exists() and time.monotonic() < deadline:
+                state = child_stat.read_text(encoding="utf-8").split()[2]
+                if state == "Z":
+                    break
+                time.sleep(0.1)
+            self.assertTrue(
+                not child_stat.exists()
+                or child_stat.read_text(encoding="utf-8").split()[2] == "Z"
+            )
 
 
 # ============================================================================

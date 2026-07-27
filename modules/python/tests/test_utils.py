@@ -114,6 +114,30 @@ class TestRunCl2CommandAzureCacheIsolation(unittest.TestCase):
         )
         self.assertNotIn(os.path.expanduser("~/.azure"), volumes)
 
+    def test_named_worker_container_is_removed_after_completion(self):
+        docker_client_cls, instance = _mock_docker_client_class()
+        with patch("clusterloader2.utils.DockerClient", docker_client_cls):
+            with patch.dict(
+                os.environ,
+                {"CL2_WORKER_CONTAINER_NAME": "cl2-run-mesh-1"},
+                clear=True,
+            ):
+                run_cl2_command(
+                    kubeconfig="/kube/config",
+                    cl2_image="test-image",
+                    cl2_config_dir="/cl2/config",
+                    cl2_report_dir="/cl2/report",
+                    provider="gce",
+                )
+
+        self.assertEqual(
+            instance.run_container.call_args.kwargs["name"],
+            "cl2-run-mesh-1",
+        )
+        instance.run_container.return_value.remove.assert_called_once_with(
+            force=True
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

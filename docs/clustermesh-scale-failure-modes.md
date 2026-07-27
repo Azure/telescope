@@ -48,6 +48,7 @@ at the bottom for the explicit scope statement.
 | `cilium_endpoint_regeneration_metric_renamed` | policy evidence has exact CNP counts but `Cilium Endpoint Regenerations TotalIncrease` is empty | true | n/a | query the current `cilium_endpoint_regenerations_total` counter instead of removed `_count` | 74727 |
 | `prom_snapshot_empty_head_chunk` | Prometheus snapshot API returns HTTP 500 `unexpected empty chunk found while rewriting chunk` | true | 60 | remove the completed failed snapshot directory, verify cleanup, wait, and retry; ambiguous/lost responses remain non-retryable | 74727 |
 | `aks_delete_subnet_operation_conflict` | synchronous `az aks delete` ends with `AnotherOperationInProgress` on a shared-VNet subnet | true | 3 attempts | retry only transient operation/conflict errors inside the destroy provisioner; RG cleanup remains the final backstop | 74727 |
+| `n100_worker_wave_budget_underflow` | n=100 outer scenario timeout expires before all nine 12-worker waves complete, or before the 5900s propagation host bound | true | scenario-specific | size large-tier budgets from successful n=2 per-wave timings, cap each wave worker separately, and use a 36h suite / 42h job inside the 48h lease | 73076, 74774 |
 | `vmextension_error_k_*` | `VMExtensionError_K[A-Za-z]+` (kubelet/CRI failures) | false | n/a | abort + dump CSE logs; non-retryable | 68700 |
 
 ---

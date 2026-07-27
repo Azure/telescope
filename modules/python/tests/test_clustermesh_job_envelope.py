@@ -90,7 +90,7 @@ def test_job_timeout_guard_accepts_headline_envelopes():
 
     for suite_seconds, buffer_seconds, timeout_minutes in (
         ("43200", "7200", "840"),
-        ("108000", "18000", "2100"),
+        ("129600", "21600", "2520"),
     ):
         result = _run(
             script,
@@ -193,16 +193,16 @@ def test_resource_lease_covers_job_cancellation_tail(tmp_path):
             "TERRAFORM_REGIONAL_CONFIG": config,
             "region": "canadacentral",
             "cloud": "azure",
-            "SUITE_TOTAL_BUDGET_SECONDS": "108000",
+            "SUITE_TOTAL_BUDGET_SECONDS": "129600",
             "RESOURCE_LEASE_BUFFER_SECONDS": "14400",
-            "CLUSTERMESH_JOB_TIMEOUT_MINUTES": "2100",
+            "CLUSTERMESH_JOB_TIMEOUT_MINUTES": "2520",
             "CLUSTERMESH_JOB_CANCEL_TIMEOUT_MINUTES": "120",
         },
     )
 
     assert result.returncode == 1
-    assert "job_with_cancel=133200s" in result.stdout
-    assert "required=133200s" in result.stdout
+    assert "job_with_cancel=158400s" in result.stdout
+    assert "required=158400s" in result.stdout
     assert "variable=SKIP_RESOURCE_MANAGEMENT]true" in result.stdout
 
 
@@ -216,7 +216,7 @@ def test_headline_resource_leases_cover_complete_envelopes(tmp_path):
 
     for lease_hours, suite_seconds, job_minutes, cancel_minutes in (
         (24, 43200, 840, 60),
-        (48, 108000, 2100, 120),
+        (48, 129600, 2520, 120),
     ):
         tfvars = tmp_path / f"input-{lease_hours}.tfvars"
         tfvars.write_text(

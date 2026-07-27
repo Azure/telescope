@@ -109,7 +109,7 @@ steps:
       # which preserves all existing tier behavior (n=2/5/10/20). The
       # watchdog SIGTERMs (then SIGKILLs) a worker that exceeds the budget,
       # recording exit 124 — guards against pathological CL2/docker/kubectl
-      # hangs blocking the whole AzDO step until the 30h job timeout.
+      # hangs blocking the whole AzDO step until the job timeout.
       export CL2_WORKER_TIMEOUT_SECONDS="${WORKER_TIMEOUT_SECONDS:-0}"
       # Phase 4b — Scenario #4 (ClusterMesh APIServer Failure) knobs.
       export CL2_APISERVER_KILL_TARGET_CONTEXT="${APISERVER_KILL_TARGET_CONTEXT:-clustermesh-1}"
@@ -384,12 +384,13 @@ steps:
       scenario_budget_seconds() {
         local _scen="$1"
         if [ "$cluster_count" -ge 50 ]; then
+          # Event, pod-churn, and policy run in nine 12-worker waves at n=100.
           case "$_scen" in
-            propagation-probe) echo 5400 ;;
-            event-throughput) echo 3600 ;;
-            pod-churn-combined) echo 14400 ;;
+            propagation-probe) echo 7200 ;;
+            event-throughput) echo 7200 ;;
+            pod-churn-combined) echo 25200 ;;
             apiserver-failure) echo 5400 ;;
-            policy-scale) echo 7200 ;;
+            policy-scale) echo 10800 ;;
             isolation) echo 7200 ;;
             node-churn-scale|node-churn-replace|node-churn-combined) echo 10800 ;;
             upper-bound) echo 7200 ;;
@@ -408,6 +409,18 @@ steps:
             *) echo 1200 ;;
           esac
         fi
+      }
+
+      scenario_worker_timeout_seconds() {
+        local _scen="$1" _outer="$2"
+        if [ "$cluster_count" -ge 50 ]; then
+          case "$_scen" in
+            event-throughput) echo 2400; return ;;
+            pod-churn-combined) echo 7200; return ;;
+            policy-scale) echo 3600; return ;;
+          esac
+        fi
+        echo "$_outer"
       }
 
       scenario_quiet_window_seconds() {
@@ -1508,6 +1521,8 @@ steps:
           SCENARIO="${SCENARIO_LIST[$i]}"
           scenario_idx=$((i + 1))
           scenario_budget=$(scenario_budget_seconds "$SCENARIO")
+          scenario_worker_timeout=$(scenario_worker_timeout_seconds \
+            "$SCENARIO" "$scenario_budget")
           scenario_post_budget=$(scenario_post_budget_seconds "$SCENARIO")
           artifact_preservation_budget=$(scenario_artifact_budget_seconds)
           final_lifecycle_budget=$(scenario_final_lifecycle_budget_seconds)
@@ -1653,7 +1668,7 @@ steps:
             --provider "${CLOUD}" \
             --python-script-file "$PYTHON_SCRIPT_FILE" \
             --python-workdir "$(pwd)" \
-            --worker-timeout-seconds "$scenario_budget" \
+            --worker-timeout-seconds "$scenario_worker_timeout" \
             --summary-file "$worker_summary" \
             --tear-down-prometheus || scenario_rc=$?
           if [ "$scenario_rc" -eq 124 ]; then

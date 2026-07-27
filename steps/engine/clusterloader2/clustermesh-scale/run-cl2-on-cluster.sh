@@ -74,6 +74,11 @@ _cleanup_worker_state() {
     kill "${SNAPSHOT_PID}" 2>/dev/null || true
     wait "${SNAPSHOT_PID}" 2>/dev/null || true
   fi
+  if [ -n "${CL2_WORKER_CONTAINER_NAME:-}" ]; then
+    timeout --signal=TERM --kill-after=5s 30s \
+      docker rm --force "${CL2_WORKER_CONTAINER_NAME}" \
+      >/dev/null 2>&1 || true
+  fi
   # Remove this worker's PRIVATE copy of the Azure CLI cache (never the
   # host's shared ~/.azure — that's only ever read from, never written
   # here). Safe to call even when no private dir was created.
