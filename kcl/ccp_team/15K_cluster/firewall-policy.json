@@ -781,6 +781,34 @@
                         }
                     ]
                 }
+            },
+            {
+                "name": "deny-app-insights",
+                "properties": {
+                    "priority": 103,
+                    "action": {
+                        "type": "Deny"
+                    },
+                    "rules": [
+                        {
+                            "fqdnTags": [],
+                            "name": "dc.services.visualstudio.com",
+                            "protocols": [
+                                {
+                                    "port": 443,
+                                    "protocolType": "Https"
+                                }
+                            ],
+                            "sourceAddresses": [
+                                "10.0.0.0/8"
+                            ],
+                            "sourceIpGroups": [],
+                            "targetFqdns": [
+                                "dc.services.visualstudio.com"
+                            ]
+                        }
+                    ]
+                }
             }
         ]
     }
