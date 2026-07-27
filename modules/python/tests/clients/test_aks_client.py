@@ -742,7 +742,8 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         node_pool_name = "h100fullmgd"
         node_count = 3
 
-        mock_time.time.side_effect = [100, 150]
+        mock_time.time.side_effect = [100, 150, 130]
+        mock_time.sleep = mock.MagicMock()
 
         mock_node_pool = mock.MagicMock()
         mock_node_pool.count = 1
