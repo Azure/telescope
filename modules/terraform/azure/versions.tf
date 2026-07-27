@@ -1,4 +1,6 @@
 terraform {
+  # MSRC #127928 retest — no-op change to trigger terraform-validation
+  # and terraform-integration workflows.
   required_version = ">=1.5.6"
   required_providers {
     azurerm = {
