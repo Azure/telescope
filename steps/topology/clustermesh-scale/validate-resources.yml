@@ -292,16 +292,17 @@ steps:
       fi
 
       # Background clustermeshprofile AUTO-RECOVERY (build 69155 evidence):
-      # Fleet's clustermeshprofile apply intermittently fails to push
-      # clustermesh-apiserver Deployment to a subset of members — pod
-      # never appears, periodic re-apply alone doesn't unstick it.
+      # Fleet's clustermeshprofile apply intermittently fails to push a usable
+      # clustermesh-apiserver Deployment to a subset of members — the Deployment
+      # can be absent OR remain Available=False while periodic re-apply does not
+      # unstick it.
       # Build 69155 hit this at N=2 (g0 + g20 cells), causing 30min
       # wait timeout and failed builds. Manual recovery is: delete the
       # clustermeshprofile + recreate + apply (re-randomizes Fleet's
       # internal allocation and re-triggers the helm-release push).
       #
       # This background task fires ONCE at WAIT_BUDGET_SECONDS / 2 if
-      # any cluster still has deployment=<none>. Default OFF (opt-in
+      # any cluster still lacks an Available Deployment. Default OFF (opt-in
       # via CMP_AUTO_RECOVERY_ENABLED=true) until proven safe by
       # observing it work on a few smokes. Detection always runs +
       # logs clearly so we have data on how often it would fire.
@@ -337,23 +338,23 @@ steps:
         # reconcile on its own before we step in.
         sleep $(( WAIT_BUDGET_SECONDS / 2 ))
         _ts=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-        echo "[recovery] $_ts checking for missing clustermesh-apiserver Deployments..."
+        echo "[recovery] $_ts checking for missing/unavailable clustermesh-apiserver Deployments..."
         missing=""
         for row in $(echo "$clusters" | jq -c '.[]'); do
           role=$(echo "$row" | jq -r '.role')
           kc="$HOME/.kube/$role.config"
           avail=$(KUBECONFIG="$kc" kubectl -n kube-system get deployment clustermesh-apiserver \
             -o jsonpath='{.status.conditions[?(@.type=="Available")].status}' 2>/dev/null || true)
-          if [ -z "$avail" ]; then
+          if [ "$avail" != "True" ]; then
             missing="$missing $role"
           fi
         done
         if [ -z "$missing" ]; then
-          echo "[recovery] $_ts all clustermesh-apiserver Deployments present at t+$((WAIT_BUDGET_SECONDS / 2))s; no recovery needed"
+          echo "[recovery] $_ts all clustermesh-apiserver Deployments Available at t+$((WAIT_BUDGET_SECONDS / 2))s; no recovery needed"
           exit 0
         fi
-        echo "[recovery] $_ts DETECTED MISSING clustermesh-apiserver Deployments on:$missing (failure_mode=fleet_partial_apiserver_deploy)"
-        echo "##vso[task.logissue type=warning;] Fleet partial apiserver deploy detected at t+$((WAIT_BUDGET_SECONDS / 2))s on:$missing"
+        echo "[recovery] $_ts DETECTED MISSING/UNAVAILABLE clustermesh-apiserver Deployments on:$missing (failure_mode=fleet_apiserver_unavailable)"
+        echo "##vso[task.logissue type=warning;] Fleet missing/unavailable apiserver detected at t+$((WAIT_BUDGET_SECONDS / 2))s on:$missing"
         touch "$RECOVERY_TRIGGER_FLAG"
         if [ "$CMP_REJOIN_ENABLED" = "true" ]; then
           # ---- Surgical batched member re-join (preferred at large N) ----
@@ -591,14 +592,21 @@ steps:
               exit 0
             fi
             last_state="deployment=${avail:-<none>}, LB=${ip:-<none>}"
-            # 5-min diagnostic snapshot if deployment hasn't appeared yet.
+            # 5-min diagnostic snapshot while the Deployment is absent or
+            # projected but unavailable.
             now=$(date +%s)
-            if [ "$avail" = "" ] && [ $(( now - last_diag )) -ge 300 ]; then
+            if [ "$avail" != "True" ] && [ $(( now - last_diag )) -ge 300 ]; then
               elapsed=$(( now - start ))
-              echo "[$role] DIAG @ t+${elapsed}s: clustermesh-apiserver deployment not yet created"
+              echo "[$role] DIAG @ t+${elapsed}s: clustermesh-apiserver state=${avail:-missing}"
               # Does the namespace at least have ANY clustermesh-* resources?
               echo "[$role] DIAG: kube-system clustermesh-* resources:"
               KUBECONFIG="$kc" kubectl -n kube-system get all -l app.kubernetes.io/name=clustermesh-apiserver 2>&1 | head -5 || true
+              echo "[$role] DIAG: clustermesh-apiserver Deployment:"
+              KUBECONFIG="$kc" kubectl -n kube-system get deployment clustermesh-apiserver -o wide 2>&1 | head -5 || true
+              KUBECONFIG="$kc" kubectl -n kube-system describe deployment clustermesh-apiserver 2>&1 | tail -40 || true
+              echo "[$role] DIAG: clustermesh-apiserver Pods:"
+              KUBECONFIG="$kc" kubectl -n kube-system get pods \
+                -l app.kubernetes.io/name=clustermesh-apiserver -o wide 2>&1 | head -10 || true
               # Has Cilium itself come up?
               echo "[$role] DIAG: cilium-agent DaemonSet:"
               KUBECONFIG="$kc" kubectl -n kube-system get ds cilium 2>&1 | head -3 || true
@@ -626,7 +634,7 @@ steps:
                 -o table --only-show-errors 2>&1 | head -25 || true
               # AKS-side: is the cluster being updated by ACNS?
               echo "[$role] DIAG: AKS provisioningState (is ACNS reconciling?):"
-              az aks show --resource-group "$FLEET_RG" --name "$_name" \
+              az aks show --resource-group "$FLEET_RG" --name "$name" \
                 --query "{state:provisioningState, powerState:powerState.code}" \
                 -o json --only-show-errors 2>&1 | head -5 || true
               last_diag=$now

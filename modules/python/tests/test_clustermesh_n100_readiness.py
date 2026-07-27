@@ -30,6 +30,13 @@ WORKER_SCRIPT_PATH = (
     / "clustermesh-scale"
     / "run-cl2-on-cluster.sh"
 )
+VALIDATE_RESOURCES_PATH = (
+    REPOSITORY_ROOT
+    / "steps"
+    / "topology"
+    / "clustermesh-scale"
+    / "validate-resources.yml"
+)
 
 
 def test_n100_scenario_budgets_cover_probe_and_worker_waves():
@@ -107,3 +114,14 @@ def test_worker_timeout_owns_and_removes_cl2_container():
     assert "_force_remove_worker_containers([container_name], role)" in scale
     assert "CL2_WORKER_CONTAINER_NAME" in worker
     assert 'docker rm --force "${CL2_WORKER_CONTAINER_NAME}"' in worker
+
+
+def test_fleet_recovery_treats_unavailable_deployment_as_stuck():
+    validate = VALIDATE_RESOURCES_PATH.read_text(encoding="utf-8")
+
+    assert 'if [ "$avail" != "True" ]; then' in validate
+    assert "DETECTED MISSING/UNAVAILABLE" in validate
+    assert "failure_mode=fleet_apiserver_unavailable" in validate
+    assert "describe deployment clustermesh-apiserver" in validate
+    assert "get pods \\" in validate
+    assert 'az aks show --resource-group "$FLEET_RG" --name "$name"' in validate
