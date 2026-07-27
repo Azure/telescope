@@ -35,7 +35,7 @@ WORKER_SCRIPT_PATH = (
 def test_n100_scenario_budgets_cover_probe_and_worker_waves():
     execute = EXECUTE_TEMPLATE_PATH.read_text(encoding="utf-8")
     pipeline = PIPELINE_PATH.read_text(encoding="utf-8")
-    stage_start = pipeline.index("- stage: azure_canadacentral_n100_mock")
+    stage_start = pipeline.index("- stage: azure_centraluseuap_n100_mock")
     stage_end = pipeline.index("- stage: azure_eastus2euap_n1_mock_5k", stage_start)
     stage = pipeline[stage_start:stage_end]
     large_tier_start = execute.index('if [ "$cluster_count" -ge 50 ]')

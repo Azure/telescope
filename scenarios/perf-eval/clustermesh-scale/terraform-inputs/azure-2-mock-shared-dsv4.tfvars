@@ -8,16 +8,11 @@ owner          = "aks"
 
 # =============================================================================
 # ClusterMesh Scale Test — 2 cluster tier — MOCK variant
-# (SHARED-VNET, canadacentral / DSv4)
+# (SHARED-VNET / DSv4)
 #
-# Canada Central port of azure-2-mock.tfvars. Topology, Fleet membership,
-# service CIDRs, mock scale, and lifecycle scenarios are identical; only the
-# regional SKU family changes from DSv5 to DSv4.
-#
-# The original Canada Central blocker was rollout, not capacity: Fleet CRUD
-# worked but the ClusterMesh reconciler never projected clustermesh-apiserver.
-# That path was verified working on 2026-05-24, followed by a fully green
-# shared-VNet n=2 validation in build 69274.
+# Region-neutral DSv4 topology used only where the pipeline's live quota,
+# SKU-availability, and ClusterMesh lifecycle gates pass. The selected stage
+# owns the region-specific rollout evidence and telemetry naming.
 #
 # Uses the n=100 shared-VNet topology with the n=2 mock compute footprint: a THIN
 # worker pool (2 x Standard_D8s_v4) instead of real workload nodes.
@@ -134,11 +129,10 @@ aks_cli_config_list = [
     # hosts the mock-cilium-agent Pods — NOT 20 real workload nodes. At 100 mock
     # agents/cluster x ~9m CPU / ~56Mi (measured), 100 Pods pack onto 2 x D8s_v4
     # (16 vCPU / 64Gi) at 5-8% CPU. The 100 virtual nodes are KWOK objects with no
-    # real compute. SKU D8s_v4 (8 vCPU / 32GB, Cascade Lake): on subscription
-    # 37deca37 ("Azure Network Agent - Standalone Test"), the Canada Central
-    # DSv4 family has 62,000 vCPU quota. The n=2 mock steady state needs 72
-    # vCPU; its mesh-1 churnpool 3→8 scale stimulus peaks at 112 vCPU total.
-    # The thin pool hosts only mock-agent Pods + the CL2 measurement client.
+    # real compute. The n=2 mock steady state needs 72 vCPU; its mesh-1
+    # churnpool 3→8 scale stimulus peaks at 112 vCPU total. The pipeline
+    # verifies the selected region's DSv4 family and regional core quotas before
+    # provisioning.
     default_node_pool = {
       name                 = "default"
       node_count           = 2
@@ -152,8 +146,7 @@ aks_cli_config_list = [
     # the `prompool` pattern from
     # scenarios/perf-eval/cnl-azurecni-overlay-cilium/terraform-inputs/azure.tfvars.
     # D8s_v4 (8 vCPU / 32GB) is sized for our 1Gi-request Prometheus with
-    # ample headroom; matches the family swap of the default pool (62,000
-    # Canada Central DSv4 vCPU leave effectively unconstrained n=2 headroom).
+    # ample headroom; the pipeline verifies regional DSv4 capacity live.
     #
     # mesh-1 also has a small, tainted churnpool. Node churn must never target
     # the two-node default pool: those nodes host the bare mock-agent Pods and

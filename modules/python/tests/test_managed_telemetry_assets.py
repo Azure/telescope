@@ -1477,7 +1477,7 @@ def _run_rotation_configure(
         capture_output=True,
         text=True,
         env=environment,
-        timeout=30,
+        timeout=120,
     )
     manifest = None
     if manifest_path.exists():

@@ -242,6 +242,58 @@ steps:
   - script: |
       set -euo pipefail
 
+      required="${CLUSTERMESH_REQUIRED_MANAGED_CLUSTERS:-${CLUSTER_COUNT:?CLUSTER_COUNT is required}}"
+      headroom="${CLUSTERMESH_MANAGED_CLUSTER_QUOTA_HEADROOM:-0}"
+      for value in "$required" "$headroom"; do
+        if ! [[ "$value" =~ ^[0-9]+$ ]]; then
+          echo "ClusterMesh managed-cluster quota values must be non-negative integers: required=$required headroom=$headroom" >&2
+          exit 1
+        fi
+      done
+
+      actual_subscription_id=$(az account show --query id -o tsv)
+      if [[ "${actual_subscription_id,,}" != "${AZURE_SUBSCRIPTION_ID,,}" ]]; then
+        echo "Expected Azure subscription ${AZURE_SUBSCRIPTION_ID}, got ${actual_subscription_id}" >&2
+        exit 1
+      fi
+
+      usage=$(az rest --method get \
+        --url "https://management.azure.com/subscriptions/${actual_subscription_id}/providers/Microsoft.ContainerService/locations/${REGION}/usages?api-version=2024-01-01" \
+        -o json)
+      quota=$(echo "$usage" | jq -c \
+        '[.value[] | select(.name.value == "ManagedClusters")][0] // empty')
+      if [ -z "$quota" ]; then
+        echo "Unable to resolve Microsoft.ContainerService ManagedClusters quota in $REGION." >&2
+        exit 1
+      fi
+
+      current=$(echo "$quota" | jq -r '.currentValue')
+      limit=$(echo "$quota" | jq -r '.limit')
+      for value in "$current" "$limit"; do
+        if ! [[ "$value" =~ ^[0-9]+$ ]]; then
+          echo "ManagedClusters quota returned malformed usage: current=$current limit=$limit" >&2
+          exit 1
+        fi
+      done
+
+      required_with_headroom=$(( required + headroom ))
+      available=$(( limit - current ))
+      echo "ClusterMesh managed-cluster quota preflight: subscription=$actual_subscription_id region=$REGION"
+      echo "  current=$current limit=$limit available=$available"
+      echo "  run requirement=$required clusters + reserved headroom=$headroom clusters"
+      if [ "$available" -lt "$required_with_headroom" ]; then
+        echo "Insufficient ManagedClusters quota in $REGION: need $required_with_headroom available clusters, have $available (current=$current limit=$limit)." >&2
+        exit 1
+      fi
+    displayName: "Preflight ClusterMesh managed-cluster quota"
+    condition: and(startsWith(variables['SCENARIO_NAME'], 'clustermesh'),
+                   eq(variables['CLUSTERMESH_QUOTA_PREFLIGHT_ENABLED'], 'true'))
+    env:
+      REGION: ${{ parameters.region }}
+
+  - script: |
+      set -euo pipefail
+
       family_name="${CLUSTERMESH_VM_FAMILY_QUOTA_NAME:?CLUSTERMESH_VM_FAMILY_QUOTA_NAME is required}"
       required="${CLUSTERMESH_REQUIRED_FAMILY_VCPUS:?CLUSTERMESH_REQUIRED_FAMILY_VCPUS is required}"
       headroom="${CLUSTERMESH_QUOTA_HEADROOM_VCPUS:-0}"

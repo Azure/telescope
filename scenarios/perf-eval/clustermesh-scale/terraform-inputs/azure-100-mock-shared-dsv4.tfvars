@@ -5,21 +5,17 @@ owner          = "aks"
 
 # =============================================================================
 # ClusterMesh Scale Test — 100 cluster tier — MOCK variant
-# (SHARED-VNET, canadacentral / DSv4)
+# (SHARED-VNET / DSv4)
 #
-# Canada Central port of azure-100-mock-shared.tfvars: identical network, Fleet,
-# service-CIDR, mock, churnpool, and scenario shape. The only infrastructure
-# delta is Standard_D8_v3 -> Standard_D8s_v4 so the run uses Canada Central's
-# 62,000-vCPU DSv4 quota instead of Canary Dv3 capacity.
+# DSv4 port of azure-100-mock-shared.tfvars: identical network, Fleet,
+# service-CIDR, mock, churnpool, and scenario shape. Use only in a region where
+# the live ManagedClusters, DSv4, regional-core, network, telemetry, and
+# ClusterMesh gates pass.
 #
 # Each default pool remains a THIN 2 × Standard_D8s_v4 worker pool hosting only
 # mock-cilium-agent Pods. The 100 virtual nodes per cluster are simulated by
 # KWOK + mock-cilium-agent (real Cilium control plane, DryMode datapath),
 # deployed after Terraform by provision-kwok-layer.sh.
-#
-# Canada Central ClusterMesh synthesis was verified working on 2026-05-24 and
-# shared-VNet n=2 completed green in build 69274. The Canada mock full-suite n=2
-# stage remains the mandatory gate before this n=100 target.
 #
 # Per-cluster sizing:
 #   - default pool: 2 × Standard_D8s_v4 = 16 vCPU (DSv4) — hosts 100 mock-agents
@@ -27,7 +23,7 @@ owner          = "aks"
 #   - prompool:     1 × Standard_D8s_v4 = 8  vCPU (DSv4) — labeled prometheus=true.
 #   Total per cluster: 24 vCPU. N=100 base total: 2,400 vCPU.
 #   mesh-1's churnpool raises steady state to 2,496 and peak to 2,536 vCPU,
-#   only 4.1% of the 62,000-vCPU Canada Central DSv4 quota.
+#   The pipeline verifies this peak plus reserved headroom before provisioning.
 #
 # Topology (UNCHANGED from azure-100.tfvars):
 #   - 1 shared VNet 10.0.0.0/8 (packs 255 clusters cleanly).

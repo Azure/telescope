@@ -1495,16 +1495,15 @@ stages:
   # Persistent AMW/LAW resources live outside the ephemeral run RG. Clusters
   # still clean up normally after collection.
   #
-  # Canada Central is now the primary scale-test region. Its ClusterMesh
-  # reconciler was unavailable during the original migration attempt, but was
-  # verified working on 2026-05-24 and in shared-VNet build 69274. Unlike the
-  # Canary region, the 2026-07-22 migration preflight found no active Canada
-  # Central Service Health event and 62,000 free DSv4-family vCPUs.
+  # Central US EUAP is the quota-qualified fallback while East US 2 EUAP's
+  # disaster-recovery and AKS PUT incidents remain active and Canada Central's
+  # ManagedClusters limit cannot fit n=100. This n=2 lifecycle is the mandatory
+  # ClusterMesh synthesis and telemetry gate before the n=100 stage below.
   # ===========================================================================
-  - stage: azure_canadacentral_n2_mock_full_telemetry
+  - stage: azure_centraluseuap_n2_mock_full_telemetry
     dependsOn: []
     condition: always()
-    displayName: "n=2 Canada Central MOCK full telemetry smoke"
+    displayName: "n=2 Central US EUAP MOCK full telemetry gate"
     variables:
       MOCK_ACR_HOST: mockmeshshared11225.azurecr.io
       MOCK_AGENT_TAG: v26
@@ -1519,22 +1518,19 @@ stages:
       AKS_CONTROL_PLANE_METRICS_ENABLED: "true"
       AKS_CONTROL_PLANE_METRICS_REGISTER_PREVIEW: "false"
       AKS_CONTROL_PLANE_AMW_RESOURCE_GROUP: clustermesh-scale-prom-snapshots
-      AKS_CONTROL_PLANE_AMW_NAME_PREFIX: cmsh-scale-canadacentral-amw
+      AKS_CONTROL_PLANE_AMW_NAME_PREFIX: cmsh-scale-centraluseuap-amw
       AKS_AMW_ARM_BATCH_SIZE: "10"
       # Bounded generation rotation (see configure-managed-prometheus.sh): the
-      # Canada Central base prefix is initially fresh. If a later retry finds
+      # Central US EUAP base prefix is initially fresh. If a later retry finds
       # it over the 40% preflight threshold, select from a bounded ring of 8
       # "-rN" alternates instead of growing workspace names without limit.
       AKS_AMW_ROTATION_ENABLED: "true"
       AKS_AMW_ROTATION_SLOT_COUNT: "8"
-      # One workspace per cluster (default AKS_AMW_CLUSTERS_PER_WORKSPACE=1)
-      # at the default 1M ingestion limits -- explicit here for clarity, but
-      # unchanged from the AKS_AMW_* config defaults. Only 2 clusters at n=2,
-      # so per-cluster workspaces stay far under the regional
-      # Microsoft.Monitor/accounts quota (see the n=100 stage below).
+      # Use the same 2M metricsContainers ingestion surface as n=100 so this
+      # gate proves the preview child-resource API before the headline run.
       AKS_AMW_CLUSTERS_PER_WORKSPACE: "1"
-      AKS_AMW_MAX_ACTIVE_TIME_SERIES: "1000000"
-      AKS_AMW_MAX_EVENTS_PER_MINUTE: "1000000"
+      AKS_AMW_MAX_ACTIVE_TIME_SERIES: "2000000"
+      AKS_AMW_MAX_EVENTS_PER_MINUTE: "2000000"
       # audit-managed-prometheus.sh's schema-v2 (per-cluster workspace) audit
       # bounds its ThreadPoolExecutor with this many workers. Only 2 clusters
       # at n=2, so 2 workers query both clusters' workspaces in a single
@@ -1542,12 +1538,14 @@ stages:
       # keeping it low avoids any unnecessary burst against the per-cluster
       # query endpoints for this smoke-test tier.
       AKS_MANAGED_PROMETHEUS_AUDIT_WORKERS: "2"
-      AKS_CONTROL_PLANE_LAW_NAME: cmsh-scale-controlplane-law-cc
-      AKS_CONTROL_PLANE_LAW_LOCATION: canadacentral
+      AKS_CONTROL_PLANE_LAW_NAME: cmsh-scale-controlplane-law-cuseuap
+      AKS_CONTROL_PLANE_LAW_LOCATION: eastus2
       AKS_CONTROL_PLANE_LOG_RETENTION_DAYS: "30"
       AKS_PLATFORM_METRICS_TIMEOUT_SECONDS: "3600"
       CL2_ACNS_TELEMETRY_ENABLED: "true"
       CLUSTERMESH_QUOTA_PREFLIGHT_ENABLED: "true"
+      CLUSTERMESH_REQUIRED_MANAGED_CLUSTERS: "2"
+      CLUSTERMESH_MANAGED_CLUSTER_QUOTA_HEADROOM: "2"
       CLUSTERMESH_VM_FAMILY_QUOTA_NAME: standardDSv4Family
       CLUSTERMESH_REQUIRED_FAMILY_VCPUS: "112"
       CLUSTERMESH_QUOTA_HEADROOM_VCPUS: "32"
@@ -1564,7 +1562,7 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - canadacentral
+            - centraluseuap
           preserve_state_on_apply_failure: "true"
           # A bricked AKS delete must not replay the entire Terraform destroy
           # task four times. One full attempt is followed by the unconditional
@@ -1577,7 +1575,7 @@ stages:
             operation_timeout: 45m
           topology: clustermesh-scale-mock
           terraform_input_file_mapping:
-            - canadacentral: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-2-mock-shared-cc.tfvars"
+            - centraluseuap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-2-mock-shared-dsv4.tfvars"
           matrix:
             n2_mock_full_telemetry:
               cl2_prom_snapshot_enabled: "true"
@@ -1598,7 +1596,7 @@ stages:
               suite_job_timeout_buffer_seconds: 7200
               cl2_config_file: ""
               test_type: shared
-              test_type_suffix: "-mock-full-telemetry-cc"
+              test_type_suffix: "-mock-full-telemetry-cuseuap"
               mock_mode: true
               kwok_usage_cpu: "25m"
               kwok_usage_memory: "64Mi"
@@ -1789,8 +1787,8 @@ stages:
           skip_publish: false
 
   # ===========================================================================
-  # n=100 Canada Central MOCK spike — the 10k-node headline tier (100 clusters
-  # × 100 virtual nodes). SHARED-VNET (azure-100-mock-shared-cc.tfvars):
+  # n=100 Central US EUAP MOCK spike — the 10k-node headline tier (100 clusters
+  # × 100 virtual nodes). SHARED-VNET (azure-100-mock-shared-dsv4.tfvars):
   # peered topology is infeasible here (N*(N-1)=9,900 peerings). Builds on the
   # n=20 spike (build
   # 71650, 19/20 PASS, Fleet meshed all 20) plus three n=100 enablers landed
@@ -1816,8 +1814,9 @@ stages:
   # vCPU budget: 100 x (2 default + 1 prompool) x D8s_v4(8), plus the
   # mesh-1-only 12-node churnpool = 2,496 DSv4 vCPU steady-state. Node-churn
   # scales that pool to 17 nodes, so peak demand is 2,536 vCPU. The live quota
-  # preflight checks this peak plus 128 vCPU headroom against Canada Central's
-  # 62,000-vCPU DSv4 quota in the UI-selected subscription.
+  # preflight checks this peak plus 128 vCPU headroom against the selected
+  # region's live DSv4 and regional-core quotas. A separate preflight requires
+  # 100 free ManagedClusters slots plus five reserved slots.
   #
   # timeout 2520m (42h): this pool is self-hosted, for which Azure DevOps
   # supports arbitrarily long jobs (timeout 0 means unlimited). The scenario
@@ -1825,10 +1824,10 @@ stages:
   # tail prevents Azure DevOps from killing telemetry, uploads, or destroy at
   # the exact instant the suite budget expires.
   # ===========================================================================
-  - stage: azure_canadacentral_n100_mock
+  - stage: azure_centraluseuap_n100_mock
     dependsOn: []
     condition: always()
-    displayName: "n=100 Canada Central MOCK spike (100 virtual nodes/cluster x 100 = 10k)"
+    displayName: "n=100 Central US EUAP MOCK spike (100 virtual nodes/cluster x 100 = 10k)"
     variables:
       MOCK_ACR_HOST: mockmeshshared11225.azurecr.io
       MOCK_AGENT_TAG: v26
@@ -1846,7 +1845,7 @@ stages:
       AKS_CONTROL_PLANE_METRICS_ENABLED: "true"
       AKS_CONTROL_PLANE_METRICS_REGISTER_PREVIEW: "false"
       AKS_CONTROL_PLANE_AMW_RESOURCE_GROUP: clustermesh-scale-prom-snapshots
-      AKS_CONTROL_PLANE_AMW_NAME_PREFIX: cmsh-scale-canadacentral-n100-amw
+      AKS_CONTROL_PLANE_AMW_NAME_PREFIX: cmsh-scale-centraluseuap-n100-amw
       AKS_AMW_ARM_BATCH_SIZE: "10"
       # Azure Monitor allows only 100 Microsoft.Monitor/accounts per
       # subscription per region (AKS_AMW_REGIONAL_WORKSPACE_LIMIT default).
@@ -1856,11 +1855,10 @@ stages:
       # counted too. Instead,
       # AKS_AMW_CLUSTERS_PER_WORKSPACE=2 shards the 100 clusters (sorted by
       # numeric mesh role) into 100/2 = 50 "shard-NNN" workspaces under the
-      # cmsh-scale-canadacentral-n100-amw prefix -- distinct from the n=2
+      # cmsh-scale-centraluseuap-n100-amw prefix -- distinct from the n=2
       # full-telemetry stage's base prefix so the two tiers never share a
-      # workspace. Canada Central had zero AMWs at migration time; after the
-      # first n=2 base generation and n=100 run, the expected regional total is
-      # 2 + 50 = 52, comfortably under the 100 limit.
+      # workspace. Central US EUAP had zero AMWs at the readiness audit; after
+      # the n=2 gate and n=100 run, the expected regional total is 52.
       # configure-managed-prometheus.sh still fails closed before creation
       # against the live regional count.
       #
@@ -1890,11 +1888,13 @@ stages:
       # wall-clock time at this scale.
       AKS_MANAGED_PROMETHEUS_AUDIT_WORKERS: "10"
       AKS_CONTROL_PLANE_METRICS_CONCURRENCY: "5"
-      AKS_CONTROL_PLANE_LAW_NAME: cmsh-scale-controlplane-law-cc
-      AKS_CONTROL_PLANE_LAW_LOCATION: canadacentral
+      AKS_CONTROL_PLANE_LAW_NAME: cmsh-scale-controlplane-law-cuseuap
+      AKS_CONTROL_PLANE_LAW_LOCATION: eastus2
       AKS_CONTROL_PLANE_LOG_RETENTION_DAYS: "30"
       AKS_PLATFORM_METRICS_TIMEOUT_SECONDS: "3600"
       CLUSTERMESH_QUOTA_PREFLIGHT_ENABLED: "true"
+      CLUSTERMESH_REQUIRED_MANAGED_CLUSTERS: "100"
+      CLUSTERMESH_MANAGED_CLUSTER_QUOTA_HEADROOM: "5"
       CLUSTERMESH_VM_FAMILY_QUOTA_NAME: standardDSv4Family
       CLUSTERMESH_REQUIRED_FAMILY_VCPUS: "2536"
       CLUSTERMESH_QUOTA_HEADROOM_VCPUS: "128"
@@ -1940,7 +1940,7 @@ stages:
         parameters:
           cloud: azure
           regions:
-            - canadacentral
+            - centraluseuap
           preserve_state_on_apply_failure: "true"
           # Keep the protected finalization reserve for evidence and RG
           # cleanup rather than multiplying one slow Azure destroy by four.
@@ -1952,7 +1952,7 @@ stages:
             operation_timeout: 90m
           topology: clustermesh-scale-mock
           terraform_input_file_mapping:
-            - canadacentral: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-100-mock-shared-cc.tfvars"
+            - centraluseuap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-100-mock-shared-dsv4.tfvars"
           matrix:
             n100_mock:
               cl2_prom_snapshot_enabled: "true"
@@ -1974,7 +1974,7 @@ stages:
               cl2_config_file: ""
               cl2_max_concurrent: 12
               test_type: shared
-              test_type_suffix: "-mock-cc"
+              test_type_suffix: "-mock-cuseuap"
               mock_mode: true
               kwok_usage_cpu: "25m"
               kwok_usage_memory: "64Mi"
