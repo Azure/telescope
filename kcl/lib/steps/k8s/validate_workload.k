@@ -69,40 +69,37 @@ check_controllers() {
   done
 }
 
-# check_pods POD_LIST
-# Check each pod in a whitespace-separated list: status is Running (Ready
-# condition True, all containers ready) or Succeeded, then scan its logs for
-# errorPatterns. Fails if the list is empty.
+# check_pods PODS_JSON_FILE
+# PODS_JSON_FILE is a file holding a `kubectl get pods -o json` document with
+# exactly the pods to check. For each: status is Running (Ready condition True,
+# all containers ready) or Succeeded, then scan its logs for errorPatterns.
+# Every field is read from the file, so the pod view is a single consistent
+# snapshot the caller fetched in one API call. Fails if the file has no pods.
 check_pods() {
-  local pods=$1
-  if [ -z "$pods" ]; then
+  local pods_file=$1
+  local names=$(jq -r '.items[].metadata.name' "$pods_file")
+  if [ -z "$names" ]; then
     fail "no pods found for ${desc}"
     return
   fi
   local pod
-  for pod in $pods; do
+  for pod in $names; do
     echo "::: checking pod ${namespace}/$pod"
-    # The pod list is a snapshot; a pod may be deleted before we inspect it
-    # (e.g. rollout, eviction, completed Job pod). A gone pod is not a failure,
-    # so skip it instead of reporting an empty phase.
-    if ! kubectl -n "${namespace}" get pod "$pod" -o name >/dev/null 2>&1; then
-      echo "pod ${namespace}/$pod no longer exists; skipping"
-      continue
-    fi
-    local phase=$(kubectl -n "${namespace}" get pod "$pod" -o jsonpath='{.status.phase}' 2>/dev/null)
+    local pod_json=$(jq -c --arg n "$pod" '.items[] | select(.metadata.name==$n)' "$pods_file")
+    local phase=$(printf '%s' "$pod_json" | jq -r '.status.phase // ""')
     case "$phase" in
       Succeeded)
         # Finished cleanly; skip readiness checks, still scan logs below.
         ;;
       Running)
-        local ready_cond=$(kubectl -n "${namespace}" get pod "$pod" \\
-          -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}')
+        local ready_cond=$(printf '%s' "$pod_json" \\
+          | jq -r '.status.conditions[]? | select(.type=="Ready") | .status')
         if [ "$ready_cond" != "True" ]; then
           fail "pod ${namespace}/$pod Ready condition=$ready_cond (expected True)"
           continue
         fi
-        local not_ready=$(kubectl -n "${namespace}" get pod "$pod" \\
-          -o jsonpath='{range .status.containerStatuses[?(@.ready==false)]}{.name} {end}')
+        local not_ready=$(printf '%s' "$pod_json" \\
+          | jq -r '[.status.containerStatuses[]? | select(.ready==false) | .name] | join(" ")')
         if [ -n "$not_ready" ]; then
           fail "pod ${namespace}/$pod has not-ready containers: $not_ready"
           continue
@@ -135,15 +132,26 @@ check_controller_pods() {
     fail "$kind ${namespace}/$name has no matchLabels selector (matchExpressions not supported)"
     return
   fi
-  check_pods "$(kubectl -n "${namespace}" get pods -l "$selector" -o jsonpath='{.items[*].metadata.name}')"
+  # Dump only this controller's pods (label-filtered) to a file in one call,
+  # then let check_pods read it back (avoids passing a huge JSON blob as an arg).
+  kubectl -n "${namespace}" get pods -l "$selector" -o json > "$PODS_JSON_FILE"
+  check_pods "$PODS_JSON_FILE"
 }
+
+# Reusable temp file for the pods snapshot: each check below writes only the
+# pods it needs into it, then reads back from the file. Using a file avoids
+# passing a potentially huge JSON blob through shell command substitution.
+PODS_JSON_FILE=$(mktemp)
+trap 'rm -f "$PODS_JSON_FILE"' EXIT
 
 case "${kind}" in
   "*")
     check_controllers deployment  '{.spec.replicas}'                 '{.status.readyReplicas}'
     check_controllers statefulset '{.spec.replicas}'                 '{.status.readyReplicas}'
     check_controllers daemonset   '{.status.desiredNumberScheduled}' '{.status.numberReady}'
-    check_pods "$(kubectl -n "${namespace}" get pods -o jsonpath='{.items[*].metadata.name}')"
+    # Wildcard genuinely needs every pod in the namespace.
+    kubectl -n "${namespace}" get pods -o json > "$PODS_JSON_FILE"
+    check_pods "$PODS_JSON_FILE"
     ;;
   deployment|statefulset)
     check_controllers "${kind}" '{.spec.replicas}' '{.status.readyReplicas}' "${name}"
