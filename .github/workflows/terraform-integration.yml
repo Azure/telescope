@@ -31,7 +31,6 @@ jobs:
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
           persist-credentials: false
 
       - name: Setup Terraform
@@ -63,6 +62,9 @@ jobs:
       - name: Compute scenarios to plan
         id: scenarios
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
           FULL_MATRIX_QUERY: |
             find "$GITHUB_WORKSPACE/scenarios/" -name '*.tfvars' | grep 'azure' | awk -F'/' '{
               split($11, file_name, ".");
@@ -76,8 +78,12 @@ jobs:
           set -eu
           matrix_array=$(bash -c "$FULL_MATRIX_QUERY")
 
-          file_changes=$(git diff --name-only -r origin/main HEAD || true)
-          echo "PR file changes: $file_changes"
+          # Ask the GitHub API for the PR's changed files. This avoids depending
+          # on git remote refs (fork PRs don't have origin/main pointing at the
+          # base branch), and doesn't require fetch-depth: 0.
+          file_changes=$(gh api --paginate "/repos/$REPO/pulls/$PR_NUMBER/files" --jq '.[].filename')
+          echo "PR file changes:"
+          echo "$file_changes"
 
           if [ -z "$file_changes" ]; then
             echo "scenarios=[]" >> "$GITHUB_OUTPUT"
