@@ -1,0 +1,141 @@
+name: AKS Pod Sandboxing Pod Startup
+pool: AKS-Telescope-Airlock
+stages:
+- stage: measure
+  displayName: Kata Pod Startup
+  jobs:
+  - job: measure_pod_startup
+    displayName: Measure pause pod startup with Kata sandboxing
+    timeoutInMinutes: 90
+    steps:
+    - bash: |2
+
+        set -eo pipefail
+
+        job_id="$(System.JobId)"
+        RUN_ID=$(Build.BuildId)-${job_id:0:8}
+        echo "Run ID: $RUN_ID"
+
+        echo "##vso[task.setvariable variable=RUN_ID]$RUN_ID"
+      displayName: Set Run ID
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az account set --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219"
+          az config set defaults.location="uksouth"
+          az account show
+      displayName: Login to Azure
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |+
+          set -exo pipefail
+
+          az group create \
+            --name "$(RUN_ID)" \
+            --location "uksouth" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+
+      displayName: Create resource group in uksouth (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az aks create \
+            --name "kata-pod-startup" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --location "uksouth" \
+            --kubernetes-version "1.36" \
+            --os-sku AzureLinux \
+            --workload-runtime KataVmIsolation \
+            --node-count 3 \
+            --node-vm-size Standard_D4s_v3 \
+            --network-plugin azure \
+            --tier standard
+      displayName: Create AKS cluster
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az aks get-credentials \
+            --name "kata-pod-startup" \
+            --resource-group "$(RUN_ID)" \
+            --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" \
+            --overwrite-existing \
+            -f $(Pipeline.Workspace)/kubeconfig
+      displayName: Get credentials for kata-pod-startup
+    - bash: |-
+        set -exo pipefail
+        wget -q https://kcl-lang.io/script/install-cli.sh -O - | /bin/bash
+      displayName: Install KCL
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          export KUBECONFIG="$(Pipeline.Workspace)/kubeconfig"
+          export POD_NAME="pause-sandbox"
+          export CLUSTER="kata-pod-startup"
+          export RUNTIME_CLASS="kata-vm-isolation"
+          export NODE_SKU="Standard_D4s_v3"
+          export K8S_VERSION="1.36"
+          export PAUSE_IMAGE="mcr.microsoft.com/oss/kubernetes/pause:3.6"
+
+          MANIFEST="$(Pipeline.Workspace)/pod.yaml"
+
+          kcl run "$(Build.SourcesDirectory)/kcl/aks_pod_sandboxing/pod.k" -S pod \
+            -D podName="pause-sandbox" \
+            -D runtimeClass="kata-vm-isolation" \
+            -D image="mcr.microsoft.com/oss/kubernetes/pause:3.6" \
+            -o "$MANIFEST"
+
+          kubectl apply -f "$MANIFEST"
+          kubectl wait --for=condition=Ready pod/pause-sandbox --timeout=10m
+          python3 "$(Build.SourcesDirectory)/kcl/aks_pod_sandboxing/measure.py"
+      displayName: Schedule pause pod and measure startup
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az storage blob upload \
+            --account-name "telescopev2" \
+            --subscription "137f0351-8235-42a6-ac7a-6b46be2d21c7" \
+            --container-name "aks" \
+            --name "$(RUN_ID)/run-result.json" \
+            --file /tmp/run-result.json \
+            --auth-mode key
+      displayName: Upload result to storage account
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: Azure-for-Telescope-internal
+        scriptType: bash
+        scriptLocation: inlineScript
+        inlineScript: |
+          set -exo pipefail
+
+          az group delete --name "$(RUN_ID)" --subscription "b8ceb4e5-f05b-4562-a9f5-14acb1f24219" --yes
+      condition: always()
+      displayName: Delete resource group (b8ceb4e5-f05b-4562-a9f5-14acb1f24219)
