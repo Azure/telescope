@@ -191,7 +191,9 @@ output = ap.Pipeline {
                     "${CLUSTER_NAME}-firewall",
                     VNET_NAME,
                     "nodes",
-                    "$(Pipeline.Workspace)/s/kcl/ccp_team/15K_cluster/firewall-policy.json"
+                    "$(Pipeline.Workspace)/s/kcl/ccp_team/15K_cluster/firewall-policy.json",
+                    minCapacity="45",
+                    maxCapacity="45"
                 ),
                 azure.AzCli(
                     SERVICE_CONNECTION,

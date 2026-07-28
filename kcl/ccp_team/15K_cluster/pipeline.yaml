@@ -239,6 +239,8 @@ jobs:
           --name "$(cluster_name)-firewall" \
           --location "$(location)" \
           --enable-dns-proxy true \
+          --min-capacity 45 \
+          --max-capacity 45 \
           --subscription "$(subscription_id)"
 
         az network firewall ip-config create \
