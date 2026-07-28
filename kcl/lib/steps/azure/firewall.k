@@ -1,6 +1,8 @@
 import azure_pipelines.ap.steps
 
-SetupFirewallForSubnet = lambda serviceConnection: str, subscription: str, resourceGroup: str, location: str, name: str, vnetName: str, subnetName: str, policyPath: str = "" -> steps.Step {
+SetupFirewallForSubnet = lambda serviceConnection: str, subscription: str, resourceGroup: str, location: str, name: str, vnetName: str, subnetName: str, policyPath: str = "", minCapacity: str = "", maxCapacity: str = "" -> steps.Step {
+    minCapacityArg = "  --min-capacity ${minCapacity} \\\n" if minCapacity else ""
+    maxCapacityArg = "  --max-capacity ${maxCapacity} \\\n" if maxCapacity else ""
     script = """
 az extension add --name azure-firewall
 
@@ -16,7 +18,7 @@ az network firewall create \\
   --name "${name}" \\
   --location "${location}" \\
   --enable-dns-proxy true \\
-  --subscription "${subscription}"
+${minCapacityArg}${maxCapacityArg}  --subscription "${subscription}"
 
 az network firewall ip-config create \\
   --resource-group "${resourceGroup}" \\
