@@ -28,6 +28,7 @@ jobs:
 
   terraform-test:
     needs: authorize
+    environment: terraform-privileged
     permissions:
       contents: read
       id-token: write
@@ -48,7 +49,9 @@ jobs:
 
       - name: Terraform AWS Test
         working-directory: ${{ env.TERRAFORM_AWS_MODULES_DIR }}
-        run: terraform test
+        run: |
+          terraform init
+          terraform test
 
       - name: Azure login
         uses: azure/login@v2
@@ -59,7 +62,9 @@ jobs:
 
       - name: Terraform Azure Test
         working-directory: ${{ env.TERRAFORM_AZURE_MODULES_DIR }}
-        run: terraform test
+        run: |
+          terraform init
+          terraform test
         env:
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
@@ -126,6 +131,7 @@ jobs:
 
   terraform-plan:
     needs: [authorize, setup-matrix]
+    environment: terraform-privileged
     permissions:
       id-token: write
       contents: read
