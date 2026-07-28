@@ -19,15 +19,7 @@ env:
   TERRAFORM_AWS_MODULES_DIR: modules/terraform/aws
 
 jobs:
-  authorize:
-    environment: terraform-privileged
-    runs-on: ubuntu-latest
-    steps:
-      - name: Authorized
-        run: 'echo "Authorized PR ${{ github.event.pull_request.number }} head=${{ github.event.pull_request.head.sha }}"'
-
   terraform-test:
-    needs: authorize
     environment: terraform-privileged
     permissions:
       contents: read
@@ -37,7 +29,6 @@ jobs:
       - name: Checkout PR head
         uses: actions/checkout@v4
         with:
-          # Only checked out AFTER `authorize` completes.
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
@@ -69,7 +60,6 @@ jobs:
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
   setup-matrix:
-    needs: authorize
     runs-on: ubuntu-latest
     name: Setup terraform plan matrix for test scenarios
     steps:
@@ -130,7 +120,7 @@ jobs:
       matrix-combinations: ${{ steps.setup-matrix-scenarios.outputs.matrix_combinations }}
 
   terraform-plan:
-    needs: [authorize, setup-matrix]
+    needs: setup-matrix
     environment: terraform-privileged
     permissions:
       id-token: write
@@ -138,7 +128,6 @@ jobs:
     if: ${{ needs.setup-matrix.result == 'success' && needs.setup-matrix.outputs.matrix-combinations != '' && needs.setup-matrix.outputs.matrix-combinations != 'null' }}
     strategy:
       fail-fast: false
-      max-parallel: 3
       matrix: ${{ fromJson(needs.setup-matrix.outputs.matrix-combinations) }}
     runs-on: ubuntu-latest
     name: ${{ matrix.cloud }}-${{ matrix.scenario_type }}-${{ matrix.scenario_name }} ${{ matrix.region }}
