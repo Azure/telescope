@@ -63,8 +63,9 @@ steps:
       echo "Install Ubuntu packages"
       # Recover from interrupted or broken package installations. The '|| true' ensures the script continues even if dpkg returns a non-zero exit code.
       sudo dpkg --configure -a || true
-      sudo apt-get update
-      sudo apt-get -y install bc netcat
+      # Wait (rather than fail) if unattended-upgrades holds the dpkg lock, instead of erroring out immediately.
+      sudo apt-get -o DPkg::Lock::Timeout=120 update
+      sudo apt-get -o DPkg::Lock::Timeout=120 -y install bc netcat
     displayName: "Install Dependencies"
 
   - template: /steps/cloud/${{ parameters.cloud }}/login.yml
