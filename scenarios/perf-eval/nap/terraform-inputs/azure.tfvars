@@ -49,6 +49,14 @@ aks_cli_config_list = [
         value = "CriticalAddonsOnly=true:NoSchedule"
       },
       {
+        name  = "network-plugin-mode"
+        value = "overlay"
+      },
+      {
+        name  = "network-dataplane"
+        value = "cilium"
+      },
+      {
         name  = "aks-custom-headers"
         value = "AKSHTTPCustomFeatures=Microsoft.ContainerService/AKSHTTPCustomFeatures,BootstrappingMethodTestOnly=bootstrappingclient"
       }
