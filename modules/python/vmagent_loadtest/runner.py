@@ -88,10 +88,11 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
                     nodepool: str = DEFAULT_NODEPOOL,
                     run_label: str = "",
                     skip_diagnostics: bool = True,
-                    rate_limit: int = 524288,
-                    max_block_size: int = 524288,
-                    flush_interval: str = "30s",
+                    rate_limit: int = 2097152,
+                    max_block_size: int = 8388608,
+                    flush_interval: str = "1s",
                     queues: int = 8,
+                    max_rows_per_block: int = 10000,
                     measure_drain: bool = False,
                     drain_observe_seconds: int = 120) -> dict:
     ns_prefix = f"loadtest-{run_label}-" if run_label else "loadtest-"
@@ -199,7 +200,8 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
                    rate_limit=rate_limit,
                    max_block_size=max_block_size,
                    flush_interval=flush_interval,
-                   queues=queues)
+                   queues=queues,
+                   max_rows_per_block=max_rows_per_block)
     tier_start_ts = time.time()  # ADX time-series window starts here
     wall_start_ts = tier_start_ts
 

@@ -541,7 +541,7 @@ data:
         dns_sd_configs:
           - names: ["konnectivity-server-metrics"]
             type: A
-            port: 8095
+            port: 8096
 
       - job_name: vmagent-self
         scrape_interval: 15s

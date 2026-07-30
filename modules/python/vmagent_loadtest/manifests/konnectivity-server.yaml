@@ -1,6 +1,12 @@
 # Konnectivity Server — deployed on the "control plane" cluster
 # One per test namespace, with a LoadBalancer service for agent connectivity.
 #
+# Mirrors the real standalone konnectivity-server-synth chart
+# (aks-rp/ccp/konnectivity-server-synth) that replaced the old kube-apiserver
+# sidecar ("apiserver/konnectivity split", gated by enable-konnectivity-server-synth
+# + route-to-konnectivity-server-deployment): admin/metrics on :8096,
+# graceful-shutdown-timeout, and restricted cipher suites.
+#
 # Template variables (replaced by orchestration script):
 #   __NAMESPACE__       — test namespace (e.g., loadtest-150)
 #   __SERVER_IMAGE__    — konnectivity server image
@@ -51,10 +57,12 @@ spec:
             - --proxy-strategies=default,destHost,defaultRoute
             - --keepalive-time=30s
             - --enable-profiling
-            - --admin-port=8095
+            - --admin-port=8096
             - --admin-bind-address=0.0.0.0
-            # v=0: verbose logging (v=2) at 10k+ CONNECTs/s burns CPU+IO on the
-            # component under load. Raise only when debugging dial failures.
+            # Matches the real standalone konnectivity-server-synth chart: graceful
+            # drain on replica-count changes/restarts, restricted cipher suites.
+            - --graceful-shutdown-timeout=15s
+            - --cipher-suites=TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
             - --v=2
           ports:
             - name: agent
@@ -64,7 +72,7 @@ spec:
             - name: tunnel
               containerPort: 8083
             - name: metrics
-              containerPort: 8095
+              containerPort: 8096
           livenessProbe:
             httpGet:
               path: /healthz
@@ -106,8 +114,8 @@ spec:
       port: 8083
       targetPort: 8083
     - name: metrics
-      port: 8095
-      targetPort: 8095
+      port: 8096
+      targetPort: 8096
 ---
 # Headless Service: DNS returns one A record per pod so vmagent's
 # dns_sd_configs sees every replica individually (the LB Service above
@@ -125,5 +133,5 @@ spec:
     app: konnectivity-server
   ports:
     - name: metrics
-      port: 8095
-      targetPort: 8095
+      port: 8096
+      targetPort: 8096

@@ -299,13 +299,15 @@ def deploy_vmagent(kubeconfig: str, namespace: str, dp_api_server: str,
                    vmagent_resources: dict | None = None,
                    proxy_resources: dict | None = None,
                    replicas: int = 1,
-                   rate_limit: int = 524288,
-                   max_block_size: int = 524288,
-                   flush_interval: str = "30s",
-                   queues: int = 8) -> None:
+                   rate_limit: int = 2097152,
+                   max_block_size: int = 8388608,
+                   flush_interval: str = "1s",
+                   queues: int = 8,
+                   max_rows_per_block: int = 10000) -> None:
     log.info("Deploying VMAgent in %s (SD via %s, %d shard(s), rateLimit=%d, maxBlockSize=%d, "
-             "flushInterval=%s, queues=%d)...",
-             namespace, dp_api_server, replicas, rate_limit, max_block_size, flush_interval, queues)
+             "flushInterval=%s, queues=%d, maxRowsPerBlock=%d)...",
+             namespace, dp_api_server, replicas, rate_limit, max_block_size, flush_interval,
+             queues, max_rows_per_block)
     vm = vmagent_resources or {"cpu_req": "500m", "mem_req": "1Gi",
                                "cpu_lim": "2", "mem_lim": "4Gi"}
     px = proxy_resources or {"cpu_req": "500m", "mem_req": "256Mi",
@@ -334,6 +336,7 @@ def deploy_vmagent(kubeconfig: str, namespace: str, dp_api_server: str,
         "__VMAGENT_MAX_BLOCK_SIZE__": str(max_block_size),
         "__VMAGENT_FLUSH_INTERVAL__": flush_interval,
         "__VMAGENT_QUEUES__": str(queues),
+        "__VMAGENT_MAX_ROWS_PER_BLOCK__": str(max_rows_per_block),
     }
     manifest = render_template(MANIFEST_DIR / "vmagent.yaml", replacements)
     kubectl_apply(kubeconfig, manifest)

@@ -66,7 +66,7 @@ def kubectl_apply(kubeconfig: str, manifest_text: str) -> None:
 
 # When True, PortForward ignores the caller-supplied local_port and binds an
 # ephemeral free port instead. Set by the parallel orchestrator so concurrent
-# tier runs don't collide on hardcoded ports (e.g. 18095, 18428, 18429).
+# tier runs don't collide on hardcoded ports (e.g. 18096, 18428, 18429).
 _AUTO_PORT_FORWARD = False
 
 

@@ -85,19 +85,31 @@ def main() -> None:
                         help=f"DP cluster nodepool name (default: {DEFAULT_NODEPOOL})")
     parser.add_argument("--max-retries", type=int, default=2,
                         help="Max retries per tier on failure (default: 2)")
-    parser.add_argument("--rate-limit", type=int, default=524288,
+    parser.add_argument("--rate-limit", type=int, default=2097152,
                         help="-remoteWrite.rateLimit bytes/sec passed to vmagent "
-                             "(default: 524288 = .5 MiB/s, matches prod default)")
-    parser.add_argument("--max-block-size", type=int, default=524288,
+                             "(default: 2097152 = 2 MiB/s, matches prod since the "
+                             "2026-07-28 4x bump; prod's own 2026-07-29 2k-node test "
+                             "found even this insufficient — raise further to validate)")
+    parser.add_argument("--max-block-size", type=int, default=8388608,
                         help="-remoteWrite.maxBlockSize bytes passed to vmagent "
-                             "(default: 524288 = .5 MiB, matches prod default)")
-    parser.add_argument("--flush-interval", type=str, default="30s",
+                             "(default: 8388608 = 8 MiB, VictoriaMetrics stock default; "
+                             "prod is still pinned at the old 524288 = .5 MiB — this is "
+                             "a pending/unvalidated recommendation this load test exists "
+                             "to confirm)")
+    parser.add_argument("--flush-interval", type=str, default="1s",
                         help="-remoteWrite.flushInterval duration passed to vmagent "
-                             "(default: 30s, matches prod default; vmagent's own "
-                             "upstream default is 1s)")
+                             "(default: 1s, matches prod since the 2026-07-28 bump; "
+                             "was 30s before)")
     parser.add_argument("--queues", type=int, default=8,
                         help="-remoteWrite.queues count passed to vmagent "
-                             "(default: 8, matches prod default)")
+                             "(default: 8; prod does NOT set this flag today, so it "
+                             "silently defaults to ~2xGOMAXPROCS (~4) — prod's 2k-node "
+                             "test recommends an explicit 8-16, still unvalidated)")
+    parser.add_argument("--max-rows-per-block", type=int, default=10000,
+                        help="-remoteWrite.maxRowsPerBlock passed to vmagent "
+                             "(default: 10000, VictoriaMetrics stock default; prod "
+                             "doesn't set this either — VM guidance is to raise it "
+                             "alongside --max-block-size, still unvalidated)")
     parser.add_argument("--measure-drain", action="store_true",
                         help="After metrics collection, poll "
                              "vmagent_remotewrite_pending_data_bytes over a fixed "
@@ -224,6 +236,7 @@ def main() -> None:
             max_block_size=args.max_block_size,
             flush_interval=args.flush_interval,
             queues=args.queues,
+            max_rows_per_block=args.max_rows_per_block,
             measure_drain=args.measure_drain,
             drain_observe_seconds=args.drain_observe_seconds,
         )
@@ -249,6 +262,7 @@ def main() -> None:
             max_block_size=args.max_block_size,
             flush_interval=args.flush_interval,
             queues=args.queues,
+            max_rows_per_block=args.max_rows_per_block,
             measure_drain=args.measure_drain,
             drain_observe_seconds=args.drain_observe_seconds,
         )
@@ -326,7 +340,7 @@ def main() -> None:
                                  timeout_minutes=45)
 
         # Make every PortForward in worker threads bind a free ephemeral port
-        # instead of the hardcoded 18095/18428/18429 → no cross-tier collisions.
+        # instead of the hardcoded 18096/18428/18429 → no cross-tier collisions.
         _utils._AUTO_PORT_FORWARD = True
 
         from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -354,6 +368,7 @@ def main() -> None:
                     max_block_size=args.max_block_size,
                     flush_interval=args.flush_interval,
                     queues=args.queues,
+                    max_rows_per_block=args.max_rows_per_block,
                     measure_drain=args.measure_drain,
                     drain_observe_seconds=args.drain_observe_seconds,
                 )
@@ -411,6 +426,7 @@ def main() -> None:
                         max_block_size=args.max_block_size,
                         flush_interval=args.flush_interval,
                         queues=args.queues,
+                        max_rows_per_block=args.max_rows_per_block,
                         measure_drain=args.measure_drain,
                         drain_observe_seconds=args.drain_observe_seconds,
                     )

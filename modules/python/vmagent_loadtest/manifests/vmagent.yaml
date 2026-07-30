@@ -11,10 +11,11 @@
 #   __VMAGENT_CPU_LIM__ / __VMAGENT_MEM_LIM__ — vmagent limits (per shard)
 #   __PROXY_CPU_REQ__   / __PROXY_MEM_REQ__   — vmagent-proxy requests (per shard)
 #   __PROXY_CPU_LIM__   / __PROXY_MEM_LIM__   — vmagent-proxy limits (per shard)
-#   __VMAGENT_RATE_LIMIT__      — -remoteWrite.rateLimit bytes/sec (prod default: 524288 = .5 MiB/s)
-#   __VMAGENT_MAX_BLOCK_SIZE__  — -remoteWrite.maxBlockSize bytes (prod default: 524288 = .5 MiB)
-#   __VMAGENT_FLUSH_INTERVAL__  — -remoteWrite.flushInterval duration (prod default: 30s; vmagent's own default is 1s)
-#   __VMAGENT_QUEUES__          — -remoteWrite.queues count (prod default: 8)
+#   __VMAGENT_RATE_LIMIT__      — -remoteWrite.rateLimit bytes/sec (prod default since 2026-07-28: 2097152 = 2 MiB/s; prod's own 2k-node test found this still insufficient)
+#   __VMAGENT_MAX_BLOCK_SIZE__  — -remoteWrite.maxBlockSize bytes (prod still pinned at 524288 = .5 MiB; 8388608 = 8 MiB VM stock default is the pending/unvalidated recommendation)
+#   __VMAGENT_MAX_ROWS_PER_BLOCK__ — -remoteWrite.maxRowsPerBlock (prod doesn't set this; VM stock default 10000 — raise alongside maxBlockSize per VM guidance)
+#   __VMAGENT_FLUSH_INTERVAL__  — -remoteWrite.flushInterval duration (prod default since 2026-07-28: 1s, was 30s)
+#   __VMAGENT_QUEUES__          — -remoteWrite.queues count (prod does NOT set this flag — silently defaults to ~2xGOMAXPROCS; explicit 8-16 is the pending/unvalidated recommendation)
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -265,11 +266,14 @@ spec:
             - -promscrape.discovery.concurrency=200
             - -memory.allowedPercent=80
             - -remoteWrite.url=http://vmsingle:8428/api/v1/write
+            - -remoteWrite.label=cluster_id=__NAMESPACE__
+            - -remoteWrite.showURL=true
             - -remoteWrite.flushInterval=__VMAGENT_FLUSH_INTERVAL__
             - -remoteWrite.sendTimeout=10s
             - -remoteWrite.maxDiskUsagePerURL=1073741824
             - -remoteWrite.rateLimit=__VMAGENT_RATE_LIMIT__
             - -remoteWrite.maxBlockSize=__VMAGENT_MAX_BLOCK_SIZE__
+            - -remoteWrite.maxRowsPerBlock=__VMAGENT_MAX_ROWS_PER_BLOCK__
             - -remoteWrite.queues=__VMAGENT_QUEUES__
             - -remoteWrite.tmpDataPath=/tmp/vmagent-remotewrite-data
             - -remoteWrite.dropSamplesOnOverload=true

@@ -321,7 +321,7 @@ def _log_down_target_errors(active: list[dict]) -> None:
 def _log_konnectivity_connections(cp_kubeconfig: str, namespace: str) -> None:
     """Log konnectivity-server connection stats from its /metrics endpoint."""
     try:
-        with PortForward(cp_kubeconfig, namespace, "deployment/konnectivity-server", 8095, 18095) as pf:
+        with PortForward(cp_kubeconfig, namespace, "deployment/konnectivity-server", 8096, 18096) as pf:
             resp = retry_request(f"{pf.url}/metrics")
             text = resp.text
             ready = extract_prom_value(text, r"^konnectivity_network_proxy_server_ready_backend_connections\s")
@@ -511,9 +511,9 @@ def collect_metrics(cp_kubeconfig: str, dp_kubeconfig: str,
                     "vmagent_remotewrite_pending_data_bytes"]:
             measurements.setdefault(key, 0)
 
-    # --- Konnectivity server metrics (port 8095) ---
+    # --- Konnectivity server metrics (port 8096) ---
     try:
-        with PortForward(cp_kubeconfig, namespace, "deployment/konnectivity-server", 8095, 18095) as pf:
+        with PortForward(cp_kubeconfig, namespace, "deployment/konnectivity-server", 8096, 18096) as pf:
             konn_resp = retry_request(f"{pf.url}/metrics")
             konn_metrics = konn_resp.text
 
@@ -1050,7 +1050,7 @@ def collect_pprof(cp_kubeconfig: str, dp_kubeconfig: str,
                   label: str, cpu_seconds: int = 30) -> dict:
     """Collect pprof profiles from konn-server, konn-agent, and vmagent.
 
-    - konn-server: CP cluster, admin port 8095
+    - konn-server: CP cluster, admin port 8096
     - konn-agent:  DP cluster, admin port 8094 (first pod)
     - vmagent:     CP cluster, HTTP port 8429
 
@@ -1064,7 +1064,7 @@ def collect_pprof(cp_kubeconfig: str, dp_kubeconfig: str,
         "konn_server": {
             "kubeconfig": cp_kubeconfig,
             "resource": "deployment/konnectivity-server",
-            "port": 8095,
+            "port": 8096,
             "prefix": "konn-server",
         },
         "konn_agent": {
