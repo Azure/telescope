@@ -70,6 +70,7 @@ class AKSClient:
         node_count: int,
         op,
         use_retry: bool = False,
+        label: str = "",
     ) -> list:
         """
         Run ARM operation and K8s node readiness check concurrently using threads.
@@ -81,6 +82,7 @@ class AKSClient:
             node_count: Expected number of nodes to be ready
             op: Operation context for recording timing metadata
             use_retry: If True, use _begin_update_with_retry for transient error handling
+            label: Optional label for retry log messages (e.g. "step 2 ")
 
         Returns:
             List of ready nodes
@@ -95,7 +97,7 @@ class AKSClient:
             if use_retry:
                 arm_future = executor.submit(
                     lambda: (
-                        self._begin_update_with_retry(node_pool_name, cluster_name, parameters),
+                        self._begin_update_with_retry(node_pool_name, cluster_name, parameters, label=label),
                         time.time(),
                     )
                 )
@@ -1003,6 +1005,7 @@ class AKSClient:
                     ready_nodes = self._instrument_nodepool_provisioning(
                         node_pool_name, cluster_name, node_pool, step, op,
                         use_retry=True,
+                        label=f"step {step} ",
                     )
 
                     logger.info(f"All {step} nodes in pool {node_pool_name} are ready")
