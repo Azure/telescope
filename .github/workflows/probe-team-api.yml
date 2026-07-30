@@ -10,36 +10,23 @@ jobs:
     steps:
       - name: Verify gh CLI is installed
         run: |
-          set -eu
-          echo "=== which gh ==="
           which gh
-          echo "=== gh --version ==="
           gh --version
 
-      - name: Try list telescope-oncall members via gh
+      - name: Test with default GITHUB_TOKEN
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "=== gh api /orgs/Azure/teams/telescope-oncall/members ==="
-          gh api /orgs/Azure/teams/telescope-oncall/members --paginate --jq '.[].login' || echo "gh exit code: $?"
+          echo "=== Default GITHUB_TOKEN ==="
+          gh api /orgs/Azure/teams/telescope-oncall/members --paginate --jq '.[].login' || echo "GITHUB_TOKEN exit: $?"
 
-      - name: Cross-check with raw curl
+      - name: Test with existing GH_PAT secret
         env:
-          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
-          echo "=== curl (raw response, includes HTTP status) ==="
-          curl -sS -w "\nHTTP_STATUS: %{http_code}\n" \
-            -H "Authorization: Bearer $TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            https://api.github.com/orgs/Azure/teams/telescope-oncall/members
-
-      - name: Cross-check curl on a public endpoint (sanity check network)
-        env:
-          TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          echo "=== curl a public endpoint to prove network + auth OK ==="
-          curl -sS -w "\nHTTP_STATUS: %{http_code}\n" \
-            -H "Authorization: Bearer $TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            https://api.github.com/repos/Azure/telescope | head -20
+          echo "=== Existing GH_PAT secret ==="
+          if [ -z "$GH_TOKEN" ]; then
+            echo "GH_PAT is empty/unset"
+            exit 0
+          fi
+          gh api /orgs/Azure/teams/telescope-oncall/members --paginate --jq '.[].login' || echo "GH_PAT exit: $?"
