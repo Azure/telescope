@@ -68,6 +68,9 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Fetch main branch for diff
+        run: git fetch origin main:refs/remotes/origin/main
+
       - name: Setup test matrix scenarios
         id: setup-matrix-scenarios
         run: |
@@ -177,6 +180,9 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     name: Terraform Integration Result
+    permissions:
+      statuses: write
+      pull-requests: read
     steps:
       - name: Post status back to PR head sha
         env:
