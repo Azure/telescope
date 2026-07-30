@@ -59,7 +59,7 @@ aks_cli_config_list = [
       {
         name = "kubernetes-version"
         value = "1.36"
-      }
+      },
       {
         name  = "aks-custom-headers"
         value = "AKSHTTPCustomFeatures=Microsoft.ContainerService/AKSHTTPCustomFeatures,BootstrappingMethodTestOnly=bootstrappingclient"
