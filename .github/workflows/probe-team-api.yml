@@ -1,0 +1,24 @@
+name: Team API Permission Probe
+
+on:
+  push:
+    branches: [leonarddu/merge-gate-tf-integration]
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Try list telescope-oncall members with default GITHUB_TOKEN
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          echo "=== GET /orgs/Azure/teams/telescope-oncall/members ==="
+          if gh api /orgs/Azure/teams/telescope-oncall/members --paginate --jq '.[].login'; then
+            echo ""
+            echo "RESULT: OK - default GITHUB_TOKEN CAN list team members"
+          else
+            echo ""
+            echo "RESULT: FAIL - default GITHUB_TOKEN CANNOT list team members; PAT needed"
+            exit 1
+          fi
