@@ -1,15 +1,8 @@
 name: Terraform Integration
 
-# Privileged terraform test/plan gated by the `terraform-privileged` environment
-# (required reviewers configured in repo Settings). See MSRC #127928.
-
 on:
-  pull_request_target:
-    paths:
-      - '**.tf'
-      - '**.json'
-      - '**.tfvars'
-      - 'modules/terraform/**'
+  issue_comment:
+    types: [created]
 
 permissions:
   contents: read
@@ -20,6 +13,9 @@ env:
 
 jobs:
   terraform-test:
+    if: |
+      github.event.issue.pull_request != null &&
+      github.event.comment.body == '/run-tf-integration'
     environment: terraform-privileged
     permissions:
       contents: read
@@ -29,8 +25,7 @@ jobs:
       - name: Checkout PR head
         uses: actions/checkout@v4
         with:
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: refs/pull/${{ github.event.issue.number }}/head
           persist-credentials: false
 
       - name: Setup Terraform
@@ -60,14 +55,16 @@ jobs:
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
   setup-matrix:
+    if: |
+      github.event.issue.pull_request != null &&
+      github.event.comment.body == '/run-tf-integration'
     runs-on: ubuntu-latest
     name: Setup terraform plan matrix for test scenarios
     steps:
       - name: Checkout PR head
         uses: actions/checkout@v4
         with:
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: refs/pull/${{ github.event.issue.number }}/head
           fetch-depth: 0
           persist-credentials: false
 
@@ -136,8 +133,7 @@ jobs:
       - name: Checkout PR head
         uses: actions/checkout@v4
         with:
-          repository: ${{ github.event.pull_request.head.repo.full_name }}
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: refs/pull/${{ github.event.issue.number }}/head
           persist-credentials: false
 
       - name: Setup Terraform
@@ -175,3 +171,42 @@ jobs:
         env:
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           CLOUD: ${{ matrix.cloud }}
+
+  report-status:
+    needs: [terraform-test, setup-matrix, terraform-plan]
+    if: always()
+    runs-on: ubuntu-latest
+    name: Terraform Integration Result
+    steps:
+      - name: Post status back to PR head sha
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.issue.number }}
+          TEST_RESULT: ${{ needs.terraform-test.result }}
+          SETUP_RESULT: ${{ needs.setup-matrix.result }}
+          PLAN_RESULT: ${{ needs.terraform-plan.result }}
+        run: |
+          set -eu
+          SHA=$(gh api "/repos/${{ github.repository }}/pulls/$PR" --jq '.head.sha')
+          echo "PR #$PR head sha: $SHA"
+          echo "terraform-test: $TEST_RESULT"
+          echo "setup-matrix : $SETUP_RESULT"
+          echo "terraform-plan: $PLAN_RESULT"
+
+          state=success
+          for r in "$TEST_RESULT" "$SETUP_RESULT" "$PLAN_RESULT"; do
+            case "$r" in
+              success|skipped|"") ;;
+              *) state=failure ;;
+            esac
+          done
+
+          gh api -X POST "/repos/${{ github.repository }}/statuses/$SHA" \
+            -f state="$state" \
+            -f context="Terraform Integration Result" \
+            -f description="test=$TEST_RESULT setup=$SETUP_RESULT plan=$PLAN_RESULT" \
+            -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          if [ "$state" != "success" ]; then
+            exit 1
+          fi
