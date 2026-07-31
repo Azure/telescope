@@ -8,7 +8,6 @@ aks_cli_config_list = [
     role                          = "client"
     aks_name                      = "ray-scheduling"
     sku_tier                      = "Standard"
-    kubernetes_version            = "1.33"
     use_aks_preview_private_build = false
     use_custom_configurations     = false
     default_node_pool = {
