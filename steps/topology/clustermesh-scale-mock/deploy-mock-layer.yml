@@ -19,6 +19,7 @@ parameters:
 #   MOCK_ACR_HOST   ACR login server hosting mock-cilium-agent:<MOCK_AGENT_TAG>
 #   MOCK_AGENT_TAG  mock-cilium-agent image tag (e.g. v26)
 # Optional:
+#   MOCK_ACR_SUBSCRIPTION_ID source subscription when the ACR is cross-subscription
 #   MOCK_NODE_COUNT          virtual nodes per cluster (default 100)
 #   MOCK_CONSUME_CLUSTERMESH wire the clustermesh consume path (default true)
 #
@@ -49,7 +50,13 @@ steps:
       # cluster) so the parallel fan-out below doesn't issue N identical
       # `az acr show` calls. MOCK_ACR_HOST is "<name>.azurecr.io".
       acr_name="${MOCK_ACR_HOST%%.*}"
-      acr_id=$(az acr show --name "$acr_name" --query id -o tsv --only-show-errors 2>/dev/null || true)
+      acr_subscription_id="${MOCK_ACR_SUBSCRIPTION_ID:-${TARGET_SUBSCRIPTION_ID:-}}"
+      acr_subscription_args=()
+      if [ -n "$acr_subscription_id" ]; then
+        acr_subscription_args=(--subscription "$acr_subscription_id")
+      fi
+      acr_id=$(az acr show "${acr_subscription_args[@]}" --name "$acr_name" \
+        --query id -o tsv --only-show-errors 2>/dev/null || true)
 
       # Fail-fast preflight: the mock agents pull ${MOCK_ACR_HOST}/mock-cilium-agent
       # ANONYMOUSLY, so a missing ACR or missing tag otherwise degrades into ALL N
@@ -63,12 +70,15 @@ steps:
       fi
       # Anonymous pull is the agents' primary access path; if it's off, pulls fall back
       # to the best-effort per-cluster AcrPull grant below (may be insufficient) -> warn.
-      anon_enabled=$(az acr show --name "$acr_name" --query anonymousPullEnabled -o tsv --only-show-errors 2>/dev/null || true)
+      anon_enabled=$(az acr show "${acr_subscription_args[@]}" --name "$acr_name" \
+        --query anonymousPullEnabled -o tsv --only-show-errors 2>/dev/null || true)
       if [ "$anon_enabled" != "true" ]; then
         echo "##[warning] ACR '$acr_name' has anonymousPullEnabled=$anon_enabled (expected true). Mock-agent pulls will rely on the best-effort per-cluster AcrPull grant; run 'az acr update -n $acr_name --anonymous-pull-enabled true' if pods ImagePullBackOff."
       fi
       mock_tag="${MOCK_AGENT_TAG:-v26}"
-      tag_err=$(az acr repository show --name "$acr_name" --image "mock-cilium-agent:${mock_tag}" --only-show-errors 2>&1) && tag_rc=0 || tag_rc=$?
+      tag_err=$(az acr repository show "${acr_subscription_args[@]}" \
+        --name "$acr_name" --image "mock-cilium-agent:${mock_tag}" \
+        --only-show-errors 2>&1) && tag_rc=0 || tag_rc=$?
       if [ "${tag_rc:-0}" -eq 0 ]; then
         echo "Preflight OK: ACR '$acr_name' hosts mock-cilium-agent:${mock_tag}."
       elif grep -qiE 'manifest[ _-]?unknown|(tag|repository|manifest|image).{0,40}(not[ _-]?found|does not exist)' <<<"$tag_err"; then
