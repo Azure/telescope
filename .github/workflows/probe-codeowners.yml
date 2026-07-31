@@ -8,6 +8,7 @@ jobs:
   probe:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         sender: [LeonardCareer, wonderyl, liyu-ma, alyssa1303, anson627, sumanthreddy29, xinWeiWei24, vittoriasalim, notInList, malicious-user, Leonardcareer]
     steps:
