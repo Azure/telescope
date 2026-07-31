@@ -86,9 +86,6 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
-      - name: Fetch main branch for diff
-        run: git fetch origin main:refs/remotes/origin/main
-
       - name: Setup test matrix scenarios
         id: setup-matrix-scenarios
         run: |
