@@ -20,7 +20,7 @@ jobs:
           marker="<!-- tf-integration-trigger -->"
           body=$(cat <<EOF
           $marker
-          For telescope-oncall team members only: reply \`/run-tf-integration\` to trigger the terraform integration pipeline before approving the PR.
+          For reviewers only: reply \`/run-tf-integration\` to trigger the terraform integration pipeline before approving the PR.
           EOF
           )
 
