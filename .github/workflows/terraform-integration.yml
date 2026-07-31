@@ -12,11 +12,31 @@ env:
   TERRAFORM_AWS_MODULES_DIR: modules/terraform/aws
 
 jobs:
-  terraform-test:
+  gate:
     if: |
       github.event.issue.pull_request != null &&
       github.event.comment.body == '/run-tf-integration'
-    environment: terraform-privileged
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check sender is authorized
+        env:
+          SENDER: ${{ github.event.comment.user.login }}
+        run: |
+          set -eu
+          curl -sf "https://raw.githubusercontent.com/${{ github.repository }}/main/CODEOWNERS" \
+            | grep -v '^\s*#' | grep -v '^\s*$' | head -1 \
+            | grep -oE '@[A-Za-z0-9_-]+' | tr -d '@' > /tmp/owners
+          echo "Authorized users:"
+          cat /tmp/owners
+          if grep -Fxq "$SENDER" /tmp/owners; then
+            echo "$SENDER is authorized"
+          else
+            echo "$SENDER is not authorized"
+            exit 1
+          fi
+
+  terraform-test:
+    needs: gate
     permissions:
       contents: read
       id-token: write
@@ -55,9 +75,7 @@ jobs:
           ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
   setup-matrix:
-    if: |
-      github.event.issue.pull_request != null &&
-      github.event.comment.body == '/run-tf-integration'
+    needs: gate
     runs-on: ubuntu-latest
     name: Setup terraform plan matrix for test scenarios
     steps:
@@ -121,7 +139,6 @@ jobs:
 
   terraform-plan:
     needs: setup-matrix
-    environment: terraform-privileged
     permissions:
       id-token: write
       contents: read
@@ -176,8 +193,8 @@ jobs:
           CLOUD: ${{ matrix.cloud }}
 
   report-status:
-    needs: [terraform-test, setup-matrix, terraform-plan]
-    if: always()
+    needs: [gate, terraform-test, setup-matrix, terraform-plan]
+    if: always() && needs.gate.result == 'success'
     runs-on: ubuntu-latest
     name: Terraform Integration Result
     permissions:
