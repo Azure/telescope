@@ -1,4 +1,4 @@
-name: Terraform Plan Trigger Comment
+name: Add Terraform Integration Comment
 
 on:
   pull_request_target:
@@ -17,10 +17,10 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
         run: |
           set -eu
-          marker="<!-- tf-plan-trigger -->"
+          marker="<!-- tf-integration-trigger -->"
           body=$(cat <<EOF
           $marker
-          For telescope reviewer only: reply \`/run-tf-integration\` to trigger the terraform integration pipeline before approving the PR.
+          For telescope-oncall team members only: reply \`/run-tf-integration\` to trigger the terraform integration pipeline before approving the PR.
           EOF
           )
 
