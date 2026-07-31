@@ -9,6 +9,8 @@ env:
   PYTHON_MODULES_DIR: modules/python
 jobs:
   python-validation:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
 
     steps:
