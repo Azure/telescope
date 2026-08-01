@@ -558,6 +558,64 @@ def test_acns_probe_runs_before_snapshot_and_is_collected_before_teardown():
     snapshot = worker.index("prometheus TSDB snapshot -------")
     assert setup < collect < snapshot
     assert "--require-acns" in worker
+    assert "ACNS_VERIFY_ONLY=true" in worker
+    assert "readiness-start.json" in worker
+    assert "readiness-final.json" in worker
+    assert "exit 10" in worker
+    assert "workload passed but required telemetry is incomplete" in worker
+
+
+def test_upper_bound_collection_uses_execution_defaults():
+    collect = SNAPSHOT_TEMPLATE_PATH.read_text(encoding="utf-8")
+
+    assert (
+        'CL2_SATURATION_QPS_LIST="${SATURATION_QPS_LIST:-'
+        '100,500,1500,4000,10000}"'
+        in collect
+    )
+    assert (
+        'CL2_SATURATION_RESTARTS_LIST="${SATURATION_RESTARTS_LIST:-'
+        '1,2,4,8,15}"'
+        in collect
+    )
+    assert 'sqps="$CL2_SATURATION_QPS_LIST"' in collect
+    assert '--saturation-qps-list "$_sqps"' in collect
+
+
+def test_required_platform_metrics_fail_the_wait_task():
+    wait_script = (
+        REPOSITORY_ROOT
+        / "scenarios"
+        / "perf-eval"
+        / "clustermesh-scale"
+        / "telemetry"
+        / "wait-managed-prometheus.sh"
+    ).read_text(encoding="utf-8")
+
+    assert "AKS_PLATFORM_METRICS_REQUIRED" in wait_script
+    assert "AKS_PLATFORM_METRICS_REQUIRE_WINDOW_COVERAGE" in wait_script
+    assert "AKS_PLATFORM_METRICS_MIN_COVERAGE_PERCENT" in wait_script
+    assert "Required AKS platform CPU/memory metrics did not cover" in wait_script
+    assert '[ "$platform_metrics_ready" != "true" ]' in wait_script
+
+
+def test_managed_monitoring_convergence_blocks_policy_disable_rollout():
+    configure_script = (
+        REPOSITORY_ROOT
+        / "scenarios"
+        / "perf-eval"
+        / "clustermesh-scale"
+        / "telemetry"
+        / "configure-managed-prometheus.sh"
+    ).read_text(encoding="utf-8")
+
+    assert "aks-managed-azure-monitor-metrics" in configure_script
+    assert "AKS_MANAGED_MONITORING_CONVERGENCE_ENABLED" in configure_script
+    assert 'if [ "$policy_after" = "never" ]' in configure_script
+    assert "Cilium policy mode changed during managed-monitoring setup" in (
+        configure_script
+    )
+    assert "Cilium remained stable for" in configure_script
 
 
 def test_native_snapshot_admin_api_is_retried_with_diagnostics():

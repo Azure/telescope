@@ -1924,11 +1924,73 @@ class TestExecuteParallel(unittest.TestCase):
             self.assertEqual(
                 summary["results"],
                 [
-                    {"role": "mesh-1", "exit_code": 0},
-                    {"role": "mesh-2", "exit_code": 1},
-                    {"role": "mesh-3", "exit_code": 0},
+                    {
+                        "role": "mesh-1",
+                        "exit_code": 0,
+                        "workload_valid": True,
+                        "telemetry_valid": True,
+                    },
+                    {
+                        "role": "mesh-2",
+                        "exit_code": 1,
+                        "workload_valid": False,
+                        "telemetry_valid": False,
+                    },
+                    {
+                        "role": "mesh-3",
+                        "exit_code": 0,
+                        "workload_valid": True,
+                        "telemetry_valid": True,
+                    },
                 ],
             )
+        finally:
+            os.remove(cf)
+            if os.path.exists(summary_file):
+                os.remove(summary_file)
+
+    def test_telemetry_failure_preserves_workload_success_in_summary(self):
+        clusters = [
+            {"role": "mesh-1", "kubeconfig": "/k1"},
+            {"role": "mesh-2", "kubeconfig": "/k2"},
+        ]
+        cf = self._write_clusters(clusters)
+        summary_file = tempfile.mktemp(suffix=".json")
+        try:
+            _FakePopen.reset(
+                wait_seconds=0,
+                role_config={
+                    "mesh-1": ([], 0),
+                    "mesh-2": ([], 10),
+                },
+            )
+            with patch.object(
+                clustermesh_scale_module.subprocess,
+                "Popen",
+                _FakePopen,
+            ):
+                rc = clustermesh_scale_module.execute_parallel(
+                    clusters_file=cf,
+                    max_concurrent=2,
+                    worker_script="/w.sh",
+                    cl2_image="img",
+                    cl2_config_dir="/cfg",
+                    cl2_config_file="config.yaml",
+                    cl2_report_dir_base="/r",
+                    provider="aks",
+                    python_script_file="/scale.py",
+                    python_workdir="/wd",
+                    summary_file=summary_file,
+                )
+            self.assertEqual(rc, 1)
+            with open(summary_file, "r", encoding="utf-8") as handle:
+                summary = json.load(handle)
+            self.assertEqual(summary["succeeded_roles"], ["mesh-1", "mesh-2"])
+            self.assertEqual(summary["failed_roles"], [])
+            self.assertEqual(summary["telemetry_failed_roles"], ["mesh-2"])
+            self.assertEqual(summary["fully_succeeded_roles"], ["mesh-1"])
+            self.assertEqual(summary["results"][1]["workload_valid"], True)
+            self.assertEqual(summary["results"][1]["telemetry_valid"], False)
         finally:
             os.remove(cf)
             if os.path.exists(summary_file):

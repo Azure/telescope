@@ -9,6 +9,7 @@ fi
 : "${KUBECONFIG:?KUBECONFIG is required}"
 : "${OUTPUT_DIR:?OUTPUT_DIR is required}"
 mkdir -p "$OUTPUT_DIR"
+window_start="${ACNS_WINDOW_START_TIMESTAMP:-}"
 
 kubectl get containernetworklog clustermesh-scale-acns -o json \
   > "$OUTPUT_DIR/container-network-log.json"
@@ -31,6 +32,7 @@ collector_pods_json=$(kubectl -n acns-telemetry get pods \
 expected_archive_count=$(echo "$collector_pods_json" | jq '.items | length')
 archives_jsonl=$(mktemp)
 nonempty_log_archives=0
+fresh_event_archives=0
 while IFS=$'\t' read -r pod node; do
   [ -n "$pod" ] || continue
   safe_node=$(printf '%s' "$node" | sed -E 's/[^a-zA-Z0-9_.-]+/_/g')
@@ -46,13 +48,25 @@ while IFS=$'\t' read -r pod node; do
       | grep -E '(^|/)events\.log$' \
       | head -1 || true)
     event_bytes=0
+    current_window_event_count=0
     if [ -n "$event_member" ]; then
       event_bytes=$(tar -xOzf "$archive" "$event_member" 2>/dev/null \
         | wc -c)
+      if [ -n "$window_start" ]; then
+        current_window_event_count=$(tar -xOzf \
+          "$archive" "$event_member" 2>/dev/null \
+          | jq -c --arg start "$window_start" \
+            'select((.time // .flow.time // "") >= $start)' \
+            2>/dev/null \
+          | wc -l)
+      fi
     fi
     if [ "$event_bytes" -gt 0 ]; then
       contains_events=true
       nonempty_log_archives=$((nonempty_log_archives + 1))
+    fi
+    if [ "$current_window_event_count" -gt 0 ]; then
+      fresh_event_archives=$((fresh_event_archives + 1))
     fi
     jq -cn \
       --arg pod "$pod" \
@@ -60,12 +74,14 @@ while IFS=$'\t' read -r pod node; do
       --arg file "$(basename "$archive")" \
       --argjson bytes "$size" \
       --argjson contains_events "$contains_events" \
+      --argjson current_window_event_count "$current_window_event_count" \
       '{
         pod: $pod,
         node: $node,
         file: $file,
         bytes: $bytes,
-        contains_events: $contains_events
+        contains_events: $contains_events,
+        current_window_event_count: $current_window_event_count
       }' \
       >> "$archives_jsonl"
   else
@@ -81,22 +97,27 @@ complete=false
 if [ "$expected_archive_count" -gt 0 ] &&
    [ "$archive_count" -eq "$expected_archive_count" ] &&
    [ "$nonempty_log_archives" -gt 0 ] &&
+   { [ -z "$window_start" ] || [ "$fresh_event_archives" -gt 0 ]; } &&
    [ "$metric_config_captured" = "true" ]; then
   complete=true
 fi
 jq -n \
   --arg collected_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  --arg window_start "$window_start" \
   --argjson complete "$complete" \
   --argjson expected_archives "$expected_archive_count" \
   --argjson nonempty_log_archives "$nonempty_log_archives" \
+  --argjson fresh_event_archives "$fresh_event_archives" \
   --argjson metric_config_captured "$metric_config_captured" \
   --argjson archives "$archives" \
   '{
     schema_version: 1,
     collected_at: $collected_at,
+    window_start: (if ($window_start | length) > 0 then $window_start else null end),
     complete: $complete,
     expected_archives: $expected_archives,
     nonempty_log_archives: $nonempty_log_archives,
+    fresh_event_archives: $fresh_event_archives,
     metric_config_captured: $metric_config_captured,
     archives: $archives
   }' > "$OUTPUT_DIR/summary.json"
@@ -109,7 +130,7 @@ kubectl delete namespace acns-telemetry \
   --ignore-not-found --wait=false >/dev/null 2>&1 || true
 
 if [ "$complete" != "true" ]; then
-  echo "ACNS host log collection incomplete: expected=$expected_archive_count collected=$archive_count nonempty=$nonempty_log_archives" >&2
+  echo "ACNS host log collection incomplete: expected=$expected_archive_count collected=$archive_count nonempty=$nonempty_log_archives fresh=$fresh_event_archives window_start=${window_start:-not-required}" >&2
   exit 1
 fi
 

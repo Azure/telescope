@@ -1501,6 +1501,14 @@ stages:
       CL2_PROMETHEUS_MEMORY_LIMIT_GI: "16"
       AKS_CONTROL_PLANE_METRICS_ENABLED: "true"
       AKS_CONTROL_PLANE_METRICS_REGISTER_PREVIEW: "false"
+      AKS_CONTROL_PLANE_FORCE_PROVIDER_REREGISTRATION: "true"
+      AKS_MANAGED_MONITORING_CONVERGENCE_ENABLED: "true"
+      AKS_MANAGED_MONITORING_CONVERGENCE_TIMEOUT_SECONDS: "7200"
+      AKS_MANAGED_MONITORING_CILIUM_QUIET_SECONDS: "120"
+      AKS_PLATFORM_METRICS_REQUIRED: "true"
+      AKS_PLATFORM_METRICS_REQUIRE_WINDOW_COVERAGE: "true"
+      AKS_PLATFORM_METRICS_MIN_COVERAGE_PERCENT: "80"
+      CL2_REQUIRED_SELF_HOSTED_TELEMETRY: "true"
       AKS_CONTROL_PLANE_AMW_RESOURCE_GROUP: clustermesh-scale-prom-snapshots
       AKS_CONTROL_PLANE_AMW_NAME_PREFIX: cmsh-scale-eastus2-aksstand2-amw
       AKS_AMW_ARM_BATCH_SIZE: "10"
@@ -1587,6 +1595,9 @@ stages:
               node_churn_ready_timeout_seconds: 1200
               node_churn_finalizer_timeout_seconds: 900
               node_churn_recovery_grace_seconds: 900
+              saturation_qps_list: "100,500,1500,4000,10000"
+              saturation_restarts_list: "1,2,4,8,15"
+              saturation_ops_per_sec_list: "0,0,0,0,0"
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
           timeout_in_minutes: 840

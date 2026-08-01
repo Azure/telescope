@@ -13,8 +13,9 @@
 # while peers are still running.
 #
 # Exit code:
-#   0 — CL2 ran AND junit.xml reports failures=0 errors=0
-#   1 — anything else (CL2 didn't write junit, or junit has failures/errors)
+#   0  — workload and required telemetry are valid
+#   1  — workload invalid (CL2/JUnit failure)
+#   10 — workload valid, required telemetry invalid
 # This is the authoritative per-cluster pass/fail signal that
 # scale.py execute-parallel aggregates into the step's exit code.
 #
@@ -52,6 +53,29 @@ worker_started_epoch=$(date +%s)
 mkdir -p "$report_dir"
 repo_root=$(cd -- "$(dirname -- "$python_script_file")/../../../.." && pwd)
 acns_telemetry_failed=0
+telemetry_coverage_failed=0
+required_self_hosted_telemetry="${CL2_REQUIRED_SELF_HOSTED_TELEMETRY:-${CL2_ACNS_TELEMETRY_ENABLED:-false}}"
+worker_status_file="$report_dir/worker-status-${role}.json"
+
+write_worker_status() {
+  local workload_valid="$1" telemetry_valid="$2" exit_code="$3"
+  mkdir -p "$(dirname "$worker_status_file")"
+  jq -n \
+    --arg role "$role" \
+    --arg scenario "$cl2_config_file" \
+    --argjson workload_valid "$workload_valid" \
+    --argjson telemetry_valid "$telemetry_valid" \
+    --argjson exit_code "$exit_code" \
+    '{
+      schema_version: 1,
+      role: $role,
+      scenario_config: $scenario,
+      workload_valid: $workload_valid,
+      telemetry_valid: $telemetry_valid,
+      exit_code: $exit_code
+    }' > "${worker_status_file}.tmp"
+  mv "${worker_status_file}.tmp" "$worker_status_file"
+}
 
 # Cleanup state shared by the single EXIT trap below. Populated later
 # (PROM_PATCH_PID / SNAPSHOT_PID once the background daemons are spawned,
@@ -215,7 +239,9 @@ echo "===================================================================="
 if [ "${CL2_ACNS_TELEMETRY_ENABLED:-false}" = "true" ]; then
   acns_setup_script="$repo_root/scenarios/perf-eval/clustermesh-scale/telemetry/setup-acns-telemetry.sh"
   echo "------- $role: configuring ACNS telemetry probe -------"
-  if ! KUBECONFIG="$kubeconfig" bash "$acns_setup_script"; then
+  if ! KUBECONFIG="$kubeconfig" \
+      ACNS_READINESS_OUTPUT="$report_dir/telemetry/acns/readiness-start.json" \
+      bash "$acns_setup_script"; then
     echo "##vso[task.logissue type=error;] $role: ACNS telemetry setup failed."
     acns_telemetry_failed=1
   fi
@@ -554,10 +580,22 @@ KUBECONFIG="$kubeconfig" kubectl -n kube-system logs \
   > "$log_dir/cilium-operator.log" 2>&1 || true
 
 if [ "${CL2_ACNS_TELEMETRY_ENABLED:-false}" = "true" ]; then
+  acns_setup_script="$repo_root/scenarios/perf-eval/clustermesh-scale/telemetry/setup-acns-telemetry.sh"
+  echo "------- $role: verifying fresh ACNS telemetry after CL2 -------"
+  if ! KUBECONFIG="$kubeconfig" \
+      ACNS_VERIFY_ONLY=true \
+      ACNS_READINESS_OUTPUT="$report_dir/telemetry/acns/readiness-final.json" \
+      bash "$acns_setup_script"; then
+    echo "##vso[task.logissue type=error;] $role: final ACNS freshness verification failed."
+    acns_telemetry_failed=1
+  fi
+
   acns_collect_script="$repo_root/scenarios/perf-eval/clustermesh-scale/telemetry/collect-acns-telemetry.sh"
   acns_output_dir="$report_dir/telemetry/acns"
   echo "------- $role: collecting ACNS telemetry -------"
-  if ! KUBECONFIG="$kubeconfig" OUTPUT_DIR="$acns_output_dir" \
+  if ! KUBECONFIG="$kubeconfig" \
+      OUTPUT_DIR="$acns_output_dir" \
+      ACNS_WINDOW_START_TIMESTAMP="$(date -u -d "@$worker_started_epoch" +%Y-%m-%dT%H:%M:%SZ)" \
       bash "$acns_collect_script"; then
     echo "##vso[task.logissue type=error;] $role: ACNS telemetry collection failed."
     acns_telemetry_failed=1
@@ -566,7 +604,8 @@ fi
 
 # Coverage audit runs before the optional snapshot and Prometheus teardown so
 # every run records exactly which telemetry families and scrape targets landed
-# in its TSDB. Missing coverage is a warning, not a workload-result failure.
+# in its TSDB. Missing required coverage invalidates telemetry (exit 10) while
+# preserving the independent CL2/JUnit workload result.
 telemetry_audit_script="$(dirname "$python_script_file")/telemetry/audit_self_hosted.py"
 if [ -f "$telemetry_audit_script" ]; then
   telemetry_audit_dir="$report_dir/telemetry"
@@ -581,11 +620,16 @@ if [ -f "$telemetry_audit_script" ]; then
       --require-kwok-resource
       --expected-mock-agent-targets "${CL2_MOCK_NODE_COUNT:-0}"
     )
-    # propagation-probe intentionally keeps its tiny backend/source Pods on
-    # real nodes, so pod-level KWOK resource metrics are not applicable.
-    if [ "$cl2_config_file" != "propagation-probe.yaml" ]; then
+    # propagation-probe keeps its tiny backend/source Pods on real nodes.
+    # policy-scale creates CNPs but no KWOK workload Pods. Pod-level KWOK
+    # resource metrics are therefore not applicable to either scenario.
+    case "$cl2_config_file" in
+      propagation-probe.yaml|policy-scale.yaml)
+        ;;
+      *)
       telemetry_audit_args+=(--require-kwok-pod-resource)
-    fi
+        ;;
+    esac
   fi
   if [ "${CL2_ACNS_TELEMETRY_ENABLED:-false}" = "true" ]; then
     telemetry_audit_args+=(--require-acns)
@@ -600,6 +644,9 @@ if [ -f "$telemetry_audit_script" ]; then
     telemetry_audit_rc=$?
   if [ "$telemetry_audit_rc" -ne 0 ]; then
     echo "##vso[task.logissue type=warning;] $role: self-hosted Prometheus telemetry audit is incomplete; inspect $telemetry_audit_dir/telemetry-audit-self-hosted.json"
+    if [ "${required_self_hosted_telemetry,,}" = "true" ]; then
+      telemetry_coverage_failed=1
+    fi
   fi
   if [ "${CL2_ACNS_TELEMETRY_ENABLED:-false}" = "true" ] &&
      { [ ! -s "$telemetry_audit_dir/telemetry-audit-self-hosted.json" ] ||
@@ -609,6 +656,9 @@ if [ -f "$telemetry_audit_script" ]; then
   fi
 else
   echo "##vso[task.logissue type=warning;] $role: telemetry audit script not found at $telemetry_audit_script"
+  if [ "${required_self_hosted_telemetry,,}" = "true" ]; then
+    telemetry_coverage_failed=1
+  fi
 fi
 
 # Prometheus TSDB snapshot (opt-in via CL2_PROM_SNAPSHOT_ENABLED=true).
@@ -921,12 +971,16 @@ if [ "$cl2_passed" -ne 1 ]; then
   echo "------- end CL2 FAILURE DIAG -------"
 
   echo "##vso[task.logissue type=warning;] $role: CL2 run failed (junit missing or has failures/errors at $report_dir/junit.xml)"
+  write_worker_status false "$([ "$acns_telemetry_failed" -eq 0 ] && [ "$telemetry_coverage_failed" -eq 0 ] && echo true || echo false)" 1
   exit 1
 fi
 
-if [ "$acns_telemetry_failed" -ne 0 ]; then
-  echo "##vso[task.logissue type=error;] $role: ACNS telemetry smoke is incomplete."
-  exit 1
+if [ "$acns_telemetry_failed" -ne 0 ] ||
+   [ "$telemetry_coverage_failed" -ne 0 ]; then
+  echo "##vso[task.logissue type=error;] $role: workload passed but required telemetry is incomplete."
+  write_worker_status true false 10
+  exit 10
 fi
 
+write_worker_status true true 0
 exit 0

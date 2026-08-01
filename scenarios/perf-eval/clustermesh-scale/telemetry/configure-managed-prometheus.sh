@@ -33,7 +33,7 @@ if [ ! -f "$CONTROL_PLANE_MONITORS_PATH" ]; then
 fi
 
 register_preview="${AKS_CONTROL_PLANE_METRICS_REGISTER_PREVIEW:-false}"
-force_container_service_reregistration=false
+force_container_service_reregistration="${AKS_CONTROL_PLANE_FORCE_PROVIDER_REREGISTRATION:-false}"
 if [ "${register_preview,,}" = "true" ]; then
   force_container_service_reregistration=true
 fi
@@ -713,11 +713,115 @@ for row in "${cluster_rows[@]}"; do
   fi
 done
 
+wait_for_managed_monitoring_convergence() {
+  local role="$1" cluster_id="$2" kubeconfig="$3" policy_before="$4"
+  local enabled="${AKS_MANAGED_MONITORING_CONVERGENCE_ENABLED:-false}"
+  local extension_api_version="${AKS_MANAGED_MONITORING_EXTENSION_API_VERSION:-2025-03-01}"
+  local timeout_seconds="${AKS_MANAGED_MONITORING_CONVERGENCE_TIMEOUT_SECONDS:-7200}"
+  local quiet_seconds="${AKS_MANAGED_MONITORING_CILIUM_QUIET_SECONDS:-120}"
+  local poll_seconds="${AKS_MANAGED_MONITORING_POLL_SECONDS:-15}"
+  local extension_id="${cluster_id}/providers/Microsoft.KubernetesConfiguration/extensions/aks-managed-azure-monitor-metrics"
+  local deadline state cm_json ds_json policy_after desired ready updated
+  local observed generation fingerprint last_fingerprint="" stable_since=0 now
+
+  if [ "${enabled,,}" != "true" ]; then
+    return 0
+  fi
+  for value in "$timeout_seconds" "$quiet_seconds" "$poll_seconds"; do
+    if ! [[ "$value" =~ ^[0-9]+$ ]]; then
+      echo "[$role] managed-monitoring convergence values must be non-negative integers" >&2
+      return 1
+    fi
+  done
+
+  echo "[$role] waiting for managed-monitoring extension and Cilium convergence..."
+  deadline=$(( $(date +%s) + timeout_seconds ))
+  while [ "$(date +%s)" -lt "$deadline" ]; do
+    state=$(az resource show \
+      --ids "$extension_id" \
+      --api-version "$extension_api_version" \
+      --query properties.provisioningState -o tsv 2>/dev/null || true)
+    case "$state" in
+      Succeeded)
+        break
+        ;;
+      Failed|Canceled)
+        echo "[$role] managed-monitoring extension reached terminal state $state" >&2
+        return 1
+        ;;
+      *)
+        echo "[$role] managed-monitoring extension state=${state:-not-created}; waiting ${poll_seconds}s..."
+        sleep "$poll_seconds"
+        ;;
+    esac
+  done
+  if [ "${state:-}" != "Succeeded" ]; then
+    echo "[$role] timed out waiting for managed-monitoring extension" >&2
+    return 1
+  fi
+
+  deadline=$(( $(date +%s) + timeout_seconds ))
+  while [ "$(date +%s)" -lt "$deadline" ]; do
+    cm_json=$(KUBECONFIG="$kubeconfig" kubectl -n kube-system \
+      get configmap cilium-config -o json 2>/dev/null || true)
+    ds_json=$(KUBECONFIG="$kubeconfig" kubectl -n kube-system \
+      get daemonset cilium -o json 2>/dev/null || true)
+    if [ -z "$cm_json" ] || [ -z "$ds_json" ]; then
+      last_fingerprint=""
+      stable_since=0
+      sleep "$poll_seconds"
+      continue
+    fi
+
+    policy_after=$(jq -r '.data["enable-policy"] // ""' <<<"$cm_json")
+    desired=$(jq -r '.status.desiredNumberScheduled // 0' <<<"$ds_json")
+    ready=$(jq -r '.status.numberReady // 0' <<<"$ds_json")
+    updated=$(jq -r '.status.updatedNumberScheduled // 0' <<<"$ds_json")
+    observed=$(jq -r '.status.observedGeneration // 0' <<<"$ds_json")
+    generation=$(jq -r '.metadata.generation // 0' <<<"$ds_json")
+    fingerprint=$(jq -nr \
+      --arg cm_rv "$(jq -r '.metadata.resourceVersion // ""' <<<"$cm_json")" \
+      --arg checksum "$(jq -r '.spec.template.metadata.annotations["cilium.io/cilium-configmap-checksum"] // ""' <<<"$ds_json")" \
+      --arg generation "$generation" \
+      '$cm_rv + ":" + $checksum + ":" + $generation')
+
+    if [ "$policy_after" = "never" ]; then
+      echo "[$role] Cilium reconciled to enable-policy=never; ACNS DNS L7 telemetry would be invalid" >&2
+      return 1
+    fi
+    if [ -n "$policy_before" ] && [ "$policy_after" != "$policy_before" ]; then
+      echo "[$role] Cilium policy mode changed during managed-monitoring setup: $policy_before -> ${policy_after:-missing}" >&2
+      return 1
+    fi
+
+    now=$(date +%s)
+    if [ "$desired" -gt 0 ] &&
+       [ "$ready" -eq "$desired" ] &&
+       [ "$updated" -eq "$desired" ] &&
+       [ "$observed" -eq "$generation" ]; then
+      if [ "$fingerprint" != "$last_fingerprint" ]; then
+        last_fingerprint="$fingerprint"
+        stable_since="$now"
+      elif [ $((now - stable_since)) -ge "$quiet_seconds" ]; then
+        echo "[$role] managed-monitoring extension is Succeeded and Cilium remained stable for ${quiet_seconds}s (policy=$policy_after, desired=$desired)."
+        return 0
+      fi
+    else
+      last_fingerprint=""
+      stable_since=0
+    fi
+    sleep "$poll_seconds"
+  done
+
+  echo "[$role] timed out waiting for a stable Cilium rollout after managed-monitoring setup" >&2
+  return 1
+}
+
 configure_one() {
   local row="$1"
   local role name resource_group kubeconfig metrics_enabled controlplane_enabled
   local cluster_alias rendered_config cluster_id categories_file logs_file metrics_file
-  local workspace_name workspace_id
+  local workspace_name workspace_id cilium_policy_before
   role=$(echo "$row" | jq -r '.role')
   name=$(echo "$row" | jq -r '.name')
   resource_group=$(echo "$row" | jq -r '.rg')
@@ -726,6 +830,9 @@ configure_one() {
   kubeconfig="$HOME/.kube/$role.config"
   cluster_alias=$(echo "$row" | jq -r '.prometheus_cluster_alias')
   cluster_id=$(echo "$row" | jq -r '.id')
+  cilium_policy_before=$(KUBECONFIG="$kubeconfig" kubectl -n kube-system \
+    get configmap cilium-config -o jsonpath='{.data.enable-policy}' \
+    2>/dev/null || true)
 
   rendered_config=$(mktemp)
   sed \
@@ -787,6 +894,10 @@ configure_one() {
   if [ "${metrics_enabled,,}" != "true" ] || \
      [ "${controlplane_enabled,,}" != "true" ]; then
     echo "[$role] azureMonitorProfile.metrics enabled=$metrics_enabled controlPlane=$controlplane_enabled" >&2
+    return 1
+  fi
+  if ! wait_for_managed_monitoring_convergence \
+      "$role" "$cluster_id" "$kubeconfig" "$cilium_policy_before"; then
     return 1
   fi
 

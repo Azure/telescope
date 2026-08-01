@@ -48,8 +48,17 @@ def test_candidate_stage_has_isolated_subscription_dependencies():
         'MOCK_ACR_SUBSCRIPTION_ID: "37deca37-c375-4a14-b90a-043849bd2bf1"',
         "AKS_CONTROL_PLANE_AMW_NAME_PREFIX: cmsh-scale-eastus2-aksstand2-amw",
         "AKS_CONTROL_PLANE_LAW_NAME: cmsh-scale-controlplane-law-aksstand2",
+        'AKS_CONTROL_PLANE_FORCE_PROVIDER_REREGISTRATION: "true"',
+        'AKS_MANAGED_MONITORING_CONVERGENCE_ENABLED: "true"',
+        'AKS_PLATFORM_METRICS_REQUIRED: "true"',
+        'AKS_PLATFORM_METRICS_REQUIRE_WINDOW_COVERAGE: "true"',
+        'AKS_PLATFORM_METRICS_MIN_COVERAGE_PERCENT: "80"',
+        'CL2_REQUIRED_SELF_HOSTED_TELEMETRY: "true"',
         "cl2_prom_snapshot_storage_account: \"cmshscaleaksst2\"",
         'test_type_suffix: "-mock-full-telemetry-eus2-aksstand2"',
+        'saturation_qps_list: "100,500,1500,4000,10000"',
+        'saturation_restarts_list: "1,2,4,8,15"',
+        'saturation_ops_per_sec_list: "0,0,0,0,0"',
     ):
         assert expected in stage
 

@@ -81,6 +81,19 @@ def evaluate_policy(
     allowed_failures = cluster_count * failure_rate // 100
     failed_roles = sorted(worker_summary.get("failed_roles") or [])
     failed_count = worker_summary.get("failed_count")
+    telemetry_failed_roles_raw = worker_summary.get(
+        "telemetry_failed_roles", []
+    )
+    telemetry_roles_valid = isinstance(telemetry_failed_roles_raw, list) and all(
+        isinstance(role, str) and role
+        for role in telemetry_failed_roles_raw
+    )
+    telemetry_failed_roles = (
+        sorted(set(telemetry_failed_roles_raw))
+        if telemetry_roles_valid
+        else []
+    )
+    telemetry_failed_count = worker_summary.get("telemetry_failed_count", 0)
     total_workers = worker_summary.get("total_workers")
     measurement_reasons = []
 
@@ -94,6 +107,24 @@ def evaluate_policy(
     if failed_count != len(failed_roles):
         measurement_reasons.append(
             "worker summary failed_count does not match failed_roles length"
+        )
+    if not isinstance(telemetry_failed_count, int) or telemetry_failed_count < 0:
+        measurement_reasons.append(
+            "worker summary has invalid telemetry_failed_count"
+        )
+        telemetry_failed_count = cluster_count
+    if not telemetry_roles_valid:
+        measurement_reasons.append(
+            "worker summary has invalid telemetry_failed_roles"
+        )
+    if telemetry_failed_count != len(telemetry_failed_roles):
+        measurement_reasons.append(
+            "worker summary telemetry_failed_count does not match "
+            "telemetry_failed_roles length"
+        )
+    if telemetry_failed_count > 0:
+        measurement_reasons.append(
+            f"required telemetry failed on {telemetry_failed_count} worker(s)"
         )
     if failed_count > allowed_failures:
         measurement_reasons.append(
@@ -154,6 +185,8 @@ def evaluate_policy(
         "worker_allowed_failures": allowed_failures,
         "worker_failed_count": failed_count,
         "failed_roles": failed_roles,
+        "telemetry_failed_count": telemetry_failed_count,
+        "telemetry_failed_roles": telemetry_failed_roles,
         "target_required": target_required,
         "target_role": target_role or None,
         "target_stimulus_valid": target_stimulus_valid,

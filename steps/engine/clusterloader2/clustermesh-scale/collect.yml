@@ -57,13 +57,13 @@ steps:
       # was configured with churn knobs).
       export CL2_APISERVER_KILL_TARGET_CONTEXT="${APISERVER_KILL_TARGET_CONTEXT:-clustermesh-1}"
       # Phase 4b — Scenario #6 (Upper Bound / Saturation) collect knobs.
-      # Default to empty string so non-saturation test_types skip the
-      # classifier entirely (zero overhead). For upper-bound test_types,
-      # the matrix sets these → scale.py collect emits SaturationRung +
-      # SaturationSummary rows tagging which signal tripped per rung.
-      export CL2_SATURATION_QPS_LIST="${SATURATION_QPS_LIST:-}"
-      export CL2_SATURATION_RESTARTS_LIST="${SATURATION_RESTARTS_LIST:-}"
-      export CL2_SATURATION_OPS_PER_SEC_LIST="${SATURATION_OPS_PER_SEC_LIST:-}"
+      # Mirror execute.yml's defaults. set_churn_args_for_scenario clears these
+      # for every non-upper-bound scenario, while upper-bound must always pass
+      # the exact executed rung lists into scale.py collect so the official
+      # SaturationRung/SaturationSummary rows cannot silently disappear.
+      export CL2_SATURATION_QPS_LIST="${SATURATION_QPS_LIST:-100,500,1500,4000,10000}"
+      export CL2_SATURATION_RESTARTS_LIST="${SATURATION_RESTARTS_LIST:-1,2,4,8,15}"
+      export CL2_SATURATION_OPS_PER_SEC_LIST="${SATURATION_OPS_PER_SEC_LIST:-0,0,0,0,0}"
 
       clusters=$(cat "$HOME/.kube/clustermesh-clusters.json")
       cluster_count=$(echo "$clusters" | jq 'length')

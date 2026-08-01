@@ -197,6 +197,16 @@ def test_success_uploads_verifies_and_deletes_snapshots(tmp_path):
     snapshot_1 = _create_snapshot(role_1, "snapshot-a")
     snapshot_2 = _create_snapshot(role_2, "snapshot-b")
     _write_worker_summary(worker_summary, ["mesh-1", "mesh-2"])
+    worker_status_1 = role_1 / "worker-status-mesh-1.json"
+    worker_status_1.write_text(
+        '{"workload_valid": true, "telemetry_valid": true}\n',
+        encoding="utf-8",
+    )
+    worker_status_2 = role_2 / "worker-status-mesh-2.json"
+    worker_status_2.write_text(
+        '{"workload_valid": true, "telemetry_valid": false}\n',
+        encoding="utf-8",
+    )
     audit = role_1 / "telemetry" / "telemetry-audit-self-hosted.json"
     audit.parent.mkdir(parents=True)
     audit.write_text('{"complete": true}\n', encoding="utf-8")
@@ -244,7 +254,7 @@ def test_success_uploads_verifies_and_deletes_snapshots(tmp_path):
     assert summary["uploaded_snapshot_bytes"] > 0
     assert summary["uploaded_audit_count"] == 1
     assert summary["uploaded_acns_count"] == 1
-    assert summary["uploaded_lifecycle_count"] == 11
+    assert summary["uploaded_lifecycle_count"] == 13
     assert summary["uploaded_lifecycle_bytes"] > 0
 
     relabel = json.loads(
@@ -273,6 +283,10 @@ def test_success_uploads_verifies_and_deletes_snapshots(tmp_path):
         "telemetry-audit-self-hosted-mesh-1.json",
         "feature-branch/acns/share-infra-1/run-123/mesh-2/summary.json",
         "feature-branch/lifecycle/share-infra-1/run-123/worker-summary.json",
+        "feature-branch/lifecycle/share-infra-1/run-123/"
+        "worker-status-mesh-1.json",
+        "feature-branch/lifecycle/share-infra-1/run-123/"
+        "worker-status-mesh-2.json",
         "feature-branch/lifecycle/share-infra-1/run-123/scenario-policy.json",
         "feature-branch/lifecycle/share-infra-1/run-123/scenario-evidence.json",
         "feature-branch/lifecycle/share-infra-1/run-123/"

@@ -402,11 +402,41 @@ def _run_common_checks(
         problems.append(
             "len(succeeded_roles) + len(failed_roles) does not sum to total_workers"
         )
+    telemetry_failed_roles_raw = data.get("telemetry_failed_roles", [])
+    telemetry_failed_count = data.get("telemetry_failed_count", 0)
+    if not isinstance(telemetry_failed_roles_raw, list) or not all(
+        isinstance(role, str) and role for role in telemetry_failed_roles_raw
+    ):
+        problems.append(
+            "telemetry_failed_roles must contain only nonempty strings"
+        )
+        telemetry_failed_roles = []
+    else:
+        telemetry_failed_roles = sorted(set(telemetry_failed_roles_raw))
+        if len(telemetry_failed_roles) != len(telemetry_failed_roles_raw):
+            problems.append("telemetry_failed_roles contains duplicate entries")
+    if not isinstance(telemetry_failed_count, int):
+        problems.append("telemetry_failed_count must be an integer")
+    elif telemetry_failed_count != len(telemetry_failed_roles):
+        problems.append(
+            "telemetry_failed_count does not match "
+            "telemetry_failed_roles length"
+        )
+    telemetry_without_workload = sorted(
+        set(telemetry_failed_roles) - set(succeeded_roles)
+    )
+    if telemetry_without_workload:
+        problems.append(
+            "telemetry_failed_roles must be workload-succeeded roles: "
+            f"{telemetry_without_workload}"
+        )
     ctx.add("worker_summary_counts_internally_consistent", not problems, "; ".join(problems))
 
     ctx.counts["total_workers"] = total_workers
     ctx.counts["succeeded_role_count"] = len(succeeded_roles)
     ctx.counts["failed_role_count"] = len(failed_roles)
+    ctx.counts["telemetry_failed_role_count"] = len(telemetry_failed_roles)
+    ctx.counts["telemetry_failed_roles"] = telemetry_failed_roles
 
     valid_junit_roles = 0
     for role in succeeded_roles:

@@ -316,6 +316,8 @@ def test_configure_batches_two_cluster_workspaces_and_maps_manifest(tmp_path):
               exit 0
             elif [ "${1:-} ${2:-}" = "aks show" ]; then
               echo true
+            elif [ "${1:-} ${2:-}" = "resource show" ]; then
+              echo Succeeded
             elif [[ " $* " == *" diagnostic-settings categories list "* ]]; then
               cat <<'JSON'
             {"value":[
@@ -345,6 +347,12 @@ def test_configure_batches_two_cluster_workspaces_and_maps_manifest(tmp_path):
               printf '%s\\n' 'apiVersion: v1' 'kind: Namespace' 'metadata:' '  name: monitoring'
             elif [ "${1:-} ${2:-} ${3:-}" = "apply -f -" ]; then
               cat >/dev/null
+            elif [[ " $* " == *" -n kube-system get configmap cilium-config -o jsonpath="* ]]; then
+              printf default
+            elif [[ " $* " == *" -n kube-system get configmap cilium-config -o json "* ]]; then
+              printf '%s\\n' '{"metadata":{"resourceVersion":"10"},"data":{"enable-policy":"default"}}'
+            elif [[ " $* " == *" -n kube-system get daemonset cilium -o json "* ]]; then
+              printf '%s\\n' '{"metadata":{"generation":3},"spec":{"template":{"metadata":{"annotations":{"cilium.io/cilium-configmap-checksum":"abc"}}}},"status":{"desiredNumberScheduled":2,"numberReady":2,"updatedNumberScheduled":2,"observedGeneration":3}}'
             else
               exit 0
             fi
@@ -374,6 +382,10 @@ def test_configure_batches_two_cluster_workspaces_and_maps_manifest(tmp_path):
             "AKS_AMW_ARM_BATCH_SIZE": "10",
             "AKS_AMW_METRICS_QUERY_ATTEMPTS": "1",
             "AKS_AMW_METRICS_QUERY_RETRY_SECONDS": "0",
+            "AKS_MANAGED_MONITORING_CONVERGENCE_ENABLED": "true",
+            "AKS_MANAGED_MONITORING_CONVERGENCE_TIMEOUT_SECONDS": "5",
+            "AKS_MANAGED_MONITORING_CILIUM_QUIET_SECONDS": "0",
+            "AKS_MANAGED_MONITORING_POLL_SECONDS": "0",
             "RUN_ID": "build-123",
             "REGION": "eastus2euap",
             "CLUSTERS_FILE": str(clusters_file),
@@ -413,6 +425,9 @@ def test_configure_batches_two_cluster_workspaces_and_maps_manifest(tmp_path):
     assert az_log.read_text(encoding="utf-8").count(
         "deployment group create"
     ) == 1
+    assert az_log.read_text(encoding="utf-8").count(
+        "resource show --ids"
+    ) == 2
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     assert manifest["schema_version"] == 2
     assert len(manifest["workspaces"]) == 2
@@ -817,6 +832,250 @@ def test_wait_marks_throttled_amw_unready(tmp_path):
     assert "capacity audit failed" in audit.stdout
     assert (output_dir / "telemetry-audit-managed.json").is_file()
     assert (output_dir / "aks-platform-mesh-1.openmetrics").is_file()
+
+
+def test_required_platform_metrics_make_wait_task_fail_after_preserving_manifest(
+    tmp_path,
+):
+    manifest_path = tmp_path / "run-manifest.json"
+    output_dir = tmp_path / "output"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "run_id": "test-run",
+                "configured_at": "2026-07-14T00:00:00Z",
+                "workspace": {"mode": "per-cluster"},
+                "workspaces": [
+                    {
+                        "slot": "mesh-1",
+                        "name": "test-amw-mesh-1",
+                        "id": "test-amw",
+                        "capacity_guard": {
+                            "monitoring_window_start": "2026-07-14T00:00:00Z"
+                        },
+                    }
+                ],
+                "clusters": [
+                    {
+                        "role": "mesh-1",
+                        "id": "cluster-id",
+                        "prometheus_cluster_alias": "test_run_mesh_1",
+                        "workspace": {
+                            "slot": "mesh-1",
+                            "name": "test-amw-mesh-1",
+                            "id": "test-amw",
+                            "prometheus_query_endpoint": "https://example",
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_az = fake_bin / "az"
+    fake_az.write_text(
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env bash
+            set -euo pipefail
+            if [[ " $* " == *" TimeSeriesSamplesDropped "* ]]; then
+              printf '%s\\n' '{"value":[]}'
+            elif [ "${1:-} ${2:-} ${3:-}" = "monitor metrics list" ]; then
+              cat <<'JSON'
+            {"value":[
+              {"name":{"value":"ActiveTimeSeries"},"timeseries":[{"data":[{"maximum":10}]}]},
+              {"name":{"value":"ActiveTimeSeriesLimit"},"timeseries":[{"data":[{"maximum":1000}]}]},
+              {"name":{"value":"ActiveTimeSeriesPercentUtilization"},"timeseries":[{"data":[{"maximum":1}]}]},
+              {"name":{"value":"EventsPerMinuteIngested"},"timeseries":[{"data":[{"maximum":20}]}]},
+              {"name":{"value":"EventsPerMinuteIngestedLimit"},"timeseries":[{"data":[{"maximum":1000}]}]},
+              {"name":{"value":"EventsPerMinuteIngestedPercentUtilization"},"timeseries":[{"data":[{"maximum":2}]}]}
+            ]}
+            JSON
+            else
+              echo "Unexpected az command: $*" >&2
+              exit 1
+            fi
+            """
+        ),
+        encoding="utf-8",
+    )
+    fake_az.chmod(fake_az.stat().st_mode | stat.S_IXUSR)
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "AKS_CONTROL_PLANE_METRICS_ENABLED": "true",
+            "AKS_PLATFORM_METRICS_REQUIRED": "true",
+            "AKS_PLATFORM_METRICS_TIMEOUT_SECONDS": "0",
+            "AKS_MANAGED_PROMETHEUS_TIMEOUT_SECONDS": "0",
+            "AKS_AMW_METRICS_QUERY_ATTEMPTS": "1",
+            "AKS_AMW_METRICS_QUERY_RETRY_SECONDS": "0",
+            "MANIFEST_PATH": str(manifest_path),
+            "OUTPUT_DIR": str(output_dir),
+            "RUN_ID": "test-run",
+            "PATH": f"{fake_bin}:{environment['PATH']}",
+        }
+    )
+
+    result = subprocess.run(
+        ["bash", str(TELEMETRY_DIR / "wait-managed-prometheus.sh")],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=10,
+    )
+
+    assert result.returncode == 1
+    assert "Required AKS platform CPU/memory metrics did not cover" in result.stdout
+    collection = json.loads(
+        (output_dir / "run-manifest.json").read_text(encoding="utf-8")
+    )
+    assert collection["platform_metrics_ready"] is False
+    assert collection["capacity_audits"][0]["summary"]["capacity_ok"] is True
+
+
+def test_platform_window_coverage_accepts_azure_offset_timestamps(tmp_path):
+    manifest_path = tmp_path / "run-manifest.json"
+    output_dir = tmp_path / "output"
+    scenario_meta = tmp_path / "share-infra-meta.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "run_id": "test-run",
+                "configured_at": "2026-07-14T00:00:00Z",
+                "workspace": {"mode": "per-cluster"},
+                "workspaces": [
+                    {
+                        "slot": "mesh-1",
+                        "name": "test-amw-mesh-1",
+                        "id": "test-amw",
+                        "capacity_guard": {
+                            "monitoring_window_start": "2026-07-14T00:00:00Z"
+                        },
+                    }
+                ],
+                "clusters": [
+                    {
+                        "role": "mesh-1",
+                        "id": "cluster-id",
+                        "prometheus_cluster_alias": "test_run_mesh_1",
+                        "workspace": {
+                            "slot": "mesh-1",
+                            "name": "test-amw-mesh-1",
+                            "id": "test-amw",
+                            "prometheus_query_endpoint": "https://example",
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    scenario_meta.write_text(
+        json.dumps(
+            [
+                {
+                    "scenario": "event-throughput",
+                    "start_timestamp": "2026-07-14T00:01:00Z",
+                    "end_timestamp": "2026-07-14T00:10:00Z",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_az = fake_bin / "az"
+    fake_az.write_text(
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env bash
+            set -euo pipefail
+            if [[ " $* " == *" TimeSeriesSamplesDropped "* ]]; then
+              printf '%s\\n' '{"value":[]}'
+            elif [[ " $* " == *" apiserver_cpu_usage_percentage "* ]]; then
+              cat <<'JSON'
+            {"value":[
+              {"name":{"value":"apiserver_cpu_usage_percentage"},"timeseries":[{"data":[{"timeStamp":"2026-07-14T00:01:00+00:00","average":1},{"timeStamp":"2026-07-14T00:10:00+00:00","average":1}]}]},
+              {"name":{"value":"apiserver_memory_usage_percentage"},"timeseries":[{"data":[{"timeStamp":"2026-07-14T00:01:00+00:00","average":1},{"timeStamp":"2026-07-14T00:10:00+00:00","average":1}]}]},
+              {"name":{"value":"etcd_cpu_usage_percentage"},"timeseries":[{"data":[{"timeStamp":"2026-07-14T00:01:00+00:00","average":1},{"timeStamp":"2026-07-14T00:10:00+00:00","average":1}]}]},
+              {"name":{"value":"etcd_memory_usage_percentage"},"timeseries":[{"data":[{"timeStamp":"2026-07-14T00:01:00+00:00","average":1},{"timeStamp":"2026-07-14T00:10:00+00:00","average":1}]}]}
+            ]}
+            JSON
+            elif [ "${1:-} ${2:-} ${3:-}" = "monitor metrics list" ]; then
+              cat <<'JSON'
+            {"value":[
+              {"name":{"value":"ActiveTimeSeries"},"timeseries":[{"data":[{"maximum":10}]}]},
+              {"name":{"value":"ActiveTimeSeriesLimit"},"timeseries":[{"data":[{"maximum":1000}]}]},
+              {"name":{"value":"ActiveTimeSeriesPercentUtilization"},"timeseries":[{"data":[{"maximum":1}]}]},
+              {"name":{"value":"EventsPerMinuteIngested"},"timeseries":[{"data":[{"maximum":20}]}]},
+              {"name":{"value":"EventsPerMinuteIngestedLimit"},"timeseries":[{"data":[{"maximum":1000}]}]},
+              {"name":{"value":"EventsPerMinuteIngestedPercentUtilization"},"timeseries":[{"data":[{"maximum":2}]}]}
+            ]}
+            JSON
+            elif [ "${1:-} ${2:-}" = "account get-access-token" ]; then
+              echo fake-token
+            else
+              echo "Unexpected az command: $*" >&2
+              exit 1
+            fi
+            """
+        ),
+        encoding="utf-8",
+    )
+    fake_az.chmod(fake_az.stat().st_mode | stat.S_IXUSR)
+    fake_curl = fake_bin / "curl"
+    fake_curl.write_text(
+        "#!/usr/bin/env bash\n"
+        "printf '%s\\n' "
+        "'{\"status\":\"success\",\"data\":{\"result\":[]}}'\n",
+        encoding="utf-8",
+    )
+    fake_curl.chmod(fake_curl.stat().st_mode | stat.S_IXUSR)
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "AKS_CONTROL_PLANE_METRICS_ENABLED": "true",
+            "AKS_PLATFORM_METRICS_REQUIRED": "true",
+            "AKS_PLATFORM_METRICS_REQUIRE_WINDOW_COVERAGE": "true",
+            "AKS_PLATFORM_METRICS_MIN_COVERAGE_PERCENT": "0",
+            "AKS_PLATFORM_METRICS_TIMEOUT_SECONDS": "2",
+            "AKS_PLATFORM_METRICS_COVERAGE_GRACE_SECONDS": "0",
+            "AKS_MANAGED_PROMETHEUS_TIMEOUT_SECONDS": "0",
+            "AKS_AMW_METRICS_QUERY_ATTEMPTS": "1",
+            "AKS_AMW_METRICS_QUERY_RETRY_SECONDS": "0",
+            "MANIFEST_PATH": str(manifest_path),
+            "SHARE_INFRA_META": str(scenario_meta),
+            "OUTPUT_DIR": str(output_dir),
+            "RUN_ID": "test-run",
+            "PATH": f"{fake_bin}:{environment['PATH']}",
+        }
+    )
+
+    result = subprocess.run(
+        ["bash", str(TELEMETRY_DIR / "wait-managed-prometheus.sh")],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=10,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    collection = json.loads(
+        (output_dir / "run-manifest.json").read_text(encoding="utf-8")
+    )
+    assert collection["platform_metrics_ready"] is True
+    assert collection["platform_metrics_window"] == {
+        "start": "2026-07-14T00:01:00Z",
+        "end": "2026-07-14T00:10:00Z",
+        "full_window_required": True,
+        "minimum_coverage_percent": 0,
+    }
 
 
 def test_scripts_use_current_aks_profile_and_full_export():

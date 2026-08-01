@@ -1697,7 +1697,8 @@ steps:
           fi
           if [ "$scenario_rc" -ne 0 ] &&
              [ -s "$worker_summary" ] &&
-             [ "$(jq -r '.failed_count // 0' "$worker_summary")" -eq 0 ]; then
+             [ "$(jq -r '.failed_count // 0' "$worker_summary")" -eq 0 ] &&
+             [ "$(jq -r '.telemetry_failed_count // 0' "$worker_summary")" -eq 0 ]; then
             non_worker_failure=true
           fi
 
@@ -1854,6 +1855,8 @@ steps:
           allowed_worker_failures=0
           failure_rate=0
           failed_roles_json='[]'
+          telemetry_failed_count=0
+          telemetry_failed_roles_json='[]'
           worker_threshold_exceeded=true
           if [ -s "$policy_output" ]; then
             measurement_valid=$(jq -r '.measurement_valid' "$policy_output")
@@ -1861,6 +1864,10 @@ steps:
             allowed_worker_failures=$(jq -r '.worker_allowed_failures' "$policy_output")
             failure_rate=$(jq -r '.worker_failure_rate_percent' "$policy_output")
             failed_roles_json=$(jq -c '.failed_roles // []' "$policy_output")
+            telemetry_failed_count=$(jq -r \
+              '.telemetry_failed_count // 0' "$policy_output")
+            telemetry_failed_roles_json=$(jq -c \
+              '.telemetry_failed_roles // []' "$policy_output")
             worker_threshold_exceeded=$(jq -r \
               '.worker_failed_count > .worker_allowed_failures' "$policy_output")
             if jq -e '.tolerated_worker_failures == true' \
@@ -1952,6 +1959,8 @@ steps:
             --argjson worker_failure_rate_percent "$failure_rate" \
             --argjson worker_threshold_exceeded "$worker_threshold_exceeded" \
             --argjson failed_roles "$failed_roles_json" \
+            --argjson telemetry_failed_count "$telemetry_failed_count" \
+            --argjson telemetry_failed_roles "$telemetry_failed_roles_json" \
             --argjson target_stimulus_valid "$target_stimulus_valid" \
             --argjson artifact_preservation_rc "$artifact_preservation_rc" \
             --argjson evidence_valid "$evidence_valid" \
@@ -1967,6 +1976,8 @@ steps:
               worker_failure_rate_percent: $worker_failure_rate_percent,
               worker_threshold_exceeded: $worker_threshold_exceeded,
               failed_roles: $failed_roles,
+              telemetry_failed_count: $telemetry_failed_count,
+              telemetry_failed_roles: $telemetry_failed_roles,
               target_stimulus_valid: $target_stimulus_valid,
               artifact_preservation_rc: $artifact_preservation_rc,
               evidence_valid: $evidence_valid,

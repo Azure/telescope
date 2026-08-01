@@ -695,12 +695,11 @@ def execute_parallel(
     cluster's CL2 finishes — before peer clusters complete — so kubectl
     --tail windows and `kubectl get events` recency don't age out.
 
-    The worker script's exit code is the authoritative per-cluster
-    pass/fail (it does its own junit gate). This function aggregates:
-    returns 0 iff every worker exited 0; otherwise 1. Matches the
-    sequential `if failures > 0; exit 1` semantics that execute.yml had
-    before parallelization, so the AzDO step's pass/fail signal is
-    unchanged from the user's perspective.
+    The worker script distinguishes workload failure (exit 1) from required
+    telemetry failure after a valid workload (exit 10). The summary keeps
+    workload-valid roles in `succeeded_roles` so scenario evidence and
+    artifact preservation still inspect their valid JUnit/output trees, while
+    `telemetry_failed_roles` independently invalidates the measurement.
 
     `clusters_file` schema: a JSON array of objects with at least `role`
     and `kubeconfig` fields. Extra fields (e.g. `name`, `rg`) are ignored
@@ -785,19 +784,35 @@ def execute_parallel(
             else:
                 results.append((role, exit_code))
 
-    failed = [r for r, code in results if code != 0]
-    succeeded = [r for r, code in results if code == 0]
+    workload_failed = [r for r, code in results if code not in (0, 10)]
+    workload_succeeded = [r for r, code in results if code in (0, 10)]
+    telemetry_failed = [r for r, code in results if code == 10]
+    fully_succeeded = [r for r, code in results if code == 0]
     if summary_file:
         summary = {
-            "schema_version": 1,
+            "schema_version": 2,
             "total_workers": len(results),
             "max_concurrent": max_concurrent,
-            "succeeded_count": len(succeeded),
-            "failed_count": len(failed),
-            "succeeded_roles": sorted(succeeded),
-            "failed_roles": sorted(failed),
+            # Backwards-compatible workload/JUnit fields.
+            "succeeded_count": len(workload_succeeded),
+            "failed_count": len(workload_failed),
+            "succeeded_roles": sorted(workload_succeeded),
+            "failed_roles": sorted(workload_failed),
+            "workload_succeeded_count": len(workload_succeeded),
+            "workload_failed_count": len(workload_failed),
+            "workload_succeeded_roles": sorted(workload_succeeded),
+            "workload_failed_roles": sorted(workload_failed),
+            "telemetry_failed_count": len(telemetry_failed),
+            "telemetry_failed_roles": sorted(telemetry_failed),
+            "fully_succeeded_count": len(fully_succeeded),
+            "fully_succeeded_roles": sorted(fully_succeeded),
             "results": [
-                {"role": role, "exit_code": code}
+                {
+                    "role": role,
+                    "exit_code": code,
+                    "workload_valid": code in (0, 10),
+                    "telemetry_valid": code == 0,
+                }
                 for role, code in sorted(results)
             ],
         }
@@ -810,15 +825,25 @@ def execute_parallel(
             summary_handle.write("\n")
         os.replace(summary_tmp, summary_file)
     print(
-        f"[execute-parallel] summary: {len(succeeded)} succeeded, "
-        f"{len(failed)} failed (max_concurrent={max_concurrent})",
+        f"[execute-parallel] summary: workload "
+        f"{len(workload_succeeded)} succeeded/{len(workload_failed)} failed; "
+        f"telemetry {len(telemetry_failed)} failed "
+        f"(max_concurrent={max_concurrent})",
         flush=True,
     )
-    if failed:
+    if workload_failed:
         print(
-            f"[execute-parallel] failed clusters: {', '.join(sorted(failed))}",
+            "[execute-parallel] workload-failed clusters: "
+            f"{', '.join(sorted(workload_failed))}",
             flush=True,
         )
+    if telemetry_failed:
+        print(
+            "[execute-parallel] telemetry-failed clusters: "
+            f"{', '.join(sorted(telemetry_failed))}",
+            flush=True,
+        )
+    if workload_failed or telemetry_failed:
         return 1
     return 0
 

@@ -18,28 +18,104 @@ platform_metric_names=(
   etcd_cpu_usage_percentage
   etcd_memory_usage_percentage
 )
+platform_metrics_required="${AKS_PLATFORM_METRICS_REQUIRED:-false}"
+platform_window_coverage_required="${AKS_PLATFORM_METRICS_REQUIRE_WINDOW_COVERAGE:-false}"
+platform_coverage_grace_seconds="${AKS_PLATFORM_METRICS_COVERAGE_GRACE_SECONDS:-300}"
+platform_min_coverage_percent="${AKS_PLATFORM_METRICS_MIN_COVERAGE_PERCENT:-0}"
+if ! [[ "$platform_coverage_grace_seconds" =~ ^[0-9]+$ ]]; then
+  echo "AKS_PLATFORM_METRICS_COVERAGE_GRACE_SECONDS must be a non-negative integer." >&2
+  exit 1
+fi
+if ! [[ "$platform_min_coverage_percent" =~ ^[0-9]+$ ]] ||
+   [ "$platform_min_coverage_percent" -gt 100 ]; then
+  echo "AKS_PLATFORM_METRICS_MIN_COVERAGE_PERCENT must be an integer from 0 to 100." >&2
+  exit 1
+fi
+platform_window_start="$configured_at"
+platform_window_end=""
+if [ -n "${SHARE_INFRA_META:-}" ] && [ -s "$SHARE_INFRA_META" ]; then
+  platform_window_start=$(jq -r \
+    '[.[] | .start_timestamp // empty] | min // empty' \
+    "$SHARE_INFRA_META")
+  platform_window_end=$(jq -r \
+    '[.[] | .end_timestamp // empty] | max // empty' \
+    "$SHARE_INFRA_META")
+fi
+if [ -z "$platform_window_start" ]; then
+  platform_window_start="$configured_at"
+fi
 
 wait_for_platform_metrics() {
   local timeout="${AKS_PLATFORM_METRICS_TIMEOUT_SECONDS:-3600}"
   local deadline=$(( $(date +%s) + timeout ))
-  local missing role cluster_id available remaining sleep_seconds
+  local missing role cluster_id available remaining sleep_seconds response
+  local required_start_epoch required_end_epoch expected_samples minimum_samples
+  required_start_epoch=$(date -u -d "$platform_window_start" +%s)
+  required_end_epoch=0
+  if [ -n "$platform_window_end" ]; then
+    required_end_epoch=$(date -u -d "$platform_window_end" +%s)
+  elif [ "${platform_window_coverage_required,,}" = "true" ]; then
+    echo "Required platform metric window coverage cannot be evaluated because no scenario end timestamp is available." >&2
+    return 1
+  fi
+  expected_samples=1
+  minimum_samples=1
+  if [ "$required_end_epoch" -gt "$required_start_epoch" ]; then
+    expected_samples=$(( (required_end_epoch - required_start_epoch) / 60 + 1 ))
+    minimum_samples=$(( \
+      (expected_samples * platform_min_coverage_percent + 99) / 100 ))
+    if [ "$minimum_samples" -lt 1 ]; then
+      minimum_samples=1
+    fi
+  fi
   while [ "$(date +%s)" -lt "$deadline" ]; do
     missing=0
     while IFS= read -r cluster; do
       role=$(echo "$cluster" | jq -r '.role')
       cluster_id=$(echo "$cluster" | jq -r '.id')
-      available=$(az monitor metrics list \
+      response=$(az monitor metrics list \
         --resource "$cluster_id" \
         --metrics "${platform_metric_names[@]}" \
         --interval PT1M \
         --aggregation Average \
         --start-time "$configured_at" \
         --end-time "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-        -o json 2>/dev/null \
-        | jq '[.value[] | select(any(.timeseries[].data[]?; .average != null))] | length' \
-        || echo 0)
+        -o json 2>/dev/null || echo '{"value":[]}')
+      if [ "${platform_window_coverage_required,,}" = "true" ] &&
+         [ "$required_end_epoch" -gt 0 ]; then
+        available=$(jq \
+          --argjson required_start "$required_start_epoch" \
+          --argjson required_end "$required_end_epoch" \
+          --argjson grace "$platform_coverage_grace_seconds" \
+          --argjson minimum_samples "$minimum_samples" \
+          '[
+            .value[]
+            | [
+                .timeseries[].data[]?
+                | select(.average != null)
+                | (
+                    try (
+                      .timeStamp
+                      | .[0:19] + "Z"
+                      | fromdateiso8601
+                    )
+                    catch empty
+                  )
+              ] as $timestamps
+            | select(
+                ($timestamps | length) > 0
+                and ($timestamps | unique | length) >= $minimum_samples
+                and ($timestamps | min) <= ($required_start + $grace)
+                and ($timestamps | max) >= ($required_end - $grace)
+              )
+          ] | length' <<<"$response" 2>/dev/null || echo 0)
+      else
+        available=$(jq \
+          '[.value[] | select(any(.timeseries[].data[]?; .average != null))] | length' \
+          <<<"$response" 2>/dev/null || echo 0)
+      fi
       if [ "${available:-0}" -ne "${#platform_metric_names[@]}" ]; then
-        echo "[$role] waiting for platform CPU/memory metrics ($available/${#platform_metric_names[@]})"
+        echo "[$role] waiting for platform CPU/memory metrics ($available/${#platform_metric_names[@]}) window=${platform_window_start}..${platform_window_end:-current} minimum_samples=$minimum_samples"
         missing=$((missing + 1))
       fi
     done < <(jq -c '.clusters[]' "$MANIFEST_PATH")
@@ -64,7 +140,11 @@ wait_for_platform_metrics || platform_wait_rc=$?
 platform_metrics_ready=true
 if [ "$platform_wait_rc" -ne 0 ]; then
   platform_metrics_ready=false
-  echo "##vso[task.logissue type=warning;] AKS platform CPU/memory metrics did not appear before timeout; exporting every available platform metric anyway."
+  if [ "${platform_metrics_required,,}" = "true" ]; then
+    echo "##vso[task.logissue type=error;] Required AKS platform CPU/memory metrics did not cover the scenario window before timeout; exporting every available platform metric anyway."
+  else
+    echo "##vso[task.logissue type=warning;] AKS platform CPU/memory metrics did not appear before timeout; exporting every available platform metric anyway."
+  fi
 fi
 end_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
@@ -239,6 +319,10 @@ fi
 
 collection_manifest_tmp="${collection_manifest}.tmp"
 scenario_windows='[]'
+platform_window_coverage_required_json=false
+if [ "${platform_window_coverage_required,,}" = "true" ]; then
+  platform_window_coverage_required_json=true
+fi
 if [ -n "${SHARE_INFRA_META:-}" ] &&
    [ -s "$SHARE_INFRA_META" ]; then
   scenario_windows=$(cat "$SHARE_INFRA_META")
@@ -254,6 +338,11 @@ jq \
   --argjson managed_readiness "$managed_readiness" \
   --argjson capacity_audits "$capacity_audits" \
   --argjson scenario_windows "$scenario_windows" \
+  --arg platform_window_start "$platform_window_start" \
+  --arg platform_window_end "$platform_window_end" \
+  --argjson platform_window_coverage_required \
+    "$platform_window_coverage_required_json" \
+  --argjson platform_min_coverage_percent "$platform_min_coverage_percent" \
   '. + {
     collected_at: $collected_at,
     platform_metrics_ready: $platform_metrics_ready,
@@ -263,6 +352,17 @@ jq \
     managed_readiness: $managed_readiness,
     capacity_audits: $capacity_audits,
     scenario_windows: $scenario_windows,
+    platform_metrics_window: {
+      start: $platform_window_start,
+      end: (
+        if ($platform_window_end | length) > 0
+        then $platform_window_end
+        else null
+        end
+      ),
+      full_window_required: $platform_window_coverage_required,
+      minimum_coverage_percent: $platform_min_coverage_percent
+    },
     audit_window: {
       start: $audit_window_start,
       end: $audit_window_end
@@ -284,3 +384,7 @@ fi
 echo "##vso[task.setvariable variable=AKS_TELEMETRY_WINDOW_READY]true"
 echo "##vso[task.setvariable variable=AKS_MANAGED_PROMETHEUS_READY]$managed_prometheus_ready"
 echo "##vso[task.setvariable variable=AKS_AMW_CAPACITY_OK]$amw_capacity_ok"
+if [ "${platform_metrics_required,,}" = "true" ] &&
+   [ "$platform_metrics_ready" != "true" ]; then
+  exit 1
+fi

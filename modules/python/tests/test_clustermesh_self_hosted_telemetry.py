@@ -196,10 +196,11 @@ def test_acns_setup_and_host_log_collection_smoke(tmp_path):
     fake_logs = tmp_path / "host-logs"
     fake_logs.mkdir()
     (fake_logs / "events.log").write_text(
-        '{"verdict":"FORWARDED","protocol":"TCP"}\n',
+        '{"time":"2026-07-31T20:00:01Z","verdict":"FORWARDED","protocol":"TCP"}\n',
         encoding="utf-8",
     )
     kubectl_log = tmp_path / "kubectl.log"
+    traffic_marker = tmp_path / "traffic-generated"
     fake_kubectl = fake_bin / "kubectl"
     fake_kubectl.write_text(
         textwrap.dedent(
@@ -219,18 +220,24 @@ def test_acns_setup_and_host_log_collection_smoke(tmp_path):
               printf CONFIGURED
             elif [[ " $* " == *" get containernetworkmetric container-network-metric -o jsonpath="* ]]; then
               printf CONFIGURED
+            elif [[ " $* " == *" -n kube-system get configmap cilium-config -o jsonpath="* ]]; then
+              printf default
             elif [[ " $* " == *" -n acns-telemetry get pods -l app=acns-client -o jsonpath="* ]]; then
               printf 'acns-client-a\\tnode-a\\n'
             elif [[ " $* " == *" -n kube-system get pods -l k8s-app=cilium -o jsonpath="* ]]; then
               printf 'cilium-a\\tnode-a\\t10.0.0.4\\n'
             elif [[ " $* " == *" -n acns-telemetry get pods -l app=acns-log-collector -o jsonpath="* ]]; then
               printf 'collector-a\\tnode-a\\n'
+            elif [[ " $* " == *" exec acns-client-a -c client -- sh -c "* ]]; then
+              touch "$TRAFFIC_MARKER"
             elif [[ " $* " == *" exec collector-a -c collector -- wget "* ]]; then
+              value=1
+              [ ! -f "$TRAFFIC_MARKER" ] || value=2
               printf '%s\\n' \
                 '# TYPE hubble_dns_queries_total counter' \
-                'hubble_dns_queries_total{query="management.azure.com"} 1' \
+                "hubble_dns_queries_total{source=\\\"acns-telemetry/acns-client-a\\\",query=\\\"management.azure.com\\\"} $value" \
                 '# TYPE hubble_dns_responses_total counter' \
-                'hubble_dns_responses_total{rcode="No Error"} 1'
+                "hubble_dns_responses_total{rcode=\\\"No Error\\\"} $value"
             elif [[ " $* " == *" get containernetworklog clustermesh-scale-acns -o json "* ]]; then
               printf '%s\\n' '{"status":{"state":"CONFIGURED"}}'
             elif [[ " $* " == *" get containernetworkmetric container-network-metric -o json "* ]]; then
@@ -268,8 +275,12 @@ def test_acns_setup_and_host_log_collection_smoke(tmp_path):
             "CL2_ACNS_METRIC_POLL_SECONDS": "0",
             "KUBECONFIG": str(tmp_path / "kubeconfig"),
             "KUBECTL_LOG": str(kubectl_log),
+            "TRAFFIC_MARKER": str(traffic_marker),
             "FAKE_LOG_DIR": str(fake_logs),
             "OUTPUT_DIR": str(output_dir),
+            "ACNS_READINESS_OUTPUT": str(output_dir / "readiness.json"),
+            "ACNS_WINDOW_START_TIMESTAMP": "2026-07-31T20:00:00Z",
+            "CL2_ACNS_METRIC_PROBE_SETTLE_SECONDS": "0",
             "PATH": f"{fake_bin}:{environment['PATH']}",
         }
     )
@@ -282,6 +293,24 @@ def test_acns_setup_and_host_log_collection_smoke(tmp_path):
         env=environment,
         timeout=10,
     )
+    apply_count = kubectl_log.read_text(encoding="utf-8").count("apply ")
+    traffic_marker.unlink()
+    verify_environment = environment.copy()
+    verify_environment.update(
+        {
+            "ACNS_VERIFY_ONLY": "true",
+            "ACNS_READINESS_OUTPUT": str(output_dir / "readiness-final.json"),
+        }
+    )
+    subprocess.run(
+        ["bash", str(ACNS_SETUP_SCRIPT)],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=verify_environment,
+        timeout=10,
+    )
+    assert kubectl_log.read_text(encoding="utf-8").count("apply ") == apply_count
     subprocess.run(
         ["bash", str(ACNS_COLLECT_SCRIPT)],
         check=True,
@@ -297,8 +326,20 @@ def test_acns_setup_and_host_log_collection_smoke(tmp_path):
     assert summary["complete"] is True
     assert summary["expected_archives"] == 2
     assert summary["nonempty_log_archives"] == 2
+    assert summary["fresh_event_archives"] == 2
+    assert summary["window_start"] == "2026-07-31T20:00:00Z"
     assert summary["metric_config_captured"] is True
     assert (output_dir / "container-network-metric.json").exists()
+    readiness = json.loads(
+        (output_dir / "readiness.json").read_text(encoding="utf-8")
+    )
+    assert readiness["ready"] is True
+    assert readiness["counters"]["hubble_dns_queries_total"]["delta"] == 1
+    assert readiness["counters"]["hubble_dns_responses_total"]["delta"] == 1
+    final_readiness = json.loads(
+        (output_dir / "readiness-final.json").read_text(encoding="utf-8")
+    )
+    assert final_readiness["ready"] is True
     kubectl_calls = kubectl_log.read_text(encoding="utf-8")
     assert "http://10.0.0.4:9965/metrics" in kubectl_calls
     assert {item["node"] for item in summary["archives"]} == {
@@ -331,12 +372,16 @@ def test_acns_setup_fails_when_dns_metric_families_remain_absent(tmp_path):
             elif [[ " $* " == *" get containernetworklog clustermesh-scale-acns -o jsonpath="* ]] ||
                  [[ " $* " == *" get containernetworkmetric container-network-metric -o jsonpath="* ]]; then
               printf CONFIGURED
+            elif [[ " $* " == *" -n kube-system get configmap cilium-config -o jsonpath="* ]]; then
+              printf default
             elif [[ " $* " == *" -n acns-telemetry get pods -l app=acns-client -o jsonpath="* ]]; then
               printf 'acns-client-a\\tnode-a\\n'
             elif [[ " $* " == *" -n kube-system get pods -l k8s-app=cilium -o jsonpath="* ]]; then
               printf 'cilium-a\\tnode-a\\t10.0.0.4\\n'
             elif [[ " $* " == *" -n acns-telemetry get pods -l app=acns-log-collector -o jsonpath="* ]]; then
               printf 'collector-a\\tnode-a\\n'
+            elif [[ " $* " == *" exec acns-client-a -c client -- sh -c "* ]]; then
+              exit 0
             elif [[ " $* " == *" exec collector-a -c collector -- wget "* ]]; then
               printf '%s\\n' \
                 '# TYPE hubble_flows_processed_total counter' \
@@ -362,6 +407,7 @@ def test_acns_setup_fails_when_dns_metric_families_remain_absent(tmp_path):
             "CL2_ACNS_TELEMETRY_ENABLED": "true",
             "CL2_ACNS_METRIC_READY_TIMEOUT_SECONDS": "0",
             "CL2_ACNS_METRIC_POLL_SECONDS": "0",
+            "CL2_ACNS_METRIC_PROBE_SETTLE_SECONDS": "0",
             "KUBECONFIG": str(tmp_path / "kubeconfig"),
             "PATH": f"{fake_bin}:{environment['PATH']}",
         }
@@ -387,6 +433,57 @@ def test_acns_setup_fails_when_dns_metric_families_remain_absent(tmp_path):
     assert "state: CONFIGURED" in result.stderr
 
 
+def test_acns_setup_rejects_cilium_policy_never(tmp_path):
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_kubectl = fake_bin / "kubectl"
+    fake_kubectl.write_text(
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env bash
+            set -euo pipefail
+            if [ "${1:-} ${2:-}" = "get crd/containernetworklogs.acn.azure.com" ] ||
+               [ "${1:-} ${2:-}" = "get crd/containernetworkmetrics.acn.azure.com" ] ||
+               [ "${1:-} ${2:-}" = "get crd/ciliumnetworkpolicies.cilium.io" ] ||
+               [ "${1:-}" = "apply" ] ||
+               [[ " $* " == *" rollout status "* ]]; then
+              exit 0
+            elif [[ " $* " == *" get containernetworklog clustermesh-scale-acns -o jsonpath="* ]] ||
+                 [[ " $* " == *" get containernetworkmetric container-network-metric -o jsonpath="* ]]; then
+              printf CONFIGURED
+            elif [[ " $* " == *" -n kube-system get configmap cilium-config -o jsonpath="* ]]; then
+              printf never
+            fi
+            echo "Unexpected kubectl command: $*" >&2
+            exit 1
+            """
+        ),
+        encoding="utf-8",
+    )
+    fake_kubectl.chmod(fake_kubectl.stat().st_mode | stat.S_IXUSR)
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "CL2_ACNS_TELEMETRY_ENABLED": "true",
+            "KUBECONFIG": str(tmp_path / "kubeconfig"),
+            "PATH": f"{fake_bin}:{environment['PATH']}",
+        }
+    )
+
+    result = subprocess.run(
+        ["bash", str(ACNS_SETUP_SCRIPT)],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=10,
+    )
+
+    assert result.returncode == 1
+    assert "enable-policy=never" in result.stderr
+    assert "fresh DNS L7 metrics cannot be trusted" in result.stderr
+
+
 def test_acns_setup_follows_acns_client_node_and_ignores_arbitrary_first_cilium_node(
     tmp_path,
 ):
@@ -398,6 +495,7 @@ def test_acns_setup_follows_acns_client_node_and_ignores_arbitrary_first_cilium_
     fake_bin = tmp_path / "bin"
     fake_bin.mkdir()
     kubectl_log = tmp_path / "kubectl.log"
+    traffic_marker = tmp_path / "traffic-generated"
     fake_kubectl = fake_bin / "kubectl"
     fake_kubectl.write_text(
         textwrap.dedent(
@@ -414,6 +512,8 @@ def test_acns_setup_follows_acns_client_node_and_ignores_arbitrary_first_cilium_
             elif [[ " $* " == *" get containernetworklog clustermesh-scale-acns -o jsonpath="* ]] ||
                  [[ " $* " == *" get containernetworkmetric container-network-metric -o jsonpath="* ]]; then
               printf CONFIGURED
+            elif [[ " $* " == *" -n kube-system get configmap cilium-config -o jsonpath="* ]]; then
+              printf default
             elif [[ " $* " == *" -n acns-telemetry get pods -l app=acns-client -o jsonpath="* ]]; then
               printf 'acns-client-b\\tnode-b\\n'
             elif [[ " $* " == *" -n kube-system get pods -l k8s-app=cilium -o jsonpath="* ]]; then
@@ -422,12 +522,16 @@ def test_acns_setup_follows_acns_client_node_and_ignores_arbitrary_first_cilium_
             elif [[ " $* " == *" -n acns-telemetry get pods -l app=acns-log-collector -o jsonpath="* ]]; then
               printf 'collector-a\\tnode-a\\n'
               printf 'collector-b\\tnode-b\\n'
+            elif [[ " $* " == *" exec acns-client-b -c client -- sh -c "* ]]; then
+              touch "$TRAFFIC_MARKER"
             elif [[ " $* " == *" exec collector-b -c collector -- wget "*"10.0.1.5:9965"* ]]; then
+              value=1
+              [ ! -f "$TRAFFIC_MARKER" ] || value=2
               printf '%s\\n' \
                 '# TYPE hubble_dns_queries_total counter' \
-                'hubble_dns_queries_total{query="management.azure.com"} 1' \
+                "hubble_dns_queries_total{source=\\\"acns-telemetry/acns-client-b\\\",query=\\\"management.azure.com\\\"} $value" \
                 '# TYPE hubble_dns_responses_total counter' \
-                'hubble_dns_responses_total{rcode="No Error"} 1'
+                "hubble_dns_responses_total{rcode=\\\"No Error\\\"} $value"
             elif [[ " $* " == *" exec collector-a -c collector -- wget "*"10.0.0.4:9965"* ]]; then
               printf '%s\\n' '# TYPE hubble_flows_processed_total counter' 'hubble_flows_processed_total 1'
             else
@@ -447,6 +551,8 @@ def test_acns_setup_follows_acns_client_node_and_ignores_arbitrary_first_cilium_
             "CL2_ACNS_METRIC_POLL_SECONDS": "0",
             "KUBECONFIG": str(tmp_path / "kubeconfig"),
             "KUBECTL_LOG": str(kubectl_log),
+            "TRAFFIC_MARKER": str(traffic_marker),
+            "CL2_ACNS_METRIC_PROBE_SETTLE_SECONDS": "0",
             "PATH": f"{fake_bin}:{environment['PATH']}",
         }
     )

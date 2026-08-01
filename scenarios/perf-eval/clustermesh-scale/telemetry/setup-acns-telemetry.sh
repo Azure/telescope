@@ -8,63 +8,148 @@ fi
 
 : "${KUBECONFIG:?KUBECONFIG is required}"
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+verify_only="${ACNS_VERIFY_ONLY:-false}"
 timeout_seconds="${CL2_ACNS_SETUP_TIMEOUT_SECONDS:-600}"
 metric_ready_timeout_seconds="${CL2_ACNS_METRIC_READY_TIMEOUT_SECONDS:-180}"
 metric_poll_seconds="${CL2_ACNS_METRIC_POLL_SECONDS:-10}"
+metric_probe_settle_seconds="${CL2_ACNS_METRIC_PROBE_SETTLE_SECONDS:-2}"
+metric_min_delta="${CL2_ACNS_METRIC_MIN_DELTA:-1}"
+traffic_burst_count="${CL2_ACNS_TRAFFIC_BURST_COUNT:-3}"
+readiness_output="${ACNS_READINESS_OUTPUT:-}"
 deadline=$(( $(date +%s) + timeout_seconds ))
 
-for crd in \
-  containernetworklogs.acn.azure.com \
-  containernetworkmetrics.acn.azure.com \
-  ciliumnetworkpolicies.cilium.io; do
-  until kubectl get "crd/$crd" >/dev/null 2>&1; do
-    if [ "$(date +%s)" -ge "$deadline" ]; then
-      echo "Timed out waiting for ACNS CRD $crd" >&2
+for value_name in metric_probe_settle_seconds metric_min_delta traffic_burst_count; do
+  value="${!value_name}"
+  if ! [[ "$value" =~ ^[0-9]+$ ]]; then
+    echo "$value_name must be a non-negative integer, got $value" >&2
+    exit 1
+  fi
+done
+
+metric_sum() {
+  local metric_name="$1"
+  local label_filter="${2:-}"
+  awk -v metric="$metric_name" -v label_filter="$label_filter" '
+    $1 == metric || index($1, metric "{") == 1 {
+      if ((label_filter == "" || index($0, label_filter) > 0) &&
+          $NF ~ /^[-+]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][-+]?[0-9]+)?$/) {
+        total += $NF
+      }
+    }
+    END { printf "%.17g\n", total + 0 }
+  '
+}
+
+metric_delta_meets_minimum() {
+  local before="$1" after="$2"
+  awk -v before="$before" -v after="$after" -v minimum="$metric_min_delta" \
+    'BEGIN { exit !((after - before) >= minimum) }'
+}
+
+write_readiness() {
+  local ready="$1" reason="$2" endpoint="$3" client="$4"
+  local policy_mode="$5" query_before="$6" query_after="$7"
+  local response_before="$8" response_after="$9"
+  [ -n "$readiness_output" ] || return 0
+  mkdir -p "$(dirname "$readiness_output")"
+  jq -n \
+    --arg observed_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+    --arg reason "$reason" \
+    --arg endpoint "$endpoint" \
+    --arg client_pod "$client" \
+    --arg cilium_policy_mode "$policy_mode" \
+    --argjson ready "$ready" \
+    --argjson query_before "$query_before" \
+    --argjson query_after "$query_after" \
+    --argjson response_before "$response_before" \
+    --argjson response_after "$response_after" \
+    '{
+      schema_version: 1,
+      observed_at: $observed_at,
+      ready: $ready,
+      reason: $reason,
+      endpoint: $endpoint,
+      client_pod: $client_pod,
+      cilium_policy_mode: $cilium_policy_mode,
+      counters: {
+        hubble_dns_queries_total: {
+          before: $query_before,
+          after: $query_after,
+          delta: ($query_after - $query_before)
+        },
+        hubble_dns_responses_total: {
+          before: $response_before,
+          after: $response_after,
+          delta: ($response_after - $response_before)
+        }
+      }
+    }' > "${readiness_output}.tmp"
+  mv "${readiness_output}.tmp" "$readiness_output"
+}
+
+if [ "${verify_only,,}" != "true" ]; then
+  for crd in \
+    containernetworklogs.acn.azure.com \
+    containernetworkmetrics.acn.azure.com \
+    ciliumnetworkpolicies.cilium.io; do
+    until kubectl get "crd/$crd" >/dev/null 2>&1; do
+      if [ "$(date +%s)" -ge "$deadline" ]; then
+        echo "Timed out waiting for ACNS CRD $crd" >&2
+        exit 1
+      fi
+      sleep 10
+    done
+  done
+
+  kubectl apply \
+    -f "$script_dir/acns/probe.yaml" \
+    -f "$script_dir/acns/container-network-metric.yaml" \
+    -f "$script_dir/acns/container-network-log.yaml" \
+    -f "$script_dir/acns/log-collector.yaml" >/dev/null
+
+  kubectl -n acns-telemetry rollout status deployment/acns-server \
+    --timeout="${timeout_seconds}s" >/dev/null
+  kubectl -n acns-telemetry rollout status deployment/acns-client \
+    --timeout="${timeout_seconds}s" >/dev/null
+  kubectl -n acns-telemetry rollout status daemonset/acns-log-collector \
+    --timeout="${timeout_seconds}s" >/dev/null
+
+  deadline=$(( $(date +%s) + timeout_seconds ))
+  while [ "$(date +%s)" -lt "$deadline" ]; do
+    log_state=$(kubectl get containernetworklog clustermesh-scale-acns \
+      -o jsonpath='{.status.state}' 2>/dev/null || true)
+    metric_state=$(kubectl get containernetworkmetric container-network-metric \
+      -o jsonpath='{.status.state}' 2>/dev/null || true)
+    if [ "$log_state" = "CONFIGURED" ] &&
+       [ "$metric_state" = "CONFIGURED" ]; then
+      break
+    fi
+    if [ "$log_state" = "FAILED" ]; then
+      kubectl describe containernetworklog clustermesh-scale-acns >&2 || true
+      exit 1
+    fi
+    if [ "$metric_state" = "FAILED" ]; then
+      kubectl describe containernetworkmetric container-network-metric >&2 || true
       exit 1
     fi
     sleep 10
   done
-done
 
-kubectl apply \
-  -f "$script_dir/acns/probe.yaml" \
-  -f "$script_dir/acns/container-network-metric.yaml" \
-  -f "$script_dir/acns/container-network-log.yaml" \
-  -f "$script_dir/acns/log-collector.yaml" >/dev/null
-
-kubectl -n acns-telemetry rollout status deployment/acns-server \
-  --timeout="${timeout_seconds}s" >/dev/null
-kubectl -n acns-telemetry rollout status deployment/acns-client \
-  --timeout="${timeout_seconds}s" >/dev/null
-kubectl -n acns-telemetry rollout status daemonset/acns-log-collector \
-  --timeout="${timeout_seconds}s" >/dev/null
-
-deadline=$(( $(date +%s) + timeout_seconds ))
-while [ "$(date +%s)" -lt "$deadline" ]; do
-  log_state=$(kubectl get containernetworklog clustermesh-scale-acns \
-    -o jsonpath='{.status.state}' 2>/dev/null || true)
-  metric_state=$(kubectl get containernetworkmetric container-network-metric \
-    -o jsonpath='{.status.state}' 2>/dev/null || true)
-  if [ "$log_state" = "CONFIGURED" ] &&
-     [ "$metric_state" = "CONFIGURED" ]; then
-    break
-  fi
-  if [ "$log_state" = "FAILED" ]; then
-    kubectl describe containernetworklog clustermesh-scale-acns >&2 || true
+  if [ "${log_state:-}" != "CONFIGURED" ] ||
+     [ "${metric_state:-}" != "CONFIGURED" ]; then
+    echo "Timed out waiting for ACNS resource configuration: ContainerNetworkLog=${log_state:-missing} ContainerNetworkMetric=${metric_state:-missing}" >&2
+    kubectl get containernetworklog clustermesh-scale-acns -o yaml >&2 || true
+    kubectl get containernetworkmetric container-network-metric -o yaml >&2 || true
     exit 1
   fi
-  if [ "$metric_state" = "FAILED" ]; then
-    kubectl describe containernetworkmetric container-network-metric >&2 || true
-    exit 1
-  fi
-  sleep 10
-done
+fi
 
-if [ "${log_state:-}" != "CONFIGURED" ] ||
-   [ "${metric_state:-}" != "CONFIGURED" ]; then
-  echo "Timed out waiting for ACNS resource configuration: ContainerNetworkLog=${log_state:-missing} ContainerNetworkMetric=${metric_state:-missing}" >&2
-  kubectl get containernetworklog clustermesh-scale-acns -o yaml >&2 || true
-  kubectl get containernetworkmetric container-network-metric -o yaml >&2 || true
+cilium_policy_mode=$(kubectl -n kube-system get configmap cilium-config \
+  -o jsonpath='{.data.enable-policy}' 2>/dev/null || true)
+if [ "$cilium_policy_mode" = "never" ]; then
+  reason="Cilium policy enforcement is disabled (cilium-config enable-policy=never); fresh DNS L7 metrics cannot be trusted"
+  write_readiness false "$reason" "unavailable" "" "$cilium_policy_mode" 0 0 0 0
+  echo "$reason" >&2
   exit 1
 fi
 
@@ -72,6 +157,10 @@ metric_deadline=$(( $(date +%s) + metric_ready_timeout_seconds ))
 last_endpoint="unavailable"
 last_probe_error="no Running acns-client Pod found in acns-telemetry namespace"
 last_metrics=""
+last_query_before=0
+last_query_after=0
+last_response_before=0
+last_response_after=0
 # acns-client is the DNS traffic generator (see acns/probe.yaml). Only the
 # Cilium/Hubble endpoint co-located on the SAME node as the Running
 # acns-client Pod is guaranteed to observe its DNS traffic and expose
@@ -113,14 +202,45 @@ while true; do
             -c collector -- wget -q -T 5 -O - \
             "http://${cilium_endpoint}:9965/metrics" 2>&1); then
           last_probe_error=""
-          if grep -Eq '^(# (HELP|TYPE) )?hubble_dns_queries_total([ {]|$)' \
-              <<<"$last_metrics" &&
-             grep -Eq '^(# (HELP|TYPE) )?hubble_dns_responses_total([ {]|$)' \
-              <<<"$last_metrics"; then
-            echo "ACNS telemetry is configured and DNS metric families are available from $last_endpoint."
-            exit 0
+          current_client_label="source=\"acns-telemetry/${client_pod}\""
+          last_query_before=$(metric_sum \
+            hubble_dns_queries_total "$current_client_label" <<<"$last_metrics")
+          last_response_before=$(metric_sum hubble_dns_responses_total <<<"$last_metrics")
+
+          probe_label=$(printf '%s-%s' "$client_pod" "$(date +%s%N)" \
+            | tr -c '[:alnum:]-' '-')
+          kubectl -n acns-telemetry exec "$client_pod" -c client -- sh -c "
+            i=0
+            while [ \"\$i\" -lt $traffic_burst_count ]; do
+              nslookup \"\${i}.${probe_label}.invalid\" >/dev/null 2>&1 || true
+              i=\$((i + 1))
+            done
+          " >/dev/null 2>&1 || true
+          if [ "$metric_probe_settle_seconds" -gt 0 ]; then
+            sleep "$metric_probe_settle_seconds"
           fi
-          last_probe_error="Hubble endpoint responded without both DNS metric families"
+
+          if last_metrics=$(kubectl -n acns-telemetry exec "$collector_pod" \
+              -c collector -- wget -q -T 5 -O - \
+              "http://${cilium_endpoint}:9965/metrics" 2>&1); then
+            last_query_after=$(metric_sum \
+              hubble_dns_queries_total "$current_client_label" <<<"$last_metrics")
+            last_response_after=$(metric_sum hubble_dns_responses_total <<<"$last_metrics")
+            if grep -Fq "$current_client_label" <<<"$last_metrics" &&
+               metric_delta_meets_minimum "$last_query_before" "$last_query_after" &&
+               metric_delta_meets_minimum "$last_response_before" "$last_response_after"; then
+              write_readiness true "fresh DNS counters advanced" "$last_endpoint" \
+                "$client_pod" "$cilium_policy_mode" \
+                "$last_query_before" "$last_query_after" \
+                "$last_response_before" "$last_response_after"
+              echo "ACNS telemetry is configured and fresh DNS counters advanced from $last_endpoint."
+              exit 0
+            fi
+            last_probe_error="Hubble DNS counters did not advance for the current acns-client Pod"
+          else
+            last_probe_error="$last_metrics"
+            last_metrics=""
+          fi
         else
           last_probe_error="$last_metrics"
           last_metrics=""
@@ -144,6 +264,11 @@ done
 echo "Timed out waiting for hubble_dns_queries_total and hubble_dns_responses_total from a real Hubble endpoint." >&2
 echo "Last endpoint probe: $last_endpoint" >&2
 echo "Last probe result: ${last_probe_error:-unknown failure}" >&2
+echo "Last DNS counters: queries=${last_query_before}->${last_query_after}, responses=${last_response_before}->${last_response_after}" >&2
+write_readiness false "${last_probe_error:-unknown failure}" "$last_endpoint" \
+  "${client_pod:-}" "$cilium_policy_mode" \
+  "$last_query_before" "$last_query_after" \
+  "$last_response_before" "$last_response_after"
 if [ -n "$last_metrics" ]; then
   echo "Hubble metric families observed at the last endpoint:" >&2
   sed -n 's/^# TYPE \(hubble_[^ ]*\).*/\1/p' <<<"$last_metrics" \

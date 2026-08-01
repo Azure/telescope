@@ -50,7 +50,9 @@ def test_worker_separates_acns_gate_and_cleans_coredns_monitor():
     assert ".acns_complete == true" in script
     assert 'rm -f \\\n    "$telemetry_audit_dir/telemetry-audit-self-hosted.json"' in script
     assert '--require-kwok-pod-resource' in script
-    assert '"$cl2_config_file" != "propagation-probe.yaml"' in script
+    assert "propagation-probe.yaml|policy-scale.yaml" in script
+    assert "CL2_REQUIRED_SELF_HOSTED_TELEMETRY" in script
+    assert "exit 10" in script
     assert "podmonitors.monitoring.coreos.com" in script
     assert "servicemonitors.monitoring.coreos.com" in script
 

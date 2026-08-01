@@ -78,6 +78,33 @@ def test_non_worker_failure_is_never_cleared_by_worker_tolerance():
     assert decision["tolerated_worker_failures"] is False
 
 
+def test_required_telemetry_failure_invalidates_measurement_without_workload_failure():
+    summary = _summary(2, [])
+    summary.update(
+        {
+            "telemetry_failed_count": 1,
+            "telemetry_failed_roles": ["mesh-2"],
+        }
+    )
+    decision = evaluate_policy(
+        "apiserver-failure",
+        2,
+        summary,
+        target_role="mesh-1",
+        target_stimulus_valid=True,
+    )
+
+    assert decision["worker_failed_count"] == 0
+    assert decision["failed_roles"] == []
+    assert decision["telemetry_failed_count"] == 1
+    assert decision["telemetry_failed_roles"] == ["mesh-2"]
+    assert decision["measurement_valid"] is False
+    assert any(
+        "required telemetry failed on 1 worker" in reason
+        for reason in decision["measurement_reasons"]
+    )
+
+
 def test_upper_bound_allows_ten_percent_hard_worker_loss():
     failed_roles = [f"mesh-{index}" for index in range(1, 11)]
     decision = evaluate_policy(

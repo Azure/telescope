@@ -358,6 +358,7 @@ fi
 #     content is final would be a race.
 lifecycle_find_names=(
   -name 'worker-summary.json'
+  -o -name 'worker-status-*.json'
   -o -name 'scenario-policy.json'
   -o -name 'scenario-evidence.json'
   -o -name 'mock-layer-reconcile-*.json'
