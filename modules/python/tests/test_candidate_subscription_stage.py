@@ -50,13 +50,10 @@ def test_candidate_stage_has_isolated_subscription_dependencies():
         "AKS_CONTROL_PLANE_LAW_NAME: cmsh-scale-controlplane-law-aksstand2",
         'AKS_CONTROL_PLANE_FORCE_PROVIDER_REREGISTRATION: "true"',
         'AKS_MANAGED_MONITORING_CONVERGENCE_ENABLED: "true"',
-        'AKS_PLATFORM_METRICS_REQUIRED: "true"',
-        'AKS_PLATFORM_METRICS_REQUIRE_WINDOW_COVERAGE: "true"',
+        'AKS_PLATFORM_METRICS_REQUIRED: "false"',
+        'AKS_PLATFORM_METRICS_REQUIRE_WINDOW_COVERAGE: "false"',
         'AKS_PLATFORM_METRICS_MIN_COVERAGE_PERCENT: "80"',
-        'AKS_PLATFORM_METRICS_READINESS_TIMEOUT_SECONDS: "1800"',
-        'AKS_PLATFORM_METRICS_READINESS_LOOKBACK_SECONDS: "1800"',
-        'AKS_PLATFORM_METRICS_READINESS_MIN_SAMPLES: "5"',
-        'AKS_PLATFORM_METRICS_READINESS_RECENT_GRACE_SECONDS: "300"',
+        'AKS_PLATFORM_METRICS_TIMEOUT_SECONDS: "0"',
         'CL2_REQUIRED_SELF_HOSTED_TELEMETRY: "true"',
         "cl2_prom_snapshot_storage_account: \"cmshscaleaksst2\"",
         'test_type_suffix: "-mock-full-telemetry-eus2-aksstand2"',
@@ -68,6 +65,7 @@ def test_candidate_stage_has_isolated_subscription_dependencies():
 
     assert "18153b17-4e27-4b58-863e-f8105b8892a2" not in stage
     assert "cmshscaleprom" not in stage
+    assert "AKS_PLATFORM_METRICS_READINESS_" not in stage
 
 
 def test_candidate_stage_runs_complete_eight_scenario_gate():

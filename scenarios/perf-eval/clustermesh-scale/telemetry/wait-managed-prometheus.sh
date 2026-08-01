@@ -19,6 +19,7 @@ platform_metric_names=(
   etcd_memory_usage_percentage
 )
 platform_metrics_required="${AKS_PLATFORM_METRICS_REQUIRED:-false}"
+platform_wait_when_optional="${AKS_PLATFORM_METRICS_WAIT_WHEN_OPTIONAL:-false}"
 platform_window_coverage_required="${AKS_PLATFORM_METRICS_REQUIRE_WINDOW_COVERAGE:-false}"
 platform_coverage_grace_seconds="${AKS_PLATFORM_METRICS_COVERAGE_GRACE_SECONDS:-300}"
 platform_min_coverage_percent="${AKS_PLATFORM_METRICS_MIN_COVERAGE_PERCENT:-0}"
@@ -135,16 +136,24 @@ wait_for_platform_metrics() {
   return 1
 }
 
-platform_wait_rc=0
-wait_for_platform_metrics || platform_wait_rc=$?
-platform_metrics_ready=true
-if [ "$platform_wait_rc" -ne 0 ]; then
-  platform_metrics_ready=false
-  if [ "${platform_metrics_required,,}" = "true" ]; then
+platform_wait_enabled=false
+if [ "${platform_metrics_required,,}" = "true" ] ||
+   [ "${platform_wait_when_optional,,}" = "true" ]; then
+  platform_wait_enabled=true
+fi
+platform_metrics_ready=false
+if [ "$platform_wait_enabled" = "true" ]; then
+  platform_wait_rc=0
+  wait_for_platform_metrics || platform_wait_rc=$?
+  if [ "$platform_wait_rc" -eq 0 ]; then
+    platform_metrics_ready=true
+  elif [ "${platform_metrics_required,,}" = "true" ]; then
     echo "##vso[task.logissue type=error;] Required AKS platform CPU/memory metrics did not cover the scenario window before timeout; exporting every available platform metric anyway."
   else
     echo "##vso[task.logissue type=warning;] AKS platform CPU/memory metrics did not appear before timeout; exporting every available platform metric anyway."
   fi
+else
+  echo "AKS platform CPU/memory metrics are optional; skipping the ingestion wait and exporting any available samples."
 fi
 end_time=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
@@ -323,6 +332,10 @@ platform_window_coverage_required_json=false
 if [ "${platform_window_coverage_required,,}" = "true" ]; then
   platform_window_coverage_required_json=true
 fi
+platform_wait_enabled_json=false
+if [ "$platform_wait_enabled" = "true" ]; then
+  platform_wait_enabled_json=true
+fi
 if [ -n "${SHARE_INFRA_META:-}" ] &&
    [ -s "$SHARE_INFRA_META" ]; then
   scenario_windows=$(cat "$SHARE_INFRA_META")
@@ -340,6 +353,7 @@ jq \
   --argjson scenario_windows "$scenario_windows" \
   --arg platform_window_start "$platform_window_start" \
   --arg platform_window_end "$platform_window_end" \
+  --argjson platform_wait_enabled "$platform_wait_enabled_json" \
   --argjson platform_window_coverage_required \
     "$platform_window_coverage_required_json" \
   --argjson platform_min_coverage_percent "$platform_min_coverage_percent" \
@@ -360,6 +374,7 @@ jq \
         else null
         end
       ),
+      wait_enabled: $platform_wait_enabled,
       full_window_required: $platform_window_coverage_required,
       minimum_coverage_percent: $platform_min_coverage_percent
     },

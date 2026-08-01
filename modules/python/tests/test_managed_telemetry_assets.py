@@ -771,10 +771,13 @@ def test_wait_marks_throttled_amw_unready(tmp_path):
         env=environment,
         timeout=10,
     )
+    assert "platform CPU/memory metrics are optional" in result.stdout
 
     collection = json.loads(
         (output_dir / "run-manifest.json").read_text(encoding="utf-8")
     )
+    assert collection["platform_metrics_ready"] is False
+    assert collection["platform_metrics_window"]["wait_enabled"] is False
     assert collection["managed_prometheus_ready"] is False
     assert collection["managed_prometheus_throttled"] is True
     assert collection["amw_capacity_verified"] is True
@@ -1192,6 +1195,7 @@ def test_platform_window_coverage_accepts_azure_offset_timestamps(tmp_path):
     assert collection["platform_metrics_window"] == {
         "start": "2026-07-14T00:01:00Z",
         "end": "2026-07-14T00:10:00Z",
+        "wait_enabled": True,
         "full_window_required": True,
         "minimum_coverage_percent": 0,
     }
