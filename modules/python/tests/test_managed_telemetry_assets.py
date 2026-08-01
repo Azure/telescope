@@ -937,6 +937,125 @@ def test_required_platform_metrics_make_wait_task_fail_after_preserving_manifest
     assert collection["capacity_audits"][0]["summary"]["capacity_ok"] is True
 
 
+def test_platform_readiness_requires_recent_samples_on_every_cluster(tmp_path):
+    manifest_path = tmp_path / "run-manifest.json"
+    output_dir = tmp_path / "output"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "run_id": "test-run",
+                "clusters": [
+                    {"role": "mesh-1", "id": "cluster-id-1"},
+                    {"role": "mesh-2", "id": "cluster-id-2"},
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_az = fake_bin / "az"
+    fake_az.write_text(
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env bash
+            set -euo pipefail
+            cat <<'JSON'
+            {"value":[
+              {"name":{"value":"apiserver_cpu_usage_percentage"},"timeseries":[{"data":[{"timeStamp":"2026-07-14T00:06:00+00:00","average":1},{"timeStamp":"2026-07-14T00:07:00+00:00","average":1},{"timeStamp":"2026-07-14T00:08:00+00:00","average":1},{"timeStamp":"2026-07-14T00:09:00+00:00","average":1},{"timeStamp":"2026-07-14T00:10:00+00:00","average":1}]}]},
+              {"name":{"value":"apiserver_memory_usage_percentage"},"timeseries":[{"data":[{"timeStamp":"2026-07-14T00:06:00+00:00","average":1},{"timeStamp":"2026-07-14T00:07:00+00:00","average":1},{"timeStamp":"2026-07-14T00:08:00+00:00","average":1},{"timeStamp":"2026-07-14T00:09:00+00:00","average":1},{"timeStamp":"2026-07-14T00:10:00+00:00","average":1}]}]},
+              {"name":{"value":"etcd_cpu_usage_percentage"},"timeseries":[{"data":[{"timeStamp":"2026-07-14T00:06:00+00:00","average":1},{"timeStamp":"2026-07-14T00:07:00+00:00","average":1},{"timeStamp":"2026-07-14T00:08:00+00:00","average":1},{"timeStamp":"2026-07-14T00:09:00+00:00","average":1},{"timeStamp":"2026-07-14T00:10:00+00:00","average":1}]}]},
+              {"name":{"value":"etcd_memory_usage_percentage"},"timeseries":[{"data":[{"timeStamp":"2026-07-14T00:06:00+00:00","average":1},{"timeStamp":"2026-07-14T00:07:00+00:00","average":1},{"timeStamp":"2026-07-14T00:08:00+00:00","average":1},{"timeStamp":"2026-07-14T00:09:00+00:00","average":1},{"timeStamp":"2026-07-14T00:10:00+00:00","average":1}]}]}
+            ]}
+            JSON
+            """
+        ),
+        encoding="utf-8",
+    )
+    fake_az.chmod(fake_az.stat().st_mode | stat.S_IXUSR)
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "MANIFEST_PATH": str(manifest_path),
+            "OUTPUT_DIR": str(output_dir),
+            "RUN_ID": "test-run",
+            "AKS_PLATFORM_METRICS_READINESS_NOW": "2026-07-14T00:10:00Z",
+            "AKS_PLATFORM_METRICS_READINESS_TIMEOUT_SECONDS": "0",
+            "AKS_PLATFORM_METRICS_READINESS_MIN_SAMPLES": "5",
+            "PATH": f"{fake_bin}:{environment['PATH']}",
+        }
+    )
+
+    result = subprocess.run(
+        ["bash", str(TELEMETRY_DIR / "wait-platform-metrics-ready.sh")],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=10,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    report = json.loads(
+        (output_dir / "platform-readiness.json").read_text(encoding="utf-8")
+    )
+    assert report["ready"] is True
+    assert len(report["clusters"]) == 2
+    assert all(cluster["ready"] for cluster in report["clusters"])
+
+
+def test_platform_readiness_fails_before_cl2_when_metrics_are_absent(tmp_path):
+    manifest_path = tmp_path / "run-manifest.json"
+    output_dir = tmp_path / "output"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 2,
+                "run_id": "test-run",
+                "clusters": [{"role": "mesh-1", "id": "cluster-id-1"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_az = fake_bin / "az"
+    fake_az.write_text(
+        "#!/usr/bin/env bash\nprintf '%s\\n' '{\"value\":[]}'\n",
+        encoding="utf-8",
+    )
+    fake_az.chmod(fake_az.stat().st_mode | stat.S_IXUSR)
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "MANIFEST_PATH": str(manifest_path),
+            "OUTPUT_DIR": str(output_dir),
+            "RUN_ID": "test-run",
+            "AKS_PLATFORM_METRICS_READINESS_NOW": "2026-07-14T00:10:00Z",
+            "AKS_PLATFORM_METRICS_READINESS_TIMEOUT_SECONDS": "0",
+            "PATH": f"{fake_bin}:{environment['PATH']}",
+        }
+    )
+
+    result = subprocess.run(
+        ["bash", str(TELEMETRY_DIR / "wait-platform-metrics-ready.sh")],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=10,
+    )
+
+    assert result.returncode == 1
+    assert "refusing to spend the scenario budget" in result.stdout
+    report = json.loads(
+        (output_dir / "platform-readiness.json").read_text(encoding="utf-8")
+    )
+    assert report["ready"] is False
+    assert report["clusters"][0]["ready"] is False
+
+
 def test_platform_window_coverage_accepts_azure_offset_timestamps(tmp_path):
     manifest_path = tmp_path / "run-manifest.json"
     output_dir = tmp_path / "output"

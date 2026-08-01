@@ -87,3 +87,34 @@ def test_historical_hubble_target_covers_deleted_monitor():
     assert check["target_count"] == 0
     assert check["historical_target_evidence"] is True
     assert report["acns_complete"] is True
+
+
+def test_live_hubble_target_wins_over_retired_historical_targets():
+    report = audit_module.build_audit(
+        list(audit_module.ACNS_METRICS),
+        [
+            {
+                "labels": {"job": "monitoring/hubble-metrics-0"},
+                "health": "up",
+            }
+        ],
+        require_acns=True,
+        historical_targets=[
+            {
+                "labels": {"job": "monitoring/hubble-metrics-0"},
+                "health": "down",
+            }
+            for _ in range(3)
+        ],
+    )
+    check = next(
+        item
+        for item in report["checks"]
+        if item["name"] == "target:acns-hubble"
+    )
+
+    assert check["status"] == "covered"
+    assert check["target_count"] == 1
+    assert check["up_targets"] == 1
+    assert check["historical_down_targets"] == 3
+    assert report["acns_complete"] is True

@@ -30,6 +30,13 @@ CONFIGURE_TEMPLATE_PATH = (
     / "clustermesh-scale"
     / "configure-control-plane-metrics.yml"
 )
+QUALIFY_TEMPLATE_PATH = (
+    REPOSITORY_ROOT
+    / "steps"
+    / "topology"
+    / "clustermesh-scale"
+    / "qualify-platform-metrics.yml"
+)
 COLLECT_TEMPLATE_PATH = (
     REPOSITORY_ROOT
     / "steps"
@@ -447,16 +454,18 @@ def test_mock_layer_is_deployed_after_managed_telemetry_configuration():
 
     assert "deploy-mock-layer.yml" not in validate
     configure_pos = execute.index("configure-control-plane-metrics.yml")
+    qualify_pos = execute.index("qualify-platform-metrics.yml")
     deploy_pos = execute.index("deploy-mock-layer.yml")
     cl2_pos = execute.index(
         "/steps/engine/clusterloader2/clustermesh-scale/execute.yml"
     )
-    assert configure_pos < deploy_pos < cl2_pos
+    assert configure_pos < qualify_pos < deploy_pos < cl2_pos
 
 
 def test_full_telemetry_azure_tasks_use_ui_selected_subscription():
     for path in (
         CONFIGURE_TEMPLATE_PATH,
+        QUALIFY_TEMPLATE_PATH,
         COLLECT_TEMPLATE_PATH,
         SNAPSHOT_TEMPLATE_PATH,
     ):
@@ -517,6 +526,7 @@ def test_managed_collection_phases_are_separate_visible_tasks():
     assert "Reconstruct managed Prometheus TSDB" not in template
     assert "AKS_TELEMETRY_WINDOW_READY" in template
     assert "AKS_TELEMETRY_CONFIGURED" in template
+    assert "AKS_PLATFORM_METRICS_PRE_SCENARIO_READY" in template
     assert template.count("succeededOrFailed()") >= 4
 
 
@@ -554,9 +564,10 @@ def test_acns_probe_runs_before_snapshot_and_is_collected_before_teardown():
     ).read_text(encoding="utf-8")
 
     setup = worker.index("setup-acns-telemetry.sh")
+    audit = worker.index("audit_self_hosted.py")
     collect = worker.index("collect-acns-telemetry.sh")
     snapshot = worker.index("prometheus TSDB snapshot -------")
-    assert setup < collect < snapshot
+    assert setup < audit < collect < snapshot
     assert "--require-acns" in worker
     assert "ACNS_VERIFY_ONLY=true" in worker
     assert "readiness-start.json" in worker

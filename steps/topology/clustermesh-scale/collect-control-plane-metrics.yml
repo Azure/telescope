@@ -34,7 +34,9 @@ steps:
     displayName: "Wait for AKS telemetry ingestion"
     condition: and(succeededOrFailed(),
                    eq(variables['AKS_CONTROL_PLANE_METRICS_ENABLED'], 'true'),
-                   eq(variables['AKS_TELEMETRY_CONFIGURED'], 'true'))
+                   eq(variables['AKS_TELEMETRY_CONFIGURED'], 'true'),
+                   or(ne(variables['AKS_PLATFORM_METRICS_REQUIRED'], 'true'),
+                      eq(variables['AKS_PLATFORM_METRICS_PRE_SCENARIO_READY'], 'true')))
 
   - task: AzureCLI@2
     inputs:

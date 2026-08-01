@@ -589,23 +589,12 @@ if [ "${CL2_ACNS_TELEMETRY_ENABLED:-false}" = "true" ]; then
     echo "##vso[task.logissue type=error;] $role: final ACNS freshness verification failed."
     acns_telemetry_failed=1
   fi
-
-  acns_collect_script="$repo_root/scenarios/perf-eval/clustermesh-scale/telemetry/collect-acns-telemetry.sh"
-  acns_output_dir="$report_dir/telemetry/acns"
-  echo "------- $role: collecting ACNS telemetry -------"
-  if ! KUBECONFIG="$kubeconfig" \
-      OUTPUT_DIR="$acns_output_dir" \
-      ACNS_WINDOW_START_TIMESTAMP="$(date -u -d "@$worker_started_epoch" +%Y-%m-%dT%H:%M:%SZ)" \
-      bash "$acns_collect_script"; then
-    echo "##vso[task.logissue type=error;] $role: ACNS telemetry collection failed."
-    acns_telemetry_failed=1
-  fi
 fi
 
-# Coverage audit runs before the optional snapshot and Prometheus teardown so
-# every run records exactly which telemetry families and scrape targets landed
-# in its TSDB. Missing required coverage invalidates telemetry (exit 10) while
-# preserving the independent CL2/JUnit workload result.
+# Coverage audit runs while ACNS scrape targets are still live. The collection
+# step below deletes the ACNS namespace, so auditing after collection would
+# force node-churn scenarios to judge retired target labelsets instead of the
+# healthy, stable targets present at the end of the workload.
 telemetry_audit_script="$(dirname "$python_script_file")/telemetry/audit_self_hosted.py"
 if [ -f "$telemetry_audit_script" ]; then
   telemetry_audit_dir="$report_dir/telemetry"
@@ -658,6 +647,19 @@ else
   echo "##vso[task.logissue type=warning;] $role: telemetry audit script not found at $telemetry_audit_script"
   if [ "${required_self_hosted_telemetry,,}" = "true" ]; then
     telemetry_coverage_failed=1
+  fi
+fi
+
+if [ "${CL2_ACNS_TELEMETRY_ENABLED:-false}" = "true" ]; then
+  acns_collect_script="$repo_root/scenarios/perf-eval/clustermesh-scale/telemetry/collect-acns-telemetry.sh"
+  acns_output_dir="$report_dir/telemetry/acns"
+  echo "------- $role: collecting ACNS telemetry -------"
+  if ! KUBECONFIG="$kubeconfig" \
+      OUTPUT_DIR="$acns_output_dir" \
+      ACNS_WINDOW_START_TIMESTAMP="$(date -u -d "@$worker_started_epoch" +%Y-%m-%dT%H:%M:%SZ)" \
+      bash "$acns_collect_script"; then
+    echo "##vso[task.logissue type=error;] $role: ACNS telemetry collection failed."
+    acns_telemetry_failed=1
   fi
 fi
 

@@ -10,13 +10,18 @@ parameters:
     default: {}
 
 # Configure managed telemetry first because it mutates each AKS cluster through
-# `az aks update`. Deploy the synthetic layer only after those operations finish,
-# then start CL2 against a fresh, stable desired state.
+# `az aks update`. Required platform metrics must already be streaming before
+# the scenario budget starts. Deploy the synthetic layer only after both gates
+# finish, then start CL2 against a fresh, observable desired state.
 steps:
   - template: /steps/topology/clustermesh-scale/configure-control-plane-metrics.yml@self
     parameters:
       cloud: ${{ parameters.cloud }}
       region: ${{ parameters.regions[0] }}
+
+  - template: /steps/topology/clustermesh-scale/qualify-platform-metrics.yml@self
+    parameters:
+      cloud: ${{ parameters.cloud }}
 
   - template: /steps/topology/clustermesh-scale-mock/deploy-mock-layer.yml@self
     parameters:
