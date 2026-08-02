@@ -51,6 +51,7 @@ def test_candidate_stage_has_isolated_subscription_dependencies():
         'AKS_CONTROL_PLANE_FORCE_PROVIDER_REREGISTRATION: "true"',
         'AKS_MANAGED_MONITORING_CONVERGENCE_ENABLED: "true"',
         'AKS_CILIUM_POLICY_GUARD_ENABLED: "true"',
+        'AKS_CILIUM_POLICY_GUARD_REPAIR_ENABLED: "false"',
         'AKS_CILIUM_POLICY_GUARD_TIMEOUT_SECONDS: "1800"',
         'AKS_CILIUM_POLICY_GUARD_QUIET_SECONDS: "300"',
         'AKS_PLATFORM_METRICS_REQUIRED: "false"',

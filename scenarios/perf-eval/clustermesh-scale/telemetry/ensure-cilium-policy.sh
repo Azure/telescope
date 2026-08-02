@@ -7,6 +7,7 @@ set -euo pipefail
 : "${TARGET_SUBSCRIPTION_ID:?TARGET_SUBSCRIPTION_ID is required}"
 
 force_reassert="${FORCE_REASSERT:-false}"
+repair_enabled="${AKS_CILIUM_POLICY_GUARD_REPAIR_ENABLED:-false}"
 timeout_seconds="${AKS_CILIUM_POLICY_GUARD_TIMEOUT_SECONDS:-1800}"
 quiet_seconds="${AKS_CILIUM_POLICY_GUARD_QUIET_SECONDS:-300}"
 poll_seconds="${AKS_CILIUM_POLICY_GUARD_POLL_SECONDS:-15}"
@@ -166,6 +167,26 @@ if [ "$drift_detected" = "true" ] && [ -e "$repair_marker" ]; then
       before: $before
     }' >"$OUTPUT_FILE"
   rm -f "$before_file" "$after_file"
+  exit 1
+fi
+
+if [ "$repair_needed" = "true" ] &&
+   [ "${repair_enabled,,}" != "true" ]; then
+  jq -n \
+    --arg started_at "$started_at" \
+    --argjson drift_detected "$drift_detected" \
+    --argjson before "$(jq -s '.' "$before_file")" \
+    '{
+      schema_version: 1,
+      started_at: $started_at,
+      success: false,
+      repaired: false,
+      drift_detected: $drift_detected,
+      reason: "cilium_policy_or_rollout_drift",
+      before: $before
+    }' >"$OUTPUT_FILE"
+  rm -f "$before_file" "$after_file"
+  echo "Cilium policy or rollout drift detected; supported AKS reassertion is disabled because build 75469 proved it does not restore enable-policy=default." >&2
   exit 1
 fi
 

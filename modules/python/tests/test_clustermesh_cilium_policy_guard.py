@@ -97,6 +97,7 @@ def test_guard_repairs_all_clusters_after_policy_drift(tmp_path):
             "AKS_CILIUM_POLICY_GUARD_TIMEOUT_SECONDS": "1",
             "AKS_CILIUM_POLICY_GUARD_QUIET_SECONDS": "0",
             "AKS_CILIUM_POLICY_GUARD_POLL_SECONDS": "1",
+            "AKS_CILIUM_POLICY_GUARD_REPAIR_ENABLED": "true",
             "STATE_FILE": str(state_file),
             "COMMAND_LOG": str(command_log),
             "PATH": f"{fake_bin}:{environment['PATH']}",
@@ -158,4 +159,42 @@ def test_guard_refuses_recurrent_policy_drift(tmp_path):
     assert "drift recurred" in result.stderr
     report = json.loads(output.read_text(encoding="utf-8"))
     assert report["reason"] == "policy_drift_recurred"
+    assert "az aks update" not in command_log.read_text(encoding="utf-8")
+
+
+def test_guard_fails_closed_without_unsupported_repair(tmp_path):
+    inventory = tmp_path / "clusters.json"
+    output = tmp_path / "guard.json"
+    state_root = tmp_path / "state-root"
+    state_file = tmp_path / "reasserted"
+    command_log = tmp_path / "commands.log"
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    _write_inventory(inventory)
+    _write_fake_commands(fake_bin)
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "CLUSTERS_FILE": str(inventory),
+            "OUTPUT_FILE": str(output),
+            "STATE_ROOT": str(state_root),
+            "TARGET_SUBSCRIPTION_ID": "test-subscription",
+            "STATE_FILE": str(state_file),
+            "COMMAND_LOG": str(command_log),
+            "PATH": f"{fake_bin}:{environment['PATH']}",
+        }
+    )
+
+    result = subprocess.run(
+        ["bash", str(GUARD_SCRIPT)],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=10,
+    )
+
+    assert result.returncode == 1
+    report = json.loads(output.read_text(encoding="utf-8"))
+    assert report["reason"] == "cilium_policy_or_rollout_drift"
     assert "az aks update" not in command_log.read_text(encoding="utf-8")

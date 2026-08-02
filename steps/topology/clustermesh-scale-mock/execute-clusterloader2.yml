@@ -19,10 +19,6 @@ steps:
       cloud: ${{ parameters.cloud }}
       region: ${{ parameters.regions[0] }}
 
-  - template: /steps/topology/clustermesh-scale/reassert-cilium-policy.yml@self
-    parameters:
-      cloud: ${{ parameters.cloud }}
-
   - template: /steps/topology/clustermesh-scale/qualify-platform-metrics.yml@self
     parameters:
       cloud: ${{ parameters.cloud }}

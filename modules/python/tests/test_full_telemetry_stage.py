@@ -37,13 +37,6 @@ QUALIFY_TEMPLATE_PATH = (
     / "clustermesh-scale"
     / "qualify-platform-metrics.yml"
 )
-REASSERT_TEMPLATE_PATH = (
-    REPOSITORY_ROOT
-    / "steps"
-    / "topology"
-    / "clustermesh-scale"
-    / "reassert-cilium-policy.yml"
-)
 COLLECT_TEMPLATE_PATH = (
     REPOSITORY_ROOT
     / "steps"
@@ -461,19 +454,17 @@ def test_mock_layer_is_deployed_after_managed_telemetry_configuration():
 
     assert "deploy-mock-layer.yml" not in validate
     configure_pos = execute.index("configure-control-plane-metrics.yml")
-    reassert_pos = execute.index("reassert-cilium-policy.yml")
     qualify_pos = execute.index("qualify-platform-metrics.yml")
     deploy_pos = execute.index("deploy-mock-layer.yml")
     cl2_pos = execute.index(
         "/steps/engine/clusterloader2/clustermesh-scale/execute.yml"
     )
-    assert configure_pos < reassert_pos < qualify_pos < deploy_pos < cl2_pos
+    assert configure_pos < qualify_pos < deploy_pos < cl2_pos
 
 
 def test_full_telemetry_azure_tasks_use_ui_selected_subscription():
     for path in (
         CONFIGURE_TEMPLATE_PATH,
-        REASSERT_TEMPLATE_PATH,
         QUALIFY_TEMPLATE_PATH,
         COLLECT_TEMPLATE_PATH,
         SNAPSHOT_TEMPLATE_PATH,
