@@ -394,22 +394,25 @@ resource "terraform_data" "clustermeshprofile" {
       # 2. Issue an apply to start the reconcile. apply is async on the Fleet
       # RP — `az fleet clustermeshprofile apply` returns when the LRO is
       # accepted, but membership reconciliation (including draining the old
-      # applied set) can lag behind by several minutes.
+      # applied set) can lag behind by several minutes. Bound the CLI wait:
+      # build 75513 showed the Fleet LRO can remain active indefinitely after
+      # all 100 members were successfully relabeled, which otherwise blocks
+      # Terraform destroy before the explicit resource-group cleanup backstop.
       echo "[apply-profile] ${self.input.apply_command}"
-      eval "${self.input.apply_command}" || true
+      timeout --foreground 300s bash -c "${self.input.apply_command}" || true
 
       # 3. Poll the profile's APPLIED member count until it reaches 0. Re-issue
       # `apply` periodically as a nudge in case the first one was a no-op
       # (e.g. Fleet RP hadn't yet observed the relabeled members).
-      # Budget: 360 x 5s = 30 min. Bumped from 120 (10 min) for N=100 — at
-      # 100 members Fleet RP reconcile-after-relabel can take 15-25 min in
-      # the worst case based on N=20 timing (3-5 min observed). A missing
-      # profile/resource group exits immediately, and any other query error
-      # breaks the wait so cleanup cannot burn 30 minutes on an unreadable
-      # resource.
+      # The budget is wall-clock based so slow CLI calls and periodic nudges
+      # cannot silently stretch a nominal 30-minute wait into hours.
       drained=false
-      for i in $(seq 1 360); do
-        count_out=$(eval "${self.input.list_applied_count_command}" 2>&1)
+      drain_deadline=$((SECONDS + 1800))
+      next_nudge=$((SECONDS + 60))
+      i=0
+      while [ "$SECONDS" -lt "$drain_deadline" ]; do
+        i=$((i + 1))
+        count_out=$(timeout --foreground 60s bash -c "${self.input.list_applied_count_command}" 2>&1)
         count_rc=$?
         if [ "$count_rc" -ne 0 ]; then
           if echo "$count_out" | grep -qiE "NotFound|could not be found|ResourceNotFound|ResourceGroupNotFound"; then
@@ -427,18 +430,35 @@ resource "terraform_data" "clustermeshprofile" {
           echo "[poll-members] membership query returned no numeric count; skipping the remaining drain wait: $count_out"
           break
         fi
-        echo "[poll-members] attempt $i/360: applied count='$count'"
+        echo "[poll-members] attempt $i: applied count='$count'"
         if [ "$count" = "0" ]; then
           drained=true
           break
         fi
-        # Re-apply every minute (every 12 polls) to push Fleet RP if the
-        # initial apply didn't pick up the relabel.
-        if [ "$i" -gt 1 ] && [ $((i % 12)) -eq 0 ]; then
+        # Re-apply at most once per minute to push Fleet RP if the initial
+        # apply did not pick up the relabel. Each nudge is independently
+        # bounded and still constrained by the wall-clock drain deadline.
+        if [ "$SECONDS" -ge "$next_nudge" ]; then
+          remaining=$((drain_deadline - SECONDS))
+          nudge_timeout=120
+          if [ "$remaining" -lt "$nudge_timeout" ]; then
+            nudge_timeout="$remaining"
+          fi
           echo "[apply-profile] (nudge) ${self.input.apply_command}"
-          eval "${self.input.apply_command}" || true
+          if [ "$nudge_timeout" -gt 0 ]; then
+            timeout --foreground "$${nudge_timeout}s" bash -c "${self.input.apply_command}" || true
+          fi
+          next_nudge=$((SECONDS + 60))
         fi
-        sleep 5
+        remaining=$((drain_deadline - SECONDS))
+        if [ "$remaining" -le 0 ]; then
+          break
+        fi
+        if [ "$remaining" -lt 5 ]; then
+          sleep "$remaining"
+        else
+          sleep 5
+        fi
       done
       if [ "$drained" != "true" ]; then
         echo "[poll-members] timed out waiting for applied set to drain; will still attempt delete"
@@ -446,11 +466,20 @@ resource "terraform_data" "clustermeshprofile" {
 
       # 4. Delete the profile. Brief retry as a backstop in case there's still
       # propagation lag between list-members showing 0 and delete being allowed.
-      # Bumped 30 → 60 attempts (5 min) for N=100 — same rationale as the
-      # poll-members bump above.
+      # Use a ten-minute wall-clock deadline and bound each delete CLI call;
+      # an accepted-but-stuck Fleet LRO must not prevent downstream member,
+      # AKS, and resource-group cleanup from starting.
       echo "[delete-profile] ${self.input.delete_command}"
-      for i in $(seq 1 60); do
-        delete_out=$(eval "${self.input.delete_command}" 2>&1)
+      delete_deadline=$((SECONDS + 600))
+      i=0
+      while [ "$SECONDS" -lt "$delete_deadline" ]; do
+        i=$((i + 1))
+        remaining=$((delete_deadline - SECONDS))
+        delete_timeout=120
+        if [ "$remaining" -lt "$delete_timeout" ]; then
+          delete_timeout="$remaining"
+        fi
+        delete_out=$(timeout --foreground "$${delete_timeout}s" bash -c "${self.input.delete_command}" 2>&1)
         delete_rc=$?
         if [ "$delete_rc" -eq 0 ]; then
           echo "[delete-profile] succeeded on attempt $i"
@@ -461,12 +490,12 @@ resource "terraform_data" "clustermeshprofile" {
           exit 0
         fi
         echo "[delete-profile] attempt $i failed: $delete_out"
-        if [ "$i" -lt 60 ]; then
-          echo "[delete-profile] retry $i/60 in 5s"
+        if [ "$SECONDS" -lt "$delete_deadline" ]; then
+          echo "[delete-profile] retrying within the 600s wall-clock budget"
           sleep 5
         fi
       done
-      echo "[delete-profile] gave up after 60 attempts; downstream cleanup will proceed"
+      echo "[delete-profile] gave up after the 600s wall-clock budget; downstream cleanup will proceed"
       exit 0
     EOT
   }

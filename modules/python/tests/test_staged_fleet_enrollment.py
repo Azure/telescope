@@ -229,4 +229,10 @@ def test_terraform_separates_initial_member_label_from_profile_selector():
     assert "staged-fleet-enrollment.sh" in validation
     assert "${var.member_label_key}=detaching" in module
     assert "values(local.member_relabel_command)" in module
+    assert (
+        'timeout --foreground 300s bash -c "${self.input.apply_command}"'
+        in module
+    )
+    assert "drain_deadline=$((SECONDS + 1800))" in module
+    assert "delete_deadline=$((SECONDS + 600))" in module
     assert "member_initial_label_value" not in n2_tfvars

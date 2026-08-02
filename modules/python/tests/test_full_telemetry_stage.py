@@ -351,17 +351,23 @@ def test_terraform_destroy_treats_missing_aks_and_fleet_as_success():
     )
     list_command_start = fleet_module.index("cmp_list_applied_count_command")
     profile_resource = fleet_module[profile_start:]
-    assert 'count_out=$(eval "${self.input.list_applied_count_command}" 2>&1)' in (
-        profile_resource
+    assert (
+        'count_out=$(timeout --foreground 60s bash -c '
+        '"${self.input.list_applied_count_command}" 2>&1)'
+        in profile_resource
     )
     assert '"--only-show-errors",' in fleet_module[list_command_start:profile_start]
     assert "membership query returned no numeric count" in profile_resource
     assert "membership query failed; skipping the remaining drain wait" in (
         profile_resource
     )
-    assert 'delete_out=$(eval "${self.input.delete_command}" 2>&1)' in (
-        profile_resource
+    assert (
+        'delete_out=$(timeout --foreground "$${delete_timeout}s" bash -c '
+        '"${self.input.delete_command}" 2>&1)'
+        in profile_resource
     )
+    assert "drain_deadline=$((SECONDS + 1800))" in profile_resource
+    assert "delete_deadline=$((SECONDS + 600))" in profile_resource
     assert profile_resource.count("ResourceGroupNotFound") >= 2
 
 
