@@ -574,6 +574,8 @@ def test_acns_probe_runs_before_snapshot_and_is_collected_before_teardown():
     assert "readiness-final.json" in worker
     assert "accepted_telemetry_gaps" in worker
     assert "acns_gap_accepted" in worker
+    assert 'cl2_config_file" = "policy-scale.yaml' in worker
+    assert "accept_cilium_policy_gap=false" in worker
     assert "exit 10" in worker
     assert "workload passed but required telemetry is incomplete" in worker
 

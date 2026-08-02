@@ -56,6 +56,10 @@ acns_telemetry_failed=0
 acns_gap_accepted=false
 telemetry_coverage_failed=0
 required_self_hosted_telemetry="${CL2_REQUIRED_SELF_HOSTED_TELEMETRY:-${CL2_ACNS_TELEMETRY_ENABLED:-false}}"
+accept_cilium_policy_gap="${CL2_ACCEPT_CILIUM_POLICY_GAP:-false}"
+if [ "$cl2_config_file" = "policy-scale.yaml" ]; then
+  accept_cilium_policy_gap=false
+fi
 worker_status_file="$report_dir/worker-status-${role}.json"
 
 write_worker_status() {
@@ -248,6 +252,7 @@ if [ "${CL2_ACNS_TELEMETRY_ENABLED:-false}" = "true" ]; then
   acns_setup_script="$repo_root/scenarios/perf-eval/clustermesh-scale/telemetry/setup-acns-telemetry.sh"
   echo "------- $role: configuring ACNS telemetry probe -------"
   if ! KUBECONFIG="$kubeconfig" \
+      CL2_ACCEPT_CILIUM_POLICY_GAP="$accept_cilium_policy_gap" \
       ACNS_READINESS_OUTPUT="$report_dir/telemetry/acns/readiness-start.json" \
       bash "$acns_setup_script"; then
     echo "##vso[task.logissue type=error;] $role: ACNS telemetry setup failed."
@@ -596,6 +601,7 @@ if [ "${CL2_ACNS_TELEMETRY_ENABLED:-false}" = "true" ]; then
   acns_setup_script="$repo_root/scenarios/perf-eval/clustermesh-scale/telemetry/setup-acns-telemetry.sh"
   echo "------- $role: verifying fresh ACNS telemetry after CL2 -------"
   if ! KUBECONFIG="$kubeconfig" \
+      CL2_ACCEPT_CILIUM_POLICY_GAP="$accept_cilium_policy_gap" \
       ACNS_VERIFY_ONLY=true \
       ACNS_READINESS_OUTPUT="$report_dir/telemetry/acns/readiness-final.json" \
       bash "$acns_setup_script"; then
