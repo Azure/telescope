@@ -2011,7 +2011,18 @@ stages:
       CLUSTERMESH_VM_FAMILY_QUOTA_NAME: standardDSv3Family
       CLUSTERMESH_REQUIRED_FAMILY_VCPUS: "2536"
       CLUSTERMESH_QUOTA_HEADROOM_VCPUS: "128"
+      # Build 75513 created all 100 AKS clusters but Fleet projected 0/100
+      # apiservers when every member matched the profile at once. Terraform
+      # now creates these members as mesh=staged; validation selects ten,
+      # applies the profile, and requires cumulative Fleet/Kubernetes/Cilium
+      # convergence before selecting the next ten. Post-formation rejoin
+      # remains enabled only as a later straggler recovery.
       CMP_AUTO_RECOVERY_ENABLED: "false"
+      CMP_STAGED_JOIN_ENABLED: "true"
+      CMP_STAGED_JOIN_BATCH_SIZE: "10"
+      CMP_STAGED_JOIN_BATCH_WAIT_SECONDS: "7200"
+      CMP_STAGED_JOIN_TOTAL_WAIT_SECONDS: "21600"
+      CMP_STAGED_JOIN_CHECK_CONCURRENCY: "10"
       CMP_REJOIN_ENABLED: "true"
       CL2_PROPAGATION_PROBE_ENABLED: "true"
       CL2_PROPAGATION_PROBE_COUNT: "10"
@@ -2049,7 +2060,7 @@ stages:
               share_infra_settle_seconds: 300
               agent_disk_min_free_gi: 40
               agent_memory_min_free_gi: 12
-              suite_total_budget_seconds: 129600
+              suite_total_budget_seconds: 151200
               suite_finalization_reserve_seconds: 10800
               suite_job_timeout_buffer_seconds: 21600
               cl2_config_file: ""
@@ -2083,7 +2094,7 @@ stages:
               node_churn_recovery_grace_seconds: 1800
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
-          timeout_in_minutes: 2520
+          timeout_in_minutes: 2880
           cancel_timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false
@@ -2167,17 +2178,17 @@ stages:
       CLUSTERMESH_VM_FAMILY_QUOTA_NAME: standardDSv4Family
       CLUSTERMESH_REQUIRED_FAMILY_VCPUS: "2536"
       CLUSTERMESH_QUOTA_HEADROOM_VCPUS: "128"
-      # Fleet ClusterMeshProfile RP fails to deploy clustermesh-apiserver at n=100
-      # (72112 concat-name collision / 72129 + 72983 + 73026: only ~30-35/100
-      # apiservers deploy, the rest stuck at deployment=<none>). Delete+recreate
-      # recovery (CMP_AUTO_RECOVERY_ENABLED) is counter-productive here — it tears
-      # down the working apiservers and re-triggers the SAME all-members burst that
-      # saturated the RP (73026: fired 60 events, still 30/100). Use surgical
-      # BATCHED RE-JOIN instead: re-join ONLY the stuck members in batches of 20
-      # (label toggle mesh=true->detaching->true + CMP apply, waiting per batch) so
-      # the RP never sees >20 concurrent projections. Takes precedence over
-      # cmp-recreate; see steps/topology/clustermesh-scale/validate-resources.yml.
+      # Large-N Fleet formation is staged instead of selecting all 100 members
+      # on the first profile apply. The legacy stage remains disabled, but keep
+      # its topology coherent with the active East US 2 tier. Whole-profile
+      # recreate stays disabled; surgical rejoin is only a post-formation
+      # straggler fallback.
       CMP_AUTO_RECOVERY_ENABLED: "false"
+      CMP_STAGED_JOIN_ENABLED: "true"
+      CMP_STAGED_JOIN_BATCH_SIZE: "10"
+      CMP_STAGED_JOIN_BATCH_WAIT_SECONDS: "7200"
+      CMP_STAGED_JOIN_TOTAL_WAIT_SECONDS: "21600"
+      CMP_STAGED_JOIN_CHECK_CONCURRENCY: "10"
       CMP_REJOIN_ENABLED: "true"
       # Propagation-latency probe (see n2_mock_2500 for the design). n=100 is the
       # EXTREME-fan-out tier: each source pod syncs to 99 peers, so this is the most
@@ -2237,7 +2248,7 @@ stages:
               # 15.6 GiB total memory. Require a nearly idle host before
               # provisioning 100 clusters and launching mesh-wide workers.
               agent_memory_min_free_gi: 12
-              suite_total_budget_seconds: 129600
+              suite_total_budget_seconds: 151200
               suite_finalization_reserve_seconds: 10800
               suite_job_timeout_buffer_seconds: 21600
               cl2_config_file: ""
@@ -2280,7 +2291,7 @@ stages:
               node_churn_recovery_grace_seconds: 1800
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
-          timeout_in_minutes: 2520
+          timeout_in_minutes: 2880
           cancel_timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false

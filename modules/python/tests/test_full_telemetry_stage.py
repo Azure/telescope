@@ -788,7 +788,7 @@ def test_n100_stage_has_complete_workload_and_telemetry_wiring():
         "share_infra_settle_seconds: 300",
         "agent_disk_min_free_gi: 40",
         "agent_memory_min_free_gi: 12",
-        "suite_total_budget_seconds: 129600",
+        "suite_total_budget_seconds: 151200",
         "suite_finalization_reserve_seconds: 10800",
         "suite_job_timeout_buffer_seconds: 21600",
         "restart_count: 1",
@@ -801,7 +801,7 @@ def test_n100_stage_has_complete_workload_and_telemetry_wiring():
         'CLUSTERMESH_REQUIRED_FAMILY_VCPUS: "2536"',
         "azure-100-mock-shared-dsv4.tfvars",
         'test_type_suffix: "-mock-cuseuap"',
-        "timeout_in_minutes: 2520",
+        "timeout_in_minutes: 2880",
         "cancel_timeout_in_minutes: 120",
     ):
         assert expected in stage

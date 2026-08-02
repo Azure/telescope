@@ -30,6 +30,11 @@ locals {
   fleet_enabled = var.fleet_enabled
 
   members_by_name = { for m in var.members : m.member_name => m }
+  member_initial_label_value = (
+    var.member_initial_label_value != ""
+    ? var.member_initial_label_value
+    : var.member_label_value
+  )
 
   # Construct AKS resource IDs from known inputs. aks-cli does not emit outputs.
   # The depends_on chain on the fleet module instance ensures AKS exists before
@@ -63,10 +68,12 @@ resource "azapi_resource" "fleet" {
 }
 
 # -----------------------------------------------------------------------------
-# Step 5: Fleet members (one per AKS cluster), labeled for the mesh selector.
+# Step 5: Fleet members (one per AKS cluster).
 #
 # Implemented via local-exec for two reasons:
 # 1. Mirrors the source script exactly (`az fleet member create --labels mesh=true`).
+#    Large tiers may instead use a nonmatching initial value so validation can
+#    enroll members in bounded batches after the empty profile is stable.
 # 2. The Fleet member ARM API rejects azapi-style bodies for the `labels` field;
 #    az CLI is the supported surface for this resource shape today.
 #
@@ -82,7 +89,7 @@ locals {
       "--fleet-name", var.fleet_name,
       "--name", m.member_name,
       "--member-cluster-id", local.aks_resource_id[m.member_name],
-      "--labels", "${var.member_label_key}=${var.member_label_value}",
+      "--labels", "${var.member_label_key}=${local.member_initial_label_value}",
       "--output", "none",
     ])
   }
@@ -262,11 +269,13 @@ resource "terraform_data" "clustermeshprofile" {
   # precheck so retries succeed.
   #
   # Apply-with-retry (N=100 hardening): the `apply` operation is a Fleet RP
-  # LRO that pushes peer kubeconfigs to every member's cilium-config. At
-  # N=20 this typically completes in 3-10 min. At N=100 the work scales
-  # roughly linearly with member count (each member needs its config patched
-  # with the other 99 peers), so an apply can take 30-60 min and `az`'s
-  # default CLI timeout can fire mid-LRO. The retry wrapper handles:
+  # LRO that pushes peer kubeconfigs to every selector-matched member's
+  # cilium-config. At N=20 this typically completes in 3-10 min. A tier that
+  # initially matches all 100 members can take 30-60 min because every member
+  # needs the other 99 peers. The staged n=100 topology instead creates
+  # members with a nonmatching label, so this Terraform apply stabilizes an
+  # empty profile and validation enrolls ten members at a time. The retry
+  # wrapper still handles both paths:
   #   - Transient Fleet RP busy errors (the RP serializes profile applies
   #     across the regional Fleet — concurrent applies from other tests
   #     would block ours briefly)

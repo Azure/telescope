@@ -136,6 +136,11 @@ def test_candidate_n100_stage_inherits_n2_findings():
         'CLUSTERMESH_REQUIRED_FAMILY_VCPUS: "2536"',
         'CLUSTERMESH_REQUIRED_MANAGED_CLUSTERS: "100"',
         'CLUSTERMESH_MANAGED_CLUSTER_QUOTA_HEADROOM: "5"',
+        'CMP_STAGED_JOIN_ENABLED: "true"',
+        'CMP_STAGED_JOIN_BATCH_SIZE: "10"',
+        'CMP_STAGED_JOIN_BATCH_WAIT_SECONDS: "7200"',
+        'CMP_STAGED_JOIN_TOTAL_WAIT_SECONDS: "21600"',
+        'CMP_STAGED_JOIN_CHECK_CONCURRENCY: "10"',
         "MOCK_ACR_HOST: mockmeshshared11225.azurecr.io",
         'MOCK_ACR_SUBSCRIPTION_ID: "37deca37-c375-4a14-b90a-043849bd2bf1"',
         "AKS_CONTROL_PLANE_AMW_NAME_PREFIX: "
@@ -154,9 +159,9 @@ def test_candidate_n100_stage_inherits_n2_findings():
         'share_infra_scenarios: "propagation-probe,event-throughput,'
         'policy-scale,pod-churn-combined,apiserver-failure,isolation,'
         'node-churn-combined,upper-bound"',
-        "suite_total_budget_seconds: 129600",
+        "suite_total_budget_seconds: 151200",
         "suite_finalization_reserve_seconds: 10800",
-        "timeout_in_minutes: 2520",
+        "timeout_in_minutes: 2880",
         "cancel_timeout_in_minutes: 120",
     ):
         assert expected in stage
@@ -180,3 +185,5 @@ def test_candidate_n100_dsv3_topology_matches_dsv4_shape():
     assert 'vm_size              = "Standard_D8s_v4"' not in dsv3
     assert dsv3.count('name                 = "churnpool"') == 1
     assert "node_count           = 12" in dsv3
+    assert 'member_initial_label_value = "staged"' in dsv3
+    assert 'deletion_delay = "60h"' in dsv3

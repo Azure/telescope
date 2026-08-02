@@ -406,6 +406,10 @@ module "fleet" {
   cmp_name            = try(var.fleet_config.cmp_name, "")
   member_label_key    = try(var.fleet_config.member_label_key, "mesh")
   member_label_value  = try(var.fleet_config.member_label_value, "true")
+  member_initial_label_value = try(
+    var.fleet_config.member_initial_label_value,
+    "",
+  )
   members = [
     for m in try(var.fleet_config.members, []) : {
       member_name = m.member_name

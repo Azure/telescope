@@ -254,6 +254,21 @@ steps:
       FLEET_PROFILE="clustermesh-cmp"       # hardcoded by terraform module.fleet
       echo "Fleet RG=$FLEET_RG fleet=$FLEET_NAME profile=$FLEET_PROFILE"
 
+      # At large N, Terraform can create members with a nonmatching initial
+      # label so the first profile apply has zero selected members. Enroll
+      # those members here in bounded batches, and require every cumulative
+      # batch to have an Available apiserver, LB address, and full Cilium peer
+      # convergence before selecting the next batch. This prevents the Fleet
+      # RP from receiving the all-100 projection burst that produced 0/100
+      # apiservers in build 75513.
+      if [ "${CMP_STAGED_JOIN_ENABLED:-false}" = "true" ]; then
+        CLUSTERS_FILE="$HOME/.kube/clustermesh-clusters.json" \
+        FLEET_RG="$FLEET_RG" \
+        FLEET_NAME="$FLEET_NAME" \
+        FLEET_PROFILE="$FLEET_PROFILE" \
+          bash "$BUILD_SOURCESDIRECTORY/steps/topology/clustermesh-scale/staged-fleet-enrollment.sh"
+      fi
+
       # Background ClusterMeshProfile re-applier (N>=15 only). At smaller
       # mesh sizes the first apply reliably reaches all members within a
       # few minutes, so the re-apply just adds noise.

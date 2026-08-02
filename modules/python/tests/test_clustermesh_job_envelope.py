@@ -91,6 +91,7 @@ def test_job_timeout_guard_accepts_headline_envelopes():
     for suite_seconds, buffer_seconds, timeout_minutes in (
         ("43200", "7200", "840"),
         ("129600", "21600", "2520"),
+        ("151200", "21600", "2880"),
     ):
         result = _run(
             script,
@@ -217,6 +218,7 @@ def test_headline_resource_leases_cover_complete_envelopes(tmp_path):
     for lease_hours, suite_seconds, job_minutes, cancel_minutes in (
         (24, 43200, 840, 60),
         (48, 129600, 2520, 120),
+        (60, 151200, 2880, 120),
     ):
         tfvars = tmp_path / f"input-{lease_hours}.tfvars"
         tfvars.write_text(
