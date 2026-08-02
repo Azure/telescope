@@ -258,11 +258,6 @@ if [ "${CL2_ACNS_TELEMETRY_ENABLED:-false}" = "true" ]; then
     echo "##vso[task.logissue type=error;] $role: ACNS telemetry setup failed."
     acns_telemetry_failed=1
   fi
-  if jq -e '.accepted_gap == true' \
-      "$report_dir/telemetry/acns/readiness-final.json" >/dev/null 2>&1; then
-    acns_gap_accepted=true
-    echo "$role: accepting the documented Cilium policy/L7 telemetry gap."
-  fi
 fi
 
 # Background Prometheus memory-limit patcher (Phase D fix 2026-05-16):
@@ -607,6 +602,13 @@ if [ "${CL2_ACNS_TELEMETRY_ENABLED:-false}" = "true" ]; then
       bash "$acns_setup_script"; then
     echo "##vso[task.logissue type=error;] $role: final ACNS freshness verification failed."
     acns_telemetry_failed=1
+  fi
+  if jq -e '.accepted_gap == true' \
+      "$report_dir/telemetry/acns/readiness-start.json" >/dev/null 2>&1 ||
+     jq -e '.accepted_gap == true' \
+      "$report_dir/telemetry/acns/readiness-final.json" >/dev/null 2>&1; then
+    acns_gap_accepted=true
+    echo "$role: accepting the documented Cilium policy/L7 telemetry gap."
   fi
 fi
 

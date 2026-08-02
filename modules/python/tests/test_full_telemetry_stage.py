@@ -567,7 +567,10 @@ def test_acns_probe_runs_before_snapshot_and_is_collected_before_teardown():
     audit = worker.index("audit_self_hosted.py")
     collect = worker.index("collect-acns-telemetry.sh")
     snapshot = worker.index("prometheus TSDB snapshot -------")
+    final_readiness = worker.index("readiness-final.json")
+    accepted_gap_check = worker.index(".accepted_gap == true")
     assert setup < audit < collect < snapshot
+    assert final_readiness < accepted_gap_check < audit
     assert "--require-acns" in worker
     assert "ACNS_VERIFY_ONLY=true" in worker
     assert "readiness-start.json" in worker

@@ -171,6 +171,7 @@ def test_candidate_n100_dsv3_topology_matches_dsv4_shape():
     expected = (
         dsv4.replace("DSv4", "DSv3")
         .replace("dsv4", "dsv3")
+        .replace("D8s_v4", "D8s_v3")
         .replace("Standard_D8s_v4", "Standard_D8s_v3")
     )
 
