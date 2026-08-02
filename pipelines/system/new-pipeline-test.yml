@@ -2091,8 +2091,8 @@ stages:
 
   - stage: azure_centraluseuap_n100_mock
     dependsOn: []
-    condition: always()
-    displayName: "n=100 Central US EUAP MOCK spike (100 virtual nodes/cluster x 100 = 10k)"
+    condition: eq(1, 0)
+    displayName: "BLOCKED legacy n=100 Central US EUAP — do not run"
     variables:
       MOCK_ACR_HOST: mockmeshshared11225.azurecr.io
       MOCK_AGENT_TAG: v26

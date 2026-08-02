@@ -825,6 +825,16 @@ def test_n100_stage_has_complete_workload_and_telemetry_wiring():
     assert 'aks_name                      = "clustermesh-100"' in tfvars
 
 
+def test_legacy_centraluseuap_n100_stage_is_disabled():
+    pipeline = PIPELINE_PATH.read_text(encoding="utf-8")
+    start = pipeline.index("- stage: azure_centraluseuap_n100_mock")
+    end = pipeline.index("- stage: azure_eastus2euap_n1_mock_5k", start)
+    stage = pipeline[start:end]
+
+    assert "condition: eq(1, 0)" in stage
+    assert "BLOCKED legacy n=100 Central US EUAP" in stage
+
+
 def test_n100_stage_uses_static_sharded_workspaces_with_no_rotation():
     pipeline = PIPELINE_PATH.read_text(encoding="utf-8")
     start = pipeline.index("- stage: azure_centraluseuap_n100_mock")
