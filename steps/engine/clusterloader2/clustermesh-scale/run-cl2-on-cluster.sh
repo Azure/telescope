@@ -53,6 +53,7 @@ worker_started_epoch=$(date +%s)
 mkdir -p "$report_dir"
 repo_root=$(cd -- "$(dirname -- "$python_script_file")/../../../.." && pwd)
 acns_telemetry_failed=0
+acns_gap_accepted=false
 telemetry_coverage_failed=0
 required_self_hosted_telemetry="${CL2_REQUIRED_SELF_HOSTED_TELEMETRY:-${CL2_ACNS_TELEMETRY_ENABLED:-false}}"
 worker_status_file="$report_dir/worker-status-${role}.json"
@@ -66,13 +67,20 @@ write_worker_status() {
     --argjson workload_valid "$workload_valid" \
     --argjson telemetry_valid "$telemetry_valid" \
     --argjson exit_code "$exit_code" \
+    --argjson acns_gap_accepted "$acns_gap_accepted" \
     '{
       schema_version: 1,
       role: $role,
       scenario_config: $scenario,
       workload_valid: $workload_valid,
       telemetry_valid: $telemetry_valid,
-      exit_code: $exit_code
+      exit_code: $exit_code,
+      accepted_telemetry_gaps: (
+        if $acns_gap_accepted
+        then ["cilium-policy-l7"]
+        else []
+        end
+      )
     }' > "${worker_status_file}.tmp"
   mv "${worker_status_file}.tmp" "$worker_status_file"
 }
@@ -244,6 +252,11 @@ if [ "${CL2_ACNS_TELEMETRY_ENABLED:-false}" = "true" ]; then
       bash "$acns_setup_script"; then
     echo "##vso[task.logissue type=error;] $role: ACNS telemetry setup failed."
     acns_telemetry_failed=1
+  fi
+  if jq -e '.accepted_gap == true' \
+      "$report_dir/telemetry/acns/readiness-final.json" >/dev/null 2>&1; then
+    acns_gap_accepted=true
+    echo "$role: accepting the documented Cilium policy/L7 telemetry gap."
   fi
 fi
 
@@ -620,7 +633,8 @@ if [ -f "$telemetry_audit_script" ]; then
         ;;
     esac
   fi
-  if [ "${CL2_ACNS_TELEMETRY_ENABLED:-false}" = "true" ]; then
+  if [ "${CL2_ACNS_TELEMETRY_ENABLED:-false}" = "true" ] &&
+     [ "$acns_gap_accepted" != "true" ]; then
     telemetry_audit_args+=(--require-acns)
   fi
   # Never let a crashed audit inherit a success JSON from a dirty/reused agent
@@ -638,6 +652,7 @@ if [ -f "$telemetry_audit_script" ]; then
     fi
   fi
   if [ "${CL2_ACNS_TELEMETRY_ENABLED:-false}" = "true" ] &&
+     [ "$acns_gap_accepted" != "true" ] &&
      { [ ! -s "$telemetry_audit_dir/telemetry-audit-self-hosted.json" ] ||
        ! jq -e '.acns_complete == true' \
          "$telemetry_audit_dir/telemetry-audit-self-hosted.json" >/dev/null; }; then

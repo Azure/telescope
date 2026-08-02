@@ -484,6 +484,62 @@ def test_acns_setup_rejects_cilium_policy_never(tmp_path):
     assert "fresh DNS L7 metrics cannot be trusted" in result.stderr
 
 
+def test_acns_setup_records_accepted_cilium_policy_gap(tmp_path):
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    fake_kubectl = fake_bin / "kubectl"
+    fake_kubectl.write_text(
+        textwrap.dedent(
+            """\
+            #!/usr/bin/env bash
+            set -euo pipefail
+            if [ "${1:-} ${2:-}" = "get crd/containernetworklogs.acn.azure.com" ] ||
+               [ "${1:-} ${2:-}" = "get crd/containernetworkmetrics.acn.azure.com" ] ||
+               [ "${1:-} ${2:-}" = "get crd/ciliumnetworkpolicies.cilium.io" ] ||
+               [ "${1:-}" = "apply" ] ||
+               [[ " $* " == *" rollout status "* ]]; then
+              exit 0
+            elif [[ " $* " == *" get containernetworklog clustermesh-scale-acns -o jsonpath="* ]] ||
+                 [[ " $* " == *" get containernetworkmetric container-network-metric -o jsonpath="* ]]; then
+              printf CONFIGURED
+            elif [[ " $* " == *" -n kube-system get configmap cilium-config -o jsonpath="* ]]; then
+              printf never
+            fi
+            echo "Unexpected kubectl command: $*" >&2
+            exit 1
+            """
+        ),
+        encoding="utf-8",
+    )
+    fake_kubectl.chmod(fake_kubectl.stat().st_mode | stat.S_IXUSR)
+    readiness = tmp_path / "readiness.json"
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "CL2_ACNS_TELEMETRY_ENABLED": "true",
+            "CL2_ACCEPT_CILIUM_POLICY_GAP": "true",
+            "ACNS_READINESS_OUTPUT": str(readiness),
+            "KUBECONFIG": str(tmp_path / "kubeconfig"),
+            "PATH": f"{fake_bin}:{environment['PATH']}",
+        }
+    )
+
+    result = subprocess.run(
+        ["bash", str(ACNS_SETUP_SCRIPT)],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=10,
+    )
+
+    assert result.returncode == 0
+    report = json.loads(readiness.read_text(encoding="utf-8"))
+    assert report["ready"] is False
+    assert report["accepted_gap"] is True
+    assert report["cilium_policy_mode"] == "never"
+
+
 def test_acns_setup_follows_acns_client_node_and_ignores_arbitrary_first_cilium_node(
     tmp_path,
 ):

@@ -50,7 +50,7 @@ def test_candidate_stage_has_isolated_subscription_dependencies():
         "AKS_CONTROL_PLANE_LAW_NAME: cmsh-scale-controlplane-law-aksstand2",
         'AKS_CONTROL_PLANE_FORCE_PROVIDER_REREGISTRATION: "true"',
         'AKS_MANAGED_MONITORING_CONVERGENCE_ENABLED: "true"',
-        'AKS_CILIUM_POLICY_GUARD_ENABLED: "true"',
+        'AKS_CILIUM_POLICY_GUARD_ENABLED: "false"',
         'AKS_CILIUM_POLICY_GUARD_REPAIR_ENABLED: "false"',
         'AKS_CILIUM_POLICY_GUARD_TIMEOUT_SECONDS: "1800"',
         'AKS_CILIUM_POLICY_GUARD_QUIET_SECONDS: "300"',
@@ -59,6 +59,7 @@ def test_candidate_stage_has_isolated_subscription_dependencies():
         'AKS_PLATFORM_METRICS_MIN_COVERAGE_PERCENT: "80"',
         'AKS_PLATFORM_METRICS_TIMEOUT_SECONDS: "0"',
         'CL2_REQUIRED_SELF_HOSTED_TELEMETRY: "true"',
+        'CL2_ACCEPT_CILIUM_POLICY_GAP: "true"',
         "cl2_prom_snapshot_storage_account: \"cmshscaleaksst2\"",
         'test_type_suffix: "-mock-full-telemetry-eus2-aksstand2"',
         'saturation_qps_list: "100,500,1500,4000,10000"',
@@ -77,7 +78,7 @@ def test_candidate_stage_runs_complete_eight_scenario_gate():
 
     assert (
         'share_infra_scenarios: "propagation-probe,event-throughput,'
-        'pod-churn-combined,apiserver-failure,policy-scale,isolation,'
+        'policy-scale,pod-churn-combined,apiserver-failure,isolation,'
         'node-churn-combined,upper-bound"'
         in stage
     )

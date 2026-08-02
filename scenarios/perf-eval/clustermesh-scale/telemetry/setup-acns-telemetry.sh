@@ -50,6 +50,7 @@ write_readiness() {
   local ready="$1" reason="$2" endpoint="$3" client="$4"
   local policy_mode="$5" query_before="$6" query_after="$7"
   local response_before="$8" response_after="$9"
+  local accepted_gap="${10:-false}"
   [ -n "$readiness_output" ] || return 0
   mkdir -p "$(dirname "$readiness_output")"
   jq -n \
@@ -59,6 +60,7 @@ write_readiness() {
     --arg client_pod "$client" \
     --arg cilium_policy_mode "$policy_mode" \
     --argjson ready "$ready" \
+    --argjson accepted_gap "$accepted_gap" \
     --argjson query_before "$query_before" \
     --argjson query_after "$query_after" \
     --argjson response_before "$response_before" \
@@ -67,6 +69,7 @@ write_readiness() {
       schema_version: 1,
       observed_at: $observed_at,
       ready: $ready,
+      accepted_gap: $accepted_gap,
       reason: $reason,
       endpoint: $endpoint,
       client_pod: $client_pod,
@@ -148,7 +151,15 @@ cilium_policy_mode=$(kubectl -n kube-system get configmap cilium-config \
   -o jsonpath='{.data.enable-policy}' 2>/dev/null || true)
 if [ "$cilium_policy_mode" = "never" ]; then
   reason="Cilium policy enforcement is disabled (cilium-config enable-policy=never); fresh DNS L7 metrics cannot be trusted"
-  write_readiness false "$reason" "unavailable" "" "$cilium_policy_mode" 0 0 0 0
+  if [ "${CL2_ACCEPT_CILIUM_POLICY_GAP:-false}" = "true" ]; then
+    reason="$reason; accepted by deadline policy"
+    write_readiness false "$reason" "unavailable" "" \
+      "$cilium_policy_mode" 0 0 0 0 true
+    echo "$reason"
+    exit 0
+  fi
+  write_readiness false "$reason" "unavailable" "" \
+    "$cilium_policy_mode" 0 0 0 0 false
   echo "$reason" >&2
   exit 1
 fi

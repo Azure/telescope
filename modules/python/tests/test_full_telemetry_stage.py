@@ -572,6 +572,8 @@ def test_acns_probe_runs_before_snapshot_and_is_collected_before_teardown():
     assert "ACNS_VERIFY_ONLY=true" in worker
     assert "readiness-start.json" in worker
     assert "readiness-final.json" in worker
+    assert "accepted_telemetry_gaps" in worker
+    assert "acns_gap_accepted" in worker
     assert "exit 10" in worker
     assert "workload passed but required telemetry is incomplete" in worker
 

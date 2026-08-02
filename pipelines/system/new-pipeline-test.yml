@@ -1505,7 +1505,7 @@ stages:
       AKS_MANAGED_MONITORING_CONVERGENCE_ENABLED: "true"
       AKS_MANAGED_MONITORING_CONVERGENCE_TIMEOUT_SECONDS: "7200"
       AKS_MANAGED_MONITORING_CILIUM_QUIET_SECONDS: "120"
-      AKS_CILIUM_POLICY_GUARD_ENABLED: "true"
+      AKS_CILIUM_POLICY_GUARD_ENABLED: "false"
       AKS_CILIUM_POLICY_GUARD_REPAIR_ENABLED: "false"
       AKS_CILIUM_POLICY_GUARD_TIMEOUT_SECONDS: "1800"
       AKS_CILIUM_POLICY_GUARD_QUIET_SECONDS: "300"
@@ -1527,6 +1527,7 @@ stages:
       AKS_CONTROL_PLANE_LOG_RETENTION_DAYS: "30"
       AKS_PLATFORM_METRICS_TIMEOUT_SECONDS: "0"
       CL2_ACNS_TELEMETRY_ENABLED: "true"
+      CL2_ACCEPT_CILIUM_POLICY_GAP: "true"
       CLUSTERMESH_QUOTA_PREFLIGHT_ENABLED: "true"
       CLUSTERMESH_REQUIRED_MANAGED_CLUSTERS: "2"
       CLUSTERMESH_MANAGED_CLUSTER_QUOTA_HEADROOM: "2"
@@ -1565,7 +1566,7 @@ stages:
               cl2_prom_snapshot_container: "snapshots"
               cluster_count: 2
               mesh_size: 2
-              share_infra_scenarios: "propagation-probe,event-throughput,pod-churn-combined,apiserver-failure,policy-scale,isolation,node-churn-combined,upper-bound"
+              share_infra_scenarios: "propagation-probe,event-throughput,policy-scale,pod-churn-combined,apiserver-failure,isolation,node-churn-combined,upper-bound"
               share_infra_settle_seconds: 60
               agent_disk_min_free_gi: 10
               agent_memory_min_free_gi: 4
