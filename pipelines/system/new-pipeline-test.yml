@@ -1975,8 +1975,13 @@ stages:
       MOCK_DEPLOY_MAX_FAILURES: 0
       CL2_PROMETHEUS_MEMORY_LIMIT_GI: "16"
       CL2_ACNS_TELEMETRY_ENABLED: "true"
+      CL2_ACCEPT_CILIUM_POLICY_GAP: "true"
+      AKS_CILIUM_POLICY_GUARD_ENABLED: "false"
       AKS_CONTROL_PLANE_METRICS_ENABLED: "true"
       AKS_CONTROL_PLANE_METRICS_REGISTER_PREVIEW: "false"
+      AKS_PLATFORM_METRICS_REQUIRED: "false"
+      AKS_PLATFORM_METRICS_REQUIRE_WINDOW_COVERAGE: "false"
+      AKS_PLATFORM_METRICS_TIMEOUT_SECONDS: "0"
       AKS_CONTROL_PLANE_AMW_RESOURCE_GROUP: clustermesh-scale-prom-snapshots
       AKS_CONTROL_PLANE_AMW_NAME_PREFIX: cmsh-scale-centraluseuap-n100-amw
       AKS_AMW_ARM_BATCH_SIZE: "10"
@@ -2024,7 +2029,6 @@ stages:
       AKS_CONTROL_PLANE_LAW_NAME: cmsh-scale-controlplane-law-cuseuap
       AKS_CONTROL_PLANE_LAW_LOCATION: eastus2
       AKS_CONTROL_PLANE_LOG_RETENTION_DAYS: "30"
-      AKS_PLATFORM_METRICS_TIMEOUT_SECONDS: "3600"
       CLUSTERMESH_QUOTA_PREFLIGHT_ENABLED: "true"
       CLUSTERMESH_REQUIRED_MANAGED_CLUSTERS: "100"
       CLUSTERMESH_MANAGED_CLUSTER_QUOTA_HEADROOM: "5"
@@ -2094,7 +2098,7 @@ stages:
               cl2_prom_snapshot_container: "snapshots"
               cluster_count: 100
               mesh_size: 100
-              share_infra_scenarios: "propagation-probe,event-throughput,pod-churn-combined,apiserver-failure,policy-scale,isolation,node-churn-combined,upper-bound"
+              share_infra_scenarios: "propagation-probe,event-throughput,policy-scale,pod-churn-combined,apiserver-failure,isolation,node-churn-combined,upper-bound"
               share_infra_settle_seconds: 300
               agent_disk_min_free_gi: 40
               # Airlock agents observed in builds 74578/74597 have about

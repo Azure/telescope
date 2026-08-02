@@ -771,11 +771,16 @@ def test_n100_stage_has_complete_workload_and_telemetry_wiring():
         'AKS_AMW_ARM_BATCH_SIZE: "10"',
         'AKS_CONTROL_PLANE_METRICS_CONCURRENCY: "5"',
         'CL2_ACNS_TELEMETRY_ENABLED: "true"',
+        'CL2_ACCEPT_CILIUM_POLICY_GAP: "true"',
+        'AKS_CILIUM_POLICY_GUARD_ENABLED: "false"',
+        'AKS_PLATFORM_METRICS_REQUIRED: "false"',
+        'AKS_PLATFORM_METRICS_REQUIRE_WINDOW_COVERAGE: "false"',
+        'AKS_PLATFORM_METRICS_TIMEOUT_SECONDS: "0"',
         'cl2_prom_snapshot_enabled: "true"',
         'CL2_PROBE_WINDOW_DURATION: "60m"',
         "operation_timeout: 90m",
         'share_infra_scenarios: "propagation-probe,event-throughput,'
-        'pod-churn-combined,apiserver-failure,policy-scale,isolation,'
+        'policy-scale,pod-churn-combined,apiserver-failure,isolation,'
         'node-churn-combined,upper-bound"',
         "share_infra_settle_seconds: 300",
         "agent_disk_min_free_gi: 40",
