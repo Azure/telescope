@@ -37,6 +37,13 @@ QUALIFY_TEMPLATE_PATH = (
     / "clustermesh-scale"
     / "qualify-platform-metrics.yml"
 )
+REASSERT_TEMPLATE_PATH = (
+    REPOSITORY_ROOT
+    / "steps"
+    / "topology"
+    / "clustermesh-scale"
+    / "reassert-cilium-policy.yml"
+)
 COLLECT_TEMPLATE_PATH = (
     REPOSITORY_ROOT
     / "steps"
@@ -454,17 +461,19 @@ def test_mock_layer_is_deployed_after_managed_telemetry_configuration():
 
     assert "deploy-mock-layer.yml" not in validate
     configure_pos = execute.index("configure-control-plane-metrics.yml")
+    reassert_pos = execute.index("reassert-cilium-policy.yml")
     qualify_pos = execute.index("qualify-platform-metrics.yml")
     deploy_pos = execute.index("deploy-mock-layer.yml")
     cl2_pos = execute.index(
         "/steps/engine/clusterloader2/clustermesh-scale/execute.yml"
     )
-    assert configure_pos < qualify_pos < deploy_pos < cl2_pos
+    assert configure_pos < reassert_pos < qualify_pos < deploy_pos < cl2_pos
 
 
 def test_full_telemetry_azure_tasks_use_ui_selected_subscription():
     for path in (
         CONFIGURE_TEMPLATE_PATH,
+        REASSERT_TEMPLATE_PATH,
         QUALIFY_TEMPLATE_PATH,
         COLLECT_TEMPLATE_PATH,
         SNAPSHOT_TEMPLATE_PATH,
@@ -574,6 +583,18 @@ def test_acns_probe_runs_before_snapshot_and_is_collected_before_teardown():
     assert "readiness-final.json" in worker
     assert "exit 10" in worker
     assert "workload passed but required telemetry is incomplete" in worker
+
+
+def test_cilium_policy_guard_runs_before_each_scenario():
+    execute = EXECUTE_TEMPLATE_PATH.read_text(encoding="utf-8")
+
+    guard_call = "if ! run_cilium_policy_guard"
+    mock_reconcile = 'run_mock_layer_reconcile "before"'
+    scenario_banner = 'echo "Scenario [${scenario_idx}/${#SCENARIO_LIST[@]}]: ${SCENARIO}"'
+    assert guard_call in execute
+    assert execute.index(guard_call) < execute.index(mock_reconcile)
+    assert execute.index(guard_call) < execute.index(scenario_banner)
+    assert "ensure-cilium-policy.sh" in execute
 
 
 def test_upper_bound_collection_uses_execution_defaults():

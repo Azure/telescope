@@ -1,0 +1,32 @@
+parameters:
+  - name: cloud
+    type: string
+
+steps:
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(AZURE_SERVICE_CONNECTION)
+      scriptType: bash
+      scriptLocation: inlineScript
+      inlineScript: |
+        set -euo pipefail
+        az account set --subscription "$TARGET_SUBSCRIPTION_ID"
+        actual_subscription_id=$(az account show --query id -o tsv)
+        if [[ "${actual_subscription_id,,}" != "${TARGET_SUBSCRIPTION_ID,,}" ]]; then
+          echo "Expected Azure subscription ${TARGET_SUBSCRIPTION_ID}, got ${actual_subscription_id}" >&2
+          exit 1
+        fi
+        export CLUSTERS_FILE="$HOME/.kube/clustermesh-clusters.json"
+        export STATE_ROOT="$HOME/.kube/cilium-policy-guard/$RUN_ID"
+        FORCE_REASSERT=true bash "$GUARD_SCRIPT"
+    env:
+      TARGET_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
+      OUTPUT_FILE: $(Build.ArtifactStagingDirectory)/aks-control-plane-metrics/cilium-policy-reassert-initial.json
+      RUN_ID: $(RUN_ID)
+      GUARD_SCRIPT: >-
+        $(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/telemetry/ensure-cilium-policy.sh
+    displayName: "Reassert AKS Cilium policy after monitoring setup"
+    condition: and(succeeded(),
+                   ${{ eq(parameters.cloud, 'azure') }},
+                   eq(variables['AKS_CILIUM_POLICY_GUARD_ENABLED'], 'true'),
+                   eq(variables['AKS_TELEMETRY_CONFIGURED'], 'true'))

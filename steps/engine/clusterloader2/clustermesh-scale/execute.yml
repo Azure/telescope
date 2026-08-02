@@ -645,6 +645,18 @@ steps:
         return "$_rc"
       }
 
+      run_cilium_policy_guard() {
+        [ "${AKS_CILIUM_POLICY_GUARD_ENABLED:-false}" = "true" ] || return 0
+        local _output="$1" _budget
+        mkdir -p "$(dirname "$_output")"
+        _budget=$(( ${AKS_CILIUM_POLICY_GUARD_TIMEOUT_SECONDS:-1800} + ${AKS_CILIUM_POLICY_GUARD_COMMAND_TIMEOUT_SECONDS:-900} * cluster_count + 60 ))
+        timeout --signal=TERM --kill-after=60s "${_budget}s" \
+          env CLUSTERS_FILE="$HOME/.kube/clustermesh-clusters.json" \
+            OUTPUT_FILE="$_output" STATE_ROOT="$HOME/.kube/cilium-policy-guard/${RUN_ID}" \
+            TARGET_SUBSCRIPTION_ID="$TARGET_SUBSCRIPTION_ID" \
+            bash "$CILIUM_POLICY_GUARD_SCRIPT"
+      }
+
       # Repair allowlisted scenario residue; the health gate remains proof.
       run_scenario_cleanup_reconcile() {
         local _output="$1"
@@ -1532,11 +1544,15 @@ steps:
           # budget check covers both without touching the finalization
           # reserve, which is kept as its own separate additive term below.
           mock_reconcile_pre_budget=$(scenario_mock_reconcile_budget_seconds)
+          cilium_policy_guard_budget=0
+          if [ "${AKS_CILIUM_POLICY_GUARD_ENABLED:-false}" = "true" ]; then
+            cilium_policy_guard_budget=$(( ${AKS_CILIUM_POLICY_GUARD_TIMEOUT_SECONDS:-1800} + ${AKS_CILIUM_POLICY_GUARD_COMMAND_TIMEOUT_SECONDS:-900} * cluster_count + 60 ))
+          fi
           if [ "$CL2_SUITE_TOTAL_BUDGET_SECONDS" -gt 0 ]; then
             now_epoch=$(date +%s)
             elapsed_seconds=$(( now_epoch - suite_job_start_epoch ))
             remaining_seconds=$(( CL2_SUITE_TOTAL_BUDGET_SECONDS - elapsed_seconds ))
-            required_seconds=$(( scenario_budget + scenario_post_budget + mock_reconcile_pre_budget + final_lifecycle_budget + CL2_SUITE_FINALIZATION_RESERVE_SECONDS ))
+            required_seconds=$(( scenario_budget + scenario_post_budget + mock_reconcile_pre_budget + cilium_policy_guard_budget + final_lifecycle_budget + CL2_SUITE_FINALIZATION_RESERVE_SECONDS ))
             echo "Suite budget: elapsed=${elapsed_seconds}s remaining=${remaining_seconds}s scenario_estimate=${scenario_budget}s post_scenario_estimate=${scenario_post_budget}s mock_reconcile_pre_estimate=${mock_reconcile_pre_budget}s final_lifecycle_estimate=${final_lifecycle_budget}s finalization_reserve=${CL2_SUITE_FINALIZATION_RESERVE_SECONDS}s"
             if [ "$remaining_seconds" -lt "$required_seconds" ]; then
               skipped_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
@@ -1566,6 +1582,17 @@ steps:
             break
           fi
           if ! check_agent_memory_headroom; then
+            overall_rc=1
+            break
+          fi
+
+          if ! run_cilium_policy_guard "${CL2_REPORT_DIR}/${SCENARIO}/cilium-policy-guard-before.json"; then
+            skipped_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+            jq --arg name "$SCENARIO" --arg skipped_at "$skipped_at" \
+              '. += [{scenario:$name, skipped:true, skip_reason:"cilium_guard_failed", start_timestamp:$skipped_at, end_timestamp:$skipped_at}]' \
+              "$SHARE_INFRA_META" > "${SHARE_INFRA_META}.tmp" &&
+              mv "${SHARE_INFRA_META}.tmp" "$SHARE_INFRA_META"
+            echo "##vso[task.logissue type=error;] ${SCENARIO}: Cilium guard failed"
             overall_rc=1
             break
           fi
@@ -2517,6 +2544,7 @@ steps:
       HEALTH_GATE_SCRIPT: $(Pipeline.Workspace)/s/modules/python/clusterloader2/clustermesh-scale/config/scenario-health-gate.sh
       SCENARIO_ARTIFACT_PRESERVER: $(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/telemetry/preserve-scenario-artifacts.sh
       SNAPSHOT_RELABEL_SCRIPT: $(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/telemetry/relabel-prometheus-snapshots.sh
+      CILIUM_POLICY_GUARD_SCRIPT: $(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/telemetry/ensure-cilium-policy.sh
       TARGET_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
       BUILD_ID: $(Build.BuildId)
       BUILD_BRANCH: $(Build.SourceBranchName)
