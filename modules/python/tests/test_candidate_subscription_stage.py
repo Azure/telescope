@@ -14,6 +14,12 @@ TFVARS_PATH = (
     / "terraform-inputs"
     / "azure-2-mock-shared-dsv3.tfvars"
 )
+N100_TFVARS_PATH = TFVARS_PATH.with_name(
+    "azure-100-mock-shared-dsv3.tfvars"
+)
+N100_DSV4_TFVARS_PATH = TFVARS_PATH.with_name(
+    "azure-100-mock-shared-dsv4.tfvars"
+)
 MOCK_DEPLOY_PATH = (
     REPOSITORY_ROOT
     / "steps"
@@ -31,6 +37,15 @@ def _stage_block():
     end = pipeline.index(
         "- stage: azure_centraluseuap_n2_mock_full_telemetry", start
     )
+    return pipeline[start:end]
+
+
+def _n100_stage_block():
+    pipeline = PIPELINE_PATH.read_text(encoding="utf-8")
+    start = pipeline.index(
+        "- stage: azure_eastus2_n100_mock_aksstandalone2"
+    )
+    end = pipeline.index("- stage: azure_centraluseuap_n100_mock", start)
     return pipeline[start:end]
 
 
@@ -109,3 +124,58 @@ def test_mock_acr_preflight_supports_cross_subscription_lookup():
     assert 'acr_subscription_args=(--subscription "$acr_subscription_id")' in deploy
     assert 'az acr show "${acr_subscription_args[@]}"' in deploy
     assert 'az acr repository show "${acr_subscription_args[@]}"' in deploy
+
+
+def test_candidate_n100_stage_inherits_n2_findings():
+    stage = _n100_stage_block()
+
+    for expected in (
+        "- eastus2",
+        "azure-100-mock-shared-dsv3.tfvars",
+        "standardDSv3Family",
+        'CLUSTERMESH_REQUIRED_FAMILY_VCPUS: "2536"',
+        'CLUSTERMESH_REQUIRED_MANAGED_CLUSTERS: "100"',
+        'CLUSTERMESH_MANAGED_CLUSTER_QUOTA_HEADROOM: "5"',
+        "MOCK_ACR_HOST: mockmeshshared11225.azurecr.io",
+        'MOCK_ACR_SUBSCRIPTION_ID: "37deca37-c375-4a14-b90a-043849bd2bf1"',
+        "AKS_CONTROL_PLANE_AMW_NAME_PREFIX: "
+        "cmsh-scale-eastus2-aksstand2-n100-amw",
+        "AKS_CONTROL_PLANE_LAW_NAME: cmsh-scale-controlplane-law-aksstand2",
+        'AKS_CONTROL_PLANE_FORCE_PROVIDER_REREGISTRATION: "true"',
+        'AKS_MANAGED_MONITORING_CONVERGENCE_ENABLED: "true"',
+        'AKS_PLATFORM_METRICS_REQUIRED: "false"',
+        'AKS_PLATFORM_METRICS_REQUIRE_WINDOW_COVERAGE: "false"',
+        'AKS_PLATFORM_METRICS_TIMEOUT_SECONDS: "0"',
+        'CL2_ACCEPT_CILIUM_POLICY_GAP: "true"',
+        'CL2_REQUIRED_SELF_HOSTED_TELEMETRY: "true"',
+        'AKS_CILIUM_POLICY_GUARD_ENABLED: "false"',
+        "cl2_prom_snapshot_storage_account: \"cmshscaleaksst2\"",
+        'test_type_suffix: "-mock-cuse2-aksstand2"',
+        'share_infra_scenarios: "propagation-probe,event-throughput,'
+        'policy-scale,pod-churn-combined,apiserver-failure,isolation,'
+        'node-churn-combined,upper-bound"',
+        "suite_total_budget_seconds: 129600",
+        "suite_finalization_reserve_seconds: 10800",
+        "timeout_in_minutes: 2520",
+        "cancel_timeout_in_minutes: 120",
+    ):
+        assert expected in stage
+
+    assert "18153b17-4e27-4b58-863e-f8105b8892a2" not in stage
+    assert "centraluseuap" not in stage
+
+
+def test_candidate_n100_dsv3_topology_matches_dsv4_shape():
+    dsv3 = N100_TFVARS_PATH.read_text(encoding="utf-8")
+    dsv4 = N100_DSV4_TFVARS_PATH.read_text(encoding="utf-8")
+    expected = (
+        dsv4.replace("DSv4", "DSv3")
+        .replace("dsv4", "dsv3")
+        .replace("Standard_D8s_v4", "Standard_D8s_v3")
+    )
+
+    assert dsv3 == expected
+    assert dsv3.count('vm_size              = "Standard_D8s_v3"') == 201
+    assert 'vm_size              = "Standard_D8s_v4"' not in dsv3
+    assert dsv3.count('name                 = "churnpool"') == 1
+    assert "node_count           = 12" in dsv3
