@@ -212,6 +212,7 @@ def test_terraform_separates_initial_member_label_from_profile_selector():
     azure_main = AZURE_MAIN_PATH.read_text(encoding="utf-8")
     azure_variables = AZURE_VARIABLES_PATH.read_text(encoding="utf-8")
     validation = VALIDATE_RESOURCES_PATH.read_text(encoding="utf-8")
+    staged_script = SCRIPT_PATH.read_text(encoding="utf-8")
     n2_tfvars = N2_TFVARS_PATH.read_text(encoding="utf-8")
 
     assert 'variable "member_initial_label_value"' in module_variables
@@ -227,6 +228,8 @@ def test_terraform_separates_initial_member_label_from_profile_selector():
     assert "member_initial_label_value = optional(string, \"\")" in azure_variables
     assert 'CMP_STAGED_JOIN_ENABLED:-false' in validation
     assert "staged-fleet-enrollment.sh" in validation
+    assert "--arg selector_label_value" in staged_script
+    assert "--arg label " not in staged_script
     assert "${var.member_label_key}=detaching" in module
     assert "values(local.member_relabel_command)" in module
     assert (

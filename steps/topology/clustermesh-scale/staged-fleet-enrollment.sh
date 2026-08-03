@@ -75,7 +75,7 @@ jq -n \
   --arg started_at "$started_at" \
   --arg fleet "$fleet_name" \
   --arg profile "$fleet_profile" \
-  --arg label "${label_key}=${label_value}" \
+  --arg selector_label_value "${label_key}=${label_value}" \
   --argjson total_members "$total_members" \
   --argjson batch_size "$batch_size" \
   '{
@@ -83,7 +83,7 @@ jq -n \
     started_at: $started_at,
     fleet: $fleet,
     profile: $profile,
-    selector_label: $label,
+    selector_label: $selector_label_value,
     total_members: $total_members,
     batch_size: $batch_size,
     joined_members: 0,
