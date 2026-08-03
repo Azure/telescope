@@ -2016,14 +2016,18 @@ stages:
       # now creates these members as mesh=staged; validation selects twenty,
       # applies the profile, and requires cumulative Fleet/Kubernetes/Cilium
       # convergence before selecting the next twenty. Post-formation rejoin
-      # remains enabled only as a later straggler recovery.
+      # remains enabled only as a later straggler recovery. Terminal/stalled
+      # members get member-scoped reconcile calls; healthy members are never
+      # reset by periodic whole-profile applies.
       CMP_AUTO_RECOVERY_ENABLED: "false"
       CMP_STAGED_JOIN_ENABLED: "true"
       CMP_STAGED_JOIN_BATCH_SIZE: "20"
       CMP_STAGED_JOIN_BATCH_WAIT_SECONDS: "7200"
       CMP_STAGED_JOIN_TOTAL_WAIT_SECONDS: "21600"
       CMP_STAGED_JOIN_CHECK_CONCURRENCY: "10"
-      CMP_STAGED_JOIN_STALL_REAPPLY_SECONDS: "1800"
+      CMP_STAGED_JOIN_STALL_RETRY_SECONDS: "1800"
+      CMP_STAGED_JOIN_MAX_MEMBER_RETRIES: "2"
+      CMP_STAGED_JOIN_MEMBER_RETRY_COOLDOWN_SECONDS: "900"
       CMP_REJOIN_ENABLED: "true"
       CL2_PROPAGATION_PROBE_ENABLED: "true"
       CL2_PROPAGATION_PROBE_COUNT: "10"
@@ -2190,7 +2194,9 @@ stages:
       CMP_STAGED_JOIN_BATCH_WAIT_SECONDS: "7200"
       CMP_STAGED_JOIN_TOTAL_WAIT_SECONDS: "21600"
       CMP_STAGED_JOIN_CHECK_CONCURRENCY: "10"
-      CMP_STAGED_JOIN_STALL_REAPPLY_SECONDS: "1800"
+      CMP_STAGED_JOIN_STALL_RETRY_SECONDS: "1800"
+      CMP_STAGED_JOIN_MAX_MEMBER_RETRIES: "2"
+      CMP_STAGED_JOIN_MEMBER_RETRY_COOLDOWN_SECONDS: "900"
       CMP_REJOIN_ENABLED: "true"
       # Propagation-latency probe (see n2_mock_2500 for the design). n=100 is the
       # EXTREME-fan-out tier: each source pod syncs to 99 peers, so this is the most
