@@ -42,7 +42,15 @@ def _write_executable(path: Path, content: str) -> None:
     path.chmod(0o755)
 
 
-def _run_staged_join(tmp_path: Path, roles, failing_role=None):
+def _run_staged_join(
+    tmp_path: Path,
+    roles,
+    failing_role=None,
+    required_apply_count=1,
+    batch_wait_seconds=2,
+    stall_reapply_seconds=2,
+    connected_sequence="",
+):
     bin_dir = tmp_path / "bin"
     home_dir = tmp_path / "home"
     kube_dir = home_dir / ".kube"
@@ -68,6 +76,8 @@ def _run_staged_join(tmp_path: Path, roles, failing_role=None):
 
     command_log = tmp_path / "commands.log"
     selected_file = tmp_path / "selected.txt"
+    apply_file = tmp_path / "applies.txt"
+    connected_query_file = tmp_path / "connected-queries.txt"
     summary_file = tmp_path / "summary.json"
 
     _write_executable(
@@ -88,6 +98,23 @@ if [[ " $* " == *" fleet member update "* ]]; then
   exit 0
 fi
 if [[ " $* " == *" clustermeshprofile list-members "* ]]; then
+  if [[ " $* " == *"meshProperties.status.state=='Connected'"* ]]; then
+    if [ -n "$CONNECTED_SEQUENCE" ]; then
+      query_number=$(( $(wc -l < "$CONNECTED_QUERY_FILE" 2>/dev/null || printf '0') + 1 ))
+      echo query >> "$CONNECTED_QUERY_FILE"
+      value=$(printf '%s\\n' "$CONNECTED_SEQUENCE" | cut -d, -f"$query_number")
+      if [ -z "$value" ]; then
+        value=$(printf '%s\\n' "$CONNECTED_SEQUENCE" | awk -F, '{print $NF}')
+      fi
+      printf '%s\\n' "$value"
+      exit 0
+    fi
+    apply_count=$(wc -l < "$APPLY_FILE" 2>/dev/null || printf '0')
+    if [ "$apply_count" -lt "$REQUIRED_APPLY_COUNT" ]; then
+      printf '0\\n'
+      exit 0
+    fi
+  fi
   sort -u "$SELECTED_FILE" | sed '/^$/d' | wc -l
   exit 0
 fi
@@ -96,6 +123,7 @@ if [[ " $* " == *" clustermeshprofile show "* ]]; then
   exit 0
 fi
 if [[ " $* " == *" clustermeshprofile apply "* ]]; then
+  echo apply >> "$APPLY_FILE"
   exit 0
 fi
 echo "unexpected az invocation: $*" >&2
@@ -138,6 +166,10 @@ exit 1
             "HOME": str(home_dir),
             "COMMAND_LOG": str(command_log),
             "SELECTED_FILE": str(selected_file),
+            "APPLY_FILE": str(apply_file),
+            "CONNECTED_QUERY_FILE": str(connected_query_file),
+            "CONNECTED_SEQUENCE": connected_sequence,
+            "REQUIRED_APPLY_COUNT": str(required_apply_count),
             "FAILING_ROLE": failing_role or "",
             "CLUSTERS_FILE": str(clusters_file),
             "FLEET_RG": "test-rg",
@@ -145,13 +177,15 @@ exit 1
             "FLEET_PROFILE": "test-profile",
             "CMP_STAGED_JOIN_ENABLED": "true",
             "CMP_STAGED_JOIN_BATCH_SIZE": "2",
-            "CMP_STAGED_JOIN_BATCH_WAIT_SECONDS": "2",
+            "CMP_STAGED_JOIN_BATCH_WAIT_SECONDS": str(batch_wait_seconds),
             "CMP_STAGED_JOIN_TOTAL_WAIT_SECONDS": "6",
             "CMP_STAGED_JOIN_POLL_SECONDS": "1",
             "CMP_STAGED_JOIN_CHECK_CONCURRENCY": "2",
             "CMP_STAGED_JOIN_COMMAND_TIMEOUT_SECONDS": "2",
             "CMP_STAGED_JOIN_QUERY_TIMEOUT_SECONDS": "2",
-            "CMP_STAGED_JOIN_REAPPLY_SECONDS": "2",
+            "CMP_STAGED_JOIN_STALL_REAPPLY_SECONDS": str(
+                stall_reapply_seconds
+            ),
             "CMP_STAGED_JOIN_SUMMARY_FILE": str(summary_file),
         }
     )
@@ -206,6 +240,39 @@ def test_staged_join_stops_before_next_batch_when_convergence_fails(tmp_path):
     assert summary["batches"][-1]["members"] == ["mesh-3", "mesh-4"]
 
 
+def test_staged_join_reapplies_only_after_progress_stalls(tmp_path):
+    result, selected, summary, command_log = _run_staged_join(
+        tmp_path,
+        ["mesh-1", "mesh-2"],
+        required_apply_count=2,
+        batch_wait_seconds=5,
+        stall_reapply_seconds=1,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert selected == ["mesh-1", "mesh-2"]
+    assert command_log.count("clustermeshprofile apply") == 2
+    assert "no applied/connected progress for" in result.stdout
+    assert summary["status"] == "succeeded"
+
+
+def test_staged_join_tracks_fresh_progress_after_reapply_reset(tmp_path):
+    result, selected, summary, command_log = _run_staged_join(
+        tmp_path,
+        ["mesh-1", "mesh-2"],
+        batch_wait_seconds=7,
+        stall_reapply_seconds=1,
+        connected_sequence="1,1,0,1,2",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert selected == ["mesh-1", "mesh-2"]
+    assert command_log.count("clustermeshprofile apply") == 2
+    assert "connected_high_water=1" in result.stdout
+    assert "connected_high_water=2" in result.stdout
+    assert summary["status"] == "succeeded"
+
+
 def test_terraform_separates_initial_member_label_from_profile_selector():
     module = FLEET_MODULE_PATH.read_text(encoding="utf-8")
     module_variables = FLEET_VARIABLES_PATH.read_text(encoding="utf-8")
@@ -230,6 +297,11 @@ def test_terraform_separates_initial_member_label_from_profile_selector():
     assert "staged-fleet-enrollment.sh" in validation
     assert "--arg selector_label_value" in staged_script
     assert "--arg label " not in staged_script
+    assert "CMP_STAGED_JOIN_STALL_REAPPLY_SECONDS" in staged_script
+    assert "applied_high_water" in staged_script
+    assert "connected_high_water" in staged_script
+    assert "Start a fresh progress epoch" in staged_script
+    assert "next_reapply" not in staged_script
     assert "${var.member_label_key}=detaching" in module
     assert "values(local.member_relabel_command)" in module
     assert (

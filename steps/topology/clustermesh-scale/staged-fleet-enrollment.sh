@@ -23,7 +23,7 @@ member_update_attempts="${CMP_STAGED_JOIN_MEMBER_UPDATE_ATTEMPTS:-5}"
 apply_attempts="${CMP_STAGED_JOIN_APPLY_ATTEMPTS:-5}"
 command_timeout_seconds="${CMP_STAGED_JOIN_COMMAND_TIMEOUT_SECONDS:-900}"
 query_timeout_seconds="${CMP_STAGED_JOIN_QUERY_TIMEOUT_SECONDS:-60}"
-reapply_seconds="${CMP_STAGED_JOIN_REAPPLY_SECONDS:-300}"
+stall_reapply_seconds="${CMP_STAGED_JOIN_STALL_REAPPLY_SECONDS:-${CMP_STAGED_JOIN_REAPPLY_SECONDS:-1800}}"
 summary_file="${CMP_STAGED_JOIN_SUMMARY_FILE:-$(pwd)/clustermeshprofile-staged-join.json}"
 
 require_positive_integer() {
@@ -46,7 +46,7 @@ for setting in \
   "CMP_STAGED_JOIN_APPLY_ATTEMPTS:$apply_attempts" \
   "CMP_STAGED_JOIN_COMMAND_TIMEOUT_SECONDS:$command_timeout_seconds" \
   "CMP_STAGED_JOIN_QUERY_TIMEOUT_SECONDS:$query_timeout_seconds" \
-  "CMP_STAGED_JOIN_REAPPLY_SECONDS:$reapply_seconds"; do
+  "CMP_STAGED_JOIN_STALL_REAPPLY_SECONDS:$stall_reapply_seconds"; do
   require_positive_integer "${setting%%:*}" "${setting#*:}"
 done
 
@@ -381,7 +381,8 @@ batch=()
 batch_number=0
 
 run_batch() {
-  local batch_started_at batch_finished_at next_reapply
+  local batch_started_at batch_finished_at last_progress_at
+  local max_applied max_connected now progress stall_age
   local applied connected profile_state expected_remote
 
   if [ "${#batch[@]}" -eq 0 ]; then
@@ -419,7 +420,9 @@ run_batch() {
     return 1
   fi
 
-  next_reapply=$(( $(date +%s) + reapply_seconds ))
+  last_progress_at=$(date +%s)
+  max_applied=0
+  max_connected=0
   expected_remote=$((${#joined[@]} - 1))
   while [ "$(date +%s)" -lt "$batch_deadline" ]; do
     applied=""
@@ -428,6 +431,20 @@ run_batch() {
     applied=$(applied_member_count || true)
     connected=$(connected_member_count || true)
     profile_state=$(profile_provisioning_state || true)
+    now=$(date +%s)
+    progress=false
+    if [[ "$applied" =~ ^[0-9]+$ ]] && [ "$applied" -gt "$max_applied" ]; then
+      max_applied="$applied"
+      progress=true
+    fi
+    if [[ "$connected" =~ ^[0-9]+$ ]] && [ "$connected" -gt "$max_connected" ]; then
+      max_connected="$connected"
+      progress=true
+    fi
+    if [ "$progress" = "true" ]; then
+      last_progress_at="$now"
+      echo "[staged-join] batch #$batch_number progress: applied_high_water=$max_applied connected_high_water=$max_connected"
+    fi
     if [ "$applied" = "${#joined[@]}" ] &&
       [ "$connected" = "${#joined[@]}" ] &&
       [ "$profile_state" = "Succeeded" ] &&
@@ -442,10 +459,20 @@ run_batch() {
     fi
 
     echo "[staged-join] batch #$batch_number waiting: applied=${applied:-unknown}/${#joined[@]}, connected=${connected:-unknown}/${#joined[@]}, profile=${profile_state:-unknown}, expected_remote=$expected_remote"
-    if [ "$(date +%s)" -ge "$next_reapply" ]; then
-      echo "[staged-join] re-applying profile while batch #$batch_number converges"
-      apply_profile || true
-      next_reapply=$(( $(date +%s) + reapply_seconds ))
+    stall_age=$((now - last_progress_at))
+    if [ "$stall_age" -ge "$stall_reapply_seconds" ]; then
+      echo "[staged-join] no applied/connected progress for ${stall_age}s; re-applying profile for batch #$batch_number"
+      if apply_profile; then
+        # A reapply can reset every member from Connected to Connecting.
+        # Start a fresh progress epoch so gradual recovery back through the
+        # previous high-water mark postpones another nudge instead of being
+        # mistaken for continued stagnation.
+        max_applied=0
+        max_connected=0
+      else
+        echo "[staged-join] stalled profile reapply failed; retaining progress high-water marks"
+      fi
+      last_progress_at=$(date +%s)
     fi
     sleep "$poll_seconds"
   done

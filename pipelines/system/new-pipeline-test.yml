@@ -2013,16 +2013,17 @@ stages:
       CLUSTERMESH_QUOTA_HEADROOM_VCPUS: "128"
       # Build 75513 created all 100 AKS clusters but Fleet projected 0/100
       # apiservers when every member matched the profile at once. Terraform
-      # now creates these members as mesh=staged; validation selects ten,
+      # now creates these members as mesh=staged; validation selects twenty,
       # applies the profile, and requires cumulative Fleet/Kubernetes/Cilium
-      # convergence before selecting the next ten. Post-formation rejoin
+      # convergence before selecting the next twenty. Post-formation rejoin
       # remains enabled only as a later straggler recovery.
       CMP_AUTO_RECOVERY_ENABLED: "false"
       CMP_STAGED_JOIN_ENABLED: "true"
-      CMP_STAGED_JOIN_BATCH_SIZE: "10"
+      CMP_STAGED_JOIN_BATCH_SIZE: "20"
       CMP_STAGED_JOIN_BATCH_WAIT_SECONDS: "7200"
       CMP_STAGED_JOIN_TOTAL_WAIT_SECONDS: "21600"
       CMP_STAGED_JOIN_CHECK_CONCURRENCY: "10"
+      CMP_STAGED_JOIN_STALL_REAPPLY_SECONDS: "1800"
       CMP_REJOIN_ENABLED: "true"
       CL2_PROPAGATION_PROBE_ENABLED: "true"
       CL2_PROPAGATION_PROBE_COUNT: "10"
@@ -2185,10 +2186,11 @@ stages:
       # straggler fallback.
       CMP_AUTO_RECOVERY_ENABLED: "false"
       CMP_STAGED_JOIN_ENABLED: "true"
-      CMP_STAGED_JOIN_BATCH_SIZE: "10"
+      CMP_STAGED_JOIN_BATCH_SIZE: "20"
       CMP_STAGED_JOIN_BATCH_WAIT_SECONDS: "7200"
       CMP_STAGED_JOIN_TOTAL_WAIT_SECONDS: "21600"
       CMP_STAGED_JOIN_CHECK_CONCURRENCY: "10"
+      CMP_STAGED_JOIN_STALL_REAPPLY_SECONDS: "1800"
       CMP_REJOIN_ENABLED: "true"
       # Propagation-latency probe (see n2_mock_2500 for the design). n=100 is the
       # EXTREME-fan-out tier: each source pod syncs to 99 peers, so this is the most
