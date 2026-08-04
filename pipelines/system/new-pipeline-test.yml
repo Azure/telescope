@@ -19,7 +19,6 @@ variables:
   CLUSTERMESH_DEBUG_CONFIRM_RESET: ""
   CLUSTERMESH_DEBUG_CONFIRM_RESUME: ""
   CLUSTERMESH_DEBUG_CONFIRM_DELETE: ""
-  CLUSTERMESH_EUAP_N100_ENABLED: "false"
 
 stages:
   # 2026-05-13: Phase 4b smoke at n=2 to validate Option B++ fix
@@ -1430,8 +1429,7 @@ stages:
     condition: >-
       and(always(),
       eq(variables['Build.Reason'], 'Manual'),
-      eq(variables['CLUSTERMESH_DEBUG_MODE'], ''),
-      eq(variables['CLUSTERMESH_EUAP_N100_ENABLED'], 'true'))
+      eq(variables['CLUSTERMESH_DEBUG_MODE'], ''))
     displayName: "n=100 East US 2 EUAP MOCK (37deca Dv3)"
     variables:
       CLUSTERMESH_REQUIRED_SUBSCRIPTION_ID: "37deca37-c375-4a14-b90a-043849bd2bf1"

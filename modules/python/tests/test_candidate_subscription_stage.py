@@ -242,12 +242,7 @@ def test_original_subscription_n100_stage_uses_non_s_dv3():
         assert expected in stage
 
     assert "standardDSv3Family" not in stage
-    assert 'CLUSTERMESH_EUAP_N100_ENABLED: "false"' in pipeline
     assert "eq(variables['Build.Reason'], 'Manual')" in stage
-    assert (
-        "eq(variables['CLUSTERMESH_EUAP_N100_ENABLED'], 'true')"
-        in stage
-    )
     assert tfvars.count('vm_size              = "Standard_D8_v3"') == 201
     assert 'vm_size              = "Standard_D8s_v3"' not in tfvars
     assert tfvars.count('name                 = "prompool"') == 100
