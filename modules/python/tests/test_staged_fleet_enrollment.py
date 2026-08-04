@@ -288,7 +288,7 @@ def test_staged_join_caps_profile_recovery_applies(tmp_path):
         tmp_path,
         ["mesh-1", "mesh-2"],
         required_apply_count=99,
-        batch_wait_seconds=4,
+        batch_wait_seconds=6,
         recovery_apply_after_seconds=1,
     )
 

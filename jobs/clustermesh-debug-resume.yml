@@ -1,0 +1,102 @@
+parameters:
+- name: region
+  type: string
+  default: eastus2
+- name: topology
+  type: string
+  default: clustermesh-scale-mock
+- name: engine
+  type: string
+  default: clusterloader2
+- name: engine_input
+  type: object
+  default: {}
+- name: matrix
+  type: object
+  default: {}
+- name: timeout_in_minutes
+  type: number
+  default: 3000
+- name: cancel_timeout_in_minutes
+  type: number
+  default: 120
+- name: credential_type
+  type: string
+  default: service_connection
+
+jobs:
+- job: azure
+  variables:
+    CLUSTERMESH_JOB_TIMEOUT_MINUTES: ${{ parameters.timeout_in_minutes }}
+    CLUSTERMESH_JOB_CANCEL_TIMEOUT_MINUTES: ${{ parameters.cancel_timeout_in_minutes }}
+  strategy:
+    maxParallel: 1
+    matrix:
+      ${{ parameters.matrix }}
+  timeoutInMinutes: ${{ parameters.timeout_in_minutes }}
+  cancelTimeoutInMinutes: ${{ parameters.cancel_timeout_in_minutes }}
+  steps:
+  - template: /steps/setup-tests.yml
+    parameters:
+      cloud: azure
+      region: ${{ parameters.region }}
+      run_id: $(CLUSTERMESH_DEBUG_TARGET_RUN_ID)
+      credential_type: ${{ parameters.credential_type }}
+      ssh_key_enabled: false
+
+  - script: |
+      set -euo pipefail
+      if [ "$CLUSTERMESH_DEBUG_CONFIRM_RESUME" != "$RUN_ID" ]; then
+        echo "CLUSTERMESH_DEBUG_CONFIRM_RESUME must equal $RUN_ID." >&2
+        exit 1
+      fi
+      export CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256
+      CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256=$(sha256sum \
+        "$(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-100-mock-shared-dsv3.tfvars" \
+        | awk '{print $1}')
+      bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/validate-existing-n100.sh"
+      bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/create-staged-fleet-overlay.sh"
+    displayName: "Validate preserved n100 and recreate staged Fleet overlay"
+    env:
+      RUN_ID: $(RUN_ID)
+      CLUSTERMESH_DEBUG_TARGET_RUN_ID: $(RUN_ID)
+      CLUSTERMESH_DEBUG_CONFIRM_RESUME: $(CLUSTERMESH_DEBUG_CONFIRM_RESUME)
+      CLUSTERMESH_DEBUG_EXPECTED_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
+      CLUSTERMESH_DEBUG_EXPECTED_REGION: ${{ parameters.region }}
+      CLUSTERMESH_DEBUG_EXPECTED_CLUSTER_COUNT: "100"
+      CLUSTERMESH_DEBUG_EXTEND_LEASE_HOURS: "60"
+      CLUSTERMESH_DEBUG_REQUIRE_OVERLAY_RESET: "true"
+      CLUSTERMESH_DEBUG_MANIFEST_PATH: $(Build.ArtifactStagingDirectory)/n100-resume/validation.json
+
+  - template: /steps/validate-resources.yml
+    parameters:
+      cloud: azure
+      regions:
+      - ${{ parameters.region }}
+      topology: ${{ parameters.topology }}
+      engine: ${{ parameters.engine }}
+
+  - template: /steps/execute-tests.yml
+    parameters:
+      cloud: azure
+      topology: ${{ parameters.topology }}
+      engine: ${{ parameters.engine }}
+      regions:
+      - ${{ parameters.region }}
+      engine_input: ${{ parameters.engine_input }}
+
+  - template: /steps/publish-results.yml
+    parameters:
+      cloud: azure
+      topology: ${{ parameters.topology }}
+      engine: ${{ parameters.engine }}
+      regions:
+      - ${{ parameters.region }}
+      engine_input: ${{ parameters.engine_input }}
+      credential_type: ${{ parameters.credential_type }}
+
+  - template: /steps/topology/clustermesh-scale/reuse/write-resume-manifest.yml
+    parameters:
+      enabled: true
+      region: ${{ parameters.region }}
+      tfvars_path: scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-100-mock-shared-dsv3.tfvars

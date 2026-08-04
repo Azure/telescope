@@ -1,0 +1,32 @@
+parameters:
+- name: enabled
+  type: boolean
+  default: false
+- name: region
+  type: string
+  default: eastus2
+- name: tfvars_path
+  type: string
+  default: ''
+
+steps:
+- ${{ if parameters.enabled }}:
+  - script: |
+      bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/write-resume-manifest.sh"
+    displayName: "Write preserved n100 resume manifest"
+    condition: always()
+    env:
+      RUN_ID: $(RUN_ID)
+      BUILD_BUILDID: $(Build.BuildId)
+      BUILD_SOURCEVERSION: $(Build.SourceVersion)
+      CLUSTERMESH_DEBUG_EXPECTED_REGION: ${{ parameters.region }}
+      CLUSTERMESH_DEBUG_EXPECTED_CLUSTER_COUNT: "100"
+      CLUSTERMESH_DEBUG_TFVARS_PATH: $(Pipeline.Workspace)/s/${{ parameters.tfvars_path }}
+      CLUSTERMESH_DEBUG_MANIFEST_PATH: $(Build.ArtifactStagingDirectory)/n100-resume/manifest.json
+
+  - task: PublishPipelineArtifact@1
+    displayName: "Publish preserved n100 resume manifest"
+    condition: always()
+    inputs:
+      targetPath: $(Build.ArtifactStagingDirectory)/n100-resume
+      artifact: n100-resume-manifest-$(Build.BuildId)-$(System.JobAttempt)

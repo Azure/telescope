@@ -45,7 +45,9 @@ def _n100_stage_block():
     start = pipeline.index(
         "- stage: azure_eastus2_n100_mock_aksstandalone2"
     )
-    end = pipeline.index("- stage: azure_centraluseuap_n100_mock", start)
+    end = pipeline.index(
+        "- stage: azure_eastus2_n100_debug_preserve", start
+    )
     return pipeline[start:end]
 
 

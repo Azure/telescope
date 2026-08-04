@@ -14,6 +14,11 @@ variables:
   SCENARIO_TYPE: perf-eval
   SCENARIO_NAME: clustermesh-scale
   OWNER: aks
+  CLUSTERMESH_DEBUG_MODE: ""
+  CLUSTERMESH_DEBUG_TARGET_RUN_ID: ""
+  CLUSTERMESH_DEBUG_CONFIRM_RESET: ""
+  CLUSTERMESH_DEBUG_CONFIRM_RESUME: ""
+  CLUSTERMESH_DEBUG_CONFIRM_DELETE: ""
 
 stages:
   # 2026-05-13: Phase 4b smoke at n=2 to validate Option B++ fix
@@ -1970,7 +1975,7 @@ stages:
   # ===========================================================================
   - stage: azure_eastus2_n100_mock_aksstandalone2
     dependsOn: []
-    condition: always()
+    condition: and(always(), eq(variables['CLUSTERMESH_DEBUG_MODE'], ''))
     displayName: "n=100 East US 2 MOCK accepted telemetry gaps (AKS Standalone 2)"
     variables:
       MOCK_ACR_HOST: mockmeshshared11225.azurecr.io
@@ -2104,6 +2109,369 @@ stages:
           credential_type: service_connection
           ssh_key_enabled: false
           skip_publish: false
+
+  # ===========================================================================
+  # Reusable n=100 debug lifecycle. These stages are opt-in and guarded by
+  # CLUSTERMESH_DEBUG_MODE. They never run as part of a normal launch.
+  #
+  # fresh-preserve:
+  #   CLUSTERMESH_DEBUG_MODE=fresh-preserve
+  #   Creates a fresh n=100 and preserves the entire RG regardless of result.
+  #
+  # reset-fleet:
+  #   CLUSTERMESH_DEBUG_MODE=reset-fleet
+  #   CLUSTERMESH_DEBUG_TARGET_RUN_ID=<preserved RG>
+  #   CLUSTERMESH_DEBUG_CONFIRM_RESET=<same RG>
+  #   Removes only CMP/Fleet members/Fleet; AKS and networking remain.
+  #
+  # resume:
+  #   CLUSTERMESH_DEBUG_MODE=resume
+  #   CLUSTERMESH_DEBUG_TARGET_RUN_ID=<preserved RG>
+  #   CLUSTERMESH_DEBUG_CONFIRM_RESUME=<same RG>
+  #   Skips Terraform, recreates the staged Fleet overlay, and runs validation
+  #   plus the full scenario suite. Resources remain preserved afterward.
+  #
+  # cleanup:
+  #   CLUSTERMESH_DEBUG_MODE=cleanup
+  #   CLUSTERMESH_DEBUG_TARGET_RUN_ID=<preserved RG>
+  #   CLUSTERMESH_DEBUG_CONFIRM_DELETE=<same RG>
+  # ===========================================================================
+  - stage: azure_eastus2_n100_debug_preserve
+    dependsOn: []
+    condition: and(always(), eq(variables['Build.Reason'], 'Manual'), eq(variables['CLUSTERMESH_DEBUG_MODE'], 'fresh-preserve'))
+    displayName: "DEBUG n=100 fresh provision + preserve RG"
+    variables:
+      SKIP_RESOURCE_DELETION: "true"
+      CLUSTERMESH_DEBUG_PRESERVE: "true"
+      MOCK_ACR_HOST: mockmeshshared11225.azurecr.io
+      MOCK_ACR_SUBSCRIPTION_ID: "37deca37-c375-4a14-b90a-043849bd2bf1"
+      MOCK_AGENT_TAG: v26
+      MOCK_NODE_COUNT: 100
+      MOCK_CONSUME_CLUSTERMESH: true
+      MOCK_DEPLOY_CONCURRENCY: 8
+      MOCK_DEPLOY_MAX_FAILURES: 0
+      CL2_PROMETHEUS_MEMORY_LIMIT_GI: "16"
+      CL2_ACNS_TELEMETRY_ENABLED: "true"
+      CL2_ACCEPT_CILIUM_POLICY_GAP: "true"
+      CL2_REQUIRED_SELF_HOSTED_TELEMETRY: "true"
+      AKS_CILIUM_POLICY_GUARD_ENABLED: "false"
+      AKS_CONTROL_PLANE_METRICS_ENABLED: "true"
+      AKS_CONTROL_PLANE_METRICS_REGISTER_PREVIEW: "false"
+      AKS_CONTROL_PLANE_FORCE_PROVIDER_REREGISTRATION: "true"
+      AKS_MANAGED_MONITORING_CONVERGENCE_ENABLED: "true"
+      AKS_MANAGED_MONITORING_CONVERGENCE_TIMEOUT_SECONDS: "7200"
+      AKS_MANAGED_MONITORING_CILIUM_QUIET_SECONDS: "120"
+      AKS_PLATFORM_METRICS_REQUIRED: "false"
+      AKS_PLATFORM_METRICS_REQUIRE_WINDOW_COVERAGE: "false"
+      AKS_PLATFORM_METRICS_TIMEOUT_SECONDS: "0"
+      AKS_CONTROL_PLANE_AMW_RESOURCE_GROUP: clustermesh-scale-prom-snapshots
+      AKS_CONTROL_PLANE_AMW_NAME_PREFIX: cmsh-scale-eastus2-aksstand2-n100-amw
+      AKS_AMW_ARM_BATCH_SIZE: "10"
+      AKS_AMW_CLUSTERS_PER_WORKSPACE: "2"
+      AKS_AMW_MAX_ACTIVE_TIME_SERIES: "2000000"
+      AKS_AMW_MAX_EVENTS_PER_MINUTE: "2000000"
+      AKS_MANAGED_PROMETHEUS_AUDIT_WORKERS: "10"
+      AKS_CONTROL_PLANE_METRICS_CONCURRENCY: "5"
+      AKS_CONTROL_PLANE_LAW_NAME: cmsh-scale-controlplane-law-aksstand2
+      AKS_CONTROL_PLANE_LAW_LOCATION: eastus2
+      AKS_CONTROL_PLANE_LOG_RETENTION_DAYS: "30"
+      CLUSTERMESH_QUOTA_PREFLIGHT_ENABLED: "true"
+      CLUSTERMESH_REQUIRED_MANAGED_CLUSTERS: "100"
+      CLUSTERMESH_MANAGED_CLUSTER_QUOTA_HEADROOM: "5"
+      CLUSTERMESH_VM_FAMILY_QUOTA_NAME: standardDSv3Family
+      CLUSTERMESH_REQUIRED_FAMILY_VCPUS: "2536"
+      CLUSTERMESH_QUOTA_HEADROOM_VCPUS: "128"
+      CMP_AUTO_RECOVERY_ENABLED: "false"
+      CMP_STAGED_JOIN_ENABLED: "true"
+      CMP_STAGED_JOIN_BATCH_SIZE: "10"
+      CMP_STAGED_JOIN_BATCH_WAIT_SECONDS: "7200"
+      CMP_STAGED_JOIN_TOTAL_WAIT_SECONDS: "28800"
+      CMP_STAGED_JOIN_CHECK_CONCURRENCY: "10"
+      CMP_STAGED_JOIN_RECOVERY_APPLY_AFTER_SECONDS: "2700"
+      CMP_STAGED_JOIN_MAX_RECOVERY_APPLIES: "1"
+      CMP_STAGED_JOIN_RECOVERY_MIN_POST_SECONDS: "1800"
+      CMP_REJOIN_ENABLED: "true"
+      CL2_PROPAGATION_PROBE_ENABLED: "true"
+      CL2_PROPAGATION_PROBE_COUNT: "10"
+      CL2_PROPAGATION_PROBE_INTERVAL_S: "20"
+      CL2_PROPAGATION_PROBE_PEER_TIMEOUT: "120"
+      CL2_PROPAGATION_PROBE_PEER_SAMPLE: "20"
+      CL2_PROPAGATION_PROBE_CONNECTIVITY: "false"
+      CL2_PROBE_WINDOW_DURATION: "60m"
+      CL2_PROBE_PREWAIT_S: "600"
+    jobs:
+      - template: /jobs/competitive-test.yml
+        parameters:
+          cloud: azure
+          regions:
+            - eastus2
+          preserve_state_on_apply_failure: "true"
+          destroy_retry_attempt_count: 0
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 90m
+          topology: clustermesh-scale-mock
+          terraform_input_file_mapping:
+            - eastus2: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-100-mock-shared-dsv3.tfvars"
+          matrix:
+            n100_debug_preserve:
+              cl2_prom_snapshot_enabled: "true"
+              cl2_prom_snapshot_target: "blob"
+              cl2_prom_snapshot_storage_account: "cmshscaleaksst2"
+              cl2_prom_snapshot_container: "snapshots"
+              cluster_count: 100
+              mesh_size: 100
+              share_infra_scenarios: "propagation-probe,event-throughput,policy-scale,pod-churn-combined,apiserver-failure,isolation,node-churn-combined,upper-bound"
+              share_infra_settle_seconds: 300
+              agent_disk_min_free_gi: 40
+              agent_memory_min_free_gi: 12
+              suite_total_budget_seconds: 158400
+              suite_finalization_reserve_seconds: 10800
+              suite_job_timeout_buffer_seconds: 21600
+              cl2_config_file: ""
+              cl2_max_concurrent: 12
+              test_type: shared
+              test_type_suffix: "-mock-eus2-debug-preserve"
+              mock_mode: true
+              kwok_usage_cpu: "25m"
+              kwok_usage_memory: "64Mi"
+              global_namespace_count: 5
+              namespaces: 5
+              deployments_per_namespace: 2
+              replicas_per_deployment: 5
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 1
+              api_server_calls_per_second: 20
+              churn_cycles: 2
+              churn_up_duration: 90s
+              churn_down_duration: 90s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              node_churn_target_nodepool: churnpool
+              node_replace_batch_size: 10
+              node_churn_combined_duration_seconds: 5400
+              node_churn_ready_timeout_seconds: 1200
+              node_churn_finalizer_timeout_seconds: 900
+              node_churn_recovery_grace_seconds: 1800
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          max_parallel: 1
+          timeout_in_minutes: 3000
+          cancel_timeout_in_minutes: 120
+          credential_type: service_connection
+          ssh_key_enabled: false
+          skip_publish: false
+          emit_resume_manifest: true
+          resume_manifest_region: eastus2
+          resume_manifest_tfvars_path: scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-100-mock-shared-dsv3.tfvars
+          debug_preserve: "true"
+
+  - stage: azure_eastus2_n100_debug_reset_fleet
+    dependsOn: []
+    condition: and(always(), eq(variables['Build.Reason'], 'Manual'), eq(variables['CLUSTERMESH_DEBUG_MODE'], 'reset-fleet'))
+    displayName: "DEBUG n=100 reset Fleet overlay only"
+    variables:
+      CLUSTERMESH_QUOTA_PREFLIGHT_ENABLED: "false"
+      AKS_CONTROL_PLANE_METRICS_ENABLED: "false"
+      CLUSTER_COUNT: "100"
+      AGENT_DISK_MIN_FREE_GI: "5"
+      AGENT_MEMORY_MIN_FREE_GI: "2"
+    jobs:
+      - job: reset_fleet
+        timeoutInMinutes: 180
+        steps:
+          - template: /steps/setup-tests.yml
+            parameters:
+              cloud: azure
+              region: eastus2
+              run_id: $(CLUSTERMESH_DEBUG_TARGET_RUN_ID)
+              credential_type: service_connection
+              ssh_key_enabled: false
+          - script: |
+              set -euo pipefail
+              export CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256
+              CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256=$(sha256sum \
+                "$(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-100-mock-shared-dsv3.tfvars" \
+                | awk '{print $1}')
+              bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/validate-existing-n100.sh"
+              bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/reset-fleet-overlay.sh"
+            displayName: "Validate preserved RG and reset Fleet overlay"
+            env:
+              CLUSTERMESH_DEBUG_TARGET_RUN_ID: $(RUN_ID)
+              CLUSTERMESH_DEBUG_CONFIRM_RESET: $(CLUSTERMESH_DEBUG_CONFIRM_RESET)
+              CLUSTERMESH_DEBUG_EXPECTED_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
+              CLUSTERMESH_DEBUG_EXPECTED_REGION: eastus2
+              CLUSTERMESH_DEBUG_EXPECTED_CLUSTER_COUNT: "100"
+              CLUSTERMESH_DEBUG_EXTEND_LEASE_HOURS: "24"
+              CLUSTERMESH_DEBUG_REQUIRE_OVERLAY_RESET: "false"
+              CLUSTERMESH_DEBUG_MANIFEST_PATH: $(Build.ArtifactStagingDirectory)/n100-resume/reset-validation.json
+          - template: /steps/topology/clustermesh-scale/reuse/write-resume-manifest.yml
+            parameters:
+              enabled: true
+              region: eastus2
+              tfvars_path: scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-100-mock-shared-dsv3.tfvars
+
+  - stage: azure_eastus2_n100_debug_resume
+    dependsOn: []
+    condition: and(always(), eq(variables['Build.Reason'], 'Manual'), eq(variables['CLUSTERMESH_DEBUG_MODE'], 'resume'))
+    displayName: "DEBUG n=100 resume preserved AKS clusters"
+    variables:
+      MOCK_ACR_HOST: mockmeshshared11225.azurecr.io
+      MOCK_ACR_SUBSCRIPTION_ID: "37deca37-c375-4a14-b90a-043849bd2bf1"
+      MOCK_AGENT_TAG: v26
+      MOCK_NODE_COUNT: 100
+      MOCK_CONSUME_CLUSTERMESH: true
+      MOCK_DEPLOY_CONCURRENCY: 8
+      MOCK_DEPLOY_MAX_FAILURES: 0
+      CL2_PROMETHEUS_MEMORY_LIMIT_GI: "16"
+      CL2_ACNS_TELEMETRY_ENABLED: "true"
+      CL2_ACCEPT_CILIUM_POLICY_GAP: "true"
+      CL2_REQUIRED_SELF_HOSTED_TELEMETRY: "true"
+      AKS_CILIUM_POLICY_GUARD_ENABLED: "false"
+      AKS_CONTROL_PLANE_METRICS_ENABLED: "true"
+      AKS_CONTROL_PLANE_METRICS_REGISTER_PREVIEW: "false"
+      AKS_CONTROL_PLANE_FORCE_PROVIDER_REREGISTRATION: "true"
+      AKS_MANAGED_MONITORING_CONVERGENCE_ENABLED: "true"
+      AKS_MANAGED_MONITORING_CONVERGENCE_TIMEOUT_SECONDS: "7200"
+      AKS_MANAGED_MONITORING_CILIUM_QUIET_SECONDS: "120"
+      AKS_PLATFORM_METRICS_REQUIRED: "false"
+      AKS_PLATFORM_METRICS_REQUIRE_WINDOW_COVERAGE: "false"
+      AKS_PLATFORM_METRICS_TIMEOUT_SECONDS: "0"
+      AKS_CONTROL_PLANE_AMW_RESOURCE_GROUP: clustermesh-scale-prom-snapshots
+      AKS_CONTROL_PLANE_AMW_NAME_PREFIX: cmsh-scale-eastus2-aksstand2-n100-amw
+      AKS_AMW_ARM_BATCH_SIZE: "10"
+      AKS_AMW_CLUSTERS_PER_WORKSPACE: "2"
+      AKS_AMW_MAX_ACTIVE_TIME_SERIES: "2000000"
+      AKS_AMW_MAX_EVENTS_PER_MINUTE: "2000000"
+      AKS_MANAGED_PROMETHEUS_AUDIT_WORKERS: "10"
+      AKS_CONTROL_PLANE_METRICS_CONCURRENCY: "5"
+      AKS_CONTROL_PLANE_LAW_NAME: cmsh-scale-controlplane-law-aksstand2
+      AKS_CONTROL_PLANE_LAW_LOCATION: eastus2
+      AKS_CONTROL_PLANE_LOG_RETENTION_DAYS: "30"
+      CLUSTERMESH_QUOTA_PREFLIGHT_ENABLED: "false"
+      CMP_AUTO_RECOVERY_ENABLED: "false"
+      CMP_STAGED_JOIN_ENABLED: "true"
+      CMP_STAGED_JOIN_BATCH_SIZE: "10"
+      CMP_STAGED_JOIN_BATCH_WAIT_SECONDS: "7200"
+      CMP_STAGED_JOIN_TOTAL_WAIT_SECONDS: "28800"
+      CMP_STAGED_JOIN_CHECK_CONCURRENCY: "10"
+      CMP_STAGED_JOIN_RECOVERY_APPLY_AFTER_SECONDS: "2700"
+      CMP_STAGED_JOIN_MAX_RECOVERY_APPLIES: "1"
+      CMP_STAGED_JOIN_RECOVERY_MIN_POST_SECONDS: "1800"
+      CMP_REJOIN_ENABLED: "true"
+      CL2_PROPAGATION_PROBE_ENABLED: "true"
+      CL2_PROPAGATION_PROBE_COUNT: "10"
+      CL2_PROPAGATION_PROBE_INTERVAL_S: "20"
+      CL2_PROPAGATION_PROBE_PEER_TIMEOUT: "120"
+      CL2_PROPAGATION_PROBE_PEER_SAMPLE: "20"
+      CL2_PROPAGATION_PROBE_CONNECTIVITY: "false"
+      CL2_PROBE_WINDOW_DURATION: "60m"
+      CL2_PROBE_PREWAIT_S: "600"
+    jobs:
+      - template: /jobs/clustermesh-debug-resume.yml
+        parameters:
+          region: eastus2
+          engine: clusterloader2
+          engine_input:
+            image: "ghcr.io/azure/clusterloader2:v20250513"
+            install: false
+            operation_timeout: 90m
+          topology: clustermesh-scale-mock
+          matrix:
+            n100_debug_resume:
+              cl2_prom_snapshot_enabled: "true"
+              cl2_prom_snapshot_target: "blob"
+              cl2_prom_snapshot_storage_account: "cmshscaleaksst2"
+              cl2_prom_snapshot_container: "snapshots"
+              cluster_count: 100
+              mesh_size: 100
+              share_infra_scenarios: "propagation-probe,event-throughput,policy-scale,pod-churn-combined,apiserver-failure,isolation,node-churn-combined,upper-bound"
+              share_infra_settle_seconds: 300
+              agent_disk_min_free_gi: 40
+              agent_memory_min_free_gi: 12
+              suite_total_budget_seconds: 158400
+              suite_finalization_reserve_seconds: 10800
+              suite_job_timeout_buffer_seconds: 21600
+              cl2_config_file: ""
+              cl2_max_concurrent: 12
+              test_type: shared
+              test_type_suffix: "-mock-eus2-debug-resume"
+              mock_mode: true
+              kwok_usage_cpu: "25m"
+              kwok_usage_memory: "64Mi"
+              global_namespace_count: 5
+              namespaces: 5
+              deployments_per_namespace: 2
+              replicas_per_deployment: 5
+              hold_duration: 2m
+              warmup_duration: 30s
+              restart_count: 1
+              api_server_calls_per_second: 20
+              churn_cycles: 2
+              churn_up_duration: 90s
+              churn_down_duration: 90s
+              kill_duration: 10m
+              kill_duration_seconds: 600
+              kill_interval_seconds: 10
+              kill_batch: 5
+              kill_job_deadline_seconds: 660
+              node_churn_target_nodepool: churnpool
+              node_replace_batch_size: 10
+              node_churn_combined_duration_seconds: 5400
+              node_churn_ready_timeout_seconds: 1200
+              node_churn_finalizer_timeout_seconds: 900
+              node_churn_recovery_grace_seconds: 1800
+              trigger_reason: ${{ variables['Build.Reason'] }}
+          timeout_in_minutes: 3000
+          cancel_timeout_in_minutes: 120
+          credential_type: service_connection
+
+  - stage: azure_eastus2_n100_debug_cleanup
+    dependsOn: []
+    condition: and(always(), eq(variables['Build.Reason'], 'Manual'), eq(variables['CLUSTERMESH_DEBUG_MODE'], 'cleanup'))
+    displayName: "DEBUG n=100 delete preserved RG"
+    jobs:
+      - job: delete_preserved_rg
+        timeoutInMinutes: 150
+        steps:
+          - task: AzureCLI@2
+            displayName: "Delete confirmed preserved n100 RG"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+                bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/delete-preserved-rg.sh"
+            env:
+              CLUSTERMESH_DEBUG_TARGET_RUN_ID: $(CLUSTERMESH_DEBUG_TARGET_RUN_ID)
+              CLUSTERMESH_DEBUG_CONFIRM_DELETE: $(CLUSTERMESH_DEBUG_CONFIRM_DELETE)
+              CLUSTERMESH_DEBUG_EXPECTED_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
+              CLUSTERMESH_DEBUG_EXPECTED_REGION: eastus2
+
+  - stage: n100_debug_mode_invalid
+    dependsOn: []
+    condition: >-
+      and(always(),
+      ne(variables['CLUSTERMESH_DEBUG_MODE'], ''),
+      ne(variables['CLUSTERMESH_DEBUG_MODE'], 'fresh-preserve'),
+      ne(variables['CLUSTERMESH_DEBUG_MODE'], 'reset-fleet'),
+      ne(variables['CLUSTERMESH_DEBUG_MODE'], 'resume'),
+      ne(variables['CLUSTERMESH_DEBUG_MODE'], 'cleanup'))
+    displayName: "INVALID n=100 debug mode"
+    jobs:
+      - job: reject_invalid_debug_mode
+        timeoutInMinutes: 5
+        steps:
+          - bash: |
+              echo "##vso[task.logissue type=error;] Unsupported CLUSTERMESH_DEBUG_MODE='$(CLUSTERMESH_DEBUG_MODE)'."
+              exit 1
+            displayName: "Reject unsupported n=100 debug mode"
 
   - stage: azure_centraluseuap_n100_mock
     dependsOn: []

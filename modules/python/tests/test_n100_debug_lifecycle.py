@@ -1,0 +1,196 @@
+"""Static and guard checks for the reusable n=100 debug lifecycle."""
+
+import os
+import subprocess
+from pathlib import Path
+
+import yaml
+
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
+PIPELINE_PATH = REPOSITORY_ROOT / "pipelines/system/new-pipeline-test.yml"
+COMPETITIVE_JOB_PATH = REPOSITORY_ROOT / "jobs/competitive-test.yml"
+RESUME_JOB_PATH = REPOSITORY_ROOT / "jobs/clustermesh-debug-resume.yml"
+REUSE_DIR = (
+    REPOSITORY_ROOT
+    / "steps"
+    / "topology"
+    / "clustermesh-scale"
+    / "reuse"
+)
+VALIDATE_SCRIPT = REUSE_DIR / "validate-existing-n100.sh"
+RESET_SCRIPT = REUSE_DIR / "reset-fleet-overlay.sh"
+CREATE_SCRIPT = REUSE_DIR / "create-staged-fleet-overlay.sh"
+DELETE_SCRIPT = REUSE_DIR / "delete-preserved-rg.sh"
+MANIFEST_SCRIPT = REUSE_DIR / "write-resume-manifest.sh"
+
+
+def _stage_block(name: str, next_name: str) -> str:
+    pipeline = PIPELINE_PATH.read_text(encoding="utf-8")
+    start = pipeline.index(f"- stage: {name}")
+    end = pipeline.index(f"- stage: {next_name}", start)
+    return pipeline[start:end]
+
+
+def test_debug_stages_are_explicitly_mode_gated():
+    active = _stage_block(
+        "azure_eastus2_n100_mock_aksstandalone2",
+        "azure_eastus2_n100_debug_preserve",
+    )
+    fresh = _stage_block(
+        "azure_eastus2_n100_debug_preserve",
+        "azure_eastus2_n100_debug_reset_fleet",
+    )
+    reset = _stage_block(
+        "azure_eastus2_n100_debug_reset_fleet",
+        "azure_eastus2_n100_debug_resume",
+    )
+    resume = _stage_block(
+        "azure_eastus2_n100_debug_resume",
+        "azure_eastus2_n100_debug_cleanup",
+    )
+    cleanup = _stage_block(
+        "azure_eastus2_n100_debug_cleanup",
+        "azure_centraluseuap_n100_mock",
+    )
+
+    assert "eq(variables['CLUSTERMESH_DEBUG_MODE'], '')" in active
+    pipeline = PIPELINE_PATH.read_text(encoding="utf-8")
+    assert 'CLUSTERMESH_DEBUG_MODE: ""' in pipeline
+
+    assert "CLUSTERMESH_DEBUG_MODE'], 'fresh-preserve'" in fresh
+    assert 'SKIP_RESOURCE_DELETION: "true"' in fresh
+    assert 'CLUSTERMESH_DEBUG_PRESERVE: "true"' in fresh
+    assert "emit_resume_manifest: true" in fresh
+    assert 'debug_preserve: "true"' in fresh
+    assert "eq(variables['Build.Reason'], 'Manual')" in fresh
+
+    assert "CLUSTERMESH_DEBUG_MODE'], 'reset-fleet'" in reset
+    assert "CLUSTERMESH_DEBUG_CONFIRM_RESET" in reset
+    assert "reset-fleet-overlay.sh" in reset
+    assert "eq(variables['Build.Reason'], 'Manual')" in reset
+
+    assert "CLUSTERMESH_DEBUG_MODE'], 'resume'" in resume
+    assert "clustermesh-debug-resume.yml" in resume
+    assert "CLUSTERMESH_QUOTA_PREFLIGHT_ENABLED: \"false\"" in resume
+    assert "eq(variables['Build.Reason'], 'Manual')" in resume
+
+    assert "CLUSTERMESH_DEBUG_MODE'], 'cleanup'" in cleanup
+    assert "CLUSTERMESH_DEBUG_CONFIRM_DELETE" in cleanup
+    assert "CLUSTERMESH_DEBUG_EXPECTED_SUBSCRIPTION_ID" in cleanup
+    assert "delete-preserved-rg.sh" in cleanup
+    assert "eq(variables['Build.Reason'], 'Manual')" in cleanup
+
+    invalid_start = pipeline.index("- stage: n100_debug_mode_invalid")
+    invalid_end = pipeline.index(
+        "- stage: azure_centraluseuap_n100_mock", invalid_start
+    )
+    invalid = pipeline[invalid_start:invalid_end]
+    assert "Unsupported CLUSTERMESH_DEBUG_MODE" in invalid
+
+
+def test_resume_job_skips_terraform_and_preserves_resources():
+    resume = RESUME_JOB_PATH.read_text(encoding="utf-8")
+
+    assert "/steps/provision-resources.yml" not in resume
+    assert "/steps/cleanup-resources.yml" not in resume
+    assert "validate-existing-n100.sh" in resume
+    assert "create-staged-fleet-overlay.sh" in resume
+    assert "/steps/validate-resources.yml" in resume
+    assert "/steps/execute-tests.yml" in resume
+    assert "/steps/publish-results.yml" in resume
+    assert "CLUSTERMESH_DEBUG_CONFIRM_RESUME" in resume
+
+
+def test_fleet_reset_and_resume_do_not_mutate_aks_lifecycle():
+    reset = RESET_SCRIPT.read_text(encoding="utf-8")
+    create = CREATE_SCRIPT.read_text(encoding="utf-8")
+
+    for forbidden in ("az aks delete", "az aks create", "az group delete"):
+        assert forbidden not in reset
+    assert "az fleet clustermeshprofile delete" in reset
+    assert "az fleet member delete" in reset
+    assert "az fleet delete" in reset
+    assert "does not exactly match" in reset
+
+    assert "az aks create" not in create
+    assert "az group create" not in create
+    assert "az fleet create" in create
+    assert "--labels \"${label_key}=${initial_value}\"" in create
+    assert "Expected empty staged profile" in create
+
+
+def test_preserved_rg_validation_is_fail_closed():
+    validation = VALIDATE_SCRIPT.read_text(encoding="utf-8")
+    manifest = MANIFEST_SCRIPT.read_text(encoding="utf-8")
+
+    for expected in (
+        "clustermesh_debug_preserved",
+        "perf-eval-clustermesh-scale",
+        "mesh-1..mesh-$expected_count",
+        "provisioningState",
+        "powerState",
+        "CLUSTERMESH_DEBUG_REQUIRE_OVERLAY_RESET",
+        "clustermesh_debug_tfvars_sha256",
+        "clustermesh_debug_expected_clusters",
+        "exactly $expected_count total AKS clusters",
+        "outside $expected_region",
+    ):
+        assert expected in validation
+
+    assert "az group update" not in manifest
+
+
+def test_destructive_scripts_require_exact_confirmation(tmp_path):
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    az_log = tmp_path / "az.log"
+    fake_az = fake_bin / "az"
+    fake_az.write_text(
+        "#!/usr/bin/env bash\n"
+        'echo "$*" >> "$AZ_LOG"\n'
+        "exit 99\n",
+        encoding="utf-8",
+    )
+    fake_az.chmod(0o755)
+    env = os.environ.copy()
+    env.update(
+        {
+            "PATH": f"{fake_bin}:{env['PATH']}",
+            "AZ_LOG": str(az_log),
+            "CLUSTERMESH_DEBUG_TARGET_RUN_ID": "12345-deadbeef",
+            "CLUSTERMESH_DEBUG_EXPECTED_SUBSCRIPTION_ID": "test-subscription",
+        }
+    )
+
+    delete_env = env | {"CLUSTERMESH_DEBUG_CONFIRM_DELETE": "wrong"}
+    delete_result = subprocess.run(
+        ["bash", str(DELETE_SCRIPT)],
+        env=delete_env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert delete_result.returncode != 0
+    assert "confirmation mismatch" in delete_result.stderr.lower()
+
+    reset_env = env | {"CLUSTERMESH_DEBUG_CONFIRM_RESET": "wrong"}
+    reset_result = subprocess.run(
+        ["bash", str(RESET_SCRIPT)],
+        env=reset_env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert reset_result.returncode != 0
+    assert "confirmation mismatch" in reset_result.stderr.lower()
+    assert not az_log.exists()
+
+
+def test_pipeline_and_debug_templates_parse_as_yaml():
+    yaml.safe_load(PIPELINE_PATH.read_text(encoding="utf-8"))
+    yaml.safe_load(COMPETITIVE_JOB_PATH.read_text(encoding="utf-8"))
+    yaml.safe_load(RESUME_JOB_PATH.read_text(encoding="utf-8"))
+    yaml.safe_load(
+        (REUSE_DIR / "write-resume-manifest.yml").read_text(encoding="utf-8")
+    )

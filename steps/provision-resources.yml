@@ -23,6 +23,9 @@ parameters:
 - name: preserve_state_on_apply_failure
   type: string
   default: "false"
+- name: debug_preserve
+  type: string
+  default: "false"
 
 steps:
 - template: /steps/terraform/set-working-directory.yml
@@ -71,6 +74,9 @@ steps:
       printf -v "$output_name" '%d' "$raw_value"
     }
     terraform_input_file=$(echo $TERRAFORM_REGIONAL_CONFIG | jq -r --arg region "$region" '.[$region].TERRAFORM_INPUT_FILE')
+    terraform_input_sha256=$(sha256sum "$terraform_input_file" | awk '{print $1}')
+    echo "Terraform input SHA256: $terraform_input_sha256"
+    echo "##vso[task.setvariable variable=CLUSTERMESH_DEBUG_TFVARS_SHA256]$terraform_input_sha256"
     deletion_delay_value=$(grep -E '^[[:space:]]*deletion_delay[[:space:]]*=' "$terraform_input_file" 2>/dev/null | awk -F'=' '{gsub(/^[ \t]+|[ \t]+$/, "", $2); print $2; exit}' || true)
     deletion_delay_pattern='^"([1-9][0-9]*)h"([[:space:]]*(#|//).*)?$'
     if [ -n "$deletion_delay_value" ]; then
@@ -145,11 +151,14 @@ steps:
     set -eu
     echo "Create resource group $RUN_ID in region $region"
     az group create --name $RUN_ID --location $region \
-      --tags "run_id=$RUN_ID" "scenario=${SCENARIO_TYPE}-${SCENARIO_NAME}" "owner=${OWNER}" "creation_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "deletion_due_time=${DELETION_DUE_TIME}" "SkipAKSCluster=1" "SkipASB_Audit=true"
+      --tags "run_id=$RUN_ID" "scenario=${SCENARIO_TYPE}-${SCENARIO_NAME}" "owner=${OWNER}" "creation_date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" "deletion_due_time=${DELETION_DUE_TIME}" "SkipAKSCluster=1" "SkipASB_Audit=true" "clustermesh_debug_preserved=${CLUSTERMESH_DEBUG_PRESERVE:-false}" "clustermesh_debug_source_version=${BUILD_SOURCEVERSION:-unknown}" "clustermesh_debug_tfvars_sha256=${CLUSTERMESH_DEBUG_TFVARS_SHA256:-unknown}" "clustermesh_debug_expected_clusters=${CLUSTER_COUNT:-unknown}"
   displayName: "Create Resource Group"
   condition: and(succeeded(), ${{ eq(parameters.cloud, 'azure') }}, ne(variables['SKIP_RESOURCE_MANAGEMENT'], 'true'))
   env:
     region: ${{ parameters.regions[0] }}
+    CLUSTERMESH_DEBUG_PRESERVE: ${{ parameters.debug_preserve }}
+    BUILD_SOURCEVERSION: $(Build.SourceVersion)
+    CLUSTER_COUNT: $(CLUSTER_COUNT)
 
 - template: /steps/terraform/run-command.yml
   parameters:
