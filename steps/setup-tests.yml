@@ -241,6 +241,19 @@ steps:
 
   - script: |
       set -euo pipefail
+      actual_subscription_id=$(az account show --query id -o tsv)
+      if [[ "${actual_subscription_id,,}" != "${CLUSTERMESH_REQUIRED_SUBSCRIPTION_ID,,}" ]]; then
+        echo "Expected required ClusterMesh subscription ${CLUSTERMESH_REQUIRED_SUBSCRIPTION_ID}, got ${actual_subscription_id}." >&2
+        exit 1
+      fi
+      echo "Verified required ClusterMesh subscription: $actual_subscription_id"
+    displayName: "Verify required ClusterMesh subscription"
+    condition: and(${{ eq(parameters.cloud, 'azure') }},
+                   startsWith(variables['SCENARIO_NAME'], 'clustermesh'),
+                   ne(variables['CLUSTERMESH_REQUIRED_SUBSCRIPTION_ID'], ''))
+
+  - script: |
+      set -euo pipefail
 
       required="${CLUSTERMESH_REQUIRED_MANAGED_CLUSTERS:-${CLUSTER_COUNT:?CLUSTER_COUNT is required}}"
       headroom="${CLUSTERMESH_MANAGED_CLUSTER_QUOTA_HEADROOM:-0}"

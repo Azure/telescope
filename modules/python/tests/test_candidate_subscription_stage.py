@@ -20,6 +20,9 @@ N100_TFVARS_PATH = TFVARS_PATH.with_name(
 N100_DSV4_TFVARS_PATH = TFVARS_PATH.with_name(
     "azure-100-mock-shared-dsv4.tfvars"
 )
+N100_EUAP_TFVARS_PATH = TFVARS_PATH.with_name(
+    "azure-100-mock-shared.tfvars"
+)
 MOCK_DEPLOY_PATH = (
     REPOSITORY_ROOT
     / "steps"
@@ -27,6 +30,7 @@ MOCK_DEPLOY_PATH = (
     / "clustermesh-scale-mock"
     / "deploy-mock-layer.yml"
 )
+SETUP_TESTS_PATH = REPOSITORY_ROOT / "steps" / "setup-tests.yml"
 
 
 def _stage_block():
@@ -47,6 +51,17 @@ def _n100_stage_block():
     )
     end = pipeline.index(
         "- stage: azure_eastus2_n100_debug_preserve", start
+    )
+    return pipeline[start:end]
+
+
+def _euap_n100_stage_block():
+    pipeline = PIPELINE_PATH.read_text(encoding="utf-8")
+    start = pipeline.index(
+        "- stage: azure_eastus2euap_n100_mock_37deca"
+    )
+    end = pipeline.index(
+        "- stage: azure_eastus2euap_n2_mock_kubelet_smoke", start
     )
     return pipeline[start:end]
 
@@ -128,6 +143,14 @@ def test_mock_acr_preflight_supports_cross_subscription_lookup():
     assert 'az acr repository show "${acr_subscription_args[@]}"' in deploy
 
 
+def test_setup_can_require_an_exact_subscription():
+    setup = SETUP_TESTS_PATH.read_text(encoding="utf-8")
+
+    assert "Verify required ClusterMesh subscription" in setup
+    assert "CLUSTERMESH_REQUIRED_SUBSCRIPTION_ID" in setup
+    assert "actual_subscription_id=$(az account show" in setup
+
+
 def test_candidate_n100_stage_inherits_n2_findings():
     stage = _n100_stage_block()
 
@@ -192,3 +215,42 @@ def test_candidate_n100_dsv3_topology_matches_dsv4_shape():
     assert "node_count           = 12" in dsv3
     assert 'member_initial_label_value = "staged"' in dsv3
     assert 'deletion_delay = "60h"' in dsv3
+
+
+def test_original_subscription_n100_stage_uses_non_s_dv3():
+    stage = _euap_n100_stage_block()
+    pipeline = PIPELINE_PATH.read_text(encoding="utf-8")
+    tfvars = N100_EUAP_TFVARS_PATH.read_text(encoding="utf-8")
+
+    for expected in (
+        "- eastus2euap",
+        "azure-100-mock-shared.tfvars",
+        'CLUSTERMESH_REQUIRED_SUBSCRIPTION_ID: '
+        '"37deca37-c375-4a14-b90a-043849bd2bf1"',
+        "CLUSTERMESH_VM_FAMILY_QUOTA_NAME: standardDv3Family",
+        'CLUSTERMESH_REQUIRED_FAMILY_VCPUS: "2536"',
+        'CLUSTERMESH_REQUIRED_MANAGED_CLUSTERS: "100"',
+        "AKS_CONTROL_PLANE_AMW_NAME_PREFIX: "
+        "cmsh-scale-eastus2euap-n100-amw",
+        "AKS_CONTROL_PLANE_LAW_NAME: cmsh-scale-controlplane-law",
+        'cl2_prom_snapshot_storage_account: "cmshscaleprom"',
+        'CMP_STAGED_JOIN_ENABLED: "true"',
+        'CMP_STAGED_JOIN_BATCH_SIZE: "10"',
+        "suite_total_budget_seconds: 158400",
+        "timeout_in_minutes: 3000",
+    ):
+        assert expected in stage
+
+    assert "standardDSv3Family" not in stage
+    assert 'CLUSTERMESH_EUAP_N100_ENABLED: "false"' in pipeline
+    assert "eq(variables['Build.Reason'], 'Manual')" in stage
+    assert (
+        "eq(variables['CLUSTERMESH_EUAP_N100_ENABLED'], 'true')"
+        in stage
+    )
+    assert tfvars.count('vm_size              = "Standard_D8_v3"') == 201
+    assert 'vm_size              = "Standard_D8s_v3"' not in tfvars
+    assert tfvars.count('name                 = "prompool"') == 100
+    assert tfvars.count('name                 = "churnpool"') == 1
+    assert 'member_initial_label_value = "staged"' in tfvars
+    assert 'deletion_delay = "60h"' in tfvars

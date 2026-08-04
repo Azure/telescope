@@ -1,6 +1,6 @@
 scenario_type  = "perf-eval"
 scenario_name  = "clustermesh-scale"
-deletion_delay = "48h"
+deletion_delay = "60h"
 owner          = "aks"
 
 # =============================================================================
@@ -5181,11 +5181,12 @@ vnet_peering_config = {
 }
 
 fleet_config = {
-  enabled            = true
-  fleet_name         = "clustermesh-flt"
-  cmp_name           = "clustermesh-cmp"
-  member_label_key   = "mesh"
-  member_label_value = "true"
+  enabled                    = true
+  fleet_name                 = "clustermesh-flt"
+  cmp_name                   = "clustermesh-cmp"
+  member_label_key           = "mesh"
+  member_label_value         = "true"
+  member_initial_label_value = "staged"
   members = [
     { member_name = "mesh-1", aks_role = "mesh-1" },
     { member_name = "mesh-2", aks_role = "mesh-2" },
