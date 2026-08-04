@@ -271,9 +271,11 @@ steps:
 
       # Background ClusterMeshProfile re-applier (N>=15 only). At smaller
       # mesh sizes the first apply reliably reaches all members within a
-      # few minutes, so the re-apply just adds noise.
+      # few minutes, so the re-apply just adds noise. Staged enrollment owns
+      # its bounded recovery policy and must not be followed by this unlimited
+      # periodic apply loop, which would reset healthy member convergence.
       REAPPLY_LOG="$(pwd)/clustermeshprofile-reapply.log"
-      if [ "$cluster_count" -ge 15 ]; then
+      if [ "$cluster_count" -ge 15 ] && [ "${CMP_STAGED_JOIN_ENABLED:-false}" != "true" ]; then
         {
           echo "[reapplier] starting; re-issuing fleet clustermeshprofile apply every 600s"
           # Wait 5 min before first re-apply so we don't double-trigger
@@ -304,6 +306,8 @@ steps:
         REAPPLY_PID=$!
         echo "Spawned clustermeshprofile re-applier (PID=$REAPPLY_PID, log=$REAPPLY_LOG)"
         trap 'kill $REAPPLY_PID 2>/dev/null || true' EXIT
+      elif [ "$cluster_count" -ge 15 ]; then
+        echo "Staged Fleet enrollment enabled; legacy periodic profile re-applier is disabled."
       fi
 
       # Background clustermeshprofile AUTO-RECOVERY (build 69155 evidence):

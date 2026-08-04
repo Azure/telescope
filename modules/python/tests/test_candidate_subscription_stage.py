@@ -137,13 +137,13 @@ def test_candidate_n100_stage_inherits_n2_findings():
         'CLUSTERMESH_REQUIRED_MANAGED_CLUSTERS: "100"',
         'CLUSTERMESH_MANAGED_CLUSTER_QUOTA_HEADROOM: "5"',
         'CMP_STAGED_JOIN_ENABLED: "true"',
-        'CMP_STAGED_JOIN_BATCH_SIZE: "20"',
+        'CMP_STAGED_JOIN_BATCH_SIZE: "10"',
         'CMP_STAGED_JOIN_BATCH_WAIT_SECONDS: "7200"',
-        'CMP_STAGED_JOIN_TOTAL_WAIT_SECONDS: "21600"',
+        'CMP_STAGED_JOIN_TOTAL_WAIT_SECONDS: "28800"',
         'CMP_STAGED_JOIN_CHECK_CONCURRENCY: "10"',
-        'CMP_STAGED_JOIN_STALL_RETRY_SECONDS: "1800"',
-        'CMP_STAGED_JOIN_MAX_MEMBER_RETRIES: "2"',
-        'CMP_STAGED_JOIN_MEMBER_RETRY_COOLDOWN_SECONDS: "900"',
+        'CMP_STAGED_JOIN_RECOVERY_APPLY_AFTER_SECONDS: "2700"',
+        'CMP_STAGED_JOIN_MAX_RECOVERY_APPLIES: "1"',
+        'CMP_STAGED_JOIN_RECOVERY_MIN_POST_SECONDS: "1800"',
         "MOCK_ACR_HOST: mockmeshshared11225.azurecr.io",
         'MOCK_ACR_SUBSCRIPTION_ID: "37deca37-c375-4a14-b90a-043849bd2bf1"',
         "AKS_CONTROL_PLANE_AMW_NAME_PREFIX: "
@@ -162,9 +162,9 @@ def test_candidate_n100_stage_inherits_n2_findings():
         'share_infra_scenarios: "propagation-probe,event-throughput,'
         'policy-scale,pod-churn-combined,apiserver-failure,isolation,'
         'node-churn-combined,upper-bound"',
-        "suite_total_budget_seconds: 151200",
+        "suite_total_budget_seconds: 158400",
         "suite_finalization_reserve_seconds: 10800",
-        "timeout_in_minutes: 2880",
+        "timeout_in_minutes: 3000",
         "cancel_timeout_in_minutes: 120",
     ):
         assert expected in stage

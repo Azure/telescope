@@ -16,16 +16,16 @@ label_key="${CMP_MEMBER_LABEL_KEY:-mesh}"
 label_value="${CMP_MEMBER_LABEL_VALUE:-true}"
 batch_size="${CMP_STAGED_JOIN_BATCH_SIZE:-10}"
 batch_wait_seconds="${CMP_STAGED_JOIN_BATCH_WAIT_SECONDS:-7200}"
-total_wait_seconds="${CMP_STAGED_JOIN_TOTAL_WAIT_SECONDS:-21600}"
+total_wait_seconds="${CMP_STAGED_JOIN_TOTAL_WAIT_SECONDS:-28800}"
 poll_seconds="${CMP_STAGED_JOIN_POLL_SECONDS:-20}"
 check_concurrency="${CMP_STAGED_JOIN_CHECK_CONCURRENCY:-10}"
 member_update_attempts="${CMP_STAGED_JOIN_MEMBER_UPDATE_ATTEMPTS:-5}"
 apply_attempts="${CMP_STAGED_JOIN_APPLY_ATTEMPTS:-5}"
 command_timeout_seconds="${CMP_STAGED_JOIN_COMMAND_TIMEOUT_SECONDS:-900}"
 query_timeout_seconds="${CMP_STAGED_JOIN_QUERY_TIMEOUT_SECONDS:-60}"
-stall_retry_seconds="${CMP_STAGED_JOIN_STALL_RETRY_SECONDS:-${CMP_STAGED_JOIN_STALL_REAPPLY_SECONDS:-${CMP_STAGED_JOIN_REAPPLY_SECONDS:-1800}}}"
-max_member_retries="${CMP_STAGED_JOIN_MAX_MEMBER_RETRIES:-2}"
-member_retry_cooldown_seconds="${CMP_STAGED_JOIN_MEMBER_RETRY_COOLDOWN_SECONDS:-900}"
+recovery_apply_after_seconds="${CMP_STAGED_JOIN_RECOVERY_APPLY_AFTER_SECONDS:-2700}"
+max_recovery_applies="${CMP_STAGED_JOIN_MAX_RECOVERY_APPLIES:-1}"
+recovery_min_post_seconds="${CMP_STAGED_JOIN_RECOVERY_MIN_POST_SECONDS:-1800}"
 summary_file="${CMP_STAGED_JOIN_SUMMARY_FILE:-$(pwd)/clustermeshprofile-staged-join.json}"
 
 require_positive_integer() {
@@ -48,9 +48,9 @@ for setting in \
   "CMP_STAGED_JOIN_APPLY_ATTEMPTS:$apply_attempts" \
   "CMP_STAGED_JOIN_COMMAND_TIMEOUT_SECONDS:$command_timeout_seconds" \
   "CMP_STAGED_JOIN_QUERY_TIMEOUT_SECONDS:$query_timeout_seconds" \
-  "CMP_STAGED_JOIN_STALL_RETRY_SECONDS:$stall_retry_seconds" \
-  "CMP_STAGED_JOIN_MAX_MEMBER_RETRIES:$max_member_retries" \
-  "CMP_STAGED_JOIN_MEMBER_RETRY_COOLDOWN_SECONDS:$member_retry_cooldown_seconds"; do
+  "CMP_STAGED_JOIN_RECOVERY_APPLY_AFTER_SECONDS:$recovery_apply_after_seconds" \
+  "CMP_STAGED_JOIN_MAX_RECOVERY_APPLIES:$max_recovery_applies" \
+  "CMP_STAGED_JOIN_RECOVERY_MIN_POST_SECONDS:$recovery_min_post_seconds"; do
   require_positive_integer "${setting%%:*}" "${setting#*:}"
 done
 
@@ -207,9 +207,10 @@ run_member_update() {
 }
 
 apply_profile() {
+  local max_attempts="${1:-$apply_attempts}"
   local attempt output rc timeout_seconds
 
-  for attempt in $(seq 1 "$apply_attempts"); do
+  for attempt in $(seq 1 "$max_attempts"); do
     timeout_seconds=$(remaining_batch_timeout "$command_timeout_seconds") || return 1
     rc=0
     output=$(timeout "${timeout_seconds}s" az fleet clustermeshprofile apply \
@@ -219,11 +220,11 @@ apply_profile() {
       --output none \
       --only-show-errors 2>&1) || rc=$?
     if [ "$rc" -eq 0 ]; then
-      echo "[staged-join] profile apply accepted on attempt $attempt/$apply_attempts"
+      echo "[staged-join] profile apply accepted on attempt $attempt/$max_attempts"
       return 0
     fi
 
-    echo "[staged-join] profile apply failed on attempt $attempt/$apply_attempts (exit=$rc): $output"
+    echo "[staged-join] profile apply failed on attempt $attempt/$max_attempts (exit=$rc): $output"
     if echo "$output" | grep -Eqi 'AuthorizationFailed|Forbidden|SubscriptionNotFound|ResourceGroupNotFound|ResourceNotFound'; then
       return 1
     fi
@@ -232,121 +233,12 @@ apply_profile() {
       echo "[staged-join] profile apply is still active; continuing with bounded readiness polling"
       return 0
     fi
-    if [ "$attempt" -lt "$apply_attempts" ]; then
+    if [ "$attempt" -lt "$max_attempts" ]; then
       sleep "$poll_seconds"
     fi
   done
 
   return 1
-}
-
-profile_member_names() {
-  local query="$1"
-  local output rc timeout_seconds role joined_role
-
-  timeout_seconds=$(remaining_batch_timeout "$query_timeout_seconds") || return 1
-  rc=0
-  output=$(timeout "${timeout_seconds}s" az fleet clustermeshprofile list-members \
-    --resource-group "$fleet_rg" \
-    --fleet-name "$fleet_name" \
-    --name "$fleet_profile" \
-    --query "$query" \
-    --output tsv \
-    --only-show-errors) || rc=$?
-  if [ "$rc" -ne 0 ]; then
-    echo "[staged-join] profile member-name query failed (exit=$rc, query=$query)" >&2
-    return 1
-  fi
-
-  while IFS= read -r role; do
-    role="${role%$'\r'}"
-    [ -n "$role" ] || continue
-    for joined_role in "${joined[@]}"; do
-      if [ "$role" = "$joined_role" ]; then
-        printf '%s\n' "$role"
-        break
-      fi
-    done
-  done < <(printf '%s\n' "$output" | tr '\t' '\n')
-}
-
-reconcile_member() {
-  local role="$1"
-  local attempt output rc timeout_seconds
-
-  for attempt in $(seq 1 "$member_update_attempts"); do
-    timeout_seconds=$(remaining_batch_timeout "$command_timeout_seconds") || return 1
-    rc=0
-    # `member reconcile` performs a member-scoped PUT of the existing member.
-    # Unlike ClusterMeshProfile apply, it does not restart reconciliation for
-    # every healthy member in the cumulative profile.
-    output=$(timeout "${timeout_seconds}s" az fleet member reconcile \
-      --resource-group "$fleet_rg" \
-      --fleet-name "$fleet_name" \
-      --name "$role" \
-      --no-wait \
-      --output none \
-      --only-show-errors 2>&1) || rc=$?
-    if [ "$rc" -eq 0 ]; then
-      echo "[staged-join] member-scoped reconcile accepted for $role"
-      return 0
-    fi
-
-    echo "[staged-join] member reconcile failed for $role on attempt $attempt/$member_update_attempts (exit=$rc): $output"
-    if echo "$output" | grep -Eqi 'AuthorizationFailed|Forbidden|SubscriptionNotFound|ResourceGroupNotFound|ResourceNotFound'; then
-      return 1
-    fi
-    if [ "$attempt" -lt "$member_update_attempts" ]; then
-      sleep "$poll_seconds"
-    fi
-  done
-
-  return 1
-}
-
-reconcile_members_surgically() {
-  local reason="$1"
-  shift
-  local retry_roles=("$@")
-  local role now
-
-  if [ "${#retry_roles[@]}" -eq 0 ]; then
-    return 1
-  fi
-
-  echo "[staged-join] member-scoped retry ($reason) for ${#retry_roles[@]} member(s): ${retry_roles[*]}"
-  now=$(date +%s)
-  for role in "${retry_roles[@]}"; do
-    reconcile_member "$role" || return 1
-    member_retry_counts["$role"]=$(( ${member_retry_counts[$role]:-0} + 1 ))
-    member_retry_not_before["$role"]=$((now + member_retry_cooldown_seconds))
-  done
-}
-
-collect_retryable_members() {
-  local query="$1"
-  local role retry_count retry_not_before now
-  local output
-
-  retry_roles=()
-  retry_candidate_count=0
-  retry_cooling_count=0
-  retry_exhausted_count=0
-  output=$(profile_member_names "$query") || return 1
-  now=$(date +%s)
-  while IFS= read -r role; do
-    [ -n "$role" ] || continue
-    retry_candidate_count=$((retry_candidate_count + 1))
-    retry_count="${member_retry_counts[$role]:-0}"
-    retry_not_before="${member_retry_not_before[$role]:-0}"
-    if [ "$retry_count" -ge "$max_member_retries" ]; then
-      retry_exhausted_count=$((retry_exhausted_count + 1))
-    elif [ "$now" -lt "$retry_not_before" ]; then
-      retry_cooling_count=$((retry_cooling_count + 1))
-    elif [ "${#retry_roles[@]}" -lt "$batch_size" ]; then
-      retry_roles+=("$role")
-    fi
-  done <<< "$output"
 }
 
 applied_member_count() {
@@ -355,6 +247,10 @@ applied_member_count() {
 
 connected_member_count() {
   profile_member_count "length([?meshProperties.status.state=='Connected'])"
+}
+
+failed_member_count() {
+  profile_member_count "length([?meshProperties.status.state=='Failed'])"
 }
 
 profile_member_count() {
@@ -498,17 +394,13 @@ echo "[staged-join] enrolling $total_members Fleet members in batches of $batch_
 joined=()
 batch=()
 batch_number=0
-declare -A member_retry_counts=()
-declare -A member_retry_not_before=()
-retry_roles=()
-retry_candidate_count=0
-retry_cooling_count=0
-retry_exhausted_count=0
 
 run_batch() {
   local batch_started_at batch_finished_at last_progress_at
-  local max_applied max_connected now progress stall_age last_retry_wait_log_at
-  local applied connected profile_state expected_remote
+  local max_applied max_connected now progress stall_age
+  local applied connected failed profile_state expected_remote
+  local recovery_apply_count recovery_limit_logged remaining_seconds
+  local recovery_required_seconds
 
   if [ "${#batch[@]}" -eq 0 ]; then
     return 0
@@ -546,16 +438,19 @@ run_batch() {
   fi
 
   last_progress_at=$(date +%s)
-  last_retry_wait_log_at=0
   max_applied=0
   max_connected=0
+  recovery_apply_count=0
+  recovery_limit_logged=false
   expected_remote=$((${#joined[@]} - 1))
   while [ "$(date +%s)" -lt "$batch_deadline" ]; do
     applied=""
     connected=""
+    failed=""
     profile_state=""
     applied=$(applied_member_count || true)
     connected=$(connected_member_count || true)
+    failed=$(failed_member_count || true)
     profile_state=$(profile_provisioning_state || true)
     now=$(date +%s)
     progress=false
@@ -572,23 +467,6 @@ run_batch() {
       echo "[staged-join] batch #$batch_number progress: applied_high_water=$max_applied connected_high_water=$max_connected"
     fi
 
-    if collect_retryable_members "[?meshProperties.status.state=='Failed'].name" &&
-      [ "${#retry_roles[@]}" -gt 0 ]; then
-      if ! reconcile_members_surgically "terminal Fleet failure" "${retry_roles[@]}"; then
-        batch_finished_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-        update_summary "failed" "$batch_number" "${#joined[@]}" \
-          "$batch_started_at" "$batch_finished_at" "${batch[@]}"
-        echo "##vso[task.logissue type=error;] [staged-join] member-scoped retry failed for batch #$batch_number"
-        return 1
-      fi
-      max_applied=0
-      max_connected=0
-      last_progress_at=$(date +%s)
-      last_retry_wait_log_at=0
-      sleep "$poll_seconds"
-      continue
-    fi
-
     if [ "$applied" = "${#joined[@]}" ] &&
       [ "$connected" = "${#joined[@]}" ] &&
       [ "$profile_state" = "Succeeded" ] &&
@@ -602,30 +480,32 @@ run_batch() {
       return 0
     fi
 
-    echo "[staged-join] batch #$batch_number waiting: applied=${applied:-unknown}/${#joined[@]}, connected=${connected:-unknown}/${#joined[@]}, profile=${profile_state:-unknown}, expected_remote=$expected_remote"
+    echo "[staged-join] batch #$batch_number waiting: applied=${applied:-unknown}/${#joined[@]}, connected=${connected:-unknown}/${#joined[@]}, failed=${failed:-unknown}, profile=${profile_state:-unknown}, expected_remote=$expected_remote"
     stall_age=$((now - last_progress_at))
-    if [ "$stall_age" -ge "$stall_retry_seconds" ]; then
-      if collect_retryable_members "[?meshProperties.status.state!='Connected'].name"; then
-        if [ "${#retry_roles[@]}" -gt 0 ]; then
-          if ! reconcile_members_surgically "no progress for ${stall_age}s" "${retry_roles[@]}"; then
-            batch_finished_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            update_summary "failed" "$batch_number" "${#joined[@]}" \
-              "$batch_started_at" "$batch_finished_at" "${batch[@]}"
-            echo "##vso[task.logissue type=error;] [staged-join] stalled-member reconcile failed for batch #$batch_number"
-            return 1
-          fi
+    if [ "$stall_age" -ge "$recovery_apply_after_seconds" ] &&
+      [ "$recovery_apply_count" -lt "$max_recovery_applies" ]; then
+      remaining_seconds=$((batch_deadline - now))
+      recovery_required_seconds=$((command_timeout_seconds + recovery_min_post_seconds))
+      if [ "$remaining_seconds" -lt "$recovery_required_seconds" ]; then
+        echo "[staged-join] skipping recovery apply: remaining=${remaining_seconds}s required=${recovery_required_seconds}s (${command_timeout_seconds}s command + ${recovery_min_post_seconds}s post-recovery convergence)"
+        recovery_apply_count="$max_recovery_applies"
+        recovery_limit_logged=true
+      else
+        recovery_apply_count=$((recovery_apply_count + 1))
+        echo "[staged-join] no progress for ${stall_age}s; issuing single-request profile recovery apply $recovery_apply_count/$max_recovery_applies"
+        if apply_profile 1; then
           max_applied=0
           max_connected=0
           last_progress_at=$(date +%s)
-          last_retry_wait_log_at=0
-        elif [ $((now - last_retry_wait_log_at)) -ge 300 ]; then
-          echo "[staged-join] stalled retry waiting: candidates=$retry_candidate_count cooling=$retry_cooling_count exhausted=$retry_exhausted_count"
-          last_retry_wait_log_at="$now"
+        else
+          echo "##vso[task.logissue type=warning;] [staged-join] profile recovery apply failed; continuing without another recovery"
         fi
-      elif [ $((now - last_retry_wait_log_at)) -ge 300 ]; then
-        echo "[staged-join] stalled member query failed; will retry without resetting the progress epoch"
-        last_retry_wait_log_at="$now"
       fi
+    elif [ "$stall_age" -ge "$recovery_apply_after_seconds" ] &&
+      [ "$recovery_apply_count" -ge "$max_recovery_applies" ] &&
+      [ "$recovery_limit_logged" = "false" ]; then
+      echo "[staged-join] recovery apply limit reached; waiting for natural convergence until the batch deadline"
+      recovery_limit_logged=true
     fi
     sleep "$poll_seconds"
   done

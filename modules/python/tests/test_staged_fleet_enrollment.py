@@ -48,11 +48,9 @@ def _run_staged_join(
     failing_role=None,
     required_apply_count=1,
     batch_wait_seconds=2,
-    stall_retry_seconds=2,
+    recovery_apply_after_seconds=2,
+    recovery_min_post_seconds=1,
     connected_sequence="",
-    failed_roles="",
-    failed_until_apply_count=0,
-    member_retry_cooldown_seconds=1,
 ):
     bin_dir = tmp_path / "bin"
     home_dir = tmp_path / "home"
@@ -80,7 +78,6 @@ def _run_staged_join(
     command_log = tmp_path / "commands.log"
     selected_file = tmp_path / "selected.txt"
     apply_file = tmp_path / "applies.txt"
-    reconcile_file = tmp_path / "reconciles.txt"
     connected_query_file = tmp_path / "connected-queries.txt"
     summary_file = tmp_path / "summary.json"
 
@@ -101,35 +98,10 @@ if [[ " $* " == *" fleet member update "* ]]; then
   echo "$role" >> "$SELECTED_FILE"
   exit 0
 fi
-if [[ " $* " == *" fleet member reconcile "* ]]; then
-  role=""
-  while [ "$#" -gt 0 ]; do
-    if [ "$1" = "--name" ]; then
-      role="$2"
-      break
-    fi
-    shift
-  done
-  echo "$role" >> "$RECONCILE_FILE"
-  exit 0
-fi
 if [[ " $* " == *" clustermeshprofile list-members "* ]]; then
   apply_count=$(wc -l < "$APPLY_FILE" 2>/dev/null || printf '0')
-  reconcile_count=$(wc -l < "$RECONCILE_FILE" 2>/dev/null || printf '0')
-  recovery_count=$((apply_count + reconcile_count))
-  if [[ " $* " == *"meshProperties.status.state=='Failed'"*".name"* ]]; then
-    if [ "$recovery_count" -le "$FAILED_UNTIL_APPLY_COUNT" ]; then
-      printf '%s\\n' "$FAILED_ROLES" | tr ',' '\\n' | sed '/^$/d'
-    fi
-    exit 0
-  fi
-  if [[ " $* " == *"meshProperties.status.state!='Connected'"*".name"* ]]; then
-    if [ "$recovery_count" -le "$FAILED_UNTIL_APPLY_COUNT" ] &&
-      [ -n "$FAILED_ROLES" ]; then
-      printf '%s\\n' "$FAILED_ROLES" | tr ',' '\\n' | sed '/^$/d'
-    elif [ "$recovery_count" -lt "$REQUIRED_APPLY_COUNT" ]; then
-      sort -u "$SELECTED_FILE" | sed '/^$/d'
-    fi
+  if [[ " $* " == *"length([?meshProperties.status.state=='Failed'])"* ]]; then
+    printf '0\\n'
     exit 0
   fi
   if [[ " $* " == *"meshProperties.status.state=='Connected'"* ]]; then
@@ -143,7 +115,7 @@ if [[ " $* " == *" clustermeshprofile list-members "* ]]; then
       printf '%s\\n' "$value"
       exit 0
     fi
-    if [ "$recovery_count" -lt "$REQUIRED_APPLY_COUNT" ]; then
+    if [ "$apply_count" -lt "$REQUIRED_APPLY_COUNT" ]; then
       printf '0\\n'
       exit 0
     fi
@@ -200,12 +172,9 @@ exit 1
             "COMMAND_LOG": str(command_log),
             "SELECTED_FILE": str(selected_file),
             "APPLY_FILE": str(apply_file),
-            "RECONCILE_FILE": str(reconcile_file),
             "CONNECTED_QUERY_FILE": str(connected_query_file),
             "CONNECTED_SEQUENCE": connected_sequence,
             "REQUIRED_APPLY_COUNT": str(required_apply_count),
-            "FAILED_ROLES": failed_roles,
-            "FAILED_UNTIL_APPLY_COUNT": str(failed_until_apply_count),
             "FAILING_ROLE": failing_role or "",
             "CLUSTERS_FILE": str(clusters_file),
             "FLEET_RG": "test-rg",
@@ -214,17 +183,17 @@ exit 1
             "CMP_STAGED_JOIN_ENABLED": "true",
             "CMP_STAGED_JOIN_BATCH_SIZE": "2",
             "CMP_STAGED_JOIN_BATCH_WAIT_SECONDS": str(batch_wait_seconds),
-            "CMP_STAGED_JOIN_TOTAL_WAIT_SECONDS": "6",
+            "CMP_STAGED_JOIN_TOTAL_WAIT_SECONDS": "10",
             "CMP_STAGED_JOIN_POLL_SECONDS": "1",
             "CMP_STAGED_JOIN_CHECK_CONCURRENCY": "2",
             "CMP_STAGED_JOIN_COMMAND_TIMEOUT_SECONDS": "2",
             "CMP_STAGED_JOIN_QUERY_TIMEOUT_SECONDS": "2",
-            "CMP_STAGED_JOIN_STALL_RETRY_SECONDS": str(
-                stall_retry_seconds
+            "CMP_STAGED_JOIN_RECOVERY_APPLY_AFTER_SECONDS": str(
+                recovery_apply_after_seconds
             ),
-            "CMP_STAGED_JOIN_MAX_MEMBER_RETRIES": "2",
-            "CMP_STAGED_JOIN_MEMBER_RETRY_COOLDOWN_SECONDS": str(
-                member_retry_cooldown_seconds
+            "CMP_STAGED_JOIN_MAX_RECOVERY_APPLIES": "1",
+            "CMP_STAGED_JOIN_RECOVERY_MIN_POST_SECONDS": str(
+                recovery_min_post_seconds
             ),
             "CMP_STAGED_JOIN_SUMMARY_FILE": str(summary_file),
         }
@@ -280,76 +249,67 @@ def test_staged_join_stops_before_next_batch_when_convergence_fails(tmp_path):
     assert summary["batches"][-1]["members"] == ["mesh-3", "mesh-4"]
 
 
-def test_staged_join_retries_only_stalled_members(tmp_path):
+def test_staged_join_issues_one_recovery_apply_after_stall(tmp_path):
     result, selected, summary, command_log = _run_staged_join(
         tmp_path,
         ["mesh-1", "mesh-2"],
         required_apply_count=2,
         batch_wait_seconds=5,
-        stall_retry_seconds=1,
+        recovery_apply_after_seconds=1,
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert selected == ["mesh-1", "mesh-2"]
-    assert command_log.count("clustermeshprofile apply") == 1
-    assert command_log.count("fleet member reconcile") == 2
-    assert "member-scoped retry (no progress for" in result.stdout
+    assert command_log.count("clustermeshprofile apply") == 2
+    assert "issuing single-request profile recovery apply 1/1" in result.stdout
+    assert "fleet member reconcile" not in command_log
     assert summary["status"] == "succeeded"
 
 
-def test_staged_join_tracks_fresh_progress_after_member_retry(tmp_path):
+def test_staged_join_tracks_fresh_progress_after_recovery_apply(tmp_path):
     result, selected, summary, command_log = _run_staged_join(
         tmp_path,
         ["mesh-1", "mesh-2"],
         batch_wait_seconds=7,
-        stall_retry_seconds=5,
-        connected_sequence="0,1,2",
-        failed_roles="mesh-2",
-        failed_until_apply_count=1,
+        recovery_apply_after_seconds=1,
+        connected_sequence="0,0,0,1,2",
     )
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert selected == ["mesh-1", "mesh-2"]
-    assert command_log.count("clustermeshprofile apply") == 1
-    assert command_log.count("fleet member reconcile") == 1
+    assert command_log.count("clustermeshprofile apply") == 2
     assert "connected_high_water=1" in result.stdout
     assert "connected_high_water=2" in result.stdout
     assert summary["status"] == "succeeded"
 
 
-def test_staged_join_surgically_retries_terminal_failed_member(tmp_path):
-    result, selected, summary, command_log = _run_staged_join(
-        tmp_path,
-        ["mesh-1", "mesh-2"],
-        required_apply_count=2,
-        batch_wait_seconds=7,
-        stall_retry_seconds=5,
-        failed_roles="mesh-2",
-        failed_until_apply_count=1,
-    )
-
-    assert result.returncode == 0, result.stdout + result.stderr
-    assert selected == ["mesh-1", "mesh-2"]
-    assert command_log.count("clustermeshprofile apply") == 1
-    assert "--name mesh-2 --no-wait" in command_log
-    assert "--name mesh-1 --no-wait" not in command_log
-    assert "member-scoped retry (terminal Fleet failure)" in result.stdout
-    assert summary["status"] == "succeeded"
-
-
-def test_staged_join_caps_member_reconcile_retries(tmp_path):
+def test_staged_join_caps_profile_recovery_applies(tmp_path):
     result, _, summary, command_log = _run_staged_join(
         tmp_path,
         ["mesh-1", "mesh-2"],
         required_apply_count=99,
-        batch_wait_seconds=5,
-        stall_retry_seconds=5,
-        failed_roles="mesh-2",
-        failed_until_apply_count=99,
+        batch_wait_seconds=4,
+        recovery_apply_after_seconds=1,
     )
 
     assert result.returncode != 0
-    assert command_log.count("fleet member reconcile") == 2
+    assert command_log.count("clustermeshprofile apply") == 2
+    assert summary["status"] == "failed"
+
+
+def test_staged_join_skips_recovery_without_post_apply_runway(tmp_path):
+    result, _, summary, command_log = _run_staged_join(
+        tmp_path,
+        ["mesh-1", "mesh-2"],
+        required_apply_count=99,
+        batch_wait_seconds=4,
+        recovery_apply_after_seconds=2,
+        recovery_min_post_seconds=3,
+    )
+
+    assert result.returncode != 0
+    assert command_log.count("clustermeshprofile apply") == 1
+    assert "skipping recovery apply" in result.stdout
     assert summary["status"] == "failed"
 
 
@@ -377,13 +337,13 @@ def test_terraform_separates_initial_member_label_from_profile_selector():
     assert "staged-fleet-enrollment.sh" in validation
     assert "--arg selector_label_value" in staged_script
     assert "--arg label " not in staged_script
-    assert "CMP_STAGED_JOIN_STALL_RETRY_SECONDS" in staged_script
-    assert "reconcile_members_surgically" in staged_script
-    assert "az fleet member reconcile" in staged_script
-    assert "terminal Fleet failure" in staged_script
-    retry_start = staged_script.index("reconcile_members_surgically()")
-    retry_end = staged_script.index("collect_retryable_members()", retry_start)
-    assert "apply_profile" not in staged_script[retry_start:retry_end]
+    assert "CMP_STAGED_JOIN_RECOVERY_APPLY_AFTER_SECONDS" in staged_script
+    assert "CMP_STAGED_JOIN_MAX_RECOVERY_APPLIES" in staged_script
+    assert "CMP_STAGED_JOIN_RECOVERY_MIN_POST_SECONDS" in staged_script
+    assert "az fleet member reconcile" not in staged_script
+    assert "apply_profile 1" in staged_script
+    assert "issuing single-request profile recovery apply" in staged_script
+    assert "legacy periodic profile re-applier is disabled" in validation
     assert "applied_high_water" in staged_script
     assert "connected_high_water" in staged_script
     assert "next_reapply" not in staged_script

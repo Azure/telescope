@@ -2013,21 +2013,21 @@ stages:
       CLUSTERMESH_QUOTA_HEADROOM_VCPUS: "128"
       # Build 75513 created all 100 AKS clusters but Fleet projected 0/100
       # apiservers when every member matched the profile at once. Terraform
-      # now creates these members as mesh=staged; validation selects twenty,
+      # now creates these members as mesh=staged; validation selects ten,
       # applies the profile, and requires cumulative Fleet/Kubernetes/Cilium
-      # convergence before selecting the next twenty. Post-formation rejoin
-      # remains enabled only as a later straggler recovery. Terminal/stalled
-      # members get member-scoped reconcile calls; healthy members are never
-      # reset by periodic whole-profile applies.
+      # convergence before selecting the next ten. Batch 10 reached 90/100 in
+      # build 75554; batch 20 caused the prior 20 members to time out in builds
+      # 75606/75631. At most one profile recovery apply is allowed per batch,
+      # after 45m without progress, avoiding the repeated resets seen in 75554.
       CMP_AUTO_RECOVERY_ENABLED: "false"
       CMP_STAGED_JOIN_ENABLED: "true"
-      CMP_STAGED_JOIN_BATCH_SIZE: "20"
+      CMP_STAGED_JOIN_BATCH_SIZE: "10"
       CMP_STAGED_JOIN_BATCH_WAIT_SECONDS: "7200"
-      CMP_STAGED_JOIN_TOTAL_WAIT_SECONDS: "21600"
+      CMP_STAGED_JOIN_TOTAL_WAIT_SECONDS: "28800"
       CMP_STAGED_JOIN_CHECK_CONCURRENCY: "10"
-      CMP_STAGED_JOIN_STALL_RETRY_SECONDS: "1800"
-      CMP_STAGED_JOIN_MAX_MEMBER_RETRIES: "2"
-      CMP_STAGED_JOIN_MEMBER_RETRY_COOLDOWN_SECONDS: "900"
+      CMP_STAGED_JOIN_RECOVERY_APPLY_AFTER_SECONDS: "2700"
+      CMP_STAGED_JOIN_MAX_RECOVERY_APPLIES: "1"
+      CMP_STAGED_JOIN_RECOVERY_MIN_POST_SECONDS: "1800"
       CMP_REJOIN_ENABLED: "true"
       CL2_PROPAGATION_PROBE_ENABLED: "true"
       CL2_PROPAGATION_PROBE_COUNT: "10"
@@ -2065,7 +2065,7 @@ stages:
               share_infra_settle_seconds: 300
               agent_disk_min_free_gi: 40
               agent_memory_min_free_gi: 12
-              suite_total_budget_seconds: 151200
+              suite_total_budget_seconds: 158400
               suite_finalization_reserve_seconds: 10800
               suite_job_timeout_buffer_seconds: 21600
               cl2_config_file: ""
@@ -2099,7 +2099,7 @@ stages:
               node_churn_recovery_grace_seconds: 1800
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
-          timeout_in_minutes: 2880
+          timeout_in_minutes: 3000
           cancel_timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false
@@ -2190,13 +2190,13 @@ stages:
       # straggler fallback.
       CMP_AUTO_RECOVERY_ENABLED: "false"
       CMP_STAGED_JOIN_ENABLED: "true"
-      CMP_STAGED_JOIN_BATCH_SIZE: "20"
+      CMP_STAGED_JOIN_BATCH_SIZE: "10"
       CMP_STAGED_JOIN_BATCH_WAIT_SECONDS: "7200"
-      CMP_STAGED_JOIN_TOTAL_WAIT_SECONDS: "21600"
+      CMP_STAGED_JOIN_TOTAL_WAIT_SECONDS: "28800"
       CMP_STAGED_JOIN_CHECK_CONCURRENCY: "10"
-      CMP_STAGED_JOIN_STALL_RETRY_SECONDS: "1800"
-      CMP_STAGED_JOIN_MAX_MEMBER_RETRIES: "2"
-      CMP_STAGED_JOIN_MEMBER_RETRY_COOLDOWN_SECONDS: "900"
+      CMP_STAGED_JOIN_RECOVERY_APPLY_AFTER_SECONDS: "2700"
+      CMP_STAGED_JOIN_MAX_RECOVERY_APPLIES: "1"
+      CMP_STAGED_JOIN_RECOVERY_MIN_POST_SECONDS: "1800"
       CMP_REJOIN_ENABLED: "true"
       # Propagation-latency probe (see n2_mock_2500 for the design). n=100 is the
       # EXTREME-fan-out tier: each source pod syncs to 99 peers, so this is the most
@@ -2256,7 +2256,7 @@ stages:
               # 15.6 GiB total memory. Require a nearly idle host before
               # provisioning 100 clusters and launching mesh-wide workers.
               agent_memory_min_free_gi: 12
-              suite_total_budget_seconds: 151200
+              suite_total_budget_seconds: 158400
               suite_finalization_reserve_seconds: 10800
               suite_job_timeout_buffer_seconds: 21600
               cl2_config_file: ""
@@ -2299,7 +2299,7 @@ stages:
               node_churn_recovery_grace_seconds: 1800
               trigger_reason: ${{ variables['Build.Reason'] }}
           max_parallel: 1
-          timeout_in_minutes: 2880
+          timeout_in_minutes: 3000
           cancel_timeout_in_minutes: 120
           credential_type: service_connection
           ssh_key_enabled: false
