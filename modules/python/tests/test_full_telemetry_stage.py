@@ -842,6 +842,7 @@ def test_legacy_centraluseuap_n100_stage_is_disabled():
 
     assert "condition: eq(1, 0)" in stage
     assert "BLOCKED legacy n=100 Central US EUAP" in stage
+    assert "/jobs/blocked-legacy-n100.yml" in stage
 
 
 def test_n100_stage_uses_static_sharded_workspaces_with_no_rotation():

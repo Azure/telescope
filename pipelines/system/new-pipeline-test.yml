@@ -2735,7 +2735,7 @@ stages:
       # the 60m window + 90m op-timeout.
       CL2_PROBE_PREWAIT_S: "600"
     jobs:
-      - template: /jobs/competitive-test.yml
+      - template: /jobs/blocked-legacy-n100.yml
         parameters:
           cloud: azure
           regions:
