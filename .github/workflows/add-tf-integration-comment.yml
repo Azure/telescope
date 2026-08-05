@@ -1,0 +1,36 @@
+name: Add Terraform Integration Comment
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  post-comment:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Upsert trigger comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          set -eu
+          marker="<!-- tf-integration-trigger -->"
+          body=$(cat <<EOF
+          $marker
+          For reviewers only: reply \`/run-tf-integration\` to trigger the terraform integration pipeline before approving the PR.
+          EOF
+          )
+
+          existing=$(gh api "/repos/${{ github.repository }}/issues/$PR/comments" --paginate \
+            --jq "[.[] | select(.body | contains(\"$marker\"))] | .[0].id // empty")
+
+          if [ -n "$existing" ]; then
+            gh api -X PATCH "/repos/${{ github.repository }}/issues/comments/$existing" \
+              -f body="$body" > /dev/null
+          else
+            gh api -X POST "/repos/${{ github.repository }}/issues/$PR/comments" \
+              -f body="$body" > /dev/null
+          fi
