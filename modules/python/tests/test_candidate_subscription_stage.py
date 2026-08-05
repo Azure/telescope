@@ -6,6 +6,7 @@ from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 PIPELINE_PATH = REPOSITORY_ROOT / "pipelines" / "system" / "new-pipeline-test.yml"
+COMPETITIVE_TEST_PATH = REPOSITORY_ROOT / "jobs" / "competitive-test.yml"
 TFVARS_PATH = (
     REPOSITORY_ROOT
     / "scenarios"
@@ -287,6 +288,8 @@ def test_original_subscription_n75_stage_reuses_confirmed_n50_shape():
         'pod-churn-combined,isolation"',
         "max_parallel: 1",
         "timeout_in_minutes: 1200",
+        "skip_execute: true",
+        "skip_publish: true",
     ):
         assert expected in stage
 
@@ -320,3 +323,20 @@ def test_original_subscription_n75_stage_reuses_confirmed_n50_shape():
     assert 'member_label_value = "true"' in tfvars
     assert "member_initial_label_value" not in tfvars
     assert 'deletion_delay = "48h"' in tfvars
+
+
+def test_competitive_job_can_skip_workload_execution():
+    job = COMPETITIVE_TEST_PATH.read_text(encoding="utf-8")
+
+    assert "- name: skip_execute\n  type: boolean\n  default: false" in job
+    assert (
+        "- ${{ if not(parameters.skip_execute) }}:\n"
+        "    - template: /steps/execute-tests.yml"
+        in job
+    )
+    assert (
+        "- ${{ if and(not(parameters.skip_publish), "
+        "not(parameters.skip_execute)) }}:\n"
+        "    - template: /steps/publish-results.yml"
+        in job
+    )

@@ -60,6 +60,9 @@ parameters:
 - name: skip_publish
   type: boolean
   default: false
+- name: skip_execute
+  type: boolean
+  default: false
 - name: emit_resume_manifest
   type: boolean
   default: false
@@ -116,14 +119,15 @@ jobs:
       regions: ${{ parameters.regions }}
       topology: ${{ parameters.topology }}
       engine: ${{ parameters.engine }}
-  - template: /steps/execute-tests.yml
-    parameters:
-      cloud: ${{ parameters.cloud }}
-      topology: ${{ parameters.topology }}
-      engine: ${{ parameters.engine }}
-      regions: ${{ parameters.regions }}
-      engine_input: ${{ parameters.engine_input }}
-  - ${{ if not(parameters.skip_publish) }}:
+  - ${{ if not(parameters.skip_execute) }}:
+    - template: /steps/execute-tests.yml
+      parameters:
+        cloud: ${{ parameters.cloud }}
+        topology: ${{ parameters.topology }}
+        engine: ${{ parameters.engine }}
+        regions: ${{ parameters.regions }}
+        engine_input: ${{ parameters.engine_input }}
+  - ${{ if and(not(parameters.skip_publish), not(parameters.skip_execute)) }}:
     - template: /steps/publish-results.yml
       parameters:
         cloud: ${{ parameters.cloud }}
