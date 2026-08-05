@@ -60,8 +60,8 @@ for row in $(jq -c '.[]' <<< "$clusters"); do
     --overwrite-existing --only-show-errors >/dev/null
 done
 
-HOME="$private_home" \
 CLUSTERS_FILE="$private_home/.kube/clustermesh-clusters.json" \
+CLUSTERMESH_KUBECONFIG_DIR="$private_home/.kube" \
 FLEET_RG="$target_run_id" \
 FLEET_NAME=clustermesh-flt \
 FLEET_PROFILE=clustermesh-cmp \

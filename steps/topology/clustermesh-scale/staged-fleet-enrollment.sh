@@ -8,7 +8,8 @@ if [ "${staged_join_enabled,,}" != "true" ]; then
   exit 0
 fi
 
-clusters_file="${CLUSTERS_FILE:-$HOME/.kube/clustermesh-clusters.json}"
+kubeconfig_dir="${CLUSTERMESH_KUBECONFIG_DIR:-$HOME/.kube}"
+clusters_file="${CLUSTERS_FILE:-$kubeconfig_dir/clustermesh-clusters.json}"
 fleet_rg="${FLEET_RG:?FLEET_RG is required}"
 fleet_name="${FLEET_NAME:?FLEET_NAME is required}"
 fleet_profile="${FLEET_PROFILE:?FLEET_PROFILE is required}"
@@ -309,7 +310,7 @@ profile_provisioning_state() {
 check_member() {
   local role="$1"
   local expected_remote="$2"
-  local kubeconfig="$HOME/.kube/$role.config"
+  local kubeconfig="$kubeconfig_dir/$role.config"
   local available ip status peer_counts ready total timeout_seconds
 
   timeout_seconds=$(remaining_batch_timeout 45) || {

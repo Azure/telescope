@@ -340,6 +340,7 @@ def test_terraform_separates_initial_member_label_from_profile_selector():
     assert "CMP_STAGED_JOIN_RECOVERY_APPLY_AFTER_SECONDS" in staged_script
     assert "CMP_STAGED_JOIN_MAX_RECOVERY_APPLIES" in staged_script
     assert "CMP_STAGED_JOIN_RECOVERY_MIN_POST_SECONDS" in staged_script
+    assert "CLUSTERMESH_KUBECONFIG_DIR" in staged_script
     assert "az fleet member reconcile" not in staged_script
     assert "apply_profile 1" in staged_script
     assert "issuing single-request profile recovery apply" in staged_script
