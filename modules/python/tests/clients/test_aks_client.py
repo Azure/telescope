@@ -166,8 +166,9 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
             agent_pool_name="test-pool",
         )
 
+    @mock.patch("utils.provisioning_instrumentation.time")
     @mock.patch("clients.aks_client.time")
-    def test_create_node_pool_success(self, mock_time):
+    def test_create_node_pool_success(self, mock_time, mock_instr_time):
         """Test successful node pool creation"""
         # Setup
         node_pool_name = "test-pool"
@@ -178,7 +179,8 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         start_time = 100
         arm_done_time = 150
         nodes_ready_time = 130
-        mock_time.time.side_effect = [start_time, arm_done_time, nodes_ready_time]
+        mock_instr_time.time.side_effect = [start_time, arm_done_time, nodes_ready_time]
+        mock_instr_time.sleep = mock.MagicMock()
 
         mock_operation = mock.MagicMock()
         self.mock_agent_pools.begin_create_or_update.return_value = mock_operation
@@ -228,6 +230,55 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         # command_execution_time = arm_done_time - start_time = 150 - 100 = 50
         self.mock_operation.add_metadata.assert_any_call("node_readiness_time", 30)
         self.mock_operation.add_metadata.assert_any_call("command_execution_time", 50)
+
+    @mock.patch("utils.provisioning_instrumentation.time")
+    @mock.patch("clients.aks_client.time")
+    def test_create_node_pool_retry_occurred_metadata(self, mock_time, mock_instr_time):
+        """Test that retry_occurred metadata is set when ARM operation retries"""
+        from azure.core.exceptions import HttpResponseError
+
+        node_pool_name = "test-pool"
+        vm_size = "Standard_DS2_v2"
+        node_count = 2
+
+        start_time = 100
+        arm_done_time = 180
+        nodes_ready_time = 160
+        mock_instr_time.time.side_effect = [start_time, arm_done_time, nodes_ready_time]
+        mock_instr_time.sleep = mock.MagicMock()
+
+        # First call raises OperationNotAllowed, second succeeds
+        error = HttpResponseError(message="OperationNotAllowed")
+        error.error = mock.MagicMock()
+        error.error.code = "OperationNotAllowed"
+        mock_poller = mock.MagicMock()
+        mock_poller.done.return_value = True
+        self.mock_agent_pools.begin_create_or_update.side_effect = [
+            error,
+            mock_poller,
+        ]
+
+        ready_nodes = [mock.MagicMock(), mock.MagicMock()]
+        self.mock_k8s.wait_for_nodes_ready.return_value = ready_nodes
+
+        mock_created_node_pool = mock.MagicMock()
+        mock_created_node_pool.as_dict.return_value = {
+            "name": node_pool_name,
+            "vm_size": vm_size,
+            "count": node_count,
+        }
+        self.aks_client.get_node_pool = mock.MagicMock(return_value=mock_created_node_pool)
+
+        result = self.aks_client.create_node_pool(
+            node_pool_name=node_pool_name,
+            vm_size=vm_size,
+            node_count=node_count,
+            gpu_node_pool=False,
+        )
+
+        self.assertTrue(result)
+        self.assertEqual(self.mock_agent_pools.begin_create_or_update.call_count, 2)
+        self.mock_operation.add_metadata.assert_any_call("retry_occurred", True)
 
     @mock.patch("clients.aks_client.time")
     def test_create_node_pool_gpu(self, mock_time):
@@ -336,8 +387,9 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         self.mock_k8s.verify_managed_gpu_systemd_services.assert_called_once_with(ready_nodes)
         self.mock_k8s.verify_nvidia_smi_on_node.assert_called_once_with(ready_nodes)
 
+    @mock.patch("utils.provisioning_instrumentation.time")
     @mock.patch("clients.aks_client.time")
-    def test_scale_node_pool_up(self, mock_time):
+    def test_scale_node_pool_up(self, mock_time, mock_instr_time):
         """Test scaling a node pool up"""
         # Setup
         node_pool_name = "test-pool"
@@ -347,7 +399,8 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
         start_time = 100
         arm_done_time = 150
         nodes_ready_time = 130
-        mock_time.time.side_effect = [start_time, arm_done_time, nodes_ready_time]
+        mock_instr_time.time.side_effect = [start_time, arm_done_time, nodes_ready_time]
+        mock_instr_time.sleep = mock.MagicMock()
         mock_time.sleep = mock.MagicMock()
 
         mock_node_pool = mock.MagicMock()

@@ -16,7 +16,6 @@ import logging
 import os
 import subprocess
 import time
-from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Optional, Any
 
 # Third party imports
@@ -29,6 +28,10 @@ from azure.mgmt.containerservice import ContainerServiceClient
 # Local imports
 from utils.logger_config import get_logger, setup_logging
 from utils.common import get_env_vars
+from utils.provisioning_instrumentation import (
+    begin_create_or_update_with_retry,
+    instrument_nodepool_provisioning,
+)
 from .kubernetes_client import KubernetesClient
 
 # Configure logging
@@ -69,87 +72,30 @@ class AKSClient:
         parameters: Any,
         node_count: int,
         op,
-        use_retry: bool = False,
         label: str = "",
     ) -> list:
         """
         Run ARM operation and K8s node readiness check concurrently using threads.
-
-        Args:
-            node_pool_name: Name of the node pool being provisioned
-            cluster_name: Name of the AKS cluster
-            parameters: Parameters for begin_create_or_update (dict or node pool object)
-            node_count: Expected number of nodes to be ready
-            op: Operation context for recording timing metadata
-            use_retry: If True, use _begin_update_with_retry for transient error handling
-            label: Optional label for retry log messages (e.g. "step 2 ")
-
-        Returns:
-            List of ready nodes
-
-        Raises:
-            Exception: If either the ARM operation or K8s readiness check fails.
+        Delegates to provisioning_instrumentation.instrument_nodepool_provisioning.
         """
-        start_time = time.time()
-        label_selector = f"agentpool={node_pool_name}"
-
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            if use_retry:
-                arm_future = executor.submit(
-                    lambda: (
-                        self._begin_update_with_retry(node_pool_name, cluster_name, parameters, label=label),
-                        time.time(),
-                    )
-                )
-            else:
-                poller = self.aks_client.agent_pools.begin_create_or_update(
-                    resource_group_name=self.resource_group,
-                    resource_name=cluster_name,
-                    agent_pool_name=node_pool_name,
-                    parameters=parameters,
-                )
-                arm_future = executor.submit(lambda: (poller.result(), time.time()))
-            k8s_future = executor.submit(
-                lambda: (
-                    self.k8s_client.wait_for_nodes_ready(
-                        node_count=node_count,
-                        operation_timeout_in_minutes=self.operation_timeout_minutes,
-                        label_selector=label_selector,
-                    ),
-                    time.time(),
-                )
-            )
-
-        arm_exc = arm_future.exception()
-        k8s_exc = k8s_future.exception()
-
-        if arm_exc or k8s_exc:
-            elapsed = time.time() - start_time
-            arm_status = f"FAILED: {arm_exc}" if arm_exc else "succeeded"
-            k8s_status = f"FAILED: {k8s_exc}" if k8s_exc else "succeeded"
-            logger.error(
-                "Concurrent operation failed after %.2fs - ARM: %s, K8s readiness: %s",
-                elapsed, arm_status, k8s_status
-            )
-            if arm_exc:
-                raise arm_exc
-            raise k8s_exc
-
-        _, arm_timestamp = arm_future.result()
-        ready_nodes, ready_timestamp = k8s_future.result()
-
-        node_readiness_time = ready_timestamp - start_time
-        command_execution_time = arm_timestamp - start_time
-
-        op.add_metadata("node_readiness_time", node_readiness_time)
-        op.add_metadata("command_execution_time", command_execution_time)
-        logger.info(
-            "[%s] ARM completed in %.2fs, K8s nodes ready in %.2fs | Delta: %.2fs",
-            node_pool_name, command_execution_time, node_readiness_time,
-            abs(command_execution_time - node_readiness_time)
+        arm_callable = lambda: begin_create_or_update_with_retry(
+            self.aks_client, self.resource_group,
+            cluster_name, node_pool_name, parameters, label=label,
+        )
+        k8s_wait_callable = lambda: self.k8s_client.wait_for_nodes_ready(
+            node_count=node_count,
+            operation_timeout_in_minutes=self.operation_timeout_minutes,
+            label_selector=f"agentpool={node_pool_name}",
         )
 
-        return ready_nodes
+        return instrument_nodepool_provisioning(
+            node_pool_name=node_pool_name,
+            cluster_name=cluster_name,
+            op=op,
+            arm_callable=arm_callable,
+            k8s_wait_callable=k8s_wait_callable,
+            label=label,
+        )
 
     def __init__(
         self,
@@ -348,54 +294,6 @@ class AKSClient:
         except HttpResponseError as e:
             logger.error(f"Error getting node pool {node_pool_name}: {str(e)}")
             raise
-
-    def _begin_update_with_retry(
-        self,
-        node_pool_name: str,
-        cluster_name: str,
-        node_pool: Any,
-        label: str = "",
-        retries: int = 10,
-        retry_wait: int = 30,
-        poll_interval: int = 30,
-        timeout: int = 1800,
-    ) -> None:
-        """
-        Call begin_create_or_update with retry on OperationNotAllowed/EtagMismatch,
-        polling every poll_interval seconds and raising TimeoutError after timeout seconds.
-        timeout defaults to 1800s (30 min) for slow GPU node provisioning (A100 MIG).
-        """
-        for attempt in range(retries):
-            try:
-                poller = self.aks_client.agent_pools.begin_create_or_update(
-                    resource_group_name=self.resource_group,
-                    resource_name=cluster_name,
-                    agent_pool_name=node_pool_name,
-                    parameters=node_pool,
-                )
-                elapsed = 0
-                while not poller.done():
-                    time.sleep(poll_interval)
-                    elapsed += poll_interval
-                    if elapsed >= timeout:
-                        raise TimeoutError(
-                            f"Node pool {node_pool_name} {label}scale timed out after {timeout}s"
-                        )
-                    logger.info(
-                        f"Waiting for node pool {node_pool_name} {label}scale to complete "
-                        f"({elapsed}s elapsed)..."
-                    )
-                poller.result()
-                return
-            except HttpResponseError as e:
-                if any(code in str(e) for code in ("OperationNotAllowed", "EtagMismatch")) and attempt < retries - 1:
-                    logger.warning(
-                        f"Cluster has an in-progress operation, retrying in {retry_wait}s "
-                        f"(attempt {attempt + 1}/{retries}): {e.error.code}"
-                    )
-                    time.sleep(retry_wait)
-                else:
-                    raise
 
     def add_managed_gpu_node_pool(
         self,
@@ -780,7 +678,6 @@ class AKSClient:
                 # Run ARM and K8s readiness concurrently to capture both timings
                 ready_nodes = self._instrument_nodepool_provisioning(
                     node_pool_name, cluster_name, node_pool, node_count, op,
-                    use_retry=True,
                 )
 
                 logger.info(
@@ -1004,7 +901,6 @@ class AKSClient:
                     # Run ARM and K8s readiness concurrently to capture both timings
                     ready_nodes = self._instrument_nodepool_provisioning(
                         node_pool_name, cluster_name, node_pool, step, op,
-                        use_retry=True,
                         label=f"step {step} ",
                     )
 
