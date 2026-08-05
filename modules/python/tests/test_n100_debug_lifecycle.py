@@ -64,6 +64,7 @@ def test_debug_stages_are_explicitly_mode_gated():
     assert "emit_resume_manifest: true" in fresh
     assert 'debug_preserve: "true"' in fresh
     assert "eq(variables['Build.Reason'], 'Manual')" in fresh
+    assert "eq(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], '')" in fresh
     assert "- eastus2euap" in fresh
     assert "azure-100-mock-shared.tfvars" in fresh
     assert "standardDv3Family" in fresh
@@ -74,6 +75,7 @@ def test_debug_stages_are_explicitly_mode_gated():
     assert "CLUSTERMESH_DEBUG_CONFIRM_RESET" in reset
     assert "reset-fleet-overlay.sh" in reset
     assert "eq(variables['Build.Reason'], 'Manual')" in reset
+    assert "eq(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], '')" in reset
     assert "region: eastus2euap" in reset
     assert "azure-100-mock-shared.tfvars" in reset
 
@@ -81,6 +83,7 @@ def test_debug_stages_are_explicitly_mode_gated():
     assert "clustermesh-debug-resume.yml" in resume
     assert "CLUSTERMESH_QUOTA_PREFLIGHT_ENABLED: \"false\"" in resume
     assert "eq(variables['Build.Reason'], 'Manual')" in resume
+    assert "eq(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], '')" in resume
     assert "region: eastus2euap" in resume
     assert "azure-100-mock-shared.tfvars" in resume
     assert 'cl2_prom_snapshot_storage_account: "cmshscaleprom"' in resume
@@ -90,6 +93,7 @@ def test_debug_stages_are_explicitly_mode_gated():
     assert "CLUSTERMESH_DEBUG_EXPECTED_SUBSCRIPTION_ID" in cleanup
     assert "delete-preserved-rg.sh" in cleanup
     assert "eq(variables['Build.Reason'], 'Manual')" in cleanup
+    assert "eq(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], '')" in cleanup
     assert "CLUSTERMESH_DEBUG_EXPECTED_REGION: eastus2euap" in cleanup
 
     invalid_start = pipeline.index("- stage: n100_debug_mode_invalid")
@@ -123,6 +127,10 @@ def test_fleet_reset_and_resume_do_not_mutate_aks_lifecycle():
     assert "az fleet member delete" in reset
     assert "az fleet delete" in reset
     assert "does not exactly match" in reset
+    assert "CLUSTERMESH_DEBUG_EXPECTED_CLUSTER_COUNT" in reset
+    assert "--argjson expected_count" in reset
+    assert "issuing bounded apply nudge" in reset
+    assert "deferring apply nudge" in reset
 
     assert "az aks create" not in create
     assert "az group create" not in create

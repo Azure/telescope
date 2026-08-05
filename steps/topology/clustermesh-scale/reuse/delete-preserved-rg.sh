@@ -6,6 +6,8 @@ target_run_id="${CLUSTERMESH_DEBUG_TARGET_RUN_ID:?CLUSTERMESH_DEBUG_TARGET_RUN_I
 confirm="${CLUSTERMESH_DEBUG_CONFIRM_DELETE:?CLUSTERMESH_DEBUG_CONFIRM_DELETE is required}"
 expected_subscription="${CLUSTERMESH_DEBUG_EXPECTED_SUBSCRIPTION_ID:?CLUSTERMESH_DEBUG_EXPECTED_SUBSCRIPTION_ID is required}"
 expected_region="${CLUSTERMESH_DEBUG_EXPECTED_REGION:-eastus2}"
+expected_count="${CLUSTERMESH_DEBUG_EXPECTED_CLUSTER_COUNT:-}"
+expected_tfvars_sha="${CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256:-}"
 
 if [ "$confirm" != "$target_run_id" ]; then
   echo "Delete confirmation mismatch: CLUSTERMESH_DEBUG_CONFIRM_DELETE must equal $target_run_id." >&2
@@ -32,6 +34,16 @@ if [ "$(jq -r '.tags.clustermesh_debug_preserved // "false"' <<< "$rg_json")" !=
 fi
 if [ "$(jq -r '.tags.scenario // empty' <<< "$rg_json")" != "perf-eval-clustermesh-scale" ]; then
   echo "Refusing to delete RG with unexpected scenario tag." >&2
+  exit 1
+fi
+if [ -n "$expected_count" ] &&
+   [ "$(jq -r '.tags.clustermesh_debug_expected_clusters // empty' <<< "$rg_json")" != "$expected_count" ]; then
+  echo "Refusing to delete RG with unexpected preserved cluster-count tag." >&2
+  exit 1
+fi
+if [ -n "$expected_tfvars_sha" ] &&
+   [ "$(jq -r '.tags.clustermesh_debug_tfvars_sha256 // empty' <<< "$rg_json")" != "$expected_tfvars_sha" ]; then
+  echo "Refusing to delete RG with unexpected desired-state SHA tag." >&2
   exit 1
 fi
 

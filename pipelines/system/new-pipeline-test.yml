@@ -19,6 +19,7 @@ variables:
   CLUSTERMESH_DEBUG_CONFIRM_RESET: ""
   CLUSTERMESH_DEBUG_CONFIRM_RESUME: ""
   CLUSTERMESH_DEBUG_CONFIRM_DELETE: ""
+  CLUSTERMESH_REUSE_SMOKE_MODE: ""
 
 stages:
   # 2026-05-13: Phase 4b smoke at n=2 to validate Option B++ fix
@@ -1417,20 +1418,194 @@ stages:
           skip_publish: false
 
   # ===========================================================================
-  # Original-subscription n=100 comparison stage.
+  # n=2 persistence lifecycle smoke. Run one mode per manual pipeline run:
+  # preserve -> reset -> resume -> cleanup. The preserve stage deliberately
+  # fails after proving a healthy n=2 mesh, leaving a tagged RG for the next
+  # stage. Target/confirmation variables use the preserved RUN_ID artifact.
+  # ===========================================================================
+  - stage: azure_eastus2euap_n2_reuse_smoke_preserve_37deca
+    dependsOn: []
+    condition: and(always(), eq(variables['Build.Reason'], 'Manual'), eq(variables['CLUSTERMESH_DEBUG_MODE'], ''), eq(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], 'preserve'))
+    displayName: "SMOKE n=2 preserve with intentional failure (37deca)"
+    jobs:
+      - job: preserve_n2
+        timeoutInMinutes: 120
+        steps:
+          - task: AzureCLI@2
+            displayName: "Create healthy n=2 mesh and inject failure"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+                whl="$(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/vendor/fleet-2.0.4-py3-none-any.whl"
+                az extension remove --name fleet --only-show-errors 2>/dev/null || true
+                az extension add --source "$whl" --yes --only-show-errors
+                export CLUSTERMESH_SMOKE_RUN_ID="$(Build.BuildId)-${SYSTEM_JOBID:0:8}"
+                bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/run-n2-preserve-smoke.sh"
+            env:
+              CLUSTERMESH_DEBUG_EXPECTED_SUBSCRIPTION_ID: "37deca37-c375-4a14-b90a-043849bd2bf1"
+              CLUSTERMESH_DEBUG_EXPECTED_REGION: eastus2euap
+              CLUSTERMESH_SMOKE_ARTIFACT_DIR: $(Build.ArtifactStagingDirectory)/n2-reuse-smoke
+              CLUSTERMESH_DEBUG_DESIRED_STATE_PATH: $(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/run-n2-preserve-smoke.sh
+              BUILD_SOURCEVERSION: $(Build.SourceVersion)
+          - task: PublishPipelineArtifact@1
+            displayName: "Publish preserved n=2 target manifest"
+            condition: always()
+            inputs:
+              targetPath: $(Build.ArtifactStagingDirectory)/n2-reuse-smoke
+              artifact: n2-reuse-preserve-$(Build.BuildId)
+
+  - stage: azure_eastus2euap_n2_reuse_smoke_reset_37deca
+    dependsOn: []
+    condition: and(always(), eq(variables['Build.Reason'], 'Manual'), eq(variables['CLUSTERMESH_DEBUG_MODE'], ''), eq(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], 'reset'))
+    displayName: "SMOKE n=2 reset Fleet overlay (37deca)"
+    jobs:
+      - job: reset_n2
+        timeoutInMinutes: 120
+        steps:
+          - task: AzureCLI@2
+            displayName: "Validate preserved n=2 and reset Fleet"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+                whl="$(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/vendor/fleet-2.0.4-py3-none-any.whl"
+                az extension remove --name fleet --only-show-errors 2>/dev/null || true
+                az extension add --source "$whl" --yes --only-show-errors
+                export CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256
+                CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256=$(sha256sum "$CLUSTERMESH_DEBUG_DESIRED_STATE_PATH" | awk '{print $1}')
+                bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/validate-existing-n100.sh"
+                bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/reset-fleet-overlay.sh"
+            env:
+              CLUSTERMESH_DEBUG_TARGET_RUN_ID: $(CLUSTERMESH_DEBUG_TARGET_RUN_ID)
+              CLUSTERMESH_DEBUG_CONFIRM_RESET: $(CLUSTERMESH_DEBUG_CONFIRM_RESET)
+              CLUSTERMESH_DEBUG_EXPECTED_SUBSCRIPTION_ID: "37deca37-c375-4a14-b90a-043849bd2bf1"
+              CLUSTERMESH_DEBUG_EXPECTED_REGION: eastus2euap
+              CLUSTERMESH_DEBUG_EXPECTED_CLUSTER_COUNT: "2"
+              CLUSTERMESH_DEBUG_EXTEND_LEASE_HOURS: "24"
+              CLUSTERMESH_DEBUG_REQUIRE_OVERLAY_RESET: "false"
+              CLUSTERMESH_DEBUG_MANIFEST_PATH: $(Build.ArtifactStagingDirectory)/n2-reuse-smoke/reset-validation.json
+              CLUSTERMESH_DEBUG_DESIRED_STATE_PATH: $(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/run-n2-preserve-smoke.sh
+          - task: PublishPipelineArtifact@1
+            displayName: "Publish n=2 reset evidence"
+            condition: always()
+            inputs:
+              targetPath: $(Build.ArtifactStagingDirectory)/n2-reuse-smoke
+              artifact: n2-reuse-reset-$(Build.BuildId)
+
+  - stage: azure_eastus2euap_n2_reuse_smoke_resume_37deca
+    dependsOn: []
+    condition: and(always(), eq(variables['Build.Reason'], 'Manual'), eq(variables['CLUSTERMESH_DEBUG_MODE'], ''), eq(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], 'resume'))
+    displayName: "SMOKE n=2 resume preserved clusters (37deca)"
+    jobs:
+      - job: resume_n2
+        timeoutInMinutes: 120
+        steps:
+          - task: AzureCLI@2
+            displayName: "Recreate Fleet and verify staged resume"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+                whl="$(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/vendor/fleet-2.0.4-py3-none-any.whl"
+                az extension remove --name fleet --only-show-errors 2>/dev/null || true
+                az extension add --source "$whl" --yes --only-show-errors
+                bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/resume-n2-preserved-smoke.sh"
+            env:
+              CLUSTERMESH_DEBUG_TARGET_RUN_ID: $(CLUSTERMESH_DEBUG_TARGET_RUN_ID)
+              CLUSTERMESH_DEBUG_CONFIRM_RESUME: $(CLUSTERMESH_DEBUG_CONFIRM_RESUME)
+              CLUSTERMESH_DEBUG_EXPECTED_SUBSCRIPTION_ID: "37deca37-c375-4a14-b90a-043849bd2bf1"
+              CLUSTERMESH_DEBUG_EXPECTED_REGION: eastus2euap
+              CLUSTERMESH_SMOKE_ARTIFACT_DIR: $(Build.ArtifactStagingDirectory)/n2-reuse-smoke
+              CLUSTERMESH_DEBUG_DESIRED_STATE_PATH: $(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/run-n2-preserve-smoke.sh
+              REPOSITORY_ROOT: $(Pipeline.Workspace)/s
+          - task: PublishPipelineArtifact@1
+            displayName: "Publish n=2 resume evidence"
+            condition: always()
+            inputs:
+              targetPath: $(Build.ArtifactStagingDirectory)/n2-reuse-smoke
+              artifact: n2-reuse-resume-$(Build.BuildId)
+
+  - stage: azure_eastus2euap_n2_reuse_smoke_cleanup_37deca
+    dependsOn: []
+    condition: and(always(), eq(variables['Build.Reason'], 'Manual'), eq(variables['CLUSTERMESH_DEBUG_MODE'], ''), eq(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], 'cleanup'))
+    displayName: "SMOKE n=2 guarded cleanup (37deca)"
+    jobs:
+      - job: cleanup_n2
+        timeoutInMinutes: 150
+        steps:
+          - task: AzureCLI@2
+            displayName: "Validate and delete preserved n=2 RG"
+            inputs:
+              azureSubscription: $(AZURE_SERVICE_CONNECTION)
+              scriptType: bash
+              scriptLocation: inlineScript
+              inlineScript: |
+                set -euo pipefail
+                export CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256
+                CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256=$(sha256sum "$CLUSTERMESH_DEBUG_DESIRED_STATE_PATH" | awk '{print $1}')
+                bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/delete-preserved-rg.sh"
+            env:
+              CLUSTERMESH_DEBUG_TARGET_RUN_ID: $(CLUSTERMESH_DEBUG_TARGET_RUN_ID)
+              CLUSTERMESH_DEBUG_CONFIRM_DELETE: $(CLUSTERMESH_DEBUG_CONFIRM_DELETE)
+              CLUSTERMESH_DEBUG_EXPECTED_SUBSCRIPTION_ID: "37deca37-c375-4a14-b90a-043849bd2bf1"
+              CLUSTERMESH_DEBUG_EXPECTED_REGION: eastus2euap
+              CLUSTERMESH_DEBUG_EXPECTED_CLUSTER_COUNT: "2"
+              CLUSTERMESH_DEBUG_DESIRED_STATE_PATH: $(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/run-n2-preserve-smoke.sh
+
+  - stage: n2_reuse_smoke_mode_invalid
+    dependsOn: []
+    condition: >-
+      and(always(),
+      ne(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], ''),
+      ne(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], 'preserve'),
+      ne(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], 'reset'),
+      ne(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], 'resume'),
+      ne(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], 'cleanup'))
+    displayName: "INVALID n=2 reuse smoke mode"
+    jobs:
+      - job: reject_invalid_n2_reuse_mode
+        timeoutInMinutes: 5
+        steps:
+          - bash: |
+              echo "##vso[task.logissue type=error;] Unsupported CLUSTERMESH_REUSE_SMOKE_MODE='$(CLUSTERMESH_REUSE_SMOKE_MODE)'."
+              exit 1
+            displayName: "Reject unsupported n=2 reuse smoke mode"
+
+  - stage: clustermesh_lifecycle_mode_conflict
+    dependsOn: []
+    condition: and(always(), ne(variables['CLUSTERMESH_DEBUG_MODE'], ''), ne(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], ''))
+    displayName: "INVALID simultaneous ClusterMesh lifecycle modes"
+    jobs:
+      - job: reject_conflicting_modes
+        timeoutInMinutes: 5
+        steps:
+          - bash: |
+              echo "##vso[task.logissue type=error;] CLUSTERMESH_DEBUG_MODE and CLUSTERMESH_REUSE_SMOKE_MODE cannot both be set."
+              exit 1
+            displayName: "Reject conflicting lifecycle modes"
+
+  # ===========================================================================
+  # Original-subscription n=99 pagination-boundary stage.
   #
   # Uses the historically successful East US 2 EUAP topology and the non-s
   # Dv3 family (Standard_D8_v3). This is a distinct quota family from the
   # candidate East US 2 stage's Standard_D8s_v3 / standardDSv3Family.
   # The required-subscription guard prevents another wrong-subscription run.
   # ===========================================================================
-  - stage: azure_eastus2euap_n100_mock_37deca
+  - stage: azure_eastus2euap_n99_mock_37deca
     dependsOn: []
     condition: >-
       and(always(),
       eq(variables['Build.Reason'], 'Manual'),
       eq(variables['CLUSTERMESH_DEBUG_MODE'], ''))
-    displayName: "n=100 East US 2 EUAP MOCK (37deca Dv3)"
+    displayName: "n=99 East US 2 EUAP MOCK pagination boundary (37deca Dv3)"
     variables:
       CLUSTERMESH_REQUIRED_SUBSCRIPTION_ID: "37deca37-c375-4a14-b90a-043849bd2bf1"
       MOCK_ACR_HOST: mockmeshshared11225.azurecr.io
@@ -1455,7 +1630,7 @@ stages:
       AKS_PLATFORM_METRICS_REQUIRE_WINDOW_COVERAGE: "false"
       AKS_PLATFORM_METRICS_TIMEOUT_SECONDS: "0"
       AKS_CONTROL_PLANE_AMW_RESOURCE_GROUP: clustermesh-scale-prom-snapshots
-      AKS_CONTROL_PLANE_AMW_NAME_PREFIX: cmsh-scale-eastus2euap-n100-amw
+      AKS_CONTROL_PLANE_AMW_NAME_PREFIX: cmsh-scale-eastus2euap-n99-amw
       AKS_AMW_ARM_BATCH_SIZE: "10"
       AKS_AMW_CLUSTERS_PER_WORKSPACE: "2"
       AKS_AMW_MAX_ACTIVE_TIME_SERIES: "2000000"
@@ -1466,10 +1641,10 @@ stages:
       AKS_CONTROL_PLANE_LAW_LOCATION: eastus2
       AKS_CONTROL_PLANE_LOG_RETENTION_DAYS: "30"
       CLUSTERMESH_QUOTA_PREFLIGHT_ENABLED: "true"
-      CLUSTERMESH_REQUIRED_MANAGED_CLUSTERS: "100"
+      CLUSTERMESH_REQUIRED_MANAGED_CLUSTERS: "99"
       CLUSTERMESH_MANAGED_CLUSTER_QUOTA_HEADROOM: "5"
       CLUSTERMESH_VM_FAMILY_QUOTA_NAME: standardDv3Family
-      CLUSTERMESH_REQUIRED_FAMILY_VCPUS: "2536"
+      CLUSTERMESH_REQUIRED_FAMILY_VCPUS: "2512"
       CLUSTERMESH_QUOTA_HEADROOM_VCPUS: "128"
       CMP_AUTO_RECOVERY_ENABLED: "false"
       CMP_STAGED_JOIN_ENABLED: "true"
@@ -1504,15 +1679,15 @@ stages:
             operation_timeout: 90m
           topology: clustermesh-scale-mock
           terraform_input_file_mapping:
-            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-100-mock-shared.tfvars"
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-99-mock-shared.tfvars"
           matrix:
-            n100_mock_eastus2euap_37deca:
+            n99_mock_eastus2euap_37deca:
               cl2_prom_snapshot_enabled: "true"
               cl2_prom_snapshot_target: "blob"
               cl2_prom_snapshot_storage_account: "cmshscaleprom"
               cl2_prom_snapshot_container: "snapshots"
-              cluster_count: 100
-              mesh_size: 100
+              cluster_count: 99
+              mesh_size: 99
               share_infra_scenarios: "propagation-probe,event-throughput,policy-scale,pod-churn-combined,apiserver-failure,isolation,node-churn-combined,upper-bound"
               share_infra_settle_seconds: 300
               agent_disk_min_free_gi: 40
@@ -1523,7 +1698,7 @@ stages:
               cl2_config_file: ""
               cl2_max_concurrent: 12
               test_type: shared
-              test_type_suffix: "-mock-eus2euap-37deca"
+              test_type_suffix: "-mock-eus2euap-n99-37deca"
               mock_mode: true
               kwok_usage_cpu: "25m"
               kwok_usage_memory: "64Mi"
@@ -2279,7 +2454,7 @@ stages:
   # ===========================================================================
   - stage: azure_eastus2euap_n100_debug_preserve_37deca
     dependsOn: []
-    condition: and(always(), eq(variables['Build.Reason'], 'Manual'), eq(variables['CLUSTERMESH_DEBUG_MODE'], 'fresh-preserve'))
+    condition: and(always(), eq(variables['Build.Reason'], 'Manual'), eq(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], ''), eq(variables['CLUSTERMESH_DEBUG_MODE'], 'fresh-preserve'))
     displayName: "DEBUG EUAP n=100 fresh provision + preserve RG (37deca)"
     variables:
       SKIP_RESOURCE_DELETION: "true"
@@ -2415,7 +2590,7 @@ stages:
 
   - stage: azure_eastus2euap_n100_debug_reset_fleet_37deca
     dependsOn: []
-    condition: and(always(), eq(variables['Build.Reason'], 'Manual'), eq(variables['CLUSTERMESH_DEBUG_MODE'], 'reset-fleet'))
+    condition: and(always(), eq(variables['Build.Reason'], 'Manual'), eq(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], ''), eq(variables['CLUSTERMESH_DEBUG_MODE'], 'reset-fleet'))
     displayName: "DEBUG EUAP n=100 reset Fleet overlay only (37deca)"
     variables:
       CLUSTERMESH_REQUIRED_SUBSCRIPTION_ID: "37deca37-c375-4a14-b90a-043849bd2bf1"
@@ -2461,7 +2636,7 @@ stages:
 
   - stage: azure_eastus2euap_n100_debug_resume_37deca
     dependsOn: []
-    condition: and(always(), eq(variables['Build.Reason'], 'Manual'), eq(variables['CLUSTERMESH_DEBUG_MODE'], 'resume'))
+    condition: and(always(), eq(variables['Build.Reason'], 'Manual'), eq(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], ''), eq(variables['CLUSTERMESH_DEBUG_MODE'], 'resume'))
     displayName: "DEBUG EUAP n=100 resume preserved AKS clusters (37deca)"
     variables:
       CLUSTERMESH_REQUIRED_SUBSCRIPTION_ID: "37deca37-c375-4a14-b90a-043849bd2bf1"
@@ -2579,7 +2754,7 @@ stages:
 
   - stage: azure_eastus2euap_n100_debug_cleanup_37deca
     dependsOn: []
-    condition: and(always(), eq(variables['Build.Reason'], 'Manual'), eq(variables['CLUSTERMESH_DEBUG_MODE'], 'cleanup'))
+    condition: and(always(), eq(variables['Build.Reason'], 'Manual'), eq(variables['CLUSTERMESH_REUSE_SMOKE_MODE'], ''), eq(variables['CLUSTERMESH_DEBUG_MODE'], 'cleanup'))
     displayName: "DEBUG EUAP n=100 delete preserved RG (37deca)"
     variables:
       CLUSTERMESH_REQUIRED_SUBSCRIPTION_ID: "37deca37-c375-4a14-b90a-043849bd2bf1"
@@ -2595,12 +2770,17 @@ stages:
               scriptLocation: inlineScript
               inlineScript: |
                 set -euo pipefail
+                export CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256
+                CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256=$(sha256sum \
+                  "$(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-100-mock-shared.tfvars" \
+                  | awk '{print $1}')
                 bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/delete-preserved-rg.sh"
             env:
               CLUSTERMESH_DEBUG_TARGET_RUN_ID: $(CLUSTERMESH_DEBUG_TARGET_RUN_ID)
               CLUSTERMESH_DEBUG_CONFIRM_DELETE: $(CLUSTERMESH_DEBUG_CONFIRM_DELETE)
               CLUSTERMESH_DEBUG_EXPECTED_SUBSCRIPTION_ID: $(CLUSTERMESH_REQUIRED_SUBSCRIPTION_ID)
               CLUSTERMESH_DEBUG_EXPECTED_REGION: eastus2euap
+              CLUSTERMESH_DEBUG_EXPECTED_CLUSTER_COUNT: "100"
 
   - stage: n100_debug_mode_invalid
     dependsOn: []

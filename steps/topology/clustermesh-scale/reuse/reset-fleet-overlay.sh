@@ -7,9 +7,14 @@ confirm="${CLUSTERMESH_DEBUG_CONFIRM_RESET:?CLUSTERMESH_DEBUG_CONFIRM_RESET is r
 fleet_name="${CLUSTERMESH_DEBUG_FLEET_NAME:-clustermesh-flt}"
 profile_name="${CLUSTERMESH_DEBUG_PROFILE_NAME:-clustermesh-cmp}"
 label_key="${CMP_MEMBER_LABEL_KEY:-mesh}"
+expected_count="${CLUSTERMESH_DEBUG_EXPECTED_CLUSTER_COUNT:-100}"
 
 if [ "$confirm" != "$target_run_id" ]; then
   echo "Reset confirmation mismatch: CLUSTERMESH_DEBUG_CONFIRM_RESET must equal $target_run_id." >&2
+  exit 1
+fi
+if ! [[ "$expected_count" =~ ^[1-9][0-9]*$ ]]; then
+  echo "CLUSTERMESH_DEBUG_EXPECTED_CLUSTER_COUNT must be a positive integer." >&2
   exit 1
 fi
 
@@ -36,18 +41,19 @@ cluster_json=$(az resource list \
   -o json)
 if ! jq -e -n \
     --argjson members "$member_json" \
-    --argjson clusters "$cluster_json" '
+    --argjson clusters "$cluster_json" \
+    --argjson expected_count "$expected_count" '
       ($clusters
         | map({key:.name, value:(.clusterResourceId | ascii_downcase)})
-        | from_entries) as $expected
+        | from_entries) as $expected_map
       | ($members
         | map({key:.name, value:(.clusterResourceId | ascii_downcase)})
         | from_entries) as $actual
-      | ($members | length) == 100
-        and ($actual | length) == 100
-        and $actual == $expected
+      | ($members | length) == $expected_count
+        and ($actual | length) == $expected_count
+        and $actual == $expected_map
     ' >/dev/null; then
-  echo "Fleet member inventory does not exactly match the validated mesh-1..mesh-100 AKS resources; refusing reset." >&2
+  echo "Fleet member inventory does not exactly match the validated mesh-1..mesh-$expected_count AKS resources; refusing reset." >&2
   exit 1
 fi
 
@@ -66,6 +72,7 @@ if az fleet clustermeshprofile show \
     --name "$profile_name" --output none --only-show-errors || true
 
   drain_deadline=$(( $(date +%s) + 3600 ))
+  next_apply_at=$(( $(date +%s) + 300 ))
   while [ "$(date +%s)" -lt "$drain_deadline" ]; do
     applied=$(az fleet clustermeshprofile list-members \
       --resource-group "$target_run_id" --fleet-name "$fleet_name" \
@@ -74,6 +81,22 @@ if az fleet clustermeshprofile show \
     echo "Fleet overlay drain: applied=$applied"
     if [ "$applied" = "0" ]; then
       break
+    fi
+    now=$(date +%s)
+    if [ "$now" -ge "$next_apply_at" ]; then
+      profile_state=$(az fleet clustermeshprofile show \
+        --resource-group "$target_run_id" --fleet-name "$fleet_name" \
+        --name "$profile_name" --query properties.provisioningState \
+        -o tsv --only-show-errors 2>/dev/null || echo unknown)
+      if [[ "$profile_state" =~ ^(Applying|Updating|Creating)$ ]]; then
+        echo "Fleet overlay drain: profile remains $profile_state; deferring apply nudge."
+      else
+        echo "Fleet overlay drain: profile=$profile_state applied=$applied; issuing bounded apply nudge."
+        timeout --foreground 300s az fleet clustermeshprofile apply \
+          --resource-group "$target_run_id" --fleet-name "$fleet_name" \
+          --name "$profile_name" --output none --only-show-errors || true
+      fi
+      next_apply_at=$(( $(date +%s) + 300 ))
     fi
     sleep 15
   done
