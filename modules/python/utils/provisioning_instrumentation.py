@@ -17,7 +17,6 @@ logger = get_logger(__name__)
 
 def instrument_nodepool_provisioning(
     node_pool_name,
-    cluster_name,
     op,
     arm_callable,
     k8s_wait_callable,
@@ -28,7 +27,6 @@ def instrument_nodepool_provisioning(
 
     Args:
         node_pool_name: Name of the node pool being provisioned
-        cluster_name: Name of the AKS cluster
         op: Operation context for recording timing metadata
         arm_callable: A zero-arg callable that performs the ARM operation and blocks
                       until complete (e.g. begin_create_or_update_with_retry)
@@ -139,3 +137,4 @@ def begin_create_or_update_with_retry(
                 time.sleep(retry_wait)
             else:
                 raise
+    return retry_occurred

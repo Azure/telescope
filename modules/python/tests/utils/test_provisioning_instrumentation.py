@@ -29,7 +29,6 @@ class TestInstrumentNodepoolProvisioning(unittest.TestCase):
 
         result = instrument_nodepool_provisioning(
             node_pool_name="pool1",
-            cluster_name="cluster1",
             op=op,
             arm_callable=arm_callable,
             k8s_wait_callable=k8s_callable,
@@ -51,7 +50,6 @@ class TestInstrumentNodepoolProvisioning(unittest.TestCase):
 
         instrument_nodepool_provisioning(
             node_pool_name="pool1",
-            cluster_name="cluster1",
             op=op,
             arm_callable=arm_callable,
             k8s_wait_callable=k8s_callable,
@@ -71,7 +69,6 @@ class TestInstrumentNodepoolProvisioning(unittest.TestCase):
         with self.assertRaises(RuntimeError) as ctx:
             instrument_nodepool_provisioning(
                 node_pool_name="pool1",
-                cluster_name="cluster1",
                 op=op,
                 arm_callable=arm_callable,
                 k8s_wait_callable=k8s_callable,
@@ -90,7 +87,6 @@ class TestInstrumentNodepoolProvisioning(unittest.TestCase):
         with self.assertRaises(RuntimeError) as ctx:
             instrument_nodepool_provisioning(
                 node_pool_name="pool1",
-                cluster_name="cluster1",
                 op=op,
                 arm_callable=arm_callable,
                 k8s_wait_callable=k8s_callable,

@@ -78,19 +78,21 @@ class AKSClient:
         Run ARM operation and K8s node readiness check concurrently using threads.
         Delegates to provisioning_instrumentation.instrument_nodepool_provisioning.
         """
-        arm_callable = lambda: begin_create_or_update_with_retry(
-            self.aks_client, self.resource_group,
-            cluster_name, node_pool_name, parameters, label=label,
-        )
-        k8s_wait_callable = lambda: self.k8s_client.wait_for_nodes_ready(
-            node_count=node_count,
-            operation_timeout_in_minutes=self.operation_timeout_minutes,
-            label_selector=f"agentpool={node_pool_name}",
-        )
+        def arm_callable():
+            return begin_create_or_update_with_retry(
+                self.aks_client, self.resource_group,
+                cluster_name, node_pool_name, parameters, label=label,
+            )
+
+        def k8s_wait_callable():
+            return self.k8s_client.wait_for_nodes_ready(
+                node_count=node_count,
+                operation_timeout_in_minutes=self.operation_timeout_minutes,
+                label_selector=f"agentpool={node_pool_name}",
+            )
 
         return instrument_nodepool_provisioning(
             node_pool_name=node_pool_name,
-            cluster_name=cluster_name,
             op=op,
             arm_callable=arm_callable,
             k8s_wait_callable=k8s_wait_callable,

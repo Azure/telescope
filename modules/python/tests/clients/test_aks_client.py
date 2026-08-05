@@ -7,6 +7,7 @@ import os
 import unittest
 from unittest import mock
 
+from azure.core.exceptions import HttpResponseError
 from clients.aks_client import AKSClient
 
 class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-attributes
@@ -168,7 +169,7 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
 
     @mock.patch("utils.provisioning_instrumentation.time")
     @mock.patch("clients.aks_client.time")
-    def test_create_node_pool_success(self, mock_time, mock_instr_time):
+    def test_create_node_pool_success(self, _mock_time, mock_instr_time):
         """Test successful node pool creation"""
         # Setup
         node_pool_name = "test-pool"
@@ -233,9 +234,9 @@ class TestAKSClient(unittest.TestCase):  # pylint: disable=too-many-instance-att
 
     @mock.patch("utils.provisioning_instrumentation.time")
     @mock.patch("clients.aks_client.time")
-    def test_create_node_pool_retry_occurred_metadata(self, mock_time, mock_instr_time):
+    def test_create_node_pool_retry_occurred_metadata(self, _mock_time, mock_instr_time):
         """Test that retry_occurred metadata is set when ARM operation retries"""
-        from azure.core.exceptions import HttpResponseError
+
 
         node_pool_name = "test-pool"
         vm_size = "Standard_DS2_v2"
