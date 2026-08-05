@@ -23,6 +23,11 @@ parameters:
 - name: credential_type
   type: string
   default: service_connection
+- name: tfvars_path
+  type: string
+  default: scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-100-mock-shared.tfvars
+- name: expected_subscription_id
+  type: string
 
 jobs:
 - job: azure
@@ -52,7 +57,7 @@ jobs:
       fi
       export CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256
       CLUSTERMESH_DEBUG_EXPECTED_TFVARS_SHA256=$(sha256sum \
-        "$(Pipeline.Workspace)/s/scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-100-mock-shared-dsv3.tfvars" \
+        "$(Pipeline.Workspace)/s/${{ parameters.tfvars_path }}" \
         | awk '{print $1}')
       bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/validate-existing-n100.sh"
       bash "$(Pipeline.Workspace)/s/steps/topology/clustermesh-scale/reuse/create-staged-fleet-overlay.sh"
@@ -61,7 +66,7 @@ jobs:
       RUN_ID: $(RUN_ID)
       CLUSTERMESH_DEBUG_TARGET_RUN_ID: $(RUN_ID)
       CLUSTERMESH_DEBUG_CONFIRM_RESUME: $(CLUSTERMESH_DEBUG_CONFIRM_RESUME)
-      CLUSTERMESH_DEBUG_EXPECTED_SUBSCRIPTION_ID: $(AZURE_SUBSCRIPTION_ID)
+      CLUSTERMESH_DEBUG_EXPECTED_SUBSCRIPTION_ID: ${{ parameters.expected_subscription_id }}
       CLUSTERMESH_DEBUG_EXPECTED_REGION: ${{ parameters.region }}
       CLUSTERMESH_DEBUG_EXPECTED_CLUSTER_COUNT: "100"
       CLUSTERMESH_DEBUG_EXTEND_LEASE_HOURS: "60"
@@ -99,4 +104,4 @@ jobs:
     parameters:
       enabled: true
       region: ${{ parameters.region }}
-      tfvars_path: scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-100-mock-shared-dsv3.tfvars
+      tfvars_path: ${{ parameters.tfvars_path }}

@@ -35,22 +35,22 @@ def _stage_block(name: str, next_name: str) -> str:
 def test_debug_stages_are_explicitly_mode_gated():
     active = _stage_block(
         "azure_eastus2_n100_mock_aksstandalone2",
-        "azure_eastus2_n100_debug_preserve",
+        "azure_eastus2euap_n100_debug_preserve_37deca",
     )
     fresh = _stage_block(
-        "azure_eastus2_n100_debug_preserve",
-        "azure_eastus2_n100_debug_reset_fleet",
+        "azure_eastus2euap_n100_debug_preserve_37deca",
+        "azure_eastus2euap_n100_debug_reset_fleet_37deca",
     )
     reset = _stage_block(
-        "azure_eastus2_n100_debug_reset_fleet",
-        "azure_eastus2_n100_debug_resume",
+        "azure_eastus2euap_n100_debug_reset_fleet_37deca",
+        "azure_eastus2euap_n100_debug_resume_37deca",
     )
     resume = _stage_block(
-        "azure_eastus2_n100_debug_resume",
-        "azure_eastus2_n100_debug_cleanup",
+        "azure_eastus2euap_n100_debug_resume_37deca",
+        "azure_eastus2euap_n100_debug_cleanup_37deca",
     )
     cleanup = _stage_block(
-        "azure_eastus2_n100_debug_cleanup",
+        "azure_eastus2euap_n100_debug_cleanup_37deca",
         "azure_centraluseuap_n100_mock",
     )
 
@@ -64,22 +64,33 @@ def test_debug_stages_are_explicitly_mode_gated():
     assert "emit_resume_manifest: true" in fresh
     assert 'debug_preserve: "true"' in fresh
     assert "eq(variables['Build.Reason'], 'Manual')" in fresh
+    assert "- eastus2euap" in fresh
+    assert "azure-100-mock-shared.tfvars" in fresh
+    assert "standardDv3Family" in fresh
+    assert "standardDSv3Family" not in fresh
+    assert 'cl2_prom_snapshot_storage_account: "cmshscaleprom"' in fresh
 
     assert "CLUSTERMESH_DEBUG_MODE'], 'reset-fleet'" in reset
     assert "CLUSTERMESH_DEBUG_CONFIRM_RESET" in reset
     assert "reset-fleet-overlay.sh" in reset
     assert "eq(variables['Build.Reason'], 'Manual')" in reset
+    assert "region: eastus2euap" in reset
+    assert "azure-100-mock-shared.tfvars" in reset
 
     assert "CLUSTERMESH_DEBUG_MODE'], 'resume'" in resume
     assert "clustermesh-debug-resume.yml" in resume
     assert "CLUSTERMESH_QUOTA_PREFLIGHT_ENABLED: \"false\"" in resume
     assert "eq(variables['Build.Reason'], 'Manual')" in resume
+    assert "region: eastus2euap" in resume
+    assert "azure-100-mock-shared.tfvars" in resume
+    assert 'cl2_prom_snapshot_storage_account: "cmshscaleprom"' in resume
 
     assert "CLUSTERMESH_DEBUG_MODE'], 'cleanup'" in cleanup
     assert "CLUSTERMESH_DEBUG_CONFIRM_DELETE" in cleanup
     assert "CLUSTERMESH_DEBUG_EXPECTED_SUBSCRIPTION_ID" in cleanup
     assert "delete-preserved-rg.sh" in cleanup
     assert "eq(variables['Build.Reason'], 'Manual')" in cleanup
+    assert "CLUSTERMESH_DEBUG_EXPECTED_REGION: eastus2euap" in cleanup
 
     invalid_start = pipeline.index("- stage: n100_debug_mode_invalid")
     invalid_end = pipeline.index(

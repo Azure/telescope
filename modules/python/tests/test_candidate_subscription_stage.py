@@ -50,7 +50,7 @@ def _n100_stage_block():
         "- stage: azure_eastus2_n100_mock_aksstandalone2"
     )
     end = pipeline.index(
-        "- stage: azure_eastus2_n100_debug_preserve", start
+        "- stage: azure_eastus2euap_n100_debug_preserve_37deca", start
     )
     return pipeline[start:end]
 
@@ -219,7 +219,6 @@ def test_candidate_n100_dsv3_topology_matches_dsv4_shape():
 
 def test_original_subscription_n100_stage_uses_non_s_dv3():
     stage = _euap_n100_stage_block()
-    pipeline = PIPELINE_PATH.read_text(encoding="utf-8")
     tfvars = N100_EUAP_TFVARS_PATH.read_text(encoding="utf-8")
 
     for expected in (
