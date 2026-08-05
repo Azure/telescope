@@ -1361,14 +1361,14 @@ stages:
           skip_publish: false
 
   # ============================================================================
-  # Anomaly rerun: N=50 g100 (1 cluster missing data + etcd pending = 128 outlier)
+  # Fleet threshold probe: N=75 after N=50 converged and N=99 stalled.
   # ============================================================================
-  # Quota: 2400 vCPU. Pair with n20_g020 in wave 1 (3360 vCPU < 4992 free).
-  - stage: azure_eastus2euap_anomaly_rerun_n50_g100
+  # Quota: 3600 Dv3 vCPU. Run alone to preserve AKS and Fleet signal isolation.
+  - stage: azure_eastus2euap_fleet_threshold_n75_g100
     dependsOn: []
     variables:
       TF_CLI_ARGS_apply: "-parallelism=4"
-    displayName: "anomaly rerun: n=50 g100 replicate"
+    displayName: "Fleet threshold probe: n=75 g100"
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -1383,11 +1383,11 @@ stages:
             operation_timeout: 30m
           topology: clustermesh-scale
           terraform_input_file_mapping:
-            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-50-shared.tfvars"
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-75-shared.tfvars"
           matrix:
-            n50_g100_v2:
-              cluster_count: 50
-              mesh_size: 50
+            n75_g100_threshold:
+              cluster_count: 75
+              mesh_size: 75
               share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
               cl2_config_file: ""
               test_type: shared
