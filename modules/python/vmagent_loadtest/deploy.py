@@ -9,7 +9,8 @@ import yaml
 from .config import (
     FAKE_EXPORTER_DIR, FAKE_EXPORTER_IMAGE, FAKE_EXPORTER_NS,
     FAKE_EXPORTER_ROLES, KONN_AGENT_IMAGE, KONN_SERVER_IMAGE,
-    KUBELET_SA_NAME, MANIFEST_DIR, VMAGENT_IMAGE, VMSINGLE_IMAGE,
+    KUBELET_SA_NAME, MANIFEST_DIR, VMAGENT_IMAGE, VMAGENT_PROXY_IMAGE, VMSINGLE_IMAGE,
+    VMAGENT_RATE_LIMIT, VMAGENT_FLUSH_INTERVAL,
     log,
 )
 from .utils import kubectl, kubectl_apply, render_template, retry, run
@@ -39,13 +40,14 @@ def ensure_namespace(kubeconfig: str, namespace: str) -> None:
 @retry(max_attempts=3, backoff=5.0)
 def deploy_konnectivity_server(kubeconfig: str, namespace: str, server_count: int = 1,
                                 resources: dict | None = None,
-                                wait: bool = True) -> None:
+                                wait: bool = True,
+                                server_image: str = KONN_SERVER_IMAGE) -> None:
     log.info("Deploying konnectivity-server in %s on control plane...", namespace)
     r = resources or {"cpu_req": "500m", "mem_req": "512Mi",
                       "cpu_lim": "2", "mem_lim": "2Gi"}
     manifest = render_template(MANIFEST_DIR / "konnectivity-server.yaml", {
         "__NAMESPACE__": namespace,
-        "__SERVER_IMAGE__": KONN_SERVER_IMAGE,
+        "__SERVER_IMAGE__": server_image,
         "__SERVER_COUNT__": str(server_count),
         "__SERVER_CPU_REQ__": r["cpu_req"],
         "__SERVER_MEM_REQ__": r["mem_req"],
@@ -79,11 +81,12 @@ def get_server_lb_ip(kubeconfig: str, namespace: str, timeout: int = 300) -> str
 
 @retry(max_attempts=3, backoff=5.0)
 def deploy_konnectivity_agents(kubeconfig: str, namespace: str, server_host: str,
-                                agent_replicas: int) -> None:
+                                agent_replicas: int,
+                                agent_image: str = KONN_AGENT_IMAGE) -> None:
     log.info("Deploying %d konnectivity-agents in %s on dataplane...", agent_replicas, namespace)
     manifest = render_template(MANIFEST_DIR / "konnectivity-agent.yaml", {
         "__NAMESPACE__": namespace,
-        "__AGENT_IMAGE__": KONN_AGENT_IMAGE,
+        "__AGENT_IMAGE__": agent_image,
         "__SERVER_HOST__": server_host,
         "__SERVER_PORT__": "8081",
         "__AGENT_REPLICAS__": str(agent_replicas),
@@ -299,14 +302,13 @@ def deploy_vmagent(kubeconfig: str, namespace: str, dp_api_server: str,
                    vmagent_resources: dict | None = None,
                    proxy_resources: dict | None = None,
                    replicas: int = 1,
-                   rate_limit: int = 2097152,
+                   rate_limit: int = VMAGENT_RATE_LIMIT,
                    max_block_size: int = 8388608,
-                   flush_interval: str = "1s",
                    queues: int = 8,
                    max_rows_per_block: int = 10000) -> None:
     log.info("Deploying VMAgent in %s (SD via %s, %d shard(s), rateLimit=%d, maxBlockSize=%d, "
              "flushInterval=%s, queues=%d, maxRowsPerBlock=%d)...",
-             namespace, dp_api_server, replicas, rate_limit, max_block_size, flush_interval,
+             namespace, dp_api_server, replicas, rate_limit, max_block_size, VMAGENT_FLUSH_INTERVAL,
              queues, max_rows_per_block)
     vm = vmagent_resources or {"cpu_req": "500m", "mem_req": "1Gi",
                                "cpu_lim": "2", "mem_lim": "4Gi"}
@@ -332,9 +334,10 @@ def deploy_vmagent(kubeconfig: str, namespace: str, dp_api_server: str,
         "__PROXY_MEM_REQ__": px["mem_req"],
         "__PROXY_CPU_LIM__": px["cpu_lim"],
         "__PROXY_MEM_LIM__": px["mem_lim"],
+        "__VMAGENT_PROXY_IMAGE__": VMAGENT_PROXY_IMAGE,
         "__VMAGENT_RATE_LIMIT__": str(rate_limit),
         "__VMAGENT_MAX_BLOCK_SIZE__": str(max_block_size),
-        "__VMAGENT_FLUSH_INTERVAL__": flush_interval,
+        "__VMAGENT_FLUSH_INTERVAL__": VMAGENT_FLUSH_INTERVAL,
         "__VMAGENT_QUEUES__": str(queues),
         "__VMAGENT_MAX_ROWS_PER_BLOCK__": str(max_rows_per_block),
     }

@@ -549,6 +549,19 @@ data:
         static_configs:
           - targets: ["localhost:8429"]
 
+      # vmagent-proxy sidecar (real Go binary) — tunnel-reuse/dial/active-connection
+      # metrics, the direct signal for whether --enableTunnelReuse is actually working.
+      # job_name matches prod's real job (aks-operator default_scrape_configs.yaml)
+      # exactly, but WITHOUT prod's metric_relabel_configs keep-filter -- prod's
+      # filter drops vmagent_proxy_active_connections/dials_total, the two metrics
+      # that actually measure tunnel reuse; this harness keeps them so the ramp
+      # can validate reuse, which prod currently cannot.
+      - job_name: vmagent-proxy
+        scrape_interval: 15s
+        metrics_path: /metrics
+        static_configs:
+          - targets: ["localhost:9090"]
+
       - job_name: vmsingle
         scrape_interval: 15s
         metrics_path: /metrics

@@ -100,6 +100,23 @@ TIMESERIES_METRICS = [
     ("konn_server_stream_errors_total",
      'sum(konnectivity_network_proxy_server_stream_errors_total) by (instance,packet_type,segment)'),
 
+    # ---------------- vmagent-proxy sidecar (per shard) -------------------
+    # Direct signal for whether --enableTunnelReuse is working: a flat/low
+    # dials_total relative to requests_total means tunnels are being reused
+    # instead of a fresh dial+CONNECT per scrape.
+    ("vmagent_proxy_requests_total",
+     'vmagent_proxy_requests_total'),
+    ("vmagent_proxy_dials_total",
+     'sum(vmagent_proxy_dials_total) by (instance,result)'),
+    ("vmagent_proxy_dial_duration_sum",
+     'vmagent_proxy_dial_duration_seconds_sum'),
+    ("vmagent_proxy_dial_duration_count",
+     'vmagent_proxy_dial_duration_seconds_count'),
+    ("vmagent_proxy_active_connections",
+     'vmagent_proxy_active_connections'),
+    ("vmagent_proxy_errors_total",
+     'sum(vmagent_proxy_errors_total) by (instance,code)'),
+
     # ---------------- konnectivity-agent (one series per agent pod) ------
     ("konn_agent_memory_bytes",
      'process_resident_memory_bytes{job="konnectivity-agent"}'),

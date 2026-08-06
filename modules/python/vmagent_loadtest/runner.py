@@ -16,7 +16,9 @@ from .config import (
     KONN_SERVER_IMAGE, NODE_ALLOCATABLE_CPU, NODE_ALLOCATABLE_MEM_MI,
     PODS_PER_NODE, REAL_TARGET_ROLES, SINGLETON_POD_TARGET_ROLES,
     SYSTEM_CPU_PER_NODE, SYSTEM_MEM_PER_NODE_MI, VMAGENT_IMAGE,
-    VMSINGLE_IMAGE, compute_resources_for_tier, compute_shard_count, log,
+    VMAGENT_PROXY_IMAGE, VMAGENT_FLUSH_INTERVAL, VMAGENT_RATE_LIMIT,
+    VMSINGLE_IMAGE, compute_resources_for_tier, compute_shard_count,
+    konnectivity_agent_replicas_for_node_count, log,
 )
 from .deploy import (
     deploy_fake_exporters, deploy_konnectivity_agents,
@@ -31,8 +33,8 @@ from .adx import (
     collect_resource_peaks as adx_collect_resource_peaks,
 )
 from .metrics import (
-    collect_diagnostics, collect_metrics, collect_pprof, evaluate_pass_fail,
-    observe_remotewrite_drain, wait_for_targets,
+    collect_diagnostics, collect_metrics, collect_pprof, dwell_and_sample,
+    evaluate_pass_fail, observe_remotewrite_drain, wait_for_targets,
 )
 from .scaling import scale_dp_nodepool, wait_for_nodes_ready
 from .utils import kubectl
@@ -88,13 +90,14 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
                     nodepool: str = DEFAULT_NODEPOOL,
                     run_label: str = "",
                     skip_diagnostics: bool = True,
-                    rate_limit: int = 2097152,
+                    rate_limit: int = VMAGENT_RATE_LIMIT,
                     max_block_size: int = 8388608,
-                    flush_interval: str = "1s",
                     queues: int = 8,
                     max_rows_per_block: int = 10000,
                     measure_drain: bool = False,
-                    drain_observe_seconds: int = 120) -> dict:
+                    drain_observe_seconds: int = 120,
+                    konn_server_image: str = KONN_SERVER_IMAGE,
+                    konn_agent_image: str = KONN_AGENT_IMAGE) -> dict:
     ns_prefix = f"loadtest-{run_label}-" if run_label else "loadtest-"
     namespace = f"{ns_prefix}{tier}"
 
@@ -145,7 +148,7 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
     #    1-per-500 over-provisioned the pod count and pressured the CP nodepool.
     #    Proxied targets ≈ tier × fake-roles + tier agents + ~50 real proxied.
     proxied_targets = tier * len(FAKE_EXPORTER_ROLES) + tier + 50
-    server_count = max(1, (proxied_targets + 1999) // 2000)
+    server_count = max(3, (proxied_targets + 1999) // 2000)
     tier_resources = compute_resources_for_tier(tier)
     shard_count = compute_shard_count(tier)
     log.info("Konnectivity server replicas: %d (tier %d, proxied≈%d)",
@@ -162,7 +165,8 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
              tier_resources["konn_server"]["cpu_req"], tier_resources["konn_server"]["mem_req"],
              tier_resources["konn_server"]["cpu_lim"], tier_resources["konn_server"]["mem_lim"])
     deploy_konnectivity_server(cp_kubeconfig, namespace, server_count=server_count,
-                                resources=tier_resources["konn_server"], wait=False)
+                                resources=tier_resources["konn_server"], wait=False,
+                                server_image=konn_server_image)
 
     # 3. Get LB IP
     server_ip = get_server_lb_ip(cp_kubeconfig, namespace)
@@ -184,7 +188,10 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
         deploy_fake_exporters(dp_kubeconfig, tier)
 
     # 8. Deploy agents + restart to pick up certs
-    deploy_konnectivity_agents(dp_kubeconfig, namespace, server_ip, tier)
+    node_count_for_agents = dp_nodes if real_targets else nodes_needed
+    agent_replica_count = konnectivity_agent_replicas_for_node_count(node_count_for_agents)
+    deploy_konnectivity_agents(dp_kubeconfig, namespace, server_ip, agent_replica_count,
+                                agent_image=konn_agent_image)
     rollout_restart(dp_kubeconfig, namespace, "deployment/konnectivity-agent")
 
     # 8b. Set up RBAC and token for kubernetes_sd_configs + kubelet scraping
@@ -199,7 +206,6 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
                    replicas=shard_count,
                    rate_limit=rate_limit,
                    max_block_size=max_block_size,
-                   flush_interval=flush_interval,
                    queues=queues,
                    max_rows_per_block=max_rows_per_block)
     tier_start_ts = time.time()  # ADX time-series window starts here
@@ -237,7 +243,7 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
                     wait_for_fake_exporters_gone(dp_kubeconfig)
                     # Let any in-flight scrapes/blocks still forming settle:
                     # at least one flush_interval plus a fixed buffer.
-                    settle_seconds = max(35, _flush_interval_seconds(flush_interval) + 15)
+                    settle_seconds = max(35, _flush_interval_seconds(VMAGENT_FLUSH_INTERVAL) + 15)
                     log.info("Settling %ds after pausing exporters before drain observation...",
                              settle_seconds)
                     time.sleep(settle_seconds)
@@ -296,12 +302,12 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
 
         # 12d. Push per-tier summary row to ADX (additive)
         try:
-            agent_replicas = int(tier)
+            agent_replicas = agent_replica_count
             vmagent_replicas = shard_count
             dp_node_count = (len(get_node_ips(dp_kubeconfig))
                              if real_targets else compute_fake_nodes_needed(tier))
         except Exception:
-            agent_replicas = int(tier)
+            agent_replicas = agent_replica_count
             vmagent_replicas = shard_count
             dp_node_count = 0
 
@@ -321,9 +327,16 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
             vmagent_replicas=vmagent_replicas,
             config={
                 "warm_up_minutes": warm_up_minutes,
-                "konn_server_image": KONN_SERVER_IMAGE,
-                "konn_agent_image": KONN_AGENT_IMAGE,
+                "rate_limit": rate_limit,
+                "max_block_size": max_block_size,
+                "flush_interval": VMAGENT_FLUSH_INTERVAL,
+                "queues": queues,
+                "max_rows_per_block": max_rows_per_block,
+                "konn_server_image": konn_server_image,
+                "konn_agent_image": konn_agent_image,
                 "vmagent_image": VMAGENT_IMAGE,
+                "vmagent_proxy_image": VMAGENT_PROXY_IMAGE,
+                "enable_tunnel_reuse": True,
                 "vmsingle_image": VMSINGLE_IMAGE,
                 "nodepool": nodepool,
             },
@@ -351,9 +364,16 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
         "dp_node_count": len(get_node_ips(dp_kubeconfig)) if real_targets else None,
         "config": {
             "warm_up_minutes": warm_up_minutes,
-            "konn_server_image": KONN_SERVER_IMAGE,
-            "konn_agent_image": KONN_AGENT_IMAGE,
+            "rate_limit": rate_limit,
+            "max_block_size": max_block_size,
+            "flush_interval": VMAGENT_FLUSH_INTERVAL,
+            "queues": queues,
+            "max_rows_per_block": max_rows_per_block,
+            "konn_server_image": konn_server_image,
+            "konn_agent_image": konn_agent_image,
             "vmagent_image": VMAGENT_IMAGE,
+            "vmagent_proxy_image": VMAGENT_PROXY_IMAGE,
+            "enable_tunnel_reuse": True,
             "vmsingle_image": VMSINGLE_IMAGE,
         },
         "measurements": measurements,
@@ -380,6 +400,499 @@ def run_single_tier(cp_kubeconfig: str, dp_kubeconfig: str, tier: int,
             writer.writeheader()
             writer.writerows(resource_samples)
         log.info("Resource usage CSV: %s", csv_file)
+
+    return result
+
+
+def run_real_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[int],
+                          warm_up_minutes: int,
+                          work_dir: Path, results_dir: Path, run_id: str,
+                          resource_group: str, dp_cluster_name: str,
+                          nodepool: str = DEFAULT_NODEPOOL,
+                          run_label: str = "",
+                          skip_diagnostics: bool = True,
+                          rate_limit: int = VMAGENT_RATE_LIMIT,
+                          max_block_size: int = 8388608,
+                          queues: int = 8,
+                          max_rows_per_block: int = 10000,
+                          konn_server_image: str = KONN_SERVER_IMAGE,
+                          konn_agent_image: str = KONN_AGENT_IMAGE) -> dict:
+    """Ramp the DP nodepool through every node count in `tiers` (ascending)
+    inside ONE continuous namespace/deployment, mirroring how a real prod
+    cluster is actually scaled up (e.g. 0->400->800->...->2000) and watched
+    the whole way -- instead of tearing down and redeploying a fresh stack
+    per checkpoint. At each step: scale the nodepool, reconcile
+    konnectivity-server/vmagent sizing for the new node count (idempotent
+    applies), then dwell for `warm_up_minutes` sampling CPU/memory/
+    restarts/OOMs/scrape health every 30s so the climb toward the target is
+    visible the whole way, not just in a final snapshot.
+    """
+    steps = sorted(set(tiers))
+    namespace = f"loadtest-{run_label}-ramp" if run_label else "loadtest-ramp"
+
+    log.info("")
+    log.info("=" * 60)
+    log.info("REAL-TARGETS RAMP: %d -> %d nodes (%d steps: %s)",
+             steps[0], steps[-1], len(steps), steps)
+    log.info("=" * 60)
+
+    def _reconcile_cp_stack(tier: int) -> tuple[int, int, dict]:
+        proxied_targets = tier * len(FAKE_EXPORTER_ROLES) + tier + 50
+        server_count = max(3, (proxied_targets + 1999) // 2000)
+        return server_count, compute_shard_count(tier), compute_resources_for_tier(tier)
+
+    # 1. Create namespaces (once for the whole ramp)
+    ensure_namespace(cp_kubeconfig, namespace)
+    ensure_namespace(dp_kubeconfig, namespace)
+
+    # 2. Deploy konnectivity server sized for the first (smallest) step
+    first_tier = steps[0]
+    server_count, shard_count, tier_resources = _reconcile_cp_stack(first_tier)
+    deploy_konnectivity_server(cp_kubeconfig, namespace, server_count=server_count,
+                                resources=tier_resources["konn_server"], wait=False,
+                                server_image=konn_server_image)
+    server_ip = get_server_lb_ip(cp_kubeconfig, namespace)
+    log.info("Konnectivity server LB IP: %s", server_ip)
+    cert_dir = generate_certs(work_dir / "certs" / namespace, namespace, server_ip)
+    create_cert_secret(cp_kubeconfig, namespace, cert_dir)
+    create_cert_secret(dp_kubeconfig, namespace, cert_dir)
+    rollout_restart(cp_kubeconfig, namespace, "deployment/konnectivity-server")
+
+    deploy_konnectivity_agents(dp_kubeconfig, namespace, server_ip,
+                                konnectivity_agent_replicas_for_node_count(first_tier),
+                                agent_image=konn_agent_image)
+    rollout_restart(dp_kubeconfig, namespace, "deployment/konnectivity-agent")
+
+    setup_dp_access(dp_kubeconfig, cp_kubeconfig, namespace)
+    dp_api_server = get_dp_api_server(dp_kubeconfig)
+
+    deploy_vmsingle(cp_kubeconfig, namespace)
+    deploy_vmagent(cp_kubeconfig, namespace, dp_api_server,
+                   vmagent_resources=tier_resources["vmagent"],
+                   proxy_resources=tier_resources["vmagent_proxy"],
+                   replicas=shard_count,
+                   rate_limit=rate_limit,
+                   max_block_size=max_block_size,
+                   queues=queues,
+                   max_rows_per_block=max_rows_per_block)
+    ramp_start_ts = time.time()
+
+    all_samples: list[dict] = []
+    step_results: list[dict] = []
+
+    for tier in steps:
+        log.info("")
+        log.info("-" * 60)
+        log.info("RAMP STEP: scaling DP nodepool to %d nodes", tier)
+        log.info("-" * 60)
+        step_start_ts = time.time()
+
+        scale_dp_nodepool(resource_group, dp_cluster_name, nodepool, tier)
+        wait_for_nodes_ready(dp_kubeconfig, expected=tier, timeout_minutes=30)
+
+        # Reconcile CP-side sizing for the new node count (idempotent applies)
+        server_count, shard_count, tier_resources = _reconcile_cp_stack(tier)
+        deploy_konnectivity_server(cp_kubeconfig, namespace, server_count=server_count,
+                                    resources=tier_resources["konn_server"], wait=True,
+                                    server_image=konn_server_image)
+        agent_replica_count = konnectivity_agent_replicas_for_node_count(tier)
+        deploy_konnectivity_agents(dp_kubeconfig, namespace, server_ip, agent_replica_count,
+                                    agent_image=konn_agent_image)
+        deploy_vmagent(cp_kubeconfig, namespace, dp_api_server,
+                       vmagent_resources=tier_resources["vmagent"],
+                       proxy_resources=tier_resources["vmagent_proxy"],
+                       replicas=shard_count,
+                       rate_limit=rate_limit,
+                       max_block_size=max_block_size,
+                       queues=queues,
+                       max_rows_per_block=max_rows_per_block)
+
+        node_ips = get_node_ips(dp_kubeconfig)
+        dp_nodes = len(node_ips)
+        per_node_roles = (len(REAL_TARGET_ROLES)
+                         + len(DAEMONSET_TARGET_ROLES)
+                         + len(DAEMONSET_POD_TARGET_ROLES))
+        singleton_roles = len(SINGLETON_POD_TARGET_ROLES)
+        min_targets = dp_nodes * per_node_roles + singleton_roles
+
+        log.info("Dwelling %dm at %d nodes (sampling every 30s)...", warm_up_minutes, tier)
+        step_samples = dwell_and_sample(cp_kubeconfig, dp_kubeconfig, namespace,
+                                        node_count=tier, duration_minutes=warm_up_minutes)
+        all_samples.extend(step_samples)
+        last_sample = step_samples[-1] if step_samples else {}
+
+        step_measurements = collect_metrics(cp_kubeconfig, dp_kubeconfig, namespace, tier, work_dir)
+        step_pass_fail = evaluate_pass_fail(step_measurements, expected_targets=min_targets)
+        # Push this step's time series to ADX (no-op unless ADX_CLUSTER_URI/ADX_DATABASE set)
+        adx_export_if_configured(cp_kubeconfig, namespace, run_id, tier,
+                                  mode="real-targets", start_ts=step_start_ts)
+        step_measurements.update(adx_collect_resource_peaks(cp_kubeconfig, namespace, ramp_start_ts))
+
+        adx_export_summary_if_configured(
+            run_id=run_id,
+            tier=tier,
+            mode="real-targets",
+            result=step_pass_fail.get("overall", "failure"),
+            measurements=step_measurements,
+            pass_criteria=step_pass_fail,
+            run_label=run_label or "",
+            trial_label=f"ramp-step-{tier}",
+            wall_time_seconds=time.time() - ramp_start_ts,
+            dp_node_count=dp_nodes,
+            konn_server_replicas=server_count,
+            konn_agent_replicas=agent_replica_count,
+            vmagent_replicas=shard_count,
+            config={
+                "warm_up_minutes": warm_up_minutes,
+                "rate_limit": rate_limit,
+                "max_block_size": max_block_size,
+                "flush_interval": VMAGENT_FLUSH_INTERVAL,
+                "queues": queues,
+                "max_rows_per_block": max_rows_per_block,
+                "konn_server_image": konn_server_image,
+                "konn_agent_image": konn_agent_image,
+                "vmagent_image": VMAGENT_IMAGE,
+                "vmagent_proxy_image": VMAGENT_PROXY_IMAGE,
+                "enable_tunnel_reuse": True,
+                "vmsingle_image": VMSINGLE_IMAGE,
+                "nodepool": nodepool,
+            },
+        )
+
+        step_results.append({
+            "node_count": tier,
+            "targets_up": last_sample.get("targets_up", 0),
+            "targets_total": last_sample.get("targets_total", 0),
+            "measurements": step_measurements,
+            "pass_criteria": step_pass_fail,
+        })
+        log.info("Step %d nodes: %s", tier, step_pass_fail.get("overall", "failure"))
+
+    diagnostics = {}
+    if not skip_diagnostics:
+        try:
+            diagnostics = collect_diagnostics(
+                cp_kubeconfig, dp_kubeconfig, namespace, work_dir,
+                include_fake_exporters=False)
+        except Exception as e:
+            log.warning("Diagnostics collection failed: %s", e)
+
+    overall_result = "success" if all(
+        s["pass_criteria"].get("overall") == "success" for s in step_results
+    ) else "failure"
+
+    result = {
+        "run_id": run_id,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "tiers": steps,
+        "namespace": namespace,
+        "mode": "real-targets-ramp",
+        "config": {
+            "warm_up_minutes": warm_up_minutes,
+            "rate_limit": rate_limit,
+            "max_block_size": max_block_size,
+            "flush_interval": VMAGENT_FLUSH_INTERVAL,
+            "queues": queues,
+            "max_rows_per_block": max_rows_per_block,
+            "konn_server_image": konn_server_image,
+            "konn_agent_image": konn_agent_image,
+            "vmagent_image": VMAGENT_IMAGE,
+            "vmagent_proxy_image": VMAGENT_PROXY_IMAGE,
+            "enable_tunnel_reuse": True,
+            "vmsingle_image": VMSINGLE_IMAGE,
+        },
+        "steps": step_results,
+        "resource_samples": all_samples,
+        "diagnostics": diagnostics,
+        "result": overall_result,
+        "status": "completed",
+    }
+
+    results_dir.mkdir(parents=True, exist_ok=True)
+    label_suffix = f"-{run_label}" if run_label else ""
+    results_file = results_dir / f"vmagent-loadtest-ramp-{run_id}{label_suffix}.json"
+    results_file.write_text(json.dumps(result, indent=2))
+    log.info("Ramp results: %s", results_file)
+
+    if all_samples:
+        import csv
+        csv_file = results_dir / f"resource-usage-ramp-{run_id}{label_suffix}.csv"
+        fieldnames = sorted({k for s in all_samples for k in s.keys()
+                             if k not in ("vmagent", "konnectivity_server", "konnectivity_agent")})
+        with open(csv_file, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(all_samples)
+        log.info("Ramp resource usage CSV: %s", csv_file)
+
+    return result
+
+
+def cleanup_ramp(cp_kubeconfig: str, dp_kubeconfig: str, run_label: str = "",
+                 mode: str = "real") -> None:
+    """Clean up the single shared namespace used by a ramp run."""
+    suffix = "ramp" if mode == "real" else "fake-ramp"
+    namespace = f"loadtest-{run_label}-{suffix}" if run_label else f"loadtest-{suffix}"
+    log.info("Cleaning up ramp namespace: %s", namespace)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        pool.submit(_wait_ns_gone, cp_kubeconfig, namespace)
+        pool.submit(_wait_ns_gone, dp_kubeconfig, namespace)
+    log.info("Ramp cleanup complete.")
+
+
+def run_fake_targets_ramp(cp_kubeconfig: str, dp_kubeconfig: str, tiers: list[int],
+                          warm_up_minutes: int,
+                          work_dir: Path, results_dir: Path, run_id: str,
+                          resource_group: str = "", dp_cluster_name: str = "",
+                          nodepool: str = DEFAULT_NODEPOOL,
+                          run_label: str = "",
+                          skip_diagnostics: bool = True,
+                          rate_limit: int = VMAGENT_RATE_LIMIT,
+                          max_block_size: int = 8388608,
+                          queues: int = 8,
+                          max_rows_per_block: int = 10000,
+                          measure_drain: bool = False,
+                          drain_observe_seconds: int = 120,
+                          konn_server_image: str = KONN_SERVER_IMAGE,
+                          konn_agent_image: str = KONN_AGENT_IMAGE) -> dict:
+    """Ramp fake-exporter replicas through every tier in `tiers` (ascending)
+    inside ONE continuous namespace/deployment, mirroring
+    run_real_targets_ramp but scaling `scale_fake_exporters` (and the
+    underlying DP nodepool via compute_fake_nodes_needed) instead of real
+    DP nodes. At each step: scale exporters + DP nodepool, reconcile
+    konnectivity-server/vmagent sizing for the new tier (idempotent
+    applies), then dwell for `warm_up_minutes` sampling CPU/memory/
+    restarts/OOMs/scrape health every 30s.
+    """
+    steps = sorted(set(tiers))
+    namespace = f"loadtest-{run_label}-fake-ramp" if run_label else "loadtest-fake-ramp"
+
+    log.info("")
+    log.info("=" * 60)
+    log.info("FAKE-TARGETS RAMP: %d -> %d replicas (%d steps: %s)",
+             steps[0], steps[-1], len(steps), steps)
+    log.info("=" * 60)
+
+    def _reconcile_cp_stack(tier: int) -> tuple[int, int, dict]:
+        proxied_targets = tier * len(FAKE_EXPORTER_ROLES) + tier + 50
+        server_count = max(3, (proxied_targets + 1999) // 2000)
+        return server_count, compute_shard_count(tier), compute_resources_for_tier(tier)
+
+    # 1. Create namespaces (once for the whole ramp)
+    ensure_namespace(cp_kubeconfig, namespace)
+    ensure_namespace(dp_kubeconfig, namespace)
+
+    # 2. Deploy konnectivity server sized for the first (smallest) step
+    first_tier = steps[0]
+    server_count, shard_count, tier_resources = _reconcile_cp_stack(first_tier)
+    if resource_group and dp_cluster_name:
+        scale_dp_nodepool(resource_group, dp_cluster_name, nodepool, compute_fake_nodes_needed(first_tier))
+        wait_for_nodes_ready(dp_kubeconfig, expected=compute_fake_nodes_needed(first_tier), timeout_minutes=30)
+
+    deploy_konnectivity_server(cp_kubeconfig, namespace, server_count=server_count,
+                                resources=tier_resources["konn_server"], wait=False,
+                                server_image=konn_server_image)
+    server_ip = get_server_lb_ip(cp_kubeconfig, namespace)
+    log.info("Konnectivity server LB IP: %s", server_ip)
+    cert_dir = generate_certs(work_dir / "certs" / namespace, namespace, server_ip)
+    create_cert_secret(cp_kubeconfig, namespace, cert_dir)
+    create_cert_secret(dp_kubeconfig, namespace, cert_dir)
+    rollout_restart(cp_kubeconfig, namespace, "deployment/konnectivity-server")
+
+    deploy_fake_exporters(dp_kubeconfig, first_tier)
+    deploy_konnectivity_agents(dp_kubeconfig, namespace, server_ip,
+                                konnectivity_agent_replicas_for_node_count(compute_fake_nodes_needed(first_tier)),
+                                agent_image=konn_agent_image)
+    rollout_restart(dp_kubeconfig, namespace, "deployment/konnectivity-agent")
+
+    setup_dp_access(dp_kubeconfig, cp_kubeconfig, namespace)
+    dp_api_server = get_dp_api_server(dp_kubeconfig)
+
+    deploy_vmsingle(cp_kubeconfig, namespace)
+    deploy_vmagent(cp_kubeconfig, namespace, dp_api_server,
+                   vmagent_resources=tier_resources["vmagent"],
+                   proxy_resources=tier_resources["vmagent_proxy"],
+                   replicas=shard_count,
+                   rate_limit=rate_limit,
+                   max_block_size=max_block_size,
+                   queues=queues,
+                   max_rows_per_block=max_rows_per_block)
+    ramp_start_ts = time.time()
+
+    all_samples: list[dict] = []
+    step_results: list[dict] = []
+    last_tier_resources = tier_resources
+
+    for tier in steps:
+        log.info("")
+        log.info("-" * 60)
+        log.info("RAMP STEP: scaling fake exporters to %d replicas", tier)
+        log.info("-" * 60)
+        step_start_ts = time.time()
+
+        nodes_needed = compute_fake_nodes_needed(tier)
+        if resource_group and dp_cluster_name:
+            scale_dp_nodepool(resource_group, dp_cluster_name, nodepool, nodes_needed)
+            wait_for_nodes_ready(dp_kubeconfig, expected=nodes_needed, timeout_minutes=30)
+
+        scale_fake_exporters(dp_kubeconfig, tier)
+
+        # Reconcile CP-side sizing for the new tier (idempotent applies)
+        server_count, shard_count, tier_resources = _reconcile_cp_stack(tier)
+        last_tier_resources = tier_resources
+        deploy_konnectivity_server(cp_kubeconfig, namespace, server_count=server_count,
+                                    resources=tier_resources["konn_server"], wait=True,
+                                    server_image=konn_server_image)
+        agent_replica_count = konnectivity_agent_replicas_for_node_count(nodes_needed)
+        deploy_konnectivity_agents(dp_kubeconfig, namespace, server_ip, agent_replica_count,
+                                    agent_image=konn_agent_image)
+        deploy_vmagent(cp_kubeconfig, namespace, dp_api_server,
+                       vmagent_resources=tier_resources["vmagent"],
+                       proxy_resources=tier_resources["vmagent_proxy"],
+                       replicas=shard_count,
+                       rate_limit=rate_limit,
+                       max_block_size=max_block_size,
+                       queues=queues,
+                       max_rows_per_block=max_rows_per_block)
+
+        min_targets = int(tier * len(FAKE_EXPORTER_ROLES) * 0.95)
+
+        log.info("Dwelling %dm at %d replicas (sampling every 30s)...", warm_up_minutes, tier)
+        step_samples = dwell_and_sample(cp_kubeconfig, dp_kubeconfig, namespace,
+                                        node_count=tier, duration_minutes=warm_up_minutes)
+        all_samples.extend(step_samples)
+        last_sample = step_samples[-1] if step_samples else {}
+
+        step_measurements = collect_metrics(cp_kubeconfig, dp_kubeconfig, namespace, tier, work_dir)
+        step_pass_fail = evaluate_pass_fail(step_measurements, expected_targets=min_targets)
+        # Push this step's time series to ADX (no-op unless ADX_CLUSTER_URI/ADX_DATABASE set)
+        adx_export_if_configured(cp_kubeconfig, namespace, run_id, tier,
+                                  mode="fake-targets", start_ts=step_start_ts)
+        step_measurements.update(adx_collect_resource_peaks(cp_kubeconfig, namespace, ramp_start_ts))
+
+        adx_export_summary_if_configured(
+            run_id=run_id,
+            tier=tier,
+            mode="fake-targets",
+            result=step_pass_fail.get("overall", "failure"),
+            measurements=step_measurements,
+            pass_criteria=step_pass_fail,
+            run_label=run_label or "",
+            trial_label=f"ramp-step-{tier}",
+            wall_time_seconds=time.time() - ramp_start_ts,
+            dp_node_count=nodes_needed,
+            konn_server_replicas=server_count,
+            konn_agent_replicas=agent_replica_count,
+            vmagent_replicas=shard_count,
+            config={
+                "warm_up_minutes": warm_up_minutes,
+                "rate_limit": rate_limit,
+                "max_block_size": max_block_size,
+                "flush_interval": VMAGENT_FLUSH_INTERVAL,
+                "queues": queues,
+                "max_rows_per_block": max_rows_per_block,
+                "konn_server_image": konn_server_image,
+                "konn_agent_image": konn_agent_image,
+                "vmagent_image": VMAGENT_IMAGE,
+                "vmagent_proxy_image": VMAGENT_PROXY_IMAGE,
+                "enable_tunnel_reuse": True,
+                "vmsingle_image": VMSINGLE_IMAGE,
+                "nodepool": nodepool,
+            },
+        )
+
+        step_results.append({
+            "node_count": tier,
+            "targets_up": last_sample.get("targets_up", 0),
+            "targets_total": last_sample.get("targets_total", 0),
+            "measurements": step_measurements,
+            "pass_criteria": step_pass_fail,
+        })
+        log.info("Step %d replicas: %s", tier, step_pass_fail.get("overall", "failure"))
+
+    # Measure remote-write drain once, at the final (largest) tier reached --
+    # pauses exporters, observes drain, then resumes back to the final tier.
+    drain_stats = {}
+    if measure_drain:
+        paused_exporters = False
+        try:
+            scale_fake_exporters(dp_kubeconfig, 0)
+            wait_for_fake_exporters_gone(dp_kubeconfig)
+            settle_seconds = max(35, _flush_interval_seconds(VMAGENT_FLUSH_INTERVAL) + 15)
+            log.info("Settling %ds after pausing exporters before drain observation...", settle_seconds)
+            time.sleep(settle_seconds)
+            paused_exporters = True
+        except Exception as e:
+            log.warning("Failed to pause fake exporters before drain observation: %s", e)
+        log.info("Observing remote-write drain for %ds...", drain_observe_seconds)
+        try:
+            drain_stats = observe_remotewrite_drain(
+                cp_kubeconfig, namespace, work_dir, duration_seconds=drain_observe_seconds)
+            drain_stats["remotewrite_drain_exporters_paused"] = paused_exporters
+        finally:
+            if paused_exporters:
+                try:
+                    scale_fake_exporters(dp_kubeconfig, steps[-1])
+                except Exception as e:
+                    log.warning("Failed to resume fake exporters after drain observation: %s", e)
+
+    diagnostics = {}
+    if not skip_diagnostics:
+        try:
+            diagnostics = collect_diagnostics(
+                cp_kubeconfig, dp_kubeconfig, namespace, work_dir,
+                include_fake_exporters=True)
+        except Exception as e:
+            log.warning("Diagnostics collection failed: %s", e)
+
+    overall_result = "success" if all(
+        s["pass_criteria"].get("overall") == "success" for s in step_results
+    ) else "failure"
+
+    result = {
+        "run_id": run_id,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "tiers": steps,
+        "namespace": namespace,
+        "mode": "fake-targets-ramp",
+        "config": {
+            "warm_up_minutes": warm_up_minutes,
+            "rate_limit": rate_limit,
+            "max_block_size": max_block_size,
+            "flush_interval": VMAGENT_FLUSH_INTERVAL,
+            "queues": queues,
+            "max_rows_per_block": max_rows_per_block,
+            "konn_server_image": konn_server_image,
+            "konn_agent_image": konn_agent_image,
+            "vmagent_image": VMAGENT_IMAGE,
+            "vmagent_proxy_image": VMAGENT_PROXY_IMAGE,
+            "enable_tunnel_reuse": True,
+            "vmsingle_image": VMSINGLE_IMAGE,
+        },
+        "steps": step_results,
+        "resource_samples": all_samples,
+        "drain": drain_stats,
+        "diagnostics": diagnostics,
+        "result": overall_result,
+        "status": "completed",
+    }
+
+    results_dir.mkdir(parents=True, exist_ok=True)
+    label_suffix = f"-{run_label}" if run_label else ""
+    results_file = results_dir / f"vmagent-loadtest-fake-ramp-{run_id}{label_suffix}.json"
+    results_file.write_text(json.dumps(result, indent=2))
+    log.info("Ramp results: %s", results_file)
+
+    if all_samples:
+        import csv
+        csv_file = results_dir / f"resource-usage-fake-ramp-{run_id}{label_suffix}.csv"
+        fieldnames = sorted({k for s in all_samples for k in s.keys()
+                             if k not in ("vmagent", "konnectivity_server", "konnectivity_agent")})
+        with open(csv_file, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(all_samples)
+        log.info("Ramp resource usage CSV: %s", csv_file)
 
     return result
 

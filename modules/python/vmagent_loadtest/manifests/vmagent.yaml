@@ -3,12 +3,20 @@
 #
 # Scrape configuration is in scrape-config.yaml (separate ConfigMap).
 #
+# vmagent-proxy sidecar runs the REAL Go binary (prometheus-extensions
+# vmagent-proxy), matching prod's actual topology, not a harness simulation.
+# It only handles HTTP-only proxied jobs via proxy_url: http://localhost:8080
+# (kube-proxy, CNS, localdns, NPD, azuredisk-node) — HTTPS jobs (kubelet,
+# cadvisor) bypass it entirely via direct CONNECT to konnectivity-server with
+# proxy_tls_config, exactly like prod's scale_scrape_configs.yaml.
+#
 # Template variables:
 #   __NAMESPACE__        — test namespace
-#   __VMAGENT_IMAGE__    — VMAgent image
+#   __VMAGENT_IMAGE__    — VMAgent image (fixed to prod's pinned version, not overridable)
 #   __VMAGENT_REPLICAS__ — vmagent shard count (native clustering members)
 #   __VMAGENT_CPU_REQ__ / __VMAGENT_MEM_REQ__ — vmagent requests (per shard)
 #   __VMAGENT_CPU_LIM__ / __VMAGENT_MEM_LIM__ — vmagent limits (per shard)
+#   __VMAGENT_PROXY_IMAGE__    — vmagent-proxy image (real Go binary; fixed to prod's pinned version)
 #   __PROXY_CPU_REQ__   / __PROXY_MEM_REQ__   — vmagent-proxy requests (per shard)
 #   __PROXY_CPU_LIM__   / __PROXY_MEM_LIM__   — vmagent-proxy limits (per shard)
 #   __VMAGENT_RATE_LIMIT__      — -remoteWrite.rateLimit bytes/sec (prod default since 2026-07-28: 2097152 = 2 MiB/s; prod's own 2k-node test found this still insufficient)
@@ -16,205 +24,6 @@
 #   __VMAGENT_MAX_ROWS_PER_BLOCK__ — -remoteWrite.maxRowsPerBlock (prod doesn't set this; VM stock default 10000 — raise alongside maxBlockSize per VM guidance)
 #   __VMAGENT_FLUSH_INTERVAL__  — -remoteWrite.flushInterval duration (prod default since 2026-07-28: 1s, was 30s)
 #   __VMAGENT_QUEUES__          — -remoteWrite.queues count (prod does NOT set this flag — silently defaults to ~2xGOMAXPROCS; explicit 8-16 is the pending/unvalidated recommendation)
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: vmagent-proxy-script
-  namespace: __NAMESPACE__
-data:
-  # Lightweight HTTP/HTTPS→CONNECT proxy for konnectivity-server.
-  # Handles two modes:
-  #   do_GET  — plain HTTP targets (fake-exporters, kube-proxy)
-  #   do_CONNECT — HTTPS targets (real kubelet/cadvisor); bidirectional byte relay
-  proxy.py: |
-    #!/usr/bin/env python3
-    """vmagent-proxy (POOLED): HTTP/HTTPS -> CONNECT adapter for konnectivity-server.
-
-    Difference vs baseline proxy: the do_GET path (all fake-exporter HTTP scrapes)
-    reuses established mTLS+CONNECT tunnels via a per-target connection pool, instead
-    of doing a fresh TCP+TLS handshake + CONNECT on every single scrape. At ~183
-    scrapes/s (tier 500) that eliminates ~183 TLS handshakes/s of GIL-bound CPU.
-
-    Graceful fallback: if a pooled tunnel is stale (target closed keep-alive), the
-    request transparently retries on a fresh tunnel, so behaviour is never worse
-    than the baseline.
-    """
-    import http.server, http.client, socket, ssl, threading, select
-    import queue, collections
-    from urllib.parse import urlparse
-
-    PROXY_ADDR = ("konnectivity-server", 8083)
-    CERT_DIR = "/certs"
-    LISTEN_PORT = 8080
-    POOL_MAX_IDLE_PER_TARGET = 1  # retain at most 1 idle tunnel per target (bounds fds/mem)
-
-    def make_ssl_context():
-        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-        ctx.load_cert_chain(f"{CERT_DIR}/client.crt", f"{CERT_DIR}/client.key")
-        ctx.load_verify_locations(f"{CERT_DIR}/ca.crt")
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
-        return ctx
-
-    ssl_ctx = make_ssl_context()
-
-    # ---- per-target tunnel pool -------------------------------------------------
-    _pools = collections.defaultdict(lambda: queue.LifoQueue(maxsize=POOL_MAX_IDLE_PER_TARGET))
-
-    def _open_tunnel(target):
-        """Establish a fresh mTLS conn to konn-server + CONNECT tunnel to target."""
-        raw = socket.create_connection(PROXY_ADDR, timeout=10)
-        conn = ssl_ctx.wrap_socket(raw, server_hostname="konnectivity-server")
-        conn.sendall(f"CONNECT {target} HTTP/1.1\r\nHost: {target}\r\n\r\n".encode())
-        resp = b""
-        while b"\r\n\r\n" not in resp:
-            chunk = conn.recv(4096)
-            if not chunk:
-                raise ConnectionError("konnectivity-server closed connection")
-            resp += chunk
-        status = resp.split(b"\r\n")[0].decode()
-        if "200" not in status:
-            raise ConnectionError(f"CONNECT failed: {status}")
-        # Bytes after the CONNECT response headers belong to the tunneled
-        # stream (e.g. the target's TLS ServerHello) and MUST be preserved,
-        # or the HTTPS handshake corrupts ("first record does not look like
-        # a TLS handshake").
-        leftover = resp.split(b"\r\n\r\n", 1)[1]
-        return conn, leftover
-
-    def _get_tunnel(target):
-        q = _pools[target]
-        try:
-            return q.get_nowait()   # reuse idle tunnel (HTTP path: no leftover)
-        except queue.Empty:
-            return _open_tunnel(target)[0]
-
-    def _return_tunnel(target, conn):
-        try:
-            _pools[target].put_nowait(conn)
-        except queue.Full:
-            try: conn.close()
-            except Exception: pass
-
-
-    class ProxyHandler(http.server.BaseHTTPRequestHandler):
-        # HTTP/1.0 downstream (vmagent<->proxy): one short-lived thread per scrape.
-        # HTTP/1.1 keep-alive here caused thread-per-connection explosion + proxy
-        # OOM. Only the UPSTREAM tunnels (proxy->konn->target) are pooled/reused.
-        protocol_version = "HTTP/1.0"
-
-        def _target_and_path(self):
-            if self.path.startswith("http://"):
-                u = urlparse(self.path)
-                return f"{u.hostname}:{u.port or 80}", (u.path or "/")
-            host = self.headers.get("Host", "").split(":")[0]
-            return f"{host}:9090", self.path
-
-        def do_GET(self):
-            target, path = self._target_and_path()
-            # keep-alive GET so the tunnel can be reused for the next scrape
-            req = (f"GET {path} HTTP/1.1\r\nHost: {target}\r\n"
-                   f"Connection: keep-alive\r\n\r\n").encode()
-            last_err = None
-            for attempt in (1, 2):  # 1 = try pooled, 2 = fresh on failure
-                conn = _get_tunnel(target)
-                try:
-                    conn.sendall(req)
-                    resp = http.client.HTTPResponse(conn, method="GET")
-                    resp.begin()
-                    body = resp.read()
-                    reuse = not resp.will_close  # target honoured keep-alive
-                    # forward to vmagent
-                    self.send_response(resp.status)
-                    for k, v in resp.getheaders():
-                        if k.lower() not in ("transfer-encoding", "connection", "content-length"):
-                            self.send_header(k, v)
-                    self.send_header("Content-Length", str(len(body)))
-                    self.end_headers()
-                    self.wfile.write(body)
-                    if reuse:
-                        _return_tunnel(target, conn)
-                    else:
-                        conn.close()
-                    return
-                except Exception as e:
-                    last_err = e
-                    try: conn.close()
-                    except Exception: pass
-                    continue  # retry once on a fresh tunnel
-            # both attempts failed
-            self.send_response(502)
-            msg = f"proxy error: {last_err}".encode()
-            self.send_header("Content-Type", "text/plain")
-            self.send_header("Content-Length", str(len(msg)))
-            self.end_headers()
-            self.wfile.write(msg)
-
-        def do_CONNECT(self):
-            # HTTPS targets (real kubelet/cadvisor): bidirectional raw byte relay.
-            target = self.path
-            try:
-                conn, leftover = _open_tunnel(target)
-                try:
-                    conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-                    self.connection.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-                except Exception:
-                    pass
-                self.send_response(200, "Connection Established")
-                self.end_headers()
-                client_sock, tunnel_sock = self.connection, conn
-                # Forward any bytes already read past the CONNECT response so the
-                # target's TLS ServerHello is not lost.
-                if leftover:
-                    client_sock.sendall(leftover)
-                socks = [client_sock, tunnel_sock]
-                while True:
-                    r, _, e = select.select(socks, [], socks, 30)
-                    if e:
-                        break
-                    done = False
-                    for s in r:
-                        data = s.recv(65536)
-                        if not data:
-                            done = True
-                            break
-                        (tunnel_sock if s is client_sock else client_sock).sendall(data)
-                    if done:
-                        break
-                conn.close()
-            except Exception as e:
-                try:
-                    self.send_response(502)
-                    msg = f"CONNECT proxy error: {e}".encode()
-                    self.send_header("Content-Type", "text/plain")
-                    self.send_header("Content-Length", str(len(msg)))
-                    self.end_headers()
-                    self.wfile.write(msg)
-                except Exception:
-                    pass
-
-        def log_message(self, fmt, *args):
-            pass
-
-
-    class ThreadedServer(http.server.HTTPServer):
-        allow_reuse_address = True
-        daemon_threads = True
-        def process_request(self, request, client_address):
-            t = threading.Thread(target=self.process_request_thread, args=(request, client_address))
-            t.daemon = True
-            t.start()
-        def process_request_thread(self, request, client_address):
-            try:
-                self.finish_request(request, client_address)
-            except Exception:
-                self.handle_error(request, client_address)
-            finally:
-                self.shutdown_request(request)
-
-    print(f"vmagent-proxy (POOLED) listening on :{LISTEN_PORT}, forwarding CONNECT to {PROXY_ADDR}", flush=True)
-    ThreadedServer(("", LISTEN_PORT), ProxyHandler).serve_forever()
 ---
 apiVersion: apps/v1
 kind: StatefulSet
@@ -297,19 +106,29 @@ spec:
             # konnectivity client certs — vmagent scrapes HTTPS targets
             # (real-kubelet/real-cadvisor) by issuing CONNECT directly to
             # konnectivity-server:8083 over mTLS via proxy_tls_config (mirrors
-            # production; bypasses the Python proxy for the HTTPS path).
+            # production; bypasses vmagent-proxy for the HTTPS path).
             - name: certs
               mountPath: /certs
               readOnly: true
 
-        # vmagent-proxy sidecar — converts VMAgent HTTP/HTTPS to CONNECT
-        # through mTLS tunnel to konnectivity-server
+        # vmagent-proxy sidecar — the real Go binary (prometheus-extensions),
+        # not a harness simulation. Only handles HTTP-only proxied jobs via
+        # proxy_url: http://localhost:8080; HTTPS jobs bypass it (see above).
         - name: vmagent-proxy
-          image: mcr.microsoft.com/azurelinux/distroless/python:3.12
-          command: ["python3", "/scripts/proxy.py"]
+          image: __VMAGENT_PROXY_IMAGE__
+          args:
+            - --addr=:8080
+            - --proxyAddr=konnectivity-server:8083
+            - --caFile=/certs/ca.crt
+            - --certFile=/certs/client.crt
+            - --keyFile=/certs/client.key
+            - --metricsAddr=:9090
+            - --enableTunnelReuse=true
           ports:
             - name: proxy
               containerPort: 8080
+            - name: metrics
+              containerPort: 9090
           resources:
             requests:
               cpu: __PROXY_CPU_REQ__
@@ -321,9 +140,6 @@ spec:
             - name: certs
               mountPath: /certs
               readOnly: true
-            - name: proxy-script
-              mountPath: /scripts
-              readOnly: true
 
       volumes:
         - name: config
@@ -332,9 +148,6 @@ spec:
         - name: certs
           secret:
             secretName: konnectivity-certs
-        - name: proxy-script
-          configMap:
-            name: vmagent-proxy-script
         - name: kubelet-token
           secret:
             secretName: kubelet-scrape-token

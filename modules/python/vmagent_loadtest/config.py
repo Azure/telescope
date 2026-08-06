@@ -8,10 +8,18 @@ MODULE_DIR = Path(__file__).resolve().parent
 MANIFEST_DIR = MODULE_DIR / "manifests"
 FAKE_EXPORTER_DIR = MANIFEST_DIR
 
-KONN_SERVER_IMAGE = "mcr.microsoft.com/oss/v2/kubernetes/apiserver-network-proxy/server:v0.32.1-3"
-KONN_AGENT_IMAGE = "mcr.microsoft.com/oss/v2/kubernetes/apiserver-network-proxy/agent:v0.32.1-3"
+KONN_SERVER_IMAGE = "mcr.microsoft.com/oss/v2/kubernetes/apiserver-network-proxy/server:v0.32.1-11"
+KONN_AGENT_IMAGE = "mcr.microsoft.com/oss/v2/kubernetes/apiserver-network-proxy/agent:v0.32.1-11"
 VMAGENT_IMAGE = "mcr.microsoft.com/oss/v2/victoriametrics/vmagent:v1.127.0-1"
+# Real Go vmagent-proxy (prometheus-extensions) — matches prod's adx-vmagent kustomization.
+VMAGENT_PROXY_IMAGE = "mcr.microsoft.com/aks/hcp/vmagent-proxy:1.522.0-master.260728-f125952f"
 VMSINGLE_IMAGE = "mcr.microsoft.com/oss/v2/victoriametrics/victoria-metrics:v1.125.1-7"
+# -remoteWrite.rateLimit / -remoteWrite.flushInterval — both merged to prod
+# 2026-07-28, fixed here rather than CLI-configurable (see wiki
+# VMAgent-Konnectivity-Complete-Scale-Analysis.md). maxBlockSize/queues/
+# maxRowsPerBlock remain configurable in main.py — still pending validation.
+VMAGENT_RATE_LIMIT = 2097152
+VMAGENT_FLUSH_INTERVAL = "1s"
 FAKE_EXPORTER_IMAGE = os.environ.get(
     "FAKE_EXPORTER_IMAGE", "fakexporter.azurecr.io/fake-exporter:v2"
 )
@@ -104,19 +112,24 @@ def _r(cpu_req, mem_req, cpu_lim, mem_lim):
 
 TIER_RESOURCE_BUCKETS = [
     # (upper_tier, shards, {"vmagent":..., "vmagent_proxy":..., "konn_server":...})
-    # vmagent/vmagent_proxy resources are PER-SHARD.
+    # vmagent/vmagent_proxy resources are PER-SHARD. konn_server floors match
+    # prod's real Control Plane Scaling Profile (CPSP) minimums -- H2 (cpuReq=1,
+    # memLimit=2Gi) below, H4/H8 (cpuReq=2, memLimit=4Gi) at tier>=1000 -- so
+    # even the smallest load-test tier isn't under-provisioned relative to the
+    # smallest real control plane (see aks-rp/ccp/konnectivity-server-synth/
+    # helmvalues/control_plane_scaling_profile.go).
     (200,  1, {"vmagent":       _r("100m", "256Mi", "500m", "768Mi"),
                "vmagent_proxy": _r("100m", "128Mi", "1",    "256Mi"),
-               "konn_server":   _r("100m", "128Mi", "500m", "512Mi")}),
+               "konn_server":   _r("1",    "1Gi",   "2",    "2Gi")}),
     (350,  1, {"vmagent":       _r("250m", "512Mi", "1",    "1Gi"),
                "vmagent_proxy": _r("250m", "256Mi", "2",    "512Mi"),
-               "konn_server":   _r("200m", "256Mi", "1",    "1Gi")}),
+               "konn_server":   _r("1",    "1Gi",   "2",    "2Gi")}),
     (600,  1, {"vmagent":       _r("500m", "1Gi",   "2",    "3Gi"),
                "vmagent_proxy": _r("500m", "256Mi", "4",    "1Gi"),
-               "konn_server":   _r("200m", "256Mi", "1",    "1Gi")}),
+               "konn_server":   _r("1",    "1Gi",   "2",    "2Gi")}),
     (1000, 3, {"vmagent":       _r("500m", "1Gi",   "2",    "3Gi"),
                "vmagent_proxy": _r("500m", "256Mi", "4",    "1Gi"),
-               "konn_server":   _r("200m", "512Mi", "1",    "2Gi")}),
+               "konn_server":   _r("2",    "2Gi",   "2",    "4Gi")}),
     # tier 1500 needs 4 shards: 3 shards put ~5767 targets/shard which pushed
     # scrape_duration to ~5s. 4 shards -> ~4325/shard (proven-good range, tier
     # 1200 ran 4613/shard at 0.26s).
@@ -124,7 +137,7 @@ TIER_RESOURCE_BUCKETS = [
     # across tiers thanks to pooling+sharding); limits stay high for burst.
     (1500, 4, {"vmagent":       _r("500m", "1Gi",   "3",    "4Gi"),
                "vmagent_proxy": _r("500m", "512Mi", "6",    "1Gi"),
-               "konn_server":   _r("200m", "384Mi", "2",    "2Gi")}),
+               "konn_server":   _r("2",    "2Gi",   "2",    "4Gi")}),
 ]
 # Above the top bucket: shard so each vmagent holds ~TARGETS_PER_SHARD targets.
 TARGETS_PER_SHARD = 3700
@@ -132,7 +145,7 @@ FAKE_ROLES_COUNT = 11  # keep in sync with len(FAKE_EXPORTER_ROLES)
 TIER_RESOURCES_OVER = {
     "vmagent":       _r("500m", "1Gi", "4", "4Gi"),
     "vmagent_proxy": _r("500m", "512Mi", "6", "2Gi"),
-    "konn_server":   _r("200m", "384Mi", "2", "4Gi"),
+    "konn_server":   _r("2", "2Gi", "2", "4Gi"),
 }
 
 
@@ -163,6 +176,32 @@ def compute_resources_for_tier(tier: int) -> dict:
         if tier <= upper:
             return bucket
     return TIER_RESOURCES_OVER
+
+
+# Minimum konnectivity-agent replicas by DP node count, copied verbatim from
+# prod's real autoscaler thresholds (aks-rp/ccp/konnectivity-agent-autoscaler/
+# helmvalues/values.go, minReplicasByNodeCount) so the load test's agent
+# replica count matches what prod would actually run at the same node count,
+# rather than growing 1:1 with node/tier count.
+KONN_AGENT_MIN_REPLICAS_BY_NODE_COUNT = [
+    (50,   3),
+    (100,  4),
+    (250,  5),
+    (500,  6),
+    (1000, 7),
+    (2000, 8),
+    (5000, 10),
+]
+
+
+def konnectivity_agent_replicas_for_node_count(node_count: int) -> int:
+    """Return the konnectivity-agent replica count prod would run for `node_count`."""
+    if node_count <= 0:
+        return 3
+    for max_node_count, replicas in KONN_AGENT_MIN_REPLICAS_BY_NODE_COUNT:
+        if node_count <= max_node_count:
+            return replicas
+    return KONN_AGENT_MIN_REPLICAS_BY_NODE_COUNT[-1][1]
 
 # ---------------- Azure Data Explorer (ADX) export ----------------
 # Defaults for vmsingle time-series export. Env vars (ADX_CLUSTER_URI,

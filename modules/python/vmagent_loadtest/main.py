@@ -30,8 +30,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from vmagent_loadtest.cluster import az_login, create_clusters, delete_resource_group
 from vmagent_loadtest.compare import compare_real_vs_fake, compare_cross_tier
-from vmagent_loadtest.config import DEFAULT_NODEPOOL, log
-from vmagent_loadtest.runner import cleanup, cleanup_tier, compute_fake_nodes_needed, run_single_tier
+from vmagent_loadtest.config import (
+    DEFAULT_NODEPOOL, KONN_AGENT_IMAGE, KONN_SERVER_IMAGE, VMAGENT_RATE_LIMIT, log,
+)
+from vmagent_loadtest.runner import (
+    cleanup, cleanup_ramp, cleanup_tier, compute_fake_nodes_needed,
+    run_fake_targets_ramp, run_real_targets_ramp, run_single_tier,
+)
 from vmagent_loadtest.scaling import scale_dp_nodepool, wait_for_nodes_ready, delete_fanout_nodepools
 from vmagent_loadtest import utils as _utils
 
@@ -85,21 +90,17 @@ def main() -> None:
                         help=f"DP cluster nodepool name (default: {DEFAULT_NODEPOOL})")
     parser.add_argument("--max-retries", type=int, default=2,
                         help="Max retries per tier on failure (default: 2)")
-    parser.add_argument("--rate-limit", type=int, default=2097152,
-                        help="-remoteWrite.rateLimit bytes/sec passed to vmagent "
-                             "(default: 2097152 = 2 MiB/s, matches prod since the "
-                             "2026-07-28 4x bump; prod's own 2026-07-29 2k-node test "
-                             "found even this insufficient — raise further to validate)")
+    parser.add_argument("--rate-limit", type=int, default=VMAGENT_RATE_LIMIT,
+                        help=f"-remoteWrite.rateLimit bytes/sec passed to vmagent "
+                             f"(default: {VMAGENT_RATE_LIMIT} = 2 MiB/s, matches prod; "
+                             f"prod's own 2k-node test found even this insufficient — "
+                             f"raise further to validate)")
     parser.add_argument("--max-block-size", type=int, default=8388608,
                         help="-remoteWrite.maxBlockSize bytes passed to vmagent "
                              "(default: 8388608 = 8 MiB, VictoriaMetrics stock default; "
                              "prod is still pinned at the old 524288 = .5 MiB — this is "
                              "a pending/unvalidated recommendation this load test exists "
                              "to confirm)")
-    parser.add_argument("--flush-interval", type=str, default="1s",
-                        help="-remoteWrite.flushInterval duration passed to vmagent "
-                             "(default: 1s, matches prod since the 2026-07-28 bump; "
-                             "was 30s before)")
     parser.add_argument("--queues", type=int, default=8,
                         help="-remoteWrite.queues count passed to vmagent "
                              "(default: 8; prod does NOT set this flag today, so it "
@@ -110,6 +111,12 @@ def main() -> None:
                              "(default: 10000, VictoriaMetrics stock default; prod "
                              "doesn't set this either — VM guidance is to raise it "
                              "alongside --max-block-size, still unvalidated)")
+    parser.add_argument("--konn-server-image", default=KONN_SERVER_IMAGE,
+                        help=f"konnectivity-server image to deploy "
+                             f"(default: {KONN_SERVER_IMAGE}). Use this to load-test "
+                             f"a custom/fix image before it ships to prod.")
+    parser.add_argument("--konn-agent-image", default=KONN_AGENT_IMAGE,
+                        help=f"konnectivity-agent image to deploy (default: {KONN_AGENT_IMAGE})")
     parser.add_argument("--measure-drain", action="store_true",
                         help="After metrics collection, poll "
                              "vmagent_remotewrite_pending_data_bytes over a fixed "
@@ -234,11 +241,12 @@ def main() -> None:
             run_label="real",
             rate_limit=args.rate_limit,
             max_block_size=args.max_block_size,
-            flush_interval=args.flush_interval,
             queues=args.queues,
             max_rows_per_block=args.max_rows_per_block,
             measure_drain=args.measure_drain,
             drain_observe_seconds=args.drain_observe_seconds,
+            konn_server_image=args.konn_server_image,
+            konn_agent_image=args.konn_agent_image,
         )
         cleanup_tier(args.cp_kubeconfig, args.dp_kubeconfig, tier, run_label="real")
 
@@ -260,11 +268,12 @@ def main() -> None:
             run_label="fake",
             rate_limit=args.rate_limit,
             max_block_size=args.max_block_size,
-            flush_interval=args.flush_interval,
             queues=args.queues,
             max_rows_per_block=args.max_rows_per_block,
             measure_drain=args.measure_drain,
             drain_observe_seconds=args.drain_observe_seconds,
+            konn_server_image=args.konn_server_image,
+            konn_agent_image=args.konn_agent_image,
         )
         cleanup_tier(args.cp_kubeconfig, args.dp_kubeconfig, tier, run_label="fake")
 
@@ -366,11 +375,12 @@ def main() -> None:
                     run_label=args.run_label,
                     rate_limit=args.rate_limit,
                     max_block_size=args.max_block_size,
-                    flush_interval=args.flush_interval,
                     queues=args.queues,
                     max_rows_per_block=args.max_rows_per_block,
                     measure_drain=args.measure_drain,
                     drain_observe_seconds=args.drain_observe_seconds,
+                    konn_server_image=args.konn_server_image,
+                    konn_agent_image=args.konn_agent_image,
                 )
                 futures[fut] = tier
 
@@ -398,64 +408,108 @@ def main() -> None:
                         log.warning("cleanup_tier(%d) failed: %s", tier, ce)
 
         _utils._AUTO_PORT_FORWARD = False
-    else:
-        for tier in tiers:
-            result = None
-            for attempt in range(1, args.max_retries + 2):  # +2 because first attempt + retries
-                try:
-                    if attempt > 1:
-                        log.info("RETRY %d/%d for tier %d — cleaning up previous attempt...",
-                                 attempt - 1, args.max_retries, tier)
-                        cleanup_tier(args.cp_kubeconfig, args.dp_kubeconfig, tier,
-                                     run_label=args.run_label)
-                    result = run_single_tier(
-                        cp_kubeconfig=args.cp_kubeconfig,
-                        dp_kubeconfig=args.dp_kubeconfig,
-                        tier=tier,
-                        warm_up_minutes=args.warm_up_minutes,
-                        work_dir=work_dir,
-                        results_dir=results_dir,
-                        run_id=run_id,
-                        real_targets=args.real_targets,
-                        resource_group=args.resource_group,
-                        dp_cluster_name=args.dp_cluster_name,
-                        nodepool=args.nodepool_name,
-                        run_label=args.run_label,
-                        skip_diagnostics=not args.collect_diagnostics,
-                        rate_limit=args.rate_limit,
-                        max_block_size=args.max_block_size,
-                        flush_interval=args.flush_interval,
-                        queues=args.queues,
-                        max_rows_per_block=args.max_rows_per_block,
-                        measure_drain=args.measure_drain,
-                        drain_observe_seconds=args.drain_observe_seconds,
-                    )
-                    break
-                except Exception as e:
-                    log.error("Tier %d attempt %d FAILED: %s", tier, attempt, e)
-                    if attempt == args.max_retries + 1:
-                        log.error("Tier %d FAILED after %d attempts — saving error and continuing",
-                                  tier, attempt)
-                        result = {
-                            "run_id": run_id,
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
-                            "tier": tier,
-                            "status": "failed",
-                            "error": str(e),
-                            "attempts": attempt,
-                        }
-                        err_file = results_dir / f"vmagent-loadtest-{run_id}-{tier}.json"
-                        err_file.write_text(json.dumps(result, indent=2))
-                        failed_tiers.append(tier)
-
-            if result:
+    elif args.real_targets:
+        # Real targets ramp through every tier as DP node counts inside ONE
+        # continuous deployment (see run_real_targets_ramp) instead of
+        # tearing down and redeploying per tier.
+        for attempt in range(1, args.max_retries + 2):
+            try:
+                if attempt > 1:
+                    log.info("RETRY %d/%d for ramp — cleaning up previous attempt...",
+                             attempt - 1, args.max_retries)
+                    cleanup_ramp(args.cp_kubeconfig, args.dp_kubeconfig,
+                                run_label=args.run_label, mode="real")
+                result = run_real_targets_ramp(
+                    cp_kubeconfig=args.cp_kubeconfig,
+                    dp_kubeconfig=args.dp_kubeconfig,
+                    tiers=tiers,
+                    warm_up_minutes=args.warm_up_minutes,
+                    work_dir=work_dir,
+                    results_dir=results_dir,
+                    run_id=run_id,
+                    resource_group=args.resource_group,
+                    dp_cluster_name=args.dp_cluster_name,
+                    nodepool=args.nodepool_name,
+                    run_label=args.run_label,
+                    skip_diagnostics=not args.collect_diagnostics,
+                    rate_limit=args.rate_limit,
+                    max_block_size=args.max_block_size,
+                    queues=args.queues,
+                    max_rows_per_block=args.max_rows_per_block,
+                    konn_server_image=args.konn_server_image,
+                    konn_agent_image=args.konn_agent_image,
+                )
                 all_results.append(result)
-
-            # Clean up this tier's namespaces before moving to the next one
-            # to free CP/DP resources (konnectivity, vmagent, vmsingle).
-            if len(tiers) > 1:
-                cleanup_tier(args.cp_kubeconfig, args.dp_kubeconfig, tier,
-                             run_label=args.run_label)
+                break
+            except Exception as e:
+                log.error("Ramp attempt %d FAILED: %s", attempt, e)
+                if attempt == args.max_retries + 1:
+                    log.error("Ramp FAILED after %d attempts — saving error", attempt)
+                    result = {
+                        "run_id": run_id,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "tiers": tiers,
+                        "status": "failed",
+                        "error": str(e),
+                        "attempts": attempt,
+                    }
+                    err_file = results_dir / f"vmagent-loadtest-ramp-{run_id}.json"
+                    err_file.write_text(json.dumps(result, indent=2))
+                    all_results.append(result)
+                    failed_tiers.extend(tiers)
+        cleanup_ramp(args.cp_kubeconfig, args.dp_kubeconfig, run_label=args.run_label, mode="real")
+    else:
+        # Fake targets ramp through every tier as exporter replica counts
+        # inside ONE continuous deployment (see run_fake_targets_ramp)
+        # instead of tearing down and redeploying per tier.
+        for attempt in range(1, args.max_retries + 2):
+            try:
+                if attempt > 1:
+                    log.info("RETRY %d/%d for ramp — cleaning up previous attempt...",
+                             attempt - 1, args.max_retries)
+                    cleanup_ramp(args.cp_kubeconfig, args.dp_kubeconfig,
+                                run_label=args.run_label, mode="fake")
+                result = run_fake_targets_ramp(
+                    cp_kubeconfig=args.cp_kubeconfig,
+                    dp_kubeconfig=args.dp_kubeconfig,
+                    tiers=tiers,
+                    warm_up_minutes=args.warm_up_minutes,
+                    work_dir=work_dir,
+                    results_dir=results_dir,
+                    run_id=run_id,
+                    resource_group=args.resource_group,
+                    dp_cluster_name=args.dp_cluster_name,
+                    nodepool=args.nodepool_name,
+                    run_label=args.run_label,
+                    skip_diagnostics=not args.collect_diagnostics,
+                    rate_limit=args.rate_limit,
+                    max_block_size=args.max_block_size,
+                    queues=args.queues,
+                    max_rows_per_block=args.max_rows_per_block,
+                    measure_drain=args.measure_drain,
+                    drain_observe_seconds=args.drain_observe_seconds,
+                    konn_server_image=args.konn_server_image,
+                    konn_agent_image=args.konn_agent_image,
+                )
+                all_results.append(result)
+                break
+            except Exception as e:
+                log.error("Ramp attempt %d FAILED: %s", attempt, e)
+                if attempt == args.max_retries + 1:
+                    log.error("Ramp FAILED after %d attempts — saving error", attempt)
+                    result = {
+                        "run_id": run_id,
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "tiers": tiers,
+                        "status": "failed",
+                        "error": str(e),
+                        "attempts": attempt,
+                    }
+                    err_file = results_dir / f"vmagent-loadtest-fake-ramp-{run_id}.json"
+                    err_file.write_text(json.dumps(result, indent=2))
+                    all_results.append(result)
+                    failed_tiers.extend(tiers)
+        cleanup_ramp(args.cp_kubeconfig, args.dp_kubeconfig, run_label=args.run_label, mode="fake")
 
     log.info("")
     log.info("=" * 60)
@@ -469,7 +523,16 @@ def main() -> None:
 
     for r in all_results:
         if r.get("status") == "failed":
-            log.info("  tier=%-5d FAILED: %s", r["tier"], r.get("error", "unknown"))
+            tiers_desc = r.get("tiers", r.get("tier"))
+            log.info("  tiers=%s FAILED: %s", tiers_desc, r.get("error", "unknown"))
+            continue
+        if r.get("mode") in ("real-targets-ramp", "fake-targets-ramp"):
+            for step in r.get("steps", []):
+                log.info(
+                    "  count=%-5d scrape=%d/%d result=%s",
+                    step["node_count"], step["targets_up"], step["targets_total"],
+                    step["pass_criteria"].get("overall", "failure"),
+                )
             continue
         m = r["measurements"]
         log.info(
@@ -485,12 +548,14 @@ def main() -> None:
     for f in sorted(results_dir.glob("*.json")):
         log.info("  %s", f)
 
-    # Auto-generate cross-tier scaling report when multiple tiers completed
+    # Auto-generate cross-tier scaling report only for the parallel fan-out
+    # case, where tiers are still genuinely independent runs (sequential
+    # real/fake runs are now a single continuous ramp with its own
+    # step-by-step data captured inside the ramp result itself).
     completed = [r for r in all_results if r.get("status") == "completed"]
-    if len(completed) >= 2:
-        mode_label = "real-targets" if args.real_targets else "fake-targets"
+    if len(completed) >= 2 and parallel_mode:
         report = compare_cross_tier(completed)
-        report_file = results_dir / f"comparison-cross-tier-{mode_label}.md"
+        report_file = results_dir / "comparison-cross-tier-fake-targets.md"
         report_file.write_text(report)
         log.info("Cross-tier scaling report: %s", report_file)
 

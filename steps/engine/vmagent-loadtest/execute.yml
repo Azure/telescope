@@ -26,16 +26,20 @@ steps:
     # Defaults match prod's pre-change values (524288 = .5 MiB/s, .5 MiB).
     RATE_LIMIT="${RATE_LIMIT:-524288}"
     MAX_BLOCK_SIZE="${MAX_BLOCK_SIZE:-524288}"
-    # -remoteWrite.flushInterval / -remoteWrite.queues passed to vmagent.
-    # Defaults match prod's current values (30s flush, 8 queues).
-    FLUSH_INTERVAL="${FLUSH_INTERVAL:-30s}"
+    # -remoteWrite.queues passed to vmagent (default matches prod's current value).
     QUEUES="${QUEUES:-8}"
+    # -remoteWrite.maxRowsPerBlock passed to vmagent (default matches vmagent's own stock default; prod doesn't set it).
+    MAX_ROWS_PER_BLOCK="${MAX_ROWS_PER_BLOCK:-10000}"
     MEASURE_DRAIN="${MEASURE_DRAIN:-false}"
     DRAIN_OBSERVE_SECONDS="${DRAIN_OBSERVE_SECONDS:-120}"
+    # Optional image overrides for testing a fix candidate before it merges.
+    # Empty (default) = main.py falls back to its own MCR image defaults.
+    KONN_SERVER_IMAGE="${KONN_SERVER_IMAGE:-}"
+    KONN_AGENT_IMAGE="${KONN_AGENT_IMAGE:-}"
 
     EXTRA_ARGS="--resource-group ${{ parameters.dp_resource_group }} --dp-cluster-name ${{ parameters.dp_cluster_name }}"
     EXTRA_ARGS="$EXTRA_ARGS --rate-limit $RATE_LIMIT --max-block-size $MAX_BLOCK_SIZE"
-    EXTRA_ARGS="$EXTRA_ARGS --flush-interval $FLUSH_INTERVAL --queues $QUEUES"
+    EXTRA_ARGS="$EXTRA_ARGS --queues $QUEUES --max-rows-per-block $MAX_ROWS_PER_BLOCK"
     if [[ "$MEASURE_DRAIN" == "true" ]]; then
       EXTRA_ARGS="$EXTRA_ARGS --measure-drain --drain-observe-seconds $DRAIN_OBSERVE_SECONDS"
     fi
@@ -45,6 +49,8 @@ steps:
     if [[ -n "$RUN_LABEL" ]]; then
       EXTRA_ARGS="$EXTRA_ARGS --run-label $RUN_LABEL"
     fi
+    [[ -n "$KONN_SERVER_IMAGE" ]] && EXTRA_ARGS="$EXTRA_ARGS --konn-server-image $KONN_SERVER_IMAGE"
+    [[ -n "$KONN_AGENT_IMAGE" ]] && EXTRA_ARGS="$EXTRA_ARGS --konn-agent-image $KONN_AGENT_IMAGE"
     # Diagnostics (pprof + per-pod logs) are SKIPPED by default for speed.
     # Opt in with COLLECT_DIAGNOSTICS=true only when debugging a failure.
     if [[ "$COLLECT_DIAGNOSTICS" == "true" ]]; then
@@ -86,76 +92,77 @@ steps:
       exit 0
     fi
 
-    IFS=',' read -ra TIER_LIST <<< "$TIERS"
-    for TIER in "${TIER_LIST[@]}"; do
-      TIER=$(echo "$TIER" | xargs)
+    # Real targets: invoke main.py ONCE with the full tier list so it can
+    # ramp the DP nodepool through every checkpoint inside ONE continuous
+    # deployment (see run_real_targets_ramp), instead of tearing down and
+    # redeploying per tier like the loop below does for fake targets.
+    if [[ "$REAL_TARGETS" == "true" ]]; then
       echo ""
       echo "######################################################################"
-      echo "# TIER $TIER — execute"
+      echo "# TIERS $TIERS — execute as REAL-TARGETS RAMP"
       echo "######################################################################"
 
       python3 modules/python/vmagent_loadtest/main.py \
         --cp-kubeconfig "$CP_KUBECONFIG" \
         --dp-kubeconfig "$DP_KUBECONFIG" \
-        --tiers "$TIER" \
+        --tiers "$TIERS" \
         --warm-up-minutes "$SOAK_MINUTES" \
+        --real-targets \
         $EXTRA_ARGS
-
-      echo ""
-      echo "######################################################################"
-      echo "# TIER $TIER — collect results"
-      echo "######################################################################"
 
       WORK_DIR=$(ls -td /tmp/vmagent-loadtest.* 2>/dev/null | head -1)
       if [[ -n "$WORK_DIR" && -d "${WORK_DIR}/results" ]]; then
         mkdir -p "$(TEST_RESULTS_DIR)"
         cp -v "${WORK_DIR}/results"/*.json "$(TEST_RESULTS_DIR)/" 2>/dev/null || true
+        cp -v "${WORK_DIR}/results"/*.csv "$(TEST_RESULTS_DIR)/" 2>/dev/null || true
         cp -v "${WORK_DIR}/results"/*.md "$(TEST_RESULTS_DIR)/" 2>/dev/null || true
-        if [[ -d "${WORK_DIR}/pprof" ]]; then
-          mkdir -p "$(TEST_RESULTS_DIR)/pprof"
-          cp -rv "${WORK_DIR}/pprof"/. "$(TEST_RESULTS_DIR)/pprof/" 2>/dev/null || true
-        fi
-        if [[ -d "${WORK_DIR}/raw" ]]; then
-          mkdir -p "$(TEST_RESULTS_DIR)/raw"
-          cp -rv "${WORK_DIR}/raw"/. "$(TEST_RESULTS_DIR)/raw/" 2>/dev/null || true
-        fi
-        if [[ -d "${WORK_DIR}/diagnostics" ]]; then
-          mkdir -p "$(TEST_RESULTS_DIR)/diagnostics"
-          cp -rv "${WORK_DIR}/diagnostics"/. "$(TEST_RESULTS_DIR)/diagnostics/" 2>/dev/null || true
-        fi
-        echo "Tier $TIER results collected."
+        [[ -d "${WORK_DIR}/diagnostics" ]] && mkdir -p "$(TEST_RESULTS_DIR)/diagnostics" && cp -rv "${WORK_DIR}/diagnostics"/. "$(TEST_RESULTS_DIR)/diagnostics/" 2>/dev/null || true
+        echo "Ramp results collected."
         ls -l "$(TEST_RESULTS_DIR)/"
       else
-        echo "##vso[task.logissue type=warning;]No results found for tier $TIER"
+        echo "##vso[task.logissue type=warning;]No results found for real-targets ramp"
       fi
 
-      echo ""
-      echo "######################################################################"
-      echo "# TIER $TIER — cleanup namespace"
-      echo "######################################################################"
+      NS_PREFIX="loadtest-ramp"
+      [[ -n "$RUN_LABEL" ]] && NS_PREFIX="loadtest-${RUN_LABEL}-ramp"
+      kubectl --kubeconfig "$CP_KUBECONFIG" delete ns "$NS_PREFIX" --wait=false --ignore-not-found=true || true
+      kubectl --kubeconfig "$DP_KUBECONFIG" delete ns "$NS_PREFIX" --wait=false --ignore-not-found=true || true
+      exit 0
+    fi
 
-      NS_PREFIX="loadtest-"
-      if [[ -n "$RUN_LABEL" ]]; then
-        NS_PREFIX="loadtest-${RUN_LABEL}-"
-      fi
-      NS="${NS_PREFIX}${TIER}"
+    # Fake targets, sequential (non-parallel): invoke main.py ONCE with the
+    # full tier list so it can ramp exporter replicas through every
+    # checkpoint inside ONE continuous deployment (see run_fake_targets_ramp),
+    # instead of tearing down and redeploying per tier.
+    echo ""
+    echo "######################################################################"
+    echo "# TIERS $TIERS — execute as FAKE-TARGETS RAMP"
+    echo "######################################################################"
 
-      kubectl --kubeconfig "$CP_KUBECONFIG" delete ns "$NS" --wait=false --ignore-not-found=true || true
-      kubectl --kubeconfig "$DP_KUBECONFIG" delete ns "$NS" --wait=false --ignore-not-found=true || true
+    python3 modules/python/vmagent_loadtest/main.py \
+      --cp-kubeconfig "$CP_KUBECONFIG" \
+      --dp-kubeconfig "$DP_KUBECONFIG" \
+      --tiers "$TIERS" \
+      --warm-up-minutes "$SOAK_MINUTES" \
+      $EXTRA_ARGS
 
-      for i in $(seq 1 24); do
-        CP_GONE=$(kubectl --kubeconfig "$CP_KUBECONFIG" get ns "$NS" 2>&1 && echo "no" || echo "yes")
-        DP_GONE=$(kubectl --kubeconfig "$DP_KUBECONFIG" get ns "$NS" 2>&1 && echo "no" || echo "yes")
-        if [[ "$CP_GONE" == "yes" && "$DP_GONE" == "yes" ]]; then
-          echo "Namespace $NS deleted on both clusters."
-          break
-        fi
-        echo "  waiting for $NS to terminate... ($i/24)"
-        sleep 5
-      done
+    WORK_DIR=$(ls -td /tmp/vmagent-loadtest.* 2>/dev/null | head -1)
+    if [[ -n "$WORK_DIR" && -d "${WORK_DIR}/results" ]]; then
+      mkdir -p "$(TEST_RESULTS_DIR)"
+      cp -v "${WORK_DIR}/results"/*.json "$(TEST_RESULTS_DIR)/" 2>/dev/null || true
+      cp -v "${WORK_DIR}/results"/*.csv "$(TEST_RESULTS_DIR)/" 2>/dev/null || true
+      cp -v "${WORK_DIR}/results"/*.md "$(TEST_RESULTS_DIR)/" 2>/dev/null || true
+      [[ -d "${WORK_DIR}/diagnostics" ]] && mkdir -p "$(TEST_RESULTS_DIR)/diagnostics" && cp -rv "${WORK_DIR}/diagnostics"/. "$(TEST_RESULTS_DIR)/diagnostics/" 2>/dev/null || true
+      echo "Ramp results collected."
+      ls -l "$(TEST_RESULTS_DIR)/"
+    else
+      echo "##vso[task.logissue type=warning;]No results found for fake-targets ramp"
+    fi
 
-      echo "Tier $TIER complete."
-    done
+    NS_PREFIX="loadtest-fake-ramp"
+    [[ -n "$RUN_LABEL" ]] && NS_PREFIX="loadtest-${RUN_LABEL}-fake-ramp"
+    kubectl --kubeconfig "$CP_KUBECONFIG" delete ns "$NS_PREFIX" --wait=false --ignore-not-found=true || true
+    kubectl --kubeconfig "$DP_KUBECONFIG" delete ns "$NS_PREFIX" --wait=false --ignore-not-found=true || true
 
     echo ""
     echo "All tiers complete. Results:"
@@ -170,7 +177,8 @@ steps:
     COLLECT_DIAGNOSTICS: $(COLLECT_DIAGNOSTICS)
     RATE_LIMIT: $(RATE_LIMIT)
     MAX_BLOCK_SIZE: $(MAX_BLOCK_SIZE)
-    FLUSH_INTERVAL: $(FLUSH_INTERVAL)
     QUEUES: $(QUEUES)
     MEASURE_DRAIN: $(MEASURE_DRAIN)
     DRAIN_OBSERVE_SECONDS: $(DRAIN_OBSERVE_SECONDS)
+    KONN_SERVER_IMAGE: $(KONN_SERVER_IMAGE)
+    KONN_AGENT_IMAGE: $(KONN_AGENT_IMAGE)

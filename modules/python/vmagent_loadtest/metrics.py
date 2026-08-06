@@ -224,7 +224,12 @@ def get_pod_restarts(kubeconfig: str, namespace: str, label: str) -> list[dict]:
 
 def sample_resource_usage(cp_kubeconfig: str, dp_kubeconfig: str,
                           namespace: str) -> dict:
-    """Take a single resource usage snapshot from both clusters."""
+    """Take a single resource usage snapshot from both clusters.
+
+    Each component's entry includes cpu/memory (via `kubectl top`) merged
+    with restart count + last termination reason (e.g. "OOMKilled") per pod,
+    so a single sample captures both usage and crash signal together.
+    """
     ts = time.time()
     sample = {"timestamp": ts}
 
@@ -234,9 +239,50 @@ def sample_resource_usage(cp_kubeconfig: str, dp_kubeconfig: str,
         ("konnectivity_agent", dp_kubeconfig, "app=konnectivity-agent"),
     ]:
         pods = get_all_pod_resources(kc, namespace, label)
+        restarts_by_name = {p["name"]: p for p in get_pod_restarts(kc, namespace, label)}
+        for p in pods:
+            r = restarts_by_name.get(p["name"], {})
+            p["restarts"] = r.get("restarts", 0)
+            p["last_termination_reason"] = r.get("last_termination_reason", "")
         sample[component] = pods
 
     return sample
+
+
+def dwell_and_sample(cp_kubeconfig: str, dp_kubeconfig: str, namespace: str,
+                     node_count: int, duration_minutes: int,
+                     poll_interval: int = 30) -> list[dict]:
+    """Continuously sample resource usage + scrape target health for a fixed
+    duration at one ramp step (i.e. while dwelling at `node_count` nodes),
+    so CPU/memory/restarts/OOMs/scrape health are all visible as the cluster
+    moves toward its final target, not just at the very end of the run.
+
+    Each sample is tagged with `node_count` so the accumulated series across
+    every step of a ramp can be plotted against actual node count over time.
+    """
+    samples: list[dict] = []
+    deadline = time.time() + duration_minutes * 60
+    while True:
+        sample = sample_resource_usage(cp_kubeconfig, dp_kubeconfig, namespace)
+        sample["node_count"] = node_count
+        try:
+            active = _fetch_targets_all_replicas(cp_kubeconfig, namespace)
+            load_targets, _infra = _classify_targets(active)
+            sample["targets_up"] = sum(1 for t in load_targets if t.get("health") == "up")
+            sample["targets_total"] = len(load_targets)
+        except Exception as e:
+            log.debug("Target poll failed during dwell: %s", e)
+            sample["targets_up"] = 0
+            sample["targets_total"] = 0
+        samples.append(sample)
+        log.info("  [node_count=%d] targets %d/%d up, sampled %d component groups",
+                 node_count, sample["targets_up"], sample["targets_total"],
+                 sum(1 for k in ("vmagent", "konnectivity_server", "konnectivity_agent") if sample.get(k)))
+        remaining = deadline - time.time()
+        if remaining <= 0:
+            break
+        time.sleep(min(poll_interval, remaining))
+    return samples
 
 
 def _classify_targets(active: list[dict]) -> tuple[list[dict], list[dict]]:
@@ -246,7 +292,8 @@ def _classify_targets(active: list[dict]) -> tuple[list[dict], list[dict]]:
     separated so they don't count toward the scrape success rate.
     """
     infra_jobs = {
-        "konnectivity-server", "konnectivity-agent", "vmagent-self", "vmsingle"
+        "konnectivity-server", "konnectivity-agent", "vmagent-self",
+        "vmagent-proxy", "vmsingle"
     }
     load, infra = [], []
     for t in active:

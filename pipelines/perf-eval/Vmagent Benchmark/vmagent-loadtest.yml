@@ -1,5 +1,15 @@
 trigger: none
 
+parameters:
+  # Optional image overrides for testing a fix candidate before it merges.
+  # Leave blank to use main.py's own MCR image defaults.
+  - name: konn_server_image
+    type: string
+    default: ''
+  - name: konn_agent_image
+    type: string
+    default: ''
+
 # schedules:
 #   - cron: "0 6 * * 1"
 #     displayName: "6:00 AM Weekly (Monday)"
@@ -32,6 +42,8 @@ stages:
               PARALLEL: "false"
               RATE_LIMIT: 524288      # .5 MiB/s — current prod default (unchanged baseline)
               MAX_BLOCK_SIZE: 524288  # .5 MiB — current prod default (unchanged baseline)
+              KONN_SERVER_IMAGE: ${{ parameters.konn_server_image }}
+              KONN_AGENT_IMAGE: ${{ parameters.konn_agent_image }}
             fake_targets_rate2x:
               TIERS: "1000,1500"
               SOAK_MINUTES: 15
@@ -40,6 +52,8 @@ stages:
               PARALLEL: "false"
               RATE_LIMIT: 2097152     # 2 MiB/s (4x) — candidate from aks-operator PR #16345543
               MAX_BLOCK_SIZE: 524288  # unchanged; bump only if rate2x alone still backlogs
+              KONN_SERVER_IMAGE: ${{ parameters.konn_server_image }}
+              KONN_AGENT_IMAGE: ${{ parameters.konn_agent_image }}
           max_parallel: 1
           timeout_in_minutes: 600
           credential_type: service_connection

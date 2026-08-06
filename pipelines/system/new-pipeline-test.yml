@@ -1,5 +1,15 @@
 trigger: none
 
+parameters:
+  # Optional image overrides for testing a fix candidate before it merges.
+  # Leave blank to use main.py's own MCR image defaults.
+  - name: konn_server_image
+    type: string
+    default: ''
+  - name: konn_agent_image
+    type: string
+    default: ''
+
 pool:
   name: 'AKS-Telescope-Airlock'
 
@@ -25,69 +35,87 @@ stages:
   # they even reach the block-send path, independent of rateLimit/backlog.
   # fake_targets_flush1s isolates that effect alone; fake_targets_rate2x_flush1s
   # combines both to see if they compound.
-  - stage: westus2_fake
-    dependsOn: []
-    jobs:
-      - template: /jobs/competitive-test.yml
-        parameters:
-          cloud: azure
-          regions:
-            - westus2
-          topology: vmagent-loadtest
-          engine: vmagent-loadtest
-          matrix:
-            fake_targets:
-              TIERS: "100,200,300"
-              SOAK_MINUTES: 15
-              REAL_TARGETS: "false"
-              RUN_LABEL: "fake-targets"
-              PARALLEL: "false"
-              RATE_LIMIT: 524288      # .5 MiB/s — current prod default (unchanged baseline)
-              MAX_BLOCK_SIZE: 524288  # .5 MiB — current prod default (unchanged baseline)
-              FLUSH_INTERVAL: "30s"   # current prod default (unchanged baseline)
-              QUEUES: 8               # current prod default (unchanged baseline)
-              MEASURE_DRAIN: "true"
-              DRAIN_OBSERVE_SECONDS: 120
-            fake_targets_rate2x:
-              TIERS: "100,200,300"
-              SOAK_MINUTES: 15
-              REAL_TARGETS: "false"
-              RUN_LABEL: "rate2x"
-              PARALLEL: "false"
-              RATE_LIMIT: 2097152     # 2 MiB/s (4x) — candidate from aks-operator PR #16345543
-              MAX_BLOCK_SIZE: 524288  # unchanged; bump only if rate2x alone still backlogs
-              FLUSH_INTERVAL: "30s"   # unchanged — isolates rateLimit effect alone
-              QUEUES: 8               # current prod default (unchanged baseline)
-              MEASURE_DRAIN: "true"
-              DRAIN_OBSERVE_SECONDS: 120
-            fake_targets_flush1s:
-              TIERS: "100,200,300"
-              SOAK_MINUTES: 15
-              REAL_TARGETS: "false"
-              RUN_LABEL: "flush1s"
-              PARALLEL: "false"
-              RATE_LIMIT: 524288      # unchanged — isolates flushInterval effect alone
-              MAX_BLOCK_SIZE: 524288  # current prod default (unchanged baseline)
-              FLUSH_INTERVAL: "1s"    # vmagent's own upstream default; prod currently runs 30s
-              QUEUES: 8               # current prod default (unchanged baseline)
-              MEASURE_DRAIN: "true"
-              DRAIN_OBSERVE_SECONDS: 120
-            fake_targets_rate2x_flush1s:
-              TIERS: "100,200,300"
-              SOAK_MINUTES: 15
-              REAL_TARGETS: "false"
-              RUN_LABEL: "rate2x-flush1s"
-              PARALLEL: "false"
-              RATE_LIMIT: 2097152     # combined with flush1s below to test compounding effect
-              MAX_BLOCK_SIZE: 524288
-              FLUSH_INTERVAL: "1s"
-              QUEUES: 8               # current prod default (unchanged baseline)
-              MEASURE_DRAIN: "true"
-              DRAIN_OBSERVE_SECONDS: 120
-          max_parallel: 1
-          timeout_in_minutes: 600
-          credential_type: service_connection
-          ssh_key_enabled: false
+  # - stage: westus2_fake
+  #   dependsOn: []
+  #   jobs:
+  #     - template: /jobs/competitive-test.yml
+  #       parameters:
+  #         cloud: azure
+  #         regions:
+  #           - westus2
+  #         topology: vmagent-loadtest
+  #         engine: vmagent-loadtest
+  #         matrix:
+  #           fake_targets:
+  #             TIERS: "100,200,300"
+  #             SOAK_MINUTES: 5
+  #             REAL_TARGETS: "false"
+  #             RUN_LABEL: "fake-targets"
+  #             PARALLEL: "false"
+  #             RATE_LIMIT: 524288      # .5 MiB/s — current prod default (unchanged baseline)
+  #             MAX_BLOCK_SIZE: 524288  # .5 MiB — current prod default (unchanged baseline)
+  #             QUEUES: 8               # current prod default (unchanged baseline)
+  #             MEASURE_DRAIN: "true"
+  #             DRAIN_OBSERVE_SECONDS: 120
+  #             KONN_SERVER_IMAGE: ${{ parameters.konn_server_image }}
+  #             KONN_AGENT_IMAGE: ${{ parameters.konn_agent_image }}
+  #           fake_targets_rate2x:
+  #             TIERS: "100,200,300"
+  #             SOAK_MINUTES: 5
+  #             REAL_TARGETS: "false"
+  #             RUN_LABEL: "rate2x"
+  #             PARALLEL: "false"
+  #             RATE_LIMIT: 2097152     # 2 MiB/s (4x) — candidate from aks-operator PR #16345543
+  #             MAX_BLOCK_SIZE: 524288  # unchanged; bump only if rate2x alone still backlogs
+  #             QUEUES: 8               # current prod default (unchanged baseline)
+  #             MEASURE_DRAIN: "true"
+  #             DRAIN_OBSERVE_SECONDS: 120
+  #             KONN_SERVER_IMAGE: ${{ parameters.konn_server_image }}
+  #             KONN_AGENT_IMAGE: ${{ parameters.konn_agent_image }}
+  #           fake_targets_flush1s:
+  #             TIERS: "100,200,300"
+  #             SOAK_MINUTES: 5
+  #             REAL_TARGETS: "false"
+  #             RUN_LABEL: "flush1s"
+  #             PARALLEL: "false"
+  #             RATE_LIMIT: 524288      # unchanged — isolates flushInterval effect alone
+  #             MAX_BLOCK_SIZE: 524288  # current prod default (unchanged baseline)
+  #             QUEUES: 8               # current prod default (unchanged baseline)
+  #             MEASURE_DRAIN: "true"
+  #             DRAIN_OBSERVE_SECONDS: 120
+  #             KONN_SERVER_IMAGE: ${{ parameters.konn_server_image }}
+  #             KONN_AGENT_IMAGE: ${{ parameters.konn_agent_image }}
+  #           fake_targets_rate2x_flush1s:
+  #             TIERS: "100,200,300"
+  #             SOAK_MINUTES: 5
+  #             REAL_TARGETS: "false"
+  #             RUN_LABEL: "rate2x-flush1s"
+  #             PARALLEL: "false"
+  #             RATE_LIMIT: 2097152     # combined with flush1s below to test compounding effect
+  #             MAX_BLOCK_SIZE: 524288
+  #             QUEUES: 8               # current prod default (unchanged baseline)
+  #             MEASURE_DRAIN: "true"
+  #             DRAIN_OBSERVE_SECONDS: 120
+  #             KONN_SERVER_IMAGE: ${{ parameters.konn_server_image }}
+  #             KONN_AGENT_IMAGE: ${{ parameters.konn_agent_image }}
+  #           fake_targets_tuned:
+  #             TIERS: "100,200,300"
+  #             SOAK_MINUTES: 5
+  #             REAL_TARGETS: "false"
+  #             RUN_LABEL: "tuned"
+  #             PARALLEL: "false"
+  #             RATE_LIMIT: 8388608      # 8 MiB/s — upper end of the 4-8 MiB/s range flagged as still-needed after the 2k-node test (vmagent-loadtest-analysis.md)
+  #             MAX_BLOCK_SIZE: 8388608  # 8 MiB — VictoriaMetrics stock default; prod is still pinned at .5 MiB
+  #             QUEUES: 16               # upper end of the recommended 8-16 (prod doesn't set this flag today, defaults to ~4)
+  #             MAX_ROWS_PER_BLOCK: 20000 # raised alongside maxBlockSize per VM's own tuning guidance
+  #             MEASURE_DRAIN: "true"
+  #             DRAIN_OBSERVE_SECONDS: 120
+  #             KONN_SERVER_IMAGE: ${{ parameters.konn_server_image }}
+  #             KONN_AGENT_IMAGE: ${{ parameters.konn_agent_image }}
+  #         max_parallel: 1
+  #         timeout_in_minutes: 600
+  #         credential_type: service_connection
+  #         ssh_key_enabled: false
 
   - stage: eastus_real
     dependsOn: []
@@ -101,13 +129,63 @@ stages:
           engine: vmagent-loadtest
           matrix:
             real_targets:
-              TIERS: "500,1000,1500,2000"
-              SOAK_MINUTES: 15
+              TIERS: "500"
+              SOAK_MINUTES: 5
               REAL_TARGETS: "true"
-              RUN_LABEL: "real-targets"
+              RUN_LABEL: "real-baseline"
               PARALLEL: "false"
+              KONN_SERVER_IMAGE: ${{ parameters.konn_server_image }}
+              KONN_AGENT_IMAGE: ${{ parameters.konn_agent_image }}
+            # real_targets_tune1:
+            #   TIERS: "500,1000,1500,2000"
+            #   SOAK_MINUTES: 5
+            #   REAL_TARGETS: "true"
+            #   RUN_LABEL: "real-queues8-rate2mib"
+            #   PARALLEL: "false"
+            #   RATE_LIMIT: 2097152      # 2 MiB/s — current prod value (unchanged baseline for this step)
+            #   MAX_BLOCK_SIZE: 2097152  # 2 MiB — first step up from prod's .5 MiB
+            #   QUEUES: 8                # first step up from prod's unset (~4) default
+            #   MAX_ROWS_PER_BLOCK: 10000 # VictoriaMetrics stock default (unchanged for this step)
+            #   KONN_SERVER_IMAGE: ${{ parameters.konn_server_image }}
+            #   KONN_AGENT_IMAGE: ${{ parameters.konn_agent_image }}
+            # real_targets_tune2:
+            #   TIERS: "500,1000,1500,2000"
+            #   SOAK_MINUTES: 5
+            #   REAL_TARGETS: "true"
+            #   RUN_LABEL: "real-queues10-rate4mib"
+            #   PARALLEL: "false"
+            #   RATE_LIMIT: 4194304      # 4 MiB/s
+            #   MAX_BLOCK_SIZE: 4194304  # 4 MiB
+            #   QUEUES: 10
+            #   MAX_ROWS_PER_BLOCK: 13333
+            #   KONN_SERVER_IMAGE: ${{ parameters.konn_server_image }}
+            #   KONN_AGENT_IMAGE: ${{ parameters.konn_agent_image }}
+            # real_targets_tune3:
+            #   TIERS: "500,1000,1500,2000"
+            #   SOAK_MINUTES: 5
+            #   REAL_TARGETS: "true"
+            #   RUN_LABEL: "real-queues12-rate6mib"
+            #   PARALLEL: "false"
+            #   RATE_LIMIT: 6291456      # 6 MiB/s
+            #   MAX_BLOCK_SIZE: 6291456  # 6 MiB
+            #   QUEUES: 12
+            #   MAX_ROWS_PER_BLOCK: 16667
+            #   KONN_SERVER_IMAGE: ${{ parameters.konn_server_image }}
+            #   KONN_AGENT_IMAGE: ${{ parameters.konn_agent_image }}
+            # real_targets_tune4:
+            #   TIERS: "500,1000,1500,2000"
+            #   SOAK_MINUTES: 5
+            #   REAL_TARGETS: "true"
+            #   RUN_LABEL: "real-queues16-rate8mib"
+            #   PARALLEL: "false"
+            #   RATE_LIMIT: 8388608      # 8 MiB/s — upper end of the 4-8 MiB/s range flagged as still-needed after the 2k-node test (vmagent-loadtest-analysis.md)
+            #   MAX_BLOCK_SIZE: 8388608  # 8 MiB — VictoriaMetrics stock default; prod is still pinned at .5 MiB
+            #   QUEUES: 16               # upper end of the recommended 8-16 (prod doesn't set this flag today, defaults to ~4)
+            #   MAX_ROWS_PER_BLOCK: 20000 # raised alongside maxBlockSize per VM's own tuning guidance
+            #   KONN_SERVER_IMAGE: ${{ parameters.konn_server_image }}
+            #   KONN_AGENT_IMAGE: ${{ parameters.konn_agent_image }}
           max_parallel: 1
-          timeout_in_minutes: 500
+          timeout_in_minutes: 180
           credential_type: service_connection
           ssh_key_enabled: false
 
