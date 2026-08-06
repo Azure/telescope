@@ -51,7 +51,9 @@ class TestAzureNodePoolCRUD(unittest.TestCase):
 
     def test_init_injects_configured_credential(self):
         """Test that the configured credential is passed to AKSClient."""
-        self.mock_configure_credential.assert_called_once_with()
+        self.mock_configure_credential.assert_called_once_with(
+            default_credential_exclude_mi=True
+        )
         self.mock_aks_client_cls.assert_called_once_with(
             resource_group="fake-resource-group",
             kube_config_file=None,

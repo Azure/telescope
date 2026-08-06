@@ -62,7 +62,7 @@ class NodePoolCRUD:
             kube_config_file=kube_config_file,
             result_dir=result_dir,
             operation_timeout_minutes=step_timeout / 60,  # Convert seconds to minutes
-            credential=configure_credential(),
+            credential=configure_credential(default_credential_exclude_mi=True),
         )
 
         if not self.aks_client:
