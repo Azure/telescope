@@ -134,6 +134,10 @@ stages:
               REAL_TARGETS: "true"
               RUN_LABEL: "real-baseline"
               PARALLEL: "false"
+              RATE_LIMIT: 2097152      # 2 MiB/s — current prod value
+              MAX_BLOCK_SIZE: 524288   # .5 MiB — current prod value (unchanged)
+              QUEUES: 8                # closest available default; prod doesn't set this flag today
+              MAX_ROWS_PER_BLOCK: 10000 # VictoriaMetrics stock default; prod doesn't set this either
               KONN_SERVER_IMAGE: ${{ parameters.konn_server_image }}
               KONN_AGENT_IMAGE: ${{ parameters.konn_agent_image }}
             # real_targets_tune1:
