@@ -58,6 +58,7 @@ class NodePoolCRUD:
         self.resource_group = resource_group
         self.aks_client = AKSClient(
             resource_group=resource_group,
+            exclude_managed_identity=True,
             kube_config_file=kube_config_file,
             result_dir=result_dir,
             operation_timeout_minutes=step_timeout / 60,  # Convert seconds to minutes
