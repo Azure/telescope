@@ -1,7 +1,7 @@
 import azure_pipelines.ap.steps
 
-# cloud-node-manager: every node is Ready and carries a providerID (set by the
-# cloud provider integration).
+# cloud-node-manager: the DaemonSet is fully rolled out on every node and each
+# node carries a providerID (set by the cloud provider integration).
 ValidateCloudNodeManager = lambda serviceConnection: str, displayName: str = "", continueOnError: bool = Undefined -> steps.Step {
     title = displayName if displayName else "Validate cloud-node-manager"
     script = """
@@ -9,35 +9,44 @@ set +e
 failures=0
 fail() { echo "FAILED CLOUD-NODE-MANAGER CHECK: $*"; failures=$((failures + 1)); }
 
-pods=$(kubectl -n kube-system get pods -l k8s-app=cloud-node-manager --no-headers 2>/dev/null)
-if [ -z "$pods" ]; then
-  fail "no cloud-node-manager pods found"
+# Use the DaemonSet status for whole-node coverage in one call.
+ds_status=$(kubectl -n kube-system get ds cloud-node-manager \
+  -o jsonpath='{.status.desiredNumberScheduled}/{.status.numberReady}/{.status.numberAvailable}/{.status.updatedNumberScheduled}/{.status.numberMisscheduled}' 2>/dev/null)
+if [ -z "$ds_status" ]; then
+  fail "cloud-node-manager daemonset not found"
 else
-  bad=$(printf '%s\\n' "$pods" | awk '{split($2,r,"/"); if ($3 != "Running" || r[1] != r[2]) print $1}')
-  if [ -n "$bad" ]; then
-    fail "cloud-node-manager pods not Running/Ready: $bad"
+  echo "cloud-node-manager ds desired/ready/available/updated/misscheduled: $ds_status"
+  desired=$(echo "$ds_status" | cut -d/ -f1)
+  ready=$(echo "$ds_status" | cut -d/ -f2)
+  available=$(echo "$ds_status" | cut -d/ -f3)
+  updated=$(echo "$ds_status" | cut -d/ -f4)
+  misscheduled=$(echo "$ds_status" | cut -d/ -f5)
+  if [ -z "$desired" ] || [ "$desired" = "0" ]; then
+    fail "cloud-node-manager desiredNumberScheduled is '${desired:-empty}'"
   fi
+  [ "$ready" = "$desired" ]      || fail "cloud-node-manager numberReady ($ready) != desired ($desired)"
+  [ "$available" = "$desired" ]  || fail "cloud-node-manager numberAvailable ($available) != desired ($desired)"
+  [ "$updated" = "$desired" ]    || fail "cloud-node-manager updatedNumberScheduled ($updated) != desired ($desired)"
+  [ "${misscheduled:-0}" = "0" ] || fail "cloud-node-manager numberMisscheduled = $misscheduled"
 fi
 
-# Check every node in a single list call so no node is missed; a per-node
-# "kubectl get node" would be one call per node and is too slow on large
-# clusters. All nodes are scanned locally; only problem nodes are printed.
-node_table=$(kubectl get nodes --no-headers -o custom-columns='NAME:.metadata.name,READY:.status.conditions[?(@.type=="Ready")].status,PROVIDER:.spec.providerID' 2>/dev/null)
+# cloud-node-manager's job is to stamp each Node with a providerID; verify that
+# in a single list call so no node is missed and large clusters stay fast.
+node_table=$(kubectl get nodes --no-headers -o custom-columns='NAME:.metadata.name,PROVIDER:.spec.providerID' 2>/dev/null)
 if [ -z "$node_table" ]; then
   fail "no nodes found"
-fi
-
-report=$(printf '%s\\n' "$node_table" | awk '
+else
+  report=$(printf '%s\\n' "$node_table" | awk '
 {
   total++
-  if ($2 != "True") { print "node " $1 " not Ready (Ready=" $2 ")"; bad++ }
-  if ($3 == "<none>" || $3 == "") { print "node " $1 " missing providerID"; bad++ }
+  if ($2 == "<none>" || $2 == "") { print "node " $1 " missing providerID"; bad++ }
 }
 END { print "checked " total " nodes, " bad+0 " problem(s)"; exit (bad > 0) }')
-rc=$?
-echo "$report"
-if [ "$rc" -ne 0 ]; then
-  fail "cloud-node-manager: some nodes are not Ready or missing providerID"
+  rc=$?
+  echo "$report"
+  if [ "$rc" -ne 0 ]; then
+    fail "cloud-node-manager: some nodes are missing providerID"
+  fi
 fi
 
 if [ "$failures" -gt 0 ]; then
