@@ -74,10 +74,35 @@ def _create_nodepool_like(resource_group: str, cluster_name: str, nodepool: str,
     run(args)
 
 
+def _wait_for_nodepool_idle(resource_group: str, cluster_name: str, nodepool: str,
+                            timeout_minutes: int = 15, poll_interval: int = 15) -> None:
+    """Wait until `nodepool` has no in-progress scale/update operation.
+
+    AKS allows only one operation per nodepool at a time; issuing a new
+    scale while one is still in flight is rejected outright
+    (OperationNotAllowed). This matters most after a ramp retry: the
+    previous attempt's --no-wait scale call may still be running on
+    Azure's side even though our own script gave up waiting on it.
+    """
+    deadline = time.time() + timeout_minutes * 60
+    while time.time() < deadline:
+        spec = _get_nodepool(resource_group, cluster_name, nodepool)
+        if spec is None:
+            return  # pool doesn't exist yet -- nothing to wait on
+        state = spec.get("provisioningState", "")
+        if state not in ("Scaling", "Updating", "Creating"):
+            return
+        log.info("  nodepool '%s' still %s, waiting for it to settle before scaling...",
+                 nodepool, state)
+        time.sleep(poll_interval)
+    log.warning("Timed out waiting for nodepool '%s' to become idle (still in progress)", nodepool)
+
+
 @retry(max_attempts=3, backoff=15.0)
 def _scale_single_pool(resource_group: str, cluster_name: str, nodepool: str,
                        node_count: int) -> None:
     """Scale one existing nodepool to node_count (skips if already there)."""
+    _wait_for_nodepool_idle(resource_group, cluster_name, nodepool)
     spec = _get_nodepool(resource_group, cluster_name, nodepool)
     if spec is not None and spec.get("count", -1) == node_count:
         log.info("Nodepool '%s' already at %d nodes, skipping scale.", nodepool, node_count)

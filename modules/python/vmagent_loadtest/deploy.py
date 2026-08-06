@@ -57,7 +57,7 @@ def deploy_konnectivity_server(kubeconfig: str, namespace: str, server_count: in
     kubectl_apply(kubeconfig, manifest)
     if wait:
         kubectl(kubeconfig, "-n", namespace, "rollout", "status",
-                "deployment/konnectivity-server", "--timeout=120s")
+                "deployment/konnectivity-server", "--timeout=300s")
         log.info("Konnectivity server ready in %s", namespace)
     else:
         log.info("Konnectivity server deployed (waiting for certs before readiness)")
@@ -93,7 +93,7 @@ def deploy_konnectivity_agents(kubeconfig: str, namespace: str, server_host: str
     })
     kubectl_apply(kubeconfig, manifest)
     kubectl(kubeconfig, "-n", namespace, "rollout", "status",
-            "deployment/konnectivity-agent", "--timeout=300s")
+            "deployment/konnectivity-agent", "--timeout=600s")
     log.info("Konnectivity agents ready in %s", namespace)
 
 
@@ -294,7 +294,7 @@ def deploy_vmsingle(kubeconfig: str, namespace: str) -> None:
     })
     kubectl_apply(kubeconfig, manifest)
     kubectl(kubeconfig, "-n", namespace, "rollout", "status",
-            "deployment/vmsingle", "--timeout=180s")
+            "deployment/vmsingle", "--timeout=300s")
     log.info("vmsingle ready in %s", namespace)
 
 
@@ -344,10 +344,10 @@ def deploy_vmagent(kubeconfig: str, namespace: str, dp_api_server: str,
     manifest = render_template(MANIFEST_DIR / "vmagent.yaml", replacements)
     kubectl_apply(kubeconfig, manifest)
     kubectl(kubeconfig, "-n", namespace, "rollout", "status",
-            "statefulset/vmagent", "--timeout=300s")
+            "statefulset/vmagent", "--timeout=600s")
     log.info("VMAgent ready in %s (%d shard(s))", namespace, replicas)
 
 
 def rollout_restart(kubeconfig: str, namespace: str, resource: str) -> None:
     kubectl(kubeconfig, "-n", namespace, "rollout", "restart", resource)
-    kubectl(kubeconfig, "-n", namespace, "rollout", "status", resource, "--timeout=300s")
+    kubectl(kubeconfig, "-n", namespace, "rollout", "status", resource, "--timeout=600s")

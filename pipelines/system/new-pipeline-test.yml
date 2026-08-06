@@ -140,54 +140,56 @@ stages:
               MAX_ROWS_PER_BLOCK: 10000 # VictoriaMetrics stock default; prod doesn't set this either
               KONN_SERVER_IMAGE: ${{ parameters.konn_server_image }}
               KONN_AGENT_IMAGE: ${{ parameters.konn_agent_image }}
-            real_targets_tune1:
-              TIERS: "500,1000,1500,2000"
-              SOAK_MINUTES: 5
-              REAL_TARGETS: "true"
-              RUN_LABEL: "real-queues8-rate2mib"
-              PARALLEL: "false"
-              RATE_LIMIT: 2097152      # 2 MiB/s — current prod value (unchanged baseline for this step)
-              MAX_BLOCK_SIZE: 2097152  # 2 MiB — first step up from prod's .5 MiB
-              QUEUES: 8                # first step up from prod's unset (~4) default
-              MAX_ROWS_PER_BLOCK: 10000 # VictoriaMetrics stock default (unchanged for this step)
-              KONN_SERVER_IMAGE: ${{ parameters.konn_server_image }}
-              KONN_AGENT_IMAGE: ${{ parameters.konn_agent_image }}
-            real_targets_tune2:
-              TIERS: "500,1000,1500,2000"
-              SOAK_MINUTES: 5
-              REAL_TARGETS: "true"
-              RUN_LABEL: "real-queues10-rate4mib"
-              PARALLEL: "false"
-              RATE_LIMIT: 4194304      # 4 MiB/s
-              MAX_BLOCK_SIZE: 4194304  # 4 MiB
-              QUEUES: 10
-              MAX_ROWS_PER_BLOCK: 13333
-              KONN_SERVER_IMAGE: ${{ parameters.konn_server_image }}
-              KONN_AGENT_IMAGE: ${{ parameters.konn_agent_image }}
-            real_targets_tune3:
-              TIERS: "500,1000,1500,2000"
-              SOAK_MINUTES: 5
-              REAL_TARGETS: "true"
-              RUN_LABEL: "real-queues12-rate6mib"
-              PARALLEL: "false"
-              RATE_LIMIT: 6291456      # 6 MiB/s
-              MAX_BLOCK_SIZE: 6291456  # 6 MiB
-              QUEUES: 12
-              MAX_ROWS_PER_BLOCK: 16667
-              KONN_SERVER_IMAGE: ${{ parameters.konn_server_image }}
-              KONN_AGENT_IMAGE: ${{ parameters.konn_agent_image }}
-            real_targets_tune4:
-              TIERS: "500,1000,1500,2000"
-              SOAK_MINUTES: 5
-              REAL_TARGETS: "true"
-              RUN_LABEL: "real-queues16-rate8mib"
-              PARALLEL: "false"
-              RATE_LIMIT: 8388608      # 8 MiB/s — upper end of the 4-8 MiB/s range flagged as still-needed after the 2k-node test (vmagent-loadtest-analysis.md)
-              MAX_BLOCK_SIZE: 8388608  # 8 MiB — VictoriaMetrics stock default; prod is still pinned at .5 MiB
-              QUEUES: 16               # upper end of the recommended 8-16 (prod doesn't set this flag today, defaults to ~4)
-              MAX_ROWS_PER_BLOCK: 20000 # raised alongside maxBlockSize per VM's own tuning guidance
-              KONN_SERVER_IMAGE: ${{ parameters.konn_server_image }}
-              KONN_AGENT_IMAGE: ${{ parameters.konn_agent_image }}
+            # Tuning legs held back until the baseline leg above passes clean
+            # up to 2000 nodes with the scale-retry + rollout-timeout fixes.
+            # real_targets_tune1:
+            #   TIERS: "500,1000,1500,2000"
+            #   SOAK_MINUTES: 5
+            #   REAL_TARGETS: "true"
+            #   RUN_LABEL: "real-queues8-rate2mib"
+            #   PARALLEL: "false"
+            #   RATE_LIMIT: 2097152      # 2 MiB/s — current prod value (unchanged baseline for this step)
+            #   MAX_BLOCK_SIZE: 2097152  # 2 MiB — first step up from prod's .5 MiB
+            #   QUEUES: 8                # first step up from prod's unset (~4) default
+            #   MAX_ROWS_PER_BLOCK: 10000 # VictoriaMetrics stock default (unchanged for this step)
+            #   KONN_SERVER_IMAGE: ${{ parameters.konn_server_image }}
+            #   KONN_AGENT_IMAGE: ${{ parameters.konn_agent_image }}
+            # real_targets_tune2:
+            #   TIERS: "500,1000,1500,2000"
+            #   SOAK_MINUTES: 5
+            #   REAL_TARGETS: "true"
+            #   RUN_LABEL: "real-queues10-rate4mib"
+            #   PARALLEL: "false"
+            #   RATE_LIMIT: 4194304      # 4 MiB/s
+            #   MAX_BLOCK_SIZE: 4194304  # 4 MiB
+            #   QUEUES: 10
+            #   MAX_ROWS_PER_BLOCK: 13333
+            #   KONN_SERVER_IMAGE: ${{ parameters.konn_server_image }}
+            #   KONN_AGENT_IMAGE: ${{ parameters.konn_agent_image }}
+            # real_targets_tune3:
+            #   TIERS: "500,1000,1500,2000"
+            #   SOAK_MINUTES: 5
+            #   REAL_TARGETS: "true"
+            #   RUN_LABEL: "real-queues12-rate6mib"
+            #   PARALLEL: "false"
+            #   RATE_LIMIT: 6291456      # 6 MiB/s
+            #   MAX_BLOCK_SIZE: 6291456  # 6 MiB
+            #   QUEUES: 12
+            #   MAX_ROWS_PER_BLOCK: 16667
+            #   KONN_SERVER_IMAGE: ${{ parameters.konn_server_image }}
+            #   KONN_AGENT_IMAGE: ${{ parameters.konn_agent_image }}
+            # real_targets_tune4:
+            #   TIERS: "500,1000,1500,2000"
+            #   SOAK_MINUTES: 5
+            #   REAL_TARGETS: "true"
+            #   RUN_LABEL: "real-queues16-rate8mib"
+            #   PARALLEL: "false"
+            #   RATE_LIMIT: 8388608      # 8 MiB/s — upper end of the 4-8 MiB/s range flagged as still-needed after the 2k-node test (vmagent-loadtest-analysis.md)
+            #   MAX_BLOCK_SIZE: 8388608  # 8 MiB — VictoriaMetrics stock default; prod is still pinned at .5 MiB
+            #   QUEUES: 16               # upper end of the recommended 8-16 (prod doesn't set this flag today, defaults to ~4)
+            #   MAX_ROWS_PER_BLOCK: 20000 # raised alongside maxBlockSize per VM's own tuning guidance
+            #   KONN_SERVER_IMAGE: ${{ parameters.konn_server_image }}
+            #   KONN_AGENT_IMAGE: ${{ parameters.konn_agent_image }}
           max_parallel: 1
           timeout_in_minutes: 2500
           credential_type: service_connection
