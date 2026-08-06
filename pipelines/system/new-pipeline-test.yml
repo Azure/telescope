@@ -1,14 +1,14 @@
 trigger: none
 
 parameters:
-  # Optional image overrides for testing a fix candidate before it merges.
-  # Leave blank to use main.py's own MCR image defaults.
+  # Defaults match main.py's own MCR image constants (config.py); override
+  # here to test a fix candidate before it merges.
   - name: konn_server_image
     type: string
-    default: ''
+    default: 'mcr.microsoft.com/oss/v2/kubernetes/apiserver-network-proxy/server:v0.32.1-11'
   - name: konn_agent_image
     type: string
-    default: ''
+    default: 'mcr.microsoft.com/oss/v2/kubernetes/apiserver-network-proxy/agent:v0.32.1-11'
 
 pool:
   name: 'AKS-Telescope-Airlock'
