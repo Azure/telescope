@@ -66,6 +66,7 @@ class AKSClient:
         resource_group: Optional[str] = None,
         cluster_name: Optional[str] = None,
         use_managed_identity: bool = False,
+        exclude_managed_identity: bool = False,
         kube_config_file: Optional[str] = os.path.expanduser("~/.kube/config"),
         result_dir: Optional[str] = None,
         operation_timeout_minutes: int = 10,  # Timeout for each step in seconds
@@ -81,6 +82,11 @@ class AKSClient:
                           will try to get the first cluster in the resource group.
             use_managed_identity: Whether to use managed identity for authentication.
                                  If False, will fall back to DefaultAzureCredential.
+            exclude_managed_identity: When using DefaultAzureCredential, exclude the
+                                     ManagedIdentityCredential from the chain. Use this
+                                     in pipeline environments where az login provides
+                                     credentials but the pool VM has an MSI in a
+                                     different tenant.
             kube_config_file: Path to the kubeconfig file for Kubernetes authentication.
         """
         # Get subscription ID from environment if not provided
@@ -104,8 +110,14 @@ class AKSClient:
                 logger.info("Using default Managed Identity for authentication")
                 self.credential = ManagedIdentityCredential()
         else:
-            logger.info("Using DefaultAzureCredential for authentication")
-            self.credential = DefaultAzureCredential()
+            if exclude_managed_identity:
+                logger.info("Using DefaultAzureCredential for authentication (excluding managed identity)")
+                self.credential = DefaultAzureCredential(
+                    exclude_managed_identity_credential=True
+                )
+            else:
+                logger.info("Using DefaultAzureCredential for authentication")
+                self.credential = DefaultAzureCredential()
         # Set up retry policy
         retry_policy = RetryPolicy(
             retry_mode=RetryMode.Exponential,
