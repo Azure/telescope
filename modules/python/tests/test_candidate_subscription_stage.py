@@ -24,8 +24,8 @@ N100_DSV4_TFVARS_PATH = TFVARS_PATH.with_name(
 N99_EUAP_TFVARS_PATH = TFVARS_PATH.with_name(
     "azure-99-mock-shared.tfvars"
 )
-N75_EUAP_TFVARS_PATH = TFVARS_PATH.with_name(
-    "azure-75-shared.tfvars"
+N90_EUAP_TFVARS_PATH = TFVARS_PATH.with_name(
+    "azure-90-shared.tfvars"
 )
 MOCK_DEPLOY_PATH = (
     REPOSITORY_ROOT
@@ -70,10 +70,10 @@ def _euap_n99_stage_block():
     return pipeline[start:end]
 
 
-def _euap_n75_stage_block():
+def _euap_n90_stage_block():
     pipeline = PIPELINE_PATH.read_text(encoding="utf-8")
     start = pipeline.index(
-        "- stage: azure_eastus2euap_fleet_threshold_n75_g100"
+        "- stage: azure_eastus2euap_fleet_threshold_n90_g100"
     )
     end = pipeline.index(
         "- stage: azure_eastus2euap_n2_reuse_smoke_preserve_37deca",
@@ -272,18 +272,18 @@ def test_original_subscription_n99_stage_uses_non_s_dv3():
     assert 'deletion_delay = "60h"' in tfvars
 
 
-def test_original_subscription_n75_stage_reuses_confirmed_n50_shape():
-    stage = _euap_n75_stage_block()
-    tfvars = N75_EUAP_TFVARS_PATH.read_text(encoding="utf-8")
+def test_original_subscription_n90_stage_reuses_confirmed_n75_shape():
+    stage = _euap_n90_stage_block()
+    tfvars = N90_EUAP_TFVARS_PATH.read_text(encoding="utf-8")
 
     for expected in (
         "- eastus2euap",
-        "azure-75-shared.tfvars",
+        "azure-90-shared.tfvars",
         'TF_CLI_ARGS_apply: "-parallelism=4"',
         'preserve_state_on_apply_failure: "true"',
-        "n75_g100_threshold:",
-        "cluster_count: 75",
-        "mesh_size: 75",
+        "n90_g100_threshold:",
+        "cluster_count: 90",
+        "mesh_size: 90",
         'share_infra_scenarios: "event-throughput,'
         'pod-churn-combined,isolation"',
         "max_parallel: 1",
@@ -293,9 +293,9 @@ def test_original_subscription_n75_stage_reuses_confirmed_n50_shape():
     ):
         assert expected in stage
 
-    assert "azure-50-shared.tfvars" not in stage
-    assert "cluster_count: 50" not in stage
-    assert "mesh_size: 50" not in stage
+    assert "azure-75-shared.tfvars" not in stage
+    assert "cluster_count: 75" not in stage
+    assert "mesh_size: 75" not in stage
     assert "CMP_STAGED_JOIN" not in stage
     assert "37deca37-c375-4a14-b90a-043849bd2bf1" not in stage
 
@@ -305,21 +305,21 @@ def test_original_subscription_n75_stage_reuses_confirmed_n50_shape():
             tfvars,
             flags=re.MULTILINE,
         )
-    ) == 75
+    ) == 90
     assert len(
         re.findall(
             r'^\s{8}name\s+= "clustermesh-\d+-pod"$',
             tfvars,
             flags=re.MULTILINE,
         )
-    ) == 75
-    assert tfvars.count('aks_name                      = "clustermesh-') == 75
-    assert tfvars.count('vm_size              = "Standard_D4_v3"') == 75
-    assert tfvars.count('vm_size              = "Standard_D8_v3"') == 75
-    assert tfvars.count('name                 = "prompool"') == 75
-    assert tfvars.count('member_name = "mesh-') == 75
-    assert 'role                          = "mesh-76"' not in tfvars
-    assert 'member_name = "mesh-76"' not in tfvars
+    ) == 90
+    assert tfvars.count('aks_name                      = "clustermesh-') == 90
+    assert tfvars.count('vm_size              = "Standard_D4_v3"') == 90
+    assert tfvars.count('vm_size              = "Standard_D8_v3"') == 90
+    assert tfvars.count('name                 = "prompool"') == 90
+    assert tfvars.count('member_name = "mesh-') == 90
+    assert 'role                          = "mesh-91"' not in tfvars
+    assert 'member_name = "mesh-91"' not in tfvars
     assert 'member_label_value = "true"' in tfvars
     assert "member_initial_label_value" not in tfvars
     assert 'deletion_delay = "48h"' in tfvars

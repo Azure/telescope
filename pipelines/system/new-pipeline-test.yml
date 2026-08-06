@@ -1361,14 +1361,14 @@ stages:
           skip_publish: false
 
   # ============================================================================
-  # Fleet threshold probe: N=75 after N=50 converged and N=99 stalled.
+  # Fleet threshold probe: N=90 after N=75 converged and N=99 stalled.
   # ============================================================================
-  # Quota: 3600 Dv3 vCPU. Validation only: no ClusterLoader2 workload or publish.
-  - stage: azure_eastus2euap_fleet_threshold_n75_g100
+  # Quota: 4320 Dv3 vCPU. Validation only: no ClusterLoader2 workload or publish.
+  - stage: azure_eastus2euap_fleet_threshold_n90_g100
     dependsOn: []
     variables:
       TF_CLI_ARGS_apply: "-parallelism=4"
-    displayName: "Fleet threshold probe: n=75 (validation only)"
+    displayName: "Fleet threshold probe: n=90 (validation only)"
     jobs:
       - template: /jobs/competitive-test.yml
         parameters:
@@ -1383,11 +1383,11 @@ stages:
             operation_timeout: 30m
           topology: clustermesh-scale
           terraform_input_file_mapping:
-            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-75-shared.tfvars"
+            - eastus2euap: "scenarios/perf-eval/clustermesh-scale/terraform-inputs/azure-90-shared.tfvars"
           matrix:
-            n75_g100_threshold:
-              cluster_count: 75
-              mesh_size: 75
+            n90_g100_threshold:
+              cluster_count: 90
+              mesh_size: 90
               share_infra_scenarios: "event-throughput,pod-churn-combined,isolation"
               cl2_config_file: ""
               test_type: shared
